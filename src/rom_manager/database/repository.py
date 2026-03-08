@@ -69,8 +69,9 @@ class LibraryRepository:
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.database_path)
+        connection = sqlite3.connect(self.database_path, timeout=10)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode=WAL")
         try:
             yield connection
         finally:
@@ -79,8 +80,9 @@ class LibraryRepository:
     @contextmanager
     def batch(self) -> Iterator[sqlite3.Connection]:
         """Single open connection for bulk writes. Commits once on exit, rolls back on error."""
-        connection = sqlite3.connect(self.database_path)
+        connection = sqlite3.connect(self.database_path, timeout=10)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode=WAL")
         try:
             yield connection
             connection.commit()
