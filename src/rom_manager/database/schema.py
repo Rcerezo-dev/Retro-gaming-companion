@@ -88,6 +88,22 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_file_operations_game ON file_operations (game_id)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS save_sync_log (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        local_path      TEXT NOT NULL,
+        remote_path     TEXT NOT NULL,
+        direction       TEXT NOT NULL,
+        local_mtime     TEXT,
+        remote_mtime    TEXT,
+        result          TEXT NOT NULL,
+        message         TEXT,
+        created_at      TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_sync_log_local ON save_sync_log (local_path)
+    """,
 )
 
 # Columns added after the initial schema that may be missing in existing databases.

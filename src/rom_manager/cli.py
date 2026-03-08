@@ -9,7 +9,10 @@ from rom_manager.converters.chd_converter import convert_directory
 from rom_manager.database import LibraryRepository
 from rom_manager.logging_utils import configure_logging
 from rom_manager.planner import build_plan
+from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.scanner import scan_library
+from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
+from rom_manager.sync.save_syncer import sync_saves
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,6 +47,69 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "duplicates",
         help="List ROM files that share the same SHA1 hash (exact duplicates).",
+    )
+
+    report_parser = subparsers.add_parser(
+        "report",
+        help="Export a library report as JSON or CSV.",
+    )
+    report_parser.add_argument(
+        "--format",
+        choices=["json", "csv"],
+        default="json",
+        dest="report_format",
+        help="Output format (default: json).",
+    )
+    report_parser.add_argument(
+        "--output",
+        metavar="FILE",
+        default=None,
+        help="Write output to FILE instead of stdout.",
+    )
+
+    sync_parser = subparsers.add_parser(
+        "sync-saves",
+        help="Sync save files between local saves dir and a remote (rclone).",
+    )
+    sync_parser.add_argument(
+        "saves_dir",
+        type=Path,
+        help="Local folder containing save files.",
+    )
+    sync_parser.add_argument(
+        "remote",
+        help="rclone remote path, e.g. 'dropbox:/RetroArch/saves'.",
+    )
+    sync_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually transfer files (default is dry run).",
+    )
+    sync_parser.add_argument(
+        "--rclone",
+        default="rclone",
+        metavar="PATH",
+        help="Path to rclone binary (default: 'rclone', assumes it is in PATH).",
+    )
+
+    status_parser = subparsers.add_parser(
+        "sync-status",
+        help="Show sync status for save files without transferring anything.",
+    )
+    status_parser.add_argument(
+        "saves_dir",
+        type=Path,
+        help="Local folder containing save files.",
+    )
+    status_parser.add_argument(
+        "remote",
+        help="rclone remote path, e.g. 'dropbox:/RetroArch/saves'.",
+    )
+    status_parser.add_argument(
+        "--rclone",
+        default="rclone",
+        metavar="PATH",
+        help="Path to rclone binary (default: 'rclone', assumes it is in PATH).",
     )
 
     chd_parser = subparsers.add_parser(
@@ -166,6 +232,66 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Renamed: {renamed}  |  Failed: {failed}")
         if plan.conflicts:
             print(f"{len(plan.conflicts)} conflict(s) were skipped — resolve manually.")
+        return 0
+
+    if args.command == "report":
+        report = build_report(repository)
+        if args.report_format == "json":
+            output = to_json(report)
+        else:
+            output = to_csv(report)
+
+        if args.output:
+            Path(args.output).write_text(output, encoding="utf-8")
+            print(f"Report written to {args.output}  ({report.total_games} games)")
+        else:
+            print(output)
+        return 0
+
+    if args.command in ("sync-saves", "sync-status"):
+        saves_dir = args.saves_dir.resolve()
+        if not saves_dir.exists() or not saves_dir.is_dir():
+            parser.error(f"Saves directory does not exist: {saves_dir}")
+
+        dry_run = args.command == "sync-status" or not args.apply
+        transport = RcloneTransport(rclone=args.rclone)
+
+        if dry_run and args.command == "sync-saves":
+            print("DRY RUN — no files will be transferred. Pass --apply to sync.\n")
+        if args.command == "sync-status":
+            print("Sync status (no files will be transferred).\n")
+
+        try:
+            result, decisions = sync_saves(
+                saves_dir,
+                args.remote,
+                transport=transport,
+                repository=repository,
+                save_extensions=config.save_extensions,
+                dry_run=dry_run,
+            )
+        except RcloneError as exc:
+            print(f"[ERROR] {exc}")
+            return 1
+
+        for d in decisions:
+            if d.action == "up_to_date":
+                continue
+            tag = {"upload": "↑ UPLOAD", "download": "↓ DOWNLOAD", "conflict": "⚠ CONFLICT"}.get(
+                d.action, d.action.upper()
+            )
+            print(f"  [{tag}]  {d.relative}")
+
+        verb = "Would " if dry_run else ""
+        print(
+            f"\n{verb}Upload: {result.uploaded}  |  "
+            f"{verb}Download: {result.downloaded}  |  "
+            f"Up to date: {result.up_to_date}  |  "
+            f"Conflicts: {result.conflicts}  |  "
+            f"Errors: {result.errors}"
+        )
+        if not dry_run and result.errors == 0 and (result.uploaded + result.downloaded) > 0:
+            print("Sync complete.")
         return 0
 
     if args.command == "convert-chd":
