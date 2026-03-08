@@ -1,89 +1,191 @@
 # ROM Manager Local
 
-A local CLI tool for scanning, identifying, and organizing retro game ROM libraries.
+Herramienta CLI local para escanear, identificar, organizar y sincronizar colecciones de ROMs de videojuegos retro.
 
-Designed for a shared setup: one ROM collection that works both on a Windows PC (desktop emulators) and an Anbernic RG 556 (RetroArch on Android), with save sync via cloud storage coming in a later phase.
-
----
-
-## Features
-
-- Recursive scan of any folder — classifies every file as ROM, save, frontend asset, system support, or unknown
-- SHA1 + MD5 + CRC32 hashing for every ROM
-- Platform detection by file extension
-- Region detection from filename (No-Intro parentheses style, GoodTools bracket codes, plain-text fallbacks)
-- Catalog matching against local No-Intro and Redump DAT files (SHA1 lookup → canonical title)
-- SQLite inventory at `.rommgr/library.sqlite` — survives re-scans via upsert
-- No runtime dependencies — pure Python stdlib
+Diseñada para un setup compartido: una única colección de ROMs que funciona tanto en el PC (emuladores de escritorio) como en la Anbernic RG 556 (RetroArch para Android), con sincronización de saves en la nube incluida.
 
 ---
 
-## Installation
+## Características
 
-Requires **Python 3.11+**.
+- Escaneo recursivo de cualquier carpeta — clasifica cada archivo como ROM, save, asset de frontend, soporte del sistema o desconocido
+- Hashing SHA1 + MD5 + CRC32 para cada ROM
+- Detección de plataforma por extensión de archivo
+- Detección de región desde el nombre de archivo (estilo No-Intro con paréntesis, códigos GoodTools entre corchetes, texto plano como fallback)
+- Matching contra catálogos locales No-Intro y Redump en formato DAT (búsqueda por SHA1 → título canónico)
+- Escaneo incremental: omite el re-hasheo de ROMs cuyo mtime y tamaño no han cambiado
+- Inventario SQLite en `.rommgr/library.sqlite` — sobrevive re-escaneos mediante upsert
+- Renombrado seguro: `plan` para previsualizar, `apply` para ejecutar, sin sobrescrituras
+- Detección de duplicados exactos por SHA1
+- Conversión de sets PSX `.cue+.bin` a `.chd` (dry run por defecto)
+- Sincronización de saves entre PC y dispositivos remotos vía rclone
+- Interfaz web local para explorar la biblioteca sin tocar la terminal
+- Exportación de reportes en JSON y CSV
+- Sin dependencias de runtime externas — Python stdlib puro
+
+---
+
+## Instalación
+
+Requiere **Python 3.11+**.
 
 ```bash
-# Clone the repo
+# Clonar el repositorio
 git clone https://github.com/your-username/Retro_gaming_app.git
 cd Retro_gaming_app
 
-# Install (editable)
+# Instalar (modo editable)
 pip install -e .
 
-# Install with dev tools (pytest)
+# Instalar con herramientas de desarrollo (pytest)
 pip install -e .[dev]
 ```
 
-> If you use Conda, create an environment first:
+> Con Conda, crear el entorno primero:
 > ```bash
 > conda create -n rom_manager python=3.12
 > conda activate rom_manager
 > pip install -e .[dev]
 > ```
 
-On Windows, a convenience launcher is included so you do not need to modify PATH:
+En Windows hay un lanzador de conveniencia que no requiere modificar el PATH:
 
 ```bat
-scripts\rommgr.cmd <command>
+scripts\rommgr.cmd <comando>
 ```
 
 ---
 
-## Usage
+## Configuración
+
+Genera un `config.toml` de ejemplo en la carpeta del proyecto:
 
 ```bash
-# Scan a folder and hash all ROMs
-rommgr scan <path-to-roms>
-
-# Show library summary
-rommgr status
-
-# Match unresolved ROMs against No-Intro / Redump catalogs
-rommgr match
-
-# List ROMs that have not been matched yet
-rommgr unresolved
-
-# Preview renames based on canonical catalog titles (no files changed)
-rommgr plan
-
-# Execute the renames
-rommgr apply
-
-# Convert PSX .cue+.bin sets to .chd — dry run
-rommgr convert-chd <path-to-psx-roms>
-
-# Convert and delete source files
-rommgr convert-chd <path-to-psx-roms> --apply --delete-source --chdman "C:\tools\chdman.exe"
+rommgr init-config
 ```
 
-### Example session
+El archivo generado documenta todas las opciones disponibles:
+
+```toml
+[library]
+# Carpeta local donde están los saves del PC
+# saves_dir = "D:/RetroArch/saves"
+
+[sync]
+# Remote de rclone, p.ej. "dropbox:/RetroArch/saves"
+# remote = "dropbox:/RetroArch/saves"
+rclone = "rclone"
+
+[tools]
+chdman = "chdman"
+
+[web]
+host = "127.0.0.1"
+port = 7777
+```
+
+Todos los valores son opcionales; se usan los defaults si no se especifican.
+
+---
+
+## Uso
+
+### Escanear y hashear
+
+```bash
+# Escanear una carpeta (el segundo escaneo omite ROMs sin cambios)
+rommgr scan <ruta-a-roms>
+
+# Ver resumen de la biblioteca
+rommgr status
+```
+
+### Matching con catálogos
+
+```bash
+# Cargar DATs y matchear todos los ROMs sin resolver
+rommgr match
+
+# Listar ROMs que todavía no tienen match
+rommgr unresolved
+```
+
+### Renombrado
+
+```bash
+# Previsualizar renombrados (no modifica ningún archivo)
+rommgr plan
+
+# Ejecutar los renombrados
+rommgr apply
+```
+
+### Duplicados y reportes
+
+```bash
+# Listar ROMs con el mismo SHA1 almacenados en rutas distintas
+rommgr duplicates
+
+# Exportar reporte completo de la biblioteca
+rommgr report --format json --output report.json
+rommgr report --format csv  --output report.csv
+```
+
+### Conversión a CHD (PSX)
+
+```bash
+# Previsualizar conversiones (dry run)
+rommgr convert-chd <ruta-a-roms-psx>
+
+# Convertir y eliminar los archivos fuente
+rommgr convert-chd <ruta-a-roms-psx> --apply --delete-source
+```
+
+Si `chdman` no está en el PATH, especifícalo con `--chdman "C:\tools\chdman.exe"` o configúralo en `config.toml`.
+
+### Sincronización de saves
+
+```bash
+# Ver qué saves están desactualizados (sin transferir nada)
+rommgr sync-status --saves-dir "D:/RetroArch/saves" --remote "dropbox:/RetroArch/saves"
+
+# Dry run de sincronización
+rommgr sync-saves --saves-dir "D:/RetroArch/saves" --remote "dropbox:/RetroArch/saves"
+
+# Sincronizar de verdad
+rommgr sync-saves --saves-dir "D:/RetroArch/saves" --remote "dropbox:/RetroArch/saves" --apply
+```
+
+Si `saves_dir` y `remote` están definidos en `config.toml`, no hace falta pasarlos como argumentos.
+
+**Política de conflictos:** si ambos lados cambiaron desde el último sync, el remoto se respalda con sufijo de timestamp y el local gana. Todo queda registrado en SQLite.
+
+### Interfaz web local
+
+```bash
+rommgr serve
+# Abre http://127.0.0.1:7777/ en el navegador
+```
+
+La interfaz incluye cuatro pestañas:
+
+| Pestaña | Contenido |
+|---|---|
+| Overview | Totales de juegos, saves, assets, % de match, duplicados y espacio desperdiciado |
+| Games | Lista filtrable por plataforma y estado de match; descarga de reporte JSON/CSV |
+| Plan | Preview de renombrados pendientes y conflictos |
+| Duplicates | Grupos de ROMs con el mismo SHA1 y espacio recuperable |
+
+---
+
+### Sesión de ejemplo
 
 ```
 > rommgr scan D:\ROMs
 Scanned: D:\ROMs
 Files seen:            4 821
 ROMs detected:         4 203
+ROMs skipped (cached): 0
 Saves detected:        312
 Assets detected:       180
 Unknown files:         126
@@ -96,84 +198,113 @@ Loading catalogs…
 Matching 4 203 unresolved ROMs…
 Matched:   4 101
 Not found: 102
+
+> rommgr duplicates
+Duplicate groups: 3  (7 files, ~24.0 MB wasted)
+
+[SHA1: A1B2C3D4E5F6…]  Game Boy  ·  Tetris (World)
+  D:\ROMs\GB\tetris.gb        (1.0 MB)
+  D:\ROMs\Backup\tetris.gb    (1.0 MB)
 ```
 
 ---
 
-## Catalog DAT files
+## Archivos DAT de catálogos
 
-The matcher reads `.dat` files in Logiqx XML format (the standard used by No-Intro and Redump).
+El matcher lee archivos `.dat` en formato XML Logiqx (el estándar de No-Intro y Redump).
 
-Place them in:
+Colócalos en:
 
 ```
 .rommgr/
   catalogs/
-    nointro/   ← cartridge DATs (GB, GBC, GBA, NES, SNES, N64, DS, …)
-    redump/    ← disc DATs (PSX, PS2, PSP, GameCube, Wii, Dreamcast, …)
+    nointro/   ← DATs de cartuchos (GB, GBC, GBA, NES, SNES, N64, DS, …)
+    redump/    ← DATs de disco (PSX, PS2, PSP, GameCube, Wii, Dreamcast, …)
 ```
 
-Download DATs from [No-Intro](https://www.no-intro.org/) and [Redump](http://redump.org/).
+Descarga los DATs desde [No-Intro](https://www.no-intro.org/) y [Redump](http://redump.org/).
 
 ---
 
-## Project structure
+## Estructura del proyecto
 
 ```
 src/rom_manager/
-  cli.py                      # Commands: scan, status, match, unresolved
-  config.py                   # AppConfig (paths, extensions)
+  cli.py                       # Todos los comandos
+  config.py                    # AppConfig + lectura de config.toml
   logging_utils.py
   catalog/
-    catalog_loader.py         # Parse Logiqx XML DATs → sha1→CatalogEntry
-    matcher.py                # CatalogMatcher: SHA1 lookup across all DATs
+    catalog_loader.py          # Parseo de DATs XML Logiqx → sha1→CatalogEntry
+    matcher.py                 # CatalogMatcher: búsqueda SHA1 en todos los DATs
   database/
-    schema.py                 # SQLite schema + automatic migrations
-    repository.py             # LibraryRepository (upsert, batch, match updates)
+    schema.py                  # Esquema SQLite + migraciones automáticas
+    repository.py              # LibraryRepository (upsert, batch, match, duplicados)
   detection/
-    file_classifier.py        # ROM / save / asset / system / unknown
-    platform_detector.py      # Platform from extension
-    region_parser.py          # Region from filename
+    file_classifier.py         # ROM / save / asset / system / unknown
+    platform_detector.py       # Plataforma desde extensión
+    region_parser.py           # Región desde nombre de archivo
     filename_normalizer.py
     set_detector.py
   hashing/
-    hash_calculator.py        # SHA1 + MD5 + CRC32, 1 MB chunks
+    hash_calculator.py         # SHA1 + MD5 + CRC32, chunks de 1 MB
   scanner/
-    rom_scanner.py            # Main scan loop
+    rom_scanner.py             # Bucle principal de escaneo (incremental)
     asset_scanner.py
     save_scanner.py
+  planner/
+    operation_planner.py       # Genera RenamePlan con estados pending/correct/conflict
+  converters/
+    chd_converter.py           # Conversión PSX .cue+.bin → .chd
+  reports/
+    reporter.py                # LibraryReport → JSON / CSV
+  sync/
+    rclone_transport.py        # Wrapper sobre el binario rclone
+    conflict_resolver.py       # Lógica de resolución: el más reciente gana
+    save_syncer.py             # Orquestador de sync
+    sync_log.py                # Tabla save_sync_log en SQLite
+  web/
+    server.py                  # ThreadingHTTPServer stdlib (sin deps externas)
+    frontend.py                # SPA embebida (HTML/CSS/JS)
 tests/
   test_catalog_matcher.py
+  test_chd_converter.py
+  test_conflict_resolver.py
+  test_config.py
+  test_duplicates.py
   test_file_classifier.py
   test_filename_normalizer.py
+  test_operation_planner.py
   test_region_parser.py
+  test_reporter.py
+  test_save_syncer.py
+  test_web_server.py
 ```
 
 ---
 
-## Roadmap
+## Hoja de ruta
 
-| Phase | Description | Status |
+| Fase | Descripción | Estado |
 |---|---|---|
-| 1 | Scan, hash, SQLite inventory, basic CLI | Done |
-| 2 | Catalog matching via SHA1 (No-Intro + Redump) | Done |
-| 3 | Plan + Apply: safe rename + CHD conversion for PSX | Done |
-| 4 | Duplicate detection, incremental scans, reports | Pending |
-| 5 | Save sync (PC ↔ Anbernic RG 556) via rclone + Dropbox | Pending |
-| 6 | Local web frontend | Pending |
+| 1 | Escaneo, hashing, inventario SQLite, CLI básico | Completada |
+| 2 | Matching por SHA1 contra catálogos No-Intro y Redump | Completada |
+| 3 | Plan + Apply: renombrado seguro + conversión CHD para PSX | Completada |
+| 4 | Detección de duplicados, escaneo incremental, reportes | Completada |
+| 5 | Sincronización de saves (PC ↔ Anbernic RG 556) vía rclone | Completada |
+| 6 | Frontend web local | Completada |
 
 ---
 
-## Running tests
+## Tests
 
 ```bash
 pytest
 ```
 
-96 tests, no external dependencies required.
+152 tests, sin dependencias externas requeridas.
 
 ---
 
-## License
+## Licencia
 
 MIT
