@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from rom_manager.detection.filename_normalizer import sanitize_filename
+from rom_manager.detection.filename_normalizer import normalize_for_match, sanitize_filename
 
 
 @pytest.mark.parametrize(
@@ -35,3 +35,37 @@ from rom_manager.detection.filename_normalizer import sanitize_filename
 )
 def test_sanitize_filename(value: str, expected: str) -> None:
     assert sanitize_filename(value) == expected
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        # Extension stripped
+        ("tetris.gb",                      "tetris"),
+        ("game.bin",                       "game"),
+        ("game.iso",                       "game"),
+        # Parentheses stripped (region, rev, flags)
+        ("Tetris (World).gb",              "tetris"),
+        ("Tetris (World) (Rev 1).gb",      "tetris"),
+        ("Super Mario Land (World).gb",    "super mario land"),
+        # Brackets stripped (GoodTools flags)
+        ("Tetris (World) [!].gb",          "tetris"),
+        ("Tetris (W) [b1].gb",             "tetris"),
+        # Underscores → spaces
+        ("tetris_world.gb",               "tetris world"),
+        ("super_mario_land.gb",           "super mario land"),
+        # Hyphens → spaces
+        ("super-mario.gb",                "super mario"),
+        # Catalog title without extension (no change to base)
+        ("Tetris (World)",                "tetris"),
+        ("Metal Gear Solid (USA)",        "metal gear solid"),
+        # Empty annotations leave empty key
+        ("(World).gb",                    ""),
+        # Whitespace collapse
+        ("  Tetris   (World) .gb",        "tetris"),
+        # Mixed underscores and parens
+        ("tetris_(world)_[!].gb",         "tetris"),
+    ],
+)
+def test_normalize_for_match(name: str, expected: str) -> None:
+    assert normalize_for_match(name) == expected

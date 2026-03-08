@@ -374,11 +374,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         print(f"\nMatching {len(games)} unresolved ROMs…")
-        matched = 0
+        matched_high = 0
+        matched_medium = 0
+        matched_low = 0
         unmatched = 0
         with repository.batch() as conn:
             for game in games:
-                result = matcher.match(game.sha1)
+                result = matcher.match(game.sha1, game.original_filename)
                 if result is not None:
                     repository.update_match(
                         game.source_path,
@@ -387,12 +389,19 @@ def main(argv: list[str] | None = None) -> int:
                         catalog_source=result.catalog_source,
                         connection=conn,
                     )
-                    matched += 1
+                    if result.confidence == "high":
+                        matched_high += 1
+                    elif result.confidence == "medium":
+                        matched_medium += 1
+                    else:
+                        matched_low += 1
                 else:
                     unmatched += 1
 
-        print(f"\nMatched:   {matched}")
-        print(f"Not found: {unmatched}")
+        print(f"\nMatched (SHA1):   {matched_high}")
+        print(f"Matched (nombre): {matched_medium + matched_low}"
+              + (f"  ({matched_low} ambiguos)" if matched_low else ""))
+        print(f"Sin match:        {unmatched}")
         return 0
 
     if args.command == "duplicates":

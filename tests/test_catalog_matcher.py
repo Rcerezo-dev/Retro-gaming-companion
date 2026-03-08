@@ -91,3 +91,84 @@ def test_missing_catalog_dir(tmp_path: Path) -> None:
     assert matcher.nointro_entries == 0
     assert matcher.redump_entries == 0
     assert matcher.match("AABBCC" * 7) is None
+
+
+# ---------------------------------------------------------------------------
+# Name-based fallback tests
+# ---------------------------------------------------------------------------
+
+def test_name_fallback_medium_confidence(catalog_dirs: tuple[Path, Path]) -> None:
+    """SHA1 miss + unique normalised name → medium confidence."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    # Unknown SHA1, but filename normalises to "tetris" → matches "Tetris (World)"
+    result = matcher.match("0" * 40, "tetris (world) [!].gb")
+    assert result is not None
+    assert result.title == "Tetris (World)"
+    assert result.confidence == "medium"
+    assert result.ambiguous is False
+
+
+def test_name_fallback_medium_no_extension(catalog_dirs: tuple[Path, Path]) -> None:
+    """Filename without extension still matches."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Tetris (World)")
+    assert result is not None
+    assert result.confidence == "medium"
+
+
+def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
+    """Two titles with the same normalised key → low confidence, ambiguous=True."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir(); redump.mkdir()
+    _write_dat(
+        nointro / "test.dat",
+        [
+            ("Tetris (World)", "AA" * 20, "MD1", "C1", 1024),
+            ("Tetris (Japan)", "BB" * 20, "MD2", "C2", 1024),
+        ],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    # Both titles normalize to "tetris", so the filename "tetris.gb" is ambiguous
+    result = matcher.match("0" * 40, "tetris.gb")
+    assert result is not None
+    assert result.confidence == "low"
+    assert result.ambiguous is True
+
+
+def test_name_fallback_no_hit_returns_none(catalog_dirs: tuple[Path, Path]) -> None:
+    """Unknown SHA1 + unknown name → None."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "completelydifferentgame.gb")
+    assert result is None
+
+
+def test_sha1_takes_priority_over_name(catalog_dirs: tuple[Path, Path]) -> None:
+    """SHA1 match always wins even when filename would also match."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    sha1 = "AABBCCAABBCCAABBCCAABBCCAABBCCAABBCCAABBCC"
+    result = matcher.match(sha1, "tetris (world).gb")
+    assert result is not None
+    assert result.confidence == "high"
+
+
+def test_name_fallback_underscore_filename(catalog_dirs: tuple[Path, Path]) -> None:
+    """Filename with parentheses as underscores/annotations → matches catalog."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    # "tetris_(world).gb" → normalize → "tetris"; "Tetris (World)" → "tetris" ✓
+    result = matcher.match("0" * 40, "tetris_(world).gb")
+    assert result is not None
+    assert result.confidence == "medium"
+
+
+def test_no_filename_returns_none_on_sha1_miss(catalog_dirs: tuple[Path, Path]) -> None:
+    """Without filename argument, SHA1 miss → None (no name fallback)."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40)
+    assert result is None

@@ -1,37 +1,55 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
+from rom_manager.detection.filename_normalizer import normalize_for_match
 
 
 @dataclass(slots=True)
 class MatchResult:
     title: str
-    confidence: str  # "high" for SHA1 match
-    catalog_source: str  # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
+    confidence: str       # "high" | "medium" | "low"
+    catalog_source: str   # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
+    ambiguous: bool = False
 
 
 class CatalogMatcher:
-    """Matches ROM SHA1 hashes against loaded No-Intro and Redump catalogs.
+    """Matches ROM SHA1 hashes (and optionally filenames) against loaded catalogs.
+
+    Strategy
+    --------
+    1. SHA1 exact lookup → confidence "high".
+    2. Filename normalisation lookup (fallback when SHA1 misses):
+       - Unique normalised title → confidence "medium".
+       - Multiple titles share the same normalised key → confidence "low",
+         ``ambiguous=True``, first hit returned.
 
     Catalogs are loaded lazily on the first call to match().
-    No-Intro is checked first (cartridges); Redump second (optical discs).
+    No-Intro is checked before Redump in both passes.
     """
 
     def __init__(self, nointro_dir: Path, redump_dir: Path) -> None:
         self._nointro_dir = nointro_dir
         self._redump_dir = redump_dir
+        # SHA1 → (CatalogEntry, dat_filename)
         self._nointro: dict[str, tuple[CatalogEntry, str]] = {}
         self._redump: dict[str, tuple[CatalogEntry, str]] = {}
+        # normalized_title → [(CatalogEntry, dat_filename), …]
+        self._title_index: dict[str, list[tuple[CatalogEntry, str]]] = {}
         self._loaded = False
+
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
 
     def _load(self) -> None:
         if self._loaded:
             return
         self._nointro = self._load_dir(self._nointro_dir)
         self._redump = self._load_dir(self._redump_dir)
+        self._build_title_index()
         self._loaded = True
 
     @staticmethod
@@ -48,10 +66,36 @@ class CatalogMatcher:
                 result[sha1] = (entry, dat_file.name)
         return result
 
-    def match(self, sha1: str) -> MatchResult | None:
-        """Return a MatchResult for the given SHA1 or None if not found."""
+    def _build_title_index(self) -> None:
+        """Build a normalised-title → entries index from both catalogs."""
+        index: dict[str, list[tuple[CatalogEntry, str]]] = {}
+        for catalog in (self._nointro, self._redump):
+            for entry, source in catalog.values():
+                key = normalize_for_match(entry.title)
+                if not key:
+                    continue
+                index.setdefault(key, []).append((entry, source))
+        self._title_index = index
+
+    # ------------------------------------------------------------------
+    # Matching
+    # ------------------------------------------------------------------
+
+    def match(self, sha1: str, filename: str | None = None) -> MatchResult | None:
+        """Return a MatchResult or None.
+
+        Parameters
+        ----------
+        sha1:
+            SHA1 hash of the ROM (case-insensitive).
+        filename:
+            Original filename (with or without extension). Used as fallback
+            when the SHA1 is not found in any catalog.
+        """
         self._load()
         sha1_upper = sha1.upper()
+
+        # Pass 1 — SHA1 exact match (high confidence)
         for catalog in (self._nointro, self._redump):
             hit = catalog.get(sha1_upper)
             if hit:
@@ -61,7 +105,36 @@ class CatalogMatcher:
                     confidence="high",
                     catalog_source=source,
                 )
-        return None
+
+        # Pass 2 — Name-based fallback
+        if filename is None:
+            return None
+
+        key = normalize_for_match(filename)
+        if not key:
+            return None
+
+        hits = self._title_index.get(key)
+        if not hits:
+            return None
+
+        entry, source = hits[0]
+        if len(hits) == 1:
+            return MatchResult(
+                title=entry.title,
+                confidence="medium",
+                catalog_source=source,
+            )
+        return MatchResult(
+            title=entry.title,
+            confidence="low",
+            catalog_source=source,
+            ambiguous=True,
+        )
+
+    # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
 
     @property
     def nointro_entries(self) -> int:
