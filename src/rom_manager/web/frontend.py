@@ -52,6 +52,16 @@ HTML = r"""<!DOCTYPE html>
   .badge.conflict { background: #3a1a1a; color: #f44747; }
   .badge.pending  { background: #1a2a3a; color: #569cd6; }
   .badge.ok       { background: #1a3a2a; color: #4ec9b0; }
+  .badge.error    { background: #3a1a1a; color: #f44747; }
+  .badge.skipped  { background: #2a2a2a; color: #888; }
+  .badge.upload   { background: #1a2a3a; color: #569cd6; }
+  .badge.download { background: #1a3a1a; color: #6a9955; }
+  .badge.conflict { background: #3a2a1a; color: #ce9178; }
+
+  .config-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; background: #1e1e2e; border: 1px solid #333; border-radius: 6px; padding: 14px 16px; margin-top: 16px; max-width: 600px; }
+  .config-grid .cfg-key { color: #888; }
+  .config-grid .cfg-val { color: #d4d4d4; }
+  .config-grid .cfg-val.missing { color: #555; font-style: italic; }
 
   .dup-group { background: #1e1e2e; border: 1px solid #333; border-radius: 6px; margin-bottom: 12px; padding: 14px 16px; }
   .dup-group .title { color: #4ec9b0; margin-bottom: 8px; }
@@ -75,6 +85,7 @@ HTML = r"""<!DOCTYPE html>
   <button onclick="showTab('games')">Games</button>
   <button onclick="showTab('plan')">Plan</button>
   <button onclick="showTab('duplicates')">Duplicates</button>
+  <button onclick="showTab('sync')">Sync</button>
 </nav>
 
 <main>
@@ -120,6 +131,11 @@ HTML = r"""<!DOCTYPE html>
   <div id="dup-content"><p class="loading">Loading…</p></div>
 </div>
 
+<!-- SYNC -->
+<div id="tab-sync" class="tab">
+  <div id="sync-content"><p class="loading">Loading…</p></div>
+</div>
+
 </main>
 
 <script>
@@ -137,6 +153,7 @@ function showTab(name) {
   if (name === 'games')    loadGames();
   if (name === 'plan')     loadPlan();
   if (name === 'duplicates') loadDuplicates();
+  if (name === 'sync')       loadSync();
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -161,8 +178,17 @@ async function apiFetch(url) {
 async function loadOverview() {
   const el = document.getElementById('overview-cards');
   try {
-    const d = await apiFetch('/api/status');
+    const [d, cfg] = await Promise.all([apiFetch('/api/status'), apiFetch('/api/config')]);
     const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
+    const cfgHtml = `
+      <div class="config-grid" style="margin-top:24px">
+        <span class="cfg-key">saves_dir</span>
+        <span class="cfg-val ${cfg.saves_dir ? '' : 'missing'}">${cfg.saves_dir || '(not set)'}</span>
+        <span class="cfg-key">rclone remote</span>
+        <span class="cfg-val ${cfg.rclone_remote ? '' : 'missing'}">${cfg.rclone_remote || '(not set)'}</span>
+        <span class="cfg-key">web</span>
+        <span class="cfg-val">${cfg.web_host}:${cfg.web_port}</span>
+      </div>`;
     el.innerHTML = `
       ${card('Games', d.total_games)}
       ${card('Matched', d.matched_games, matchPct + '% of library')}
@@ -171,6 +197,7 @@ async function loadOverview() {
       ${card('Assets', d.total_assets)}
       ${card('Dup groups', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted')}
       ${card('Last scan', d.last_scan_at ? d.last_scan_at.replace('T',' ') : 'never')}
+      ${cfgHtml}
     `;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
@@ -273,6 +300,41 @@ async function loadDuplicates() {
         </div>
         ${g.entries.map(e => `<div class="entry"><span>${e.source_path}</span>  <span style="color:#555">${fmtSize(e.size_bytes)}</span></div>`).join('')}
       </div>`).join('');
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────────
+async function loadSync() {
+  const el = document.getElementById('sync-content');
+  try {
+    const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
+    let html = '';
+    // Config info
+    if (cfg.rclone_remote) {
+      html += `<p style="color:#888;margin-bottom:16px">Remote: <span style="color:#4ec9b0">${cfg.rclone_remote}</span></p>`;
+    } else {
+      html += `<p class="error-msg" style="margin-bottom:16px">No rclone remote configured. Set <code>[sync] remote</code> in config.toml and run <code>rommgr sync-saves</code>.</p>`;
+    }
+    if (sl.entries.length === 0) {
+      html += '<p class="empty">No sync events recorded yet. Run <code>rommgr sync-saves</code> to start syncing.</p>';
+      el.innerHTML = html;
+      return;
+    }
+    html += `<p style="color:#666;margin-bottom:12px">${sl.entries.length} event(s)</p>`;
+    html += '<div style="overflow-x:auto"><table><thead><tr>';
+    html += '<th>Date</th><th>Direction</th><th>Result</th><th>Local path</th><th>Remote path</th><th>Message</th>';
+    html += '</tr></thead><tbody>';
+    html += sl.entries.map(e => {
+      const dirBadge = badge(e.direction, e.direction);
+      const resBadge = badge(e.result, e.result);
+      const msg = e.message ? `<span style="color:#888">${e.message}</span>` : '';
+      const date = e.created_at ? e.created_at.replace('T', ' ') : '';
+      return `<tr><td>${date}</td><td>${dirBadge}</td><td>${resBadge}</td><td title="${e.local_path}">${e.local_path.split(/[\\/]/).pop()}</td><td title="${e.remote_path}">${e.remote_path}</td><td>${msg}</td></tr>`;
+    }).join('');
+    html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;

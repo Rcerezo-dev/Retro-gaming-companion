@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 from pathlib import Path
 
 from rom_manager.catalog.matcher import CatalogMatcher
@@ -24,9 +26,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("status", help="Show library summary.")
 
-    subparsers.add_parser(
+    unresolved_parser = subparsers.add_parser(
         "unresolved",
         help="List ROMs not yet matched against a catalog.",
+    )
+    unresolved_parser.add_argument(
+        "--export",
+        metavar="FILE",
+        default=None,
+        help="Export the list to a CSV file instead of printing to stdout.",
     )
 
     subparsers.add_parser(
@@ -434,6 +442,22 @@ def main(argv: list[str] | None = None) -> int:
         games = repository.get_unresolved_games()
         if not games:
             print("No unresolved games.")
+            return 0
+
+        if args.export:
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(["platform", "original_filename", "region", "sha1", "source_path"])
+            for game in games:
+                writer.writerow([
+                    game.platform or "",
+                    game.original_filename,
+                    game.region or "",
+                    game.sha1,
+                    game.source_path,
+                ])
+            Path(args.export).write_text(buf.getvalue(), encoding="utf-8")
+            print(f"Exported {len(games)} unresolved ROMs to {args.export}")
             return 0
 
         current_platform = None

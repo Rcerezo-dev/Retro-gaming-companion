@@ -13,6 +13,7 @@ from rom_manager.detection import FileCategory, classify_path, detect_platform
 from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.set_detector import detect_set_type
 from rom_manager.hashing import calculate_hashes
+from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.scanner.asset_scanner import inspect_asset
 
 _PROGRESS_INTERVAL = 100
@@ -57,6 +58,9 @@ def scan_library(
             try:
                 category = classify_path(path, config, source_path)
                 if category is FileCategory.ROM:
+                    if path.suffix.lower() == ".cue":
+                        for err in validate_cue(path):
+                            logger.warning("%s — %s", path.name, err)
                     stat = path.stat()
                     path_str = str(path.resolve())
                     known = known_roms.get(path_str)

@@ -445,6 +445,34 @@ class LibraryRepository:
             )
         return [DuplicateGroup(sha1=sha1, entries=entries) for sha1, entries in groups.items()]
 
+    def get_sync_log(self, limit: int = 100) -> list[dict]:
+        """Return the last *limit* entries from save_sync_log, newest first."""
+        with self.connect() as connection:
+            # The table may not exist in older databases; return empty list if so.
+            try:
+                rows = connection.execute(
+                    """
+                    SELECT local_path, remote_path, direction, result, message, created_at
+                    FROM save_sync_log
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            except Exception:
+                return []
+        return [
+            {
+                "local_path": row["local_path"],
+                "remote_path": row["remote_path"],
+                "direction": row["direction"],
+                "result": row["result"],
+                "message": row["message"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
     def get_summary(self) -> ScanSummary:
         with self.connect() as connection:
             games_count = connection.execute(

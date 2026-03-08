@@ -127,3 +127,20 @@ def test_api_report_csv(repo: LibraryRepository) -> None:
 def test_unknown_route_returns_404(repo: LibraryRepository) -> None:
     code, _, _ = _make_request("GET", "/does-not-exist", repo)
     assert code == 404
+
+
+def test_api_sync_log_empty(repo: LibraryRepository) -> None:
+    code, ct, body = _make_request("GET", "/api/sync-log", repo)
+    assert code == 200
+    data = json.loads(body)
+    assert data["entries"] == []
+
+
+def test_api_config_returns_expected_keys(repo: LibraryRepository) -> None:
+    code, ct, body = _make_request("GET", "/api/config", repo)
+    assert code == 200
+    data = json.loads(body)
+    assert "saves_dir" in data
+    assert "rclone_remote" in data
+    assert "web_host" in data
+    assert "web_port" in data

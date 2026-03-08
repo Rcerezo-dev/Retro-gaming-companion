@@ -90,6 +90,20 @@ def _build_duplicates(repository: LibraryRepository) -> dict:
     }
 
 
+def _build_sync_log(repository: LibraryRepository) -> dict:
+    entries = repository.get_sync_log(limit=200)
+    return {"entries": entries}
+
+
+def _build_config(config: AppConfig) -> dict:
+    return {
+        "saves_dir": str(config.saves_dir) if config.saves_dir else None,
+        "rclone_remote": config.rclone_remote or None,
+        "web_host": config.web_host,
+        "web_port": config.web_port,
+    }
+
+
 def make_handler(repository: LibraryRepository, config: AppConfig):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
@@ -110,6 +124,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._send_json(_build_plan(repository))
                 elif path == "/api/duplicates":
                     self._send_json(_build_duplicates(repository))
+                elif path == "/api/sync-log":
+                    self._send_json(_build_sync_log(repository))
+                elif path == "/api/config":
+                    self._send_json(_build_config(config))
                 elif path == "/api/report.json":
                     report = build_report(repository)
                     body = to_json(report).encode()
