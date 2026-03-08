@@ -42,14 +42,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Match unresolved ROMs against No-Intro and Redump catalogs.",
     )
 
-    subparsers.add_parser(
+    plan_parser = subparsers.add_parser(
         "plan",
         help="Preview renames for all matched ROMs (no files are changed).",
     )
+    plan_parser.add_argument(
+        "--keep-both",
+        action="store_true",
+        help="When two ROMs map to the same target name, add _1/_2 suffixes instead of marking as conflict.",
+    )
 
-    subparsers.add_parser(
+    apply_parser = subparsers.add_parser(
         "apply",
         help="Execute the rename plan produced by 'rommgr plan'.",
+    )
+    apply_parser.add_argument(
+        "--keep-both",
+        action="store_true",
+        help="Resolve plan-level name collisions with _1/_2 suffixes (same as 'plan --keep-both').",
+    )
+
+    inspect_assets_parser = subparsers.add_parser(
+        "inspect-assets",
+        help="Show asset coverage (images, videos, XML) per platform.",
+    )
+    inspect_assets_parser.add_argument(
+        "--platform",
+        metavar="SLUG",
+        default=None,
+        help="Filter by platform slug.",
+    )
+    inspect_assets_parser.add_argument(
+        "--orphans",
+        action="store_true",
+        help="List only assets with no matching ROM platform.",
+    )
+    inspect_assets_parser.add_argument(
+        "--missing",
+        action="store_true",
+        help="List only ROMs whose platform has no assets.",
     )
 
     subparsers.add_parser(
@@ -187,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "plan":
-        plan = build_plan(repository)
+        plan = build_plan(repository, keep_both=getattr(args, "keep_both", False))
         if plan.total == 0:
             print("No matched games found. Run 'rommgr match' first.")
             return 0
@@ -219,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         import os
         from rom_manager.scanner.rom_scanner import utc_now
 
-        plan = build_plan(repository)
+        plan = build_plan(repository, keep_both=getattr(args, "keep_both", False))
         if not plan.pending:
             print("Nothing to apply.")
             if plan.conflicts:
@@ -471,6 +502,52 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {game.original_filename}  {region}")
 
         print(f"\nTotal: {len(games)} unresolved")
+        return 0
+
+    if args.command == "inspect-assets":
+        platform_filter = getattr(args, "platform", None)
+
+        if args.orphans:
+            assets = repository.get_orphan_assets(platform=platform_filter)
+            if not assets:
+                print("No orphan assets found.")
+                return 0
+            print(f"Orphan assets ({len(assets)}):")
+            for a in assets:
+                plat = a["platform"] or "Unknown"
+                print(f"  [{plat}]  {a['asset_type']}  {a['source_path']}")
+            return 0
+
+        if args.missing:
+            roms = repository.get_roms_without_assets(platform=platform_filter)
+            if not roms:
+                print("All platforms have at least one asset.")
+                return 0
+            print(f"ROMs with no assets ({len(roms)}):")
+            current_plat = None
+            for r in roms:
+                plat = r["platform"] or "Unknown"
+                if plat != current_plat:
+                    current_plat = plat
+                    print(f"\n  {plat}")
+                print(f"    {r['original_filename']}")
+            return 0
+
+        stats = repository.get_asset_platform_stats()
+        if platform_filter:
+            stats = [s for s in stats if s["platform"].lower() == platform_filter.lower()]
+        if not stats:
+            print("No asset data found. Run 'rommgr scan' first.")
+            return 0
+
+        header = f"{'Platform':<20} {'ROMs':>6} {'Images':>8} {'Videos':>8} {'XML':>5} {'Orphans':>8}"
+        print(header)
+        print("-" * len(header))
+        for s in stats:
+            print(
+                f"{s['platform']:<20} {s['rom_count']:>6} {s['image_count']:>8} "
+                f"{s['video_count']:>8} {s['xml_count']:>5} {s['orphan_assets']:>8}"
+            )
         return 0
 
     if args.command == "init-config":

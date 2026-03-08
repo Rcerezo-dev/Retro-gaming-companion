@@ -115,12 +115,17 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("mtime", "INTEGER"),
 )
 
+_ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("game_id", "INTEGER"),
+)
+
 
 def initialize_database(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
     for statement in SCHEMA_STATEMENTS:
         cursor.execute(statement)
     _migrate_games_columns(cursor)
+    _migrate_assets_columns(cursor)
     connection.commit()
 
 
@@ -130,3 +135,11 @@ def _migrate_games_columns(cursor: sqlite3.Cursor) -> None:
     for col_name, col_type in _GAMES_MIGRATIONS:
         if col_name not in existing:
             cursor.execute(f"ALTER TABLE games ADD COLUMN {col_name} {col_type}")
+
+
+def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:
+    """Add any missing columns to the assets table without touching existing data."""
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(assets)")}
+    for col_name, col_type in _ASSETS_MIGRATIONS:
+        if col_name not in existing:
+            cursor.execute(f"ALTER TABLE assets ADD COLUMN {col_name} {col_type}")

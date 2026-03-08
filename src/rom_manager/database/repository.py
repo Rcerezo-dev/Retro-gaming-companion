@@ -473,6 +473,189 @@ class LibraryRepository:
             for row in rows
         ]
 
+    def get_asset_platform_stats(self) -> list[dict]:
+        """Return per-platform asset counts (images, videos, XML/gamelists).
+
+        Also includes rom_count from the games table and orphan asset count
+        (assets in platforms that have no games).
+        """
+        _IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "tga", "bmp"}
+        _VIDEO_EXTS = {"mp4", "mkv", "avi", "webm", "mov"}
+
+        with self.connect() as connection:
+            game_rows = connection.execute(
+                "SELECT platform, COUNT(*) AS cnt FROM games GROUP BY platform"
+            ).fetchall()
+            asset_rows = connection.execute(
+                "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets GROUP BY platform, asset_type"
+            ).fetchall()
+
+        game_counts: dict[str, int] = {
+            (row["platform"] or "Unknown"): int(row["cnt"]) for row in game_rows
+        }
+
+        # Build asset stats per platform
+        asset_stats: dict[str, dict] = {}
+        for row in asset_rows:
+            plat = row["platform"] or "Unknown"
+            if plat not in asset_stats:
+                asset_stats[plat] = {"images": 0, "videos": 0, "xml": 0, "other": 0}
+            ext = (row["asset_type"] or "").lower()
+            cnt = int(row["cnt"])
+            if ext in _IMAGE_EXTS:
+                asset_stats[plat]["images"] += cnt
+            elif ext in _VIDEO_EXTS:
+                asset_stats[plat]["videos"] += cnt
+            elif ext == "gamelist":
+                asset_stats[plat]["xml"] += cnt
+            else:
+                asset_stats[plat]["other"] += cnt
+
+        # Merge: all platforms from either table
+        all_platforms = sorted(set(game_counts) | set(asset_stats))
+        result: list[dict] = []
+        for plat in all_platforms:
+            g = game_counts.get(plat, 0)
+            a = asset_stats.get(plat, {"images": 0, "videos": 0, "xml": 0, "other": 0})
+            result.append({
+                "platform": plat,
+                "rom_count": g,
+                "image_count": a["images"],
+                "video_count": a["videos"],
+                "xml_count": a["xml"],
+                "orphan_assets": a["images"] + a["videos"] + a["xml"] + a["other"] if g == 0 else 0,
+            })
+        return result
+
+    def get_roms_without_assets(self, *, platform: str | None = None) -> list[dict]:
+        """Return games in platforms that have no assets at all."""
+        with self.connect() as connection:
+            if platform:
+                rows = connection.execute(
+                    """
+                    SELECT id, original_filename, source_path, platform
+                    FROM games
+                    WHERE platform = ?
+                      AND platform NOT IN (SELECT DISTINCT platform FROM assets WHERE platform IS NOT NULL)
+                    ORDER BY platform, original_filename
+                    """,
+                    (platform,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT id, original_filename, source_path, platform
+                    FROM games
+                    WHERE platform NOT IN (SELECT DISTINCT platform FROM assets WHERE platform IS NOT NULL)
+                    ORDER BY platform, original_filename
+                    """
+                ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "original_filename": row["original_filename"],
+                "source_path": row["source_path"],
+                "platform": row["platform"],
+            }
+            for row in rows
+        ]
+
+    def get_orphan_assets(self, *, platform: str | None = None) -> list[dict]:
+        """Return assets in platforms that have no games."""
+        with self.connect() as connection:
+            if platform:
+                rows = connection.execute(
+                    """
+                    SELECT id, source_path, platform, asset_type
+                    FROM assets
+                    WHERE platform = ?
+                      AND (platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
+                           OR platform IS NULL)
+                    ORDER BY platform, source_path
+                    """,
+                    (platform,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT id, source_path, platform, asset_type
+                    FROM assets
+                    WHERE platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
+                       OR platform IS NULL
+                    ORDER BY platform, source_path
+                    """
+                ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "source_path": row["source_path"],
+                "platform": row["platform"],
+                "asset_type": row["asset_type"],
+            }
+            for row in rows
+        ]
+
+    def get_games_paginated(
+        self,
+        *,
+        offset: int = 0,
+        limit: int = 100,
+        platform: str | None = None,
+        status: str | None = None,
+    ) -> tuple[list[dict], int]:
+        """Return a paginated list of games and the total count matching the filters.
+
+        *status* can be ``'unresolved'`` (no canonical_title) or ``'matched'``.
+        """
+        conditions: list[str] = []
+        params: list[object] = []
+
+        if platform:
+            conditions.append("platform = ?")
+            params.append(platform)
+        if status == "unresolved":
+            conditions.append("canonical_title IS NULL")
+        elif status == "matched":
+            conditions.append("canonical_title IS NOT NULL")
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        with self.connect() as connection:
+            total = int(
+                connection.execute(
+                    f"SELECT COUNT(*) AS cnt FROM games {where}", params
+                ).fetchone()["cnt"]
+            )
+            rows = connection.execute(
+                f"""
+                SELECT id, original_filename, source_path, platform, region,
+                       extension, size_bytes, sha1, canonical_title,
+                       match_confidence, catalog_source
+                FROM games {where}
+                ORDER BY platform, canonical_title, original_filename
+                LIMIT ? OFFSET ?
+                """,
+                [*params, limit, offset],
+            ).fetchall()
+
+        games = [
+            {
+                "id": row["id"],
+                "original_filename": row["original_filename"],
+                "source_path": row["source_path"],
+                "platform": row["platform"],
+                "region": row["region"],
+                "extension": row["extension"],
+                "size_bytes": int(row["size_bytes"]),
+                "sha1": row["sha1"],
+                "canonical_title": row["canonical_title"],
+                "match_confidence": row["match_confidence"],
+                "catalog_source": row["catalog_source"],
+            }
+            for row in rows
+        ]
+        return games, total
+
     def get_summary(self) -> ScanSummary:
         with self.connect() as connection:
             games_count = connection.execute(

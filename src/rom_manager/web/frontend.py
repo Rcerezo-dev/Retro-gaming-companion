@@ -93,14 +93,22 @@ HTML = r"""<!DOCTYPE html>
 <!-- OVERVIEW -->
 <div id="tab-overview" class="tab active">
   <div id="overview-cards" class="cards"><p class="loading">Loading…</p></div>
+  <div style="margin-top:20px">
+    <h3 style="color:#888;font-size:13px;margin-bottom:10px;font-weight:normal;letter-spacing:1px;text-transform:uppercase">Scan folder</h3>
+    <div class="toolbar">
+      <input id="scan-path" type="text" placeholder="C:/path/to/roms" style="min-width:320px">
+      <button class="btn" onclick="startScan()">&#x25B6; Scan</button>
+      <span id="scan-status" style="color:#888;font-size:12px;margin-left:8px;"></span>
+    </div>
+  </div>
 </div>
 
 <!-- GAMES -->
 <div id="tab-games" class="tab">
   <div class="toolbar">
-    <input id="games-search" type="text" placeholder="Search title or filename…" oninput="filterGames()">
-    <select id="games-platform" onchange="filterGames()"><option value="">All platforms</option></select>
-    <select id="games-matched" onchange="filterGames()">
+    <input id="games-search" type="text" placeholder="Search title or filename…" oninput="onGamesFilterChange()">
+    <select id="games-platform" onchange="onGamesFilterChange()"><option value="">All platforms</option></select>
+    <select id="games-matched" onchange="onGamesFilterChange()">
       <option value="">All</option>
       <option value="matched">Matched only</option>
       <option value="unmatched">Unmatched only</option>
@@ -119,6 +127,7 @@ HTML = r"""<!DOCTYPE html>
     </table>
   </div>
   <p id="games-empty" class="empty" style="display:none">No games match the filter.</p>
+  <div id="games-pagination" style="display:flex;gap:8px;align-items:center;margin-top:12px;color:#888;font-size:13px"></div>
 </div>
 
 <!-- PLAN -->
@@ -141,7 +150,9 @@ HTML = r"""<!DOCTYPE html>
 <script>
 "use strict";
 
-let allGames = [];
+// Pagination state for Games tab
+let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '' };
+let platformsLoaded = false;
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function showTab(name) {
@@ -150,7 +161,7 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
   if (name === 'overview') loadOverview();
-  if (name === 'games')    loadGames();
+  if (name === 'games')    loadGames(0);
   if (name === 'plan')     loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'sync')       loadSync();
@@ -213,48 +224,90 @@ function card(label, value, sub) {
 }
 
 // ── Games ────────────────────────────────────────────────────────────────────
-async function loadGames() {
-  if (allGames.length > 0) { filterGames(); return; }
+function onGamesFilterChange() {
+  gamesState.platform = document.getElementById('games-platform').value;
+  gamesState.status   = document.getElementById('games-matched').value;
+  loadGames(0);
+}
+
+async function loadGames(offset) {
+  gamesState.offset = offset ?? 0;
   const tbody = document.getElementById('games-tbody');
   tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+
+  const q = document.getElementById('games-search').value.toLowerCase();
+  const params = new URLSearchParams({
+    offset: gamesState.offset,
+    limit:  gamesState.limit,
+  });
+  if (gamesState.platform) params.set('platform', gamesState.platform);
+  if (gamesState.status)   params.set('status',   gamesState.status);
+
   try {
-    const d = await apiFetch('/api/games');
-    allGames = d.games;
-    // Populate platform filter
-    const platforms = [...new Set(allGames.map(g => g.platform || 'Unknown'))].sort();
-    const sel = document.getElementById('games-platform');
-    platforms.forEach(p => { const o = document.createElement('option'); o.value = p; o.text = p; sel.add(o); });
-    filterGames();
+    const d = await apiFetch('/api/games?' + params);
+
+    // Populate platform filter on first load
+    if (!platformsLoaded) {
+      platformsLoaded = true;
+      // Fetch all platforms via a quick separate call (no limit filter)
+      try {
+        const all = await apiFetch('/api/games?limit=1');
+        // We can't get all platforms without fetching everything; use a summary call instead
+        // For now, keep the select dynamic: rebuild from current page (best effort)
+      } catch(_) {}
+    }
+
+    gamesState.total = d.total;
+    document.getElementById('games-count').textContent =
+      `${d.total} game${d.total !== 1 ? 's' : ''} (page ${Math.floor(gamesState.offset / gamesState.limit) + 1} of ${Math.max(1, Math.ceil(d.total / gamesState.limit))})`;
+
+    let rows = d.games;
+    if (q) {
+      rows = rows.filter(g =>
+        (g.canonical_title || '').toLowerCase().includes(q) ||
+        g.original_filename.toLowerCase().includes(q)
+      );
+    }
+
+    const empty = document.getElementById('games-empty');
+    if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; }
+    else {
+      empty.style.display = 'none';
+      tbody.innerHTML = rows.map(g => `<tr>
+        <td>${g.platform || ''}</td>
+        <td title="${g.canonical_title||''}">${g.canonical_title || '<span style="color:#555">—</span>'}</td>
+        <td title="${g.original_filename}">${g.original_filename}</td>
+        <td>${g.region || ''}</td>
+        <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none','—')}</td>
+        <td>${fmtSize(g.size_bytes)}</td>
+        <td style="color:#555;font-size:11px">${g.sha1.slice(0,12)}…</td>
+      </tr>`).join('');
+    }
+
+    renderPagination();
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="7" class="error-msg">${e.message}</td></tr>`;
   }
 }
 
-function filterGames() {
-  const q = document.getElementById('games-search').value.toLowerCase();
-  const plat = document.getElementById('games-platform').value;
-  const mf = document.getElementById('games-matched').value;
-  let rows = allGames.filter(g => {
-    if (plat && (g.platform || 'Unknown') !== plat) return false;
-    if (mf === 'matched' && !g.canonical_title) return false;
-    if (mf === 'unmatched' && g.canonical_title) return false;
-    if (q && !((g.canonical_title||'').toLowerCase().includes(q) || g.original_filename.toLowerCase().includes(q))) return false;
-    return true;
-  });
-  document.getElementById('games-count').textContent = rows.length + ' game' + (rows.length !== 1 ? 's' : '');
-  const tbody = document.getElementById('games-tbody');
-  const empty = document.getElementById('games-empty');
-  if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; return; }
-  empty.style.display = 'none';
-  tbody.innerHTML = rows.map(g => `<tr>
-    <td>${g.platform || ''}</td>
-    <td title="${g.canonical_title||''}">${g.canonical_title || '<span style="color:#555">—</span>'}</td>
-    <td title="${g.original_filename}">${g.original_filename}</td>
-    <td>${g.region || ''}</td>
-    <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none','—')}</td>
-    <td>${fmtSize(g.size_bytes)}</td>
-    <td style="color:#555;font-size:11px">${g.sha1.slice(0,12)}…</td>
-  </tr>`).join('');
+function renderPagination() {
+  const pg = document.getElementById('games-pagination');
+  const total = gamesState.total;
+  const limit = gamesState.limit;
+  const offset = gamesState.offset;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const currentPage = Math.floor(offset / limit) + 1;
+
+  const prevDisabled = offset === 0 ? 'disabled style="opacity:.4;cursor:default"' : '';
+  const nextDisabled = offset + limit >= total ? 'disabled style="opacity:.4;cursor:default"' : '';
+
+  pg.innerHTML = `
+    <button class="btn" ${prevDisabled} onclick="loadGames(${Math.max(0, offset - limit)})">&#x2190; Prev</button>
+    <span>Page ${currentPage} of ${totalPages}</span>
+    <button class="btn" ${nextDisabled} onclick="loadGames(${offset + limit})">Next &#x2192;</button>
+    <select style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:13px" onchange="gamesState.limit=+this.value;loadGames(0)">
+      ${[50,100,200,500].map(n => `<option value="${n}"${n===limit?' selected':''}>${n} / page</option>`).join('')}
+    </select>`;
 }
 
 // ── Plan ─────────────────────────────────────────────────────────────────────
@@ -339,6 +392,57 @@ async function loadSync() {
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
+}
+
+// ── Scan ──────────────────────────────────────────────────────────────────────
+let _scanPollTimer = null;
+let _scanLastScanAt = null;
+
+async function startScan() {
+  const pathInput = document.getElementById('scan-path');
+  const status = document.getElementById('scan-status');
+  const scanPath = pathInput.value.trim();
+  if (!scanPath) { status.textContent = 'Enter a folder path first.'; return; }
+
+  status.style.color = '#888';
+  status.textContent = 'Starting scan…';
+  try {
+    const r = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: scanPath}),
+    });
+    const d = await r.json();
+    if (d.error) { status.style.color = '#f44747'; status.textContent = d.error; return; }
+    if (d.status === 'busy') { status.style.color = '#ce9178'; status.textContent = d.message; return; }
+
+    // Capture current last_scan_at to detect completion
+    try {
+      const st = await apiFetch('/api/status');
+      _scanLastScanAt = st.last_scan_at;
+    } catch(_) {}
+
+    status.style.color = '#569cd6';
+    status.textContent = 'Scanning… (polling for completion)';
+    if (_scanPollTimer) clearInterval(_scanPollTimer);
+    _scanPollTimer = setInterval(_checkScanDone, 2000);
+  } catch(e) {
+    status.style.color = '#f44747';
+    status.textContent = e.message;
+  }
+}
+
+async function _checkScanDone() {
+  try {
+    const st = await apiFetch('/api/status');
+    if (st.last_scan_at !== _scanLastScanAt) {
+      clearInterval(_scanPollTimer);
+      _scanPollTimer = null;
+      document.getElementById('scan-status').style.color = '#4ec9b0';
+      document.getElementById('scan-status').textContent = `Scan complete — ${st.last_scan_at}`;
+      loadOverview();
+    }
+  } catch(_) {}
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -10,6 +12,9 @@ from rom_manager.database.repository import LibraryRepository
 from rom_manager.planner import build_plan
 from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.web.frontend import HTML
+
+_scan_lock = threading.Lock()
+_logger = logging.getLogger(__name__)
 
 
 def _json_response(data: object) -> bytes:
@@ -35,11 +40,23 @@ def _build_status(repository: LibraryRepository) -> dict:
     }
 
 
-def _build_games(repository: LibraryRepository) -> dict:
-    from rom_manager.reports.reporter import _get_all_games
-    from dataclasses import asdict
-    games = _get_all_games(repository)
-    return {"games": [asdict(g) for g in games]}
+def _build_games(
+    repository: LibraryRepository,
+    *,
+    offset: int = 0,
+    limit: int = 100,
+    platform: str | None = None,
+    status: str | None = None,
+) -> dict:
+    games, total = repository.get_games_paginated(
+        offset=offset, limit=limit, platform=platform, status=status
+    )
+    return {
+        "games": games,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 def _build_plan(repository: LibraryRepository) -> dict:
@@ -119,7 +136,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 elif path == "/api/status":
                     self._send_json(_build_status(repository))
                 elif path == "/api/games":
-                    self._send_json(_build_games(repository))
+                    qs = parse_qs(parsed.query)
+                    offset = int(qs.get("offset", ["0"])[0])
+                    limit = min(int(qs.get("limit", ["100"])[0]), 500)
+                    plat = qs.get("platform", [None])[0] or None
+                    st = qs.get("status", [None])[0] or None
+                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st))
                 elif path == "/api/plan":
                     self._send_json(_build_plan(repository))
                 elif path == "/api/duplicates":
@@ -138,6 +160,47 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     body = to_csv(report).encode()
                     self._send(200, "text/csv; charset=utf-8", body,
                                extra_headers={"Content-Disposition": 'attachment; filename="report.csv"'})
+                else:
+                    self._send(404, "text/plain", b"Not found")
+            except Exception as exc:
+                body = json.dumps({"error": str(exc)}).encode()
+                self._send(500, "application/json", body)
+
+        def do_POST(self) -> None:
+            parsed = urlparse(self.path)
+            path = parsed.path
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload: dict = json.loads(body_bytes or b"{}")
+
+                if path == "/api/scan":
+                    scan_path_str = payload.get("path", "").strip()
+                    if not scan_path_str:
+                        self._send_json({"error": "Missing 'path' in request body"})
+                        return
+                    scan_path = Path(scan_path_str)
+                    if not scan_path.exists() or not scan_path.is_dir():
+                        self._send_json({"error": f"Directory not found: {scan_path_str}"})
+                        return
+                    if not _scan_lock.acquire(blocking=False):
+                        self._send_json({"status": "busy", "message": "A scan is already running."})
+                        return
+
+                    def _run_scan() -> None:
+                        try:
+                            from rom_manager.logging_utils import configure_logging
+                            from rom_manager.scanner import scan_library
+                            scan_logger = configure_logging(config.logs_dir)
+                            scan_library(scan_path.resolve(), config, repository, scan_logger)
+                        except Exception as exc:
+                            _logger.error("Background scan failed: %s", exc)
+                        finally:
+                            _scan_lock.release()
+
+                    t = threading.Thread(target=_run_scan, daemon=True)
+                    t.start()
+                    self._send_json({"status": "started", "path": str(scan_path.resolve())})
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:

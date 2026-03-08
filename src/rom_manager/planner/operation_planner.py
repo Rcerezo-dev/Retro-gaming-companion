@@ -31,13 +31,19 @@ def _canonical_filename(game: MatchedGame) -> str:
     return game.canonical_title + game.extension
 
 
-def build_plan(repository: LibraryRepository) -> RenamePlan:
+def build_plan(repository: LibraryRepository, *, keep_both: bool = False) -> RenamePlan:
     """Generate a rename plan for all matched games.
 
     A game is 'already_correct' if its filename already matches the canonical title.
-    A game is 'conflict' if the target path already exists on disk (and differs from source).
+    A game is 'conflict' if the target path already exists on disk (and differs from
+    source) **or** if two pending operations would write to the same target path.
     Otherwise it is 'pending'.
+
+    With *keep_both=True* plan-level collisions are resolved by appending numeric
+    suffixes (``_1``, ``_2``, …) instead of marking them as conflicts.
     """
+    from rom_manager.planner.conflict_resolver import resolve
+
     plan = RenamePlan()
 
     for game in repository.get_matched_games():
@@ -57,5 +63,10 @@ def build_plan(repository: LibraryRepository) -> RenamePlan:
             plan.pending.append(
                 RenameOperation(game=game, source_path=source, target_path=target, status="pending")
             )
+
+    # Detect plan-level collisions (two pending ops → same target path)
+    resolved = resolve(plan.pending, keep_both=keep_both)
+    plan.pending = [op for op in resolved if op.status == "pending"]
+    plan.conflicts.extend(op for op in resolved if op.status == "conflict")
 
     return plan
