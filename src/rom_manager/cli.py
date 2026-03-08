@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from rom_manager.catalog.matcher import CatalogMatcher
-from rom_manager.config import load_config
+from rom_manager.config import _CONFIG_TOML_TEMPLATE, load_config
 from rom_manager.converters.chd_converter import convert_directory
 from rom_manager.database import LibraryRepository
 from rom_manager.logging_utils import configure_logging
@@ -67,50 +67,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write output to FILE instead of stdout.",
     )
 
-    sync_parser = subparsers.add_parser(
-        "sync-saves",
-        help="Sync save files between local saves dir and a remote (rclone).",
-    )
-    sync_parser.add_argument(
-        "saves_dir",
-        type=Path,
-        help="Local folder containing save files.",
-    )
-    sync_parser.add_argument(
-        "remote",
-        help="rclone remote path, e.g. 'dropbox:/RetroArch/saves'.",
-    )
-    sync_parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="Actually transfer files (default is dry run).",
-    )
-    sync_parser.add_argument(
-        "--rclone",
-        default="rclone",
-        metavar="PATH",
-        help="Path to rclone binary (default: 'rclone', assumes it is in PATH).",
-    )
-
-    status_parser = subparsers.add_parser(
-        "sync-status",
-        help="Show sync status for save files without transferring anything.",
-    )
-    status_parser.add_argument(
-        "saves_dir",
-        type=Path,
-        help="Local folder containing save files.",
-    )
-    status_parser.add_argument(
-        "remote",
-        help="rclone remote path, e.g. 'dropbox:/RetroArch/saves'.",
-    )
-    status_parser.add_argument(
-        "--rclone",
-        default="rclone",
-        metavar="PATH",
-        help="Path to rclone binary (default: 'rclone', assumes it is in PATH).",
-    )
+    for cmd, hlp in (
+        ("sync-saves", "Sync save files between local saves dir and a remote (rclone)."),
+        ("sync-status", "Show sync status for saves without transferring anything."),
+    ):
+        sp = subparsers.add_parser(cmd, help=hlp)
+        sp.add_argument(
+            "--saves-dir",
+            type=Path,
+            default=None,
+            metavar="PATH",
+            help="Local saves folder (overrides config.toml [library] saves_dir).",
+        )
+        sp.add_argument(
+            "--remote",
+            default=None,
+            metavar="REMOTE",
+            help="rclone remote path (overrides config.toml [sync] remote).",
+        )
+        sp.add_argument(
+            "--rclone",
+            default=None,
+            metavar="PATH",
+            help="Path to rclone binary (overrides config.toml [sync] rclone).",
+        )
+        if cmd == "sync-saves":
+            sp.add_argument(
+                "--apply",
+                action="store_true",
+                help="Actually transfer files (default is dry run).",
+            )
 
     chd_parser = subparsers.add_parser(
         "convert-chd",
@@ -129,9 +115,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     chd_parser.add_argument(
         "--chdman",
-        default="chdman",
+        default=None,
         metavar="PATH",
-        help="Path to the chdman binary (default: 'chdman', assumes it is in PATH).",
+        help="Path to the chdman binary (overrides config.toml [tools] chdman).",
+    )
+
+    subparsers.add_parser(
+        "init-config",
+        help="Generate a sample config.toml in the current directory.",
+    )
+
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start the local web interface.",
+    )
+    serve_parser.add_argument(
+        "--host",
+        default=None,
+        help="Host to bind (overrides config.toml [web] host, default 127.0.0.1).",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Port to bind (overrides config.toml [web] port, default 7777).",
     )
 
     return parser
@@ -249,12 +256,26 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command in ("sync-saves", "sync-status"):
-        saves_dir = args.saves_dir.resolve()
+        saves_dir_arg = args.saves_dir or config.saves_dir
+        if saves_dir_arg is None:
+            parser.error(
+                "Saves directory not specified. "
+                "Pass --saves-dir or set [library] saves_dir in config.toml."
+            )
+        saves_dir = saves_dir_arg.resolve()
         if not saves_dir.exists() or not saves_dir.is_dir():
             parser.error(f"Saves directory does not exist: {saves_dir}")
 
-        dry_run = args.command == "sync-status" or not args.apply
-        transport = RcloneTransport(rclone=args.rclone)
+        remote = args.remote or config.rclone_remote
+        if not remote:
+            parser.error(
+                "Remote not specified. "
+                "Pass --remote or set [sync] remote in config.toml."
+            )
+
+        dry_run = args.command == "sync-status" or not getattr(args, "apply", False)
+        rclone_bin = args.rclone or config.rclone_binary
+        transport = RcloneTransport(rclone=rclone_bin)
 
         if dry_run and args.command == "sync-saves":
             print("DRY RUN — no files will be transferred. Pass --apply to sync.\n")
@@ -264,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             result, decisions = sync_saves(
                 saves_dir,
-                args.remote,
+                remote,
                 transport=transport,
                 repository=repository,
                 save_extensions=config.save_extensions,
@@ -308,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
 
         summary = convert_directory(
             source_path,
-            chdman=args.chdman,
+            chdman=args.chdman or config.chdman,
             delete_source=args.delete_source,
             dry_run=dry_run,
         )
@@ -417,6 +438,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {game.original_filename}  {region}")
 
         print(f"\nTotal: {len(games)} unresolved")
+        return 0
+
+    if args.command == "init-config":
+        toml_path = Path.cwd() / "config.toml"
+        if toml_path.exists():
+            print(f"config.toml already exists at {toml_path} — not overwriting.")
+            return 1
+        toml_path.write_text(_CONFIG_TOML_TEMPLATE, encoding="utf-8")
+        print(f"Created {toml_path}")
+        print("Edit it to set your saves_dir, remote, and tool paths.")
+        return 0
+
+    if args.command == "serve":
+        from rom_manager.web.server import serve
+
+        host = args.host or config.web_host
+        port = args.port or config.web_port
+        print(f"Starting ROM Manager at http://{host}:{port}/")
+        print("Press Ctrl+C to stop.")
+        serve(host=host, port=port, repository=repository, config=config)
         return 0
 
     parser.error(f"Unknown command: {args.command}")
