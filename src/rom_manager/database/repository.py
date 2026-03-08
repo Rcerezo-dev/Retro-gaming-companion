@@ -29,6 +29,29 @@ class MatchedGame:
 
 
 @dataclass(slots=True)
+class DuplicateEntry:
+    id: int
+    original_filename: str
+    source_path: str
+    platform: str | None
+    canonical_title: str | None
+    size_bytes: int
+
+
+@dataclass(slots=True)
+class DuplicateGroup:
+    sha1: str
+    entries: list[DuplicateEntry]
+
+    @property
+    def wasted_bytes(self) -> int:
+        """Bytes that could be freed by keeping only one copy."""
+        if not self.entries:
+            return 0
+        return self.entries[0].size_bytes * (len(self.entries) - 1)
+
+
+@dataclass(slots=True)
 class UnresolvedGame:
     original_filename: str
     source_path: str
@@ -390,6 +413,37 @@ class LibraryRepository:
         with self.connect() as conn:
             conn.execute(sql, params)
             conn.commit()
+
+    def get_duplicate_groups(self) -> list[DuplicateGroup]:
+        """Return groups of games that share the same SHA1 (exact duplicates)."""
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, original_filename, source_path, platform,
+                       canonical_title, size_bytes, sha1
+                FROM games
+                WHERE sha1 IN (
+                    SELECT sha1 FROM games GROUP BY sha1 HAVING COUNT(*) > 1
+                )
+                ORDER BY sha1, source_path
+                """
+            ).fetchall()
+        groups: dict[str, list[DuplicateEntry]] = {}
+        for row in rows:
+            sha1 = row["sha1"]
+            if sha1 not in groups:
+                groups[sha1] = []
+            groups[sha1].append(
+                DuplicateEntry(
+                    id=row["id"],
+                    original_filename=row["original_filename"],
+                    source_path=row["source_path"],
+                    platform=row["platform"],
+                    canonical_title=row["canonical_title"],
+                    size_bytes=int(row["size_bytes"]),
+                )
+            )
+        return [DuplicateGroup(sha1=sha1, entries=entries) for sha1, entries in groups.items()]
 
     def get_summary(self) -> ScanSummary:
         with self.connect() as connection:

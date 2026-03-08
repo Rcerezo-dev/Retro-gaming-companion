@@ -41,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Execute the rename plan produced by 'rommgr plan'.",
     )
 
+    subparsers.add_parser(
+        "duplicates",
+        help="List ROM files that share the same SHA1 hash (exact duplicates).",
+    )
+
     chd_parser = subparsers.add_parser(
         "convert-chd",
         help="Convert PSX .cue+.bin sets to .chd (dry run by default).",
@@ -241,6 +246,32 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"\nMatched:   {matched}")
         print(f"Not found: {unmatched}")
+        return 0
+
+    if args.command == "duplicates":
+        groups = repository.get_duplicate_groups()
+        if not groups:
+            print("No duplicates found.")
+            return 0
+
+        total_files = sum(len(g.entries) for g in groups)
+        total_wasted = sum(g.wasted_bytes for g in groups)
+
+        def _fmt_size(n: int) -> str:
+            for unit in ("B", "KB", "MB", "GB"):
+                if n < 1024:
+                    return f"{n:.1f} {unit}"
+                n /= 1024
+            return f"{n:.1f} TB"
+
+        print(f"Duplicate groups: {len(groups)}  ({total_files} files, ~{_fmt_size(total_wasted)} wasted)\n")
+        for group in groups:
+            title = group.entries[0].canonical_title or "(unmatched)"
+            platform = group.entries[0].platform or "Unknown"
+            print(f"[SHA1: {group.sha1[:12]}…]  {platform}  ·  {title}")
+            for entry in group.entries:
+                print(f"  {entry.source_path}  ({_fmt_size(entry.size_bytes)})")
+            print()
         return 0
 
     if args.command == "unresolved":
