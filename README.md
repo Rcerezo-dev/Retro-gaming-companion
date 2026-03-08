@@ -1,74 +1,167 @@
 # ROM Manager Local
 
-Base de la Fase 1 para escanear bibliotecas mixtas de ROMs, clasificar archivos y registrar el inventario en SQLite.
+A local CLI tool for scanning, identifying, and organizing retro game ROM libraries.
 
-## Uso
+Designed for a shared setup: one ROM collection that works both on a Windows PC (desktop emulators) and an Anbernic RG 556 (RetroArch on Android), with save sync via cloud storage coming in a later phase.
 
-```bat
-.\scripts\rommgr.cmd status
-.\scripts\rommgr.cmd scan <ruta>
-```
+---
 
-## Entorno
+## Features
 
-Actualmente el proyecto no tiene dependencias externas de runtime; la instalación base se resuelve con el propio paquete.
+- Recursive scan of any folder — classifies every file as ROM, save, frontend asset, system support, or unknown
+- SHA1 + MD5 + CRC32 hashing for every ROM
+- Platform detection by file extension
+- Region detection from filename (No-Intro parentheses style, GoodTools bracket codes, plain-text fallbacks)
+- Catalog matching against local No-Intro and Redump DAT files (SHA1 lookup → canonical title)
+- SQLite inventory at `.rommgr/library.sqlite` — survives re-scans via upsert
+- No runtime dependencies — pure Python stdlib
 
-`requirements.txt`:
+---
 
-```text
--e .
-```
+## Installation
 
-Si tienes Conda disponible, el entorno recomendado es:
+Requires **Python 3.11+**.
 
 ```bash
-conda env create -f environment.yml
-conda activate rom_manager
+# Clone the repo
+git clone https://github.com/your-username/Retro_gaming_app.git
+cd Retro_gaming_app
+
+# Install (editable)
+pip install -e .
+
+# Install with dev tools (pytest)
+pip install -e .[dev]
 ```
 
-En esta máquina ya quedó creado como:
+> If you use Conda, create an environment first:
+> ```bash
+> conda create -n rom_manager python=3.12
+> conda activate rom_manager
+> pip install -e .[dev]
+> ```
 
-```text
-C:\Users\rammu\anaconda3\envs\rom_manager
-```
-
-Ejecución directa con ese entorno:
+On Windows, a convenience launcher is included so you do not need to modify PATH:
 
 ```bat
-C:\Users\rammu\anaconda3\envs\rom_manager\python.exe -m rom_manager status
+scripts\rommgr.cmd <command>
 ```
 
-Si no tienes Conda en `PATH`, puedes seguir usando el lanzador:
+---
 
-```bat
-.\scripts\rommgr.cmd status
+## Usage
+
+```bash
+# Scan a folder and hash all ROMs
+rommgr scan <path-to-roms>
+
+# Show library summary
+rommgr status
+
+# Match unresolved ROMs against No-Intro / Redump catalogs
+rommgr match
+
+# List ROMs that have not been matched yet
+rommgr unresolved
 ```
 
-Alternativa sin script:
+### Example session
 
-```powershell
-$env:PYTHONPATH = "src"
-& "C:\Users\rammu\AppData\Local\Programs\Python\Python312\python.exe" -m rom_manager status
+```
+> rommgr scan D:\ROMs
+Scanned: D:\ROMs
+Files seen:            4 821
+ROMs detected:         4 203
+Saves detected:        312
+Assets detected:       180
+Unknown files:         126
+
+> rommgr match
+Loading catalogs…
+  No-Intro: 98 432 entries
+  Redump:   45 678 entries
+
+Matching 4 203 unresolved ROMs…
+Matched:   4 101
+Not found: 102
 ```
 
-## Estado actual
+---
 
-La implementación actual hace esto:
+## Catalog DAT files
 
-- escaneo recursivo de una carpeta origen
-- clasificación inicial en `rom`, `save`, `frontend_asset`, `system_support`, `unknown`
-- exclusión lógica de carpetas típicas del dispositivo como `Android`, `BIOS` o `Movies`
-- cálculo de `SHA1`, `MD5` y `CRC32` para archivos clasificados como ROM
-- detección básica de plataforma por extensión
-- persistencia en `.rommgr/library.sqlite`
-- resumen de biblioteca con `status`
+The matcher reads `.dat` files in Logiqx XML format (the standard used by No-Intro and Redump).
 
-## Limitaciones actuales
+Place them in:
 
-- todavía no hay matching con catálogos No-Intro o Redump
-- todavía no existe `plan` o `apply`
-- PSX aún no se trata con lógica específica por set
-- el comando `python` del sistema puede resolver al alias de Windows Store
-- PowerShell puede bloquear scripts `.ps1` por política de ejecución
-- por eso el proyecto incluye `scripts\rommgr.cmd`, que usa Python 3.12 directamente y funciona sin cambiar la configuración global
-- `conda` no estaba en `PATH`, pero la instalación real de Anaconda está en `C:\Users\rammu\anaconda3`
+```
+.rommgr/
+  catalogs/
+    nointro/   ← cartridge DATs (GB, GBC, GBA, NES, SNES, N64, DS, …)
+    redump/    ← disc DATs (PSX, PS2, PSP, GameCube, Wii, Dreamcast, …)
+```
+
+Download DATs from [No-Intro](https://www.no-intro.org/) and [Redump](http://redump.org/).
+
+---
+
+## Project structure
+
+```
+src/rom_manager/
+  cli.py                      # Commands: scan, status, match, unresolved
+  config.py                   # AppConfig (paths, extensions)
+  logging_utils.py
+  catalog/
+    catalog_loader.py         # Parse Logiqx XML DATs → sha1→CatalogEntry
+    matcher.py                # CatalogMatcher: SHA1 lookup across all DATs
+  database/
+    schema.py                 # SQLite schema + automatic migrations
+    repository.py             # LibraryRepository (upsert, batch, match updates)
+  detection/
+    file_classifier.py        # ROM / save / asset / system / unknown
+    platform_detector.py      # Platform from extension
+    region_parser.py          # Region from filename
+    filename_normalizer.py
+    set_detector.py
+  hashing/
+    hash_calculator.py        # SHA1 + MD5 + CRC32, 1 MB chunks
+  scanner/
+    rom_scanner.py            # Main scan loop
+    asset_scanner.py
+    save_scanner.py
+tests/
+  test_catalog_matcher.py
+  test_file_classifier.py
+  test_filename_normalizer.py
+  test_region_parser.py
+```
+
+---
+
+## Roadmap
+
+| Phase | Description | Status |
+|---|---|---|
+| 1 | Scan, hash, SQLite inventory, basic CLI | Done |
+| 2 | Catalog matching via SHA1 (No-Intro + Redump) | Done |
+| 3 | Plan + Apply: safe rename and move operations | Pending |
+| 4 | Duplicate detection, incremental scans, reports | Pending |
+| 5 | Save sync (PC ↔ Anbernic RG 556) via rclone + Dropbox | Pending |
+| 6 | Local web frontend | Pending |
+
+---
+
+## Running tests
+
+```bash
+pytest
+```
+
+96 tests, no external dependencies required.
+
+---
+
+## License
+
+MIT
