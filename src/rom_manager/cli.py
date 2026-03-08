@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from rom_manager.catalog.matcher import CatalogMatcher
 from rom_manager.config import load_config
 from rom_manager.database import LibraryRepository
 from rom_manager.logging_utils import configure_logging
@@ -21,6 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "unresolved",
         help="List ROMs not yet matched against a catalog.",
+    )
+
+    subparsers.add_parser(
+        "match",
+        help="Match unresolved ROMs against No-Intro and Redump catalogs.",
     )
 
     return parser
@@ -57,6 +63,45 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Saves:      {summary.total_saves}")
         print(f"Assets:     {summary.total_assets}")
         print(f"Last scan:  {summary.last_scan_at or 'never'}")
+        return 0
+
+    if args.command == "match":
+        matcher = CatalogMatcher(
+            nointro_dir=config.catalogs_nointro_dir,
+            redump_dir=config.catalogs_redump_dir,
+        )
+        print("Loading catalogs…", flush=True)
+        # Trigger lazy load and report catalog sizes
+        nointro_count = matcher.nointro_entries
+        redump_count = matcher.redump_entries
+        print(f"  No-Intro: {nointro_count:,} entries")
+        print(f"  Redump:   {redump_count:,} entries")
+
+        games = repository.get_unresolved_games()
+        if not games:
+            print("No unresolved games to match.")
+            return 0
+
+        print(f"\nMatching {len(games)} unresolved ROMs…")
+        matched = 0
+        unmatched = 0
+        with repository.batch() as conn:
+            for game in games:
+                result = matcher.match(game.sha1)
+                if result is not None:
+                    repository.update_match(
+                        game.source_path,
+                        canonical_title=result.title,
+                        match_confidence=result.confidence,
+                        catalog_source=result.catalog_source,
+                        connection=conn,
+                    )
+                    matched += 1
+                else:
+                    unmatched += 1
+
+        print(f"\nMatched:   {matched}")
+        print(f"Not found: {unmatched}")
         return 0
 
     if args.command == "unresolved":

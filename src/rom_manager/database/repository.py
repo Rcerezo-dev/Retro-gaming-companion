@@ -286,6 +286,31 @@ class LibraryRepository:
             for row in rows
         ]
 
+    def update_match(
+        self,
+        source_path: str,
+        *,
+        canonical_title: str,
+        match_confidence: str,
+        catalog_source: str,
+        connection: sqlite3.Connection | None = None,
+    ) -> None:
+        """Update catalog-match columns for a game row identified by source_path."""
+        sql = """
+            UPDATE games
+            SET canonical_title = ?,
+                match_confidence = ?,
+                catalog_source    = ?
+            WHERE source_path = ?
+            """
+        params = (canonical_title, match_confidence, catalog_source, source_path)
+        if connection is not None:
+            connection.execute(sql, params)
+            return
+        with self.connect() as conn:
+            conn.execute(sql, params)
+            conn.commit()
+
     def get_summary(self) -> ScanSummary:
         with self.connect() as connection:
             games_count = connection.execute(

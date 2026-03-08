@@ -13,8 +13,7 @@ claude.md
 Thumbs.db
 # Archivos de registro
 *.log
-# Archivos de base de datos
-*.db
+
 
 # Ignore the .env file which may contain sensitive information
 .env

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\":*)"
+    ]
+  }
+}
