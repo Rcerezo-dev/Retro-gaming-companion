@@ -1,0 +1,22 @@
+# Datos locales de la herramienta (BD, logs, catálogos)
+.rommgr/
+
+__pycache__/
+
+*.pyc
+# Archivos de configuración de IDEs
+.vscode/
+.idea/
+claude.md
+# Archivos de configuración de sistemas operativos
+.DS_Store
+Thumbs.db
+# Archivos de registro
+*.log
+# Archivos de base de datos
+*.db
+
+# Ignore the .env file which may contain sensitive information
+.env
+#log personal de tareas 
+Tareas/

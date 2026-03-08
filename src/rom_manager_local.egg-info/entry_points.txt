@@ -1,0 +1,2 @@
+[console_scripts]
+rommgr = rom_manager.cli:main
