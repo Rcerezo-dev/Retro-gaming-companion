@@ -18,6 +18,17 @@ class ScanSummary:
 
 
 @dataclass(slots=True)
+class MatchedGame:
+    id: int
+    original_filename: str
+    source_path: str
+    platform: str | None
+    extension: str
+    canonical_title: str
+    match_confidence: str
+
+
+@dataclass(slots=True)
 class UnresolvedGame:
     original_filename: str
     source_path: str
@@ -109,6 +120,17 @@ class LibraryRepository:
             )
             connection.commit()
 
+    def get_known_roms(self) -> dict[str, tuple[int, int]]:
+        """Return {source_path: (mtime, size_bytes)} for all games with a stored mtime.
+
+        Used by the scanner to skip files that have not changed since the last scan.
+        """
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT source_path, mtime, size_bytes FROM games WHERE mtime IS NOT NULL"
+            ).fetchall()
+        return {row["source_path"]: (int(row["mtime"]), int(row["size_bytes"])) for row in rows}
+
     def upsert_game(
         self,
         *,
@@ -120,6 +142,7 @@ class LibraryRepository:
         region: str | None,
         extension: str,
         size_bytes: int,
+        mtime: int,
         sha1: str,
         md5: str,
         crc32: str,
@@ -137,6 +160,7 @@ class LibraryRepository:
                 region,
                 extension,
                 size_bytes,
+                mtime,
                 sha1,
                 md5,
                 crc32,
@@ -144,7 +168,7 @@ class LibraryRepository:
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_path) DO UPDATE SET
                 original_filename = excluded.original_filename,
                 platform = excluded.platform,
@@ -153,6 +177,7 @@ class LibraryRepository:
                 region = excluded.region,
                 extension = excluded.extension,
                 size_bytes = excluded.size_bytes,
+                mtime = excluded.mtime,
                 sha1 = excluded.sha1,
                 md5 = excluded.md5,
                 crc32 = excluded.crc32,
@@ -168,6 +193,7 @@ class LibraryRepository:
             region,
             extension,
             size_bytes,
+            mtime,
             sha1,
             md5,
             crc32,
@@ -285,6 +311,60 @@ class LibraryRepository:
             )
             for row in rows
         ]
+
+    def get_matched_games(self) -> list[MatchedGame]:
+        """Return all games that have been matched against a catalog."""
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, original_filename, source_path, platform, extension,
+                       canonical_title, match_confidence
+                FROM games
+                WHERE canonical_title IS NOT NULL
+                ORDER BY platform, canonical_title
+                """
+            ).fetchall()
+        return [
+            MatchedGame(
+                id=row["id"],
+                original_filename=row["original_filename"],
+                source_path=row["source_path"],
+                platform=row["platform"],
+                extension=row["extension"],
+                canonical_title=row["canonical_title"],
+                match_confidence=row["match_confidence"],
+            )
+            for row in rows
+        ]
+
+    def apply_rename(
+        self,
+        *,
+        game_id: int,
+        old_source_path: str,
+        new_source_path: str,
+        new_filename: str,
+        timestamp: str,
+    ) -> None:
+        """Update source_path and original_filename for a renamed game and log the operation."""
+        with self.connect() as connection:
+            connection.execute(
+                """
+                UPDATE games
+                SET source_path = ?, original_filename = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_source_path, new_filename, timestamp, game_id),
+            )
+            connection.execute(
+                """
+                INSERT INTO file_operations
+                    (game_id, operation_type, source_path, target_path, result, created_at)
+                VALUES (?, 'rename', ?, ?, 'done', ?)
+                """,
+                (game_id, old_source_path, new_source_path, timestamp),
+            )
+            connection.commit()
 
     def update_match(
         self,

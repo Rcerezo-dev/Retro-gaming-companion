@@ -1,5 +1,14 @@
 # Datos locales de la herramienta (BD, logs, catálogos)
-.rommgr/
+# Se ignora todo excepto la estructura de carpetas vacías para los DATs
+.rommgr/*
+!.rommgr/catalogs/
+.rommgr/catalogs/*
+!.rommgr/catalogs/nointro/
+!.rommgr/catalogs/redump/
+.rommgr/catalogs/nointro/*
+.rommgr/catalogs/redump/*
+!.rommgr/catalogs/nointro/.gitkeep
+!.rommgr/catalogs/redump/.gitkeep
 
 __pycache__/
 
@@ -8,6 +17,7 @@ __pycache__/
 .vscode/
 .idea/
 claude.md
+.claude
 # Archivos de configuración de sistemas operativos
 .DS_Store
 Thumbs.db

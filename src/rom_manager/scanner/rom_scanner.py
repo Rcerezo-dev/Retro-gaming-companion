@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ _PROGRESS_INTERVAL = 100
 class ScanResult:
     files_seen: int = 0
     roms_detected: int = 0
+    roms_skipped: int = 0
     saves_detected: int = 0
     assets_detected: int = 0
     system_files_detected: int = 0
@@ -41,6 +43,7 @@ def scan_library(
     timestamp = utc_now()
     scan_run_id = repository.create_scan_run(str(source_path), timestamp)
     result = ScanResult()
+    known_roms = repository.get_known_roms()
 
     with repository.batch() as conn:
         for path in source_path.rglob("*"):
@@ -54,7 +57,14 @@ def scan_library(
             try:
                 category = classify_path(path, config, source_path)
                 if category is FileCategory.ROM:
-                    _store_rom(path, source_path, repository, timestamp, conn)
+                    stat = path.stat()
+                    path_str = str(path.resolve())
+                    known = known_roms.get(path_str)
+                    if known and known == (int(stat.st_mtime), stat.st_size):
+                        result.roms_skipped += 1
+                        result.roms_detected += 1
+                        continue
+                    _store_rom(path, stat, source_path, repository, timestamp, conn)
                     result.roms_detected += 1
                 elif category is FileCategory.SAVE:
                     _store_save(path, source_path, repository, timestamp, conn)
@@ -87,6 +97,7 @@ def scan_library(
 
 def _store_rom(
     path: Path,
+    stat: os.stat_result,
     source_root: Path,
     repository: LibraryRepository,
     timestamp: str,
@@ -101,7 +112,8 @@ def _store_rom(
         relative_parent=_relative_parent(path, source_root),
         region=parse_region_from_name(path.name),
         extension=path.suffix.lower(),
-        size_bytes=path.stat().st_size,
+        size_bytes=stat.st_size,
+        mtime=int(stat.st_mtime),
         sha1=hashes.sha1,
         md5=hashes.md5,
         crc32=hashes.crc32,

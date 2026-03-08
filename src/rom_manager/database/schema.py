@@ -34,6 +34,7 @@ SCHEMA_STATEMENTS = (
         md5 TEXT NOT NULL,
         crc32 TEXT NOT NULL,
         set_type TEXT,
+        mtime INTEGER,
         status TEXT NOT NULL DEFAULT 'scanned',
         canonical_title TEXT,
         match_confidence TEXT,
@@ -95,6 +96,7 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("match_confidence", "TEXT"),
     ("catalog_source", "TEXT"),
     ("library_path", "TEXT"),
+    ("mtime", "INTEGER"),
 )
 
 

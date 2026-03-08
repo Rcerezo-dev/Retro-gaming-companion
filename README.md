@@ -63,6 +63,18 @@ rommgr match
 
 # List ROMs that have not been matched yet
 rommgr unresolved
+
+# Preview renames based on canonical catalog titles (no files changed)
+rommgr plan
+
+# Execute the renames
+rommgr apply
+
+# Convert PSX .cue+.bin sets to .chd — dry run
+rommgr convert-chd <path-to-psx-roms>
+
+# Convert and delete source files
+rommgr convert-chd <path-to-psx-roms> --apply --delete-source --chdman "C:\tools\chdman.exe"
 ```
 
 ### Example session
@@ -145,7 +157,7 @@ tests/
 |---|---|---|
 | 1 | Scan, hash, SQLite inventory, basic CLI | Done |
 | 2 | Catalog matching via SHA1 (No-Intro + Redump) | Done |
-| 3 | Plan + Apply: safe rename and move operations | Pending |
+| 3 | Plan + Apply: safe rename + CHD conversion for PSX | Done |
 | 4 | Duplicate detection, incremental scans, reports | Pending |
 | 5 | Save sync (PC ↔ Anbernic RG 556) via rclone + Dropbox | Pending |
 | 6 | Local web frontend | Pending |
