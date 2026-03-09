@@ -269,13 +269,23 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "pce-cd", "pcenginecd", "segacd", "megacd",
                         "neogeocd", "lynx",
                     }
+                    _DISC_EXTS = frozenset({".cue", ".chd", ".iso", ".bin", ".mdf", ".img", ".ccd"})
                     root = config.library_root
                     if root and root.exists():
-                        folders = [
-                            str(f) for f in sorted(root.iterdir())
-                            if f.is_dir() and f.name.lower().replace(" ", "").replace("-", "") in
-                               {p.replace("-", "") for p in _DISC_PLATFORMS}
-                        ]
+                        folders = []
+                        for f in sorted(root.iterdir()):
+                            if not f.is_dir():
+                                continue
+                            name_key = f.name.lower().replace(" ", "").replace("-", "")
+                            if name_key not in {p.replace("-", "") for p in _DISC_PLATFORMS}:
+                                continue
+                            # Only include if folder actually contains disc files
+                            has_disc = any(
+                                child.suffix.lower() in _DISC_EXTS
+                                for child in f.rglob("*") if child.is_file()
+                            )
+                            if has_disc:
+                                folders.append(str(f))
                         self._send_json({"folders": folders, "library_root": str(root)})
                     else:
                         self._send_json({"folders": [], "library_root": None})

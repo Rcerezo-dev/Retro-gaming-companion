@@ -1389,21 +1389,37 @@ async function doVerifyMultidisc() {
     }
     const d = { groups_ok: totalOk, groups_with_issues: totalIssues, issues: allIssues };
     if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
+
+    const realIssues    = d.issues.filter(i => i.issue_type !== 'unmatched');
+    const unmatchedOnly = d.issues.filter(i => i.issue_type === 'unmatched');
+    const realBad = new Set(realIssues.map(i => i.base_name));
+    // Groups with only "unmatched" and no real structural issues are OK structurally
+    const structurallyBad = d.groups_with_issues - [...new Set(unmatchedOnly.map(i => i.base_name))].filter(n => !realBad.has(n)).length;
     const total = d.groups_ok + d.groups_with_issues;
-    let html = `<p style="margin-bottom:12px">`;
-    html += `<span style="color:#4ec9b0">✓ ${d.groups_ok} grupos OK</span>`;
-    if (d.groups_with_issues > 0) html += `  <span style="color:#f44747">✗ ${d.groups_with_issues} con problemas</span>`;
-    html += `  <span style="color:#555">(${total} grupos multi-disco)</span></p>`;
-    if (d.issues.length) {
-      const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo' };
-      html += '<div style="max-height:400px;overflow-y:auto">';
-      html += d.issues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #1e1e2e">
-        <span style="color:#ce9178">${issueLabels[i.issue_type] || i.issue_type}</span>
+
+    let html = `<p style="margin-bottom:8px">`;
+    html += `<span style="color:#4ec9b0">✓ ${d.groups_ok + (d.groups_with_issues - structurallyBad)} grupos OK estructuralmente</span>`;
+    if (structurallyBad > 0) html += `  <span style="color:#f44747">✗ ${structurallyBad} con problemas reales</span>`;
+    if (unmatchedOnly.length > 0) html += `  <span style="color:#888">⚠ ${unmatchedOnly.length} sin match en catálogo (normal si no has hecho Match aún)</span>`;
+    html += `  <span style="color:#555">(${total} grupos)</span></p>`;
+
+    const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo' };
+    if (realIssues.length) {
+      html += `<p style="color:#f44747;font-size:12px;margin:10px 0 6px">Problemas que requieren atención:</p>`;
+      html += '<div style="max-height:300px;overflow-y:auto;margin-bottom:12px">';
+      html += realIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #1e1e2e">
+        <span style="color:#f44747">${issueLabels[i.issue_type] || i.issue_type}</span>
         <span style="color:#888;margin:0 6px">·</span>
         <span style="color:#d4d4d4">${i.base_name}</span>
         <span style="color:#555;margin-left:8px">${i.detail}</span>
       </div>`).join('');
       html += '</div>';
+    }
+    if (unmatchedOnly.length) {
+      html += `<details style="font-size:12px;color:#555"><summary style="cursor:pointer;color:#888">Sin match en catálogo (${unmatchedOnly.length}) — haz Match catálogos para resolverlos</summary>`;
+      html += '<div style="max-height:200px;overflow-y:auto;margin-top:6px">';
+      html += unmatchedOnly.map(i => `<div style="padding:2px 0;color:#555">${i.base_name} — ${i.detail}</div>`).join('');
+      html += '</div></details>';
     }
     resultEl.innerHTML = html;
   } catch(e) {
