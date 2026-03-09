@@ -229,11 +229,16 @@ HTML = r"""<!DOCTYPE html>
   <div id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:#161626;border:1px solid #2a2a3a;border-radius:4px;display:none">
     <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:#4ec9b0"></span>
   </div>
+  <div id="apply-preview-banner" style="display:none;font-size:12px;margin-bottom:12px;padding:8px 12px;background:#1a1a2e;border:1px solid #3a3a6a;border-radius:4px;color:#9cdcfe;line-height:1.6"></div>
   <div id="plan-content"><p class="loading">Loading…</p></div>
 </div>
 
 <!-- DUPLICATES -->
 <div id="tab-duplicates" class="tab">
+  <div class="toolbar" style="justify-content:space-between;align-items:center">
+    <span style="color:#888;font-size:12px">Se conserva la primera copia de cada grupo; se eliminan las demás.</span>
+    <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()">Eliminar todos los duplicados</button>
+  </div>
   <div id="dup-content"><p class="loading">Loading…</p></div>
 </div>
 
@@ -257,12 +262,25 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- ASSETS -->
 <div id="tab-assets" class="tab">
-  <div class="toolbar">
+  <div class="toolbar" style="flex-direction:column;align-items:flex-start;gap:10px">
     <select id="assets-filter" onchange="loadAssets()">
       <option value="all">Todas las plataformas</option>
       <option value="orphans">Solo huérfanos (assets sin ROMs)</option>
       <option value="missing">Solo sin assets</option>
     </select>
+    <details style="font-size:12px;color:#888;max-width:700px">
+      <summary style="cursor:pointer;color:#569cd6">¿Qué son los archivos "Unknown"?</summary>
+      <p style="margin:8px 0 0 0;line-height:1.6">
+        Son archivos que el escáner no pudo clasificar como ROM, save, ni asset.
+        Suelen ser: <strong>BIOS</strong> (.bin con nombre no reconocido),
+        <strong>gamelist.xml</strong> y otros XMLs de metadatos,
+        <strong>imágenes sueltas</strong> (.png/.jpg fuera de carpetas de assets),
+        <strong>archivos de texto</strong> (.txt, .nfo, .dat de redump),
+        <strong>ejecutables</strong> (.exe, .bat), o formatos de disco poco comunes
+        no incluidos en la lista de extensiones reconocidas.
+        No se tocan ni se renombran — están ahí solo para que los veas.
+      </p>
+    </details>
   </div>
   <div id="assets-content"><p class="loading">Loading…</p></div>
 </div>
@@ -348,6 +366,15 @@ HTML = r"""<!DOCTYPE html>
     <div class="actions-row">
       <button id="btn-convert-chd" class="btn primary" onclick="doConvertChd()">Convertir a CHD</button>
       <span style="color:#555;font-size:12px">Requiere chdman en PATH o configurado en config.toml</span>
+    </div>
+    <div id="chd-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="chd-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="chd-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
     </div>
     <div id="job-result-convert-chd" class="job-result"></div>
     <div id="chd-results" style="margin-top:16px"></div>
@@ -529,6 +556,21 @@ function _applyJobStatus(s) {
   if (!s.sync_running && s.sync_result) {
     _renderSyncResult(s.sync_result);
   }
+  // CHD progress bar
+  const chdWrap = document.getElementById('chd-progress-wrap');
+  if (s.convert_chd_running && s.chd_progress && s.chd_progress.total > 0) {
+    const p = s.chd_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (chdWrap) chdWrap.style.display = '';
+    const bar = document.getElementById('chd-progress-bar');
+    const lbl = document.getElementById('chd-progress-label');
+    const file = document.getElementById('chd-progress-file');
+    if (bar) bar.style.width = pct + '%';
+    if (lbl) lbl.textContent = `${p.current} / ${p.total} (${pct}%)`;
+    if (file) file.textContent = p.current_file;
+  } else if (!s.convert_chd_running) {
+    if (chdWrap) chdWrap.style.display = 'none';
+  }
   if (!s.convert_chd_running && s.convert_chd_result) {
     _renderChdResult(s.convert_chd_result);
   }
@@ -557,7 +599,7 @@ function _showJobResult(type, result) {
     el.textContent = 'Error: ' + result.error;
   } else if (type === 'scan') {
     el.className = 'job-result visible success';
-    el.textContent = `Scan completado — ROMs: ${result.roms_detected}  |  Saltados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}`;
+    el.textContent = `Scan completado — ROMs: ${result.roms_detected}  |  Ya escaneados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}`;
   } else if (type === 'match') {
     el.className = 'job-result visible success';
     el.textContent = `Match completado — SHA1: ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin match: ${result.unmatched}  (de ${result.total} ROMs)`;
@@ -769,14 +811,32 @@ async function loadPlan() {
       el.innerHTML = '<p class="empty">No matched games found. Run <strong>Match catálogos</strong> primero.</p>';
       return;
     }
+
+    // ── Apply preview banner ──────────────────────────────────────────────────
+    const applyBanner = document.getElementById('apply-preview-banner');
+    if (applyBanner) {
+      if (d.pending.length > 0) {
+        const savesMsg = d.total_saves_affected > 0
+          ? `, junto a <strong>${d.total_saves_affected}</strong> save(s) compañeros`
+          : ', sin saves compañeros detectados';
+        applyBanner.innerHTML =
+          `Se renombrarán <strong>${d.pending.length}</strong> ROM(s)${savesMsg}. ` +
+          `Si algún save no puede renombrarse, la ROM tampoco cambiará.`;
+        applyBanner.style.display = '';
+      } else {
+        applyBanner.style.display = 'none';
+      }
+    }
+
     let html = '';
     if (d.pending.length) {
       html += `<h3 style="color:#569cd6;margin-bottom:12px">Pending renames — ${d.pending.length}</h3>`;
-      html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>From</th><th>To</th></tr></thead><tbody>';
+      html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>From</th><th>To</th><th style="text-align:center">Saves</th></tr></thead><tbody>';
       html += d.pending.map(op => `<tr>
         <td>${op.platform||'<span style="color:#555">Unknown</span>'}</td>
         <td title="${op.source}">${op.source_name}</td>
         <td style="color:#4ec9b0" title="${op.target}">${op.target_name}</td>
+        <td style="text-align:center;color:${op.companion_saves > 0 ? '#dcdcaa' : '#555'}">${op.companion_saves > 0 ? op.companion_saves : '—'}</td>
       </tr>`).join('');
       html += '</tbody></table></div>';
     }
@@ -800,7 +860,11 @@ async function loadPlan() {
 
 // ── Apply action ──────────────────────────────────────────────────────────────
 async function doApply() {
-  if (!confirm('¿Aplicar el renombrado? Esta operación mueve archivos en disco.')) return;
+  const banner = document.getElementById('apply-preview-banner');
+  const msg = banner?.textContent
+    ? `${banner.textContent}\n\n¿Continuar? Esta operación mueve archivos en disco.`
+    : '¿Aplicar el renombrado? Esta operación mueve archivos en disco.';
+  if (!confirm(msg)) return;
   const btn = document.getElementById('btn-apply');
   btn.disabled = true;
   btn.textContent = 'Aplicando…';
@@ -856,6 +920,29 @@ async function loadDuplicates() {
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function deleteAllDuplicates() {
+  const el = document.getElementById('dup-content');
+  // Count duplicates to delete
+  const rows = document.querySelectorAll('#tab-duplicates .btn.danger');
+  const count = rows.length;
+  if (count === 0) { alert('No hay duplicados para eliminar.'); return; }
+  if (!confirm(`¿Eliminar ${count} archivo(s) duplicado(s) del disco?\n\nSe conservará una copia de cada juego. Esta operación no se puede deshacer.`)) return;
+  const btn = document.getElementById('btn-delete-all-dups');
+  btn.disabled = true;
+  btn.textContent = 'Eliminando…';
+  try {
+    const d = await apiPost('/api/duplicates/delete-all', {});
+    await loadDuplicates();
+    loadOverview();
+    alert(`Eliminados: ${d.deleted}  |  Fallidos: ${d.failed}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}`);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Eliminar todos los duplicados';
   }
 }
 

@@ -7,6 +7,19 @@ from pathlib import Path
 from rom_manager.database.repository import LibraryRepository, MatchedGame
 from rom_manager.detection.filename_normalizer import sanitize_filename
 
+def _same_file(a: Path, b: Path) -> bool:
+    """Return True if *a* and *b* refer to the same file on disk.
+
+    On Windows (case-insensitive FS) ``Path("game.gba").exists()`` returns
+    True even when ``Path("Game.gba")`` is the only file, so we must
+    distinguish a *case-only* rename from a true conflict.
+    """
+    try:
+        return a.samefile(b)
+    except OSError:
+        return False
+
+
 # Annotations de región al estilo No-Intro: (USA), (Europe), (World), etc.
 _REGION_RE = re.compile(
     r"\s*\((?:USA|Europe|World|Japan|Germany|France|Spain|Italy|Australia|"
@@ -99,11 +112,13 @@ def build_plan(
             plan.already_correct.append(
                 RenameOperation(game=game, source_path=source, target_path=target, status="already_correct")
             )
-        elif target.exists():
+        elif target.exists() and not _same_file(source, target):
+            # Target exists and is a *different* file — genuine conflict
             plan.conflicts.append(
                 RenameOperation(game=game, source_path=source, target_path=target, status="conflict")
             )
         else:
+            # Either target doesn't exist, or it's the same file (case-only rename on Windows)
             plan.pending.append(
                 RenameOperation(game=game, source_path=source, target_path=target, status="pending")
             )

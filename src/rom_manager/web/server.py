@@ -18,6 +18,7 @@ from rom_manager.web.frontend import HTML
 _job_lock = threading.Lock()
 _jobs: dict[str, bool] = {"scan": False, "match": False, "sync": False, "convert_chd": False, "scrape": False}
 _job_results: dict[str, dict] = {}
+_chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _logger = logging.getLogger(__name__)
 
 
@@ -63,7 +64,22 @@ def _build_games(
     }
 
 
-def _build_plan(repository: LibraryRepository, opts: FormatOptions | None = None) -> dict:
+def _count_companion_saves(source: Path, save_extensions: frozenset[str]) -> int:
+    """Count save files alongside *source* that share its stem."""
+    try:
+        return sum(
+            1 for f in source.parent.iterdir()
+            if f != source and f.stem == source.stem and f.suffix.lower() in save_extensions
+        )
+    except OSError:
+        return 0
+
+
+def _build_plan(
+    repository: LibraryRepository,
+    opts: FormatOptions | None = None,
+    save_extensions: frozenset[str] | None = None,
+) -> dict:
     plan = build_plan(repository, opts)
     if plan.total == 0:
         return {
@@ -71,20 +87,26 @@ def _build_plan(repository: LibraryRepository, opts: FormatOptions | None = None
             "already_correct": 0,
             "pending": [],
             "conflicts": [],
+            "total_saves_affected": 0,
         }
+    exts = save_extensions or frozenset()
+    pending_rows = []
+    total_saves = 0
+    for op in plan.pending:
+        companions = _count_companion_saves(op.source_path, exts)
+        total_saves += companions
+        pending_rows.append({
+            "platform": op.game.platform,
+            "source": str(op.source_path),
+            "source_name": op.source_path.name,
+            "target": str(op.target_path),
+            "target_name": op.target_path.name,
+            "companion_saves": companions,
+        })
     return {
         "total": plan.total,
         "already_correct": len(plan.already_correct),
-        "pending": [
-            {
-                "platform": op.game.platform,
-                "source": str(op.source_path),
-                "source_name": op.source_path.name,
-                "target": str(op.target_path),
-                "target_name": op.target_path.name,
-            }
-            for op in plan.pending
-        ],
+        "pending": pending_rows,
         "conflicts": [
             {
                 "source_name": op.source_path.name,
@@ -92,11 +114,14 @@ def _build_plan(repository: LibraryRepository, opts: FormatOptions | None = None
             }
             for op in plan.conflicts
         ],
+        "total_saves_affected": total_saves,
     }
 
 
 def _build_duplicates(repository: LibraryRepository) -> dict:
     groups = repository.get_duplicate_groups()
+    # Sort by wasted bytes descending (largest duplicates first)
+    groups = sorted(groups, key=lambda g: g.wasted_bytes, reverse=True)
     total_files = sum(len(g.entries) for g in groups)
     total_wasted = sum(g.wasted_bytes for g in groups)
     return {
@@ -180,7 +205,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st))
                 elif path == "/api/plan":
                     opts = _parse_format_opts(qs)
-                    self._send_json(_build_plan(repository, opts))
+                    self._send_json(_build_plan(repository, opts, frozenset(config.save_extensions)))
                 elif path == "/api/duplicates":
                     self._send_json(_build_duplicates(repository))
                 elif path == "/api/assets":
@@ -204,6 +229,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "sync_result": _job_results.get("sync"),
                             "convert_chd_result": _job_results.get("convert_chd"),
                             "scrape_result": _job_results.get("scrape"),
+                            "chd_progress": dict(_chd_progress) if _chd_progress else None,
                         })
                 elif path == "/api/report.json":
                     report = build_report(repository)
@@ -245,6 +271,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_fix_platforms()
                 elif path == "/api/duplicates/delete":
                     self._handle_delete_duplicate(data)
+                elif path == "/api/duplicates/delete-all":
+                    self._handle_delete_all_duplicates()
                 elif path == "/api/sync":
                     self._handle_sync(data)
                 elif path == "/api/convert-chd":
@@ -416,14 +444,41 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
             def run() -> None:
                 try:
-                    from rom_manager.converters.chd_converter import convert_directory
-                    source = Path(source_path_str).resolve()
-                    summary = convert_directory(
-                        source,
-                        chdman=config.chdman,
-                        delete_source=delete_source,
-                        dry_run=dry_run,
+                    from rom_manager.converters.chd_converter import (
+                        find_cue_files, convert_to_chd, parse_bins_from_cue,
+                        ConversionResult, ConversionSummary,
                     )
+                    source = Path(source_path_str).resolve()
+                    cue_files = find_cue_files(source)
+                    total = len(cue_files)
+                    _chd_progress.update({"current": 0, "total": total, "current_file": ""})
+
+                    summary = ConversionSummary()
+                    for idx, cue_path in enumerate(cue_files, 1):
+                        _chd_progress.update({"current": idx, "total": total, "current_file": cue_path.name})
+                        chd_path = cue_path.with_suffix(".chd")
+                        bin_paths = parse_bins_from_cue(cue_path)
+                        if dry_run:
+                            if chd_path.exists():
+                                summary.skipped += 1
+                                summary.results.append(ConversionResult(
+                                    cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
+                                    success=False, error="Output .chd already exists — would skip."))
+                            else:
+                                summary.converted += 1
+                                summary.results.append(ConversionResult(
+                                    cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
+                                    success=True))
+                        else:
+                            result = convert_to_chd(cue_path, chdman=config.chdman, delete_source=delete_source)
+                            summary.results.append(result)
+                            if result.success:
+                                summary.converted += 1
+                            elif result.error and "already exists" in result.error:
+                                summary.skipped += 1
+                            else:
+                                summary.failed += 1
+
                     _job_results["convert_chd"] = {
                         "dry_run": dry_run,
                         "converted": summary.converted,
@@ -442,6 +497,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 except Exception as exc:
                     _job_results["convert_chd"] = {"error": str(exc)}
                 finally:
+                    _chd_progress.clear()
                     with _job_lock:
                         _jobs["convert_chd"] = False
 
@@ -574,6 +630,24 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 return
             repository.delete_game(int(game_id))
             self._send_json({"deleted": source_path})
+
+        def _handle_delete_all_duplicates(self) -> None:
+            import os
+            groups = repository.get_duplicate_groups()
+            deleted = 0
+            failed = 0
+            freed_bytes = 0
+            for group in groups:
+                # Keep first entry (index 0), delete the rest
+                for entry in group.entries[1:]:
+                    try:
+                        os.remove(entry.source_path)
+                        repository.delete_game(entry.id)
+                        deleted += 1
+                        freed_bytes += entry.size_bytes
+                    except OSError:
+                        failed += 1
+            self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
 
         def _handle_apply(self, data: dict) -> None:
             from rom_manager.renamer.file_renamer import rename_rom_with_saves
