@@ -107,7 +107,7 @@ def _build_duplicates(repository: LibraryRepository) -> dict:
                 "platform": g.entries[0].platform,
                 "wasted_bytes": g.wasted_bytes,
                 "entries": [
-                    {"source_path": e.source_path, "size_bytes": e.size_bytes}
+                    {"id": e.id, "source_path": e.source_path, "size_bytes": e.size_bytes}
                     for e in g.entries
                 ],
             }
@@ -218,6 +218,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_match()
                 elif path == "/api/apply":
                     self._handle_apply(data)
+                elif path == "/api/duplicates/delete":
+                    self._handle_delete_duplicate(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -306,6 +308,21 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
             threading.Thread(target=run, daemon=True).start()
             self._send_json({"status": "started"})
+
+        def _handle_delete_duplicate(self, data: dict) -> None:
+            import os
+            game_id = data.get("game_id")
+            source_path = data.get("source_path", "").strip()
+            if not game_id or not source_path:
+                self._send_json({"error": "game_id and source_path are required"})
+                return
+            try:
+                os.remove(source_path)
+            except OSError as exc:
+                self._send_json({"error": f"Could not delete file: {exc}"})
+                return
+            repository.delete_game(int(game_id))
+            self._send_json({"deleted": source_path})
 
         def _handle_apply(self, data: dict) -> None:
             import os

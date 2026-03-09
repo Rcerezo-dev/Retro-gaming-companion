@@ -132,6 +132,29 @@ HTML = r"""<!DOCTYPE html>
     <div id="job-result-scan"  class="job-result"></div>
     <div id="job-result-match" class="job-result"></div>
   </div>
+
+  <!-- Workflow guide -->
+  <div style="margin-top:28px;max-width:700px">
+    <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo usar ROM Manager</h3>
+    <div style="display:flex;gap:0;counter-reset:steps">
+      <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
+        <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
+        <div style="color:#888;font-size:12px;line-height:1.5">Introduce la ruta de tu carpeta de ROMs y pulsa <strong style="color:#d4d4d4">Scan</strong>. Se calculará el hash de cada archivo y se guardará en la base de datos.</div>
+      </div>
+      <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
+        <div style="color:#569cd6;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Match</div>
+        <div style="color:#888;font-size:12px;line-height:1.5">Pulsa <strong style="color:#d4d4d4">Match catálogos</strong>. Se compara cada ROM contra los catálogos No-Intro / Redump para identificar título canónico y región.</div>
+      </div>
+      <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
+        <div style="color:#ce9178;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Plan</div>
+        <div style="color:#888;font-size:12px;line-height:1.5">Ve a la pestaña <strong style="color:#d4d4d4">Plan</strong> para ver los renombrados propuestos. Marca qué información incluir (región, revisión) y previsualiza el resultado.</div>
+      </div>
+      <div style="flex:1;background:#1e1e2e;border:1px solid #333;padding:14px 16px">
+        <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
+        <div style="color:#888;font-size:12px;line-height:1.5">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. Los archivos se mueven en disco y queda todo registrado en el log.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- GAMES -->
@@ -553,15 +576,35 @@ async function loadDuplicates() {
     if (d.groups.length === 0) { el.innerHTML = '<p class="empty">No duplicates found.</p>'; return; }
     let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} group(s) — ${d.total_files} files — ~${fmtSize(d.wasted_bytes)} wasted</p>`;
     html += d.groups.map(g => `
-      <div class="dup-group">
+      <div class="dup-group" id="dup-${g.sha1}">
         <div class="title">${g.canonical_title || '(unmatched)'}
           <span style="color:#555;font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
         </div>
-        ${g.entries.map(e => `<div class="entry"><span>${e.source_path}</span>  <span style="color:#555">${fmtSize(e.size_bytes)}</span></div>`).join('')}
+        ${g.entries.map((e, i) => `
+          <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
+            ${i === 0
+              ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
+              : `<button class="btn danger" style="padding:2px 10px;font-size:11px" onclick="deleteDuplicate(${e.id}, '${e.source_path.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">Delete</button>`}
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.source_path}">${e.source_path}</span>
+            <span style="color:#555;flex-shrink:0">${fmtSize(e.size_bytes)}</span>
+          </div>`).join('')}
       </div>`).join('');
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function deleteDuplicate(gameId, sourcePath) {
+  const filename = sourcePath.split(/[\\/]/).pop();
+  if (!confirm(`¿Eliminar "${filename}" del disco?\n\nEsta operación no se puede deshacer.`)) return;
+  try {
+    await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
+    const row = document.getElementById('dup-entry-' + gameId);
+    if (row) row.remove();
+    loadOverview();
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
   }
 }
 

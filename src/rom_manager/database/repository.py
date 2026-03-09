@@ -447,6 +447,12 @@ class LibraryRepository:
             )
         return [DuplicateGroup(sha1=sha1, entries=entries) for sha1, entries in groups.items()]
 
+    def delete_game(self, game_id: int) -> None:
+        """Remove a game record from the database (file must be deleted from disk first)."""
+        with self.connect() as connection:
+            connection.execute("DELETE FROM games WHERE id = ?", (game_id,))
+            connection.commit()
+
     def get_sync_log(self, limit: int = 100) -> list[dict]:
         """Return the last *limit* entries from save_sync_log, newest first."""
         with self.connect() as connection:
