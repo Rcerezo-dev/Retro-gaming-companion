@@ -167,6 +167,7 @@ def _build_config(config: AppConfig) -> dict:
         "web_port": config.web_port,
         "screenscraper_user": config.screenscraper_user or None,
         "screenscraper_pass": config.screenscraper_pass or None,
+        "chdman": config.chdman,
     }
 
 
@@ -245,6 +246,39 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "health_check_result": _job_results.get("health_check"),
                             "extract_zip_result": _job_results.get("extract_zip"),
                         })
+                elif path == "/api/test-chdman":
+                    import subprocess
+                    try:
+                        r = subprocess.run(
+                            [config.chdman],
+                            capture_output=True, timeout=5,
+                        )
+                        # chdman exits with non-zero when called with no args but prints version
+                        out = (r.stdout or r.stderr or b"").decode(errors="replace").strip()
+                        first_line = out.splitlines()[0] if out else ""
+                        self._send_json({"ok": True, "version": first_line, "path": config.chdman})
+                    except FileNotFoundError:
+                        self._send_json({"ok": False, "error": f"No encontrado: {config.chdman!r}"})
+                    except Exception as exc:
+                        self._send_json({"ok": False, "error": str(exc)})
+                elif path == "/api/disc-folders":
+                    # Return subfolders of library_root that look like disc-based platforms
+                    _DISC_PLATFORMS = {
+                        "psx", "ps1", "ps2", "ps3", "saturn", "dreamcast",
+                        "gamecube", "gc", "wii", "wiiu", "3do", "cdi",
+                        "pce-cd", "pcenginecd", "segacd", "megacd",
+                        "neogeocd", "lynx",
+                    }
+                    root = config.library_root
+                    if root and root.exists():
+                        folders = [
+                            str(f) for f in sorted(root.iterdir())
+                            if f.is_dir() and f.name.lower().replace(" ", "").replace("-", "") in
+                               {p.replace("-", "") for p in _DISC_PLATFORMS}
+                        ]
+                        self._send_json({"folders": folders, "library_root": str(root)})
+                    else:
+                        self._send_json({"folders": [], "library_root": None})
                 elif path == "/api/orphaned-saves":
                     source = qs.get("path", [None])[0]
                     if not source:
@@ -569,6 +603,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             allowed = {
                 "library.library_root", "sync.remote",
                 "screenscraper.user", "screenscraper.pass",
+                "tools.chdman",
             }
             updates = {k: v for k, v in data.items() if k in allowed}
             if not updates:
@@ -581,6 +616,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             config.rclone_remote = new_cfg.rclone_remote
             config.screenscraper_user = new_cfg.screenscraper_user
             config.screenscraper_pass = new_cfg.screenscraper_pass
+            config.chdman = new_cfg.chdman
             self._send_json({"saved": list(updates.keys())})
 
         def _handle_extract_zip(self, data: dict) -> None:

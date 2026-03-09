@@ -404,9 +404,12 @@ HTML = r"""<!DOCTYPE html>
   <!-- ── Verificar multi-disco ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Verificar sets multi-disco</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Comprueba que todos los discos de cada juego están presentes, tienen la misma extensión, no hay huecos en la numeración y están en el catálogo.</p>
+    <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba que todos los discos de cada juego están presentes, tienen la misma extensión, no hay huecos en la numeración y están en el catálogo.</p>
+    <p id="multidisc-folder-hint" style="display:none;font-size:11px;color:#569cd6;margin-bottom:8px"></p>
     <div class="actions-row">
-      <div><label>Carpeta de ROMs</label><input id="verify-multidisc-path" type="text" placeholder="C:/ROMs/psx"></div>
+      <div style="flex:1"><label>Carpeta(s) de ROMs (una por línea)</label>
+        <textarea id="verify-multidisc-path" rows="3" placeholder="C:/ROMs/psx&#10;C:/ROMs/ps2" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
+      </div>
     </div>
     <div class="actions-row">
       <button class="btn primary" onclick="doVerifyMultidisc()">Verificar</button>
@@ -463,7 +466,7 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div class="actions-row">
       <button id="btn-convert-chd" class="btn primary" onclick="doConvertChd()">Convertir a CHD</button>
-      <span style="color:#555;font-size:12px">Requiere chdman en PATH o configurado en config.toml</span>
+      <span id="chdman-status" style="font-size:12px;color:#555">Verificando chdman…</span>
     </div>
     <div id="chd-progress-wrap" style="display:none;margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
@@ -501,6 +504,14 @@ HTML = r"""<!DOCTYPE html>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper contraseña</label>
         <input id="cfg-ss-pass" type="password" style="width:100%" placeholder="••••••••">
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">chdman — ruta al binario (para conversión a CHD)</label>
+        <div style="display:flex;gap:8px">
+          <input id="cfg-chdman" type="text" style="flex:1" placeholder="chdman  o  C:/tools/chdman.exe">
+          <button class="btn" onclick="testChdman()" style="flex-shrink:0">Probar</button>
+        </div>
+        <div id="chdman-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
       </div>
     </div>
 
@@ -542,7 +553,7 @@ function showTab(name) {
   if (name === 'sync')       loadSync();
   if (name === 'scraper')    loadScraperSummary();
   if (name === 'settings')   loadSettings();
-  if (name === 'tools')      {}
+  if (name === 'tools')      loadTools();
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1361,12 +1372,22 @@ async function doGenerateM3U() {
 
 // ── Multi-disc Verifier ───────────────────────────────────────────────────────
 async function doVerifyMultidisc() {
-  const pathVal = document.getElementById('verify-multidisc-path').value.trim();
-  if (!pathVal) { alert('Introduce la ruta de la carpeta de ROMs'); return; }
+  const rawVal = document.getElementById('verify-multidisc-path').value.trim();
+  if (!rawVal) { alert('Introduce al menos una carpeta de ROMs'); return; }
+  const paths = rawVal.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
   const resultEl = document.getElementById('multidisc-result');
   resultEl.innerHTML = '<p style="color:#888;font-size:12px">Verificando…</p>';
+  // Aggregate results across all paths
+  let totalOk = 0, totalIssues = 0;
+  const allIssues = [];
   try {
-    const d = await apiPost('/api/verify-multidisc', { source_path: pathVal });
+    for (const pathVal of paths) {
+      const d = await apiPost('/api/verify-multidisc', { source_path: pathVal });
+      if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
+      totalOk += d.groups_ok; totalIssues += d.groups_with_issues;
+      allIssues.push(...d.issues);
+    }
+    const d = { groups_ok: totalOk, groups_with_issues: totalIssues, issues: allIssues };
     if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
     const total = d.groups_ok + d.groups_with_issues;
     let html = `<p style="margin-bottom:12px">`;
@@ -1568,7 +1589,70 @@ async function loadSettings() {
     document.getElementById('cfg-rclone-remote').value = cfg.rclone_remote || '';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
     document.getElementById('cfg-ss-pass').value       = cfg.screenscraper_pass || '';
+    document.getElementById('cfg-chdman').value        = cfg.chdman || 'chdman';
   } catch(e) { /* silent */ }
+}
+
+async function testChdman() {
+  const el = document.getElementById('chdman-test-result');
+  el.style.color = '#888'; el.textContent = 'Probando…';
+  // Save current chdman value first if changed
+  const val = document.getElementById('cfg-chdman').value.trim();
+  if (val) await apiPost('/api/config', { 'tools.chdman': val }).catch(() => {});
+  try {
+    const d = await apiFetch('/api/test-chdman');
+    if (d.ok) {
+      el.style.color = '#4ec9b0';
+      el.textContent = '✓ ' + (d.version || 'OK') + '  (' + d.path + ')';
+      // Update CHD panel status too
+      const st = document.getElementById('chdman-status');
+      if (st) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
+    } else {
+      el.style.color = '#f44747'; el.textContent = '✗ ' + d.error;
+      const st = document.getElementById('chdman-status');
+      if (st) { st.style.color = '#f44747'; st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
+    }
+  } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
+}
+
+async function loadTools() {
+  try {
+    const [cfg, discData] = await Promise.all([
+      apiFetch('/api/config'),
+      apiFetch('/api/disc-folders').catch(() => ({ folders: [], library_root: null })),
+    ]);
+    const root = cfg.library_root || '';
+    // Auto-fill simple tools with library_root
+    if (root) {
+      _setIfEmpty('zip-path',               root);
+      _setIfEmpty('orphan-path',            root);
+      _setIfEmpty('verify-multidisc-path',  discData.folders.length ? discData.folders.join('\n') : root);
+      _setIfEmpty('m3u-path',               discData.folders.length ? discData.folders[0] : root);
+      _setIfEmpty('chd-path',               discData.folders.length ? discData.folders[0] : root);
+    }
+    // Show multi-disc hint
+    if (discData.folders.length > 1) {
+      const hint = document.getElementById('multidisc-folder-hint');
+      if (hint) {
+        hint.textContent = `Detectadas ${discData.folders.length} carpetas de plataformas de disco: ${discData.folders.map(f => f.split(/[\\/]/).pop()).join(', ')}`;
+        hint.style.display = '';
+      }
+    }
+    // Test chdman silently and update status
+    try {
+      const d = await apiFetch('/api/test-chdman');
+      const st = document.getElementById('chdman-status');
+      if (st) {
+        if (d.ok) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
+        else      { st.style.color = '#f44747'; st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
+      }
+    } catch(_) {}
+  } catch(e) { /* silent */ }
+}
+
+function _setIfEmpty(id, value) {
+  const el = document.getElementById(id);
+  if (el && !el.value.trim()) el.value = value;
 }
 
 async function saveSettings() {
@@ -1579,10 +1663,12 @@ async function saveSettings() {
   const rr = document.getElementById('cfg-rclone-remote').value.trim();
   const su = document.getElementById('cfg-ss-user').value.trim();
   const sp = document.getElementById('cfg-ss-pass').value;
+  const ch = document.getElementById('cfg-chdman').value.trim();
   if (lr) updates['library.library_root'] = lr;
   if (rr) updates['sync.remote']          = rr;
   if (su) updates['screenscraper.user']   = su;
   if (sp) updates['screenscraper.pass']   = sp;
+  if (ch) updates['tools.chdman']         = ch;
   if (Object.keys(updates).length === 0) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Nada que guardar — rellena al menos un campo.';
