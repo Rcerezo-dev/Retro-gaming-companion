@@ -160,6 +160,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers.add_parser(
+        "fix-platforms",
+        help="Backfill missing platform data by inferring it from folder names (no re-hash needed).",
+    )
+
+    subparsers.add_parser(
         "init-config",
         help="Generate a sample config.toml in the current directory.",
     )
@@ -218,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "plan":
-        plan = build_plan(repository, keep_both=getattr(args, "keep_both", False))
+        plan = build_plan(repository)
         if plan.total == 0:
             print("No matched games found. Run 'rommgr match' first.")
             return 0
@@ -250,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
         import os
         from rom_manager.scanner.rom_scanner import utc_now
 
-        plan = build_plan(repository, keep_both=getattr(args, "keep_both", False))
+        plan = build_plan(repository)
         if not plan.pending:
             print("Nothing to apply.")
             if plan.conflicts:
@@ -548,6 +553,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"{s['platform']:<20} {s['rom_count']:>6} {s['image_count']:>8} "
                 f"{s['video_count']:>8} {s['xml_count']:>5} {s['orphan_assets']:>8}"
             )
+        return 0
+
+    if args.command == "fix-platforms":
+        from rom_manager.detection.platform_detector import detect_platform
+        print("Detecting platforms from folder names…")
+        updated = repository.backfill_platforms(detect_platform)
+        print(f"Updated: {updated} games")
         return 0
 
     if args.command == "init-config":

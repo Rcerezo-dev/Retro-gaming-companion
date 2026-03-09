@@ -129,6 +129,12 @@ HTML = r"""<!DOCTYPE html>
       <span style="color:#555;font-size:12px">Asocia los ROMs escaneados a No-Intro / Redump</span>
     </div>
 
+    <div class="actions-row">
+      <button id="btn-fix-platforms" class="btn" onclick="doFixPlatforms()">Fix plataformas</button>
+      <span style="color:#555;font-size:12px">Infiere la plataforma desde el nombre de carpeta (sin re-escanear)</span>
+    </div>
+    <div id="job-result-fix-platforms" class="job-result"></div>
+
     <div id="job-result-scan"  class="job-result"></div>
     <div id="job-result-match" class="job-result"></div>
   </div>
@@ -397,6 +403,27 @@ async function doScan() {
     btn.textContent = 'Scan';
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+// ── Fix platforms action ─────────────────────────────────────────────────────
+async function doFixPlatforms() {
+  const btn = document.getElementById('btn-fix-platforms');
+  const resultEl = document.getElementById('job-result-fix-platforms');
+  btn.disabled = true;
+  btn.textContent = 'Procesando…';
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/fix-platforms', {});
+    resultEl.className = 'job-result visible success';
+    resultEl.textContent = `Plataformas actualizadas: ${d.updated} juegos`;
+    loadOverview();
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Fix plataformas';
   }
 }
 

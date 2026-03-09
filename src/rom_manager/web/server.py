@@ -221,6 +221,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_match()
                 elif path == "/api/apply":
                     self._handle_apply(data)
+                elif path == "/api/fix-platforms":
+                    self._handle_fix_platforms()
                 elif path == "/api/duplicates/delete":
                     self._handle_delete_duplicate(data)
                 else:
@@ -311,6 +313,11 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
             threading.Thread(target=run, daemon=True).start()
             self._send_json({"status": "started"})
+
+        def _handle_fix_platforms(self) -> None:
+            from rom_manager.detection.platform_detector import detect_platform
+            updated = repository.backfill_platforms(detect_platform)
+            self._send_json({"updated": updated})
 
         def _handle_delete_duplicate(self, data: dict) -> None:
             import os

@@ -449,6 +449,29 @@ class LibraryRepository:
             )
         return [DuplicateGroup(sha1=sha1, entries=entries) for sha1, entries in groups.items()]
 
+    def backfill_platforms(self, detect_fn) -> int:
+        """Update platform for all games where it is currently NULL.
+
+        *detect_fn* must accept a Path and return str | None.
+        Returns the number of rows updated.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT source_path FROM games WHERE platform IS NULL"
+            ).fetchall()
+
+        updated = 0
+        with self.batch() as conn:
+            for (source_path,) in rows:
+                platform = detect_fn(Path(source_path))
+                if platform:
+                    conn.execute(
+                        "UPDATE games SET platform = ? WHERE source_path = ?",
+                        (platform, source_path),
+                    )
+                    updated += 1
+        return updated
+
     def delete_game(self, game_id: int) -> None:
         """Remove a game record from the database (file must be deleted from disk first)."""
         with self.connect() as connection:
