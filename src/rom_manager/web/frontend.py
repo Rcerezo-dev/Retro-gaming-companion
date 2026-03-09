@@ -103,7 +103,9 @@ HTML = r"""<!DOCTYPE html>
   <button onclick="showTab('games')">Games</button>
   <button onclick="showTab('plan')">Plan</button>
   <button onclick="showTab('duplicates')">Duplicates</button>
+  <button onclick="showTab('assets')">Assets</button>
   <button onclick="showTab('sync')">Sync</button>
+  <button onclick="showTab('tools')">Tools</button>
 </nav>
 
 <main>
@@ -232,7 +234,59 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- SYNC -->
 <div id="tab-sync" class="tab">
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Sincronización de saves</h3>
+    <div class="actions-row">
+      <button id="btn-sync-dry" class="btn" onclick="doSync(true)">Estado (dry run)</button>
+      <span style="color:#555;font-size:12px">Muestra qué se sincronizaría sin transferir nada</span>
+    </div>
+    <div class="actions-row">
+      <button id="btn-sync-apply" class="btn primary" onclick="doSync(false)">Sincronizar</button>
+      <span style="color:#555;font-size:12px">Transfiere archivos entre local y la nube</span>
+    </div>
+    <div id="job-result-sync" class="job-result"></div>
+    <div id="sync-decisions" style="margin-top:12px"></div>
+  </div>
   <div id="sync-content"><p class="loading">Loading…</p></div>
+</div>
+
+<!-- ASSETS -->
+<div id="tab-assets" class="tab">
+  <div class="toolbar">
+    <select id="assets-filter" onchange="loadAssets()">
+      <option value="all">Todas las plataformas</option>
+      <option value="orphans">Solo huérfanos (assets sin ROMs)</option>
+      <option value="missing">Solo sin assets</option>
+    </select>
+  </div>
+  <div id="assets-content"><p class="loading">Loading…</p></div>
+</div>
+
+<!-- TOOLS -->
+<div id="tab-tools" class="tab">
+  <div class="actions-panel">
+    <h3>Convertir a CHD (PSX)</h3>
+    <div class="actions-row">
+      <div>
+        <label for="chd-path">Carpeta con archivos .cue/.bin</label>
+        <input id="chd-path" type="text" placeholder="C:/ROMs/psx">
+      </div>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center">
+      <label class="fmt-check">
+        <input type="checkbox" id="chd-dry-run" checked> Dry run (solo previsualizar)
+      </label>
+      <label class="fmt-check">
+        <input type="checkbox" id="chd-delete-source"> Eliminar .cue/.bin tras convertir
+      </label>
+    </div>
+    <div class="actions-row">
+      <button id="btn-convert-chd" class="btn primary" onclick="doConvertChd()">Convertir a CHD</button>
+      <span style="color:#555;font-size:12px">Requiere chdman en PATH o configurado en config.toml</span>
+    </div>
+    <div id="job-result-convert-chd" class="job-result"></div>
+    <div id="chd-results" style="margin-top:16px"></div>
+  </div>
 </div>
 
 </main>
@@ -251,11 +305,13 @@ function showTab(name) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
-  if (name === 'overview') loadOverview();
-  if (name === 'games')    loadGames(0);
-  if (name === 'plan')     loadPlan();
+  if (name === 'overview')   loadOverview();
+  if (name === 'games')      loadGames(0);
+  if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
+  if (name === 'assets')     loadAssets();
   if (name === 'sync')       loadSync();
+  if (name === 'tools')      {}
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -331,7 +387,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -352,6 +408,14 @@ function _applyJobStatus(s) {
     btnMatch.textContent = s.match_running ? 'Matching…' : 'Match catálogos';
   }
 
+  const btnSyncDry   = document.getElementById('btn-sync-dry');
+  const btnSyncApply = document.getElementById('btn-sync-apply');
+  const btnChd       = document.getElementById('btn-convert-chd');
+
+  if (btnSyncDry)   btnSyncDry.disabled   = s.sync_running;
+  if (btnSyncApply) btnSyncApply.disabled = s.sync_running;
+  if (btnChd)       btnChd.disabled       = s.convert_chd_running;
+
   if (!s.scan_running && s.scan_result) {
     _showJobResult('scan', s.scan_result);
     // Refresh stats cards after scan completes
@@ -360,6 +424,12 @@ function _applyJobStatus(s) {
   if (!s.match_running && s.match_result) {
     _showJobResult('match', s.match_result);
     loadOverview();
+  }
+  if (!s.sync_running && s.sync_result) {
+    _renderSyncResult(s.sync_result);
+  }
+  if (!s.convert_chd_running && s.convert_chd_result) {
+    _renderChdResult(s.convert_chd_result);
   }
 }
 
@@ -372,9 +442,13 @@ function _showJobResult(type, result) {
   } else if (type === 'scan') {
     el.className = 'job-result visible success';
     el.textContent = `Scan completado — ROMs: ${result.roms_detected}  |  Saltados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}`;
-  } else {
+  } else if (type === 'match') {
     el.className = 'job-result visible success';
     el.textContent = `Match completado — SHA1: ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin match: ${result.unmatched}  (de ${result.total} ROMs)`;
+  } else if (type === 'convert-chd') {
+    el.className = 'job-result visible success';
+    const verb = result.dry_run ? 'Convertiría' : 'Convertidos';
+    el.textContent = `${verb}: ${result.converted}  |  Omitidos: ${result.skipped}  |  Fallidos: ${result.failed}`;
   }
 }
 
@@ -712,6 +786,135 @@ async function loadSync() {
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
+}
+
+// ── Assets ───────────────────────────────────────────────────────────────────
+async function loadAssets() {
+  const el = document.getElementById('assets-content');
+  el.innerHTML = '<p class="loading">Loading…</p>';
+  const filter = document.getElementById('assets-filter')?.value || 'all';
+  try {
+    const d = await apiFetch('/api/assets');
+    let stats = d.stats;
+    if (filter === 'orphans') stats = stats.filter(s => s.orphan_assets > 0);
+    if (filter === 'missing') stats = stats.filter(s => s.rom_count > 0 && s.image_count === 0 && s.video_count === 0);
+    if (stats.length === 0) { el.innerHTML = '<p class="empty">No data.</p>'; return; }
+    let html = '<div style="overflow-x:auto"><table><thead><tr>';
+    html += '<th>Plataforma</th><th>ROMs</th><th>Imágenes</th><th>Vídeos</th><th>XML</th><th>Huérfanos</th>';
+    html += '</tr></thead><tbody>';
+    html += stats.map(s => `<tr>
+      <td>${s.platform}</td>
+      <td style="text-align:right">${s.rom_count}</td>
+      <td style="text-align:right;color:${s.image_count ? '#4ec9b0' : '#555'}">${s.image_count}</td>
+      <td style="text-align:right;color:${s.video_count ? '#4ec9b0' : '#555'}">${s.video_count}</td>
+      <td style="text-align:right;color:${s.xml_count ? '#4ec9b0' : '#555'}">${s.xml_count}</td>
+      <td style="text-align:right;color:${s.orphan_assets ? '#f44747' : '#555'}">${s.orphan_assets || '—'}</td>
+    </tr>`).join('');
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+// ── Sync actions ─────────────────────────────────────────────────────────────
+async function doSync(dryRun) {
+  const btnDry   = document.getElementById('btn-sync-dry');
+  const btnApply = document.getElementById('btn-sync-apply');
+  const resultEl = document.getElementById('job-result-sync');
+  if (btnDry)   btnDry.disabled   = true;
+  if (btnApply) btnApply.disabled = true;
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/sync', { dry_run: dryRun });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible';
+      resultEl.textContent = 'Ya hay un sync en curso…';
+      return;
+    }
+    startPolling();
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+    if (btnDry)   btnDry.disabled   = false;
+    if (btnApply) btnApply.disabled = false;
+  }
+}
+
+function _renderSyncResult(result) {
+  const resultEl = document.getElementById('job-result-sync');
+  const decisionsEl = document.getElementById('sync-decisions');
+  if (!resultEl) return;
+  if (result.error) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + result.error;
+  } else {
+    const verb = result.dry_run ? 'Sincronizaría' : 'Sincronizado';
+    resultEl.className = 'job-result visible success';
+    resultEl.textContent = `${verb} — ↑ ${result.uploaded}  ↓ ${result.downloaded}  ✓ ${result.up_to_date}  ⚠ ${result.conflicts}  ✗ ${result.errors}`;
+    if (decisionsEl && result.decisions?.length) {
+      const colors = { upload: '#569cd6', download: '#6a9955', conflict: '#f44747' };
+      decisionsEl.innerHTML = result.decisions.map(d =>
+        `<div style="font-size:12px;color:${colors[d.action]||'#888'};padding:2px 0">[${d.action.toUpperCase()}] ${d.relative}</div>`
+      ).join('');
+    }
+    loadSync(); // Refresh sync log
+  }
+  const btnDry   = document.getElementById('btn-sync-dry');
+  const btnApply = document.getElementById('btn-sync-apply');
+  if (btnDry)   btnDry.disabled   = false;
+  if (btnApply) btnApply.disabled = false;
+}
+
+// ── Convert CHD ──────────────────────────────────────────────────────────────
+async function doConvertChd() {
+  const pathVal    = document.getElementById('chd-path').value.trim();
+  const dryRun     = document.getElementById('chd-dry-run').checked;
+  const delSource  = document.getElementById('chd-delete-source').checked;
+  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .cue/.bin'); return; }
+  const btn = document.getElementById('btn-convert-chd');
+  const resultEl = document.getElementById('job-result-convert-chd');
+  btn.disabled = true;
+  btn.textContent = 'Procesando…';
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/convert-chd', { source_path: pathVal, dry_run: dryRun, delete_source: delSource });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible';
+      resultEl.textContent = 'Ya hay una conversión en curso…';
+      btn.disabled = false;
+      btn.textContent = 'Convertir a CHD';
+      return;
+    }
+    startPolling();
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Convertir a CHD';
+  }
+}
+
+function _renderChdResult(result) {
+  const resultEl   = document.getElementById('job-result-convert-chd');
+  const resultsDiv = document.getElementById('chd-results');
+  const btn        = document.getElementById('btn-convert-chd');
+  if (!resultEl) return;
+  if (result.error) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + result.error;
+  } else {
+    _showJobResult('convert-chd', result);
+    if (resultsDiv && result.results?.length) {
+      resultsDiv.innerHTML = result.results.map(r => {
+        const color = r.success ? '#4ec9b0' : '#f44747';
+        const tag   = r.success ? (result.dry_run ? 'PREVIEW' : 'OK') : 'FAIL';
+        const extra = r.error ? ` — ${r.error}` : (r.success ? ` → ${r.chd}` : '');
+        return `<div style="font-size:12px;color:${color};padding:2px 0">[${tag}] ${r.cue}${extra}</div>`;
+      }).join('');
+    }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Convertir a CHD'; }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

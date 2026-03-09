@@ -16,7 +16,7 @@ from rom_manager.web.frontend import HTML
 
 # ── Background job state ──────────────────────────────────────────────────────
 _job_lock = threading.Lock()
-_jobs: dict[str, bool] = {"scan": False, "match": False}
+_jobs: dict[str, bool] = {"scan": False, "match": False, "sync": False, "convert_chd": False}
 _job_results: dict[str, dict] = {}
 _logger = logging.getLogger(__name__)
 
@@ -118,6 +118,10 @@ def _build_duplicates(repository: LibraryRepository) -> dict:
     }
 
 
+def _build_assets(repository: LibraryRepository) -> dict:
+    return {"stats": repository.get_asset_platform_stats()}
+
+
 def _build_sync_log(repository: LibraryRepository) -> dict:
     entries = repository.get_sync_log(limit=200)
     return {"entries": entries}
@@ -173,6 +177,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._send_json(_build_plan(repository, opts))
                 elif path == "/api/duplicates":
                     self._send_json(_build_duplicates(repository))
+                elif path == "/api/assets":
+                    self._send_json(_build_assets(repository))
                 elif path == "/api/sync-log":
                     self._send_json(_build_sync_log(repository))
                 elif path == "/api/config":
@@ -182,8 +188,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         self._send_json({
                             "scan_running": _jobs["scan"],
                             "match_running": _jobs["match"],
+                            "sync_running": _jobs["sync"],
+                            "convert_chd_running": _jobs["convert_chd"],
                             "scan_result": _job_results.get("scan"),
                             "match_result": _job_results.get("match"),
+                            "sync_result": _job_results.get("sync"),
+                            "convert_chd_result": _job_results.get("convert_chd"),
                         })
                 elif path == "/api/report.json":
                     report = build_report(repository)
@@ -225,6 +235,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_fix_platforms()
                 elif path == "/api/duplicates/delete":
                     self._handle_delete_duplicate(data)
+                elif path == "/api/sync":
+                    self._handle_sync(data)
+                elif path == "/api/convert-chd":
+                    self._handle_convert_chd(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -318,6 +332,104 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             from rom_manager.detection.platform_detector import detect_platform
             updated = repository.backfill_platforms(detect_platform)
             self._send_json({"updated": updated})
+
+        def _handle_sync(self, data: dict) -> None:
+            dry_run = data.get("dry_run", True)
+            with _job_lock:
+                if _jobs["sync"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["sync"] = True
+
+            def run() -> None:
+                try:
+                    from rom_manager.sync.rclone_transport import RcloneTransport, RcloneError
+                    from rom_manager.sync.save_syncer import sync_saves
+                    saves_dir = config.saves_dir
+                    if saves_dir is None:
+                        _job_results["sync"] = {"error": "saves_dir not configured"}
+                        return
+                    remote = config.rclone_remote
+                    if not remote:
+                        _job_results["sync"] = {"error": "rclone remote not configured"}
+                        return
+                    transport = RcloneTransport(rclone=config.rclone_binary)
+                    result, decisions = sync_saves(
+                        saves_dir,
+                        remote,
+                        transport=transport,
+                        repository=repository,
+                        save_extensions=config.save_extensions,
+                        dry_run=dry_run,
+                    )
+                    _job_results["sync"] = {
+                        "dry_run": dry_run,
+                        "uploaded": result.uploaded,
+                        "downloaded": result.downloaded,
+                        "up_to_date": result.up_to_date,
+                        "conflicts": result.conflicts,
+                        "errors": result.errors,
+                        "decisions": [
+                            {"action": d.action, "relative": d.relative}
+                            for d in decisions if d.action != "up_to_date"
+                        ],
+                    }
+                except Exception as exc:
+                    _job_results["sync"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _jobs["sync"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started", "dry_run": dry_run})
+
+        def _handle_convert_chd(self, data: dict) -> None:
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            dry_run = data.get("dry_run", True)
+            delete_source = data.get("delete_source", False)
+
+            with _job_lock:
+                if _jobs["convert_chd"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["convert_chd"] = True
+
+            def run() -> None:
+                try:
+                    from rom_manager.converters.chd_converter import convert_directory
+                    source = Path(source_path_str).resolve()
+                    summary = convert_directory(
+                        source,
+                        chdman=config.chdman,
+                        delete_source=delete_source,
+                        dry_run=dry_run,
+                    )
+                    _job_results["convert_chd"] = {
+                        "dry_run": dry_run,
+                        "converted": summary.converted,
+                        "skipped": summary.skipped,
+                        "failed": summary.failed,
+                        "results": [
+                            {
+                                "cue": r.cue_path.name,
+                                "chd": r.chd_path.name,
+                                "success": r.success,
+                                "error": r.error or "",
+                            }
+                            for r in summary.results
+                        ],
+                    }
+                except Exception as exc:
+                    _job_results["convert_chd"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _jobs["convert_chd"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started", "dry_run": dry_run})
 
         def _handle_delete_duplicate(self, data: dict) -> None:
             import os
