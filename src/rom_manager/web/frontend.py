@@ -383,6 +383,10 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div id="job-result-extract-zip" class="job-result"></div>
     <div id="zip-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
+    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
+      <button class="btn danger" onclick="doCleanupZips()">Eliminar todos los .zip de esta carpeta</button>
+      <span style="color:#555;font-size:12px">Para usar si ya extrajiste antes sin marcar "Eliminar .zip"</span>
+    </div>
   </div>
 
   <!-- ── Generar playlists M3U ── -->
@@ -479,6 +483,10 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div id="job-result-convert-chd" class="job-result"></div>
     <div id="chd-results" style="margin-top:16px"></div>
+    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
+      <button class="btn danger" onclick="doCleanupCueBin()">Eliminar .cue/.bin originales</button>
+      <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
+    </div>
   </div>
 </div>
 
@@ -1319,6 +1327,31 @@ function _renderChdResult(result) {
 }
 
 // ── Extract ZIP ──────────────────────────────────────────────────────────────
+async function doCleanupZips() {
+  const pathVal = document.getElementById('zip-path').value.trim();
+  if (!pathVal) { alert('Introduce la ruta de la carpeta'); return; }
+  const n = (document.querySelectorAll('#zip-results div').length) || '?';
+  if (!confirm(`¿Eliminar TODOS los archivos .zip de:\n${pathVal}\n\nEsta operación no se puede deshacer.`)) return;
+  try {
+    const d = await apiPost('/api/cleanup-zips', { source_path: pathVal });
+    const el = document.getElementById('job-result-extract-zip');
+    el.className = 'job-result visible success';
+    el.textContent = `ZIPs eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function doCleanupCueBin() {
+  const pathVal = document.getElementById('chd-path').value.trim();
+  if (!pathVal) { alert('Introduce la ruta de la carpeta'); return; }
+  if (!confirm(`¿Eliminar los archivos .cue y .bin que ya tienen su .chd en:\n${pathVal}\n\nEsta operación no se puede deshacer.`)) return;
+  try {
+    const d = await apiPost('/api/cleanup-cue-bin', { source_path: pathVal });
+    const el = document.getElementById('job-result-convert-chd');
+    el.className = 'job-result visible success';
+    el.textContent = `Archivos eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.skipped ? `  |  Sin .chd (no tocados): ${d.skipped}` : ''}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 async function doExtractZip() {
   const pathVal   = document.getElementById('zip-path').value.trim();
   const dryRun    = document.getElementById('zip-dry-run').checked;

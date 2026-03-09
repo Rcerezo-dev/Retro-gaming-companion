@@ -373,6 +373,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_delete_orphaned_saves(data)
                 elif path == "/api/health-check":
                     self._handle_health_check(data)
+                elif path == "/api/cleanup-zips":
+                    self._handle_cleanup_zips(data)
+                elif path == "/api/cleanup-cue-bin":
+                    self._handle_cleanup_cue_bin(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -628,6 +632,50 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             config.screenscraper_pass = new_cfg.screenscraper_pass
             config.chdman = new_cfg.chdman
             self._send_json({"saved": list(updates.keys())})
+
+        def _handle_cleanup_zips(self, data: dict) -> None:
+            import os
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            source = Path(source_path_str).resolve()
+            deleted = failed = 0
+            freed_bytes = 0
+            for zp in source.rglob("*.zip"):
+                try:
+                    freed_bytes += zp.stat().st_size
+                    os.remove(zp)
+                    deleted += 1
+                except OSError:
+                    failed += 1
+            self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
+
+        def _handle_cleanup_cue_bin(self, data: dict) -> None:
+            import os
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            source = Path(source_path_str).resolve()
+            deleted = failed = skipped = 0
+            freed_bytes = 0
+            for cue in source.rglob("*.cue"):
+                chd = cue.with_suffix(".chd")
+                if not chd.exists():
+                    skipped += 1
+                    continue
+                # Delete the .cue and all .bin files it references
+                from rom_manager.converters.chd_converter import parse_bins_from_cue
+                bins = parse_bins_from_cue(cue)
+                for f in [cue, *bins]:
+                    try:
+                        freed_bytes += f.stat().st_size
+                        os.remove(f)
+                        deleted += 1
+                    except OSError:
+                        failed += 1
+            self._send_json({"deleted": deleted, "failed": failed, "skipped": skipped, "freed_bytes": freed_bytes})
 
         def _handle_extract_zip(self, data: dict) -> None:
             source_path_str = data.get("source_path", "").strip()
