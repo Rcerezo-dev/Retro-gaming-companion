@@ -52,13 +52,16 @@ class ScreenScraperClient:
         self._rate_limit()
 
         params: dict[str, str] = {
-            "devid": self.dev_id,
-            "devpassword": self.dev_password,
             "ssid": self.user,
             "sspassword": self.password,
             "softname": _SOFT_NAME,
             "output": "json",
         }
+        # Only include dev credentials if provided (empty values cause 403)
+        if self.dev_id:
+            params["devid"] = self.dev_id
+        if self.dev_password:
+            params["devpassword"] = self.dev_password
         if crc32:
             params["crc"] = crc32
         if md5:
@@ -78,9 +81,17 @@ class ScreenScraperClient:
             with urllib.request.urlopen(url, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
-            if exc.code in (404, 430):
-                # 404 = not found, 430 = rate limited / quota exceeded
+            if exc.code in (404, 426):
+                # 404 = not found
                 return None
+            if exc.code == 430:
+                # 430 = rate limited / daily quota exceeded
+                return None
+            if exc.code == 403:
+                raise PermissionError(
+                    "ScreenScraper returned HTTP 403 — credenciales incorrectas o cuenta bloqueada. "
+                    "Verifica usuario y contraseña en Settings."
+                ) from exc
             raise
         except (urllib.error.URLError, OSError):
             return None

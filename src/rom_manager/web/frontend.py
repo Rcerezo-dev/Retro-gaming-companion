@@ -311,6 +311,16 @@ HTML = r"""<!DOCTYPE html>
       <button id="btn-scrape" class="btn primary" onclick="doScrape()">Iniciar scraping</button>
       <span style="color:#555;font-size:12px">Respeta el rate limit de ScreenScraper (~1 req/s)</span>
     </div>
+    <div id="scrape-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="scrape-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="scrape-progress-found" style="font-size:11px;color:#4ec9b0"></span>
+        <span id="scrape-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="scrape-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.4s"></div>
+      </div>
+    </div>
     <div id="job-result-scrape" class="job-result"></div>
   </div>
 
@@ -573,6 +583,23 @@ function _applyJobStatus(s) {
   }
   if (!s.convert_chd_running && s.convert_chd_result) {
     _renderChdResult(s.convert_chd_result);
+  }
+  // Scrape progress bar
+  const scrapeWrap = document.getElementById('scrape-progress-wrap');
+  if (s.scrape_running && s.scrape_progress && s.scrape_progress.total > 0) {
+    const p = s.scrape_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (scrapeWrap) scrapeWrap.style.display = '';
+    const bar   = document.getElementById('scrape-progress-bar');
+    const lbl   = document.getElementById('scrape-progress-label');
+    const found = document.getElementById('scrape-progress-found');
+    const file  = document.getElementById('scrape-progress-file');
+    if (bar)   bar.style.width  = pct + '%';
+    if (lbl)   lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
+    if (found) found.textContent = p.found > 0 ? `✓ ${p.found} encontrados` : '';
+    if (file)  file.textContent  = p.current_game;
+  } else if (!s.scrape_running) {
+    if (scrapeWrap) scrapeWrap.style.display = 'none';
   }
   if (!s.scrape_running && s.scrape_result) {
     const el = document.getElementById('job-result-scrape');

@@ -19,6 +19,7 @@ _job_lock = threading.Lock()
 _jobs: dict[str, bool] = {"scan": False, "match": False, "sync": False, "convert_chd": False, "scrape": False}
 _job_results: dict[str, dict] = {}
 _chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
+_scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "current_game": str}
 _logger = logging.getLogger(__name__)
 
 
@@ -230,6 +231,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "convert_chd_result": _job_results.get("convert_chd"),
                             "scrape_result": _job_results.get("scrape"),
                             "chd_progress": dict(_chd_progress) if _chd_progress else None,
+                            "scrape_progress": dict(_scrape_progress) if _scrape_progress else None,
                         })
                 elif path == "/api/report.json":
                     report = build_report(repository)
@@ -553,9 +555,17 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     games = repository.get_games_for_scraping(platform=platform)
                     if limit:
                         games = games[:limit]
+                    total = len(games)
                     found = skipped = 0
+                    _scrape_progress.update({"current": 0, "total": total, "found": 0, "current_game": ""})
                     with repository.batch() as conn:
-                        for game in games:
+                        for idx, game in enumerate(games, 1):
+                            _scrape_progress.update({
+                                "current": idx,
+                                "total": total,
+                                "found": found,
+                                "current_game": game["original_filename"],
+                            })
                             result = client.search(
                                 crc32=game["crc32"],
                                 md5=game["md5"],
@@ -587,11 +597,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             )
                             found += 1
                     _job_results["scrape"] = {
-                        "total": len(games), "found": found, "skipped": skipped,
+                        "total": total, "found": found, "skipped": skipped,
                     }
                 except Exception as exc:
                     _job_results["scrape"] = {"error": str(exc)}
                 finally:
+                    _scrape_progress.clear()
                     with _job_lock:
                         _jobs["scrape"] = False
 
