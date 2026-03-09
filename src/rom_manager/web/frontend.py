@@ -1247,7 +1247,7 @@ async function saveSettings() {
       resultEl.textContent = 'Error: ' + d.error;
     } else {
       resultEl.className = 'job-result visible success';
-      resultEl.textContent = 'Guardado: ' + d.saved.join(', ') + '. Reinicia el servidor para aplicar.';
+      resultEl.textContent = 'Guardado: ' + d.saved.join(', ') + '.';
     }
   } catch(e) {
     resultEl.className = 'job-result visible error-r';

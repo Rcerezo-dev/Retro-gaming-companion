@@ -505,7 +505,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             self._send_json({"status": "started", "dry_run": dry_run})
 
         def _handle_save_config(self, data: dict) -> None:
-            from rom_manager.config import write_config_toml
+            from rom_manager.config import write_config_toml, load_config
             allowed = {
                 "library.library_root", "sync.remote",
                 "screenscraper.user", "screenscraper.pass",
@@ -515,6 +515,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 self._send_json({"error": "No recognised fields to update"})
                 return
             write_config_toml(config.project_root, updates)
+            # Reload in-memory config so changes take effect without restart
+            new_cfg = load_config(config.project_root)
+            config.library_root = new_cfg.library_root
+            config.rclone_remote = new_cfg.rclone_remote
+            config.screenscraper_user = new_cfg.screenscraper_user
+            config.screenscraper_pass = new_cfg.screenscraper_pass
             self._send_json({"saved": list(updates.keys())})
 
         def _handle_scrape(self, data: dict) -> None:
