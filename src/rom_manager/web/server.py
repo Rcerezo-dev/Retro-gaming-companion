@@ -10,10 +10,14 @@ from urllib.parse import parse_qs, urlparse
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.planner import build_plan
+from rom_manager.planner.operation_planner import FormatOptions
 from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.web.frontend import HTML
 
-_scan_lock = threading.Lock()
+# ── Background job state ──────────────────────────────────────────────────────
+_job_lock = threading.Lock()
+_jobs: dict[str, bool] = {"scan": False, "match": False}
+_job_results: dict[str, dict] = {}
 _logger = logging.getLogger(__name__)
 
 
@@ -59,8 +63,15 @@ def _build_games(
     }
 
 
-def _build_plan(repository: LibraryRepository) -> dict:
-    plan = build_plan(repository)
+def _build_plan(repository: LibraryRepository, opts: FormatOptions | None = None) -> dict:
+    plan = build_plan(repository, opts)
+    if plan.total == 0:
+        return {
+            "total": 0,
+            "already_correct": 0,
+            "pending": [],
+            "conflicts": [],
+        }
     return {
         "total": plan.total,
         "already_correct": len(plan.already_correct),
@@ -121,14 +132,26 @@ def _build_config(config: AppConfig) -> dict:
     }
 
 
+def _parse_format_opts(qs: dict) -> FormatOptions:
+    return FormatOptions(
+        include_region=qs.get("include_region", ["1"])[0] != "0",
+        include_revision=qs.get("include_revision", ["1"])[0] != "0",
+    )
+
+
 def make_handler(repository: LibraryRepository, config: AppConfig):
+    logger = logging.getLogger(__name__)
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             pass  # suppress default request logging
 
+        # ── GET ──────────────────────────────────────────────────────────────
+
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
             path = parsed.path
+            qs = parse_qs(parsed.query)
 
             try:
                 if path == "/":
@@ -143,13 +166,22 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     st = qs.get("status", [None])[0] or None
                     self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st))
                 elif path == "/api/plan":
-                    self._send_json(_build_plan(repository))
+                    opts = _parse_format_opts(qs)
+                    self._send_json(_build_plan(repository, opts))
                 elif path == "/api/duplicates":
                     self._send_json(_build_duplicates(repository))
                 elif path == "/api/sync-log":
                     self._send_json(_build_sync_log(repository))
                 elif path == "/api/config":
                     self._send_json(_build_config(config))
+                elif path == "/api/job-status":
+                    with _job_lock:
+                        self._send_json({
+                            "scan_running": _jobs["scan"],
+                            "match_running": _jobs["match"],
+                            "scan_result": _job_results.get("scan"),
+                            "match_result": _job_results.get("match"),
+                        })
                 elif path == "/api/report.json":
                     report = build_report(repository)
                     body = to_json(report).encode()
@@ -166,46 +198,149 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 body = json.dumps({"error": str(exc)}).encode()
                 self._send(500, "application/json", body)
 
+        # ── POST ─────────────────────────────────────────────────────────────
+
         def do_POST(self) -> None:
             parsed = urlparse(self.path)
             path = parsed.path
+
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length else b"{}"
             try:
-                length = int(self.headers.get("Content-Length", 0))
-                body_bytes = self.rfile.read(length) if length else b"{}"
-                payload: dict = json.loads(body_bytes or b"{}")
+                data: dict = json.loads(raw) if raw else {}
+            except Exception:
+                data = {}
 
+            try:
                 if path == "/api/scan":
-                    scan_path_str = payload.get("path", "").strip()
-                    if not scan_path_str:
-                        self._send_json({"error": "Missing 'path' in request body"})
-                        return
-                    scan_path = Path(scan_path_str)
-                    if not scan_path.exists() or not scan_path.is_dir():
-                        self._send_json({"error": f"Directory not found: {scan_path_str}"})
-                        return
-                    if not _scan_lock.acquire(blocking=False):
-                        self._send_json({"status": "busy", "message": "A scan is already running."})
-                        return
-
-                    def _run_scan() -> None:
-                        try:
-                            from rom_manager.logging_utils import configure_logging
-                            from rom_manager.scanner import scan_library
-                            scan_logger = configure_logging(config.logs_dir)
-                            scan_library(scan_path.resolve(), config, repository, scan_logger)
-                        except Exception as exc:
-                            _logger.error("Background scan failed: %s", exc)
-                        finally:
-                            _scan_lock.release()
-
-                    t = threading.Thread(target=_run_scan, daemon=True)
-                    t.start()
-                    self._send_json({"status": "started", "path": str(scan_path.resolve())})
+                    self._handle_scan(data)
+                elif path == "/api/match":
+                    self._handle_match()
+                elif path == "/api/apply":
+                    self._handle_apply(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
                 body = json.dumps({"error": str(exc)}).encode()
                 self._send(500, "application/json", body)
+
+        # ── POST handlers ────────────────────────────────────────────────────
+
+        def _handle_scan(self, data: dict) -> None:
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+
+            with _job_lock:
+                if _jobs["scan"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["scan"] = True
+
+            def run() -> None:
+                try:
+                    from rom_manager.scanner import scan_library
+                    source = Path(source_path_str).resolve()
+                    result = scan_library(source, config, repository, logger)
+                    _job_results["scan"] = {
+                        "files_seen": result.files_seen,
+                        "roms_detected": result.roms_detected,
+                        "roms_skipped": result.roms_skipped,
+                        "saves_detected": result.saves_detected,
+                        "errors": result.errors,
+                    }
+                except Exception as exc:
+                    _job_results["scan"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _jobs["scan"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
+
+        def _handle_match(self) -> None:
+            with _job_lock:
+                if _jobs["match"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["match"] = True
+
+            def run() -> None:
+                try:
+                    from rom_manager.catalog.matcher import CatalogMatcher
+                    matcher = CatalogMatcher(
+                        nointro_dir=config.catalogs_nointro_dir,
+                        redump_dir=config.catalogs_redump_dir,
+                    )
+                    games = repository.get_unresolved_games()
+                    matched_high = matched_low = unmatched = 0
+                    with repository.batch() as conn:
+                        for game in games:
+                            result = matcher.match(game.sha1, game.original_filename)
+                            if result is not None:
+                                repository.update_match(
+                                    game.source_path,
+                                    canonical_title=result.title,
+                                    match_confidence=result.confidence,
+                                    catalog_source=result.catalog_source,
+                                    connection=conn,
+                                )
+                                if result.confidence == "high":
+                                    matched_high += 1
+                                else:
+                                    matched_low += 1
+                            else:
+                                unmatched += 1
+                    _job_results["match"] = {
+                        "total": len(games),
+                        "matched_high": matched_high,
+                        "matched_low": matched_low,
+                        "unmatched": unmatched,
+                    }
+                except Exception as exc:
+                    _job_results["match"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _jobs["match"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
+
+        def _handle_apply(self, data: dict) -> None:
+            import os
+            from rom_manager.scanner.rom_scanner import utc_now
+
+            fmt = data.get("format_opts", {})
+            opts = FormatOptions(
+                include_region=fmt.get("include_region", True),
+                include_revision=fmt.get("include_revision", True),
+            )
+
+            plan = build_plan(repository, opts)
+            renamed = failed = 0
+            timestamp = utc_now()
+            for op in plan.pending:
+                try:
+                    os.rename(op.source_path, op.target_path)
+                    repository.apply_rename(
+                        game_id=op.game.id,
+                        old_source_path=str(op.source_path),
+                        new_source_path=str(op.target_path),
+                        new_filename=op.target_path.name,
+                        timestamp=timestamp,
+                    )
+                    renamed += 1
+                except OSError:
+                    failed += 1
+
+            self._send_json({
+                "renamed": renamed,
+                "failed": failed,
+                "conflicts": len(plan.conflicts),
+            })
+
+        # ── Helpers ──────────────────────────────────────────────────────────
 
         def _send(
             self,
