@@ -31,3 +31,6 @@ Thumbs.db
 config.toml
 #log personal de tareas 
 Tareas/
+
+# External binaries (place chdman.exe here)
+tools/*.exe
