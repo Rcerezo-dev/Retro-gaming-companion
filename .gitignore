@@ -27,5 +27,7 @@ Thumbs.db
 
 # Ignore the .env file which may contain sensitive information
 .env
+# User-specific config (local paths, rclone remotes)
+config.toml
 #log personal de tareas 
 Tareas/
