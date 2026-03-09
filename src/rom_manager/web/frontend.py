@@ -818,7 +818,8 @@ async function doApply() {
     const el = document.getElementById('plan-content');
     const msg = document.createElement('p');
     msg.style.cssText = 'margin-top:16px;color:#4ec9b0;font-size:13px';
-    msg.textContent = `Renombrados: ${d.renamed}  |  Fallidos: ${d.failed}  |  Conflictos: ${d.conflicts}`;
+    const savesInfo = d.saves_renamed > 0 ? `  |  Saves renombrados: ${d.saves_renamed}` : '';
+    msg.textContent = `Renombrados: ${d.renamed}  |  Fallidos: ${d.failed}  |  Conflictos: ${d.conflicts}${savesInfo}`;
     el.prepend(msg);
     // Reload plan and stats
     await loadPlan();

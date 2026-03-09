@@ -74,6 +74,7 @@ def _canonical_filename(game: MatchedGame, opts: FormatOptions | None = None) ->
 def build_plan(
     repository: LibraryRepository,
     opts: FormatOptions | None = None,
+    keep_both: bool = False,
 ) -> RenamePlan:
     """Generate a rename plan for all matched games.
 
@@ -108,7 +109,7 @@ def build_plan(
             )
 
     # Detect plan-level collisions (two pending ops → same target path)
-    resolved = resolve(plan.pending, keep_both=False)
+    resolved = resolve(plan.pending, keep_both=keep_both)
     plan.pending = [op for op in resolved if op.status == "pending"]
     plan.conflicts.extend(op for op in resolved if op.status == "conflict")
 

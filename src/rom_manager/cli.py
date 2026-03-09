@@ -300,7 +300,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "apply":
-        import os
+        from rom_manager.renamer.file_renamer import rename_rom_with_saves
         from rom_manager.scanner.rom_scanner import utc_now
 
         plan = build_plan(repository)
@@ -310,12 +310,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{len(plan.conflicts)} conflict(s) require manual resolution.")
             return 0
 
+        save_exts = frozenset(config.save_extensions)
         timestamp = utc_now()
-        renamed = 0
-        failed = 0
+        renamed = failed = saves_renamed = 0
         for op in plan.pending:
-            try:
-                os.rename(op.source_path, op.target_path)
+            outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+            if outcome.success:
                 repository.apply_rename(
                     game_id=op.game.id,
                     old_source_path=str(op.source_path),
@@ -324,11 +324,16 @@ def main(argv: list[str] | None = None) -> int:
                     timestamp=timestamp,
                 )
                 renamed += 1
-            except OSError as exc:
-                print(f"  [FAIL] {op.source_path.name}: {exc}")
+                saves_renamed += outcome.saves_renamed
+                if outcome.saves_renamed:
+                    print(f"  [OK]  {op.source_path.name}  →  {op.target_path.name}  (+{outcome.saves_renamed} save(s))")
+                else:
+                    print(f"  [OK]  {op.source_path.name}  →  {op.target_path.name}")
+            else:
+                print(f"  [FAIL] {op.source_path.name}: {outcome.error}")
                 failed += 1
 
-        print(f"Renamed: {renamed}  |  Failed: {failed}")
+        print(f"\nRenamed: {renamed}  |  Saves renamed: {saves_renamed}  |  Failed: {failed}")
         if plan.conflicts:
             print(f"{len(plan.conflicts)} conflict(s) were skipped — resolve manually.")
         return 0

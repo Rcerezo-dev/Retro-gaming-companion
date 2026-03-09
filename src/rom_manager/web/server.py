@@ -576,7 +576,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             self._send_json({"deleted": source_path})
 
         def _handle_apply(self, data: dict) -> None:
-            import os
+            from rom_manager.renamer.file_renamer import rename_rom_with_saves
             from rom_manager.scanner.rom_scanner import utc_now
 
             fmt = data.get("format_opts", {})
@@ -588,12 +588,13 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 sha_length=min(40, max(4, int(fmt.get("sha_length", 8)))),
             )
 
+            save_exts = frozenset(config.save_extensions)
             plan = build_plan(repository, opts)
-            renamed = failed = 0
+            renamed = failed = saves_renamed = 0
             timestamp = utc_now()
             for op in plan.pending:
-                try:
-                    os.rename(op.source_path, op.target_path)
+                outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                if outcome.success:
                     repository.apply_rename(
                         game_id=op.game.id,
                         old_source_path=str(op.source_path),
@@ -602,12 +603,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         timestamp=timestamp,
                     )
                     renamed += 1
-                except OSError:
+                    saves_renamed += outcome.saves_renamed
+                else:
                     failed += 1
 
             self._send_json({
                 "renamed": renamed,
                 "failed": failed,
+                "saves_renamed": saves_renamed,
                 "conflicts": len(plan.conflicts),
             })
 
