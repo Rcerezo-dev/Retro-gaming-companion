@@ -195,7 +195,26 @@ HTML = r"""<!DOCTYPE html>
     <label class="fmt-check">
       <input type="checkbox" id="fmt-revision" checked onchange="loadPlan()"> Revisión
     </label>
+    <label class="fmt-check">
+      <input type="checkbox" id="fmt-platform" onchange="loadPlan()"> Plataforma
+    </label>
+    <label class="fmt-check">
+      <input type="checkbox" id="fmt-sha" onchange="loadPlan(); toggleShaLength()"> SHA
+    </label>
+    <label class="fmt-check" id="sha-length-label" style="display:none">
+      <span style="color:#888;font-size:11px;margin-right:4px">Dígitos:</span>
+      <select id="fmt-sha-length" onchange="loadPlan()"
+        style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:2px 6px;border-radius:4px;font:inherit;font-size:12px">
+        <option value="8" selected>8</option>
+        <option value="12">12</option>
+        <option value="16">16</option>
+        <option value="40">40 (completo)</option>
+      </select>
+    </label>
     <button id="btn-apply" class="btn primary" style="margin-left:auto" onclick="doApply()">Aplicar renombrado</button>
+  </div>
+  <div id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:#161626;border:1px solid #2a2a3a;border-radius:4px;display:none">
+    <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:#4ec9b0"></span>
   </div>
   <div id="plan-content"><p class="loading">Loading…</p></div>
 </div>
@@ -494,10 +513,21 @@ function renderPagination() {
 }
 
 // ── Plan ─────────────────────────────────────────────────────────────────────
+function _chk(id, def = '1') {
+  const el = document.getElementById(id);
+  return el ? (el.checked ? '1' : '0') : def;
+}
+
+function toggleShaLength() {
+  const label = document.getElementById('sha-length-label');
+  if (label) label.style.display = document.getElementById('fmt-sha').checked ? '' : 'none';
+}
+
 function _planQueryString() {
-  const region   = document.getElementById('fmt-region')   ? (document.getElementById('fmt-region').checked   ? '1' : '0') : '1';
-  const revision = document.getElementById('fmt-revision') ? (document.getElementById('fmt-revision').checked ? '1' : '0') : '1';
-  return `?include_region=${region}&include_revision=${revision}`;
+  const shaLength = document.getElementById('fmt-sha-length')?.value || '8';
+  return `?include_region=${_chk('fmt-region')}&include_revision=${_chk('fmt-revision')}` +
+         `&include_platform=${_chk('fmt-platform', '0')}&include_sha=${_chk('fmt-sha', '0')}` +
+         `&sha_length=${shaLength}`;
 }
 
 async function loadPlan() {
@@ -505,6 +535,18 @@ async function loadPlan() {
   el.innerHTML = '<p class="loading">Loading…</p>';
   try {
     const d = await apiFetch('/api/plan' + _planQueryString());
+
+    // Update preview bar
+    const previewEl  = document.getElementById('fmt-preview');
+    const previewTxt = document.getElementById('fmt-preview-text');
+    const firstPending = d.pending?.[0] || d.already_correct_example;
+    if (previewEl && previewTxt && d.pending.length > 0) {
+      previewTxt.textContent = d.pending[0].target_name;
+      previewEl.style.display = '';
+    } else if (previewEl) {
+      previewEl.style.display = 'none';
+    }
+
     if (d.total === 0) {
       el.innerHTML = '<p class="empty">No matched games found. Run <strong>Match catálogos</strong> primero.</p>';
       return;
@@ -545,12 +587,15 @@ async function doApply() {
   btn.disabled = true;
   btn.textContent = 'Aplicando…';
 
-  const includeRegion   = document.getElementById('fmt-region').checked;
-  const includeRevision = document.getElementById('fmt-revision').checked;
-
   try {
     const d = await apiPost('/api/apply', {
-      format_opts: { include_region: includeRegion, include_revision: includeRevision }
+      format_opts: {
+        include_region:   document.getElementById('fmt-region').checked,
+        include_revision: document.getElementById('fmt-revision').checked,
+        include_platform: document.getElementById('fmt-platform').checked,
+        include_sha:      document.getElementById('fmt-sha').checked,
+        sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
+      }
     });
     const el = document.getElementById('plan-content');
     const msg = document.createElement('p');

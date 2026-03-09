@@ -26,6 +26,7 @@ class MatchedGame:
     extension: str
     canonical_title: str
     match_confidence: str
+    sha1: str
 
 
 @dataclass(slots=True)
@@ -343,7 +344,7 @@ class LibraryRepository:
             rows = connection.execute(
                 """
                 SELECT id, original_filename, source_path, platform, extension,
-                       canonical_title, match_confidence
+                       canonical_title, match_confidence, sha1
                 FROM games
                 WHERE canonical_title IS NOT NULL
                 ORDER BY platform, canonical_title
@@ -358,6 +359,7 @@ class LibraryRepository:
                 extension=row["extension"],
                 canonical_title=row["canonical_title"],
                 match_confidence=row["match_confidence"],
+                sha1=row["sha1"],
             )
             for row in rows
         ]
