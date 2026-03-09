@@ -16,10 +16,16 @@ from rom_manager.web.frontend import HTML
 
 # ── Background job state ──────────────────────────────────────────────────────
 _job_lock = threading.Lock()
-_jobs: dict[str, bool] = {"scan": False, "match": False, "sync": False, "convert_chd": False, "scrape": False}
+_jobs: dict[str, bool] = {
+    "scan": False, "match": False, "sync": False,
+    "convert_chd": False, "scrape": False,
+    "extract_zip": False, "health_check": False,
+}
 _job_results: dict[str, dict] = {}
-_chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
+_chd_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
 _scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "current_game": str}
+_zip_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
+_health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _logger = logging.getLogger(__name__)
 
 
@@ -232,7 +238,35 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "scrape_result": _job_results.get("scrape"),
                             "chd_progress": dict(_chd_progress) if _chd_progress else None,
                             "scrape_progress": dict(_scrape_progress) if _scrape_progress else None,
+                            "extract_zip_running": _jobs["extract_zip"],
+                            "zip_progress": dict(_zip_progress) if _zip_progress else None,
+                            "health_check_running": _jobs["health_check"],
+                            "health_progress": dict(_health_progress) if _health_progress else None,
+                            "health_check_result": _job_results.get("health_check"),
+                            "extract_zip_result": _job_results.get("extract_zip"),
                         })
+                elif path == "/api/orphaned-saves":
+                    source = qs.get("path", [None])[0]
+                    if not source:
+                        self._send_json({"error": "path parameter required"})
+                    else:
+                        from rom_manager.utils.orphan_finder import find_orphaned_saves
+                        orphans = find_orphaned_saves(Path(source).resolve(), config.save_extensions)
+                        self._send_json({
+                            "orphans": [
+                                {"save_path": o.save_path, "stem": o.stem,
+                                 "extension": o.extension, "size_bytes": o.size_bytes}
+                                for o in orphans
+                            ],
+                            "total": len(orphans),
+                        })
+                elif path == "/api/db-backup":
+                    db_path = config.database_path
+                    if not db_path.exists():
+                        self._send(404, "text/plain", b"Database not found")
+                    else:
+                        self._send(200, "application/octet-stream", db_path.read_bytes(),
+                                   extra_headers={"Content-Disposition": 'attachment; filename="library.sqlite"'})
                 elif path == "/api/report.json":
                     report = build_report(repository)
                     body = to_json(report).encode()
@@ -285,6 +319,16 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_export_gamelists(data)
                 elif path == "/api/config":
                     self._handle_save_config(data)
+                elif path == "/api/extract-zip":
+                    self._handle_extract_zip(data)
+                elif path == "/api/generate-m3u":
+                    self._handle_generate_m3u(data)
+                elif path == "/api/verify-multidisc":
+                    self._handle_verify_multidisc(data)
+                elif path == "/api/orphaned-saves/delete":
+                    self._handle_delete_orphaned_saves(data)
+                elif path == "/api/health-check":
+                    self._handle_health_check(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -294,8 +338,13 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
         # ── POST handlers ────────────────────────────────────────────────────
 
         def _handle_scan(self, data: dict) -> None:
-            source_path_str = data.get("source_path", "").strip()
-            if not source_path_str:
+            # Accept either a single source_path or a list source_paths
+            raw_paths = data.get("source_paths") or []
+            single = data.get("source_path", "").strip()
+            if single and not raw_paths:
+                raw_paths = [single]
+            raw_paths = [p.strip() for p in raw_paths if str(p).strip()]
+            if not raw_paths:
                 self._send_json({"error": "source_path is required"})
                 return
             quick = bool(data.get("quick", False))
@@ -309,14 +358,23 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             def run() -> None:
                 try:
                     from rom_manager.scanner import scan_library
-                    source = Path(source_path_str).resolve()
-                    result = scan_library(source, config, repository, logger, quick=quick)
+                    from rom_manager.scanner.rom_scanner import ScanResult
+                    total = ScanResult()
+                    for raw in raw_paths:
+                        source = Path(raw).resolve()
+                        r = scan_library(source, config, repository, logger, quick=quick)
+                        total.files_seen += r.files_seen
+                        total.roms_detected += r.roms_detected
+                        total.roms_skipped += r.roms_skipped
+                        total.saves_detected += r.saves_detected
+                        total.errors += r.errors
                     _job_results["scan"] = {
-                        "files_seen": result.files_seen,
-                        "roms_detected": result.roms_detected,
-                        "roms_skipped": result.roms_skipped,
-                        "saves_detected": result.saves_detected,
-                        "errors": result.errors,
+                        "files_seen": total.files_seen,
+                        "roms_detected": total.roms_detected,
+                        "roms_skipped": total.roms_skipped,
+                        "saves_detected": total.saves_detected,
+                        "errors": total.errors,
+                        "paths_scanned": len(raw_paths),
                     }
                 except Exception as exc:
                     _job_results["scan"] = {"error": str(exc)}
@@ -524,6 +582,155 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             config.screenscraper_user = new_cfg.screenscraper_user
             config.screenscraper_pass = new_cfg.screenscraper_pass
             self._send_json({"saved": list(updates.keys())})
+
+        def _handle_extract_zip(self, data: dict) -> None:
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            dry_run = bool(data.get("dry_run", True))
+            delete_source = bool(data.get("delete_source", False))
+
+            with _job_lock:
+                if _jobs["extract_zip"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["extract_zip"] = True
+
+            def run() -> None:
+                try:
+                    from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
+                    source = Path(source_path_str).resolve()
+                    zip_files = find_zip_files(source)
+                    total = len(zip_files)
+                    _zip_progress.update({"current": 0, "total": total, "current_file": ""})
+                    extracted = skipped = failed = 0
+                    results = []
+                    for idx, zp in enumerate(zip_files, 1):
+                        _zip_progress.update({"current": idx, "total": total, "current_file": zp.name})
+                        r = extract_zip(zp, dry_run=dry_run, delete_source=delete_source)
+                        if r.skipped_reason:
+                            skipped += 1
+                        elif r.error:
+                            failed += 1
+                        else:
+                            extracted += 1
+                        results.append({
+                            "zip": zp.name,
+                            "success": r.success,
+                            "skipped_reason": r.skipped_reason,
+                            "error": r.error,
+                            "extracted": [f.name for f in r.extracted_files],
+                        })
+                    _job_results["extract_zip"] = {
+                        "dry_run": dry_run,
+                        "extracted": extracted,
+                        "skipped": skipped,
+                        "failed": failed,
+                        "results": results,
+                    }
+                except Exception as exc:
+                    _job_results["extract_zip"] = {"error": str(exc)}
+                finally:
+                    _zip_progress.clear()
+                    with _job_lock:
+                        _jobs["extract_zip"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started", "dry_run": dry_run})
+
+        def _handle_generate_m3u(self, data: dict) -> None:
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            dry_run = bool(data.get("dry_run", True))
+            from rom_manager.utils.m3u_generator import generate_m3u_playlists
+            source = Path(source_path_str).resolve()
+            summary = generate_m3u_playlists(source, dry_run=dry_run)
+            self._send_json({
+                "dry_run": dry_run,
+                "created": summary.created,
+                "skipped": summary.skipped,
+                "groups": [
+                    {
+                        "base_name": g.base_name,
+                        "discs": [d.name for d in g.discs],
+                        "m3u": g.m3u_path.name,
+                    }
+                    for g in summary.groups
+                ],
+            })
+
+        def _handle_verify_multidisc(self, data: dict) -> None:
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            from rom_manager.utils.multidisc_verifier import verify_multidisc
+            source = Path(source_path_str).resolve()
+            summary = verify_multidisc(source, repository)
+            self._send_json({
+                "groups_ok": summary.groups_ok,
+                "groups_with_issues": summary.groups_with_issues,
+                "issues": [
+                    {"base_name": i.base_name, "issue_type": i.issue_type, "detail": i.detail}
+                    for i in summary.issues
+                ],
+            })
+
+        def _handle_delete_orphaned_saves(self, data: dict) -> None:
+            import os
+            paths = data.get("paths", [])
+            if not paths:
+                self._send_json({"error": "paths list is required"})
+                return
+            deleted = failed = 0
+            freed_bytes = 0
+            for p in paths:
+                try:
+                    size = Path(p).stat().st_size if Path(p).exists() else 0
+                    os.remove(p)
+                    deleted += 1
+                    freed_bytes += size
+                except OSError:
+                    failed += 1
+            self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
+
+        def _handle_health_check(self, data: dict) -> None:
+            with _job_lock:
+                if _jobs["health_check"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["health_check"] = True
+
+            def run() -> None:
+                try:
+                    from rom_manager.utils.health_checker import check_library_health
+
+                    def progress_cb(current: int, total: int, filename: str) -> None:
+                        _health_progress.update({"current": current, "total": total, "current_file": filename})
+
+                    summary = check_library_health(repository, progress_cb=progress_cb)
+                    _job_results["health_check"] = {
+                        "ok": summary.ok,
+                        "corrupted": summary.corrupted,
+                        "missing": summary.missing,
+                        "issues": [
+                            {"source_path": r.source_path, "status": r.status,
+                             "stored_sha1": r.stored_sha1[:12], "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else ""}
+                            for r in summary.results
+                        ],
+                    }
+                except Exception as exc:
+                    _job_results["health_check"] = {"error": str(exc)}
+                finally:
+                    _health_progress.clear()
+                    with _job_lock:
+                        _jobs["health_check"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
 
         def _handle_scrape(self, data: dict) -> None:
             with _job_lock:

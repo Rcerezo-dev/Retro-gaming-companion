@@ -122,8 +122,8 @@ HTML = r"""<!DOCTYPE html>
 
     <div class="actions-row">
       <div>
-        <label for="scan-path">Ruta a escanear</label>
-        <input id="scan-path" type="text" placeholder="C:/ROMs o /mnt/roms">
+        <label for="scan-path">Rutas a escanear (una por línea)</label>
+        <textarea id="scan-path" rows="3" placeholder="C:/ROMs&#10;E:/Carpetas anbernic&#10;/mnt/roms" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
       </div>
       <label class="fmt-check" style="margin-left:8px" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
         <input type="checkbox" id="scan-quick"> Quick (sin hash)
@@ -357,6 +357,94 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- TOOLS -->
 <div id="tab-tools" class="tab">
+
+  <!-- ── Descomprimir ZIPs ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Descomprimir ZIPs</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip. Omite ZIPs con .cue/.bin/.iso (usa el conversor CHD). RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
+    <div class="actions-row">
+      <div><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba"></div>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center">
+      <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Dry run (solo previsualizar)</label>
+      <label class="fmt-check"><input type="checkbox" id="zip-delete-source"> Eliminar .zip tras extraer</label>
+    </div>
+    <div class="actions-row">
+      <button id="btn-extract-zip" class="btn primary" onclick="doExtractZip()">Descomprimir ZIPs</button>
+    </div>
+    <div id="zip-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="zip-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="zip-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="zip-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="job-result-extract-zip" class="job-result"></div>
+    <div id="zip-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
+  </div>
+
+  <!-- ── Generar playlists M3U ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Generar playlists M3U (multi-disco)</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Busca juegos con "(Disc 1)", "(Disc 2)"… y crea un archivo .m3u por cada grupo. Necesario para cambiar de disco en RetroArch sin salir del juego.</p>
+    <div class="actions-row">
+      <div><label>Carpeta de ROMs</label><input id="m3u-path" type="text" placeholder="C:/ROMs/psx"></div>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center">
+      <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Dry run (solo previsualizar)</label>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doGenerateM3U()">Generar M3U</button>
+    </div>
+    <div id="m3u-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Verificar multi-disco ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Verificar sets multi-disco</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Comprueba que todos los discos de cada juego están presentes, tienen la misma extensión, no hay huecos en la numeración y están en el catálogo.</p>
+    <div class="actions-row">
+      <div><label>Carpeta de ROMs</label><input id="verify-multidisc-path" type="text" placeholder="C:/ROMs/psx"></div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doVerifyMultidisc()">Verificar</button>
+    </div>
+    <div id="multidisc-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Saves huérfanos ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Saves huérfanos</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Archivos de save sin ROM asociada (la ROM fue eliminada o renombrada sin su save compañero).</p>
+    <div class="actions-row">
+      <div><label>Carpeta de la biblioteca</label><input id="orphan-path" type="text" placeholder="E:/Carpetas anbernic"></div>
+      <button class="btn" onclick="doFindOrphans()">Buscar huérfanos</button>
+    </div>
+    <div id="orphan-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Health check ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Health Check — Verificar integridad</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Re-hashea cada ROM y compara con el SHA1 almacenado. Detecta archivos corruptos o eliminados. <strong style="color:#ce9178">Operación lenta</strong> (lee todos los archivos).</p>
+    <div class="actions-row">
+      <button id="btn-health-check" class="btn primary" onclick="doHealthCheck()">Iniciar Health Check</button>
+    </div>
+    <div id="health-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="health-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="health-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="health-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="health-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── CHD ── -->
   <div class="actions-panel">
     <h3>Convertir a CHD (PSX)</h3>
     <div class="actions-row">
@@ -420,6 +508,13 @@ HTML = r"""<!DOCTYPE html>
       <button class="btn primary" onclick="saveSettings()">Guardar config.toml</button>
     </div>
     <div id="settings-result" class="job-result"></div>
+  </div>
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Base de datos</h3>
+    <div class="actions-row">
+      <a href="/api/db-backup" download class="btn">Descargar copia de seguridad (.sqlite)</a>
+      <span style="color:#555;font-size:12px">Descarga library.sqlite — guárdala antes de operaciones destructivas</span>
+    </div>
   </div>
 </div>
 
@@ -525,7 +620,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -616,6 +711,70 @@ function _applyJobStatus(s) {
     if (btn) { btn.disabled = false; btn.textContent = 'Iniciar scraping'; }
     loadScraperSummary();
   }
+
+  // ZIP progress
+  const zipWrap = document.getElementById('zip-progress-wrap');
+  const btnZip  = document.getElementById('btn-extract-zip');
+  if (s.extract_zip_running && s.zip_progress && s.zip_progress.total > 0) {
+    const p = s.zip_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (zipWrap) zipWrap.style.display = '';
+    const bar  = document.getElementById('zip-progress-bar');
+    const lbl  = document.getElementById('zip-progress-label');
+    const file = document.getElementById('zip-progress-file');
+    if (bar)  bar.style.width  = pct + '%';
+    if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
+    if (file) file.textContent = p.current_file;
+  } else if (!s.extract_zip_running) {
+    if (zipWrap) zipWrap.style.display = 'none';
+  }
+  if (btnZip) btnZip.disabled = s.extract_zip_running;
+  if (!s.extract_zip_running && s.extract_zip_result) {
+    const el = document.getElementById('job-result-extract-zip');
+    const r  = s.extract_zip_result;
+    if (el) {
+      if (r.error) {
+        el.className = 'job-result visible error-r';
+        el.textContent = 'Error: ' + r.error;
+      } else {
+        const verb = r.dry_run ? 'Extraería' : 'Extraídos';
+        el.className = 'job-result visible success';
+        el.textContent = `${verb}: ${r.extracted}  |  Omitidos: ${r.skipped}  |  Fallidos: ${r.failed}`;
+      }
+      const div = document.getElementById('zip-results');
+      if (div && r.results?.length) {
+        div.innerHTML = r.results.map(x => {
+          const color = x.success ? '#4ec9b0' : (x.skipped_reason ? '#888' : '#f44747');
+          const tag   = x.success ? (r.dry_run ? 'PREVIEW' : 'OK') : (x.skipped_reason ? 'SKIP' : 'FAIL');
+          const msg   = x.skipped_reason || x.error || (x.extracted.length ? '→ ' + x.extracted.join(', ') : '');
+          return `<div style="font-size:12px;color:${color};padding:2px 0">[${tag}] ${x.zip}${msg ? ' — ' + msg : ''}</div>`;
+        }).join('');
+      }
+    }
+    if (btnZip) { btnZip.disabled = false; btnZip.textContent = 'Descomprimir ZIPs'; }
+  }
+
+  // Health check progress
+  const healthWrap = document.getElementById('health-progress-wrap');
+  const btnHealth  = document.getElementById('btn-health-check');
+  if (s.health_check_running && s.health_progress && s.health_progress.total > 0) {
+    const p = s.health_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (healthWrap) healthWrap.style.display = '';
+    const bar  = document.getElementById('health-progress-bar');
+    const lbl  = document.getElementById('health-progress-label');
+    const file = document.getElementById('health-progress-file');
+    if (bar)  bar.style.width  = pct + '%';
+    if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
+    if (file) file.textContent = p.current_file;
+  } else if (!s.health_check_running) {
+    if (healthWrap) healthWrap.style.display = 'none';
+  }
+  if (btnHealth) btnHealth.disabled = s.health_check_running;
+  if (!s.health_check_running && s.health_check_result) {
+    _renderHealthResult(s.health_check_result);
+    if (btnHealth) { btnHealth.disabled = false; btnHealth.textContent = 'Iniciar Health Check'; }
+  }
 }
 
 function _showJobResult(type, result) {
@@ -639,11 +798,10 @@ function _showJobResult(type, result) {
 
 // ── Scan action ───────────────────────────────────────────────────────────────
 async function doScan() {
-  const pathVal = document.getElementById('scan-path').value.trim();
-  if (!pathVal) {
-    alert('Introduce una ruta para escanear.');
-    return;
-  }
+  const rawVal = document.getElementById('scan-path').value.trim();
+  if (!rawVal) { alert('Introduce al menos una ruta para escanear.'); return; }
+  // Split by newlines or commas
+  const sourcePaths = rawVal.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
   const btn = document.getElementById('btn-scan');
   btn.disabled = true;
   btn.textContent = 'Escaneando…';
@@ -652,7 +810,7 @@ async function doScan() {
 
   try {
     const quick = document.getElementById('scan-quick')?.checked || false;
-    const d = await apiPost('/api/scan', { source_path: pathVal, quick });
+    const d = await apiPost('/api/scan', { source_paths: sourcePaths, quick });
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
       resultEl.textContent = 'Ya hay un scan en curso…';
@@ -1147,6 +1305,169 @@ function _renderChdResult(result) {
     }
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Convertir a CHD'; }
+}
+
+// ── Extract ZIP ──────────────────────────────────────────────────────────────
+async function doExtractZip() {
+  const pathVal   = document.getElementById('zip-path').value.trim();
+  const dryRun    = document.getElementById('zip-dry-run').checked;
+  const delSource = document.getElementById('zip-delete-source').checked;
+  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .zip'); return; }
+  const btn = document.getElementById('btn-extract-zip');
+  const resultEl = document.getElementById('job-result-extract-zip');
+  btn.disabled = true; btn.textContent = 'Procesando…';
+  resultEl.className = 'job-result';
+  document.getElementById('zip-results').innerHTML = '';
+  try {
+    const d = await apiPost('/api/extract-zip', { source_path: pathVal, dry_run: dryRun, delete_source: delSource });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible'; resultEl.textContent = 'Ya hay una extracción en curso…';
+      btn.disabled = false; btn.textContent = 'Descomprimir ZIPs'; return;
+    }
+    startPolling();
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r'; resultEl.textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Descomprimir ZIPs';
+  }
+}
+
+// ── M3U Generator ─────────────────────────────────────────────────────────────
+async function doGenerateM3U() {
+  const pathVal = document.getElementById('m3u-path').value.trim();
+  const dryRun  = document.getElementById('m3u-dry-run').checked;
+  if (!pathVal) { alert('Introduce la ruta de la carpeta de ROMs'); return; }
+  const resultEl = document.getElementById('m3u-result');
+  resultEl.innerHTML = '<p style="color:#888;font-size:12px">Buscando grupos multi-disco…</p>';
+  try {
+    const d = await apiPost('/api/generate-m3u', { source_path: pathVal, dry_run: dryRun });
+    if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
+    const verb = dryRun ? 'Crearía' : 'Creados';
+    let html = `<p style="color:#4ec9b0;margin-bottom:12px">${verb}: <strong>${d.created}</strong>  |  Ya existían: <strong>${d.skipped}</strong></p>`;
+    if (d.groups.length) {
+      html += '<div style="max-height:300px;overflow-y:auto">';
+      html += d.groups.map(g => {
+        const color = g.discs.length >= 2 ? '#4ec9b0' : '#888';
+        return `<div style="font-size:12px;color:${color};padding:2px 0"><strong>${g.m3u}</strong> → ${g.discs.join(', ')}</div>`;
+      }).join('');
+      html += '</div>';
+    } else {
+      html += '<p style="color:#555;font-size:12px">No se encontraron grupos multi-disco.</p>';
+    }
+    resultEl.innerHTML = html;
+  } catch(e) {
+    resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+// ── Multi-disc Verifier ───────────────────────────────────────────────────────
+async function doVerifyMultidisc() {
+  const pathVal = document.getElementById('verify-multidisc-path').value.trim();
+  if (!pathVal) { alert('Introduce la ruta de la carpeta de ROMs'); return; }
+  const resultEl = document.getElementById('multidisc-result');
+  resultEl.innerHTML = '<p style="color:#888;font-size:12px">Verificando…</p>';
+  try {
+    const d = await apiPost('/api/verify-multidisc', { source_path: pathVal });
+    if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
+    const total = d.groups_ok + d.groups_with_issues;
+    let html = `<p style="margin-bottom:12px">`;
+    html += `<span style="color:#4ec9b0">✓ ${d.groups_ok} grupos OK</span>`;
+    if (d.groups_with_issues > 0) html += `  <span style="color:#f44747">✗ ${d.groups_with_issues} con problemas</span>`;
+    html += `  <span style="color:#555">(${total} grupos multi-disco)</span></p>`;
+    if (d.issues.length) {
+      const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo' };
+      html += '<div style="max-height:400px;overflow-y:auto">';
+      html += d.issues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #1e1e2e">
+        <span style="color:#ce9178">${issueLabels[i.issue_type] || i.issue_type}</span>
+        <span style="color:#888;margin:0 6px">·</span>
+        <span style="color:#d4d4d4">${i.base_name}</span>
+        <span style="color:#555;margin-left:8px">${i.detail}</span>
+      </div>`).join('');
+      html += '</div>';
+    }
+    resultEl.innerHTML = html;
+  } catch(e) {
+    resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+// ── Orphaned Saves ────────────────────────────────────────────────────────────
+async function doFindOrphans() {
+  const pathVal = document.getElementById('orphan-path').value.trim();
+  if (!pathVal) { alert('Introduce la ruta de la biblioteca'); return; }
+  const resultEl = document.getElementById('orphan-result');
+  resultEl.innerHTML = '<p style="color:#888;font-size:12px">Buscando…</p>';
+  try {
+    const d = await apiFetch('/api/orphaned-saves?path=' + encodeURIComponent(pathVal));
+    if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
+    if (d.total === 0) { resultEl.innerHTML = '<p class="empty">No se encontraron saves huérfanos.</p>'; return; }
+    let html = `<p style="color:#888;margin-bottom:10px">${d.total} save(s) huérfano(s) encontrado(s):</p>`;
+    html += '<div style="max-height:350px;overflow-y:auto;margin-bottom:10px">';
+    html += d.orphans.map(o => `
+      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px" id="orphan-${CSS.escape(o.save_path)}">
+        <input type="checkbox" class="orphan-chk" value="${o.save_path.replace(/"/g, '&quot;')}" checked>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888" title="${o.save_path}">${o.save_path}</span>
+        <span style="color:#555;flex-shrink:0">${fmtSize(o.size_bytes)}</span>
+      </div>`).join('');
+    html += '</div>';
+    html += '<button class="btn danger" onclick="doDeleteOrphans()">Eliminar seleccionados</button>';
+    resultEl.innerHTML = html;
+  } catch(e) {
+    resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function doDeleteOrphans() {
+  const checked = [...document.querySelectorAll('.orphan-chk:checked')].map(c => c.value);
+  if (checked.length === 0) { alert('Selecciona al menos un archivo.'); return; }
+  if (!confirm(`¿Eliminar ${checked.length} save(s) huérfano(s)?\n\nEsta operación no se puede deshacer.`)) return;
+  try {
+    const d = await apiPost('/api/orphaned-saves/delete', { paths: checked });
+    alert(`Eliminados: ${d.deleted}  |  Fallidos: ${d.failed}  |  Liberados: ${fmtSize(d.freed_bytes)}`);
+    doFindOrphans();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── Health Check ─────────────────────────────────────────────────────────────
+async function doHealthCheck() {
+  const btn = document.getElementById('btn-health-check');
+  if (!confirm('El Health Check re-hashea todos los ROMs. Puede tardar mucho en bibliotecas grandes.\n\n¿Continuar?')) return;
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  document.getElementById('health-result').innerHTML = '';
+  try {
+    const d = await apiPost('/api/health-check', {});
+    if (d.status === 'already_running') {
+      btn.disabled = false; btn.textContent = 'Iniciar Health Check'; return;
+    }
+    startPolling();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Iniciar Health Check';
+    document.getElementById('health-result').innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+function _renderHealthResult(r) {
+  const el = document.getElementById('health-result');
+  if (!el) return;
+  if (r.error) { el.innerHTML = `<p class="error-msg">${r.error}</p>`; return; }
+  const total = r.ok + r.corrupted + r.missing;
+  let html = `<p style="margin-bottom:12px">`;
+  html += `<span style="color:#4ec9b0">✓ ${r.ok} OK</span>`;
+  if (r.corrupted > 0) html += `  <span style="color:#f44747">✗ ${r.corrupted} corruptos</span>`;
+  if (r.missing   > 0) html += `  <span style="color:#ce9178">⚠ ${r.missing} no encontrados</span>`;
+  html += `  <span style="color:#555">(${total} ROMs verificados)</span></p>`;
+  if (r.issues?.length) {
+    html += '<div style="max-height:400px;overflow-y:auto">';
+    html += r.issues.map(i => {
+      const color = i.status === 'corrupted' ? '#f44747' : '#ce9178';
+      const label = i.status === 'corrupted' ? 'CORRUPTO' : 'NO ENCONTRADO';
+      const name  = i.source_path.split(/[\\/]/).pop();
+      return `<div style="font-size:12px;color:${color};padding:2px 0" title="${i.source_path}">[${label}] ${name}</div>`;
+    }).join('');
+    html += '</div>';
+  }
+  el.innerHTML = html;
 }
 
 // ── Scraper ──────────────────────────────────────────────────────────────────

@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Scanned: {source_path}")
         print(f"Files seen:            {result.files_seen}")
         print(f"ROMs detected:         {result.roms_detected}")
-        print(f"ROMs skipped (cached): {result.roms_skipped}")
+        print(f"ROMs ya escaneados:    {result.roms_skipped}")
         print(f"Saves detected:        {result.saves_detected}")
         print(f"Assets detected:       {result.assets_detected}")
         print(f"System files skipped:  {result.system_files_detected}")
