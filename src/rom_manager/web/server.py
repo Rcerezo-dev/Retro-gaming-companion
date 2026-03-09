@@ -129,7 +129,7 @@ def _build_sync_log(repository: LibraryRepository) -> dict:
 
 def _build_config(config: AppConfig) -> dict:
     return {
-        "saves_dir": str(config.saves_dir) if config.saves_dir else None,
+        "library_root": str(config.library_root) if config.library_root else None,
         "rclone_remote": config.rclone_remote or None,
         "web_host": config.web_host,
         "web_port": config.web_port,
@@ -345,9 +345,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 try:
                     from rom_manager.sync.rclone_transport import RcloneTransport, RcloneError
                     from rom_manager.sync.save_syncer import sync_saves
-                    saves_dir = config.saves_dir
+                    saves_dir = config.library_root
                     if saves_dir is None:
-                        _job_results["sync"] = {"error": "saves_dir not configured"}
+                        _job_results["sync"] = {"error": "library_root not configured"}
                         return
                     remote = config.rclone_remote
                     if not remote:

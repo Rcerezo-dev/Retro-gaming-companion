@@ -140,7 +140,7 @@ def test_api_config_returns_expected_keys(repo: LibraryRepository) -> None:
     code, ct, body = _make_request("GET", "/api/config", repo)
     assert code == 200
     data = json.loads(body)
-    assert "saves_dir" in data
+    assert "library_root" in data
     assert "rclone_remote" in data
     assert "web_host" in data
     assert "web_port" in data

@@ -107,16 +107,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     for cmd, hlp in (
-        ("sync-saves", "Sync save files between local saves dir and a remote (rclone)."),
+        ("sync-saves", "Sync save files between ROM library and a remote (rclone)."),
         ("sync-status", "Show sync status for saves without transferring anything."),
     ):
         sp = subparsers.add_parser(cmd, help=hlp)
         sp.add_argument(
-            "--saves-dir",
+            "--library-dir",
             type=Path,
             default=None,
             metavar="PATH",
-            help="Local saves folder (overrides config.toml [library] saves_dir).",
+            help="Root of the ROM+saves library (overrides config.toml [library] library_root).",
         )
         sp.add_argument(
             "--remote",
@@ -300,15 +300,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command in ("sync-saves", "sync-status"):
-        saves_dir_arg = args.saves_dir or config.saves_dir
-        if saves_dir_arg is None:
+        library_dir_arg = args.library_dir or config.library_root
+        if library_dir_arg is None:
             parser.error(
-                "Saves directory not specified. "
-                "Pass --saves-dir or set [library] saves_dir in config.toml."
+                "Library root not specified. "
+                "Pass --library-dir or set [library] library_root in config.toml."
             )
-        saves_dir = saves_dir_arg.resolve()
+        saves_dir = library_dir_arg.resolve()
         if not saves_dir.exists() or not saves_dir.is_dir():
-            parser.error(f"Saves directory does not exist: {saves_dir}")
+            parser.error(f"Library directory does not exist: {saves_dir}")
 
         remote = args.remote or config.rclone_remote
         if not remote:

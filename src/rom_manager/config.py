@@ -17,7 +17,7 @@ class AppConfig:
     frontend_asset_extensions: tuple[str, ...]
     save_extensions: tuple[str, ...]
     # From config.toml (optional)
-    saves_dir: Path | None
+    library_root: Path | None   # root of the ROM+saves library on this PC
     rclone_remote: str
     rclone_binary: str
     chdman: str
@@ -31,13 +31,15 @@ _CONFIG_TOML_TEMPLATE = """\
 # All settings are optional; hardcoded defaults are used when omitted.
 
 [library]
-# Folder where your save files are stored on this PC.
+# Root folder of your ROM library on this PC.
+# Save files (.sav, .srm, .state, etc.) are expected to live alongside the ROMs.
 # Used by 'rommgr sync-saves' and 'rommgr sync-status'.
-# saves_dir = "D:/RetroArch/saves"
+# library_root = "E:/ROMs"
 
 [sync]
-# rclone remote path, e.g. "dropbox:/RetroArch/saves"
-# remote = "dropbox:/RetroArch/saves"
+# rclone remote path where saves will be mirrored in the cloud.
+# The folder structure under library_root is preserved, but only save files are synced.
+# remote = "dropbox:/RetroSync/saves"
 # Path to the rclone binary (default: "rclone", assumes it is in PATH)
 rclone = "rclone"
 
@@ -69,8 +71,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     tools = toml.get("tools", {})
     web = toml.get("web", {})
 
-    saves_dir_raw = lib.get("saves_dir")
-    saves_dir = Path(saves_dir_raw) if saves_dir_raw else None
+    library_root_raw = lib.get("library_root")
+    library_root = Path(library_root_raw) if library_root_raw else None
 
     return AppConfig(
         project_root=root,
@@ -79,7 +81,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         logs_dir=logs_dir,
         catalogs_nointro_dir=catalogs_dir / "nointro",
         catalogs_redump_dir=catalogs_dir / "redump",
-        saves_dir=saves_dir,
+        library_root=library_root,
         rclone_remote=sync.get("remote", ""),
         rclone_binary=sync.get("rclone", "rclone"),
         chdman=tools.get("chdman", "chdman"),
@@ -132,5 +134,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ".fs",
             ".state1",
             ".state2",
+            ".brmc",
+            ".ml1",
         ),
     )

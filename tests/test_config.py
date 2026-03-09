@@ -9,7 +9,7 @@ from rom_manager.config import load_config
 
 def test_defaults_without_toml(tmp_path: Path) -> None:
     cfg = load_config(tmp_path)
-    assert cfg.saves_dir is None
+    assert cfg.library_root is None
     assert cfg.rclone_remote == ""
     assert cfg.rclone_binary == "rclone"
     assert cfg.chdman == "chdman"
@@ -17,12 +17,12 @@ def test_defaults_without_toml(tmp_path: Path) -> None:
     assert cfg.web_port == 7777
 
 
-def test_reads_saves_dir(tmp_path: Path) -> None:
+def test_reads_library_root(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text(
-        '[library]\nsaves_dir = "/saves"\n', encoding="utf-8"
+        '[library]\nlibrary_root = "/roms"\n', encoding="utf-8"
     )
     cfg = load_config(tmp_path)
-    assert cfg.saves_dir == Path("/saves")
+    assert cfg.library_root == Path("/roms")
 
 
 def test_reads_sync_section(tmp_path: Path) -> None:
@@ -54,7 +54,7 @@ def test_reads_web_section(tmp_path: Path) -> None:
 
 def test_partial_toml_uses_defaults(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text(
-        '[library]\nsaves_dir = "/saves"\n', encoding="utf-8"
+        '[library]\nlibrary_root = "/roms"\n', encoding="utf-8"
     )
     cfg = load_config(tmp_path)
     assert cfg.rclone_binary == "rclone"   # default preserved
