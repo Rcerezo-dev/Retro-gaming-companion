@@ -105,7 +105,9 @@ HTML = r"""<!DOCTYPE html>
   <button onclick="showTab('duplicates')">Duplicates</button>
   <button onclick="showTab('assets')">Assets</button>
   <button onclick="showTab('sync')">Sync</button>
+  <button onclick="showTab('scraper')">Scraper</button>
   <button onclick="showTab('tools')">Tools</button>
+  <button onclick="showTab('settings')">Settings</button>
 </nav>
 
 <main>
@@ -123,6 +125,9 @@ HTML = r"""<!DOCTYPE html>
         <label for="scan-path">Ruta a escanear</label>
         <input id="scan-path" type="text" placeholder="C:/ROMs o /mnt/roms">
       </div>
+      <label class="fmt-check" style="margin-left:8px" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
+        <input type="checkbox" id="scan-quick"> Quick (sin hash)
+      </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
     </div>
 
@@ -262,6 +267,66 @@ HTML = r"""<!DOCTYPE html>
   <div id="assets-content"><p class="loading">Loading…</p></div>
 </div>
 
+<!-- SCRAPER -->
+<div id="tab-scraper" class="tab">
+  <div class="actions-panel" style="max-width:800px">
+    <h3>ScreenScraper — Metadatos y portadas</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      Requiere cuenta gratuita en <a href="https://www.screenscraper.fr" target="_blank">screenscraper.fr</a>.
+      Configura usuario y contraseña en la pestaña <strong>Settings</strong>.
+    </p>
+
+    <div class="actions-row" style="flex-wrap:wrap;gap:16px">
+      <div>
+        <label>Plataforma (opcional)</label>
+        <input id="scrape-platform" type="text" placeholder="Game Boy Advance" style="width:200px">
+      </div>
+      <div>
+        <label>Límite de ROMs (0 = todos)</label>
+        <input id="scrape-limit" type="number" value="0" min="0" style="width:80px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
+      </div>
+      <label class="fmt-check" style="align-self:flex-end">
+        <input type="checkbox" id="scrape-images"> Descargar portadas
+      </label>
+    </div>
+    <div class="actions-row" style="margin-top:10px">
+      <button id="btn-scrape" class="btn primary" onclick="doScrape()">Iniciar scraping</button>
+      <span style="color:#555;font-size:12px">Respeta el rate limit de ScreenScraper (~1 req/s)</span>
+    </div>
+    <div id="job-result-scrape" class="job-result"></div>
+  </div>
+
+  <div style="margin-top:24px;max-width:800px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px">Estado del scraping por plataforma</h3>
+      <button class="btn" onclick="loadScraperSummary()">&#x21BB; Actualizar</button>
+    </div>
+    <div id="scraper-summary"><p class="loading">Loading…</p></div>
+  </div>
+
+  <div class="actions-panel" style="max-width:800px;margin-top:24px">
+    <h3>Exportar gamelist.xml</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      Genera un <code>gamelist.xml</code> por plataforma en el formato de EmulationStation (Anbernic).
+      Sin estos archivos, la consola muestra sólo texto plano.
+    </p>
+    <div class="actions-row">
+      <div>
+        <label>Carpeta de salida (vacío = library_root)</label>
+        <input id="gamelist-output-dir" type="text" placeholder="Ruta opcional" style="width:300px">
+      </div>
+      <div>
+        <label>Plataforma (opcional)</label>
+        <input id="gamelist-platform" type="text" placeholder="Todas" style="width:160px">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doExportGamelists()">Exportar gamelist.xml</button>
+    </div>
+    <div id="gamelist-result" class="job-result"></div>
+  </div>
+</div>
+
 <!-- TOOLS -->
 <div id="tab-tools" class="tab">
   <div class="actions-panel">
@@ -289,6 +354,38 @@ HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- SETTINGS -->
+<div id="tab-settings" class="tab">
+  <div class="actions-panel" style="max-width:640px">
+    <h3>Configuración</h3>
+    <p style="color:#555;font-size:11px;margin-bottom:16px">Los cambios se guardan en <code>config.toml</code>. Reinicia el servidor para que surtan efecto en el sync.</p>
+
+    <div class="actions-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">library_root — carpeta raíz de la biblioteca (ROMs + saves)</label>
+        <input id="cfg-library-root" type="text" style="width:100%" placeholder="E:/ROMs">
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote — ruta en el cloud para saves</label>
+        <input id="cfg-rclone-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper usuario</label>
+        <input id="cfg-ss-user" type="text" style="width:100%" placeholder="tu_usuario">
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper contraseña</label>
+        <input id="cfg-ss-pass" type="password" style="width:100%" placeholder="••••••••">
+      </div>
+    </div>
+
+    <div class="actions-row" style="margin-top:16px">
+      <button class="btn primary" onclick="saveSettings()">Guardar config.toml</button>
+    </div>
+    <div id="settings-result" class="job-result"></div>
+  </div>
+</div>
+
 </main>
 
 <script>
@@ -311,6 +408,8 @@ function showTab(name) {
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
   if (name === 'sync')       loadSync();
+  if (name === 'scraper')    loadScraperSummary();
+  if (name === 'settings')   loadSettings();
   if (name === 'tools')      {}
 }
 
@@ -350,10 +449,12 @@ async function loadOverview() {
     const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
     const cfgHtml = `
       <div class="config-grid" style="margin-top:24px">
-        <span class="cfg-key">saves_dir</span>
-        <span class="cfg-val ${cfg.saves_dir ? '' : 'missing'}">${cfg.saves_dir || '(not set)'}</span>
+        <span class="cfg-key">library_root</span>
+        <span class="cfg-val ${cfg.library_root ? '' : 'missing'}">${cfg.library_root || '(not set — configure en Settings)'}</span>
         <span class="cfg-key">rclone remote</span>
         <span class="cfg-val ${cfg.rclone_remote ? '' : 'missing'}">${cfg.rclone_remote || '(not set)'}</span>
+        <span class="cfg-key">ScreenScraper</span>
+        <span class="cfg-val ${cfg.screenscraper_user ? '' : 'missing'}">${cfg.screenscraper_user || '(not set)'}</span>
         <span class="cfg-key">web</span>
         <span class="cfg-val">${cfg.web_host}:${cfg.web_port}</span>
       </div>`;
@@ -387,7 +488,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -431,6 +532,21 @@ function _applyJobStatus(s) {
   if (!s.convert_chd_running && s.convert_chd_result) {
     _renderChdResult(s.convert_chd_result);
   }
+  if (!s.scrape_running && s.scrape_result) {
+    const el = document.getElementById('job-result-scrape');
+    const btn = document.getElementById('btn-scrape');
+    if (el) {
+      if (s.scrape_result.error) {
+        el.className = 'job-result visible error-r';
+        el.textContent = 'Error: ' + s.scrape_result.error;
+      } else {
+        el.className = 'job-result visible success';
+        el.textContent = `Completado — Encontrados: ${s.scrape_result.found}  |  No encontrados: ${s.scrape_result.skipped}  (de ${s.scrape_result.total})`;
+      }
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Iniciar scraping'; }
+    loadScraperSummary();
+  }
 }
 
 function _showJobResult(type, result) {
@@ -466,7 +582,8 @@ async function doScan() {
   resultEl.className = 'job-result';
 
   try {
-    const d = await apiPost('/api/scan', { source_path: pathVal });
+    const quick = document.getElementById('scan-quick')?.checked || false;
+    const d = await apiPost('/api/scan', { source_path: pathVal, quick });
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
       resultEl.textContent = 'Ya hay un scan en curso…';
@@ -915,6 +1032,139 @@ function _renderChdResult(result) {
     }
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Convertir a CHD'; }
+}
+
+// ── Scraper ──────────────────────────────────────────────────────────────────
+async function loadScraperSummary() {
+  const el = document.getElementById('scraper-summary');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/scrape-summary');
+    if (!d.platforms || d.platforms.length === 0) {
+      el.innerHTML = '<p class="empty">No hay datos. Ejecuta un scan primero.</p>';
+      return;
+    }
+    let html = '<div style="overflow-x:auto"><table><thead><tr>';
+    html += '<th>Plataforma</th><th>Total ROMs</th><th>Scrapeados</th><th>Pendientes</th></tr></thead><tbody>';
+    html += d.platforms.map(p => {
+      const pct = p.total > 0 ? Math.round(p.scraped / p.total * 100) : 0;
+      const color = p.missing === 0 ? '#4ec9b0' : p.scraped > 0 ? '#ce9178' : '#555';
+      return `<tr>
+        <td>${p.platform}</td>
+        <td style="text-align:right">${p.total}</td>
+        <td style="text-align:right;color:${color}">${p.scraped} (${pct}%)</td>
+        <td style="text-align:right;color:${p.missing > 0 ? '#f44747' : '#555'}">${p.missing || '—'}</td>
+      </tr>`;
+    }).join('');
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function doScrape() {
+  const btn = document.getElementById('btn-scrape');
+  const resultEl = document.getElementById('job-result-scrape');
+  btn.disabled = true;
+  btn.textContent = 'Scraping…';
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/scrape', {
+      platform: document.getElementById('scrape-platform').value.trim() || null,
+      limit:    parseInt(document.getElementById('scrape-limit').value) || 0,
+      images:   document.getElementById('scrape-images').checked,
+    });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible';
+      resultEl.textContent = 'Ya hay un scraping en curso…';
+      btn.disabled = false;
+      btn.textContent = 'Iniciar scraping';
+      return;
+    }
+    if (d.error) {
+      resultEl.className = 'job-result visible error-r';
+      resultEl.textContent = 'Error: ' + d.error;
+      btn.disabled = false;
+      btn.textContent = 'Iniciar scraping';
+      return;
+    }
+    startPolling();
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Iniciar scraping';
+  }
+}
+
+async function doExportGamelists() {
+  const resultEl = document.getElementById('gamelist-result');
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/export-gamelists', {
+      output_dir: document.getElementById('gamelist-output-dir').value.trim() || null,
+      platform:   document.getElementById('gamelist-platform').value.trim() || null,
+    });
+    if (d.error) {
+      resultEl.className = 'job-result visible error-r';
+      resultEl.textContent = 'Error: ' + d.error;
+      return;
+    }
+    resultEl.className = 'job-result visible success';
+    if (d.written.length === 0) {
+      resultEl.textContent = 'No hay metadatos scrapeados para exportar.';
+    } else {
+      resultEl.textContent = d.written.map(w => `${w.platform}: ${w.entries} entradas → ${w.path}`).join('\n');
+      resultEl.style.whiteSpace = 'pre';
+    }
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const cfg = await apiFetch('/api/config');
+    document.getElementById('cfg-library-root').value  = cfg.library_root  || '';
+    document.getElementById('cfg-rclone-remote').value = cfg.rclone_remote || '';
+    document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
+    document.getElementById('cfg-ss-pass').value       = cfg.screenscraper_pass || '';
+  } catch(e) { /* silent */ }
+}
+
+async function saveSettings() {
+  const resultEl = document.getElementById('settings-result');
+  resultEl.className = 'job-result';
+  const updates = {};
+  const lr = document.getElementById('cfg-library-root').value.trim();
+  const rr = document.getElementById('cfg-rclone-remote').value.trim();
+  const su = document.getElementById('cfg-ss-user').value.trim();
+  const sp = document.getElementById('cfg-ss-pass').value;
+  if (lr) updates['library.library_root'] = lr;
+  if (rr) updates['sync.remote']          = rr;
+  if (su) updates['screenscraper.user']   = su;
+  if (sp) updates['screenscraper.pass']   = sp;
+  if (Object.keys(updates).length === 0) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Nada que guardar — rellena al menos un campo.';
+    return;
+  }
+  try {
+    const d = await apiPost('/api/config', updates);
+    if (d.error) {
+      resultEl.className = 'job-result visible error-r';
+      resultEl.textContent = 'Error: ' + d.error;
+    } else {
+      resultEl.className = 'job-result visible success';
+      resultEl.textContent = 'Guardado: ' + d.saved.join(', ') + '. Reinicia el servidor para aplicar.';
+    }
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+  }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

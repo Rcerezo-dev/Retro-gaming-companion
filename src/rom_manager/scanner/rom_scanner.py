@@ -40,6 +40,8 @@ def scan_library(
     config: AppConfig,
     repository: LibraryRepository,
     logger: logging.Logger,
+    *,
+    quick: bool = False,
 ) -> ScanResult:
     timestamp = utc_now()
     scan_run_id = repository.create_scan_run(str(source_path), timestamp)
@@ -68,7 +70,7 @@ def scan_library(
                         result.roms_skipped += 1
                         result.roms_detected += 1
                         continue
-                    _store_rom(path, stat, source_path, repository, timestamp, conn)
+                    _store_rom(path, stat, source_path, repository, timestamp, conn, quick=quick)
                     result.roms_detected += 1
                 elif category is FileCategory.SAVE:
                     _store_save(path, source_path, repository, timestamp, conn)
@@ -106,8 +108,14 @@ def _store_rom(
     repository: LibraryRepository,
     timestamp: str,
     connection: sqlite3.Connection,
+    *,
+    quick: bool = False,
 ) -> None:
-    hashes = calculate_hashes(path)
+    if quick:
+        sha1 = md5 = crc32 = ""
+    else:
+        hashes = calculate_hashes(path)
+        sha1, md5, crc32 = hashes.sha1, hashes.md5, hashes.crc32
     repository.upsert_game(
         original_filename=path.name,
         source_path=str(path.resolve()),
@@ -118,9 +126,9 @@ def _store_rom(
         extension=path.suffix.lower(),
         size_bytes=stat.st_size,
         mtime=int(stat.st_mtime),
-        sha1=hashes.sha1,
-        md5=hashes.md5,
-        crc32=hashes.crc32,
+        sha1=sha1,
+        md5=md5,
+        crc32=crc32,
         set_type=detect_set_type(path),
         timestamp=timestamp,
         connection=connection,

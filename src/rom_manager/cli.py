@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan_parser = subparsers.add_parser("scan", help="Scan ROM and save files.")
     scan_parser.add_argument("source_path", type=Path, help="Folder to scan.")
+    scan_parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Skip hash calculation — index by name/size/mtime only. Much faster for large libraries.",
+    )
 
     subparsers.add_parser("status", help="Show library summary.")
 
@@ -164,6 +169,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="Backfill missing platform data by inferring it from folder names (no re-hash needed).",
     )
 
+    scrape_parser = subparsers.add_parser(
+        "scrape",
+        help="Fetch metadata (title, genre, box art) from ScreenScraper.fr for unscraped ROMs.",
+    )
+    scrape_parser.add_argument(
+        "--platform",
+        default=None,
+        metavar="NAME",
+        help="Only scrape ROMs for this platform.",
+    )
+    scrape_parser.add_argument(
+        "--images",
+        action="store_true",
+        help="Also download box art images alongside the ROMs.",
+    )
+    scrape_parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Stop after N ROMs (0 = no limit).",
+    )
+
+    export_gl_parser = subparsers.add_parser(
+        "export-gamelists",
+        help="Generate gamelist.xml files per platform for EmulationStation (Anbernic).",
+    )
+    export_gl_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Root output directory. Defaults to library_root from config.",
+    )
+    export_gl_parser.add_argument(
+        "--platform",
+        default=None,
+        metavar="NAME",
+        help="Only export for this platform.",
+    )
+
     subparsers.add_parser(
         "init-config",
         help="Generate a sample config.toml in the current directory.",
@@ -201,7 +247,9 @@ def main(argv: list[str] | None = None) -> int:
         if not source_path.exists() or not source_path.is_dir():
             parser.error(f"Source path does not exist or is not a directory: {source_path}")
 
-        result = scan_library(source_path, config, repository, logger)
+        result = scan_library(source_path, config, repository, logger, quick=args.quick)
+        if args.quick:
+            print("Quick scan (no hashes — match and sync will not work until a full scan is run)")
         print(f"Scanned: {source_path}")
         print(f"Files seen:            {result.files_seen}")
         print(f"ROMs detected:         {result.roms_detected}")
@@ -560,6 +608,115 @@ def main(argv: list[str] | None = None) -> int:
         print("Detecting platforms from folder names…")
         updated = repository.backfill_platforms(detect_platform)
         print(f"Updated: {updated} games")
+        return 0
+
+    if args.command == "scrape":
+        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
+        from rom_manager.scraper.platform_ids import get_system_id
+        from rom_manager.scanner.rom_scanner import utc_now
+
+        if not config.screenscraper_user or not config.screenscraper_pass:
+            parser.error(
+                "ScreenScraper credentials not set. "
+                "Add [screenscraper] user and pass to config.toml."
+            )
+
+        client = ScreenScraperClient(
+            user=config.screenscraper_user,
+            password=config.screenscraper_pass,
+            dev_id=config.screenscraper_dev_id,
+            dev_password=config.screenscraper_dev_pass,
+        )
+
+        games = repository.get_games_for_scraping(platform=args.platform)
+        if not games:
+            print("All games already scraped (or no games in library).")
+            return 0
+
+        limit = args.limit or len(games)
+        print(f"Scraping {min(limit, len(games))} games from ScreenScraper…")
+        found = skipped = errors = 0
+
+        with repository.batch() as conn:
+            for game in games[:limit]:
+                system_id = get_system_id(game["platform"])
+                result = client.search(
+                    crc32=game["crc32"],
+                    md5=game["md5"],
+                    sha1=game["sha1"],
+                    filename=game["original_filename"],
+                    size_bytes=game["size_bytes"],
+                    system_id=system_id,
+                )
+                if result is None:
+                    print(f"  [—]   {game['original_filename']}")
+                    skipped += 1
+                    continue
+
+                box_art_path = ""
+                if args.images and result.box_art_url:
+                    img_dir = Path(game["source_path"]).parent / "media" / "images"
+                    stem = Path(game["original_filename"]).stem
+                    ext = ".png" if ".png" in result.box_art_url.lower() else ".jpg"
+                    dest = img_dir / f"{stem}{ext}"
+                    download_image(result.box_art_url, dest)
+                    box_art_path = str(dest)
+
+                repository.upsert_metadata(
+                    game_id=game["id"],
+                    ss_game_id=result.ss_game_id,
+                    title=result.title,
+                    year=result.year,
+                    genre=result.genre,
+                    publisher=result.publisher,
+                    developer=result.developer,
+                    description=result.description,
+                    rating=result.rating,
+                    box_art_url=result.box_art_url,
+                    box_art_path=box_art_path,
+                    scraped_at=utc_now(),
+                    connection=conn,
+                )
+                print(f"  [OK]  {game['original_filename']}  →  {result.title}")
+                found += 1
+
+        print(f"\nFound: {found}  |  Not found: {skipped}  |  Errors: {errors}")
+        return 0
+
+    if args.command == "export-gamelists":
+        from rom_manager.scraper.gamelist_writer import write_gamelist
+
+        output_root = args.output_dir or config.library_root
+        if output_root is None:
+            parser.error(
+                "Output directory not specified. "
+                "Pass --output-dir or set [library] library_root in config.toml."
+            )
+        output_root = Path(output_root).resolve()
+
+        platforms = repository.get_scraped_platform_summary()
+        if args.platform:
+            platforms = [p for p in platforms if p["platform"] == args.platform]
+
+        total_written = 0
+        for plat in platforms:
+            if plat["scraped"] == 0:
+                continue
+            entries = repository.get_metadata_for_platform(plat["platform"])
+            if not entries:
+                continue
+            # Determine platform dir: output_root / <platform_slug>
+            slug = plat["platform"].lower().replace(" ", "").replace("/", "_")
+            platform_dir = output_root / slug
+            platform_dir.mkdir(parents=True, exist_ok=True)
+            out = write_gamelist(platform_dir, entries)
+            print(f"  [{plat['platform']}]  {out}  ({len(entries)} entries)")
+            total_written += 1
+
+        if total_written == 0:
+            print("No scraped metadata found. Run 'rommgr scrape' first.")
+        else:
+            print(f"\nExported {total_written} gamelist.xml file(s).")
         return 0
 
     if args.command == "init-config":

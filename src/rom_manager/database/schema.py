@@ -104,6 +104,27 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_sync_log_local ON save_sync_log (local_path)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS game_metadata (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id         INTEGER NOT NULL UNIQUE,
+        ss_game_id      TEXT,
+        title           TEXT,
+        year            TEXT,
+        genre           TEXT,
+        publisher       TEXT,
+        developer       TEXT,
+        description     TEXT,
+        rating          TEXT,
+        box_art_url     TEXT,
+        box_art_path    TEXT,
+        scraped_at      TEXT NOT NULL,
+        FOREIGN KEY (game_id) REFERENCES games (id)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_game_metadata_game ON game_metadata (game_id)
+    """,
 )
 
 # Columns added after the initial schema that may be missing in existing databases.

@@ -26,7 +26,7 @@ class MatchedGame:
     extension: str
     canonical_title: str
     match_confidence: str
-    sha1: str
+    sha1: str = ""
 
 
 @dataclass(slots=True)
@@ -688,6 +688,98 @@ class LibraryRepository:
             for row in rows
         ]
         return games, total
+
+    # ------------------------------------------------------------------
+    # Metadata (ScreenScraper)
+    # ------------------------------------------------------------------
+
+    def upsert_metadata(
+        self,
+        *,
+        game_id: int,
+        ss_game_id: str,
+        title: str,
+        year: str,
+        genre: str,
+        publisher: str,
+        developer: str,
+        description: str,
+        rating: str,
+        box_art_url: str,
+        box_art_path: str,
+        scraped_at: str,
+        connection: sqlite3.Connection,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO game_metadata
+                (game_id, ss_game_id, title, year, genre, publisher, developer,
+                 description, rating, box_art_url, box_art_path, scraped_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(game_id) DO UPDATE SET
+                ss_game_id=excluded.ss_game_id, title=excluded.title,
+                year=excluded.year, genre=excluded.genre,
+                publisher=excluded.publisher, developer=excluded.developer,
+                description=excluded.description, rating=excluded.rating,
+                box_art_url=excluded.box_art_url, box_art_path=excluded.box_art_path,
+                scraped_at=excluded.scraped_at
+            """,
+            (game_id, ss_game_id, title, year, genre, publisher, developer,
+             description, rating, box_art_url, box_art_path, scraped_at),
+        )
+
+    def get_games_for_scraping(self, platform: str | None = None) -> list[dict]:
+        """Return games that have no metadata yet, with their hashes."""
+        sql = """
+            SELECT g.id, g.original_filename, g.source_path, g.platform,
+                   g.crc32, g.md5, g.sha1, g.size_bytes, g.canonical_title
+            FROM games g
+            LEFT JOIN game_metadata m ON m.game_id = g.id
+            WHERE m.id IS NULL
+        """
+        params: list = []
+        if platform:
+            sql += " AND g.platform = ?"
+            params.append(platform)
+        sql += " ORDER BY g.platform, g.original_filename"
+        with self.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_metadata_for_platform(self, platform: str) -> list[dict]:
+        """Return games + metadata for a platform (for gamelist.xml generation)."""
+        sql = """
+            SELECT g.original_filename, g.source_path,
+                   m.title, m.year, m.genre, m.publisher, m.developer,
+                   m.description, m.rating, m.box_art_path
+            FROM games g
+            JOIN game_metadata m ON m.game_id = g.id
+            WHERE g.platform = ?
+            ORDER BY m.title, g.original_filename
+        """
+        with self.connect() as conn:
+            rows = conn.execute(sql, (platform,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_scraped_platform_summary(self) -> list[dict]:
+        """Return per-platform counts: total games, scraped, missing."""
+        sql = """
+            SELECT g.platform,
+                   COUNT(*) AS total,
+                   COUNT(m.id) AS scraped
+            FROM games g
+            LEFT JOIN game_metadata m ON m.game_id = g.id
+            WHERE g.platform IS NOT NULL
+            GROUP BY g.platform
+            ORDER BY g.platform
+        """
+        with self.connect() as conn:
+            rows = conn.execute(sql).fetchall()
+        return [
+            {"platform": r["platform"], "total": r["total"], "scraped": r["scraped"],
+             "missing": r["total"] - r["scraped"]}
+            for r in rows
+        ]
 
     def get_summary(self) -> ScanSummary:
         with self.connect() as connection:

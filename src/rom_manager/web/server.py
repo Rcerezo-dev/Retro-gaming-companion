@@ -16,7 +16,7 @@ from rom_manager.web.frontend import HTML
 
 # ── Background job state ──────────────────────────────────────────────────────
 _job_lock = threading.Lock()
-_jobs: dict[str, bool] = {"scan": False, "match": False, "sync": False, "convert_chd": False}
+_jobs: dict[str, bool] = {"scan": False, "match": False, "sync": False, "convert_chd": False, "scrape": False}
 _job_results: dict[str, dict] = {}
 _logger = logging.getLogger(__name__)
 
@@ -133,7 +133,13 @@ def _build_config(config: AppConfig) -> dict:
         "rclone_remote": config.rclone_remote or None,
         "web_host": config.web_host,
         "web_port": config.web_port,
+        "screenscraper_user": config.screenscraper_user or None,
+        "screenscraper_pass": config.screenscraper_pass or None,
     }
+
+
+def _build_scrape_summary(repository: LibraryRepository) -> dict:
+    return {"platforms": repository.get_scraped_platform_summary()}
 
 
 def _parse_format_opts(qs: dict) -> FormatOptions:
@@ -183,6 +189,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._send_json(_build_sync_log(repository))
                 elif path == "/api/config":
                     self._send_json(_build_config(config))
+                elif path == "/api/scrape-summary":
+                    self._send_json(_build_scrape_summary(repository))
                 elif path == "/api/job-status":
                     with _job_lock:
                         self._send_json({
@@ -190,10 +198,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "match_running": _jobs["match"],
                             "sync_running": _jobs["sync"],
                             "convert_chd_running": _jobs["convert_chd"],
+                            "scrape_running": _jobs["scrape"],
                             "scan_result": _job_results.get("scan"),
                             "match_result": _job_results.get("match"),
                             "sync_result": _job_results.get("sync"),
                             "convert_chd_result": _job_results.get("convert_chd"),
+                            "scrape_result": _job_results.get("scrape"),
                         })
                 elif path == "/api/report.json":
                     report = build_report(repository)
@@ -239,6 +249,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_sync(data)
                 elif path == "/api/convert-chd":
                     self._handle_convert_chd(data)
+                elif path == "/api/scrape":
+                    self._handle_scrape(data)
+                elif path == "/api/export-gamelists":
+                    self._handle_export_gamelists(data)
+                elif path == "/api/config":
+                    self._handle_save_config(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -252,6 +268,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             if not source_path_str:
                 self._send_json({"error": "source_path is required"})
                 return
+            quick = bool(data.get("quick", False))
 
             with _job_lock:
                 if _jobs["scan"]:
@@ -263,7 +280,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 try:
                     from rom_manager.scanner import scan_library
                     source = Path(source_path_str).resolve()
-                    result = scan_library(source, config, repository, logger)
+                    result = scan_library(source, config, repository, logger, quick=quick)
                     _job_results["scan"] = {
                         "files_seen": result.files_seen,
                         "roms_detected": result.roms_detected,
@@ -430,6 +447,118 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
             threading.Thread(target=run, daemon=True).start()
             self._send_json({"status": "started", "dry_run": dry_run})
+
+        def _handle_save_config(self, data: dict) -> None:
+            from rom_manager.config import write_config_toml
+            allowed = {
+                "library.library_root", "sync.remote",
+                "screenscraper.user", "screenscraper.pass",
+            }
+            updates = {k: v for k, v in data.items() if k in allowed}
+            if not updates:
+                self._send_json({"error": "No recognised fields to update"})
+                return
+            write_config_toml(config.project_root, updates)
+            self._send_json({"saved": list(updates.keys())})
+
+        def _handle_scrape(self, data: dict) -> None:
+            with _job_lock:
+                if _jobs["scrape"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["scrape"] = True
+
+            platform = data.get("platform") or None
+            download_images = bool(data.get("images", False))
+            limit = int(data.get("limit", 0))
+
+            def run() -> None:
+                try:
+                    from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
+                    from rom_manager.scraper.platform_ids import get_system_id
+                    from rom_manager.scanner.rom_scanner import utc_now
+
+                    if not config.screenscraper_user:
+                        _job_results["scrape"] = {"error": "screenscraper credentials not configured"}
+                        return
+
+                    client = ScreenScraperClient(
+                        user=config.screenscraper_user,
+                        password=config.screenscraper_pass,
+                        dev_id=config.screenscraper_dev_id,
+                        dev_password=config.screenscraper_dev_pass,
+                    )
+                    games = repository.get_games_for_scraping(platform=platform)
+                    if limit:
+                        games = games[:limit]
+                    found = skipped = 0
+                    with repository.batch() as conn:
+                        for game in games:
+                            result = client.search(
+                                crc32=game["crc32"],
+                                md5=game["md5"],
+                                sha1=game["sha1"],
+                                filename=game["original_filename"],
+                                size_bytes=game["size_bytes"],
+                                system_id=get_system_id(game["platform"]),
+                            )
+                            if result is None:
+                                skipped += 1
+                                continue
+                            box_art_path = ""
+                            if download_images and result.box_art_url:
+                                img_dir = Path(game["source_path"]).parent / "media" / "images"
+                                stem = Path(game["original_filename"]).stem
+                                ext = ".png" if ".png" in result.box_art_url.lower() else ".jpg"
+                                dest = img_dir / f"{stem}{ext}"
+                                download_image(result.box_art_url, dest)
+                                box_art_path = str(dest)
+                            repository.upsert_metadata(
+                                game_id=game["id"],
+                                ss_game_id=result.ss_game_id,
+                                title=result.title, year=result.year,
+                                genre=result.genre, publisher=result.publisher,
+                                developer=result.developer, description=result.description,
+                                rating=result.rating, box_art_url=result.box_art_url,
+                                box_art_path=box_art_path, scraped_at=utc_now(),
+                                connection=conn,
+                            )
+                            found += 1
+                    _job_results["scrape"] = {
+                        "total": len(games), "found": found, "skipped": skipped,
+                    }
+                except Exception as exc:
+                    _job_results["scrape"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _jobs["scrape"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
+
+        def _handle_export_gamelists(self, data: dict) -> None:
+            from rom_manager.scraper.gamelist_writer import write_gamelist
+            output_root = Path(data.get("output_dir") or "").resolve() if data.get("output_dir") else config.library_root
+            if output_root is None:
+                self._send_json({"error": "library_root not configured"})
+                return
+            platform_filter = data.get("platform") or None
+            platforms = repository.get_scraped_platform_summary()
+            if platform_filter:
+                platforms = [p for p in platforms if p["platform"] == platform_filter]
+            written = []
+            for plat in platforms:
+                if plat["scraped"] == 0:
+                    continue
+                entries = repository.get_metadata_for_platform(plat["platform"])
+                if not entries:
+                    continue
+                slug = plat["platform"].lower().replace(" ", "").replace("/", "_")
+                platform_dir = Path(output_root) / slug
+                platform_dir.mkdir(parents=True, exist_ok=True)
+                out = write_gamelist(platform_dir, entries)
+                written.append({"platform": plat["platform"], "path": str(out), "entries": len(entries)})
+            self._send_json({"written": written})
 
         def _handle_delete_duplicate(self, data: dict) -> None:
             import os
