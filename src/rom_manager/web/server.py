@@ -136,6 +136,9 @@ def _parse_format_opts(qs: dict) -> FormatOptions:
     return FormatOptions(
         include_region=qs.get("include_region", ["1"])[0] != "0",
         include_revision=qs.get("include_revision", ["1"])[0] != "0",
+        include_platform=qs.get("include_platform", ["0"])[0] != "0",
+        include_sha=qs.get("include_sha", ["0"])[0] != "0",
+        sha_length=min(40, max(4, int(qs.get("sha_length", ["8"])[0]))),
     )
 
 
@@ -332,6 +335,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             opts = FormatOptions(
                 include_region=fmt.get("include_region", True),
                 include_revision=fmt.get("include_revision", True),
+                include_platform=fmt.get("include_platform", False),
+                include_sha=fmt.get("include_sha", False),
+                sha_length=min(40, max(4, int(fmt.get("sha_length", 8)))),
             )
 
             plan = build_plan(repository, opts)

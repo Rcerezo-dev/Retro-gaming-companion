@@ -23,6 +23,9 @@ _REVISION_RE = re.compile(r"\s*\((Rev [A-Z0-9]+|v\d[\d.]*)\)", re.IGNORECASE)
 class FormatOptions:
     include_region: bool = True
     include_revision: bool = True
+    include_platform: bool = False
+    include_sha: bool = False
+    sha_length: int = 8  # chars of SHA1 to append (4–40)
 
 
 @dataclass(slots=True)
@@ -46,7 +49,10 @@ class RenamePlan:
 
 
 def _canonical_filename(game: MatchedGame, opts: FormatOptions | None = None) -> str:
-    """Build the target filename applying optional format options."""
+    """Build the target filename applying optional format options.
+
+    Component order: [platform - ]title[ (region)][ (revision)][ [sha]]
+    """
     title = game.canonical_title
 
     if opts is not None:
@@ -55,6 +61,12 @@ def _canonical_filename(game: MatchedGame, opts: FormatOptions | None = None) ->
         if not opts.include_revision:
             title = _REVISION_RE.sub("", title)
         title = sanitize_filename(title.strip())
+
+        sha_part = f" [{game.sha1[:max(4, min(40, opts.sha_length))]}]" if opts.include_sha else ""
+        if opts.include_platform and game.platform:
+            title = f"{game.platform} - {title}"
+
+        return title + sha_part + game.extension
 
     return title + game.extension
 
