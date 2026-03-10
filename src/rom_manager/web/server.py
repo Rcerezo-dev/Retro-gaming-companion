@@ -89,6 +89,7 @@ def _build_plan(
     repository: LibraryRepository,
     opts: FormatOptions | None = None,
     save_extensions: frozenset[str] | None = None,
+    source_root: str | None = None,
 ) -> dict:
     plan = build_plan(repository, opts)
     if plan.total == 0:
@@ -100,9 +101,16 @@ def _build_plan(
             "total_saves_affected": 0,
         }
     exts = save_extensions or frozenset()
+    pending_ops = plan.pending
+    conflict_ops = plan.conflicts
+    already_correct = plan.already_correct
+    if source_root:
+        pending_ops = [op for op in pending_ops if str(op.source_path).startswith(source_root)]
+        conflict_ops = [op for op in conflict_ops if str(op.source_path).startswith(source_root)]
+        already_correct = [op for op in already_correct if str(op.source_path).startswith(source_root)]
     pending_rows = []
     total_saves = 0
-    for op in plan.pending:
+    for op in pending_ops:
         companions = _count_companion_saves(op.source_path, exts)
         total_saves += companions
         pending_rows.append({
@@ -115,21 +123,29 @@ def _build_plan(
         })
     return {
         "total": plan.total,
-        "already_correct": len(plan.already_correct),
+        "already_correct": len(already_correct),
         "pending": pending_rows,
         "conflicts": [
             {
                 "source_name": op.source_path.name,
                 "target_name": op.target_path.name,
             }
-            for op in plan.conflicts
+            for op in conflict_ops
         ],
         "total_saves_affected": total_saves,
     }
 
 
-def _build_duplicates(repository: LibraryRepository) -> dict:
+def _build_duplicates(repository: LibraryRepository, source_root: str | None = None) -> dict:
+    from rom_manager.database.repository import DuplicateGroup
     groups = repository.get_duplicate_groups()
+    if source_root:
+        filtered = []
+        for g in groups:
+            entries = [e for e in g.entries if e.source_path.startswith(source_root)]
+            if len(entries) >= 2:
+                filtered.append(DuplicateGroup(sha1=g.sha1, entries=entries))
+        groups = filtered
     # Sort by wasted bytes descending (largest duplicates first)
     groups = sorted(groups, key=lambda g: g.wasted_bytes, reverse=True)
     total_files = sum(len(g.entries) for g in groups)
@@ -217,9 +233,11 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st))
                 elif path == "/api/plan":
                     opts = _parse_format_opts(qs)
-                    self._send_json(_build_plan(repository, opts, frozenset(config.save_extensions)))
+                    source_root = qs.get("source_root", [None])[0] or None
+                    self._send_json(_build_plan(repository, opts, frozenset(config.save_extensions), source_root=source_root))
                 elif path == "/api/duplicates":
-                    self._send_json(_build_duplicates(repository))
+                    source_root = qs.get("source_root", [None])[0] or None
+                    self._send_json(_build_duplicates(repository, source_root=source_root))
                 elif path == "/api/assets":
                     self._send_json(_build_assets(repository))
                 elif path == "/api/sync-log":
@@ -1206,12 +1224,16 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 include_sha=fmt.get("include_sha", False),
                 sha_length=min(40, max(4, int(fmt.get("sha_length", 8)))),
             )
+            source_root = data.get("source_root") or None
 
             save_exts = frozenset(config.save_extensions)
             plan = build_plan(repository, opts)
+            pending_ops = plan.pending
+            if source_root:
+                pending_ops = [op for op in pending_ops if str(op.source_path).startswith(source_root)]
             renamed = failed = saves_renamed = 0
             timestamp = utc_now()
-            for op in plan.pending:
+            for op in pending_ops:
                 outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
                 if outcome.success:
                     repository.apply_rename(

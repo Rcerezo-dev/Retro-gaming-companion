@@ -89,6 +89,12 @@ HTML = r"""<!DOCTYPE html>
   .empty { color: #555; padding: 40px 0; text-align: center; }
   .loading { color: #555; padding: 24px 0; }
   .error-msg { color: #f44747; padding: 12px; background: #2a1a1a; border-radius: 4px; margin-bottom: 12px; }
+
+  .dev-btn { background:#1e1e2e; border:1px solid #333; color:#888; padding:4px 14px; font:inherit; font-size:12px; cursor:pointer; transition:background 0.15s; }
+  .dev-btn:first-of-type { border-radius:4px 0 0 4px; }
+  .dev-btn:last-of-type { border-radius:0 4px 4px 0; }
+  .dev-btn.active { background:#4ec9b0; border-color:#4ec9b0; color:#000; font-weight:600; }
+  .dev-btn:disabled { opacity:0.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -99,17 +105,24 @@ HTML = r"""<!DOCTYPE html>
 </header>
 
 <nav>
-  <button class="active" onclick="showTab('overview')">Overview</button>
-  <button onclick="showTab('games')">Games</button>
-  <button onclick="showTab('plan')">Plan</button>
-  <button onclick="showTab('duplicates')">Duplicates</button>
-  <button onclick="showTab('assets')">Assets</button>
-  <button onclick="showTab('sync')">Sync</button>
-  <button onclick="showTab('cable')">Cable Sync</button>
-  <button onclick="showTab('scraper')">Scraper</button>
-  <button onclick="showTab('tools')">Tools</button>
-  <button onclick="showTab('settings')">Settings</button>
+  <button class="active" id="nav-overview" onclick="showTab('overview')">Overview</button>
+  <button id="nav-games" onclick="showTab('games')">Games</button>
+  <button id="nav-plan" onclick="showTab('plan')">Plan</button>
+  <button id="nav-duplicates" onclick="showTab('duplicates')">Duplicates</button>
+  <button id="nav-assets" onclick="showTab('assets')">Assets</button>
+  <button id="nav-sync" onclick="showTab('sync')">Sync</button>
+  <button id="nav-cable" onclick="showTab('cable')">Cable Sync</button>
+  <button id="nav-scraper" onclick="showTab('scraper')">Scraper</button>
+  <button id="nav-tools" onclick="showTab('tools')">Tools</button>
+  <button id="nav-settings" onclick="showTab('settings')">Settings</button>
 </nav>
+
+<div id="device-selector" style="display:flex;align-items:center;gap:0;padding:6px 20px;background:#161626;border-bottom:1px solid #2a2a2a">
+  <span style="color:#555;font-size:11px;margin-right:10px">Dispositivo activo:</span>
+  <button class="dev-btn active" id="dev-pc" onclick="setDevice('pc')">PC</button>
+  <button class="dev-btn" id="dev-both" onclick="setDevice('both')">Sistema completo</button>
+  <button class="dev-btn" id="dev-anbernic" onclick="setDevice('anbernic')" disabled>Anbernic</button>
+</div>
 
 <main>
 
@@ -117,16 +130,42 @@ HTML = r"""<!DOCTYPE html>
 <div id="tab-overview" class="tab active">
   <div id="overview-cards" class="cards"><p class="loading">Loading…</p></div>
 
+  <!-- Rutas principales -->
+  <div class="actions-panel" style="margin-bottom:16px">
+    <h3>Rutas</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta del ordenador</label>
+        <input id="ov-pc-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+      </div>
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Anbernic conectada por cable</label>
+        <input id="ov-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/RetroArch">
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn" onclick="saveOvPaths()">Guardar rutas</button>
+      <span id="ov-paths-result" class="job-result"></span>
+    </div>
+  </div>
+
   <!-- Actions panel -->
   <div class="actions-panel">
     <h3>Acciones</h3>
 
-    <div class="actions-row">
+    <div class="actions-row" style="flex-wrap:wrap;gap:12px;align-items:center">
       <div>
-        <label for="scan-path">Rutas a escanear (una por línea)</label>
-        <textarea id="scan-path" rows="3" placeholder="C:/ROMs&#10;E:/Carpetas anbernic&#10;/mnt/roms" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
+        <div style="color:#888;font-size:11px;margin-bottom:6px">¿Qué escanear?</div>
+        <label class="fmt-check">
+          <input type="checkbox" id="scan-include-pc" checked>
+          PC — <span id="scan-pc-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
+        </label>
+        <label class="fmt-check" style="margin-top:4px">
+          <input type="checkbox" id="scan-include-ab" disabled>
+          Anbernic — <span id="scan-ab-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
+        </label>
       </div>
-      <label class="fmt-check" style="margin-left:8px" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
+      <label class="fmt-check" style="margin-left:auto" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
         <input type="checkbox" id="scan-quick"> Quick (sin hash)
       </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
@@ -148,24 +187,35 @@ HTML = r"""<!DOCTYPE html>
   </div>
 
   <!-- Workflow guide -->
-  <div style="margin-top:28px;max-width:700px">
-    <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo usar ROM Manager</h3>
-    <div style="display:flex;gap:0;counter-reset:steps">
+  <div style="margin-top:28px;max-width:760px">
+    <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Cómo usar ROM Manager</h3>
+
+    <!-- Primera vez -->
+    <div style="background:#161626;border:1px solid #2a2a4a;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#888;line-height:1.7">
+      <strong style="color:#569cd6">Primera vez:</strong>
+      configura las rutas en el panel de arriba y pulsa <strong style="color:#d4d4d4">Guardar rutas</strong>.
+      La <em>Carpeta del ordenador</em> es donde viven tus ROMs y saves en el PC.
+      La <em>Anbernic</em> solo es necesaria si quieres escanear o copiar archivos de la consola.
+      Si tienes catálogos DAT (No-Intro / Redump), colócalos en <code style="color:#ce9178">catalogs/</code> para poder hacer Match.
+    </div>
+
+    <!-- Pasos -->
+    <div style="display:flex;gap:0">
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
         <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
-        <div style="color:#888;font-size:12px;line-height:1.5">Introduce la ruta de tu carpeta de ROMs y pulsa <strong style="color:#d4d4d4">Scan</strong>. Se calculará el hash de cada archivo y se guardará en la base de datos.</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:#d4d4d4">Scan</strong>. Se calcula el hash SHA1/MD5 de cada ROM y se indexa en la base de datos local.<br><span style="color:#555;font-size:11px">Usa Quick para solo actualizar el inventario sin hashear.</span></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
         <div style="color:#569cd6;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Match</div>
-        <div style="color:#888;font-size:12px;line-height:1.5">Pulsa <strong style="color:#d4d4d4">Match catálogos</strong>. Se compara cada ROM contra los catálogos No-Intro / Redump para identificar título canónico y región.</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Match catálogos</strong>. Cada ROM se compara contra los DAT de No-Intro y Redump para obtener su título canónico, región y revisión.<br><span style="color:#555;font-size:11px">Requiere catálogos DAT en catalogs/.</span></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
         <div style="color:#ce9178;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Plan</div>
-        <div style="color:#888;font-size:12px;line-height:1.5">Ve a la pestaña <strong style="color:#d4d4d4">Plan</strong> para ver los renombrados propuestos. Marca qué información incluir (región, revisión) y previsualiza el resultado.</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Ve a <strong style="color:#d4d4d4">Plan</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:#555;font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;padding:14px 16px">
         <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
-        <div style="color:#888;font-size:12px;line-height:1.5">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. Los archivos se mueven en disco y queda todo registrado en el log.</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la Anbernic.</span></div>
       </div>
     </div>
   </div>
@@ -231,6 +281,7 @@ HTML = r"""<!DOCTYPE html>
     <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:#4ec9b0"></span>
   </div>
   <div id="apply-preview-banner" style="display:none;font-size:12px;margin-bottom:12px;padding:8px 12px;background:#1a1a2e;border:1px solid #3a3a6a;border-radius:4px;color:#9cdcfe;line-height:1.6"></div>
+  <div id="plan-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div id="plan-content"><p class="loading">Loading…</p></div>
 </div>
 
@@ -240,11 +291,13 @@ HTML = r"""<!DOCTYPE html>
     <span style="color:#888;font-size:12px">Se conserva la primera copia de cada grupo; se eliminan las demás.</span>
     <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()">Eliminar todos los duplicados</button>
   </div>
+  <div id="dup-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div id="dup-content"><p class="loading">Loading…</p></div>
 </div>
 
 <!-- SYNC -->
 <div id="tab-sync" class="tab">
+  <div id="sync-context-bar" style="display:none;margin-bottom:12px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Sincronización de saves</h3>
     <div class="actions-row">
@@ -376,6 +429,7 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- ASSETS -->
 <div id="tab-assets" class="tab">
+  <div id="assets-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div class="toolbar" style="flex-direction:column;align-items:flex-start;gap:10px">
     <select id="assets-filter" onchange="loadAssets()">
       <option value="all">Todas las plataformas</option>
@@ -507,10 +561,18 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Generar playlists M3U (multi-disco)</h3>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Busca juegos con "(Disc 1)", "(Disc 2)"… y crea un archivo .m3u por cada grupo. Necesario para cambiar de disco en RetroArch sin salir del juego.</p>
-    <div class="actions-row">
-      <div><label>Carpeta de ROMs</label><input id="m3u-path" type="text" placeholder="C:/ROMs/psx"></div>
+    <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <div style="flex:1;min-width:200px">
+        <label>Carpeta de ROMs</label>
+        <input id="m3u-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
+      </div>
+      <button class="btn" onclick="autodetectM3UFolders()" id="btn-m3u-autodetect" title="Detecta automáticamente las carpetas de plataformas de disco">Autodetectar carpetas</button>
     </div>
-    <div class="actions-row" style="gap:20px;align-items:center">
+    <div id="m3u-folder-select-wrap" style="display:none;margin-top:8px">
+      <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpetas detectadas — haz clic para seleccionar:</label>
+      <div id="m3u-folder-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center;margin-top:10px">
       <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Dry run (solo previsualizar)</label>
     </div>
     <div class="actions-row">
@@ -686,12 +748,38 @@ let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '' };
 let platformsLoaded = false;
 let _pollingTimer = null;
 
+// ── Device selector ───────────────────────────────────────────────────────────
+let _activeDevice = 'pc';  // 'pc' | 'both' | 'anbernic'
+
+function setDevice(d) {
+  _activeDevice = d;
+  ['pc','both','anbernic'].forEach(id => {
+    const b = document.getElementById('dev-' + id);
+    if (b) b.classList.toggle('active', id === d);
+  });
+  // Reload current active tab
+  const activeTab = document.querySelector('nav button.active')?.id?.replace('nav-','');
+  if (activeTab) {
+    if (activeTab === 'plan')       loadPlan();
+    if (activeTab === 'duplicates') loadDuplicates();
+    if (activeTab === 'assets')     loadAssets();
+  }
+}
+
+function _deviceRoot() {
+  if (_activeDevice === 'pc')       return document.getElementById('ov-pc-path')?.value.trim() || null;
+  if (_activeDevice === 'anbernic') return document.getElementById('ov-ab-path')?.value.trim() || null;
+  return null; // 'both' = sin filtro
+}
+
 // ── Tab switching ────────────────────────────────────────────────────────────
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  event.currentTarget.classList.add('active');
+  const navBtn = document.getElementById('nav-' + name);
+  if (navBtn) navBtn.classList.add('active');
+  else if (event?.currentTarget) event.currentTarget.classList.add('active');
   if (name === 'overview')   loadOverview();
   if (name === 'games')      loadGames(0);
   if (name === 'plan')       loadPlan();
@@ -759,6 +847,22 @@ async function loadOverview() {
       ${card('Last scan', d.last_scan_at ? d.last_scan_at.replace('T',' ') : 'never')}
       ${cfgHtml}
     `;
+    // Populate path inputs
+    const pcInput = document.getElementById('ov-pc-path');
+    const abInput = document.getElementById('ov-ab-path');
+    if (pcInput && !pcInput.value) pcInput.value = cfg.library_root || '';
+    const abStored = localStorage.getItem('anbernic_path') || '';
+    if (abInput && !abInput.value) abInput.value = abStored;
+    // Update scan checkbox labels
+    const pcLabel = document.getElementById('scan-pc-label');
+    const abLabel = document.getElementById('scan-ab-label');
+    const abCb    = document.getElementById('scan-include-ab');
+    if (pcLabel) pcLabel.textContent = cfg.library_root || '(configura la ruta arriba)';
+    if (abLabel) abLabel.textContent = abStored || '(configura la ruta arriba)';
+    if (abCb)    abCb.disabled = !abStored;
+    // Enable/disable Anbernic device button
+    const devAb = document.getElementById('dev-anbernic');
+    if (devAb) devAb.disabled = !abStored;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
@@ -1002,10 +1106,17 @@ function _showJobResult(type, result) {
 
 // ── Scan action ───────────────────────────────────────────────────────────────
 async function doScan() {
-  const rawVal = document.getElementById('scan-path').value.trim();
-  if (!rawVal) { alert('Introduce al menos una ruta para escanear.'); return; }
-  // Split by newlines or commas
-  const sourcePaths = rawVal.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  const includePc = document.getElementById('scan-include-pc')?.checked;
+  const includeAb = document.getElementById('scan-include-ab')?.checked;
+  const pcPath = document.getElementById('ov-pc-path')?.value.trim() || '';
+  const abPath = document.getElementById('ov-ab-path')?.value.trim() || '';
+  const sourcePaths = [];
+  if (includePc && pcPath) sourcePaths.push(pcPath);
+  if (includeAb && abPath) sourcePaths.push(abPath);
+  if (sourcePaths.length === 0) {
+    alert('Configura al menos una ruta en el panel "Rutas" y activa el checkbox correspondiente.');
+    return;
+  }
   const btn = document.getElementById('btn-scan');
   btn.disabled = true;
   btn.textContent = 'Escaneando…';
@@ -1183,7 +1294,24 @@ async function loadPlan() {
   const el = document.getElementById('plan-content');
   el.innerHTML = '<p class="loading">Loading…</p>';
   try {
-    const d = await apiFetch('/api/plan' + _planQueryString());
+    const root = _deviceRoot();
+    const rootParam = root ? `&source_root=${encodeURIComponent(root)}` : '';
+    const [d, cfg] = await Promise.all([apiFetch('/api/plan' + _planQueryString() + rootParam), apiFetch('/api/config')]);
+    const planBar = document.getElementById('plan-context-bar');
+    if (planBar) {
+      let barHtml = '';
+      if (_activeDevice === 'pc') {
+        const r = cfg.library_root || '(no configurado)';
+        barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+      } else if (_activeDevice === 'anbernic') {
+        const r = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
+        barHtml = `Viendo: <span style="color:#ce9178">Anbernic — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+      } else {
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + Anbernic) &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+      }
+      planBar.innerHTML = barHtml;
+      planBar.style.display = '';
+    }
 
     // Update preview bar
     const previewEl  = document.getElementById('fmt-preview');
@@ -1259,7 +1387,7 @@ async function doApply() {
   btn.textContent = 'Aplicando…';
 
   try {
-    const d = await apiPost('/api/apply', {
+    const applyBody = {
       format_opts: {
         include_region:   document.getElementById('fmt-region').checked,
         include_revision: document.getElementById('fmt-revision').checked,
@@ -1267,7 +1395,10 @@ async function doApply() {
         include_sha:      document.getElementById('fmt-sha').checked,
         sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
       }
-    });
+    };
+    const applyRoot = _deviceRoot();
+    if (applyRoot) applyBody.source_root = applyRoot;
+    const d = await apiPost('/api/apply', applyBody);
     const el = document.getElementById('plan-content');
     const msg = document.createElement('p');
     msg.style.cssText = 'margin-top:16px;color:#4ec9b0;font-size:13px';
@@ -1289,7 +1420,26 @@ async function doApply() {
 async function loadDuplicates() {
   const el = document.getElementById('dup-content');
   try {
-    const d = await apiFetch('/api/duplicates');
+    const root = _deviceRoot();
+    const url = root ? `/api/duplicates?source_root=${encodeURIComponent(root)}` : '/api/duplicates';
+    const [d, cfg] = await Promise.all([apiFetch(url), apiFetch('/api/config')]);
+    const dupBar = document.getElementById('dup-context-bar');
+    if (dupBar) {
+      let barHtml = '';
+      if (_activeDevice === 'pc') {
+        barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+      } else if (_activeDevice === 'anbernic') {
+        const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
+        barHtml = `Viendo: <span style="color:#ce9178">Anbernic — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+      } else {
+        const parts = [`PC: <span style="color:#4ec9b0">${cfg.library_root || '(no configurado)'}</span>`];
+        const ab = localStorage.getItem('anbernic_path');
+        if (ab) parts.push(`Anbernic: <span style="color:#ce9178">${ab}</span>`);
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+      }
+      dupBar.innerHTML = barHtml;
+      dupBar.style.display = '';
+    }
     if (d.groups.length === 0) { el.innerHTML = '<p class="empty">No duplicates found.</p>'; return; }
     let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} group(s) — ${d.total_files} files — ~${fmtSize(d.wasted_bytes)} wasted</p>`;
     html += d.groups.map(g => `
@@ -1354,6 +1504,14 @@ async function loadSync() {
   try {
     const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
     let html = '';
+    const syncBar = document.getElementById('sync-context-bar');
+    if (syncBar) {
+      const local  = cfg.library_root  || '(no configurado)';
+      const remote = cfg.rclone_remote || '(no configurado)';
+      const remoteColor = cfg.rclone_remote ? '#4ec9b0' : '#f48771';
+      syncBar.innerHTML = `Sincronizando saves de <span style="color:#4ec9b0">${local}</span> &nbsp;↔&nbsp; nube: <span style="color:${remoteColor}">${remote}</span> &nbsp;·&nbsp; <span style="color:#555">Solo archivos .sav .srm .state y similares</span>`;
+      syncBar.style.display = '';
+    }
     if (cfg.rclone_remote) {
       html += `<p style="color:#888;margin-bottom:16px">Remote: <span style="color:#4ec9b0">${cfg.rclone_remote}</span></p>`;
     } else {
@@ -1388,7 +1546,21 @@ async function loadAssets() {
   el.innerHTML = '<p class="loading">Loading…</p>';
   const filter = document.getElementById('assets-filter')?.value || 'all';
   try {
-    const d = await apiFetch('/api/assets');
+    const [d, cfg] = await Promise.all([apiFetch('/api/assets'), apiFetch('/api/config')]);
+    const assetsBar = document.getElementById('assets-context-bar');
+    if (assetsBar) {
+      let barHtml = '';
+      if (_activeDevice === 'pc') {
+        barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+      } else if (_activeDevice === 'anbernic') {
+        const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
+        barHtml = `Viendo: <span style="color:#ce9178">Anbernic — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+      } else {
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + Anbernic) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+      }
+      assetsBar.innerHTML = barHtml;
+      assetsBar.style.display = '';
+    }
     let stats = d.stats;
     if (filter === 'orphans') stats = stats.filter(s => s.orphan_assets > 0);
     if (filter === 'missing') stats = stats.filter(s => s.rom_count > 0 && s.image_count === 0 && s.video_count === 0);
@@ -1501,10 +1673,13 @@ function _renderChdResult(result) {
     _showJobResult('convert-chd', result);
     if (resultsDiv && result.results?.length) {
       resultsDiv.innerHTML = result.results.map(r => {
-        const color = r.success ? '#4ec9b0' : '#f44747';
-        const tag   = r.success ? (result.dry_run ? 'PREVIEW' : 'OK') : 'FAIL';
-        const extra = r.error ? ` — ${r.error}` : (r.success ? ` → ${r.chd}` : '');
-        return `<div style="font-size:12px;color:${color};padding:2px 0">[${tag}] ${r.cue}${extra}</div>`;
+        if (r.success) {
+          const tag = result.dry_run ? 'PREVIEW' : 'OK';
+          return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[${tag}] ${r.cue} → ${r.chd}</div>`;
+        } else {
+          const errMsg = r.error ? `<span style="color:#f44747;margin-left:6px;font-style:italic">${r.error}</span>` : '';
+          return `<div style="font-size:12px;color:#f44747;padding:4px 0;border-bottom:1px solid #2a1a1a"><strong>[FAIL]</strong> ${r.cue}${errMsg}</div>`;
+        }
       }).join('');
     }
   }
@@ -1588,6 +1763,34 @@ async function doGenerateM3U() {
   }
 }
 
+async function autodetectM3UFolders() {
+  const btn = document.getElementById('btn-m3u-autodetect');
+  const wrap = document.getElementById('m3u-folder-select-wrap');
+  const listEl = document.getElementById('m3u-folder-list');
+  if (btn) { btn.disabled = true; btn.textContent = 'Detectando…'; }
+  try {
+    const d = await apiFetch('/api/disc-folders');
+    const folders = d.folders || [];
+    if (folders.length === 0) {
+      alert('No se detectaron carpetas de plataformas de disco en library_root.');
+    } else if (folders.length === 1) {
+      document.getElementById('m3u-path').value = folders[0];
+      if (wrap) wrap.style.display = 'none';
+    } else {
+      // Show folder buttons to pick one
+      listEl.innerHTML = folders.map(f => {
+        const name = f.split(/[\\/]/).pop();
+        return `<button class="btn" style="font-size:12px;padding:3px 10px" onclick="document.getElementById('m3u-path').value='${f.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}';document.getElementById('m3u-folder-select-wrap').style.display='none'">${name}</button>`;
+      }).join('');
+      if (wrap) wrap.style.display = '';
+    }
+  } catch(e) {
+    alert('Error al detectar carpetas: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Autodetectar carpetas'; }
+  }
+}
+
 // ── Multi-disc Verifier ───────────────────────────────────────────────────────
 async function doVerifyMultidisc() {
   const rawVal = document.getElementById('verify-multidisc-path').value.trim();
@@ -1655,26 +1858,43 @@ async function doFindOrphans() {
     const d = await apiFetch('/api/orphaned-saves?path=' + encodeURIComponent(pathVal));
     if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
     if (d.total === 0) { resultEl.innerHTML = '<p class="empty">No se encontraron saves huérfanos.</p>'; return; }
-    let html = `<p style="color:#888;margin-bottom:10px">${d.total} save(s) huérfano(s) encontrado(s):</p>`;
+    const totalBytes = d.orphans.reduce((s, o) => s + o.size_bytes, 0);
+    let html = `<p style="color:#888;margin-bottom:8px">${d.total} save(s) huérfano(s) — ${fmtSize(totalBytes)} en total:</p>`;
+    html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#888">
+        <input type="checkbox" id="orphan-select-all" checked onchange="document.querySelectorAll('.orphan-chk').forEach(c=>c.checked=this.checked)">
+        Seleccionar todos
+      </label>
+    </div>`;
     html += '<div style="max-height:350px;overflow-y:auto;margin-bottom:10px">';
     html += d.orphans.map(o => `
-      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px" id="orphan-${CSS.escape(o.save_path)}">
-        <input type="checkbox" class="orphan-chk" value="${o.save_path.replace(/"/g, '&quot;')}" checked>
+      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px">
+        <input type="checkbox" class="orphan-chk" value="${o.save_path.replace(/"/g, '&quot;')}" data-size="${o.size_bytes}" checked onchange="_updateOrphanSelectAll()">
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888" title="${o.save_path}">${o.save_path}</span>
         <span style="color:#555;flex-shrink:0">${fmtSize(o.size_bytes)}</span>
       </div>`).join('');
     html += '</div>';
-    html += '<button class="btn danger" onclick="doDeleteOrphans()">Eliminar seleccionados</button>';
+    html += '<button class="btn danger" onclick="doDeleteOrphans()">Borrar seleccionados</button>';
     resultEl.innerHTML = html;
   } catch(e) {
     resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
 }
 
+function _updateOrphanSelectAll() {
+  const all = [...document.querySelectorAll('.orphan-chk')];
+  const allChecked = all.every(c => c.checked);
+  const noneChecked = all.every(c => !c.checked);
+  const sa = document.getElementById('orphan-select-all');
+  if (sa) { sa.checked = allChecked; sa.indeterminate = !allChecked && !noneChecked; }
+}
+
 async function doDeleteOrphans() {
-  const checked = [...document.querySelectorAll('.orphan-chk:checked')].map(c => c.value);
+  const checkedEls = [...document.querySelectorAll('.orphan-chk:checked')];
+  const checked = checkedEls.map(c => c.value);
   if (checked.length === 0) { alert('Selecciona al menos un archivo.'); return; }
-  if (!confirm(`¿Eliminar ${checked.length} save(s) huérfano(s)?\n\nEsta operación no se puede deshacer.`)) return;
+  const totalBytes = checkedEls.reduce((s, c) => s + parseInt(c.dataset.size || '0'), 0);
+  if (!confirm(`¿Eliminar ${checked.length} save(s) huérfano(s)?\nEspacio a liberar: ${fmtSize(totalBytes)}\n\nEsta operación no se puede deshacer.`)) return;
   try {
     const d = await apiPost('/api/orphaned-saves/delete', { paths: checked });
     alert(`Eliminados: ${d.deleted}  |  Fallidos: ${d.failed}  |  Liberados: ${fmtSize(d.freed_bytes)}`);
@@ -2012,12 +2232,39 @@ async function saveSettings() {
   }
 }
 
+async function saveOvPaths() {
+  const pcPath = document.getElementById('ov-pc-path').value.trim();
+  const abPath = document.getElementById('ov-ab-path').value.trim();
+  const resultEl = document.getElementById('ov-paths-result');
+  if (abPath) localStorage.setItem('anbernic_path', abPath);
+  if (pcPath) {
+    try {
+      const d = await apiPost('/api/config', {'library.library_root': pcPath});
+      if (d.error) {
+        resultEl.className = 'job-result visible error-r';
+        resultEl.textContent = 'Error: ' + d.error;
+        return;
+      }
+    } catch(e) {
+      resultEl.className = 'job-result visible error-r';
+      resultEl.textContent = 'Error: ' + e.message;
+      return;
+    }
+  }
+  resultEl.className = 'job-result visible ok-r';
+  resultEl.textContent = 'Rutas guardadas.';
+  setTimeout(() => { resultEl.className = 'job-result'; }, 3000);
+}
+
 // ── Cable Sync ────────────────────────────────────────────────────────────────
 async function loadCableSync() {
-  // Auto-fill PC path from config if field is empty
+  // Auto-fill from overview path inputs or config
   try {
     const cfg = await apiFetch('/api/config');
-    _setIfEmpty('cable-pc-path', cfg.library_root || '');
+    const ovPc = document.getElementById('ov-pc-path')?.value.trim();
+    const ovAb = document.getElementById('ov-ab-path')?.value.trim();
+    _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || '');
+    _setIfEmpty('cable-ab-path', ovAb || localStorage.getItem('anbernic_path') || '');
   } catch(_) {}
 }
 

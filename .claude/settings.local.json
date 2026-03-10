@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(\"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\":*)"
+      "Bash(\"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\":*)",
+      "Bash(\"/c/Users/rammu/anaconda3/envs/rom_manager/python.exe\":*)",
+      "Bash(C:/Users/rammu/anaconda3/envs/rom_manager/python.exe:*)",
+      "Bash(C:/Users/rammu/Documents/projects/Retro_gaming_app/tools/chdman.exe:*)",
+      "WebSearch",
+      "WebFetch(domain:api-docs.retroachievements.org)",
+      "Bash(git add:*)",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \"import ast; ast.parse\\(open\\('src/rom_manager/web/server.py'\\).read\\(\\)\\); print\\('server.py OK'\\)\")",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \"import ast; ast.parse\\(open\\('src/rom_manager/web/server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('server.py OK'\\)\"\n/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \"import ast; ast.parse\\(open\\('src/rom_manager/web/frontend.py', encoding='utf-8'\\).read\\(\\)\\); print\\('frontend.py OK'\\)\")",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \"\nimport ast\nfor f in ['src/rom_manager/web/server.py', 'src/rom_manager/web/frontend.py']:\n    ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\)\n    print\\(f'OK: {f}'\\)\n\")"
     ]
   }
 }
