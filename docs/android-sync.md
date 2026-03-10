@@ -2,6 +2,13 @@
 
 Guía para sincronizar saves y save states entre el PC y la Anbernic RG 556 (Android nativo).
 
+> **Cable Sync (transferencia directa por USB):** Si quieres copiar ROMs o saves por cable sin
+> WiFi, usa la pestaña **Cable Sync** de la interfaz web (`rommgr serve`). Requiere que la Anbernic
+> sea accesible como ruta del sistema de archivos (SD card en el PC, Termux SFTP, o WinFsp+SSHFS).
+> El MTP estándar de Android **no** es compatible.
+>
+> Esta guía cubre el sync automático por WiFi vía rclone o FolderSync.
+
 ## Rutas de RetroArch en Android
 
 | Tipo | Ruta |

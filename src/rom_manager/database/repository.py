@@ -472,6 +472,41 @@ class LibraryRepository:
                     updated += 1
         return updated
 
+    def prune_stale_entries(self, source_root: str, seen_paths: set[str]) -> int:
+        """Delete records for files that were under *source_root* but are no longer on disk.
+
+        *seen_paths* is the set of resolved absolute path strings found during the scan.
+        Only paths that start with *source_root* are considered — other roots are untouched.
+        Returns the total number of records deleted across all tables.
+        """
+        import os
+        root_prefix = source_root + os.sep
+
+        def _under_root(p: str) -> bool:
+            return p == source_root or p.startswith(root_prefix)
+
+        with self.connect() as conn:
+            game_paths  = [r[0] for r in conn.execute("SELECT source_path  FROM games").fetchall()]
+            save_paths  = [r[0] for r in conn.execute("SELECT original_path FROM saves").fetchall()]
+            asset_paths = [r[0] for r in conn.execute("SELECT source_path  FROM assets").fetchall()]
+
+        stale_games  = [p for p in game_paths  if _under_root(p) and p not in seen_paths]
+        stale_saves  = [p for p in save_paths  if _under_root(p) and p not in seen_paths]
+        stale_assets = [p for p in asset_paths if _under_root(p) and p not in seen_paths]
+
+        total = len(stale_games) + len(stale_saves) + len(stale_assets)
+        if total == 0:
+            return 0
+
+        with self.batch() as conn:
+            for p in stale_games:
+                conn.execute("DELETE FROM games  WHERE source_path   = ?", (p,))
+            for p in stale_saves:
+                conn.execute("DELETE FROM saves  WHERE original_path = ?", (p,))
+            for p in stale_assets:
+                conn.execute("DELETE FROM assets WHERE source_path   = ?", (p,))
+        return total
+
     def delete_game(self, game_id: int) -> None:
         """Remove a game record from the database (file must be deleted from disk first)."""
         with self.connect() as connection:

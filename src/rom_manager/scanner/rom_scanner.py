@@ -29,6 +29,7 @@ class ScanResult:
     system_files_detected: int = 0
     unknown_files_detected: int = 0
     errors: int = 0
+    pruned: int = 0
 
 
 def utc_now() -> str:
@@ -47,12 +48,14 @@ def scan_library(
     scan_run_id = repository.create_scan_run(str(source_path), timestamp)
     result = ScanResult()
     known_roms = repository.get_known_roms()
+    seen_paths: set[str] = set()
 
     with repository.batch() as conn:
         for path in source_path.rglob("*"):
             if not path.is_file():
                 continue
 
+            seen_paths.add(str(path.resolve()))
             result.files_seen += 1
             if result.files_seen % _PROGRESS_INTERVAL == 0:
                 logger.info("Progress: %d files seen so far...", result.files_seen)
@@ -85,6 +88,10 @@ def scan_library(
             except OSError as error:
                 result.errors += 1
                 logger.error("Failed to process %s: %s", path, error)
+
+    result.pruned = repository.prune_stale_entries(str(source_path.resolve()), seen_paths)
+    if result.pruned:
+        logger.info("Pruned %d stale entries from database.", result.pruned)
 
     finished_at = utc_now()
     repository.complete_scan_run(

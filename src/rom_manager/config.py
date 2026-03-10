@@ -27,6 +27,7 @@ class AppConfig:
     screenscraper_pass: str
     screenscraper_dev_id: str
     screenscraper_dev_pass: str
+    ra_api_key: str
 
 
 _CONFIG_TOML_TEMPLATE = """\
@@ -80,6 +81,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     tools = toml.get("tools", {})
     web = toml.get("web", {})
     ss = toml.get("screenscraper", {})
+    ra = toml.get("retroachievements", {})
 
     library_root_raw = lib.get("library_root")
     library_root = Path(library_root_raw) if library_root_raw else None
@@ -101,6 +103,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         screenscraper_pass=ss.get("pass", ""),
         screenscraper_dev_id=ss.get("dev_id", ""),
         screenscraper_dev_pass=ss.get("dev_pass", ""),
+        ra_api_key=ra.get("api_key", ""),
         excluded_directories=(  # noqa: E501
             "Android",
             "BIOS",

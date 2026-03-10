@@ -105,6 +105,7 @@ HTML = r"""<!DOCTYPE html>
   <button onclick="showTab('duplicates')">Duplicates</button>
   <button onclick="showTab('assets')">Assets</button>
   <button onclick="showTab('sync')">Sync</button>
+  <button onclick="showTab('cable')">Cable Sync</button>
   <button onclick="showTab('scraper')">Scraper</button>
   <button onclick="showTab('tools')">Tools</button>
   <button onclick="showTab('settings')">Settings</button>
@@ -258,6 +259,119 @@ HTML = r"""<!DOCTYPE html>
     <div id="sync-decisions" style="margin-top:12px"></div>
   </div>
   <div id="sync-content"><p class="loading">Loading…</p></div>
+</div>
+
+<!-- CABLE SYNC -->
+<div id="tab-cable" class="tab">
+
+  <!-- Instrucciones de conexión -->
+  <div style="max-width:780px;margin-bottom:20px;background:#1e1e2e;border:1px solid #333;border-radius:6px;padding:16px 20px">
+    <h3 style="color:#4ec9b0;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Cómo conectar la Anbernic al PC</h3>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13px">
+      <span style="color:#4ec9b0;font-weight:bold">①</span>
+      <span style="color:#d4d4d4">Conecta la Anbernic al PC mediante el cable USB.</span>
+      <span style="color:#4ec9b0;font-weight:bold">②</span>
+      <span style="color:#d4d4d4">En la Anbernic: desliza el panel de notificaciones → toca la notificación USB → selecciona <strong>Transferencia de archivos</strong> (File Transfer / MTP).</span>
+      <span style="color:#4ec9b0;font-weight:bold">③</span>
+      <span style="color:#d4d4d4">En Windows: abre "Este equipo" — la Anbernic aparece como dispositivo portátil.</span>
+    </div>
+    <div style="margin-top:14px;padding:10px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px;font-size:12px;color:#888;line-height:1.7">
+      <strong style="color:#569cd6">⚠ Nota sobre la ruta:</strong> Windows MTP no asigna letra de unidad directamente. Para acceder por ruta de carpeta usa una de estas opciones:<br>
+      <span style="color:#4ec9b0">A)</span> <strong style="color:#d4d4d4">SD card</strong> — extrae la tarjeta SD de la Anbernic e insértala en el PC con un lector USB → aparecerá como letra de unidad (ej. <code style="color:#ce9178">F:\</code>)<br>
+      <span style="color:#4ec9b0">B)</span> <strong style="color:#d4d4d4">Termux + SFTP</strong> — si ya tienes Termux instalado, ejecuta <code style="color:#ce9178">sshd</code> y accede por red (ej. <code style="color:#ce9178">\\192.168.1.x\share</code>)<br>
+      <span style="color:#4ec9b0">C)</span> <strong style="color:#d4d4d4">WinFsp + MTPDrive</strong> — herramienta gratuita que monta el MTP como letra de unidad en Windows
+    </div>
+  </div>
+
+  <!-- Formulario de sincronización -->
+  <div class="actions-panel" style="max-width:780px">
+    <h3>Sincronización por cable</h3>
+
+    <!-- Qué sincronizar -->
+    <div style="margin-bottom:16px">
+      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">¿Qué sincronizar?</div>
+      <div style="display:flex;gap:20px">
+        <label class="fmt-check">
+          <input type="checkbox" id="cable-what-saves" checked> Saves y states
+          <span style="color:#555;font-size:11px;margin-left:4px">(.sav, .srm, .state…)</span>
+        </label>
+        <label class="fmt-check">
+          <input type="checkbox" id="cable-what-roms"> ROMs
+          <span style="color:#555;font-size:11px;margin-left:4px">(todo lo demás)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Dirección -->
+    <div style="margin-bottom:16px">
+      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dirección</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
+          <input type="radio" name="cable-direction" value="pc_to_anbernic" checked style="margin-top:2px;accent-color:#4ec9b0">
+          <span>
+            <strong style="color:#d4d4d4">PC → Anbernic</strong>
+            <span style="color:#555;font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la Anbernic.</span><br>
+            <span style="color:#569cd6;font-size:11px">✓ Recomendado después de renombrar archivos en el PC</span>
+          </span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
+          <input type="radio" name="cable-direction" value="anbernic_to_pc" style="margin-top:2px;accent-color:#4ec9b0">
+          <span>
+            <strong style="color:#d4d4d4">Anbernic → PC</strong>
+            <span style="color:#555;font-size:12px;margin-left:6px">Copia de la consola al PC. Sobrescribe los archivos del PC.</span><br>
+            <span style="color:#569cd6;font-size:11px">✓ Útil para recuperar saves guardados en la consola</span>
+          </span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
+          <input type="radio" name="cable-direction" value="newest" style="margin-top:2px;accent-color:#4ec9b0">
+          <span>
+            <strong style="color:#d4d4d4">Más reciente gana</strong>
+            <span style="color:#555;font-size:12px;margin-left:6px">Compara fechas de modificación y copia en la dirección correcta.</span><br>
+            <span style="color:#ce9178;font-size:11px">⚠ Tras renombrar archivos en el PC, las fechas del PC pueden ser incorrectas — usa "PC → Anbernic" en ese caso</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Rutas -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
+        <input id="cable-pc-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+      </div>
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta de la Anbernic (en el PC)</label>
+        <input id="cable-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
+      </div>
+    </div>
+
+    <!-- Dry run + botón -->
+    <div class="actions-row">
+      <label class="fmt-check">
+        <input type="checkbox" id="cable-dry-run" checked> Dry run (previsualizar sin copiar)
+      </label>
+      <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
+    </div>
+
+    <!-- Progreso -->
+    <div id="cable-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="cable-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="cable-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="cable-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="cable-result" class="job-result"></div>
+  </div>
+
+  <!-- Tabla de resultados -->
+  <div id="cable-details-wrap" style="display:none;margin-top:16px;max-width:780px">
+    <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Archivos procesados</div>
+    <div id="cable-details-list" style="max-height:400px;overflow-y:auto;font-size:12px;background:#1e1e2e;border:1px solid #333;border-radius:6px;padding:10px 12px"></div>
+  </div>
+
 </div>
 
 <!-- ASSETS -->
@@ -451,6 +565,27 @@ HTML = r"""<!DOCTYPE html>
     <div id="health-result" style="margin-top:12px"></div>
   </div>
 
+  <!-- ── RetroAchievements ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>RetroAchievements — Compatibilidad de logros</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba qué ROMs de tu biblioteca son compatibles con RetroAchievements. Si tienes una versión sin logros pero existe una alternativa compatible, te lo indica.</p>
+    <p style="color:#555;font-size:11px;margin-bottom:12px">Necesita API key de <a href="https://retroachievements.org/settings" target="_blank" style="color:#4ec9b0">retroachievements.org → Settings → API</a>. Configúrala en la pestaña <strong style="color:#d4d4d4">Settings</strong>.</p>
+    <div id="ra-api-key-status" style="margin-bottom:12px;font-size:12px;color:#555">Verificando API key…</div>
+    <div class="actions-row">
+      <button id="btn-ra-check" class="btn primary" onclick="doRaCheck()">Comprobar compatibilidad RA</button>
+    </div>
+    <div id="ra-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="ra-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="ra-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="ra-progress-bar" style="height:100%;background:#ce9178;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="ra-result" style="margin-top:12px"></div>
+  </div>
+
   <!-- ── CHD ── -->
   <div class="actions-panel">
     <h3>Convertir a CHD (PSX)</h3>
@@ -521,6 +656,10 @@ HTML = r"""<!DOCTYPE html>
         </div>
         <div id="chdman-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
       </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">RetroAchievements API key — <a href="https://retroachievements.org/settings" target="_blank" style="color:#4ec9b0">obtener en RA Settings → Web API Key</a></label>
+        <input id="cfg-ra-api-key" type="text" style="width:100%" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+      </div>
     </div>
 
     <div class="actions-row" style="margin-top:16px">
@@ -559,6 +698,7 @@ function showTab(name) {
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
   if (name === 'sync')       loadSync();
+  if (name === 'cable')      loadCableSync();
   if (name === 'scraper')    loadScraperSummary();
   if (name === 'settings')   loadSettings();
   if (name === 'tools')      loadTools();
@@ -639,7 +779,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -794,6 +934,50 @@ function _applyJobStatus(s) {
     _renderHealthResult(s.health_check_result);
     if (btnHealth) { btnHealth.disabled = false; btnHealth.textContent = 'Iniciar Health Check'; }
   }
+
+  // RA check progress
+  const raWrap  = document.getElementById('ra-progress-wrap');
+  const btnRa   = document.getElementById('btn-ra-check');
+  if (s.ra_check_running && s.ra_progress && s.ra_progress.total > 0) {
+    const p = s.ra_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (raWrap) raWrap.style.display = '';
+    const bar  = document.getElementById('ra-progress-bar');
+    const lbl  = document.getElementById('ra-progress-label');
+    const file = document.getElementById('ra-progress-file');
+    if (bar)  bar.style.width  = pct + '%';
+    if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
+    if (file) file.textContent = p.current_file;
+  } else if (!s.ra_check_running) {
+    if (raWrap) raWrap.style.display = 'none';
+  }
+  if (btnRa) btnRa.disabled = s.ra_check_running;
+  if (!s.ra_check_running && s.ra_check_result) {
+    _renderRaResult(s.ra_check_result);
+    if (btnRa) { btnRa.disabled = false; btnRa.textContent = 'Comprobar compatibilidad RA'; }
+  }
+
+  // Cable sync
+  const btnCable = document.getElementById('btn-cable-sync');
+  const cableWrap = document.getElementById('cable-progress-wrap');
+  if (s.cable_sync_running && s.cable_progress) {
+    const p = s.cable_progress;
+    if (cableWrap) cableWrap.style.display = '';
+    const lbl  = document.getElementById('cable-progress-label');
+    const file = document.getElementById('cable-progress-file');
+    const bar  = document.getElementById('cable-progress-bar');
+    if (lbl)  lbl.textContent  = `Copiados: ${p.copied || 0}`;
+    if (file) file.textContent = p.current_file || '';
+    // Indeterminate animation — bounce bar width 10→90 based on copied count (mod)
+    if (bar)  bar.style.width  = (((p.copied || 0) * 7) % 80 + 10) + '%';
+  } else if (!s.cable_sync_running) {
+    if (cableWrap) cableWrap.style.display = 'none';
+  }
+  if (btnCable) btnCable.disabled = s.cable_sync_running;
+  if (!s.cable_sync_running && s.cable_sync_result) {
+    _renderCableSyncResult(s.cable_sync_result);
+    if (btnCable) { btnCable.disabled = false; btnCable.textContent = 'Iniciar sincronización'; }
+  }
 }
 
 function _showJobResult(type, result) {
@@ -804,7 +988,8 @@ function _showJobResult(type, result) {
     el.textContent = 'Error: ' + result.error;
   } else if (type === 'scan') {
     el.className = 'job-result visible success';
-    el.textContent = `Scan completado — ROMs: ${result.roms_detected}  |  Ya escaneados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}`;
+    const prunedMsg = result.pruned > 0 ? `  |  Eliminados de BD: ${result.pruned}` : '';
+    el.textContent = `Scan completado — ROMs: ${result.roms_detected}  |  Ya escaneados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}${prunedMsg}`;
   } else if (type === 'match') {
     el.className = 'job-result visible success';
     el.textContent = `Match completado — SHA1: ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin match: ${result.unmatched}  (de ${result.total} ROMs)`;
@@ -1540,6 +1725,81 @@ function _renderHealthResult(r) {
   el.innerHTML = html;
 }
 
+// ── RetroAchievements ────────────────────────────────────────────────────────
+async function doRaCheck() {
+  const btn = document.getElementById('btn-ra-check');
+  btn.disabled = true;
+  btn.textContent = 'Comprobando…';
+  document.getElementById('ra-result').innerHTML = '';
+  try {
+    const d = await apiPost('/api/ra-check', {});
+    if (d.error) {
+      document.getElementById('ra-result').innerHTML = `<p class="error-msg">${d.error}</p>`;
+      btn.disabled = false; btn.textContent = 'Comprobar compatibilidad RA';
+      return;
+    }
+    if (d.status === 'already_running') {
+      document.getElementById('ra-result').innerHTML = '<p style="color:#888;font-size:12px">Ya hay una comprobación en curso…</p>';
+    }
+    startPolling();
+  } catch(e) {
+    document.getElementById('ra-result').innerHTML = `<p class="error-msg">${e.message}</p>`;
+    btn.disabled = false; btn.textContent = 'Comprobar compatibilidad RA';
+  }
+}
+
+function _renderRaResult(r) {
+  const el = document.getElementById('ra-result');
+  if (!el) return;
+  if (r.error) { el.innerHTML = `<p class="error-msg">${r.error}</p>`; return; }
+
+  const hasAlternatives = r.no_support_alternative > 0;
+  const csvLink = hasAlternatives
+    ? `<a href="/api/ra-check.csv" download class="btn" style="margin-left:12px;font-size:12px">&#x2193; Descargar CSV (${r.no_support_alternative} juegos)</a>`
+    : '';
+
+  let html = `<div style="margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">`;
+  html += `<span style="color:#4ec9b0">✓ ${r.supported} con logros</span>`;
+  if (hasAlternatives)
+    html += `  <span style="color:#ce9178">⚠ ${r.no_support_alternative} sin logros (alternativa disponible)</span>`;
+  if (r.no_support > 0)
+    html += `  <span style="color:#555">✗ ${r.no_support} sin soporte RA</span>`;
+  if (r.no_md5 > 0)
+    html += `  <span style="color:#555">? ${r.no_md5} sin MD5</span>`;
+  if (r.platform_unknown > 0)
+    html += `  <span style="color:#555">— ${r.platform_unknown} plataforma no soportada</span>`;
+  html += `  <span style="color:#333">(${r.total} total)</span>`;
+  html += csvLink;
+  html += `</div>`;
+
+  if (r.alternatives?.length) {
+    html += `<div style="margin-bottom:8px;color:#ce9178;font-size:12px">`;
+    if (hasAlternatives && r.no_support_alternative > 10) {
+      html += `⚠ ${r.no_support_alternative} juegos en tu biblioteca no son la versión compatible con RA. `;
+      html += `Existe una versión alternativa para cada uno. Descarga el CSV para ver la lista completa.`;
+    } else {
+      html += `Estos juegos tienen una versión RA-compatible disponible:`;
+    }
+    html += `</div>`;
+    html += '<div style="overflow-x:auto"><table><thead><tr>';
+    html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th>';
+    html += '</tr></thead><tbody>';
+    html += r.alternatives.map(a => `<tr>
+      <td>${a.platform}</td>
+      <td title="${a.filename}" style="max-width:260px">${a.filename}</td>
+      <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
+      <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
+      <td style="text-align:right;color:#555">${a.ra_points}</td>
+    </tr>`).join('');
+    html += '</tbody></table></div>';
+    if (r.no_support_alternative > r.alternatives.length) {
+      html += `<p style="font-size:11px;color:#555;margin-top:6px">Mostrando ${r.alternatives.length} de ${r.no_support_alternative} — descarga el CSV para la lista completa.</p>`;
+    }
+  }
+
+  el.innerHTML = html;
+}
+
 // ── Scraper ──────────────────────────────────────────────────────────────────
 async function loadScraperSummary() {
   const el = document.getElementById('scraper-summary');
@@ -1639,6 +1899,7 @@ async function loadSettings() {
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
     document.getElementById('cfg-ss-pass').value       = cfg.screenscraper_pass || '';
     document.getElementById('cfg-chdman').value        = cfg.chdman || 'chdman';
+    document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
   } catch(e) { /* silent */ }
 }
 
@@ -1696,6 +1957,17 @@ async function loadTools() {
         else      { st.style.color = '#f44747'; st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
       }
     } catch(_) {}
+    // Show RA API key status
+    const raStatus = document.getElementById('ra-api-key-status');
+    if (raStatus) {
+      if (cfg.ra_api_key) {
+        raStatus.style.color = '#4ec9b0';
+        raStatus.textContent = '✓ API key configurada';
+      } else {
+        raStatus.style.color = '#f44747';
+        raStatus.innerHTML = '✗ API key no configurada — <a href="#" onclick="showTab(\'settings\');return false" style="color:#569cd6">ir a Settings</a>';
+      }
+    }
   } catch(e) { /* silent */ }
 }
 
@@ -1713,11 +1985,13 @@ async function saveSettings() {
   const su = document.getElementById('cfg-ss-user').value.trim();
   const sp = document.getElementById('cfg-ss-pass').value;
   const ch = document.getElementById('cfg-chdman').value.trim();
-  if (lr) updates['library.library_root'] = lr;
-  if (rr) updates['sync.remote']          = rr;
-  if (su) updates['screenscraper.user']   = su;
-  if (sp) updates['screenscraper.pass']   = sp;
-  if (ch) updates['tools.chdman']         = ch;
+  const ra = document.getElementById('cfg-ra-api-key').value.trim();
+  if (lr) updates['library.library_root']        = lr;
+  if (rr) updates['sync.remote']                 = rr;
+  if (su) updates['screenscraper.user']           = su;
+  if (sp) updates['screenscraper.pass']           = sp;
+  if (ch) updates['tools.chdman']                 = ch;
+  if (ra) updates['retroachievements.api_key']    = ra;
   if (Object.keys(updates).length === 0) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Nada que guardar — rellena al menos un campo.';
@@ -1735,6 +2009,99 @@ async function saveSettings() {
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+// ── Cable Sync ────────────────────────────────────────────────────────────────
+async function loadCableSync() {
+  // Auto-fill PC path from config if field is empty
+  try {
+    const cfg = await apiFetch('/api/config');
+    _setIfEmpty('cable-pc-path', cfg.library_root || '');
+  } catch(_) {}
+}
+
+async function doCableSync() {
+  const pcPath = document.getElementById('cable-pc-path').value.trim();
+  const abPath = document.getElementById('cable-ab-path').value.trim();
+  if (!pcPath) { alert('Introduce la ruta del PC (library_root).'); return; }
+  if (!abPath) { alert('Introduce la ruta de la Anbernic en el PC.'); return; }
+
+  const wantSaves = document.getElementById('cable-what-saves').checked;
+  const wantRoms  = document.getElementById('cable-what-roms').checked;
+  if (!wantSaves && !wantRoms) { alert('Selecciona al menos qué sincronizar: saves o ROMs.'); return; }
+
+  const what = [];
+  if (wantSaves) what.push('saves');
+  if (wantRoms)  what.push('roms');
+
+  const direction = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
+  const dryRun    = document.getElementById('cable-dry-run').checked;
+
+  const btn      = document.getElementById('btn-cable-sync');
+  const resultEl = document.getElementById('cable-result');
+  btn.disabled = true;
+  btn.textContent = 'Sincronizando…';
+  resultEl.className = 'job-result';
+  document.getElementById('cable-details-wrap').style.display = 'none';
+
+  // Clear previous result so it doesn't show stale data while job runs
+  delete window._lastCableSyncResult;
+
+  try {
+    const d = await apiPost('/api/cable-sync', {
+      pc_path: pcPath,
+      anbernic_path: abPath,
+      what,
+      direction,
+      dry_run: dryRun,
+    });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible';
+      resultEl.textContent = 'Ya hay una sincronización en curso…';
+      btn.disabled = false;
+      btn.textContent = 'Iniciar sincronización';
+      return;
+    }
+    startPolling();
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Iniciar sincronización';
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+function _renderCableSyncResult(r) {
+  const resultEl = document.getElementById('cable-result');
+  const detailsWrap = document.getElementById('cable-details-wrap');
+  const detailsList = document.getElementById('cable-details-list');
+  if (!resultEl) return;
+
+  // Guard: only render once per result
+  const key = JSON.stringify({c: r.copied, e: r.errors, d: r.direction});
+  if (window._lastCableSyncResult === key) return;
+  window._lastCableSyncResult = key;
+
+  if (r.error) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + r.error;
+    return;
+  }
+
+  const verb   = r.dry_run ? 'Copiaría' : 'Copiados';
+  const dirMap = { pc_to_anbernic: 'PC → Anbernic', anbernic_to_pc: 'Anbernic → PC', newest: 'Más reciente gana' };
+  const dirStr = dirMap[r.direction] || r.direction;
+  const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
+
+  resultEl.className = 'job-result visible success';
+  resultEl.textContent = `${verb}: ${r.copied} archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: ${r.errors}  —  ${dirStr}${dryTag}`;
+
+  if (r.details && r.details.length > 0) {
+    detailsList.innerHTML = r.details.map(d =>
+      `<div style="padding:2px 0;color:#888"><span style="color:#4ec9b0;margin-right:8px">${d.file}</span>${d.path}</div>`
+    ).join('');
+    detailsWrap.style.display = '';
   }
 }
 

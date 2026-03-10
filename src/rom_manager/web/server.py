@@ -20,12 +20,15 @@ _jobs: dict[str, bool] = {
     "scan": False, "match": False, "sync": False,
     "convert_chd": False, "scrape": False,
     "extract_zip": False, "health_check": False,
+    "ra_check": False, "cable_sync": False,
 }
 _job_results: dict[str, dict] = {}
 _chd_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
 _scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "current_game": str}
 _zip_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
 _health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
+_ra_progress: dict = {}      # {"current": int, "total": int, "current_file": str}
+_cable_progress: dict = {}   # {"copied": int, "current_file": str}
 _logger = logging.getLogger(__name__)
 
 
@@ -168,6 +171,7 @@ def _build_config(config: AppConfig) -> dict:
         "screenscraper_user": config.screenscraper_user or None,
         "screenscraper_pass": config.screenscraper_pass or None,
         "chdman": config.chdman,
+        "ra_api_key": config.ra_api_key or None,
     }
 
 
@@ -245,6 +249,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "health_progress": dict(_health_progress) if _health_progress else None,
                             "health_check_result": _job_results.get("health_check"),
                             "extract_zip_result": _job_results.get("extract_zip"),
+                            "ra_check_running": _jobs["ra_check"],
+                            "ra_progress": dict(_ra_progress) if _ra_progress else None,
+                            "ra_check_result": _job_results.get("ra_check"),
+                            "cable_sync_running": _jobs["cable_sync"],
+                            "cable_progress": dict(_cable_progress) if _cable_progress else None,
+                            "cable_sync_result": _job_results.get("cable_sync"),
                         })
                 elif path == "/api/test-chdman":
                     import subprocess
@@ -311,6 +321,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     else:
                         self._send(200, "application/octet-stream", db_path.read_bytes(),
                                    extra_headers={"Content-Disposition": 'attachment; filename="library.sqlite"'})
+                elif path == "/api/ra-check.csv":
+                    result = _job_results.get("ra_check")
+                    if not result or result.get("error") or not result.get("alternatives_csv"):
+                        self._send(404, "text/plain", b"No RA check result available")
+                    else:
+                        body = result["alternatives_csv"].encode()
+                        self._send(200, "text/csv; charset=utf-8", body,
+                                   extra_headers={"Content-Disposition": 'attachment; filename="ra_alternatives.csv"'})
                 elif path == "/api/report.json":
                     report = build_report(repository)
                     body = to_json(report).encode()
@@ -377,6 +395,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_cleanup_zips(data)
                 elif path == "/api/cleanup-cue-bin":
                     self._handle_cleanup_cue_bin(data)
+                elif path == "/api/ra-check":
+                    self._handle_ra_check(data)
+                elif path == "/api/cable-sync":
+                    self._handle_cable_sync(data)
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -423,6 +445,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "saves_detected": total.saves_detected,
                         "errors": total.errors,
                         "paths_scanned": len(raw_paths),
+                        "pruned": total.pruned,
                     }
                 except Exception as exc:
                     _job_results["scan"] = {"error": str(exc)}
@@ -618,6 +641,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 "library.library_root", "sync.remote",
                 "screenscraper.user", "screenscraper.pass",
                 "tools.chdman",
+                "retroachievements.api_key",
             }
             updates = {k: v for k, v in data.items() if k in allowed}
             if not updates:
@@ -631,6 +655,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             config.screenscraper_user = new_cfg.screenscraper_user
             config.screenscraper_pass = new_cfg.screenscraper_pass
             config.chdman = new_cfg.chdman
+            config.ra_api_key = new_cfg.ra_api_key
             self._send_json({"saved": list(updates.keys())})
 
         def _handle_cleanup_zips(self, data: dict) -> None:
@@ -966,6 +991,208 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     except OSError:
                         failed += 1
             self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
+
+        def _handle_ra_check(self, data: dict) -> None:
+            with _job_lock:
+                if _jobs["ra_check"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["ra_check"] = True
+
+            api_key = data.get("api_key", "").strip() or config.ra_api_key
+            if not api_key:
+                with _job_lock:
+                    _jobs["ra_check"] = False
+                self._send_json({"error": "RetroAchievements API key not configured"})
+                return
+
+            def run() -> None:
+                try:
+                    from rom_manager.retroachievements.ra_checker import check_library, to_csv
+
+                    cache_dir = config.data_dir / "ra_cache"
+
+                    def progress_cb(current: int, total: int, filename: str) -> None:
+                        _ra_progress.update({"current": current, "total": total, "current_file": filename})
+
+                    summary = check_library(
+                        repository,
+                        api_key,
+                        cache_dir=cache_dir,
+                        progress_cb=progress_cb,
+                    )
+
+                    alternatives_csv = ""
+                    if summary.no_support_alternative > 0:
+                        alternatives_csv = to_csv(summary)
+
+                    _job_results["ra_check"] = {
+                        "total": summary.total,
+                        "supported": summary.supported,
+                        "no_support_alternative": summary.no_support_alternative,
+                        "no_support": summary.no_support,
+                        "no_md5": summary.no_md5,
+                        "platform_unknown": summary.platform_unknown,
+                        "alternatives_csv": alternatives_csv,
+                        # Only include first 50 "actionable" results to keep response size reasonable
+                        "alternatives": [
+                            {
+                                "platform": r.platform,
+                                "filename": r.original_filename,
+                                "our_md5": r.our_md5[:12],
+                                "ra_id": r.alternative.id,
+                                "ra_title": r.alternative.title,
+                                "ra_achievements": r.alternative.achievements,
+                                "ra_points": r.alternative.points,
+                            }
+                            for r in summary.results
+                            if r.status == "no_support_alternative" and r.alternative
+                        ][:50],
+                    }
+                except Exception as exc:
+                    _job_results["ra_check"] = {"error": str(exc)}
+                finally:
+                    _ra_progress.clear()
+                    with _job_lock:
+                        _jobs["ra_check"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
+
+        def _handle_cable_sync(self, data: dict) -> None:
+            import os
+            import shutil
+
+            pc_path_str      = data.get("pc_path", "").strip()
+            anbernic_path_str = data.get("anbernic_path", "").strip()
+            what             = data.get("what", ["saves"])   # ["roms"], ["saves"], or both
+            direction        = data.get("direction", "pc_to_anbernic")
+            dry_run          = bool(data.get("dry_run", True))
+
+            if not pc_path_str:
+                self._send_json({"error": "pc_path is required"})
+                return
+            if not anbernic_path_str:
+                self._send_json({"error": "anbernic_path is required"})
+                return
+
+            with _job_lock:
+                if _jobs["cable_sync"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["cable_sync"] = True
+
+            def run() -> None:
+                try:
+                    pc_root = Path(pc_path_str)
+                    ab_root = Path(anbernic_path_str)
+                    save_exts = frozenset(config.save_extensions)
+
+                    def _category(p: Path) -> str:
+                        return "save" if p.suffix.lower() in save_exts else "rom"
+
+                    def _wanted(p: Path) -> bool:
+                        if p.name.startswith("."):
+                            return False
+                        cat = _category(p)
+                        return (cat == "save" and "saves" in what) or (cat == "rom" and "roms" in what)
+
+                    def _iter_files(root: Path):
+                        for dirpath, dirs, files in os.walk(root):
+                            dirs[:] = [d for d in dirs if not d.startswith(".")]
+                            for fname in files:
+                                yield Path(dirpath) / fname
+
+                    copied = skipped = errors = 0
+                    copied_bytes = 0
+                    details: list[dict] = []
+
+                    def _copy(src: Path, dst: Path, arrow: str) -> None:
+                        nonlocal copied, skipped, errors, copied_bytes
+                        try:
+                            size = src.stat().st_size
+                            if not dry_run:
+                                dst.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(src, dst)
+                            copied += 1
+                            copied_bytes += size
+                            if len(details) < 300:
+                                details.append({"file": arrow, "path": str(src.name)})
+                            _cable_progress.update({"copied": copied, "current_file": src.name})
+                        except OSError as exc:
+                            errors += 1
+                            if len(details) < 300:
+                                details.append({"file": f"ERROR: {exc}", "path": str(src.name)})
+
+                    if direction == "pc_to_anbernic":
+                        for src in _iter_files(pc_root):
+                            if not _wanted(src):
+                                continue
+                            rel = src.relative_to(pc_root)
+                            dst = ab_root / rel
+                            _copy(src, dst, "→ Anbernic")
+
+                    elif direction == "anbernic_to_pc":
+                        for src in _iter_files(ab_root):
+                            if not _wanted(src):
+                                continue
+                            try:
+                                rel = src.relative_to(ab_root)
+                            except ValueError:
+                                continue
+                            dst = pc_root / rel
+                            _copy(src, dst, "← PC")
+
+                    elif direction == "newest":
+                        pc_files: dict[Path, Path] = {}
+                        for f in _iter_files(pc_root):
+                            if _wanted(f):
+                                pc_files[f.relative_to(pc_root)] = f
+
+                        ab_files: dict[Path, Path] = {}
+                        for f in _iter_files(ab_root):
+                            if _wanted(f):
+                                try:
+                                    ab_files[f.relative_to(ab_root)] = f
+                                except ValueError:
+                                    pass
+
+                        all_rels = sorted(set(pc_files) | set(ab_files), key=lambda p: str(p))
+                        for rel in all_rels:
+                            pc_f = pc_files.get(rel)
+                            ab_f = ab_files.get(rel)
+                            if pc_f and ab_f:
+                                pc_mt = pc_f.stat().st_mtime
+                                ab_mt = ab_f.stat().st_mtime
+                                if pc_mt > ab_mt:
+                                    _copy(pc_f, ab_root / rel, "→ Anbernic (PC más reciente)")
+                                elif ab_mt > pc_mt:
+                                    _copy(ab_f, pc_root / rel, "← PC (Anbernic más reciente)")
+                                else:
+                                    skipped += 1
+                            elif pc_f:
+                                _copy(pc_f, ab_root / rel, "→ Anbernic (solo en PC)")
+                            elif ab_f:
+                                _copy(ab_f, pc_root / rel, "← PC (solo en Anbernic)")
+
+                    _job_results["cable_sync"] = {
+                        "dry_run": dry_run,
+                        "direction": direction,
+                        "copied": copied,
+                        "skipped": skipped,
+                        "errors": errors,
+                        "copied_bytes": copied_bytes,
+                        "details": details,
+                    }
+                except Exception as exc:
+                    _job_results["cable_sync"] = {"error": str(exc)}
+                finally:
+                    _cable_progress.clear()
+                    with _job_lock:
+                        _jobs["cable_sync"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started", "dry_run": dry_run})
 
         def _handle_apply(self, data: dict) -> None:
             from rom_manager.renamer.file_renamer import rename_rom_with_saves
