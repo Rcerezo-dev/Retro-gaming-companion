@@ -21,6 +21,7 @@ class AppConfig:
     rclone_remote: str
     rclone_binary: str
     chdman: str
+    adb: str
     web_host: str
     web_port: int
     screenscraper_user: str
@@ -56,6 +57,9 @@ rclone = "rclone"
 [tools]
 # Path to the chdman binary (default: "chdman", assumes it is in PATH)
 chdman = "chdman"
+# Path to the adb binary from Android Platform Tools (needed for ADB sync mode)
+# Download from: developer.android.com/tools/releases/platform-tools
+# adb = "tools/adb.exe"
 
 [web]
 host = "127.0.0.1"
@@ -97,6 +101,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         rclone_remote=sync.get("remote", ""),
         rclone_binary=sync.get("rclone", "rclone"),
         chdman=tools.get("chdman", "chdman"),
+        adb=tools.get("adb", "adb"),
         web_host=web.get("host", "127.0.0.1"),
         web_port=int(web.get("port", 7777)),
         screenscraper_user=ss.get("user", ""),

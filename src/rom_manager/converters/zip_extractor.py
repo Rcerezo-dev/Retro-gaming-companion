@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import re
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Matches "Game Title (Disc 1)" / "(Disk 2)" etc. — same pattern as m3u_generator
+_DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)", re.IGNORECASE)
 
 @dataclass(slots=True)
 class ExtractionResult:
@@ -12,6 +15,7 @@ class ExtractionResult:
     success: bool
     skipped_reason: str = ""
     error: str = ""
+    is_disc_set: bool = False
 
 
 @dataclass(slots=True)
@@ -20,6 +24,7 @@ class ExtractionSummary:
     skipped: int = 0
     failed: int = 0
     deleted: int = 0
+    disc_sets: int = 0
     results: list[ExtractionResult] = field(default_factory=list)
 
 
@@ -28,7 +33,7 @@ _DISC_EXTENSIONS = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".
 
 
 def find_zip_files(directory: Path) -> list[Path]:
-    """Return all .zip files under directory, sorted."""
+    """Return all .zip files under directory (recursive), sorted."""
     return sorted(directory.rglob("*.zip"))
 
 
@@ -44,10 +49,20 @@ def extract_zip(
     - The archive contains .cue/.bin/.iso files (use CHD converter instead)
     - Any target file already exists on disk
     """
+    # Skip ZIPs whose filename matches the disc-set pattern (e.g. "Game (Disc 1).zip")
+    if _DISC_RE.match(zip_path.stem):
+        return ExtractionResult(
+            zip_path=zip_path,
+            extracted_files=[],
+            success=False,
+            skipped_reason="Set multi-disco — convierte a CHD en vez de extraer",
+            is_disc_set=True,
+        )
+
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
-            # Skip disc-based archives
+            # Skip disc-based archives (contents check)
             if any(Path(n).suffix.lower() in _DISC_EXTENSIONS for n in names):
                 return ExtractionResult(
                     zip_path=zip_path,
@@ -117,7 +132,10 @@ def extract_directory(
     for zip_path in find_zip_files(directory):
         result = extract_zip(zip_path, delete_source=delete_source, dry_run=dry_run)
         summary.results.append(result)
-        if result.skipped_reason:
+        if result.is_disc_set:
+            summary.disc_sets += 1
+            summary.skipped += 1
+        elif result.skipped_reason:
             summary.skipped += 1
         elif result.error:
             summary.failed += 1

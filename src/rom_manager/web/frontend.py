@@ -95,6 +95,14 @@ HTML = r"""<!DOCTYPE html>
   .dev-btn:last-of-type { border-radius:0 4px 4px 0; }
   .dev-btn.active { background:#4ec9b0; border-color:#4ec9b0; color:#000; font-weight:600; }
   .dev-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+  .rpt-tab-btn { border-radius:4px 4px 0 0; border-bottom:none; font-size:12px; padding:5px 14px; margin-bottom:-1px; }
+  .rpt-tab-btn.active { background:#569cd6; border-color:#569cd6; color:#000; }
+  .rpt-stat { display:inline-block; padding:3px 10px; border-radius:4px; font-size:12px; margin:2px 4px 2px 0; }
+  .rpt-ok   { background:#1a3a2a; color:#4ec9b0; }
+  .rpt-warn { background:#3a3a1a; color:#ce9178; }
+  .rpt-bad  { background:#3a1a1a; color:#f44747; }
+  .rpt-info { background:#1a2a3a; color:#569cd6; }
 </style>
 </head>
 <body>
@@ -128,7 +136,31 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- OVERVIEW -->
 <div id="tab-overview" class="tab active">
-  <div id="overview-cards" class="cards"><p class="loading">Loading…</p></div>
+
+  <!-- Stats: dual column PC / Anbernic -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+    <!-- PC column -->
+    <div>
+      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <span style="color:#4ec9b0">&#x25CF;</span> PC
+        <span id="ov-pc-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px"></span>
+      </div>
+      <div id="ov-pc-cards" class="cards" style="margin-bottom:0"><p class="loading" style="font-size:12px">Loading…</p></div>
+    </div>
+    <!-- Anbernic column -->
+    <div>
+      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <span id="ov-ab-dot" style="color:#555">&#x25CF;</span> Anbernic
+        <span id="ov-ab-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px"></span>
+      </div>
+      <div id="ov-ab-cards" class="cards" style="margin-bottom:0">
+        <p id="ov-ab-empty-msg" style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la Anbernic abajo y escanea para ver datos.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config summary -->
+  <div id="ov-config-summary" style="margin-bottom:20px"></div>
 
   <!-- Rutas principales -->
   <div class="actions-panel" style="margin-bottom:16px">
@@ -139,19 +171,28 @@ HTML = r"""<!DOCTYPE html>
         <input id="ov-pc-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
       </div>
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Anbernic conectada por cable</label>
-        <input id="ov-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/RetroArch">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Anbernic — SD card o red local
+          <span style="color:#555;font-weight:normal"> (no MTP directo)</span>
+        </label>
+        <input id="ov-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn" onclick="saveOvPaths()">Guardar rutas</button>
       <span id="ov-paths-result" class="job-result"></span>
     </div>
+    <div style="margin-top:10px;padding:8px 10px;background:#161616;border:1px solid #2a2a2a;border-radius:4px;font-size:11px;color:#555;line-height:1.7">
+      <strong style="color:#888">Opciones para acceder a la Anbernic desde Windows:</strong><br>
+      <span style="color:#4ec9b0">A)</span> SD card en lector USB → letra de unidad (<code style="color:#ce9178">F:\</code>) — recomendado<br>
+      <span style="color:#4ec9b0">B)</span> Termux + SFTP en la Anbernic → accesible por red (<code style="color:#ce9178">\\192.168.1.x\share</code>)<br>
+      <span style="color:#4ec9b0">C)</span> WinFsp + MTPDrive → monta el MTP como unidad (herramienta gratuita)<br>
+      <span style="color:#555">⚠ La ruta "Este equipo\RG556\Ambernic" de Windows MTP <strong style="color:#888">no es compatible</strong> con acceso por ruta de carpeta.</span>
+    </div>
   </div>
 
-  <!-- Actions panel -->
+  <!-- Gestión de biblioteca -->
   <div class="actions-panel">
-    <h3>Acciones</h3>
+    <h3>Gestión de biblioteca</h3>
 
     <div class="actions-row" style="flex-wrap:wrap;gap:12px;align-items:center">
       <div>
@@ -162,13 +203,31 @@ HTML = r"""<!DOCTYPE html>
         </label>
         <label class="fmt-check" style="margin-top:4px">
           <input type="checkbox" id="scan-include-ab" disabled>
-          Anbernic — <span id="scan-ab-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
+          Anbernic (SD card / red) — <span id="scan-ab-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
+        </label>
+        <label class="fmt-check" style="margin-top:4px" id="scan-adb-row" title="Escanea la Anbernic por USB sin sacar la SD card — requiere ADB configurado en Settings">
+          <input type="checkbox" id="scan-include-adb" onchange="_onScanAdbChange()">
+          <span style="color:#4ec9b0">Anbernic por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
         </label>
       </div>
       <label class="fmt-check" style="margin-left:auto" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
         <input type="checkbox" id="scan-quick"> Quick (sin hash)
       </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
+    </div>
+
+    <!-- ADB scan options (inline, hidden by default) -->
+    <div id="scan-adb-options" style="display:none;margin-top:8px;padding:10px 12px;background:#161626;border:1px solid #2a3a4a;border-radius:4px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="color:#888;font-size:11px">Dispositivo ADB:</label>
+        <select id="scan-adb-device" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;min-width:200px">
+          <option value="">— Detectar primero —</option>
+        </select>
+        <button class="btn" style="padding:4px 10px;font-size:11px" onclick="detectAdbDevicesForScan()">Detectar</button>
+        <label style="color:#888;font-size:11px;margin-left:8px">Ruta Android:</label>
+        <input id="scan-android-path" type="text" value="/storage/emulated/0" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;width:260px">
+        <span id="scan-adb-status" style="color:#555;font-size:11px"></span>
+      </div>
     </div>
 
     <div class="actions-row">
@@ -186,10 +245,14 @@ HTML = r"""<!DOCTYPE html>
     <div id="job-result-match" class="job-result"></div>
   </div>
 
-  <!-- Workflow guide -->
-  <div style="margin-top:28px;max-width:760px">
-    <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Cómo usar ROM Manager</h3>
+  <!-- Workflow guide (collapsible) -->
+  <details id="ov-guide" style="margin-top:24px;max-width:760px">
+    <summary style="cursor:pointer;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+      <span id="ov-guide-arrow" style="color:#4ec9b0;font-size:10px">&#x25B6;</span>
+      Cómo usar ROM Manager
+    </summary>
 
+    <div style="margin-top:10px">
     <!-- Primera vez -->
     <div style="background:#161626;border:1px solid #2a2a4a;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#888;line-height:1.7">
       <strong style="color:#569cd6">Primera vez:</strong>
@@ -218,11 +281,13 @@ HTML = r"""<!DOCTYPE html>
         <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la Anbernic.</span></div>
       </div>
     </div>
-  </div>
+    </div>
+  </details>
 </div>
 
 <!-- GAMES -->
 <div id="tab-games" class="tab">
+  <div id="games-root-banner" style="display:none;margin-bottom:8px;padding:6px 10px;background:#1e1e2e;border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
     <input id="games-search" type="text" placeholder="Search title or filename…" oninput="onGamesFilterChange()">
     <select id="games-platform" onchange="onGamesFilterChange()"><option value="">All platforms</option></select>
@@ -319,20 +384,87 @@ HTML = r"""<!DOCTYPE html>
 
   <!-- Instrucciones de conexión -->
   <div style="max-width:780px;margin-bottom:20px;background:#1e1e2e;border:1px solid #333;border-radius:6px;padding:16px 20px">
-    <h3 style="color:#4ec9b0;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Cómo conectar la Anbernic al PC</h3>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13px">
-      <span style="color:#4ec9b0;font-weight:bold">①</span>
-      <span style="color:#d4d4d4">Conecta la Anbernic al PC mediante el cable USB.</span>
-      <span style="color:#4ec9b0;font-weight:bold">②</span>
-      <span style="color:#d4d4d4">En la Anbernic: desliza el panel de notificaciones → toca la notificación USB → selecciona <strong>Transferencia de archivos</strong> (File Transfer / MTP).</span>
-      <span style="color:#4ec9b0;font-weight:bold">③</span>
-      <span style="color:#d4d4d4">En Windows: abre "Este equipo" — la Anbernic aparece como dispositivo portátil.</span>
+    <h3 style="color:#4ec9b0;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la Anbernic desde el PC</h3>
+
+    <!-- MTP warning -->
+    <div style="padding:9px 12px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
+      <strong style="color:#f44747">⚠ La ruta "Este equipo\RG556\Ambernic" NO es compatible.</strong>
+      <span style="color:#888;margin-left:6px">Windows MTP expone el dispositivo como objeto shell, no como ruta del sistema de archivos. Python no puede acceder a ella directamente.</span>
     </div>
-    <div style="margin-top:14px;padding:10px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px;font-size:12px;color:#888;line-height:1.7">
-      <strong style="color:#569cd6">⚠ Nota sobre la ruta:</strong> Windows MTP no asigna letra de unidad directamente. Para acceder por ruta de carpeta usa una de estas opciones:<br>
-      <span style="color:#4ec9b0">A)</span> <strong style="color:#d4d4d4">SD card</strong> — extrae la tarjeta SD de la Anbernic e insértala en el PC con un lector USB → aparecerá como letra de unidad (ej. <code style="color:#ce9178">F:\</code>)<br>
-      <span style="color:#4ec9b0">B)</span> <strong style="color:#d4d4d4">Termux + SFTP</strong> — si ya tienes Termux instalado, ejecuta <code style="color:#ce9178">sshd</code> y accede por red (ej. <code style="color:#ce9178">\\192.168.1.x\share</code>)<br>
-      <span style="color:#4ec9b0">C)</span> <strong style="color:#d4d4d4">WinFsp + MTPDrive</strong> — herramienta gratuita que monta el MTP como letra de unidad en Windows
+
+    <!-- Three options -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+
+      <!-- Opción A -->
+      <details open style="background:#161626;border:1px solid #2a4a2a;border-radius:4px;padding:0">
+        <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:#4ec9b0;list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+          <span style="font-weight:bold">A)</span> SD card en lector USB
+          <span style="background:#1a3a2a;color:#4ec9b0;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">RECOMENDADO</span>
+          <span style="color:#555;font-size:11px;margin-left:auto">Sin configuración extra</span>
+        </summary>
+        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+          <span style="color:#d4d4d4">①</span> Apaga la Anbernic o ve a Ajustes → Apagar.<br>
+          <span style="color:#d4d4d4">②</span> Extrae la tarjeta SD de la Anbernic.<br>
+          <span style="color:#d4d4d4">③</span> Insértala en un lector de tarjetas USB conectado al PC.<br>
+          <span style="color:#d4d4d4">④</span> Windows la monta automáticamente como letra de unidad (ej. <code style="color:#ce9178">F:\</code> o <code style="color:#ce9178">G:\</code>).<br>
+          <span style="color:#d4d4d4">⑤</span> Usa esa letra como ruta de la Anbernic en el formulario de abajo.
+        </div>
+      </details>
+
+      <!-- Opción B -->
+      <details style="background:#161626;border:1px solid #333;border-radius:4px;padding:0">
+        <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:#d4d4d4;list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+          <span style="font-weight:bold;color:#569cd6">B)</span> Termux + SFTP <span style="color:#555;font-size:11px;margin-left:6px">(vía red Wi-Fi local, sin sacar la SD)</span>
+        </summary>
+        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+          Requiere <strong style="color:#d4d4d4">Termux instalado</strong> en la Anbernic. Consulta la guía completa en <code style="color:#ce9178">Tareas/Guia-Termux-Anbernic.md</code>.<br><br>
+          <span style="color:#d4d4d4">①</span> Instala openssh en Termux: <code style="color:#ce9178">pkg install openssh</code><br>
+          <span style="color:#d4d4d4">②</span> Arranca el servidor SSH: <code style="color:#ce9178">sshd</code><br>
+          <span style="color:#d4d4d4">③</span> Mira la IP de la Anbernic: Ajustes → Wi-Fi → (nombre de red) → IP<br>
+          <span style="color:#d4d4d4">④</span> En el PC, monta la carpeta con <strong style="color:#d4d4d4">WinFsp + SSHFS-Win</strong> o accede vía <code style="color:#ce9178">rclone</code>:<br>
+          <code style="color:#ce9178;margin-left:16px;display:block">rclone copy anbernic-sftp:/storage/emulated/0/ F:/Anbernic/ --progress</code>
+          <span style="color:#d4d4d4">⑤</span> O usa la ruta de red directamente si está montada: <code style="color:#ce9178">\\192.168.1.X\storage</code>
+        </div>
+      </details>
+
+      <!-- Opción C -->
+      <details style="background:#161626;border:1px solid #333;border-radius:4px;padding:0">
+        <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:#d4d4d4;list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+          <span style="font-weight:bold;color:#569cd6">C)</span> WinFsp + MTPDrive <span style="color:#555;font-size:11px;margin-left:6px">(mantiene el cable USB, herramienta de terceros)</span>
+        </summary>
+        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+          <span style="color:#d4d4d4">①</span> Descarga e instala <strong style="color:#d4d4d4">WinFsp</strong> (winfsp.dev) y <strong style="color:#d4d4d4">MTPDrive</strong> (mtpdrive.com).<br>
+          <span style="color:#d4d4d4">②</span> Conecta la Anbernic en modo MTP (Transferencia de archivos).<br>
+          <span style="color:#d4d4d4">③</span> MTPDrive monta el dispositivo como letra de unidad (ej. <code style="color:#ce9178">M:\</code>).<br>
+          <span style="color:#d4d4d4">④</span> Usa esa letra en el formulario de abajo.<br>
+          <span style="color:#ce9178;font-size:11px">⚠ La velocidad puede ser inferior a la SD card con lector USB.</span>
+        </div>
+      </details>
+
+      <!-- Opción D -->
+      <details style="background:#161626;border:1px solid #2a3a4a;border-radius:4px;padding:0">
+        <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:#d4d4d4;list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+          <span style="font-weight:bold;color:#4ec9b0">D)</span> ADB (Android Debug Bridge)
+          <span style="background:#1a2a3a;color:#4ec9b0;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">SIN SACAR LA SD</span>
+          <span style="color:#555;font-size:11px;margin-left:auto">Herramienta gratuita de Google</span>
+        </summary>
+        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+          ADB se comunica con Android directamente por USB. No necesita montar como unidad, no necesita Wi-Fi.<br><br>
+          <strong style="color:#d4d4d4">① Activar depuración USB en la Anbernic:</strong><br>
+          <span style="margin-left:16px;display:block">Ajustes → Información del teléfono → pulsa <em>Número de compilación</em> 7 veces</span>
+          <span style="margin-left:16px;display:block">Ajustes → Opciones de desarrollador → <strong style="color:#d4d4d4">Depuración USB ✓</strong></span><br>
+          <strong style="color:#d4d4d4">② Descargar Android Platform Tools:</strong><br>
+          <span style="margin-left:16px;display:block">developer.android.com/tools/releases/platform-tools → descomprimir → copia <code style="color:#ce9178">adb.exe</code> en <code style="color:#ce9178">tools/</code></span><br>
+          <strong style="color:#d4d4d4">③ Configurar ruta en Settings:</strong>
+          <code style="color:#ce9178;margin-left:6px">tools/adb.exe</code><br><br>
+          <strong style="color:#d4d4d4">④ Conecta el cable y elige modo USB:</strong>
+          <span style="color:#d4d4d4;margin-left:6px">cualquier modo funciona; recomendado "Transferencia de archivos"</span><br>
+          <span style="margin-left:16px;display:block;color:#569cd6">Acepta el diálogo "¿Permitir depuración USB?" en la pantalla de la Anbernic.</span><br>
+          <strong style="color:#d4d4d4">⑤ En el formulario de abajo:</strong>
+          activa el toggle <strong style="color:#d4d4d4">Modo ADB</strong>, haz clic en <strong style="color:#d4d4d4">Detectar dispositivos</strong>.
+        </div>
+      </details>
+
     </div>
   </div>
 
@@ -360,7 +492,7 @@ HTML = r"""<!DOCTYPE html>
       <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dirección</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
-          <input type="radio" name="cable-direction" value="pc_to_anbernic" checked style="margin-top:2px;accent-color:#4ec9b0">
+          <input type="radio" name="cable-direction" value="pc_to_anbernic" checked style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
             <strong style="color:#d4d4d4">PC → Anbernic</strong>
             <span style="color:#555;font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la Anbernic.</span><br>
@@ -368,7 +500,7 @@ HTML = r"""<!DOCTYPE html>
           </span>
         </label>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
-          <input type="radio" name="cable-direction" value="anbernic_to_pc" style="margin-top:2px;accent-color:#4ec9b0">
+          <input type="radio" name="cable-direction" value="anbernic_to_pc" style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
             <strong style="color:#d4d4d4">Anbernic → PC</strong>
             <span style="color:#555;font-size:12px;margin-left:6px">Copia de la consola al PC. Sobrescribe los archivos del PC.</span><br>
@@ -376,7 +508,7 @@ HTML = r"""<!DOCTYPE html>
           </span>
         </label>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
-          <input type="radio" name="cable-direction" value="newest" style="margin-top:2px;accent-color:#4ec9b0">
+          <input type="radio" name="cable-direction" value="newest" style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
             <strong style="color:#d4d4d4">Más reciente gana</strong>
             <span style="color:#555;font-size:12px;margin-left:6px">Compara fechas de modificación y copia en la dirección correcta.</span><br>
@@ -386,22 +518,90 @@ HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Rutas -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    <!-- Modo Anbernic toggle -->
+    <div style="margin-bottom:14px;display:flex;align-items:center;gap:12px">
+      <span style="color:#888;font-size:12px">Modo Anbernic:</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+        <input type="radio" name="cable-ab-mode" value="fs" checked style="accent-color:#4ec9b0" onchange="_onCableModeChange()">
+        <span style="color:#d4d4d4">SD card / Red</span>
+        <span style="color:#555;font-size:11px">(letra de unidad o ruta de red)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+        <input type="radio" name="cable-ab-mode" value="adb" style="accent-color:#4ec9b0" onchange="_onCableModeChange()">
+        <span style="color:#4ec9b0">ADB</span>
+        <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
+      </label>
+    </div>
+
+    <!-- Rutas: modo FS -->
+    <div id="cable-fs-section" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
-        <input id="cable-pc-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+        <div style="display:flex;gap:6px">
+          <input id="cable-pc-path" type="text" style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+          <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('pc')" title="Verificar que la ruta existe y es accesible">Probar</button>
+        </div>
+        <div id="cable-pc-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
       </div>
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta de la Anbernic (en el PC)</label>
-        <input id="cable-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">
+          Ruta de la Anbernic (SD card, red…)
+          <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
+        </label>
+        <div style="display:flex;gap:6px">
+          <input id="cable-ab-path" type="text" style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:\ o \\192.168.1.x\share">
+          <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
+        </div>
+        <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+        <div id="cable-drives-list" style="display:none;margin-top:6px;background:#0f0f0f;border:1px solid #333;border-radius:4px;padding:6px 8px;font-size:12px"></div>
+      </div>
+    </div>
+
+    <!-- Rutas: modo ADB -->
+    <div id="cable-adb-section" style="display:none;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+        <div>
+          <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
+          <div style="display:flex;gap:6px">
+            <input id="cable-adb-pc-path" type="text" style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+          </div>
+        </div>
+        <div>
+          <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta en Android</label>
+          <input id="cable-android-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px;box-sizing:border-box" value="/storage/emulated/0/RetroArch">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="color:#888;font-size:11px">Dispositivo ADB:</label>
+        <select id="cable-adb-device" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 8px;border-radius:4px;font:inherit;font-size:13px;min-width:220px">
+          <option value="">— Detectar primero —</option>
+        </select>
+        <button class="btn" style="padding:5px 12px;font-size:12px" onclick="detectAdbDevices()">Detectar dispositivos</button>
+        <span id="cable-adb-status" style="font-size:11px;color:#888;min-height:16px"></span>
+      </div>
+      <div id="cable-adb-path-status" style="font-size:11px;margin-top:6px;min-height:16px"></div>
+    </div>
+
+    <!-- Opciones adicionales (condicionales según dirección) -->
+    <div id="cable-sha1-row" style="display:none;margin-bottom:12px;padding:10px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px">
+      <label class="fmt-check" title="Requiere que la SD card haya sido escaneada previamente desde Overview">
+        <input type="checkbox" id="cable-skip-sha1">
+        <span>Omitir ROMs duplicados <span style="color:#555;font-size:11px">(comprueba SHA1 en BD — requiere scan previo de la Anbernic)</span></span>
+      </label>
+      <div style="color:#555;font-size:11px;margin-top:6px;margin-left:20px">
+        Antes de copiar cada ROM, se calcula su SHA1 y se compara con la biblioteca del PC.
+        Si ya existe (aunque tenga otro nombre), se omite. Los saves no se filtran.
       </div>
     </div>
 
     <!-- Dry run + botón -->
-    <div class="actions-row">
+    <div class="actions-row" style="flex-wrap:wrap;gap:16px">
       <label class="fmt-check">
         <input type="checkbox" id="cable-dry-run" checked> Dry run (previsualizar sin copiar)
+      </label>
+      <label class="fmt-check" title="Salta archivos que ya existen en destino con el mismo tamaño — evita re-copiar lo que ya está sincronizado">
+        <input type="checkbox" id="cable-skip-existing" checked> Omitir si ya existe
+        <span style="color:#555;font-size:11px;margin-left:4px">(mismo tamaño)</span>
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
     </div>
@@ -685,6 +885,40 @@ HTML = r"""<!DOCTYPE html>
       <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
     </div>
   </div>
+
+  <!-- ── Informe de biblioteca ── -->
+  <div class="actions-panel" style="margin-top:20px" id="report-panel">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <h3 style="margin:0">Informe de biblioteca</h3>
+      <div style="flex:1;min-width:200px">
+        <input id="report-path" type="text" placeholder="Ruta (vacío = library_root)" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      </div>
+      <button class="btn primary" onclick="generateReport()">Generar informe</button>
+      <button class="btn" id="btn-export-report" style="display:none" onclick="exportReportHtml()">&#x2193; Exportar HTML</button>
+    </div>
+    <p style="color:#555;font-size:11px;margin-top:8px">Recopila el estado de ZIPs, playlists, sets multi-disco, saves huérfanos, RetroAchievements y conversiones CHD.</p>
+
+    <div id="report-loading" style="display:none;color:#555;font-size:12px;padding:12px 0">Generando informe…</div>
+
+    <div id="report-content" style="display:none;margin-top:16px">
+      <!-- Sub-tab nav -->
+      <div style="display:flex;gap:2px;border-bottom:1px solid #333;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn rpt-tab-btn active" id="rpt-tab-btn-zips"       onclick="showReportTab('zips')">ZIPs</button>
+        <button class="btn rpt-tab-btn"        id="rpt-tab-btn-playlists"  onclick="showReportTab('playlists')">Playlists</button>
+        <button class="btn rpt-tab-btn"        id="rpt-tab-btn-multidisc"  onclick="showReportTab('multidisc')">Multi-disco</button>
+        <button class="btn rpt-tab-btn"        id="rpt-tab-btn-orphans"    onclick="showReportTab('orphans')">Saves huérfanos</button>
+        <button class="btn rpt-tab-btn"        id="rpt-tab-btn-ra"         onclick="showReportTab('ra')">RetroAchievements</button>
+        <button class="btn rpt-tab-btn"        id="rpt-tab-btn-chd"        onclick="showReportTab('chd')">CHD</button>
+      </div>
+
+      <div id="rpt-tab-zips"      class="rpt-tab"></div>
+      <div id="rpt-tab-playlists" class="rpt-tab" style="display:none"></div>
+      <div id="rpt-tab-multidisc" class="rpt-tab" style="display:none"></div>
+      <div id="rpt-tab-orphans"   class="rpt-tab" style="display:none"></div>
+      <div id="rpt-tab-ra"        class="rpt-tab" style="display:none"></div>
+      <div id="rpt-tab-chd"       class="rpt-tab" style="display:none"></div>
+    </div>
+  </div>
 </div>
 
 <!-- SETTINGS -->
@@ -719,6 +953,14 @@ HTML = r"""<!DOCTYPE html>
         <div id="chdman-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
       </div>
       <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">adb — ruta al binario (para Cable Sync por ADB) <span style="color:#555">— descargar Android Platform Tools de developer.android.com</span></label>
+        <div style="display:flex;gap:8px">
+          <input id="cfg-adb" type="text" style="flex:1" placeholder="adb  o  tools/adb.exe">
+          <button class="btn" onclick="testAdbBinary()" style="flex-shrink:0">Probar</button>
+        </div>
+        <div id="adb-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
+      </div>
+      <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">RetroAchievements API key — <a href="https://retroachievements.org/settings" target="_blank" style="color:#4ec9b0">obtener en RA Settings → Web API Key</a></label>
         <input id="cfg-ra-api-key" type="text" style="width:100%" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
       </div>
@@ -744,7 +986,7 @@ HTML = r"""<!DOCTYPE html>
 "use strict";
 
 // Pagination state for Games tab
-let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '' };
+let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null };
 let platformsLoaded = false;
 let _pollingTimer = null;
 
@@ -760,6 +1002,7 @@ function setDevice(d) {
   // Reload current active tab
   const activeTab = document.querySelector('nav button.active')?.id?.replace('nav-','');
   if (activeTab) {
+    if (activeTab === 'games')      loadGames(0);
     if (activeTab === 'plan')       loadPlan();
     if (activeTab === 'duplicates') loadDuplicates();
     if (activeTab === 'assets')     loadAssets();
@@ -792,6 +1035,22 @@ function showTab(name) {
   if (name === 'tools')      loadTools();
 }
 
+// ── Guide toggle (update arrow icon) ─────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const guide = document.getElementById('ov-guide');
+  if (guide) {
+    const updateArrow = () => {
+      const arrow = document.getElementById('ov-guide-arrow');
+      if (arrow) arrow.innerHTML = guide.open ? '&#x25BC;' : '&#x25B6;';
+      localStorage.setItem('guide_closed', guide.open ? '0' : '1');
+    };
+    guide.addEventListener('toggle', updateArrow);
+    // Restore saved state
+    if (localStorage.getItem('guide_closed') === '1') guide.removeAttribute('open');
+    updateArrow();
+  }
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSize(n) {
   const units = ['B','KB','MB','GB','TB'];
@@ -822,14 +1081,44 @@ async function apiPost(url, body) {
 
 // ── Overview ─────────────────────────────────────────────────────────────────
 async function loadOverview() {
-  const el = document.getElementById('overview-cards');
   try {
-    const [d, cfg] = await Promise.all([apiFetch('/api/status'), apiFetch('/api/config')]);
-    const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
-    const cfgHtml = `
-      <div class="config-grid" style="margin-top:24px">
+    const cfg = await apiFetch('/api/config');
+
+    // Populate path inputs (only if empty)
+    const pcInput = document.getElementById('ov-pc-path');
+    const abInput = document.getElementById('ov-ab-path');
+    const pcPath  = pcInput?.value.trim() || cfg.library_root || '';
+    const abStored = localStorage.getItem('anbernic_path') || '';
+    // If ADB scan was used, the stored android path acts as the Anbernic root
+    const abAdbPath = localStorage.getItem('anbernic_adb_path') || '';
+    const abPath   = abInput?.value.trim() || abStored || abAdbPath;
+    if (pcInput && !pcInput.value) pcInput.value = pcPath;
+    if (abInput && !abInput.value) abInput.value = abPath;
+
+    // Update path labels in stats columns
+    const pcLbl = document.getElementById('ov-pc-path-label');
+    const abLbl = document.getElementById('ov-ab-path-label');
+    if (pcLbl) pcLbl.textContent = pcPath ? '— ' + pcPath : '';
+    if (abLbl) abLbl.textContent = abPath ? '— ' + abPath : '';
+
+    // Update scan checkboxes
+    const pcLabel = document.getElementById('scan-pc-label');
+    const abLabel = document.getElementById('scan-ab-label');
+    const abCb    = document.getElementById('scan-include-ab');
+    if (pcLabel) pcLabel.textContent = pcPath || '(configura la ruta arriba)';
+    if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
+    if (abCb)    abCb.disabled = !abPath;
+
+    // Enable/disable Anbernic device button
+    const devAb = document.getElementById('dev-anbernic');
+    if (devAb) devAb.disabled = !abPath;
+
+    // Config summary
+    const cfgEl = document.getElementById('ov-config-summary');
+    if (cfgEl) {
+      cfgEl.innerHTML = `<div class="config-grid" style="max-width:560px">
         <span class="cfg-key">library_root</span>
-        <span class="cfg-val ${cfg.library_root ? '' : 'missing'}">${cfg.library_root || '(not set — configure en Settings)'}</span>
+        <span class="cfg-val ${cfg.library_root ? '' : 'missing'}">${cfg.library_root || '(not set — configura en Settings)'}</span>
         <span class="cfg-key">rclone remote</span>
         <span class="cfg-val ${cfg.rclone_remote ? '' : 'missing'}">${cfg.rclone_remote || '(not set)'}</span>
         <span class="cfg-key">ScreenScraper</span>
@@ -837,43 +1126,82 @@ async function loadOverview() {
         <span class="cfg-key">web</span>
         <span class="cfg-val">${cfg.web_host}:${cfg.web_port}</span>
       </div>`;
-    el.innerHTML = `
-      ${card('Games', d.total_games)}
-      ${card('Matched', d.matched_games, matchPct + '% of library')}
-      ${card('Unmatched', d.unmatched_games)}
-      ${card('Saves', d.total_saves)}
-      ${card('Assets', d.total_assets)}
-      ${card('Dup groups', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted')}
-      ${card('Last scan', d.last_scan_at ? d.last_scan_at.replace('T',' ') : 'never')}
-      ${cfgHtml}
-    `;
-    // Populate path inputs
-    const pcInput = document.getElementById('ov-pc-path');
-    const abInput = document.getElementById('ov-ab-path');
-    if (pcInput && !pcInput.value) pcInput.value = cfg.library_root || '';
-    const abStored = localStorage.getItem('anbernic_path') || '';
-    if (abInput && !abInput.value) abInput.value = abStored;
-    // Update scan checkbox labels
-    const pcLabel = document.getElementById('scan-pc-label');
-    const abLabel = document.getElementById('scan-ab-label');
-    const abCb    = document.getElementById('scan-include-ab');
-    if (pcLabel) pcLabel.textContent = cfg.library_root || '(configura la ruta arriba)';
-    if (abLabel) abLabel.textContent = abStored || '(configura la ruta arriba)';
-    if (abCb)    abCb.disabled = !abStored;
-    // Enable/disable Anbernic device button
-    const devAb = document.getElementById('dev-anbernic');
-    if (devAb) devAb.disabled = !abStored;
+    }
+
+    // Fetch PC stats (filter by library_root)
+    const pcCardsEl = document.getElementById('ov-pc-cards');
+    try {
+      const pcParam = pcPath ? '?root=' + encodeURIComponent(pcPath) : '';
+      const d = await apiFetch('/api/status' + pcParam);
+      const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
+      if (pcCardsEl) pcCardsEl.innerHTML =
+        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''))         +
+        card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'))    +
+        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'))  +
+        card('Saves',      d.total_saves)      +
+        card('Assets',     d.total_assets)     +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted') +
+        card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
+      // Auto-collapse guide when library already has data
+      const guide = document.getElementById('ov-guide');
+      if (guide && d.total_games > 0 && localStorage.getItem('guide_closed') !== '0') {
+        guide.removeAttribute('open');
+      } else if (guide && d.total_games === 0) {
+        guide.setAttribute('open', '');
+      }
+    } catch(e) {
+      if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
+    }
+
+    // Fetch Anbernic stats (if path configured)
+    const abCardsEl  = document.getElementById('ov-ab-cards');
+    const abDot      = document.getElementById('ov-ab-dot');
+    const abEmptyMsg = document.getElementById('ov-ab-empty-msg');
+    if (abPath && abCardsEl) {
+      try {
+        const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath));
+        const abMatchPct = ab.total_games > 0 ? Math.round(ab.matched_games / ab.total_games * 100) : 0;
+        if (abDot) abDot.style.color = ab.total_games > 0 ? '#4ec9b0' : '#555';
+        if (ab.total_games === 0) {
+          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#555;font-size:12px;padding:10px 0">Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
+        } else {
+          if (abCardsEl) abCardsEl.innerHTML =
+            card('Games',      ab.total_games,    null, () => goToGames(abPath, ''))           +
+            card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'))  +
+            card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'))  +
+            card('Saves',      ab.total_saves)     +
+            card('Assets',     ab.total_assets);
+        }
+      } catch(e) {
+        if (abCardsEl) abCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
+      }
+    }
+
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    const pcCardsEl = document.getElementById('ov-pc-cards');
+    if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
 }
 
-function card(label, value, sub) {
-  return `<div class="card">
+function card(label, value, sub, onclick) {
+  const clickStyle = onclick ? 'cursor:pointer' : '';
+  const clickAttr  = onclick ? `onclick="(${onclick.toString()})()"` : '';
+  return `<div class="card" style="${clickStyle}" ${clickAttr} title="${onclick ? 'Ver lista' : ''}">
     <div class="label">${label}</div>
-    <div class="value">${value}</div>
+    <div class="value" style="${onclick ? 'text-decoration:underline dotted;text-decoration-color:#4ec9b0' : ''}">${value}</div>
     ${sub ? `<div class="sub">${sub}</div>` : ''}
   </div>`;
+}
+
+// Navigate to Games tab pre-filtered by device root and match status
+function goToGames(root, status) {
+  gamesState.root   = root   || null;
+  gamesState.status = status || '';
+  gamesState.platform = '';
+  platformsLoaded = false;
+  const statusSel = document.getElementById('games-matched');
+  if (statusSel) statusSel.value = status || '';
+  showTab('games');
 }
 
 // ── Job polling ───────────────────────────────────────────────────────────────
@@ -1001,14 +1329,16 @@ function _applyJobStatus(s) {
         el.textContent = 'Error: ' + r.error;
       } else {
         const verb = r.dry_run ? 'Extraería' : 'Extraídos';
+        const discMsg = r.disc_sets > 0 ? `  |  Sets multi-disco (omitidos): ${r.disc_sets}` : '';
         el.className = 'job-result visible success';
-        el.textContent = `${verb}: ${r.extracted}  |  Omitidos: ${r.skipped}  |  Fallidos: ${r.failed}`;
+        el.textContent = `${verb}: ${r.extracted}  |  Omitidos: ${r.skipped}  |  Fallidos: ${r.failed}${discMsg}`;
       }
       const div = document.getElementById('zip-results');
       if (div && r.results?.length) {
         div.innerHTML = r.results.map(x => {
-          const color = x.success ? '#4ec9b0' : (x.skipped_reason ? '#888' : '#f44747');
-          const tag   = x.success ? (r.dry_run ? 'PREVIEW' : 'OK') : (x.skipped_reason ? 'SKIP' : 'FAIL');
+          const isDisc = x.is_disc_set;
+          const color = x.success ? '#4ec9b0' : (isDisc ? '#569cd6' : (x.skipped_reason ? '#888' : '#f44747'));
+          const tag   = x.success ? (r.dry_run ? 'PREVIEW' : 'OK') : (isDisc ? 'DISC' : (x.skipped_reason ? 'SKIP' : 'FAIL'));
           const msg   = x.skipped_reason || x.error || (x.extracted.length ? '→ ' + x.extracted.join(', ') : '');
           return `<div style="font-size:12px;color:${color};padding:2px 0">[${tag}] ${x.zip}${msg ? ' — ' + msg : ''}</div>`;
         }).join('');
@@ -1093,7 +1423,15 @@ function _showJobResult(type, result) {
   } else if (type === 'scan') {
     el.className = 'job-result visible success';
     const prunedMsg = result.pruned > 0 ? `  |  Eliminados de BD: ${result.pruned}` : '';
-    el.textContent = `Scan completado — ROMs: ${result.roms_detected}  |  Ya escaneados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}${prunedMsg}`;
+    const srcMsg = result.source === 'adb' ? ` [ADB — ${result.android_path}]` : '';
+    // If ADB scan, store the android path so the Overview Anbernic column filters by it
+    if (result.source === 'adb' && result.android_path) {
+      localStorage.setItem('anbernic_adb_path', result.android_path);
+      // Also pre-fill the ov-ab-path field so stats show immediately
+      const abInput = document.getElementById('ov-ab-path');
+      if (abInput && !abInput.value) abInput.value = result.android_path;
+    }
+    el.textContent = `Scan completado${srcMsg} — ROMs: ${result.roms_detected}  |  Ya escaneados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}${prunedMsg}`;
   } else if (type === 'match') {
     el.className = 'job-result visible success';
     el.textContent = `Match completado — SHA1: ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin match: ${result.unmatched}  (de ${result.total} ROMs)`;
@@ -1104,15 +1442,77 @@ function _showJobResult(type, result) {
   }
 }
 
+// ── ADB scan helpers ──────────────────────────────────────────────────────────
+function _onScanAdbChange() {
+  const cb  = document.getElementById('scan-include-adb');
+  const box = document.getElementById('scan-adb-options');
+  if (box) box.style.display = cb?.checked ? '' : 'none';
+}
+
+async function detectAdbDevicesForScan() {
+  const sel    = document.getElementById('scan-adb-device');
+  const status = document.getElementById('scan-adb-status');
+  if (status) { status.style.color = '#555'; status.textContent = 'Buscando…'; }
+  try {
+    const d = await apiFetch('/api/adb-devices');
+    if (d.error) { if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + d.error; } return; }
+    if (!d.devices?.length) {
+      if (status) { status.style.color = '#ce9178'; status.textContent = 'No se encontraron dispositivos — conecta la Anbernic y activa Depuración USB'; }
+      return;
+    }
+    if (sel) {
+      sel.innerHTML = d.devices.map(dev =>
+        `<option value="${dev.serial}" ${!dev.ready ? 'disabled' : ''}>${dev.display}${!dev.ready ? ' [NO LISTO]' : ''}</option>`
+      ).join('');
+      const ready = d.devices.find(dv => dv.ready);
+      if (ready) sel.value = ready.serial;
+    }
+    const readyCount = d.devices.filter(dv => dv.ready).length;
+    if (status) {
+      status.style.color = readyCount ? '#4ec9b0' : '#ce9178';
+      status.textContent = readyCount ? `✓ ${readyCount} dispositivo(s) listo(s)` : '⚠ Acepta el diálogo de depuración USB en la Anbernic';
+    }
+  } catch(e) { if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + e.message; } }
+}
+
 // ── Scan action ───────────────────────────────────────────────────────────────
 async function doScan() {
-  const includePc = document.getElementById('scan-include-pc')?.checked;
-  const includeAb = document.getElementById('scan-include-ab')?.checked;
+  const includePc  = document.getElementById('scan-include-pc')?.checked;
+  const includeAb  = document.getElementById('scan-include-ab')?.checked;
+  const includeAdb = document.getElementById('scan-include-adb')?.checked;
   const pcPath = document.getElementById('ov-pc-path')?.value.trim() || '';
   const abPath = document.getElementById('ov-ab-path')?.value.trim() || '';
   const sourcePaths = [];
   if (includePc && pcPath) sourcePaths.push(pcPath);
   if (includeAb && abPath) sourcePaths.push(abPath);
+
+  // ADB scan runs separately
+  if (includeAdb) {
+    const serial      = document.getElementById('scan-adb-device')?.value.trim();
+    const androidPath = document.getElementById('scan-android-path')?.value.trim() || '/storage/emulated/0';
+    if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
+    const resultEl = document.getElementById('job-result-scan');
+    const btn      = document.getElementById('btn-scan');
+    btn.disabled = true; btn.textContent = 'Escaneando ADB…';
+    resultEl.className = 'job-result';
+    try {
+      const d = await apiPost('/api/adb-scan', { adb_serial: serial, android_path: androidPath });
+      if (d.status === 'already_running') {
+        resultEl.className = 'job-result visible'; resultEl.textContent = 'Ya hay un scan en curso…';
+        btn.disabled = false; btn.textContent = 'Scan'; return;
+      }
+      // Also run FS scan if any FS paths selected
+      if (sourcePaths.length > 0) {
+        await apiPost('/api/scan', { source_paths: sourcePaths, quick: document.getElementById('scan-quick')?.checked || false });
+      }
+      startPolling();
+    } catch(e) {
+      btn.disabled = false; btn.textContent = 'Scan';
+      resultEl.className = 'job-result visible error-r'; resultEl.textContent = 'Error: ' + e.message;
+    }
+    return;
+  }
+
   if (sourcePaths.length === 0) {
     alert('Configura al menos una ruta en el panel "Rutas" y activa el checkbox correspondiente.');
     return;
@@ -1195,6 +1595,17 @@ async function loadGames(offset) {
   const tbody = document.getElementById('games-tbody');
   tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
 
+  // Show active root filter if set
+  const rootBanner = document.getElementById('games-root-banner');
+  if (rootBanner) {
+    if (gamesState.root) {
+      rootBanner.style.display = 'flex';
+      rootBanner.innerHTML = `<span style="color:#888;font-size:12px">Filtrando por: <code style="color:#ce9178">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').style.display='none';loadGames(0)">&#x2715; Quitar filtro</button>`;
+    } else {
+      rootBanner.style.display = 'none';
+    }
+  }
+
   const q = document.getElementById('games-search').value.toLowerCase();
   const params = new URLSearchParams({
     offset: gamesState.offset,
@@ -1202,6 +1613,8 @@ async function loadGames(offset) {
   });
   if (gamesState.platform) params.set('platform', gamesState.platform);
   if (gamesState.status)   params.set('status',   gamesState.status);
+  const _gamesRoot = gamesState.root || _deviceRoot();
+  if (_gamesRoot)          params.set('root',      _gamesRoot);
 
   try {
     const d = await apiFetch('/api/games?' + params);
@@ -1232,7 +1645,16 @@ async function loadGames(offset) {
     }
 
     const empty = document.getElementById('games-empty');
-    if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; }
+    if (rows.length === 0) {
+      tbody.innerHTML = '';
+      if (d.total === 0 && _activeDevice === 'anbernic' && !gamesState.root) {
+        const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
+        empty.innerHTML = `No hay ROMs de la Anbernic en la base de datos.<br><span style="color:#888;font-size:12px">Ruta: <code>${ab}</code> — Escanea la Anbernic primero (Overview → Escanear → Anbernic por ADB).</span>`;
+      } else {
+        empty.innerHTML = 'No games match the filter.';
+      }
+      empty.style.display = '';
+    }
     else {
       empty.style.display = 'none';
       tbody.innerHTML = rows.map(g => `<tr>
@@ -1325,7 +1747,12 @@ async function loadPlan() {
     }
 
     if (d.total === 0) {
-      el.innerHTML = '<p class="empty">No matched games found. Run <strong>Match catálogos</strong> primero.</p>';
+      if (_activeDevice === 'anbernic') {
+        const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
+        el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:#888;font-size:12px">Ruta Anbernic: <code>${ab}</code><br>Escanea la Anbernic primero (Overview → Escanear → Anbernic por ADB).</span></p>`;
+      } else {
+        el.innerHTML = '<p class="empty">No matched games found. Run <strong>Match catálogos</strong> primero.</p>';
+      }
       return;
     }
 
@@ -1403,7 +1830,8 @@ async function doApply() {
     const msg = document.createElement('p');
     msg.style.cssText = 'margin-top:16px;color:#4ec9b0;font-size:13px';
     const savesInfo = d.saves_renamed > 0 ? `  |  Saves renombrados: ${d.saves_renamed}` : '';
-    msg.textContent = `Renombrados: ${d.renamed}  |  Fallidos: ${d.failed}  |  Conflictos: ${d.conflicts}${savesInfo}`;
+    const skippedInfo = d.skipped > 0 ? `  |  Omitidos: ${d.skipped}` : '';
+    msg.textContent = `Renombrados: ${d.renamed}  |  Fallidos: ${d.failed}${skippedInfo}  |  Conflictos: ${d.conflicts}${savesInfo}`;
     el.prepend(msg);
     // Reload plan and stats
     await loadPlan();
@@ -1440,7 +1868,14 @@ async function loadDuplicates() {
       dupBar.innerHTML = barHtml;
       dupBar.style.display = '';
     }
-    if (d.groups.length === 0) { el.innerHTML = '<p class="empty">No duplicates found.</p>'; return; }
+    if (d.groups.length === 0) {
+      if (_activeDevice === 'anbernic') {
+        el.innerHTML = '<p class="empty">No se encontraron duplicados en la Anbernic.<br><span style="color:#888;font-size:12px">Nota: Los duplicados <em>cruzados</em> entre PC y Anbernic (mismo SHA1 en ambos dispositivos) solo aparecen en modo <strong>Sistema completo</strong>.</span></p>';
+      } else {
+        el.innerHTML = '<p class="empty">No duplicates found.</p>';
+      }
+      return;
+    }
     let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} group(s) — ${d.total_files} files — ~${fmtSize(d.wasted_bytes)} wasted</p>`;
     html += d.groups.map(g => `
       <div class="dup-group" id="dup-${g.sha1}">
@@ -1546,7 +1981,9 @@ async function loadAssets() {
   el.innerHTML = '<p class="loading">Loading…</p>';
   const filter = document.getElementById('assets-filter')?.value || 'all';
   try {
-    const [d, cfg] = await Promise.all([apiFetch('/api/assets'), apiFetch('/api/config')]);
+    const _assetsRoot = _deviceRoot();
+    const assetsUrl = _assetsRoot ? `/api/assets?root=${encodeURIComponent(_assetsRoot)}` : '/api/assets';
+    const [d, cfg] = await Promise.all([apiFetch(assetsUrl), apiFetch('/api/config')]);
     const assetsBar = document.getElementById('assets-context-bar');
     if (assetsBar) {
       let barHtml = '';
@@ -2119,6 +2556,7 @@ async function loadSettings() {
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
     document.getElementById('cfg-ss-pass').value       = cfg.screenscraper_pass || '';
     document.getElementById('cfg-chdman').value        = cfg.chdman || 'chdman';
+    document.getElementById('cfg-adb').value           = cfg.adb || 'adb';
     document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
   } catch(e) { /* silent */ }
 }
@@ -2145,6 +2583,22 @@ async function testChdman() {
   } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
 }
 
+async function testAdbBinary() {
+  const el = document.getElementById('adb-test-result');
+  el.style.color = '#888'; el.textContent = 'Probando…';
+  const val = document.getElementById('cfg-adb').value.trim();
+  if (val) await apiPost('/api/config', { 'tools.adb': val }).catch(() => {});
+  try {
+    const d = await apiFetch('/api/adb-devices');
+    if (d.error) {
+      el.style.color = '#f44747'; el.textContent = '✗ ' + d.error;
+    } else {
+      el.style.color = '#4ec9b0';
+      el.textContent = `✓ adb accesible — ${d.devices?.length ?? 0} dispositivo(s) detectado(s)  (${d.adb_path})`;
+    }
+  } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
+}
+
 async function loadTools() {
   try {
     const [cfg, discData] = await Promise.all([
@@ -2159,6 +2613,7 @@ async function loadTools() {
       _setIfEmpty('verify-multidisc-path',  discData.folders.length ? discData.folders.join('\n') : root);
       _setIfEmpty('m3u-path',               discData.folders.length ? discData.folders[0] : root);
       _setIfEmpty('chd-path',               discData.folders.length ? discData.folders[0] : root);
+      _setIfEmpty('report-path',            root);
     }
     // Show multi-disc hint
     if (discData.folders.length > 1) {
@@ -2193,7 +2648,8 @@ async function loadTools() {
 
 function _setIfEmpty(id, value) {
   const el = document.getElementById(id);
-  if (el && !el.value.trim()) el.value = value;
+  if (el && !el.value.trim() && value) { el.value = value; return true; }
+  return false;
 }
 
 async function saveSettings() {
@@ -2205,12 +2661,14 @@ async function saveSettings() {
   const su = document.getElementById('cfg-ss-user').value.trim();
   const sp = document.getElementById('cfg-ss-pass').value;
   const ch = document.getElementById('cfg-chdman').value.trim();
+  const ab = document.getElementById('cfg-adb').value.trim();
   const ra = document.getElementById('cfg-ra-api-key').value.trim();
   if (lr) updates['library.library_root']        = lr;
   if (rr) updates['sync.remote']                 = rr;
   if (su) updates['screenscraper.user']           = su;
   if (sp) updates['screenscraper.pass']           = sp;
   if (ch) updates['tools.chdman']                 = ch;
+  if (ab) updates['tools.adb']                    = ab;
   if (ra) updates['retroachievements.api_key']    = ra;
   if (Object.keys(updates).length === 0) {
     resultEl.className = 'job-result visible error-r';
@@ -2257,22 +2715,147 @@ async function saveOvPaths() {
 }
 
 // ── Cable Sync ────────────────────────────────────────────────────────────────
+
+function _isAdbMode() {
+  return document.querySelector('input[name="cable-ab-mode"]:checked')?.value === 'adb';
+}
+
+function _onCableModeChange() {
+  const adb = _isAdbMode();
+  const fsEl  = document.getElementById('cable-fs-section');
+  const adbEl = document.getElementById('cable-adb-section');
+  if (fsEl)  fsEl.style.display  = adb ? 'none' : '';
+  if (adbEl) adbEl.style.display = adb ? '' : 'none';
+}
+
+function _onCableDirectionChange() {
+  const dir = document.querySelector('input[name="cable-direction"]:checked')?.value;
+  const row = document.getElementById('cable-sha1-row');
+  if (row) row.style.display = (dir === 'anbernic_to_pc') ? '' : 'none';
+}
+
+async function testCablePath(which) {
+  const inputId  = which === 'pc' ? 'cable-pc-path' : 'cable-ab-path';
+  const statusId = which === 'pc' ? 'cable-pc-path-status' : 'cable-ab-path-status';
+  const path = document.getElementById(inputId)?.value.trim();
+  const statusEl = document.getElementById(statusId);
+  if (!path) { if (statusEl) { statusEl.style.color = '#888'; statusEl.textContent = 'Introduce una ruta primero.'; } return; }
+  if (statusEl) { statusEl.style.color = '#555'; statusEl.textContent = 'Verificando…'; }
+  try {
+    const d = await apiFetch('/api/test-path?path=' + encodeURIComponent(path));
+    if (d.accessible) {
+      statusEl.style.color = '#4ec9b0';
+      statusEl.textContent = `✓ Accesible — ${d.entries} entradas en la carpeta`;
+    } else {
+      statusEl.style.color = '#f44747';
+      statusEl.textContent = '✗ ' + d.error;
+    }
+  } catch(e) {
+    if (statusEl) { statusEl.style.color = '#f44747'; statusEl.textContent = '✗ ' + e.message; }
+  }
+}
+
+async function detectDrives() {
+  const listEl = document.getElementById('cable-drives-list');
+  if (!listEl) return;
+  listEl.style.display = '';
+  listEl.textContent = 'Buscando…';
+  try {
+    const d = await apiFetch('/api/list-drives');
+    if (!d.drives?.length) { listEl.textContent = 'No se encontraron unidades.'; return; }
+    listEl.innerHTML = d.drives.map(dr => {
+      const label = dr.label ? ` — ${dr.label}` : '';
+      const size  = dr.total_bytes > 0 ? ` (${fmtSize(dr.free_bytes)} libres de ${fmtSize(dr.total_bytes)})` : '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0">
+        <code style="color:#ce9178;min-width:36px">${dr.letter}</code>
+        <span style="color:#888">${label}${size}</span>
+        <button class="btn" style="padding:1px 8px;font-size:11px;margin-left:auto" onclick="document.getElementById('cable-ab-path').value='${dr.letter.replace(/\\/g, '\\\\')}';testCablePath('ab');document.getElementById('cable-drives-list').style.display='none'">Usar</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    listEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function detectAdbDevices() {
+  const sel    = document.getElementById('cable-adb-device');
+  const status = document.getElementById('cable-adb-status');
+  const pathStatus = document.getElementById('cable-adb-path-status');
+  if (status) { status.style.color = '#555'; status.textContent = 'Buscando…'; }
+  try {
+    const d = await apiFetch('/api/adb-devices');
+    if (d.error) {
+      if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + d.error; }
+      return;
+    }
+    if (!d.devices?.length) {
+      if (status) { status.style.color = '#ce9178'; status.textContent = 'No se encontraron dispositivos. ¿Cable conectado? ¿Depuración USB activada?'; }
+      return;
+    }
+    if (sel) {
+      sel.innerHTML = d.devices.map(dev =>
+        `<option value="${dev.serial}" ${!dev.ready ? 'disabled' : ''}>
+          ${dev.display}${!dev.ready ? ' — NO LISTO' : ''}
+        </option>`
+      ).join('');
+    }
+    const ready = d.devices.filter(dv => dv.ready);
+    if (status) {
+      status.style.color = ready.length ? '#4ec9b0' : '#ce9178';
+      status.textContent = ready.length
+        ? `✓ ${ready.length} dispositivo(s) listo(s)`
+        : '⚠ Dispositivo detectado pero no listo — acepta el diálogo de depuración USB en la pantalla';
+    }
+    // Auto-test the Android path if a ready device is selected
+    if (ready.length) {
+      sel.value = ready[0].serial;
+      testAdbPath();
+    }
+  } catch(e) {
+    if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + e.message; }
+  }
+}
+
+async function testAdbPath() {
+  const serial  = document.getElementById('cable-adb-device')?.value.trim();
+  const ap      = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
+  const statusEl = document.getElementById('cable-adb-path-status');
+  if (!serial) { if (statusEl) { statusEl.style.color = '#888'; statusEl.textContent = 'Selecciona un dispositivo primero.'; } return; }
+  if (statusEl) { statusEl.style.color = '#555'; statusEl.textContent = 'Verificando ruta en el dispositivo…'; }
+  try {
+    const d = await apiFetch(`/api/test-adb-path?serial=${encodeURIComponent(serial)}&path=${encodeURIComponent(ap)}`);
+    if (d.accessible) {
+      statusEl.style.color = '#4ec9b0';
+      statusEl.textContent = `✓ Ruta accesible — ${d.entries} entradas`;
+    } else {
+      statusEl.style.color = '#f44747';
+      statusEl.textContent = '✗ ' + d.error;
+    }
+  } catch(e) {
+    if (statusEl) { statusEl.style.color = '#f44747'; statusEl.textContent = '✗ ' + e.message; }
+  }
+}
+
 async function loadCableSync() {
-  // Auto-fill from overview path inputs or config
   try {
     const cfg = await apiFetch('/api/config');
     const ovPc = document.getElementById('ov-pc-path')?.value.trim();
     const ovAb = document.getElementById('ov-ab-path')?.value.trim();
-    _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || '');
+    // Fill both fs and adb pc-path inputs
+    _setIfEmpty('cable-pc-path',     ovPc || cfg.library_root || '');
+    _setIfEmpty('cable-adb-pc-path', ovPc || cfg.library_root || '');
     _setIfEmpty('cable-ab-path', ovAb || localStorage.getItem('anbernic_path') || '');
+    if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
+    if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
   } catch(_) {}
 }
 
 async function doCableSync() {
-  const pcPath = document.getElementById('cable-pc-path').value.trim();
-  const abPath = document.getElementById('cable-ab-path').value.trim();
+  const adb = _isAdbMode();
+  const pcPath = (adb
+    ? document.getElementById('cable-adb-pc-path')
+    : document.getElementById('cable-pc-path'))?.value.trim();
   if (!pcPath) { alert('Introduce la ruta del PC (library_root).'); return; }
-  if (!abPath) { alert('Introduce la ruta de la Anbernic en el PC.'); return; }
 
   const wantSaves = document.getElementById('cable-what-saves').checked;
   const wantRoms  = document.getElementById('cable-what-roms').checked;
@@ -2282,8 +2865,23 @@ async function doCableSync() {
   if (wantSaves) what.push('saves');
   if (wantRoms)  what.push('roms');
 
-  const direction = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
-  const dryRun    = document.getElementById('cable-dry-run').checked;
+  const direction    = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
+  const dryRun       = document.getElementById('cable-dry-run').checked;
+  const skipExisting = document.getElementById('cable-skip-existing')?.checked ?? true;
+  const skipSha1Dups = direction === 'anbernic_to_pc' && (document.getElementById('cable-skip-sha1')?.checked ?? false);
+
+  let body;
+  if (adb) {
+    const serial      = document.getElementById('cable-adb-device')?.value.trim();
+    const androidPath = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
+    if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
+    body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
+             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups };
+  } else {
+    const abPath = document.getElementById('cable-ab-path')?.value.trim();
+    if (!abPath) { alert('Introduce la ruta de la Anbernic en el PC.'); return; }
+    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups };
+  }
 
   const btn      = document.getElementById('btn-cable-sync');
   const resultEl = document.getElementById('cable-result');
@@ -2291,18 +2889,10 @@ async function doCableSync() {
   btn.textContent = 'Sincronizando…';
   resultEl.className = 'job-result';
   document.getElementById('cable-details-wrap').style.display = 'none';
-
-  // Clear previous result so it doesn't show stale data while job runs
   delete window._lastCableSyncResult;
 
   try {
-    const d = await apiPost('/api/cable-sync', {
-      pc_path: pcPath,
-      anbernic_path: abPath,
-      what,
-      direction,
-      dry_run: dryRun,
-    });
+    const d = await apiPost('/api/cable-sync', body);
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
       resultEl.textContent = 'Ya hay una sincronización en curso…';
@@ -2340,16 +2930,255 @@ function _renderCableSyncResult(r) {
   const dirMap = { pc_to_anbernic: 'PC → Anbernic', anbernic_to_pc: 'Anbernic → PC', newest: 'Más reciente gana' };
   const dirStr = dirMap[r.direction] || r.direction;
   const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
+  const sha1Msg     = r.sha1_skipped > 0 ? `  |  Dups SHA1: ${r.sha1_skipped}` : '';
+  const existsCount = r.details ? r.details.filter(d => d.file === 'EXISTS').length : 0;
+  const existsMsg   = existsCount > 0 ? `  |  Ya existen: ${existsCount}` : '';
 
   resultEl.className = 'job-result visible success';
-  resultEl.textContent = `${verb}: ${r.copied} archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: ${r.errors}  —  ${dirStr}${dryTag}`;
+  resultEl.textContent = `${verb}: ${r.copied} archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: ${r.errors}${existsMsg}${sha1Msg}  —  ${dirStr}${dryTag}`;
 
   if (r.details && r.details.length > 0) {
-    detailsList.innerHTML = r.details.map(d =>
-      `<div style="padding:2px 0;color:#888"><span style="color:#4ec9b0;margin-right:8px">${d.file}</span>${d.path}</div>`
-    ).join('');
+    detailsList.innerHTML = r.details.map(d => {
+      const isDup    = d.file === 'DUP';
+      const isExists = d.file === 'EXISTS';
+      const isErr    = d.file.startsWith('ERROR');
+      const tagColor = isDup ? '#569cd6' : isExists ? '#444' : isErr ? '#f44747' : '#4ec9b0';
+      return `<div style="padding:2px 0;color:#888"><span style="color:${tagColor};margin-right:8px">${d.file}</span>${d.path}</div>`;
+    }).join('');
     detailsWrap.style.display = '';
   }
+}
+
+// ── Library Report ───────────────────────────────────────────────────────────
+let _reportData = null;
+
+function showReportTab(name) {
+  document.querySelectorAll('.rpt-tab').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.rpt-tab-btn').forEach(b => b.classList.remove('active'));
+  const tab = document.getElementById('rpt-tab-' + name);
+  const btn = document.getElementById('rpt-tab-btn-' + name);
+  if (tab) tab.style.display = '';
+  if (btn) btn.classList.add('active');
+}
+
+async function generateReport() {
+  const pathInput = document.getElementById('report-path');
+  const path = pathInput?.value.trim() || '';
+  const loadingEl  = document.getElementById('report-loading');
+  const contentEl  = document.getElementById('report-content');
+  const exportBtn  = document.getElementById('btn-export-report');
+
+  if (loadingEl) loadingEl.style.display = '';
+  if (contentEl) contentEl.style.display = 'none';
+  if (exportBtn) exportBtn.style.display = 'none';
+
+  try {
+    const params = path ? '?path=' + encodeURIComponent(path) : '';
+    _reportData = await apiFetch('/api/library-report' + params);
+
+    _renderReportZips(_reportData);
+    _renderReportPlaylists(_reportData);
+    _renderReportMultidisc(_reportData);
+    _renderReportOrphans(_reportData);
+    _renderReportRa(_reportData);
+    _renderReportChd(_reportData);
+
+    if (contentEl) contentEl.style.display = '';
+    if (exportBtn) exportBtn.style.display = '';
+    showReportTab('zips');
+  } catch(e) {
+    const el = document.getElementById('rpt-tab-zips');
+    if (el) el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    if (contentEl) contentEl.style.display = '';
+    showReportTab('zips');
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+function _rptStat(cls, text) {
+  return `<span class="rpt-stat ${cls}">${text}</span>`;
+}
+
+function _renderReportZips(d) {
+  const el = document.getElementById('rpt-tab-zips');
+  if (!el) return;
+  const z = d.zips;
+  const normal    = z.files.filter(f => !f.is_disc_set);
+  const discSets  = z.files.filter(f => f.is_disc_set);
+  let html = `<div style="margin-bottom:12px">
+    ${_rptStat('rpt-info', z.total + ' ZIPs encontrados')}
+    ${discSets.length ? _rptStat('rpt-warn', discSets.length + ' sets multi-disco (usar CHD)') : ''}
+    ${normal.length   ? _rptStat('rpt-ok',   normal.length + ' ROMs comprimidos pendientes') : _rptStat('rpt-ok', 'Sin ZIPs pendientes')}
+  </div>`;
+  if (normal.length) {
+    const totalBytes = normal.reduce((s, f) => s + f.size_bytes, 0);
+    html += `<p style="color:#888;font-size:12px;margin-bottom:8px">Espacio total: ${fmtSize(totalBytes)}</p>`;
+    html += '<div style="max-height:350px;overflow-y:auto;font-size:12px">';
+    html += normal.map(f => `<div style="padding:2px 0;color:#d4d4d4">${f.path} <span style="color:#555">(${fmtSize(f.size_bytes)})</span></div>`).join('');
+    html += '</div>';
+  }
+  if (discSets.length) {
+    html += `<p style="color:#ce9178;font-size:11px;margin-top:12px;margin-bottom:4px">Sets multi-disco (omitidos por el extractor — usar conversor CHD):</p>`;
+    html += '<div style="max-height:200px;overflow-y:auto;font-size:12px">';
+    html += discSets.map(f => `<div style="padding:2px 0;color:#555">${f.path}</div>`).join('');
+    html += '</div>';
+  }
+  el.innerHTML = html || '<p class="empty">No hay archivos ZIP en la carpeta.</p>';
+}
+
+function _renderReportPlaylists(d) {
+  const el = document.getElementById('rpt-tab-playlists');
+  if (!el) return;
+  const p = d.playlists;
+  let html = `<div style="margin-bottom:12px">
+    ${_rptStat('rpt-info',  p.total_groups + ' grupos multi-disco')}
+    ${_rptStat('rpt-ok',    p.with_m3u    + ' con playlist M3U')}
+    ${p.without_m3u ? _rptStat('rpt-warn', p.without_m3u + ' sin playlist') : ''}
+  </div>`;
+  if (!p.groups.length) { el.innerHTML = '<p class="empty">No hay juegos multi-disco.</p>'; return; }
+  html += '<div style="max-height:450px;overflow-y:auto">';
+  html += p.groups.map(g => {
+    const tag = g.m3u_exists
+      ? `<span style="color:#4ec9b0;font-size:11px">✓ M3U</span>`
+      : `<span style="color:#ce9178;font-size:11px">⚠ Sin M3U</span>`;
+    return `<div style="padding:5px 0;border-bottom:1px solid #1e1e2e">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${tag}
+        <span style="color:#d4d4d4;font-size:13px">${g.base_name}</span>
+        <span style="color:#555;font-size:11px">${g.disc_count} discos</span>
+      </div>
+      <div style="color:#555;font-size:11px;margin-top:2px;padding-left:4px">${g.discs.join(' · ')}</div>
+    </div>`;
+  }).join('');
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function _renderReportMultidisc(d) {
+  const el = document.getElementById('rpt-tab-multidisc');
+  if (!el) return;
+  const m = d.multidisc;
+  let html = `<div style="margin-bottom:12px">
+    ${_rptStat('rpt-ok',  m.groups_ok + ' sets completos')}
+    ${m.groups_with_issues ? _rptStat('rpt-bad', m.groups_with_issues + ' sets con problemas') : ''}
+  </div>`;
+  if (!m.issues.length) {
+    html += '<p style="color:#4ec9b0;font-size:12px">Todos los sets multi-disco están completos.</p>';
+  } else {
+    const typeLabels = { gap: 'Discos faltantes', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo' };
+    html += '<div style="max-height:450px;overflow-y:auto">';
+    const grouped = {};
+    m.issues.forEach(i => { (grouped[i.base_name] = grouped[i.base_name] || []).push(i); });
+    html += Object.entries(grouped).map(([name, issues]) => `
+      <div style="padding:8px 0;border-bottom:1px solid #1e1e2e">
+        <div style="color:#ce9178;font-size:13px;margin-bottom:4px">${name}</div>
+        ${issues.map(i => `<div style="font-size:12px;color:#888;padding:1px 0">
+          <span style="color:#f44747">${typeLabels[i.issue_type] || i.issue_type}:</span> ${i.detail}
+        </div>`).join('')}
+      </div>`).join('');
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function _renderReportOrphans(d) {
+  const el = document.getElementById('rpt-tab-orphans');
+  if (!el) return;
+  const o = d.orphans;
+  let html = `<div style="margin-bottom:12px">
+    ${o.total ? _rptStat('rpt-warn', o.total + ' saves huérfanos') : _rptStat('rpt-ok', 'Sin saves huérfanos')}
+    ${o.total ? _rptStat('rpt-info', fmtSize(o.total_bytes) + ' recuperables') : ''}
+  </div>`;
+  if (!o.saves.length) { el.innerHTML = html + '<p style="color:#4ec9b0;font-size:12px">No hay saves huérfanos.</p>'; return; }
+  html += '<div style="max-height:400px;overflow-y:auto;font-size:12px">';
+  html += o.saves.map(s => {
+    const name = s.path.split(/[\\/]/).pop();
+    return `<div style="padding:2px 0;color:#888">${name} <span style="color:#555">(${fmtSize(s.size_bytes)})</span> <span style="color:#444;font-size:10px">${s.path}</span></div>`;
+  }).join('');
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function _renderReportRa(d) {
+  const el = document.getElementById('rpt-tab-ra');
+  if (!el) return;
+  const ra = d.retroachievements;
+  if (ra?.note) { el.innerHTML = `<p style="color:#555;font-size:12px">${ra.note}</p>`; return; }
+  if (ra?.error) { el.innerHTML = `<p class="error-msg">${ra.error}</p>`; return; }
+  let html = `<div style="margin-bottom:12px">
+    ${_rptStat('rpt-ok',   ra.supported + ' con logros')}
+    ${ra.no_support_alternative ? _rptStat('rpt-warn', ra.no_support_alternative + ' versión sin logros (alternativa disponible)') : ''}
+    ${_rptStat('rpt-info', ra.no_support + ' sin soporte RA')}
+    ${ra.no_md5 ? _rptStat('rpt-info', ra.no_md5 + ' sin MD5 (scan completo necesario)') : ''}
+  </div>`;
+  if (ra.alternatives?.length) {
+    html += `<p style="color:#888;font-size:12px;margin-bottom:8px">Juegos con versión alternativa compatible:</p>`;
+    html += '<div style="max-height:350px;overflow-y:auto;font-size:12px">';
+    html += ra.alternatives.map(a => `<div style="padding:3px 0;border-bottom:1px solid #1e1e2e">
+      <span style="color:#ce9178">${a.our_filename}</span>
+      <span style="color:#555;font-size:11px;margin-left:8px">→ RA: ${a.ra_title} (${a.ra_achievements} logros, ${a.ra_points} pts)</span>
+    </div>`).join('');
+    html += '</div>';
+    if (ra.no_support_alternative > 0) {
+      html += `<p style="margin-top:8px"><a href="/api/ra-check.csv" download class="btn" style="font-size:12px">&#x2193; Descargar CSV completo (${ra.no_support_alternative} juegos)</a></p>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function _renderReportChd(d) {
+  const el = document.getElementById('rpt-tab-chd');
+  if (!el) return;
+  const chd = d.chd;
+  if (chd?.note) { el.innerHTML = `<p style="color:#555;font-size:12px">${chd.note}</p>`; return; }
+  if (chd?.error) { el.innerHTML = `<p class="error-msg">${chd.error}</p>`; return; }
+  const ok   = (chd.results || []).filter(r => r.success);
+  const fail = (chd.results || []).filter(r => !r.success && r.error);
+  const skip = (chd.results || []).filter(r => !r.success && !r.error);
+  let html = `<div style="margin-bottom:12px">
+    ${_rptStat('rpt-ok',   ok.length   + ' convertidos')}
+    ${fail.length ? _rptStat('rpt-bad', fail.length + ' fallidos') : ''}
+    ${skip.length ? _rptStat('rpt-info', skip.length + ' omitidos') : ''}
+    ${chd.dry_run ? '<span style="color:#569cd6;font-size:11px">[DRY RUN]</span>' : ''}
+  </div>`;
+  if (fail.length) {
+    html += '<p style="color:#f44747;font-size:12px;margin-bottom:8px">Fallos de conversión:</p>';
+    html += '<div style="max-height:350px;overflow-y:auto">';
+    html += fail.map(r => `<div style="padding:3px 0;border-bottom:1px solid #1e1e2e">
+      <strong style="color:#d4d4d4;font-size:12px">${r.cue}</strong>
+      <em style="display:block;color:#f44747;font-size:11px;margin-top:2px">${r.error}</em>
+    </div>`).join('');
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function exportReportHtml() {
+  if (!_reportData) return;
+  const d = _reportData;
+  const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const lines = [
+    `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Informe Biblioteca — ${ts}</title>`,
+    `<style>body{font-family:monospace;background:#0f0f0f;color:#d4d4d4;padding:20px;font-size:13px}`,
+    `h1{color:#4ec9b0}h2{color:#888;border-bottom:1px solid #333;padding-bottom:4px}`,
+    `.ok{color:#4ec9b0}.warn{color:#ce9178}.bad{color:#f44747}.dim{color:#555}</style></head><body>`,
+    `<h1>Informe de biblioteca</h1><p class="dim">Generado: ${ts} | Ruta: ${d.source_path}</p>`,
+    `<h2>ZIPs (${d.zips.total})</h2>`,
+    d.zips.files.filter(f => !f.is_disc_set).map(f => `<div>${f.path} <span class="dim">(${fmtSize(f.size_bytes)})</span></div>`).join('') || '<p class="ok">Sin ZIPs pendientes</p>',
+    `<h2>Playlists M3U</h2>`,
+    d.playlists.groups.map(g => `<div>${g.m3u_exists ? '<span class="ok">✓</span>' : '<span class="warn">⚠</span>'} ${g.base_name} (${g.disc_count} discos)</div>`).join('') || '<p class="ok">Sin grupos multi-disco</p>',
+    `<h2>Sets multi-disco — problemas (${d.multidisc.groups_with_issues})</h2>`,
+    d.multidisc.issues.map(i => `<div class="bad">${i.base_name}: ${i.detail}</div>`).join('') || '<p class="ok">Todos los sets completos</p>',
+    `<h2>Saves huérfanos (${d.orphans.total}) — ${fmtSize(d.orphans.total_bytes)}</h2>`,
+    d.orphans.saves.map(s => `<div class="warn">${s.path}</div>`).join('') || '<p class="ok">Sin saves huérfanos</p>',
+    `</body></html>`,
+  ];
+  const blob = new Blob([lines.join('\n')], {type: 'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `informe-biblioteca-${ts.replace(/[: ]/g,'-')}.html`;
+  a.click();
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

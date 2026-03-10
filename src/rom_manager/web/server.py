@@ -36,12 +36,179 @@ def _json_response(data: object) -> bytes:
     return json.dumps(data, ensure_ascii=False).encode()
 
 
-def _build_status(repository: LibraryRepository) -> dict:
-    summary = repository.get_summary()
+def _test_path(path_str: str) -> dict:
+    """Check whether *path_str* is an accessible directory on the local filesystem.
+
+    Also detects common MTP / shell-namespace patterns that look like real paths
+    but are not accessible from Python.
+    """
+    raw = path_str.strip()
+    if not raw:
+        return {"accessible": False, "error": "Introduce una ruta primero"}
+
+    # Heuristic: detect Windows MTP paths (not a drive letter, not a UNC share)
+    is_drive_letter = len(raw) >= 2 and raw[1] == ":" and raw[0].isalpha()
+    is_unc          = raw.startswith("\\\\") or raw.startswith("//")
+    looks_like_mtp  = not is_drive_letter and not is_unc
+
+    try:
+        p = Path(path_str).resolve()
+        if not p.exists():
+            msg = ("Esta ruta no existe como carpeta del sistema de archivos. "
+                   "Si ves el dispositivo en 'Este equipo', está accediendo por MTP — "
+                   "eso no es compatible. Usa la SD card en un lector USB o Termux SFTP.")
+            return {"accessible": False, "error": msg, "looks_like_mtp": looks_like_mtp}
+        if not p.is_dir():
+            return {"accessible": False, "error": "La ruta existe pero no es una carpeta"}
+        try:
+            entries = sum(1 for _ in p.iterdir())
+        except PermissionError:
+            return {"accessible": False, "error": "Sin permiso de lectura en esa carpeta"}
+        return {
+            "accessible": True,
+            "path": str(p),
+            "entries": entries,
+        }
+    except (OSError, ValueError) as exc:
+        return {"accessible": False, "error": str(exc), "looks_like_mtp": looks_like_mtp}
+
+
+def _list_drives() -> dict:
+    """Return all accessible drive letters on Windows (A–Z), with label and free space."""
+    import platform
+    drives: list[dict] = []
+    if platform.system() == "Windows":
+        import string
+        import ctypes
+        for letter in string.ascii_uppercase:
+            root = Path(f"{letter}:\\")
+            if root.exists():
+                try:
+                    stat = root.stat()
+                    # GetVolumeInformation to get label
+                    label_buf   = ctypes.create_unicode_buffer(261)
+                    fs_buf      = ctypes.create_unicode_buffer(261)
+                    ctypes.windll.kernel32.GetVolumeInformationW(  # type: ignore[attr-defined]
+                        f"{letter}:\\", label_buf, 261,
+                        None, None, None, fs_buf, 261,
+                    )
+                    label = label_buf.value or ""
+                    total, free = 0, 0
+                    usage = ctypes.c_ulonglong(0)
+                    free_c = ctypes.c_ulonglong(0)
+                    total_c = ctypes.c_ulonglong(0)
+                    ctypes.windll.kernel32.GetDiskFreeSpaceExW(  # type: ignore[attr-defined]
+                        f"{letter}:\\",
+                        ctypes.byref(usage),
+                        ctypes.byref(total_c),
+                        ctypes.byref(free_c),
+                    )
+                    total = total_c.value
+                    free  = free_c.value
+                    drives.append({
+                        "letter": f"{letter}:\\",
+                        "label": label,
+                        "total_bytes": total,
+                        "free_bytes": free,
+                    })
+                except OSError:
+                    drives.append({"letter": f"{letter}:\\", "label": "", "total_bytes": 0, "free_bytes": 0})
+    else:
+        # Non-Windows: return mount points from /proc/mounts or similar
+        try:
+            for line in Path("/proc/mounts").read_text().splitlines():
+                parts = line.split()
+                if len(parts) >= 2 and parts[1].startswith("/media"):
+                    drives.append({"letter": parts[1], "label": parts[1].split("/")[-1], "total_bytes": 0, "free_bytes": 0})
+        except OSError:
+            pass
+    return {"drives": drives}
+
+
+def _build_library_report(
+    source_path_str: str,
+    repository: LibraryRepository,
+    config: AppConfig,
+) -> dict:
+    """Generate a full library health report for the given source path."""
+    source = Path(source_path_str).resolve()
+
+    # ── ZIPs ──────────────────────────────────────────────────────────────────
+    from rom_manager.converters.zip_extractor import find_zip_files, _DISC_RE as _ZIP_DISC_RE
+    zip_files = find_zip_files(source)
+    zip_list = []
+    for zp in zip_files:
+        try:
+            rel = str(zp.relative_to(source))
+        except ValueError:
+            rel = zp.name
+        try:
+            size = zp.stat().st_size
+        except OSError:
+            size = 0
+        is_disc = bool(_ZIP_DISC_RE.match(zp.stem))
+        zip_list.append({"path": rel, "name": zp.name, "size_bytes": size, "is_disc_set": is_disc})
+
+    # ── Playlists / Multi-disco ────────────────────────────────────────────────
+    from rom_manager.utils.m3u_generator import find_disc_groups
+    from rom_manager.utils.multidisc_verifier import verify_multidisc
+    groups = find_disc_groups(source)
+    playlist_groups = [
+        {
+            "base_name": g.base_name,
+            "disc_count": len(g.discs),
+            "discs": [d.name for d in g.discs],
+            "m3u_exists": g.m3u_path.exists(),
+            "m3u_name": g.m3u_path.name,
+        }
+        for g in groups
+    ]
+    multidisc = verify_multidisc(source, repository)
+    multidisc_data = {
+        "groups_ok": multidisc.groups_ok,
+        "groups_with_issues": multidisc.groups_with_issues,
+        "issues": [
+            {"base_name": i.base_name, "issue_type": i.issue_type, "detail": i.detail}
+            for i in multidisc.issues
+        ],
+    }
+
+    # ── Orphaned saves ────────────────────────────────────────────────────────
+    from rom_manager.utils.orphan_finder import find_orphaned_saves
+    orphans = find_orphaned_saves(source, config.save_extensions)
+    orphan_data = {
+        "total": len(orphans),
+        "total_bytes": sum(o.size_bytes for o in orphans),
+        "saves": [
+            {"path": o.save_path, "stem": o.stem, "extension": o.extension, "size_bytes": o.size_bytes}
+            for o in orphans
+        ],
+    }
+
+    return {
+        "source_path": str(source),
+        "zips": {"total": len(zip_files), "files": zip_list},
+        "playlists": {
+            "total_groups": len(groups),
+            "with_m3u": sum(1 for g in playlist_groups if g["m3u_exists"]),
+            "without_m3u": sum(1 for g in playlist_groups if not g["m3u_exists"]),
+            "groups": playlist_groups,
+        },
+        "multidisc": multidisc_data,
+        "orphans": orphan_data,
+    }
+
+
+def _build_status(repository: LibraryRepository, source_root: str | None = None) -> dict:
+    summary = repository.get_summary(source_root)
     dup_groups = repository.get_duplicate_groups()
     from rom_manager.reports.reporter import _get_all_games
     games = _get_all_games(repository)
-    matched = sum(1 for g in games if g.canonical_title is not None)
+    if source_root:
+        prefix = source_root.rstrip("/\\")
+        matched = sum(1 for g in games if g.canonical_title is not None and g.source_path.startswith(prefix))
+    else:
+        matched = sum(1 for g in games if g.canonical_title is not None)
     wasted = sum(g.wasted_bytes for g in dup_groups)
     return {
         "total_games": summary.total_games,
@@ -62,9 +229,11 @@ def _build_games(
     limit: int = 100,
     platform: str | None = None,
     status: str | None = None,
+    source_root: str | None = None,
 ) -> dict:
     games, total = repository.get_games_paginated(
-        offset=offset, limit=limit, platform=platform, status=status
+        offset=offset, limit=limit, platform=platform, status=status,
+        source_root=source_root,
     )
     return {
         "games": games,
@@ -140,9 +309,10 @@ def _build_duplicates(repository: LibraryRepository, source_root: str | None = N
     from rom_manager.database.repository import DuplicateGroup
     groups = repository.get_duplicate_groups()
     if source_root:
+        root_lower = source_root.lower()
         filtered = []
         for g in groups:
-            entries = [e for e in g.entries if e.source_path.startswith(source_root)]
+            entries = [e for e in g.entries if e.source_path.lower().startswith(root_lower)]
             if len(entries) >= 2:
                 filtered.append(DuplicateGroup(sha1=g.sha1, entries=entries))
         groups = filtered
@@ -169,8 +339,8 @@ def _build_duplicates(repository: LibraryRepository, source_root: str | None = N
     }
 
 
-def _build_assets(repository: LibraryRepository) -> dict:
-    return {"stats": repository.get_asset_platform_stats()}
+def _build_assets(repository: LibraryRepository, source_root: str | None = None) -> dict:
+    return {"stats": repository.get_asset_platform_stats(source_root=source_root)}
 
 
 def _build_sync_log(repository: LibraryRepository) -> dict:
@@ -187,6 +357,7 @@ def _build_config(config: AppConfig) -> dict:
         "screenscraper_user": config.screenscraper_user or None,
         "screenscraper_pass": config.screenscraper_pass or None,
         "chdman": config.chdman,
+        "adb": config.adb,
         "ra_api_key": config.ra_api_key or None,
     }
 
@@ -223,14 +394,56 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 if path == "/":
                     self._send(200, "text/html; charset=utf-8", HTML.encode())
                 elif path == "/api/status":
-                    self._send_json(_build_status(repository))
+                    src_root = qs.get("root", [None])[0] or None
+                    self._send_json(_build_status(repository, src_root))
+                elif path == "/api/test-path":
+                    self._send_json(_test_path(qs.get("path", [""])[0]))
+                elif path == "/api/list-drives":
+                    self._send_json(_list_drives())
+                elif path == "/api/adb-devices":
+                    try:
+                        from rom_manager.sync.adb_transport import list_devices
+                        devs = list_devices(config.adb)
+                        self._send_json({
+                            "devices": [
+                                {"serial": d.serial, "state": d.state,
+                                 "model": d.model, "product": d.product,
+                                 "ready": d.ready, "display": d.display}
+                                for d in devs
+                            ],
+                            "adb_path": config.adb,
+                        })
+                    except RuntimeError as exc:
+                        self._send_json({"error": str(exc), "devices": []})
+                elif path == "/api/test-adb-path":
+                    serial  = qs.get("serial", [""])[0]
+                    ap      = qs.get("path", ["/storage/emulated/0"])[0]
+                    if not serial:
+                        self._send_json({"accessible": False, "error": "serial requerido"})
+                    else:
+                        try:
+                            from rom_manager.sync.adb_transport import AdbTransport
+                            t = AdbTransport(config.adb, serial)
+                            self._send_json(t.test_path(ap))
+                        except Exception as exc:
+                            self._send_json({"accessible": False, "error": str(exc)})
+                elif path == "/api/library-report":
+                    rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
+                    if not rpt_path:
+                        self._send_json({"error": "path parameter required (or set library_root in config)"})
+                    else:
+                        rpt = _build_library_report(rpt_path, repository, config)
+                        rpt["retroachievements"] = _job_results.get("ra_check") or {"note": "Ejecuta primero la comprobación de RetroAchievements en la pestaña Tools"}
+                        rpt["chd"] = _job_results.get("convert_chd") or {"note": "Ejecuta primero la conversión CHD en la pestaña Tools"}
+                        self._send_json(rpt)
                 elif path == "/api/games":
                     qs = parse_qs(parsed.query)
                     offset = int(qs.get("offset", ["0"])[0])
                     limit = min(int(qs.get("limit", ["100"])[0]), 500)
                     plat = qs.get("platform", [None])[0] or None
                     st = qs.get("status", [None])[0] or None
-                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st))
+                    root = qs.get("root", [None])[0] or None
+                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st, source_root=root))
                 elif path == "/api/plan":
                     opts = _parse_format_opts(qs)
                     source_root = qs.get("source_root", [None])[0] or None
@@ -239,7 +452,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     source_root = qs.get("source_root", [None])[0] or None
                     self._send_json(_build_duplicates(repository, source_root=source_root))
                 elif path == "/api/assets":
-                    self._send_json(_build_assets(repository))
+                    src_root = qs.get("root", [None])[0] or None
+                    self._send_json(_build_assets(repository, src_root))
                 elif path == "/api/sync-log":
                     self._send_json(_build_sync_log(repository))
                 elif path == "/api/config":
@@ -379,6 +593,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             try:
                 if path == "/api/scan":
                     self._handle_scan(data)
+                elif path == "/api/adb-scan":
+                    self._handle_adb_scan(data)
                 elif path == "/api/match":
                     self._handle_match()
                 elif path == "/api/apply":
@@ -464,6 +680,138 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "errors": total.errors,
                         "paths_scanned": len(raw_paths),
                         "pruned": total.pruned,
+                    }
+                except Exception as exc:
+                    _job_results["scan"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _jobs["scan"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
+
+        def _handle_adb_scan(self, data: dict) -> None:
+            """Scan files on an Android device via ADB and register them in the DB."""
+            adb_serial   = data.get("adb_serial", "").strip()
+            android_path = data.get("android_path", "/storage/emulated/0").strip().rstrip("/")
+
+            if not adb_serial:
+                self._send_json({"error": "adb_serial is required"})
+                return
+
+            with _job_lock:
+                if _jobs["scan"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["scan"] = True
+
+            def run() -> None:
+                try:
+                    from pathlib import PurePosixPath
+                    from rom_manager.sync.adb_transport import AdbTransport
+                    from rom_manager.detection.platform_detector import detect_platform
+                    from rom_manager.detection.region_parser import parse_region_from_name
+                    from rom_manager.detection.set_detector import detect_set_type
+                    from rom_manager.scanner.rom_scanner import utc_now
+
+                    transport  = AdbTransport(config.adb, adb_serial, timeout=120)
+                    timestamp  = utc_now()
+                    save_exts  = frozenset(config.save_extensions)
+                    asset_exts = frozenset(config.frontend_asset_extensions)
+                    excluded   = frozenset(d.lower() for d in config.excluded_directories)
+
+                    scan_run_id = repository.create_scan_run(android_path, timestamp)
+                    roms = saves = assets = errors = 0
+                    seen_paths: set[str] = set()
+
+                    # Fetch the file list from the device (~1 round-trip)
+                    all_files = transport.ls_recursive(android_path, timeout=180)
+
+                    with repository.batch() as conn:
+                        for fi in all_files:
+                            ap = fi.android_path
+                            seen_paths.add(ap)
+                            parts = ap.split("/")
+                            # Skip excluded directories (e.g. Android/, DCIM/, BIOS/)
+                            if any(seg.lower() in excluded for seg in parts):
+                                continue
+
+                            name   = PurePosixPath(ap).name
+                            suffix = PurePosixPath(ap).suffix.lower()
+                            # Relative parent = the folder containing the file, relative to android_path
+                            try:
+                                rel_parent = str(PurePosixPath(ap).parent.relative_to(android_path))
+                            except ValueError:
+                                rel_parent = ""
+
+                            try:
+                                if suffix in save_exts:
+                                    repository.upsert_save(
+                                        original_path=ap,
+                                        relative_parent=rel_parent,
+                                        extension=suffix,
+                                        size_bytes=fi.size,
+                                        timestamp=timestamp,
+                                        connection=conn,
+                                    )
+                                    saves += 1
+                                elif suffix in asset_exts or name.lower() == "gamelist.xml":
+                                    assets += 1  # don't store assets for ADB scan
+                                elif suffix in {
+                                    ".zip", ".7z", ".rar",          # archives
+                                    ".xml", ".txt", ".log", ".db",  # data files
+                                    ".apk", ".sh", ".py",           # executables
+                                } or not suffix:
+                                    pass  # ignore
+                                else:
+                                    # Treat as ROM — detect platform from path
+                                    fake_path = Path(ap)
+                                    platform  = detect_platform(fake_path)
+                                    repository.upsert_game(
+                                        original_filename=name,
+                                        source_path=ap,
+                                        platform=platform,
+                                        file_type="rom",
+                                        relative_parent=rel_parent,
+                                        region=parse_region_from_name(name),
+                                        extension=suffix,
+                                        size_bytes=fi.size,
+                                        mtime=int(fi.mtime),
+                                        sha1="",
+                                        md5="",
+                                        crc32="",
+                                        set_type=detect_set_type(fake_path),
+                                        timestamp=timestamp,
+                                        connection=conn,
+                                    )
+                                    roms += 1
+                            except Exception as exc:
+                                errors += 1
+                                logger.error("ADB scan error for %s: %s", ap, exc)
+
+                    pruned = repository.prune_stale_entries(android_path, seen_paths)
+                    finished_at = utc_now()
+                    repository.complete_scan_run(
+                        scan_run_id,
+                        finished_at=finished_at,
+                        files_seen=len(all_files),
+                        roms_detected=roms,
+                        saves_detected=saves,
+                        assets_detected=assets,
+                        system_files_detected=0,
+                        unknown_files_detected=0,
+                        errors=errors,
+                    )
+                    _job_results["scan"] = {
+                        "files_seen": len(all_files),
+                        "roms_detected": roms,
+                        "roms_skipped": 0,
+                        "saves_detected": saves,
+                        "errors": errors,
+                        "paths_scanned": 1,
+                        "pruned": pruned,
+                        "source": "adb",
+                        "android_path": android_path,
                     }
                 except Exception as exc:
                     _job_results["scan"] = {"error": str(exc)}
@@ -658,7 +1006,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             allowed = {
                 "library.library_root", "sync.remote",
                 "screenscraper.user", "screenscraper.pass",
-                "tools.chdman",
+                "tools.chdman", "tools.adb",
                 "retroachievements.api_key",
             }
             updates = {k: v for k, v in data.items() if k in allowed}
@@ -673,6 +1021,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             config.screenscraper_user = new_cfg.screenscraper_user
             config.screenscraper_pass = new_cfg.screenscraper_pass
             config.chdman = new_cfg.chdman
+            config.adb = new_cfg.adb
             config.ra_api_key = new_cfg.ra_api_key
             self._send_json({"saved": list(updates.keys())})
 
@@ -741,21 +1090,29 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     zip_files = find_zip_files(source)
                     total = len(zip_files)
                     _zip_progress.update({"current": 0, "total": total, "current_file": ""})
-                    extracted = skipped = failed = 0
+                    extracted = skipped = failed = disc_sets = 0
                     results = []
                     for idx, zp in enumerate(zip_files, 1):
-                        _zip_progress.update({"current": idx, "total": total, "current_file": zp.name})
+                        try:
+                            rel = str(zp.relative_to(source))
+                        except ValueError:
+                            rel = zp.name
+                        _zip_progress.update({"current": idx, "total": total, "current_file": rel})
                         r = extract_zip(zp, dry_run=dry_run, delete_source=delete_source)
-                        if r.skipped_reason:
+                        if r.is_disc_set:
+                            disc_sets += 1
+                            skipped += 1
+                        elif r.skipped_reason:
                             skipped += 1
                         elif r.error:
                             failed += 1
                         else:
                             extracted += 1
                         results.append({
-                            "zip": zp.name,
+                            "zip": rel,
                             "success": r.success,
                             "skipped_reason": r.skipped_reason,
+                            "is_disc_set": r.is_disc_set,
                             "error": r.error,
                             "extracted": [f.name for f in r.extracted_files],
                         })
@@ -764,6 +1121,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "extracted": extracted,
                         "skipped": skipped,
                         "failed": failed,
+                        "disc_sets": disc_sets,
                         "results": results,
                     }
                 except Exception as exc:
@@ -1081,16 +1439,24 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             import os
             import shutil
 
-            pc_path_str      = data.get("pc_path", "").strip()
+            pc_path_str       = data.get("pc_path", "").strip()
             anbernic_path_str = data.get("anbernic_path", "").strip()
-            what             = data.get("what", ["saves"])   # ["roms"], ["saves"], or both
-            direction        = data.get("direction", "pc_to_anbernic")
-            dry_run          = bool(data.get("dry_run", True))
+            what              = data.get("what", ["saves"])   # ["roms"], ["saves"], or both
+            direction         = data.get("direction", "pc_to_anbernic")
+            dry_run           = bool(data.get("dry_run", True))
+            skip_sha1_dups    = bool(data.get("skip_sha1_dups", False))
+            skip_existing     = bool(data.get("skip_existing", False))
+            use_adb           = bool(data.get("use_adb", False))
+            adb_serial        = data.get("adb_serial", "").strip()
+            android_path      = data.get("android_path", "/storage/emulated/0").strip()
 
             if not pc_path_str:
                 self._send_json({"error": "pc_path is required"})
                 return
-            if not anbernic_path_str:
+            if use_adb and not adb_serial:
+                self._send_json({"error": "adb_serial is required when use_adb is true"})
+                return
+            if not use_adb and not anbernic_path_str:
                 self._send_json({"error": "anbernic_path is required"})
                 return
 
@@ -1102,18 +1468,25 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
             def run() -> None:
                 try:
-                    pc_root = Path(pc_path_str)
-                    ab_root = Path(anbernic_path_str)
+                    from pathlib import PurePosixPath
+                    pc_root   = Path(pc_path_str)
                     save_exts = frozenset(config.save_extensions)
+
+                    def _cat_name(name: str) -> str:
+                        suffix = Path(name).suffix.lower()
+                        return "save" if suffix in save_exts else "rom"
+
+                    def _wanted_name(name: str) -> bool:
+                        if name.startswith("."):
+                            return False
+                        cat = _cat_name(name)
+                        return (cat == "save" and "saves" in what) or (cat == "rom" and "roms" in what)
 
                     def _category(p: Path) -> str:
                         return "save" if p.suffix.lower() in save_exts else "rom"
 
                     def _wanted(p: Path) -> bool:
-                        if p.name.startswith("."):
-                            return False
-                        cat = _category(p)
-                        return (cat == "save" and "saves" in what) or (cat == "rom" and "roms" in what)
+                        return _wanted_name(p.name)
 
                     def _iter_files(root: Path):
                         for dirpath, dirs, files in os.walk(root):
@@ -1121,14 +1494,25 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             for fname in files:
                                 yield Path(dirpath) / fname
 
-                    copied = skipped = errors = 0
+                    copied = skipped = errors = sha1_skipped = 0
                     copied_bytes = 0
                     details: list[dict] = []
 
                     def _copy(src: Path, dst: Path, arrow: str) -> None:
                         nonlocal copied, skipped, errors, copied_bytes
                         try:
-                            size = src.stat().st_size
+                            src_stat = src.stat()
+                            size = src_stat.st_size
+                            # Skip if destination already exists with same size
+                            if skip_existing and dst.exists():
+                                try:
+                                    if dst.stat().st_size == size:
+                                        skipped += 1
+                                        if len(details) < 300:
+                                            details.append({"file": "EXISTS", "path": str(src.name)})
+                                        return
+                                except OSError:
+                                    pass
                             if not dry_run:
                                 dst.parent.mkdir(parents=True, exist_ok=True)
                                 shutil.copy2(src, dst)
@@ -1142,62 +1526,206 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             if len(details) < 300:
                                 details.append({"file": f"ERROR: {exc}", "path": str(src.name)})
 
-                    if direction == "pc_to_anbernic":
-                        for src in _iter_files(pc_root):
-                            if not _wanted(src):
-                                continue
-                            rel = src.relative_to(pc_root)
-                            dst = ab_root / rel
-                            _copy(src, dst, "→ Anbernic")
+                    # ── ADB mode ──────────────────────────────────────────────
+                    if use_adb:
+                        from rom_manager.sync.adb_transport import AdbTransport
+                        transport = AdbTransport(config.adb, adb_serial)
 
-                    elif direction == "anbernic_to_pc":
-                        for src in _iter_files(ab_root):
-                            if not _wanted(src):
-                                continue
+                        def _adb_copy_to_pc(adb_info, rel_posix: str, arrow: str) -> None:
+                            nonlocal copied, errors, copied_bytes
+                            name = PurePosixPath(adb_info.android_path).name
+                            local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
                             try:
-                                rel = src.relative_to(ab_root)
-                            except ValueError:
-                                continue
-                            dst = pc_root / rel
-                            _copy(src, dst, "← PC")
+                                size = transport.pull(adb_info.android_path, local_dst, dry_run=dry_run)
+                                copied += 1
+                                copied_bytes += size
+                                if len(details) < 300:
+                                    details.append({"file": arrow, "path": name})
+                                _cable_progress.update({"copied": copied, "current_file": name})
+                            except OSError as exc:
+                                errors += 1
+                                if len(details) < 300:
+                                    details.append({"file": f"ERROR: {exc}", "path": name})
 
-                    elif direction == "newest":
-                        pc_files: dict[Path, Path] = {}
-                        for f in _iter_files(pc_root):
-                            if _wanted(f):
-                                pc_files[f.relative_to(pc_root)] = f
+                        def _adb_copy_to_device(local_src: Path, rel_posix: str, arrow: str) -> None:
+                            nonlocal copied, errors, copied_bytes
+                            android_dst = android_path.rstrip("/") + "/" + rel_posix
+                            try:
+                                size = transport.push(local_src, android_dst, dry_run=dry_run)
+                                copied += 1
+                                copied_bytes += size
+                                if len(details) < 300:
+                                    details.append({"file": arrow, "path": local_src.name})
+                                _cable_progress.update({"copied": copied, "current_file": local_src.name})
+                            except OSError as exc:
+                                errors += 1
+                                if len(details) < 300:
+                                    details.append({"file": f"ERROR: {exc}", "path": local_src.name})
 
-                        ab_files: dict[Path, Path] = {}
-                        for f in _iter_files(ab_root):
-                            if _wanted(f):
-                                try:
-                                    ab_files[f.relative_to(ab_root)] = f
-                                except ValueError:
-                                    pass
+                        _cable_progress.update({"copied": 0, "current_file": "Listando archivos en el dispositivo…"})
+                        ab_adb_files = transport.ls_recursive(android_path)
+                        android_prefix = android_path.rstrip("/") + "/"
 
-                        all_rels = sorted(set(pc_files) | set(ab_files), key=lambda p: str(p))
-                        for rel in all_rels:
-                            pc_f = pc_files.get(rel)
-                            ab_f = ab_files.get(rel)
-                            if pc_f and ab_f:
-                                pc_mt = pc_f.stat().st_mtime
-                                ab_mt = ab_f.stat().st_mtime
-                                if pc_mt > ab_mt:
-                                    _copy(pc_f, ab_root / rel, "→ Anbernic (PC más reciente)")
-                                elif ab_mt > pc_mt:
-                                    _copy(ab_f, pc_root / rel, "← PC (Anbernic más reciente)")
+                        if direction == "pc_to_anbernic":
+                            for src in _iter_files(pc_root):
+                                if not _wanted(src):
+                                    continue
+                                rel = src.relative_to(pc_root)
+                                rel_posix = rel.as_posix()
+                                _adb_copy_to_device(src, rel_posix, "→ ADB")
+
+                        elif direction == "anbernic_to_pc":
+                            use_sha1 = skip_sha1_dups and "roms" in what
+                            if use_sha1:
+                                from rom_manager.hashing.hash_calculator import calculate_hashes
+                            for info in ab_adb_files:
+                                name = PurePosixPath(info.android_path).name
+                                if not _wanted_name(name):
+                                    continue
+                                rel_posix = info.android_path.removeprefix(android_prefix)
+                                if use_sha1 and _cat_name(name) == "rom":
+                                    local_tmp = pc_root / Path(rel_posix.replace("/", os.sep))
+                                    _cable_progress.update({"copied": copied, "current_file": f"[SHA1] {name}"})
+                                    # For SHA1 check we need the file locally; pull to temp first
+                                    import tempfile
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(name).suffix) as tf:
+                                        tmp_path = Path(tf.name)
+                                    try:
+                                        transport.pull(info.android_path, tmp_path, dry_run=False)
+                                        from rom_manager.hashing.hash_calculator import calculate_hashes
+                                        h = calculate_hashes(tmp_path)
+                                        if repository.sha1_exists(h.sha1):
+                                            sha1_skipped += 1
+                                            skipped += 1
+                                            if len(details) < 300:
+                                                details.append({"file": "DUP", "path": name})
+                                            tmp_path.unlink(missing_ok=True)
+                                            continue
+                                        # Move temp file to final destination
+                                        dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                                        if not dry_run:
+                                            dst.parent.mkdir(parents=True, exist_ok=True)
+                                            shutil.move(str(tmp_path), dst)
+                                        else:
+                                            tmp_path.unlink(missing_ok=True)
+                                        copied += 1
+                                        copied_bytes += info.size
+                                        if len(details) < 300:
+                                            details.append({"file": "← ADB", "path": name})
+                                        _cable_progress.update({"copied": copied, "current_file": name})
+                                    except OSError as exc:
+                                        tmp_path.unlink(missing_ok=True)
+                                        errors += 1
+                                        if len(details) < 300:
+                                            details.append({"file": f"ERROR: {exc}", "path": name})
                                 else:
-                                    skipped += 1
-                            elif pc_f:
-                                _copy(pc_f, ab_root / rel, "→ Anbernic (solo en PC)")
-                            elif ab_f:
-                                _copy(ab_f, pc_root / rel, "← PC (solo en Anbernic)")
+                                    _adb_copy_to_pc(info, rel_posix, "← ADB")
+
+                        elif direction == "newest":
+                            # Build index of device files by relative posix path
+                            ab_index = {
+                                info.android_path.removeprefix(android_prefix): info
+                                for info in ab_adb_files
+                                if _wanted_name(PurePosixPath(info.android_path).name)
+                            }
+                            pc_index: dict[str, Path] = {}
+                            for f in _iter_files(pc_root):
+                                if _wanted(f):
+                                    pc_index[f.relative_to(pc_root).as_posix()] = f
+
+                            all_rels = sorted(set(pc_index) | set(ab_index))
+                            for rel_posix in all_rels:
+                                pc_f   = pc_index.get(rel_posix)
+                                ab_inf = ab_index.get(rel_posix)
+                                if pc_f and ab_inf:
+                                    if pc_f.stat().st_mtime > ab_inf.mtime:
+                                        _adb_copy_to_device(pc_f, rel_posix, "→ ADB (PC más reciente)")
+                                    elif ab_inf.mtime > pc_f.stat().st_mtime:
+                                        _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
+                                    else:
+                                        skipped += 1
+                                elif pc_f:
+                                    _adb_copy_to_device(pc_f, rel_posix, "→ ADB (solo en PC)")
+                                elif ab_inf:
+                                    _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (solo en Anbernic)")
+
+                    # ── Filesystem mode ───────────────────────────────────────
+                    else:
+                        ab_root = Path(anbernic_path_str)
+
+                        if direction == "pc_to_anbernic":
+                            for src in _iter_files(pc_root):
+                                if not _wanted(src):
+                                    continue
+                                rel = src.relative_to(pc_root)
+                                dst = ab_root / rel
+                                _copy(src, dst, "→ Anbernic")
+
+                        elif direction == "anbernic_to_pc":
+                            use_sha1 = skip_sha1_dups and "roms" in what
+                            if use_sha1:
+                                from rom_manager.hashing.hash_calculator import calculate_hashes
+                            for src in _iter_files(ab_root):
+                                if not _wanted(src):
+                                    continue
+                                try:
+                                    rel = src.relative_to(ab_root)
+                                except ValueError:
+                                    continue
+                                if use_sha1 and _category(src) == "rom":
+                                    _cable_progress.update({"copied": copied, "current_file": f"[SHA1] {src.name}"})
+                                    try:
+                                        h = calculate_hashes(src)
+                                        if repository.sha1_exists(h.sha1):
+                                            sha1_skipped += 1
+                                            skipped += 1
+                                            if len(details) < 300:
+                                                details.append({"file": "DUP", "path": src.name})
+                                            continue
+                                    except OSError:
+                                        pass
+                                dst = pc_root / rel
+                                _copy(src, dst, "← PC")
+
+                        elif direction == "newest":
+                            pc_files: dict[Path, Path] = {}
+                            for f in _iter_files(pc_root):
+                                if _wanted(f):
+                                    pc_files[f.relative_to(pc_root)] = f
+
+                            ab_files: dict[Path, Path] = {}
+                            for f in _iter_files(ab_root):
+                                if _wanted(f):
+                                    try:
+                                        ab_files[f.relative_to(ab_root)] = f
+                                    except ValueError:
+                                        pass
+
+                            all_rels = sorted(set(pc_files) | set(ab_files), key=lambda p: str(p))
+                            for rel in all_rels:
+                                pc_f = pc_files.get(rel)
+                                ab_f = ab_files.get(rel)
+                                if pc_f and ab_f:
+                                    pc_mt = pc_f.stat().st_mtime
+                                    ab_mt = ab_f.stat().st_mtime
+                                    if pc_mt > ab_mt:
+                                        _copy(pc_f, ab_root / rel, "→ Anbernic (PC más reciente)")
+                                    elif ab_mt > pc_mt:
+                                        _copy(ab_f, pc_root / rel, "← PC (Anbernic más reciente)")
+                                    else:
+                                        skipped += 1
+                                elif pc_f:
+                                    _copy(pc_f, ab_root / rel, "→ Anbernic (solo en PC)")
+                                elif ab_f:
+                                    _copy(ab_f, pc_root / rel, "← PC (solo en Anbernic)")
 
                     _job_results["cable_sync"] = {
                         "dry_run": dry_run,
                         "direction": direction,
+                        "use_adb": use_adb,
                         "copied": copied,
                         "skipped": skipped,
+                        "sha1_skipped": sha1_skipped,
                         "errors": errors,
                         "copied_bytes": copied_bytes,
                         "details": details,
@@ -1231,9 +1759,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             pending_ops = plan.pending
             if source_root:
                 pending_ops = [op for op in pending_ops if str(op.source_path).startswith(source_root)]
-            renamed = failed = saves_renamed = 0
+            renamed = failed = skipped = saves_renamed = 0
+            skip_details: list[str] = []
             timestamp = utc_now()
             for op in pending_ops:
+                if not op.source_path.exists():
+                    skipped += 1
+                    skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
+                    continue
                 outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
                 if outcome.success:
                     repository.apply_rename(
@@ -1246,13 +1779,22 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     renamed += 1
                     saves_renamed += outcome.saves_renamed
                 else:
-                    failed += 1
+                    # Check if it's an unexpected-file / permission issue vs a hard error
+                    err_lower = outcome.error.lower()
+                    if "not found" in err_lower or "no such file" in err_lower:
+                        skipped += 1
+                        skip_details.append(f"{op.source_path.name}: {outcome.error}")
+                    else:
+                        failed += 1
+                        skip_details.append(f"{op.source_path.name}: {outcome.error}")
 
             self._send_json({
                 "renamed": renamed,
                 "failed": failed,
+                "skipped": skipped,
                 "saves_renamed": saves_renamed,
                 "conflicts": len(plan.conflicts),
+                "skip_details": skip_details[:20],
             })
 
         # ── Helpers ──────────────────────────────────────────────────────────

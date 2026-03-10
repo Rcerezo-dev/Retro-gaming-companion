@@ -541,22 +541,36 @@ class LibraryRepository:
             for row in rows
         ]
 
-    def get_asset_platform_stats(self) -> list[dict]:
+    def get_asset_platform_stats(self, source_root: str | None = None) -> list[dict]:
         """Return per-platform asset counts (images, videos, XML/gamelists).
 
         Also includes rom_count from the games table and orphan asset count
         (assets in platforms that have no games).
+
+        *source_root* filters to only entries whose source_path starts with that prefix.
         """
         _IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "tga", "bmp"}
         _VIDEO_EXTS = {"mp4", "mkv", "avi", "webm", "mov"}
 
+        prefix = source_root.rstrip("/\\") + "%" if source_root else None
+
         with self.connect() as connection:
-            game_rows = connection.execute(
-                "SELECT platform, COUNT(*) AS cnt FROM games GROUP BY platform"
-            ).fetchall()
-            asset_rows = connection.execute(
-                "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets GROUP BY platform, asset_type"
-            ).fetchall()
+            if prefix:
+                game_rows = connection.execute(
+                    "SELECT platform, COUNT(*) AS cnt FROM games WHERE source_path LIKE ? GROUP BY platform",
+                    (prefix,),
+                ).fetchall()
+                asset_rows = connection.execute(
+                    "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets WHERE source_path LIKE ? GROUP BY platform, asset_type",
+                    (prefix,),
+                ).fetchall()
+            else:
+                game_rows = connection.execute(
+                    "SELECT platform, COUNT(*) AS cnt FROM games GROUP BY platform"
+                ).fetchall()
+                asset_rows = connection.execute(
+                    "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets GROUP BY platform, asset_type"
+                ).fetchall()
 
         game_counts: dict[str, int] = {
             (row["platform"] or "Unknown"): int(row["cnt"]) for row in game_rows
@@ -670,13 +684,17 @@ class LibraryRepository:
         limit: int = 100,
         platform: str | None = None,
         status: str | None = None,
+        source_root: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
 
         *status* can be ``'unresolved'`` (no canonical_title) or ``'matched'``.
+        *source_root* filters to only games whose source_path starts with the given prefix.
         """
         conditions: list[str] = []
         params: list[object] = []
+
+        conditions.append("file_type = 'rom'")
 
         if platform:
             conditions.append("platform = ?")
@@ -685,6 +703,9 @@ class LibraryRepository:
             conditions.append("canonical_title IS NULL")
         elif status == "matched":
             conditions.append("canonical_title IS NOT NULL")
+        if source_root:
+            conditions.append("source_path LIKE ?")
+            params.append(source_root.rstrip("/\\").replace("%", "%%") + "%")
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -816,17 +837,44 @@ class LibraryRepository:
             for r in rows
         ]
 
-    def get_summary(self) -> ScanSummary:
+    def sha1_exists(self, sha1: str) -> bool:
+        """Return True if *sha1* is already present in the games table."""
+        with self.connect() as conn:
+            return bool(
+                conn.execute(
+                    "SELECT EXISTS(SELECT 1 FROM games WHERE sha1 = ?)", (sha1.upper(),)
+                ).fetchone()[0]
+            )
+
+    def get_summary(self, source_root: str | None = None) -> ScanSummary:
+        """Return library-wide counts.
+
+        When *source_root* is provided only rows whose ``source_path`` starts
+        with that prefix are counted (used to get per-device stats).
+        """
+        prefix = source_root.rstrip("/\\") if source_root else None
         with self.connect() as connection:
-            games_count = connection.execute(
-                "SELECT COUNT(*) AS count FROM games"
-            ).fetchone()["count"]
-            saves_count = connection.execute(
-                "SELECT COUNT(*) AS count FROM saves"
-            ).fetchone()["count"]
-            assets_count = connection.execute(
-                "SELECT COUNT(*) AS count FROM assets"
-            ).fetchone()["count"]
+            if prefix:
+                like = prefix.replace("%", "%%") + "%"
+                games_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM games WHERE source_path LIKE ?", (like,)
+                ).fetchone()["count"]
+                saves_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM saves WHERE original_path LIKE ?", (like,)
+                ).fetchone()["count"]
+                assets_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM assets WHERE source_path LIKE ?", (like,)
+                ).fetchone()["count"]
+            else:
+                games_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM games"
+                ).fetchone()["count"]
+                saves_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM saves"
+                ).fetchone()["count"]
+                assets_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM assets"
+                ).fetchone()["count"]
             last_scan = connection.execute(
                 """
                 SELECT finished_at
