@@ -8,18 +8,20 @@ HTML = r"""<!DOCTYPE html>
 <title>ROM Manager</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f0f0f; color: #d4d4d4; font-family: 'Consolas', 'Courier New', monospace; font-size: 14px; }
+  body { background: #0f0f0f; color: #d4d4d4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+  code, .mono { font-family: 'Consolas', 'Courier New', monospace; }
   a { color: #4ec9b0; text-decoration: none; }
   a:hover { text-decoration: underline; }
 
-  header { background: #1a1a2e; padding: 16px 24px; border-bottom: 2px solid #4ec9b0; display: flex; align-items: center; gap: 16px; }
-  header h1 { color: #4ec9b0; font-size: 20px; letter-spacing: 2px; }
+  header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 14px 24px; border-bottom: 2px solid #4ec9b0; display: flex; align-items: center; gap: 16px; }
+  header h1 { color: #4ec9b0; font-size: 20px; letter-spacing: 2px; font-family: 'Consolas', monospace; }
   header .subtitle { color: #888; font-size: 12px; }
 
-  nav { background: #16213e; display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid #333; }
-  nav button { background: none; border: none; color: #888; padding: 12px 20px; cursor: pointer; font: inherit; font-size: 13px; border-bottom: 2px solid transparent; transition: color .15s; }
+  nav { background: #12122a; display: flex; gap: 0; padding: 0 20px; border-bottom: 1px solid #2a2a3a; overflow-x: auto; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { background: none; border: none; color: #666; padding: 11px 18px; cursor: pointer; font: inherit; font-size: 13px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; white-space: nowrap; }
   nav button:hover { color: #d4d4d4; }
-  nav button.active { color: #4ec9b0; border-bottom-color: #4ec9b0; }
+  nav button.active { color: #4ec9b0; border-bottom-color: #4ec9b0; font-weight: 500; }
 
   main { padding: 24px; max-width: 1400px; }
 
@@ -27,26 +29,37 @@ HTML = r"""<!DOCTYPE html>
   .tab.active { display: block; }
 
   .cards { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
-  .card { background: #1e1e2e; border: 1px solid #333; border-radius: 6px; padding: 16px 20px; min-width: 160px; }
+  .card { background: #1e1e2e; border: 1px solid #2a2a3a; border-radius: 8px; padding: 16px 20px; min-width: 160px; border-left: 3px solid #4ec9b0; transition: border-color .2s, box-shadow .2s; }
+  .card:hover { border-color: #6de0c8; box-shadow: 0 2px 12px rgba(78,201,176,.08); }
+  .card.blue { border-left-color: #569cd6; }
+  .card.orange { border-left-color: #ce9178; }
+  .card.purple { border-left-color: #c586c0; }
+  .card.red { border-left-color: #f44747; }
   .card .label { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-  .card .value { color: #4ec9b0; font-size: 28px; font-weight: bold; }
+  .card .value { color: #4ec9b0; font-size: 28px; font-weight: bold; font-family: 'Consolas', monospace; }
+  .card.blue .value { color: #569cd6; }
+  .card.orange .value { color: #ce9178; }
+  .card.purple .value { color: #c586c0; }
   .card .sub { color: #666; font-size: 11px; margin-top: 4px; }
 
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
   .toolbar input, .toolbar select { background: #1e1e2e; border: 1px solid #444; color: #d4d4d4; padding: 6px 10px; border-radius: 4px; font: inherit; font-size: 13px; }
   .toolbar input:focus, .toolbar select:focus { outline: none; border-color: #4ec9b0; }
-  .btn { background: #1e1e2e; border: 1px solid #4ec9b0; color: #4ec9b0; padding: 6px 14px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 13px; transition: background .15s, color .15s; }
-  .btn:hover:not(:disabled) { background: #4ec9b0; color: #0f0f0f; }
-  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn { background: #1e1e2e; border: 1px solid #4ec9b0; color: #4ec9b0; padding: 6px 14px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; transition: background .15s, color .15s, box-shadow .15s; }
+  .btn:hover:not(:disabled) { background: #4ec9b0; color: #0f0f0f; box-shadow: 0 0 8px rgba(78,201,176,.25); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
   .btn.danger { border-color: #f44747; color: #f44747; }
-  .btn.danger:hover:not(:disabled) { background: #f44747; color: #0f0f0f; }
+  .btn.danger:hover:not(:disabled) { background: #f44747; color: #fff; box-shadow: 0 0 8px rgba(244,71,71,.25); }
   .btn.primary { border-color: #569cd6; color: #569cd6; }
-  .btn.primary:hover:not(:disabled) { background: #569cd6; color: #0f0f0f; }
+  .btn.primary:hover:not(:disabled) { background: #569cd6; color: #0f0f0f; box-shadow: 0 0 8px rgba(86,156,214,.25); }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { background: #1a1a2e; color: #888; font-weight: normal; text-align: left; padding: 8px 10px; border-bottom: 1px solid #333; position: sticky; top: 0; }
-  td { padding: 7px 10px; border-bottom: 1px solid #1e1e1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
-  tr:hover td { background: #1e1e2e; }
+  th { background: #12122a; color: #666; font-weight: 600; font-size: 11px; text-align: left; padding: 8px 10px; border-bottom: 2px solid #2a2a3a; position: sticky; top: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1a1a24; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  tbody tr:nth-child(even) td { background: #0d0d1a; }
+  tbody tr:hover td { background: #1e1e2e !important; }
+  td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 
   .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
   .badge.high { background: #1a3a2a; color: #4ec9b0; }
@@ -65,21 +78,21 @@ HTML = r"""<!DOCTYPE html>
   .config-grid .cfg-val { color: #d4d4d4; }
   .config-grid .cfg-val.missing { color: #555; font-style: italic; }
 
-  .actions-panel { background: #1e1e2e; border: 1px solid #333; border-radius: 6px; padding: 16px 20px; margin-top: 20px; max-width: 700px; }
-  .actions-panel h3 { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .actions-panel { background: #1e1e2e; border: 1px solid #2a2a3a; border-radius: 8px; padding: 18px 22px; margin-top: 20px; max-width: 700px; }
+  .actions-panel h3 { color: #667; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; border-bottom: 1px solid #2a2a3a; padding-bottom: 8px; }
   .actions-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
   .actions-row label { color: #888; font-size: 11px; display: block; margin-bottom: 4px; }
   .actions-row input[type="text"] { background: #0f0f0f; border: 1px solid #444; color: #d4d4d4; padding: 6px 10px; border-radius: 4px; font: inherit; font-size: 13px; width: 340px; }
   .actions-row input[type="text"]:focus { outline: none; border-color: #4ec9b0; }
-  .job-result { font-size: 12px; margin-top: 8px; padding: 8px 10px; border-radius: 4px; background: #161626; border: 1px solid #2a2a3a; color: #888; display: none; }
+  .job-result { font-size: 12px; margin-top: 10px; padding: 10px 14px; border-radius: 6px; background: #12121e; border: 1px solid #2a2a3a; color: #888; display: none; }
   .job-result.visible { display: block; }
-  .job-result.success { border-color: #1a3a2a; color: #4ec9b0; }
-  .job-result.error-r { border-color: #3a1a1a; color: #f44747; }
+  .job-result.success { background: #0d1f16; border-color: #1a4a2a; color: #4ec9b0; }
+  .job-result.error-r { background: #1f0d0d; border-color: #4a1a1a; color: #f44747; }
 
-  .dup-group { background: #1e1e2e; border: 1px solid #333; border-radius: 6px; margin-bottom: 12px; padding: 14px 16px; }
-  .dup-group .title { color: #4ec9b0; margin-bottom: 8px; }
-  .dup-group .entry { color: #888; font-size: 12px; padding: 2px 0; }
-  .dup-group .entry span { color: #d4d4d4; }
+  .dup-group { background: #1a1a2a; border: 1px solid #2a2a3a; border-radius: 8px; margin-bottom: 12px; padding: 14px 18px; border-left: 3px solid #4ec9b0; }
+  .dup-group .title { color: #4ec9b0; margin-bottom: 10px; font-size: 13px; font-weight: 500; }
+  .dup-group .entry { color: #666; font-size: 12px; padding: 3px 0; font-family: 'Consolas', monospace; }
+  .dup-group .entry span { color: #9cdcfe; }
 
   .fmt-options { background: #1e1e2e; border: 1px solid #333; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
   .fmt-options span { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
@@ -90,11 +103,42 @@ HTML = r"""<!DOCTYPE html>
   .loading { color: #555; padding: 24px 0; }
   .error-msg { color: #f44747; padding: 12px; background: #2a1a1a; border-radius: 4px; margin-bottom: 12px; }
 
-  .dev-btn { background:#1e1e2e; border:1px solid #333; color:#888; padding:4px 14px; font:inherit; font-size:12px; cursor:pointer; transition:background 0.15s; }
+  /* ── Progress bars ── */
+  .prog-wrap { margin-top: 10px; }
+  .prog-info { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 4px; }
+  .prog-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; max-width: 60%; }
+  .prog-track { background: #0f0f1a; border-radius: 4px; height: 5px; overflow: hidden; }
+  .prog-bar { height: 100%; background: #4ec9b0; border-radius: 4px; transition: width 0.4s; min-width: 0; }
+  .prog-bar.indeterminate { width: 35% !important; animation: prog-slide 1.6s ease-in-out infinite; }
+  @keyframes prog-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+
+  /* ── Platform badges ── */
+  .plat { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .plat-gba   { background: #1a3a2a; color: #4ec9b0; }
+  .plat-snes  { background: #1a2a3a; color: #569cd6; }
+  .plat-nes   { background: #3a1a1a; color: #f44747; }
+  .plat-gb    { background: #2a2a1a; color: #dcdcaa; }
+  .plat-gbc   { background: #2a2a1a; color: #d7ba7d; }
+  .plat-nds   { background: #2a1a3a; color: #c586c0; }
+  .plat-n64   { background: #1a2a2a; color: #4ec9b0; }
+  .plat-psx   { background: #1a1a3a; color: #9cdcfe; }
+  .plat-ps2   { background: #1a1a3a; color: #569cd6; }
+  .plat-psp   { background: #1a1a2a; color: #79c0ff; }
+  .plat-gba   { background: #1a3a2a; color: #4ec9b0; }
+  .plat-genesis { background: #2a1a2a; color: #ce9178; }
+  .plat-md    { background: #2a1a2a; color: #ce9178; }
+  .plat-sms   { background: #1a2a1a; color: #6a9955; }
+  .plat-gg    { background: #1a2a1a; color: #4ec9b0; }
+  .plat-nds   { background: #2a1a3a; color: #c586c0; }
+  .plat-3ds   { background: #1a2a3a; color: #9cdcfe; }
+  .plat-other { background: #252525; color: #888; }
+
+  .dev-btn { background:#1a1a2a; border:1px solid #2a2a3a; color:#666; padding:4px 14px; font:inherit; font-size:12px; cursor:pointer; transition:background 0.15s, color 0.15s; }
   .dev-btn:first-of-type { border-radius:4px 0 0 4px; }
   .dev-btn:last-of-type { border-radius:0 4px 4px 0; }
-  .dev-btn.active { background:#4ec9b0; border-color:#4ec9b0; color:#000; font-weight:600; }
-  .dev-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .dev-btn.active { background:#1a3a2e; border-color:#4ec9b0; color:#4ec9b0; font-weight:600; }
+  .dev-btn:not(.active):not(:disabled):hover { background:#222236; color:#aaa; }
+  .dev-btn:disabled { opacity:0.35; cursor:not-allowed; }
 
   .rpt-tab-btn { border-radius:4px 4px 0 0; border-bottom:none; font-size:12px; padding:5px 14px; margin-bottom:-1px; }
   .rpt-tab-btn.active { background:#569cd6; border-color:#569cd6; color:#000; }
@@ -104,12 +148,12 @@ HTML = r"""<!DOCTYPE html>
   .rpt-bad  { background:#3a1a1a; color:#f44747; }
   .rpt-info { background:#1a2a3a; color:#569cd6; }
   tbody tr:hover { background: #252537; }
-  #toast-container { position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
-  .toast { background:#252537; border:1px solid #3a3a5c; border-radius:6px; padding:10px 16px; font-size:13px; color:#d4d4d4; max-width:340px; box-shadow:0 4px 12px rgba(0,0,0,.4); animation:toast-in .2s ease; pointer-events:auto; }
-  .toast.ok { border-left:3px solid #4ec9b0; }
-  .toast.err { border-left:3px solid #f44747; }
-  .toast.info { border-left:3px solid #569cd6; }
-  @keyframes toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  #toast-container { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column-reverse; gap:8px; pointer-events:none; }
+  .toast { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:8px; padding:12px 18px; font-size:13px; color:#d4d4d4; max-width:360px; box-shadow:0 8px 24px rgba(0,0,0,.5); animation:toast-in .25s cubic-bezier(.34,1.56,.64,1); pointer-events:auto; border-left:4px solid #444; }
+  .toast.ok  { border-left-color:#4ec9b0; }
+  .toast.err { border-left-color:#f44747; }
+  .toast.info { border-left-color:#569cd6; }
+  @keyframes toast-in { from { opacity:0; transform:translateX(20px) scale(.95); } to { opacity:1; transform:translateX(0) scale(1); } }
 </style>
 </head>
 <body>
@@ -222,7 +266,15 @@ HTML = r"""<!DOCTYPE html>
       </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
     </div>
-    <div id="scan-progress-label" style="display:none;color:#888;font-size:11px;margin-top:6px;padding:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    <div id="scan-progress-wrap" class="prog-wrap" style="display:none">
+      <div class="prog-info">
+        <span id="scan-progress-counts" style="color:#888"></span>
+        <span id="scan-progress-file" class="prog-file"></span>
+      </div>
+      <div class="prog-track">
+        <div id="scan-progress-bar" class="prog-bar indeterminate"></div>
+      </div>
+    </div>
 
     <!-- ADB scan options (inline, hidden by default) -->
     <div id="scan-adb-options" style="display:none;margin-top:8px;padding:10px 12px;background:#161626;border:1px solid #2a3a4a;border-radius:4px;font-size:12px">
@@ -1087,6 +1139,29 @@ function badge(cls, text) {
   return `<span class="badge ${cls}">${text}</span>`;
 }
 
+const _PLAT_CLASS = {
+  gba:'gba', 'game boy advance':'gba',
+  snes:'snes', 'super nintendo':'snes',
+  nes:'nes', 'nintendo':'nes',
+  gb:'gb', 'game boy':'gb',
+  gbc:'gbc', 'game boy color':'gbc',
+  nds:'nds', 'nintendo ds':'nds',
+  '3ds':'3ds', 'nintendo 3ds':'3ds',
+  n64:'snes', 'nintendo 64':'snes',
+  psx:'psx', 'playstation':'psx',
+  ps2:'ps2', 'playstation 2':'ps2',
+  psp:'psp', 'playstation portable':'psp',
+  genesis:'genesis', 'mega drive':'md', md:'md',
+  sms:'sms', 'master system':'sms',
+  gg:'gg', 'game gear':'gg',
+};
+function _platBadge(plat) {
+  if (!plat) return '<span class="plat plat-other">?</span>';
+  const key = plat.toLowerCase();
+  const cls = _PLAT_CLASS[key] || 'other';
+  return `<span class="plat plat-${cls}">${_h(plat)}</span>`;
+}
+
 function _h(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -1175,12 +1250,12 @@ async function loadOverview() {
       const d = await apiFetch('/api/status' + pcParam);
       const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
       if (pcCardsEl) pcCardsEl.innerHTML =
-        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''))         +
-        card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'))    +
-        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'))  +
-        card('Saves',      d.total_saves)      +
+        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''), '')          +
+        card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'), 'blue')    +
+        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'), 'orange')  +
+        card('Saves',      d.total_saves,      null, null, 'purple')      +
         card('Assets',     d.total_assets)     +
-        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted') +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', null, d.duplicate_groups > 0 ? 'red' : '') +
         card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
       // Auto-collapse guide when library already has data
       const guide = document.getElementById('ov-guide');
@@ -1206,10 +1281,10 @@ async function loadOverview() {
           if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#555;font-size:12px;padding:10px 0">Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
         } else {
           if (abCardsEl) abCardsEl.innerHTML =
-            card('Games',      ab.total_games,    null, () => goToGames(abPath, ''))           +
-            card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'))  +
-            card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'))  +
-            card('Saves',      ab.total_saves)     +
+            card('Games',      ab.total_games,    null, () => goToGames(abPath, ''), '')          +
+            card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'), 'blue')  +
+            card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'), 'orange')  +
+            card('Saves',      ab.total_saves,     null, null, 'purple')     +
             card('Assets',     ab.total_assets);
         }
       } catch(e) {
@@ -1223,12 +1298,13 @@ async function loadOverview() {
   }
 }
 
-function card(label, value, sub, onclick) {
+function card(label, value, sub, onclick, colorCls) {
   const clickStyle = onclick ? 'cursor:pointer' : '';
   const clickAttr  = onclick ? `onclick="(${onclick.toString()})()"` : '';
-  return `<div class="card" style="${clickStyle}" ${clickAttr} title="${onclick ? 'Ver lista' : ''}">
+  const cls = colorCls ? ` ${colorCls}` : '';
+  return `<div class="card${cls}" style="${clickStyle}" ${clickAttr} title="${onclick ? 'Ver lista' : ''}">
     <div class="label">${label}</div>
-    <div class="value" style="${onclick ? 'text-decoration:underline dotted;text-decoration-color:#4ec9b0' : ''}">${value}</div>
+    <div class="value">${value}</div>
     ${sub ? `<div class="sub">${sub}</div>` : ''}
   </div>`;
 }
@@ -1276,14 +1352,17 @@ function _applyJobStatus(s) {
       btnScan.classList.remove('danger');
     }
   }
-  const scanProg = document.getElementById('scan-progress-label');
-  if (scanProg) {
+  const scanProgWrap = document.getElementById('scan-progress-wrap');
+  if (scanProgWrap) {
     if (s.scan_running && s.scan_progress) {
       const p = s.scan_progress;
-      scanProg.style.display = '';
-      scanProg.textContent = `Escaneando${p.current_path ? ' ' + p.current_path : ''}… ${p.files_seen || 0} archivos, ${p.roms_detected || 0} ROMs detectadas`;
+      scanProgWrap.style.display = '';
+      const counts = document.getElementById('scan-progress-counts');
+      const file   = document.getElementById('scan-progress-file');
+      if (counts) counts.textContent = `${p.files_seen || 0} archivos — ${p.roms_detected || 0} ROMs`;
+      if (file)   file.textContent   = p.current_file || p.current_path || '';
     } else {
-      scanProg.style.display = 'none';
+      scanProgWrap.style.display = 'none';
     }
   }
   if (btnMatch) {
@@ -1721,13 +1800,13 @@ async function loadGames(offset) {
     else {
       empty.style.display = 'none';
       tbody.innerHTML = rows.map(g => `<tr>
-        <td>${g.platform || ''}</td>
-        <td title="${g.canonical_title||''}">${g.canonical_title || '<span style="color:#555">—</span>'}</td>
-        <td title="${g.original_filename}">${g.original_filename}</td>
-        <td>${g.region || ''}</td>
+        <td>${_platBadge(g.platform)}</td>
+        <td title="${_h(g.canonical_title||'')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
+        <td class="mono" title="${_h(g.original_filename)}" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
+        <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
         <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none','—')}</td>
-        <td>${fmtSize(g.size_bytes)}</td>
-        <td style="color:#555;font-size:11px">${g.sha1.slice(0,12)}…</td>
+        <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
+        <td class="mono" style="color:#444;font-size:11px">${(g.sha1||'').slice(0,10)}…</td>
       </tr>`).join('');
     }
 
