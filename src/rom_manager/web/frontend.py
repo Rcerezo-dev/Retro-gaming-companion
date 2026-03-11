@@ -166,7 +166,7 @@ HTML = r"""<!DOCTYPE html>
 <nav>
   <button class="active" id="nav-overview" onclick="showTab('overview')">Overview</button>
   <button id="nav-games" onclick="showTab('games')">Games</button>
-  <button id="nav-plan" onclick="showTab('plan')">Plan</button>
+  <button id="nav-plan" onclick="showTab('plan')">Organizar</button>
   <button id="nav-duplicates" onclick="showTab('duplicates')">Duplicates</button>
   <button id="nav-assets" onclick="showTab('assets')">Assets</button>
   <button id="nav-sync" onclick="showTab('sync')">Sync</button>
@@ -333,8 +333,8 @@ HTML = r"""<!DOCTYPE html>
         <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Match catálogos</strong>. Cada ROM se compara contra los DAT de No-Intro y Redump para obtener su título canónico, región y revisión.<br><span style="color:#555;font-size:11px">Requiere catálogos DAT en catalogs/.</span></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
-        <div style="color:#ce9178;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Plan</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Ve a <strong style="color:#d4d4d4">Plan</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:#555;font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
+        <div style="color:#ce9178;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Organizar</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Ve a <strong style="color:#d4d4d4">Organizar</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:#555;font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;padding:14px 16px">
         <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
@@ -359,6 +359,7 @@ HTML = r"""<!DOCTYPE html>
     <select id="games-filetype" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="rom">Solo ROMs</option>
       <option value="">ROMs + saves</option>
+      <option value="save">Solo saves</option>
       <option value="all">Todo</option>
     </select>
     <span id="games-count" style="color:#666;margin-left:8px;"></span>
@@ -414,12 +415,26 @@ HTML = r"""<!DOCTYPE html>
         <option value="40">40 (completo)</option>
       </select>
     </label>
-    <button id="btn-apply" class="btn primary" style="margin-left:auto" onclick="doApply()">Aplicar renombrado</button>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <button id="btn-apply" class="btn primary" onclick="doApply()" disabled>Renombrar</button>
+      <button id="btn-resolve-conflicts" class="btn" onclick="applyKeepBoth()" style="display:none">Resolver conflictos</button>
+    </div>
+  </div>
+  <!-- Barra de progreso del apply -->
+  <div id="apply-progress-wrap" style="display:none;margin-bottom:10px;padding:8px 12px;background:#1a1a2e;border:1px solid #3a3a6a;border-radius:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span id="apply-progress-label" style="font-size:12px;color:#9cdcfe">Renombrando…</span>
+      <span id="apply-progress-pct" style="font-size:12px;color:#888">0%</span>
+    </div>
+    <div style="background:#0f0f1a;border-radius:3px;height:6px;overflow:hidden">
+      <div id="apply-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width .2s"></div>
+    </div>
   </div>
   <div id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:#161626;border:1px solid #2a2a3a;border-radius:4px;display:none">
     <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:#4ec9b0"></span>
   </div>
-  <div id="apply-preview-banner" style="display:none;font-size:12px;margin-bottom:12px;padding:8px 12px;background:#1a1a2e;border:1px solid #3a3a6a;border-radius:4px;color:#9cdcfe;line-height:1.6"></div>
+  <!-- Resumen C2: X listos · Y conflictos · Z sin match -->
+  <div id="plan-summary-bar" style="display:none;margin-bottom:10px;padding:8px 14px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
   <div id="plan-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div id="plan-content"><p class="loading">Loading…</p></div>
 </div>
@@ -818,8 +833,9 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Descomprimir ZIPs</h3>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip. Omite ZIPs con .cue/.bin/.iso (usa el conversor CHD). RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
-    <div class="actions-row">
-      <div><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba"></div>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('zip-path')">library_root</button>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
       <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Dry run (solo previsualizar)</label>
@@ -889,8 +905,9 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Saves huérfanos</h3>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Archivos de save sin ROM asociada (la ROM fue eliminada o renombrada sin su save compañero).</p>
-    <div class="actions-row">
-      <div><label>Carpeta de la biblioteca</label><input id="orphan-path" type="text" placeholder="E:/Carpetas anbernic"></div>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta de la biblioteca</label><input id="orphan-path" type="text" placeholder="E:/Carpetas anbernic" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('orphan-path')">library_root</button>
       <button class="btn" onclick="doFindOrphans()">Buscar huérfanos</button>
     </div>
     <div id="orphan-result" style="margin-top:12px"></div>
@@ -939,11 +956,12 @@ HTML = r"""<!DOCTYPE html>
   <!-- ── CHD ── -->
   <div class="actions-panel">
     <h3>Convertir a CHD (PSX)</h3>
-    <div class="actions-row">
-      <div>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1">
         <label for="chd-path">Carpeta con archivos .cue/.bin</label>
-        <input id="chd-path" type="text" placeholder="C:/ROMs/psx">
+        <input id="chd-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
       </div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('chd-path')">library_root</button>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
       <label class="fmt-check">
@@ -1013,13 +1031,26 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="margin-top:20px">
     <h3>Análisis de carpeta</h3>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversión.</p>
-    <div class="actions-row">
-      <div><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx"></div>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('folder-analysis-path')">library_root</button>
     </div>
     <div class="actions-row">
       <button class="btn primary" onclick="doFolderAnalysis()">Analizar carpeta</button>
     </div>
     <div id="folder-analysis-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Limpieza de archivos basura ── -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Limpieza de archivos no relacionados con gaming</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Detecta archivos que no son ROMs, saves, assets ni configuración (p.ej. Office, PDFs, scripts, comprimidos, ejecutables) y permite eliminarlos.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <input id="junk-path" type="text" style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="Ruta a escanear…">
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('junk-path')">library_root</button>
+      <button id="btn-junk-scan" class="btn primary" onclick="doJunkScan()">Escanear archivos basura</button>
+    </div>
+    <div id="junk-result"></div>
   </div>
 </div>
 
@@ -1333,9 +1364,9 @@ async function loadOverview() {
         card('Games',      d.total_games,     null, () => goToGames(pcPath, ''), '')          +
         card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'), 'blue')    +
         card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'), 'orange')  +
-        card('Saves',      d.total_saves,      null, null, 'purple')      +
-        card('Assets',     d.total_assets)     +
-        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', null, d.duplicate_groups > 0 ? 'red' : '') +
+        card('Saves',      d.total_saves,      null, d.total_saves > 0 ? () => goToGames(pcPath, '', 'save') : null, 'purple')      +
+        card('Assets',     d.total_assets,     null, d.total_assets > 0 ? () => { showTab('assets'); } : null)     +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '') +
         card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
       // Auto-collapse guide when library already has data
       const guide = document.getElementById('ov-guide');
@@ -1357,19 +1388,26 @@ async function loadOverview() {
         const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath) + '&t=' + _t);
         const abMatchPct = ab.total_games > 0 ? Math.round(ab.matched_games / ab.total_games * 100) : 0;
         if (abDot) abDot.style.color = ab.total_games > 0 ? '#4ec9b0' : '#555';
+        // Find last scan for this Anbernic path
+        const lastScans = ab.last_scans_by_root || {};
+        const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
         if (ab.total_games === 0) {
-          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#555;font-size:12px;padding:10px 0">Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
+          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
         } else {
+          const lastScanStr = abLastScan ? abLastScan.replace('T',' ').slice(0,16) : 'nunca';
           if (abCardsEl) abCardsEl.innerHTML =
             card('Games',      ab.total_games,    null, () => goToGames(abPath, ''), '')          +
             card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'), 'blue')  +
             card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'), 'orange')  +
-            card('Saves',      ab.total_saves,     null, null, 'purple')     +
-            card('Assets',     ab.total_assets);
+            card('Saves',      ab.total_saves,     null, ab.total_saves > 0 ? () => goToGames(abPath, '', 'save') : null, 'purple')     +
+            card('Assets',     ab.total_assets,   null, ab.total_assets > 0 ? () => { showTab('assets'); } : null)   +
+            card('Último scan', lastScanStr);
         }
       } catch(e) {
         if (abCardsEl) abCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
       }
+    } else if (!abPath && abCardsEl) {
+      abCardsEl.innerHTML = '<p style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
     }
 
   } catch(e) {
@@ -1389,14 +1427,17 @@ function card(label, value, sub, onclick, colorCls) {
   </div>`;
 }
 
-// Navigate to Games tab pre-filtered by device root and match status
-function goToGames(root, status) {
+// Navigate to Games tab pre-filtered by device root, match status, and filetype
+function goToGames(root, status, filetype) {
   gamesState.root   = root   || null;
   gamesState.status = status || '';
   gamesState.platform = '';
+  gamesState.filetype = filetype || '';
   platformsLoaded = false;
   const statusSel = document.getElementById('games-matched');
   if (statusSel) statusSel.value = status || '';
+  const ftSel = document.getElementById('games-filetype');
+  if (ftSel && filetype !== undefined) ftSel.value = filetype || 'all';
   showTab('games');
 }
 
@@ -1407,7 +1448,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -1446,8 +1487,17 @@ function _applyJobStatus(s) {
     }
   }
   if (btnMatch) {
-    btnMatch.disabled = s.match_running;
-    btnMatch.textContent = s.match_running ? 'Matching…' : 'Match catálogos';
+    if (s.match_running) {
+      btnMatch.disabled = false;
+      btnMatch.textContent = 'Cancelar match';
+      btnMatch.onclick = () => stopJob('match');
+      btnMatch.classList.add('danger');
+    } else {
+      btnMatch.disabled = false;
+      btnMatch.textContent = 'Match catálogos';
+      btnMatch.onclick = doMatch;
+      btnMatch.classList.remove('danger');
+    }
   }
 
   const btnSyncDry   = document.getElementById('btn-sync-dry');
@@ -1456,7 +1506,18 @@ function _applyJobStatus(s) {
 
   if (btnSyncDry)   btnSyncDry.disabled   = s.sync_running;
   if (btnSyncApply) btnSyncApply.disabled = s.sync_running;
-  if (btnChd)       btnChd.disabled       = s.convert_chd_running;
+  if (btnChd) {
+    if (s.convert_chd_running) {
+      btnChd.disabled = false;
+      btnChd.textContent = 'Cancelar';
+      btnChd.onclick = () => stopJob('convert_chd');
+      btnChd.classList.add('danger');
+    } else {
+      btnChd.textContent = 'Convertir a CHD';
+      btnChd.onclick = doConvertChd;
+      btnChd.classList.remove('danger');
+    }
+  }
 
   if (!s.scan_running && s.scan_result) {
     const ts = s.scan_result.result_ts || JSON.stringify(s.scan_result);
@@ -1497,6 +1558,7 @@ function _applyJobStatus(s) {
   }
   // Scrape progress bar
   const scrapeWrap = document.getElementById('scrape-progress-wrap');
+  const btnScrape  = document.getElementById('btn-scrape');
   if (s.scrape_running && s.scrape_progress && s.scrape_progress.total > 0) {
     const p = s.scrape_progress;
     const pct = Math.round((p.current / p.total) * 100);
@@ -1509,8 +1571,19 @@ function _applyJobStatus(s) {
     if (lbl)   lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
     if (found) found.textContent = p.found > 0 ? `✓ ${p.found} encontrados` : '';
     if (file)  file.textContent  = p.current_game;
+    if (btnScrape) {
+      btnScrape.disabled = false;
+      btnScrape.textContent = 'Cancelar';
+      btnScrape.onclick = () => stopJob('scrape');
+      btnScrape.classList.add('danger');
+    }
   } else if (!s.scrape_running) {
     if (scrapeWrap) scrapeWrap.style.display = 'none';
+    if (btnScrape) {
+      btnScrape.textContent = 'Iniciar scraping';
+      btnScrape.onclick = doScrape;
+      btnScrape.classList.remove('danger');
+    }
   }
   if (!s.scrape_running && s.scrape_result) {
     const el = document.getElementById('job-result-scrape');
@@ -1524,7 +1597,7 @@ function _applyJobStatus(s) {
         el.textContent = `Completado — Encontrados: ${s.scrape_result.found}  |  No encontrados: ${s.scrape_result.skipped}  (de ${s.scrape_result.total})`;
       }
     }
-    if (btn) { btn.disabled = false; btn.textContent = 'Iniciar scraping'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Iniciar scraping'; btn.onclick = doScrape; btn.classList.remove('danger'); }
     loadScraperSummary();
   }
 
@@ -1544,7 +1617,18 @@ function _applyJobStatus(s) {
   } else if (!s.extract_zip_running) {
     if (zipWrap) zipWrap.style.display = 'none';
   }
-  if (btnZip) btnZip.disabled = s.extract_zip_running;
+  if (btnZip) {
+    if (s.extract_zip_running) {
+      btnZip.disabled = false;
+      btnZip.textContent = 'Cancelar';
+      btnZip.onclick = () => stopJob('extract_zip');
+      btnZip.classList.add('danger');
+    } else {
+      btnZip.textContent = 'Descomprimir ZIPs';
+      btnZip.onclick = doExtractZip;
+      btnZip.classList.remove('danger');
+    }
+  }
   if (!s.extract_zip_running && s.extract_zip_result) {
     const el = document.getElementById('job-result-extract-zip');
     const r  = s.extract_zip_result;
@@ -1556,7 +1640,8 @@ function _applyJobStatus(s) {
         const verb = r.dry_run ? 'Extraería' : 'Extraídos';
         const discMsg = r.disc_sets > 0 ? `  |  Sets multi-disco (omitidos): ${r.disc_sets}` : '';
         el.className = 'job-result visible success';
-        el.textContent = `${verb}: ${r.extracted}  |  Omitidos: ${r.skipped}  |  Fallidos: ${r.failed}${discMsg}`;
+        const scanBtn = (!r.dry_run && r.extracted > 0) ? ` <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="quickScanPC()">Escanear ahora</button>` : '';
+        el.innerHTML = `${verb}: ${r.extracted}  |  Omitidos: ${r.skipped}  |  Fallidos: ${r.failed}${discMsg}${scanBtn}`;
       }
       const div = document.getElementById('zip-results');
       if (div && r.results?.length) {
@@ -1588,10 +1673,21 @@ function _applyJobStatus(s) {
   } else if (!s.health_check_running) {
     if (healthWrap) healthWrap.style.display = 'none';
   }
-  if (btnHealth) btnHealth.disabled = s.health_check_running;
+  if (btnHealth) {
+    if (s.health_check_running) {
+      btnHealth.disabled = false;
+      btnHealth.textContent = 'Cancelar';
+      btnHealth.onclick = () => stopJob('health_check');
+      btnHealth.classList.add('danger');
+    } else {
+      btnHealth.textContent = 'Iniciar Health Check';
+      btnHealth.onclick = doHealthCheck;
+      btnHealth.classList.remove('danger');
+    }
+  }
   if (!s.health_check_running && s.health_check_result) {
     _renderHealthResult(s.health_check_result);
-    if (btnHealth) { btnHealth.disabled = false; btnHealth.textContent = 'Iniciar Health Check'; }
+    if (btnHealth) { btnHealth.disabled = false; btnHealth.textContent = 'Iniciar Health Check'; btnHealth.onclick = doHealthCheck; btnHealth.classList.remove('danger'); }
   }
 
   // RA check progress
@@ -1610,10 +1706,21 @@ function _applyJobStatus(s) {
   } else if (!s.ra_check_running) {
     if (raWrap) raWrap.style.display = 'none';
   }
-  if (btnRa) btnRa.disabled = s.ra_check_running;
+  if (btnRa) {
+    if (s.ra_check_running) {
+      btnRa.disabled = false;
+      btnRa.textContent = 'Cancelar';
+      btnRa.onclick = () => stopJob('ra_check');
+      btnRa.classList.add('danger');
+    } else {
+      btnRa.textContent = 'Comprobar compatibilidad RA';
+      btnRa.onclick = doRaCheck;
+      btnRa.classList.remove('danger');
+    }
+  }
   if (!s.ra_check_running && s.ra_check_result) {
     _renderRaResult(s.ra_check_result);
-    if (btnRa) { btnRa.disabled = false; btnRa.textContent = 'Comprobar compatibilidad RA'; }
+    if (btnRa) { btnRa.disabled = false; btnRa.textContent = 'Comprobar compatibilidad RA'; btnRa.onclick = doRaCheck; btnRa.classList.remove('danger'); }
   }
 
   // Cable sync
@@ -1625,17 +1732,42 @@ function _applyJobStatus(s) {
     const lbl  = document.getElementById('cable-progress-label');
     const file = document.getElementById('cable-progress-file');
     const bar  = document.getElementById('cable-progress-bar');
-    if (lbl)  lbl.textContent  = `Copiados: ${p.copied || 0}`;
+    const bytesCopied = p.bytes_copied || 0;
+    const bytesTotal  = p.bytes_total  || 0;
+    const speedBps    = p.speed_bps    || 0;
+    const pct = bytesTotal > 0 ? Math.min(100, Math.round(bytesCopied / bytesTotal * 100)) : null;
+    const etaSec = (speedBps > 0 && bytesTotal > bytesCopied) ? Math.round((bytesTotal - bytesCopied) / speedBps) : null;
+    const etaStr = etaSec !== null ? (etaSec < 60 ? `${etaSec}s` : `${Math.round(etaSec/60)}min`) : '';
+    const speedStr = speedBps > 0 ? `${(speedBps / 1048576).toFixed(1)} MB/s` : '';
+    const lblText = bytesTotal > 0
+        ? `${fmtSize(bytesCopied)} / ${fmtSize(bytesTotal)} (${p.copied || 0} archivos)${speedStr ? ' — ' + speedStr : ''}${etaStr ? ' — ETA: ' + etaStr : ''}`
+        : `Copiados: ${p.copied || 0}`;
+    if (lbl)  lbl.textContent  = lblText;
     if (file) file.textContent = p.current_file || '';
-    // Indeterminate animation — bounce bar width 10→90 based on copied count (mod)
-    if (bar)  bar.style.width  = (((p.copied || 0) * 7) % 80 + 10) + '%';
+    if (bar) {
+        if (pct !== null) {
+            bar.style.width = pct + '%';
+        } else {
+            bar.style.width = (((p.copied || 0) * 7) % 80 + 10) + '%';
+        }
+    }
+    // Mutate button to Cancelar
+    if (btnCable) {
+        btnCable.disabled = false;
+        btnCable.textContent = 'Cancelar';
+        btnCable.onclick = () => stopJob('cable_sync');
+        btnCable.classList.add('danger');
+    }
   } else if (!s.cable_sync_running) {
     if (cableWrap) cableWrap.style.display = 'none';
+    if (btnCable) {
+        btnCable.textContent = 'Iniciar sincronización';
+        btnCable.onclick = doCableSync;
+        btnCable.classList.remove('danger');
+    }
   }
-  if (btnCable) btnCable.disabled = s.cable_sync_running;
   if (!s.cable_sync_running && s.cable_sync_result) {
     _renderCableSyncResult(s.cable_sync_result);
-    if (btnCable) { btnCable.disabled = false; btnCable.textContent = 'Iniciar sincronización'; }
   }
 }
 
@@ -1762,6 +1894,22 @@ async function doScan() {
     btn.textContent = 'Scan';
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+// Quick scan of the PC library root — triggered from Cable Sync / ZIP result buttons
+async function quickScanPC() {
+  const cfg = await apiFetch('/api/config').catch(() => ({}));
+  const pcPath = document.getElementById('ov-pc-path')?.value.trim() || cfg.library_root || '';
+  if (!pcPath) { alert('Configura la ruta del PC en Overview primero.'); return; }
+  try {
+    const d = await apiPost('/api/scan', { source_paths: [pcPath], quick: false });
+    if (d.status === 'already_running') { showToast('Scan ya en curso…', 'ok'); return; }
+    showToast('Scan iniciado — espera a que termine', 'ok');
+    showTab('overview');
+    startPolling();
+  } catch(e) {
+    alert('Error al lanzar scan: ' + e.message);
   }
 }
 
@@ -1976,6 +2124,40 @@ async function loadPlan() {
       previewEl.style.display = 'none';
     }
 
+    // ── C2: Summary bar ──────────────────────────────────────────────────────
+    const summaryBar = document.getElementById('plan-summary-bar');
+    if (summaryBar) {
+      const pendingN   = d.pending.length;
+      const conflictsN = d.conflicts.length;
+      const unmatchedN = d.unmatched_count || 0;
+      const correctN   = d.already_correct || 0;
+      const parts = [];
+      if (pendingN > 0)   parts.push(`<span style="color:#4ec9b0;font-weight:600">${pendingN}</span> <span style="color:#888">listos para renombrar</span>`);
+      if (correctN > 0)   parts.push(`<span style="color:#555">${correctN} ya correctos</span>`);
+      if (conflictsN > 0) parts.push(`<span style="color:#f44747;font-weight:600">${conflictsN}</span> <span style="color:#888">conflictos</span>`);
+      if (unmatchedN > 0) parts.push(`<span style="color:#888">${unmatchedN} sin match en catálogo</span>`);
+      summaryBar.innerHTML = parts.join('<span style="color:#333;margin:0 4px">·</span>');
+      summaryBar.style.display = parts.length ? 'flex' : 'none';
+    }
+
+    // ── C3: Update action buttons with counts ─────────────────────────────────
+    const btnApply    = document.getElementById('btn-apply');
+    const btnResolve  = document.getElementById('btn-resolve-conflicts');
+    if (btnApply) {
+      const n = d.pending.length;
+      btnApply.textContent = n > 0 ? `Renombrar ${n} archivo${n !== 1 ? 's' : ''}` : 'Nada que renombrar';
+      btnApply.disabled = n === 0;
+    }
+    if (btnResolve) {
+      const collisions = (d.conflicts || []).filter(c => c.reason === 'collision').length;
+      if (collisions > 0) {
+        btnResolve.textContent = `Resolver ${collisions} colisión${collisions !== 1 ? 'es' : ''}`;
+        btnResolve.style.display = '';
+      } else {
+        btnResolve.style.display = 'none';
+      }
+    }
+
     if (d.total === 0) {
       if (_activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
@@ -1986,25 +2168,10 @@ async function loadPlan() {
       return;
     }
 
-    // ── Apply preview banner ──────────────────────────────────────────────────
-    const applyBanner = document.getElementById('apply-preview-banner');
-    if (applyBanner) {
-      if (d.pending.length > 0) {
-        const savesMsg = d.total_saves_affected > 0
-          ? `, junto a <strong>${d.total_saves_affected}</strong> save(s) compañeros`
-          : ', sin saves compañeros detectados';
-        applyBanner.innerHTML =
-          `Se renombrarán <strong>${d.pending.length}</strong> ROM(s)${savesMsg}. ` +
-          `Si algún save no puede renombrarse, la ROM tampoco cambiará.`;
-        applyBanner.style.display = '';
-      } else {
-        applyBanner.style.display = 'none';
-      }
-    }
-
     let html = '';
     if (d.pending.length) {
-      html += `<h3 style="color:#569cd6;margin-bottom:12px">Pending renames — ${d.pending.length}</h3>`;
+      const savesNote = d.total_saves_affected > 0 ? ` <span style="color:#dcdcaa;font-size:11px">· ${d.total_saves_affected} save(s) se renombrarán también</span>` : '';
+      html += `<h3 style="color:#569cd6;margin-bottom:12px">Listos para renombrar — ${d.pending.length}${savesNote}</h3>`;
       html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>From</th><th>To</th><th style="text-align:center">Saves</th></tr></thead><tbody>';
       html += d.pending.map(op => `<tr>
         <td>${op.platform||'<span style="color:#555">Unknown</span>'}</td>
@@ -2087,7 +2254,10 @@ async function loadPlan() {
 
 // ── Apply action ──────────────────────────────────────────────────────────────
 async function applyKeepBoth() {
-  if (!confirm('¿Resolver colisiones añadiendo sufijo _1 _2 a los nombres? Se renombrarán todas las ROMs en colisión con nombres únicos.')) return;
+  const btnR = document.getElementById('btn-resolve-conflicts');
+  const n = parseInt(btnR?.textContent?.match(/\d+/)?.[0] || '0');
+  if (!confirm(`¿Resolver ${n} colisión${n !== 1 ? 'es' : ''} añadiendo sufijo _1 _2? Los archivos en conflicto recibirán nombres únicos.`)) return;
+
   const applyBody = {
     keep_both: true,
     format_opts: {
@@ -2100,76 +2270,141 @@ async function applyKeepBoth() {
   };
   const applyRoot = _deviceRoot();
   if (applyRoot) applyBody.source_root = applyRoot;
+
+  if (btnR) { btnR.disabled = true; btnR.textContent = 'Resolviendo…'; }
+  const btn = document.getElementById('btn-apply');
+  if (btn) btn.disabled = true;
+
+  const wrap = document.getElementById('apply-progress-wrap');
+  const bar  = document.getElementById('apply-progress-bar');
+  const lbl  = document.getElementById('apply-progress-label');
+  const pct  = document.getElementById('apply-progress-pct');
+  if (wrap) wrap.style.display = '';
+
   try {
-    const d = await apiPost('/api/apply', applyBody);
-    showToast(`Resueltos: ${d.renamed} renombrados, ${d.conflicts} conflictos restantes`, d.conflicts > 0 ? 'info' : 'ok');
+    await apiPost('/api/apply', applyBody);
+    let done = false;
+    while (!done) {
+      await new Promise(r => setTimeout(r, 500));
+      const s = await apiFetch('/api/job-status');
+      if (s.apply_running && s.apply_progress) {
+        const p = s.apply_progress;
+        const fraction = p.total > 0 ? p.current / p.total : 0;
+        if (bar) bar.style.width = Math.round(fraction * 100) + '%';
+        if (pct) pct.textContent = Math.round(fraction * 100) + '%';
+        if (lbl) lbl.textContent = p.current_file ? `Resolviendo: ${p.current_file}` : 'Resolviendo…';
+      }
+      if (!s.apply_running && s.apply_result) {
+        done = true;
+        const r = s.apply_result;
+        if (!r.error) showToast(`Resueltos: ${r.renamed} renombrados, ${r.conflicts} conflictos restantes`, r.conflicts > 0 ? 'info' : 'ok');
+      }
+    }
     await loadPlan();
     loadOverview();
   } catch(e) {
     showToast('Error: ' + e.message, 'err');
+  } finally {
+    setTimeout(() => { if (wrap) wrap.style.display = 'none'; if (bar) bar.style.width = '0%'; }, 2000);
+    if (btn) btn.disabled = false;
   }
 }
 
 async function doApply() {
-  const banner = document.getElementById('apply-preview-banner');
-  const msg = banner?.textContent
-    ? `${banner.textContent}\n\n¿Continuar? Esta operación mueve archivos en disco.`
-    : '¿Aplicar el renombrado? Esta operación mueve archivos en disco.';
-  if (!confirm(msg)) return;
   const btn = document.getElementById('btn-apply');
-  btn.disabled = true;
-  btn.textContent = 'Aplicando…';
+  const total = parseInt(btn?.textContent?.match(/\d+/)?.[0] || '0');
+  if (!total) return;
+  if (!confirm(`¿Renombrar ${total} archivo${total !== 1 ? 's' : ''} en disco? Los saves compañeros se moverán automáticamente. La operación es reversible.`)) return;
+
+  const applyBody = {
+    format_opts: {
+      include_region:   document.getElementById('fmt-region').checked,
+      include_revision: document.getElementById('fmt-revision').checked,
+      include_platform: document.getElementById('fmt-platform').checked,
+      include_sha:      document.getElementById('fmt-sha').checked,
+      sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
+    }
+  };
+  const applyRoot = _deviceRoot();
+  if (applyRoot) applyBody.source_root = applyRoot;
+
+  // Disable buttons while running
+  if (btn) { btn.disabled = true; btn.textContent = 'Renombrando…'; }
+  const btnR = document.getElementById('btn-resolve-conflicts');
+  if (btnR) btnR.disabled = true;
+
+  const wrap = document.getElementById('apply-progress-wrap');
+  const bar  = document.getElementById('apply-progress-bar');
+  const lbl  = document.getElementById('apply-progress-label');
+  const pct  = document.getElementById('apply-progress-pct');
+  if (wrap) wrap.style.display = '';
 
   try {
-    const applyBody = {
-      format_opts: {
-        include_region:   document.getElementById('fmt-region').checked,
-        include_revision: document.getElementById('fmt-revision').checked,
-        include_platform: document.getElementById('fmt-platform').checked,
-        include_sha:      document.getElementById('fmt-sha').checked,
-        sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
+    await apiPost('/api/apply', applyBody);
+
+    // Poll for completion
+    const _shownApplyTs = _job_results_apply_ts || null;
+    let done = false;
+    while (!done) {
+      await new Promise(r => setTimeout(r, 500));
+      const s = await apiFetch('/api/job-status');
+      if (s.apply_running && s.apply_progress) {
+        const p = s.apply_progress;
+        const fraction = p.total > 0 ? p.current / p.total : 0;
+        const pctVal = Math.round(fraction * 100);
+        if (bar) bar.style.width = pctVal + '%';
+        if (pct) pct.textContent = pctVal + '%';
+        if (lbl) lbl.textContent = p.current_file ? `Renombrando: ${p.current_file}` : 'Renombrando…';
       }
-    };
-    const applyRoot = _deviceRoot();
-    if (applyRoot) applyBody.source_root = applyRoot;
-    const d = await apiPost('/api/apply', applyBody);
-    const el = document.getElementById('plan-content');
-    const msg = document.createElement('p');
-    msg.style.cssText = 'margin-top:16px;color:#4ec9b0;font-size:13px';
-    const savesInfo = d.saves_renamed > 0 ? `  |  Saves renombrados: ${d.saves_renamed}` : '';
-    const skippedInfo = d.skipped > 0 ? `  |  Omitidos: ${d.skipped}` : '';
-    msg.textContent = `Renombrados: ${d.renamed}  |  Fallidos: ${d.failed}${skippedInfo}  |  Conflictos: ${d.conflicts}${savesInfo}`;
-    el.prepend(msg);
-    // Reload plan and stats
+      if (!s.apply_running && s.apply_result) {
+        done = true;
+        const r = s.apply_result;
+        if (r.error) {
+          showToast('Error: ' + r.error, 'err');
+        } else {
+          const savesInfo   = r.saves_renamed > 0 ? ` · ${r.saves_renamed} saves` : '';
+          const failedInfo  = r.failed > 0 ? ` · ${r.failed} fallidos` : '';
+          const conflictInfo = r.conflicts > 0 ? ` · ${r.conflicts} conflictos restantes` : '';
+          showToast(`✓ ${r.renamed} renombrados${savesInfo}${failedInfo}${conflictInfo}`,
+            r.failed > 0 || r.conflicts > 0 ? 'info' : 'ok');
+          if (bar) bar.style.width = '100%';
+          if (pct) pct.textContent = '100%';
+          if (lbl) lbl.textContent = 'Completado';
+        }
+      }
+    }
+
     await loadPlan();
     loadOverview();
   } catch(e) {
-    alert('Error al aplicar: ' + e.message);
+    showToast('Error al aplicar: ' + e.message, 'err');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Aplicar renombrado';
+    setTimeout(() => { if (wrap) wrap.style.display = 'none'; if (bar) bar.style.width = '0%'; }, 2000);
+    if (btnR) btnR.disabled = false;
   }
 }
+let _job_results_apply_ts = null;
 
 // ── Duplicates ────────────────────────────────────────────────────────────────
 async function loadDuplicates() {
   const el = document.getElementById('dup-content');
   try {
+    const cfg = await apiFetch('/api/config');
     const root = _deviceRoot();
     let url;
     if (root) {
       url = `/api/duplicates?source_root=${encodeURIComponent(root)}`;
     } else {
-      // Sistema completo: pass both roots so the server can exclude intentional cross-device copies
-      const pcPath = localStorage.getItem('pc_path') || '';
-      const abPath = localStorage.getItem('anbernic_path') || '';
+      // Sistema completo: always send pc_root so the server can exclude intentional cross-device copies
+      const pcPath = document.getElementById('ov-pc-path')?.value.trim() || cfg.library_root || '';
+      const abPath = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '';
       url = '/api/duplicates';
       const params = new URLSearchParams();
       if (pcPath) params.set('pc_root', pcPath);
       if (abPath) params.set('ab_root', abPath);
       if (params.toString()) url += '?' + params.toString();
     }
-    const [d, cfg] = await Promise.all([apiFetch(url), apiFetch('/api/config')]);
+    const d = await apiFetch(url);
     const dupBar = document.getElementById('dup-context-bar');
     if (dupBar) {
       let barHtml = '';
@@ -2198,8 +2433,11 @@ async function loadDuplicates() {
     let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} group(s) — ${d.total_files} files — ~${fmtSize(d.wasted_bytes)} wasted</p>`;
     html += d.groups.map(g => `
       <div class="dup-group" id="dup-${g.sha1}">
-        <div class="title">${g.canonical_title || '(unmatched)'}
-          <span style="color:#555;font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
+        <div class="title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span>${g.canonical_title || '(unmatched)'}
+            <span style="color:#555;font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
+          </span>
+          <button class="btn" style="padding:2px 10px;font-size:11px;color:#888;border-color:#444" title="No aparecerá más como duplicado (copia intencional entre dispositivos)" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
         </div>
         ${g.entries.map((e, i) => `
           <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
@@ -2249,6 +2487,18 @@ async function deleteDuplicate(gameId, sourcePath) {
     loadOverview();
   } catch(e) {
     alert('Error al eliminar: ' + e.message);
+  }
+}
+
+async function markAsIntentionalCopy(sha1) {
+  if (!confirm('¿Marcar este grupo como copia intencional PC↔consola?\n\nNo aparecerá más en la lista de duplicados. Puedes deshacer esto editando la base de datos.')) return;
+  try {
+    await apiPost('/api/duplicates/exclude', { sha1 });
+    const el = document.getElementById('dup-' + sha1);
+    if (el) el.remove();
+    showToast('Grupo excluido de duplicados', 'ok');
+  } catch(e) {
+    alert('Error: ' + e.message);
   }
 }
 
@@ -3073,6 +3323,14 @@ async function loadTools() {
         raStatus.innerHTML = '✗ API key no configurada — <a href="#" onclick="showTab(\'settings\');return false" style="color:#569cd6">ir a Settings</a>';
       }
     }
+    // Restore persisted tool paths (Fix E)
+    _initToolPath('zip-path',              'tool_path_zip');
+    _initToolPath('orphan-path',           'tool_path_orphan');
+    _initToolPath('chd-path',              'tool_path_chd');
+    _initToolPath('m3u-path',              'tool_path_m3u');
+    _initToolPath('report-path',           'tool_path_report');
+    _initToolPath('folder-analysis-path',  'tool_path_folder_analysis');
+    _initToolPath('junk-path',             'tool_path_junk');
   } catch(e) { /* silent */ }
 }
 
@@ -3080,6 +3338,23 @@ function _setIfEmpty(id, value) {
   const el = document.getElementById(id);
   if (el && !el.value.trim() && value) { el.value = value; return true; }
   return false;
+}
+
+// ── Tool path persistence (Fix E) ────────────────────────────────────────────
+function _initToolPath(inputId, storageKey) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  const saved = localStorage.getItem(storageKey);
+  if (saved && !el.value.trim()) el.value = saved;
+  el.addEventListener('input', () => localStorage.setItem(storageKey, el.value));
+}
+
+async function fillToolPath(inputId) {
+  try {
+    const cfg = await apiFetch('/api/config');
+    const el = document.getElementById(inputId);
+    if (el && cfg.library_root) { el.value = cfg.library_root; el.dispatchEvent(new Event('input')); }
+  } catch(e) { /* silent */ }
 }
 
 async function saveSettings() {
@@ -3384,18 +3659,114 @@ function _renderCableSyncResult(r) {
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   resultEl.className = 'job-result visible success';
-  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: ${r.errors}${existsMsg}${sha1Msg}  —  ${dirStr}${dryTag}`
-    + (needsScan ? `<br><span style="color:#dcdcaa;font-size:11px">&#x26A0; Se han copiado archivos al PC — haz un <strong>Scan</strong> en Overview para indexarlos en la base de datos.</span>` : '');
+  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:#f44747' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}  —  ${dirStr}${dryTag}`
+    + (needsScan ? `<br><span style="color:#dcdcaa;font-size:11px">&#x26A0; Archivos copiados al PC — indexa la BD: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear ahora</button></span>` : '');
 
   if (r.details && r.details.length > 0) {
-    detailsList.innerHTML = r.details.map(d => {
+    // Separate error entries from normal entries
+    const errEntries = r.details.filter(d => d.file && d.file.startsWith('ERROR'));
+    const okEntries  = r.details.filter(d => !d.file || !d.file.startsWith('ERROR'));
+
+    let detailHtml = '';
+    if (errEntries.length > 0) {
+      detailHtml += `<div style="background:#2a1010;border:1px solid #f44747;border-radius:4px;padding:8px 12px;margin-bottom:8px">`
+        + `<div style="color:#f44747;font-weight:bold;margin-bottom:6px;font-size:12px">&#x2717; ${errEntries.length} archivo(s) fallaron al copiarse:</div>`
+        + errEntries.map(d => `<div style="padding:1px 0;color:#f99;font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
+        + `</div>`;
+    }
+    detailHtml += okEntries.map(d => {
       const isDup    = d.file === 'DUP';
       const isExists = d.file === 'EXISTS';
-      const isErr    = d.file.startsWith('ERROR');
-      const tagColor = isDup ? '#569cd6' : isExists ? '#444' : isErr ? '#f44747' : '#4ec9b0';
-      return `<div style="padding:2px 0;color:#888"><span style="color:${tagColor};margin-right:8px">${d.file}</span>${d.path}</div>`;
+      const tagColor = isDup ? '#569cd6' : isExists ? '#444' : '#4ec9b0';
+      return `<div style="padding:2px 0;color:#888"><span style="color:${tagColor};margin-right:8px">${_h(d.file)}</span>${_h(d.path)}</div>`;
     }).join('');
+
+    detailsList.innerHTML = detailHtml;
     detailsWrap.style.display = '';
+  }
+}
+
+// ── Junk file cleaner (Fix F) ────────────────────────────────────────────────
+async function doJunkScan() {
+  const path = document.getElementById('junk-path')?.value.trim();
+  if (!path) { alert('Introduce una ruta.'); return; }
+  const el  = document.getElementById('junk-result');
+  const btn = document.getElementById('btn-junk-scan');
+  el.innerHTML = '<p class="loading">Escaneando…</p>';
+  btn.disabled = true;
+  try {
+    const d = await apiFetch('/api/junk-scan?path=' + encodeURIComponent(path));
+    if (d.error) { el.innerHTML = `<p class="error-msg">${_h(d.error)}</p>`; return; }
+    if (!d.categories || d.categories.length === 0) {
+      el.innerHTML = '<p style="color:#4ec9b0">No se encontraron archivos basura. ✓</p>';
+      return;
+    }
+    let html = `<p style="color:#888;margin-bottom:12px;font-size:12px">
+      <strong style="color:#f44747">${d.total_junk_files}</strong> archivos basura detectados —
+      <strong style="color:#f44747">${fmtSize(d.total_junk_bytes)}</strong> en total
+      &nbsp;·&nbsp; <label style="color:#888"><input type="checkbox" id="junk-select-all" onchange="junkSelectAll(this.checked)"> Seleccionar todos</label>
+    </p>`;
+    d.categories.forEach(cat => {
+      const catId = 'junk-cat-' + cat.category.replace(/\\W+/g, '_');
+      html += '<div style="margin-bottom:10px">'
+        + '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#1a1a2e;border-radius:4px;cursor:pointer" onclick="junkToggleCat(\'' + catId + '\')">'
+        + '<input type="checkbox" class="junk-cat-cb" data-cat="' + catId + '" onchange="junkCatCheck(this,\'' + catId + '\')" onclick="event.stopPropagation()">'
+        + '<span style="flex:1;color:#d4d4d4;font-size:12px"><strong>' + _h(cat.category) + '</strong> — ' + cat.count + ' archivos — ' + fmtSize(cat.total_bytes) + '</span>'
+        + '<span style="color:#555;font-size:11px">▼</span>'
+        + '</div>'
+        + '<div id="' + catId + '" style="display:none;padding:4px 0 4px 20px">'
+        + cat.files.map(f =>
+            '<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:11px">'
+            + '<input type="checkbox" class="junk-file-cb junk-cb-' + catId + '" data-path="' + f.full_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">'
+            + '<span style="flex:1;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _h(f.path) + '">' + _h(f.path) + '</span>'
+            + '<span style="color:#555;flex-shrink:0">' + fmtSize(f.size_bytes) + '</span>'
+            + '</div>'
+          ).join('')
+        + (cat.count > 50 ? '<p style="color:#555;font-size:11px">… y ' + (cat.count - 50) + ' más no mostrados</p>' : '')
+        + '</div></div>';
+    });
+    html += '<div style="margin-top:16px;display:flex;gap:8px">'
+      + '<button class="btn" onclick="doJunkDelete(true)" style="color:#dcdcaa">Dry-run (previsualizar)</button>'
+      + '<button class="btn danger" onclick="doJunkDelete(false)">Eliminar seleccionados</button>'
+      + '</div>'
+      + '<div id="junk-delete-result" style="margin-top:10px"></div>';
+    el.innerHTML = html;
+    localStorage.setItem('tool_path_junk', path);
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${_h(e.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function junkToggleCat(catId) {
+  const el = document.getElementById(catId);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function junkSelectAll(checked) {
+  document.querySelectorAll('.junk-file-cb').forEach(cb => cb.checked = checked);
+  document.querySelectorAll('.junk-cat-cb').forEach(cb => cb.checked = checked);
+}
+
+function junkCatCheck(catCb, catId) {
+  document.querySelectorAll('.junk-cb-' + catId).forEach(cb => cb.checked = catCb.checked);
+}
+
+async function doJunkDelete(dryRun) {
+  const selected = Array.from(document.querySelectorAll('.junk-file-cb:checked')).map(cb => cb.dataset.path);
+  if (selected.length === 0) { alert('Selecciona al menos un archivo.'); return; }
+  if (!dryRun && !confirm('¿Eliminar ' + selected.length + ' archivo(s) del disco?\\n\\nEsta operación no se puede deshacer.')) return;
+  const resEl = document.getElementById('junk-delete-result');
+  try {
+    const d = await apiPost('/api/junk-delete', { paths: selected, dry_run: dryRun });
+    const verb = dryRun ? 'Eliminaría' : 'Eliminados';
+    resEl.className = 'job-result visible success';
+    resEl.textContent = verb + ': ' + d.deleted + ' archivos — ' + fmtSize(d.freed_bytes) + ' liberados'
+      + (d.failed > 0 ? ' | Fallidos: ' + d.failed : '');
+  } catch(e) {
+    resEl.className = 'job-result visible error-r';
+    resEl.textContent = 'Error: ' + e.message;
   }
 }
 

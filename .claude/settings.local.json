@@ -34,7 +34,12 @@
       "Bash(timeout /t 35 /nobreak >nul && type \"C:\\\\Users\\\\rammu\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-rammu-Documents-projects-Retro-gaming-app\\\\tasks\\\\b9v7c096d.output\")",
       "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v 2>&1)",
       "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v)",
-      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v 2>&1; echo \"EXIT: $?\")"
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v 2>&1; echo \"EXIT: $?\")",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"\nimport sys\nsys.path.insert\\(0, 'C:/Users/rammu/Documents/projects/Retro_gaming_app/src'\\)\nfrom rom_manager.web.frontend import HTML\nprint\\('HTML length:', len\\(HTML\\)\\)\nprint\\('OK'\\)\n\" 2>&1)",
+      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"from rom_manager.web.frontend import HTML; print\\('OK, len=', len\\(HTML\\)\\)\")",
+      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"from rom_manager.web.server import RomManagerHandler; from rom_manager.database.repository import LibraryRepository; from rom_manager.database.schema import initialize_database; print\\('OK'\\)\")",
+      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"import rom_manager.web.server; import rom_manager.database.repository; print\\('OK'\\)\")",
+      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"import rom_manager.web.server; from rom_manager.web.frontend import HTML; print\\('OK len=', len\\(HTML\\)\\)\")"
     ]
   }
 }

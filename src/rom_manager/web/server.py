@@ -21,6 +21,7 @@ _jobs: dict[str, bool] = {
     "convert_chd": False, "scrape": False,
     "extract_zip": False, "health_check": False,
     "ra_check": False, "cable_sync": False,
+    "apply": False,
 }
 _job_results: dict[str, dict] = {}
 _chd_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
@@ -28,9 +29,17 @@ _scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "cur
 _zip_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
 _health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _ra_progress: dict = {}      # {"current": int, "total": int, "current_file": str}
-_cable_progress: dict = {}   # {"copied": int, "current_file": str}
+_cable_progress: dict = {}   # {"copied": int, "total_files": int, "bytes_copied": int, "bytes_total": int, "speed_bps": float, "current_file": str}
 _scan_progress: dict = {}    # {"files_seen": int, "roms_detected": int, "current_path": str}
-_scan_cancel: threading.Event = threading.Event()
+_apply_progress: dict = {}   # {"current": int, "total": int, "current_file": str}
+_scan_cancel:   threading.Event = threading.Event()
+_cable_cancel:  threading.Event = threading.Event()
+_chd_cancel:    threading.Event = threading.Event()
+_zip_cancel:    threading.Event = threading.Event()
+_health_cancel: threading.Event = threading.Event()
+_ra_cancel:     threading.Event = threading.Event()
+_scrape_cancel: threading.Event = threading.Event()
+_match_cancel:  threading.Event = threading.Event()
 _logger = logging.getLogger(__name__)
 
 
@@ -127,6 +136,84 @@ def _list_drives() -> dict:
     return {"drives": drives}
 
 
+def _build_junk_scan(folder_path: str) -> dict:
+    """Scan a folder and classify non-gaming files as junk."""
+    import os as _os
+    from pathlib import Path as _Path
+
+    _GAMING_EXTS = {
+        ".gba", ".gb", ".gbc", ".nes", ".sfc", ".smc", ".md", ".smd", ".gen",
+        ".n64", ".z64", ".v64", ".nds", ".3ds", ".iso", ".chd", ".cue", ".bin",
+        ".cdi", ".gdi", ".pbp", ".gcm", ".nsp", ".xci", ".pce", ".ws", ".wsc",
+        ".ngc", ".ngp", ".gg", ".lynx", ".a26", ".a52", ".a78", ".col", ".vb",
+        ".img", ".mdf", ".ecm", ".nrg", ".ccd", ".rom", ".bios",
+        ".sav", ".srm", ".state", ".sta", ".mcr", ".mc", ".mem", ".rtc",
+        ".xml", ".m3u", ".png", ".jpg", ".jpeg", ".mp4", ".webp",
+    }
+    _CONFIG_EXTS = {
+        ".cfg", ".ini", ".toml", ".json", ".txt", ".sh", ".bat", ".conf",
+        ".opt", ".ovr", ".rmp",
+    }
+    _JUNK_CATEGORIES: dict[str, str] = {
+        ".ipynb": "Jupyter Notebooks", ".py": "Scripts Python",
+        ".js": "Scripts JavaScript", ".xlsx": "Excel", ".xls": "Excel",
+        ".docx": "Word", ".doc": "Word", ".pptx": "PowerPoint", ".ppt": "PowerPoint",
+        ".pdf": "PDFs", ".zip": "ZIPs no-ROM", ".rar": "RARs", ".7z": "7-Zips",
+        ".tar": "Tarballs", ".gz": "Tarballs", ".bz2": "Tarballs",
+        ".exe": "Ejecutables", ".dll": "Ejecutables", ".apk": "APKs Android",
+        ".mp3": "Audio", ".flac": "Audio", ".ogg": "Audio", ".wav": "Audio",
+        ".avi": "Vídeo (no-gaming)", ".mkv": "Vídeo (no-gaming)", ".mov": "Vídeo (no-gaming)",
+        ".psd": "Imágenes editables", ".ai": "Imágenes editables", ".svg": "SVGs",
+        ".html": "HTML/Web", ".css": "HTML/Web", ".log": "Logs",
+        ".db": "Bases de datos", ".sqlite": "Bases de datos",
+    }
+
+    p = _Path(folder_path)
+    if not p.is_dir():
+        return {"error": f"Carpeta no encontrada: {folder_path}"}
+
+    categories: dict[str, list[dict]] = {}
+    total_junk_bytes = 0
+
+    for dirpath, dirs, files in _os.walk(p):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for fname in files:
+            fpath = _Path(dirpath) / fname
+            ext = fpath.suffix.lower()
+            if ext in _GAMING_EXTS or ext in _CONFIG_EXTS:
+                continue
+            cat = _JUNK_CATEGORIES.get(ext, f"Otros ({ext or 'sin extensión'})")
+            try:
+                size = fpath.stat().st_size
+            except OSError:
+                size = 0
+            total_junk_bytes += size
+            if cat not in categories:
+                categories[cat] = []
+            try:
+                rel = str(fpath.relative_to(p))
+            except ValueError:
+                rel = str(fpath)
+            categories[cat].append({"path": rel, "full_path": str(fpath), "size_bytes": size})
+
+    cat_list = []
+    for cat, files_list in sorted(categories.items(), key=lambda x: -sum(f["size_bytes"] for f in x[1])):
+        total = sum(f["size_bytes"] for f in files_list)
+        cat_list.append({
+            "category": cat,
+            "count": len(files_list),
+            "total_bytes": total,
+            "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:50],
+        })
+
+    return {
+        "folder": folder_path,
+        "total_junk_files": sum(c["count"] for c in cat_list),
+        "total_junk_bytes": total_junk_bytes,
+        "categories": cat_list,
+    }
+
+
 def _build_library_report(
     source_path_str: str,
     repository: LibraryRepository,
@@ -212,6 +299,7 @@ def _build_status(repository: LibraryRepository, source_root: str | None = None)
     else:
         matched = sum(1 for g in games if g.canonical_title is not None)
     wasted = sum(g.wasted_bytes for g in dup_groups)
+    last_scans = repository.get_last_scan_by_root()
     return {
         "total_games": summary.total_games,
         "total_saves": summary.total_saves,
@@ -221,6 +309,7 @@ def _build_status(repository: LibraryRepository, source_root: str | None = None)
         "duplicate_groups": len(dup_groups),
         "wasted_bytes": wasted,
         "last_scan_at": summary.last_scan_at,
+        "last_scans_by_root": last_scans,
     }
 
 
@@ -329,14 +418,20 @@ def _build_duplicates(
     pc_root: str | None = None,
     ab_root: str | None = None,
 ) -> dict:
+    import os as _os
     from rom_manager.database.repository import DuplicateGroup
+
+    def _norm(p: str) -> str:
+        """Normalize a path for cross-platform prefix comparison."""
+        return _os.path.normcase(_os.path.normpath(p)).rstrip(_os.sep) + _os.sep
+
     groups = repository.get_duplicate_groups()
     if source_root:
         # Single-device mode: only entries under this root
-        root_lower = source_root.lower()
+        root_norm = _norm(source_root)
         filtered = []
         for g in groups:
-            entries = [e for e in g.entries if e.source_path.lower().startswith(root_lower)]
+            entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)]
             if len(entries) >= 2:
                 filtered.append(DuplicateGroup(sha1=g.sha1, entries=entries))
         groups = filtered
@@ -344,15 +439,24 @@ def _build_duplicates(
         # "Sistema completo" mode: exclude groups where every entry is an
         # intentional cross-device copy (one from PC, rest from Anbernic or
         # vice versa). Real duplicates have ≥2 entries on the SAME device.
-        pc_lower = pc_root.lower().rstrip("/\\")
-        ab_lower = ab_root.lower().rstrip("/\\")
+        pc_norm = _norm(pc_root)
+        ab_norm = _norm(ab_root)
         filtered = []
         for g in groups:
-            pc_entries = [e for e in g.entries if e.source_path.lower().startswith(pc_lower)]
-            ab_entries = [e for e in g.entries if e.source_path.lower().startswith(ab_lower)]
+            pc_entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(pc_norm)]
+            ab_entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(ab_norm)]
             # Keep group only if there are ≥2 entries on at least one device
             if len(pc_entries) >= 2 or len(ab_entries) >= 2:
                 filtered.append(g)
+        groups = filtered
+    elif pc_root:
+        # Only PC root given — show duplicates within that root
+        pc_norm = _norm(pc_root)
+        filtered = []
+        for g in groups:
+            entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(pc_norm)]
+            if len(entries) >= 2:
+                filtered.append(DuplicateGroup(sha1=g.sha1, entries=entries))
         groups = filtered
     # Sort by wasted bytes descending (largest duplicates first)
     groups = sorted(groups, key=lambda g: g.wasted_bytes, reverse=True)
@@ -683,7 +787,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     st = qs.get("status", [None])[0] or None
                     root = qs.get("root", [None])[0] or None
                     ft = qs.get("filetype", ["rom"])[0]
-                    file_type = ft if ft in ("rom", "") else None
+                    file_type = ft if ft in ("rom", "", "save") else None
                     search = qs.get("search", [None])[0] or None
                     self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type, search=search))
                 elif path == "/api/plan":
@@ -732,6 +836,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "cable_progress": dict(_cable_progress) if _cable_progress else None,
                             "cable_sync_result": _job_results.get("cable_sync"),
                             "scan_progress": dict(_scan_progress) if _scan_progress else None,
+                            "apply_running": _jobs["apply"],
+                            "apply_progress": dict(_apply_progress) if _apply_progress else None,
+                            "apply_result": _job_results.get("apply"),
                         })
                 elif path == "/api/test-chdman":
                     import subprocess
@@ -812,6 +919,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         body = result["alternatives_csv"].encode()
                         self._send(200, "text/csv; charset=utf-8", body,
                                    extra_headers={"Content-Disposition": 'attachment; filename="ra_alternatives.csv"'})
+                elif path == "/api/junk-scan":
+                    folder = qs.get("path", [None])[0] or None
+                    if not folder:
+                        self._send_json({"error": "path required"})
+                    else:
+                        self._send_json(_build_junk_scan(folder))
                 elif path == "/api/report.json":
                     report = build_report(repository)
                     body = to_json(report).encode()
@@ -856,6 +969,13 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_delete_duplicate(data)
                 elif path == "/api/duplicates/delete-all":
                     self._handle_delete_all_duplicates()
+                elif path == "/api/duplicates/exclude":
+                    sha1 = data.get("sha1", "")
+                    if sha1:
+                        repository.exclude_duplicate_sha1(sha1)
+                        self._send_json({"ok": True})
+                    else:
+                        self._send_error(400, "sha1 required")
                 elif path == "/api/sync":
                     self._handle_sync(data)
                 elif path == "/api/convert-chd":
@@ -882,8 +1002,18 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_cleanup_cue_bin(data)
                 elif path == "/api/stop-job":
                     job_name = data.get("job", "")
-                    if job_name == "scan":
-                        _scan_cancel.set()
+                    _cancel_map = {
+                        "scan":         _scan_cancel,
+                        "cable_sync":   _cable_cancel,
+                        "convert_chd":  _chd_cancel,
+                        "extract_zip":  _zip_cancel,
+                        "health_check": _health_cancel,
+                        "ra_check":     _ra_cancel,
+                        "scrape":       _scrape_cancel,
+                        "match":        _match_cancel,
+                    }
+                    if job_name in _cancel_map:
+                        _cancel_map[job_name].set()
                     with _job_lock:
                         if job_name in _jobs:
                             _jobs[job_name] = False
@@ -893,6 +1023,26 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_ra_check(data)
                 elif path == "/api/cable-sync":
                     self._handle_cable_sync(data)
+                elif path == "/api/junk-delete":
+                    paths_to_delete = data.get("paths", [])
+                    dry_run = bool(data.get("dry_run", True))
+                    deleted = 0
+                    failed = 0
+                    freed_bytes = 0
+                    errors: list[str] = []
+                    for fp in paths_to_delete:
+                        try:
+                            p = Path(fp)
+                            if p.is_file():
+                                sz = p.stat().st_size
+                                if not dry_run:
+                                    p.unlink()
+                                deleted += 1
+                                freed_bytes += sz
+                        except OSError as exc:
+                            failed += 1
+                            errors.append(str(exc))
+                    self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes, "dry_run": dry_run, "errors": errors[:10]})
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -1110,6 +1260,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 _jobs["match"] = True
 
             def run() -> None:
+                _match_cancel.clear()
                 try:
                     from rom_manager.catalog.matcher import CatalogMatcher
                     matcher = CatalogMatcher(
@@ -1120,6 +1271,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     matched_high = matched_low = unmatched = 0
                     with repository.batch() as conn:
                         for game in games:
+                            if _match_cancel.is_set():
+                                break
                             result = matcher.match(game.sha1, game.original_filename)
                             if result is not None:
                                 repository.update_match(
@@ -1140,6 +1293,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "matched_high": matched_high,
                         "matched_low": matched_low,
                         "unmatched": unmatched,
+                        "cancelled": _match_cancel.is_set(),
                     }
                 except Exception as exc:
                     _job_results["match"] = {"error": str(exc)}
@@ -1220,6 +1374,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 _jobs["convert_chd"] = True
 
             def run() -> None:
+                _chd_cancel.clear()
                 try:
                     from rom_manager.converters.chd_converter import (
                         find_cue_files, convert_to_chd, parse_bins_from_cue,
@@ -1232,6 +1387,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                     summary = ConversionSummary()
                     for idx, cue_path in enumerate(cue_files, 1):
+                        if _chd_cancel.is_set():
+                            break
                         _chd_progress.update({"current": idx, "total": total, "current_file": cue_path.name})
                         chd_path = cue_path.with_suffix(".chd")
                         bin_paths = parse_bins_from_cue(cue_path)
@@ -1261,6 +1418,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "converted": summary.converted,
                         "skipped": summary.skipped,
                         "failed": summary.failed,
+                        "cancelled": _chd_cancel.is_set(),
                         "results": [
                             {
                                 "cue": r.cue_path.name,
@@ -1364,6 +1522,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 _jobs["extract_zip"] = True
 
             def run() -> None:
+                _zip_cancel.clear()
                 try:
                     from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
                     source = Path(source_path_str).resolve()
@@ -1373,6 +1532,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     extracted = skipped = failed = disc_sets = 0
                     results = []
                     for idx, zp in enumerate(zip_files, 1):
+                        if _zip_cancel.is_set():
+                            break
                         try:
                             rel = str(zp.relative_to(source))
                         except ValueError:
@@ -1402,6 +1563,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "skipped": skipped,
                         "failed": failed,
                         "disc_sets": disc_sets,
+                        "cancelled": _zip_cancel.is_set(),
                         "results": results,
                     }
                 except Exception as exc:
@@ -1480,17 +1642,19 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 _jobs["health_check"] = True
 
             def run() -> None:
+                _health_cancel.clear()
                 try:
                     from rom_manager.utils.health_checker import check_library_health
 
                     def progress_cb(current: int, total: int, filename: str) -> None:
                         _health_progress.update({"current": current, "total": total, "current_file": filename})
 
-                    summary = check_library_health(repository, progress_cb=progress_cb)
+                    summary = check_library_health(repository, progress_cb=progress_cb, cancel_event=_health_cancel)
                     _job_results["health_check"] = {
                         "ok": summary.ok,
                         "corrupted": summary.corrupted,
                         "missing": summary.missing,
+                        "cancelled": _health_cancel.is_set(),
                         "issues": [
                             {"source_path": r.source_path, "status": r.status,
                              "stored_sha1": r.stored_sha1[:12], "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else ""}
@@ -1519,6 +1683,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             limit = int(data.get("limit", 0))
 
             def run() -> None:
+                _scrape_cancel.clear()
                 try:
                     from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
                     from rom_manager.scraper.platform_ids import get_system_id
@@ -1542,6 +1707,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     _scrape_progress.update({"current": 0, "total": total, "found": 0, "current_game": ""})
                     with repository.batch() as conn:
                         for idx, game in enumerate(games, 1):
+                            if _scrape_cancel.is_set():
+                                break
                             _scrape_progress.update({
                                 "current": idx,
                                 "total": total,
@@ -1585,6 +1752,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             found += 1
                     _job_results["scrape"] = {
                         "total": total, "found": found, "skipped": skipped,
+                        "cancelled": _scrape_cancel.is_set(),
                     }
                 except Exception as exc:
                     _job_results["scrape"] = {"error": str(exc)}
@@ -1668,6 +1836,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 return
 
             def run() -> None:
+                _ra_cancel.clear()
                 try:
                     from rom_manager.retroachievements.ra_checker import check_library, to_csv
 
@@ -1675,13 +1844,22 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                     def progress_cb(current: int, total: int, filename: str) -> None:
                         _ra_progress.update({"current": current, "total": total, "current_file": filename})
+                        if _ra_cancel.is_set():
+                            raise InterruptedError("RA check cancelled")
 
-                    summary = check_library(
-                        repository,
-                        api_key,
-                        cache_dir=cache_dir,
-                        progress_cb=progress_cb,
-                    )
+                    try:
+                        summary = check_library(
+                            repository,
+                            api_key,
+                            cache_dir=cache_dir,
+                            progress_cb=progress_cb,
+                        )
+                    except InterruptedError:
+                        _job_results["ra_check"] = {"cancelled": True, "total": 0, "supported": 0,
+                                                     "no_support_alternative": 0, "no_support": 0,
+                                                     "no_md5": 0, "platform_unknown": 0,
+                                                     "alternatives_csv": "", "alternatives": []}
+                        return
 
                     alternatives_csv = ""
                     if summary.no_support_alternative > 0:
@@ -1694,6 +1872,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "no_support": summary.no_support,
                         "no_md5": summary.no_md5,
                         "platform_unknown": summary.platform_unknown,
+                        "cancelled": _ra_cancel.is_set(),
                         "alternatives_csv": alternatives_csv,
                         # Only include first 50 "actionable" results to keep response size reasonable
                         "alternatives": [
@@ -1752,7 +1931,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 _jobs["cable_sync"] = True
 
             def run() -> None:
+                _cable_cancel.clear()
                 try:
+                    import time as _time
                     from pathlib import PurePosixPath
                     pc_root   = Path(pc_path_str)
                     save_exts = frozenset(config.save_extensions)
@@ -1783,8 +1964,32 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     copied_bytes = 0
                     details: list[dict] = []
 
+                    _sync_start_time = _time.monotonic()
+                    _last_speed_update = _time.monotonic()
+                    _last_speed_bytes = 0
+
+                    def _update_progress(file_name: str = "") -> None:
+                        nonlocal _last_speed_update, _last_speed_bytes
+                        now = _time.monotonic()
+                        dt = now - _last_speed_update
+                        speed = 0.0
+                        if dt >= 0.5:
+                            speed = (copied_bytes - _last_speed_bytes) / dt
+                            _last_speed_update = now
+                            _last_speed_bytes = copied_bytes
+                        elif _cable_progress.get("speed_bps") is not None:
+                            speed = _cable_progress.get("speed_bps", 0.0)
+                        _cable_progress.update({
+                            "copied": copied,
+                            "bytes_copied": copied_bytes,
+                            "speed_bps": speed,
+                            "current_file": file_name,
+                        })
+
                     def _copy(src: Path, dst: Path, arrow: str) -> None:
                         nonlocal copied, skipped, errors, copied_bytes
+                        if _cable_cancel.is_set():
+                            return
                         try:
                             src_stat = src.stat()
                             size = src_stat.st_size
@@ -1805,7 +2010,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             copied_bytes += size
                             if len(details) < 300:
                                 details.append({"file": arrow, "path": str(src.name)})
-                            _cable_progress.update({"copied": copied, "current_file": src.name})
+                            _update_progress(src.name)
                         except OSError as exc:
                             errors += 1
                             if len(details) < 300:
@@ -1818,6 +2023,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                         def _adb_copy_to_pc(adb_info, rel_posix: str, arrow: str) -> None:
                             nonlocal copied, errors, copied_bytes
+                            if _cable_cancel.is_set():
+                                return
                             name = PurePosixPath(adb_info.android_path).name
                             local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
                             try:
@@ -1826,7 +2033,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                                 copied_bytes += size
                                 if len(details) < 300:
                                     details.append({"file": arrow, "path": name})
-                                _cable_progress.update({"copied": copied, "current_file": name})
+                                _update_progress(name)
                             except OSError as exc:
                                 errors += 1
                                 if len(details) < 300:
@@ -1834,6 +2041,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                         def _adb_copy_to_device(local_src: Path, rel_posix: str, arrow: str) -> None:
                             nonlocal copied, errors, copied_bytes
+                            if _cable_cancel.is_set():
+                                return
                             android_dst = android_path.rstrip("/") + "/" + rel_posix
                             try:
                                 size = transport.push(local_src, android_dst, dry_run=dry_run)
@@ -1841,7 +2050,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                                 copied_bytes += size
                                 if len(details) < 300:
                                     details.append({"file": arrow, "path": local_src.name})
-                                _cable_progress.update({"copied": copied, "current_file": local_src.name})
+                                _update_progress(local_src.name)
                             except OSError as exc:
                                 errors += 1
                                 if len(details) < 300:
@@ -1849,10 +2058,19 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                         _cable_progress.update({"copied": 0, "current_file": "Listando archivos en el dispositivo…"})
                         ab_adb_files = transport.ls_recursive(android_path)
+                        # Compute total bytes from ADB listing
+                        try:
+                            _pre_files = sum(1 for info in ab_adb_files if _wanted_name(PurePosixPath(info.android_path).name))
+                            _pre_total = sum(info.size for info in ab_adb_files if _wanted_name(PurePosixPath(info.android_path).name))
+                            _cable_progress.update({"bytes_total": _pre_total, "total_files": _pre_files, "copied": 0, "bytes_copied": 0, "speed_bps": 0.0})
+                        except Exception:
+                            pass
                         android_prefix = android_path.rstrip("/") + "/"
 
                         if direction == "pc_to_anbernic":
                             for src in _iter_files(pc_root):
+                                if _cable_cancel.is_set():
+                                    break
                                 if not _wanted(src):
                                     continue
                                 rel = src.relative_to(pc_root)
@@ -1864,13 +2082,15 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             if use_sha1:
                                 from rom_manager.hashing.hash_calculator import calculate_hashes
                             for info in ab_adb_files:
+                                if _cable_cancel.is_set():
+                                    break
                                 name = PurePosixPath(info.android_path).name
                                 if not _wanted_name(name):
                                     continue
                                 rel_posix = info.android_path.removeprefix(android_prefix)
                                 if use_sha1 and _cat_name(name) == "rom":
                                     local_tmp = pc_root / Path(rel_posix.replace("/", os.sep))
-                                    _cable_progress.update({"copied": copied, "current_file": f"[SHA1] {name}"})
+                                    _update_progress(f"[SHA1] {name}")
                                     # For SHA1 check we need the file locally; pull to temp first
                                     import tempfile
                                     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(name).suffix) as tf:
@@ -1897,7 +2117,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                                         copied_bytes += info.size
                                         if len(details) < 300:
                                             details.append({"file": "← ADB", "path": name})
-                                        _cable_progress.update({"copied": copied, "current_file": name})
+                                        _update_progress(name)
                                     except OSError as exc:
                                         tmp_path.unlink(missing_ok=True)
                                         errors += 1
@@ -1920,6 +2140,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                             all_rels = sorted(set(pc_index) | set(ab_index))
                             for rel_posix in all_rels:
+                                if _cable_cancel.is_set():
+                                    break
                                 pc_f   = pc_index.get(rel_posix)
                                 ab_inf = ab_index.get(rel_posix)
                                 if pc_f and ab_inf:
@@ -1938,8 +2160,41 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     else:
                         ab_root = Path(anbernic_path_str)
 
+                        # Pre-scan to get total bytes (best effort)
+                        try:
+                            _pre_total = 0
+                            _pre_files = 0
+                            if direction == "pc_to_anbernic":
+                                for _f in _iter_files(pc_root):
+                                    if _wanted(_f):
+                                        try: _pre_total += _f.stat().st_size
+                                        except OSError: pass
+                                        _pre_files += 1
+                            elif direction == "anbernic_to_pc":
+                                for _f in _iter_files(ab_root):
+                                    if _wanted(_f):
+                                        try: _pre_total += _f.stat().st_size
+                                        except OSError: pass
+                                        _pre_files += 1
+                            elif direction == "newest":
+                                for _f in _iter_files(pc_root):
+                                    if _wanted(_f):
+                                        try: _pre_total += _f.stat().st_size
+                                        except OSError: pass
+                                        _pre_files += 1
+                                for _f in _iter_files(ab_root):
+                                    if _wanted(_f):
+                                        try: _pre_total += _f.stat().st_size
+                                        except OSError: pass
+                                        _pre_files += 1
+                            _cable_progress.update({"bytes_total": _pre_total, "total_files": _pre_files, "copied": 0, "bytes_copied": 0, "speed_bps": 0.0})
+                        except Exception:
+                            pass
+
                         if direction == "pc_to_anbernic":
                             for src in _iter_files(pc_root):
+                                if _cable_cancel.is_set():
+                                    break
                                 if not _wanted(src):
                                     continue
                                 rel = src.relative_to(pc_root)
@@ -1951,6 +2206,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             if use_sha1:
                                 from rom_manager.hashing.hash_calculator import calculate_hashes
                             for src in _iter_files(ab_root):
+                                if _cable_cancel.is_set():
+                                    break
                                 if not _wanted(src):
                                     continue
                                 try:
@@ -1958,7 +2215,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                                 except ValueError:
                                     continue
                                 if use_sha1 and _category(src) == "rom":
-                                    _cable_progress.update({"copied": copied, "current_file": f"[SHA1] {src.name}"})
+                                    _update_progress(f"[SHA1] {src.name}")
                                     try:
                                         h = calculate_hashes(src)
                                         if repository.sha1_exists(h.sha1):
@@ -1988,6 +2245,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
 
                             all_rels = sorted(set(pc_files) | set(ab_files), key=lambda p: str(p))
                             for rel in all_rels:
+                                if _cable_cancel.is_set():
+                                    break
                                 pc_f = pc_files.get(rel)
                                 ab_f = ab_files.get(rel)
                                 if pc_f and ab_f:
@@ -2013,6 +2272,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "sha1_skipped": sha1_skipped,
                         "errors": errors,
                         "copied_bytes": copied_bytes,
+                        "cancelled": _cable_cancel.is_set(),
                         "details": details,
                     }
                 except Exception as exc:
@@ -2026,8 +2286,11 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             self._send_json({"status": "started", "dry_run": dry_run})
 
         def _handle_apply(self, data: dict) -> None:
-            from rom_manager.renamer.file_renamer import rename_rom_with_saves
-            from rom_manager.scanner.rom_scanner import utc_now
+            with _job_lock:
+                if _jobs["apply"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["apply"] = True
 
             fmt = data.get("format_opts", {})
             opts = FormatOptions(
@@ -2040,54 +2303,73 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             source_root = data.get("source_root") or None
             keep_both   = bool(data.get("keep_both", False))
 
-            save_exts = frozenset(config.save_extensions)
-            plan = build_plan(repository, opts, keep_both=keep_both)
-            pending_ops = plan.pending
-            if source_root:
-                root_lower = source_root.lower()
-                pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
-            renamed = failed = skipped = saves_renamed = 0
-            skip_details: list[str] = []
-            timestamp = utc_now()
-            for op in pending_ops:
-                if not op.source_path.exists():
-                    skipped += 1
-                    skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
-                    continue
+            def run() -> None:
                 try:
-                    outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
-                except Exception as exc:
-                    skipped += 1
-                    skip_details.append(f"{op.source_path.name}: unexpected error — {exc}")
-                    continue
-                if outcome.success:
-                    repository.apply_rename(
-                        game_id=op.game.id,
-                        old_source_path=str(op.source_path),
-                        new_source_path=str(op.target_path),
-                        new_filename=op.target_path.name,
-                        timestamp=timestamp,
-                    )
-                    renamed += 1
-                    saves_renamed += outcome.saves_renamed
-                else:
-                    # Check if it's an unexpected-file / permission issue vs a hard error
-                    err_lower = outcome.error.lower()
-                    if "not found" in err_lower or "no such file" in err_lower:
-                        skipped += 1
-                        skip_details.append(f"{op.source_path.name}: {outcome.error}")
-                    else:
-                        failed += 1
-                        skip_details.append(f"{op.source_path.name}: {outcome.error}")
+                    from rom_manager.renamer.file_renamer import rename_rom_with_saves
+                    from rom_manager.scanner.rom_scanner import utc_now
 
-            self._send_json({
-                "renamed": renamed,
-                "failed": failed,
-                "skipped": skipped,
-                "saves_renamed": saves_renamed,
-                "conflicts": len(plan.conflicts),
-                "skip_details": skip_details[:20],
-            })
+                    save_exts = frozenset(config.save_extensions)
+                    plan = build_plan(repository, opts, keep_both=keep_both)
+                    pending_ops = plan.pending
+                    if source_root:
+                        root_lower = source_root.lower()
+                        pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
+
+                    total = len(pending_ops)
+                    renamed = failed = skipped = saves_renamed = 0
+                    skip_details: list[str] = []
+                    timestamp = utc_now()
+                    _apply_progress.update({"current": 0, "total": total, "current_file": ""})
+
+                    for idx, op in enumerate(pending_ops, 1):
+                        _apply_progress.update({"current": idx, "total": total, "current_file": op.source_path.name})
+                        if not op.source_path.exists():
+                            skipped += 1
+                            skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
+                            continue
+                        try:
+                            outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                        except Exception as exc:
+                            skipped += 1
+                            skip_details.append(f"{op.source_path.name}: unexpected error — {exc}")
+                            continue
+                        if outcome.success:
+                            repository.apply_rename(
+                                game_id=op.game.id,
+                                old_source_path=str(op.source_path),
+                                new_source_path=str(op.target_path),
+                                new_filename=op.target_path.name,
+                                timestamp=timestamp,
+                            )
+                            renamed += 1
+                            saves_renamed += outcome.saves_renamed
+                        else:
+                            err_lower = outcome.error.lower()
+                            if "not found" in err_lower or "no such file" in err_lower:
+                                skipped += 1
+                            else:
+                                failed += 1
+                            skip_details.append(f"{op.source_path.name}: {outcome.error}")
+
+                    from rom_manager.scanner.rom_scanner import utc_now as _now
+                    _job_results["apply"] = {
+                        "renamed": renamed,
+                        "failed": failed,
+                        "skipped": skipped,
+                        "saves_renamed": saves_renamed,
+                        "conflicts": len(plan.conflicts),
+                        "skip_details": skip_details[:20],
+                        "result_ts": _now(),
+                    }
+                except Exception as exc:
+                    _job_results["apply"] = {"error": str(exc), "result_ts": ""}
+                finally:
+                    _apply_progress.clear()
+                    with _job_lock:
+                        _jobs["apply"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
 
         # ── Helpers ──────────────────────────────────────────────────────────
 

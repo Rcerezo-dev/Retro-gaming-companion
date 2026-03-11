@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -27,11 +28,12 @@ def check_library_health(
     repository,  # LibraryRepository
     *,
     progress_cb: Callable[[int, int, str], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> HealthSummary:
     """Re-hash every ROM in the library and compare against the stored SHA1.
 
     *progress_cb* is called as ``progress_cb(current, total, filename)``
-    for each file processed.
+    for each file processed.  If *cancel_event* is set the loop stops early.
     """
     summary = HealthSummary()
 
@@ -43,6 +45,8 @@ def check_library_health(
 
     total = len(rows)
     for idx, row in enumerate(rows, 1):
+        if cancel_event is not None and cancel_event.is_set():
+            break
         path = Path(row["source_path"])
         stored = row["sha1"]
         filename = row["original_filename"] or path.name

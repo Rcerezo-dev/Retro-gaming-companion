@@ -125,6 +125,13 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_game_metadata_game ON game_metadata (game_id)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS excluded_duplicates (
+        sha1        TEXT NOT NULL PRIMARY KEY,
+        reason      TEXT NOT NULL DEFAULT 'intentional_copy',
+        created_at  TEXT NOT NULL
+    )
+    """,
 )
 
 # Columns added after the initial schema that may be missing in existing databases.

@@ -419,7 +419,7 @@ class LibraryRepository:
             conn.commit()
 
     def get_duplicate_groups(self) -> list[DuplicateGroup]:
-        """Return groups of games that share the same SHA1 (exact duplicates)."""
+        """Return groups of games that share the same SHA1, excluding intentional copies."""
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -429,6 +429,7 @@ class LibraryRepository:
                 WHERE sha1 IN (
                     SELECT sha1 FROM games GROUP BY sha1 HAVING COUNT(*) > 1
                 )
+                AND sha1 NOT IN (SELECT sha1 FROM excluded_duplicates)
                 ORDER BY sha1, source_path
                 """
             ).fetchall()
@@ -448,6 +449,30 @@ class LibraryRepository:
                 )
             )
         return [DuplicateGroup(sha1=sha1, entries=entries) for sha1, entries in groups.items()]
+
+    def exclude_duplicate_sha1(self, sha1: str, reason: str = "intentional_copy") -> None:
+        """Mark a SHA1 group as an intentional copy — it will no longer appear as a duplicate."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO excluded_duplicates (sha1, reason, created_at) VALUES (?, ?, ?)",
+                (sha1, reason, now),
+            )
+            conn.commit()
+
+    def get_last_scan_by_root(self) -> dict[str, str]:
+        """Return a mapping of source_root → last finished_at for each scanned root."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT source_root, MAX(finished_at) as last_at
+                FROM scan_runs
+                WHERE finished_at IS NOT NULL
+                GROUP BY source_root
+                """
+            ).fetchall()
+        return {row["source_root"]: row["last_at"] for row in rows}
 
     def backfill_platforms(self, detect_fn) -> int:
         """Update platform for all games where it is currently NULL.
@@ -699,9 +724,11 @@ class LibraryRepository:
         conditions: list[str] = []
         params: list[object] = []
 
-        # Default: show only ROMs; filetype='' means ROMs+saves; filetype=None means all
+        # Default: show only ROMs; filetype='' means ROMs+saves; filetype='save' means saves only; filetype=None means all
         if file_type == "rom":
             conditions.append("file_type = 'rom'")
+        elif file_type == "save":
+            conditions.append("file_type = 'save'")
         elif file_type == "":
             conditions.append("file_type IN ('rom', 'save')")
 
