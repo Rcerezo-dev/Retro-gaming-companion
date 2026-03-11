@@ -309,16 +309,36 @@ def _build_plan(
     }
 
 
-def _build_duplicates(repository: LibraryRepository, source_root: str | None = None) -> dict:
+def _build_duplicates(
+    repository: LibraryRepository,
+    source_root: str | None = None,
+    pc_root: str | None = None,
+    ab_root: str | None = None,
+) -> dict:
     from rom_manager.database.repository import DuplicateGroup
     groups = repository.get_duplicate_groups()
     if source_root:
+        # Single-device mode: only entries under this root
         root_lower = source_root.lower()
         filtered = []
         for g in groups:
             entries = [e for e in g.entries if e.source_path.lower().startswith(root_lower)]
             if len(entries) >= 2:
                 filtered.append(DuplicateGroup(sha1=g.sha1, entries=entries))
+        groups = filtered
+    elif pc_root and ab_root:
+        # "Sistema completo" mode: exclude groups where every entry is an
+        # intentional cross-device copy (one from PC, rest from Anbernic or
+        # vice versa). Real duplicates have ≥2 entries on the SAME device.
+        pc_lower = pc_root.lower().rstrip("/\\")
+        ab_lower = ab_root.lower().rstrip("/\\")
+        filtered = []
+        for g in groups:
+            pc_entries = [e for e in g.entries if e.source_path.lower().startswith(pc_lower)]
+            ab_entries = [e for e in g.entries if e.source_path.lower().startswith(ab_lower)]
+            # Keep group only if there are ≥2 entries on at least one device
+            if len(pc_entries) >= 2 or len(ab_entries) >= 2:
+                filtered.append(g)
         groups = filtered
     # Sort by wasted bytes descending (largest duplicates first)
     groups = sorted(groups, key=lambda g: g.wasted_bytes, reverse=True)
@@ -563,7 +583,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._send_json(_build_plan(repository, opts, frozenset(config.save_extensions), source_root=source_root))
                 elif path == "/api/duplicates":
                     source_root = qs.get("source_root", [None])[0] or None
-                    self._send_json(_build_duplicates(repository, source_root=source_root))
+                    pc_root     = qs.get("pc_root",     [None])[0] or None
+                    ab_root     = qs.get("ab_root",     [None])[0] or None
+                    self._send_json(_build_duplicates(repository, source_root=source_root, pc_root=pc_root, ab_root=ab_root))
                 elif path == "/api/assets":
                     src_root = qs.get("root", [None])[0] or None
                     self._send_json(_build_assets(repository, src_root))

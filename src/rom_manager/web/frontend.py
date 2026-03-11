@@ -1991,7 +1991,19 @@ async function loadDuplicates() {
   const el = document.getElementById('dup-content');
   try {
     const root = _deviceRoot();
-    const url = root ? `/api/duplicates?source_root=${encodeURIComponent(root)}` : '/api/duplicates';
+    let url;
+    if (root) {
+      url = `/api/duplicates?source_root=${encodeURIComponent(root)}`;
+    } else {
+      // Sistema completo: pass both roots so the server can exclude intentional cross-device copies
+      const pcPath = localStorage.getItem('pc_path') || '';
+      const abPath = localStorage.getItem('anbernic_path') || '';
+      url = '/api/duplicates';
+      const params = new URLSearchParams();
+      if (pcPath) params.set('pc_root', pcPath);
+      if (abPath) params.set('ab_root', abPath);
+      if (params.toString()) url += '?' + params.toString();
+    }
     const [d, cfg] = await Promise.all([apiFetch(url), apiFetch('/api/config')]);
     const dupBar = document.getElementById('dup-context-bar');
     if (dupBar) {
@@ -2005,7 +2017,7 @@ async function loadDuplicates() {
         const parts = [`PC: <span style="color:#4ec9b0">${cfg.library_root || '(no configurado)'}</span>`];
         const ab = localStorage.getItem('anbernic_path');
         if (ab) parts.push(`Anbernic: <span style="color:#ce9178">${ab}</span>`);
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔Anbernic se excluyen</span>`;
       }
       dupBar.innerHTML = barHtml;
       dupBar.style.display = '';
