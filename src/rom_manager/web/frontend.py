@@ -349,7 +349,7 @@ HTML = r"""<!DOCTYPE html>
 <div id="tab-games" class="tab">
   <div id="games-root-banner" style="display:none;margin-bottom:8px;padding:6px 10px;background:#1e1e2e;border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
-    <input id="games-search" type="text" placeholder="Search title or filename…" oninput="onGamesFilterChange()">
+    <input id="games-search" type="text" placeholder="Search title or filename…" oninput="onGamesSearchChange()">
     <select id="games-platform" onchange="onGamesFilterChange()"><option value="">All platforms</option></select>
     <select id="games-matched" onchange="onGamesFilterChange()">
       <option value="">All</option>
@@ -369,7 +369,16 @@ HTML = r"""<!DOCTYPE html>
     <table id="games-table">
       <thead><tr>
         <th>Platform</th><th>Canonical title</th><th>Original filename</th>
-        <th>Region</th><th>Match</th><th>Size</th><th>SHA1</th>
+        <th id="gcol-region">Region</th><th id="gcol-match">Match</th><th id="gcol-size">Size</th><th id="gcol-sha1">SHA1
+          <button title="Configurar columnas" onclick="toggleColPicker(event)" style="background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle">&#x2699;</button>
+          <div id="col-picker" style="display:none;position:absolute;background:#252535;border:1px solid #444;border-radius:6px;padding:10px 14px;z-index:100;min-width:160px;font-size:13px;font-weight:normal">
+            <div style="color:#888;font-size:11px;margin-bottom:8px">Mostrar columnas</div>
+            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-region" onchange="applyColVisibility()"> Region</label>
+            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-match" onchange="applyColVisibility()"> Match</label>
+            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-size" onchange="applyColVisibility()"> Size</label>
+            <label style="display:block;cursor:pointer"><input type="checkbox" id="gcol-check-sha1" onchange="applyColVisibility()"> SHA1</label>
+          </div>
+        </th>
       </tr></thead>
       <tbody id="games-tbody"></tbody>
     </table>
@@ -578,16 +587,17 @@ HTML = r"""<!DOCTYPE html>
           <input type="radio" name="cable-direction" value="anbernic_to_pc" style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
             <strong style="color:#d4d4d4">Anbernic → PC</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Copia de la consola al PC. Sobrescribe los archivos del PC.</span><br>
-            <span style="color:#569cd6;font-size:11px">✓ Útil para recuperar saves guardados en la consola</span>
+            <span style="color:#555;font-size:12px;margin-left:6px">Copia todo de la consola al PC. Archivos solo en Anbernic pasan al PC.</span><br>
+            <span style="color:#569cd6;font-size:11px">✓ Útil para importar juegos nuevos de la SD card al PC. Luego haz Scan para indexarlos.</span>
           </span>
         </label>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
           <input type="radio" name="cable-direction" value="newest" style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
-            <strong style="color:#d4d4d4">Más reciente gana</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Compara fechas de modificación y copia en la dirección correcta.</span><br>
-            <span style="color:#ce9178;font-size:11px">⚠ Tras renombrar archivos en el PC, las fechas del PC pueden ser incorrectas — usa "PC → Anbernic" en ese caso</span>
+            <strong style="color:#4ec9b0">&#x21C4; Igualar ambos dispositivos</strong>
+            <span style="color:#555;font-size:12px;margin-left:6px">Compara mtime y copia en la dirección correcta. Archivos exclusivos de un lado se copian al otro.</span><br>
+            <span style="color:#4ec9b0;font-size:11px">✓ Al terminar, PC y Anbernic tienen exactamente los mismos archivos</span><br>
+            <span style="color:#ce9178;font-size:11px">⚠ Tras renombrar en el PC, las fechas cambian — usa "PC → Anbernic" en ese caso para no perder cambios</span>
           </span>
         </label>
       </div>
@@ -671,14 +681,17 @@ HTML = r"""<!DOCTYPE html>
 
     <!-- Dry run + botón -->
     <div class="actions-row" style="flex-wrap:wrap;gap:16px">
-      <label class="fmt-check">
-        <input type="checkbox" id="cable-dry-run" checked> Dry run (previsualizar sin copiar)
+      <label class="fmt-check" title="Muestra qué se copiaría sin mover ningún archivo. Desmarca para copiar de verdad.">
+        <input type="checkbox" id="cable-dry-run" onchange="_onCableDryRunChange()"> <span id="cable-dry-run-label">Dry run <span style="color:#555;font-size:11px">(solo previsualizar)</span></span>
       </label>
       <label class="fmt-check" title="Salta archivos que ya existen en destino con el mismo tamaño — evita re-copiar lo que ya está sincronizado">
         <input type="checkbox" id="cable-skip-existing" checked> Omitir si ya existe
         <span style="color:#555;font-size:11px;margin-left:4px">(mismo tamaño)</span>
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
+    </div>
+    <div id="cable-dry-run-warning" style="display:none;margin-top:6px;padding:6px 12px;background:#1a1f1a;border:1px solid #2a4a2a;border-left:3px solid #4ec9b0;border-radius:4px;font-size:12px;color:#4ec9b0">
+      Dry run desactivado — los archivos se <strong>copiarán realmente</strong>. Asegúrate de que las rutas son correctas antes de continuar.
     </div>
 
     <!-- Progreso -->
@@ -995,6 +1008,19 @@ HTML = r"""<!DOCTYPE html>
       <div id="rpt-tab-chd"       class="rpt-tab" style="display:none"></div>
     </div>
   </div>
+
+  <!-- ── Análisis de carpeta ── -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Análisis de carpeta</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversión.</p>
+    <div class="actions-row">
+      <div><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx"></div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doFolderAnalysis()">Analizar carpeta</button>
+    </div>
+    <div id="folder-analysis-result" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <!-- SETTINGS -->
@@ -1064,7 +1090,60 @@ HTML = r"""<!DOCTYPE html>
 // Pagination state for Games tab
 let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null };
 let platformsLoaded = false;
+
+// ── Column visibility ─────────────────────────────────────────────────────────
+const _COL_DEFAULTS = { region: true, match: true, size: false, sha1: false };
+function _loadColPrefs() {
+  try { return JSON.parse(localStorage.getItem('games_cols') || 'null') || _COL_DEFAULTS; }
+  catch { return _COL_DEFAULTS; }
+}
+function _saveColPrefs(prefs) {
+  localStorage.setItem('games_cols', JSON.stringify(prefs));
+}
+function applyColVisibility() {
+  const prefs = {
+    region: document.getElementById('gcol-check-region')?.checked ?? _COL_DEFAULTS.region,
+    match:  document.getElementById('gcol-check-match')?.checked  ?? _COL_DEFAULTS.match,
+    size:   document.getElementById('gcol-check-size')?.checked   ?? _COL_DEFAULTS.size,
+    sha1:   document.getElementById('gcol-check-sha1')?.checked   ?? _COL_DEFAULTS.sha1,
+  };
+  _saveColPrefs(prefs);
+  const show = (id, vis) => { const el = document.getElementById(id); if (el) el.style.display = vis ? '' : 'none'; };
+  show('gcol-region', prefs.region);
+  show('gcol-match',  prefs.match);
+  show('gcol-size',   prefs.size);
+  show('gcol-sha1',   prefs.sha1);
+  // Update row cells (col index: 0=platform,1=title,2=filename,3=region,4=match,5=size,6=sha1)
+  const COL = { region: 3, match: 4, size: 5, sha1: 6 };
+  document.querySelectorAll('#games-tbody tr').forEach(tr => {
+    Object.entries(COL).forEach(([key, idx]) => {
+      const td = tr.cells[idx];
+      if (td) td.style.display = prefs[key] ? '' : 'none';
+    });
+  });
+}
+function _initColPicker() {
+  const prefs = _loadColPrefs();
+  ['region','match','size','sha1'].forEach(key => {
+    const cb = document.getElementById('gcol-check-' + key);
+    if (cb) cb.checked = prefs[key];
+  });
+  applyColVisibility();
+}
+function toggleColPicker(event) {
+  event.stopPropagation();
+  const picker = document.getElementById('col-picker');
+  if (!picker) return;
+  picker.style.display = picker.style.display === 'none' ? '' : 'none';
+  if (picker.style.display !== 'none') {
+    // Close when clicking outside
+    const close = (e) => { if (!picker.contains(e.target)) { picker.style.display = 'none'; document.removeEventListener('click', close); }};
+    setTimeout(() => document.addEventListener('click', close), 0);
+  }
+}
 let _pollingTimer = null;
+// Track result timestamps already shown, so toasts/banners fire only once per result
+const _shownResultTs = {};
 
 // ── Device selector ───────────────────────────────────────────────────────────
 let _activeDevice = 'pc';  // 'pc' | 'both' | 'anbernic'
@@ -1197,7 +1276,8 @@ async function apiPost(url, body) {
 // ── Overview ─────────────────────────────────────────────────────────────────
 async function loadOverview() {
   try {
-    const cfg = await apiFetch('/api/config');
+    const _t = Date.now();
+    const cfg = await apiFetch('/api/config?t=' + _t);
 
     // Populate path inputs (only if empty)
     const pcInput = document.getElementById('ov-pc-path');
@@ -1246,7 +1326,7 @@ async function loadOverview() {
     // Fetch PC stats (filter by library_root)
     const pcCardsEl = document.getElementById('ov-pc-cards');
     try {
-      const pcParam = pcPath ? '?root=' + encodeURIComponent(pcPath) : '';
+      const pcParam = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + _t;
       const d = await apiFetch('/api/status' + pcParam);
       const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
       if (pcCardsEl) pcCardsEl.innerHTML =
@@ -1274,7 +1354,7 @@ async function loadOverview() {
     const abEmptyMsg = document.getElementById('ov-ab-empty-msg');
     if (abPath && abCardsEl) {
       try {
-        const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath));
+        const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath) + '&t=' + _t);
         const abMatchPct = ab.total_games > 0 ? Math.round(ab.matched_games / ab.total_games * 100) : 0;
         if (abDot) abDot.style.color = ab.total_games > 0 ? '#4ec9b0' : '#555';
         if (ab.total_games === 0) {
@@ -1379,13 +1459,20 @@ function _applyJobStatus(s) {
   if (btnChd)       btnChd.disabled       = s.convert_chd_running;
 
   if (!s.scan_running && s.scan_result) {
-    _showJobResult('scan', s.scan_result);
-    // Refresh stats cards after scan completes
-    loadOverview();
+    const ts = s.scan_result.result_ts || JSON.stringify(s.scan_result);
+    if (_shownResultTs.scan !== ts) {
+      _shownResultTs.scan = ts;
+      _showJobResult('scan', s.scan_result);
+      loadOverview();
+    }
   }
   if (!s.match_running && s.match_result) {
-    _showJobResult('match', s.match_result);
-    loadOverview();
+    const ts = s.match_result.result_ts || JSON.stringify(s.match_result);
+    if (_shownResultTs.match !== ts) {
+      _shownResultTs.match = ts;
+      _showJobResult('match', s.match_result);
+      loadOverview();
+    }
   }
   if (!s.sync_running && s.sync_result) {
     _renderSyncResult(s.sync_result);
@@ -1723,6 +1810,11 @@ async function doMatch() {
 }
 
 // ── Games ────────────────────────────────────────────────────────────────────
+let _gamesSearchTimer = null;
+function onGamesSearchChange() {
+  clearTimeout(_gamesSearchTimer);
+  _gamesSearchTimer = setTimeout(() => { loadGames(0); }, 300);
+}
 function onGamesFilterChange() {
   gamesState.platform = document.getElementById('games-platform').value;
   gamesState.status   = document.getElementById('games-matched').value;
@@ -1746,13 +1838,14 @@ async function loadGames(offset) {
     }
   }
 
-  const q = document.getElementById('games-search').value.toLowerCase();
+  const q = document.getElementById('games-search').value.trim();
   const params = new URLSearchParams({
     offset: gamesState.offset,
     limit:  gamesState.limit,
   });
   if (gamesState.platform) params.set('platform', gamesState.platform);
   if (gamesState.status)   params.set('status',   gamesState.status);
+  if (q)                   params.set('search',   q);
   const ft = document.getElementById('games-filetype')?.value;
   if (ft !== undefined && ft !== 'all') params.set('filetype', ft);
   const _gamesRoot = gamesState.root || _deviceRoot();
@@ -1778,13 +1871,7 @@ async function loadGames(offset) {
     document.getElementById('games-count').textContent =
       `${d.total} game${d.total !== 1 ? 's' : ''} (page ${Math.floor(gamesState.offset / gamesState.limit) + 1} of ${Math.max(1, Math.ceil(d.total / gamesState.limit))})`;
 
-    let rows = d.games;
-    if (q) {
-      rows = rows.filter(g =>
-        (g.canonical_title || '').toLowerCase().includes(q) ||
-        g.original_filename.toLowerCase().includes(q)
-      );
-    }
+    const rows = d.games;
 
     const empty = document.getElementById('games-empty');
     if (rows.length === 0) {
@@ -1808,6 +1895,7 @@ async function loadGames(offset) {
         <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
         <td class="mono" style="color:#444;font-size:11px">${(g.sha1||'').slice(0,10)}…</td>
       </tr>`).join('');
+      applyColVisibility();
     }
 
     renderPagination();
@@ -1977,6 +2065,19 @@ async function loadPlan() {
     }
     if (d.already_correct > 0) {
       html += `<p style="color:#555;margin-top:16px">${d.already_correct} file(s) already have the correct name.</p>`;
+    }
+    if (d.unmatched_count > 0) {
+      html += `<details style="margin-top:20px;border:1px solid #333;border-radius:6px;padding:10px 14px;background:#161620">`;
+      html += `<summary style="cursor:pointer;color:#888;font-size:13px;user-select:none">`;
+      html += `${d.unmatched_count} ROM${d.unmatched_count !== 1 ? 's' : ''} sin match en catálogo (no se renombrarán) `;
+      html += `— <a href="#" style="color:#569cd6;font-size:12px" onclick="event.preventDefault();goToGames(null,'unmatched')">Ver en Games →</a>`;
+      html += `</summary>`;
+      html += `<div style="margin-top:10px;overflow-x:auto"><table><thead><tr><th>Platform</th><th>Filename</th></tr></thead><tbody>`;
+      html += d.unmatched.map(g => `<tr>
+        <td>${_platBadge(g.platform)}</td>
+        <td class="mono" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
+      </tr>`).join('');
+      html += `</tbody></table></div></details>`;
     }
     el.innerHTML = html;
   } catch(e) {
@@ -2659,6 +2760,58 @@ function _renderHealthResult(r) {
   el.innerHTML = html;
 }
 
+// ── Análisis de carpeta ───────────────────────────────────────────────────────
+async function doFolderAnalysis() {
+  const path = document.getElementById('folder-analysis-path').value.trim();
+  const el   = document.getElementById('folder-analysis-result');
+  if (!path) { el.innerHTML = '<p class="error-msg">Introduce una ruta.</p>'; return; }
+  el.innerHTML = '<p class="loading">Analizando…</p>';
+  try {
+    const d = await apiFetch('/api/folder-analysis?path=' + encodeURIComponent(path));
+    let html = '';
+
+    // Extensions table
+    if (d.extensions && d.extensions.length > 0) {
+      html += '<h4 style="color:#569cd6;margin-bottom:8px">Extensiones encontradas</h4>';
+      html += '<div style="overflow-x:auto"><table><thead><tr><th>Extensión</th><th>Archivos</th><th>Categoría</th></tr></thead><tbody>';
+      html += d.extensions.map(e => {
+        const color = e.category === 'rom' ? '#4ec9b0' : e.category === 'unknown' ? '#f44747' : '#888';
+        return `<tr><td class="mono" style="color:${color}">${_h(e.ext)}</td><td>${e.count}</td><td style="color:${color}">${_h(e.category)}</td></tr>`;
+      }).join('');
+      html += '</tbody></table></div>';
+    }
+
+    // CUE sets with missing BIN
+    if (d.cue_missing_bin && d.cue_missing_bin.length > 0) {
+      html += `<h4 style="color:#f44747;margin:16px 0 8px">&#x26D4; .cue sin .bin (${d.cue_missing_bin.length})</h4>`;
+      html += '<ul style="margin:0;padding-left:20px">';
+      html += d.cue_missing_bin.map(f => `<li class="mono" style="color:#ce9178;font-size:12px">${_h(f)}</li>`).join('');
+      html += '</ul>';
+    }
+
+    // Orphan BIN (no CUE)
+    if (d.bin_orphan && d.bin_orphan.length > 0) {
+      html += `<h4 style="color:#ce9178;margin:16px 0 8px">&#x26A0; .bin sin .cue (${d.bin_orphan.length})</h4>`;
+      html += '<ul style="margin:0;padding-left:20px">';
+      html += d.bin_orphan.map(f => `<li class="mono" style="font-size:12px">${_h(f)}</li>`).join('');
+      html += '</ul>';
+    }
+
+    // Formats needing conversion
+    if (d.needs_conversion && d.needs_conversion.length > 0) {
+      html += `<h4 style="color:#dcdcaa;margin:16px 0 8px">Formatos que necesitan soporte/conversión</h4>`;
+      html += '<ul style="margin:0;padding-left:20px">';
+      html += d.needs_conversion.map(e => `<li style="color:#888;font-size:12px"><code>${_h(e.ext)}</code> — ${_h(e.note)}</li>`).join('');
+      html += '</ul>';
+    }
+
+    if (!html) html = '<p style="color:#555">No se encontraron archivos en la carpeta.</p>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${_h(e.message)}</p>`;
+  }
+}
+
 // ── RetroAchievements ────────────────────────────────────────────────────────
 async function doRaCheck() {
   const btn = document.getElementById('btn-ra-check');
@@ -3017,6 +3170,12 @@ function _onCableModeChange() {
   if (adbEl) adbEl.style.display = adb ? '' : 'none';
 }
 
+function _onCableDryRunChange() {
+  const cb = document.getElementById('cable-dry-run');
+  const warn = document.getElementById('cable-dry-run-warning');
+  if (warn) warn.style.display = cb?.checked ? 'none' : '';
+}
+
 function _onCableDirectionChange() {
   const dir = document.querySelector('input[name="cable-direction"]:checked')?.value;
   const row = document.getElementById('cable-sha1-row');
@@ -3223,8 +3382,10 @@ function _renderCableSyncResult(r) {
   const existsCount = r.details ? r.details.filter(d => d.file === 'EXISTS').length : 0;
   const existsMsg   = existsCount > 0 ? `  |  Ya existen: ${existsCount}` : '';
 
+  const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   resultEl.className = 'job-result visible success';
-  resultEl.textContent = `${verb}: ${r.copied} archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: ${r.errors}${existsMsg}${sha1Msg}  —  ${dirStr}${dryTag}`;
+  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: ${r.errors}${existsMsg}${sha1Msg}  —  ${dirStr}${dryTag}`
+    + (needsScan ? `<br><span style="color:#dcdcaa;font-size:11px">&#x26A0; Se han copiado archivos al PC — haz un <strong>Scan</strong> en Overview para indexarlos en la base de datos.</span>` : '');
 
   if (r.details && r.details.length > 0) {
     detailsList.innerHTML = r.details.map(d => {
@@ -3482,6 +3643,7 @@ function showToast(msg, type='ok', duration=3000) {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
+_initColPicker();
 loadOverview();
 </script>
 <div id="toast-container"></div>

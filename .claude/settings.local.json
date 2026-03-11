@@ -27,7 +27,14 @@
       "Bash(tools/adb.exe devices:*)",
       "Bash(PYTHONPATH=src \"/c/Users/rammu/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom pathlib import Path\nimport sqlite3\ndb = Path\\('C:/Users/rammu/Documents/projects/Retro_gaming_app/.rommgr/library.sqlite'\\)\nwith sqlite3.connect\\(db\\) as conn:\n    cols = [r[1] for r in conn.execute\\('PRAGMA table_info\\(games\\)'\\).fetchall\\(\\)]\n    print\\('games columns:', cols\\)\n\")",
       "Bash(PYTHONPATH=src \"/c/Users/rammu/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom pathlib import Path\nimport sqlite3\ndb = Path\\('C:/Users/rammu/Documents/projects/Retro_gaming_app/.rommgr/library.sqlite'\\)\nwith sqlite3.connect\\(db\\) as conn:\n    print\\('saves:', [r[1] for r in conn.execute\\('PRAGMA table_info\\(saves\\)'\\).fetchall\\(\\)]\\)\n    print\\('assets:', [r[1] for r in conn.execute\\('PRAGMA table_info\\(assets\\)'\\).fetchall\\(\\)]\\)\n\")",
-      "Bash(rm \"/e/Carpetas anbernic/{136AF216-080C-4018-99DD-2B3D15FCE02D}.CBM\" \"/e/Carpetas anbernic/EUMONBMP.SYS\" && echo \"Eliminados\" && ls \"/e/Carpetas anbernic/\"*.SYS \"/e/Carpetas anbernic/\"*.CBM 2>/dev/null || echo \"Confirmado: no quedan\")"
+      "Bash(rm \"/e/Carpetas anbernic/{136AF216-080C-4018-99DD-2B3D15FCE02D}.CBM\" \"/e/Carpetas anbernic/EUMONBMP.SYS\" && echo \"Eliminados\" && ls \"/e/Carpetas anbernic/\"*.SYS \"/e/Carpetas anbernic/\"*.CBM 2>/dev/null || echo \"Confirmado: no quedan\")",
+      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && find src/rom_manager/retroachievements/__pycache__ -name \"*.pyc\" -delete && find src/rom_manager/web/__pycache__ -name \"*.pyc\" -delete && echo \"Cache cleared\")",
+      "Bash(cd \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest tests/test_scanner.py::test_prune_stale_entries -v 2>&1 | tail -30)",
+      "Bash(cd \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest tests/test_scanner.py::test_prune_stale_entries -v --timeout=30 2>&1)",
+      "Bash(timeout /t 35 /nobreak >nul && type \"C:\\\\Users\\\\rammu\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-rammu-Documents-projects-Retro-gaming-app\\\\tasks\\\\b9v7c096d.output\")",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v 2>&1)",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v)",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\tests\\\\test_scanner.py::test_prune_stale_entries\" -v 2>&1; echo \"EXIT: $?\")"
     ]
   }
 }

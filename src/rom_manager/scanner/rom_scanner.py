@@ -108,6 +108,11 @@ def scan_library(
     if result.pruned:
         logger.info("Pruned %d stale entries from database.", result.pruned)
 
+    # Update SQLite query planner statistics so subsequent queries reflect
+    # the new data immediately (avoids stale counts after the first scan).
+    with repository.connect() as conn:
+        conn.execute("PRAGMA optimize")
+
     finished_at = utc_now()
     repository.complete_scan_run(
         scan_run_id,

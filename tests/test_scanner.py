@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from rom_manager.config import load_config
+from rom_manager.database.repository import LibraryRepository
 from rom_manager.scanner.rom_scanner import ScanResult, scan_library
 
 
@@ -172,3 +173,34 @@ def test_scan_result_aggregation(tmp_path):
     assert result.saves_detected == 1
     assert result.unknown_files_detected >= 1
     assert result.errors == 0
+
+
+# ── prune stale entries (integration) ─────────────────────────────────────────
+
+def test_prune_stale_entries(tmp_path):
+    """Scan 3 files → delete 1 → re-scan → stale entry pruned from DB."""
+    rom_dir = tmp_path / "roms"
+    rom_dir.mkdir()
+    db_path = tmp_path / ".rommgr" / "library.db"
+
+    game_a = _write(rom_dir, "gba", "GameA.gba")
+    game_b = _write(rom_dir, "gba", "GameB.gba")
+    game_c = _write(rom_dir, "gba", "GameC.gba")
+
+    repo = LibraryRepository(db_path)
+    cfg = load_config()
+    logger = MagicMock()
+
+    # First scan: all 3 files should be in the DB
+    scan_library(rom_dir, cfg, repo, logger)
+    _, total_after_first = repo.get_games_paginated()
+    assert total_after_first == 3
+
+    # Delete one file from disk
+    game_b.unlink()
+
+    # Second scan: stale entry for GameB must be pruned
+    result = scan_library(rom_dir, cfg, repo, logger)
+    _, total_after_second = repo.get_games_paginated()
+    assert total_after_second == 2
+    assert result.pruned == 1

@@ -687,12 +687,14 @@ class LibraryRepository:
         status: str | None = None,
         source_root: str | None = None,
         file_type: str | None = "rom",
+        search: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
 
         *status* can be ``'unresolved'`` (no canonical_title) or ``'matched'``.
         *source_root* filters to only games whose source_path starts with the given prefix.
         *file_type*: ``'rom'`` = ROMs only (default); ``''`` = ROMs + saves; ``None`` = all.
+        *search*: filters by canonical_title or original_filename (case-insensitive LIKE).
         """
         conditions: list[str] = []
         params: list[object] = []
@@ -713,6 +715,10 @@ class LibraryRepository:
         if source_root:
             conditions.append("source_path LIKE ?")
             params.append(source_root.rstrip("/\\").replace("%", "%%") + "%")
+        if search:
+            like = "%" + search.replace("%", "%%").replace("_", "\\_") + "%"
+            conditions.append("(canonical_title LIKE ? ESCAPE '\\' OR original_filename LIKE ? ESCAPE '\\')")
+            params.extend([like, like])
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

@@ -102,6 +102,54 @@ class ScreenScraperClient:
 
         return self._parse(game, lang=lang)
 
+    def search_by_name(
+        self,
+        name: str,
+        system_id: int | None = None,
+        lang: str = "en",
+    ) -> ScraperResult | None:
+        """Fallback search using only the game name (no hash).
+
+        Strips region/revision tags from *name* before sending to ScreenScraper.
+        Uses jeuInfos.php with romnom only; slower than hash search.
+        """
+        import re
+        clean = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", name)  # strip (USA), [Rev A], etc.
+        clean = clean.strip().removesuffix(Path(clean).suffix)  # remove extension
+        if not clean:
+            return None
+
+        self._rate_limit()
+        params: dict[str, str] = {
+            "ssid": self.user,
+            "sspassword": self.password,
+            "softname": _SOFT_NAME,
+            "output": "json",
+            "romnom": clean,
+        }
+        if self.dev_id:
+            params["devid"] = self.dev_id
+        if self.dev_password:
+            params["devpassword"] = self.dev_password
+        if system_id is not None:
+            params["systemeid"] = str(system_id)
+
+        url = f"{_API_BASE}/jeuInfos.php?{urllib.parse.urlencode(params)}"
+        try:
+            with urllib.request.urlopen(url, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (404, 426, 430):
+                return None
+            raise
+        except (urllib.error.URLError, OSError):
+            return None
+
+        game = data.get("response", {}).get("jeu")
+        if not game:
+            return None
+        return self._parse(game, lang=lang)
+
     # ------------------------------------------------------------------
 
     def _rate_limit(self) -> None:

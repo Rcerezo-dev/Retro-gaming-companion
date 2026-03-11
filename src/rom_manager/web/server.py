@@ -233,10 +233,11 @@ def _build_games(
     status: str | None = None,
     source_root: str | None = None,
     file_type: str | None = "rom",
+    search: str | None = None,
 ) -> dict:
     games, total = repository.get_games_paginated(
         offset=offset, limit=limit, platform=platform, status=status,
-        source_root=source_root, file_type=file_type,
+        source_root=source_root, file_type=file_type, search=search,
     )
     return {
         "games": games,
@@ -294,6 +295,16 @@ def _build_plan(
             "target_name": op.target_path.name,
             "companion_saves": companions,
         })
+    # Unmatched games (no canonical_title) filtered by source_root
+    unmatched_games = repository.get_unresolved_games()
+    if source_root:
+        root_lower = source_root.lower()
+        unmatched_games = [g for g in unmatched_games if g.source_path.lower().startswith(root_lower)]
+    unmatched_rows = [
+        {"original_filename": g.original_filename, "platform": g.platform}
+        for g in unmatched_games
+    ]
+
     return {
         "total": plan.total,
         "already_correct": len(already_correct),
@@ -307,6 +318,8 @@ def _build_plan(
             for op in conflict_ops
         ],
         "total_saves_affected": total_saves,
+        "unmatched_count": len(unmatched_rows),
+        "unmatched": unmatched_rows,
     }
 
 
@@ -361,6 +374,100 @@ def _build_duplicates(
         ],
         "total_files": total_files,
         "wasted_bytes": total_wasted,
+    }
+
+
+def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
+    """Analyse a folder: count extensions, find broken PSX sets, flag conversion needs."""
+    from pathlib import Path as _Path
+    from collections import Counter
+
+    _ROM_EXTS = {
+        ".gba", ".gb", ".gbc", ".nes", ".snes", ".sfc", ".md", ".smd", ".gen",
+        ".n64", ".z64", ".v64", ".nds", ".3ds", ".psx", ".ps1",
+        ".iso", ".chd", ".cue", ".bin",
+        ".cdi", ".gdi", ".pbp", ".elf",
+        ".gcm", ".nkit", ".rvz", ".wbfs",
+        ".nsp", ".xci",
+    }
+    _SAVE_EXTS = {".sav", ".srm", ".state", ".sta", ".mcr", ".mc"}
+    _NEEDS_CONVERSION = {
+        ".img":  "imagen de disco — puede ser CD-ROM (.img/.ccd) o HDD; verificar si acompaña .ccd/.sub",
+        ".mdf":  "imagen Alcohol 120% — convertir a .chd o .cue/.bin con mdf2iso",
+        ".mds":  "descriptor Alcohol 120% — acompaña .mdf",
+        ".ccd":  "CloneCD descriptor — convertir a .chd con chdman",
+        ".sub":  "datos de subcódigo CloneCD — acompaña .ccd/.img",
+        ".nrg":  "imagen Nero — convertir a .iso o .chd",
+        ".ecm":  "Error Code Modeler — descomprimir con ecmtools antes de convertir a CHD",
+    }
+
+    p = _Path(folder_path)
+    if not p.is_dir():
+        return {"error": f"Carpeta no encontrada: {folder_path}", "extensions": [], "cue_missing_bin": [], "bin_orphan": [], "needs_conversion": []}
+
+    ext_counter: Counter[str] = Counter()
+    cue_files: list[_Path] = []
+    bin_files: set[str] = set()   # stems in lower case
+
+    for f in p.rglob("*"):
+        if not f.is_file():
+            continue
+        ext = f.suffix.lower()
+        ext_counter[ext] += 1
+        if ext == ".cue":
+            cue_files.append(f)
+        elif ext == ".bin":
+            bin_files.add(f.stem.lower())
+
+    # Classify extensions
+    extensions = []
+    for ext, count in sorted(ext_counter.items(), key=lambda x: -x[1]):
+        if ext in _ROM_EXTS:
+            cat = "rom"
+        elif ext in _SAVE_EXTS:
+            cat = "save"
+        elif ext in _NEEDS_CONVERSION:
+            cat = "needs_conversion"
+        elif ext in {".jpg", ".jpeg", ".png", ".webp", ".xml", ".txt", ".cfg", ".db"}:
+            cat = "asset/meta"
+        else:
+            cat = "unknown"
+        extensions.append({"ext": ext or "(sin extensión)", "count": count, "category": cat})
+
+    # Check CUE integrity: find .cue files whose referenced .bin is missing
+    import re as _re
+    cue_missing_bin: list[str] = []
+    for cue in cue_files:
+        try:
+            text = cue.read_text(errors="replace")
+            bins_referenced = _re.findall(r'FILE\s+"?([^"]+\.bin)"?', text, _re.IGNORECASE)
+            for bin_name in bins_referenced:
+                if not (cue.parent / bin_name).exists():
+                    cue_missing_bin.append(cue.name)
+                    break
+        except OSError:
+            pass
+
+    # Orphan BINs: .bin files whose stem doesn't match any .cue file stem
+    cue_stems = {c.stem.lower() for c in cue_files}
+    bin_orphan = [
+        f.name for f in p.rglob("*.bin")
+        if f.is_file() and f.stem.lower() not in cue_stems
+    ]
+
+    # Formats needing conversion
+    needs_conversion = [
+        {"ext": ext, "note": note}
+        for ext, note in _NEEDS_CONVERSION.items()
+        if ext in ext_counter
+    ]
+
+    return {
+        "folder": folder_path,
+        "extensions": extensions,
+        "cue_missing_bin": sorted(cue_missing_bin),
+        "bin_orphan": sorted(bin_orphan),
+        "needs_conversion": needs_conversion,
     }
 
 
@@ -577,7 +684,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     root = qs.get("root", [None])[0] or None
                     ft = qs.get("filetype", ["rom"])[0]
                     file_type = ft if ft in ("rom", "") else None
-                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type))
+                    search = qs.get("search", [None])[0] or None
+                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type, search=search))
                 elif path == "/api/plan":
                     opts = _parse_format_opts(qs)
                     source_root = qs.get("source_root", [None])[0] or None
@@ -690,6 +798,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     else:
                         self._send(200, "application/octet-stream", db_path.read_bytes(),
                                    extra_headers={"Content-Disposition": 'attachment; filename="library.sqlite"'})
+                elif path == "/api/folder-analysis":
+                    folder_path = qs.get("path", [None])[0] or None
+                    if not folder_path:
+                        self._send(400, "text/plain; charset=utf-8", b"path parameter required")
+                    else:
+                        self._send_json(_build_folder_analysis(folder_path, config))
                 elif path == "/api/ra-check.csv":
                     result = _job_results.get("ra_check")
                     if not result or result.get("error") or not result.get("alternatives_csv"):
@@ -835,6 +949,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         total.saves_detected += r.saves_detected
                         total.errors += r.errors
                     _job_results["scan"] = {
+                        "result_ts": utc_now(),
                         "files_seen": total.files_seen,
                         "roms_detected": total.roms_detected,
                         "roms_skipped": total.roms_skipped,
@@ -967,6 +1082,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         errors=errors,
                     )
                     _job_results["scan"] = {
+                        "result_ts": utc_now(),
                         "files_seen": len(all_files),
                         "roms_detected": roms,
                         "roms_skipped": 0,
@@ -1432,14 +1548,19 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                                 "found": found,
                                 "current_game": game["original_filename"],
                             })
+                            sys_id = get_system_id(game["platform"])
                             result = client.search(
                                 crc32=game["crc32"],
                                 md5=game["md5"],
                                 sha1=game["sha1"],
                                 filename=game["original_filename"],
                                 size_bytes=game["size_bytes"],
-                                system_id=get_system_id(game["platform"]),
+                                system_id=sys_id,
                             )
+                            if result is None:
+                                # Fallback: search by cleaned name (no hash)
+                                name_hint = game.get("canonical_title") or game["original_filename"]
+                                result = client.search_by_name(name_hint, system_id=sys_id)
                             if result is None:
                                 skipped += 1
                                 continue
