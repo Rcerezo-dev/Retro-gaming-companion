@@ -29,6 +29,8 @@ _zip_progress: dict = {}     # {"current": int, "total": int, "current_file": st
 _health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _ra_progress: dict = {}      # {"current": int, "total": int, "current_file": str}
 _cable_progress: dict = {}   # {"copied": int, "current_file": str}
+_scan_progress: dict = {}    # {"files_seen": int, "roms_detected": int, "current_path": str}
+_scan_cancel: threading.Event = threading.Event()
 _logger = logging.getLogger(__name__)
 
 
@@ -230,10 +232,11 @@ def _build_games(
     platform: str | None = None,
     status: str | None = None,
     source_root: str | None = None,
+    file_type: str | None = "rom",
 ) -> dict:
     games, total = repository.get_games_paginated(
         offset=offset, limit=limit, platform=platform, status=status,
-        source_root=source_root,
+        source_root=source_root, file_type=file_type,
     )
     return {
         "games": games,
@@ -274,9 +277,10 @@ def _build_plan(
     conflict_ops = plan.conflicts
     already_correct = plan.already_correct
     if source_root:
-        pending_ops = [op for op in pending_ops if str(op.source_path).startswith(source_root)]
-        conflict_ops = [op for op in conflict_ops if str(op.source_path).startswith(source_root)]
-        already_correct = [op for op in already_correct if str(op.source_path).startswith(source_root)]
+        root_lower = source_root.lower()
+        pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
+        conflict_ops = [op for op in conflict_ops if str(op.source_path).lower().startswith(root_lower)]
+        already_correct = [op for op in already_correct if str(op.source_path).lower().startswith(root_lower)]
     pending_rows = []
     total_saves = 0
     for op in pending_ops:
@@ -336,6 +340,99 @@ def _build_duplicates(repository: LibraryRepository, source_root: str | None = N
         ],
         "total_files": total_files,
         "wasted_bytes": total_wasted,
+    }
+
+
+def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> dict:
+    """Find title-based duplicates where one version has RA support and another doesn't.
+
+    Groups games with the same normalized title by platform. For each group with ≥2
+    entries, checks RA cache to see which versions have achievements. Returns groups
+    where at least one version has achievements and at least one doesn't.
+    """
+    from collections import defaultdict
+    import json
+    from pathlib import Path as _Path
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+    from rom_manager.retroachievements.ra_client import _parse_game_list
+    from rom_manager.retroachievements.ra_checker import _normalize_title
+
+    cache_dir = config.project_root / ".rommgr" / "ra_cache"
+
+    with repository.connect() as conn:
+        rows = conn.execute(
+            "SELECT id, original_filename, source_path, platform, md5, canonical_title, size_bytes "
+            "FROM games WHERE file_type = 'rom' ORDER BY platform, original_filename"
+        ).fetchall()
+
+    # Build platform → md5 → achievements lookup from local RA cache
+    platform_hash_map: dict[str, dict[str, int]] = {}
+    platforms_seen = {r["platform"] for r in rows if r["platform"]}
+    for plat in platforms_seen:
+        console_id = get_ra_console_id(plat or "")
+        if not console_id:
+            continue
+        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+        if not cache_file.exists():
+            continue
+        try:
+            data = json.loads(cache_file.read_text(encoding="utf-8"))
+            hash_lib = _parse_game_list(data)
+            platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
+        except Exception:
+            continue
+
+    if not platform_hash_map:
+        return {"groups": [], "total_groups": 0, "wasted_bytes": 0,
+                "note": "No hay caché de RetroAchievements. Ejecuta primero la comprobación RA en Tools."}
+
+    # Group games by (platform, normalized_title)
+    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for row in rows:
+        plat = row["platform"] or "unknown"
+        title = row["canonical_title"] or _Path(row["original_filename"]).stem
+        key = (plat, _normalize_title(title))
+        groups[key].append({
+            "id": row["id"],
+            "filename": row["original_filename"],
+            "source_path": row["source_path"],
+            "platform": row["platform"],
+            "md5": row["md5"],
+            "size_bytes": int(row["size_bytes"]),
+        })
+
+    result_groups = []
+    for (plat, norm_title), entries in groups.items():
+        if len(entries) < 2:
+            continue
+        hash_map = platform_hash_map.get(plat)
+        if not hash_map:
+            continue
+
+        annotated = []
+        for e in entries:
+            md5_lower = (e["md5"] or "").lower()
+            achievements = hash_map.get(md5_lower, -1)  # -1 = not in RA cache
+            annotated.append({**e, "ra_achievements": achievements, "ra_supported": achievements > 0})
+
+        has_supported = any(a["ra_supported"] for a in annotated)
+        has_unsupported = any(not a["ra_supported"] for a in annotated)
+        if not (has_supported and has_unsupported):
+            continue
+
+        wasted = sum(a["size_bytes"] for a in annotated if not a["ra_supported"])
+        result_groups.append({
+            "platform": plat,
+            "normalized_title": norm_title,
+            "entries": annotated,
+            "wasted_bytes": wasted,
+        })
+
+    result_groups.sort(key=lambda g: g["wasted_bytes"], reverse=True)
+    return {
+        "groups": result_groups,
+        "total_groups": len(result_groups),
+        "wasted_bytes": sum(g["wasted_bytes"] for g in result_groups),
     }
 
 
@@ -436,6 +533,20 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         rpt["retroachievements"] = _job_results.get("ra_check") or {"note": "Ejecuta primero la comprobación de RetroAchievements en la pestaña Tools"}
                         rpt["chd"] = _job_results.get("convert_chd") or {"note": "Ejecuta primero la conversión CHD en la pestaña Tools"}
                         self._send_json(rpt)
+                elif path == "/api/ra-duplicates":
+                    self._send_json(_build_ra_duplicates(repository, config))
+                elif path == "/api/report/html":
+                    rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
+                    if not rpt_path:
+                        self._send(400, "text/plain; charset=utf-8",
+                                   b"path parameter required (or set library_root in config)")
+                    else:
+                        from rom_manager.utils.library_report_html import generate_html_report
+                        rpt = _build_library_report(rpt_path, repository, config)
+                        rpt["retroachievements"] = _job_results.get("ra_check") or {}
+                        rpt["chd"] = _job_results.get("convert_chd") or {}
+                        html = generate_html_report(rpt)
+                        self._send(200, "text/html; charset=utf-8", html.encode("utf-8"))
                 elif path == "/api/games":
                     qs = parse_qs(parsed.query)
                     offset = int(qs.get("offset", ["0"])[0])
@@ -443,7 +554,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     plat = qs.get("platform", [None])[0] or None
                     st = qs.get("status", [None])[0] or None
                     root = qs.get("root", [None])[0] or None
-                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st, source_root=root))
+                    ft = qs.get("filetype", ["rom"])[0]
+                    file_type = ft if ft in ("rom", "") else None
+                    self._send_json(_build_games(repository, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type))
                 elif path == "/api/plan":
                     opts = _parse_format_opts(qs)
                     source_root = qs.get("source_root", [None])[0] or None
@@ -487,6 +600,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                             "cable_sync_running": _jobs["cable_sync"],
                             "cable_progress": dict(_cable_progress) if _cable_progress else None,
                             "cable_sync_result": _job_results.get("cable_sync"),
+                            "scan_progress": dict(_scan_progress) if _scan_progress else None,
                         })
                 elif path == "/api/test-chdman":
                     import subprocess
@@ -629,6 +743,15 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     self._handle_cleanup_zips(data)
                 elif path == "/api/cleanup-cue-bin":
                     self._handle_cleanup_cue_bin(data)
+                elif path == "/api/stop-job":
+                    job_name = data.get("job", "")
+                    if job_name == "scan":
+                        _scan_cancel.set()
+                    with _job_lock:
+                        if job_name in _jobs:
+                            _jobs[job_name] = False
+                    _scan_progress.clear()
+                    self._send_json({"status": "stopped", "job": job_name})
                 elif path == "/api/ra-check":
                     self._handle_ra_check(data)
                 elif path == "/api/cable-sync":
@@ -659,14 +782,30 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     return
                 _jobs["scan"] = True
 
+            _scan_cancel.clear()
+            _scan_progress.clear()
+
             def run() -> None:
                 try:
                     from rom_manager.scanner import scan_library
                     from rom_manager.scanner.rom_scanner import ScanResult
                     total = ScanResult()
+
+                    def _progress_cb(files_seen: int, roms: int, current_file: str = "") -> None:
+                        _scan_progress.update({
+                            "files_seen": files_seen,
+                            "roms_detected": roms,
+                            "current_path": str(source),
+                            "current_file": current_file,
+                        })
+
                     for raw in raw_paths:
                         source = Path(raw).resolve()
-                        r = scan_library(source, config, repository, logger, quick=quick)
+                        _scan_progress["current_path"] = str(source)
+                        r = scan_library(
+                            source, config, repository, logger, quick=quick,
+                            stop_event=_scan_cancel, progress_cb=_progress_cb,
+                        )
                         total.files_seen += r.files_seen
                         total.roms_detected += r.roms_detected
                         total.roms_skipped += r.roms_skipped
@@ -680,10 +819,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                         "errors": total.errors,
                         "paths_scanned": len(raw_paths),
                         "pruned": total.pruned,
+                        "cancelled": _scan_cancel.is_set(),
                     }
                 except Exception as exc:
                     _job_results["scan"] = {"error": str(exc)}
                 finally:
+                    _scan_progress.clear()
                     with _job_lock:
                         _jobs["scan"] = False
 
@@ -1758,7 +1899,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
             plan = build_plan(repository, opts)
             pending_ops = plan.pending
             if source_root:
-                pending_ops = [op for op in pending_ops if str(op.source_path).startswith(source_root)]
+                root_lower = source_root.lower()
+                pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
             renamed = failed = skipped = saves_renamed = 0
             skip_details: list[str] = []
             timestamp = utc_now()
@@ -1767,7 +1909,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                     skipped += 1
                     skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
                     continue
-                outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                try:
+                    outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                except Exception as exc:
+                    skipped += 1
+                    skip_details.append(f"{op.source_path.name}: unexpected error — {exc}")
+                    continue
                 if outcome.success:
                     repository.apply_rename(
                         game_id=op.game.id,

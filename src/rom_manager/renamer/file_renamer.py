@@ -32,10 +32,16 @@ def rename_rom_with_saves(
     """
     # Collect companion save files (same stem, save extension)
     stem = source.stem
-    companions: list[Path] = [
-        f for f in source.parent.iterdir()
-        if f != source and f.stem == stem and f.suffix.lower() in save_extensions
-    ]
+    try:
+        companions: list[Path] = [
+            f for f in source.parent.iterdir()
+            if f != source and f.stem == stem and f.suffix.lower() in save_extensions
+        ]
+    except OSError as exc:
+        return RenameOutcome(
+            success=False, source=source, target=target,
+            error=f"Cannot list directory '{source.parent}': {exc}",
+        )
 
     new_stem = target.stem
 

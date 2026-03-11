@@ -483,7 +483,8 @@ class LibraryRepository:
         root_prefix = source_root + os.sep
 
         def _under_root(p: str) -> bool:
-            return p == source_root or p.startswith(root_prefix)
+            p_lower = p.lower()
+            return p_lower == source_root.lower() or p_lower.startswith(root_prefix.lower())
 
         with self.connect() as conn:
             game_paths  = [r[0] for r in conn.execute("SELECT source_path  FROM games").fetchall()]
@@ -685,16 +686,22 @@ class LibraryRepository:
         platform: str | None = None,
         status: str | None = None,
         source_root: str | None = None,
+        file_type: str | None = "rom",
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
 
         *status* can be ``'unresolved'`` (no canonical_title) or ``'matched'``.
         *source_root* filters to only games whose source_path starts with the given prefix.
+        *file_type*: ``'rom'`` = ROMs only (default); ``''`` = ROMs + saves; ``None`` = all.
         """
         conditions: list[str] = []
         params: list[object] = []
 
-        conditions.append("file_type = 'rom'")
+        # Default: show only ROMs; filetype='' means ROMs+saves; filetype=None means all
+        if file_type == "rom":
+            conditions.append("file_type = 'rom'")
+        elif file_type == "":
+            conditions.append("file_type IN ('rom', 'save')")
 
         if platform:
             conditions.append("platform = ?")

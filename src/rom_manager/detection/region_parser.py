@@ -80,9 +80,9 @@ def parse_region_from_name(name: str) -> str:
 
     # 3. Plain-text fallbacks for common informal naming
     lowered = name.casefold()
-    if "japan" in lowered or "jpn" in lowered:
+    if bool(re.search(r'\bjapan\b', lowered)) or bool(re.search(r'\bjpn\b', lowered)):
         return "Japan"
-    if "pal" in lowered:
+    if bool(re.search(r'\bpal\b', lowered)):
         return "Europe"
 
     return "UNK"

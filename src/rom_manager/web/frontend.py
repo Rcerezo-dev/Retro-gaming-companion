@@ -103,6 +103,13 @@ HTML = r"""<!DOCTYPE html>
   .rpt-warn { background:#3a3a1a; color:#ce9178; }
   .rpt-bad  { background:#3a1a1a; color:#f44747; }
   .rpt-info { background:#1a2a3a; color:#569cd6; }
+  tbody tr:hover { background: #252537; }
+  #toast-container { position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+  .toast { background:#252537; border:1px solid #3a3a5c; border-radius:6px; padding:10px 16px; font-size:13px; color:#d4d4d4; max-width:340px; box-shadow:0 4px 12px rgba(0,0,0,.4); animation:toast-in .2s ease; pointer-events:auto; }
+  .toast.ok { border-left:3px solid #4ec9b0; }
+  .toast.err { border-left:3px solid #f44747; }
+  .toast.info { border-left:3px solid #569cd6; }
+  @keyframes toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 </style>
 </head>
 <body>
@@ -215,6 +222,7 @@ HTML = r"""<!DOCTYPE html>
       </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
     </div>
+    <div id="scan-progress-label" style="display:none;color:#888;font-size:11px;margin-top:6px;padding:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
 
     <!-- ADB scan options (inline, hidden by default) -->
     <div id="scan-adb-options" style="display:none;margin-top:8px;padding:10px 12px;background:#161626;border:1px solid #2a3a4a;border-radius:4px;font-size:12px">
@@ -296,6 +304,11 @@ HTML = r"""<!DOCTYPE html>
       <option value="matched">Matched only</option>
       <option value="unmatched">Unmatched only</option>
     </select>
+    <select id="games-filetype" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="rom">Solo ROMs</option>
+      <option value="">ROMs + saves</option>
+      <option value="all">Todo</option>
+    </select>
     <span id="games-count" style="color:#666;margin-left:8px;"></span>
     <a href="/api/report.csv" class="btn" style="margin-left:auto">&#x2193; CSV</a>
     <a href="/api/report.json" class="btn">&#x2193; JSON</a>
@@ -358,6 +371,16 @@ HTML = r"""<!DOCTYPE html>
   </div>
   <div id="dup-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div id="dup-content"><p class="loading">Loading…</p></div>
+
+  <!-- ── RA-based duplicates (same title, different version, one lacks RA support) ── -->
+  <div style="margin-top:28px;border-top:1px solid #2a2a3e;padding-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0;font-size:13px;color:#c9bcf5">Duplicados por versión — sin logros RA</h3>
+      <button class="btn" onclick="loadRaDuplicates()" id="btn-ra-dups" style="font-size:12px;padding:3px 10px">Comprobar</button>
+    </div>
+    <p style="color:#555;font-size:11px;margin-bottom:12px">Detecta juegos con ≥2 versiones (mismo título normalizado, distinto MD5) donde una versión tiene logros en RetroAchievements y otra no. La versión sin logros es candidata a eliminar.<br>Requiere que hayas ejecutado la comprobación RA en <strong>Tools</strong> al menos una vez.</p>
+    <div id="ra-dup-content"></div>
+  </div>
 </div>
 
 <!-- SYNC -->
@@ -895,6 +918,7 @@ HTML = r"""<!DOCTYPE html>
       </div>
       <button class="btn primary" onclick="generateReport()">Generar informe</button>
       <button class="btn" id="btn-export-report" style="display:none" onclick="exportReportHtml()">&#x2193; Exportar HTML</button>
+      <button class="btn" id="btn-open-html-report" onclick="openHtmlReport()" title="Abre el informe en una nueva pestaña con navegación por pestañas">&#x2197; Ver informe HTML</button>
     </div>
     <p style="color:#555;font-size:11px;margin-top:8px">Recopila el estado de ZIPs, playlists, sets multi-disco, saves huérfanos, RetroAchievements y conversiones CHD.</p>
 
@@ -1063,6 +1087,22 @@ function badge(cls, text) {
   return `<span class="badge ${cls}">${text}</span>`;
 }
 
+function _h(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function stopJob(name) {
+  try {
+    await apiPost('/api/stop-job', { job: name });
+  } catch(_) {}
+}
+
+function openHtmlReport() {
+  const path = document.getElementById('report-path')?.value.trim() || '';
+  const url = '/api/report/html' + (path ? '?path=' + encodeURIComponent(path) : '');
+  window.open(url, '_blank');
+}
+
 async function apiFetch(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(await r.text());
@@ -1107,7 +1147,7 @@ async function loadOverview() {
     const abCb    = document.getElementById('scan-include-ab');
     if (pcLabel) pcLabel.textContent = pcPath || '(configura la ruta arriba)';
     if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
-    if (abCb)    abCb.disabled = !abPath;
+    if (abCb) { abCb.disabled = !abPath; if (abPath && !abCb.checked) abCb.checked = true; }
 
     // Enable/disable Anbernic device button
     const devAb = document.getElementById('dev-anbernic');
@@ -1224,8 +1264,27 @@ function _applyJobStatus(s) {
   const btnMatch = document.getElementById('btn-match');
 
   if (btnScan) {
-    btnScan.disabled = s.scan_running;
-    btnScan.textContent = s.scan_running ? 'Escaneando…' : 'Scan';
+    if (s.scan_running) {
+      btnScan.disabled = false;
+      btnScan.textContent = 'Detener scan';
+      btnScan.onclick = () => stopJob('scan');
+      btnScan.classList.add('danger');
+    } else {
+      btnScan.disabled = false;
+      btnScan.textContent = 'Scan';
+      btnScan.onclick = doScan;
+      btnScan.classList.remove('danger');
+    }
+  }
+  const scanProg = document.getElementById('scan-progress-label');
+  if (scanProg) {
+    if (s.scan_running && s.scan_progress) {
+      const p = s.scan_progress;
+      scanProg.style.display = '';
+      scanProg.textContent = `Escaneando${p.current_path ? ' ' + p.current_path : ''}… ${p.files_seen || 0} archivos, ${p.roms_detected || 0} ROMs detectadas`;
+    } else {
+      scanProg.style.display = 'none';
+    }
   }
   if (btnMatch) {
     btnMatch.disabled = s.match_running;
@@ -1432,6 +1491,7 @@ function _showJobResult(type, result) {
       if (abInput && !abInput.value) abInput.value = result.android_path;
     }
     el.textContent = `Scan completado${srcMsg} — ROMs: ${result.roms_detected}  |  Ya escaneados: ${result.roms_skipped}  |  Saves: ${result.saves_detected}  |  Errores: ${result.errors}${prunedMsg}`;
+    showToast(`Scan completado — ${result.roms_detected} ROMs${result.errors ? ', ' + result.errors + ' errores' : ''}`, result.errors ? 'err' : 'ok');
   } else if (type === 'match') {
     el.className = 'job-result visible success';
     el.textContent = `Match completado — SHA1: ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin match: ${result.unmatched}  (de ${result.total} ROMs)`;
@@ -1587,6 +1647,7 @@ async function doMatch() {
 function onGamesFilterChange() {
   gamesState.platform = document.getElementById('games-platform').value;
   gamesState.status   = document.getElementById('games-matched').value;
+  gamesState.filetype = document.getElementById('games-filetype').value;
   loadGames(0);
 }
 
@@ -1613,6 +1674,8 @@ async function loadGames(offset) {
   });
   if (gamesState.platform) params.set('platform', gamesState.platform);
   if (gamesState.status)   params.set('status',   gamesState.status);
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') params.set('filetype', ft);
   const _gamesRoot = gamesState.root || _deviceRoot();
   if (_gamesRoot)          params.set('root',      _gamesRoot);
 
@@ -1930,6 +1993,65 @@ async function deleteDuplicate(gameId, sourcePath) {
     loadOverview();
   } catch(e) {
     alert('Error al eliminar: ' + e.message);
+  }
+}
+
+// ── RA Duplicates ─────────────────────────────────────────────────────────────
+async function loadRaDuplicates() {
+  const el = document.getElementById('ra-dup-content');
+  const btn = document.getElementById('btn-ra-dups');
+  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiFetch('/api/ra-duplicates');
+    if (d.note) {
+      el.innerHTML = `<p style="color:#888;font-size:12px">${d.note}</p>`;
+      return;
+    }
+    if (d.total_groups === 0) {
+      el.innerHTML = '<p style="color:#4ec9b0;font-size:13px">No se encontraron versiones candidatas a eliminar. ✓</p>';
+      return;
+    }
+    let html = `<p style="color:#888;font-size:12px;margin-bottom:12px">
+      <strong style="color:#e0e0e0">${d.total_groups}</strong> grupos encontrados —
+      <strong style="color:#f44747">${fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
+    </p>`;
+    for (const g of d.groups) {
+      html += `<div style="border:1px solid #2a2a3e;border-radius:4px;margin-bottom:10px;overflow:hidden">
+        <div style="background:#252537;padding:7px 12px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;font-weight:600;color:#c9bcf5">${_h(g.normalized_title)}</span>
+          <span style="font-size:11px;color:#888">${_h(g.platform)} — ${fmtSize(g.wasted_bytes)} recuperables</span>
+        </div>
+        <table style="width:100%;font-size:12px">
+          <thead><tr>
+            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Archivo</th>
+            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Tamaño</th>
+            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Logros RA</th>
+            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Recomendación</th>
+          </tr></thead>
+          <tbody>`;
+      for (const e of g.entries) {
+        const raLabel = e.ra_supported
+          ? `<span style="color:#4ec9b0">✓ ${e.ra_achievements} logros</span>`
+          : `<span style="color:#f44747">✗ Sin logros</span>`;
+        const rec = e.ra_supported
+          ? '<span style="color:#4ec9b0">Conservar</span>'
+          : '<span style="color:#f44747">Candidata a eliminar</span>';
+        const rowBg = e.ra_supported ? '' : 'style="background:#1a1015"';
+        html += `<tr ${rowBg}>
+          <td style="padding:5px 10px;word-break:break-all">${_h(e.filename)}</td>
+          <td style="padding:5px 10px">${fmtSize(e.size_bytes)}</td>
+          <td style="padding:5px 10px">${raLabel}</td>
+          <td style="padding:5px 10px">${rec}</td>
+        </tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -2709,6 +2831,18 @@ async function saveOvPaths() {
       return;
     }
   }
+  // Update UI elements that depend on abPath
+  const abCb    = document.getElementById('scan-include-ab');
+  const devAb   = document.getElementById('dev-anbernic');
+  const abLabel = document.getElementById('scan-ab-label');
+  const abLbl   = document.getElementById('ov-ab-path-label');
+  if (abCb)    { abCb.disabled = !abPath; if (abPath && !abCb.checked) abCb.checked = true; }
+  if (devAb)   devAb.disabled = !abPath;
+  if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
+  if (abLbl)   abLbl.textContent = abPath ? '— ' + abPath : '';
+  // Reload Anbernic stats in Overview if path changed
+  if (abPath) loadOverview();
+
   resultEl.className = 'job-result visible ok-r';
   resultEl.textContent = 'Rutas guardadas.';
   setTimeout(() => { resultEl.className = 'job-result'; }, 3000);
@@ -3181,9 +3315,21 @@ function exportReportHtml() {
   a.click();
 }
 
+// ── Toast notifications ───────────────────────────────────────────────────────
+function showToast(msg, type='ok', duration=3000) {
+  const c = document.getElementById('toast-container');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(), 320); }, duration);
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 loadOverview();
 </script>
+<div id="toast-container"></div>
 </body>
 </html>
 """

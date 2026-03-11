@@ -164,8 +164,9 @@ def _normalize_title(title: str) -> str:
     t = title.lower()
     t = re.sub(r"\s*\([^)]*\)", "", t)   # remove (USA), (Rev 1), etc.
     t = re.sub(r"\s*\[[^\]]*\]", "", t)   # remove [!], [b], etc.
-    t = re.sub(r"[^a-z0-9 ]", "", t)
-    return " ".join(t.split())
+    t = re.sub(r"[^a-z0-9 ]", " ", t)    # replace punctuation/dashes with space
+    t = re.sub(r" +", " ", t).strip()    # collapse multiple spaces
+    return t
 
 
 def _find_alternative(

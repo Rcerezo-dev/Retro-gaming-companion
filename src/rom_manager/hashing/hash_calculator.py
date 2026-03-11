@@ -25,7 +25,7 @@ def calculate_hashes(path: Path) -> FileHashes:
         while chunk := handle.read(CHUNK_SIZE):
             sha1.update(chunk)
             md5.update(chunk)
-            crc = zlib.crc32(chunk, crc)
+            crc = zlib.crc32(chunk, crc) & 0xFFFFFFFF
 
     return FileHashes(
         sha1=sha1.hexdigest().upper(),

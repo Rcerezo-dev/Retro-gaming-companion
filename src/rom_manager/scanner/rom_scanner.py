@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,7 +18,7 @@ from rom_manager.hashing import calculate_hashes
 from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.scanner.asset_scanner import inspect_asset
 
-_PROGRESS_INTERVAL = 100
+_PROGRESS_INTERVAL = 10
 
 
 @dataclass(slots=True)
@@ -43,7 +45,15 @@ def scan_library(
     logger: logging.Logger,
     *,
     quick: bool = False,
+    stop_event: threading.Event | None = None,
+    progress_cb: Callable[[int, int, str], None] | None = None,
 ) -> ScanResult:
+    """Scan *source_path* recursively and upsert findings into the repository.
+
+    *stop_event*: if set, the scan exits cleanly at the next file boundary.
+    *progress_cb*: called every ``_PROGRESS_INTERVAL`` files with
+        (files_seen, roms_detected).
+    """
     timestamp = utc_now()
     scan_run_id = repository.create_scan_run(str(source_path), timestamp)
     result = ScanResult()
@@ -52,6 +62,9 @@ def scan_library(
 
     with repository.batch() as conn:
         for path in source_path.rglob("*"):
+            if stop_event and stop_event.is_set():
+                logger.info("Scan cancelled by user after %d files.", result.files_seen)
+                break
             if not path.is_file():
                 continue
 
@@ -59,6 +72,8 @@ def scan_library(
             result.files_seen += 1
             if result.files_seen % _PROGRESS_INTERVAL == 0:
                 logger.info("Progress: %d files seen so far...", result.files_seen)
+                if progress_cb:
+                    progress_cb(result.files_seen, result.roms_detected, path.name)
 
             try:
                 category = classify_path(path, config, source_path)
