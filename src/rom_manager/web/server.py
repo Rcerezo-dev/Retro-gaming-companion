@@ -302,6 +302,7 @@ def _build_plan(
             {
                 "source_name": op.source_path.name,
                 "target_name": op.target_path.name,
+                "reason": op.conflict_reason,  # "disk" | "collision"
             }
             for op in conflict_ops
         ],
@@ -1916,9 +1917,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig):
                 sha_length=min(40, max(4, int(fmt.get("sha_length", 8)))),
             )
             source_root = data.get("source_root") or None
+            keep_both   = bool(data.get("keep_both", False))
 
             save_exts = frozenset(config.save_extensions)
-            plan = build_plan(repository, opts)
+            plan = build_plan(repository, opts, keep_both=keep_both)
             pending_ops = plan.pending
             if source_root:
                 root_lower = source_root.lower()

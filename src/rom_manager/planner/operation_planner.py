@@ -48,6 +48,10 @@ class RenameOperation:
     target_path: Path
     # "pending" | "already_correct" | "conflict"
     status: str
+    # "disk" — target file already exists on disk (different file)
+    # "collision" — two pending ops share the same target path
+    # "" — not a conflict
+    conflict_reason: str = ""
 
 
 @dataclass(slots=True)
@@ -113,9 +117,9 @@ def build_plan(
                 RenameOperation(game=game, source_path=source, target_path=target, status="already_correct")
             )
         elif target.exists() and not _same_file(source, target):
-            # Target exists and is a *different* file — genuine conflict
+            # Target exists and is a *different* file — genuine disk conflict
             plan.conflicts.append(
-                RenameOperation(game=game, source_path=source, target_path=target, status="conflict")
+                RenameOperation(game=game, source_path=source, target_path=target, status="conflict", conflict_reason="disk")
             )
         else:
             # Either target doesn't exist, or it's the same file (case-only rename on Windows)

@@ -1927,13 +1927,53 @@ async function loadPlan() {
       html += '</tbody></table></div>';
     }
     if (d.conflicts.length) {
-      html += `<h3 style="color:#f44747;margin:20px 0 12px">Conflicts — ${d.conflicts.length}</h3>`;
-      html += '<div style="overflow-x:auto"><table><thead><tr><th>From</th><th>To (blocked)</th></tr></thead><tbody>';
-      html += d.conflicts.map(op => `<tr>
-        <td>${op.source_name}</td>
-        <td style="color:#f44747">${op.target_name}</td>
-      </tr>`).join('');
-      html += '</tbody></table></div>';
+      const collisions = d.conflicts.filter(c => c.reason === 'collision');
+      const diskConflicts = d.conflicts.filter(c => c.reason === 'disk');
+      const unknown = d.conflicts.filter(c => !c.reason || (c.reason !== 'collision' && c.reason !== 'disk'));
+
+      html += `<h3 style="color:#f44747;margin:20px 0 8px">Conflicts — ${d.conflicts.length}</h3>`;
+
+      if (collisions.length) {
+        html += `<div style="background:#1a1218;border:1px solid #3a2030;border-left:3px solid #ce9178;border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
+        html += `<div style="color:#ce9178;font-size:12px;font-weight:600;margin-bottom:6px">`;
+        html += `&#x26A0; Colisión de plan (${collisions.length}) — dos ROMs quieren el mismo nombre canónico`;
+        html += `</div>`;
+        html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
+        html += `Causa habitual: tienes múltiples versiones del mismo juego (regional, revisión) y la opción <strong>Región</strong> o <strong>Revisión</strong> está desactivada en el formato. Actívalas para que cada versión obtenga un nombre único.<br>`;
+        html += `O usa <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Resolver automáticamente (añadir sufijo _1 _2)</button> para aplicar ambas con nombres distintos.`;
+        html += `</div>`;
+        html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Nombre bloqueado</th></tr></thead><tbody>';
+        html += collisions.map(op => `<tr>
+          <td class="mono" style="color:#9cdcfe">${_h(op.source_name)}</td>
+          <td class="mono" style="color:#ce9178">${_h(op.target_name)}</td>
+        </tr>`).join('');
+        html += '</tbody></table></div></div>';
+      }
+
+      if (diskConflicts.length) {
+        html += `<div style="background:#1a1212;border:1px solid #3a2020;border-left:3px solid #f44747;border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
+        html += `<div style="color:#f44747;font-size:12px;font-weight:600;margin-bottom:6px">`;
+        html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — ya existe un archivo diferente en el destino`;
+        html += `</div>`;
+        html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
+        html += `El nombre canónico al que quieres renombrar ya está ocupado por otro archivo. Puede que hayas renombrado manualmente, o que haya dos ROMs distintas con el mismo título. Comprueba qué archivo ocupa ese nombre y elimínalo o muévelo manualmente.`;
+        html += `</div>`;
+        html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Destino bloqueado</th></tr></thead><tbody>';
+        html += diskConflicts.map(op => `<tr>
+          <td class="mono" style="color:#9cdcfe">${_h(op.source_name)}</td>
+          <td class="mono" style="color:#f44747">${_h(op.target_name)}</td>
+        </tr>`).join('');
+        html += '</tbody></table></div></div>';
+      }
+
+      if (unknown.length) {
+        html += '<div style="overflow-x:auto"><table><thead><tr><th>From</th><th>To (blocked)</th></tr></thead><tbody>';
+        html += unknown.map(op => `<tr>
+          <td class="mono">${_h(op.source_name)}</td>
+          <td class="mono" style="color:#f44747">${_h(op.target_name)}</td>
+        </tr>`).join('');
+        html += '</tbody></table></div>';
+      }
     }
     if (d.already_correct > 0) {
       html += `<p style="color:#555;margin-top:16px">${d.already_correct} file(s) already have the correct name.</p>`;
@@ -1945,6 +1985,30 @@ async function loadPlan() {
 }
 
 // ── Apply action ──────────────────────────────────────────────────────────────
+async function applyKeepBoth() {
+  if (!confirm('¿Resolver colisiones añadiendo sufijo _1 _2 a los nombres? Se renombrarán todas las ROMs en colisión con nombres únicos.')) return;
+  const applyBody = {
+    keep_both: true,
+    format_opts: {
+      include_region:   document.getElementById('fmt-region').checked,
+      include_revision: document.getElementById('fmt-revision').checked,
+      include_platform: document.getElementById('fmt-platform').checked,
+      include_sha:      document.getElementById('fmt-sha').checked,
+      sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
+    }
+  };
+  const applyRoot = _deviceRoot();
+  if (applyRoot) applyBody.source_root = applyRoot;
+  try {
+    const d = await apiPost('/api/apply', applyBody);
+    showToast(`Resueltos: ${d.renamed} renombrados, ${d.conflicts} conflictos restantes`, d.conflicts > 0 ? 'info' : 'ok');
+    await loadPlan();
+    loadOverview();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
 async function doApply() {
   const banner = document.getElementById('apply-preview-banner');
   const msg = banner?.textContent

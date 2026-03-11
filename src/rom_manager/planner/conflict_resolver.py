@@ -40,8 +40,10 @@ def resolve(
             new_name = f"{op.target_path.stem}_{rank}{op.target_path.suffix}"
             op.target_path = op.target_path.parent / new_name
             op.status = "pending"
+            op.conflict_reason = ""
         else:
             op.status = "conflict"
+            op.conflict_reason = "collision"
 
         result.append(op)
 
