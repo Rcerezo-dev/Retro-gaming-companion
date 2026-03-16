@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+
+@dataclass(slots=True)
+class SyncSource:
+    """One emulator's save directory paired with its cloud remote path."""
+    name: str
+    local_dir: str
+    remote: str
+    sync_all: bool = False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
 
 
 @dataclass(slots=True)
@@ -10,6 +19,7 @@ class AppConfig:
     project_root: Path
     data_dir: Path
     database_path: Path
+    database_path_android: Path
     logs_dir: Path
     catalogs_nointro_dir: Path
     catalogs_redump_dir: Path
@@ -29,6 +39,21 @@ class AppConfig:
     screenscraper_dev_id: str
     screenscraper_dev_pass: str
     ra_api_key: str
+    # Auto-sync daemon settings
+    auto_sync_enabled: bool
+    auto_sync_direction: str        # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
+    auto_sync_android_path: str     # Android RetroArch root path
+    auto_sync_known_devices: list   # serial numbers; empty = any device
+    conflict_policy: str            # "newest" | "keep_pc" | "keep_android" | "ask"
+    anbernic_root: str              # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
+    device_name: str                # display name for the Android device (e.g. "Consola Android", "Steam Deck")
+    # Inbox (Pilar 2) settings
+    inbox_path: str                 # folder to watch for new files
+    inbox_target_root: str          # where to place organized files (defaults to library_root)
+    inbox_auto_process: bool        # auto-process when files detected
+    inbox_delete_source: bool       # delete original ZIP after organizing
+    # Multi-source cloud sync
+    sync_sources: list[SyncSource]  # one entry per emulator; populated from [[sync.sources]] in config.toml
 
 
 _CONFIG_TOML_TEMPLATE = """\
@@ -71,7 +96,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
     logs_dir = data_dir / "logs"
-    database_path = data_dir / "library.sqlite"
+    database_path = data_dir / "library_pc.db"
+    database_path_android = data_dir / "library_android.db"
     catalogs_dir = data_dir / "catalogs"
 
     toml: dict = {}
@@ -86,18 +112,55 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     web = toml.get("web", {})
     ss = toml.get("screenscraper", {})
     ra = toml.get("retroachievements", {})
+    inbox_cfg = toml.get("inbox", {})
+    android_cfg = toml.get("android", {})
 
     library_root_raw = lib.get("library_root")
     library_root = Path(library_root_raw) if library_root_raw else None
+    anbernic_root = str(lib.get("anbernic_root", ""))
+    device_name = str(android_cfg.get("device_name", "Consola Android")) or "Consola Android"
+
+    # Parse [[sync.sources]] — multi-emulator save directories
+    raw_sources = sync.get("sources", [])
+    sync_sources: list[SyncSource] = []
+    for s in raw_sources:
+        if isinstance(s, dict) and s.get("local_dir") and s.get("remote"):
+            sync_sources.append(SyncSource(
+                name=str(s.get("name", s.get("local_dir", "?"))),
+                local_dir=str(s["local_dir"]),
+                remote=str(s["remote"]),
+                sync_all=bool(s.get("sync_all", False)),
+            ))
+    # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote
+    if not sync_sources:
+        legacy_remote = sync.get("remote", "")
+        if legacy_remote and library_root:
+            sync_sources.append(SyncSource(
+                name="RetroArch",
+                local_dir=str(library_root),
+                remote=legacy_remote,
+            ))
+
+    # Parse auto_sync_known_devices — stored as comma-separated string or TOML array
+    _known_raw = sync.get("auto_sync_known_devices", "")
+    if isinstance(_known_raw, list):
+        auto_sync_known_devices: list = [str(x).strip() for x in _known_raw if str(x).strip()]
+    elif isinstance(_known_raw, str) and _known_raw.strip():
+        auto_sync_known_devices = [s.strip() for s in _known_raw.split(",") if s.strip()]
+    else:
+        auto_sync_known_devices = []
 
     return AppConfig(
         project_root=root,
         data_dir=data_dir,
         database_path=database_path,
+        database_path_android=database_path_android,
         logs_dir=logs_dir,
         catalogs_nointro_dir=catalogs_dir / "nointro",
         catalogs_redump_dir=catalogs_dir / "redump",
         library_root=library_root,
+        anbernic_root=anbernic_root,
+        device_name=device_name,
         rclone_remote=sync.get("remote", ""),
         rclone_binary=sync.get("rclone", "rclone"),
         chdman=tools.get("chdman", "chdman"),
@@ -109,6 +172,16 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         screenscraper_dev_id=ss.get("dev_id", ""),
         screenscraper_dev_pass=ss.get("dev_pass", ""),
         ra_api_key=ra.get("api_key", ""),
+        auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
+        auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
+        auto_sync_android_path=str(sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")),
+        auto_sync_known_devices=auto_sync_known_devices,
+        conflict_policy=str(sync.get("conflict_policy", "newest")),
+        inbox_path=str(inbox_cfg.get("path", "")),
+        inbox_target_root=str(inbox_cfg.get("target_root", "")),
+        inbox_auto_process=bool(inbox_cfg.get("auto_process", False)),
+        inbox_delete_source=bool(inbox_cfg.get("delete_source", False)),
+        sync_sources=sync_sources,
         excluded_directories=(  # noqa: E501
             "Android",
             "BIOS",
@@ -158,6 +231,11 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ".state2",
             ".brmc",
             ".ml1",
+            # Standalone emulators
+            ".mcd",   # DuckStation (PSX memory card)
+            ".ps2",   # PCSX2 (PS2 memory card)
+            ".gci",   # Dolphin (GameCube memory card slot file)
+            ".ppst",  # PPSSPP save state
         ),
     )
 
@@ -188,26 +266,56 @@ def write_config_toml(project_root: Path, updates: dict) -> None:
         else:
             existing[dotted_key] = value
 
+    def _fmt(v: object) -> str | None:
+        """Return TOML-formatted value string, or None to emit as a comment."""
+        if v is None or v == "":
+            return None
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, int):
+            return str(v)
+        if isinstance(v, list):
+            items = ", ".join(
+                '"{}"'.format(str(x).replace("\\", "\\\\").replace('"', '\\"'))
+                for x in v
+            )
+            return f"[{items}]"
+        escaped = str(v).replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    def _emit(lines: list[str], k: str, v: object) -> None:
+        fv = _fmt(v)
+        lines.append(f"# {k} = \"\"\n" if fv is None else f"{k} = {fv}\n")
+
     # Serialise back to TOML (simple writer — no comment preservation)
     lines: list[str] = ["# ROM Manager Local — user configuration\n"]
+    deferred_aot: list[tuple[str, str, list]] = []  # (section, key, list-of-dicts)
+
     for section, contents in existing.items():
         if isinstance(contents, dict):
-            lines.append(f"\n[{section}]\n")
-            for k, v in contents.items():
-                if v is None or v == "":
-                    lines.append(f"# {k} = \"\"\n")
-                elif isinstance(v, bool):
-                    lines.append(f"{k} = {'true' if v else 'false'}\n")
-                elif isinstance(v, int):
-                    lines.append(f"{k} = {v}\n")
-                else:
-                    escaped = str(v).replace("\\", "\\\\").replace('"', '\\"')
-                    lines.append(f'{k} = "{escaped}"\n')
+            regular = {
+                k: v for k, v in contents.items()
+                if not (isinstance(v, list) and v and isinstance(v[0], dict))
+            }
+            aot = {
+                k: v for k, v in contents.items()
+                if isinstance(v, list) and v and isinstance(v[0], dict)
+            }
+            if regular:
+                lines.append(f"\n[{section}]\n")
+                for k, v in regular.items():
+                    _emit(lines, k, v)
+            for k, tables in aot.items():
+                deferred_aot.append((section, k, tables))
         else:
-            if contents is None or contents == "":
-                lines.append(f"# {section} = \"\"\n")
-            else:
-                escaped = str(contents).replace("\\", "\\\\").replace('"', '\\"')
-                lines.append(f'{section} = "{escaped}"\n')
+            fv = _fmt(contents)
+            lines.append(f"# {section} = \"\"\n" if fv is None else f"{section} = {fv}\n")
+
+    # Array-of-tables written after all regular sections (TOML requirement)
+    for section, key, tables in deferred_aot:
+        for table in tables:
+            lines.append(f"\n[[{section}.{key}]]\n")
+            for k, v in table.items():
+                _emit(lines, k, v)
 
     toml_path.write_text("".join(lines), encoding="utf-8")

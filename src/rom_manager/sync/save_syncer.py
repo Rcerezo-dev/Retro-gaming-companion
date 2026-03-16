@@ -32,13 +32,17 @@ class SyncResult:
 
 
 def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[LocalSave]:
-    """Walk *saves_dir* and return all files whose extension is in *save_extensions*."""
+    """Walk *saves_dir* and return all files whose extension is in *save_extensions*.
+
+    Pass an empty tuple to include every file regardless of extension (useful for
+    emulators like PPSSPP/Dolphin whose save directories contain only save data).
+    """
     saves: list[LocalSave] = []
-    ext_set = {e.lower() for e in save_extensions}
+    ext_set = {e.lower() for e in save_extensions} if save_extensions else None
     for path in saves_dir.rglob("*"):
         if not path.is_file():
             continue
-        if path.suffix.lower() not in ext_set:
+        if ext_set is not None and path.suffix.lower() not in ext_set:
             continue
         stat = path.stat()
         mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
