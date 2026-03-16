@@ -45,13 +45,13 @@ def _render_multidisc(rpt: dict) -> str:
     issues_html = ""
     if issues:
         issue_rows = "".join(
-            f"<tr><td>{_h(i['base_name'])}</td><td>{_h(i['issue_type'])}</td>"
-            f"<td>{_h(i['detail'])}</td></tr>"
+            f"<tr><td>{_h(i.get('platform', ''))}</td><td>{_h(i['base_name'])}</td>"
+            f"<td>{_h(i['issue_type'])}</td><td>{_h(i['detail'])}</td></tr>"
             for i in issues
         )
         issues_html = f"""
         <h3 style="color:#f44747">Problemas detectados ({len(issues)})</h3>
-        <table><thead><tr><th>Set</th><th>Tipo</th><th>Detalle</th></tr></thead>
+        <table><thead><tr><th>Plataforma</th><th>Set</th><th>Tipo</th><th>Detalle</th></tr></thead>
         <tbody>{issue_rows}</tbody></table>"""
 
     table_ok = ""
@@ -127,29 +127,46 @@ def _render_health(rpt: dict) -> str:
 
 def _render_ra_missing(rpt: dict) -> str:
     ra = rpt.get("retroachievements", {})
-    if not ra or "results" not in ra:
+    # The RA check job stores results under "alternatives" (not "results")
+    alternatives = ra.get("alternatives") if ra else None
+    if not ra or alternatives is None:
         return ("<p style='color:#888'>No hay datos de RetroAchievements. "
                 "Ejecuta <strong>Comprobar RA</strong> en la pestaña Tools primero.</p>")
 
-    alternatives = [r for r in ra.get("results", []) if r.get("status") == "no_support_alternative"]
     if not alternatives:
-        return ("<p style='color:#4ec9b0'>No se encontraron versiones sin logros que tengan "
-                "una alternativa con logros en RA. ✓</p>")
+        total = ra.get("total", 0)
+        supported = ra.get("supported", 0)
+        return (f"<p style='color:#4ec9b0'>No se encontraron versiones sin logros que tengan "
+                f"una alternativa en RA. ✓</p>"
+                f"<p style='color:#888;font-size:12px'>{total} juegos verificados — "
+                f"{supported} con soporte de logros.</p>")
 
-    rows = "".join(
-        f"<tr>"
-        f"<td>{_h(r.get('platform', ''))}</td>"
-        f"<td>{_h(r.get('original_filename', ''))}</td>"
-        f"<td style='font-family:monospace;font-size:11px'>{_h(r.get('our_md5', ''))}</td>"
-        f"<td>{_h(r.get('ra_title', ''))}</td>"
-        f"<td style='color:#4ec9b0'>{_h(r.get('ra_achievements', ''))}</td>"
-        f"</tr>"
-        for r in alternatives
-    )
+    # Field "filename" in job result (not "original_filename")
+    def _ra_row(r: dict) -> str:
+        ra_id  = _h(r.get("ra_id", ""))
+        title  = _h(r.get("ra_title", ""))
+        plat   = _h(r.get("platform", ""))
+        fname  = _h(r.get("filename") or r.get("original_filename", ""))
+        md5    = _h(r.get("our_md5", ""))
+        logros = _h(r.get("ra_achievements", ""))
+        link   = f"https://retroachievements.org/game/{ra_id}" if ra_id else "#"
+        return (
+            f"<tr>"
+            f"<td>{plat}</td>"
+            f"<td>{fname}</td>"
+            f"<td style='font-family:monospace;font-size:11px'>{md5}</td>"
+            f"<td><a href='{link}' target='_blank' style='color:#569cd6'>{title}</a></td>"
+            f"<td style='color:#4ec9b0'>{logros}</td>"
+            f"</tr>"
+        )
+    rows = "".join(_ra_row(r) for r in alternatives)
+    total = ra.get("total", 0)
+    no_alt = ra.get("no_support_alternative", len(alternatives))
+    note = f" (mostrando {len(alternatives)} de {no_alt})" if len(alternatives) < no_alt else ""
     return (
-        f"<p><strong>{len(alternatives)}</strong> juegos sin soporte RA pero con versión alternativa disponible.</p>"
+        f"<p><strong>{no_alt}</strong> juegos sin soporte RA con versión alternativa disponible{note}.</p>"
         f"<p style='color:#888;font-size:12px'>La columna <em>MD5 nuestro</em> es el hash de tu ROM. "
-        "El título RA y sus logros corresponden a la versión con soporte.</p>"
+        "El título RA y sus logros corresponden a la versión con soporte. Haz click en el título para ir a RA.</p>"
         f"<table><thead><tr><th>Plataforma</th><th>Tu archivo</th><th>MD5 nuestro</th>"
         f"<th>Título en RA</th><th>Logros disponibles</th></tr></thead>"
         f"<tbody>{rows}</tbody></table>"
@@ -195,22 +212,25 @@ def _render_chd(rpt: dict) -> str:
 
 def generate_html_report(rpt: dict) -> str:
     source_path = _h(rpt.get("source_path", ""))
+    gen_time = rpt.get("generated_at", "")
 
     tabs = [
-        ("multidisc", "Multi-disco", _render_multidisc(rpt)),
-        ("orphans",   "Saves huérfanos", _render_orphans(rpt)),
-        ("health",    "Health Check", _render_health(rpt)),
-        ("ra",        "Logros faltantes", _render_ra_missing(rpt)),
-        ("chd",       "CHD pendientes", _render_chd(rpt)),
+        ("multidisc", "🎮 Multi-disco",       _render_multidisc(rpt)),
+        ("orphans",   "💾 Saves huérfanos",    _render_orphans(rpt)),
+        ("health",    "🔍 Health Check",       _render_health(rpt)),
+        ("ra",        "🏆 Logros (RA)",        _render_ra_missing(rpt)),
+        ("chd",       "💿 CHD pendientes",     _render_chd(rpt)),
     ]
 
-    tab_buttons = "".join(
-        f'<button class="tab-btn" onclick="showTab(\'{tid}\')" id="btn-{tid}">{_h(label)}</button>'
+    sidebar_items = "".join(
+        f'<button class="nav-btn" onclick="showTab(\'{tid}\')" id="btn-{tid}">{_h(label)}</button>'
         for tid, label, _ in tabs
     )
     tab_panels = "".join(
-        f'<div class="tab-panel" id="panel-{tid}">{content}</div>'
-        for tid, _, content in tabs
+        f'<div class="tab-panel" id="panel-{tid}">'
+        f'<h2 style="font-size:16px;font-weight:600;color:#c9bcf5;margin-bottom:20px">{_h(label)}</h2>'
+        f'{content}</div>'
+        for tid, label, content in tabs
     )
 
     return f"""<!DOCTYPE html>
@@ -221,37 +241,45 @@ def generate_html_report(rpt: dict) -> str:
 <title>Informe de biblioteca — ROM Manager</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: #1e1e2e; color: #d4d4d4; font-size: 14px; }}
-  header {{ background: #252537; padding: 16px 24px; border-bottom: 1px solid #3a3a5c; }}
-  header h1 {{ font-size: 18px; color: #c9bcf5; font-weight: 600; }}
-  header p {{ color: #888; font-size: 12px; margin-top: 4px; }}
-  .tabs {{ display: flex; gap: 2px; padding: 12px 24px 0; background: #252537; border-bottom: 1px solid #3a3a5c; flex-wrap: wrap; }}
-  .tab-btn {{ background: transparent; border: none; color: #888; padding: 8px 16px; cursor: pointer; font: inherit; font-size: 13px; border-bottom: 2px solid transparent; transition: color .15s; }}
-  .tab-btn:hover {{ color: #d4d4d4; }}
-  .tab-btn.active {{ color: #c9bcf5; border-bottom-color: #7c5cbf; }}
-  .tab-panel {{ display: none; padding: 24px; max-width: 1200px; }}
+  body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #d4d4d4; font-size: 14px; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }}
+  header {{ background: #252537; padding: 14px 24px; border-bottom: 1px solid #3a3a5c; flex-shrink: 0; }}
+  header h1 {{ font-size: 17px; color: #c9bcf5; font-weight: 600; }}
+  header p {{ color: #666; font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+  .layout {{ display: flex; flex: 1; overflow: hidden; }}
+  .sidebar {{ width: 200px; background: #252537; border-right: 1px solid #3a3a5c; padding: 12px 0; flex-shrink: 0; overflow-y: auto; }}
+  .nav-btn {{ display: block; width: 100%; background: none; border: none; text-align: left; color: #888; padding: 10px 18px; cursor: pointer; font: inherit; font-size: 13px; border-left: 3px solid transparent; transition: color .15s, background .15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  .nav-btn:hover {{ color: #d4d4d4; background: #2d2d44; }}
+  .nav-btn.active {{ color: #c9bcf5; border-left-color: #7c5cbf; background: #2d2d44; font-weight: 500; }}
+  .content {{ flex: 1; overflow-y: auto; padding: 0; }}
+  .tab-panel {{ display: none; padding: 28px 32px; max-width: 1100px; }}
   .tab-panel.active {{ display: block; }}
+  h2 {{ font-size: 16px; font-weight: 600; color: #c9bcf5; margin-bottom: 20px; }}
   h3 {{ font-size: 13px; font-weight: 600; margin: 20px 0 8px; }}
   p {{ margin: 8px 0; line-height: 1.5; }}
+  a {{ color: #569cd6; text-decoration: none; }}
+  a:hover {{ text-decoration: underline; }}
   table {{ width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }}
-  thead tr {{ background: #2d2d44; }}
-  th {{ padding: 6px 10px; text-align: left; color: #888; font-weight: 500; font-size: 11px; text-transform: uppercase; }}
+  thead tr {{ background: #2d2d44; position: sticky; top: 0; z-index: 1; }}
+  th {{ padding: 6px 10px; text-align: left; color: #888; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }}
   td {{ padding: 5px 10px; border-bottom: 1px solid #2a2a3e; word-break: break-all; }}
   tr:hover td {{ background: #252537; }}
   strong {{ color: #e0e0e0; }}
+  li {{ margin: 4px 0; }}
 </style>
 </head>
 <body>
 <header>
   <h1>Informe de salud de biblioteca</h1>
-  <p>Ruta: {source_path}</p>
+  <p>Ruta: {source_path}{f" &nbsp;·&nbsp; Generado: {_h(gen_time)}" if gen_time else ""}</p>
 </header>
-<nav class="tabs">{tab_buttons}</nav>
-{tab_panels}
+<div class="layout">
+  <nav class="sidebar">{sidebar_items}</nav>
+  <div class="content">{tab_panels}</div>
+</div>
 <script>
 function showTab(id) {{
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + id).classList.add('active');
   document.getElementById('btn-' + id).classList.add('active');
 }}

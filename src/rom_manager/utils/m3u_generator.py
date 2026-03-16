@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Matches "Game Title (Disc 1)" or "Game Title (Disk 2)" etc.
-_DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)", re.IGNORECASE)
+# The \s*$ anchor ensures track files like "Game (Disc 1) (Track 2)" are NOT matched,
+# which would otherwise cause false "missing disc" reports for multi-track PSX sets.
+_DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)\s*$", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -13,6 +15,7 @@ class DiscGroup:
     base_name: str
     discs: list[Path]   # sorted by disc number
     m3u_path: Path
+    platform: str = ""  # parent folder name (e.g. "psx", "saturn")
 
 
 @dataclass(slots=True)
@@ -51,6 +54,7 @@ def find_disc_groups(directory: Path) -> list[DiscGroup]:
             base_name=base_name,
             discs=[p for _, p in entries],
             m3u_path=m3u_path,
+            platform=parent.name,
         ))
 
     return sorted(groups, key=lambda g: g.base_name)

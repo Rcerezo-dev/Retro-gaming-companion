@@ -18,7 +18,10 @@ from rom_manager.sync.save_syncer import sync_saves
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="rommgr")
+    parser = argparse.ArgumentParser(
+        prog="rommgr",
+        description="Retro Vault — gestor de biblioteca de ROMs y sincronización de saves.",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     scan_parser = subparsers.add_parser("scan", help="Scan ROM and save files.")
@@ -241,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config()
     logger = configure_logging(config.logs_dir)
     repository = LibraryRepository(config.database_path)
+    repository_android = LibraryRepository(config.database_path_android)
 
     if args.command == "scan":
         source_path = args.source_path.resolve()
@@ -739,9 +743,9 @@ def main(argv: list[str] | None = None) -> int:
 
         host = args.host or config.web_host
         port = args.port or config.web_port
-        print(f"Starting ROM Manager at http://{host}:{port}/")
+        print(f"Retro Vault — http://{host}:{port}/")
         print("Press Ctrl+C to stop.")
-        serve(host=host, port=port, repository=repository, config=config)
+        serve(host=host, port=port, repository=repository, config=config, repository_android=repository_android)
         return 0
 
     parser.error(f"Unknown command: {args.command}")

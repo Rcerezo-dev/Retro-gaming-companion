@@ -27,7 +27,7 @@ class RAGameResult:
     alternative: RAGame | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class RACheckSummary:
     supported: int = 0
     no_support_alternative: int = 0

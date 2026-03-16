@@ -35,11 +35,11 @@ SCHEMA_STATEMENTS = (
         crc32 TEXT NOT NULL,
         set_type TEXT,
         mtime INTEGER,
-        status TEXT NOT NULL DEFAULT 'scanned',
+        status TEXT NOT NULL DEFAULT 'scanned',  -- DEPRECATED: never read/written; reserved for future scan_status
         canonical_title TEXT,
         match_confidence TEXT,
         catalog_source TEXT,
-        library_path TEXT,
+        library_path TEXT,  -- DEPRECATED: declared but never used
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )
@@ -49,6 +49,12 @@ SCHEMA_STATEMENTS = (
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_games_platform ON games (platform)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_file_type ON games (file_type)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_last_played ON games (last_played_at)
     """,
     """
     CREATE TABLE IF NOT EXISTS saves (
@@ -141,10 +147,12 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("catalog_source", "TEXT"),
     ("library_path", "TEXT"),
     ("mtime", "INTEGER"),
+    ("play_status", "TEXT"),
+    ("last_played_at", "TEXT"),
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
-    ("game_id", "INTEGER"),
+    ("game_id", "INTEGER"),  # DEPRECATED: added to schema but never written by upsert_asset()
 )
 
 

@@ -26,7 +26,7 @@ class ScraperResult:
     box_art_url: str
 
 
-@dataclass
+@dataclass(slots=True)
 class ScreenScraperClient:
     user: str
     password: str

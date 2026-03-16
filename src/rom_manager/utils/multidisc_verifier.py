@@ -11,6 +11,7 @@ class DiscIssue:
     base_name: str
     issue_type: str   # "gap" | "mixed_ext" | "missing_file" | "unmatched"
     detail: str
+    platform: str = ""  # parent folder name (e.g. "psx")
 
 
 @dataclass(slots=True)
@@ -39,6 +40,8 @@ def verify_multidisc(
     for group in find_disc_groups(directory):
         group_issues: list[DiscIssue] = []
 
+        plat = group.platform
+
         # Check all files exist
         for disc in group.discs:
             if not disc.exists():
@@ -46,6 +49,7 @@ def verify_multidisc(
                     base_name=group.base_name,
                     issue_type="missing_file",
                     detail=f"Archivo no encontrado: {disc.name}",
+                    platform=plat,
                 ))
 
         # Check extension homogeneity
@@ -55,6 +59,7 @@ def verify_multidisc(
                 base_name=group.base_name,
                 issue_type="mixed_ext",
                 detail=f"Extensiones mezcladas: {', '.join(sorted(extensions))}",
+                platform=plat,
             ))
 
         # Check consecutive disc numbers
@@ -72,6 +77,7 @@ def verify_multidisc(
                 base_name=group.base_name,
                 issue_type="gap",
                 detail=f"Discos faltantes: {missing_nums}",
+                platform=plat,
             ))
 
         # Check catalog match
@@ -86,6 +92,7 @@ def verify_multidisc(
                     base_name=group.base_name,
                     issue_type="unmatched",
                     detail=f"Sin match en catálogo: {', '.join(unmatched)}",
+                    platform=plat,
                 ))
 
         if group_issues:

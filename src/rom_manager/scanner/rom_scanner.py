@@ -93,6 +93,16 @@ def scan_library(
                 elif category is FileCategory.SAVE:
                     _store_save(path, source_path, repository, timestamp, conn)
                     result.saves_detected += 1
+                    # Update last_played_at for the associated ROM (same directory + same stem)
+                    try:
+                        save_mtime_ts = datetime.fromtimestamp(path.stat().st_mtime, UTC).replace(microsecond=0).isoformat()
+                        stem_like = str(path.parent.resolve()) + os.sep + path.stem + ".%"
+                        conn.execute(
+                            "UPDATE games SET last_played_at = ? WHERE source_path LIKE ? AND (last_played_at IS NULL OR last_played_at < ?)",
+                            (save_mtime_ts, stem_like, save_mtime_ts)
+                        )
+                    except Exception:
+                        pass
                 elif category is FileCategory.FRONTEND_ASSET:
                     _store_asset(path, source_path, repository, timestamp, conn)
                     result.assets_detected += 1

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 HTML = r"""<!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ROM Manager</title>
+<title>Retro Vault</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0f0f0f; color: #d4d4d4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
@@ -158,22 +158,124 @@ HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 
+<!-- AUTO-SYNC BANNER -->
+<div id="auto-sync-banner" style="display:none;padding:8px 24px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a2a3a">
+  <span id="auto-sync-banner-icon"></span>
+  <span id="auto-sync-banner-text"></span>
+  <a href="#" onclick="showTab('cable');return false;" style="margin-left:auto;font-size:11px;color:#888;text-decoration:underline">Ver Cable Sync</a>
+</div>
+
+<!-- D8-P1: SETUP WIZARD MODAL -->
+<div id="wizard-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center" aria-modal="true" role="dialog">
+  <div style="background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;width:100%;max-width:680px;box-shadow:0 8px 40px rgba(0,0,0,0.7);position:relative;overflow:hidden">
+    <!-- Close button -->
+    <button onclick="closeWizard()" title="Cerrar" style="position:absolute;top:14px;right:16px;background:none;border:none;color:#666;font-size:20px;cursor:pointer;line-height:1">&times;</button>
+
+    <!-- PAGE 1: Welcome -->
+    <div id="wizard-page-1">
+      <div style="padding:32px 36px 0">
+        <div style="font-size:26px;font-weight:700;color:#c9bcf5;margin-bottom:6px">&#x1F3AE; Bienvenido a ROM Manager</div>
+        <div style="font-size:14px;color:#888;margin-bottom:24px">Vamos a organizar tu biblioteca en unos minutos.</div>
+
+        <!-- Carpeta PC (obligatoria) -->
+        <div style="margin-bottom:16px">
+          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">
+            Carpeta de biblioteca (PC) <span style="color:#e06c75">*</span>
+          </label>
+          <input id="wiz-library-root" type="text"
+            style="width:100%;box-sizing:border-box;background:#0d0d1a;border:1px solid #3a3a5c;color:#d4d4d4;padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
+            placeholder="Ej: E:\\ROMs">
+          <div style="font-size:11px;color:#555;margin-top:4px">Raiz donde est&#xe1;n todas las carpetas de tus ROMs en el PC.</div>
+        </div>
+
+        <!-- Carpeta consola Android (opcional) -->
+        <div style="margin-bottom:20px">
+          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">
+            Carpeta de biblioteca (consola Android) <span style="color:#555;font-weight:400">— opcional</span>
+          </label>
+          <input id="wiz-android-root" type="text"
+            style="width:100%;box-sizing:border-box;background:#0d0d1a;border:1px solid #3a3a5c;color:#d4d4d4;padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
+            placeholder="Ej: /storage/emulated/0/RetroArch/roms">
+          <div style="font-size:11px;color:#555;margin-top:4px">Solo si usas una consola Android. Se puede configurar despu&#xe9;s en Settings.</div>
+        </div>
+
+        <div style="margin-bottom:18px">
+          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:10px">Opciones de primer arranque</label>
+          <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-clean-junk" style="width:15px;height:15px">
+            <span style="font-size:13px;color:#d4d4d4">Eliminar archivos no relacionados (Office, scripts, etc.)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-extract-zips" checked style="width:15px;height:15px">
+            <span style="font-size:13px;color:#d4d4d4">Extraer ZIPs autom&#xe1;ticamente</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-match" checked style="width:15px;height:15px">
+            <span style="font-size:13px;color:#d4d4d4">Cruzar con cat&#xe1;logos No-Intro/Redump</span>
+          </label>
+        </div>
+
+        <div id="wiz-dats-info" style="padding:10px 14px;background:#0d0d1a;border:1px solid #2a2a3c;border-radius:6px;font-size:12px;color:#666;line-height:1.7;margin-bottom:8px">
+          <span style="color:#c9bcf5">i</span> Para cruzar con cat&#xe1;logos, pon los DAT de No-Intro/Redump en:<br>
+          <code id="wiz-dats-hint" style="color:#888">.rommgr/catalogs/nointro/  &amp;  .rommgr/catalogs/redump/</code><br>
+          <span style="color:#555">(opcional &#x2014; puedes hacerlo despu&#xe9;s desde Settings)</span>
+        </div>
+      </div>
+      <div style="padding:16px 36px 28px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #2a2a3c;margin-top:4px">
+        <button class="btn" onclick="closeWizard()" style="background:#2a2a2a">Cancelar</button>
+        <button class="btn primary" onclick="startSetup()" style="background:#5a4dab;border-color:#7a6dcb;font-weight:600">Iniciar organizacion &#x25B6;</button>
+      </div>
+    </div>
+
+    <!-- PAGE 2: Progress -->
+    <div id="wizard-page-2" style="display:none;padding:32px 36px 28px">
+      <div style="font-size:20px;font-weight:700;color:#c9bcf5;margin-bottom:20px">Organizando tu biblioteca&hellip;</div>
+      <div id="wiz-steps" style="margin-bottom:20px">
+        <!-- Steps rendered by JS -->
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="background:#0d0d1a;border-radius:6px;height:10px;overflow:hidden">
+          <div id="wiz-prog-bar" style="background:#5a4dab;height:100%;width:0%;transition:width 0.4s"></div>
+        </div>
+      </div>
+      <div id="wiz-prog-file" style="font-size:11px;color:#555;min-height:16px;margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+      <div style="text-align:right">
+        <button class="btn" onclick="closeWizard()" style="background:#2a2a2a;font-size:12px">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- PAGE 3: Result -->
+    <div id="wizard-page-3" style="display:none;padding:32px 36px 28px">
+      <div style="font-size:20px;font-weight:700;color:#4ec9b0;margin-bottom:20px">&#x2705; Biblioteca analizada</div>
+      <div id="wiz-result-stats" style="margin-bottom:24px;line-height:2;font-size:14px;color:#d4d4d4"></div>
+      <div style="font-size:13px;color:#888;margin-bottom:20px;padding:12px 16px;background:#0d0d1a;border-radius:6px;border:1px solid #2a2a3c">
+        <strong style="color:#c9bcf5">Siguiente paso:</strong> revisa el plan de renombrado y aprueba los cambios.
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px">
+        <button class="btn" onclick="closeWizard()" style="background:#2a2a2a">Cerrar</button>
+        <button class="btn primary" onclick="wizardGoToOrganize()" style="background:#5a4dab;border-color:#7a6dcb;font-weight:600">Ir a Organizar y renombrar &#x25B6;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <header>
-  <h1>&#x1F3AE; ROM Manager</h1>
-  <span class="subtitle">local library</span>
+  <h1>&#x1F3AE; Retro Vault</h1>
+  <span class="subtitle">biblioteca local</span>
 </header>
 
 <nav>
-  <button class="active" id="nav-overview" onclick="showTab('overview')">Overview</button>
-  <button id="nav-games" onclick="showTab('games')">Games</button>
+  <button class="active" id="nav-overview" onclick="showTab('overview')">Inicio</button>
+  <button id="nav-games" onclick="showTab('games')">Juegos</button>
   <button id="nav-plan" onclick="showTab('plan')">Organizar</button>
-  <button id="nav-duplicates" onclick="showTab('duplicates')">Duplicates</button>
+  <button id="nav-duplicates" onclick="showTab('duplicates')">Duplicados</button>
   <button id="nav-assets" onclick="showTab('assets')">Assets</button>
   <button id="nav-sync" onclick="showTab('sync')">Sync</button>
   <button id="nav-cable" onclick="showTab('cable')">Cable Sync</button>
   <button id="nav-scraper" onclick="showTab('scraper')">Scraper</button>
-  <button id="nav-tools" onclick="showTab('tools')">Tools</button>
-  <button id="nav-settings" onclick="showTab('settings')">Settings</button>
+  <button id="nav-inbox" onclick="showTab('inbox')">Inbox</button>
+  <button id="nav-tools" onclick="showTab('tools')">Herramientas</button>
+  <button id="nav-settings" onclick="showTab('settings')">Ajustes</button>
 </nav>
 
 <div id="device-selector" style="display:flex;align-items:center;gap:0;padding:6px 20px;background:#161626;border-bottom:1px solid #2a2a2a">
@@ -194,24 +296,50 @@ HTML = r"""<!DOCTYPE html>
     <div>
       <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <span style="color:#4ec9b0">&#x25CF;</span> PC
-        <span id="ov-pc-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px"></span>
+        <span id="ov-pc-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px"></span>
+        <span id="ov-pc-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos PC">library_pc.db</span>
       </div>
-      <div id="ov-pc-cards" class="cards" style="margin-bottom:0"><p class="loading" style="font-size:12px">Loading…</p></div>
+      <div id="ov-pc-cards" class="cards" style="margin-bottom:0"><p class="loading" style="font-size:12px">Cargando…</p></div>
     </div>
     <!-- Anbernic column -->
     <div>
-      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        <span id="ov-ab-dot" style="color:#555">&#x25CF;</span> Anbernic
-        <span id="ov-ab-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px"></span>
+      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span id="ov-ab-dot" style="color:#555">&#x25CF;</span> <span id="ov-ab-column-title">Consola Android</span>
+        <span id="ov-ab-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"></span>
+        <span id="ov-ab-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
+        <!-- D8-1: stale warning badge -->
+        <span id="ov-ab-stale-badge" style="display:none;background:#3a3a1a;color:#dcdcaa;font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">&#x26A0; Datos sin confirmar</span>
+        <!-- D8-1: quick scan button -->
+        <button id="ov-ab-scan-btn" class="btn" style="display:none;padding:2px 8px;font-size:10px" onclick="quickScanAndroid()">Escanear ahora</button>
       </div>
       <div id="ov-ab-cards" class="cards" style="margin-bottom:0">
-        <p id="ov-ab-empty-msg" style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la Anbernic abajo y escanea para ver datos.</p>
+        <p id="ov-ab-empty-msg" style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la consola Android abajo y escanea para ver datos.</p>
       </div>
     </div>
   </div>
 
+  <!-- D8-P1: First-time setup banner -->
+  <div id="ov-setup-banner" style="display:none;margin-bottom:20px;padding:16px 20px;background:#1a1a2e;border:1px solid #3a3a5c;border-left:4px solid #c9bcf5;border-radius:6px">
+    <div style="font-size:14px;color:#c9bcf5;font-weight:600;margin-bottom:6px">&#x1F3AE; Primera configuracion</div>
+    <div style="font-size:12px;color:#888;margin-bottom:14px">Organiza y limpia tu biblioteca por primera vez con el asistente guiado.</div>
+    <div id="ov-setup-checklist" style="margin-bottom:14px;font-size:12px;line-height:2"></div>
+    <button class="btn primary" onclick="showWizard()" style="background:#5a4dab;border-color:#7a6dcb;font-size:13px">Iniciar asistente de configuracion</button>
+  </div>
+
+  <!-- Últimas partidas + ROMs por plataforma -->
+  <div style="margin-top:4px;margin-bottom:20px">
+    <h4 style="color:#888;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Últimas partidas</h4>
+    <div id="ov-recently-played" style="min-height:40px"></div>
+  </div>
+  <details id="ov-platform-details" style="margin-bottom:20px" open>
+    <summary style="cursor:pointer;color:#888;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;user-select:none;margin-bottom:10px">ROMs por plataforma</summary>
+    <div id="ov-platform-chart" style="margin-top:10px"></div>
+  </details>
+
   <!-- Config summary -->
-  <div id="ov-config-summary" style="margin-bottom:20px"></div>
+  <div id="ov-config-summary" style="margin-bottom:12px"></div>
+  <!-- D8-7: report notice -->
+  <div id="ov-report-notice" style="display:none;margin-bottom:16px;padding:7px 12px;background:#2a2a1a;border:1px solid #4a4a1a;border-radius:4px"></div>
 
   <!-- Rutas principales -->
   <div class="actions-panel" style="margin-bottom:16px">
@@ -222,7 +350,7 @@ HTML = r"""<!DOCTYPE html>
         <input id="ov-pc-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
       </div>
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Anbernic — SD card o red local
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px"><span id="ov-ab-path-label-text">Consola Android</span> — SD card o red local
           <span style="color:#555;font-weight:normal"> (no MTP directo)</span>
         </label>
         <input id="ov-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
@@ -233,11 +361,11 @@ HTML = r"""<!DOCTYPE html>
       <span id="ov-paths-result" class="job-result"></span>
     </div>
     <div style="margin-top:10px;padding:8px 10px;background:#161616;border:1px solid #2a2a2a;border-radius:4px;font-size:11px;color:#555;line-height:1.7">
-      <strong style="color:#888">Opciones para acceder a la Anbernic desde Windows:</strong><br>
+      <strong style="color:#888">Opciones para acceder a la consola Android desde Windows:</strong><br>
       <span style="color:#4ec9b0">A)</span> SD card en lector USB → letra de unidad (<code style="color:#ce9178">F:\</code>) — recomendado<br>
-      <span style="color:#4ec9b0">B)</span> Termux + SFTP en la Anbernic → accesible por red (<code style="color:#ce9178">\\192.168.1.x\share</code>)<br>
+      <span style="color:#4ec9b0">B)</span> Termux + SFTP en la consola → accesible por red (<code style="color:#ce9178">\\192.168.1.x\share</code>)<br>
       <span style="color:#4ec9b0">C)</span> WinFsp + MTPDrive → monta el MTP como unidad (herramienta gratuita)<br>
-      <span style="color:#555">⚠ La ruta "Este equipo\RG556\Ambernic" de Windows MTP <strong style="color:#888">no es compatible</strong> con acceso por ruta de carpeta.</span>
+      <span style="color:#555">⚠ La ruta MTP de Windows <strong style="color:#888">no es compatible</strong> con acceso por ruta de carpeta.</span>
     </div>
   </div>
 
@@ -254,15 +382,15 @@ HTML = r"""<!DOCTYPE html>
         </label>
         <label class="fmt-check" style="margin-top:4px">
           <input type="checkbox" id="scan-include-ab" disabled>
-          Anbernic (SD card / red) — <span id="scan-ab-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
+          <span id="scan-ab-device-name">Consola Android</span> (SD card / red) — <span id="scan-ab-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
         </label>
         <label class="fmt-check" style="margin-top:4px" id="scan-adb-row" title="Escanea la Anbernic por USB sin sacar la SD card — requiere ADB configurado en Settings">
           <input type="checkbox" id="scan-include-adb" onchange="_onScanAdbChange()">
-          <span style="color:#4ec9b0">Anbernic por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
+          <span style="color:#4ec9b0"><span id="scan-adb-device-name">Consola Android</span> por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
         </label>
       </div>
       <label class="fmt-check" style="margin-left:auto" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
-        <input type="checkbox" id="scan-quick"> Quick (sin hash)
+        <input type="checkbox" id="scan-quick"> Rápido (sin hash)
       </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
     </div>
@@ -318,7 +446,7 @@ HTML = r"""<!DOCTYPE html>
       <strong style="color:#569cd6">Primera vez:</strong>
       configura las rutas en el panel de arriba y pulsa <strong style="color:#d4d4d4">Guardar rutas</strong>.
       La <em>Carpeta del ordenador</em> es donde viven tus ROMs y saves en el PC.
-      La <em>Anbernic</em> solo es necesaria si quieres escanear o copiar archivos de la consola.
+      La <em>consola</em> solo es necesaria si quieres escanear o copiar archivos de la consola.
       Si tienes catálogos DAT (No-Intro / Redump), colócalos en <code style="color:#ce9178">catalogs/</code> para poder hacer Match.
     </div>
 
@@ -338,7 +466,7 @@ HTML = r"""<!DOCTYPE html>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;padding:14px 16px">
         <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la Anbernic.</span></div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la consola.</span></div>
       </div>
     </div>
     </div>
@@ -349,18 +477,25 @@ HTML = r"""<!DOCTYPE html>
 <div id="tab-games" class="tab">
   <div id="games-root-banner" style="display:none;margin-bottom:8px;padding:6px 10px;background:#1e1e2e;border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
-    <input id="games-search" type="text" placeholder="Search title or filename…" oninput="onGamesSearchChange()">
-    <select id="games-platform" onchange="onGamesFilterChange()"><option value="">All platforms</option></select>
+    <input id="games-search" type="text" placeholder="Buscar título o archivo…" oninput="onGamesSearchChange()">
+    <select id="games-platform" onchange="onGamesFilterChange()"><option value="">Todas las plataformas</option></select>
     <select id="games-matched" onchange="onGamesFilterChange()">
-      <option value="">All</option>
-      <option value="matched">Matched only</option>
-      <option value="unmatched">Unmatched only</option>
+      <option value="">Todos</option>
+      <option value="matched">Con match</option>
+      <option value="unmatched">Sin match</option>
     </select>
     <select id="games-filetype" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="rom">Solo ROMs</option>
       <option value="">ROMs + saves</option>
       <option value="save">Solo saves</option>
       <option value="all">Todo</option>
+    </select>
+    <select id="games-play-status" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">Todos los estados</option>
+      <option value="playing">&#x1F3AE; Jugando</option>
+      <option value="completed">&#x2705; Completado</option>
+      <option value="100pct">&#x1F4AF; Al 100%</option>
+      <option value="abandoned">&#x23F8; Abandonado</option>
     </select>
     <span id="games-count" style="color:#666;margin-left:8px;"></span>
     <a href="/api/report.csv" class="btn" style="margin-left:auto">&#x2193; CSV</a>
@@ -369,14 +504,16 @@ HTML = r"""<!DOCTYPE html>
   <div style="overflow-x:auto">
     <table id="games-table">
       <thead><tr>
-        <th>Platform</th><th>Canonical title</th><th>Original filename</th>
-        <th id="gcol-region">Region</th><th id="gcol-match">Match</th><th id="gcol-size">Size</th><th id="gcol-sha1">SHA1
+        <th style="width:42px"></th>
+        <th>Plataforma</th><th>Título canónico</th><th>Archivo original</th>
+        <th>Estado</th>
+        <th id="gcol-region">Región</th><th id="gcol-match">Match</th><th id="gcol-size">Tamaño</th><th id="gcol-sha1">SHA1
           <button title="Configurar columnas" onclick="toggleColPicker(event)" style="background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle">&#x2699;</button>
           <div id="col-picker" style="display:none;position:absolute;background:#252535;border:1px solid #444;border-radius:6px;padding:10px 14px;z-index:100;min-width:160px;font-size:13px;font-weight:normal">
             <div style="color:#888;font-size:11px;margin-bottom:8px">Mostrar columnas</div>
-            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-region" onchange="applyColVisibility()"> Region</label>
+            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-region" onchange="applyColVisibility()"> Región</label>
             <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-match" onchange="applyColVisibility()"> Match</label>
-            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-size" onchange="applyColVisibility()"> Size</label>
+            <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-size" onchange="applyColVisibility()"> Tamaño</label>
             <label style="display:block;cursor:pointer"><input type="checkbox" id="gcol-check-sha1" onchange="applyColVisibility()"> SHA1</label>
           </div>
         </th>
@@ -384,7 +521,7 @@ HTML = r"""<!DOCTYPE html>
       <tbody id="games-tbody"></tbody>
     </table>
   </div>
-  <p id="games-empty" class="empty" style="display:none">No games match the filter.</p>
+  <p id="games-empty" class="empty" style="display:none">Sin resultados. Prueba con otros filtros o ejecuta un Scan primero.</p>
   <div id="games-pagination" style="display:flex;gap:8px;align-items:center;margin-top:12px;color:#888;font-size:13px"></div>
 </div>
 
@@ -415,9 +552,18 @@ HTML = r"""<!DOCTYPE html>
         <option value="40">40 (completo)</option>
       </select>
     </label>
-    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
+      <!-- D8-2: device filter for plan -->
+      <select id="plan-device-filter" onchange="loadPlan()" title="Filtrar operaciones por dispositivo"
+        style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:12px">
+        <option value="">Todos los dispositivos</option>
+        <option value="pc">Solo PC</option>
+        <option value="android">Solo Consola Android</option>
+      </select>
       <button id="btn-apply" class="btn primary" onclick="doApply()" disabled>Renombrar</button>
       <button id="btn-resolve-conflicts" class="btn" onclick="applyKeepBoth()" style="display:none">Resolver conflictos</button>
+      <!-- D8-3: RA conflict resolver button -->
+      <button id="btn-resolve-ra-conflicts" class="btn" onclick="doResolveRaConflicts()" style="display:none;border-color:#c586c0;color:#c586c0">Resolver con RA</button>
     </div>
   </div>
   <!-- Barra de progreso del apply -->
@@ -430,13 +576,21 @@ HTML = r"""<!DOCTYPE html>
       <div id="apply-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width .2s"></div>
     </div>
   </div>
+  <!-- D8-2: apply error details panel -->
+  <div id="apply-error-details" style="display:none;margin-bottom:10px;padding:10px 14px;background:#1f0d0d;border:1px solid #4a1a1a;border-radius:4px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span style="color:#f44747;font-size:12px;font-weight:600" id="apply-error-count"></span>
+      <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="document.getElementById('apply-error-details').style.display='none'">Cerrar</button>
+    </div>
+    <div id="apply-error-list" style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;color:#f99"></div>
+  </div>
   <div id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:#161626;border:1px solid #2a2a3a;border-radius:4px;display:none">
     <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:#4ec9b0"></span>
   </div>
   <!-- Resumen C2: X listos · Y conflictos · Z sin match -->
   <div id="plan-summary-bar" style="display:none;margin-bottom:10px;padding:8px 14px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
   <div id="plan-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
-  <div id="plan-content"><p class="loading">Loading…</p></div>
+  <div id="plan-content"><p class="loading">Cargando…</p></div>
 </div>
 
 <!-- DUPLICATES -->
@@ -446,13 +600,15 @@ HTML = r"""<!DOCTYPE html>
     <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()">Eliminar todos los duplicados</button>
   </div>
   <div id="dup-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
-  <div id="dup-content"><p class="loading">Loading…</p></div>
+  <div id="dup-content"><p class="loading">Cargando…</p></div>
 
   <!-- ── RA-based duplicates (same title, different version, one lacks RA support) ── -->
   <div style="margin-top:28px;border-top:1px solid #2a2a3e;padding-top:20px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
       <h3 style="margin:0;font-size:13px;color:#c9bcf5">Duplicados por versión — sin logros RA</h3>
       <button class="btn" onclick="loadRaDuplicates()" id="btn-ra-dups" style="font-size:12px;padding:3px 10px">Comprobar</button>
+      <!-- D8-4: batch discard all without RA -->
+      <button class="btn danger" id="btn-ra-dups-discard-all" onclick="discardAllRaDuplicates()" style="font-size:12px;padding:3px 10px;display:none">Eliminar todos sin logros</button>
     </div>
     <p style="color:#555;font-size:11px;margin-bottom:12px">Detecta juegos con ≥2 versiones (mismo título normalizado, distinto MD5) donde una versión tiene logros en RetroAchievements y otra no. La versión sin logros es candidata a eliminar.<br>Requiere que hayas ejecutado la comprobación RA en <strong>Tools</strong> al menos una vez.</p>
     <div id="ra-dup-content"></div>
@@ -475,11 +631,55 @@ HTML = r"""<!DOCTYPE html>
     <div id="job-result-sync" class="job-result"></div>
     <div id="sync-decisions" style="margin-top:12px"></div>
   </div>
-  <div id="sync-content"><p class="loading">Loading…</p></div>
+  <div id="sync-content"><p class="loading">Cargando…</p></div>
 </div>
 
 <!-- CABLE SYNC -->
 <div id="tab-cable" class="tab">
+
+  <!-- AUTO-SYNC CARD -->
+  <div id="auto-sync-card" style="max-width:780px;margin-bottom:20px;background:#12122a;border:1px solid #2a2a4a;border-radius:8px;border-left:4px solid #4ec9b0;padding:18px 20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:#4ec9b0;letter-spacing:0.5px">Sync automático al conectar</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-left:auto">
+        <span style="color:#888;font-size:12px" id="auto-sync-toggle-label">Activado</span>
+        <div id="auto-sync-toggle-wrap" onclick="toggleAutoSync()" style="width:40px;height:22px;border-radius:11px;background:#4ec9b0;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0">
+          <div id="auto-sync-toggle-knob" style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:21px;transition:left 0.2s"></div>
+        </div>
+      </label>
+    </div>
+    <p style="color:#888;font-size:12px;line-height:1.6;margin-bottom:14px">
+      Cuando conectes la consola Android por USB con Depuración ADB activa, los saves se sincronizan
+      automáticamente sin tener que abrir esta página.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Dirección</label>
+        <select id="auto-sync-direction" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
+          <option value="newest">Mas reciente gana</option>
+          <option value="pc_to_anbernic">PC a consola</option>
+          <option value="anbernic_to_pc">Consola a PC</option>
+        </select>
+      </div>
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
+        <select id="auto-sync-conflict" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
+          <option value="newest">Mas reciente gana</option>
+          <option value="keep_pc">Conservar PC</option>
+          <option value="keep_android">Conservar consola</option>
+        </select>
+      </div>
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta Android (RetroArch)</label>
+        <input id="auto-sync-android-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px" value="/storage/emulated/0/RetroArch">
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn primary" onclick="saveAutoSyncSettings()" style="font-size:12px;padding:5px 14px">Guardar ajustes</button>
+      <span id="auto-sync-status-text" style="font-size:12px;color:#888">Esperando conexion...</span>
+      <div id="auto-sync-save-result" style="font-size:11px;color:#4ec9b0;display:none"></div>
+    </div>
+  </div>
 
   <!-- Instrucciones de conexión -->
   <div style="max-width:780px;margin-bottom:20px;background:#1e1e2e;border:1px solid #333;border-radius:6px;padding:16px 20px">
@@ -593,16 +793,16 @@ HTML = r"""<!DOCTYPE html>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
           <input type="radio" name="cable-direction" value="pc_to_anbernic" checked style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
-            <strong style="color:#d4d4d4">PC → Anbernic</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la Anbernic.</span><br>
+            <strong id="cable-dir-to-dev" style="color:#d4d4d4">PC → Consola Android</strong>
+            <span style="color:#555;font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la consola.</span><br>
             <span style="color:#569cd6;font-size:11px">✓ Recomendado después de renombrar archivos en el PC</span>
           </span>
         </label>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
           <input type="radio" name="cable-direction" value="anbernic_to_pc" style="margin-top:2px;accent-color:#4ec9b0" onchange="_onCableDirectionChange()">
           <span>
-            <strong style="color:#d4d4d4">Anbernic → PC</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Copia todo de la consola al PC. Archivos solo en Anbernic pasan al PC.</span><br>
+            <strong id="cable-dir-from-dev" style="color:#d4d4d4">Consola Android → PC</strong>
+            <span style="color:#555;font-size:12px;margin-left:6px">Copia todo de la consola al PC. Archivos solo en la consola pasan al PC.</span><br>
             <span style="color:#569cd6;font-size:11px">✓ Útil para importar juegos nuevos de la SD card al PC. Luego haz Scan para indexarlos.</span>
           </span>
         </label>
@@ -611,8 +811,8 @@ HTML = r"""<!DOCTYPE html>
           <span>
             <strong style="color:#4ec9b0">&#x21C4; Igualar ambos dispositivos</strong>
             <span style="color:#555;font-size:12px;margin-left:6px">Compara mtime y copia en la dirección correcta. Archivos exclusivos de un lado se copian al otro.</span><br>
-            <span style="color:#4ec9b0;font-size:11px">✓ Al terminar, PC y Anbernic tienen exactamente los mismos archivos</span><br>
-            <span style="color:#ce9178;font-size:11px">⚠ Tras renombrar en el PC, las fechas cambian — usa "PC → Anbernic" en ese caso para no perder cambios</span>
+            <span style="color:#4ec9b0;font-size:11px">✓ Al terminar, PC y consola tienen exactamente los mismos archivos</span><br>
+            <span style="color:#ce9178;font-size:11px">⚠ Tras renombrar en el PC, las fechas cambian — usa "PC → consola" en ese caso para no perder cambios</span>
           </span>
         </label>
       </div>
@@ -620,7 +820,7 @@ HTML = r"""<!DOCTYPE html>
 
     <!-- Modo Anbernic toggle -->
     <div style="margin-bottom:14px;display:flex;align-items:center;gap:12px">
-      <span style="color:#888;font-size:12px">Modo Anbernic:</span>
+      <span style="color:#888;font-size:12px">Modo <span id="cable-mode-label">Consola Android</span>:</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
         <input type="radio" name="cable-ab-mode" value="fs" checked style="accent-color:#4ec9b0" onchange="_onCableModeChange()">
         <span style="color:#d4d4d4">SD card / Red</span>
@@ -645,11 +845,11 @@ HTML = r"""<!DOCTYPE html>
       </div>
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">
-          Ruta de la Anbernic (SD card, red…)
+          Tarjeta SD / Carpeta en el PC (ruta montada de la consola Android)
           <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
         </label>
         <div style="display:flex;gap:6px">
-          <input id="cable-ab-path" type="text" style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:\ o \\192.168.1.x\share">
+          <input id="cable-ab-path" type="text" style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:\Carpetas anbernic">
           <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
         </div>
         <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
@@ -694,14 +894,18 @@ HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Dry run + botón -->
+    <!-- Dry run + opciones + botón -->
     <div class="actions-row" style="flex-wrap:wrap;gap:16px">
       <label class="fmt-check" title="Muestra qué se copiaría sin mover ningún archivo. Desmarca para copiar de verdad.">
-        <input type="checkbox" id="cable-dry-run" onchange="_onCableDryRunChange()"> <span id="cable-dry-run-label">Dry run <span style="color:#555;font-size:11px">(solo previsualizar)</span></span>
+        <input type="checkbox" id="cable-dry-run" onchange="_onCableDryRunChange()"> <span id="cable-dry-run-label">Solo previsualizar <span style="color:#555;font-size:11px">(no copia archivos)</span></span>
       </label>
       <label class="fmt-check" title="Salta archivos que ya existen en destino con el mismo tamaño — evita re-copiar lo que ya está sincronizado">
         <input type="checkbox" id="cable-skip-existing" checked> Omitir si ya existe
         <span style="color:#555;font-size:11px;margin-left:4px">(mismo tamaño)</span>
+      </label>
+      <label class="fmt-check" title="En modo seguro nunca se sobreescribe un archivo que ya existe en el destino. Recomendado para evitar pérdida de datos.">
+        <input type="checkbox" id="cable-safe-mode" checked> <span style="color:#f4c842">Modo seguro</span>
+        <span style="color:#555;font-size:11px;margin-left:4px">(no sobreescribir)</span>
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
     </div>
@@ -726,6 +930,18 @@ HTML = r"""<!DOCTYPE html>
   <div id="cable-details-wrap" style="display:none;margin-top:16px;max-width:780px">
     <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Archivos procesados</div>
     <div id="cable-details-list" style="max-height:400px;overflow-y:auto;font-size:12px;background:#1e1e2e;border:1px solid #333;border-radius:6px;padding:10px 12px"></div>
+  </div>
+
+  <!-- Log de operaciones persistente -->
+  <div style="margin-top:20px;max-width:780px">
+    <button class="btn" onclick="toggleCableSyncLog()" style="font-size:12px;padding:4px 10px">📋 Ver log de operaciones</button>
+    <div id="cable-log-wrap" style="display:none;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px">Log persistente (.rommgr/cable_sync_ops.log)</span>
+        <button class="btn" onclick="loadCableSyncLog()" style="font-size:11px;padding:2px 8px">Actualizar</button>
+      </div>
+      <pre id="cable-log-content" style="max-height:350px;overflow-y:auto;font-size:11px;font-family:monospace;background:#0d0d1a;border:1px solid #2a2a4a;border-radius:6px;padding:10px 14px;color:#aaa;white-space:pre-wrap;word-break:break-all"></pre>
+    </div>
   </div>
 
 </div>
@@ -753,7 +969,7 @@ HTML = r"""<!DOCTYPE html>
       </p>
     </details>
   </div>
-  <div id="assets-content"><p class="loading">Loading…</p></div>
+  <div id="assets-content"><p class="loading">Cargando…</p></div>
 </div>
 
 <!-- SCRAPER -->
@@ -800,7 +1016,7 @@ HTML = r"""<!DOCTYPE html>
       <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px">Estado del scraping por plataforma</h3>
       <button class="btn" onclick="loadScraperSummary()">&#x21BB; Actualizar</button>
     </div>
-    <div id="scraper-summary"><p class="loading">Loading…</p></div>
+    <div id="scraper-summary"><p class="loading">Cargando…</p></div>
   </div>
 
   <div class="actions-panel" style="max-width:800px;margin-top:24px">
@@ -829,6 +1045,29 @@ HTML = r"""<!DOCTYPE html>
 <!-- TOOLS -->
 <div id="tab-tools" class="tab">
 
+  <!-- D8-5: Context selector PC / Consola Android -->
+  <div style="display:flex;align-items:center;gap:0;margin-bottom:20px;background:#1e1e2e;border:1px solid #2a2a3a;border-radius:6px;padding:10px 16px">
+    <span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-right:12px">Contexto:</span>
+    <button id="tools-ctx-pc" class="dev-btn active" onclick="setToolsContext('pc')">PC</button>
+    <button id="tools-ctx-android" class="dev-btn" onclick="setToolsContext('android')">Consola Android</button>
+    <span id="tools-ctx-path-label" style="color:#555;font-size:11px;margin-left:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px"></span>
+  </div>
+
+  <!-- ── Aplicar todo ── -->
+  <div class="actions-panel" style="margin-bottom:24px;border-left-color:#c586c0">
+    <h3 style="color:#c586c0">Aplicar todo — Limpieza en un clic</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta las herramientas seleccionadas en secuencia sobre <code>library_root</code>. Cada herramienta espera a que la anterior termine.</p>
+    <div class="actions-row" style="gap:20px;align-items:center;flex-wrap:wrap">
+      <label class="fmt-check"><input type="checkbox" id="batch-zip" checked> Descomprimir ZIPs</label>
+      <label class="fmt-check"><input type="checkbox" id="batch-chd" checked> Convertir a CHD</label>
+      <label class="fmt-check"><input type="checkbox" id="batch-health"> Health Check</label>
+    </div>
+    <div class="actions-row" style="margin-top:10px">
+      <button id="btn-batch-run" class="btn" style="border-color:#c586c0;color:#c586c0" onclick="doBatchRun()">Ejecutar todo sobre library_root</button>
+    </div>
+    <div id="batch-status" style="margin-top:10px;font-size:12px;color:#888"></div>
+  </div>
+
   <!-- ── Descomprimir ZIPs ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Descomprimir ZIPs</h3>
@@ -838,7 +1077,7 @@ HTML = r"""<!DOCTYPE html>
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('zip-path')">library_root</button>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
-      <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Dry run (solo previsualizar)</label>
+      <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Solo previsualizar (sin extraer)</label>
       <label class="fmt-check"><input type="checkbox" id="zip-delete-source"> Eliminar .zip tras extraer</label>
     </div>
     <div class="actions-row">
@@ -877,7 +1116,7 @@ HTML = r"""<!DOCTYPE html>
       <div id="m3u-folder-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center;margin-top:10px">
-      <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Dry run (solo previsualizar)</label>
+      <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Solo previsualizar (sin crear archivos)</label>
     </div>
     <div class="actions-row">
       <button class="btn primary" onclick="doGenerateM3U()">Generar M3U</button>
@@ -950,6 +1189,12 @@ HTML = r"""<!DOCTYPE html>
         <div id="ra-progress-bar" style="height:100%;background:#ce9178;width:0%;transition:width 0.3s"></div>
       </div>
     </div>
+    <div id="ra-filter-row" style="display:none;margin-top:12px;margin-bottom:4px">
+      <label style="color:#888;font-size:12px">Filtrar por plataforma:&nbsp;</label>
+      <select id="ra-platform-filter" onchange="filterRaByPlatform()" style="background:#1e1e2e;color:#d4d4d4;border:1px solid #3a3a4a;padding:3px 8px;border-radius:4px;font-size:12px">
+        <option value="">Todas las plataformas</option>
+      </select>
+    </div>
     <div id="ra-result" style="margin-top:12px"></div>
   </div>
 
@@ -965,7 +1210,7 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
       <label class="fmt-check">
-        <input type="checkbox" id="chd-dry-run" checked> Dry run (solo previsualizar)
+        <input type="checkbox" id="chd-dry-run" checked> Solo previsualizar (sin convertir)
       </label>
       <label class="fmt-check">
         <input type="checkbox" id="chd-delete-source"> Eliminar .cue/.bin tras convertir
@@ -1001,11 +1246,13 @@ HTML = r"""<!DOCTYPE html>
       </div>
       <button class="btn primary" onclick="generateReport()">Generar informe</button>
       <button class="btn" id="btn-export-report" style="display:none" onclick="exportReportHtml()">&#x2193; Exportar HTML</button>
-      <button class="btn" id="btn-open-html-report" onclick="openHtmlReport()" title="Abre el informe en una nueva pestaña con navegación por pestañas">&#x2197; Ver informe HTML</button>
+      <button class="btn" id="btn-open-html-report" onclick="openHtmlReport()" title="Abre el informe en una nueva pestaña con navegación lateral">&#x2197; Ver informe HTML (PC)</button>
+      <button class="btn" onclick="openHtmlReportAndroid()" title="Informe para la ruta de la consola Android configurada en Overview" style="border-color:#ce9178;color:#ce9178">&#x2197; Ver informe (Consola Android)</button>
     </div>
-    <p style="color:#555;font-size:11px;margin-top:8px">Recopila el estado de ZIPs, playlists, sets multi-disco, saves huérfanos, RetroAchievements y conversiones CHD.</p>
+    <p style="color:#555;font-size:11px;margin-top:8px">Recopila el estado de ZIPs, playlists, sets multi-disco, saves huérfanos, RetroAchievements y conversiones CHD. El informe HTML se abre con navegación lateral permanente.</p>
 
     <div id="report-loading" style="display:none;color:#555;font-size:12px;padding:12px 0">Generando informe…</div>
+    <div id="report-not-accessible" style="display:none;margin-top:10px;padding:10px 14px;background:#3a2a1a;border:1px solid #6a4a1a;border-radius:6px;font-size:12px;color:#ce9178"></div>
 
     <div id="report-content" style="display:none;margin-top:16px">
       <!-- Sub-tab nav -->
@@ -1041,6 +1288,16 @@ HTML = r"""<!DOCTYPE html>
     <div id="folder-analysis-result" style="margin-top:12px"></div>
   </div>
 
+  <!-- ── Exportar Pegasus Metadata ── -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Exportar Pegasus Metadata</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Genera <code>metadata.pegasus.txt</code> por plataforma — compatible con Pegasus Frontend.</p>
+    <div class="actions-row" style="margin-top:8px">
+      <button class="btn" onclick="exportPegasus()" style="border-color:#c586c0;color:#c586c0">Exportar Pegasus Metadata</button>
+    </div>
+    <div id="pegasus-result" class="job-result"></div>
+  </div>
+
   <!-- ── Limpieza de archivos basura ── -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>Limpieza de archivos no relacionados con gaming</h3>
@@ -1051,6 +1308,110 @@ HTML = r"""<!DOCTYPE html>
       <button id="btn-junk-scan" class="btn primary" onclick="doJunkScan()">Escanear archivos basura</button>
     </div>
     <div id="junk-result"></div>
+  </div>
+
+  <!-- ── Estructura de biblioteca ── -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Estructura de biblioteca</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Crea la estructura de carpetas estándar (ES-DE/EmulationStation) en tu biblioteca y organiza los ROMs en sus carpetas de plataforma.</p>
+    <div class="actions-row">
+      <button class="btn" onclick="createLibraryStructure()">Crear carpetas</button>
+      <span style="color:#555;font-size:12px">Crea todas las carpetas de plataforma + saves/ + bios/ + inbox/ con subcarpetas media/</span>
+    </div>
+    <div class="actions-row">
+      <button class="btn" onclick="organizeLibrary(true)">Previsualizar organización</button>
+      <span style="color:#555;font-size:12px">Muestra adónde iría cada ROM sin mover nada</span>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="organizeLibrary(false)">Organizar biblioteca</button>
+      <span style="color:#555;font-size:12px">Mueve los ROMs a sus carpetas de plataforma y actualiza la BD</span>
+    </div>
+    <div id="job-result-structure" class="job-result" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- INBOX -->
+<div id="tab-inbox" class="tab">
+  <div class="actions-panel" style="max-width:900px">
+    <h3>Inbox — Organizar juegos nuevos</h3>
+    <p style="color:#555;font-size:12px;margin-bottom:16px">
+      Suelta ROMs o ZIPs en la carpeta Inbox. La herramienta los detecta, extrae, cruza con los
+      catálogos No-Intro/Redump y los mueve a la carpeta de plataforma correcta dentro de la biblioteca.
+    </p>
+
+    <div class="actions-row" style="flex-wrap:wrap;gap:12px;margin-bottom:8px">
+      <div style="flex:1;min-width:260px">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta Inbox</label>
+        <div style="display:flex;gap:6px">
+          <input id="inbox-path" type="text" style="flex:1" placeholder="C:/Users/tu/Desktop/Inbox ROMs">
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Destino (library_root por defecto)</label>
+        <div style="display:flex;gap:6px">
+          <input id="inbox-target" type="text" style="flex:1" placeholder="Dejar vacío para usar library_root">
+          <button class="btn" onclick="fillInboxTarget()" title="Usar library_root">Usar library</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-row" style="margin-bottom:16px;gap:20px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#d4d4d4">
+        <input type="checkbox" id="inbox-delete-source" style="accent-color:#569cd6">
+        Eliminar ZIPs originales tras organizar
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#d4d4d4">
+        <input type="checkbox" id="inbox-auto-process" style="accent-color:#569cd6">
+        Procesar automáticamente (daemon)
+      </label>
+    </div>
+
+    <div class="actions-row" style="margin-bottom:20px">
+      <button class="btn" id="btn-inbox-scan" onclick="scanInbox()">Analizar carpeta</button>
+      <button class="btn primary" id="btn-inbox-run" onclick="runInbox()">Organizar todo</button>
+      <button class="btn" onclick="saveInboxSettings()" style="margin-left:auto;border-color:#555;color:#888">Guardar ajustes</button>
+    </div>
+
+    <!-- Scan summary -->
+    <div id="inbox-summary" style="display:none;margin-bottom:16px;padding:10px 14px;background:#1e1e2e;border:1px solid #2a2a4a;border-radius:4px;font-size:12px">
+      <span id="inbox-summary-text" style="color:#888"></span>
+    </div>
+
+    <!-- File table -->
+    <div id="inbox-files-wrap" style="display:none;margin-bottom:20px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid #333;color:#555">
+            <th style="text-align:left;padding:4px 8px">Archivo</th>
+            <th style="text-align:left;padding:4px 8px">Tipo</th>
+            <th style="text-align:left;padding:4px 8px">Plataforma</th>
+            <th style="text-align:right;padding:4px 8px">Tamaño</th>
+            <th style="text-align:left;padding:4px 8px">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="inbox-files-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Progress -->
+    <div id="inbox-progress-wrap" style="display:none;margin-bottom:16px;padding:12px 14px;background:#1e1e2e;border:1px solid #2a2a4a;border-radius:4px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span id="inbox-progress-step" style="font-size:12px;color:#d4d4d4">Preparando…</span>
+        <span id="inbox-progress-counts" style="font-size:11px;color:#888"></span>
+      </div>
+      <div style="background:#2a2a2a;border-radius:3px;height:6px;overflow:hidden;margin-bottom:6px">
+        <div id="inbox-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
+      <div id="inbox-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    </div>
+
+    <!-- Result -->
+    <div id="inbox-result" class="job-result"></div>
+
+    <!-- Watcher status -->
+    <div id="inbox-watcher-info" style="display:none;margin-top:16px;padding:8px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px;font-size:11px;color:#555">
+      <span id="inbox-watcher-text">Daemon inactivo</span>
+    </div>
   </div>
 </div>
 
@@ -1066,8 +1427,33 @@ HTML = r"""<!DOCTYPE html>
         <input id="cfg-library-root" type="text" style="width:100%" placeholder="E:/ROMs">
       </div>
       <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Nombre del dispositivo Android</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="cfg-device-preset" onchange="_onDevicePresetChange()" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
+            <option value="Consola Android">Consola Android</option>
+            <option value="Steam Deck">Steam Deck</option>
+            <option value="custom">Personalizado...</option>
+          </select>
+          <input id="cfg-device-name-custom" type="text" style="flex:1;display:none" placeholder="Nombre personalizado">
+        </div>
+        <div style="color:#555;font-size:11px;margin-top:3px">Aparece en botones, etiquetas y mensajes de la interfaz.</div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta de la consola Android / Tarjeta SD — carpeta raíz montada en el PC</label>
+        <input id="cfg-anbernic-root" type="text" style="width:100%" placeholder="E:\\Carpetas anbernic">
+        <div style="color:#555;font-size:11px;margin-top:3px">Se usa para el sync automático al detectar la tarjeta SD y en Cable Sync modo filesystem.</div>
+      </div>
+      <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote — ruta en el cloud para saves</label>
         <input id="cfg-rclone-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Acceso a la interfaz web</label>
+        <select id="cfg-web-host" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
+          <option value="127.0.0.1">127.0.0.1 — solo este PC (recomendado)</option>
+          <option value="0.0.0.0">0.0.0.0 — toda la red local (acceso desde la consola)</option>
+        </select>
+        <div style="color:#555;font-size:11px;margin-top:3px">Con <code>0.0.0.0</code> puedes abrir la app desde el navegador de tu consola si están en la misma red WiFi. Requiere reiniciar el servidor.</div>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper usuario</label>
@@ -1106,9 +1492,38 @@ HTML = r"""<!DOCTYPE html>
   </div>
   <div class="actions-panel" style="margin-top:20px">
     <h3>Base de datos</h3>
+    <div id="settings-db-info" style="margin-bottom:12px;font-size:11px;color:#888"></div>
     <div class="actions-row">
-      <a href="/api/db-backup" download class="btn">Descargar copia de seguridad (.sqlite)</a>
-      <span style="color:#555;font-size:12px">Descarga library.sqlite — guárdala antes de operaciones destructivas</span>
+      <a href="/api/db-backup" download class="btn">Descargar copia de seguridad (PC)</a>
+      <span style="color:#555;font-size:12px">Descarga library_pc.db — guárdala antes de operaciones destructivas</span>
+    </div>
+    <div class="actions-row" style="margin-top:8px">
+      <button class="btn" style="border-color:#dcdcaa;color:#dcdcaa" onclick="migrateSplitDb()" title="Mueve los registros con rutas no-PC de la BD del PC a la BD de la consola Android (operación segura e idempotente)">Migrar BD a dos DBs</button>
+      <span style="color:#555;font-size:12px">Necesario solo si la BD estaba mezclada. Mueve ROMs de Android a library_android.db.</span>
+    </div>
+    <div id="migrate-db-result" class="job-result"></div>
+  </div>
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>Inicio automatico con Windows</h3>
+    <p style="color:#555;font-size:12px;line-height:1.7;margin-bottom:12px">
+      Para que ROM Manager arranque automaticamente al iniciar Windows (y el sync automatico siempre
+      este listo cuando conectes la consola):
+    </p>
+    <ol style="color:#888;font-size:12px;line-height:2;padding-left:20px;margin-bottom:12px">
+      <li>Ejecuta <code style="color:#ce9178">Crear_acceso_directo.ps1</code> con PowerShell (boton derecho &rarr; Ejecutar con PowerShell) para crear un acceso directo.</li>
+      <li>Pulsa <strong style="color:#d4d4d4">Win+R</strong>, escribe <code style="color:#ce9178">shell:startup</code> y pulsa Enter.</li>
+      <li>Copia el acceso directo a esa carpeta. Windows lo lanzara al arrancar.</li>
+    </ol>
+    <div style="background:#161626;border:1px solid #2a2a4a;border-radius:4px;padding:10px 14px;font-size:12px;color:#888">
+      <strong style="color:#569cd6">Nota:</strong> El servidor se lanza minimizado en segundo plano.
+      El sync automatico funcionara aunque no abras la interfaz web.
+    </div>
+  </div>
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>Herramientas</h3>
+    <div class="actions-row">
+      <button class="btn" onclick="localStorage.removeItem('wizard_dismissed'); showWizard('', ''); showToast('Asistente relanzado', 'ok')">Relanzar asistente de configuracion</button>
+      <span style="color:#555;font-size:12px">Vuelve a mostrar el asistente de primeros pasos.</span>
     </div>
   </div>
 </div>
@@ -1176,8 +1591,48 @@ let _pollingTimer = null;
 // Track result timestamps already shown, so toasts/banners fire only once per result
 const _shownResultTs = {};
 
+// ── Desktop notifications ──────────────────────────────────────────────────
+function _requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+function _sendNotif(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '' });
+  }
+}
+
 // ── Device selector ───────────────────────────────────────────────────────────
 let _activeDevice = 'pc';  // 'pc' | 'both' | 'anbernic'
+let _devName = 'Consola Android';  // display name for the Android device — updated from config
+
+/** Update every UI element that shows the device name. Called once after config loads. */
+function _applyDeviceName(name) {
+  _devName = name || 'Consola Android';
+  // Simple text replacements
+  const simple = {
+    'dev-anbernic':        _devName,
+    'ov-ab-column-title':  _devName,
+    'ov-ab-path-label-text': _devName,
+    'scan-ab-device-name': _devName,
+    'scan-adb-device-name': _devName,
+    'cable-mode-label':    _devName,
+  };
+  for (const [id, text] of Object.entries(simple)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+  // Direction labels include arrow
+  const toEl   = document.getElementById('cable-dir-to-dev');
+  const fromEl = document.getElementById('cable-dir-from-dev');
+  if (toEl)   toEl.textContent   = `PC → ${_devName}`;
+  if (fromEl) fromEl.textContent = `${_devName} → PC`;
+  // Tooltip on ADB row
+  const adbRow = document.getElementById('scan-adb-row');
+  if (adbRow) adbRow.title = `Escanea la ${_devName} por USB sin sacar la SD card — requiere ADB configurado en Settings`;
+}
 
 function setDevice(d) {
   _activeDevice = d;
@@ -1218,7 +1673,8 @@ function showTab(name) {
   if (name === 'cable')      loadCableSync();
   if (name === 'scraper')    loadScraperSummary();
   if (name === 'settings')   loadSettings();
-  if (name === 'tools')      loadTools();
+  if (name === 'tools')      { loadTools(); _initToolsContext(); }
+  if (name === 'inbox')      loadInbox();
 }
 
 // ── Guide toggle (update arrow icon) ─────────────────────────────────────────
@@ -1282,10 +1738,20 @@ async function stopJob(name) {
   } catch(_) {}
 }
 
-function openHtmlReport() {
-  const path = document.getElementById('report-path')?.value.trim() || '';
+function openHtmlReport(customPath) {
+  const path = customPath !== undefined ? customPath : (document.getElementById('report-path')?.value.trim() || '');
   const url = '/api/report/html' + (path ? '?path=' + encodeURIComponent(path) : '');
   window.open(url, '_blank');
+}
+
+async function openHtmlReportAndroid() {
+  const abPath = document.getElementById('ov-ab-path')?.value.trim()
+    || localStorage.getItem('anbernic_path') || '';
+  if (!abPath) {
+    alert('Configura la ruta de la consola Android en la sección Overview primero.');
+    return;
+  }
+  openHtmlReport(abPath);
 }
 
 async function apiFetch(url) {
@@ -1310,11 +1776,14 @@ async function loadOverview() {
     const _t = Date.now();
     const cfg = await apiFetch('/api/config?t=' + _t);
 
+    // Apply device name to all labels
+    _applyDeviceName(cfg.device_name || 'Consola Android');
+
     // Populate path inputs (only if empty)
     const pcInput = document.getElementById('ov-pc-path');
     const abInput = document.getElementById('ov-ab-path');
     const pcPath  = pcInput?.value.trim() || cfg.library_root || '';
-    const abStored = localStorage.getItem('anbernic_path') || '';
+    const abStored = cfg.anbernic_root || localStorage.getItem('anbernic_path') || '';
     // If ADB scan was used, the stored android path acts as the Anbernic root
     const abAdbPath = localStorage.getItem('anbernic_adb_path') || '';
     const abPath   = abInput?.value.trim() || abStored || abAdbPath;
@@ -1375,6 +1844,32 @@ async function loadOverview() {
       } else if (guide && d.total_games === 0) {
         guide.setAttribute('open', '');
       }
+      // D8-P1: setup banner + auto-show wizard on first run
+      const setupBanner = document.getElementById('ov-setup-banner');
+      if (setupBanner) {
+        if (d.first_run || !d.setup_complete) {
+          setupBanner.style.display = '';
+          // (wizard pre-fill handled by showWizard() with the path argument)
+          // Render setup checklist
+          const cl = d.setup_checklist || {};
+          const chk = (ok, label, hint) =>
+            '<div>' + (ok ? '<span style="color:#4ec9b0">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
+            ' <span style="color:' + (ok ? '#d4d4d4' : '#888') + '">' + label + '</span>' +
+            (hint && !ok ? ' <span style="color:#555;font-size:11px">— ' + hint + '</span>' : '') + '</div>';
+          const clEl = document.getElementById('ov-setup-checklist');
+          if (clEl) clEl.innerHTML =
+            chk(cl.library_root_set, 'Carpeta configurada', 'Configura en Settings') +
+            chk(cl.scanned, 'Biblioteca escaneada', 'Lanza el asistente') +
+            chk(cl.catalogs_loaded, 'Catalogos DAT cargados', 'Copia .dat/.xml a .rommgr/catalogs/nointro/') +
+            chk(cl.matched, 'Juegos identificados', 'Ejecuta Match catalogo');
+        } else {
+          setupBanner.style.display = 'none';
+        }
+      }
+      // Auto-show wizard only on first page load if first_run (library not configured yet)
+      if (d.first_run && !localStorage.getItem('wizard_dismissed')) {
+        showWizard(pcPath || cfg.library_root || '', cfg.anbernic_root || '');
+      }
     } catch(e) {
       if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
     }
@@ -1383,32 +1878,102 @@ async function loadOverview() {
     const abCardsEl  = document.getElementById('ov-ab-cards');
     const abDot      = document.getElementById('ov-ab-dot');
     const abEmptyMsg = document.getElementById('ov-ab-empty-msg');
+    // D8-1: stale badge + scan button refs
+    const abStaleBadge = document.getElementById('ov-ab-stale-badge');
+    const abScanBtn    = document.getElementById('ov-ab-scan-btn');
     if (abPath && abCardsEl) {
       try {
         const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath) + '&t=' + _t);
         const abMatchPct = ab.total_games > 0 ? Math.round(ab.matched_games / ab.total_games * 100) : 0;
         if (abDot) abDot.style.color = ab.total_games > 0 ? '#4ec9b0' : '#555';
+        // D8-1: show stale badge if scan is outdated
+        if (abStaleBadge) abStaleBadge.style.display = ab.stale ? '' : 'none';
+        if (abScanBtn)    abScanBtn.style.display    = (ab.stale || ab.total_games === 0) ? '' : 'none';
         // Find last scan for this Anbernic path
         const lastScans = ab.last_scans_by_root || {};
         const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
         if (ab.total_games === 0) {
-          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
+          if (abCardsEl) abCardsEl.innerHTML = '<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>';
         } else {
           const lastScanStr = abLastScan ? abLastScan.replace('T',' ').slice(0,16) : 'nunca';
+          const daysAgo = ab.scan_days_ago !== null && ab.scan_days_ago !== undefined ? ab.scan_days_ago : null;
+          const scanSub = daysAgo !== null ? 'hace ' + daysAgo + ' día' + (daysAgo !== 1 ? 's' : '') : 'nunca';
           if (abCardsEl) abCardsEl.innerHTML =
             card('Games',      ab.total_games,    null, () => goToGames(abPath, ''), '')          +
             card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'), 'blue')  +
             card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'), 'orange')  +
             card('Saves',      ab.total_saves,     null, ab.total_saves > 0 ? () => goToGames(abPath, '', 'save') : null, 'purple')     +
             card('Assets',     ab.total_assets,   null, ab.total_assets > 0 ? () => { showTab('assets'); } : null)   +
-            card('Último scan', lastScanStr);
+            card('Último scan', lastScanStr, scanSub);
         }
+        // D8-7: show report available notice (only if PC status and not filtered by ab path)
       } catch(e) {
         if (abCardsEl) abCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
       }
     } else if (!abPath && abCardsEl) {
       abCardsEl.innerHTML = '<p style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
+      if (abStaleBadge) abStaleBadge.style.display = 'none';
+      if (abScanBtn)    abScanBtn.style.display    = 'none';
     }
+
+    // Recently played
+    const recentEl = document.getElementById('ov-recently-played');
+    try {
+      const pcParam2 = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + (_t+2);
+      const dRecent = await apiFetch('/api/status' + pcParam2);
+      if (recentEl && dRecent.recently_played && dRecent.recently_played.length > 0) {
+        recentEl.innerHTML = dRecent.recently_played.map(g => {
+          const title = g.canonical_title || g.original_filename;
+          const when = g.last_played_at ? g.last_played_at.replace('T',' ').slice(0,16) : '';
+          return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e1e2e;font-size:12px">
+            <span>${_platBadge(g.platform)} <span style="color:#d4d4d4">${_h(title)}</span></span>
+            <span style="color:#555">${when}</span>
+          </div>`;
+        }).join('');
+      } else if (recentEl) {
+        recentEl.innerHTML = '<p style="color:#555;font-size:12px">Juega un rato y vuelve aquí.</p>';
+      }
+    } catch(_) { if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">—</p>'; }
+
+    // Platform breakdown chart
+    const chartEl = document.getElementById('ov-platform-chart');
+    if (chartEl && pcPath) {
+      try {
+        const ps = await apiFetch('/api/platform-stats?root=' + encodeURIComponent(pcPath));
+        if (ps.platforms && ps.platforms.length > 0) {
+          const maxCount = ps.platforms[0].count;
+          chartEl.innerHTML = ps.platforms.slice(0, 15).map(p => {
+            const pct = Math.round(p.count / maxCount * 100);
+            return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px">
+              <span style="width:110px;color:#888;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(p.platform)}">${_h(p.platform)}</span>
+              <div style="flex:1;background:#1e1e2e;border-radius:2px;height:14px">
+                <div style="width:${pct}%;background:#569cd6;height:14px;border-radius:2px;transition:width 0.3s"></div>
+              </div>
+              <span style="width:40px;color:#d4d4d4;font-size:11px">${p.count}</span>
+            </div>`;
+          }).join('');
+        } else {
+          chartEl.innerHTML = '<p style="color:#555;font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
+        }
+      } catch(_) { /* silent */ }
+    }
+
+    // D8-7: show report available notice based on PC status
+    try {
+      const pcStatusForReport = await apiFetch('/api/status' + (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&t=' + (_t+1) : ('?t=' + (_t+1))));
+      const reportNoticeEl = document.getElementById('ov-report-notice');
+      if (reportNoticeEl) {
+        if (pcStatusForReport.last_report_at && pcStatusForReport.last_report_mins_ago !== null) {
+          const mins = pcStatusForReport.last_report_mins_ago;
+          const timeStr = mins < 60 ? ('hace ' + mins + ' min') : ('hace ' + Math.round(mins/60) + 'h');
+          reportNoticeEl.style.display = '';
+          reportNoticeEl.innerHTML = '<span style="color:#dcdcaa;font-size:12px">&#x1F4CA; Informe disponible — generado ' + timeStr + '</span> '
+            + '<a href="/api/report/html' + (pcPath ? '?path=' + encodeURIComponent(pcPath) : '') + '" target="_blank" class="btn" style="padding:2px 8px;font-size:11px;margin-left:8px">Ver informe</a>';
+        } else {
+          reportNoticeEl.style.display = 'none';
+        }
+      }
+    } catch(_) {}
 
   } catch(e) {
     const pcCardsEl = document.getElementById('ov-pc-cards');
@@ -1425,6 +1990,125 @@ function card(label, value, sub, onclick, colorCls) {
     <div class="value">${value}</div>
     ${sub ? `<div class="sub">${sub}</div>` : ''}
   </div>`;
+}
+
+// ── D8-P1: Setup Wizard ───────────────────────────────────────────────────────
+let _wizardPollingTimer = null;
+
+function showWizard(prefillPcPath, prefillAndroidPath) {
+  const modal = document.getElementById('wizard-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  document.getElementById('wizard-page-1').style.display = '';
+  document.getElementById('wizard-page-2').style.display = 'none';
+  document.getElementById('wizard-page-3').style.display = 'none';
+  // Pre-fill paths from config if available
+  const pcInp = document.getElementById('wiz-library-root');
+  if (pcInp && !pcInp.value && prefillPcPath) pcInp.value = prefillPcPath;
+  const andInp = document.getElementById('wiz-android-root');
+  if (andInp && !andInp.value && prefillAndroidPath) andInp.value = prefillAndroidPath;
+}
+
+function closeWizard() {
+  const modal = document.getElementById('wizard-modal');
+  if (modal) modal.style.display = 'none';
+  localStorage.setItem('wizard_dismissed', '1');
+  if (_wizardPollingTimer) { clearInterval(_wizardPollingTimer); _wizardPollingTimer = null; }
+}
+
+async function startSetup() {
+  const libRoot    = (document.getElementById('wiz-library-root')?.value || '').trim();
+  const androidRoot = (document.getElementById('wiz-android-root')?.value || '').trim();
+  if (!libRoot) { alert('Introduce la carpeta de biblioteca (PC) primero.'); return; }
+  const cleanJunk   = document.getElementById('wiz-clean-junk')?.checked || false;
+  const extractZips = document.getElementById('wiz-extract-zips')?.checked !== false;
+  const doMatch     = document.getElementById('wiz-match')?.checked !== false;
+
+  // Switch to page 2
+  document.getElementById('wizard-page-1').style.display = 'none';
+  document.getElementById('wizard-page-2').style.display = '';
+  _renderWizSteps(null);
+
+  try {
+    await apiPost('/api/setup-run', {
+      library_root:  libRoot,
+      android_root:  androidRoot,
+      clean_junk:    cleanJunk,
+      extract_zips:  extractZips,
+      scan:          true,
+      match:         doMatch,
+    });
+    startPolling();
+    _wizardPollingTimer = setInterval(_pollSetupProgress, 2000);
+  } catch(e) {
+    document.getElementById('wizard-page-2').style.display = 'none';
+    document.getElementById('wizard-page-1').style.display = '';
+    alert('Error al iniciar: ' + e.message);
+  }
+}
+
+function _renderWizSteps(progress) {
+  const stepsEl = document.getElementById('wiz-steps');
+  if (!stepsEl) return;
+  const steps = [
+    'Limpiando archivos no relacionados',
+    'Extrayendo ZIPs',
+    'Escaneando biblioteca',
+    'Cruzando con catalogos No-Intro/Redump',
+    'Preparando plan de renombrado',
+  ];
+  const current = progress ? (progress.step_num || 0) : 0;
+  const pct = progress ? (progress.pct || 0) : 0;
+  stepsEl.innerHTML = steps.map((s, i) => {
+    const n = i + 1;
+    let icon, color;
+    if (n < current) { icon = '&#x2705;'; color = '#4ec9b0'; }
+    else if (n === current) { icon = '&#x23F3;'; color = '#c9bcf5'; }
+    else { icon = '&nbsp;&nbsp;&nbsp;'; color = '#444'; }
+    return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:#777;font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
+  }).join('');
+  // Progress bar
+  const bar = document.getElementById('wiz-prog-bar');
+  if (bar) bar.style.width = pct + '%';
+  const fileEl = document.getElementById('wiz-prog-file');
+  if (fileEl) fileEl.textContent = progress ? (progress.current_file || '') : '';
+}
+
+async function _pollSetupProgress() {
+  try {
+    const s = await apiFetch('/api/setup-status');
+    if (s.setup_progress) _renderWizSteps(s.setup_progress);
+    if (!s.setup_running && s.setup_result) {
+      if (_wizardPollingTimer) { clearInterval(_wizardPollingTimer); _wizardPollingTimer = null; }
+      _showSetupResult(s.setup_result);
+    }
+  } catch(_) {}
+}
+
+function _showSetupResult(r) {
+  document.getElementById('wizard-page-2').style.display = 'none';
+  document.getElementById('wizard-page-3').style.display = '';
+  const el = document.getElementById('wiz-result-stats');
+  if (!el) return;
+  if (r.error) {
+    el.innerHTML = '<span style="color:#f44747">Error: ' + _h(r.error) + '</span><span style="color:#888;font-size:12px;margin-left:8px">— Recarga la página o comprueba que hay ROMs escaneados.</span>';
+    return;
+  }
+  const fmtB = (b) => b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : b >= 1024 ? (b/1024).toFixed(0) + ' KB' : b + ' B';
+  let html = '';
+  html += '<div>&#x2022; <strong>' + (r.games_found || 0) + '</strong> juegos encontrados</div>';
+  html += '<div>&#x2022; <strong>' + (r.games_matched || 0) + '</strong> identificados con nombre canonico</div>';
+  if (r.junk_deleted > 0) html += '<div>&#x2022; <strong>' + r.junk_deleted + '</strong> archivos basura eliminados (' + fmtB(r.junk_freed_bytes || 0) + ' liberados)</div>';
+  if (r.zips_extracted > 0) html += '<div>&#x2022; <strong>' + r.zips_extracted + '</strong> ZIPs extraidos</div>';
+  html += '<div>&#x2022; <strong>' + (r.plan_pending || 0) + '</strong> archivos listos para renombrar</div>';
+  el.innerHTML = html;
+  // Reload overview to refresh counts
+  loadOverview();
+}
+
+function wizardGoToOrganize() {
+  closeWizard();
+  showTab('plan');
 }
 
 // Navigate to Games tab pre-filtered by device root, match status, and filetype
@@ -1448,7 +2132,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -1655,6 +2339,18 @@ function _applyJobStatus(s) {
       }
     }
     if (btnZip) { btnZip.disabled = false; btnZip.textContent = 'Descomprimir ZIPs'; }
+    // D8-P1: auto-scan after ZIP extraction
+    if (!s.extract_zip_running && s.extract_zip_result && !s.extract_zip_result.dry_run && s.extract_zip_result.extracted > 0) {
+      const _zipR = s.extract_zip_result;
+      const _zipTs = _zipR.result_ts || JSON.stringify(_zipR);
+      if (!window._autoScanAfterZipTs || window._autoScanAfterZipTs !== _zipTs) {
+        window._autoScanAfterZipTs = _zipTs;
+        setTimeout(() => {
+          showToast('ZIPs extraidos. Lanzando escaneo automatico...', 'ok');
+          quickScanPC();
+        }, 1500);
+      }
+    }
   }
 
   // Health check progress
@@ -1769,6 +2465,8 @@ function _applyJobStatus(s) {
   if (!s.cable_sync_running && s.cable_sync_result) {
     _renderCableSyncResult(s.cable_sync_result);
   }
+  // Inbox progress
+  _applyInboxProgress(s);
 }
 
 function _showJobResult(type, result) {
@@ -1815,7 +2513,7 @@ async function detectAdbDevicesForScan() {
     const d = await apiFetch('/api/adb-devices');
     if (d.error) { if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + d.error; } return; }
     if (!d.devices?.length) {
-      if (status) { status.style.color = '#ce9178'; status.textContent = 'No se encontraron dispositivos — conecta la Anbernic y activa Depuración USB'; }
+      if (status) { status.style.color = '#ce9178'; status.textContent = `No se encontraron dispositivos — conecta la ${_devName} y activa Depuración USB`; }
       return;
     }
     if (sel) {
@@ -1828,7 +2526,7 @@ async function detectAdbDevicesForScan() {
     const readyCount = d.devices.filter(dv => dv.ready).length;
     if (status) {
       status.style.color = readyCount ? '#4ec9b0' : '#ce9178';
-      status.textContent = readyCount ? `✓ ${readyCount} dispositivo(s) listo(s)` : '⚠ Acepta el diálogo de depuración USB en la Anbernic';
+      status.textContent = readyCount ? `✓ ${readyCount} dispositivo(s) listo(s)` : `⚠ Acepta el diálogo de depuración USB en la ${_devName}`;
     }
   } catch(e) { if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + e.message; } }
 }
@@ -1913,6 +2611,21 @@ async function quickScanPC() {
   }
 }
 
+// D8-1: Quick scan of the Android device library root
+async function quickScanAndroid() {
+  const abPath = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '';
+  if (!abPath) { alert('Configura la ruta de la consola Android en Overview primero.'); return; }
+  try {
+    const d = await apiPost('/api/scan', { source_paths: [abPath], quick: false });
+    if (d.status === 'already_running') { showToast('Scan ya en curso…', 'ok'); return; }
+    showToast('Scan de consola Android iniciado…', 'ok');
+    showTab('overview');
+    startPolling();
+  } catch(e) {
+    alert('Error al lanzar scan: ' + e.message);
+  }
+}
+
 // ── Fix platforms action ─────────────────────────────────────────────────────
 async function doFixPlatforms() {
   const btn = document.getElementById('btn-fix-platforms');
@@ -1973,7 +2686,7 @@ function onGamesFilterChange() {
 async function loadGames(offset) {
   gamesState.offset = offset ?? 0;
   const tbody = document.getElementById('games-tbody');
-  tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" class="loading">Cargando…</td></tr>';
 
   // Show active root filter if set
   const rootBanner = document.getElementById('games-root-banner');
@@ -1996,6 +2709,8 @@ async function loadGames(offset) {
   if (q)                   params.set('search',   q);
   const ft = document.getElementById('games-filetype')?.value;
   if (ft !== undefined && ft !== 'all') params.set('filetype', ft);
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) params.set('play_status', ps);
   const _gamesRoot = gamesState.root || _deviceRoot();
   if (_gamesRoot)          params.set('root',      _gamesRoot);
 
@@ -2017,7 +2732,7 @@ async function loadGames(offset) {
 
     gamesState.total = d.total;
     document.getElementById('games-count').textContent =
-      `${d.total} game${d.total !== 1 ? 's' : ''} (page ${Math.floor(gamesState.offset / gamesState.limit) + 1} of ${Math.max(1, Math.ceil(d.total / gamesState.limit))})`;
+      `${d.total} juego${d.total !== 1 ? 's' : ''} (página ${Math.floor(gamesState.offset / gamesState.limit) + 1} de ${Math.max(1, Math.ceil(d.total / gamesState.limit))})`;
 
     const rows = d.games;
 
@@ -2028,28 +2743,48 @@ async function loadGames(offset) {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
         empty.innerHTML = `No hay ROMs de la Anbernic en la base de datos.<br><span style="color:#888;font-size:12px">Ruta: <code>${ab}</code> — Escanea la Anbernic primero (Overview → Escanear → Anbernic por ADB).</span>`;
       } else {
-        empty.innerHTML = 'No games match the filter.';
+        empty.innerHTML = 'Sin resultados. Prueba con otros filtros o ejecuta un Scan primero.';
       }
       empty.style.display = '';
     }
     else {
       empty.style.display = 'none';
-      tbody.innerHTML = rows.map(g => `<tr>
-        <td>${_platBadge(g.platform)}</td>
-        <td title="${_h(g.canonical_title||'')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
-        <td class="mono" title="${_h(g.original_filename)}" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
-        <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
-        <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none','—')}</td>
-        <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
-        <td class="mono" style="color:#444;font-size:11px">${(g.sha1||'').slice(0,10)}…</td>
-      </tr>`).join('');
+      const _srcPath = gamesState.root || _deviceRoot() || '';
+      tbody.innerHTML = rows.map(g => {
+        const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:#0a0a0a" onerror="this.style.display=\'none\'">` : '';
+        const statusVal = g.play_status || '';
+        const statusSel = `<select style="background:#1e1e2e;border:1px solid #333;color:#d4d4d4;padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
+          <option value=""${statusVal===''?' selected':''}>—</option>
+          <option value="playing"${statusVal==='playing'?' selected':''}>&#x1F3AE; Jugando</option>
+          <option value="completed"${statusVal==='completed'?' selected':''}>&#x2705; Completado</option>
+          <option value="100pct"${statusVal==='100pct'?' selected':''}>&#x1F4AF; Al 100%</option>
+          <option value="abandoned"${statusVal==='abandoned'?' selected':''}>&#x23F8; Abandonado</option>
+        </select>`;
+        return `<tr>
+          <td style="padding:4px 6px">${thumb}</td>
+          <td>${_platBadge(g.platform)}</td>
+          <td title="${_h(g.canonical_title||'')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
+          <td class="mono" title="${_h(g.original_filename)}" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
+          <td style="white-space:nowrap">${statusSel}</td>
+          <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
+          <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none','—')}</td>
+          <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
+          <td class="mono" style="color:#444;font-size:11px">${(g.sha1||'').slice(0,10)}…</td>
+        </tr>`;
+      }).join('');
       applyColVisibility();
     }
 
     renderPagination();
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="error-msg">${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="error-msg">${e.message}</td></tr>`;
   }
+}
+
+async function setPlayStatus(gameId, sourcePath, status) {
+  try {
+    await apiPost('/api/set-play-status', { game_id: gameId, status: status || null, source_path: sourcePath });
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 
 function renderPagination() {
@@ -2096,6 +2831,9 @@ async function loadPlan() {
   try {
     const root = _deviceRoot();
     const rootParam = root ? `&source_root=${encodeURIComponent(root)}` : '';
+    // D8-2: device filter dropdown
+    const deviceFilterSel = document.getElementById('plan-device-filter');
+    const _planDeviceFilter = deviceFilterSel ? deviceFilterSel.value : '';
     const [d, cfg] = await Promise.all([apiFetch('/api/plan' + _planQueryString() + rootParam), apiFetch('/api/config')]);
     const planBar = document.getElementById('plan-context-bar');
     if (planBar) {
@@ -2140,11 +2878,17 @@ async function loadPlan() {
       summaryBar.style.display = parts.length ? 'flex' : 'none';
     }
 
+    // D8-2: apply device filter to pending list
+    const pendingFiltered = _planDeviceFilter
+      ? (d.pending || []).filter(op => op.device === _planDeviceFilter)
+      : (d.pending || []);
+
     // ── C3: Update action buttons with counts ─────────────────────────────────
     const btnApply    = document.getElementById('btn-apply');
     const btnResolve  = document.getElementById('btn-resolve-conflicts');
+    const btnResolveRa = document.getElementById('btn-resolve-ra-conflicts');
     if (btnApply) {
-      const n = d.pending.length;
+      const n = pendingFiltered.length;
       btnApply.textContent = n > 0 ? `Renombrar ${n} archivo${n !== 1 ? 's' : ''}` : 'Nada que renombrar';
       btnApply.disabled = n === 0;
     }
@@ -2157,28 +2901,41 @@ async function loadPlan() {
         btnResolve.style.display = 'none';
       }
     }
+    // D8-3: show RA resolver if there are disk conflicts
+    if (btnResolveRa) {
+      const diskConflictCount = (d.conflicts || []).filter(c => c.reason === 'disk').length;
+      btnResolveRa.style.display = diskConflictCount > 0 ? '' : 'none';
+      if (diskConflictCount > 0) btnResolveRa.textContent = 'Resolver con RA (' + diskConflictCount + ')';
+    }
 
     if (d.total === 0) {
       if (_activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
         el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:#888;font-size:12px">Ruta Anbernic: <code>${ab}</code><br>Escanea la Anbernic primero (Overview → Escanear → Anbernic por ADB).</span></p>`;
       } else {
-        el.innerHTML = '<p class="empty">No matched games found. Run <strong>Match catálogos</strong> primero.</p>';
+        el.innerHTML = '<p class="empty">Sin juegos con match. Ejecuta <strong>Match catálogos</strong> primero desde la pestaña Inicio.</p>';
       }
       return;
     }
 
     let html = '';
-    if (d.pending.length) {
+    if (pendingFiltered.length) {
       const savesNote = d.total_saves_affected > 0 ? ` <span style="color:#dcdcaa;font-size:11px">· ${d.total_saves_affected} save(s) se renombrarán también</span>` : '';
-      html += `<h3 style="color:#569cd6;margin-bottom:12px">Listos para renombrar — ${d.pending.length}${savesNote}</h3>`;
-      html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>From</th><th>To</th><th style="text-align:center">Saves</th></tr></thead><tbody>';
-      html += d.pending.map(op => `<tr>
-        <td>${op.platform||'<span style="color:#555">Unknown</span>'}</td>
-        <td title="${op.source}">${op.source_name}</td>
-        <td style="color:#4ec9b0" title="${op.target}">${op.target_name}</td>
-        <td style="text-align:center;color:${op.companion_saves > 0 ? '#dcdcaa' : '#555'}">${op.companion_saves > 0 ? op.companion_saves : '—'}</td>
-      </tr>`).join('');
+      const filterNote = _planDeviceFilter ? ` <span style="color:#888;font-size:11px">[filtro: ${_planDeviceFilter === 'pc' ? 'PC' : 'Consola Android'}]</span>` : '';
+      html += `<h3 style="color:#569cd6;margin-bottom:12px">Listos para renombrar — ${pendingFiltered.length}${savesNote}${filterNote}</h3>`;
+      html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>Dispositivo</th><th>From</th><th>To</th><th style="text-align:center">Saves</th></tr></thead><tbody>';
+      html += pendingFiltered.map(op => {
+        const devLabel = op.device === 'pc'
+          ? '<span style="color:#4ec9b0;font-size:10px">PC</span>'
+          : '<span style="color:#ce9178;font-size:10px">Android</span>';
+        return `<tr>
+          <td>${op.platform||'<span style="color:#555">Unknown</span>'}</td>
+          <td>${devLabel}</td>
+          <td title="${_h(op.source)}">${_h(op.source_name)}</td>
+          <td style="color:#4ec9b0" title="${_h(op.target)}">${_h(op.target_name)}</td>
+          <td style="text-align:center;color:${op.companion_saves > 0 ? '#dcdcaa' : '#555'}">${op.companion_saves > 0 ? op.companion_saves : '—'}</td>
+        </tr>`;
+      }).join('');
       html += '</tbody></table></div>';
     }
     if (d.conflicts.length) {
@@ -2208,10 +2965,16 @@ async function loadPlan() {
       if (diskConflicts.length) {
         html += `<div style="background:#1a1212;border:1px solid #3a2020;border-left:3px solid #f44747;border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
         html += `<div style="color:#f44747;font-size:12px;font-weight:600;margin-bottom:6px">`;
-        html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — ya existe un archivo diferente en el destino`;
+        html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — el nombre de destino ya está ocupado por un archivo diferente`;
         html += `</div>`;
         html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
-        html += `El nombre canónico al que quieres renombrar ya está ocupado por otro archivo. Puede que hayas renombrado manualmente, o que haya dos ROMs distintas con el mismo título. Comprueba qué archivo ocupa ese nombre y elimínalo o muévelo manualmente.`;
+        html += `<strong style="color:#d4d4d4">¿Por qué no aparecen en la pestaña Duplicados?</strong><br>`;
+        html += `La pestaña <em>Duplicados</em> solo muestra archivos con el <strong>mismo contenido exacto</strong> (mismo hash SHA1). `;
+        html += `Estos conflictos son distintos: el archivo que quieres renombrar y el que ya ocupa el nombre de destino son ROMs <em>diferentes</em> (distinto contenido), `;
+        html += `pero el catálogo les asigna el mismo nombre canónico — por ejemplo, <code>Super Mario Bros (E)</code> y <code>Super Mario Bros (Europe)</code> son el mismo juego con nombres distintos.<br><br>`;
+        html += `<strong style="color:#d4d4d4">Qué hacer:</strong> Decide cuál de los dos quieres conservar. `;
+        html += `Puedes ir a la pestaña <a href="#" style="color:#569cd6" onclick="event.preventDefault();showTab(\'duplicates\')">Duplicados →</a> para verificar si alguno es idéntico por hash. `;
+        html += `Si son versiones distintas y quieres conservar ambas, activa la opción <strong>Región</strong> o <strong>Revisión</strong> en el formato (arriba) para que cada una obtenga un nombre único.`;
         html += `</div>`;
         html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Destino bloqueado</th></tr></thead><tbody>';
         html += diskConflicts.map(op => `<tr>
@@ -2239,11 +3002,21 @@ async function loadPlan() {
       html += `${d.unmatched_count} ROM${d.unmatched_count !== 1 ? 's' : ''} sin match en catálogo (no se renombrarán) `;
       html += `— <a href="#" style="color:#569cd6;font-size:12px" onclick="event.preventDefault();goToGames(null,'unmatched')">Ver en Games →</a>`;
       html += `</summary>`;
-      html += `<div style="margin-top:10px;overflow-x:auto"><table><thead><tr><th>Platform</th><th>Filename</th></tr></thead><tbody>`;
-      html += d.unmatched.map(g => `<tr>
-        <td>${_platBadge(g.platform)}</td>
-        <td class="mono" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
-      </tr>`).join('');
+      const _reasonLabels = {
+        'no_sha1':       { text: 'sin hashear', color: '#888',    tip: 'Ejecuta un scan completo (sin Quick mode) para calcular el hash' },
+        'no_dat':        { text: 'sin catálogo DAT', color: '#dcdcaa', tip: 'No se ha cargado ningún DAT para esta plataforma — haz Match catálogos primero' },
+        'hash_not_found':{ text: 'hash no en DAT', color: '#ce9178', tip: 'El hash del archivo no está en ningún DAT cargado — puede ser una versión no reconocida' },
+      };
+      html += `<div style="margin-top:10px;overflow-x:auto"><table><thead><tr><th>Platform</th><th>Filename</th><th>Razón</th></tr></thead><tbody>`;
+      html += d.unmatched.map(g => {
+        const r = _reasonLabels[g.unmatched_reason] || { text: g.unmatched_reason || '?', color: '#555', tip: '' };
+        const badge = `<span style="font-size:10px;color:${r.color};background:#1e1e2e;padding:1px 6px;border-radius:3px" title="${_h(r.tip)}">${_h(r.text)}</span>`;
+        return `<tr>
+          <td>${_platBadge(g.platform)}</td>
+          <td class="mono" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
+          <td>${badge}</td>
+        </tr>`;
+      }).join('');
       html += `</tbody></table></div></details>`;
     }
     el.innerHTML = html;
@@ -2370,6 +3143,18 @@ async function doApply() {
           if (bar) bar.style.width = '100%';
           if (pct) pct.textContent = '100%';
           if (lbl) lbl.textContent = 'Completado';
+          // D8-2: show error details if any
+          const errDetails = r.error_details || r.skip_details || [];
+          const errPanel = document.getElementById('apply-error-details');
+          const errList  = document.getElementById('apply-error-list');
+          const errCount = document.getElementById('apply-error-count');
+          if (errDetails.length > 0 && errPanel && errList && errCount) {
+            errCount.textContent = errDetails.length + ' archivo(s) con errores o no encontrados:';
+            errList.innerHTML = errDetails.map(e => '<div style="padding:1px 0">&#x25B8; ' + _h(e) + '</div>').join('');
+            errPanel.style.display = '';
+          } else if (errPanel) {
+            errPanel.style.display = 'none';
+          }
         }
       }
     }
@@ -2426,11 +3211,11 @@ async function loadDuplicates() {
       if (_activeDevice === 'anbernic') {
         el.innerHTML = '<p class="empty">No se encontraron duplicados en la Anbernic.<br><span style="color:#888;font-size:12px">Nota: Los duplicados <em>cruzados</em> entre PC y Anbernic (mismo SHA1 en ambos dispositivos) solo aparecen en modo <strong>Sistema completo</strong>.</span></p>';
       } else {
-        el.innerHTML = '<p class="empty">No duplicates found.</p>';
+        el.innerHTML = '<p class="empty">No se encontraron duplicados.</p>';
       }
       return;
     }
-    let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} group(s) — ${d.total_files} files — ~${fmtSize(d.wasted_bytes)} wasted</p>`;
+    let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} grupo${d.groups.length !== 1 ? 's' : ''} — ${d.total_files} archivos — ~${fmtSize(d.wasted_bytes)} ocupados de más</p>`;
     html += d.groups.map(g => `
       <div class="dup-group" id="dup-${g.sha1}">
         <div class="title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -2443,7 +3228,7 @@ async function loadDuplicates() {
           <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
             ${i === 0
               ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
-              : `<button class="btn danger" style="padding:2px 10px;font-size:11px" onclick="deleteDuplicate(${e.id}, '${e.source_path.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">Delete</button>`}
+              : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.source_path}">${e.source_path}</span>
             <span style="color:#555;flex-shrink:0">${fmtSize(e.size_bytes)}</span>
           </div>`).join('')}
@@ -2477,16 +3262,27 @@ async function deleteAllDuplicates() {
   }
 }
 
-async function deleteDuplicate(gameId, sourcePath) {
+async function deleteDuplicate(btn) {
+  const gameId = parseInt(btn.dataset.id);
+  const sourcePath = btn.dataset.path;
   const filename = sourcePath.split(/[\\/]/).pop();
   if (!confirm(`¿Eliminar "${filename}" del disco?\n\nEsta operación no se puede deshacer.`)) return;
+  btn.disabled = true;
+  btn.textContent = 'Eliminando…';
   try {
     await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
     const row = document.getElementById('dup-entry-' + gameId);
-    if (row) row.remove();
+    if (row) {
+      const group = row.closest('.dup-group');
+      row.remove();
+      // If no more deletable entries remain in this group, remove the whole group
+      if (group && !group.querySelector('.btn.danger')) group.remove();
+    }
     loadOverview();
   } catch(e) {
-    alert('Error al eliminar: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Eliminar';
+    showToast('Error al eliminar: ' + e.message, true);
   }
 }
 
@@ -2506,8 +3302,10 @@ async function markAsIntentionalCopy(sha1) {
 async function loadRaDuplicates() {
   const el = document.getElementById('ra-dup-content');
   const btn = document.getElementById('btn-ra-dups');
+  const batchBtn = document.getElementById('btn-ra-dups-discard-all');
   el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
   if (btn) btn.disabled = true;
+  if (batchBtn) batchBtn.style.display = 'none';
   try {
     const d = await apiFetch('/api/ra-duplicates');
     if (d.note) {
@@ -2518,6 +3316,8 @@ async function loadRaDuplicates() {
       el.innerHTML = '<p style="color:#4ec9b0;font-size:13px">No se encontraron versiones candidatas a eliminar. ✓</p>';
       return;
     }
+    // D8-4: show batch delete button when there are groups
+    if (batchBtn) batchBtn.style.display = '';
     let html = `<p style="color:#888;font-size:12px;margin-bottom:12px">
       <strong style="color:#e0e0e0">${d.total_groups}</strong> grupos encontrados —
       <strong style="color:#f44747">${fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
@@ -2534,6 +3334,7 @@ async function loadRaDuplicates() {
             <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Tamaño</th>
             <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Logros RA</th>
             <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Recomendación</th>
+            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Acción</th>
           </tr></thead>
           <tbody>`;
       for (const e of g.entries) {
@@ -2544,11 +3345,15 @@ async function loadRaDuplicates() {
           ? '<span style="color:#4ec9b0">Conservar</span>'
           : '<span style="color:#f44747">Candidata a eliminar</span>';
         const rowBg = e.ra_supported ? '' : 'style="background:#1a1015"';
+        const delBtn = e.ra_supported ? '' :
+          `<button class="btn danger" style="font-size:11px;padding:2px 8px"
+            onclick="deleteRaDuplicate(${e.id}, ${JSON.stringify(e.source_path)}, this)">Eliminar</button>`;
         html += `<tr ${rowBg}>
           <td style="padding:5px 10px;word-break:break-all">${_h(e.filename)}</td>
           <td style="padding:5px 10px">${fmtSize(e.size_bytes)}</td>
           <td style="padding:5px 10px">${raLabel}</td>
           <td style="padding:5px 10px">${rec}</td>
+          <td style="padding:5px 10px">${delBtn}</td>
         </tr>`;
       }
       html += '</tbody></table></div>';
@@ -2561,33 +3366,133 @@ async function loadRaDuplicates() {
   }
 }
 
+async function deleteRaDuplicate(gameId, sourcePath, btn) {
+  const filename = sourcePath.split(/[\\/]/).pop();
+  if (!confirm(`¿Eliminar la versión sin logros RA?\n\n${filename}\n\nSe moverá a _descartados/. Esta acción es difícil de deshacer.`)) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    // D8-4: use dedicated discard endpoint
+    await apiPost('/api/ra-duplicates/discard', { path: sourcePath });
+    const row = btn.closest('tr');
+    if (row) row.remove();
+    showToast(`Eliminado: ${filename}`, 'ok');
+    loadOverview();
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Eliminar';
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
+// D8-3: Resolve plan conflicts keeping RA winner
+async function doResolveRaConflicts() {
+  const btn = document.getElementById('btn-resolve-ra-conflicts');
+  if (btn) { btn.disabled = true; btn.textContent = 'Resolviendo…'; }
+  try {
+    const d = await apiPost('/api/apply-ra-conflicts', {});
+    if (d.error) {
+      showToast('Error: ' + d.error, 'err');
+    } else {
+      let msg;
+      if (d.no_cache) {
+        msg = 'Sin datos RA en caché — ejecuta primero la comprobación de RetroAchievements en la pestaña Tools';
+      } else if (d.resolved === 0 && d.skipped_no_ra > 0) {
+        msg = d.skipped_no_ra + ' conflictos sin datos RA suficientes para decidir — ejecuta la comprobación RA primero';
+      } else {
+        msg = 'RA resuelto: ' + d.resolved + ' conflictos' + (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : '');
+      }
+      showToast(msg, d.resolved > 0 ? 'ok' : 'info');
+      await loadPlan();
+      loadOverview();
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// D8-4: Discard all RA duplicates without RA support
+async function discardAllRaDuplicates() {
+  if (!confirm('¿Eliminar TODOS los archivos sin logros RA de todos los grupos de versión?\n\nSe moverán a una carpeta _descartados/ junto a cada archivo. Esta acción no se puede deshacer fácilmente.')) return;
+  const btn = document.getElementById('btn-ra-dups-discard-all');
+  if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
+  try {
+    const d = await apiPost('/api/ra-duplicates/discard-all', {});
+    if (d.error) {
+      showToast('Error: ' + d.error, 'err');
+    } else {
+      showToast('Eliminados: ' + d.discarded + (d.failed > 0 ? ' · Fallidos: ' + d.failed : ''), d.failed > 0 ? 'info' : 'ok');
+      await loadRaDuplicates();
+      loadOverview();
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Eliminar todos sin logros'; }
+  }
+}
+
+// D8-5: Tools context selector
+function setToolsContext(ctx) {
+  localStorage.setItem('tools_context', ctx);
+  const btnPc  = document.getElementById('tools-ctx-pc');
+  const btnAb  = document.getElementById('tools-ctx-android');
+  const lbl    = document.getElementById('tools-ctx-path-label');
+  if (btnPc)  btnPc.classList.toggle('active',  ctx === 'pc');
+  if (btnAb)  btnAb.classList.toggle('active',  ctx === 'android');
+
+  apiFetch('/api/config').then(cfg => {
+    let rootPath = '';
+    if (ctx === 'pc') {
+      rootPath = cfg.library_root || '';
+    } else {
+      rootPath = localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || '';
+    }
+    if (lbl) lbl.textContent = rootPath ? '— ' + rootPath : '(sin ruta configurada)';
+    // Fill all tool path inputs
+    const toolInputIds = ['zip-path', 'chd-path', 'orphan-path', 'folder-analysis-path', 'junk-path', 'health-path'];
+    for (const id of toolInputIds) {
+      const el = document.getElementById(id);
+      if (el && rootPath) { el.value = rootPath; el.dispatchEvent(new Event('input')); }
+    }
+  }).catch(() => {});
+}
+
+async function _initToolsContext() {
+  const ctx = localStorage.getItem('tools_context') || 'pc';
+  setToolsContext(ctx);
+}
+
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function loadSync() {
   const el = document.getElementById('sync-content');
   try {
     const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
     let html = '';
+    const sources = cfg.sync_sources || [];
     const syncBar = document.getElementById('sync-context-bar');
     if (syncBar) {
-      const local  = cfg.library_root  || '(no configurado)';
-      const remote = cfg.rclone_remote || '(no configurado)';
-      const remoteColor = cfg.rclone_remote ? '#4ec9b0' : '#f48771';
-      syncBar.innerHTML = `Sincronizando saves de <span style="color:#4ec9b0">${local}</span> &nbsp;↔&nbsp; nube: <span style="color:${remoteColor}">${remote}</span> &nbsp;·&nbsp; <span style="color:#555">Solo archivos .sav .srm .state y similares</span>`;
+      if (sources.length) {
+        const names = sources.map(s => `<span style="color:#4ec9b0">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
+        syncBar.innerHTML = `Fuentes configuradas: ${names}`;
+      } else {
+        syncBar.innerHTML = `<span style="color:#f48771">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
+      }
       syncBar.style.display = '';
     }
-    if (cfg.rclone_remote) {
-      html += `<p style="color:#888;margin-bottom:16px">Remote: <span style="color:#4ec9b0">${cfg.rclone_remote}</span></p>`;
-    } else {
-      html += `<p class="error-msg" style="margin-bottom:16px">No rclone remote configured. Set <code>[sync] remote</code> in config.toml and run <code>rommgr sync-saves</code>.</p>`;
+    if (!sources.length) {
+      html += `<p class="error-msg" style="margin-bottom:16px">No hay fuentes de sync configuradas. Edita <code>config.toml</code> y añade entradas <code>[[sync.sources]]</code>.</p>`;
     }
     if (sl.entries.length === 0) {
-      html += '<p class="empty">No sync events recorded yet. Run <code>rommgr sync-saves</code> to start syncing.</p>';
+      html += '<p class="empty">Aún no hay registros de sincronización. Pulsa <strong>Sincronizar</strong> para empezar.</p>';
       el.innerHTML = html;
       return;
     }
-    html += `<p style="color:#666;margin-bottom:12px">${sl.entries.length} event(s)</p>`;
+    html += `<p style="color:#666;margin-bottom:12px">${sl.entries.length} evento${sl.entries.length !== 1 ? 's' : ''}</p>`;
     html += '<div style="overflow-x:auto"><table><thead><tr>';
-    html += '<th>Date</th><th>Direction</th><th>Result</th><th>Local path</th><th>Remote path</th><th>Message</th>';
+    html += '<th>Fecha</th><th>Dirección</th><th>Resultado</th><th>Ruta local</th><th>Ruta remota</th><th>Mensaje</th>';
     html += '</tr></thead><tbody>';
     html += sl.entries.map(e => {
       const dirBadge = badge(e.direction, e.direction);
@@ -2629,7 +3534,7 @@ async function loadAssets() {
     let stats = d.stats;
     if (filter === 'orphans') stats = stats.filter(s => s.orphan_assets > 0);
     if (filter === 'missing') stats = stats.filter(s => s.rom_count > 0 && s.image_count === 0 && s.video_count === 0);
-    if (stats.length === 0) { el.innerHTML = '<p class="empty">No data.</p>'; return; }
+    if (stats.length === 0) { el.innerHTML = '<p class="empty">Sin datos de assets todavía. Ejecuta un Scan para indexar la biblioteca.</p>'; return; }
     let html = '<div style="overflow-x:auto"><table><thead><tr>';
     html += '<th>Plataforma</th><th>ROMs</th><th>Imágenes</th><th>Vídeos</th><th>XML</th><th>Huérfanos</th>';
     html += '</tr></thead><tbody>';
@@ -2656,6 +3561,7 @@ async function doSync(dryRun) {
   if (btnDry)   btnDry.disabled   = true;
   if (btnApply) btnApply.disabled = true;
   resultEl.className = 'job-result';
+  if (!dryRun) _requestNotifPermission();
   try {
     const d = await apiPost('/api/sync', { dry_run: dryRun });
     if (d.status === 'already_running') {
@@ -2673,7 +3579,7 @@ async function doSync(dryRun) {
 }
 
 function _renderSyncResult(result) {
-  const resultEl = document.getElementById('job-result-sync');
+  const resultEl   = document.getElementById('job-result-sync');
   const decisionsEl = document.getElementById('sync-decisions');
   if (!resultEl) return;
   if (result.error) {
@@ -2681,13 +3587,39 @@ function _renderSyncResult(result) {
     resultEl.textContent = 'Error: ' + result.error;
   } else {
     const verb = result.dry_run ? 'Sincronizaría' : 'Sincronizado';
-    resultEl.className = 'job-result visible success';
+    const hasErrors = result.errors > 0;
+    resultEl.className = 'job-result visible ' + (hasErrors ? 'error-r' : 'success');
     resultEl.textContent = `${verb} — ↑ ${result.uploaded}  ↓ ${result.downloaded}  ✓ ${result.up_to_date}  ⚠ ${result.conflicts}  ✗ ${result.errors}`;
-    if (decisionsEl && result.decisions?.length) {
+    if (!result.dry_run) _sendNotif('Sync completado', '↑ ' + result.uploaded + ' ↓ ' + result.downloaded + ' ✓ ' + result.up_to_date);
+
+    if (decisionsEl) {
       const colors = { upload: '#569cd6', download: '#6a9955', conflict: '#f44747' };
-      decisionsEl.innerHTML = result.decisions.map(d =>
-        `<div style="font-size:12px;color:${colors[d.action]||'#888'};padding:2px 0">[${d.action.toUpperCase()}] ${d.relative}</div>`
-      ).join('');
+      let html = '';
+      const sources = result.sources || [];
+      if (sources.length) {
+        sources.forEach(src => {
+          const srcColor = src.error ? '#f48771' : '#888';
+          html += `<div style="margin-top:10px;padding:8px 10px;background:#1a1a2a;border-radius:4px;border-left:3px solid ${src.error?'#f44747':'#333'}">`;
+          html += `<span style="color:#d4d4d4;font-weight:600">${src.name}</span>`;
+          if (src.error) {
+            html += ` <span style="color:#f48771;font-size:12px;margin-left:8px">${src.error}</span>`;
+          } else {
+            html += ` <span style="color:#555;font-size:12px;margin-left:8px">↑ ${src.uploaded}  ↓ ${src.downloaded}  ✓ ${src.up_to_date}  ⚠ ${src.conflicts}  ✗ ${src.errors}</span>`;
+            if (src.decisions?.length) {
+              html += src.decisions.map(d =>
+                `<div style="font-size:11px;color:${colors[d.action]||'#888'};padding:1px 0 0 8px">[${d.action.toUpperCase()}] ${d.relative}</div>`
+              ).join('');
+            }
+          }
+          html += '</div>';
+        });
+      } else if (result.decisions?.length) {
+        // Legacy single-source fallback
+        html = result.decisions.map(d =>
+          `<div style="font-size:12px;color:${colors[d.action]||'#888'};padding:2px 0">[${d.action.toUpperCase()}] ${d.relative}</div>`
+        ).join('');
+      }
+      decisionsEl.innerHTML = html;
     }
     loadSync(); // Refresh sync log
   }
@@ -2896,8 +3828,9 @@ async function doVerifyMultidisc() {
       html += realIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #1e1e2e">
         <span style="color:#f44747">${issueLabels[i.issue_type] || i.issue_type}</span>
         <span style="color:#888;margin:0 6px">·</span>
-        <span style="color:#d4d4d4">${i.base_name}</span>
-        <span style="color:#555;margin-left:8px">${i.detail}</span>
+        ${i.platform ? `<span style="color:#569cd6;font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        <span style="color:#d4d4d4">${_h(i.base_name)}</span>
+        <span style="color:#555;margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
       html += '</div>';
     }
@@ -2931,13 +3864,29 @@ async function doFindOrphans() {
         Seleccionar todos
       </label>
     </div>`;
-    html += '<div style="max-height:350px;overflow-y:auto;margin-bottom:10px">';
-    html += d.orphans.map(o => `
-      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px">
-        <input type="checkbox" class="orphan-chk" value="${o.save_path.replace(/"/g, '&quot;')}" data-size="${o.size_bytes}" checked onchange="_updateOrphanSelectAll()">
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888" title="${o.save_path}">${o.save_path}</span>
-        <span style="color:#555;flex-shrink:0">${fmtSize(o.size_bytes)}</span>
-      </div>`).join('');
+    html += '<div style="max-height:400px;overflow-y:auto;margin-bottom:10px">';
+    html += d.orphans.map(o => {
+      const sugHtml = (o.suggestions && o.suggestions.length)
+        ? `<div style="margin-top:4px;padding:4px 8px;background:#12121e;border-radius:3px">
+            ${o.suggestions.map(s =>
+              `<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:6px;padding:2px 0">
+                <span style="color:#569cd6">Posible match:</span>
+                <span style="color:#d4d4d4">${_h(s.filename)}</span>
+                <span style="color:#555">(${_h(s.platform)})</span>
+                <button class="btn" style="font-size:10px;padding:1px 7px"
+                  onclick="moveOrphanedSave(${JSON.stringify(o.save_path)}, ${JSON.stringify(s.source_path)}, this)">Mover aquí</button>
+              </div>`
+            ).join('')}
+          </div>`
+        : '';
+      return `<div style="padding:4px 0;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" class="orphan-chk" value="${o.save_path.replace(/"/g, '&quot;')}" data-size="${o.size_bytes}" checked onchange="_updateOrphanSelectAll()">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888" title="${o.save_path}">${o.save_path}</span>
+          <span style="color:#555;flex-shrink:0">${fmtSize(o.size_bytes)}</span>
+        </div>${sugHtml}
+      </div>`;
+    }).join('');
     html += '</div>';
     html += '<button class="btn danger" onclick="doDeleteOrphans()">Borrar seleccionados</button>';
     resultEl.innerHTML = html;
@@ -2966,6 +3915,24 @@ async function doDeleteOrphans() {
     doFindOrphans();
   } catch(e) {
     alert('Error: ' + e.message);
+  }
+}
+
+async function moveOrphanedSave(savePath, gamePath, btn) {
+  const saveFilename = savePath.split(/[\\/]/).pop();
+  const gameFilename = gamePath.split(/[\\/]/).pop();
+  if (!confirm(`¿Mover el save "${saveFilename}" junto al juego "${gameFilename}"?`)) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const d = await apiPost('/api/orphaned-saves/move', { save_path: savePath, game_path: gamePath });
+    if (d.error) { showToast('Error: ' + d.error, 'err'); btn.disabled = false; btn.textContent = 'Mover aquí'; return; }
+    showToast(`Save movido: ${saveFilename}`, 'ok');
+    doFindOrphans();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+    btn.disabled = false;
+    btn.textContent = 'Mover aquí';
   }
 }
 
@@ -3090,14 +4057,42 @@ function _renderRaResult(r) {
   if (!el) return;
   if (r.error) { el.innerHTML = `<p class="error-msg">${r.error}</p>`; return; }
 
-  const hasAlternatives = r.no_support_alternative > 0;
-  const csvLink = hasAlternatives
-    ? `<a href="/api/ra-check.csv" download class="btn" style="margin-left:12px;font-size:12px">&#x2193; Descargar CSV (${r.no_support_alternative} juegos)</a>`
+  window._lastRaResult = r;
+
+  // Populate platform filter dropdown
+  const filterSel = document.getElementById('ra-platform-filter');
+  if (filterSel) {
+    const platforms = new Set();
+    (r.alternatives || []).forEach(a => { if (a.platform) platforms.add(a.platform); });
+    (r.no_support_entries || []).forEach(e => { if (e.platform) platforms.add(e.platform); });
+    const prev = filterSel.value;
+    filterSel.innerHTML = '<option value="">Todas las plataformas</option>';
+    [...platforms].sort().forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      if (p === prev) opt.selected = true;
+      filterSel.appendChild(opt);
+    });
+    const filterRow = document.getElementById('ra-filter-row');
+    if (filterRow) filterRow.style.display = platforms.size > 0 ? '' : 'none';
+  }
+
+  const selectedPlatform = filterSel?.value || '';
+  const filteredAlts = selectedPlatform
+    ? (r.alternatives || []).filter(a => a.platform === selectedPlatform)
+    : (r.alternatives || []);
+  const filteredNoSupport = selectedPlatform
+    ? (r.no_support_entries || []).filter(e => e.platform === selectedPlatform)
+    : (r.no_support_entries || []);
+
+  const hasAlternatives = filteredAlts.length > 0 || r.no_support_alternative > 0;
+  const csvLink = r.no_support_alternative > 0
+    ? `<a href="/api/ra-check.csv" download class="btn" style="margin-left:12px;font-size:12px">&#x2193; CSV (${r.no_support_alternative} juegos)</a>`
     : '';
 
   let html = `<div style="margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">`;
   html += `<span style="color:#4ec9b0">✓ ${r.supported} con logros</span>`;
-  if (hasAlternatives)
+  if (r.no_support_alternative > 0)
     html += `  <span style="color:#ce9178">⚠ ${r.no_support_alternative} sin logros (alternativa disponible)</span>`;
   if (r.no_support > 0)
     html += `  <span style="color:#555">✗ ${r.no_support} sin soporte RA</span>`;
@@ -3107,13 +4102,22 @@ function _renderRaResult(r) {
     html += `  <span style="color:#555">— ${r.platform_unknown} plataforma no soportada</span>`;
   html += `  <span style="color:#333">(${r.total} total)</span>`;
   html += csvLink;
+  if (selectedPlatform) html += `  <span style="color:#569cd6;font-size:11px">· filtrando: ${selectedPlatform}</span>`;
   html += `</div>`;
 
-  if (r.alternatives?.length) {
+  if (filteredNoSupport.length > 0) {
+    html += `<div style="margin:12px 0;padding:10px 14px;background:#1a1a1a;border:1px solid #3a2020;border-radius:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">`;
+    html += `<span style="color:#ce5555;font-size:13px">✗ ${filteredNoSupport.length} juegos${selectedPlatform ? ' de ' + selectedPlatform : ''} sin ningún soporte de RetroAchievements</span>`;
+    html += `<button class="btn danger" style="font-size:12px;padding:4px 12px" onclick="discardRaNoSupport(${filteredNoSupport.length})">`;
+    html += `Mover a descartados (${filteredNoSupport.length})</button>`;
+    html += `<span style="font-size:11px;color:#555">Se moverán a <code>_descartados/</code> junto a su ROM</span>`;
+    html += `</div>`;
+  }
+
+  if (filteredAlts.length) {
     html += `<div style="margin-bottom:8px;color:#ce9178;font-size:12px">`;
-    if (hasAlternatives && r.no_support_alternative > 10) {
-      html += `⚠ ${r.no_support_alternative} juegos en tu biblioteca no son la versión compatible con RA. `;
-      html += `Existe una versión alternativa para cada uno. Descarga el CSV para ver la lista completa.`;
+    if (!selectedPlatform && r.no_support_alternative > 10) {
+      html += `⚠ ${r.no_support_alternative} juegos no son la versión compatible con RA. Descarga el CSV para la lista completa.`;
     } else {
       html += `Estos juegos tienen una versión RA-compatible disponible:`;
     }
@@ -3121,7 +4125,7 @@ function _renderRaResult(r) {
     html += '<div style="overflow-x:auto"><table><thead><tr>';
     html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th>';
     html += '</tr></thead><tbody>';
-    html += r.alternatives.map(a => `<tr>
+    html += filteredAlts.map(a => `<tr>
       <td>${a.platform}</td>
       <td title="${a.filename}" style="max-width:260px">${a.filename}</td>
       <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
@@ -3129,12 +4133,36 @@ function _renderRaResult(r) {
       <td style="text-align:right;color:#555">${a.ra_points}</td>
     </tr>`).join('');
     html += '</tbody></table></div>';
-    if (r.no_support_alternative > r.alternatives.length) {
-      html += `<p style="font-size:11px;color:#555;margin-top:6px">Mostrando ${r.alternatives.length} de ${r.no_support_alternative} — descarga el CSV para la lista completa.</p>`;
+    if (!selectedPlatform && r.no_support_alternative > filteredAlts.length) {
+      html += `<p style="font-size:11px;color:#555;margin-top:6px">Mostrando ${filteredAlts.length} de ${r.no_support_alternative} — descarga el CSV para la lista completa.</p>`;
     }
   }
 
   el.innerHTML = html;
+}
+
+function filterRaByPlatform() {
+  if (window._lastRaResult) _renderRaResult(window._lastRaResult);
+}
+
+async function discardRaNoSupport(count) {
+  if (!confirm(`¿Mover ${count} juegos sin soporte RA a la carpeta _descartados/? Esta acción es reversible (los archivos no se eliminan permanentemente).`)) return;
+  try {
+    const d = await apiPost('/api/ra-check/discard-no-support', {});
+    if (d.error) { showToast(d.error, true); return; }
+    let msg = `✓ ${d.discarded} juego${d.discarded !== 1 ? 's' : ''} movido${d.discarded !== 1 ? 's' : ''} a _descartados/`;
+    if (d.failed) msg += ` — ${d.failed} errores`;
+    showToast(msg, d.failed > 0);
+    // Refresh the RA result to remove the discard button
+    const el = document.getElementById('ra-result');
+    if (el && d.discarded > 0) {
+      const note = document.createElement('p');
+      note.style.cssText = 'color:#4ec9b0;font-size:12px;margin-top:8px';
+      note.textContent = msg + '. Ejecuta un nuevo scan para actualizar la biblioteca.';
+      el.querySelector('div')?.after(note);
+      el.querySelector('button.danger')?.closest('div')?.remove();
+    }
+  } catch(e) { showToast('Error al descartar juegos: ' + e.message, true); }
 }
 
 // ── Scraper ──────────────────────────────────────────────────────────────────
@@ -3228,17 +4256,66 @@ async function doExportGamelists() {
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
+function _onDevicePresetChange() {
+  const sel    = document.getElementById('cfg-device-preset');
+  const custom = document.getElementById('cfg-device-name-custom');
+  if (custom) custom.style.display = sel?.value === 'custom' ? 'block' : 'none';
+}
+
 async function loadSettings() {
   try {
     const cfg = await apiFetch('/api/config');
     document.getElementById('cfg-library-root').value  = cfg.library_root  || '';
+    const anbEl = document.getElementById('cfg-anbernic-root');
+    if (anbEl) anbEl.value = cfg.anbernic_root || '';
+    // Device name preset
+    const dn = cfg.device_name || 'Consola Android';
+    const presetEl = document.getElementById('cfg-device-preset');
+    const customEl = document.getElementById('cfg-device-name-custom');
+    if (presetEl) {
+      const knownPresets = ['Consola Android', 'Steam Deck'];
+      if (knownPresets.includes(dn)) {
+        presetEl.value = dn;
+        if (customEl) customEl.style.display = 'none';
+      } else {
+        presetEl.value = 'custom';
+        if (customEl) { customEl.style.display = 'block'; customEl.value = dn; }
+      }
+    }
     document.getElementById('cfg-rclone-remote').value = cfg.rclone_remote || '';
+    const whEl = document.getElementById('cfg-web-host');
+    if (whEl) whEl.value = cfg.web_host || '127.0.0.1';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
     document.getElementById('cfg-ss-pass').value       = cfg.screenscraper_pass || '';
     document.getElementById('cfg-chdman').value        = cfg.chdman || 'chdman';
     document.getElementById('cfg-adb').value           = cfg.adb || 'adb';
     document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
+    // Show two-DB info
+    const dbInfo = document.getElementById('settings-db-info');
+    if (dbInfo && cfg.pc_db_path) {
+      const fmtSize = (n) => n == null ? '?' : n < 1024*1024 ? (n/1024).toFixed(0)+'KB' : (n/1024/1024).toFixed(1)+'MB';
+      dbInfo.innerHTML =
+        '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center">' +
+        '<span style="color:#4ec9b0">&#x25CF;</span><span style="font-family:monospace;color:#d4d4d4">library_pc.db</span><span style="color:#888">' + fmtSize(cfg.pc_db_size) + '</span>' +
+        '<span style="color:#ce9178">&#x25CF;</span><span style="font-family:monospace;color:#d4d4d4">library_android.db</span><span style="color:#888">' + fmtSize(cfg.android_db_size) + '</span>' +
+        '</div>';
+    }
   } catch(e) { /* silent */ }
+}
+
+async function migrateSplitDb() {
+  const el = document.getElementById('migrate-db-result');
+  if (!el) return;
+  el.style.color = '#888'; el.textContent = 'Migrando…';
+  try {
+    const r = await apiPost('/api/migrate-split-db', {});
+    if (r.error) { el.style.color = '#f44747'; el.textContent = '✗ ' + r.error; return; }
+    el.style.color = '#4ec9b0';
+    el.textContent = '✓ Migrados: ' + r.migrated_games + ' juegos  |  Errores: ' + (r.errors?.length || 0);
+    if (r.errors && r.errors.length > 0) {
+      el.textContent += '  [' + r.errors.slice(0,3).join('; ') + ']';
+    }
+  } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
 }
 
 async function testChdman() {
@@ -3340,6 +4417,66 @@ function _setIfEmpty(id, value) {
   return false;
 }
 
+// ── Batch run (Fix 11) ────────────────────────────────────────────────────────
+async function doBatchRun() {
+  const cfg = await apiFetch('/api/config');
+  const root = cfg.library_root;
+  if (!root) { alert('Configura library_root en Settings primero.'); return; }
+
+  const jobs = [];
+  if (document.getElementById('batch-zip')?.checked) jobs.push({
+    name: 'Descomprimir ZIPs', runningKey: 'extract_zip_running',
+    start: () => apiPost('/api/extract-zip', { source_path: root, dry_run: false, delete_source: false }),
+  });
+  if (document.getElementById('batch-chd')?.checked) jobs.push({
+    name: 'Convertir a CHD', runningKey: 'convert_chd_running',
+    start: () => apiPost('/api/convert-chd', { source_path: root, dry_run: false }),
+  });
+  if (document.getElementById('batch-health')?.checked) jobs.push({
+    name: 'Health Check', runningKey: 'health_check_running',
+    start: () => apiPost('/api/health-check', {}),
+  });
+  if (jobs.length === 0) { alert('Selecciona al menos una herramienta.'); return; }
+
+  const btn = document.getElementById('btn-batch-run');
+  const statusEl = document.getElementById('batch-status');
+  btn.disabled = true;
+  let allOk = true;
+
+  for (const job of jobs) {
+    statusEl.innerHTML = `<span style="color:#888">⟳ ${_h(job.name)}…</span>`;
+    try {
+      const d = await job.start();
+      if (d.status === 'already_running') {
+        statusEl.innerHTML = `<span style="color:#dcdcaa">⚠ ${_h(job.name)} ya está en curso — esperando…</span>`;
+      } else if (d.error) {
+        statusEl.innerHTML = `<span style="color:#f44747">Error en ${_h(job.name)}: ${_h(d.error)}</span>`;
+        allOk = false; break;
+      }
+      // Poll until job finishes
+      await new Promise((resolve, reject) => {
+        const t = setInterval(async () => {
+          try {
+            const s = await apiFetch('/api/job-status');
+            if (!s[job.runningKey]) { clearInterval(t); resolve(); }
+          } catch(e) { clearInterval(t); reject(e); }
+        }, 2000);
+      });
+      statusEl.innerHTML = `<span style="color:#4ec9b0">✓ ${_h(job.name)} completado.</span>`;
+      startPolling();
+    } catch(e) {
+      statusEl.innerHTML = `<span style="color:#f44747">Error en ${_h(job.name)}: ${_h(e.message)}</span>`;
+      allOk = false; break;
+    }
+  }
+
+  btn.disabled = false;
+  if (allOk) {
+    statusEl.innerHTML = `<span style="color:#4ec9b0">✓ Todas las operaciones completadas sobre ${_h(root)}.</span>`;
+    loadOverview();
+  }
+}
+
 // ── Tool path persistence (Fix E) ────────────────────────────────────────────
 function _initToolPath(inputId, storageKey) {
   const el = document.getElementById(inputId);
@@ -3362,6 +4499,10 @@ async function saveSettings() {
   resultEl.className = 'job-result';
   const updates = {};
   const lr = document.getElementById('cfg-library-root').value.trim();
+  const ar = (document.getElementById('cfg-anbernic-root')?.value || '').trim();
+  const presetEl = document.getElementById('cfg-device-preset');
+  const customEl = document.getElementById('cfg-device-name-custom');
+  const dn = presetEl ? (presetEl.value === 'custom' ? (customEl?.value.trim() || '') : presetEl.value) : '';
   const rr = document.getElementById('cfg-rclone-remote').value.trim();
   const su = document.getElementById('cfg-ss-user').value.trim();
   const sp = document.getElementById('cfg-ss-pass').value;
@@ -3369,7 +4510,10 @@ async function saveSettings() {
   const ab = document.getElementById('cfg-adb').value.trim();
   const ra = document.getElementById('cfg-ra-api-key').value.trim();
   if (lr) updates['library.library_root']        = lr;
+  if (ar) updates['library.anbernic_root']        = ar;
+  if (dn) updates['android.device_name']          = dn;
   if (rr) updates['sync.remote']                 = rr;
+  updates['web.host'] = document.getElementById('cfg-web-host')?.value || '127.0.0.1';
   if (su) updates['screenscraper.user']           = su;
   if (sp) updates['screenscraper.pass']           = sp;
   if (ch) updates['tools.chdman']                 = ch;
@@ -3388,6 +4532,8 @@ async function saveSettings() {
     } else {
       resultEl.className = 'job-result visible success';
       resultEl.textContent = 'Guardado: ' + d.saved.join(', ') + '.';
+      // Apply device name immediately without page reload
+      if (dn) _applyDeviceName(dn);
     }
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
@@ -3564,10 +4710,12 @@ async function loadCableSync() {
     const cfg = await apiFetch('/api/config');
     const ovPc = document.getElementById('ov-pc-path')?.value.trim();
     const ovAb = document.getElementById('ov-ab-path')?.value.trim();
+    const storedPc = localStorage.getItem('cable_pc_path') || '';
+    const storedAb = localStorage.getItem('anbernic_path') || '';
     // Fill both fs and adb pc-path inputs
-    _setIfEmpty('cable-pc-path',     ovPc || cfg.library_root || '');
-    _setIfEmpty('cable-adb-pc-path', ovPc || cfg.library_root || '');
-    _setIfEmpty('cable-ab-path', ovAb || localStorage.getItem('anbernic_path') || '');
+    _setIfEmpty('cable-pc-path',     ovPc || cfg.library_root || storedPc || '');
+    _setIfEmpty('cable-adb-pc-path', ovPc || cfg.library_root || storedPc || '');
+    _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || storedAb || '');
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
   } catch(_) {}
@@ -3591,6 +4739,7 @@ async function doCableSync() {
   const direction    = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
   const dryRun       = document.getElementById('cable-dry-run').checked;
   const skipExisting = document.getElementById('cable-skip-existing')?.checked ?? true;
+  const safeMode     = document.getElementById('cable-safe-mode')?.checked ?? true;
   const skipSha1Dups = direction === 'anbernic_to_pc' && (document.getElementById('cable-skip-sha1')?.checked ?? false);
 
   let body;
@@ -3599,11 +4748,14 @@ async function doCableSync() {
     const androidPath = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
     if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
-             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups };
+             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode };
   } else {
     const abPath = document.getElementById('cable-ab-path')?.value.trim();
-    if (!abPath) { alert('Introduce la ruta de la Anbernic en el PC.'); return; }
-    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups };
+    if (!abPath) { alert('Introduce la ruta de la tarjeta SD / consola Android.'); return; }
+    // Persist paths for next session
+    localStorage.setItem('anbernic_path', abPath);
+    if (pcPath) localStorage.setItem('cable_pc_path', pcPath);
+    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode };
   }
 
   const btn      = document.getElementById('btn-cable-sync');
@@ -3613,6 +4765,7 @@ async function doCableSync() {
   resultEl.className = 'job-result';
   document.getElementById('cable-details-wrap').style.display = 'none';
   delete window._lastCableSyncResult;
+  if (!dryRun) _requestNotifPermission();
 
   try {
     const d = await apiPost('/api/cable-sync', body);
@@ -3650,17 +4803,31 @@ function _renderCableSyncResult(r) {
   }
 
   const verb   = r.dry_run ? 'Copiaría' : 'Copiados';
-  const dirMap = { pc_to_anbernic: 'PC → Anbernic', anbernic_to_pc: 'Anbernic → PC', newest: 'Más reciente gana' };
+  const dirMap = { pc_to_anbernic: `PC → ${_devName}`, anbernic_to_pc: `${_devName} → PC`, newest: 'Más reciente gana' };
   const dirStr = dirMap[r.direction] || r.direction;
   const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
   const sha1Msg     = r.sha1_skipped > 0 ? `  |  Dups SHA1: ${r.sha1_skipped}` : '';
   const existsCount = r.details ? r.details.filter(d => d.file === 'EXISTS').length : 0;
   const existsMsg   = existsCount > 0 ? `  |  Ya existen: ${existsCount}` : '';
+  const safeMsg     = r.safe_mode_skipped_overwrites > 0
+    ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:#f4c842">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
+  // D8-6: file count display
+  const pcCount = r.pc_file_count > 0 ? r.pc_file_count : null;
+  const abCount = r.ab_file_count > 0 ? r.ab_file_count : null;
+  const countMsg = (pcCount && abCount && !r.dry_run && !r.use_adb)
+    ? `  |  PC: ${pcCount} archivos  Consola: ${abCount} archivos`
+    : '';
+  const countDiff = pcCount && abCount && Math.abs(pcCount - abCount) > Math.max(pcCount, abCount) * 0.05;
+  const diffWarn = countDiff ? ' <span style="color:#dcdcaa;font-size:11px">&#x26A0; Los conteos difieren — puede haber archivos que no se sincronizaron</span>' : '';
   resultEl.className = 'job-result visible success';
-  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:#f44747' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}  —  ${dirStr}${dryTag}`
-    + (needsScan ? `<br><span style="color:#dcdcaa;font-size:11px">&#x26A0; Archivos copiados al PC — indexa la BD: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear ahora</button></span>` : '');
+  if (!r.dry_run) _sendNotif('Cable Sync completado', r.copied + ' archivos copiados');
+  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:#f44747' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}${safeMsg}${countMsg}${diffWarn}  —  ${dirStr}${dryTag}`
+    + (needsScan ? `<br><span style="color:#dcdcaa;font-size:11px">&#x26A0; Archivos copiados al PC — indexa la BD: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear ahora</button></span>` : '')
+    + (!r.dry_run && r.copied > 0 && r.direction === 'newest'
+        ? '<br><span style="color:#569cd6;font-size:11px">Para actualizar conteos en Overview: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear PC</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="quickScanAndroid()">Escanear consola</button></span>'
+        : '');
 
   if (r.details && r.details.length > 0) {
     // Separate error entries from normal entries
@@ -3677,7 +4844,8 @@ function _renderCableSyncResult(r) {
     detailHtml += okEntries.map(d => {
       const isDup    = d.file === 'DUP';
       const isExists = d.file === 'EXISTS';
-      const tagColor = isDup ? '#569cd6' : isExists ? '#444' : '#4ec9b0';
+      const isSafe   = d.file === 'SAFE';
+      const tagColor = isDup ? '#569cd6' : isExists ? '#444' : isSafe ? '#f4c842' : '#4ec9b0';
       return `<div style="padding:2px 0;color:#888"><span style="color:${tagColor};margin-right:8px">${_h(d.file)}</span>${_h(d.path)}</div>`;
     }).join('');
 
@@ -3686,7 +4854,40 @@ function _renderCableSyncResult(r) {
   }
 }
 
+// ── Cable Sync log viewer ─────────────────────────────────────────────────────
+function toggleCableSyncLog() {
+  const wrap = document.getElementById('cable-log-wrap');
+  if (!wrap) return;
+  const visible = wrap.style.display !== 'none';
+  wrap.style.display = visible ? 'none' : '';
+  if (!visible) loadCableSyncLog();
+}
+
+async function loadCableSyncLog() {
+  const el = document.getElementById('cable-log-content');
+  if (!el) return;
+  el.textContent = 'Cargando…';
+  try {
+    const d = await apiFetch('/api/cable-sync-log');
+    el.textContent = d.log || '(Log vacío — aún no se ha ejecutado Cable Sync)';
+    el.scrollTop = el.scrollHeight;
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
 // ── Junk file cleaner (Fix F) ────────────────────────────────────────────────
+async function exportPegasus() {
+  const el = document.getElementById('pegasus-result');
+  if (el) { el.textContent = 'Exportando...'; el.style.display = 'block'; el.className = 'job-result visible'; }
+  try {
+    const d = await apiPost('/api/export-pegasus', {});
+    if (d.error) { if (el) { el.textContent = '\u2717 ' + d.error; el.className = 'job-result visible error-r'; } return; }
+    if (el) { el.textContent = `\u2713 ${d.games} juegos en ${d.platforms} plataformas exportados`; el.className = 'job-result visible success'; }
+    showToast('Pegasus exportado: ' + d.games + ' juegos', 'ok');
+  } catch(e) { if (el) { el.textContent = '\u2717 ' + e.message; el.className = 'job-result visible error-r'; } }
+}
+
 async function doJunkScan() {
   const path = document.getElementById('junk-path')?.value.trim();
   if (!path) { alert('Introduce una ruta.'); return; }
@@ -3770,6 +4971,60 @@ async function doJunkDelete(dryRun) {
   }
 }
 
+// ── Library Structure ──────────────────────────────────────────────────────────
+async function createLibraryStructure() {
+  const resultEl = document.getElementById('job-result-structure');
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/create-library-structure', {});
+    if (d.error) {
+      resultEl.className = 'job-result visible error-r';
+      resultEl.textContent = 'Error: ' + d.error;
+      return;
+    }
+    resultEl.className = 'job-result visible success';
+    resultEl.textContent = `✓ ${d.created.length} carpeta${d.created.length !== 1 ? 's' : ''} creada${d.created.length !== 1 ? 's' : ''} en ${d.root}`;
+    if (d.created.length > 0) {
+      resultEl.innerHTML += '<br><span style="font-size:11px;color:#4ec9b0">' + d.created.join(', ') + '</span>';
+    }
+    if (d.skipped.length > 0) {
+      resultEl.innerHTML += '<br><span style="font-size:11px;color:#555">' + d.skipped.length + ' ya existían</span>';
+    }
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function organizeLibrary(dryRun) {
+  const resultEl = document.getElementById('job-result-structure');
+  resultEl.className = 'job-result';
+  if (!dryRun) {
+    if (!confirm('¿Mover los ROMs a sus carpetas de plataforma?\n\nSe actualizarán las rutas en la base de datos. Asegúrate de haber ejecutado "Previsualizar" primero.')) return;
+  }
+  try {
+    const d = await apiPost('/api/organize-library', { dry_run: dryRun });
+    if (d.error) {
+      resultEl.className = 'job-result visible error-r';
+      resultEl.textContent = 'Error: ' + d.error;
+      return;
+    }
+    const verb = dryRun ? 'Se moverían' : 'Movidos';
+    resultEl.className = 'job-result visible ' + (d.errors.length ? 'error-r' : 'success');
+    resultEl.innerHTML = `${verb}: ${d.moves} archivos` +
+      (d.errors.length ? `<br><span style="color:#f48771;font-size:11px">${d.errors.length} errores: ${d.errors.slice(0,3).join('; ')}</span>` : '');
+    if (dryRun && d.preview?.length) {
+      const rows = d.preview.slice(0, 10).map(m =>
+        `<div style="font-size:11px;color:#888;padding:1px 0"><span style="color:#ce9178">${m.filename}</span> → <span style="color:#4ec9b0">${m.platform}</span></div>`
+      ).join('');
+      resultEl.innerHTML += '<div style="margin-top:8px">' + rows + (d.moves > 10 ? `<div style="color:#555;font-size:11px">... y ${d.moves - 10} más</div>` : '') + '</div>';
+    }
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
 // ── Library Report ───────────────────────────────────────────────────────────
 let _reportData = null;
 
@@ -3796,6 +5051,17 @@ async function generateReport() {
   try {
     const params = path ? '?path=' + encodeURIComponent(path) : '';
     _reportData = await apiFetch('/api/library-report' + params);
+
+    // Warn if the filesystem path is not accessible (e.g. SD card disconnected)
+    const notAccessibleBanner = document.getElementById('report-not-accessible');
+    if (notAccessibleBanner) {
+      if (_reportData.path_accessible === false) {
+        notAccessibleBanner.style.display = '';
+        notAccessibleBanner.textContent = '\u26A0 La ruta "' + (_reportData.source_path || path) + '" no est\xe1 accesible desde este PC. Los datos del informe provienen de la base de datos local (sin escaneo de disco).';
+      } else {
+        notAccessibleBanner.style.display = 'none';
+      }
+    }
 
     _renderReportZips(_reportData);
     _renderReportPlaylists(_reportData);
@@ -4013,9 +5279,373 @@ function showToast(msg, type='ok', duration=3000) {
   setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(() => t.remove(), 320); }, duration);
 }
 
+// ── Auto-sync UI ─────────────────────────────────────────────────────────────
+let _autoSyncTimer = null;
+let _autoSyncEnabled = true;
+
+function _updateAutoSyncBanner(data, sdStatus) {
+  const banner  = document.getElementById('auto-sync-banner');
+  const icon    = document.getElementById('auto-sync-banner-icon');
+  const text    = document.getElementById('auto-sync-banner-text');
+  if (!banner || !icon || !text) return;
+
+  const enabled = data.enabled;
+  const s       = data.status || {};
+  const state   = s.state || 'waiting';
+  const sdState = sdStatus ? (sdStatus.state || 'waiting') : 'waiting';
+
+  _autoSyncEnabled = enabled;
+  _updateAutoSyncToggleUI(enabled);
+
+  // Status text in the card
+  const statusEl = document.getElementById('auto-sync-status-text');
+  if (statusEl) {
+    if (!enabled) {
+      statusEl.textContent = 'Sync automatico desactivado';
+      statusEl.style.color = '#ce9178';
+    } else if (state === 'syncing') {
+      const dev = s.last_device || '';
+      statusEl.textContent = 'Sincronizando' + (dev ? ' con ' + dev : '') + '...';
+      statusEl.style.color = '#4ec9b0';
+    } else if (state === 'idle' && s.last_sync_at) {
+      statusEl.textContent = 'Ultimo sync: ' + s.last_sync_at + (s.last_error ? ' | Error: ' + s.last_error : '');
+      statusEl.style.color = s.last_error ? '#ce9178' : '#4ec9b0';
+    } else {
+      statusEl.textContent = 'Esperando conexion...';
+      statusEl.style.color = '#888';
+    }
+  }
+
+  // Banner
+  if (!enabled) {
+    banner.style.display = 'flex';
+    banner.style.background = '#2a2a12';
+    banner.style.borderBottomColor = '#4a4a1a';
+    icon.textContent = 'Sync automatico desactivado';
+    icon.style.color = '#ce9178';
+    text.textContent = 'Activa el sync automatico en la pestana Cable Sync.';
+    text.style.color = '#888';
+  } else if (state === 'syncing' || sdState === 'syncing') {
+    const dev = state === 'syncing' ? (s.last_device || 'consola') : 'tarjeta SD';
+    banner.style.display = 'flex';
+    banner.style.background = '#0d1f16';
+    banner.style.borderBottomColor = '#1a4a2a';
+    icon.textContent = sdState === 'syncing' ? 'Sincronizando saves (tarjeta SD)...' : ('Sincronizando saves con ' + dev + '...');
+    icon.style.color = '#4ec9b0';
+    text.textContent = '';
+  } else if (state === 'idle' && s.last_sync_at) {
+    banner.style.display = 'flex';
+    banner.style.background = '#0d1a12';
+    banner.style.borderBottomColor = '#1a3a22';
+    const lastErr = s.last_error ? ' (' + s.last_error + ')' : '';
+    icon.textContent = 'Ultimo sync automatico: ' + s.last_sync_at + lastErr;
+    icon.style.color = s.last_error ? '#ce9178' : '#4ec9b0';
+    text.textContent = '';
+  } else if (sdState === 'watching') {
+    banner.style.display = 'flex';
+    banner.style.background = '#0d1520';
+    banner.style.borderBottomColor = '#1a2a3a';
+    icon.textContent = 'Tarjeta SD detectada — sincronizacion automatica activa';
+    icon.style.color = '#4ec9b0';
+    text.textContent = '';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function _updateAutoSyncToggleUI(enabled) {
+  const wrap  = document.getElementById('auto-sync-toggle-wrap');
+  const knob  = document.getElementById('auto-sync-toggle-knob');
+  const label = document.getElementById('auto-sync-toggle-label');
+  if (!wrap) return;
+  if (enabled) {
+    wrap.style.background = '#4ec9b0';
+    if (knob) knob.style.left = '21px';
+    if (label) { label.textContent = 'Activado'; label.style.color = '#4ec9b0'; }
+  } else {
+    wrap.style.background = '#444';
+    if (knob) knob.style.left = '3px';
+    if (label) { label.textContent = 'Desactivado'; label.style.color = '#888'; }
+  }
+}
+
+async function toggleAutoSync() {
+  try {
+    const d = await apiPost('/api/auto-sync-toggle', {});
+    _autoSyncEnabled = d.enabled;
+    _updateAutoSyncToggleUI(d.enabled);
+    const statusEl = document.getElementById('auto-sync-status-text');
+    if (statusEl) {
+      statusEl.textContent = d.enabled ? 'Esperando conexion...' : 'Sync automatico desactivado';
+      statusEl.style.color = d.enabled ? '#888' : '#ce9178';
+    }
+    showToast(d.enabled ? 'Sync automatico activado' : 'Sync automatico desactivado', d.enabled ? 'ok' : 'info');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
+async function saveAutoSyncSettings() {
+  const dir       = document.getElementById('auto-sync-direction')?.value || 'newest';
+  const conflict  = document.getElementById('auto-sync-conflict')?.value  || 'newest';
+  const androidP  = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0/RetroArch';
+  const resultEl  = document.getElementById('auto-sync-save-result');
+  try {
+    const d = await apiPost('/api/auto-sync-save', {
+      'sync.auto_sync_direction':   dir,
+      'sync.conflict_policy':       conflict,
+      'sync.auto_sync_android_path': androidP,
+      'sync.auto_sync_enabled':     _autoSyncEnabled,
+    });
+    if (d.error) {
+      if (resultEl) { resultEl.style.display=''; resultEl.style.color='#f44747'; resultEl.textContent = 'Error: ' + d.error; }
+    } else {
+      if (resultEl) { resultEl.style.display=''; resultEl.style.color='#4ec9b0'; resultEl.textContent = 'Guardado'; setTimeout(() => { if (resultEl) resultEl.style.display='none'; }, 2500); }
+      showToast('Ajustes de auto-sync guardados', 'ok');
+    }
+  } catch(e) {
+    if (resultEl) { resultEl.style.display=''; resultEl.style.color='#f44747'; resultEl.textContent = 'Error: ' + e.message; }
+  }
+}
+
+async function _pollAutoSync() {
+  try {
+    const [d, sdStatus] = await Promise.all([
+      apiFetch('/api/auto-sync-status'),
+      apiFetch('/api/sd-sync-status').catch(() => null),
+    ]);
+    _updateAutoSyncBanner(d, sdStatus);
+    // Populate fields on first load
+    const dirEl = document.getElementById('auto-sync-direction');
+    const confEl = document.getElementById('auto-sync-conflict');
+    const pathEl = document.getElementById('auto-sync-android-path');
+    if (dirEl && !dirEl.dataset.loaded && d.config) {
+      dirEl.value = d.config.direction || 'newest';
+      if (confEl) confEl.value = d.config.conflict_policy || 'newest';
+      if (pathEl) pathEl.value = d.config.android_path || '/storage/emulated/0/RetroArch';
+      dirEl.dataset.loaded = '1';
+    }
+  } catch(_) { /* silent */ }
+}
+
+function startAutoSyncPolling() {
+  if (_autoSyncTimer) return;
+  _pollAutoSync();
+  _autoSyncTimer = setInterval(_pollAutoSync, 5000);
+}
+
+// ── Inbox (Pilar 2) ──────────────────────────────────────────────────────────
+
+function loadInbox() {
+  // Pre-fill from config via /api/config
+  apiFetch('/api/config').then(cfg => {
+    const pathEl   = document.getElementById('inbox-path');
+    const targetEl = document.getElementById('inbox-target');
+    const delEl    = document.getElementById('inbox-delete-source');
+    const autoEl   = document.getElementById('inbox-auto-process');
+    if (pathEl   && cfg.inbox_path)         pathEl.value    = cfg.inbox_path;
+    if (targetEl && cfg.inbox_target_root)  targetEl.value  = cfg.inbox_target_root;
+    if (delEl    && cfg.inbox_delete_source !== undefined) delEl.checked  = cfg.inbox_delete_source;
+    if (autoEl   && cfg.inbox_auto_process  !== undefined) autoEl.checked = cfg.inbox_auto_process;
+    // Restore from localStorage as override
+    const savedPath = localStorage.getItem('inbox_path');
+    if (savedPath && pathEl && !pathEl.value) pathEl.value = savedPath;
+    // Show watcher info
+    _pollInboxWatcher();
+  }).catch(() => {});
+}
+
+function fillInboxTarget() {
+  apiFetch('/api/config').then(cfg => {
+    const el = document.getElementById('inbox-target');
+    if (el && cfg.library_root) el.value = cfg.library_root;
+  }).catch(() => {});
+}
+
+async function scanInbox() {
+  const pathEl = document.getElementById('inbox-path');
+  const inboxPath = pathEl ? pathEl.value.trim() : '';
+  if (!inboxPath) { showToast('Introduce la carpeta Inbox primero', 'err'); return; }
+  localStorage.setItem('inbox_path', inboxPath);
+  const btn = document.getElementById('btn-inbox-scan');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
+  const summaryEl   = document.getElementById('inbox-summary');
+  const summaryText = document.getElementById('inbox-summary-text');
+  const filesWrap   = document.getElementById('inbox-files-wrap');
+  const tbody       = document.getElementById('inbox-files-tbody');
+  try {
+    const d = await apiFetch('/api/inbox-scan?path=' + encodeURIComponent(inboxPath));
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    // Summary
+    const platStr = Object.entries(d.by_platform || {}).map(([k,v]) => k + ' x' + v).join(' · ');
+    if (summaryText) summaryText.innerHTML =
+      '<strong style="color:#d4d4d4">' + d.total + ' archivos</strong>' +
+      (d.zips > 0 ? ' · <span style="color:#dcdcaa">' + d.zips + ' ZIPs</span>' : '') +
+      (d.unrecognized > 0 ? ' · <span style="color:#f14c4c">' + d.unrecognized + ' no reconocidos</span>' : '') +
+      (platStr ? ' &nbsp;|&nbsp; ' + platStr : '');
+    if (summaryEl) summaryEl.style.display = '';
+    // Table
+    if (tbody) {
+      tbody.innerHTML = (d.files || []).map(f => {
+        const typeColor = f.type === 'zip' ? '#dcdcaa' : f.type === 'disc_image' ? '#4ec9b0' : f.type === 'rom' ? '#9cdcfe' : '#555';
+        const platBadge = f.platform_guess ? '<span class="badge">' + f.platform_guess + '</span>' : '<span style="color:#555">—</span>';
+        const extract   = f.needs_extraction ? '<span style="color:#dcdcaa">extraer ZIP</span>' : '';
+        return '<tr style="border-bottom:1px solid #1e1e2e">' +
+          '<td style="padding:4px 8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + f.name + '">' + _h(f.name) + '</td>' +
+          '<td style="padding:4px 8px;color:' + typeColor + '">' + f.type + '</td>' +
+          '<td style="padding:4px 8px">' + platBadge + '</td>' +
+          '<td style="padding:4px 8px;text-align:right;color:#888">' + fmtSize(f.size_bytes) + '</td>' +
+          '<td style="padding:4px 8px">' + extract + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+    if (filesWrap) filesWrap.style.display = d.total > 0 ? '' : 'none';
+    if (d.total === 0) showToast('La carpeta Inbox está vacía', 'ok');
+  } catch(e) {
+    showToast('Error al analizar: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Analizar carpeta'; }
+  }
+}
+
+async function runInbox() {
+  const pathEl   = document.getElementById('inbox-path');
+  const targetEl = document.getElementById('inbox-target');
+  const delEl    = document.getElementById('inbox-delete-source');
+  const inboxPath = pathEl ? pathEl.value.trim() : '';
+  if (!inboxPath) { showToast('Introduce la carpeta Inbox primero', 'err'); return; }
+  const targetPath   = targetEl ? targetEl.value.trim() : '';
+  const deleteSource = delEl ? delEl.checked : false;
+  const btn = document.getElementById('btn-inbox-run');
+  if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
+  const resultEl = document.getElementById('inbox-result');
+  if (resultEl) { resultEl.className = 'job-result'; resultEl.textContent = ''; }
+  try {
+    const d = await apiPost('/api/inbox-run', { path: inboxPath, target_root: targetPath, delete_source: deleteSource });
+    if (d.status === 'already_running') {
+      showToast('Ya hay un proceso Inbox en curso…', 'ok');
+      startPolling();
+      return;
+    }
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    showToast('Pipeline Inbox iniciado', 'ok');
+    startPolling();
+  } catch(e) {
+    showToast('Error al lanzar: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Organizar todo'; }
+  }
+}
+
+function _applyInboxProgress(s) {
+  const wrap    = document.getElementById('inbox-progress-wrap');
+  const stepEl  = document.getElementById('inbox-progress-step');
+  const cntEl   = document.getElementById('inbox-progress-counts');
+  const barEl   = document.getElementById('inbox-progress-bar');
+  const fileEl  = document.getElementById('inbox-progress-file');
+  const btn     = document.getElementById('btn-inbox-run');
+
+  const _STEP_LABELS = {
+    'extracting':  'Paso 1/6: Extrayendo ZIPs',
+    'scanning':    'Paso 2/6: Escaneando archivos',
+    'matching':    'Paso 3/6: Cotejando catálogos',
+    'planning':    'Paso 4/6: Planificando renames',
+    'renaming':    'Paso 5/6: Renombrando',
+    'organizing':  'Paso 6/6: Organizando por plataforma',
+    'done':        'Completado',
+  };
+
+  if (s.inbox_running && s.inbox_progress) {
+    if (wrap) wrap.style.display = '';
+    const p = s.inbox_progress;
+    if (stepEl) stepEl.textContent = _STEP_LABELS[p.step] || p.step || 'Procesando…';
+    const pct = (p.total > 0) ? Math.round((p.processed / p.total) * 100) : 0;
+    if (barEl) barEl.style.width = pct + '%';
+    if (cntEl) cntEl.textContent = p.total > 0 ? p.processed + ' / ' + p.total + ' (' + pct + '%)' : '';
+    if (fileEl) fileEl.textContent = p.current_file || '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
+  } else if (!s.inbox_running) {
+    if (wrap) wrap.style.display = 'none';
+    if (btn) { btn.disabled = false; btn.textContent = 'Organizar todo'; }
+    if (s.inbox_result) {
+      const ts = s.inbox_result.result_ts || JSON.stringify(s.inbox_result);
+      if (_shownResultTs.inbox !== ts) {
+        _shownResultTs.inbox = ts;
+        _renderInboxResult(s.inbox_result);
+      }
+    }
+  }
+}
+
+function _renderInboxResult(r) {
+  const el = document.getElementById('inbox-result');
+  if (!el) return;
+  if (r.error) {
+    el.className = 'job-result visible error-r';
+    el.textContent = 'Error: ' + r.error;
+    return;
+  }
+  el.className = 'job-result visible';
+  let html = '<strong style="color:#4ec9b0">Pipeline completado</strong><br>';
+  html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong> &nbsp;';
+  html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
+  html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
+  html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';
+  html += 'Organizados: <strong>' + (r.organized || 0) + '</strong>';
+  if (r.target_root) html += '<br><span style="color:#555;font-size:11px">Destino: ' + r.target_root + '</span>';
+  if ((r.rename_errors || []).length > 0) {
+    html += '<details style="margin-top:8px"><summary style="color:#dcdcaa;cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
+    r.rename_errors.forEach(e => { html += '<li>' + _h(e) + '</li>'; });
+    html += '</ul></details>';
+  }
+  if ((r.organize_errors || []).length > 0) {
+    html += '<details style="margin-top:4px"><summary style="color:#dcdcaa;cursor:pointer">' + r.organize_errors.length + ' errores al organizar</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
+    r.organize_errors.forEach(e => { html += '<li>' + _h(e) + '</li>'; });
+    html += '</ul></details>';
+  }
+  el.innerHTML = html;
+  showToast('Inbox: ' + (r.organized || 0) + ' juegos organizados', 'ok');
+}
+
+async function saveInboxSettings() {
+  const pathEl   = document.getElementById('inbox-path');
+  const targetEl = document.getElementById('inbox-target');
+  const delEl    = document.getElementById('inbox-delete-source');
+  const autoEl   = document.getElementById('inbox-auto-process');
+  const updates = {};
+  if (pathEl)   updates['inbox.path']          = pathEl.value.trim();
+  if (targetEl) updates['inbox.target_root']   = targetEl.value.trim();
+  if (delEl)    updates['inbox.delete_source'] = delEl.checked;
+  if (autoEl)   updates['inbox.auto_process']  = autoEl.checked;
+  try {
+    await apiPost('/api/config', updates);
+    showToast('Ajustes de Inbox guardados', 'ok');
+  } catch(e) {
+    showToast('Error al guardar: ' + e.message, 'err');
+  }
+}
+
+async function _pollInboxWatcher() {
+  try {
+    const d = await apiFetch('/api/inbox-watcher-status');
+    const el = document.getElementById('inbox-watcher-info');
+    const txt = document.getElementById('inbox-watcher-text');
+    if (!el || !txt) return;
+    if (d.watching) {
+      el.style.display = '';
+      const pending = d.pending_files || 0;
+      const lastCheck = d.last_check ? d.last_check.replace('T',' ').slice(0,16) : '—';
+      txt.innerHTML = 'Daemon activo · Ultimo chequeo: ' + lastCheck +
+        (pending > 0 ? ' · <span style="color:#dcdcaa">' + pending + ' archivos pendientes</span>' : ' · sin archivos pendientes');
+    } else {
+      el.style.display = 'none';
+    }
+  } catch(_) {}
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 _initColPicker();
 loadOverview();
+startAutoSyncPolling();
 </script>
 <div id="toast-container"></div>
 </body>

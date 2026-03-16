@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Matches "Game Title (Disc 1)" / "(Disk 2)" etc. — same pattern as m3u_generator
-_DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)", re.IGNORECASE)
+# The \s*$ anchor prevents false matches on track files like "Game (Disc 1) (Track 2)"
+_DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)\s*$", re.IGNORECASE)
 
 @dataclass(slots=True)
 class ExtractionResult:

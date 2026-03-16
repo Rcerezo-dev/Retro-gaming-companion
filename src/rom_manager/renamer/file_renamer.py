@@ -60,21 +60,28 @@ def rename_rom_with_saves(
             renamed_saves.append((new_sav, sav))
     except OSError as exc:
         # Rollback: undo save renames already done
+        rollback_failures: list[str] = []
         for new_path, original_path in renamed_saves:
             try:
                 os.rename(new_path, original_path)
-            except OSError:
-                pass
+            except OSError as rb_exc:
+                rollback_failures.append(f"{new_path.name} → {original_path.name}: {rb_exc}")
         # Rollback: undo the ROM rename
+        rom_rb_failed = False
         try:
             os.rename(target, source)
-        except OSError:
-            pass
+        except OSError as rb_exc:
+            rom_rb_failed = True
+            rollback_failures.append(f"ROM {target.name} → {source.name}: {rb_exc}")
+        if rollback_failures:
+            detail = "; rollback INCOMPLETE — manual fix needed: " + " | ".join(rollback_failures)
+        else:
+            detail = " — all renames rolled back"
         return RenameOutcome(
             success=False,
             source=source,
             target=target,
-            error=f"Save rename failed ({sav.name}): {exc} — all renames rolled back",
+            error=f"Save rename failed ({sav.name}): {exc}{detail}",
         )
 
     return RenameOutcome(

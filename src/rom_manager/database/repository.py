@@ -703,6 +703,12 @@ class LibraryRepository:
             for row in rows
         ]
 
+    def set_play_status(self, game_id: int, status: str | None) -> None:
+        """Set play_status for a game. status: 'playing'|'completed'|'100pct'|'abandoned'|None"""
+        with self.connect() as conn:
+            conn.execute("UPDATE games SET play_status = ? WHERE id = ?", (status, game_id))
+            conn.commit()
+
     def get_games_paginated(
         self,
         *,
@@ -713,6 +719,7 @@ class LibraryRepository:
         source_root: str | None = None,
         file_type: str | None = "rom",
         search: str | None = None,
+        play_status: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
 
@@ -746,24 +753,28 @@ class LibraryRepository:
             like = "%" + search.replace("%", "%%").replace("_", "\\_") + "%"
             conditions.append("(canonical_title LIKE ? ESCAPE '\\' OR original_filename LIKE ? ESCAPE '\\')")
             params.extend([like, like])
+        if play_status:
+            conditions.append("play_status = ?")
+            params.append(play_status)
 
-        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        count_sql = "SELECT COUNT(*) AS cnt FROM games " + where_sql
+        select_sql = (
+            "SELECT id, original_filename, source_path, platform, region,"
+            " extension, size_bytes, sha1, canonical_title,"
+            " match_confidence, catalog_source, play_status, last_played_at"
+            " FROM games " + where_sql +
+            " ORDER BY platform, canonical_title, original_filename"
+            " LIMIT ? OFFSET ?"
+        )
 
         with self.connect() as connection:
             total = int(
-                connection.execute(
-                    f"SELECT COUNT(*) AS cnt FROM games {where}", params
-                ).fetchone()["cnt"]
+                connection.execute(count_sql, params).fetchone()["cnt"]
             )
             rows = connection.execute(
-                f"""
-                SELECT id, original_filename, source_path, platform, region,
-                       extension, size_bytes, sha1, canonical_title,
-                       match_confidence, catalog_source
-                FROM games {where}
-                ORDER BY platform, canonical_title, original_filename
-                LIMIT ? OFFSET ?
-                """,
+                select_sql,
                 [*params, limit, offset],
             ).fetchall()
 
@@ -780,6 +791,8 @@ class LibraryRepository:
                 "canonical_title": row["canonical_title"],
                 "match_confidence": row["match_confidence"],
                 "catalog_source": row["catalog_source"],
+                "play_status": row["play_status"],
+                "last_played_at": row["last_played_at"],
             }
             for row in rows
         ]
