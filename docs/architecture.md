@@ -62,8 +62,14 @@ src/rom_manager/
     ra_checker.py                 # cross-reference MD5 + búsqueda por título
     ra_platform_ids.py            # plataforma → RA console ID (~30 plataformas)
   web/
-    server.py                     # HTTP server stdlib; todos los endpoints
-    frontend.py                   # SPA HTML+JS inline (una sola cadena Python)
+    server.py                     # HTTP server stdlib; todos los endpoints (~2900 líneas)
+    frontend.py                   # SPA HTML (una sola cadena Python, sin CSS/JS inline)
+    response_builders.py          # Funciones puras de respuesta (extraídas de server.py en S18)
+    cable_sync_daemon.py          # Daemons ADB auto-sync y SD card sync (extraídos en S19)
+    inbox_pipeline.py             # Pipeline Inbox: scan, setup, watcher (extraído en S19)
+    static/
+      app.css                     # CSS de la SPA (extraído de frontend.py en S21)
+      app.js                      # JavaScript de la SPA (extraído en S21, ~4400 líneas)
 ```
 
 ---
@@ -217,6 +223,66 @@ Configuración en `C:\Users\rammu\.emulationstation\`:
 
 ---
 
+## Endpoints web clave
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/status` | Estado global: library_root, first_run, jobs en curso |
+| GET | `/api/games` | Lista de ROMs con filtros (platform, device, match_confidence) |
+| GET | `/api/plan` | Plan de renombrado (build_plan) |
+| GET | `/api/catalog-status` | DATs cargados: archivos, entradas por tipo |
+| GET | `/api/wizard-detect` | Autodetecta RetroArch y dispositivos ADB para el wizard |
+| GET | `/api/rclone-status` | Estado rclone: instalado, versión, remotes |
+| GET | `/api/adb-devices` | Dispositivos ADB conectados |
+| GET | `/api/library-diff` | Diff SHA1 entre BD de PC y BD de Android |
+| GET | `/api/setup-status` | Estado del job de setup (wizard) |
+| POST | `/api/scan` | Lanzar escaneo de biblioteca |
+| POST | `/api/match` | Lanzar cruce con catálogos DAT |
+| POST | `/api/apply` | Aplicar plan de renombrado |
+| POST | `/api/import-dats` | Importar archivos DAT desde una carpeta |
+| POST | `/api/sync` | Lanzar sync cloud (rclone) |
+| POST | `/api/cable-sync` | Lanzar sync por cable (ADB o filesystem) |
+| POST | `/api/setup-run` | Lanzar pipeline de primer arranque |
+| POST | `/api/config` | Guardar config.toml (campos permitidos allowlist) |
+
+---
+
+## Patrones arquitecturales
+
+### Jobs en background
+```python
+# Estado en server.py (module level):
+_job_lock = threading.Lock()
+_jobs: dict = {"scan": False, "match": False, ...}  # bool: ¿está corriendo?
+_job_results: dict = {}       # resultado del último job
+_scan_progress: dict = {}     # dict mutable compartido con el thread
+
+# Para acceder desde módulos externos (circular import prevention):
+import rom_manager.web.server as _srv
+_srv._auto_sync_status = {"state": "syncing", ...}  # reasignación → must use _srv.xxx
+_cable_progress = _srv._cable_progress               # mismo objeto → mutations visibles
+```
+
+### Módulos externos que necesitan estado de server.py
+`cable_sync_daemon.py` e `inbox_pipeline.py` usan **late imports** dentro de cada función:
+```python
+def _auto_sync_loop(config, get_repo_fn):
+    import rom_manager.web.server as _srv  # late import evita circular import
+    # Variables reasignadas: siempre via _srv.xxx
+    # Variables mutadas (.update, []=): local binding válido
+```
+
+### Static files (S21)
+El servidor sirve `/static/app.css` y `/static/app.js` desde `web/static/`.
+La ruta de servicio tiene protección contra path traversal:
+```python
+filename = path[len("/static/"):]
+if "/" in filename or "\\" in filename or not filename:
+    send 404
+```
+
+---
+
 ## Convenciones de código
 
 - `from __future__ import annotations` en todos los módulos
@@ -226,3 +292,17 @@ Configuración en `C:\Users\rammu\.emulationstation\`:
 - Timestamps en UTC, ISO-8601, sin microsegundos
 - `repository.connect()` para lecturas (no `_connect()`)
 - `repository.batch()` para escrituras en bulk
+- Tests con BD real en `tmp_path` (pytest) — no mocks, no `:memory:`
+
+---
+
+## Historial de refactoring (referencia para entender el estado actual)
+
+| Sesión | Qué se hizo |
+|--------|-------------|
+| S18 | 22 funciones puras extraídas de `server.py` → `response_builders.py` |
+| S19 | Daemons ADB/SD → `cable_sync_daemon.py`; pipeline inbox → `inbox_pipeline.py` |
+| S20 | 20 tests para `repository.py` con BD real en tmp_path |
+| S21 | CSS/JS extraído de `frontend.py` a `static/app.css` y `static/app.js` |
+| S22 | Wizard primer arranque: `GET /api/wizard-detect`; branding Retro Vault |
+| S23 | DATs sin esfuerzo: `catalog-status`, `import-dats`; Sync wizard rclone |
