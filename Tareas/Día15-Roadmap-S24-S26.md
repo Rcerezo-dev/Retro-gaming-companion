@@ -77,6 +77,26 @@ Objetivo: que cualquier jugador pueda instalar Retro Vault sin saber qué es Pyt
 
 ## Nuevas ideas — qué más podría mejorar la herramienta
 
+### 🎨 Rediseño visual e imágenes (nueva sección)
+
+La interfaz actual funciona bien pero es muy utilitaria — fondo negro plano, sin jerarquía visual clara, sin identidad. Con los datos que ya tenemos (carátulas scrapeadas, plataformas, estadísticas) se puede hacer algo mucho más atractivo sin cambiar ninguna funcionalidad.
+
+**Qué mejoraría concretamente:**
+
+| # | Qué | Detalle |
+|---|-----|---------|
+| V-1 | **Hero banner en Overview** | Imagen del último juego jugado como fondo de la cabecera (con blur + overlay oscuro). Ya tenemos `last_played_at` y las carátulas en BD — solo falta mostrarlas. |
+| V-2 | **Grid de plataformas con logo** | En lugar de barras de texto en Overview, mostrar las plataformas como tarjetas con su logo (SNES, GBA, PSX…). Logos como SVG inline o PNG embebido — no depende de internet. |
+| V-3 | **Carátula prominente en detalle de juego** | Al hacer click en un juego, panel lateral con la carátula grande, título, plataforma, región, estado de completado y logros RA — todo junto, legible. |
+| V-4 | **Color de acento por plataforma** | Cada plataforma tiene un color asociado (GBA → índigo, PSX → gris azulado, SNES → morado…). Se aplica en bordes de tarjetas y badges. Sutil pero da mucho carácter. |
+| V-5 | **Tipografía y espaciado** | Aumentar ligeramente el tamaño de fuente base (13px → 14px), más padding en tarjetas, jerarquía clara H1/H2/body. Cambio mínimo, impacto grande. |
+| V-6 | **Animaciones de transición suaves** | Fade al cambiar de pestaña (100ms), slide en paneles que se despliegan. Ya hay `transition` en algún sitio — generalizarlo. |
+| V-7 | **Modo claro opcional** | Toggle en Settings. El oscuro sigue siendo el default. Útil si usas la app en un monitor brillante o compartes pantalla. |
+
+**Coste estimado:** S24 ampliada o una sesión propia (S24-Visual). El grid de plataformas y el hero banner son los cambios más visibles y los más rápidos de implementar.
+
+---
+
 ### 🔵 Alta prioridad (valor real, coste bajo-medio)
 
 | Idea | Descripción | Sesión estimada |
