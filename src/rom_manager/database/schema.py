@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import re
 import sqlite3
+
+# Whitelist para ALTER TABLE — evita f-strings sin validación sobre nombres de columna/tipo.
+_COL_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+_ALLOWED_COL_TYPES = frozenset({"TEXT", "INTEGER", "REAL", "BLOB", "NUMERIC"})
 
 
 SCHEMA_STATEMENTS = (
@@ -40,6 +45,8 @@ SCHEMA_STATEMENTS = (
         match_confidence TEXT,
         catalog_source TEXT,
         library_path TEXT,  -- DEPRECATED: declared but never used
+        play_status TEXT,
+        last_played_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )
@@ -55,6 +62,15 @@ SCHEMA_STATEMENTS = (
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_games_last_played ON games (last_played_at)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_canonical_title ON games (canonical_title)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_play_status ON games (play_status)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_match_confidence ON games (match_confidence)
     """,
     """
     CREATE TABLE IF NOT EXISTS saves (
@@ -141,6 +157,8 @@ SCHEMA_STATEMENTS = (
 )
 
 # Columns added after the initial schema that may be missing in existing databases.
+# New DBs already have these columns in the CREATE TABLE statement above;
+# the migration is a no-op for them but keeps old databases up to date.
 _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("canonical_title", "TEXT"),
     ("match_confidence", "TEXT"),
@@ -165,12 +183,21 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     connection.commit()
 
 
+def _alter_table_add_column(cursor: sqlite3.Cursor, table: str, col_name: str, col_type: str) -> None:
+    """Execute ALTER TABLE ... ADD COLUMN with validated identifiers (no f-string injection risk)."""
+    if not _COL_NAME_RE.match(col_name):
+        raise ValueError(f"Invalid column name: {col_name!r}")
+    if col_type not in _ALLOWED_COL_TYPES:
+        raise ValueError(f"Invalid column type: {col_type!r}")
+    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")  # noqa: S608 — identifiers validated above
+
+
 def _migrate_games_columns(cursor: sqlite3.Cursor) -> None:
     """Add any missing columns to the games table without touching existing data."""
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(games)")}
     for col_name, col_type in _GAMES_MIGRATIONS:
         if col_name not in existing:
-            cursor.execute(f"ALTER TABLE games ADD COLUMN {col_name} {col_type}")
+            _alter_table_add_column(cursor, "games", col_name, col_type)
 
 
 def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:
@@ -178,4 +205,4 @@ def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(assets)")}
     for col_name, col_type in _ASSETS_MIGRATIONS:
         if col_name not in existing:
-            cursor.execute(f"ALTER TABLE assets ADD COLUMN {col_name} {col_type}")
+            _alter_table_add_column(cursor, "assets", col_name, col_type)
