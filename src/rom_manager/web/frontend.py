@@ -282,7 +282,7 @@ HTML = r"""<!DOCTYPE html>
   <span style="color:#555;font-size:11px;margin-right:10px">Dispositivo activo:</span>
   <button class="dev-btn active" id="dev-pc" onclick="setDevice('pc')">PC</button>
   <button class="dev-btn" id="dev-both" onclick="setDevice('both')">Sistema completo</button>
-  <button class="dev-btn" id="dev-anbernic" onclick="setDevice('anbernic')" disabled>Anbernic</button>
+  <button class="dev-btn" id="dev-anbernic" onclick="setDevice('anbernic')" disabled>Consola Android</button>
 </div>
 
 <main>
@@ -384,7 +384,7 @@ HTML = r"""<!DOCTYPE html>
           <input type="checkbox" id="scan-include-ab" disabled>
           <span id="scan-ab-device-name">Consola Android</span> (SD card / red) — <span id="scan-ab-label" style="color:#555;font-size:11px">(configura la ruta arriba)</span>
         </label>
-        <label class="fmt-check" style="margin-top:4px" id="scan-adb-row" title="Escanea la Anbernic por USB sin sacar la SD card — requiere ADB configurado en Settings">
+        <label class="fmt-check" style="margin-top:4px" id="scan-adb-row" title="Escanea la consola Android por USB sin sacar la SD card — requiere ADB configurado en Settings">
           <input type="checkbox" id="scan-include-adb" onchange="_onScanAdbChange()">
           <span style="color:#4ec9b0"><span id="scan-adb-device-name">Consola Android</span> por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
         </label>
@@ -683,7 +683,7 @@ HTML = r"""<!DOCTYPE html>
 
   <!-- Instrucciones de conexión -->
   <div style="max-width:780px;margin-bottom:20px;background:#1e1e2e;border:1px solid #333;border-radius:6px;padding:16px 20px">
-    <h3 style="color:#4ec9b0;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la Anbernic desde el PC</h3>
+    <h3 style="color:#4ec9b0;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la consola Android desde el PC</h3>
 
     <!-- MTP warning -->
     <div style="padding:9px 12px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
@@ -702,11 +702,11 @@ HTML = r"""<!DOCTYPE html>
           <span style="color:#555;font-size:11px;margin-left:auto">Sin configuración extra</span>
         </summary>
         <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
-          <span style="color:#d4d4d4">①</span> Apaga la Anbernic o ve a Ajustes → Apagar.<br>
-          <span style="color:#d4d4d4">②</span> Extrae la tarjeta SD de la Anbernic.<br>
+          <span style="color:#d4d4d4">①</span> Apaga la consola o ve a Ajustes → Apagar.<br>
+          <span style="color:#d4d4d4">②</span> Extrae la tarjeta SD de la consola.<br>
           <span style="color:#d4d4d4">③</span> Insértala en un lector de tarjetas USB conectado al PC.<br>
           <span style="color:#d4d4d4">④</span> Windows la monta automáticamente como letra de unidad (ej. <code style="color:#ce9178">F:\</code> o <code style="color:#ce9178">G:\</code>).<br>
-          <span style="color:#d4d4d4">⑤</span> Usa esa letra como ruta de la Anbernic en el formulario de abajo.
+          <span style="color:#d4d4d4">⑤</span> Usa esa letra como ruta de la consola en el formulario de abajo.
         </div>
       </details>
 
@@ -716,12 +716,12 @@ HTML = r"""<!DOCTYPE html>
           <span style="font-weight:bold;color:#569cd6">B)</span> Termux + SFTP <span style="color:#555;font-size:11px;margin-left:6px">(vía red Wi-Fi local, sin sacar la SD)</span>
         </summary>
         <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
-          Requiere <strong style="color:#d4d4d4">Termux instalado</strong> en la Anbernic. Consulta la guía completa en <code style="color:#ce9178">Tareas/Guia-Termux-Anbernic.md</code>.<br><br>
+          Requiere <strong style="color:#d4d4d4">Termux instalado</strong> en la consola Android. Consulta la guía completa en <code style="color:#ce9178">Tareas/Guia-Termux-Anbernic.md</code>.<br><br>
           <span style="color:#d4d4d4">①</span> Instala openssh en Termux: <code style="color:#ce9178">pkg install openssh</code><br>
           <span style="color:#d4d4d4">②</span> Arranca el servidor SSH: <code style="color:#ce9178">sshd</code><br>
-          <span style="color:#d4d4d4">③</span> Mira la IP de la Anbernic: Ajustes → Wi-Fi → (nombre de red) → IP<br>
+          <span style="color:#d4d4d4">③</span> Mira la IP de la consola: Ajustes → Wi-Fi → (nombre de red) → IP<br>
           <span style="color:#d4d4d4">④</span> En el PC, monta la carpeta con <strong style="color:#d4d4d4">WinFsp + SSHFS-Win</strong> o accede vía <code style="color:#ce9178">rclone</code>:<br>
-          <code style="color:#ce9178;margin-left:16px;display:block">rclone copy anbernic-sftp:/storage/emulated/0/ F:/Anbernic/ --progress</code>
+          <code style="color:#ce9178;margin-left:16px;display:block">rclone copy android-sftp:/storage/emulated/0/ F:/Android/ --progress</code>
           <span style="color:#d4d4d4">⑤</span> O usa la ruta de red directamente si está montada: <code style="color:#ce9178">\\192.168.1.X\storage</code>
         </div>
       </details>
@@ -733,7 +733,7 @@ HTML = r"""<!DOCTYPE html>
         </summary>
         <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
           <span style="color:#d4d4d4">①</span> Descarga e instala <strong style="color:#d4d4d4">WinFsp</strong> (winfsp.dev) y <strong style="color:#d4d4d4">MTPDrive</strong> (mtpdrive.com).<br>
-          <span style="color:#d4d4d4">②</span> Conecta la Anbernic en modo MTP (Transferencia de archivos).<br>
+          <span style="color:#d4d4d4">②</span> Conecta la consola en modo MTP (Transferencia de archivos).<br>
           <span style="color:#d4d4d4">③</span> MTPDrive monta el dispositivo como letra de unidad (ej. <code style="color:#ce9178">M:\</code>).<br>
           <span style="color:#d4d4d4">④</span> Usa esa letra en el formulario de abajo.<br>
           <span style="color:#ce9178;font-size:11px">⚠ La velocidad puede ser inferior a la SD card con lector USB.</span>
@@ -749,7 +749,7 @@ HTML = r"""<!DOCTYPE html>
         </summary>
         <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
           ADB se comunica con Android directamente por USB. No necesita montar como unidad, no necesita Wi-Fi.<br><br>
-          <strong style="color:#d4d4d4">① Activar depuración USB en la Anbernic:</strong><br>
+          <strong style="color:#d4d4d4">① Activar depuración USB en la consola Android:</strong><br>
           <span style="margin-left:16px;display:block">Ajustes → Información del teléfono → pulsa <em>Número de compilación</em> 7 veces</span>
           <span style="margin-left:16px;display:block">Ajustes → Opciones de desarrollador → <strong style="color:#d4d4d4">Depuración USB ✓</strong></span><br>
           <strong style="color:#d4d4d4">② Descargar Android Platform Tools:</strong><br>
@@ -758,7 +758,7 @@ HTML = r"""<!DOCTYPE html>
           <code style="color:#ce9178;margin-left:6px">tools/adb.exe</code><br><br>
           <strong style="color:#d4d4d4">④ Conecta el cable y elige modo USB:</strong>
           <span style="color:#d4d4d4;margin-left:6px">cualquier modo funciona; recomendado "Transferencia de archivos"</span><br>
-          <span style="margin-left:16px;display:block;color:#569cd6">Acepta el diálogo "¿Permitir depuración USB?" en la pantalla de la Anbernic.</span><br>
+          <span style="margin-left:16px;display:block;color:#569cd6">Acepta el diálogo "¿Permitir depuración USB?" en la pantalla de la consola.</span><br>
           <strong style="color:#d4d4d4">⑤ En el formulario de abajo:</strong>
           activa el toggle <strong style="color:#d4d4d4">Modo ADB</strong>, haz clic en <strong style="color:#d4d4d4">Detectar dispositivos</strong>.
         </div>
@@ -886,7 +886,7 @@ HTML = r"""<!DOCTYPE html>
     <div id="cable-sha1-row" style="display:none;margin-bottom:12px;padding:10px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px">
       <label class="fmt-check" title="Requiere que la SD card haya sido escaneada previamente desde Overview">
         <input type="checkbox" id="cable-skip-sha1">
-        <span>Omitir ROMs duplicados <span style="color:#555;font-size:11px">(comprueba SHA1 en BD — requiere scan previo de la Anbernic)</span></span>
+        <span>Omitir ROMs duplicados <span style="color:#555;font-size:11px">(comprueba SHA1 en BD — requiere scan previo de la consola Android)</span></span>
       </label>
       <div style="color:#555;font-size:11px;margin-top:6px;margin-left:20px">
         Antes de copiar cada ROM, se calcula su SHA1 y se compara con la biblioteca del PC.
@@ -1022,7 +1022,7 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="max-width:800px;margin-top:24px">
     <h3>Exportar gamelist.xml</h3>
     <p style="color:#888;font-size:12px;margin-bottom:16px">
-      Genera un <code>gamelist.xml</code> por plataforma en el formato de EmulationStation (Anbernic).
+      Genera un <code>gamelist.xml</code> por plataforma en el formato de EmulationStation (consola Android).
       Sin estos archivos, la consola muestra sólo texto plano.
     </p>
     <div class="actions-row">
@@ -1893,7 +1893,7 @@ async function loadOverview() {
         const lastScans = ab.last_scans_by_root || {};
         const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
         if (ab.total_games === 0) {
-          if (abCardsEl) abCardsEl.innerHTML = '<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de Anbernic en <em>Gestión de biblioteca</em> y lanza un Scan.</p>';
+          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de <em>${_devName}</em> en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
         } else {
           const lastScanStr = abLastScan ? abLastScan.replace('T',' ').slice(0,16) : 'nunca';
           const daysAgo = ab.scan_days_ago !== null && ab.scan_days_ago !== undefined ? ab.scan_days_ago : null;
@@ -2043,7 +2043,7 @@ async function startSetup() {
   } catch(e) {
     document.getElementById('wizard-page-2').style.display = 'none';
     document.getElementById('wizard-page-1').style.display = '';
-    alert('Error al iniciar: ' + e.message);
+    alert('Error al iniciar: ' + e.message + '\n\nConsulta los logs para más detalles.');
   }
 }
 
@@ -2607,7 +2607,7 @@ async function quickScanPC() {
     showTab('overview');
     startPolling();
   } catch(e) {
-    alert('Error al lanzar scan: ' + e.message);
+    alert('Error al lanzar scan: ' + e.message + '\n\nConsulta los logs para más detalles.');
   }
 }
 
@@ -2622,7 +2622,7 @@ async function quickScanAndroid() {
     showTab('overview');
     startPolling();
   } catch(e) {
-    alert('Error al lanzar scan: ' + e.message);
+    alert('Error al lanzar scan: ' + e.message + '\n\nConsulta los logs para más detalles.');
   }
 }
 
@@ -2741,7 +2741,7 @@ async function loadGames(offset) {
       tbody.innerHTML = '';
       if (d.total === 0 && _activeDevice === 'anbernic' && !gamesState.root) {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
-        empty.innerHTML = `No hay ROMs de la Anbernic en la base de datos.<br><span style="color:#888;font-size:12px">Ruta: <code>${ab}</code> — Escanea la Anbernic primero (Overview → Escanear → Anbernic por ADB).</span>`;
+        empty.innerHTML = `No hay ROMs de ${_devName} en la base de datos.<br><span style="color:#888;font-size:12px">Ruta: <code>${ab}</code> — Escanea la consola primero (Overview → Escanear → consola Android por ADB).</span>`;
       } else {
         empty.innerHTML = 'Sin resultados. Prueba con otros filtros o ejecuta un Scan primero.';
       }
@@ -2799,11 +2799,11 @@ function renderPagination() {
   const nextDisabled = offset + limit >= total ? 'disabled style="opacity:.4;cursor:default"' : '';
 
   pg.innerHTML = `
-    <button class="btn" ${prevDisabled} onclick="loadGames(${Math.max(0, offset - limit)})">&#x2190; Prev</button>
-    <span>Page ${currentPage} of ${totalPages}</span>
-    <button class="btn" ${nextDisabled} onclick="loadGames(${offset + limit})">Next &#x2192;</button>
+    <button class="btn" ${prevDisabled} onclick="loadGames(${Math.max(0, offset - limit)})">&#x2190; Anterior</button>
+    <span>Página ${currentPage} de ${totalPages}</span>
+    <button class="btn" ${nextDisabled} onclick="loadGames(${offset + limit})">Siguiente &#x2192;</button>
     <select style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:13px" onchange="gamesState.limit=+this.value;loadGames(0)">
-      ${[50,100,200,500].map(n => `<option value="${n}"${n===limit?' selected':''}>${n} / page</option>`).join('')}
+      ${[50,100,200,500].map(n => `<option value="${n}"${n===limit?' selected':''}>${n} por página</option>`).join('')}
     </select>`;
 }
 
@@ -2827,7 +2827,7 @@ function _planQueryString() {
 
 async function loadPlan() {
   const el = document.getElementById('plan-content');
-  el.innerHTML = '<p class="loading">Loading…</p>';
+  el.innerHTML = '<p class="loading">Cargando…</p>';
   try {
     const root = _deviceRoot();
     const rootParam = root ? `&source_root=${encodeURIComponent(root)}` : '';
@@ -2843,9 +2843,9 @@ async function loadPlan() {
         barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       } else if (_activeDevice === 'anbernic') {
         const r = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
-        barHtml = `Viendo: <span style="color:#ce9178">Anbernic — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:#ce9178">${_devName} — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + Anbernic) &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_devName}) &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       }
       planBar.innerHTML = barHtml;
       planBar.style.display = '';
@@ -2911,7 +2911,7 @@ async function loadPlan() {
     if (d.total === 0) {
       if (_activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
-        el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:#888;font-size:12px">Ruta Anbernic: <code>${ab}</code><br>Escanea la Anbernic primero (Overview → Escanear → Anbernic por ADB).</span></p>`;
+        el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:#888;font-size:12px">Ruta ${_devName}: <code>${ab}</code><br>Escanea la consola primero (Overview → Escanear → consola Android por ADB).</span></p>`;
       } else {
         el.innerHTML = '<p class="empty">Sin juegos con match. Ejecuta <strong>Match catálogos</strong> primero desde la pestaña Inicio.</p>';
       }
@@ -2943,7 +2943,7 @@ async function loadPlan() {
       const diskConflicts = d.conflicts.filter(c => c.reason === 'disk');
       const unknown = d.conflicts.filter(c => !c.reason || (c.reason !== 'collision' && c.reason !== 'disk'));
 
-      html += `<h3 style="color:#f44747;margin:20px 0 8px">Conflicts — ${d.conflicts.length}</h3>`;
+      html += `<h3 style="color:#f44747;margin:20px 0 8px">Conflictos — ${d.conflicts.length}</h3>`;
 
       if (collisions.length) {
         html += `<div style="background:#1a1218;border:1px solid #3a2030;border-left:3px solid #ce9178;border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
@@ -2994,7 +2994,7 @@ async function loadPlan() {
       }
     }
     if (d.already_correct > 0) {
-      html += `<p style="color:#555;margin-top:16px">${d.already_correct} file(s) already have the correct name.</p>`;
+      html += `<p style="color:#555;margin-top:16px">${d.already_correct} archivo(s) ya tienen el nombre correcto.</p>`;
     }
     if (d.unmatched_count > 0) {
       html += `<details style="margin-top:20px;border:1px solid #333;border-radius:6px;padding:10px 14px;background:#161620">`;
@@ -3197,19 +3197,19 @@ async function loadDuplicates() {
         barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
       } else if (_activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:#ce9178">Anbernic — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+        barHtml = `Viendo: <span style="color:#ce9178">${_devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
       } else {
         const parts = [`PC: <span style="color:#4ec9b0">${cfg.library_root || '(no configurado)'}</span>`];
         const ab = localStorage.getItem('anbernic_path');
-        if (ab) parts.push(`Anbernic: <span style="color:#ce9178">${ab}</span>`);
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔Anbernic se excluyen</span>`;
+        if (ab) parts.push(`${_devName}: <span style="color:#ce9178">${ab}</span>`);
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${_devName} se excluyen</span>`;
       }
       dupBar.innerHTML = barHtml;
       dupBar.style.display = '';
     }
     if (d.groups.length === 0) {
       if (_activeDevice === 'anbernic') {
-        el.innerHTML = '<p class="empty">No se encontraron duplicados en la Anbernic.<br><span style="color:#888;font-size:12px">Nota: Los duplicados <em>cruzados</em> entre PC y Anbernic (mismo SHA1 en ambos dispositivos) solo aparecen en modo <strong>Sistema completo</strong>.</span></p>';
+        el.innerHTML = `<p class="empty">No se encontraron duplicados en ${_devName}.<br><span style="color:#888;font-size:12px">Nota: Los duplicados <em>cruzados</em> entre PC y ${_devName} (mismo SHA1 en ambos dispositivos) solo aparecen en modo <strong>Sistema completo</strong>.</span></p>`;
       } else {
         el.innerHTML = '<p class="empty">No se encontraron duplicados.</p>';
       }
@@ -3255,7 +3255,7 @@ async function deleteAllDuplicates() {
     loadOverview();
     alert(`Eliminados: ${d.deleted}  |  Fallidos: ${d.failed}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}`);
   } catch(e) {
-    alert('Error: ' + e.message);
+    alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Eliminar todos los duplicados';
@@ -3294,7 +3294,7 @@ async function markAsIntentionalCopy(sha1) {
     if (el) el.remove();
     showToast('Grupo excluido de duplicados', 'ok');
   } catch(e) {
-    alert('Error: ' + e.message);
+    alert('Error: ' + e.message + '\n\nConsulta los logs para más detalles.');
   }
 }
 
@@ -3511,7 +3511,7 @@ async function loadSync() {
 // ── Assets ───────────────────────────────────────────────────────────────────
 async function loadAssets() {
   const el = document.getElementById('assets-content');
-  el.innerHTML = '<p class="loading">Loading…</p>';
+  el.innerHTML = '<p class="loading">Cargando…</p>';
   const filter = document.getElementById('assets-filter')?.value || 'all';
   try {
     const _assetsRoot = _deviceRoot();
@@ -3524,9 +3524,9 @@ async function loadAssets() {
         barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else if (_activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:#ce9178">Anbernic — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:#ce9178">${_devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + Anbernic) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_devName}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;
       assetsBar.style.display = '';
@@ -3694,7 +3694,7 @@ async function doCleanupZips() {
     const el = document.getElementById('job-result-extract-zip');
     el.className = 'job-result visible success';
     el.textContent = `ZIPs eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.'); }
 }
 
 async function doCleanupCueBin() {
@@ -3706,7 +3706,7 @@ async function doCleanupCueBin() {
     const el = document.getElementById('job-result-convert-chd');
     el.className = 'job-result visible success';
     el.textContent = `Archivos eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.skipped ? `  |  Sin .chd (no tocados): ${d.skipped}` : ''}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.'); }
 }
 
 async function doExtractZip() {
@@ -3782,7 +3782,7 @@ async function autodetectM3UFolders() {
       if (wrap) wrap.style.display = '';
     }
   } catch(e) {
-    alert('Error al detectar carpetas: ' + e.message);
+    alert('Error al detectar carpetas: ' + e.message + '\n\nConsulta los logs para más detalles.');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Autodetectar carpetas'; }
   }
@@ -3914,7 +3914,7 @@ async function doDeleteOrphans() {
     alert(`Eliminados: ${d.deleted}  |  Fallidos: ${d.failed}  |  Liberados: ${fmtSize(d.freed_bytes)}`);
     doFindOrphans();
   } catch(e) {
-    alert('Error: ' + e.message);
+    alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.');
   }
 }
 
@@ -4803,7 +4803,7 @@ function _renderCableSyncResult(r) {
   }
 
   const verb   = r.dry_run ? 'Copiaría' : 'Copiados';
-  const dirMap = { pc_to_anbernic: `PC → ${_devName}`, anbernic_to_pc: `${_devName} → PC`, newest: 'Más reciente gana' };
+  const dirMap = { pc_to_anbernic: `PC → ${_devName}`, anbernic_to_pc: `${_devName} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_devName}`, device_to_pc: `${_devName} → PC` };
   const dirStr = dirMap[r.direction] || r.direction;
   const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
   const sha1Msg     = r.sha1_skipped > 0 ? `  |  Dups SHA1: ${r.sha1_skipped}` : '';
