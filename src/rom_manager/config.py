@@ -240,6 +240,62 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     )
 
 
+def _path_exists(p: str) -> bool:
+    """Return True if p resolves to an existing path (handles relative paths too)."""
+    try:
+        return Path(p).exists()
+    except Exception:
+        return False
+
+
+def validate(config: "AppConfig") -> list[dict]:
+    """Return a list of configuration warnings (non-fatal issues).
+
+    Each entry is a dict with keys:
+      - ``level``: ``"warning"`` or ``"info"``
+      - ``field``:  the config field name (for highlighting in the UI)
+      - ``message``: human-readable Spanish description
+    """
+    warnings: list[dict] = []
+
+    def warn(field: str, msg: str, level: str = "warning") -> None:
+        warnings.append({"level": level, "field": field, "message": msg})
+
+    # library_root
+    if config.library_root is None:
+        warn("library_root", "Ruta de biblioteca no configurada. Las herramientas no podrán escanear ROMs.")
+    elif not config.library_root.exists():
+        warn("library_root", f"La carpeta de biblioteca no existe: {config.library_root}")
+
+    # anbernic_root
+    if config.anbernic_root and not _path_exists(config.anbernic_root):
+        warn("anbernic_root", f"La ruta de la consola no existe o no está conectada: {config.anbernic_root}", "info")
+
+    # chdman
+    if config.chdman and config.chdman != "chdman" and not _path_exists(config.chdman):
+        warn("chdman", f"chdman no encontrado en: {config.chdman}. La conversión CHD no funcionará.")
+
+    # adb
+    if config.adb and config.adb != "adb" and not _path_exists(config.adb):
+        warn("adb", f"adb no encontrado en: {config.adb}. El Cable Sync no funcionará.")
+
+    # web_port
+    if not (1 <= config.web_port <= 65535):
+        warn("web_port", f"Puerto inválido: {config.web_port}. Debe estar entre 1 y 65535.")
+
+    # screenscraper — partial config
+    if config.screenscraper_user and not config.screenscraper_pass:
+        warn("screenscraper_pass", "Usuario de ScreenScraper configurado pero contraseña vacía.")
+    if config.screenscraper_pass and not config.screenscraper_user:
+        warn("screenscraper_user", "Contraseña de ScreenScraper configurada pero usuario vacío.")
+
+    # retroachievements
+    if not config.ra_api_key:
+        warn("ra_api_key", "API key de RetroAchievements no configurada. Necesaria para el informe de logros.", "info")
+
+    return warnings
+
+
 def write_config_toml(project_root: Path, updates: dict) -> None:
     """Write (or update) config.toml with the given key→value pairs.
 

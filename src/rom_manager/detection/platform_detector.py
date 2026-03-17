@@ -105,6 +105,11 @@ PLATFORM_BY_FOLDER: dict[str, str] = {
     "gg": "Game Gear",
     "saturn": "Sega Saturn",
     "segasaturn": "Sega Saturn",
+    "segacd": "Sega CD",
+    "mega-cd": "Sega CD",
+    "megacd": "Sega CD",
+    "sega32x": "Sega 32X",
+    "32x": "Sega 32X",
     "dreamcast": "Dreamcast",
     "dc": "Dreamcast",
     # SNK

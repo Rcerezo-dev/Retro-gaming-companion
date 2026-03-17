@@ -77,8 +77,9 @@ class ScreenScraperClient:
 
         url = f"{_API_BASE}/jeuInfos.php?{urllib.parse.urlencode(params)}"
 
+        req = urllib.request.Request(url, headers={"User-Agent": f"{_SOFT_NAME}/1.0"})
         try:
-            with urllib.request.urlopen(url, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
             if exc.code in (404, 426):
@@ -88,10 +89,16 @@ class ScreenScraperClient:
                 # 430 = rate limited / daily quota exceeded
                 return None
             if exc.code == 403:
-                raise PermissionError(
-                    "ScreenScraper returned HTTP 403 — credenciales incorrectas o cuenta bloqueada. "
-                    "Verifica usuario y contraseña en Settings."
-                ) from exc
+                missing_dev = not (self.dev_id and self.dev_password)
+                detail = (
+                    "Faltan las credenciales de desarrollador (devid / devpassword). "
+                    "Regístrate en screenscraper.fr → Mi cuenta → Solicitar acceso API "
+                    "y añade los campos 'ScreenScraper devid' y 'ScreenScraper devpassword' en Settings."
+                    if missing_dev else
+                    "Credenciales incorrectas o cuenta bloqueada. "
+                    "Verifica usuario, contraseña y devid/devpassword en Settings."
+                )
+                raise PermissionError(f"ScreenScraper HTTP 403 — {detail}") from exc
             raise
         except (urllib.error.URLError, OSError):
             return None
@@ -135,8 +142,9 @@ class ScreenScraperClient:
             params["systemeid"] = str(system_id)
 
         url = f"{_API_BASE}/jeuInfos.php?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers={"User-Agent": f"{_SOFT_NAME}/1.0"})
         try:
-            with urllib.request.urlopen(url, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
             if exc.code in (404, 426, 430):
