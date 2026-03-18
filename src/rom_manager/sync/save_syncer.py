@@ -59,6 +59,8 @@ def sync_saves(
     repository: LibraryRepository,
     save_extensions: tuple[str, ...],
     dry_run: bool = True,
+    backup_root: Path | None = None,
+    backup_keep_n: int = 5,
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *remote_root* using rclone.
 
@@ -144,6 +146,13 @@ def sync_saves(
 
             elif decision.action == "download":
                 try:
+                    # S29: backup local save before overwriting with remote version
+                    if backup_root and local_path.exists():
+                        try:
+                            from rom_manager.backup.save_backup import backup_save
+                            backup_save(local_path, backup_root, keep_n=backup_keep_n)
+                        except Exception:
+                            pass  # backup failure must never block sync
                     transport.download(remote_root, relative, local_path)
                     log_sync_event(
                         conn,
@@ -171,6 +180,13 @@ def sync_saves(
                     result.errors += 1
 
             elif decision.action == "conflict":
+                # S29: backup local save before conflict resolution
+                if backup_root and local_path.exists():
+                    try:
+                        from rom_manager.backup.save_backup import backup_save
+                        backup_save(local_path, backup_root, keep_n=backup_keep_n)
+                    except Exception:
+                        pass
                 # Back up both sides by appending a timestamp suffix, then upload local.
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
                 backup_rel = relative + backup_suffix

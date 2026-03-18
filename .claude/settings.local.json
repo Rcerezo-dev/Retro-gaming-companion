@@ -39,7 +39,20 @@
       "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"from rom_manager.web.frontend import HTML; print\\('OK, len=', len\\(HTML\\)\\)\")",
       "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"from rom_manager.web.server import RomManagerHandler; from rom_manager.database.repository import LibraryRepository; from rom_manager.database.schema import initialize_database; print\\('OK'\\)\")",
       "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"import rom_manager.web.server; import rom_manager.database.repository; print\\('OK'\\)\")",
-      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"import rom_manager.web.server; from rom_manager.web.frontend import HTML; print\\('OK len=', len\\(HTML\\)\\)\")"
+      "Bash(cd \"C:/Users/rammu/Documents/projects/Retro_gaming_app\" && \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \"import rom_manager.web.server; from rom_manager.web.frontend import HTML; print\\('OK len=', len\\(HTML\\)\\)\")",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(cmd /c \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe -m py_compile src/rom_manager/web/frontend.py && echo FRONTEND_OK\")",
+      "Bash(cmd /c \"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe -m py_compile src/rom_manager/web/frontend.py 2>&1 && echo FRONTEND_OK\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(\"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -c \":*)",
+      "Bash(\"/c/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -c \":*)",
+      "Bash(\"/c/Users/rammu/anaconda3\\\\envs/rom_manager/python.exe\" -c \":*)",
+      "Bash(timeout 5 \"/c/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -m rom_manager serve --port 7778)",
+      "Bash(C:Usersrammuanaconda3envsrom_managerpython.exe -m pytest tests/ -x -q)",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -x -q)",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -q --ignore=tests/test_library_structure.py)"
     ]
   }
 }

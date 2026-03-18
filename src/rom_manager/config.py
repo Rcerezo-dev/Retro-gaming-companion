@@ -34,6 +34,9 @@ class AppConfig:
     adb: str
     web_host: str
     web_port: int
+    web_pin_hash: str   # SHA-256(pin+salt); empty = no auth
+    web_pin_salt: str   # random hex salt for the PIN hash
+    web_session_ttl: int  # session cookie TTL in seconds (default 86400 = 24h)
     screenscraper_user: str
     screenscraper_pass: str
     screenscraper_dev_id: str
@@ -54,6 +57,12 @@ class AppConfig:
     inbox_delete_source: bool       # delete original ZIP after organizing
     # Multi-source cloud sync
     sync_sources: list[SyncSource]  # one entry per emulator; populated from [[sync.sources]] in config.toml
+    # Launcher (S28)
+    retroarch_path: str             # path to retroarch.exe
+    launcher_cores: dict            # platform → libretro core path
+    # Save backup (S29)
+    backup_saves_enabled: bool      # True = auto-backup before sync/rename overwrites
+    backup_saves_keep_n: int        # max versions per save file (default 5)
 
 
 _CONFIG_TOML_TEMPLATE = """\
@@ -114,6 +123,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     ra = toml.get("retroachievements", {})
     inbox_cfg = toml.get("inbox", {})
     android_cfg = toml.get("android", {})
+    launchers_cfg = toml.get("launchers", {})
+    backup_cfg = toml.get("backup", {})
 
     library_root_raw = lib.get("library_root")
     library_root = Path(library_root_raw) if library_root_raw else None
@@ -167,6 +178,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         adb=tools.get("adb", "adb"),
         web_host=web.get("host", "127.0.0.1"),
         web_port=int(web.get("port", 7777)),
+        web_pin_hash=str(web.get("pin_hash", "")),
+        web_pin_salt=str(web.get("pin_salt", "")),
+        web_session_ttl=int(web.get("session_ttl", 86400)),
         screenscraper_user=ss.get("user", ""),
         screenscraper_pass=ss.get("pass", ""),
         screenscraper_dev_id=ss.get("dev_id", ""),
@@ -182,6 +196,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         inbox_auto_process=bool(inbox_cfg.get("auto_process", False)),
         inbox_delete_source=bool(inbox_cfg.get("delete_source", False)),
         sync_sources=sync_sources,
+        retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
+        launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
+        backup_saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
+        backup_saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
         excluded_directories=(  # noqa: E501
             "Android",
             "BIOS",

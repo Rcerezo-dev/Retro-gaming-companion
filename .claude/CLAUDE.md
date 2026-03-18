@@ -41,7 +41,8 @@ Herramienta local Python + interfaz web (`http://127.0.0.1:7777`) para gestionar
 | Interfaz web | ✅ | SPA stdlib Python; CSS/JS en static/; sin dependencias externas |
 
 **Pendientes de validar en hardware:** V1-V5, B1, STRUCT-3/4 — ver `Tareas/backlog.md`.
-**Próximas sesiones:** S24 (UX), S25 (Auth PIN), S26 (PyInstaller) — ver `Tareas/Día15-Roadmap-S24-S26.md`.
+**Completadas:** S24 (UX) ✅ S25 (Auth PIN) ✅ S26 (ScreenScraper dev) ✅ S27 (Rediseño visual) ✅ S28 (búsqueda+lanzador+favoritos+tags) ✅ S29 (backup saves versionado) ✅ S30 (editor metadatos + notas) ✅
+**Próximas sesiones:** S31 (colección completa: missing+estadísticas) — ver `Tareas/Roadmap-S28-Plus.md`.
 
 ---
 

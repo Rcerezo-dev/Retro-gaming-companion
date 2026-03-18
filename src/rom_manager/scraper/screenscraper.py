@@ -24,6 +24,11 @@ class ScraperResult:
     description: str
     rating: str
     box_art_url: str
+    # Extended fields (S26)
+    players: str = ""
+    genres_list: str = ""       # comma-separated full genres
+    screenshot_url: str = ""
+    wheel_url: str = ""
 
 
 @dataclass(slots=True)
@@ -32,10 +37,16 @@ class ScreenScraperClient:
     password: str
     dev_id: str = ""
     dev_password: str = ""
-    # Rate limiting: free tier allows ~1 req/s
+    # Rate limiting: free=1.2s, developer account=0.3s (auto-set in __post_init__)
     min_interval: float = 1.2
 
     _last_call: float = field(default=0.0, init=False, repr=False)
+    last_quota: dict = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        # Auto-reduce rate limit for developer accounts (SS allows ~3 req/s)
+        if self.dev_id and self.dev_password and self.min_interval >= 1.2:
+            self.min_interval = 0.35
 
     def search(
         self,
@@ -103,7 +114,17 @@ class ScreenScraperClient:
         except (urllib.error.URLError, OSError):
             return None
 
-        game = data.get("response", {}).get("jeu")
+        resp_obj = data.get("response", {})
+        # Cache quota info from serveur block (present in every response)
+        serveur = resp_obj.get("serveur", {})
+        if serveur:
+            self.last_quota = {
+                "requests_today": serveur.get("requeststoday", ""),
+                "max_requests_per_day": serveur.get("maxrequestsperday", ""),
+                "api_access": serveur.get("apiacces", ""),
+            }
+
+        game = resp_obj.get("jeu")
         if not game:
             return None
 
@@ -174,11 +195,22 @@ class ScreenScraperClient:
         year = _pick_date(game.get("dates", []))
         genres = game.get("genres", [])
         genre = _pick_regional(genres[0].get("noms", []) if genres else [], lang) if genres else ""
+        # Full comma-separated genres list
+        genres_list = ", ".join(
+            _pick_regional(g.get("noms", []), lang)
+            for g in genres
+            if _pick_regional(g.get("noms", []), lang)
+        )
         publisher = game.get("editeur", {}).get("text", "")
         developer = game.get("developpeur", {}).get("text", "")
         description = _pick_regional(game.get("synopsis", []), lang)
         rating = str(game.get("note", {}).get("text", ""))
-        box_art_url = _pick_media(game.get("medias", []), ("box-2D", "box-2D-side", "screenshot"))
+        players = str(game.get("joueurs", {}).get("text", ""))
+        medias = game.get("medias", [])
+        # Prefer 3D box art; fall back to 2D, then screenshot
+        box_art_url = _pick_media(medias, ("box-3D", "box-2D", "box-2D-side", "screenshot"))
+        screenshot_url = _pick_media(medias, ("screenshot",))
+        wheel_url = _pick_media(medias, ("wheel", "wheel-hd", "mixrbv2", "mixrbv1"))
 
         return ScraperResult(
             ss_game_id=ss_id,
@@ -190,6 +222,10 @@ class ScreenScraperClient:
             description=description,
             rating=rating,
             box_art_url=box_art_url,
+            players=players,
+            genres_list=genres_list,
+            screenshot_url=screenshot_url,
+            wheel_url=wheel_url,
         )
 
 

@@ -48,7 +48,9 @@ SCHEMA_STATEMENTS = (
         play_status TEXT,
         last_played_at TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        notes TEXT
     )
     """,
     """
@@ -148,6 +150,21 @@ SCHEMA_STATEMENTS = (
     CREATE INDEX IF NOT EXISTS idx_game_metadata_game ON game_metadata (game_id)
     """,
     """
+    CREATE TABLE IF NOT EXISTS game_tags (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL,
+        tag     TEXT NOT NULL,
+        FOREIGN KEY (game_id) REFERENCES games (id),
+        UNIQUE (game_id, tag)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_game_tags_game ON game_tags (game_id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_game_tags_tag ON game_tags (tag)
+    """,
+    """
     CREATE TABLE IF NOT EXISTS excluded_duplicates (
         sha1        TEXT NOT NULL PRIMARY KEY,
         reason      TEXT NOT NULL DEFAULT 'intentional_copy',
@@ -167,6 +184,8 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("mtime", "INTEGER"),
     ("play_status", "TEXT"),
     ("last_played_at", "TEXT"),
+    ("is_favorite", "INTEGER"),
+    ("notes", "TEXT"),
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
@@ -180,7 +199,16 @@ def initialize_database(connection: sqlite3.Connection) -> None:
         cursor.execute(statement)
     _migrate_games_columns(cursor)
     _migrate_assets_columns(cursor)
+    _migrate_is_favorite_default(cursor)
     connection.commit()
+
+
+def _migrate_is_favorite_default(cursor: sqlite3.Cursor) -> None:
+    """Ensure is_favorite has a default value of 0 for existing rows where it is NULL."""
+    try:
+        cursor.execute("UPDATE games SET is_favorite = 0 WHERE is_favorite IS NULL")
+    except Exception:
+        pass
 
 
 def _alter_table_add_column(cursor: sqlite3.Cursor, table: str, col_name: str, col_type: str) -> None:

@@ -28,7 +28,7 @@ def find_cue_files(directory: Path) -> list[Path]:
 
 
 def parse_bins_from_cue(cue_path: Path) -> list[Path]:
-    """Return existing .bin files referenced inside a .cue file."""
+    """Return all .bin files referenced inside a .cue file (existing or not)."""
     cue_dir = cue_path.parent
     bins: list[Path] = []
     try:
@@ -42,9 +42,7 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
         parts = stripped.split('"')
         if len(parts) < 2:
             continue
-        candidate = cue_dir / parts[1]
-        if candidate.exists():
-            bins.append(candidate)
+        bins.append(cue_dir / parts[1])
     return bins
 
 
@@ -74,11 +72,23 @@ def convert_to_chd(
             error="Output .chd already exists — skipping to avoid overwrite.",
         )
 
+    # B2-3: pre-validate all referenced bins exist before calling chdman
+    missing = [b for b in bin_paths if not b.exists()]
+    if missing:
+        return ConversionResult(
+            cue_path=cue_path,
+            chd_path=chd_path,
+            bin_paths=bin_paths,
+            success=False,
+            error=f"Bin file(s) not found: {', '.join(b.name for b in missing)}",
+        )
+
     try:
         subprocess.run(
             [chdman, "createcd", "-i", str(cue_path), "-o", str(chd_path)],
             check=True,
             capture_output=True,
+            cwd=str(cue_path.parent),  # B2-1: resolve relative .bin paths in .cue correctly
         )
     except FileNotFoundError:
         return ConversionResult(

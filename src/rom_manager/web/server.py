@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import secrets
+import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -36,6 +41,7 @@ _jobs: dict[str, bool] = {
     "extract_zip": False, "health_check": False,
     "ra_check": False, "cable_sync": False,
     "apply": False, "inbox": False, "setup": False,
+    "backup_now": False,
 }
 _job_results: dict[str, dict] = {}
 
@@ -129,6 +135,86 @@ _health_cancel: threading.Event = threading.Event()
 _ra_cancel:     threading.Event = threading.Event()
 _scrape_cancel: threading.Event = threading.Event()
 _match_cancel:  threading.Event = threading.Event()
+_ss_last_quota: dict = {}   # last ScreenScraper quota snapshot from any scrape run
+
+# ── S25: Session auth ─────────────────────────────────────────────────────────
+_SESSION_COOKIE = "rvm_session"
+_sessions: dict[str, float] = {}   # {token: expires_at (monotonic)}
+_sessions_lock = threading.Lock()
+
+def _get_local_ip() -> str:
+    """Best-effort: return the machine's LAN IP address."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+
+def _hash_pin(pin: str, salt: str) -> str:
+    return hashlib.sha256((pin + salt).encode()).hexdigest()
+
+def _create_session(ttl: int) -> str:
+    token = secrets.token_urlsafe(32)
+    with _sessions_lock:
+        _sessions[token] = time.monotonic() + ttl
+    return token
+
+def _destroy_session(token: str) -> None:
+    with _sessions_lock:
+        _sessions.pop(token, None)
+
+def _validate_session(token: str) -> bool:
+    with _sessions_lock:
+        exp = _sessions.get(token)
+        if exp is None:
+            return False
+        if time.monotonic() > exp:
+            del _sessions[token]
+            return False
+        return True
+
+_LOGIN_HTML = """<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retro Vault — Acceso</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f0f;color:#d4d4d4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.box{background:#1e1e2e;border:1px solid #2a2a3a;border-radius:12px;padding:40px 36px;width:320px;text-align:center}
+h1{color:#4ec9b0;font-family:Consolas,monospace;font-size:22px;letter-spacing:2px;margin-bottom:8px}
+p{color:#555;font-size:13px;margin-bottom:28px}
+input[type=password]{width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:12px 16px;border-radius:6px;font:inherit;font-size:18px;text-align:center;letter-spacing:8px;margin-bottom:16px;outline:none}
+input[type=password]:focus{border-color:#4ec9b0}
+button{width:100%;background:#1e1e2e;border:1px solid #4ec9b0;color:#4ec9b0;padding:10px;border-radius:6px;cursor:pointer;font:inherit;font-size:14px;transition:background .15s,color .15s}
+button:hover{background:#4ec9b0;color:#0f0f0f}
+.err{color:#f44747;font-size:12px;margin-top:10px;min-height:18px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>RETRO VAULT</h1>
+  <p>Introduce el PIN para acceder</p>
+  <form id="f">
+    <input type="password" id="pin" placeholder="••••" maxlength="10" autocomplete="off" autofocus>
+    <button type="submit">Entrar</button>
+    <div class="err" id="err"></div>
+  </form>
+</div>
+<script>
+document.getElementById('f').addEventListener('submit',async function(e){
+  e.preventDefault();
+  const pin=document.getElementById('pin').value;
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
+  const d=await r.json();
+  if(d.ok){location.href='/';}
+  else{const el=document.getElementById('err');el.textContent=d.error||'PIN incorrecto';document.getElementById('pin').select();}
+});
+</script>
+</body>
+</html>"""
 _logger = logging.getLogger(__name__)
 
 # ── Auto-sync daemon state ─────────────────────────────────────────────────────
@@ -321,6 +407,34 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         def log_message(self, format: str, *args: object) -> None:
             pass  # suppress default request logging
 
+        # ── S25: Auth helpers ─────────────────────────────────────────────────
+
+        def _auth_required(self) -> bool:
+            """True when PIN protection is active (pin_hash is set in config)."""
+            return bool(config.web_pin_hash)
+
+        def _session_token(self) -> str | None:
+            raw = self.headers.get("Cookie", "")
+            if not raw:
+                return None
+            c = SimpleCookie()
+            c.load(raw)
+            morsel = c.get(_SESSION_COOKIE)
+            return morsel.value if morsel else None
+
+        def _is_authenticated(self) -> bool:
+            if not self._auth_required():
+                return True
+            token = self._session_token()
+            return bool(token and _validate_session(token))
+
+        def _redirect_to_login(self) -> None:
+            self._send(302, "text/plain", b"", extra_headers={"Location": "/login"})
+
+        def _set_session_header(self, token: str) -> dict[str, str]:
+            cookie = f"{_SESSION_COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/"
+            return {"Set-Cookie": cookie}
+
         # ── GET ──────────────────────────────────────────────────────────────
 
         def do_GET(self) -> None:
@@ -329,6 +443,16 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             qs = parse_qs(parsed.query)
 
             try:
+                # S25: serve login page and static assets without auth
+                if path == "/login":
+                    self._send(200, "text/html; charset=utf-8", _LOGIN_HTML.encode())
+                    return
+                if path.startswith("/static/") or path == "/favicon.ico":
+                    pass  # fall through to normal handling (no auth on static)
+                elif not self._is_authenticated():
+                    self._redirect_to_login()
+                    return
+
                 if path == "/":
                     self._send(200, "text/html; charset=utf-8", HTML.encode())
                 elif path.startswith("/static/"):
@@ -425,8 +549,81 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     file_type = ft if ft in ("rom", "", "save") else None
                     search = qs.get("search", [None])[0] or None
                     play_status = qs.get("play_status", [None])[0] or None
+                    favorite = qs.get("favorite", ["0"])[0] == "1"
+                    tag_filter = qs.get("tag", [None])[0] or None
                     _games_repo = _get_repo(root or "")
-                    self._send_json(_build_games(_games_repo, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type, search=search, play_status=play_status))
+                    self._send_json(_build_games(_games_repo, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type, search=search, play_status=play_status, favorite=favorite, tag=tag_filter))
+                elif path == "/api/tags":
+                    self._send_json({"tags": repository.get_all_tags()})
+                elif path == "/api/game-tags":
+                    game_id = qs.get("id", [None])[0]
+                    if not game_id:
+                        self._send_json({"error": "id required"})
+                    else:
+                        self._send_json({"tags": repository.get_tags(int(game_id))})
+                elif path == "/api/stateshot":
+                    game_id = qs.get("id", [None])[0]
+                    if not game_id:
+                        self._send_json({"error": "id required"})
+                    else:
+                        with repository.connect() as conn:
+                            row = conn.execute(
+                                "SELECT source_path FROM games WHERE id = ?", (int(game_id),)
+                            ).fetchone()
+                        if not row:
+                            self._send_json({"found": False})
+                        else:
+                            rom_path = Path(row["source_path"])
+                            # RetroArch saves state screenshots as <rom_stem>.state0.png or <rom_stem>.state.png
+                            candidates = list(rom_path.parent.glob(rom_path.stem + ".state*.png"))
+                            if not candidates:
+                                # Try RetroArch saves dir from config
+                                if config.library_root:
+                                    candidates = list(Path(config.library_root).rglob(rom_path.stem + ".state*.png"))
+                            if candidates:
+                                png = sorted(candidates)[-1]  # most recent alphabetically
+                                import base64
+                                img_b64 = base64.b64encode(png.read_bytes()).decode()
+                                self._send_json({"found": True, "data": img_b64, "filename": png.name})
+                            else:
+                                self._send_json({"found": False})
+                elif path == "/api/save-backups":
+                    # List versioned backups for a game's save files
+                    game_id = qs.get("id", [None])[0]
+                    if not game_id:
+                        self._send_json({"error": "id required"})
+                    else:
+                        from rom_manager.backup.save_backup import list_backups
+                        with repository.connect() as conn:
+                            row = conn.execute(
+                                "SELECT source_path FROM games WHERE id = ?", (int(game_id),)
+                            ).fetchone()
+                        if not row:
+                            self._send_json({"backups": []})
+                        else:
+                            rom_path = Path(row["source_path"])
+                            # Collect backups for all save extensions found alongside the ROM
+                            all_entries = []
+                            for ext in config.save_extensions:
+                                save_path = rom_path.parent / (rom_path.stem + ext)
+                                entries = list_backups(save_path, config.data_dir)
+                                for e in entries:
+                                    all_entries.append({
+                                        "backup_path": str(e.backup_path),
+                                        "timestamp": e.timestamp,
+                                        "extension": e.extension,
+                                        "size": e.size,
+                                        "original_save": str(save_path),
+                                    })
+                            all_entries.sort(key=lambda x: x["timestamp"], reverse=True)
+                            self._send_json({
+                                "backups": all_entries,
+                                "backup_enabled": config.backup_saves_enabled,
+                                "keep_n": config.backup_saves_keep_n,
+                            })
+                elif path == "/api/manual-backups":
+                    from rom_manager.backup.save_backup import list_manual_zips
+                    self._send_json({"zips": list_manual_zips(config.data_dir)})
                 elif path == "/api/plan":
                     opts = _parse_format_opts(qs)
                     source_root = qs.get("source_root", [None])[0] or None
@@ -486,6 +683,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             "setup_running": _jobs["setup"],
                             "setup_progress": dict(_setup_progress) if _setup_progress else None,
                             "setup_result": _job_results.get("setup"),
+                            "backup_now_running": _jobs.get("backup_now", False),
+                            "backup_now_result": _job_results.get("backup_now"),
                         })
                 elif path == "/api/test-chdman":
                     import subprocess
@@ -664,6 +863,40 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         self._send_json({"log": tail, "lines": len(lines)})
                     else:
                         self._send_json({"log": "", "lines": 0})
+                elif path == "/api/game":
+                    game_id = qs.get("id", [None])[0]
+                    if not game_id:
+                        self._send_json({"error": "id required"})
+                    else:
+                        with repository.connect() as conn:
+                            row = conn.execute("""
+                                SELECT g.id, g.original_filename, g.source_path, g.platform,
+                                       g.region, g.extension, g.size_bytes, g.sha1, g.md5, g.crc32,
+                                       g.canonical_title, g.match_confidence, g.catalog_source,
+                                       g.play_status, g.last_played_at, g.file_type,
+                                       g.notes, g.is_favorite,
+                                       m.title AS ss_title, m.year, m.genre, m.publisher,
+                                       m.developer, m.description, m.rating, m.box_art_url,
+                                       m.box_art_path, m.scraped_at, m.ss_game_id
+                                FROM games g
+                                LEFT JOIN game_metadata m ON m.game_id = g.id
+                                WHERE g.id = ?
+                            """, (int(game_id),)).fetchone()
+                        if not row:
+                            self._send_json({"error": "not found"})
+                        else:
+                            self._send_json(dict(row))
+                elif path == "/api/ss-quota":
+                    has_dev = bool(config.screenscraper_dev_id and config.screenscraper_dev_pass)
+                    self._send_json({**_ss_last_quota, "has_dev_account": has_dev})
+                elif path == "/api/auth/status":
+                    self._send_json({
+                        "authenticated": self._is_authenticated(),
+                        "pin_configured": bool(config.web_pin_hash),
+                    })
+                elif path == "/api/local-url":
+                    ip = _get_local_ip()
+                    self._send_json({"url": f"http://{ip}:{config.web_port}", "ip": ip, "port": config.web_port})
                 elif path == "/api/wizard-detect":
                     self._send_json(_handle_wizard_detect(config))
                 elif path == "/api/catalog-status":
@@ -726,6 +959,76 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 data = {}
 
             try:
+                # S25: auth endpoints bypass session check
+                if path == "/api/auth":
+                    pin = str(data.get("pin", "")).strip()
+                    if not config.web_pin_hash:
+                        self._send_json({"ok": True})   # no PIN set → open access
+                        return
+                    if not pin:
+                        self._send_json({"ok": False, "error": "PIN requerido"})
+                        return
+                    expected = _hash_pin(pin, config.web_pin_salt)
+                    if secrets.compare_digest(expected, config.web_pin_hash):
+                        token = _create_session(config.web_session_ttl)
+                        self._send(200, "application/json; charset=utf-8",
+                                   _json_response({"ok": True}),
+                                   extra_headers=self._set_session_header(token))
+                    else:
+                        self._send_json({"ok": False, "error": "PIN incorrecto"})
+                    return
+                elif path == "/api/auth/logout":
+                    token = self._session_token()
+                    if token:
+                        _destroy_session(token)
+                    self._send(200, "application/json; charset=utf-8",
+                               _json_response({"ok": True}),
+                               extra_headers={"Set-Cookie": f"{_SESSION_COOKIE}=; Max-Age=0; Path=/"})
+                    return
+                elif path == "/api/set-pin":
+                    # Authenticated OR no PIN configured yet (first-time setup)
+                    if not self._is_authenticated():
+                        self._send_json({"error": "No autorizado"})
+                        return
+                    pin = str(data.get("pin", "")).strip()
+                    if len(pin) < 4 or len(pin) > 10:
+                        self._send_json({"error": "El PIN debe tener entre 4 y 10 dígitos"})
+                        return
+                    salt = secrets.token_hex(16)
+                    pin_hash = _hash_pin(pin, salt)
+                    from rom_manager.config import write_config_toml
+                    write_config_toml(config.project_root, {
+                        "web.pin_hash": pin_hash,
+                        "web.pin_salt": salt,
+                    })
+                    config.web_pin_hash = pin_hash
+                    config.web_pin_salt = salt
+                    # Invalidate all existing sessions so new PIN takes effect
+                    with _sessions_lock:
+                        _sessions.clear()
+                    self._send_json({"ok": True})
+                    return
+                elif path == "/api/clear-pin":
+                    if not self._is_authenticated():
+                        self._send_json({"error": "No autorizado"})
+                        return
+                    from rom_manager.config import write_config_toml
+                    write_config_toml(config.project_root, {
+                        "web.pin_hash": "",
+                        "web.pin_salt": "",
+                    })
+                    config.web_pin_hash = ""
+                    config.web_pin_salt = ""
+                    with _sessions_lock:
+                        _sessions.clear()
+                    self._send_json({"ok": True})
+                    return
+
+                # All other POST endpoints require auth
+                if not self._is_authenticated():
+                    self._send_json({"error": "No autorizado", "auth_required": True})
+                    return
+
                 if path == "/api/scan":
                     self._handle_scan(data)
                 elif path == "/api/adb-scan":
@@ -846,6 +1149,214 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     _status_repo = _get_repo(data.get("source_path", ""))
                     _status_repo.set_play_status(int(game_id), status)
                     self._send_json({"ok": True})
+                elif path == "/api/set-metadata":
+                    # S30: manual metadata editor
+                    game_id = data.get("game_id")
+                    if not game_id:
+                        self._send_json({"error": "game_id required"})
+                        return
+                    gid = int(game_id)
+                    if "notes" in data:
+                        repository.set_notes(gid, data["notes"] or None)
+                    if "canonical_title" in data:
+                        repository.set_canonical_title(gid, data["canonical_title"])
+                    _meta_fields = {k: v for k, v in data.items()
+                                    if k in {"year", "genre", "publisher", "developer", "description", "rating"}}
+                    if _meta_fields:
+                        repository.upsert_metadata_manual(gid, **_meta_fields)
+                    self._send_json({"ok": True})
+                elif path == "/api/scrape-single":
+                    # S30: scrape a single game (preview or apply)
+                    game_id = data.get("game_id")
+                    preview = bool(data.get("preview", False))
+                    download_images = bool(data.get("images", False))
+                    if not game_id:
+                        self._send_json({"error": "game_id required"})
+                        return
+                    if not config.screenscraper_user:
+                        self._send_json({"error": "Credenciales de ScreenScraper no configuradas"})
+                        return
+                    try:
+                        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
+                        from rom_manager.scraper.platform_ids import get_system_id
+                        from rom_manager.scanner.rom_scanner import utc_now
+                        with repository.connect() as _conn:
+                            _grow = _conn.execute(
+                                "SELECT g.id, g.original_filename, g.source_path, g.platform, "
+                                "g.crc32, g.md5, g.sha1, g.size_bytes, g.canonical_title "
+                                "FROM games g WHERE g.id = ?", (int(game_id),)
+                            ).fetchone()
+                        if not _grow:
+                            self._send_json({"error": "Juego no encontrado"})
+                            return
+                        _game = dict(_grow)
+                        _client = ScreenScraperClient(
+                            user=config.screenscraper_user,
+                            password=config.screenscraper_pass,
+                            dev_id=config.screenscraper_dev_id,
+                            dev_password=config.screenscraper_dev_pass,
+                        )
+                        _sys_id = get_system_id(_game["platform"])
+                        _result = _client.search(
+                            crc32=_game["crc32"], md5=_game["md5"], sha1=_game["sha1"],
+                            filename=_game["original_filename"], size_bytes=_game["size_bytes"],
+                            system_id=_sys_id,
+                        )
+                        if _result is None:
+                            _name_hint = _game.get("canonical_title") or _game["original_filename"]
+                            _result = _client.search_by_name(_name_hint, system_id=_sys_id)
+                        if _client.last_quota:
+                            _ss_last_quota.update(_client.last_quota)
+                        if _result is None:
+                            self._send_json({"found": False, "error": "No encontrado en ScreenScraper"})
+                            return
+                        _preview_data = {
+                            "found": True,
+                            "ss_game_id": _result.ss_game_id,
+                            "title": _result.title,
+                            "year": _result.year,
+                            "genre": _result.genre,
+                            "publisher": _result.publisher,
+                            "developer": _result.developer,
+                            "description": _result.description,
+                            "rating": _result.rating,
+                            "box_art_url": _result.box_art_url,
+                        }
+                        if preview:
+                            self._send_json(_preview_data)
+                            return
+                        # Apply
+                        _box_art_path = ""
+                        if download_images and _result.box_art_url:
+                            _img_dir = Path(_game["source_path"]).parent / "media" / "images"
+                            _stem = Path(_game["original_filename"]).stem
+                            _ext = ".png" if ".png" in _result.box_art_url.lower() else ".jpg"
+                            _dest = _img_dir / f"{_stem}{_ext}"
+                            download_image(_result.box_art_url, _dest)
+                            _box_art_path = str(_dest)
+                        with repository.batch() as _bconn:
+                            repository.upsert_metadata(
+                                game_id=int(game_id),
+                                ss_game_id=_result.ss_game_id,
+                                title=_result.title, year=_result.year,
+                                genre=_result.genre, publisher=_result.publisher,
+                                developer=_result.developer, description=_result.description,
+                                rating=_result.rating, box_art_url=_result.box_art_url,
+                                box_art_path=_box_art_path, scraped_at=utc_now(),
+                                connection=_bconn,
+                            )
+                        self._send_json({**_preview_data, "applied": True})
+                    except Exception as _exc:
+                        self._send_json({"error": str(_exc)})
+                elif path == "/api/toggle-favorite":
+                    game_id = data.get("game_id")
+                    if not game_id:
+                        self._send_json({"error": "game_id required"})
+                        return
+                    new_val = repository.toggle_favorite(int(game_id))
+                    self._send_json({"ok": True, "is_favorite": new_val})
+                elif path == "/api/tag":
+                    game_id = data.get("game_id")
+                    tag = str(data.get("tag", "")).strip()
+                    action = data.get("action", "add")  # "add" | "remove"
+                    if not game_id or not tag:
+                        self._send_json({"error": "game_id and tag required"})
+                        return
+                    if action == "remove":
+                        repository.remove_tag(int(game_id), tag)
+                    else:
+                        repository.add_tag(int(game_id), tag)
+                    self._send_json({"ok": True, "tags": repository.get_tags(int(game_id))})
+                elif path == "/api/launch":
+                    import subprocess
+                    game_id = data.get("game_id")
+                    if not game_id:
+                        self._send_json({"error": "game_id required"})
+                        return
+                    with repository.connect() as conn:
+                        row = conn.execute(
+                            "SELECT source_path, platform FROM games WHERE id = ?", (int(game_id),)
+                        ).fetchone()
+                    if not row:
+                        self._send_json({"error": "game not found"})
+                        return
+                    retroarch_exe = config.retroarch_path or ""
+                    if not retroarch_exe or not Path(retroarch_exe).exists():
+                        self._send_json({"error": "RetroArch no configurado. Ajusta retroarch_path en Settings."})
+                        return
+                    platform = row["platform"] or ""
+                    core = (config.launcher_cores or {}).get(platform, "")
+                    rom = row["source_path"]
+                    cmd = [retroarch_exe]
+                    if core:
+                        cmd += ["--libretro", core]
+                    cmd.append(rom)
+                    try:
+                        subprocess.Popen(cmd)
+                        self._send_json({"ok": True, "cmd": cmd})
+                    except Exception as exc:
+                        self._send_json({"error": str(exc)})
+                elif path == "/api/restore-backup":
+                    backup_path_str  = data.get("backup_path", "").strip()
+                    original_save_str = data.get("original_save", "").strip()
+                    if not backup_path_str or not original_save_str:
+                        self._send_json({"error": "backup_path and original_save required"})
+                        return
+                    from rom_manager.backup.save_backup import restore_backup
+                    bp = Path(backup_path_str)
+                    tp = Path(original_save_str)
+                    # Safety: target must be inside library_root
+                    if config.library_root and not str(tp).startswith(str(config.library_root)):
+                        self._send_json({"error": "La ruta destino está fuera de la biblioteca"})
+                        return
+                    ok = restore_backup(bp, tp)
+                    if ok:
+                        self._send_json({"ok": True, "restored_to": str(tp)})
+                    else:
+                        self._send_json({"error": f"Backup no encontrado: {bp.name}"})
+                elif path == "/api/backup-now":
+                    # Manual full saves backup — runs in background
+                    def _do_backup_now():
+                        try:
+                            import rom_manager.web.server as _srv
+                            from rom_manager.backup.save_backup import create_saves_zip
+                            saves_dirs = []
+                            if config.library_root and config.library_root.exists():
+                                saves_dirs.append(config.library_root)
+                            for src in config.sync_sources:
+                                p = Path(src.local_dir)
+                                if p.exists() and p not in saves_dirs:
+                                    saves_dirs.append(p)
+                            zip_path = create_saves_zip(
+                                saves_dirs,
+                                set(config.save_extensions),
+                                config.data_dir / "saves-backup" / "saves-zips",
+                            )
+                            import time as _t
+                            _srv._job_results["backup_now"] = {
+                                "ok": True,
+                                "zip": str(zip_path),
+                                "size": zip_path.stat().st_size,
+                                "result_ts": str(_t.time()),
+                            }
+                        except Exception as exc:
+                            import time as _t
+                            import rom_manager.web.server as _srv
+                            _srv._job_results["backup_now"] = {
+                                "ok": False, "error": str(exc), "result_ts": str(_t.time()),
+                            }
+                        finally:
+                            import rom_manager.web.server as _srv
+                            with _srv._job_lock:
+                                _srv._jobs["backup_now"] = False
+
+                    with _job_lock:
+                        if _jobs.get("backup_now"):
+                            self._send_json({"status": "already_running"})
+                            return
+                        _jobs["backup_now"] = True
+                    threading.Thread(target=_do_backup_now, daemon=True).start()
+                    self._send_json({"status": "started"})
                 elif path == "/api/export-pegasus":
                     if not config.library_root:
                         self._send_json({"error": "library_root not configured"})
@@ -1363,6 +1874,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         # sync_all=True → pass empty tuple so list_local_saves includes all files
                         exts = tuple() if source.sync_all else config.save_extensions
                         try:
+                            _bk_root = config.data_dir if config.backup_saves_enabled else None
                             result, decisions = sync_saves(
                                 saves_dir,
                                 source.remote,
@@ -1370,6 +1882,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 repository=repository,
                                 save_extensions=exts,
                                 dry_run=dry_run,
+                                backup_root=_bk_root,
+                                backup_keep_n=config.backup_saves_keep_n,
                             )
                             all_results.append({
                                 "name": source.name,
@@ -1509,6 +2023,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 "inbox.auto_process", "inbox.delete_source",
                 "android.device_name",
                 "web.host",
+                "launchers.retroarch",
+                "backup.saves_enabled", "backup.saves_keep_n",
             }
             updates = {k: v for k, v in data.items() if k in allowed}
             if not updates:
@@ -1539,6 +2055,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             config.inbox_delete_source = new_cfg.inbox_delete_source
             config.sync_sources = new_cfg.sync_sources
             config.web_host = new_cfg.web_host
+            config.retroarch_path = new_cfg.retroarch_path
+            config.launcher_cores = new_cfg.launcher_cores
+            config.backup_saves_enabled = new_cfg.backup_saves_enabled
+            config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
             _auto_sync_enabled = new_cfg.auto_sync_enabled
             self._send_json({"saved": list(updates.keys())})
 
@@ -1854,6 +2374,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 # Fallback: search by cleaned name (no hash)
                                 name_hint = game.get("canonical_title") or game["original_filename"]
                                 result = client.search_by_name(name_hint, system_id=sys_id)
+                            # Persist quota snapshot from client
+                            if client.last_quota:
+                                _ss_last_quota.update(client.last_quota)
                             if result is None:
                                 skipped += 1
                                 continue
@@ -2009,7 +2532,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         "platform_unknown": summary.platform_unknown,
                         "cancelled": _ra_cancel.is_set(),
                         "alternatives_csv": alternatives_csv,
-                        # Only include first 50 "actionable" results to keep response size reasonable
+                        # Full alternatives list — pagination done client-side
                         "alternatives": [
                             {
                                 "platform": r.platform,
@@ -2022,7 +2545,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             }
                             for r in summary.results
                             if r.status == "no_support_alternative" and r.alternative
-                        ][:50],
+                        ],
                         # Full list of games with NO RA support (for bulk discard)
                         "no_support_entries": [
                             {"source_path": r.source_path, "filename": r.original_filename, "platform": r.platform}
@@ -2690,6 +3213,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 # Already gone — remove from DB if present
                 with repository.connect() as _c:
                     _c.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
+                    _c.commit()
                 self._send_json({"ok": True, "note": "file already missing; removed from DB"})
                 return
             discard_dir = p.parent / "_descartados"
@@ -2711,6 +3235,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 # Step 2: delete from DB — if this fails, roll back the file move
                 with repository.connect() as _c:
                     _c.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
+                    _c.commit()
             except Exception as exc:
                 if moved and dest is not None and dest.exists():
                     try:
@@ -2763,6 +3288,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         # DB delete only after file is safely moved
                         with repository.connect() as _c:
                             _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
+                            _c.commit()
                         discarded += 1
                     except Exception as exc:
                         failed += 1
@@ -2897,7 +3423,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
                             continue
                         try:
-                            outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                            _bk = config.data_dir if config.backup_saves_enabled else None
+                            outcome = rename_rom_with_saves(
+                                op.source_path, op.target_path, save_exts,
+                                backup_root=_bk,
+                                backup_keep_n=config.backup_saves_keep_n,
+                            )
                         except Exception as exc:
                             skipped += 1
                             skip_details.append(f"{op.source_path.name}: unexpected error — {exc}")

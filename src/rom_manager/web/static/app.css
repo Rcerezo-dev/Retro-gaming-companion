@@ -167,3 +167,115 @@
   .toast.err { border-left-color:#f44747; }
   .toast.info { border-left-color:#569cd6; }
   @keyframes toast-in { from { opacity:0; transform:translateX(20px) scale(.95); } to { opacity:1; transform:translateX(0) scale(1); } }
+
+  /* ── S24: UX improvements ── */
+
+  /* 24-3: Settings per-field save checkmark */
+  .cfg-saved { display: block; height: 14px; margin-top: 3px; font-size: 11px; color: #4ec9b0; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .cfg-saved.visible { opacity: 1; }
+
+  /* 24-2: Improved empty state with CTA */
+  .empty-state { text-align: center; padding: 56px 24px; }
+  .empty-state .es-icon { font-size: 44px; display: block; margin-bottom: 14px; }
+  .empty-state .es-title { color: #888; font-size: 15px; margin-bottom: 8px; }
+  .empty-state .es-sub { color: #555; font-size: 12px; line-height: 1.7; margin-bottom: 22px; }
+
+  /* 24-4: Destructive confirm modal */
+  #confirm-modal { position: fixed; inset: 0; z-index: 9500; background: rgba(0,0,0,0.82); align-items: center; justify-content: center; }
+  #confirm-box { background: #1e1e2e; border: 1px solid #f44747; border-radius: 10px; padding: 28px 32px; max-width: 460px; width: calc(100% - 48px); box-shadow: 0 8px 40px rgba(0,0,0,.7); }
+  #confirm-title { color: #f44747; font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+  #confirm-body { color: #888; font-size: 13px; line-height: 1.7; margin-bottom: 24px; }
+  #confirm-body strong { color: #d4d4d4; }
+  .confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* 24-5: Header last-sync indicator */
+  #header-last-sync { margin-left: auto; font-size: 11px; color: #555; white-space: nowrap; cursor: default; }
+  #header-last-sync.sync-ok  { color: #4ec9b0; }
+  #header-last-sync.sync-err { color: #ce9178; }
+
+  /* 24-7: Card quick-action buttons */
+  .card-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #2a2a3a; flex-wrap: wrap; }
+  .card-actions .btn { font-size: 11px; padding: 3px 8px; min-height: unset; }
+
+  /* 24-6: Responsive for small screens / Android console browser */
+  @media (max-width: 640px) {
+    nav button { padding: 10px 14px; font-size: 12px; min-height: 44px; }
+    main { padding: 12px; }
+    #device-selector { flex-wrap: wrap; gap: 4px; }
+    .cards { flex-direction: column; }
+    .card { min-width: unset; }
+    .toolbar input, .toolbar select { width: 100%; }
+    .btn { min-height: 36px; padding: 8px 14px; }
+    .actions-panel { max-width: 100% !important; }
+    .games-grid { grid-template-columns: repeat(2, 1fr); }
+    header { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+    header h1 { font-size: 16px; }
+    #header-last-sync { margin-left: 0; width: 100%; }
+    .confirm-actions { flex-direction: column-reverse; }
+    .confirm-actions .btn { width: 100%; justify-content: center; }
+  }
+
+  /* ── S27: Visual redesign ─────────────────────────────────────────────────── */
+
+  /* 27-5: More generous table padding */
+  td { padding: 10px 12px; }
+  th { padding: 9px 12px; }
+
+  /* 27-6: Tab fade-in animation */
+  @keyframes tab-fade-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+  .tab.fading-in { animation: tab-fade-in 0.18s ease forwards; }
+
+  /* 27-1: Hero last-played card */
+  .hero-game { display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, #13131f 0%, #1a1a2e 100%); border: 1px solid #2a2a3a; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; border-left: 3px solid #4ec9b0; }
+  .hero-game img { width: 72px; height: 72px; object-fit: contain; border-radius: 6px; background: #0a0a0a; flex-shrink: 0; }
+  .hero-game .hg-body { flex: 1; min-width: 0; }
+  .hero-game .hg-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .hero-game .hg-title { font-size: 16px; font-weight: 600; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+  .hero-game .hg-meta { font-size: 11px; color: #555; }
+
+  /* 27-3: Game detail side panel */
+  .game-panel-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 8000; backdrop-filter: blur(2px); }
+  .game-panel-overlay.open { display: block; }
+  .game-panel { position: fixed; top: 0; right: -500px; width: 460px; max-width: 100vw; height: 100vh; background: #13131f; border-left: 1px solid #2a2a3a; z-index: 8001; overflow-y: auto; transition: right 0.25s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column; }
+  .game-panel.open { right: 0; }
+  .gp-close { position: absolute; top: 14px; right: 16px; background: none; border: none; color: #666; font-size: 22px; cursor: pointer; padding: 4px; line-height: 1; transition: color .15s; }
+  .gp-close:hover { color: #d4d4d4; }
+  .gp-cover-wrap { position: relative; background: #0a0a12; display: flex; justify-content: center; align-items: center; min-height: 180px; }
+  .gp-cover-wrap img { max-height: 260px; max-width: 100%; object-fit: contain; display: block; }
+  .gp-cover-wrap .gp-no-art { color: #333; font-size: 56px; }
+  .gp-body { padding: 20px 22px; flex: 1; }
+  .gp-title { font-size: 17px; font-weight: 600; color: #e0e0e0; margin: 0 0 6px; line-height: 1.4; }
+  .gp-filename { font-size: 11px; color: #555; font-family: 'Consolas', monospace; margin-bottom: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gp-meta { display: grid; grid-template-columns: 90px 1fr; gap: 7px 14px; font-size: 12px; margin-bottom: 16px; }
+  .gp-meta .gk { color: #555; }
+  .gp-meta .gv { color: #d4d4d4; }
+  .gp-desc { font-size: 12px; color: #888; line-height: 1.75; border-top: 1px solid #1e1e2e; padding-top: 14px; margin-top: 4px; }
+  .gp-status-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #1e1e2e; }
+  .gp-status-row label { font-size: 11px; color: #555; }
+  @media (max-width: 640px) {
+    .game-panel { width: 100vw; }
+  }
+
+  /* S28: Continue cards (horizontal scroll) */
+  .continue-card { flex: 0 0 140px; scroll-snap-align: start; background: #1e1e2e; border: 1px solid #2a2a3a; border-radius: 8px; overflow: hidden; cursor: pointer; transition: box-shadow .15s; position: relative; }
+  .continue-card:hover { box-shadow: 0 0 14px rgba(78,201,176,.15); border-color: #4ec9b0; }
+  .continue-card .cc-cover { width: 100%; aspect-ratio: 3/4; object-fit: cover; background: #111; display: flex; align-items: center; justify-content: center; color: #333; font-size: 36px; }
+  .continue-card .cc-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .continue-card .cc-info { padding: 7px 8px; }
+  .continue-card .cc-title { font-size: 11px; color: #d4d4d4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .continue-card .cc-plat { font-size: 10px; color: #555; margin-top: 2px; }
+
+  /* S28: Favorite star button */
+  .fav-star { background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 2px; color: #333; line-height: 1; transition: color .1s; }
+  .fav-star.active { color: #f9c74f; }
+  .fav-star:hover { color: #f9c74f; }
+
+  /* S28: Tag chips */
+  .tag-chip { display: inline-flex; align-items: center; gap: 4px; background: #1a2a3a; border: 1px solid #2a4a6a; color: #7ab8d4; font-size: 11px; padding: 2px 8px; border-radius: 12px; cursor: default; }
+  .tag-chip .tag-remove { cursor: pointer; color: #555; font-size: 13px; line-height: 1; }
+  .tag-chip .tag-remove:hover { color: #f44747; }
+
+  /* S28: Global search results */
+  #global-search-results .sr-item { padding: 8px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid #1e1e2e; display: flex; align-items: center; gap: 8px; }
+  #global-search-results .sr-item:hover { background: #1e1e2e; }
+  #global-search-results .sr-item:last-child { border-bottom: none; }

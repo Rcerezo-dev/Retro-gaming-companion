@@ -47,10 +47,12 @@ def test_parse_bins_from_cue(tmp_path: Path) -> None:
 
 
 def test_parse_bins_missing_file(tmp_path: Path) -> None:
+    # parse_bins_from_cue returns all referenced bins regardless of existence
     cue = tmp_path / "game.cue"
     _write_cue(cue, ["missing.bin"])
     result = parse_bins_from_cue(cue)
-    assert result == []
+    assert len(result) == 1
+    assert result[0].name == "missing.bin"
 
 
 def test_convert_directory_dry_run(tmp_path: Path) -> None:

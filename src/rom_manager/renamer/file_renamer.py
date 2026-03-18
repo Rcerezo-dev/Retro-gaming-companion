@@ -19,6 +19,8 @@ def rename_rom_with_saves(
     source: Path,
     target: Path,
     save_extensions: frozenset[str],
+    backup_root: Path | None = None,
+    backup_keep_n: int = 5,
 ) -> RenameOutcome:
     """Rename *source* → *target* and all companion save files atomically.
 
@@ -44,6 +46,15 @@ def rename_rom_with_saves(
         )
 
     new_stem = target.stem
+
+    # S29: backup companion saves before renaming/moving them
+    if backup_root:
+        try:
+            from rom_manager.backup.save_backup import backup_save
+            for sav in companions:
+                backup_save(sav, backup_root, keep_n=backup_keep_n)
+        except Exception:
+            pass  # backup failure must never block rename
 
     # Step 1: rename the ROM
     try:

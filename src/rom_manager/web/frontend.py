@@ -122,7 +122,27 @@ HTML = r"""<!DOCTYPE html>
 <header>
   <h1>&#x1F3AE; Retro Vault</h1>
   <span class="subtitle">biblioteca local</span>
+  <div id="global-search-wrap" style="flex:1;max-width:320px;margin:0 16px;position:relative">
+    <input id="global-search" type="text" placeholder="&#x1F50D; Buscar juego…" autocomplete="off"
+      style="width:100%;background:#0f0f0f;border:1px solid #333;color:#d4d4d4;padding:5px 10px;border-radius:20px;font:inherit;font-size:13px;outline:none"
+      oninput="onGlobalSearch(this.value)">
+    <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1e1e2e;border:1px solid #333;border-radius:6px;z-index:500;max-height:320px;overflow-y:auto"></div>
+  </div>
+  <span id="header-last-sync" title="Última sincronización"></span>
+  <button id="btn-logout" class="btn" style="display:none;margin-left:8px;font-size:11px;padding:3px 10px;border-color:#555;color:#555" onclick="doLogout()" title="Cerrar sesión">&#x1F512; Salir</button>
 </header>
+
+<!-- CONFIRM MODAL (24-4) -->
+<div id="confirm-modal" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.82);align-items:center;justify-content:center" role="dialog" aria-modal="true">
+  <div id="confirm-box">
+    <div id="confirm-title"></div>
+    <div id="confirm-body"></div>
+    <div class="confirm-actions">
+      <button class="btn" onclick="_closeConfirm()">Cancelar</button>
+      <button id="confirm-ok" class="btn danger">Confirmar</button>
+    </div>
+  </div>
+</div>
 
 <nav>
   <button class="active" id="nav-overview" onclick="showTab('overview')">Inicio</button>
@@ -184,6 +204,13 @@ HTML = r"""<!DOCTYPE html>
     <div style="font-size:12px;color:#888;margin-bottom:14px">Organiza y limpia tu biblioteca por primera vez con el asistente guiado.</div>
     <div id="ov-setup-checklist" style="margin-bottom:14px;font-size:12px;line-height:2"></div>
     <button class="btn primary" onclick="showWizard()" style="background:#5a4dab;border-color:#7a6dcb;font-size:13px">Iniciar asistente de configuracion</button>
+  </div>
+
+  <!-- 27-1 / 28-2: Continuar jugando -->
+  <div id="ov-hero-game" style="display:none;margin-bottom:20px"></div>
+  <div id="ov-continue-section" style="display:none;margin-bottom:24px">
+    <h4 style="color:#888;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Continuar jugando</h4>
+    <div id="ov-continue-scroll" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory"></div>
   </div>
 
   <!-- Últimas partidas + ROMs por plataforma -->
@@ -357,6 +384,10 @@ HTML = r"""<!DOCTYPE html>
       <option value="100pct">&#x1F4AF; Al 100%</option>
       <option value="abandoned">&#x23F8; Abandonado</option>
     </select>
+    <button id="btn-filter-favorites" title="Solo favoritos" onclick="toggleFavoritesFilter()" style="background:#1e1e2e;border:1px solid #444;color:#888;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2605; Favoritos</button>
+    <select id="games-tag-filter" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">Todos los tags</option>
+    </select>
     <span id="games-count" style="color:#666;margin-left:8px;"></span>
     <div class="view-toggle" style="margin-left:auto" title="Cambiar vista">
       <button id="btn-view-list" class="active" onclick="setGamesView('list')" title="Vista lista">&#x2630;</button>
@@ -369,6 +400,7 @@ HTML = r"""<!DOCTYPE html>
     <div id="games-list-view" style="overflow-x:auto">
       <table id="games-table">
         <thead><tr>
+          <th style="width:28px;padding:6px 4px" title="Favorito">&#x2605;</th>
           <th style="width:42px"></th>
           <th>Plataforma</th><th>Título canónico</th><th>Archivo original</th>
           <th>Estado</th>
@@ -501,6 +533,21 @@ HTML = r"""<!DOCTYPE html>
     <div id="sync-decisions" style="margin-top:12px"></div>
   </div>
   <div id="sync-content"><p class="loading">Cargando…</p></div>
+
+  <!-- S29: BACKUP DE SAVES -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F9F2; Backup de saves</h3>
+    <p style="color:#888;font-size:13px;margin:0 0 12px">Copia versional local de todos los saves. Restaurar un save lo pone de vuelta en <code>library_root</code> — el siguiente sync lo sube a Dropbox y llega a la consola.</p>
+    <div class="actions-row">
+      <button id="btn-backup-now" class="btn" onclick="backupNow()">Hacer backup ahora</button>
+      <span style="color:#555;font-size:12px">Crea una copia de todos los saves en <code>.rommgr/saves-backup/</code></span>
+    </div>
+    <div id="job-result-backup-now" class="job-result"></div>
+    <div style="margin-top:14px">
+      <div style="color:#555;font-size:11px;margin-bottom:6px">ZIPs manuales guardados</div>
+      <div id="manual-backups-list" style="font-size:12px;max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
 
   <!-- LIBRARY COMPARATOR -->
   <div class="actions-panel" style="margin-top:20px">
@@ -906,7 +953,7 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div class="actions-row" style="margin-top:10px">
       <button id="btn-scrape" class="btn primary" onclick="doScrape()">Iniciar scraping</button>
-      <span style="color:#555;font-size:12px">Respeta el rate limit de ScreenScraper (~1 req/s)</span>
+      <span id="scrape-rate-note" style="color:#555;font-size:12px">Respeta el rate limit de ScreenScraper (~1 req/s sin cuenta dev, ~3 req/s con dev)</span>
     </div>
     <div id="scrape-progress-wrap" style="display:none;margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
@@ -1345,6 +1392,7 @@ HTML = r"""<!DOCTYPE html>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">library_root — carpeta raíz de la biblioteca (ROMs + saves)</label>
         <input id="cfg-library-root" type="text" style="width:100%" placeholder="E:/ROMs">
+        <span class="cfg-saved" id="cfg-check-library-root">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Nombre del dispositivo Android</label>
@@ -1361,11 +1409,13 @@ HTML = r"""<!DOCTYPE html>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta de la consola Android / Tarjeta SD — carpeta raíz montada en el PC</label>
         <input id="cfg-anbernic-root" type="text" style="width:100%" placeholder="E:\\Carpetas anbernic">
+        <span class="cfg-saved" id="cfg-check-anbernic-root">&#x2713; Guardado</span>
         <div style="color:#555;font-size:11px;margin-top:3px">Se usa para el sync automático al detectar la tarjeta SD y en Cable Sync modo filesystem.</div>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote — ruta en el cloud para saves</label>
         <input id="cfg-rclone-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
+        <span class="cfg-saved" id="cfg-check-rclone-remote">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Acceso a la interfaz web</label>
@@ -1378,18 +1428,32 @@ HTML = r"""<!DOCTYPE html>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper usuario</label>
         <input id="cfg-ss-user" type="text" style="width:100%" placeholder="tu_usuario">
+        <span class="cfg-saved" id="cfg-check-ss-user">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper contraseña</label>
         <input id="cfg-ss-pass" type="password" style="width:100%" placeholder="••••••••">
+        <span class="cfg-saved" id="cfg-check-ss-pass">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper devid <span style="color:#555">(requerido para API — screenscraper.fr → Mi cuenta → Solicitar acceso API)</span></label>
         <input id="cfg-ss-devid" type="text" style="width:100%" placeholder="tu_devid">
+        <span class="cfg-saved" id="cfg-check-ss-devid">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper devpassword</label>
         <input id="cfg-ss-devpass" type="password" style="width:100%" placeholder="••••••••">
+        <span class="cfg-saved" id="cfg-check-ss-devpass">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="color:#888;font-size:11px">Cuota ScreenScraper (última sesión de scraping)</label>
+          <button class="btn" style="font-size:11px;padding:3px 10px" onclick="loadSsQuota()">&#x21BB; Actualizar</button>
+        </div>
+        <div id="ss-quota-bar" style="display:none;background:#161626;border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px">
+          <div id="ss-quota-fill" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.5s"></div>
+        </div>
+        <div id="ss-quota-label" style="font-size:11px;color:#555">Realiza un scraping para ver la cuota.</div>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">chdman — ruta al binario (para conversión a CHD)</label>
@@ -1397,6 +1461,7 @@ HTML = r"""<!DOCTYPE html>
           <input id="cfg-chdman" type="text" style="flex:1" placeholder="chdman  o  C:/tools/chdman.exe">
           <button class="btn" onclick="testChdman()" style="flex-shrink:0">Probar</button>
         </div>
+        <span class="cfg-saved" id="cfg-check-chdman">&#x2713; Guardado</span>
         <div id="chdman-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
       </div>
       <div style="width:100%">
@@ -1405,11 +1470,13 @@ HTML = r"""<!DOCTYPE html>
           <input id="cfg-adb" type="text" style="flex:1" placeholder="adb  o  tools/adb.exe">
           <button class="btn" onclick="testAdbBinary()" style="flex-shrink:0">Probar</button>
         </div>
+        <span class="cfg-saved" id="cfg-check-adb">&#x2713; Guardado</span>
         <div id="adb-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">RetroAchievements API key — <a href="https://retroachievements.org/settings" target="_blank" style="color:#4ec9b0">obtener en RA Settings → Web API Key</a></label>
         <input id="cfg-ra-api-key" type="text" style="width:100%" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+        <span class="cfg-saved" id="cfg-check-ra-api-key">&#x2713; Guardado</span>
       </div>
     </div>
 
@@ -1418,6 +1485,61 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div id="settings-result" class="job-result"></div>
   </div>
+
+  <!-- S25: PIN + URL local -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Acceso remoto — PIN y URL</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      El PIN protege la interfaz cuando el servidor está expuesto en la red local (<code>host = 0.0.0.0</code> en Settings).
+      Sin PIN configurado no hay protección. <strong style="color:#4ec9b0">Solo actívalo si usas <code>0.0.0.0</code>.</strong>
+    </p>
+
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">PIN de acceso (4–10 dígitos)</label>
+        <input id="pin-input" type="password" placeholder="••••" maxlength="10" style="width:160px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:7px 12px;border-radius:4px;font:inherit;font-size:18px;letter-spacing:6px;text-align:center">
+      </div>
+      <button class="btn primary" onclick="setPin()">Activar PIN</button>
+      <button class="btn danger" id="btn-clear-pin" onclick="clearPin()" style="display:none">Desactivar PIN</button>
+    </div>
+    <div id="pin-status" style="font-size:12px;color:#555;margin-bottom:20px">Comprobando…</div>
+
+    <div style="border-top:1px solid #2a2a3a;padding-top:16px">
+      <label style="color:#888;font-size:11px;display:block;margin-bottom:8px">URL de acceso desde la red local</label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <code id="local-url-display" style="color:#4ec9b0;font-size:14px;background:#0a0a0a;padding:6px 12px;border-radius:4px">cargando…</code>
+        <button class="btn" onclick="copyLocalUrl()" style="font-size:12px">Copiar</button>
+        <button class="btn" onclick="loadLocalUrl()" style="font-size:12px">&#x21BB;</button>
+      </div>
+      <div style="color:#555;font-size:11px;margin-top:6px">Abre esta URL desde el navegador de tu consola cuando estés en la misma red WiFi.</div>
+    </div>
+  </div>
+
+  <!-- S28: Launcher settings -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x25B6; Lanzador — RetroArch</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Configura la ruta a RetroArch para abrir juegos directamente desde el panel de detalle.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:100px">RetroArch exe</label>
+      <input id="cfg-retroarch-path" type="text" style="flex:1" placeholder="C:/RetroArch/retroarch.exe">
+    </div>
+    <div style="font-size:11px;color:#555;margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente añadiendo <code>[launchers] retroarch = "ruta"</code>.</div>
+  </div>
+
+  <!-- S29: Backup settings -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F9F2; Backup de saves</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Backup local versionado antes de cada sync/rename. Se guarda en <code>.rommgr/saves-backup/</code>.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:160px">Activar backup autom&#xe1;tico</label>
+      <input type="checkbox" id="cfg-backup-enabled" style="width:auto;margin:0">
+    </div>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:160px">Versiones a conservar</label>
+      <input type="number" id="cfg-backup-keep-n" min="1" max="50" style="width:70px">
+    </div>
+  </div>
+
   <div class="actions-panel" style="margin-top:20px">
     <h3>Cat&#xe1;logos DAT</h3>
     <p style="color:#888;font-size:12px;margin-bottom:10px">No-Intro y Redump &#x2014; necesarios para identificar ROMs y renombrarlos seg&#xfa;n su t&#xed;tulo can&#xf3;nico.</p>
@@ -1475,6 +1597,112 @@ HTML = r"""<!DOCTYPE html>
 
 <script src="/static/app.js"></script>
 <div id="toast-container"></div>
+
+<!-- 27-3: Game detail side panel -->
+<div class="game-panel-overlay" id="game-panel-overlay" onclick="closeGamePanel()"></div>
+<div class="game-panel" id="game-panel">
+  <button class="gp-close" onclick="closeGamePanel()" title="Cerrar">&times;</button>
+  <div class="gp-cover-wrap" id="gp-cover-wrap">
+    <span class="gp-no-art">&#127918;</span>
+  </div>
+  <div class="gp-body">
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <h2 class="gp-title" id="gp-title" style="flex:1">—</h2>
+      <button id="gp-fav-btn" title="Marcar como favorito" onclick="gpToggleFavorite()"
+        style="background:none;border:none;font-size:22px;cursor:pointer;padding:0;line-height:1;color:#555;flex-shrink:0">&#x2605;</button>
+    </div>
+    <div class="gp-filename" id="gp-filename"></div>
+    <div class="gp-meta" id="gp-meta"></div>
+    <div class="gp-status-row">
+      <label>Estado</label>
+      <select id="gp-status-sel" style="background:#1e1e2e;border:1px solid #333;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer" onchange="gpSetStatus(this.value)">
+        <option value="">—</option>
+        <option value="playing">&#127918; Jugando</option>
+        <option value="completed">&#9989; Completado</option>
+        <option value="100pct">&#128175; Al 100%</option>
+        <option value="abandoned">&#9208; Abandonado</option>
+      </select>
+      <button onclick="gpLaunch()" id="gp-launch-btn"
+        style="margin-left:auto;background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:4px 12px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer;display:none">
+        &#x25B6; Abrir en RetroArch
+      </button>
+    </div>
+    <div id="gp-stateshot-wrap" style="display:none;margin-top:10px">
+      <div style="color:#555;font-size:11px;margin-bottom:4px">&#x1F4BE; Save-state</div>
+      <img id="gp-stateshot" src="" alt="save-state screenshot" style="width:100%;border-radius:4px;border:1px solid #333">
+    </div>
+    <div id="gp-tags-wrap" style="margin-top:12px">
+      <div style="color:#555;font-size:11px;margin-bottom:6px">Tags</div>
+      <div id="gp-tags-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="gp-tag-input" type="text" placeholder="Nuevo tag…" maxlength="30"
+          style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px"
+          onkeydown="if(event.key==='Enter')gpAddTag()">
+        <button onclick="gpAddTag()" style="background:#1e1e2e;border:1px solid #444;color:#4ec9b0;padding:4px 10px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">+</button>
+      </div>
+    </div>
+    <!-- S30: Notas personales -->
+    <div style="margin-top:12px">
+      <div style="color:#555;font-size:11px;margin-bottom:4px">&#x1F4DD; Notas personales</div>
+      <textarea id="gp-notes" placeholder="Trucos, claves, config de controller, d&#xf3;nde lo dej&#xe9;&#x2026;"
+        style="width:100%;min-height:56px;background:#0a0a0a;border:1px solid #222;color:#555;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
+        oninput="gpNotesInput()"
+        onfocus="this.style.borderColor='#444';this.style.color='#d4d4d4'"
+        onblur="this.style.borderColor='#222';this.style.color=this.value?'#d4d4d4':'#555'"></textarea>
+    </div>
+    <!-- S30: Metadata editor collapsible -->
+    <div style="margin-top:10px">
+      <button id="gp-meta-edit-toggle" onclick="gpToggleMetaEdit()"
+        style="background:none;border:none;color:#444;font-size:11px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px">
+        &#x270F; Editar metadatos
+      </button>
+      <div id="gp-meta-edit-wrap" style="display:none;margin-top:10px;padding:10px;background:#0a0a0a;border:1px solid #222;border-radius:4px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div>
+            <div style="color:#555;font-size:10px;margin-bottom:3px">T&#xed;tulo can&#xf3;nico</div>
+            <input id="gme-title" type="text" style="width:100%;box-sizing:border-box" placeholder="T&#xed;tulo">
+          </div>
+          <div>
+            <div style="color:#555;font-size:10px;margin-bottom:3px">A&#xf1;o</div>
+            <input id="gme-year" type="text" style="width:100%;box-sizing:border-box" placeholder="1996" maxlength="4">
+          </div>
+          <div>
+            <div style="color:#555;font-size:10px;margin-bottom:3px">G&#xe9;nero</div>
+            <input id="gme-genre" type="text" style="width:100%;box-sizing:border-box" placeholder="Platform">
+          </div>
+          <div>
+            <div style="color:#555;font-size:10px;margin-bottom:3px">Publisher</div>
+            <input id="gme-publisher" type="text" style="width:100%;box-sizing:border-box" placeholder="Nintendo">
+          </div>
+          <div>
+            <div style="color:#555;font-size:10px;margin-bottom:3px">Developer</div>
+            <input id="gme-developer" type="text" style="width:100%;box-sizing:border-box" placeholder="Nintendo R&amp;D1">
+          </div>
+          <div>
+            <div style="color:#555;font-size:10px;margin-bottom:3px">Nota / Rating</div>
+            <input id="gme-rating" type="text" style="width:100%;box-sizing:border-box" placeholder="9/10">
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="color:#555;font-size:10px;margin-bottom:3px">Descripci&#xf3;n</div>
+          <textarea id="gme-description" style="width:100%;min-height:52px;background:#111;border:1px solid #333;color:#d4d4d4;padding:5px 7px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box" placeholder="Descripci&#xf3;n del juego&#x2026;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="gpSaveMetaFields()" style="background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:4px 14px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Guardar</button>
+          <span id="gme-result" style="font-size:11px;color:#555"></span>
+          <button onclick="gpScrapeSingle()" style="margin-left:auto;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">&#x1F50D; Re-scrapear</button>
+        </div>
+        <!-- S30-4: preview de scraping -->
+        <div id="gp-scrape-preview" style="display:none;margin-top:10px;padding:8px;background:#111;border:1px solid #333;border-radius:4px;font-size:11px"></div>
+      </div>
+    </div>
+    <div id="gp-backups-wrap" style="margin-top:14px;display:none">
+      <div style="color:#555;font-size:11px;margin-bottom:6px">&#x1F9F2; Historial de saves</div>
+      <div id="gp-backups-list" style="max-height:150px;overflow-y:auto;font-size:11px"></div>
+    </div>
+    <div class="gp-desc" id="gp-desc" style="display:none"></div>
+  </div>
+</div>
 </body>
 </html>
 """

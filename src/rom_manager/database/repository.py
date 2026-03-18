@@ -720,13 +720,17 @@ class LibraryRepository:
         file_type: str | None = "rom",
         search: str | None = None,
         play_status: str | None = None,
+        favorite: bool = False,
+        tag: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
 
         *status* can be ``'unresolved'`` (no canonical_title) or ``'matched'``.
         *source_root* filters to only games whose source_path starts with the given prefix.
         *file_type*: ``'rom'`` = ROMs only (default); ``''`` = ROMs + saves; ``None`` = all.
-        *search*: filters by canonical_title or original_filename (case-insensitive LIKE).
+        *search*: filters by canonical_title, original_filename or platform (case-insensitive LIKE).
+        *favorite*: if True, only return favorites.
+        *tag*: if given, only return games with that tag.
         """
         conditions: list[str] = []
         params: list[object] = []
@@ -751,11 +755,21 @@ class LibraryRepository:
             params.append(source_root.rstrip("/\\").replace("%", "%%") + "%")
         if search:
             like = "%" + search.replace("%", "%%").replace("_", "\\_") + "%"
-            conditions.append("(canonical_title LIKE ? ESCAPE '\\' OR original_filename LIKE ? ESCAPE '\\')")
-            params.extend([like, like])
+            conditions.append(
+                "(canonical_title LIKE ? ESCAPE '\\' OR original_filename LIKE ? ESCAPE '\\'"
+                " OR platform LIKE ? ESCAPE '\\')"
+            )
+            params.extend([like, like, like])
         if play_status:
             conditions.append("play_status = ?")
             params.append(play_status)
+        if favorite:
+            conditions.append("is_favorite = 1")
+        if tag:
+            conditions.append(
+                "id IN (SELECT game_id FROM game_tags WHERE tag = ?)"
+            )
+            params.append(tag)
 
         where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -763,7 +777,8 @@ class LibraryRepository:
         select_sql = (
             "SELECT id, original_filename, source_path, platform, region,"
             " extension, size_bytes, sha1, canonical_title,"
-            " match_confidence, catalog_source, play_status, last_played_at"
+            " match_confidence, catalog_source, play_status, last_played_at,"
+            " is_favorite, notes"
             " FROM games " + where_sql +
             " ORDER BY platform, canonical_title, original_filename"
             " LIMIT ? OFFSET ?"
@@ -793,10 +808,98 @@ class LibraryRepository:
                 "catalog_source": row["catalog_source"],
                 "play_status": row["play_status"],
                 "last_played_at": row["last_played_at"],
+                "is_favorite": bool(row["is_favorite"]),
+                "notes": row["notes"],
             }
             for row in rows
         ]
         return games, total
+
+    def toggle_favorite(self, game_id: int) -> bool:
+        """Toggle is_favorite for a game. Returns the new value."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        with self.connect() as conn:
+            current = conn.execute(
+                "SELECT is_favorite FROM games WHERE id = ?", (game_id,)
+            ).fetchone()
+            if current is None:
+                return False
+            new_val = 0 if current["is_favorite"] else 1
+            conn.execute(
+                "UPDATE games SET is_favorite = ?, updated_at = ? WHERE id = ?",
+                (new_val, now, game_id),
+            )
+            conn.commit()
+        return bool(new_val)
+
+    def add_tag(self, game_id: int, tag: str) -> None:
+        """Add a tag to a game (idempotent)."""
+        tag = tag.strip().lower()
+        if not tag:
+            return
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO game_tags (game_id, tag) VALUES (?, ?)",
+                (game_id, tag),
+            )
+            conn.commit()
+
+    def remove_tag(self, game_id: int, tag: str) -> None:
+        """Remove a tag from a game."""
+        tag = tag.strip().lower()
+        with self.connect() as conn:
+            conn.execute(
+                "DELETE FROM game_tags WHERE game_id = ? AND tag = ?",
+                (game_id, tag),
+            )
+            conn.commit()
+
+    def get_tags(self, game_id: int) -> list[str]:
+        """Return all tags for a game."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT tag FROM game_tags WHERE game_id = ? ORDER BY tag",
+                (game_id,),
+            ).fetchall()
+        return [r["tag"] for r in rows]
+
+    def get_all_tags(self) -> list[str]:
+        """Return all unique tags in the library."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT tag FROM game_tags ORDER BY tag"
+            ).fetchall()
+        return [r["tag"] for r in rows]
+
+    def set_notes(self, game_id: int, notes: str | None) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE games SET notes = ? WHERE id = ?", (notes or None, game_id))
+            conn.commit()
+
+    def set_canonical_title(self, game_id: int, title: str) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE games SET canonical_title = ? WHERE id = ?", (title.strip() or None, game_id))
+            conn.commit()
+
+    def upsert_metadata_manual(self, game_id: int, **fields: str) -> None:
+        """Update individual metadata fields manually without overwriting unrelated scraped data."""
+        _ALLOWED = {"year", "genre", "publisher", "developer", "description", "rating"}
+        updates = {k: v for k, v in fields.items() if k in _ALLOWED}
+        if not updates:
+            return
+        from rom_manager.scanner.rom_scanner import utc_now
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO game_metadata (game_id, scraped_at) VALUES (?, ?)",
+                (game_id, utc_now()),
+            )
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            conn.execute(
+                f"UPDATE game_metadata SET {set_clause} WHERE game_id = ?",
+                [*updates.values(), game_id],
+            )
+            conn.commit()
 
     # ------------------------------------------------------------------
     # Metadata (ScreenScraper)

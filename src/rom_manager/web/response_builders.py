@@ -481,11 +481,13 @@ def _build_games(
     file_type: str | None = "rom",
     search: str | None = None,
     play_status: str | None = None,
+    favorite: bool = False,
+    tag: str | None = None,
 ) -> dict:
     games, total = repository.get_games_paginated(
         offset=offset, limit=limit, platform=platform, status=status,
         source_root=source_root, file_type=file_type, search=search,
-        play_status=play_status,
+        play_status=play_status, favorite=favorite, tag=tag,
     )
     return {
         "games": games,
@@ -1050,6 +1052,10 @@ def _build_config(config: AppConfig) -> dict:
             {"name": s.name, "local_dir": s.local_dir, "remote": s.remote, "sync_all": s.sync_all}
             for s in config.sync_sources
         ],
+        "retroarch_path": config.retroarch_path or "",
+        "launcher_cores": config.launcher_cores or {},
+        "backup_saves_enabled": config.backup_saves_enabled,
+        "backup_saves_keep_n": config.backup_saves_keep_n,
     }
 
 

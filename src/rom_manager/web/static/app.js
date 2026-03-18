@@ -128,19 +128,21 @@ function _deviceRoot() {
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
+  const tab = document.getElementById('tab-' + name);
+  tab.classList.add('active', 'fading-in');
+  tab.addEventListener('animationend', () => tab.classList.remove('fading-in'), { once: true });
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
   if (name === 'overview')   loadOverview();
-  if (name === 'games')      loadGames(0);
+  if (name === 'games')      { loadGames(0); _refreshTagFilter(); }
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
-  if (name === 'sync')       loadSync();
+  if (name === 'sync')       { loadSync(); loadManualBackups(); }
   if (name === 'cable')      loadCableSync();
   if (name === 'scraper')    loadScraperSummary();
-  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); }
+  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); }
   if (name === 'inbox')      loadInbox();
 }
@@ -158,6 +160,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // Restore saved state
     if (localStorage.getItem('guide_closed') === '1') guide.removeAttribute('open');
     updateArrow();
+  }
+});
+
+// ── S28: Global search ────────────────────────────────────────────────────────
+let _globalSearchTimer = null;
+function onGlobalSearch(val) {
+  clearTimeout(_globalSearchTimer);
+  const results = document.getElementById('global-search-results');
+  if (!val.trim()) { results.style.display = 'none'; return; }
+  _globalSearchTimer = setTimeout(async () => {
+    try {
+      const d = await apiFetch('/api/games?search=' + encodeURIComponent(val) + '&limit=8');
+      if (!d.games || d.games.length === 0) { results.style.display = 'none'; return; }
+      results.style.display = '';
+      results.innerHTML = d.games.map(g => {
+        const title = _h(g.canonical_title || g.original_filename);
+        const gj = JSON.stringify(g).replace(/</g,'\\u003c');
+        return `<div class="sr-item" onclick="document.getElementById('global-search').value='';document.getElementById('global-search-results').style.display='none';openGamePanel(${gj})">
+          <img src="/api/asset-image?game_id=${g.id}" width="28" height="28" style="border-radius:3px;object-fit:cover" onerror="this.style.display='none'">
+          <div><div style="color:#d4d4d4">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
+        </div>`;
+      }).join('');
+    } catch(e) { results.style.display = 'none'; }
+  }, 200);
+}
+// Close global search results on outside click
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('global-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const r = document.getElementById('global-search-results');
+    if (r) r.style.display = 'none';
   }
 });
 
@@ -198,6 +231,379 @@ function _platBadge(plat) {
 
 function _h(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 27-4: Platform accent color (hex) — matches the CSS plat-* classes
+const _PLAT_HEX = {
+  gba: '#4ec9b0', snes: '#569cd6', nes: '#f44747', gb: '#dcdcaa',
+  gbc: '#d7ba7d', nds: '#c586c0', '3ds': '#9cdcfe', n64: '#4ec9b0',
+  psx: '#9cdcfe', ps2: '#569cd6', psp: '#79c0ff',
+  genesis: '#ce9178', md: '#ce9178', sms: '#6a9955', gg: '#4ec9b0',
+};
+function _platHex(plat) {
+  const cls = _PLAT_CLASS[(plat||'').toLowerCase()] || 'other';
+  return _PLAT_HEX[cls] || '#555';
+}
+
+// 27-3: Game detail panel
+let _gpGameId = null;
+function _gpSetFavStar(isFav) {
+  const btn = document.getElementById('gp-fav-btn');
+  if (!btn) return;
+  btn.style.color = isFav ? '#f9c74f' : '#555';
+  btn.title = isFav ? 'Quitar de favoritos' : 'Marcar como favorito';
+}
+function _gpFillMeta(g) {
+  document.getElementById('gp-title').textContent = g.canonical_title || g.original_filename || '—';
+  document.getElementById('gp-filename').textContent = g.original_filename || '';
+  const rows = [
+    ['Plataforma', _platBadge(g.platform)],
+    ['Región',     g.region   ? _h(g.region)   : '<span style="color:#444">—</span>'],
+    ['Año',        g.year     ? _h(g.year)     : '<span style="color:#444">—</span>'],
+    ['Género',     g.genre    ? _h(g.genre)    : '<span style="color:#444">—</span>'],
+    ['Jugadores',  g.players  ? _h(g.players)  : '<span style="color:#444">—</span>'],
+    ['Publisher',  g.publisher? _h(g.publisher): '<span style="color:#444">—</span>'],
+    ['Nota',       g.rating   ? _h(g.rating)   : '<span style="color:#444">—</span>'],
+    ['Tamaño',     fmtSize(g.size_bytes)],
+    ['SHA1',       `<span style="color:#444;font-family:Consolas,monospace;font-size:11px">${(g.sha1||'').slice(0,10)}…</span>`],
+  ];
+  document.getElementById('gp-meta').innerHTML = rows.filter(([,v])=>v).map(([k,v])=>`<span class="gk">${k}</span><span class="gv">${v}</span>`).join('');
+  const desc = document.getElementById('gp-desc');
+  if (g.description) { desc.textContent = g.description; desc.style.display = ''; }
+  else { desc.style.display = 'none'; }
+  const sel = document.getElementById('gp-status-sel');
+  if (sel) sel.value = g.play_status || '';
+  // S30: populate notes
+  const notesEl = document.getElementById('gp-notes');
+  if (notesEl) {
+    notesEl.value = g.notes || '';
+    notesEl.style.color = g.notes ? '#d4d4d4' : '#555';
+  }
+  // S30: populate metadata edit fields (only when data available)
+  const t = g.canonical_title || g.ss_title || '';
+  _gpSetEditField('gme-title',       t);
+  _gpSetEditField('gme-year',        g.year || '');
+  _gpSetEditField('gme-genre',       g.genre || '');
+  _gpSetEditField('gme-publisher',   g.publisher || '');
+  _gpSetEditField('gme-developer',   g.developer || '');
+  _gpSetEditField('gme-rating',      g.rating || '');
+  _gpSetEditField('gme-description', g.description || '');
+}
+function _gpSetEditField(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== undefined) el.value = val;
+}
+function openGamePanel(g) {
+  _gpGameId = g.id;
+  // Cover
+  const coverWrap = document.getElementById('gp-cover-wrap');
+  const imgUrl = `/api/asset-image?game_id=${g.id}`;
+  coverWrap.innerHTML = `<img src="${imgUrl}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'gp-no-art',innerHTML:'&#127918;'}))" alt="">`;
+  // Platform accent color
+  document.getElementById('game-panel').style.borderLeftColor = _platHex(g.platform);
+  // Fill metadata
+  _gpFillMeta(g);
+  // Favorite star
+  _gpSetFavStar(g.is_favorite);
+  // Tags — load async
+  const tagsList = document.getElementById('gp-tags-list');
+  tagsList.innerHTML = '<span style="color:#555;font-size:11px">cargando…</span>';
+  apiFetch('/api/game-tags?id=' + g.id).then(r => _gpRenderTags(r.tags || [])).catch(() => { tagsList.innerHTML = ''; });
+  // Stateshot — load async
+  document.getElementById('gp-stateshot-wrap').style.display = 'none';
+  apiFetch('/api/stateshot?id=' + g.id).then(r => {
+    if (r.found && r.data) {
+      const img = document.getElementById('gp-stateshot');
+      img.src = 'data:image/png;base64,' + r.data;
+      document.getElementById('gp-stateshot-wrap').style.display = '';
+    }
+  }).catch(() => {});
+  // S30: reset meta editor state
+  const _editWrap = document.getElementById('gp-meta-edit-wrap');
+  if (_editWrap) _editWrap.style.display = 'none';
+  const _editToggle = document.getElementById('gp-meta-edit-toggle');
+  if (_editToggle) _editToggle.style.color = '#444';
+  const _scrapePreview = document.getElementById('gp-scrape-preview');
+  if (_scrapePreview) _scrapePreview.style.display = 'none';
+  const _gmeResult = document.getElementById('gme-result');
+  if (_gmeResult) _gmeResult.textContent = '';
+  // Backup history — load async
+  const bkWrap = document.getElementById('gp-backups-wrap');
+  if (bkWrap) {
+    bkWrap.style.display = 'none';
+    document.getElementById('gp-backups-list').innerHTML = '';
+    apiFetch('/api/save-backups?id=' + g.id).then(r => {
+      if (r.backups?.length) {
+        loadSaveBackupsResult(r.backups, g.id);
+        bkWrap.style.display = '';
+      }
+    }).catch(() => {});
+  }
+  // Launch button — show if retroarch configured
+  const launchBtn = document.getElementById('gp-launch-btn');
+  if (launchBtn) launchBtn.style.display = '';
+  // Open
+  document.getElementById('game-panel-overlay').classList.add('open');
+  document.getElementById('game-panel').classList.add('open');
+  // Load full scraped details async
+  if (g.id && !g.description && !g.year) {
+    apiFetch('/api/game?id=' + g.id).then(full => {
+      if (full.id === _gpGameId) {
+        _gpFillMeta(full);
+        _gpGameId = full.id;
+      }
+    }).catch(() => {});
+  }
+}
+function closeGamePanel() {
+  document.getElementById('game-panel-overlay').classList.remove('open');
+  document.getElementById('game-panel').classList.remove('open');
+}
+async function gpSetStatus(status) {
+  if (!_gpGameId) return;
+  try {
+    await apiPost('/api/set-play-status', { game_id: _gpGameId, status: status || null, source_path: '' });
+    if (document.getElementById('tab-games')?.classList.contains('active')) loadGames(gamesState.offset);
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+async function gpToggleFavorite() {
+  if (!_gpGameId) return;
+  try {
+    const r = await apiPost('/api/toggle-favorite', { game_id: _gpGameId });
+    _gpSetFavStar(r.is_favorite);
+    // Update the row/card in the list if visible
+    const rowStar = document.querySelector(`[data-fav-id="${_gpGameId}"]`);
+    if (rowStar) { rowStar.classList.toggle('active', r.is_favorite); }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+function _gpRenderTags(tags) {
+  const el = document.getElementById('gp-tags-list');
+  if (!el) return;
+  el.innerHTML = tags.map(t =>
+    `<span class="tag-chip">${_h(t)}<span class="tag-remove" onclick="gpRemoveTag('${_h(t)}')" title="Eliminar tag">&times;</span></span>`
+  ).join('');
+}
+async function gpAddTag() {
+  if (!_gpGameId) return;
+  const input = document.getElementById('gp-tag-input');
+  const tag = input.value.trim();
+  if (!tag) return;
+  try {
+    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'add' });
+    _gpRenderTags(r.tags || []);
+    input.value = '';
+    _refreshTagFilter();
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+async function gpRemoveTag(tag) {
+  if (!_gpGameId) return;
+  try {
+    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove' });
+    _gpRenderTags(r.tags || []);
+    _refreshTagFilter();
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+async function gpLaunch() {
+  if (!_gpGameId) return;
+  try {
+    const r = await apiPost('/api/launch', { game_id: _gpGameId });
+    if (r.ok) { showToast('RetroArch lanzado', 'ok'); }
+    else { showToast(r.error || 'Error al lanzar', 'err'); }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+// ── S29: Save backup helpers ───────────────────────────────────────────────────
+function loadSaveBackupsResult(saves, gameId) {
+  const el = document.getElementById('gp-backups-list');
+  if (!el) return;
+  el.innerHTML = saves.map(s => {
+    const sizeFmt = s.size > 1024 ? (s.size / 1024).toFixed(1) + ' KB' : s.size + ' B';
+    const bkPath  = s.backup_path.replace(/\\/g, '/');
+    const origSav = s.original_save.replace(/\\/g, '/');
+    const ext     = s.extension || '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #1e1e2e">
+      <span style="color:#888">${_h(s.timestamp)}<span style="color:#444;margin-left:4px">${_h(ext)}</span></span>
+      <span style="color:#555">${sizeFmt}</span>
+      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid #4ec9b0;color:#4ec9b0;padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
+    </div>`;
+  }).join('');
+}
+async function restoreBackup(backupPath, originalSave) {
+  if (!confirm('¿Restaurar este backup? El save actual será reemplazado.\nEl siguiente sync lo subirá a Dropbox y llegará a la consola.')) return;
+  try {
+    const r = await apiPost('/api/restore-backup', { backup_path: backupPath, original_save: originalSave });
+    if (r.ok) { showToast('Save restaurado → ' + (r.restored_to || ''), 'ok'); }
+    else { showToast(r.error || 'Error al restaurar', 'err'); }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+async function backupNow() {
+  const btn = document.getElementById('btn-backup-now');
+  if (btn) { btn.disabled = true; btn.textContent = 'Haciendo backup…'; }
+  try {
+    const r = await apiPost('/api/backup-now', {});
+    if (r.status === 'started' || r.ok) { startPolling(); }
+    else { showToast(r.error || 'Error al iniciar backup', 'err'); if (btn) { btn.disabled = false; btn.textContent = 'Hacer backup ahora'; } }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); if (btn) { btn.disabled = false; btn.textContent = 'Hacer backup ahora'; } }
+}
+async function loadManualBackups() {
+  try {
+    const r = await apiFetch('/api/manual-backups');
+    const el = document.getElementById('manual-backups-list');
+    if (!el) return;
+    if (!r.zips?.length) { el.innerHTML = '<span style="color:#555">Sin backups ZIP guardados</span>'; return; }
+    el.innerHTML = r.zips.map(z => {
+      const sizeFmt = z.size > 1048576 ? (z.size / 1048576).toFixed(1) + ' MB' : (z.size / 1024).toFixed(1) + ' KB';
+      return `<div style="padding:3px 0;border-bottom:1px solid #1a1a2a;display:flex;justify-content:space-between">
+        <span style="color:#d4d4d4">${_h(z.filename)}</span>
+        <span style="color:#555">${_h(z.timestamp)} &mdash; ${sizeFmt}</span>
+      </div>`;
+    }).join('');
+  } catch(_) {}
+}
+
+// ── S30: Metadata editor + Notes ─────────────────────────────────────────────
+let _gpNotesTimer = null;
+function gpNotesInput() {
+  clearTimeout(_gpNotesTimer);
+  _gpNotesTimer = setTimeout(async () => {
+    if (!_gpGameId) return;
+    const val = document.getElementById('gp-notes')?.value ?? '';
+    try { await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val }); }
+    catch(_) {}
+  }, 800);
+}
+function gpToggleMetaEdit() {
+  const wrap = document.getElementById('gp-meta-edit-wrap');
+  const btn  = document.getElementById('gp-meta-edit-toggle');
+  if (!wrap) return;
+  const open = wrap.style.display !== 'none';
+  wrap.style.display = open ? 'none' : '';
+  if (btn) btn.style.color = open ? '#444' : '#4ec9b0';
+}
+async function gpSaveMetaFields() {
+  if (!_gpGameId) return;
+  const payload = { game_id: _gpGameId };
+  const title = document.getElementById('gme-title')?.value.trim();
+  if (title) payload.canonical_title = title;
+  ['year','genre','publisher','developer','rating'].forEach(k => {
+    const v = document.getElementById('gme-' + k)?.value.trim();
+    if (v !== undefined) payload[k] = v;
+  });
+  const desc = document.getElementById('gme-description')?.value.trim();
+  if (desc !== undefined) payload.description = desc;
+  const res = document.getElementById('gme-result');
+  try {
+    await apiPost('/api/set-metadata', payload);
+    if (res) { res.style.color = '#4ec9b0'; res.textContent = '✓ Guardado'; setTimeout(() => { if (res) res.textContent = ''; }, 2000); }
+    // Refresh display
+    if (title) document.getElementById('gp-title').textContent = title;
+    apiFetch('/api/game?id=' + _gpGameId).then(full => { if (full.id === _gpGameId) _gpFillMeta(full); }).catch(() => {});
+  } catch(e) {
+    if (res) { res.style.color = '#f44747'; res.textContent = 'Error: ' + e.message; }
+  }
+}
+async function gpScrapeSingle() {
+  if (!_gpGameId) return;
+  const previewEl = document.getElementById('gp-scrape-preview');
+  const res = document.getElementById('gme-result');
+  if (previewEl) { previewEl.style.display = ''; previewEl.innerHTML = '<span style="color:#555">Consultando ScreenScraper…</span>'; }
+  try {
+    const r = await apiPost('/api/scrape-single', { game_id: _gpGameId, preview: true });
+    if (!r.found) {
+      if (previewEl) previewEl.innerHTML = `<span style="color:#f44747">No encontrado: ${_h(r.error||'sin resultados')}</span>`;
+      return;
+    }
+    const rows = [
+      ['Título', r.title], ['Año', r.year], ['Género', r.genre],
+      ['Publisher', r.publisher], ['Developer', r.developer], ['Nota', r.rating],
+    ].filter(([,v]) => v).map(([k,v]) => `<span style="color:#888">${k}:</span> <span style="color:#d4d4d4">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
+    if (previewEl) previewEl.innerHTML = `<div style="margin-bottom:8px;line-height:1.8">${rows}</div>
+      <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
+      <button onclick="document.getElementById('gp-scrape-preview').style.display='none'" style="margin-left:6px;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
+  } catch(e) {
+    if (previewEl) previewEl.innerHTML = `<span style="color:#f44747">Error: ${_h(e.message)}</span>`;
+  }
+}
+async function gpApplyScrape() {
+  if (!_gpGameId) return;
+  const previewEl = document.getElementById('gp-scrape-preview');
+  const res = document.getElementById('gme-result');
+  try {
+    const r = await apiPost('/api/scrape-single', { game_id: _gpGameId, preview: false });
+    if (r.applied) {
+      if (previewEl) previewEl.style.display = 'none';
+      if (res) { res.style.color = '#4ec9b0'; res.textContent = '✓ Metadatos actualizados'; setTimeout(() => { if(res) res.textContent = ''; }, 2500); }
+      apiFetch('/api/game?id=' + _gpGameId).then(full => { if (full.id === _gpGameId) _gpFillMeta(full); }).catch(() => {});
+    } else {
+      if (res) { res.style.color = '#f44747'; res.textContent = r.error || 'Error'; }
+    }
+  } catch(e) {
+    if (res) { res.style.color = '#f44747'; res.textContent = 'Error: ' + e.message; }
+  }
+}
+
+async function toggleRowFavorite(gameId, btn) {
+  try {
+    const r = await apiPost('/api/toggle-favorite', { game_id: gameId });
+    btn.classList.toggle('active', r.is_favorite);
+    btn.title = r.is_favorite ? 'Quitar favorito' : 'Marcar favorito';
+    // If the panel is open for this game, update its star too
+    if (_gpGameId === gameId) _gpSetFavStar(r.is_favorite);
+    // If filtering by favorites, refresh list
+    if (gamesState.favorite) loadGames(gamesState.offset);
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+async function _refreshTagFilter() {
+  try {
+    const r = await apiFetch('/api/tags');
+    const sel = document.getElementById('games-tag-filter');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Todos los tags</option>' +
+      (r.tags || []).map(t => `<option value="${_h(t)}"${t===cur?' selected':''}>${_h(t)}</option>`).join('');
+  } catch(e) {}
+}
+
+// 24-2: relative time helper
+function _relTime(isoStr) {
+  if (!isoStr) return '';
+  const ms = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 2) return 'ahora mismo';
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `hace ${hours}h`;
+  return `hace ${Math.round(hours / 24)}d`;
+}
+
+// 24-2: empty state widget
+function _emptyState(icon, title, sub, ctaLabel, ctaFn) {
+  const cta = (ctaLabel && ctaFn)
+    ? `<button class="btn es-cta" onclick="(${ctaFn.toString()})()">${ctaLabel}</button>`
+    : '';
+  return `<div class="empty-state">
+    <span class="es-icon">${icon}</span>
+    <div class="es-title">${title}</div>
+    ${sub ? `<div class="es-sub">${sub}</div>` : ''}
+    ${cta}
+  </div>`;
+}
+
+// 24-4: confirm modal
+let _confirmOkHandler = null;
+function _showConfirm(title, bodyHtml, okLabel, onConfirm) {
+  const modal = document.getElementById('confirm-modal');
+  if (!modal) return;
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-body').innerHTML = bodyHtml;
+  const okBtn = document.getElementById('confirm-ok');
+  if (okBtn) okBtn.textContent = okLabel || 'Confirmar';
+  _confirmOkHandler = onConfirm;
+  modal.style.display = 'flex';
+}
+function _closeConfirm() {
+  const modal = document.getElementById('confirm-modal');
+  if (modal) modal.style.display = 'none';
+  _confirmOkHandler = null;
 }
 
 async function stopJob(name) {
@@ -298,12 +704,12 @@ async function loadOverview() {
       const d = await apiFetch('/api/status' + pcParam);
       const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
       if (pcCardsEl) pcCardsEl.innerHTML =
-        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''), '')          +
+        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''), '', d.total_games > 0 ? [{label:'Ver juegos', fn:()=>showTab('games')}] : null)          +
         card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'), 'blue')    +
-        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'), 'orange')  +
+        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'), 'orange', d.unmatched_games > 0 ? [{label:'Identificar →', fn:()=>showTab('plan')}] : null)  +
         card('Saves',      d.total_saves,      null, d.total_saves > 0 ? () => goToGames(pcPath, '', 'save') : null, 'purple')      +
         card('Assets',     d.total_assets,     null, d.total_assets > 0 ? () => { showTab('assets'); } : null)     +
-        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '') +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Ver', fn:()=>showTab('duplicates')}] : null) +
         card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
       // Auto-collapse guide when library already has data
       const guide = document.getElementById('ov-guide');
@@ -384,24 +790,63 @@ async function loadOverview() {
       if (abScanBtn)    abScanBtn.style.display    = 'none';
     }
 
-    // Recently played
-    const recentEl = document.getElementById('ov-recently-played');
+    // Recently played (27-1 hero card + 28-2 horizontal scroll)
+    const recentEl     = document.getElementById('ov-recently-played');
+    const heroEl       = document.getElementById('ov-hero-game');
+    const contSection  = document.getElementById('ov-continue-section');
+    const contScroll   = document.getElementById('ov-continue-scroll');
     try {
       const pcParam2 = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + (_t+2);
       const dRecent = await apiFetch('/api/status' + pcParam2);
-      if (recentEl && dRecent.recently_played && dRecent.recently_played.length > 0) {
-        recentEl.innerHTML = dRecent.recently_played.map(g => {
+      if (dRecent.recently_played && dRecent.recently_played.length > 0) {
+        const games = dRecent.recently_played;
+        const last = games[0];
+        // 27-1: hero card for last played
+        if (heroEl) {
+          heroEl.style.display = '';
+          heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${JSON.stringify(last).replace(/</g,'\\u003c')})">
+            <img src="/api/asset-image?game_id=${last.id}" onerror="this.style.display='none'" alt="">
+            <div class="hg-body">
+              <div class="hg-label">Continuar jugando</div>
+              <div class="hg-title">${_h(last.canonical_title || last.original_filename)}</div>
+              <div class="hg-meta">${_platBadge(last.platform)} · ${_relTime(last.last_played_at)}</div>
+            </div>
+          </div>`;
+        }
+        // 28-2: Netflix-style horizontal scroll (up to 6 games)
+        if (contScroll && contSection) {
+          contSection.style.display = '';
+          contScroll.innerHTML = games.slice(0, 6).map(g => {
+            const gj = JSON.stringify(g).replace(/</g,'\\u003c');
+            return `<div class="continue-card" onclick="openGamePanel(${gj})" title="${_h(g.canonical_title||g.original_filename)}">
+              <div class="cc-cover">
+                <img src="/api/asset-image?game_id=${g.id}" onerror="this.parentElement.innerHTML='&#127918;'" alt="">
+              </div>
+              <div class="cc-info">
+                <div class="cc-title">${_h(g.canonical_title||g.original_filename)}</div>
+                <div class="cc-plat">${_h(g.platform||'')} · ${_relTime(g.last_played_at)}</div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+        // Simple list below
+        if (recentEl) recentEl.innerHTML = games.map(g => {
           const title = g.canonical_title || g.original_filename;
-          const when = g.last_played_at ? g.last_played_at.replace('T',' ').slice(0,16) : '';
-          return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e1e2e;font-size:12px">
+          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #1e1e2e;font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
             <span>${_platBadge(g.platform)} <span style="color:#d4d4d4">${_h(title)}</span></span>
-            <span style="color:#555">${when}</span>
+            <span style="color:#555">${_relTime(g.last_played_at)}</span>
           </div>`;
         }).join('');
-      } else if (recentEl) {
-        recentEl.innerHTML = '<p style="color:#555;font-size:12px">Juega un rato y vuelve aquí.</p>';
+      } else {
+        if (heroEl) heroEl.style.display = 'none';
+        if (contSection) contSection.style.display = 'none';
+        if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">Juega un rato y vuelve aquí.</p>';
       }
-    } catch(_) { if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">—</p>'; }
+    } catch(_) {
+      if (heroEl) heroEl.style.display = 'none';
+      if (contSection) contSection.style.display = 'none';
+      if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">—</p>';
+    }
 
     // Platform breakdown chart
     const chartEl = document.getElementById('ov-platform-chart');
@@ -449,14 +894,20 @@ async function loadOverview() {
   }
 }
 
-function card(label, value, sub, onclick, colorCls) {
+function card(label, value, sub, onclick, colorCls, actions) {
   const clickStyle = onclick ? 'cursor:pointer' : '';
   const clickAttr  = onclick ? `onclick="(${onclick.toString()})()"` : '';
   const cls = colorCls ? ` ${colorCls}` : '';
+  const actHtml = actions?.length
+    ? '<div class="card-actions">' + actions.map(a =>
+        `<button class="btn card-actions" style="font-size:11px;padding:3px 8px;min-height:unset" onclick="event.stopPropagation();(${a.fn.toString()})()">${a.label}</button>`
+      ).join('') + '</div>'
+    : '';
   return `<div class="card${cls}" style="${clickStyle}" ${clickAttr} title="${onclick ? 'Ver lista' : ''}">
     <div class="label">${label}</div>
     <div class="value">${value}</div>
     ${sub ? `<div class="sub">${sub}</div>` : ''}
+    ${actHtml}
   </div>`;
 }
 
@@ -638,7 +1089,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running && !s.backup_now_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -971,6 +1422,26 @@ function _applyJobStatus(s) {
   if (!s.cable_sync_running && s.cable_sync_result) {
     _renderCableSyncResult(s.cable_sync_result);
   }
+  // Backup now
+  const btnBkNow = document.getElementById('btn-backup-now');
+  if (s.backup_now_running) {
+    if (btnBkNow) { btnBkNow.disabled = true; btnBkNow.textContent = 'Haciendo backup…'; }
+  } else {
+    if (btnBkNow) { btnBkNow.disabled = false; btnBkNow.textContent = 'Hacer backup ahora'; }
+  }
+  if (!s.backup_now_running && s.backup_now_result) {
+    const ts = s.backup_now_result.result_ts || JSON.stringify(s.backup_now_result);
+    if (_shownResultTs.backup_now !== ts) {
+      _shownResultTs.backup_now = ts;
+      const el = document.getElementById('job-result-backup-now');
+      const r  = s.backup_now_result;
+      if (el) {
+        if (r.error) { el.className = 'job-result visible error-r'; el.textContent = 'Error: ' + r.error; }
+        else { const sz = r.size > 1048576 ? (r.size/1048576).toFixed(1)+' MB' : (r.size/1024).toFixed(1)+' KB'; el.className = 'job-result visible success'; el.textContent = `Backup completado — ZIP: ${sz}`; }
+      }
+      loadManualBackups();
+    }
+  }
   // Inbox progress
   _applyInboxProgress(s);
 }
@@ -1188,6 +1659,14 @@ function onGamesFilterChange() {
   gamesState.filetype = document.getElementById('games-filetype').value;
   loadGames(0);
 }
+function toggleFavoritesFilter() {
+  const btn = document.getElementById('btn-filter-favorites');
+  if (!btn) return;
+  gamesState.favorite = !gamesState.favorite;
+  btn.style.color = gamesState.favorite ? '#f9c74f' : '#888';
+  btn.style.borderColor = gamesState.favorite ? '#f9c74f' : '#444';
+  loadGames(0);
+}
 
 async function loadGames(offset) {
   gamesState.offset = offset ?? 0;
@@ -1226,6 +1705,9 @@ async function loadGames(offset) {
   if (ft !== undefined && ft !== 'all') params.set('filetype', ft);
   const ps = document.getElementById('games-play-status')?.value;
   if (ps) params.set('play_status', ps);
+  if (gamesState.favorite) params.set('favorite', '1');
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) params.set('tag', tagF);
   const _gamesRoot = gamesState.root || _deviceRoot();
   if (_gamesRoot)          params.set('root',      _gamesRoot);
 
@@ -1258,12 +1740,14 @@ async function loadGames(offset) {
       if (d.total === 0 && _activeDevice === 'anbernic' && !gamesState.root) {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '';
         if (!ab) {
-          empty.innerHTML = `No hay ROMs de ${_devName} en la base de datos.<br><span style="color:#888;font-size:12px">Primero configura la ruta de la consola en <a href="#" onclick="event.preventDefault();showTab(\'setup\')" style="color:#569cd6">Ajustes → Consola Android</a>.</span>`;
+          empty.innerHTML = _emptyState('📱', `Sin ROMs de ${_devName}`, 'Configura primero la ruta de la consola en Ajustes.', 'Ir a Ajustes', () => showTab('settings'));
         } else {
-          empty.innerHTML = `No hay ROMs de ${_devName} en la base de datos.<br><span style="color:#888;font-size:12px">Ruta configurada: <code>${ab}</code><br>Escanea la consola desde <a href="#" onclick="event.preventDefault();showTab(\'overview\')" style="color:#569cd6">Inicio → Escanear</a> para ver sus juegos aquí.</span>`;
+          empty.innerHTML = _emptyState('🔍', `Sin ROMs de ${_devName}`, `Ruta: <code>${_h(ab)}</code><br>Escanea la consola desde Inicio para ver sus juegos aquí.`, 'Ir a Inicio', () => showTab('overview'));
         }
+      } else if (d.total === 0) {
+        empty.innerHTML = _emptyState('🎮', 'Sin juegos aún', 'Escanea tu biblioteca y ejecuta "Match catálogos" para ver tus juegos aquí.', 'Ir a Inicio', () => showTab('overview'));
       } else {
-        empty.innerHTML = 'Sin resultados. Prueba con otros filtros o ejecuta un Scan primero.';
+        empty.innerHTML = _emptyState('🔎', 'Sin resultados', 'Prueba con otros filtros o borra la búsqueda.');
       }
       empty.style.display = '';
     }
@@ -1280,12 +1764,15 @@ async function loadGames(offset) {
           <option value="100pct"${statusVal==='100pct'?' selected':''}>&#x1F4AF; Al 100%</option>
           <option value="abandoned"${statusVal==='abandoned'?' selected':''}>&#x23F8; Abandonado</option>
         </select>`;
-        return `<tr>
+        const accentColor = _platHex(g.platform);
+        const favActive = g.is_favorite ? ' active' : '';
+        return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')})">
+          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite?'Quitar favorito':'Marcar favorito'}">&#x2605;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
           <td title="${_h(g.canonical_title||'')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
           <td class="mono" title="${_h(g.original_filename)}" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
-          <td style="white-space:nowrap">${statusSel}</td>
+          <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
           <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
           <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none','—')}</td>
           <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
@@ -1353,7 +1840,8 @@ function _renderGamesGrid(games) {
       ? `<img src="/api/asset-image?game_id=${g.id}" alt="" onerror="this.parentElement.innerHTML='<span class=gc-no-art>&#x1F3AE;</span>'">`
       : `<span class="gc-no-art">&#x1F3AE;</span>`;
     const title = _h(g.canonical_title || g.original_filename || '—');
-    return `<div class="game-card" onclick="(function(){const rows=document.querySelectorAll('#games-tbody tr');rows.forEach(r=>{if(r.dataset.gid=='${g.id}')r.click()})})()">
+    const accentGc = _platHex(g.platform);
+    return `<div class="game-card" style="border-top:2px solid ${accentGc}30" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')})">
       <div class="gc-thumb">${thumb}</div>
       <div class="gc-body">
         <div class="gc-title" title="${title}">${title}</div>
@@ -1769,9 +2257,9 @@ async function loadDuplicates() {
     }
     if (d.groups.length === 0) {
       if (_activeDevice === 'anbernic') {
-        el.innerHTML = `<p class="empty">No se encontraron duplicados en ${_devName}.<br><span style="color:#888;font-size:12px">Nota: Los duplicados <em>cruzados</em> entre PC y ${_devName} (mismo SHA1 en ambos dispositivos) solo aparecen en modo <strong>Sistema completo</strong>.</span></p>`;
+        el.innerHTML = _emptyState('✅', `Sin duplicados en ${_devName}`, `Los duplicados cruzados entre PC y ${_devName} solo aparecen en modo <strong>Sistema completo</strong>.`);
       } else {
-        el.innerHTML = `<p class="empty">No se encontraron duplicados.<br><span style="color:#888;font-size:12px">Los duplicados son ROMs con el mismo contenido exacto (mismo SHA1). Si acabas de añadir juegos, ejecuta primero un <a href="#" onclick="event.preventDefault();showTab('overview')" style="color:#569cd6">Scan</a> y luego un <a href="#" onclick="event.preventDefault();showTab('overview')" style="color:#569cd6">Match</a> con el catálogo.</span></p>`;
+        el.innerHTML = _emptyState('✅', 'Sin duplicados', 'Los duplicados son ROMs con el mismo contenido exacto (SHA1 idéntico).<br>Si acabas de añadir juegos, ejecuta un Scan y luego un Match.', 'Ir a Inicio', () => showTab('overview'));
       }
       return;
     }
@@ -1800,62 +2288,75 @@ async function loadDuplicates() {
 }
 
 async function deleteAllDuplicates() {
-  const el = document.getElementById('dup-content');
-  // Count duplicates to delete
   const rows = document.querySelectorAll('#tab-duplicates .btn.danger');
   const count = rows.length;
-  if (count === 0) { alert('No hay duplicados para eliminar.'); return; }
-  if (!confirm(`¿Eliminar ${count} archivo(s) duplicado(s) del disco?\n\nSe conservará una copia de cada juego. Esta operación no se puede deshacer.`)) return;
-  const btn = document.getElementById('btn-delete-all-dups');
-  btn.disabled = true;
-  btn.textContent = 'Eliminando…';
-  try {
-    const d = await apiPost('/api/duplicates/delete-all', {});
-    await loadDuplicates();
-    loadOverview();
-    alert(`Eliminados: ${d.deleted}  |  Fallidos: ${d.failed}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}`);
-  } catch(e) {
-    alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Eliminar todos los duplicados';
-  }
+  if (count === 0) { showToast('No hay duplicados para eliminar.', false); return; }
+  _showConfirm(
+    'Eliminar todos los duplicados',
+    `Se eliminarán <strong>${count} archivo${count !== 1 ? 's' : ''}</strong> del disco.<br>Se conservará una copia de cada juego.<br><br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    'Eliminar todos',
+    async () => {
+      const btn = document.getElementById('btn-delete-all-dups');
+      if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
+      try {
+        const d = await apiPost('/api/duplicates/delete-all', {});
+        await loadDuplicates();
+        loadOverview();
+        showToast(`Eliminados: ${d.deleted} · Espacio liberado: ${fmtSize(d.freed_bytes)}`, false);
+      } catch(e) {
+        showToast('Error: ' + e.message, true);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Eliminar todos los duplicados'; }
+      }
+    }
+  );
 }
 
 async function deleteDuplicate(btn) {
   const gameId = parseInt(btn.dataset.id);
   const sourcePath = btn.dataset.path;
   const filename = sourcePath.split(/[\\/]/).pop();
-  if (!confirm(`¿Eliminar "${filename}" del disco?\n\nEsta operación no se puede deshacer.`)) return;
-  btn.disabled = true;
-  btn.textContent = 'Eliminando…';
-  try {
-    await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
-    const row = document.getElementById('dup-entry-' + gameId);
-    if (row) {
-      const group = row.closest('.dup-group');
-      row.remove();
-      // If no more deletable entries remain in this group, remove the whole group
-      if (group && !group.querySelector('.btn.danger')) group.remove();
+  _showConfirm(
+    'Eliminar archivo duplicado',
+    `¿Eliminar <strong>${_h(filename)}</strong> del disco?<br><br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    'Eliminar',
+    async () => {
+      btn.disabled = true;
+      btn.textContent = 'Eliminando…';
+      try {
+        await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
+        const row = document.getElementById('dup-entry-' + gameId);
+        if (row) {
+          const group = row.closest('.dup-group');
+          row.remove();
+          if (group && !group.querySelector('.btn.danger')) group.remove();
+        }
+        loadOverview();
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = 'Eliminar';
+        showToast('Error al eliminar: ' + e.message, true);
+      }
     }
-    loadOverview();
-  } catch(e) {
-    btn.disabled = false;
-    btn.textContent = 'Eliminar';
-    showToast('Error al eliminar: ' + e.message, true);
-  }
+  );
 }
 
 async function markAsIntentionalCopy(sha1) {
-  if (!confirm('¿Marcar este grupo como copia intencional PC↔consola?\n\nNo aparecerá más en la lista de duplicados. Puedes deshacer esto editando la base de datos.')) return;
-  try {
-    await apiPost('/api/duplicates/exclude', { sha1 });
-    const el = document.getElementById('dup-' + sha1);
-    if (el) el.remove();
-    showToast('Grupo excluido de duplicados', 'ok');
-  } catch(e) {
-    alert('Error: ' + e.message + '\n\nConsulta los logs para más detalles.');
-  }
+  _showConfirm(
+    'Marcar como copia intencional',
+    '¿Marcar este grupo como copia intencional PC↔consola?<br><br>No aparecerá más en la lista de duplicados.',
+    'Confirmar',
+    async () => {
+      try {
+        await apiPost('/api/duplicates/exclude', { sha1 });
+        const el = document.getElementById('dup-' + sha1);
+        if (el) el.remove();
+        showToast('Grupo excluido de duplicados', 'ok');
+      } catch(e) {
+        showToast('Error: ' + e.message, true);
+      }
+    }
+  );
 }
 
 // ── RA Duplicates ─────────────────────────────────────────────────────────────
@@ -1982,6 +2483,8 @@ async function discardAllRaDuplicates() {
     const d = await apiPost('/api/ra-duplicates/discard-all', {});
     if (d.error) {
       showToast('Error: ' + d.error, 'err');
+    } else if (d.discarded === 0 && d.failed === 0) {
+      showToast(d.note || 'Sin archivos que eliminar — ejecuta primero la comprobación RA en Tools para cargar el caché.', 'info');
     } else {
       showToast('Eliminados: ' + d.discarded + (d.failed > 0 ? ' · Fallidos: ' + d.failed : ''), d.failed > 0 ? 'info' : 'ok');
       await loadRaDuplicates();
@@ -2827,34 +3330,53 @@ function _renderRaResult(r) {
   }
 
   if (filteredAlts.length) {
+    const totalPages = Math.ceil(filteredAlts.length / _RA_PAGE_SIZE);
+    const page = Math.min(_raPage, totalPages - 1);
+    const pageAlts = filteredAlts.slice(page * _RA_PAGE_SIZE, (page + 1) * _RA_PAGE_SIZE);
+
     html += `<div style="margin-bottom:8px;color:#ce9178;font-size:12px">`;
-    if (!selectedPlatform && r.no_support_alternative > 10) {
-      html += `⚠ ${r.no_support_alternative} juegos no son la versión compatible con RA. Descarga el CSV para la lista completa.`;
-    } else {
-      html += `Estos juegos tienen una versión RA-compatible disponible:`;
-    }
+    html += `Estos juegos tienen una versión RA-compatible disponible:`;
     html += `</div>`;
     html += '<div style="overflow-x:auto"><table><thead><tr>';
-    html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th>';
+    html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th><th>Buscar</th>';
     html += '</tr></thead><tbody>';
-    html += filteredAlts.map(a => `<tr>
+    html += pageAlts.map(a => {
+      const q = _googleQuery(a.ra_title, a.platform);
+      return `<tr>
       <td>${a.platform}</td>
-      <td title="${a.filename}" style="max-width:260px">${a.filename}</td>
+      <td title="${a.filename}" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
       <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
       <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
       <td style="text-align:right;color:#555">${a.ra_points}</td>
-    </tr>`).join('');
+      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})">📋 Copiar</button></td>
+    </tr>`;
+    }).join('');
     html += '</tbody></table></div>';
-    if (!selectedPlatform && r.no_support_alternative > filteredAlts.length) {
-      html += `<p style="font-size:11px;color:#555;margin-top:6px">Mostrando ${filteredAlts.length} de ${r.no_support_alternative} — descarga el CSV para la lista completa.</p>`;
+
+    if (totalPages > 1) {
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px">`;
+      html += `<button class="btn" style="padding:2px 10px" ${page <= 0 ? 'disabled' : `onclick="_raGoToPage(${page - 1})"`}>&#8592;</button>`;
+      html += `<span style="color:#888">Pág. ${page + 1} de ${totalPages} (${filteredAlts.length} total)</span>`;
+      html += `<button class="btn" style="padding:2px 10px" ${page >= totalPages - 1 ? 'disabled' : `onclick="_raGoToPage(${page + 1})"`}>&#8594;</button>`;
+      html += `</div>`;
     }
   }
 
   el.innerHTML = html;
 }
 
+let _raPage = 0;
+const _RA_PAGE_SIZE = 25;
 function filterRaByPlatform() {
+  _raPage = 0;
   if (window._lastRaResult) _renderRaResult(window._lastRaResult);
+}
+function _raGoToPage(n) { _raPage = n; if (window._lastRaResult) _renderRaResult(window._lastRaResult); }
+function _copyText(text) {
+  navigator.clipboard?.writeText(text).then(() => showToast('Copiado', 'ok')).catch(() => {});
+}
+function _googleQuery(raTitle, platform) {
+  return `"${raTitle}" ${platform} No-Intro site:archive.org`;
 }
 
 async function discardRaNoSupport(count) {
@@ -2903,6 +3425,35 @@ async function loadScraperSummary() {
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function loadSsQuota() {
+  const label = document.getElementById('ss-quota-label');
+  const bar   = document.getElementById('ss-quota-bar');
+  const fill  = document.getElementById('ss-quota-fill');
+  if (!label) return;
+  try {
+    const d = await apiFetch('/api/ss-quota');
+    const today = parseInt(d.requests_today) || 0;
+    const max   = parseInt(d.max_requests_per_day) || 0;
+    const hasDev = d.has_dev_account;
+    if (!today && !max) {
+      label.textContent = hasDev
+        ? 'Cuenta dev detectada (~3 req/s). Realiza un scraping para ver cuota.'
+        : 'Realiza un scraping para ver la cuota.';
+      label.style.color = hasDev ? '#4ec9b0' : '#555';
+      if (bar) bar.style.display = 'none';
+      return;
+    }
+    const pct = max > 0 ? Math.min(100, Math.round(today / max * 100)) : 0;
+    const color = pct > 90 ? '#f44747' : pct > 70 ? '#ce9178' : '#4ec9b0';
+    label.textContent = `${today.toLocaleString()} / ${max.toLocaleString()} peticiones hoy (${pct}%)${hasDev ? ' · Cuenta dev ✓' : ''}`;
+    label.style.color = color;
+    if (bar) { bar.style.display = 'block'; }
+    if (fill) { fill.style.background = color; fill.style.width = pct + '%'; }
+  } catch(e) {
+    if (label) { label.textContent = 'No disponible'; label.style.color = '#555'; }
   }
 }
 
@@ -3005,6 +3556,12 @@ async function loadSettings() {
     if (ssDevPass) ssDevPass.value = cfg.screenscraper_dev_pass  || '';
     document.getElementById('cfg-chdman').value        = cfg.chdman || 'chdman';
     document.getElementById('cfg-adb').value           = cfg.adb || 'adb';
+    const raPathEl = document.getElementById('cfg-retroarch-path');
+    if (raPathEl) raPathEl.value = cfg.retroarch_path || '';
+    const bkEnabledEl = document.getElementById('cfg-backup-enabled');
+    const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
+    if (bkEnabledEl) bkEnabledEl.checked = cfg.backup_saves_enabled !== false;
+    if (bkKeepNEl)   bkKeepNEl.value     = cfg.backup_saves_keep_n ?? 5;
     document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
     // Show config warnings
     const banner = document.getElementById('cfg-warnings-banner');
@@ -3239,6 +3796,73 @@ async function fillToolPath(inputId) {
   } catch(e) { /* silent */ }
 }
 
+// ── S25: PIN + URL helpers ────────────────────────────────────────────────────
+async function loadAuthStatus() {
+  const statusEl = document.getElementById('pin-status');
+  const clearBtn = document.getElementById('btn-clear-pin');
+  const logoutBtn = document.getElementById('btn-logout');
+  try {
+    const d = await apiFetch('/api/auth/status');
+    if (statusEl) {
+      if (d.pin_configured) {
+        statusEl.innerHTML = '<span style="color:#4ec9b0">&#x2713; PIN activado</span> — se pedirá al abrir la app desde otra IP.';
+        if (clearBtn) clearBtn.style.display = '';
+        if (logoutBtn) logoutBtn.style.display = '';
+      } else {
+        statusEl.textContent = 'Sin PIN. La interfaz es accesible sin contraseña.';
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'none';
+      }
+    }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '—';
+  }
+}
+
+async function doLogout() {
+  try {
+    await apiPost('/api/auth/logout', {});
+    location.href = '/login';
+  } catch(e) { showToast('Error al cerrar sesión', 'err'); }
+}
+
+async function setPin() {
+  const input = document.getElementById('pin-input');
+  const pin = input?.value.trim();
+  if (!pin || pin.length < 4) { showToast('El PIN debe tener al menos 4 dígitos', 'err'); return; }
+  try {
+    const d = await apiPost('/api/set-pin', { pin });
+    if (d.ok) { showToast('PIN activado', 'ok'); input.value = ''; loadAuthStatus(); }
+    else showToast(d.error || 'Error', 'err');
+  } catch(e) { showToast(e.message, 'err'); }
+}
+
+async function clearPin() {
+  _showConfirm('Desactivar PIN', 'La interfaz quedará accesible sin contraseña desde cualquier IP en la red.', async () => {
+    try {
+      const d = await apiPost('/api/clear-pin', {});
+      if (d.ok) { showToast('PIN desactivado', 'ok'); loadAuthStatus(); }
+      else showToast(d.error || 'Error', 'err');
+    } catch(e) { showToast(e.message, 'err'); }
+  });
+}
+
+async function loadLocalUrl() {
+  const el = document.getElementById('local-url-display');
+  try {
+    const d = await apiFetch('/api/local-url');
+    if (el) el.textContent = d.url;
+  } catch(e) {
+    if (el) el.textContent = '—';
+  }
+}
+
+function copyLocalUrl() {
+  const url = document.getElementById('local-url-display')?.textContent;
+  if (!url || url === 'cargando…' || url === '—') return;
+  navigator.clipboard?.writeText(url).then(() => showToast('URL copiada', 'ok')).catch(() => {});
+}
+
 async function saveSettings() {
   const resultEl = document.getElementById('settings-result');
   resultEl.className = 'job-result';
@@ -3268,6 +3892,12 @@ async function saveSettings() {
   if (ch) updates['tools.chdman']                 = ch;
   if (ab) updates['tools.adb']                    = ab;
   if (ra) updates['retroachievements.api_key']    = ra;
+  const raPath = document.getElementById('cfg-retroarch-path')?.value.trim();
+  if (raPath) updates['launchers.retroarch'] = raPath;
+  const bkEnabledEl = document.getElementById('cfg-backup-enabled');
+  const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
+  if (bkEnabledEl) updates['backup.saves_enabled'] = bkEnabledEl.checked;
+  if (bkKeepNEl && bkKeepNEl.value) updates['backup.saves_keep_n'] = parseInt(bkKeepNEl.value, 10);
   if (Object.keys(updates).length === 0) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Nada que guardar — rellena al menos un campo.';
@@ -3283,6 +3913,27 @@ async function saveSettings() {
       resultEl.textContent = 'Guardado: ' + d.saved.join(', ') + '.';
       // Apply device name immediately without page reload
       if (dn) _applyDeviceName(dn);
+      // 24-3: per-field checkmarks
+      const _CFG_CHECK = {
+        'library.library_root':       'cfg-check-library-root',
+        'library.anbernic_root':      'cfg-check-anbernic-root',
+        'sync.remote':                'cfg-check-rclone-remote',
+        'screenscraper.user':         'cfg-check-ss-user',
+        'screenscraper.pass':         'cfg-check-ss-pass',
+        'screenscraper.dev_id':       'cfg-check-ss-devid',
+        'screenscraper.dev_pass':     'cfg-check-ss-devpass',
+        'tools.chdman':               'cfg-check-chdman',
+        'tools.adb':                  'cfg-check-adb',
+        'retroachievements.api_key':  'cfg-check-ra-api-key',
+      };
+      d.saved.forEach(key => {
+        const id = _CFG_CHECK[key];
+        if (!id) return;
+        const span = document.getElementById(id);
+        if (!span) return;
+        span.classList.add('visible');
+        setTimeout(() => span.classList.remove('visible'), 3000);
+      });
     }
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
@@ -3851,6 +4502,11 @@ async function generateReport() {
       }
     }
 
+    // Inject RA data from last RA check if the report doesn't include it
+    if (!_reportData.retroachievements && window._lastRaResult && !window._lastRaResult.error) {
+      _reportData.retroachievements = window._lastRaResult;
+    }
+
     _renderReportZips(_reportData);
     _renderReportPlaylists(_reportData);
     _renderReportMultidisc(_reportData);
@@ -3975,30 +4631,95 @@ function _renderReportOrphans(d) {
   el.innerHTML = html;
 }
 
+let _rptRaPage = 0;
+function _rptRaGoToPage(n) { _rptRaPage = n; if (_reportData) _renderReportRa(_reportData); }
+function filterRptRaByPlatform() { _rptRaPage = 0; if (_reportData) _renderReportRa(_reportData); }
+
 function _renderReportRa(d) {
   const el = document.getElementById('rpt-tab-ra');
   if (!el) return;
   const ra = d.retroachievements;
-  if (ra?.note) { el.innerHTML = `<p style="color:#555;font-size:12px">${ra.note}</p>`; return; }
-  if (ra?.error) { el.innerHTML = `<p class="error-msg">${ra.error}</p>`; return; }
-  let html = `<div style="margin-bottom:12px">
-    ${_rptStat('rpt-ok',   ra.supported + ' con logros')}
-    ${ra.no_support_alternative ? _rptStat('rpt-warn', ra.no_support_alternative + ' versión sin logros (alternativa disponible)') : ''}
-    ${_rptStat('rpt-info', ra.no_support + ' sin soporte RA')}
-    ${ra.no_md5 ? _rptStat('rpt-info', ra.no_md5 + ' sin MD5 (scan completo necesario)') : ''}
-  </div>`;
-  if (ra.alternatives?.length) {
-    html += `<p style="color:#888;font-size:12px;margin-bottom:8px">Juegos con versión alternativa compatible:</p>`;
-    html += '<div style="max-height:350px;overflow-y:auto;font-size:12px">';
-    html += ra.alternatives.map(a => `<div style="padding:3px 0;border-bottom:1px solid #1e1e2e">
-      <span style="color:#ce9178">${a.our_filename}</span>
-      <span style="color:#555;font-size:11px;margin-left:8px">→ RA: ${a.ra_title} (${a.ra_achievements} logros, ${a.ra_points} pts)</span>
-    </div>`).join('');
-    html += '</div>';
-    if (ra.no_support_alternative > 0) {
-      html += `<p style="margin-top:8px"><a href="/api/ra-check.csv" download class="btn" style="font-size:12px">&#x2193; Descargar CSV completo (${ra.no_support_alternative} juegos)</a></p>`;
-    }
+  if (!ra) {
+    el.innerHTML = `<p style="color:#555;font-size:12px">Sin datos RA — ejecuta el <em>Check RetroAchievements</em> primero y vuelve a generar el informe.</p>`;
+    return;
   }
+  if (ra.note) { el.innerHTML = `<p style="color:#555;font-size:12px">${ra.note}</p>`; return; }
+  if (ra.error) { el.innerHTML = `<p class="error-msg">${ra.error}</p>`; return; }
+
+  // Normalize field names (RA check uses 'filename', report may use 'our_filename')
+  const alts = (ra.alternatives || []).map(a => ({
+    platform: a.platform || '',
+    filename: a.filename || a.our_filename || '',
+    ra_title: a.ra_title || '',
+    ra_id: a.ra_id || 0,
+    ra_achievements: a.ra_achievements || 0,
+    ra_points: a.ra_points || 0,
+  }));
+
+  // Platform filter
+  const platforms = [...new Set(alts.map(a => a.platform).filter(Boolean))].sort();
+  const filterId = 'rpt-ra-plat-filter';
+  const prevPlat = el.querySelector('#' + filterId)?.value || '';
+
+  let html = `<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`;
+  html += `${_rptStat('rpt-ok', ra.supported + ' con logros')}`;
+  if (ra.no_support_alternative) html += _rptStat('rpt-warn', ra.no_support_alternative + ' sin logros (alt. disponible)');
+  if (ra.no_support) html += _rptStat('rpt-info', ra.no_support + ' sin soporte RA');
+  if (ra.no_md5) html += _rptStat('rpt-info', ra.no_md5 + ' sin MD5');
+  html += `</div>`;
+
+  if (platforms.length > 0) {
+    html += `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">`;
+    html += `<label style="font-size:12px;color:#888">Plataforma:</label>`;
+    html += `<select id="${filterId}" onchange="filterRptRaByPlatform()" style="font-size:12px;padding:2px 6px;background:#1e1e2e;color:#d4d4d4;border:1px solid #333;border-radius:4px">`;
+    html += `<option value="">Todas</option>`;
+    platforms.forEach(p => {
+      html += `<option value="${p}"${p === prevPlat ? ' selected' : ''}>${p}</option>`;
+    });
+    html += `</select>`;
+    html += `</div>`;
+  }
+
+  const selectedPlat = prevPlat;
+  const filtered = selectedPlat ? alts.filter(a => a.platform === selectedPlat) : alts;
+
+  if (filtered.length) {
+    const totalPages = Math.ceil(filtered.length / _RA_PAGE_SIZE);
+    const page = Math.min(_rptRaPage, totalPages - 1);
+    const pageAlts = filtered.slice(page * _RA_PAGE_SIZE, (page + 1) * _RA_PAGE_SIZE);
+
+    html += `<p style="color:#888;font-size:12px;margin-bottom:8px">Juegos con versión alternativa compatible con RA:</p>`;
+    html += '<div style="overflow-x:auto"><table><thead><tr>';
+    html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th><th>Buscar</th>';
+    html += '</tr></thead><tbody>';
+    html += pageAlts.map(a => {
+      const q = _googleQuery(a.ra_title, a.platform);
+      return `<tr>
+      <td>${a.platform}</td>
+      <td title="${a.filename}" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
+      <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
+      <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
+      <td style="text-align:right;color:#555">${a.ra_points}</td>
+      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})">📋 Copiar</button></td>
+    </tr>`;
+    }).join('');
+    html += '</tbody></table></div>';
+
+    if (totalPages > 1) {
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px">`;
+      html += `<button class="btn" style="padding:2px 10px" ${page <= 0 ? 'disabled' : `onclick="_rptRaGoToPage(${page - 1})"`}>&#8592;</button>`;
+      html += `<span style="color:#888">Pág. ${page + 1} de ${totalPages} (${filtered.length} total)</span>`;
+      html += `<button class="btn" style="padding:2px 10px" ${page >= totalPages - 1 ? 'disabled' : `onclick="_rptRaGoToPage(${page + 1})"`}>&#8594;</button>`;
+      html += `</div>`;
+    }
+
+    if (ra.no_support_alternative > 0) {
+      html += `<p style="margin-top:10px"><a href="/api/ra-check.csv" download class="btn" style="font-size:12px">&#x2193; CSV completo (${ra.no_support_alternative} juegos)</a></p>`;
+    }
+  } else if (alts.length === 0) {
+    html += `<p style="color:#4ec9b0;font-size:12px">Todos los juegos escaneados son compatibles con RA.</p>`;
+  }
+
   el.innerHTML = html;
 }
 
@@ -4138,6 +4859,24 @@ function _updateAutoSyncBanner(data, sdStatus) {
     text.textContent = '';
   } else {
     banner.style.display = 'none';
+  }
+
+  // 24-5: always update the compact header indicator
+  const hdr = document.getElementById('header-last-sync');
+  if (hdr) {
+    const lastAt = s.last_sync_at;
+    if (lastAt) {
+      hdr.textContent = `Sync ${_relTime(lastAt)}`;
+      hdr.className = s.last_error ? 'sync-err' : 'sync-ok';
+      hdr.title = `Última sync: ${lastAt}` + (s.last_error ? ` · Error: ${s.last_error}` : '');
+    } else if (enabled) {
+      hdr.textContent = 'Sync en espera';
+      hdr.className = '';
+      hdr.title = 'Sin sincronizaciones aún';
+    } else {
+      hdr.textContent = '';
+      hdr.className = '';
+    }
   }
 }
 
@@ -4434,3 +5173,41 @@ async function _pollInboxWatcher() {
 _initColPicker();
 loadOverview();
 startAutoSyncPolling();
+
+// ── S24 init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // S25: Check PIN status on load (shows logout button in header if needed)
+  loadAuthStatus();
+  loadLocalUrl();
+
+  // 24-4: Confirm modal OK button
+  const confirmOkBtn = document.getElementById('confirm-ok');
+  if (confirmOkBtn) confirmOkBtn.addEventListener('click', () => {
+    if (_confirmOkHandler) _confirmOkHandler();
+    _closeConfirm();
+  });
+
+  // 24-1: Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement?.tagName;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+    if (e.key === 'Escape') {
+      if (document.getElementById('game-panel')?.classList.contains('open')) { closeGamePanel(); return; }
+      _closeConfirm();
+      closeWizard?.();
+      return;
+    }
+    // Don't trigger nav shortcuts when a modal is open
+    const confirmOpen = document.getElementById('confirm-modal')?.style.display !== 'none';
+    const wizardOpen  = document.getElementById('wizard-modal')?.style.display  !== 'none';
+    if (confirmOpen || wizardOpen) return;
+    const k = e.key.toLowerCase();
+    if (k === 's') { e.preventDefault(); showTab('sync'); }
+    if (k === 'g') { e.preventDefault(); showTab('games'); }
+    if (k === 'r') {
+      e.preventDefault();
+      const t = document.querySelector('nav button.active')?.id?.replace('nav-', '');
+      if (t) showTab(t);
+    }
+  });
+});
