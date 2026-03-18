@@ -979,8 +979,9 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="max-width:800px;margin-top:24px">
     <h3>Exportar gamelist.xml</h3>
     <p style="color:#888;font-size:12px;margin-bottom:16px">
-      Genera un <code>gamelist.xml</code> por plataforma en el formato de EmulationStation (consola Android).
-      Sin estos archivos, la consola muestra sólo texto plano.
+      Genera un <code>gamelist.xml</code> por plataforma en el formato EmulationStation / ES-DE.<br>
+      Funciona en <strong>PC</strong> (ES-DE Windows) y en la <strong>consola Android</strong> (ES-DE o Pegasus).
+      Sin estos archivos, el frontend muestra sólo texto plano — sin carátulas, descripción ni metadatos.
     </p>
     <div class="actions-row">
       <div>
@@ -1524,6 +1525,27 @@ HTML = r"""<!DOCTYPE html>
       <input id="cfg-retroarch-path" type="text" style="flex:1" placeholder="C:/RetroArch/retroarch.exe">
     </div>
     <div style="font-size:11px;color:#555;margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente añadiendo <code>[launchers] retroarch = "ruta"</code>.</div>
+  </div>
+
+  <!-- ES-DE PC setup guide -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F5A5; Configurar ES-DE en PC</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">
+      ES-DE es un frontend de juegos retro disponible para Windows, macOS y Linux.
+      Con tu biblioteca ya organizada, el setup es de 5 minutos.
+    </p>
+    <ol style="color:#d4d4d4;font-size:12px;line-height:2;padding-left:18px;margin:0 0 12px 0">
+      <li>Descarga ES-DE desde <code>es-de.org</code> e inst&#xe1;lalo en el PC.</li>
+      <li>Al arrancar ES-DE por primera vez, apunta a tu <strong>library_root</strong>:<br>
+          <span id="esde-library-root-hint" style="color:#569cd6;font-family:monospace;font-size:11px">cargando…</span>
+      </li>
+      <li>Pulsa <strong>"Exportar gamelist.xml"</strong> en la pesta&#xf1;a <em>Scraper</em> para que ES-DE vea las car&#xe1;tulas.</li>
+      <li>Abre ES-DE &#x2192; men&#xfa; &#x2192; <em>Scan for games</em> &#x2014; detectar&#xe1; todos tus ROMs autom&#xe1;ticamente.</li>
+    </ol>
+    <p style="color:#555;font-size:11px;margin:0">
+      La misma estructura de carpetas y los mismos <code>gamelist.xml</code> funcionan en PC y en la consola Android &#x2014;
+      s&#xf3;lo necesitas scrapear una vez.
+    </p>
   </div>
 
   <!-- S29: Backup settings -->

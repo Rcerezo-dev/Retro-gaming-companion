@@ -3509,7 +3509,8 @@ async function doExportGamelists() {
     if (d.written.length === 0) {
       resultEl.textContent = 'No hay metadatos scrapeados para exportar.';
     } else {
-      resultEl.textContent = d.written.map(w => `${w.platform}: ${w.entries} entradas → ${w.path}`).join('\n');
+      const esNote = d.es_detected ? '\n✔ EmulationStation detectado — gamelist.xml también escrito en ~/.emulationstation/gamelists/' : '';
+      resultEl.textContent = d.written.map(w => `${w.platform}: ${w.entries} entradas → ${w.path}`).join('\n') + esNote;
       resultEl.style.whiteSpace = 'pre';
     }
   } catch(e) {
@@ -3558,6 +3559,8 @@ async function loadSettings() {
     document.getElementById('cfg-adb').value           = cfg.adb || 'adb';
     const raPathEl = document.getElementById('cfg-retroarch-path');
     if (raPathEl) raPathEl.value = cfg.retroarch_path || '';
+    const esdeHint = document.getElementById('esde-library-root-hint');
+    if (esdeHint) esdeHint.textContent = cfg.library_root || '(configura library_root primero)';
     const bkEnabledEl = document.getElementById('cfg-backup-enabled');
     const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
     if (bkEnabledEl) bkEnabledEl.checked = cfg.backup_saves_enabled !== false;

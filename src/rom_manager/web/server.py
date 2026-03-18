@@ -2415,6 +2415,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
         def _handle_export_gamelists(self, data: dict) -> None:
             from rom_manager.scraper.gamelist_writer import write_gamelist
+            import os as _os
             output_root = Path(data.get("output_dir") or "").resolve() if data.get("output_dir") else config.library_root
             if output_root is None:
                 self._send_json({"error": "library_root not configured"})
@@ -2423,6 +2424,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             platforms = repository.get_scraped_platform_summary()
             if platform_filter:
                 platforms = [p for p in platforms if p["platform"] == platform_filter]
+
+            # Detect classic EmulationStation config dir (Windows: %USERPROFILE%\.emulationstation)
+            _es_root: Path | None = None
+            _home = Path(_os.environ.get("USERPROFILE") or _os.path.expanduser("~"))
+            _candidate = _home / ".emulationstation" / "gamelists"
+            if _candidate.parent.exists():
+                _es_root = _candidate
+
             written = []
             for plat in platforms:
                 if plat["scraped"] == 0:
@@ -2433,9 +2442,15 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 slug = plat["platform"].lower().replace(" ", "").replace("/", "_")
                 platform_dir = Path(output_root) / slug
                 platform_dir.mkdir(parents=True, exist_ok=True)
-                out = write_gamelist(platform_dir, entries)
-                written.append({"platform": plat["platform"], "path": str(out), "entries": len(entries)})
-            self._send_json({"written": written})
+                es_config_dir = (_es_root / slug) if _es_root else None
+                out = write_gamelist(platform_dir, entries, es_config_dir=es_config_dir)
+                written.append({
+                    "platform": plat["platform"],
+                    "path": str(out),
+                    "es_path": str(es_config_dir / "gamelist.xml") if es_config_dir else None,
+                    "entries": len(entries),
+                })
+            self._send_json({"written": written, "es_detected": _es_root is not None})
 
         def _handle_delete_duplicate(self, data: dict) -> None:
             import os
