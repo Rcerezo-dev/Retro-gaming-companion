@@ -68,7 +68,7 @@
   --modal-bg:    rgba(0,0,0,.5);
   --overlay-bg:  rgba(0,0,0,.25);
   --shadow:      rgba(0,0,0,.15);
-  --header-grad: linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+  --header-grad: linear-gradient(135deg,#e8ecf8 0%,#f0f4ff 100%);
 }
 
 /* ── Reset & base ─────────────────────────────────────────────────────────── */
@@ -91,7 +91,7 @@ nav button:hover { color: var(--fg); }
 nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
-main { padding: 24px; max-width: 1400px; }
+main { padding: 24px; max-width: none; margin: 0 auto; }
 .tab { display: none; }
 .tab.active { display: block; }
 
@@ -157,13 +157,13 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 [data-theme="light"] .badge.download { background: #d8f0d8; color: #0f6020; }
 
 /* ── Config grid ──────────────────────────────────────────────────────────── */
-.config-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; background: var(--bg-panel); border: 1px solid var(--border-s); border-radius: 6px; padding: 14px 16px; margin-top: 16px; max-width: 600px; }
+.config-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; background: var(--bg-panel); border: 1px solid var(--border-s); border-radius: 6px; padding: 14px 16px; margin-top: 16px; max-width: 100%; }
 .config-grid .cfg-key { color: var(--fg-2); }
 .config-grid .cfg-val { color: var(--fg); }
 .config-grid .cfg-val.missing { color: var(--fg-4); font-style: italic; }
 
 /* ── Actions panel ────────────────────────────────────────────────────────── */
-.actions-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; margin-top: 20px; max-width: 700px; }
+.actions-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; margin-top: 20px; max-width: 100%; }
 .actions-panel h3 { color: var(--fg-3); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
 .actions-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
 .actions-row label { color: var(--fg-2); font-size: 11px; display: block; margin-bottom: 4px; }
@@ -456,3 +456,41 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 /* ── S35: Theme toggle button ─────────────────────────────────────────────── */
 .theme-toggle { background: none; border: 1px solid var(--border); color: var(--fg-2); border-radius: 20px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color .15s, color .15s; display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── S35-4: Animations ──────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #1e1e2e 25%, #2a2a3a 50%, #1e1e2e 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 4px;
+}
+[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg, #f4f5fe 25%, #e8ecf8 50%, #f4f5fe 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.platform-tile {
+  transition: transform 0.18s, box-shadow 0.18s, background 0.15s, border-color 0.15s;
+}
+.platform-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* ── S35-5: Collection gallery ──────────────────────────────────────────── */
+.col-tile { cursor: pointer; border-radius: 6px; overflow: hidden; background: var(--bg-panel); border: 1px solid var(--border); transition: transform 0.15s, box-shadow 0.15s; }
+.col-tile:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
+.col-cover { width: 100%; aspect-ratio: 3/4; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--bg-cover); }
+.col-cover img { width: 100%; height: 100%; object-fit: cover; }
+.col-title { font-size: 11px; font-weight: 600; color: var(--fg); padding: 6px 8px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-plat  { font-size: 10px; color: var(--fg-2); padding: 0 8px 6px; }
+
+[data-theme="light"] .col-tile { background: var(--bg-panel); border-color: var(--border); }
+[data-theme="light"] .col-cover { background: var(--bg-cover); }
+[data-theme="light"] .col-title { color: var(--fg); }
+[data-theme="light"] .col-plat  { color: var(--fg-2); }

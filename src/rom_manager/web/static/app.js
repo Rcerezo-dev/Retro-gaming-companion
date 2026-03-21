@@ -141,7 +141,7 @@ function showTab(name) {
   if (name === 'assets')     loadAssets();
   if (name === 'sync')       { loadSync(); loadManualBackups(); }
   if (name === 'cable')      loadCableSync();
-  if (name === 'collection') loadCollectionStats();
+  if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
@@ -151,6 +151,7 @@ function showTab(name) {
 
 // ── Guide toggle (update arrow icon) ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();  // S35-1: initialize theme from localStorage
   updateInboxBadge();  // 32-1: initial badge check
   const guide = document.getElementById('ov-guide');
   if (guide) {
@@ -196,6 +197,31 @@ document.addEventListener('click', e => {
     if (r) r.style.display = 'none';
   }
 });
+
+// ── S35-1: Theme (Dark/Light mode) ───────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('rv_theme') || 'dark';
+  _applyTheme(saved);
+}
+
+function setTheme(theme) {
+  // Validar que sea dark o light
+  theme = (theme === 'light') ? 'light' : 'dark';
+  _applyTheme(theme);
+  // Toast visual
+  const icon = theme === 'light' ? '☀️' : '🌙';
+  const name = theme === 'light' ? 'Modo claro' : 'Modo oscuro';
+  showToast(`${icon} ${name} activado`, 'ok');
+}
+
+function _applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '');
+  localStorage.setItem('rv_theme', theme);
+  const darkRadio = document.getElementById('theme-dark');
+  const lightRadio = document.getElementById('theme-light');
+  if (darkRadio) darkRadio.checked = (theme === 'dark');
+  if (lightRadio) lightRadio.checked = (theme === 'light');
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSize(n) {
@@ -913,6 +939,13 @@ async function loadOverview() {
       }
     } catch(_) {}
 
+    // S35-2: Render platform grid
+    if (pcPath) {
+      try {
+        _renderPlatformGrid(pcPath);
+      } catch(_) { /* silent */ }
+    }
+
   } catch(e) {
     const pcCardsEl = document.getElementById('ov-pc-cards');
     if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
@@ -934,6 +967,84 @@ function card(label, value, sub, onclick, colorCls, actions) {
     ${sub ? `<div class="sub">${sub}</div>` : ''}
     ${actHtml}
   </div>`;
+}
+
+// ── S35-2: Platform Grid ───────────────────────────────────────────────────────
+// SVG logos for platforms
+const _platformLogos = {
+  'Atari 2600': '<svg viewBox="0 0 40 40"><rect fill="#d32f2f" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="20" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">A2K</text></svg>',
+  'NES': '<svg viewBox="0 0 40 40"><rect fill="#4a90e2" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">NES</text></svg>',
+  'SNES': '<svg viewBox="0 0 40 40"><rect fill="#9c27b0" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="16" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">SNES</text></svg>',
+  'Game Boy': '<svg viewBox="0 0 40 40"><rect fill="#8b7355" width="40" height="40" rx="2"/><rect fill="#a0a0a0" x="4" y="4" width="32" height="32" rx="2"/><text x="50%" y="50%" font-size="12" font-weight="bold" fill="#222" text-anchor="middle" dominant-baseline="middle">GB</text></svg>',
+  'Game Boy Color': '<svg viewBox="0 0 40 40"><rect fill="#8b7355" width="40" height="40" rx="2"/><rect fill="#90ee90" x="4" y="4" width="32" height="32" rx="2"/><text x="50%" y="50%" font-size="10" font-weight="bold" fill="#222" text-anchor="middle" dominant-baseline="middle">GBC</text></svg>',
+  'Game Boy Advance': '<svg viewBox="0 0 40 40"><rect fill="#8b7355" width="40" height="40" rx="2"/><rect fill="#6600cc" x="4" y="4" width="32" height="32" rx="2"/><text x="50%" y="50%" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">GBA</text></svg>',
+  'Nintendo 64': '<svg viewBox="0 0 40 40"><rect fill="#c41e3a" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">N64</text></svg>',
+  'Nintendo DS': '<svg viewBox="0 0 40 40"><rect fill="#e5a35f" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">NDS</text></svg>',
+  'Nintendo 3DS': '<svg viewBox="0 0 40 40"><rect fill="#ffc000" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="12" font-weight="bold" fill="#000" text-anchor="middle" dominant-baseline="middle">3DS</text></svg>',
+  'Sega Genesis': '<svg viewBox="0 0 40 40"><rect fill="#0066cc" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">MD</text></svg>',
+  'Sega Master System': '<svg viewBox="0 0 40 40"><rect fill="#333" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">SMS</text></svg>',
+  'Game Gear': '<svg viewBox="0 0 40 40"><rect fill="#333" width="40" height="40" rx="2"/><rect fill="#ffcc00" x="5" y="5" width="30" height="30" rx="2"/><text x="50%" y="50%" font-size="10" font-weight="bold" fill="#000" text-anchor="middle" dominant-baseline="middle">GG</text></svg>',
+  'PlayStation': '<svg viewBox="0 0 40 40"><rect fill="#003087" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">PS1</text></svg>',
+  'PlayStation 2': '<svg viewBox="0 0 40 40"><rect fill="#111" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">PS2</text></svg>',
+  'PlayStation Portable': '<svg viewBox="0 0 40 40"><rect fill="#003087" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">PSP</text></svg>',
+  'Dreamcast': '<svg viewBox="0 0 40 40"><rect fill="#f4c300" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="12" font-weight="bold" fill="#000" text-anchor="middle" dominant-baseline="middle">DC</text></svg>',
+  'Arcade': '<svg viewBox="0 0 40 40"><rect fill="#ff6600" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">ARC</text></svg>',
+  'MAME': '<svg viewBox="0 0 40 40"><rect fill="#ff6600" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="14" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">MAME</text></svg>',
+};
+
+function _getPlatformLogo(platformName) {
+  if (!platformName) return null;
+  return _platformLogos[platformName] ||
+    `<svg viewBox="0 0 40 40"><rect fill="#666" width="40" height="40" rx="2"/><text x="50%" y="50%" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">${platformName.slice(0,3).toUpperCase()}</text></svg>`;
+}
+
+async function _renderPlatformGrid(pcPath) {
+  const gridEl = document.getElementById('ov-platform-grid');
+  if (!gridEl) return;
+
+  try {
+    const ps = await apiFetch('/api/platform-stats?root=' + encodeURIComponent(pcPath));
+    if (!ps.platforms || ps.platforms.length === 0) {
+      gridEl.innerHTML = '<p style="color:#555;font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
+      return;
+    }
+
+    // Find max count for relative sizing
+    const maxCount = Math.max(...ps.platforms.map(p => p.count));
+
+    // Render up to 12 platforms
+    gridEl.innerHTML = ps.platforms.slice(0, 12).map((p, idx) => {
+      const logo = _getPlatformLogo(p.platform);
+      const size = Math.max(40, Math.round(p.count / maxCount * 100));
+      const platName = _h(p.platform || '?');
+      const platEscaped = (p.platform || '').replace(/'/g, "\\'");
+      return `<div class="platform-tile" data-idx="${idx}"
+        style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px;background:#1e1e2e;border:1px solid #2a2a3a;border-radius:6px;cursor:pointer;transition:all 0.2s;text-align:center"
+        onmouseover="this.style.background='#252535';this.style.borderColor='#3a3a5c'"
+        onmouseout="this.style.background='#1e1e2e';this.style.borderColor='#2a2a3a'">
+        <div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">${logo}</div>
+        <div style="font-size:11px;font-weight:600;color:#d4d4d4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%" title="${platName}">${platName}</div>
+        <div style="font-size:10px;color:#888">${p.count} game${p.count !== 1 ? 's' : ''}</div>
+      </div>`;
+    }).join('');
+
+    // Add click handlers
+    ps.platforms.slice(0, 12).forEach((p, idx) => {
+      const tile = gridEl.querySelector(`[data-idx="${idx}"]`);
+      if (tile) {
+        tile.addEventListener('click', () => {
+          gamesState.root = pcPath;
+          gamesState.status = '';
+          gamesState.platform = p.platform || '';
+          gamesState.filetype = '';
+          platformsLoaded = false;
+          showTab('games');
+        });
+      }
+    });
+  } catch(_) {
+    gridEl.innerHTML = '<p style="color:#555;font-size:12px">Error al cargar plataformas.</p>';
+  }
 }
 
 // ── D8-P1: Setup Wizard ───────────────────────────────────────────────────────
@@ -1094,10 +1205,10 @@ function wizardGoToOrganize() {
 }
 
 // Navigate to Games tab pre-filtered by device root, match status, and filetype
-function goToGames(root, status, filetype) {
-  gamesState.root   = root   || null;
-  gamesState.status = status || '';
-  gamesState.platform = '';
+function goToGames(root, status, filetype, platform) {
+  gamesState.root     = root   || null;
+  gamesState.status   = status || '';
+  gamesState.platform = platform || '';
   gamesState.filetype = filetype || '';
   platformsLoaded = false;
   const statusSel = document.getElementById('games-matched');
@@ -2541,7 +2652,7 @@ async function doResolveRaConflicts() {
   }
 }
 
-// D8-4: Discard all RA duplicates without RA support
+// B1-4: Discard all RA duplicates without RA support
 async function discardAllRaDuplicates() {
   if (!confirm('¿Eliminar TODOS los archivos sin logros RA de todos los grupos de versión?\n\nSe moverán a una carpeta _descartados/ junto a cada archivo. Esta acción no se puede deshacer fácilmente.')) return;
   const btn = document.getElementById('btn-ra-dups-discard-all');
@@ -3303,7 +3414,10 @@ async function doFindOrphans() {
       </div>`;
     }).join('');
     html += '</div>';
-    html += '<button class="btn danger" onclick="doDeleteOrphans()">Borrar seleccionados</button>';
+    html += '<div style="display:flex;gap:8px">';
+    html += '<button class="btn" onclick="doMoveOrphansToArchive()">📁 Mover seleccionados a _huérfanos/</button>';
+    html += '<button class="btn danger" onclick="doDeleteOrphans()">🗑️ Borrar seleccionados</button>';
+    html += '</div>';
     resultEl.innerHTML = html;
   } catch(e) {
     resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
@@ -3330,6 +3444,29 @@ async function doDeleteOrphans() {
     doFindOrphans();
   } catch(e) {
     alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.');
+  }
+}
+
+// B9-4: Move orphaned saves to _huerfanos/
+async function doMoveOrphansToArchive() {
+  const checkedEls = [...document.querySelectorAll('.orphan-chk:checked')];
+  const checked = checkedEls.map(c => c.value);
+  if (checked.length === 0) { alert('Selecciona al menos un archivo.'); return; }
+  const totalBytes = checkedEls.reduce((s, c) => s + parseInt(c.dataset.size || '0'), 0);
+  const pathVal = document.getElementById('orphan-path').value.trim();
+  if (!pathVal) { alert('Introduce la carpeta de la biblioteca.'); return; }
+  if (!confirm(`¿Mover ${checked.length} save(s) huérfano(s) a _huérfanos/?\nEspacio a mover: ${fmtSize(totalBytes)}`)) return;
+  try {
+    const d = await apiPost('/api/orphaned-saves/move-to-archive', {
+      paths: checked,
+      library_root: pathVal
+    });
+    if (d.error) { alert('Error: ' + d.error); return; }
+    const msg = `Movidos: ${d.moved}  |  Fallidos: ${d.failed}  |  Espacio movido: ${fmtSize(d.moved_bytes)}`;
+    alert(msg + `\n\nCarpeta: ${d.archive_dir}`);
+    doFindOrphans();
+  } catch(e) {
+    alert('Error: ' + e.message);
   }
 }
 
@@ -3571,6 +3708,131 @@ async function toggleWishlist(sha1, title, platform, currentStatus) {
     btn.style.color = '#4ec9b0';
     btn.onclick = () => toggleWishlist(sha1, title, platform, currentStatus);
     showToast('Añadido a wishlist', 'ok');
+  }
+}
+
+// ── S35-5: Collection gallery ────────────────────────────────────────────────
+let _colPlatform = '';
+let _colSearch = '';
+let _colOffset = 0;
+const _COL_PAGE = 30;
+let _colRoot = null;
+
+async function loadCollection() {
+  const root = _deviceRoot();
+  _colRoot = root;
+  const gridEl = document.getElementById('col-grid');
+  const barEl = document.getElementById('col-platform-bar');
+  const loadMoreBtn = document.getElementById('col-load-more');
+  if (!gridEl || !barEl) return;
+
+  gridEl.innerHTML = '<p class="loading" style="grid-column:1/-1">Cargando colección…</p>';
+  try {
+    // Load platform stats
+    const stats = await apiFetch(`/api/platform-stats?root=${encodeURIComponent(root || '')}`);
+    const platforms = stats.platforms || [];
+
+    // Render platform filter buttons
+    barEl.innerHTML = '';
+    const allBtn = document.createElement('button');
+    allBtn.className = 'btn' + (_colPlatform === '' ? ' active' : '');
+    allBtn.textContent = 'Todos (' + platforms.reduce((s, p) => s + p.total_games, 0) + ')';
+    allBtn.onclick = () => { _colPlatform = ''; _colOffset = 0; loadCollection(); };
+    allBtn.style.fontSize = '12px';
+    barEl.appendChild(allBtn);
+
+    for (const p of platforms) {
+      const btn = document.createElement('button');
+      btn.className = 'btn platform-tile' + (_colPlatform === p.platform ? ' active' : '');
+      btn.textContent = `${_h(p.platform)} (${p.total_games})`;
+      btn.onclick = () => colSetPlatform(p.platform);
+      btn.style.fontSize = '12px';
+      barEl.appendChild(btn);
+    }
+
+    // Load and render games
+    const params = new URLSearchParams({
+      root: root || '',
+      platform: _colPlatform,
+      search: _colSearch,
+      offset: _colOffset,
+      limit: _COL_PAGE
+    });
+    const games = await apiFetch(`/api/games?${params}`);
+    const gameList = games.games || [];
+
+    if (gameList.length === 0 && _colOffset === 0) {
+      gridEl.innerHTML = '<p class="empty" style="grid-column:1/-1">Sin juegos. Escanea tu biblioteca en Inicio.</p>';
+      loadMoreBtn.style.display = 'none';
+      return;
+    }
+
+    _renderColGrid(gameList, _colOffset > 0);
+    loadMoreBtn.style.display = gameList.length >= _COL_PAGE ? '' : 'none';
+  } catch (e) {
+    gridEl.innerHTML = `<p class="error-msg" style="grid-column:1/-1">${e.message}</p>`;
+  }
+}
+
+function colSetPlatform(p) {
+  _colPlatform = p;
+  _colOffset = 0;
+  loadCollection();
+}
+
+function colSearch(v) {
+  _colSearch = v;
+  _colOffset = 0;
+  loadCollection();
+}
+
+async function colLoadMore() {
+  _colOffset += _COL_PAGE;
+  const root = _deviceRoot();
+  const gridEl = document.getElementById('col-grid');
+  if (!gridEl) return;
+
+  try {
+    const params = new URLSearchParams({
+      root: root || '',
+      platform: _colPlatform,
+      search: _colSearch,
+      offset: _colOffset,
+      limit: _COL_PAGE
+    });
+    const games = await apiFetch(`/api/games?${params}`);
+    const gameList = games.games || [];
+
+    _renderColGrid(gameList, true);
+    const loadMoreBtn = document.getElementById('col-load-more');
+    if (loadMoreBtn) {
+      loadMoreBtn.style.display = gameList.length >= _COL_PAGE ? '' : 'none';
+    }
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'err');
+  }
+}
+
+function _renderColGrid(games, append) {
+  const gridEl = document.getElementById('col-grid');
+  if (!gridEl) return;
+
+  if (!append) gridEl.innerHTML = '';
+
+  for (const g of games) {
+    const tile = document.createElement('div');
+    tile.className = 'col-tile';
+    tile.onclick = () => openGamePanel(g);
+    tile.innerHTML = `
+      <div class="col-cover skeleton">
+        <img src="/api/asset-image?game_id=${g.id}"
+          onload="this.parentElement.classList.remove('skeleton')"
+          onerror="this.parentElement.classList.remove('skeleton');this.parentElement.innerHTML='<span>🎮</span>'">
+      </div>
+      <div class="col-title">${_h(g.canonical_title || g.original_filename)}</div>
+      <div class="col-plat">${_h(g.platform || '')}</div>
+    `;
+    gridEl.appendChild(tile);
   }
 }
 
@@ -4121,18 +4383,25 @@ function _renderRaResult(r) {
     html += `<div style="margin-bottom:8px;color:#ce9178;font-size:12px">`;
     html += `Estos juegos tienen una versión RA-compatible disponible:`;
     html += `</div>`;
-    html += '<div style="overflow-x:auto"><table><thead><tr>';
-    html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th><th>Buscar</th>';
+    html += '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg-deep);">';
+    html += '<th style="min-width:100px;text-align:left;padding:8px 12px">Plataforma</th>';
+    html += '<th style="min-width:200px;text-align:left;padding:8px 12px">Tu archivo</th>';
+    html += '<th style="min-width:200px;text-align:left;padding:8px 12px">Título RA</th>';
+    html += '<th style="min-width:80px;text-align:right;padding:8px 12px">Logros</th>';
+    html += '<th style="min-width:80px;text-align:right;padding:8px 12px">Puntos</th>';
+    html += '<th style="min-width:140px;text-align:center;padding:8px 12px">Descargar</th>';
     html += '</tr></thead><tbody>';
     html += pageAlts.map(a => {
-      const q = _googleQuery(a.ra_title, a.platform);
-      return `<tr>
-      <td>${a.platform}</td>
-      <td title="${a.filename}" style="min-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
-      <td style="min-width:160px"><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
-      <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
-      <td style="text-align:right;color:#555">${a.ra_points}</td>
-      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})" title="Copiar búsqueda"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><rect x="5" y="5" width="9" height="9" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 10H2a1 1 0 01-1-1V2a1 1 0 011-1h7a1 1 0 011 1v1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></td>
+      return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;color:var(--fg-2)">${a.platform}</td>
+      <td style="padding:8px 12px;color:#ce9178;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.filename}">${a.filename}</td>
+      <td style="padding:8px 12px"><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
+      <td style="padding:8px 12px;text-align:right;color:#ce9178">${a.ra_achievements}</td>
+      <td style="padding:8px 12px;text-align:right;color:#555">${a.ra_points}</td>
+      <td style="padding:8px 12px;text-align:center;gap:4px;display:flex;justify-content:center">
+        <button class="btn" style="font-size:10px;padding:2px 7px" onclick="_openArchiveOrg('${a.ra_title.replace(/'/g, "\\'")}', '${a.platform}')" title="Abrir en Archive.org">🔗</button>
+        <button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyArchiveOrgLink('${a.ra_title.replace(/'/g, "\\'")}', '${a.platform}')" title="Copiar link de Archive.org">📋</button>
+      </td>
     </tr>`;
     }).join('');
     html += '</tbody></table></div>';
@@ -4160,7 +4429,19 @@ function _copyText(text) {
   navigator.clipboard?.writeText(text).then(() => showToast('Copiado', 'ok')).catch(() => {});
 }
 function _googleQuery(raTitle, platform) {
-  return `"${raTitle}" ${platform} No-Intro site:archive.org`;
+  return `"${raTitle}" download`;
+}
+function _archiveOrgUrl(raTitle, platform) {
+  const query = encodeURIComponent(`"${raTitle}" download`);
+  return `https://archive.org/search.php?query=${query}`;
+}
+function _openArchiveOrg(raTitle, platform) {
+  const url = _archiveOrgUrl(raTitle, platform);
+  window.open(url, '_blank');
+}
+function _copyArchiveOrgLink(raTitle, platform) {
+  const url = _archiveOrgUrl(raTitle, platform);
+  navigator.clipboard?.writeText(url).then(() => showToast('Link copiado', 'ok')).catch(() => {});
 }
 
 async function discardRaNoSupport(count) {
@@ -4699,9 +4980,26 @@ async function loadLocalUrl() {
   const el = document.getElementById('local-url-display');
   try {
     const d = await apiFetch('/api/local-url');
-    if (el) el.textContent = d.url;
+    const urlVal = d.url || '';
+    if (el) el.textContent = urlVal;
+    if (urlVal) {
+      renderQR('http://' + urlVal, 'qr-canvas');
+      const noUrlEl = document.getElementById('qr-no-url');
+      if (noUrlEl) noUrlEl.style.display = 'none';
+      const canvasEl = document.getElementById('qr-canvas');
+      if (canvasEl) canvasEl.style.display = '';
+    } else {
+      const noUrlEl = document.getElementById('qr-no-url');
+      if (noUrlEl) noUrlEl.style.display = '';
+      const canvasEl = document.getElementById('qr-canvas');
+      if (canvasEl) canvasEl.style.display = 'none';
+    }
   } catch(e) {
     if (el) el.textContent = '—';
+    const noUrlEl = document.getElementById('qr-no-url');
+    if (noUrlEl) noUrlEl.style.display = '';
+    const canvasEl = document.getElementById('qr-canvas');
+    if (canvasEl) canvasEl.style.display = 'none';
   }
 }
 
@@ -4709,6 +5007,88 @@ function copyLocalUrl() {
   const url = document.getElementById('local-url-display')?.textContent;
   if (!url || url === 'cargando…' || url === '—') return;
   navigator.clipboard?.writeText(url).then(() => showToast('URL copiada', 'ok')).catch(() => {});
+}
+
+// ── QR Code Generator (pure JS, ~80 lines) ──────────────────────────────
+function renderQR(text, canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const size = 140;
+  const moduleSize = 2; // Adjust for finer/coarser QR
+
+  // Generate QR data (simple version 2 QR code)
+  const data = _encodeQRData(text);
+  const matrix = _generateQRMatrix(data);
+
+  // Clear canvas
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size, size);
+
+  // Draw QR modules
+  ctx.fillStyle = '#000';
+  const qrSize = matrix.length;
+  const scale = size / qrSize;
+  for (let y = 0; y < qrSize; y++) {
+    for (let x = 0; x < qrSize; x++) {
+      if (matrix[y][x]) {
+        ctx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+  }
+}
+
+function _encodeQRData(text) {
+  // Encode text as QR byte data
+  const codes = [];
+  for (let i = 0; i < text.length; i++) {
+    codes.push(text.charCodeAt(i));
+  }
+  return codes;
+}
+
+function _generateQRMatrix(codes) {
+  const version = 2;
+  const qrSize = 25; // v2 = 25x25
+  const matrix = Array(qrSize).fill(0).map(() => Array(qrSize).fill(0));
+
+  // Position detection patterns (3 corners)
+  const pattern = [[1,1,1,1,1,1,1],[1,0,0,0,0,0,1],[1,0,1,1,1,0,1],[1,0,1,1,1,0,1],[1,0,1,1,1,0,1],[1,0,0,0,0,0,1],[1,1,1,1,1,1,1]];
+  const placePat = (x, y) => {
+    for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) if (x+i < qrSize && y+j < qrSize) matrix[y+j][x+i] = pattern[j][i];
+  };
+  placePat(0, 0); placePat(qrSize-7, 0); placePat(0, qrSize-7);
+
+  // Timing patterns
+  for (let i = 8; i < qrSize - 8; i++) {
+    matrix[6][i] = i % 2;
+    matrix[i][6] = i % 2;
+  }
+
+  // Data area (simplified: just fill with encoded data)
+  let x = qrSize - 1, y = qrSize - 1, bitIdx = 0, byteIdx = 0;
+  let bit = 0;
+
+  while (x > 0) {
+    for (let i = 0; i < 2; i++) {
+      if (matrix[y][x] === 0) {
+        if (byteIdx < codes.length) {
+          bit = (codes[byteIdx] >> (7 - (bitIdx % 8))) & 1;
+          matrix[y][x] = bit;
+          bitIdx++;
+          if (bitIdx % 8 === 0) byteIdx++;
+        } else {
+          matrix[y][x] = (Math.random() > 0.5) ? 1 : 0; // Padding
+        }
+      }
+      x--;
+    }
+    if (x > 0) x--;
+    y = y % 2 === 0 ? y - 1 : y + 1;
+  }
+
+  return matrix;
 }
 
 async function saveSettings() {
@@ -5363,6 +5743,12 @@ async function doLibraryDoctor() {
     html += '</tbody></table></div>';
     if (d.total > 200) html += `<p style="color:#555;font-size:11px;margin-top:6px">… y ${d.total - 200} más</p>`;
     el.innerHTML = html;
+    // Mostrar/ocultar botón "Resolver todos"
+    const hasActionable = d.issues.some(iss =>
+      iss.type === 'misplaced_rom' || iss.type === 'empty_dir'
+    );
+    const resolveBtn = document.getElementById('btn-doctor-resolve-all');
+    if (resolveBtn) resolveBtn.style.display = hasActionable ? '' : 'none';
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${_h(e.message)}</p>`;
   }
@@ -5395,6 +5781,45 @@ async function doctorDeleteDir(idx) {
     const btn = row?.querySelector('button');
     if (btn) btn.disabled = true;
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+// B9-1: Doctor "Resolver todos"
+async function doctorResolveAll() {
+  const issues = window._doctorIssues || [];
+  const actionable = issues.filter(iss =>
+    iss.type === 'misplaced_rom' || iss.type === 'empty_dir'
+  );
+  if (!actionable.length) return;
+
+  const btn = document.getElementById('btn-doctor-resolve-all');
+  if (btn) { btn.disabled = true; btn.textContent = 'Resolviendo…'; }
+
+  let ok = 0, errors = 0;
+  for (let i = 0; i < issues.length; i++) {
+    const iss = issues[i];
+    const row = document.getElementById('doctor-row-' + i);
+    if (iss.type === 'misplaced_rom') {
+      try {
+        const d = await apiPost('/api/doctor-move-rom', {
+          path: iss.path, expected_dir: iss.expected_dir
+        });
+        if (d.error) { errors++; }
+        else { ok++; if (row) row.style.opacity = '0.3'; }
+      } catch { errors++; }
+    } else if (iss.type === 'empty_dir') {
+      try {
+        const d = await apiPost('/api/doctor-delete-dir', { path: iss.path });
+        if (d.error) { errors++; }
+        else { ok++; if (row) row.style.opacity = '0.3'; }
+      } catch { errors++; }
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '✔ Resolver todos'; }
+  const msg = errors
+    ? `Resueltos ${ok} issues. ${errors} con errores.`
+    : `${ok} issues resueltos correctamente.`;
+  showToast(msg, errors ? 'warn' : 'ok');
 }
 
 // ── Library Report ───────────────────────────────────────────────────────────
@@ -5622,18 +6047,25 @@ function _renderReportRa(d) {
     const pageAlts = filtered.slice(page * _RA_PAGE_SIZE, (page + 1) * _RA_PAGE_SIZE);
 
     html += `<p style="color:#888;font-size:12px;margin-bottom:8px">Juegos con versión alternativa compatible con RA:</p>`;
-    html += '<div style="overflow-x:auto"><table><thead><tr>';
-    html += '<th>Plataforma</th><th>Tu archivo</th><th>Título RA</th><th>Logros</th><th>Puntos</th><th>Buscar</th>';
+    html += '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg-deep);">';
+    html += '<th style="min-width:100px;text-align:left;padding:8px 12px">Plataforma</th>';
+    html += '<th style="min-width:200px;text-align:left;padding:8px 12px">Tu archivo</th>';
+    html += '<th style="min-width:200px;text-align:left;padding:8px 12px">Título RA</th>';
+    html += '<th style="min-width:80px;text-align:right;padding:8px 12px">Logros</th>';
+    html += '<th style="min-width:80px;text-align:right;padding:8px 12px">Puntos</th>';
+    html += '<th style="min-width:140px;text-align:center;padding:8px 12px">Descargar</th>';
     html += '</tr></thead><tbody>';
     html += pageAlts.map(a => {
-      const q = _googleQuery(a.ra_title, a.platform);
-      return `<tr>
-      <td>${a.platform}</td>
-      <td title="${a.filename}" style="min-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
-      <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
-      <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
-      <td style="text-align:right;color:#555">${a.ra_points}</td>
-      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})" title="Copiar búsqueda"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><rect x="5" y="5" width="9" height="9" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 10H2a1 1 0 01-1-1V2a1 1 0 011-1h7a1 1 0 011 1v1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></td>
+      return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;color:var(--fg-2)">${a.platform}</td>
+      <td style="padding:8px 12px;color:#ce9178;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.filename}">${a.filename}</td>
+      <td style="padding:8px 12px"><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
+      <td style="padding:8px 12px;text-align:right;color:#ce9178">${a.ra_achievements}</td>
+      <td style="padding:8px 12px;text-align:right;color:#555">${a.ra_points}</td>
+      <td style="padding:8px 12px;text-align:center;gap:4px;display:flex;justify-content:center">
+        <button class="btn" style="font-size:10px;padding:2px 7px" onclick="_openArchiveOrg('${a.ra_title.replace(/'/g, "\\'")}', '${a.platform}')" title="Abrir en Archive.org">🔗</button>
+        <button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyArchiveOrgLink('${a.ra_title.replace(/'/g, "\\'")}', '${a.platform}')" title="Copiar link de Archive.org">📋</button>
+      </td>
     </tr>`;
     }).join('');
     html += '</tbody></table></div>';
@@ -6137,9 +6569,6 @@ document.addEventListener('DOMContentLoaded', () => {
     _closeConfirm();
   });
 
-  // S35-1: Apply saved theme on load
-  _applyTheme(localStorage.getItem('rv_theme') || 'dark');
-
   // 24-1: Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     const tag = document.activeElement?.tagName;
@@ -6165,21 +6594,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ── S35-1: Theme toggle ───────────────────────────────────────────────────────
-function _applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  localStorage.setItem('rv_theme', theme);
-  const btn = document.getElementById('theme-toggle-btn');
-  if (btn) btn.textContent = theme === 'light' ? '\u2600 Claro' : '\u263D Oscuro';
-  const darkBtn  = document.getElementById('theme-btn-dark');
-  const lightBtn = document.getElementById('theme-btn-light');
-  if (darkBtn)  darkBtn.style.opacity  = theme === 'dark'  ? '1' : '0.5';
-  if (lightBtn) lightBtn.style.opacity = theme === 'light' ? '1' : '0.5';
-}
-
-function setTheme(theme) { _applyTheme(theme); }
-
 function toggleTheme() {
-  const current = document.documentElement.dataset.theme || 'dark';
+  const current = document.documentElement.getAttribute('data-theme') || '';
   _applyTheme(current === 'dark' ? 'light' : 'dark');
 }

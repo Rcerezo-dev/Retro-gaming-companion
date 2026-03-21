@@ -919,7 +919,11 @@ def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
 
 
 def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> dict:
-    """Find title-based duplicates where one version has RA support and another doesn't."""
+    """B1-4: Find title-based duplicates where one version has RA support and another doesn't.
+
+    Conserva automáticamente la versión con logros activos en RetroAchievements.
+    Las versiones sin logros se marcan como candidatas a eliminar.
+    """
     from collections import defaultdict
     import json as _json
     from pathlib import Path as _Path

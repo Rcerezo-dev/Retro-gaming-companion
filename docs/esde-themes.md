@@ -89,3 +89,97 @@ Retro Vault puede copiar los `gamelist.xml` y las carpetas `media/` a la Anberni
 - En PC: los temas con vídeos (`.mp4`) consumen más recursos; desactívalos en **UI Settings → Scraper → Scrape videos** si el PC va justo
 - Los wheels (logos) mejoran mucho la legibilidad en listas largas
 - Art Book Next + portadas 3D es la combinación más vistosa con la biblioteca scrapeada
+
+---
+
+## 34d-2: Conversión CSO/ZSO → ISO (PSP)
+
+**Estado:** Documentación para implementar en Retro Vault
+
+### ¿Qué es CSO/ZSO?
+
+- **CSO** (Compressed ISO) — formato comprimido para PSP, creado por `maxcso`
+- **ZSO** — versión alternativa del mismo formato
+- Ventaja: ocupan 40-60% menos espacio que `.iso`
+- Desventaja: algunos emuladores (especialmente en PC con RetroArch) prefieren `.iso`
+
+### Cuándo convertir
+
+✅ **Usa CSO/ZSO si:**
+- Juegas principalmente en la Anbernic
+- RetroArch Android soporta CSO
+- Quieres ahorrar espacio
+
+❌ **Convierte a ISO si:**
+- Quieres máxima compatibilidad en PC
+- Tienes espacio suficiente
+- Planeas cambiar entre dispositivos
+
+### Herramienta: maxcso
+
+**maxcso.exe** — compresor/descompresor de ISO ↔ CSO
+
+```bash
+# Descomprimir CSO a ISO
+maxcso.exe --decompress input.cso output.iso
+
+# Comprimir ISO a CSO
+maxcso.exe input.iso output.cso
+
+# Nivel de compresión (por defecto: 9)
+maxcso.exe -l 9 input.iso output.cso
+```
+
+### Implementación esperada en Retro Vault (34d-2)
+
+Cuando se implemente, habrá una sección en **Tools → Formatos de archivo** con:
+
+```
+╔════════════════════════════════════════╗
+║  Conversión CSO/ZSO ↔ ISO (PSP)       ║
+╠════════════════════════════════════════╣
+║                                        ║
+║  📁 Carpeta de ROMs: [__________]     ║
+║     [library_root]                     ║
+║                                        ║
+║  ☐ CSO → ISO (descomprimir)           ║
+║  ☐ ISO → CSO (comprimir)              ║
+║                                        ║
+║  Nivel compresión: [9 ▓▓▓▓▓▓▓] (máx) ║
+║                                        ║
+║  [🔧 Convertir] [━━━━━━] 45%          ║
+║                                        ║
+║  ✓ 5 archivos convertidos              ║
+║  ✗ 1 fallo (archivo corrupto)          ║
+║                                        ║
+╚════════════════════════════════════════╝
+```
+
+**Características:**
+- Detección automática de archivos `.cso`/`.zso` en la carpeta
+- Opción para comprimir (ISO → CSO) o descomprimir (CSO → ISO)
+- Barra de progreso por archivo
+- Aviso si `maxcso.exe` no se encuentra (debe estar en `tools/maxcso.exe`)
+- Rollback si hay error (archivo original se conserva)
+- Resumen al final (X convertidos, Y fallidos)
+
+### Descargando maxcso
+
+1. Descarga desde: https://github.com/unknownbrackets/maxcso/releases
+2. Busca `maxcso.exe` (build para Windows)
+3. Coloca en: `Retro Vault/tools/maxcso.exe`
+4. Retro Vault lo detectará automáticamente
+
+### Configuración actual
+
+En tu `config.toml`:
+
+```toml
+[tools]
+maxcso_path = "tools/maxcso.exe"  # Ruta donde buscar maxcso
+psp_default_format = "iso"         # Formato preferido: "iso" o "cso"
+```
+
+---
+
+**Nota para otros PC:** Esta documentación sirve de referencia. La implementación se añadirá en una próxima sesión cuando sea prioritaria en el roadmap.

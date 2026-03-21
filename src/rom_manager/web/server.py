@@ -1661,6 +1661,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     self._handle_delete_orphaned_saves(data)
                 elif path == "/api/orphaned-saves/move":
                     self._handle_move_orphaned_save(data)
+                elif path == "/api/orphaned-saves/move-to-archive":
+                    self._handle_move_orphaned_saves_to_archive(data)
                 elif path == "/api/doctor-move-rom":
                     # B7-7: move a misplaced ROM to its expected folder
                     _src = data.get("path", "")
@@ -2951,6 +2953,56 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 self._send_json({"error": str(exc)})
                 return
             self._send_json({"moved": str(target), "from": save_path})
+
+        def _handle_move_orphaned_saves_to_archive(self, data: dict) -> None:
+            """Move orphaned save files to _huerfanos/ folder."""
+            import shutil
+            paths = data.get("paths", [])
+            library_root = data.get("library_root", "").strip()
+            if not paths:
+                self._send_json({"error": "paths list is required"})
+                return
+            if not library_root:
+                self._send_json({"error": "library_root is required"})
+                return
+
+            archive_dir = Path(library_root) / "_huerfanos"
+            try:
+                archive_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                self._send_json({"error": f"Could not create _huerfanos folder: {exc}"})
+                return
+
+            moved = failed = 0
+            moved_bytes = 0
+            for p in paths:
+                try:
+                    src = Path(p)
+                    if not src.exists():
+                        failed += 1
+                        continue
+                    size = src.stat().st_size
+                    # Get filename with extension
+                    target = archive_dir / src.name
+                    # Handle duplicates
+                    counter = 1
+                    stem = target.stem
+                    suffix = target.suffix
+                    while target.exists():
+                        target = archive_dir / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                    shutil.move(str(src), str(target))
+                    moved += 1
+                    moved_bytes += size
+                except OSError:
+                    failed += 1
+
+            self._send_json({
+                "moved": moved,
+                "failed": failed,
+                "moved_bytes": moved_bytes,
+                "archive_dir": str(archive_dir)
+            })
 
         def _handle_inbox_upload(self, content_type: str, body: bytes) -> None:
             """Save multipart file-upload(s) directly to inbox_path."""

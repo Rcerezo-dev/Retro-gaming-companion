@@ -216,6 +216,12 @@ HTML = r"""<!DOCTYPE html>
     <div id="ov-continue-scroll" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory"></div>
   </div>
 
+  <!-- S35-2: Grid de plataformas con logos -->
+  <div style="margin-bottom:20px">
+    <h4 style="color:#888;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Plataformas</h4>
+    <div id="ov-platform-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin-bottom:20px"></div>
+  </div>
+
   <!-- Últimas partidas + ROMs por plataforma -->
   <div style="margin-top:4px;margin-bottom:20px">
     <h4 style="color:#888;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Últimas partidas</h4>
@@ -969,34 +975,33 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- COLECCIÓN -->
 <div id="tab-collection" class="tab">
-  <div class="actions-panel" style="max-width:960px">
-    <h3>Colección — Missing &amp; Estadísticas</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:16px">
-      Compara tu biblioteca con los catálogos DAT importados para ver qué títulos faltan.
-      Requiere catálogos DAT cargados en la pestaña <strong>Herramientas → Catálogos DAT</strong>.
-    </p>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0">Colección</h3>
+    <input id="col-search" type="text" placeholder="Buscar…"
+      oninput="colSearch(this.value)"
+      style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 10px;border-radius:4px;font:inherit;font-size:12px;width:180px">
+  </div>
+  <!-- Plataformas -->
+  <div id="col-platform-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #2a2a2a"></div>
+  <!-- Grid -->
+  <div id="col-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px"></div>
+  <div style="text-align:center;margin-top:16px">
+    <button id="col-load-more" class="btn" style="display:none" onclick="colLoadMore()">Cargar m&#xe1;s</button>
+  </div>
 
-    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn" onclick="loadCollectionStats()">📊 Recargar estadísticas</button>
-      <button class="btn" onclick="loadMissingRoms()">🔍 Buscar faltantes</button>
-      <a id="btn-export-missing" href="/api/export-missing" download="missing_roms.csv" class="btn" style="text-decoration:none">⬇ Exportar CSV</a>
-    </div>
-
-    <!-- Completion stats -->
-    <div id="collection-stats" style="margin-bottom:20px"></div>
-
-    <!-- Missing ROMs -->
-    <div id="missing-section" style="display:none">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-        <h4 style="margin:0;color:#ce9178">ROMs faltantes</h4>
-        <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
-          <option value="">Todas las plataformas</option>
+  <!-- LEGACY: Completion stats section (hidden but preserved) -->
+  <div id="missing-section" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+      <h4 style="margin:0;color:#ce9178">ROMs faltantes</h4>
+      <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+        <option value="">Todas las plataformas</option>
         </select>
         <span id="missing-count" style="color:#666;font-size:12px"></span>
       </div>
       <div id="missing-list" style="max-height:520px;overflow-y:auto"></div>
     </div>
   </div>
+</div>
 </div>
 
 <!-- SCRAPER -->
@@ -1113,6 +1118,8 @@ HTML = r"""<!DOCTYPE html>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets CUE+BIN incompletos y carpetas vacías.</p>
     <div class="actions-row">
       <button class="btn primary" onclick="doLibraryDoctor()">&#x1F489; Analizar biblioteca</button>
+      <button class="btn" id="btn-doctor-resolve-all" style="display:none"
+              onclick="doctorResolveAll()">&#x2714; Resolver todos</button>
     </div>
     <div id="library-doctor-result" style="margin-top:12px"></div>
   </div>
@@ -1520,6 +1527,23 @@ HTML = r"""<!DOCTYPE html>
 <!-- SETTINGS -->
 <div id="tab-settings" class="tab">
   <div id="cfg-warnings-banner" style="display:none;margin-bottom:14px;padding:10px 14px;background:#1e1e10;border:1px solid #665500;border-radius:5px"></div>
+
+  <!-- S35-1: Theme toggle -->
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#569cd6">
+    <h3 style="color:#569cd6">Apariencia</h3>
+    <div class="actions-row" style="align-items:center;gap:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#d4d4d4">
+        <input type="radio" id="theme-dark" name="theme" value="dark" onchange="setTheme('dark')" style="cursor:pointer">
+        🌙 Oscuro (predeterminado)
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#d4d4d4">
+        <input type="radio" id="theme-light" name="theme" value="light" onchange="setTheme('light')" style="cursor:pointer">
+        ☀️ Claro
+      </label>
+    </div>
+    <p style="color:#555;font-size:11px;margin-top:8px">El tema se guarda automáticamente y se aplica en la próxima sesión.</p>
+  </div>
+
   <div class="actions-panel" style="max-width:640px">
     <h3>Configuración</h3>
     <p style="color:#555;font-size:11px;margin-bottom:16px">Los cambios se guardan en <code>config.toml</code>. Reinicia el servidor para que surtan efecto en el sync.</p>
@@ -1648,6 +1672,12 @@ HTML = r"""<!DOCTYPE html>
         <button class="btn" onclick="loadLocalUrl()" style="font-size:12px">&#x21BB;</button>
       </div>
       <div style="color:#555;font-size:11px;margin-top:6px">Abre esta URL desde el navegador de tu consola cuando estés en la misma red WiFi.</div>
+      <div style="margin-top:14px">
+        <div style="color:#888;font-size:11px;margin-bottom:8px">Escanea desde tu consola o m&#xf3;vil:</div>
+        <canvas id="qr-canvas" width="140" height="140"
+          style="display:none;border:6px solid #fff;border-radius:4px;image-rendering:pixelated"></canvas>
+        <p id="qr-no-url" style="color:#555;font-size:11px">Configura la URL local primero.</p>
+      </div>
     </div>
   </div>
 

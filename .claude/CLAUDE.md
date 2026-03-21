@@ -46,6 +46,34 @@ Herramienta local Python + interfaz web (`http://127.0.0.1:7777`) para gestionar
 
 ---
 
+## 🎯 Obsidian Skills — Guía Rápida
+
+**5 skills disponibles** para documentar y sincronizar con tu Obsidian Vault.
+
+**Ubicación de guías:**
+- 📄 **Este proyecto**: `SKILLS-QUICK-START.md` ← Cheat sheet rápida
+- 📚 **Obsidian Vault**: `/proyectos/retro-vault/Skills-Guide.md` ← Guía completa
+
+**Flujo típico:**
+```
+🔍 Inicio:     /obsidian-cli status
+📖 Leer estado: /obsidian-markdown read-note [[STATE.md]]
+⚙️ Trabajar...
+📝 Final:      /obsidian-markdown update-note [[STATE.md]]
+📌 Documento:  /obsidian-markdown create-note [[feature-name]]
+```
+
+**Skills disponibles:**
+1. `obsidian-markdown` — Crear/editar notas (🔚 final sesión)
+2. `obsidian-cli` — Diagnosticar vault (🔍 inicio sesión)
+3. `json-canvas` — Diagramas y arquitectura (🎨 planificación)
+4. `obsidian-bases` — Bases de datos/listas (📊 tracking)
+5. `defuddle` — Limpiar web pages (📰 research)
+
+**Ver**: `SKILLS-QUICK-START.md` en este proyecto para comandos frecuentes.
+
+---
+
 ## Entorno de ejecución
 
 - Conda: `C:\Users\rammu\anaconda3\envs\rom_manager` (Python 3.12)
