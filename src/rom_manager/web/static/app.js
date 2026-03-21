@@ -810,6 +810,185 @@ function _handleHeatmapHover(e, canvas) {
   if (!found) canvas.title = '';
 }
 
+// S36-3: Monthly time analysis chart
+// S36-4: Game of the day suggestion
+let _currentGameSuggestion = null;
+
+async function _loadNewGameSuggestion() {
+  try {
+    const resp = await apiFetch('/api/games?limit=10000&offset=0');
+    const games = resp.games || [];
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    // Filter games not played in 6+ months
+    const staleGames = games.filter(g => {
+      if (!g.last_played_at) return true; // Never played
+      const lastPlayed = new Date(g.last_played_at);
+      return lastPlayed < sixMonthsAgo;
+    });
+
+    if (staleGames.length === 0) {
+      const container = document.getElementById('ov-game-suggestion');
+      if (container) {
+        container.innerHTML = '<div style="padding:20px;color:#666;text-align:center;width:100%">¡Excelente! No tienes juegos olvidados. ¡Sigue jugando!</div>';
+      }
+      return;
+    }
+
+    // Pick a random game
+    const suggestion = staleGames[Math.floor(Math.random() * staleGames.length)];
+    _currentGameSuggestion = suggestion;
+
+    // Display it
+    const titleEl = document.getElementById('ov-game-suggestion-title');
+    const metaEl = document.getElementById('ov-game-suggestion-meta');
+    const imgEl = document.getElementById('ov-game-suggestion-img');
+
+    if (titleEl) titleEl.textContent = suggestion.canonical_title || suggestion.original_filename;
+    if (metaEl) {
+      const lastPlay = suggestion.last_played_at
+        ? _relTime(suggestion.last_played_at)
+        : 'Nunca';
+      metaEl.innerHTML = `${_platBadge(suggestion.platform || '')} · Última vez: ${lastPlay}`;
+    }
+    if (imgEl) {
+      imgEl.src = `/api/asset-image?game_id=${suggestion.id}`;
+      imgEl.onerror = () => { imgEl.style.display = 'none'; };
+    }
+  } catch(err) {
+    console.error('Game suggestion error:', err);
+  }
+}
+
+async function _renderMonthlyChart() {
+  const canvas = document.getElementById('ov-monthly-chart');
+  if (!canvas) return;
+
+  try {
+    const resp = await apiFetch('/api/games?limit=10000&offset=0');
+    const games = resp.games || [];
+
+    // Build data: platform → month → set of games (to count distinct)
+    const monthlyData = {}; // "2026-03" → { platform → Set<game_id> }
+    const platforms = new Set();
+
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setMonth(startDate.getMonth() - 11); // Last 12 months
+
+    games.forEach(g => {
+      if (!g.last_played_at) return;
+      const playDate = new Date(g.last_played_at);
+      if (playDate < startDate) return;
+
+      const monthKey = playDate.toISOString().substring(0, 7); // "YYYY-MM"
+      if (!monthlyData[monthKey]) monthlyData[monthKey] = {};
+
+      const plat = g.platform || 'Unknown';
+      if (!monthlyData[monthKey][plat]) monthlyData[monthKey][plat] = new Set();
+      monthlyData[monthKey][plat].add(g.id);
+      platforms.add(plat);
+    });
+
+    // Get sorted months
+    const months = Object.keys(monthlyData).sort();
+    if (months.length === 0) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#555';
+      ctx.font = '12px monospace';
+      ctx.fillText('Sin datos. Escanea la biblioteca primero.', 20, canvas.height / 2);
+      return;
+    }
+
+    // Draw chart
+    const ctx = canvas.getContext('2d');
+    const colors = ['#569cd6', '#4ec9b0', '#dcdcaa', '#ce9178', '#9cdcfe', '#c586c0', '#a7ec21', '#f44747'];
+    const platArray = Array.from(platforms).sort();
+    const barWidth = 8;
+    const groupGap = 16;
+    const padding = 40;
+    const chartHeight = canvas.height - padding * 1.5;
+    const chartWidth = canvas.width - padding * 2;
+
+    // Background
+    ctx.fillStyle = '#0a0e27';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Max value for scaling
+    let maxVal = 0;
+    months.forEach(m => {
+      platArray.forEach(p => {
+        const count = monthlyData[m]?.[p]?.size || 0;
+        maxVal = Math.max(maxVal, count);
+      });
+    });
+    maxVal = Math.max(maxVal, 1);
+
+    // Draw bars
+    let x = padding;
+    months.forEach((month, monthIdx) => {
+      platArray.forEach((plat, platIdx) => {
+        const count = monthlyData[month]?.[plat]?.size || 0;
+        const barHeight = (count / maxVal) * chartHeight;
+
+        ctx.fillStyle = colors[platIdx % colors.length];
+        ctx.fillRect(x, canvas.height - padding + 20 - barHeight, barWidth, barHeight);
+
+        x += barWidth + 1;
+      });
+      x += groupGap;
+    });
+
+    // Draw axes
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, canvas.height - padding);
+    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(padding, canvas.height - padding);
+    ctx.lineTo(padding, padding);
+    ctx.stroke();
+
+    // Draw month labels (every 2 months)
+    ctx.fillStyle = '#666';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    x = padding + (barWidth * platArray.length + 1) * 0.5 + groupGap * 0.5;
+    months.forEach((month, idx) => {
+      if (idx % 2 === 0) {
+        const label = month.substring(5); // "MM"
+        ctx.fillText(label, x, canvas.height - padding + 15);
+      }
+      x += (barWidth + 1) * platArray.length + groupGap;
+    });
+
+    // Draw legend
+    ctx.textAlign = 'left';
+    ctx.font = '11px monospace';
+    let legX = padding;
+    let legY = 20;
+    platArray.forEach((plat, idx) => {
+      ctx.fillStyle = colors[idx % colors.length];
+      ctx.fillRect(legX, legY, 10, 10);
+      ctx.fillStyle = '#d4d4d4';
+      ctx.fillText(plat, legX + 15, legY + 9);
+      legX += 120;
+      if (legX > canvas.width - 100) {
+        legX = padding;
+        legY += 14;
+      }
+    });
+  } catch(err) {
+    console.error('Monthly chart error:', err);
+  }
+}
+
 async function loadOverview() {
   try {
     const _t = Date.now();
@@ -1065,6 +1244,20 @@ async function loadOverview() {
       _renderActivityHeatmap();
     } catch(e) {
       console.error('Heatmap error:', e);
+    }
+
+    // S36-3: Render monthly analysis chart
+    try {
+      _renderMonthlyChart();
+    } catch(e) {
+      console.error('Monthly chart error:', e);
+    }
+
+    // S36-4: Load game suggestion
+    try {
+      _loadNewGameSuggestion();
+    } catch(e) {
+      console.error('Game suggestion error:', e);
     }
 
   } catch(e) {

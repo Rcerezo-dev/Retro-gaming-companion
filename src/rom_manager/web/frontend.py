@@ -383,6 +383,32 @@ HTML = r"""<!DOCTYPE html>
       <span><span style="display:inline-block;width:12px;height:12px;background:#3fb950;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Más</span>
     </div>
   </div>
+
+  <!-- S36-3: Monthly time analysis per platform -->
+  <div style="margin-top:28px;margin-bottom:20px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#d4d4d4">Análisis por plataforma (últimos 12 meses)</h3>
+    <div style="overflow-x:auto;padding-bottom:12px">
+      <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid #333;border-radius:4px;display:block"></canvas>
+    </div>
+    <div style="font-size:11px;color:#666;margin-top:8px">Cuenta de juegos distintos jugados por plataforma y mes</div>
+  </div>
+
+  <!-- S36-4: Game of the day -->
+  <div style="margin-top:28px;margin-bottom:20px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#d4d4d4">Juego sugerido</h3>
+    <div id="ov-game-suggestion" style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:16px;display:flex;gap:12px;align-items:start">
+      <img id="ov-game-suggestion-img" src="" alt="" style="width:80px;height:110px;object-fit:cover;border-radius:4px;flex-shrink:0">
+      <div style="flex:1">
+        <div style="color:#888;font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
+        <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:#d4d4d4;margin-bottom:6px"></div>
+        <div id="ov-game-suggestion-meta" style="font-size:12px;color:#666;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openGamePanel(window._currentGameSuggestion)">Abrir</button>
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="_loadNewGameSuggestion()">Otra sugerencia</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- GAMES -->
