@@ -154,6 +154,7 @@ HTML = r"""<!DOCTYPE html>
   <button id="nav-sync" onclick="showTab('sync')">Sync</button>
   <button id="nav-cable" onclick="showTab('cable')">Cable Sync</button>
   <button id="nav-collection" onclick="showTab('collection')">Colección</button>
+  <button id="nav-tv" onclick="enterTvMode()" title="Modo TV fullscreen (T)">📺</button>
   <button id="nav-scraper" onclick="showTab('scraper')">Scraper</button>
   <button id="nav-inbox" onclick="showTab('inbox')">Inbox<span id="inbox-nav-badge" style="display:none;background:#f44747;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle">0</span></button>
   <button id="nav-formats" onclick="showTab('formats')">Formatos</button>
@@ -367,6 +368,21 @@ HTML = r"""<!DOCTYPE html>
     </div>
     </div>
   </details>
+
+  <!-- S36-2: Activity heatmap -->
+  <div style="margin-top:28px;margin-bottom:20px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#d4d4d4">Mapa de actividad (últimos 365 días)</h3>
+    <div id="ov-heatmap-container" style="overflow-x:auto;padding-bottom:12px">
+      <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid #333;border-radius:4px"></canvas>
+    </div>
+    <div style="font-size:11px;color:#666;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
+      <span><span style="display:inline-block;width:12px;height:12px;background:#0d3922;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Menos</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#0d5c2c;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#1a7938;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#26a641;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#3fb950;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Más</span>
+    </div>
+  </div>
 </div>
 
 <!-- GAMES -->
@@ -981,6 +997,28 @@ HTML = r"""<!DOCTYPE html>
       oninput="colSearch(this.value)"
       style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 10px;border-radius:4px;font:inherit;font-size:12px;width:180px">
   </div>
+  <!-- Export & Stats buttons -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('csv')">⬇ CSV</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('json')">⬇ JSON</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleColStats()" id="btn-col-stats">📊 Stats</button>
+  </div>
+  <!-- Stats panel -->
+  <div id="col-stats-panel" style="display:none;background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div id="col-stat-total"></div>
+      <div style="flex:1;min-width:200px">
+        <div style="color:#888;font-size:11px;margin-bottom:8px">Estado de juego</div>
+        <div id="col-bar-status"></div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div style="color:#888;font-size:11px;margin-bottom:8px">Región</div>
+        <div id="col-bar-region"></div>
+      </div>
+      <div><canvas id="col-pie" width="120" height="120"></canvas></div>
+    </div>
+  </div>
   <!-- Plataformas -->
   <div id="col-platform-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #2a2a2a"></div>
   <!-- Grid -->
@@ -1002,6 +1040,22 @@ HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 </div>
+</div>
+
+<!-- TV MODE (S36-1) -->
+<div id="tab-tv" class="tab">
+  <div id="tv-top-bar" style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:rgba(0,0,0,0.8);border-bottom:1px solid var(--border);flex-wrap:wrap">
+    <span id="tv-platform-label">Toda la colección</span>
+    <div id="tv-platform-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <button onclick="exitTvMode()" style="margin-left:auto;padding:4px 12px;background:#f44747;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Salir</button>
+  </div>
+  <div id="tv-grid" style="flex:1;overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px"></div>
+  <div id="tv-info-bar" style="display:flex;align-items:center;gap:20px;padding:10px 20px;background:rgba(0,0,0,0.85);border-top:1px solid var(--border);font-size:13px;min-height:44px">
+    <span id="tv-info-title" style="font-weight:700;color:var(--fg-1)"></span>
+    <span id="tv-info-platform" style="color:var(--accent)"></span>
+    <span id="tv-info-status" style="color:var(--fg-2)"></span>
+    <span id="tv-info-keys" style="margin-left:auto;color:#444;font-size:11px">↑↓←→ navegar · Enter abrir · Esc salir</span>
+  </div>
 </div>
 
 <!-- SCRAPER -->
@@ -1315,6 +1369,34 @@ HTML = r"""<!DOCTYPE html>
       <button class="btn danger" onclick="doCleanupCueBin()">Eliminar .cue/.bin originales</button>
       <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
     </div>
+  </div>
+
+  <!-- ── Convertir CSO/ZSO → ISO (PSP) ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>CSO / ZSO &#x2192; ISO (PSP)</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Descomprime archivos .cso y .zso a formato ISO usando <code>maxcso.exe</code>. Necesario si tu emulador no lee CSO nativamente. <strong>Nota:</strong> no procesa archivos dentro de carpetas arcade (MAME, FBNeo).</p>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta con .cso/.zso</label><input id="cso-path" type="text" placeholder="C:/ROMs/psp" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('cso-path')">library_root</button>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center">
+      <label class="fmt-check"><input type="checkbox" id="cso-delete-source"> Eliminar .cso/.zso tras convertir</label>
+    </div>
+    <div class="actions-row">
+      <button id="btn-convert-cso" class="btn primary" onclick="doConvertCso()">Convertir a ISO</button>
+      <span id="maxcso-status" style="font-size:12px;color:#555">Verificando maxcso&#x2026;</span>
+    </div>
+    <div id="cso-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="cso-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="cso-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="cso-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="job-result-convert-cso" class="job-result"></div>
+    <div id="cso-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
   </div>
 
   <!-- ── Descomprimir ZIPs ── -->

@@ -5,6 +5,15 @@ let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', ro
 let _gamesViewMode = localStorage.getItem('games_view_mode') || 'list'; // 'list' | 'grid'
 let platformsLoaded = false;
 
+// ── TV Mode state (S36-1) ──────────────────────────────────────────────────────
+let _tvActive = false;
+let _tvGames = [];
+let _tvFocusIdx = 0;
+let _tvPlatform = '';
+let _tvOffset = 0;
+let _tvCols = 5;
+const _TV_LIMIT = 120;
+
 // ── Column visibility ─────────────────────────────────────────────────────────
 const _COL_DEFAULTS = { region: true, match: true, size: false, sha1: false };
 function _loadColPrefs() {
@@ -147,6 +156,7 @@ function showTab(name) {
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); }
   if (name === 'inbox')      loadInbox();
+  if (name === 'tv')         { /* enterTvMode() handles TV tab load */ }
 }
 
 // ── Guide toggle (update arrow icon) ─────────────────────────────────────────
@@ -696,6 +706,110 @@ async function apiPost(url, body) {
 }
 
 // ── Overview ─────────────────────────────────────────────────────────────────
+// S36-2: Activity heatmap state and renderer
+const _heatmapState = { cellMap: new Map() };
+
+async function _renderActivityHeatmap() {
+  const canvas = document.getElementById('ov-heatmap');
+  if (!canvas) return;
+
+  try {
+    // Fetch all games (no limit, to get complete activity data)
+    const resp = await apiFetch('/api/games?limit=10000&offset=0');
+    const games = resp.games || [];
+
+    // Calculate daily activity: group by date, count distinct games per day
+    const today = new Date();
+    const dayActivity = {}; // date string -> count
+
+    games.forEach(g => {
+      if (!g.last_played_at) return;
+      const dateStr = g.last_played_at.split('T')[0];
+      dayActivity[dateStr] = (dayActivity[dateStr] || 0) + 1;
+    });
+
+    // Find max count for color scaling
+    const maxVal = Math.max(...Object.values(dayActivity), 0);
+
+    // Draw on canvas
+    const ctx = canvas.getContext('2d');
+    const cellSize = 12;
+    const cellGap = 2;
+    const padding = 10;
+
+    ctx.fillStyle = '#0a0e27';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Clear previous cell data
+    _heatmapState.cellMap.clear();
+
+    // Draw grid: 52 weeks (columns) × 7 days (rows)
+    const weeks = 52;
+    const days = 7;
+    let cellX = padding;
+
+    for (let week = 0; week < weeks; week++) {
+      let cellY = padding;
+      for (let day = 0; day < days; day++) {
+        // Calculate date for this cell (from today going back)
+        const daysAgo = (weeks - 1 - week) * 7 + (6 - day);
+        const d = new Date(today);
+        d.setDate(d.getDate() - daysAgo);
+        const dateStr = d.toISOString().split('T')[0];
+
+        // Color based on activity
+        const count = dayActivity[dateStr] || 0;
+        const intensity = maxVal > 0 ? count / maxVal : 0;
+        const color = _getHeatmapColor(intensity);
+
+        ctx.fillStyle = color;
+        ctx.fillRect(cellX, cellY, cellSize, cellSize);
+        ctx.strokeStyle = '#1a1a2e';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(cellX, cellY, cellSize, cellSize);
+
+        // Store metadata for tooltip using week,day as key
+        _heatmapState.cellMap.set(week + ',' + day, { x: cellX, y: cellY, dateStr, count, cellSize });
+
+        cellY += cellSize + cellGap;
+      }
+      cellX += cellSize + cellGap;
+    }
+
+    // Add hover tooltip
+    canvas.onmousemove = (e) => _handleHeatmapHover(e, canvas);
+    canvas.onmouseleave = () => { canvas.title = ''; };
+  } catch(err) {
+    console.error('Heatmap error:', err);
+  }
+}
+
+function _getHeatmapColor(intensity) {
+  if (intensity === 0) return '#0d1117';
+  if (intensity < 0.25) return '#0d3922';
+  if (intensity < 0.5) return '#0d5c2c';
+  if (intensity < 0.75) return '#1a7938';
+  return '#3fb950';
+}
+
+function _handleHeatmapHover(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  let found = false;
+  for (const [key, cell] of _heatmapState.cellMap) {
+    if (x >= cell.x && x <= cell.x + cell.cellSize && y >= cell.y && y <= cell.y + cell.cellSize) {
+      const d = new Date(cell.dateStr);
+      const dateStr = d.toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      canvas.title = `${dateStr}: ${cell.count} juego${cell.count !== 1 ? 's' : ''}`;
+      found = true;
+      break;
+    }
+  }
+  if (!found) canvas.title = '';
+}
+
 async function loadOverview() {
   try {
     const _t = Date.now();
@@ -944,6 +1058,13 @@ async function loadOverview() {
       try {
         _renderPlatformGrid(pcPath);
       } catch(_) { /* silent */ }
+    }
+
+    // S36-2: Render activity heatmap
+    try {
+      _renderActivityHeatmap();
+    } catch(e) {
+      console.error('Heatmap error:', e);
     }
 
   } catch(e) {
@@ -1332,6 +1453,37 @@ function _applyJobStatus(s) {
   }
   if (!s.convert_chd_running && s.convert_chd_result) {
     _renderChdResult(s.convert_chd_result);
+  }
+  // CSO progress bar
+  const btnCso = document.getElementById('btn-convert-cso');
+  if (btnCso) {
+    if (s.convert_cso_running) {
+      btnCso.disabled = false;
+      btnCso.textContent = 'Cancelar';
+      btnCso.onclick = () => stopJob('convert_cso');
+      btnCso.classList.add('danger');
+    } else {
+      btnCso.textContent = 'Convertir a ISO';
+      btnCso.onclick = doConvertCso;
+      btnCso.classList.remove('danger');
+    }
+  }
+  const csoWrap = document.getElementById('cso-progress-wrap');
+  if (s.convert_cso_running && s.cso_progress && s.cso_progress.total > 0) {
+    const p = s.cso_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (csoWrap) csoWrap.style.display = '';
+    const bar = document.getElementById('cso-progress-bar');
+    const lbl = document.getElementById('cso-progress-label');
+    const file = document.getElementById('cso-progress-file');
+    if (bar) bar.style.width = pct + '%';
+    if (lbl) lbl.textContent = `${p.current} / ${p.total} (${pct}%)`;
+    if (file) file.textContent = p.current_file;
+  } else if (!s.convert_cso_running) {
+    if (csoWrap) csoWrap.style.display = 'none';
+  }
+  if (!s.convert_cso_running && s.convert_cso_result) {
+    _renderCsoResult(s.convert_cso_result);
   }
   // Scrape progress bar
   const scrapeWrap = document.getElementById('scrape-progress-wrap');
@@ -2513,6 +2665,36 @@ async function deleteDuplicate(btn) {
   );
 }
 
+// B1-4: Resolve title-based duplicates by keeping the one with RA support
+async function resolveDuplicateRA(btn, keepPath, discardPathsStr) {
+  const discardPaths = discardPathsStr.split('|').map(p => p.trim()).filter(Boolean);
+  const filename = keepPath.split(/[\\/]/).pop();
+  _showConfirm(
+    'Resolver: mantener versión con logros RA',
+    `Se eliminará${discardPaths.length > 1 ? 'n' : ''} <strong>${discardPaths.length}</strong> versión${discardPaths.length > 1 ? 'es' : ''} sin logros RA.<br>Se conservará: <strong>${_h(filename)}</strong><br><br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    'Resolver',
+    async () => {
+      btn.disabled = true;
+      const btnText = btn.textContent;
+      btn.textContent = 'Resolviendo…';
+      try {
+        const result = await apiPost('/api/resolve-duplicate-ra', {
+          keep_path: keepPath,
+          discard_paths: discardPaths,
+        });
+        // Reload duplicates list
+        await loadDuplicates();
+        loadOverview();
+        showToast(`Resuelto: ${result.discarded} archivo(s) eliminado(s)`, 'ok');
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = btnText;
+        showToast('Error al resolver: ' + e.message, true);
+      }
+    }
+  );
+}
+
 async function markAsIntentionalCopy(sha1) {
   _showConfirm(
     'Marcar como copia intencional',
@@ -3209,6 +3391,62 @@ function applyChdFilter() {
   }).join('');
 }
 
+// ── Convert CSO/ZSO ────────────────────────────────────────────────────────────
+async function doConvertCso() {
+  const pathVal   = document.getElementById('cso-path').value.trim();
+  const delSource = document.getElementById('cso-delete-source').checked;
+  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .cso/.zso'); return; }
+  const btn = document.getElementById('btn-convert-cso');
+  const resultEl = document.getElementById('job-result-convert-cso');
+  btn.disabled = true;
+  btn.textContent = 'Procesando…';
+  resultEl.className = 'job-result';
+  try {
+    const d = await apiPost('/api/convert-cso', { source_path: pathVal, delete_source: delSource });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible';
+      resultEl.textContent = 'Ya hay una conversión CSO en curso…';
+      btn.disabled = false;
+      btn.textContent = 'Convertir a ISO';
+      return;
+    }
+    startPolling();
+  } catch(e) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Convertir a ISO';
+  }
+}
+
+function _renderCsoResult(result) {
+  const resultEl = document.getElementById('job-result-convert-cso');
+  const btn = document.getElementById('btn-convert-cso');
+  const resultsDiv = document.getElementById('cso-results');
+  if (!resultEl) return;
+  if (result.error) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + result.error;
+  } else {
+    const tot = result.converted + result.failed + result.skipped;
+    const summary = `Convertidos: ${result.converted} | Omitidos: ${result.skipped} | Fallidos: ${result.failed}`;
+    resultEl.className = 'job-result visible ' + (result.failed > 0 ? 'warning-r' : 'success');
+    resultEl.textContent = summary;
+    // Render detailed results
+    if (resultsDiv && result.results) {
+      resultsDiv.innerHTML = result.results.map(r => {
+        if (r.success) {
+          return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[OK] ${_h(r.file)}</div>`;
+        } else {
+          const errMsg = r.error ? `<div style="color:#f44747;font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
+          return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:#f44747"><strong>[FAIL]</strong> ${_h(r.file)}</span>${errMsg}</div>`;
+        }
+      }).join('');
+    }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Convertir a ISO'; }
+}
+
 // ── Extract ZIP ──────────────────────────────────────────────────────────────
 async function doCleanupZips() {
   const pathVal = document.getElementById('zip-path').value.trim();
@@ -3415,6 +3653,7 @@ async function doFindOrphans() {
     }).join('');
     html += '</div>';
     html += '<div style="display:flex;gap:8px">';
+    html += '<button class="btn" onclick="selectAllOrphans()">☑️ Seleccionar todos</button>';
     html += '<button class="btn" onclick="doMoveOrphansToArchive()">📁 Mover seleccionados a _huérfanos/</button>';
     html += '<button class="btn danger" onclick="doDeleteOrphans()">🗑️ Borrar seleccionados</button>';
     html += '</div>';
@@ -3445,6 +3684,11 @@ async function doDeleteOrphans() {
   } catch(e) {
     alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.');
   }
+}
+
+// B9-4: Select all orphaned saves
+function selectAllOrphans() {
+  document.querySelectorAll('.orphan-chk').forEach(cb => cb.checked = true);
 }
 
 // B9-4: Move orphaned saves to _huerfanos/
@@ -3558,7 +3802,7 @@ function _healthIssueRow(i) {
     `<td style="padding:3px 6px;color:${color}" title="${_h(i.source_path)}">${_h(name)}</td>` +
     `<td style="padding:3px 6px;white-space:nowrap">` +
     `<span style="font-size:11px;color:#888;margin-right:4px" title="${qHtml}">${_h(title)}</span>` +
-    `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Query copiada','ok'))" ` +
+    `<button onclick="_copyToClipboard('${query.replace(/'/g,"\\'")}');" ` +
     `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:#ccc;border-radius:3px;cursor:pointer" title="${qHtml}">Copiar</button>` +
     `</td></tr>`;
 }
@@ -3813,6 +4057,116 @@ async function colLoadMore() {
   }
 }
 
+// ── S36: Export & Stats ──────────────────────────────────────────────────────
+async function exportCollection(fmt) {
+  const root = _deviceRoot() || '';
+  try {
+    const res = await fetch(`/api/export-library?root=${encodeURIComponent(root)}&format=${fmt}`);
+    if (!res.ok) {
+      showToast('Error exportando', 'err');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `retro-vault-${fmt}.${fmt}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`✓ Descargado: retro-vault-${fmt}.${fmt}`, 'ok');
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'err');
+  }
+}
+
+async function exportWishlist() {
+  const root = _deviceRoot() || '';
+  try {
+    const res = await fetch(`/api/export-wishlist?root=${encodeURIComponent(root)}`);
+    if (!res.ok) {
+      showToast('Sin wishlist o error', 'err');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wishlist.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✓ Wishlist descargada', 'ok');
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'err');
+  }
+}
+
+async function loadCollectionStatsV2() {
+  const root = _deviceRoot() || '';
+  try {
+    const d = await apiFetch(`/api/collection-stats-v2?root=${encodeURIComponent(root)}`);
+    // Totales
+    document.getElementById('col-stat-total').innerHTML =
+      `<div style="font-size:2em;font-weight:700">${d.total}</div>
+       <div style="color:#888;font-size:11px">juegos  ★${d.favorites} favs</div>`;
+    // Bar: play_status
+    _renderStatBars('col-bar-status', d.by_status, 'status_label', d.total);
+    // Bar: region
+    _renderStatBars('col-bar-region', d.by_region, 'region_label', d.total);
+    // Pie: platforms (top 8)
+    _renderPie('col-pie', d.by_platform.slice(0, 8));
+  } catch (e) {
+    showToast(`Error cargando stats: ${e.message}`, 'err');
+  }
+}
+
+function _renderStatBars(containerId, rows, labelKey, total) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = rows.map(r => {
+    const pct = total ? Math.round(r.n / total * 100) : 0;
+    const label = r.s || r.r || '?';
+    return `<div style="margin-bottom:5px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;margin-bottom:2px">
+        <span>${_h(label)}</span><span>${r.n}</span>
+      </div>
+      <div style="background:#1e1e2e;border-radius:3px;height:6px">
+        <div style="background:#7c3aed;width:${pct}%;height:100%;border-radius:3px;transition:width .4s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _renderPie(canvasId, rows) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const cx = 60, cy = 60, r = 50;
+  const total = rows.reduce((s, x) => s + x.n, 0);
+  const colors = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#0891b2', '#7c3aed', '#64748b'];
+  let angle = -Math.PI / 2;
+  ctx.clearRect(0, 0, 120, 120);
+  rows.forEach((row, i) => {
+    const slice = (row.n / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angle, angle + slice);
+    ctx.closePath();
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fill();
+    angle += slice;
+  });
+}
+
+function toggleColStats() {
+  const panel = document.getElementById('col-stats-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    loadCollectionStatsV2();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
 function _renderColGrid(games, append) {
   const gridEl = document.getElementById('col-grid');
   if (!gridEl) return;
@@ -3907,20 +4261,49 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
   if (filteredTg.length > 0) {
     html += `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #2a2a2a">
       <p style="color:#dcdcaa;font-size:12px;margin-bottom:12px">⚠ ${filteredTg.length} posible${filteredTg.length !== 1?'s':''} duplicado${filteredTg.length !== 1?'s':''} semántico${filteredTg.length !== 1?'s':''} — mismo título canónico, SHA1 distinto</p>`;
-    html += filteredTg.map(g => `
+    html += filteredTg.map(g => {
+      // B1-4: Find entry with RA support (if any)
+      const hasRaSupport = g.entries.some(e => (e.ra_achievements || 0) > 0);
+      const raEntry = g.entries.find(e => (e.ra_achievements || 0) > 0);
+      return `
       <div class="dup-group" style="border-color:#3a3a1a">
         <div class="title" style="color:#dcdcaa">${_h(g.canonical_title)}
           <span style="color:#555;font-size:11px;margin-left:8px">${_h(g.platform)}</span>
         </div>
-        ${g.entries.map((e, i) => `
+        ${g.entries.map((e, i) => {
+          const isRaEntry = hasRaSupport && raEntry && raEntry.id === e.id;
+          const raBadge = (e.ra_achievements || 0) > 0 ? `<span style="color:#ffd700;font-size:10px;margin-left:4px">🏆 ${e.ra_achievements} logros</span>` : '';
+          if (hasRaSupport && isRaEntry) {
+            // Entry with RA support: show "keep" and add button to resolve
+            return `
+          <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
+            <span class="badge ok" style="min-width:44px;text-align:center">keep</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
+            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${fmtSize(e.size_bytes)}${raBadge}</span>
+            <button class="btn" style="padding:2px 8px;font-size:10px;color:#4ec9b0;border-color:#4ec9b0" data-keep="${e.id}" data-discard="${g.entries.map(x => x.id).filter(id => id !== e.id).join(',')}" onclick="resolveDuplicateRA(this, '${e.source_path.replace(/'/g, "\\'")}', '${g.entries.filter(x => x.id !== e.id).map(x => x.source_path.replace(/'/g, "\\'")).join('|')}')">Resolver: mantener éste</button>
+          </div>`;
+          } else if (hasRaSupport && !isRaEntry) {
+            // Other entries: show "Eliminar" to discard
+            return `
+          <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
+            <button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
+            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${fmtSize(e.size_bytes)}${raBadge}</span>
+          </div>`;
+          } else {
+            // No RA support: normal behavior
+            return `
           <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
             ${i === 0
               ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
               : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
-            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${fmtSize(e.size_bytes)}</span>
-          </div>`).join('')}
-      </div>`).join('');
+            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${fmtSize(e.size_bytes)}${raBadge}</span>
+          </div>`;
+          }
+        }).join('')}
+      </div>`;
+    }).join('');
     html += '</div>';
   }
   el.innerHTML = html;
@@ -4441,7 +4824,7 @@ function _openArchiveOrg(raTitle, platform) {
 }
 function _copyArchiveOrgLink(raTitle, platform) {
   const url = _archiveOrgUrl(raTitle, platform);
-  navigator.clipboard?.writeText(url).then(() => showToast('Link copiado', 'ok')).catch(() => {});
+  _copyToClipboard(url);
 }
 
 async function discardRaNoSupport(count) {
@@ -4716,6 +5099,25 @@ async function testChdman() {
   } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
 }
 
+async function testMaxcso() {
+  const st = document.getElementById('maxcso-status');
+  if (!st) return;
+  st.style.color = '#888'; st.textContent = 'Verificando…';
+  try {
+    const d = await apiFetch('/api/test-maxcso');
+    if (d.ok) {
+      st.style.color = '#4ec9b0';
+      st.textContent = '✓ ' + (d.version || 'maxcso disponible');
+    } else {
+      st.style.color = '#f44747';
+      st.textContent = '✗ maxcso no encontrado — coloca maxcso.exe en tools/';
+    }
+  } catch(e) {
+    st.style.color = '#f44747';
+    st.textContent = '✗ Error: ' + e.message;
+  }
+}
+
 async function testAdbBinary() {
   const el = document.getElementById('adb-test-result');
   el.style.color = '#888'; el.textContent = 'Probando…';
@@ -4789,6 +5191,7 @@ async function loadTools() {
       _setIfEmpty('verify-multidisc-path',  discData.folders.length ? discData.folders.join('\n') : root);
       _setIfEmpty('m3u-path',               discData.folders.length ? discData.folders[0] : root);
       _setIfEmpty('chd-path',               discData.folders.length ? discData.folders[0] : root);
+      _setIfEmpty('cso-path',               root);
       _setIfEmpty('report-path',            root);
     }
     // Show multi-disc hint
@@ -4806,6 +5209,15 @@ async function loadTools() {
       if (st) {
         if (d.ok) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
         else      { st.style.color = '#f44747'; st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
+      }
+    } catch(_) {}
+    // Test maxcso silently and update status
+    try {
+      const d = await apiFetch('/api/test-maxcso');
+      const st = document.getElementById('maxcso-status');
+      if (st) {
+        if (d.ok) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'maxcso disponible'); }
+        else      { st.style.color = '#f44747'; st.textContent = '✗ maxcso no encontrado — coloca maxcso.exe en tools/'; }
       }
     } catch(_) {}
     // Show RA API key status
@@ -6140,7 +6552,7 @@ function exportReportHtml() {
       const alts = (ra.alternatives || []);
       if (!alts.length) return '<h2>RetroAchievements</h2><p class="ok">Todos los juegos son compatibles con RA.</p>';
       const rows = alts.map(a => `<tr><td>${a.platform||''}</td><td>${a.filename||''}</td><td><a href="https://retroachievements.org/game/${a.ra_id}" style="color:#4ec9b0">${a.ra_title||''}</a></td><td style="text-align:right;color:#ce9178">${a.ra_achievements||0}</td><td style="text-align:right">${a.ra_points||0}</td></tr>`).join('');
-      return `<h2>RetroAchievements — ${alts.length} con alternativa</h2><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="color:#555"><th style="text-align:left;padding:3px 6px">Plataforma</th><th style="text-align:left;padding:3px 6px">Tu archivo</th><th style="text-align:left;padding:3px 6px">Título RA</th><th style="padding:3px 6px">Logros</th><th style="padding:3px 6px">Puntos</th></tr></thead><tbody>${rows}</tbody></table>`;
+      return `<h2>RetroAchievements — ${alts.length} con alternativa</h2><div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="color:#555"><th style="text-align:left;padding:3px 6px">Plataforma</th><th style="text-align:left;padding:3px 6px">Tu archivo</th><th style="text-align:left;padding:3px 6px">Título RA</th><th style="padding:3px 6px">Logros</th><th style="padding:3px 6px">Puntos</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     })(),
     `</body></html>`,
   ];
@@ -6149,6 +6561,36 @@ function exportReportHtml() {
   a.href = URL.createObjectURL(blob);
   a.download = `informe-biblioteca-${ts.replace(/[: ]/g,'-')}.html`;
   a.click();
+}
+
+// ── Clipboard helpers ──────────────────────────────────────────────────────────
+// B9-3: Copy to clipboard with fallback for HTTP contexts
+function _copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Copiado al portapapeles', 'ok'))
+      .catch(() => _copyToClipboardFallback(text));
+  } else {
+    _copyToClipboardFallback(text);
+  }
+}
+
+function _copyToClipboardFallback(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  ta.style.pointerEvents = 'none';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('Copiado al portapapeles', 'ok');
+  } catch(e) {
+    showToast('No se pudo copiar', 'error');
+  }
+  document.body.removeChild(ta);
 }
 
 // ── Toast notifications ───────────────────────────────────────────────────────
@@ -6551,6 +6993,106 @@ async function _pollInboxWatcher() {
   } catch(_) {}
 }
 
+// ── TV Mode (S36-1) ────────────────────────────────────────────────────────────
+async function enterTvMode() {
+  _tvActive = true;
+  showTab('tv');
+  try { await document.documentElement.requestFullscreen(); } catch(_) {}
+  await loadTvGrid('', 0);
+}
+
+function exitTvMode() {
+  _tvActive = false;
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
+  showTab('collection');
+}
+
+async function loadTvGrid(platform, offset) {
+  try {
+    const params = new URLSearchParams({
+      limit: _TV_LIMIT,
+      offset: offset,
+      sort_by: 'canonical_title',
+    });
+    if (platform) params.append('platform', platform);
+    const resp = await fetch(`/api/games?${params}`);
+    const data = await resp.json();
+    const games = data.games || [];
+    if (offset === 0) {
+      _tvGames = games;
+    } else {
+      _tvGames.push(...games);
+    }
+    _tvPlatform = platform;
+    _tvOffset = offset;
+    _renderTvGrid(games, offset > 0);
+  } catch(e) {
+    console.error('loadTvGrid failed:', e);
+  }
+}
+
+function _renderTvGrid(games, append) {
+  const gridEl = document.getElementById('tv-grid');
+  if (!gridEl) return;
+
+  if (!append) gridEl.innerHTML = '';
+
+  games.forEach((g, idx) => {
+    const tile = document.createElement('div');
+    tile.className = 'tv-tile';
+    tile.setAttribute('data-tv-idx', _tvOffset + idx);
+
+    const coverUrl = `/api/asset-image?game_id=${g.id}`;
+    tile.innerHTML = `
+      <div class="tv-cover skeleton">
+        <img src="${coverUrl}" alt="${g.canonical_title || ''}"
+          onload="this.parentElement.classList.remove('skeleton')"
+          onerror="this.parentElement.classList.remove('skeleton');this.parentElement.innerHTML='<span>🎮</span>'">
+      </div>
+      <div class="tv-label">${_h(g.canonical_title || g.original_filename)}</div>
+      <div class="tv-plat">${_h(g.platform || '')}</div>
+    `;
+
+    tile.addEventListener('click', () => {
+      _tvMoveFocus(_tvOffset + idx);
+      openGamePanel(g);
+    });
+
+    gridEl.appendChild(tile);
+  });
+
+  // Calculate columns based on tile width (180px + 16px gap)
+  _tvCols = Math.max(1, Math.round(gridEl.offsetWidth / 196));
+
+  if (_tvGames.length > 0) {
+    _tvMoveFocus(0);
+  }
+}
+
+function _tvMoveFocus(idx) {
+  document.querySelector('.tv-tile.tv-focused')?.classList.remove('tv-focused');
+  _tvFocusIdx = Math.max(0, Math.min(idx, _tvGames.length - 1));
+  const tile = document.querySelector(`.tv-tile[data-tv-idx="${_tvFocusIdx}"]`);
+  if (tile) {
+    tile.classList.add('tv-focused');
+    tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  if (_tvGames[_tvFocusIdx]) {
+    _updateTvInfoBar(_tvGames[_tvFocusIdx]);
+  }
+}
+
+function _updateTvInfoBar(g) {
+  document.getElementById('tv-info-title').textContent = g.canonical_title || '';
+  document.getElementById('tv-info-platform').textContent = g.platform || '';
+  const statusEl = document.getElementById('tv-info-status');
+  if (statusEl) {
+    statusEl.textContent = g.play_status ? `${g.play_status}` : '';
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 _initColPicker();
 loadOverview();
@@ -6573,6 +7115,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (e) => {
     const tag = document.activeElement?.tagName;
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+
+    // TV mode controls (S36-1)
+    if (_tvActive) {
+      if (e.key === 'ArrowRight') { e.preventDefault(); _tvMoveFocus(_tvFocusIdx + 1); return; }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); _tvMoveFocus(_tvFocusIdx - 1); return; }
+      if (e.key === 'ArrowDown')  { e.preventDefault(); _tvMoveFocus(_tvFocusIdx + _tvCols); return; }
+      if (e.key === 'ArrowUp')    { e.preventDefault(); _tvMoveFocus(_tvFocusIdx - _tvCols); return; }
+      if (e.key === 'Enter')      { e.preventDefault(); openGamePanel(_tvGames[_tvFocusIdx]); return; }
+      if (e.key === 'Escape')     { e.preventDefault(); exitTvMode(); return; }
+    }
+
     if (e.key === 'Escape') {
       if (document.getElementById('game-panel')?.classList.contains('open')) { closeGamePanel(); return; }
       _closeConfirm();
@@ -6584,6 +7137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wizardOpen  = document.getElementById('wizard-modal')?.style.display  !== 'none';
     if (confirmOpen || wizardOpen) return;
     const k = e.key.toLowerCase();
+    if (k === 't') { e.preventDefault(); enterTvMode(); return; }
     if (k === 's') { e.preventDefault(); showTab('sync'); }
     if (k === 'g') { e.preventDefault(); showTab('games'); }
     if (k === 'r') {
