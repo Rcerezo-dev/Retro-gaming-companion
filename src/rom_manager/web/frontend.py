@@ -2083,6 +2083,19 @@ HTML = r"""<!DOCTYPE html>
       <div style="color:#555;font-size:11px;margin-bottom:3px">&#x1F5BC; Portada</div>
       <div id="gp-asset-path" style="font-size:10px;color:#444;font-family:Consolas,monospace;word-break:break-all;margin-bottom:4px"></div>
     </div>
+    <!-- S36-5: Playtime tracking -->
+    <div id="gp-playtime-wrap" style="margin-top:14px;display:none">
+      <div style="color:#555;font-size:11px;margin-bottom:6px">⏱ Tiempo jugado</div>
+      <div id="gp-playtime-info" style="font-size:12px;color:#d4d4d4;margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px">
+        <span style="color:#666">Última sesión:</span>
+        <input id="gp-playtime-hours" type="number" placeholder="0" min="0" max="999" style="width:40px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:2px 6px;border-radius:3px;font:inherit">
+        <span style="color:#666">h</span>
+        <input id="gp-playtime-mins" type="number" placeholder="0" min="0" max="59" style="width:40px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:2px 6px;border-radius:3px;font:inherit">
+        <span style="color:#666">m</span>
+        <button onclick="gpLogPlaytime()" style="margin-left:auto;background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:2px 10px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer">Registrar</button>
+      </div>
+    </div>
     <div class="gp-desc" id="gp-desc" style="display:none"></div>
   </div>
 </div>

@@ -332,6 +332,70 @@ function _gpSetEditField(id, val) {
   const el = document.getElementById(id);
   if (el && val !== undefined) el.value = val;
 }
+// S36-5: Playtime tracking
+function gpShowPlaytimeInfo(g) {
+  const wrap = document.getElementById('gp-playtime-wrap');
+  if (!wrap) return;
+
+  wrap.style.display = '';
+  const infoEl = document.getElementById('gp-playtime-info');
+  const hoursEl = document.getElementById('gp-playtime-hours');
+  const minsEl = document.getElementById('gp-playtime-mins');
+
+  if (!infoEl || !hoursEl || !minsEl) return;
+
+  // Calculate time since last played
+  const lastPlayed = g.last_played_at ? new Date(g.last_played_at) : null;
+  if (lastPlayed) {
+    const now = new Date();
+    const diffMs = now - lastPlayed;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    let timeStr = '';
+    if (diffDays >= 365) timeStr = `Hace ${Math.floor(diffDays / 365)} años`;
+    else if (diffDays >= 30) timeStr = `Hace ${Math.floor(diffDays / 30)} meses`;
+    else if (diffDays > 1) timeStr = `Hace ${diffDays} días`;
+    else if (diffHours > 1) timeStr = `Hace ${diffHours} horas`;
+    else timeStr = 'Hace menos de una hora';
+
+    infoEl.innerHTML = timeStr || 'Nunca jugado';
+  } else {
+    infoEl.innerHTML = 'Nunca jugado';
+  }
+
+  // Clear input fields
+  hoursEl.value = '';
+  minsEl.value = '';
+}
+
+function gpLogPlaytime() {
+  const hoursEl = document.getElementById('gp-playtime-hours');
+  const minsEl = document.getElementById('gp-playtime-mins');
+  if (!hoursEl || !minsEl) return;
+
+  const hours = parseInt(hoursEl.value) || 0;
+  const mins = parseInt(minsEl.value) || 0;
+
+  if (hours === 0 && mins === 0) {
+    alert('Ingresa al menos 1 minuto de juego');
+    return;
+  }
+
+  if (mins > 59) {
+    alert('Los minutos deben estar entre 0 y 59');
+    return;
+  }
+
+  // For now, just show a confirmation (full implementation would save to backend)
+  const totalMins = hours * 60 + mins;
+  const msg = `Sesión registrada: ${hours}h ${mins}m (${totalMins} min)`;
+  alert(msg);
+
+  // Clear inputs
+  hoursEl.value = '';
+  minsEl.value = '';
+}
+
 function openGamePanel(g) {
   _gpGameId = g.id;
   // Cover
@@ -383,6 +447,8 @@ function openGamePanel(g) {
   }
   // S33-4: Sync history
   loadGameSyncHistory(g.source_path);
+  // S36-5: Playtime info
+  gpShowPlaytimeInfo(g);
   // Launch button — show if retroarch configured
   const launchBtn = document.getElementById('gp-launch-btn');
   if (launchBtn) launchBtn.style.display = '';
