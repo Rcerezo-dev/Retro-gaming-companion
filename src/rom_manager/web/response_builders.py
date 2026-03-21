@@ -339,17 +339,21 @@ def _build_status(
     library_root: Path | None = None,
 ) -> dict:
     from datetime import UTC, datetime as _dt_cls
-    summary = repository.get_summary(source_root)
+    # If source_root is an Android-style path (starts with /) and we have an Android
+    # repository, query it instead of the PC repository so ADB-scanned stats show up.
+    _is_android_root = bool(source_root and source_root.startswith("/") and repository_android is not None and repository_android is not repository)
+    active_repo = repository_android if _is_android_root else repository
+    summary = active_repo.get_summary(source_root)
     dup_groups = repository.get_duplicate_groups()
     from rom_manager.reports.reporter import _get_all_games
-    games = _get_all_games(repository)
+    games = _get_all_games(active_repo)
     if source_root:
         prefix = source_root.rstrip("/\\")
         matched = sum(1 for g in games if g.canonical_title is not None and g.source_path.startswith(prefix))
     else:
         matched = sum(1 for g in games if g.canonical_title is not None)
     wasted = sum(g.wasted_bytes for g in dup_groups)
-    last_scans = repository.get_last_scan_by_root()
+    last_scans = active_repo.get_last_scan_by_root()
     # Android DB counts (separate DB)
     android_summary = None
     if repository_android is not None and repository_android is not repository:
@@ -483,11 +487,16 @@ def _build_games(
     play_status: str | None = None,
     favorite: bool = False,
     tag: str | None = None,
+    genre: str | None = None,
+    year: str | None = None,
+    region: str | None = None,
+    sort_by: str | None = None,
 ) -> dict:
     games, total = repository.get_games_paginated(
         offset=offset, limit=limit, platform=platform, status=status,
         source_root=source_root, file_type=file_type, search=search,
         play_status=play_status, favorite=favorite, tag=tag,
+        genre=genre, year=year, region=region, sort_by=sort_by,
     )
     return {
         "games": games,
@@ -639,6 +648,10 @@ def _build_duplicates(
     groups = sorted(groups, key=lambda g: g.wasted_bytes, reverse=True)
     total_files = sum(len(g.entries) for g in groups)
     total_wasted = sum(g.wasted_bytes for g in groups)
+
+    # Semantic duplicates: same canonical_title+platform but different SHA1
+    title_groups = repository.get_title_duplicate_groups()
+
     return {
         "groups": [
             {
@@ -655,6 +668,7 @@ def _build_duplicates(
         ],
         "total_files": total_files,
         "wasted_bytes": total_wasted,
+        "title_groups": title_groups,
     }
 
 

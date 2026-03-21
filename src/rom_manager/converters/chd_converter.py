@@ -28,7 +28,11 @@ def find_cue_files(directory: Path) -> list[Path]:
 
 
 def parse_bins_from_cue(cue_path: Path) -> list[Path]:
-    """Return all .bin files referenced inside a .cue file (existing or not)."""
+    """Return all files referenced inside a .cue file (existing or not).
+
+    Handles both quoted (FILE "name.bin" BINARY) and unquoted (FILE name.bin BINARY) forms.
+    """
+    import re
     cue_dir = cue_path.parent
     bins: list[Path] = []
     try:
@@ -39,11 +43,36 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
         stripped = line.strip()
         if not stripped.upper().startswith("FILE "):
             continue
-        parts = stripped.split('"')
-        if len(parts) < 2:
+        # Quoted filename: FILE "some name.bin" BINARY
+        m = re.match(r'FILE\s+"([^"]+)"', stripped, re.IGNORECASE)
+        if m:
+            bins.append(cue_dir / m.group(1))
             continue
-        bins.append(cue_dir / parts[1])
+        # Unquoted filename: FILE name.bin BINARY
+        m = re.match(r'FILE\s+(\S+)', stripped, re.IGNORECASE)
+        if m:
+            bins.append(cue_dir / m.group(1))
     return bins
+
+
+def parse_tracks_from_gdi(gdi_path: Path) -> list[Path]:
+    """Return all track files referenced inside a Dreamcast .gdi file.
+
+    GDI format: first line is track count, then one track per line:
+      <track_num> <offset> <type> <sectorsize> <filename> <unknown>
+    """
+    gdi_dir = gdi_path.parent
+    tracks: list[Path] = []
+    try:
+        text = gdi_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return tracks
+    lines = text.splitlines()
+    for line in lines[1:]:  # skip first line (track count)
+        parts = line.strip().split()
+        if len(parts) >= 5:
+            tracks.append(gdi_dir / parts[4])
+    return tracks
 
 
 def convert_to_chd(
@@ -64,6 +93,19 @@ def convert_to_chd(
     bin_paths = parse_bins_from_cue(cue_path)
 
     if chd_path.exists():
+        # B2-2: if delete_source is requested and the .chd already exists from a
+        # previous successful conversion, clean up the originals now.
+        if delete_source:
+            for bin_path in bin_paths:
+                bin_path.unlink(missing_ok=True)
+            cue_path.unlink(missing_ok=True)
+            return ConversionResult(
+                cue_path=cue_path,
+                chd_path=chd_path,
+                bin_paths=bin_paths,
+                success=True,
+                error=None,
+            )
         return ConversionResult(
             cue_path=cue_path,
             chd_path=chd_path,
@@ -106,6 +148,18 @@ def convert_to_chd(
             bin_paths=bin_paths,
             success=False,
             error=stderr or f"chdman exited with code {exc.returncode}",
+        )
+
+    # B5-2: post-conversion validation — chdman can exit 0 and still produce no output
+    if not chd_path.exists() or chd_path.stat().st_size == 0:
+        if chd_path.exists():
+            chd_path.unlink(missing_ok=True)  # remove empty/corrupt file
+        return ConversionResult(
+            cue_path=cue_path,
+            chd_path=chd_path,
+            bin_paths=bin_paths,
+            success=False,
+            error="chdman terminó sin error pero el .chd resultante falta o está vacío",
         )
 
     if delete_source:

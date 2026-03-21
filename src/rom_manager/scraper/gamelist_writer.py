@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+_DISC_RE = re.compile(r'\(Dis[ck]\s*(\d+)\)', re.IGNORECASE)
 
 
 def write_gamelist(
@@ -15,7 +18,7 @@ def write_gamelist(
 
     Each entry in *entries* is a dict with keys:
         filename, title, year, genre, publisher, developer,
-        description, rating, box_art_path (local path or empty)
+        description, rating, box_art_path, screenshot_path, wheel_path
 
     Always writes ``platform_dir/gamelist.xml`` with paths relative to the ROM dir.
     If *es_config_dir* is given (e.g. ~/.emulationstation/gamelists/{system}/),
@@ -25,6 +28,18 @@ def write_gamelist(
     Returns the path to the primary written file (alongside ROMs).
     """
 
+    def _media_path(path_str: str, use_absolute: bool) -> str:
+        """Return the path string to embed in the XML (absolute or relative to platform_dir)."""
+        if not path_str:
+            return ""
+        if use_absolute:
+            return str(Path(path_str).resolve())
+        try:
+            rel = Path(path_str).relative_to(platform_dir)
+            return f"./{rel.as_posix()}"
+        except ValueError:
+            return path_str
+
     def _build_tree(use_absolute: bool) -> ET.ElementTree:
         root = ET.Element("gameList")
         for entry in entries:
@@ -32,21 +47,30 @@ def write_gamelist(
 
             rom_path = platform_dir / entry["filename"]
             _sub(game_el, "path", str(rom_path) if use_absolute else f"./{entry['filename']}")
-            _sub(game_el, "name", entry.get("title") or _stem(entry["filename"]))
+            title = entry.get("title") or _stem(entry["filename"])
+            m = _DISC_RE.search(entry["filename"])
+            if m and f"Disc {m.group(1)}" not in title and f"Disk {m.group(1)}" not in title:
+                title = f"{title} (Disc {m.group(1)})"
+            _sub(game_el, "name", title)
 
             if entry.get("description"):
                 _sub(game_el, "desc", entry["description"])
 
-            box_art = entry.get("box_art_path", "")
-            if box_art:
-                if use_absolute:
-                    _sub(game_el, "image", str(Path(box_art).resolve()))
-                else:
-                    try:
-                        rel = Path(box_art).relative_to(platform_dir)
-                        _sub(game_el, "image", f"./{rel.as_posix()}")
-                    except ValueError:
-                        _sub(game_el, "image", box_art)
+            # Box art → <image>
+            _img = _media_path(entry.get("box_art_path", ""), use_absolute)
+            if _img:
+                _sub(game_el, "image", _img)
+
+            # Wheel/logo → <thumbnail> + <marquee>  (B6-7)
+            _wheel = _media_path(entry.get("wheel_path", ""), use_absolute)
+            if _wheel:
+                _sub(game_el, "thumbnail", _wheel)
+                _sub(game_el, "marquee", _wheel)
+
+            # Screenshot → <screenshot>  (B6-7)
+            _shot = _media_path(entry.get("screenshot_path", ""), use_absolute)
+            if _shot:
+                _sub(game_el, "screenshot", _shot)
 
             if entry.get("rating"):
                 try:

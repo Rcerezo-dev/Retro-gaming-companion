@@ -469,13 +469,26 @@ def _run_inbox_pipeline(
                 organize_errors.append(f"{source_file.name}: {exc}")
 
         # ── Cleanup ───────────────────────────────────────────────────────────
-        if delete_source:
-            for zp in source_zips:
-                try:
-                    if zp.exists():
-                        zp.unlink()
-                except Exception:
-                    pass
+        # B6-5: always move processed ZIPs out of the active inbox area so they
+        # are not re-extracted on subsequent runs. _processed/ starts with '_'
+        # and is already excluded from ZIP scanning (line 347 filter).
+        # If delete_source=True, delete them outright instead.
+        processed_dir = inbox / "_processed"
+        for zp in source_zips:
+            if not zp.exists():
+                continue
+            try:
+                if delete_source:
+                    zp.unlink()
+                else:
+                    processed_dir.mkdir(parents=True, exist_ok=True)
+                    dest_zp = processed_dir / zp.name
+                    if dest_zp.exists():
+                        zp.unlink()  # duplicate — already archived
+                    else:
+                        _shutil.move(str(zp), dest_zp)
+            except Exception:
+                pass
 
         # Remove _extracted temp folder if empty
         extracted_dir = inbox / "_extracted"
@@ -488,6 +501,7 @@ def _run_inbox_pipeline(
         _job_results["inbox"] = {
             "result_ts": utc_now(),
             "zips_extracted": extracted_count,
+            "zips_archived": len(source_zips),
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,

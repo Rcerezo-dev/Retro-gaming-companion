@@ -1,0 +1,68 @@
+# ROM Manager Local — Configuración de ejemplo
+# Copia este archivo a config.toml y ajusta los valores a tu entorno.
+# config.toml está en .gitignore — nunca se sube a GitHub.
+
+[library]
+# Raíz de tu biblioteca de ROMs (donde están las carpetas por plataforma)
+library_root = "E:\\Carpetas anbernic"
+# Raíz de la consola cuando está conectada por USB (opcional)
+anbernic_root = "H:\\"
+
+[sync]
+# Ejecutable de rclone (puede ser nombre si está en PATH, o ruta absoluta)
+rclone = "rclone"
+
+[tools]
+chdman = "tools\\chdman.exe"
+adb = "tools/adb.exe"
+
+[web]
+host = "127.0.0.1"
+port = 7777
+
+[screenscraper]
+user = "TU_USUARIO_SCREENSCRAPER"
+pass = "TU_CONTRASEÑA_SCREENSCRAPER"
+dev_id = ""
+dev_pass = ""
+
+[retroachievements]
+api_key = ""   # Obtener en retroachievements.org → Settings → Web API Key
+
+[android]
+device_name = "Consola Android"   # Nombre que aparece en la UI
+
+# Fuentes de sync (una por emulador/carpeta)
+# Puedes tener tantas como quieras
+
+[[sync.sources]]
+name = "RetroArch"
+local_dir = "E:\\Carpetas anbernic"
+remote = "dropbox:/RetroSync/saves/retroarch"
+
+[[sync.sources]]
+name = "DuckStation (PSX)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\DuckStation\\memcards"
+remote = "dropbox:/RetroSync/saves/duckstation"
+
+[[sync.sources]]
+name = "PCSX2 (PS2)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PCSX2\\memcards"
+remote = "dropbox:/RetroSync/saves/pcsx2"
+
+[[sync.sources]]
+name = "PPSSPP (PSP)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PPSSPP\\PSP\\SAVEDATA"
+remote = "dropbox:/RetroSync/saves/ppsspp"
+sync_all = true
+
+[[sync.sources]]
+name = "MelonDS (NDS)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\melonDS"
+remote = "dropbox:/RetroSync/saves/melon"
+
+[[sync.sources]]
+name = "Dolphin (GC/Wii)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\Dolphin Emulator"
+remote = "dropbox:/RetroSync/saves/dolphin"
+sync_all = true

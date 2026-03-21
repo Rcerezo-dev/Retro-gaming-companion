@@ -124,12 +124,13 @@ HTML = r"""<!DOCTYPE html>
   <span class="subtitle">biblioteca local</span>
   <div id="global-search-wrap" style="flex:1;max-width:320px;margin:0 16px;position:relative">
     <input id="global-search" type="text" placeholder="&#x1F50D; Buscar juego…" autocomplete="off"
-      style="width:100%;background:#0f0f0f;border:1px solid #333;color:#d4d4d4;padding:5px 10px;border-radius:20px;font:inherit;font-size:13px;outline:none"
+      style="width:100%;background:var(--bg-input);border:1px solid var(--border-s);color:var(--fg);padding:5px 10px;border-radius:20px;font:inherit;font-size:13px;outline:none"
       oninput="onGlobalSearch(this.value)">
-    <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1e1e2e;border:1px solid #333;border-radius:6px;z-index:500;max-height:320px;overflow-y:auto"></div>
+    <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg-panel);border:1px solid var(--border-s);border-radius:6px;z-index:500;max-height:320px;overflow-y:auto"></div>
   </div>
   <span id="header-last-sync" title="Última sincronización"></span>
   <button id="btn-logout" class="btn" style="display:none;margin-left:8px;font-size:11px;padding:3px 10px;border-color:#555;color:#555" onclick="doLogout()" title="Cerrar sesión">&#x1F512; Salir</button>
+  <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Cambiar tema claro/oscuro">&#x263D; Oscuro</button>
 </header>
 
 <!-- CONFIRM MODAL (24-4) -->
@@ -152,8 +153,10 @@ HTML = r"""<!DOCTYPE html>
   <button id="nav-assets" onclick="showTab('assets')">Assets</button>
   <button id="nav-sync" onclick="showTab('sync')">Sync</button>
   <button id="nav-cable" onclick="showTab('cable')">Cable Sync</button>
+  <button id="nav-collection" onclick="showTab('collection')">Colección</button>
   <button id="nav-scraper" onclick="showTab('scraper')">Scraper</button>
-  <button id="nav-inbox" onclick="showTab('inbox')">Inbox</button>
+  <button id="nav-inbox" onclick="showTab('inbox')">Inbox<span id="inbox-nav-badge" style="display:none;background:#f44747;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle">0</span></button>
+  <button id="nav-formats" onclick="showTab('formats')">Formatos</button>
   <button id="nav-tools" onclick="showTab('tools')">Herramientas</button>
   <button id="nav-settings" onclick="showTab('settings')">Ajustes</button>
 </nav>
@@ -234,13 +237,13 @@ HTML = r"""<!DOCTYPE html>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta del ordenador</label>
-        <input id="ov-pc-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+        <input id="ov-pc-path" type="text" onblur="saveOvPaths()" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
       </div>
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px"><span id="ov-ab-path-label-text">Consola Android</span> — SD card o red local
           <span style="color:#555;font-weight:normal"> (no MTP directo)</span>
         </label>
-        <input id="ov-ab-path" type="text" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
+        <input id="ov-ab-path" type="text" onblur="saveOvPaths()" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -388,13 +391,25 @@ HTML = r"""<!DOCTYPE html>
     <select id="games-tag-filter" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">Todos los tags</option>
     </select>
+    <select id="games-genre" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">G&#xe9;nero</option>
+    </select>
+    <select id="games-year" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">A&#xf1;o</option>
+    </select>
+    <select id="games-sort-by" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">Orden: T&#xed;tulo</option>
+      <option value="platform">Orden: Plataforma</option>
+      <option value="year">Orden: A&#xf1;o</option>
+      <option value="last_played">Orden: &#xda;ltima partida</option>
+    </select>
     <span id="games-count" style="color:#666;margin-left:8px;"></span>
     <div class="view-toggle" style="margin-left:auto" title="Cambiar vista">
       <button id="btn-view-list" class="active" onclick="setGamesView('list')" title="Vista lista">&#x2630;</button>
       <button id="btn-view-grid" onclick="setGamesView('grid')" title="Vista cuadrícula">&#x229E;</button>
     </div>
-    <a href="/api/report.csv" class="btn">&#x2193; CSV</a>
-    <a href="/api/report.json" class="btn">&#x2193; JSON</a>
+    <a href="/api/export-library?format=csv" class="btn" title="Exportar biblioteca completa con metadatos a CSV">&#x2193; CSV</a>
+    <a href="/api/export-library?format=json" class="btn" title="Exportar biblioteca completa con metadatos a JSON">&#x2193; JSON</a>
   </div>
   <div id="games-view-wrap">
     <div id="games-list-view" style="overflow-x:auto">
@@ -496,8 +511,13 @@ HTML = r"""<!DOCTYPE html>
 
 <!-- DUPLICATES -->
 <div id="tab-duplicates" class="tab">
-  <div class="toolbar" style="justify-content:space-between;align-items:center">
-    <span style="color:#888;font-size:12px">Se conserva la primera copia de cada grupo; se eliminan las demás.</span>
+  <div class="toolbar" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="color:#888;font-size:12px">Se conserva la primera copia de cada grupo; se eliminan las demás.</span>
+      <select id="dup-platform-filter" onchange="filterDuplicatesByPlatform()" style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+        <option value="">Todas las plataformas</option>
+      </select>
+    </div>
     <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()" title="Elimina del disco todas las copias redundantes. Se conserva una copia de cada grupo. Esta acción no se puede deshacer.">Eliminar todos los duplicados</button>
   </div>
   <div id="dup-context-bar" style="display:none;margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
@@ -547,6 +567,16 @@ HTML = r"""<!DOCTYPE html>
       <div style="color:#555;font-size:11px;margin-bottom:6px">ZIPs manuales guardados</div>
       <div id="manual-backups-list" style="font-size:12px;max-height:200px;overflow-y:auto"></div>
     </div>
+  </div>
+
+  <!-- S33-3: COMPARADOR DE SAVES -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x23F1; Estado de saves</h3>
+      <button class="btn" onclick="loadSaveComparison()" style="font-size:11px;padding:3px 12px">&#x21BB; Cargar</button>
+    </div>
+    <p style="color:#555;font-size:12px;margin-bottom:10px">Fecha de modificaci&#xf3;n de cada save local y cu&#xe1;ndo fue sincronizado por &#xfa;ltima vez.</p>
+    <div id="save-comparison-content"></div>
   </div>
 
   <!-- LIBRARY COMPARATOR -->
@@ -732,7 +762,15 @@ HTML = r"""<!DOCTYPE html>
         </label>
         <label class="fmt-check">
           <input type="checkbox" id="cable-what-roms"> ROMs
-          <span style="color:#555;font-size:11px;margin-left:4px">(todo lo demás)</span>
+          <span style="color:#555;font-size:11px;margin-left:4px">(todo lo dem&#xe1;s)</span>
+        </label>
+        <label class="fmt-check">
+          <input type="checkbox" id="cable-what-assets"> Assets (im&#xe1;genes)
+          <span style="color:#555;font-size:11px;margin-left:4px">(carpetas media/)</span>
+        </label>
+        <label class="fmt-check">
+          <input type="checkbox" id="cable-what-gamelists"> Gamelists
+          <span style="color:#555;font-size:11px;margin-left:4px">(gamelist.xml)</span>
         </label>
       </div>
     </div>
@@ -929,6 +967,38 @@ HTML = r"""<!DOCTYPE html>
   <div id="assets-content"><p class="loading">Cargando…</p></div>
 </div>
 
+<!-- COLECCIÓN -->
+<div id="tab-collection" class="tab">
+  <div class="actions-panel" style="max-width:960px">
+    <h3>Colección — Missing &amp; Estadísticas</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      Compara tu biblioteca con los catálogos DAT importados para ver qué títulos faltan.
+      Requiere catálogos DAT cargados en la pestaña <strong>Herramientas → Catálogos DAT</strong>.
+    </p>
+
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn" onclick="loadCollectionStats()">📊 Recargar estadísticas</button>
+      <button class="btn" onclick="loadMissingRoms()">🔍 Buscar faltantes</button>
+      <a id="btn-export-missing" href="/api/export-missing" download="missing_roms.csv" class="btn" style="text-decoration:none">⬇ Exportar CSV</a>
+    </div>
+
+    <!-- Completion stats -->
+    <div id="collection-stats" style="margin-bottom:20px"></div>
+
+    <!-- Missing ROMs -->
+    <div id="missing-section" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        <h4 style="margin:0;color:#ce9178">ROMs faltantes</h4>
+        <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+          <option value="">Todas las plataformas</option>
+        </select>
+        <span id="missing-count" style="color:#666;font-size:12px"></span>
+      </div>
+      <div id="missing-list" style="max-height:520px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
 <!-- SCRAPER -->
 <div id="tab-scraper" class="tab">
   <div class="actions-panel" style="max-width:800px">
@@ -940,8 +1010,10 @@ HTML = r"""<!DOCTYPE html>
 
     <div class="actions-row" style="flex-wrap:wrap;gap:16px">
       <div>
-        <label>Plataforma (opcional)</label>
-        <input id="scrape-platform" type="text" placeholder="Game Boy Advance" style="width:200px">
+        <label>Plataforma</label>
+        <select id="scrape-platform" style="width:220px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
+          <option value="">Todas las plataformas</option>
+        </select>
       </div>
       <div>
         <label>Límite de ROMs (0 = todos)</label>
@@ -951,6 +1023,10 @@ HTML = r"""<!DOCTYPE html>
         <input type="checkbox" id="scrape-images"> Descargar portadas
       </label>
     </div>
+    <p style="color:#555;font-size:11px;margin:4px 0 10px">
+      &#x1F5BC; Las portadas se guardan junto a los ROMs: <code>{plataforma}/media/images/{nombre}.jpg</code><br>
+      El <code>gamelist.xml</code> las referencia automáticamente — ES-DE las muestra sin copiar nada extra.
+    </p>
     <div class="actions-row" style="margin-top:10px">
       <button id="btn-scrape" class="btn primary" onclick="doScrape()">Iniciar scraping</button>
       <span id="scrape-rate-note" style="color:#555;font-size:12px">Respeta el rate limit de ScreenScraper (~1 req/s sin cuenta dev, ~3 req/s con dev)</span>
@@ -979,14 +1055,16 @@ HTML = r"""<!DOCTYPE html>
   <div class="actions-panel" style="max-width:800px;margin-top:24px">
     <h3>Exportar gamelist.xml</h3>
     <p style="color:#888;font-size:12px;margin-bottom:16px">
-      Genera un <code>gamelist.xml</code> por plataforma en el formato EmulationStation / ES-DE.<br>
-      Funciona en <strong>PC</strong> (ES-DE Windows) y en la <strong>consola Android</strong> (ES-DE o Pegasus).
-      Sin estos archivos, el frontend muestra sólo texto plano — sin carátulas, descripción ni metadatos.
+      Genera un <code>gamelist.xml</code> por plataforma en el formato ES-DE.<br>
+      Los archivos se escriben en <code>library_root/{plataforma}/</code>, junto a los ROMs — exactamente donde ES-DE los espera.
+      Sin estos archivos, ES-DE muestra s&#xf3;lo nombres de archivo, sin car&#xe1;tulas ni metadatos.
     </p>
-    <div class="actions-row">
+    <div class="actions-row" style="flex-wrap:wrap;gap:10px">
       <div>
-        <label>Carpeta de salida (vacío = library_root)</label>
-        <input id="gamelist-output-dir" type="text" placeholder="Ruta opcional" style="width:300px">
+        <label>Carpeta de destino <span style="color:#555;font-weight:normal">(vac&#xed;o = library_root)</span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="gamelist-output-dir" type="text" placeholder="Vacío = library_root (recomendado para ES-DE)" style="width:360px">
+        </div>
       </div>
       <div>
         <label>Plataforma (opcional)</label>
@@ -1029,76 +1107,14 @@ HTML = r"""<!DOCTYPE html>
     <div id="batch-status" style="margin-top:10px;font-size:12px;color:#888"></div>
   </div>
 
-  <!-- ── Descomprimir ZIPs ── -->
+  <!-- ── Library Doctor ── -->
   <div class="actions-panel" style="margin-bottom:20px">
-    <h3>Descomprimir ZIPs</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip. Omite ZIPs con .cue/.bin/.iso (usa el conversor CHD). RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
-    <div class="actions-row" style="align-items:flex-end;gap:8px">
-      <div style="flex:1"><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba" style="width:100%"></div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('zip-path')">library_root</button>
-    </div>
-    <div class="actions-row" style="gap:20px;align-items:center">
-      <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Solo previsualizar (sin extraer)</label>
-      <label class="fmt-check"><input type="checkbox" id="zip-delete-source"> Eliminar .zip tras extraer</label>
-    </div>
+    <h3>Library Doctor</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets CUE+BIN incompletos y carpetas vacías.</p>
     <div class="actions-row">
-      <button id="btn-extract-zip" class="btn primary" onclick="doExtractZip()">Descomprimir ZIPs</button>
+      <button class="btn primary" onclick="doLibraryDoctor()">&#x1F489; Analizar biblioteca</button>
     </div>
-    <div id="zip-progress-wrap" style="display:none;margin-top:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="zip-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="zip-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
-      </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="zip-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
-      </div>
-    </div>
-    <div id="job-result-extract-zip" class="job-result"></div>
-    <div id="zip-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
-    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
-      <button class="btn danger" onclick="doCleanupZips()" title="Elimina los archivos .zip originales de esta carpeta. Úsalo solo si ya extrajiste los ROMs. No se puede deshacer.">Eliminar todos los .zip de esta carpeta</button>
-      <span style="color:#555;font-size:12px">Para usar si ya extrajiste antes sin marcar "Eliminar .zip"</span>
-    </div>
-  </div>
-
-  <!-- ── Generar playlists M3U ── -->
-  <div class="actions-panel" style="margin-bottom:20px">
-    <h3>Generar playlists M3U (multi-disco)</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Busca juegos con "(Disc 1)", "(Disc 2)"… y crea un archivo .m3u por cada grupo. Necesario para cambiar de disco en RetroArch sin salir del juego.</p>
-    <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
-      <div style="flex:1;min-width:200px">
-        <label>Carpeta de ROMs</label>
-        <input id="m3u-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
-      </div>
-      <button class="btn" onclick="autodetectM3UFolders()" id="btn-m3u-autodetect" title="Detecta automáticamente las carpetas de plataformas de disco">Autodetectar carpetas</button>
-    </div>
-    <div id="m3u-folder-select-wrap" style="display:none;margin-top:8px">
-      <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpetas detectadas — haz clic para seleccionar:</label>
-      <div id="m3u-folder-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-    </div>
-    <div class="actions-row" style="gap:20px;align-items:center;margin-top:10px">
-      <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Solo previsualizar (sin crear archivos)</label>
-    </div>
-    <div class="actions-row">
-      <button class="btn primary" onclick="doGenerateM3U()">Generar M3U</button>
-    </div>
-    <div id="m3u-result" style="margin-top:12px"></div>
-  </div>
-
-  <!-- ── Verificar multi-disco ── -->
-  <div class="actions-panel" style="margin-bottom:20px">
-    <h3>Verificar sets multi-disco</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba que todos los discos de cada juego están presentes, tienen la misma extensión, no hay huecos en la numeración y están en el catálogo.</p>
-    <p id="multidisc-folder-hint" style="display:none;font-size:11px;color:#569cd6;margin-bottom:8px"></p>
-    <div class="actions-row">
-      <div style="flex:1"><label>Carpeta(s) de ROMs (una por línea)</label>
-        <textarea id="verify-multidisc-path" rows="3" placeholder="C:/ROMs/psx&#10;C:/ROMs/ps2" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
-      </div>
-    </div>
-    <div class="actions-row">
-      <button class="btn primary" onclick="doVerifyMultidisc()">Verificar</button>
-    </div>
-    <div id="multidisc-result" style="margin-top:12px"></div>
+    <div id="library-doctor-result" style="margin-top:12px"></div>
   </div>
 
   <!-- ── Saves huérfanos ── -->
@@ -1159,45 +1175,6 @@ HTML = r"""<!DOCTYPE html>
     <div id="ra-result" style="margin-top:12px"></div>
   </div>
 
-  <!-- ── CHD ── -->
-  <div class="actions-panel">
-    <h3>Convertir a CHD (PSX)</h3>
-    <div class="actions-row" style="align-items:flex-end;gap:8px">
-      <div style="flex:1">
-        <label for="chd-path">Carpeta con archivos .cue/.bin</label>
-        <input id="chd-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
-      </div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('chd-path')">library_root</button>
-    </div>
-    <div class="actions-row" style="gap:20px;align-items:center">
-      <label class="fmt-check">
-        <input type="checkbox" id="chd-dry-run" checked> Solo previsualizar (sin convertir)
-      </label>
-      <label class="fmt-check">
-        <input type="checkbox" id="chd-delete-source"> Eliminar .cue/.bin tras convertir
-      </label>
-    </div>
-    <div class="actions-row">
-      <button id="btn-convert-chd" class="btn primary" onclick="doConvertChd()">Convertir a CHD</button>
-      <span id="chdman-status" style="font-size:12px;color:#555">Verificando chdman…</span>
-    </div>
-    <div id="chd-progress-wrap" style="display:none;margin-top:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="chd-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
-      </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="chd-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
-      </div>
-    </div>
-    <div id="job-result-convert-chd" class="job-result"></div>
-    <div id="chd-results" style="margin-top:16px"></div>
-    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
-      <button class="btn danger" onclick="doCleanupCueBin()">Eliminar .cue/.bin originales</button>
-      <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
-    </div>
-  </div>
-
   <!-- ── Informe de biblioteca ── -->
   <div class="actions-panel" style="margin-top:20px" id="report-panel">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1235,20 +1212,6 @@ HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- ── Análisis de carpeta ── -->
-  <div class="actions-panel" style="margin-top:20px">
-    <h3>Análisis de carpeta</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversión.</p>
-    <div class="actions-row" style="align-items:flex-end;gap:8px">
-      <div style="flex:1"><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx" style="width:100%"></div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('folder-analysis-path')">library_root</button>
-    </div>
-    <div class="actions-row">
-      <button class="btn primary" onclick="doFolderAnalysis()">Analizar carpeta</button>
-    </div>
-    <div id="folder-analysis-result" style="margin-top:12px"></div>
-  </div>
-
   <!-- ── Exportar Pegasus Metadata ── -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>Exportar Pegasus Metadata</h3>
@@ -1274,27 +1237,191 @@ HTML = r"""<!DOCTYPE html>
   <!-- ── Estructura de biblioteca ── -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>Estructura de biblioteca</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Crea la estructura de carpetas estándar (ES-DE/EmulationStation) en tu biblioteca y organiza los ROMs en sus carpetas de plataforma.</p>
+    <p style="color:#888;font-size:12px;margin-bottom:4px">Crea la estructura de carpetas estándar (ES-DE/EmulationStation) y organiza los ROMs en sus carpetas de plataforma.</p>
+    <p style="color:#555;font-size:11px;margin-bottom:12px">&#x26A0; También detecta <strong style="color:#ce9178">ROMs mal ubicados</strong> (ej: juegos de PSX en la raíz en vez de en <code>psx/</code>) y propone moverlos. Usa "Previsualizar" primero.</p>
     <div class="actions-row" style="align-items:flex-start;flex-wrap:wrap;gap:10px">
       <button class="btn" onclick="createLibraryStructure()">Crear carpetas</button>
       <div>
         <span style="color:#555;font-size:12px">Crea todas las carpetas de plataforma + saves/ + bios/ + inbox/ con subcarpetas media/</span><br>
-        <label class="fmt-check" style="margin-top:6px" title="Crea la misma estructura en la ruta del dispositivo Android configurada en Ajustes">
+        <label class="fmt-check" style="margin-top:6px" title="Crea la misma estructura en la ruta del dispositivo Android configurada en Ajustes (anbernic_root en config.toml)">
           <input type="checkbox" id="struct-also-android">
-          <span style="font-size:12px">También en consola Android <span style="color:#555">(requiere SD montada o ruta accesible)</span></span>
+          <span style="font-size:12px">También en consola Android <span style="color:#555">(requiere SD montada o ruta anbernic_root configurada)</span></span>
         </label>
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn" onclick="organizeLibrary(true)">Previsualizar organización</button>
+      <button class="btn" onclick="organizeLibrary(true)">&#x1F50D; Previsualizar organización</button>
       <span style="color:#555;font-size:12px">Muestra adónde iría cada ROM, save y BIOS sin mover nada</span>
     </div>
     <div class="actions-row">
-      <button class="btn primary" onclick="organizeLibrary(false)" title="Mueve los ROMs a sus carpetas de plataforma, los saves a saves/ y las BIOS conocidas a bios/. Actualiza las rutas en la base de datos. Haz una copia de seguridad antes de la primera vez.">Organizar biblioteca</button>
-      <span style="color:#555;font-size:12px">Mueve ROMs a sus carpetas, saves a saves/, BIOS conocidas a bios/ — actualiza la BD</span>
+      <button class="btn primary" onclick="organizeLibrary(false)" title="Mueve los ROMs a sus carpetas de plataforma, los saves a saves/ y las BIOS conocidas a bios/. Actualiza las rutas en la base de datos.">Organizar biblioteca</button>
+      <span style="color:#555;font-size:12px">Mueve ROMs mal ubicados a su carpeta de plataforma, saves a saves/, BIOS a bios/</span>
     </div>
     <div id="job-result-structure" class="job-result" style="margin-top:10px"></div>
   </div>
+</div>
+
+<!-- FORMATOS -->
+<div id="tab-formats" class="tab">
+
+  <!-- ── Convertir a CHD ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Convertir a CHD</h3>
+    <div style="background:#0f1520;border:1px solid #1a3050;border-radius:5px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:#6a8fb0;line-height:1.6">
+      <strong style="color:#569cd6">&#x2139; Sets multi-bin (PSX / Saturn):</strong>
+      El formato original usa un <code>.cue</code> + múltiples <code>.bin</code> (uno por pista de audio). Esto es <strong>completamente normal</strong> — algunos juegos tienen 20+ pistas.
+      Convierte a <code>.chd</code> para tenerlo todo en un solo archivo, sin pérdida de calidad.
+    </div>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1">
+        <label for="chd-path">Carpeta con archivos .cue/.bin</label>
+        <input id="chd-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
+      </div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('chd-path')">library_root</button>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center">
+      <label class="fmt-check"><input type="checkbox" id="chd-dry-run" checked> Solo previsualizar (sin convertir)</label>
+      <label class="fmt-check"><input type="checkbox" id="chd-delete-source"> Eliminar .cue/.bin tras convertir</label>
+    </div>
+    <div class="actions-row">
+      <button id="btn-convert-chd" class="btn primary" onclick="doConvertChd()">Convertir a CHD</button>
+      <span id="chdman-status" style="font-size:12px;color:#555">Verificando chdman&#x2026;</span>
+    </div>
+    <div id="chd-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="chd-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="chd-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="job-result-convert-chd" class="job-result"></div>
+    <div id="chd-results-header" style="display:none;margin-top:16px;margin-bottom:6px;display:none;align-items:center;gap:10px">
+      <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="chd-filter-errors" onchange="applyChdFilter()"> Solo errores
+      </label>
+      <span id="chd-results-count" style="font-size:11px;color:#555"></span>
+    </div>
+    <div id="chd-results" style="margin-top:4px;max-height:450px;overflow-y:auto"></div>
+    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
+      <button class="btn danger" onclick="doCleanupCueBin()">Eliminar .cue/.bin originales</button>
+      <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
+    </div>
+  </div>
+
+  <!-- ── Descomprimir ZIPs ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Descomprimir ZIPs</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip directamente en la misma carpeta. RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('zip-path')">library_root</button>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center">
+      <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Solo previsualizar (sin extraer)</label>
+      <label class="fmt-check"><input type="checkbox" id="zip-delete-source"> Eliminar .zip tras extraer</label>
+    </div>
+    <div class="actions-row">
+      <button id="btn-extract-zip" class="btn primary" onclick="doExtractZip()">Descomprimir ZIPs</button>
+    </div>
+    <div id="zip-progress-wrap" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="zip-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="zip-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="zip-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="job-result-extract-zip" class="job-result"></div>
+    <div id="zip-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
+    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
+      <button class="btn danger" onclick="doCleanupZips()" title="Elimina los archivos .zip originales de esta carpeta. Úsalo solo si ya extrajiste los ROMs. No se puede deshacer.">Eliminar todos los .zip de esta carpeta</button>
+      <span style="color:#555;font-size:12px">Para usar si ya extrajiste antes sin marcar "Eliminar .zip"</span>
+    </div>
+  </div>
+
+  <!-- ── Conversor N64 → .z64 ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Conversor N64 &#x2192; .z64 <span id="n64-status" style="font-size:12px;font-weight:normal;color:#4ec9b0;margin-left:8px">&#x2713; Sin herramienta externa</span></h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Convierte ROMs de Nintendo 64 al formato nativo big-endian (.z64). Los formatos .v64 (Doctor V64) y .n64 (little-endian) son convertidos en Python, sin herramientas externas.</p>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta con ROMs N64</label><input id="n64-path" type="text" placeholder="C:/ROMs/n64" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('n64-path')">library_root</button>
+      <button class="btn" onclick="doN64Scan()">Escanear</button>
+    </div>
+    <div id="n64-scan-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Generar playlists M3U ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Generar playlists M3U (multi-disco)</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Busca juegos con "(Disc 1)", "(Disc 2)"&#x2026; y crea un archivo .m3u por cada grupo. Necesario para cambiar de disco en RetroArch sin salir del juego.</p>
+    <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <div style="flex:1;min-width:200px">
+        <label>Carpeta de ROMs</label>
+        <input id="m3u-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
+      </div>
+      <button class="btn" onclick="autodetectM3UFolders()" id="btn-m3u-autodetect" title="Detecta automáticamente las carpetas de plataformas de disco">Autodetectar carpetas</button>
+    </div>
+    <div id="m3u-folder-select-wrap" style="display:none;margin-top:8px">
+      <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpetas detectadas — haz clic para seleccionar:</label>
+      <div id="m3u-folder-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="actions-row" style="gap:20px;align-items:center;margin-top:10px">
+      <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Solo previsualizar (sin crear archivos)</label>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doGenerateM3U()">Generar M3U</button>
+    </div>
+    <div id="m3u-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Generar playlists RetroArch .lpl ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Generar playlists RetroArch (.lpl)</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Genera un archivo <code>.lpl</code> por plataforma en formato nativo de RetroArch. Los juegos aparecen directamente en el men&#xfa; de RetroArch sin configuraci&#xf3;n adicional.</p>
+    <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <div style="flex:1;min-width:200px">
+        <label>Carpeta destino (vac&#xed;o = .rommgr/playlists/)</label>
+        <input id="lpl-output-dir" type="text" placeholder="Dejar vac&#xed;o para usar la carpeta por defecto">
+      </div>
+      <button class="btn primary" onclick="doExportLpl()">Generar .lpl</button>
+    </div>
+    <div id="lpl-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Análisis de carpeta ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>An&#xe1;lisis de carpeta</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversi&#xf3;n.</p>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1"><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx" style="width:100%"></div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('folder-analysis-path')">library_root</button>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doFolderAnalysis()">Analizar carpeta</button>
+    </div>
+    <div id="folder-analysis-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- ── Verificar multi-disco ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Verificar sets multi-disco</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba que todos los discos de cada juego est&#xe1;n presentes, tienen la misma extensi&#xf3;n, no hay huecos en la numeraci&#xf3;n y est&#xe1;n en el cat&#xe1;logo.</p>
+    <p id="multidisc-folder-hint" style="display:none;font-size:11px;color:#569cd6;margin-bottom:8px"></p>
+    <div class="actions-row">
+      <div style="flex:1"><label>Carpeta(s) de ROMs (una por l&#xed;nea)</label>
+        <textarea id="verify-multidisc-path" rows="3" placeholder="C:/ROMs/psx&#10;C:/ROMs/ps2" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doVerifyMultidisc()">Verificar</button>
+    </div>
+    <div id="multidisc-result" style="margin-top:12px"></div>
+  </div>
+
 </div>
 
 <!-- INBOX -->
@@ -1374,6 +1501,14 @@ HTML = r"""<!DOCTYPE html>
 
     <!-- Result -->
     <div id="inbox-result" class="job-result"></div>
+
+    <!-- 32-3: drag & drop zone -->
+    <div id="inbox-dropzone"
+      ondragover="inboxDragOver(event)" ondragleave="inboxDragLeave(event)" ondrop="inboxDrop(event)"
+      style="margin-top:16px;border:2px dashed #333;border-radius:8px;padding:28px 20px;text-align:center;color:#555;font-size:13px;transition:border-color .2s,color .2s;cursor:default">
+      &#x1F4E5; Arrastra archivos aquí para copiarlos a la carpeta Inbox
+      <div id="inbox-drop-result" style="margin-top:8px;font-size:12px"></div>
+    </div>
 
     <!-- Watcher status -->
     <div id="inbox-watcher-info" style="display:none;margin-top:16px;padding:8px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px;font-size:11px;color:#555">
@@ -1516,7 +1651,7 @@ HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- S28: Launcher settings -->
+  <!-- S28/B6-1: Launcher settings + diagnostic -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>&#x25B6; Lanzador — RetroArch</h3>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Configura la ruta a RetroArch para abrir juegos directamente desde el panel de detalle.</p>
@@ -1524,7 +1659,22 @@ HTML = r"""<!DOCTYPE html>
       <label style="color:#888;font-size:11px;min-width:100px">RetroArch exe</label>
       <input id="cfg-retroarch-path" type="text" style="flex:1" placeholder="C:/RetroArch/retroarch.exe">
     </div>
-    <div style="font-size:11px;color:#555;margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente añadiendo <code>[launchers] retroarch = "ruta"</code>.</div>
+    <div style="font-size:11px;color:#555;margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente a&#xf1;adiendo <code>[launchers] retroarch = "ruta"</code>.</div>
+    <div class="actions-row" style="margin-top:4px">
+      <button onclick="loadRetroArchCheck()" style="font-size:11px;padding:4px 12px">&#x1F50D; Diagnosticar</button>
+      <span id="ra-check-spinner" style="display:none;color:#888;font-size:11px;margin-left:8px">Comprobando&#x2026;</span>
+    </div>
+    <div id="ra-check-result" style="margin-top:12px;display:none">
+      <div id="ra-check-status" style="font-size:12px;font-weight:bold;margin-bottom:8px"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tbody id="ra-check-rows"></tbody>
+      </table>
+      <div id="ra-check-issues" style="margin-top:8px"></div>
+      <div id="ra-check-cores" style="margin-top:10px;display:none">
+        <div style="color:#888;font-size:11px;margin-bottom:4px">Cores instalados:</div>
+        <div id="ra-check-cores-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ES-DE PC setup guide -->
@@ -1577,6 +1727,38 @@ HTML = r"""<!DOCTYPE html>
       o c&#xf3;pialos manualmente a las carpetas indicadas en el estado.
     </div>
   </div>
+
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Cat&#xe1;logo Arcade (MAME / FBNeo)</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:8px">
+      Las ROMs de arcade usan el nombre del set como identificador (no SHA1). Importa un cat&#xe1;logo para que la app reconozca los t&#xed;tulos y asigne la plataforma correcta (MAME o FBNeo).
+    </p>
+    <div style="margin-bottom:10px;font-size:11px;color:#555;line-height:1.8">
+      <strong style="color:#888">MAME listxml</strong> &#x2014; genera con: <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">mame -listxml &gt; mame.xml</code><br>
+      <strong style="color:#888">FBNeo DAT</strong> &#x2014; descarga de <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">github.com/libretro/FBNeo</code> carpeta <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">dats/</code><br>
+      Puedes indicar una <strong style="color:#888">carpeta</strong> con varios archivos o un <strong style="color:#888">archivo</strong> individual.
+    </div>
+    <div class="actions-row" style="margin-bottom:6px">
+      <input id="arcade-catalog-path" type="text" style="flex:1" placeholder="Carpeta o archivo .xml / .dat">
+      <button class="btn" onclick="importArcadeCatalog()">Importar</button>
+    </div>
+    <div id="arcade-catalog-result" class="job-result"></div>
+  </div>
+  <!-- S35-1: Apariencia -->
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>Apariencia</h3>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="color:var(--fg-2);font-size:12px;margin-bottom:10px">Tema de color de la interfaz</div>
+        <div style="display:flex;gap:8px">
+          <button id="theme-btn-dark" class="btn" style="font-size:12px;padding:5px 16px" onclick="setTheme('dark')">&#x263D; Oscuro</button>
+          <button id="theme-btn-light" class="btn" style="font-size:12px;padding:5px 16px" onclick="setTheme('light')">&#x2600; Claro</button>
+        </div>
+        <div style="color:var(--fg-4);font-size:11px;margin-top:8px">La preferencia se guarda localmente en el navegador.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="actions-panel" style="margin-top:20px">
     <h3>Base de datos</h3>
     <div id="settings-db-info" style="margin-bottom:12px;font-size:11px;color:#888"></div>
@@ -1612,6 +1794,37 @@ HTML = r"""<!DOCTYPE html>
       <button class="btn" onclick="localStorage.removeItem('wizard_dismissed'); showWizard('', ''); showToast('Asistente relanzado', 'ok')">Relanzar asistente de configuracion</button>
       <span style="color:#555;font-size:12px">Vuelve a mostrar el asistente de primeros pasos.</span>
     </div>
+  </div>
+
+  <!-- 32-4: timeline de operaciones -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <h3 style="margin:0">&#x1F4DC; Historial de operaciones</h3>
+      <button class="btn" onclick="loadOperationsTimeline()" style="font-size:12px;padding:3px 10px">&#x21BB; Cargar</button>
+    </div>
+    <div id="operations-timeline" style="max-height:360px;overflow-y:auto;font-size:12px;color:#888">
+      <p style="color:#555">Pulsa "Cargar" para ver el historial de renombrados, eliminaciones y movimientos.</p>
+    </div>
+  </div>
+
+  <!-- S34-5: BIOS Checker -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F9A0; BIOS Checker</h3>
+      <button class="btn" onclick="loadBiosStatus()" style="font-size:12px;padding:3px 10px">&#x21BB; Comprobar</button>
+    </div>
+    <p style="color:#555;font-size:12px;margin-bottom:10px">Busca archivos BIOS en <code>library_root</code> y en la carpeta <code>system/</code> de RetroArch. Muestra qu&#xe9; BIOS tienes y cu&#xe1;les faltan.</p>
+    <div id="bios-status-content"></div>
+  </div>
+
+  <!-- S34-6: ES-DE Status -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F3AE; Estado de ES-DE</h3>
+      <button class="btn" onclick="loadEsdeStatus()" style="font-size:12px;padding:3px 10px">&#x21BB; Detectar</button>
+    </div>
+    <p style="color:#555;font-size:12px;margin-bottom:10px">Detecta si EmulationStation DE est&#xe1; instalado y d&#xf3;nde busca las gamelists.</p>
+    <div id="esde-status-content"></div>
   </div>
 </div>
 
@@ -1721,6 +1934,16 @@ HTML = r"""<!DOCTYPE html>
     <div id="gp-backups-wrap" style="margin-top:14px;display:none">
       <div style="color:#555;font-size:11px;margin-bottom:6px">&#x1F9F2; Historial de saves</div>
       <div id="gp-backups-list" style="max-height:150px;overflow-y:auto;font-size:11px"></div>
+    </div>
+    <!-- S33-4: Sync history per game -->
+    <div id="gp-sync-history-wrap" style="margin-top:14px;display:none">
+      <div style="color:#555;font-size:11px;margin-bottom:6px">&#x21C4; Historial de sync</div>
+      <div id="gp-sync-history-list" style="max-height:130px;overflow-y:auto;font-size:11px"></div>
+    </div>
+    <!-- 34b-4: Asset path info -->
+    <div id="gp-asset-info" style="display:none;margin-top:10px">
+      <div style="color:#555;font-size:11px;margin-bottom:3px">&#x1F5BC; Portada</div>
+      <div id="gp-asset-path" style="font-size:10px;color:#444;font-family:Consolas,monospace;word-break:break-all;margin-bottom:4px"></div>
     </div>
     <div class="gp-desc" id="gp-desc" style="display:none"></div>
   </div>

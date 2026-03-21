@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
+from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
 
 
@@ -13,6 +14,7 @@ class MatchResult:
     confidence: str       # "high" | "medium" | "low"
     catalog_source: str   # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
     ambiguous: bool = False
+    platform: str | None = None  # set by arcade pass ("MAME" or "FBNeo")
 
 
 class CatalogMatcher:
@@ -25,19 +27,24 @@ class CatalogMatcher:
        - Unique normalised title → confidence "medium".
        - Multiple titles share the same normalised key → confidence "low",
          ``ambiguous=True``, first hit returned.
+    3. Arcade stem lookup (MAME/FBNeo): filename stem (without extension) matched
+       against the arcade catalog → confidence "medium".
 
     Catalogs are loaded lazily on the first call to match().
     No-Intro is checked before Redump in both passes.
     """
 
-    def __init__(self, nointro_dir: Path, redump_dir: Path) -> None:
+    def __init__(self, nointro_dir: Path, redump_dir: Path, arcade_dir: Path | None = None) -> None:
         self._nointro_dir = nointro_dir
         self._redump_dir = redump_dir
+        self._arcade_dir = arcade_dir
         # SHA1 → (CatalogEntry, dat_filename)
         self._nointro: dict[str, tuple[CatalogEntry, str]] = {}
         self._redump: dict[str, tuple[CatalogEntry, str]] = {}
         # normalized_title → [(CatalogEntry, dat_filename), …]
         self._title_index: dict[str, list[tuple[CatalogEntry, str]]] = {}
+        # stem_lowercase → (title, year, manufacturer, source_filename)
+        self._arcade: dict[str, tuple[str, str, str, str]] = {}
         self._loaded = False
 
     # ------------------------------------------------------------------
@@ -50,6 +57,8 @@ class CatalogMatcher:
         self._nointro = self._load_dir(self._nointro_dir)
         self._redump = self._load_dir(self._redump_dir)
         self._build_title_index()
+        if self._arcade_dir is not None:
+            self._arcade = load_arcade_dir(self._arcade_dir)
         self._loaded = True
 
     @staticmethod
@@ -106,31 +115,44 @@ class CatalogMatcher:
                     catalog_source=source,
                 )
 
-        # Pass 2 — Name-based fallback
         if filename is None:
             return None
 
+        # Pass 2 — Name-based fallback (No-Intro / Redump title index)
         key = normalize_for_match(filename)
-        if not key:
-            return None
+        if key:
+            hits = self._title_index.get(key)
+            if hits:
+                entry, source = hits[0]
+                if len(hits) == 1:
+                    return MatchResult(
+                        title=entry.title,
+                        confidence="medium",
+                        catalog_source=source,
+                    )
+                return MatchResult(
+                    title=entry.title,
+                    confidence="low",
+                    catalog_source=source,
+                    ambiguous=True,
+                )
 
-        hits = self._title_index.get(key)
-        if not hits:
-            return None
+        # Pass 3 — Arcade stem lookup (MAME / FBNeo)
+        if self._arcade:
+            stem = Path(filename).stem.lower()
+            arcade_hit = self._arcade.get(stem)
+            if arcade_hit:
+                title, _year, _mfr, source = arcade_hit
+                # Derive platform from which catalog file it came from
+                arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"
+                return MatchResult(
+                    title=title,
+                    confidence="medium",
+                    catalog_source=source,
+                    platform=arcade_platform,
+                )
 
-        entry, source = hits[0]
-        if len(hits) == 1:
-            return MatchResult(
-                title=entry.title,
-                confidence="medium",
-                catalog_source=source,
-            )
-        return MatchResult(
-            title=entry.title,
-            confidence="low",
-            catalog_source=source,
-            ambiguous=True,
-        )
+        return None
 
     # ------------------------------------------------------------------
     # Stats
@@ -145,3 +167,8 @@ class CatalogMatcher:
     def redump_entries(self) -> int:
         self._load()
         return len(self._redump)
+
+    @property
+    def arcade_entries(self) -> int:
+        self._load()
+        return len(self._arcade)

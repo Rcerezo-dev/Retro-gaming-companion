@@ -52,7 +52,27 @@
       "Bash(timeout 5 \"/c/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -m rom_manager serve --port 7778)",
       "Bash(C:Usersrammuanaconda3envsrom_managerpython.exe -m pytest tests/ -x -q)",
       "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -x -q)",
-      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -q --ignore=tests/test_library_structure.py)"
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -q --ignore=tests/test_library_structure.py)",
+      "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/$APPDATA/**)",
+      "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/$USERPROFILE/**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/rammu/**)",
+      "Bash(ls '/c/Program Files \\(x86\\)/EmulationStation/')",
+      "Read(//e/Carpetas anbernic/**)",
+      "Read(//e/Carpetas Anbernic/**)",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \"\nimport ast, sys\nfiles = [\n    'src/rom_manager/database/repository.py',\n    'src/rom_manager/web/server.py',\n    'src/rom_manager/web/response_builders.py',\n    'src/rom_manager/web/frontend.py',\n]\nok = True\nfor f in files:\n    try:\n        with open\\(f, encoding='utf-8'\\) as fp: src = fp.read\\(\\)\n        ast.parse\\(src\\)\n        print\\('OK: ' + f\\)\n    except SyntaxError as e:\n        print\\('ERR: ' + f + ': ' + str\\(e\\)\\)\n        ok = False\nsys.exit\\(0 if ok else 1\\)\n\")",
+      "Bash(/c/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \"\nimport ast\nfiles = [\n    'src/rom_manager/detection/platform_detector.py',\n    'src/rom_manager/detection/bios_checker.py',\n    'src/rom_manager/converters/n64_converter.py',\n    'src/rom_manager/web/server.py',\n    'src/rom_manager/web/frontend.py',\n]\nfor f in files:\n    try:\n        ast.parse\\(open\\(f, encoding='utf-8'\\).read\\(\\)\\)\n        print\\('OK ' + f\\)\n    except SyntaxError as e:\n        print\\('ERR ' + f + ': ' + str\\(e\\)\\)\n\" 2>&1)",
+      "Bash(sed -i 's/### S33 — Filtros/### S33 ✅ — Filtros/' Tareas/Roadmap-S28-Plus.md)",
+      "Bash(sed -i 's/### S34 — Plataformas/### S34 ✅ — Plataformas/' Tareas/Roadmap-S28-Plus.md)",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -c \":*)",
+      "Read(//e/Emuladores/**)",
+      "Bash(find C:/Users/rammu/Documents -name *.xml -path *ES-DE*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.copons.it)",
+      "Bash(\"/e/Emuladores/Retroarch/retroarch.exe\" -L \"/e/Emuladores/Retroarch/cores/mgba_libretro.dll\" \"/e/Carpetas anbernic/gba/Advance Wars \\(Europe\\) \\(En,Fr,De,Es\\).gba\" --verbose)",
+      "Bash(powershell -command \"\\(New-Object -COM WScript.Shell\\).CreateShortcut\\('C:\\\\Users\\\\rammu\\\\Desktop\\\\EmulationStation.lnk'\\).TargetPath\" 2>/dev/null)",
+      "Bash(\"/e/Emuladores/Retroarch/run_retroarch.bat\":*)",
+      "Bash(find \"C:/Users/rammu/.emulationstation/gamelists\" -name \"gamelist.xml\" -delete)"
     ]
   }
 }

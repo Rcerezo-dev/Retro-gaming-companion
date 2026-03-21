@@ -32,6 +32,13 @@ class ExtractionSummary:
 # Extensions of disc-based formats — these belong to the CHD workflow, not ZIP extraction
 _DISC_EXTENSIONS = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".ccd"})
 
+# B7-5: Folder names that indicate arcade/MAME ROMs — ZIPs must NOT be extracted
+# because the ZIP *is* the ROM (MAME loads directly from the archive).
+_ARCADE_FOLDER_NAMES = frozenset({
+    "mame", "arcade", "fbneo", "fba", "neogeo", "mame2003", "mame2010",
+    "mame2015", "mame2016", "mame_libretro",
+})
+
 
 def find_zip_files(directory: Path) -> list[Path]:
     """Return all .zip files under directory (recursive), sorted."""
@@ -58,6 +65,16 @@ def extract_zip(
             success=False,
             skipped_reason="Set multi-disco — convierte a CHD en vez de extraer",
             is_disc_set=True,
+        )
+
+    # B7-5: Skip arcade/MAME ZIPs — the ZIP is the ROM, extracting would break it.
+    # Detect by parent folder name (any ancestor part that matches arcade names).
+    if any(part.lower() in _ARCADE_FOLDER_NAMES for part in zip_path.parts[:-1]):
+        return ExtractionResult(
+            zip_path=zip_path,
+            extracted_files=[],
+            success=False,
+            skipped_reason="ROM arcade/MAME — no extraer (el ZIP es el ROM)",
         )
 
     try:

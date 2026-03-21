@@ -14,6 +14,8 @@ class HealthResult:
     stored_sha1: str
     computed_sha1: str
     status: str   # "ok" | "corrupted" | "missing"
+    platform: str = ""
+    canonical_title: str = ""
 
 
 @dataclass(slots=True)
@@ -40,7 +42,7 @@ def check_library_health(
     # Fetch all games that have a stored SHA1
     with repository.connect() as conn:
         rows = conn.execute(
-            "SELECT source_path, sha1, original_filename FROM games WHERE sha1 != '' AND sha1 IS NOT NULL"
+            "SELECT source_path, sha1, original_filename, platform, canonical_title FROM games WHERE sha1 != '' AND sha1 IS NOT NULL"
         ).fetchall()
 
     total = len(rows)
@@ -61,6 +63,8 @@ def check_library_health(
                 stored_sha1=stored,
                 computed_sha1="",
                 status="missing",
+                platform=row["platform"] or "",
+                canonical_title=row["canonical_title"] or "",
             ))
             continue
 
@@ -80,6 +84,8 @@ def check_library_health(
                 stored_sha1=stored,
                 computed_sha1=computed,
                 status="corrupted" if computed else "missing",
+                platform=row["platform"] or "",
+                canonical_title=row["canonical_title"] or "",
             ))
 
     return summary

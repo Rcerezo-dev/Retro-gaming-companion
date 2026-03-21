@@ -400,17 +400,29 @@ class LibraryRepository:
         canonical_title: str,
         match_confidence: str,
         catalog_source: str,
+        platform: str | None = None,
         connection: sqlite3.Connection | None = None,
     ) -> None:
         """Update catalog-match columns for a game row identified by source_path."""
-        sql = """
-            UPDATE games
-            SET canonical_title = ?,
-                match_confidence = ?,
-                catalog_source    = ?
-            WHERE source_path = ?
-            """
-        params = (canonical_title, match_confidence, catalog_source, source_path)
+        if platform is not None:
+            sql = """
+                UPDATE games
+                SET canonical_title = ?,
+                    match_confidence = ?,
+                    catalog_source    = ?,
+                    platform          = ?
+                WHERE source_path = ?
+                """
+            params = (canonical_title, match_confidence, catalog_source, platform, source_path)
+        else:
+            sql = """
+                UPDATE games
+                SET canonical_title = ?,
+                    match_confidence = ?,
+                    catalog_source    = ?
+                WHERE source_path = ?
+                """
+            params = (canonical_title, match_confidence, catalog_source, source_path)
         if connection is not None:
             connection.execute(sql, params)
             return
@@ -450,6 +462,48 @@ class LibraryRepository:
             )
         return [DuplicateGroup(sha1=sha1, entries=entries) for sha1, entries in groups.items()]
 
+    def get_title_duplicate_groups(self) -> list[dict]:
+        """Return groups of games that share the same canonical_title+platform but have different SHA1s.
+
+        These are 'semantic duplicates' — same game, possibly different revision or region.
+        Only returns groups where canonical_title is not NULL.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, original_filename, source_path, platform,
+                       canonical_title, size_bytes, sha1
+                FROM games
+                WHERE canonical_title IS NOT NULL
+                  AND (platform, canonical_title) IN (
+                      SELECT platform, canonical_title
+                      FROM games
+                      WHERE canonical_title IS NOT NULL
+                      GROUP BY platform, canonical_title
+                      HAVING COUNT(DISTINCT sha1) > 1
+                  )
+                ORDER BY platform, canonical_title, source_path
+                """
+            ).fetchall()
+        groups: dict[tuple, list[dict]] = {}
+        for row in rows:
+            key = (row["platform"], row["canonical_title"])
+            if key not in groups:
+                groups[key] = []
+            groups[key].append({
+                "id": row["id"],
+                "original_filename": row["original_filename"],
+                "source_path": row["source_path"],
+                "platform": row["platform"],
+                "canonical_title": row["canonical_title"],
+                "size_bytes": int(row["size_bytes"]),
+                "sha1": row["sha1"],
+            })
+        return [
+            {"platform": k[0], "canonical_title": k[1], "entries": v}
+            for k, v in groups.items()
+        ]
+
     def exclude_duplicate_sha1(self, sha1: str, reason: str = "intentional_copy") -> None:
         """Mark a SHA1 group as an intentional copy — it will no longer appear as a duplicate."""
         from datetime import datetime, timezone
@@ -459,6 +513,56 @@ class LibraryRepository:
                 "INSERT OR IGNORE INTO excluded_duplicates (sha1, reason, created_at) VALUES (?, ?, ?)",
                 (sha1, reason, now),
             )
+            conn.commit()
+
+    def get_all_rom_sha1s(self) -> set[str]:
+        """Return the set of all non-empty SHA1 hashes for ROM files in the library."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT sha1 FROM games WHERE file_type='rom' AND sha1 != '' AND sha1 IS NOT NULL"
+            ).fetchall()
+        return {row["sha1"].upper() for row in rows}
+
+    # ── Wishlist ────────────────────────────────────────────────────────────────
+
+    def get_wishlist(self) -> list[dict]:
+        """Return all wishlist entries ordered by platform then title."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT sha1, title, platform, region, year, status, dat_source, created_at "
+                "FROM wishlist ORDER BY platform, title"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def upsert_wishlist_entry(
+        self,
+        sha1: str,
+        title: str,
+        platform: str,
+        status: str,
+        *,
+        region: str = "",
+        year: str = "",
+        dat_source: str = "",
+    ) -> None:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO wishlist (sha1, title, platform, region, year, status, dat_source, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(sha1) DO UPDATE SET
+                    status=excluded.status,
+                    updated_at=excluded.updated_at
+                """,
+                (sha1, title, platform, region, year, status, dat_source, now, now),
+            )
+            conn.commit()
+
+    def remove_wishlist_entry(self, sha1: str) -> None:
+        with self.connect() as conn:
+            conn.execute("DELETE FROM wishlist WHERE sha1=?", (sha1,))
             conn.commit()
 
     def get_last_scan_by_root(self) -> dict[str, str]:
@@ -709,6 +813,31 @@ class LibraryRepository:
             conn.execute("UPDATE games SET play_status = ? WHERE id = ?", (status, game_id))
             conn.commit()
 
+    def get_filter_options(self) -> dict:
+        """Return distinct values for advanced filter dropdowns: genres, years, regions, platforms."""
+        with self.connect() as conn:
+            genres = [
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT genre FROM game_metadata WHERE genre IS NOT NULL AND genre != '' ORDER BY genre"
+                ).fetchall()
+            ]
+            years = [
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT year FROM game_metadata WHERE year IS NOT NULL AND year != '' ORDER BY year DESC"
+                ).fetchall()
+            ]
+            regions = [
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT region FROM games WHERE region IS NOT NULL AND region != '' ORDER BY region"
+                ).fetchall()
+            ]
+            platforms = [
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL AND platform != '' AND file_type='rom' ORDER BY platform"
+                ).fetchall()
+            ]
+        return {"genres": genres, "years": years, "regions": regions, "platforms": platforms}
+
     def get_games_paginated(
         self,
         *,
@@ -722,6 +851,10 @@ class LibraryRepository:
         play_status: str | None = None,
         favorite: bool = False,
         tag: str | None = None,
+        genre: str | None = None,
+        year: str | None = None,
+        region: str | None = None,
+        sort_by: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
 
@@ -770,18 +903,69 @@ class LibraryRepository:
                 "id IN (SELECT game_id FROM game_tags WHERE tag = ?)"
             )
             params.append(tag)
+        if region:
+            conditions.append("region = ?")
+            params.append(region)
+
+        # genre / year require JOIN with game_metadata
+        need_meta = bool(genre or year)
+        if genre:
+            conditions.append("gm.genre = ?")
+            params.append(genre)
+        if year:
+            conditions.append("gm.year = ?")
+            params.append(year)
+
+        table_expr = (
+            "games g LEFT JOIN game_metadata gm ON gm.game_id = g.id"
+            if need_meta else "games"
+        )
+        col_prefix = "g." if need_meta else ""
+        # Rewrite conditions that reference bare column names when we alias
+        if need_meta:
+            conditions = [
+                c if c.startswith("gm.") or c.startswith("id IN") else
+                c.replace("file_type", "g.file_type")
+                 .replace("platform", "g.platform")
+                 .replace("canonical_title", "g.canonical_title")
+                 .replace("source_path", "g.source_path")
+                 .replace("play_status", "g.play_status")
+                 .replace("is_favorite", "g.is_favorite")
+                 .replace("region", "g.region")
+                 .replace("id IN", "g.id IN")
+                for c in conditions
+            ]
 
         where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        count_sql = "SELECT COUNT(*) AS cnt FROM games " + where_sql
+        _order = {
+            "year": "gm.year DESC, g.platform, g.canonical_title, g.original_filename",
+            "last_played": "g.last_played_at DESC, g.platform, g.canonical_title",
+            "title": "g.canonical_title, g.original_filename",
+            "platform": "g.platform, g.canonical_title, g.original_filename",
+        }.get(sort_by or "", "g.platform, g.canonical_title, g.original_filename") if need_meta else {
+            "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, canonical_title",
+            "last_played": "last_played_at DESC, platform, canonical_title",
+            "title": "canonical_title, original_filename",
+            "platform": "platform, canonical_title, original_filename",
+        }.get(sort_by or "", "platform, canonical_title, original_filename")
+
+        id_col = "g.id" if need_meta else "id"
+        count_sql = f"SELECT COUNT(*) AS cnt FROM {table_expr} " + where_sql
         select_sql = (
+            f"SELECT {id_col} AS id, g.original_filename, g.source_path, g.platform, g.region,"
+            " g.extension, g.size_bytes, g.sha1, g.canonical_title,"
+            " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
+            f" g.is_favorite, g.notes, gm.genre, gm.year AS meta_year, gm.publisher"
+            f" FROM {table_expr} " + where_sql +
+            f" ORDER BY {_order} LIMIT ? OFFSET ?"
+        ) if need_meta else (
             "SELECT id, original_filename, source_path, platform, region,"
             " extension, size_bytes, sha1, canonical_title,"
             " match_confidence, catalog_source, play_status, last_played_at,"
             " is_favorite, notes"
             " FROM games " + where_sql +
-            " ORDER BY platform, canonical_title, original_filename"
-            " LIMIT ? OFFSET ?"
+            f" ORDER BY {_order} LIMIT ? OFFSET ?"
         )
 
         with self.connect() as connection:
@@ -793,6 +977,7 @@ class LibraryRepository:
                 [*params, limit, offset],
             ).fetchall()
 
+        _keys = {k for k in rows[0].keys()} if rows else set()
         games = [
             {
                 "id": row["id"],
@@ -810,10 +995,79 @@ class LibraryRepository:
                 "last_played_at": row["last_played_at"],
                 "is_favorite": bool(row["is_favorite"]),
                 "notes": row["notes"],
+                **({"genre": row["genre"], "year": row["meta_year"], "publisher": row["publisher"]}
+                   if "genre" in _keys else {}),
             }
             for row in rows
         ]
         return games, total
+
+    def get_save_sync_history(self, source_path: str, limit: int = 10) -> list[dict]:
+        """Return the last N sync log entries whose local_path starts with the game directory."""
+        game_dir = str(Path(source_path).parent)
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT local_path, remote_path, direction, result, message, created_at "
+                "FROM save_sync_log WHERE local_path LIKE ? ORDER BY id DESC LIMIT ?",
+                (game_dir.replace("%", "%%").replace("_", "\\_") + "%", limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_save_comparison(self) -> list[dict]:
+        """Return save files with their last sync event, for the comparator UI."""
+        from datetime import datetime, timezone
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, canonical_title, original_filename, platform, source_path, updated_at "
+                "FROM games WHERE file_type='save' "
+                "ORDER BY platform, canonical_title LIMIT 500"
+            ).fetchall()
+            results = []
+            for g in rows:
+                sp = g["source_path"]
+                sync = conn.execute(
+                    "SELECT direction, result, created_at FROM save_sync_log "
+                    "WHERE local_path = ? ORDER BY id DESC LIMIT 1",
+                    (sp,),
+                ).fetchone()
+                local_mtime = None
+                try:
+                    local_mtime = datetime.fromtimestamp(
+                        Path(sp).stat().st_mtime, tz=timezone.utc
+                    ).strftime("%Y-%m-%dT%H:%M:%S")
+                except (OSError, ValueError):
+                    pass
+                results.append({
+                    "title": g["canonical_title"] or g["original_filename"],
+                    "filename": g["original_filename"],
+                    "platform": g["platform"],
+                    "local_path": sp,
+                    "local_mtime": local_mtime,
+                    "db_updated": g["updated_at"],
+                    "last_sync_at": sync["created_at"] if sync else None,
+                    "last_direction": sync["direction"] if sync else None,
+                    "last_result": sync["result"] if sync else None,
+                })
+        return results
+
+    def get_library_export(self) -> list[dict]:
+        """Return all ROMs with their metadata (genre, year, publisher, etc.) for export."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT g.id, g.original_filename, g.source_path, g.platform, g.region,
+                       g.extension, g.size_bytes, g.sha1, g.canonical_title,
+                       g.match_confidence, g.play_status, g.last_played_at, g.is_favorite,
+                       gm.title AS meta_title, gm.year, gm.genre, gm.publisher,
+                       gm.developer, gm.rating, gm.description
+                FROM games g
+                LEFT JOIN game_metadata gm ON gm.game_id = g.id
+                WHERE g.file_type = 'rom'
+                  AND (g.set_type IS NULL OR g.set_type NOT IN ('disc_image', 'disc_auxiliary'))
+                ORDER BY g.platform, g.canonical_title, g.original_filename
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def toggle_favorite(self, game_id: int) -> bool:
         """Toggle is_favorite for a game. Returns the new value."""
@@ -920,24 +1174,30 @@ class LibraryRepository:
         box_art_url: str,
         box_art_path: str,
         scraped_at: str,
+        screenshot_path: str = "",
+        wheel_path: str = "",
         connection: sqlite3.Connection,
     ) -> None:
         connection.execute(
             """
             INSERT INTO game_metadata
                 (game_id, ss_game_id, title, year, genre, publisher, developer,
-                 description, rating, box_art_url, box_art_path, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 description, rating, box_art_url, box_art_path, scraped_at,
+                 screenshot_path, wheel_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id) DO UPDATE SET
                 ss_game_id=excluded.ss_game_id, title=excluded.title,
                 year=excluded.year, genre=excluded.genre,
                 publisher=excluded.publisher, developer=excluded.developer,
                 description=excluded.description, rating=excluded.rating,
                 box_art_url=excluded.box_art_url, box_art_path=excluded.box_art_path,
-                scraped_at=excluded.scraped_at
+                scraped_at=excluded.scraped_at,
+                screenshot_path=excluded.screenshot_path,
+                wheel_path=excluded.wheel_path
             """,
             (game_id, ss_game_id, title, year, genre, publisher, developer,
-             description, rating, box_art_url, box_art_path, scraped_at),
+             description, rating, box_art_url, box_art_path, scraped_at,
+             screenshot_path, wheel_path),
         )
 
     def get_games_for_scraping(self, platform: str | None = None) -> list[dict]:
@@ -959,14 +1219,20 @@ class LibraryRepository:
         return [dict(r) for r in rows]
 
     def get_metadata_for_platform(self, platform: str) -> list[dict]:
-        """Return games + metadata for a platform (for gamelist.xml generation)."""
+        """Return games + metadata for a platform (for gamelist.xml generation).
+
+        Excludes disc tracks (.bin/.img) that belong to a .cue set — only the
+        cue sheet itself (or standalone .chd/.pbp) should appear as a game entry.
+        """
         sql = """
-            SELECT g.original_filename, g.source_path,
+            SELECT g.original_filename AS filename, g.source_path,
                    m.title, m.year, m.genre, m.publisher, m.developer,
-                   m.description, m.rating, m.box_art_path
+                   m.description, m.rating, m.box_art_path,
+                   m.screenshot_path, m.wheel_path
             FROM games g
             JOIN game_metadata m ON m.game_id = g.id
             WHERE g.platform = ?
+              AND (g.set_type IS NULL OR g.set_type NOT IN ('disc_image', 'disc_auxiliary'))
             ORDER BY m.title, g.original_filename
         """
         with self.connect() as conn:

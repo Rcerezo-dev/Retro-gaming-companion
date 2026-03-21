@@ -227,8 +227,8 @@ _sd_sync_status: dict = {"state": "waiting", "last_sync_at": None, "drive": None
 
 
 def _handle_catalog_status(config: AppConfig) -> dict:
-    """List DAT files in the nointro/redump catalog directories with quick entry counts."""
-    def _scan_dir(directory: Path) -> list[dict]:
+    """List DAT files in the nointro/redump/arcade catalog directories with quick entry counts."""
+    def _scan_dir(directory: Path, is_arcade: bool = False) -> list[dict]:
         files: list[dict] = []
         if not directory.exists():
             return files
@@ -237,7 +237,11 @@ def _handle_catalog_status(config: AppConfig) -> dict:
                 continue
             try:
                 data = f.read_bytes()
-                count = data.count(b"<game")
+                if is_arcade and f.suffix.lower() == ".xml":
+                    # MAME listxml uses <machine> tags
+                    count = data.count(b"<machine ")
+                else:
+                    count = data.count(b"<game")
             except OSError:
                 count = 0
             try:
@@ -249,14 +253,65 @@ def _handle_catalog_status(config: AppConfig) -> dict:
 
     nointro = _scan_dir(config.catalogs_nointro_dir)
     redump = _scan_dir(config.catalogs_redump_dir)
+    arcade = _scan_dir(config.catalogs_arcade_dir, is_arcade=True)
     return {
         "nointro": nointro,
         "redump": redump,
+        "arcade": arcade,
         "total_nointro_entries": sum(f["entries"] for f in nointro),
         "total_redump_entries": sum(f["entries"] for f in redump),
+        "total_arcade_entries": sum(f["entries"] for f in arcade),
         "nointro_dir": str(config.catalogs_nointro_dir),
         "redump_dir": str(config.catalogs_redump_dir),
+        "arcade_dir": str(config.catalogs_arcade_dir),
     }
+
+
+def _build_missing_data(config: "AppConfig", repository) -> list[dict]:
+    """Load all DAT files and compute missing ROMs vs. the library.
+
+    Returns a list of dicts, one per DAT platform:
+    {
+        "platform": str,
+        "total": int,
+        "in_library": int,
+        "missing": int,
+        "coverage_pct": float,
+        "entries": [{"sha1": str, "title": str}, ...]  — only the missing ones
+    }
+    """
+    from rom_manager.catalog.catalog_loader import load_dat_files_by_platform
+
+    platforms = load_dat_files_by_platform(
+        config.catalogs_nointro_dir,
+        config.catalogs_redump_dir,
+    )
+    if not platforms:
+        return []
+
+    library_sha1s = repository.get_all_rom_sha1s()
+
+    results: list[dict] = []
+    for platform_label, entries in platforms:
+        missing_entries = [
+            {"sha1": sha1, "title": entry.title}
+            for sha1, entry in entries.items()
+            if sha1 not in library_sha1s
+        ]
+        total = len(entries)
+        missing = len(missing_entries)
+        in_lib = total - missing
+        results.append({
+            "platform": platform_label,
+            "total": total,
+            "in_library": in_lib,
+            "missing": missing,
+            "coverage_pct": round(100.0 * in_lib / total, 1) if total > 0 else 0.0,
+            "entries": missing_entries,
+        })
+
+    results.sort(key=lambda r: r["platform"])
+    return results
 
 
 def _handle_import_dats(data: dict, config: AppConfig) -> dict:
@@ -296,6 +351,71 @@ def _handle_import_dats(data: dict, config: AppConfig) -> dict:
     return {"imported": imported, "errors": errors, "total": len(imported)}
 
 
+def _handle_import_arcade_catalog(data: dict, config: AppConfig) -> dict:
+    """Copy MAME XML or FBNeo DAT files to the arcade catalog directory.
+
+    Accepts either a single file path or a folder path.
+    When a folder is given, all .xml and .dat files inside are copied.
+    """
+    import shutil
+    from rom_manager.catalog.mame_loader import load_mame_xml, load_fbneo_dat
+
+    src = Path(data.get("path", "")).expanduser()
+    if not src.exists():
+        return {"error": f"Ruta no encontrada: {src}"}
+
+    dest_dir = config.catalogs_arcade_dir
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    # Collect candidate files
+    if src.is_dir():
+        candidates = sorted(f for f in src.iterdir() if f.is_file() and f.suffix.lower() in (".dat", ".xml"))
+    elif src.is_file():
+        candidates = [src]
+    else:
+        return {"error": f"La ruta no es un archivo ni una carpeta: {src}"}
+
+    if not candidates:
+        return {"error": "No se encontraron archivos .xml o .dat en la ruta indicada."}
+
+    imported: list[dict] = []
+    errors: list[dict] = []
+
+    for f in candidates:
+        try:
+            with f.open("rb") as fh:
+                sample = fh.read(4096)
+            if b"<mame" in sample or (b"<machine" in sample and b"<datafile" not in sample):
+                fmt = "mame_xml"
+                entries = load_mame_xml(f)
+            elif b"<datafile" in sample or b"<game" in sample:
+                fmt = "fbneo_dat"
+                entries = load_fbneo_dat(f)
+            else:
+                errors.append({"name": f.name, "error": "Formato no reconocido"})
+                continue
+
+            if not entries:
+                errors.append({"name": f.name, "error": "Sin entradas válidas"})
+                continue
+
+            shutil.copy2(f, dest_dir / f.name)
+            imported.append({"name": f.name, "format": fmt, "entries": len(entries)})
+        except Exception as exc:
+            errors.append({"name": f.name, "error": str(exc)})
+
+    if not imported:
+        return {"error": "No se importó ningún archivo. " + (errors[0]["error"] if errors else "")}
+
+    return {
+        "ok": True,
+        "imported": imported,
+        "errors": errors,
+        "total_files": len(imported),
+        "total_entries": sum(x["entries"] for x in imported),
+    }
+
+
 def _handle_rclone_status(config: AppConfig) -> dict:
     """Check if rclone is installed and list configured remotes."""
     import subprocess
@@ -331,6 +451,279 @@ def _handle_rclone_status(config: AppConfig) -> dict:
         "remotes": remotes,
         "binary": config.rclone_binary,
     }
+
+
+def _handle_library_doctor(config: "AppConfig", repository: "LibraryRepository") -> dict:
+    """Scan library_root for common issues: misplaced ROMs, incomplete CUE sets, empty dirs."""
+    import re as _re
+    if not config.library_root:
+        return {"error": "library_root no configurado"}
+    root = Path(config.library_root)
+    issues: list[dict] = []
+
+    # (a) Misplaced ROMs — games not in their expected platform subfolder
+    try:
+        with repository.connect() as _conn:
+            _rows = _conn.execute(
+                "SELECT source_path, platform, original_filename FROM games "
+                "WHERE file_type='rom' AND platform IS NOT NULL AND source_path IS NOT NULL"
+            ).fetchall()
+        for _row in _rows:
+            _sp, _plat, _fname = _row[0], _row[1], _row[2]
+            _expected_slug = _ES_PLATFORM_FOLDERS.get(_plat, "")
+            if not _expected_slug:
+                continue
+            _expected_dir = str(root / _expected_slug)
+            if not _sp.startswith(_expected_dir):
+                issues.append({
+                    "type": "misplaced_rom",
+                    "severity": "warning",
+                    "file": _fname,
+                    "path": _sp,
+                    "platform": _plat,
+                    "expected_dir": _expected_dir,
+                    "action": f"Mover a {_expected_slug}/",
+                })
+    except Exception:
+        pass
+
+    # (b) Incomplete CUE sets — .cue file references .bin files that don't exist
+    _cue_bin_re = _re.compile(r'^\s*FILE\s+"?([^"]+)"?\s+BINARY', _re.IGNORECASE | _re.MULTILINE)
+    for _cue in root.rglob("*.cue"):
+        try:
+            _text = _cue.read_text(encoding="utf-8", errors="replace")
+            _refs = _cue_bin_re.findall(_text)
+            _missing = [r for r in _refs if not (_cue.parent / r).exists()]
+            if _missing:
+                issues.append({
+                    "type": "incomplete_cue",
+                    "severity": "error",
+                    "file": _cue.name,
+                    "path": str(_cue),
+                    "platform": None,
+                    "missing_bins": _missing[:5],
+                    "action": f"Faltan {len(_missing)} .bin — set incompleto",
+                })
+        except Exception:
+            pass
+
+    # (c) Empty platform directories
+    for _d in root.iterdir():
+        if _d.is_dir() and _d.name not in ("saves", "bios", "inbox", "states", "screenshots", "_descartados"):
+            try:
+                _files = [f for f in _d.rglob("*") if f.is_file()]
+                if not _files:
+                    issues.append({
+                        "type": "empty_dir",
+                        "severity": "info",
+                        "file": _d.name,
+                        "path": str(_d),
+                        "platform": None,
+                        "action": "Carpeta vacía — puedes eliminarla",
+                    })
+            except Exception:
+                pass
+
+    # Group by type for summary
+    by_type: dict[str, int] = {}
+    for iss in issues:
+        by_type[iss["type"]] = by_type.get(iss["type"], 0) + 1
+
+    return {
+        "issues": issues[:200],
+        "total": len(issues),
+        "by_type": by_type,
+    }
+
+
+def _handle_copy_assets_to_esde(config: "AppConfig") -> dict:
+    """Copy scraped box art from library_root/{platform}/media/images/ to ES-DE gamelists dir."""
+    import os as _os
+    import shutil as _shutil
+    esde = _handle_esde_status(config)
+    if not esde.get("gamelists_dir"):
+        return {"error": "ES-DE no detectado"}
+    if not config.library_root:
+        return {"error": "library_root no configurado"}
+    gamelists_dir = Path(esde["gamelists_dir"])
+    root = Path(config.library_root)
+    copied = 0
+    skipped = 0
+    errors: list[str] = []
+    for platform_dir in root.iterdir():
+        if not platform_dir.is_dir():
+            continue
+        img_src = platform_dir / "media" / "images"
+        if not img_src.exists():
+            continue
+        img_dst = gamelists_dir / platform_dir.name / "images"
+        img_dst.mkdir(parents=True, exist_ok=True)
+        for img in img_src.iterdir():
+            if img.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+                dst = img_dst / img.name
+                try:
+                    _shutil.copy2(str(img), str(dst))
+                    copied += 1
+                except Exception as exc:
+                    errors.append(str(exc))
+                    skipped += 1
+    return {"copied": copied, "skipped": skipped, "errors": errors[:5]}
+
+
+def _handle_esde_status(config: AppConfig) -> dict:
+    """Detect ES-DE installation and return status + suggested gamelist paths."""
+    import os
+    appdata = os.environ.get("APPDATA", "")
+    localappdata = os.environ.get("LOCALAPPDATA", "")
+    home = os.environ.get("USERPROFILE", os.path.expanduser("~"))
+
+    candidates: list[Path] = []
+    if appdata:
+        candidates.append(Path(appdata) / "ES-DE")
+    if localappdata:
+        candidates.append(Path(localappdata) / "ES-DE")
+    candidates += [
+        Path(home) / ".emulationstation",
+        Path(home) / "ES-DE",
+    ]
+    for drive in ("C", "D"):
+        candidates += [
+            Path(f"{drive}:\\Program Files\\ES-DE"),
+            Path(f"{drive}:\\ES-DE"),
+        ]
+
+    found_dir: str = ""
+    roms_path: str = ""
+    for c in candidates:
+        if c.exists():
+            found_dir = str(c)
+            # Look for es_settings.xml to extract ROMsDirectory
+            settings = c / "settings" / "es_settings.xml"
+            if not settings.exists():
+                settings = c / "es_settings.xml"
+            if settings.exists():
+                try:
+                    text = settings.read_text(encoding="utf-8", errors="replace")
+                    import re as _re
+                    m = _re.search(r'name="ROMsDirectory"[^>]*value="([^"]+)"', text)
+                    if m:
+                        roms_path = m.group(1)
+                except OSError:
+                    pass
+            break
+
+    gamelists_dir = str(Path(found_dir) / "gamelists") if found_dir else ""
+    return {
+        "installed": bool(found_dir),
+        "install_dir": found_dir,
+        "roms_path": roms_path,
+        "gamelists_dir": gamelists_dir,
+    }
+
+
+def _handle_retroarch_check(config: AppConfig) -> dict:
+    """B6-1/B6-6: Diagnostic check for RetroArch configuration and ES-DE integration."""
+    import re
+
+    result: dict = {
+        "exe_configured": False,
+        "exe_exists": False,
+        "exe_path": "",
+        "cfg_exists": False,
+        "cores_dir_exists": False,
+        "cores_count": 0,
+        "key_cores": {},
+        "savefile_dir": "",
+        "savestate_dir": "",
+        "esde_ra_path": "",
+        "esde_ra_match": None,
+        "issues": [],
+        "ok": False,
+    }
+
+    # 1. Check configured exe
+    ra_exe = (config.retroarch_path or "").strip()
+    result["exe_path"] = ra_exe
+    result["exe_configured"] = bool(ra_exe)
+    if not ra_exe:
+        result["issues"].append("RetroArch no está configurado en Settings (launchers.retroarch).")
+        return result
+
+    ra_path = Path(ra_exe)
+    result["exe_exists"] = ra_path.exists()
+    if not ra_path.exists():
+        result["issues"].append(f"Ejecutable no encontrado: {ra_exe}")
+
+    # 2. retroarch.cfg in same directory
+    ra_dir = ra_path.parent if ra_path.exists() else ra_path.parent
+    cfg = ra_dir / "retroarch.cfg"
+    result["cfg_exists"] = cfg.exists()
+    if not cfg.exists():
+        result["issues"].append(f"retroarch.cfg no encontrado en {ra_dir}")
+
+    # 3. Read retroarch.cfg for save dirs
+    if cfg.exists():
+        try:
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+            for key, field in (("savefile_directory", "savefile_dir"), ("savestate_directory", "savestate_dir")):
+                m = re.search(rf'^{key}\s*=\s*"(.+)"', text, re.MULTILINE)
+                if m:
+                    val = m.group(1).strip()
+                    if val not in ("", "default"):
+                        result[field] = val
+        except OSError:
+            pass
+
+    # 4. Cores directory
+    cores_dir = ra_dir / "cores"
+    result["cores_dir_exists"] = cores_dir.exists()
+    if cores_dir.exists():
+        dlls = list(cores_dir.glob("*_libretro.dll"))
+        result["cores_count"] = len(dlls)
+        if len(dlls) == 0:
+            result["issues"].append("Carpeta cores/ existe pero no contiene cores (_libretro.dll).")
+        # Check key cores
+        key_map = {
+            "mgba": "GBA",
+            "snes9x": "SNES",
+            "genesis_plus_gx": "Mega Drive",
+            "pcsx_rearmed": "PSX",
+            "duckstation": "PSX (DuckStation)",
+            "flycast": "Dreamcast",
+            "mupen64plus_next": "N64",
+            "mame": "MAME/Arcade",
+        }
+        for core_prefix, label in key_map.items():
+            found = any(d.name.startswith(core_prefix) for d in dlls)
+            result["key_cores"][label] = found
+    else:
+        result["issues"].append(f"Carpeta cores/ no encontrada en {ra_dir}")
+
+    # 5. ES-DE configured emulator path (check es_settings.xml for RetroArch path)
+    esde_info = _handle_esde_status(config)
+    if esde_info.get("installed") and esde_info.get("install_dir"):
+        esde_cfg = Path(esde_info["install_dir"]) / "es_systems.xml"
+        settings_xml = Path(esde_info["install_dir"]) / "es_settings.xml"
+        # Look for RetroArch path in es_settings.xml (EmulatorPath or similar)
+        for xml_path in (settings_xml, esde_cfg):
+            if xml_path.exists():
+                try:
+                    text = xml_path.read_text(encoding="utf-8", errors="replace")
+                    m = re.search(r'retroarch[^"<\n]*\.exe', text, re.IGNORECASE)
+                    if m:
+                        result["esde_ra_path"] = m.group(0)
+                        break
+                except OSError:
+                    pass
+
+    if result["esde_ra_path"] and ra_exe:
+        # Normalize for comparison
+        a = Path(result["esde_ra_path"]).resolve() if Path(result["esde_ra_path"]).exists() else None
+        b = ra_path.resolve() if ra_path.exists() else None
+        result["esde_ra_match"] = (str(a).lower() == str(b).lower()) if (a and b) else None
+
+    result["ok"] = result["exe_exists"] and result["cfg_exists"] and result["cores_dir_exists"] and len(result["issues"]) == 0
+    return result
 
 
 def _handle_wizard_detect(config: AppConfig) -> dict:
@@ -551,8 +944,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     play_status = qs.get("play_status", [None])[0] or None
                     favorite = qs.get("favorite", ["0"])[0] == "1"
                     tag_filter = qs.get("tag", [None])[0] or None
+                    genre_filter = qs.get("genre", [None])[0] or None
+                    year_filter = qs.get("year", [None])[0] or None
+                    region_filter = qs.get("region", [None])[0] or None
+                    sort_by = qs.get("sort_by", [None])[0] or None
                     _games_repo = _get_repo(root or "")
-                    self._send_json(_build_games(_games_repo, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type, search=search, play_status=play_status, favorite=favorite, tag=tag_filter))
+                    self._send_json(_build_games(_games_repo, offset=offset, limit=limit, platform=plat, status=st, source_root=root, file_type=file_type, search=search, play_status=play_status, favorite=favorite, tag=tag_filter, genre=genre_filter, year=year_filter, region=region_filter, sort_by=sort_by))
+                elif path == "/api/games/filter-options":
+                    self._send_json(repository.get_filter_options())
                 elif path == "/api/tags":
                     self._send_json({"tags": repository.get_all_tags()})
                 elif path == "/api/game-tags":
@@ -701,6 +1100,30 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         self._send_json({"ok": False, "error": f"No encontrado: {config.chdman!r}"})
                     except Exception as exc:
                         self._send_json({"ok": False, "error": str(exc)})
+                elif path == "/api/logs":
+                    # B7-9: list available log files and return last N lines of each
+                    _lines_n = int(qs.get("lines", ["200"])[0])
+                    _log_files = {
+                        "rommgr":     config.logs_dir / "rommgr.log",
+                        "cable_sync": config.project_root / ".rommgr" / "cable_sync_ops.log",
+                    }
+                    _logs_out = {}
+                    for _key, _lp in _log_files.items():
+                        if _lp.exists():
+                            try:
+                                _raw = _lp.read_text(encoding="utf-8", errors="replace")
+                                _tail = _raw.splitlines()[-_lines_n:]
+                                _logs_out[_key] = {
+                                    "path": str(_lp),
+                                    "lines": _tail,
+                                    "total_lines": len(_raw.splitlines()),
+                                    "size_bytes": _lp.stat().st_size,
+                                }
+                            except Exception as _exc:
+                                _logs_out[_key] = {"path": str(_lp), "error": str(_exc)}
+                        else:
+                            _logs_out[_key] = {"path": str(_lp), "lines": [], "total_lines": 0, "size_bytes": 0}
+                    self._send_json({"logs": _logs_out})
                 elif path == "/api/disc-folders":
                     # Return subfolders of library_root that look like disc-based platforms
                     _DISC_PLATFORMS = {
@@ -901,6 +1324,44 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     self._send_json(_handle_wizard_detect(config))
                 elif path == "/api/catalog-status":
                     self._send_json(_handle_catalog_status(config))
+                elif path == "/api/collection-stats":
+                    data = _build_missing_data(config, repository)
+                    self._send_json({
+                        "platforms": [
+                            {k: v for k, v in p.items() if k != "entries"}
+                            for p in data
+                        ]
+                    })
+                elif path == "/api/missing":
+                    data = _build_missing_data(config, repository)
+                    platform_filter = parsed_url.query  # e.g. "platform=Game+Boy+Advance"
+                    pf = ""
+                    for part in platform_filter.split("&"):
+                        if part.startswith("platform="):
+                            import urllib.parse
+                            pf = urllib.parse.unquote_plus(part[len("platform="):])
+                    if pf:
+                        data = [p for p in data if p["platform"] == pf]
+                    self._send_json({"platforms": data})
+                elif path == "/api/wishlist":
+                    self._send_json({"wishlist": repository.get_wishlist()})
+                elif path == "/api/inbox-count":
+                    inbox_p = config.inbox_path
+                    count = 0
+                    if inbox_p:
+                        _ib = Path(inbox_p)
+                        if _ib.exists():
+                            count = sum(1 for f in _ib.iterdir() if f.is_file())
+                    self._send_json({"count": count})
+                elif path == "/api/operations-timeline":
+                    _limit = int(qs.get("limit", ["50"])[0])
+                    with repository.connect() as conn:
+                        _rows = conn.execute(
+                            "SELECT id, operation_type, source_path, target_path, result, message, created_at "
+                            "FROM file_operations ORDER BY id DESC LIMIT ?",
+                            (_limit,),
+                        ).fetchall()
+                    self._send_json({"operations": [dict(r) for r in _rows]})
                 elif path == "/api/rclone-status":
                     self._send_json(_handle_rclone_status(config))
                 elif path == "/api/auto-sync-status":
@@ -925,6 +1386,73 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     body = to_csv(report).encode()
                     self._send(200, "text/csv; charset=utf-8", body,
                                extra_headers={"Content-Disposition": 'attachment; filename="report.csv"'})
+                elif path == "/api/export-missing":
+                    import io as _io, csv as _csv
+                    missing_data = _build_missing_data(config, repository)
+                    buf = _io.StringIO()
+                    writer = _csv.writer(buf)
+                    writer.writerow(["platform", "title", "sha1", "search_query"])
+                    for plat in missing_data:
+                        plat_label = plat["platform"]
+                        for entry in plat["entries"]:
+                            query = f'{entry["title"]} {plat_label} No-Intro site:archive.org'
+                            writer.writerow([plat_label, entry["title"], entry["sha1"], query])
+                    body = buf.getvalue().encode("utf-8-sig")
+                    self._send(200, "text/csv; charset=utf-8", body,
+                               extra_headers={"Content-Disposition": 'attachment; filename="missing_roms.csv"'})
+                elif path == "/api/bios-status":
+                    from rom_manager.detection.bios_checker import check_bios
+                    search_dirs = []
+                    if config.library_root:
+                        search_dirs.append(config.library_root)
+                        search_dirs.append(config.library_root / "bios")
+                        search_dirs.append(config.library_root / "system")
+                    if config.retroarch_path:
+                        ra = Path(config.retroarch_path)
+                        search_dirs.append(ra.parent / "system")
+                        search_dirs.append(ra.parent / "BIOS")
+                    self._send_json({"bios": check_bios(search_dirs)})
+                elif path == "/api/n64-scan":
+                    folder = qs.get("path", [""])[0].strip()
+                    if not folder:
+                        self._send_json({"error": "path required"})
+                    else:
+                        from rom_manager.converters.n64_converter import scan_n64_roms
+                        self._send_json({"roms": scan_n64_roms(Path(folder))})
+                elif path == "/api/esde-status":
+                    self._send_json(_handle_esde_status(config))
+                elif path == "/api/retroarch-check":
+                    self._send_json(_handle_retroarch_check(config))
+                elif path == "/api/copy-assets-to-esde":
+                    self._send_json(_handle_copy_assets_to_esde(config))
+                elif path == "/api/library-doctor":
+                    self._send_json(_handle_library_doctor(config, repository))
+                elif path == "/api/export-library":
+                    fmt = qs.get("format", ["csv"])[0]
+                    rows = repository.get_library_export()
+                    if fmt == "json":
+                        body = json.dumps(rows, ensure_ascii=False, default=str).encode("utf-8")
+                        self._send(200, "application/json; charset=utf-8", body,
+                                   extra_headers={"Content-Disposition": 'attachment; filename="library.json"'})
+                    else:
+                        import io as _io2, csv as _csv2
+                        buf = _io2.StringIO()
+                        writer = _csv2.writer(buf)
+                        if rows:
+                            writer.writerow(rows[0].keys())
+                            for r in rows:
+                                writer.writerow(r.values())
+                        body = buf.getvalue().encode("utf-8-sig")
+                        self._send(200, "text/csv; charset=utf-8", body,
+                                   extra_headers={"Content-Disposition": 'attachment; filename="library.csv"'})
+                elif path == "/api/save-comparison":
+                    self._send_json({"saves": repository.get_save_comparison()})
+                elif path == "/api/game-sync-history":
+                    sp = qs.get("source_path", [""])[0]
+                    if not sp:
+                        self._send_json({"error": "source_path required"})
+                    else:
+                        self._send_json({"history": repository.get_save_sync_history(sp)})
                 elif path == "/api/inbox-scan":
                     inbox_path_str = qs.get("path", [""])[0].strip() or config.inbox_path
                     if not inbox_path_str:
@@ -953,6 +1481,13 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length) if length else b"{}"
+
+            # Handle multipart file uploads before JSON parse
+            _ct = self.headers.get("Content-Type", "")
+            if _ct.startswith("multipart/form-data") and path == "/api/inbox-upload":
+                self._handle_inbox_upload(_ct, raw)
+                return
+
             try:
                 data: dict = json.loads(raw) if raw else {}
             except Exception:
@@ -1050,6 +1585,50 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         self._send_json({"ok": True})
                     else:
                         self._send_error(400, "sha1 required")
+                elif path == "/api/convert-n64":
+                    src = data.get("source_path", "").strip()
+                    dst = data.get("target_path", "").strip() or None
+                    if not src:
+                        self._send_json({"error": "source_path required"})
+                    else:
+                        from rom_manager.converters.n64_converter import convert_to_z64
+                        res = convert_to_z64(Path(src), Path(dst) if dst else None)
+                        self._send_json({
+                            "success": res.success, "source_format": res.source_format,
+                            "target_path": res.target_path, "error": res.error,
+                        })
+                elif path == "/api/export-lpl":
+                    if not config.library_root:
+                        self._send_json({"error": "library_root not configured"})
+                    else:
+                        from rom_manager.utils.lpl_generator import generate_lpl_playlists
+                        try:
+                            result = generate_lpl_playlists(
+                                Path(config.library_root),
+                                repository,
+                                output_dir=Path(data["output_dir"]) if data.get("output_dir") else None,
+                            )
+                            self._send_json(result)
+                        except Exception as exc:
+                            self._send_json({"error": str(exc)})
+                elif path == "/api/wishlist":
+                    sha1 = (data.get("sha1") or "").strip().upper()
+                    if not sha1:
+                        self._send_error(400, "sha1 required")
+                    elif data.get("remove"):
+                        repository.remove_wishlist_entry(sha1)
+                        self._send_json({"ok": True, "removed": sha1})
+                    else:
+                        repository.upsert_wishlist_entry(
+                            sha1=sha1,
+                            title=data.get("title", ""),
+                            platform=data.get("platform", ""),
+                            status=data.get("status", "searching"),
+                            region=data.get("region", ""),
+                            year=data.get("year", ""),
+                            dat_source=data.get("dat_source", ""),
+                        )
+                        self._send_json({"ok": True})
                 # D8-3: resolve conflicts keeping RA winner
                 elif path == "/api/apply-ra-conflicts":
                     self._handle_apply_ra_conflicts(data)
@@ -1082,6 +1661,44 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     self._handle_delete_orphaned_saves(data)
                 elif path == "/api/orphaned-saves/move":
                     self._handle_move_orphaned_save(data)
+                elif path == "/api/doctor-move-rom":
+                    # B7-7: move a misplaced ROM to its expected folder
+                    _src = data.get("path", "")
+                    _dst_dir = data.get("expected_dir", "")
+                    if not _src or not _dst_dir:
+                        self._send_json({"error": "path y expected_dir requeridos"})
+                    else:
+                        import shutil as _shl
+                        _src_p = Path(_src)
+                        _dst_p = Path(_dst_dir) / _src_p.name
+                        if not _src_p.exists():
+                            self._send_json({"error": "Archivo no encontrado"})
+                        elif _dst_p.exists():
+                            self._send_json({"error": f"Ya existe en destino: {_dst_p.name}"})
+                        else:
+                            try:
+                                Path(_dst_dir).mkdir(parents=True, exist_ok=True)
+                                _shl.move(str(_src_p), str(_dst_p))
+                                self._send_json({"ok": True, "new_path": str(_dst_p)})
+                            except Exception as _exc:
+                                self._send_json({"error": str(_exc)})
+                elif path == "/api/doctor-delete-dir":
+                    # B7-7: delete an empty directory
+                    _dir = data.get("path", "")
+                    if not _dir:
+                        self._send_json({"error": "path requerido"})
+                    else:
+                        _dir_p = Path(_dir)
+                        if not _dir_p.exists():
+                            self._send_json({"error": "Carpeta no encontrada"})
+                        elif not _dir_p.is_dir():
+                            self._send_json({"error": "No es una carpeta"})
+                        else:
+                            try:
+                                _dir_p.rmdir()
+                                self._send_json({"ok": True})
+                            except Exception as _exc:
+                                self._send_json({"error": str(_exc)})
                 elif path == "/api/health-check":
                     self._handle_health_check(data)
                 elif path == "/api/cleanup-zips":
@@ -1227,13 +1844,32 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             return
                         # Apply
                         _box_art_path = ""
-                        if download_images and _result.box_art_url:
-                            _img_dir = Path(_game["source_path"]).parent / "media" / "images"
+                        _screenshot_path = ""
+                        _wheel_path = ""
+                        if download_images:
+                            _src_parent = Path(_game["source_path"]).parent
                             _stem = Path(_game["original_filename"]).stem
-                            _ext = ".png" if ".png" in _result.box_art_url.lower() else ".jpg"
-                            _dest = _img_dir / f"{_stem}{_ext}"
-                            download_image(_result.box_art_url, _dest)
-                            _box_art_path = str(_dest)
+                            if _result.box_art_url:
+                                _ext = ".png" if ".png" in _result.box_art_url.lower() else ".jpg"
+                                _dest = _src_parent / "media" / "images" / f"{_stem}{_ext}"
+                                download_image(_result.box_art_url, _dest)
+                                _box_art_path = str(_dest)
+                            if _result.screenshot_url:  # B6-7
+                                _ext = ".png" if ".png" in _result.screenshot_url.lower() else ".jpg"
+                                _dest = _src_parent / "media" / "screenshots" / f"{_stem}{_ext}"
+                                try:
+                                    download_image(_result.screenshot_url, _dest)
+                                    _screenshot_path = str(_dest)
+                                except Exception:
+                                    pass
+                            if _result.wheel_url:  # B6-7
+                                _ext = ".png" if ".png" in _result.wheel_url.lower() else ".jpg"
+                                _dest = _src_parent / "media" / "wheels" / f"{_stem}{_ext}"
+                                try:
+                                    download_image(_result.wheel_url, _dest)
+                                    _wheel_path = str(_dest)
+                                except Exception:
+                                    pass
                         with repository.batch() as _bconn:
                             repository.upsert_metadata(
                                 game_id=int(game_id),
@@ -1242,7 +1878,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 genre=_result.genre, publisher=_result.publisher,
                                 developer=_result.developer, description=_result.description,
                                 rating=_result.rating, box_art_url=_result.box_art_url,
-                                box_art_path=_box_art_path, scraped_at=utc_now(),
+                                box_art_path=_box_art_path,
+                                screenshot_path=_screenshot_path,
+                                wheel_path=_wheel_path,
+                                scraped_at=utc_now(),
                                 connection=_bconn,
                             )
                         self._send_json({**_preview_data, "applied": True})
@@ -1369,6 +2008,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         self._send_json({"error": str(exc)})
                 elif path == "/api/import-dats":
                     self._send_json(_handle_import_dats(data, config))
+                elif path == "/api/import-arcade-catalog":
+                    self._send_json(_handle_import_arcade_catalog(data, config))
                 elif path == "/api/inbox-run":
                     self._handle_inbox_run(data)
                 elif path == "/api/setup-run":
@@ -1615,6 +2256,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     matcher = CatalogMatcher(
                         nointro_dir=config.catalogs_nointro_dir,
                         redump_dir=config.catalogs_redump_dir,
+                        arcade_dir=config.catalogs_arcade_dir,
                     )
                     games = repository.get_unresolved_games()
                     matched_high = matched_low = unmatched = 0
@@ -1629,6 +2271,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                     canonical_title=result.title,
                                     match_confidence=result.confidence,
                                     catalog_source=result.catalog_source,
+                                    platform=result.platform,
                                     connection=conn,
                                 )
                                 if result.confidence == "high":
@@ -1665,7 +2308,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 return
 
             also_android = bool(data.get("also_android"))
-            android_root_str = getattr(config, "android_root", None) or getattr(config, "ab_path", None)
+            android_root_str = config.anbernic_root or None
 
             def _create_tree(root: _Path) -> tuple[list[str], list[str]]:
                 created: list[str] = []
@@ -1969,15 +2612,36 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                     cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
                                     success=False, error="Output .chd already exists — would skip."))
                             else:
-                                summary.converted += 1
-                                summary.results.append(ConversionResult(
-                                    cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
-                                    success=True))
+                                # Validate that all .bin files referenced by the .cue exist
+                                missing_bins = [b for b in bin_paths if not b.exists()]
+                                if missing_bins:
+                                    summary.failed += 1
+                                    summary.results.append(ConversionResult(
+                                        cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
+                                        success=False,
+                                        error="Bin file(s) not found: " + ", ".join(b.name for b in missing_bins)))
+                                else:
+                                    summary.converted += 1
+                                    summary.results.append(ConversionResult(
+                                        cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
+                                        success=True))
                         else:
                             result = convert_to_chd(cue_path, chdman=config.chdman, delete_source=delete_source)
                             summary.results.append(result)
                             if result.success:
                                 summary.converted += 1
+                                # B6-2: mark .cue as disc_auxiliary immediately so it stops
+                                # appearing as a duplicate alongside the new .chd (no scan needed)
+                                try:
+                                    cue_str = str(cue_path.resolve())
+                                    with repository.connect() as _dc:
+                                        _dc.execute(
+                                            "UPDATE games SET set_type = 'disc_auxiliary' WHERE source_path = ?",
+                                            (cue_str,),
+                                        )
+                                        _dc.commit()
+                                except Exception:
+                                    pass  # non-critical — next scan will fix it via set_detector
                             elif result.error and "already exists" in result.error:
                                 summary.skipped += 1
                             else:
@@ -1995,6 +2659,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 "chd": r.chd_path.name,
                                 "success": r.success,
                                 "error": r.error or "",
+                                "bin_count": len(r.bin_paths),  # B5-1: per-game bin count
                             }
                             for r in summary.results
                         ],
@@ -2287,6 +2952,46 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 return
             self._send_json({"moved": str(target), "from": save_path})
 
+        def _handle_inbox_upload(self, content_type: str, body: bytes) -> None:
+            """Save multipart file-upload(s) directly to inbox_path."""
+            import re as _re
+            bm = _re.search(r"boundary=([^\s;]+)", content_type)
+            if not bm:
+                self._send_error(400, "Missing multipart boundary")
+                return
+            inbox_path = config.inbox_path
+            if not inbox_path:
+                self._send_json({"error": "inbox_path not configured"})
+                return
+            inbox_dir = Path(inbox_path)
+            inbox_dir.mkdir(parents=True, exist_ok=True)
+            boundary = ("--" + bm.group(1)).encode()
+            saved: list[str] = []
+            errors: list[str] = []
+            for part in body.split(boundary)[1:]:
+                if part[:2] == b"--":
+                    break
+                if part.startswith(b"\r\n"):
+                    part = part[2:]
+                if b"\r\n\r\n" not in part:
+                    continue
+                hdr_bytes, file_data = part.split(b"\r\n\r\n", 1)
+                if file_data.endswith(b"\r\n"):
+                    file_data = file_data[:-2]
+                hdr_text = hdr_bytes.decode("utf-8", errors="replace")
+                fm = _re.search(r'filename="([^"]+)"', hdr_text)
+                if not fm:
+                    continue
+                fname = Path(fm.group(1)).name  # strip any dir components
+                if not fname:
+                    continue
+                try:
+                    (inbox_dir / fname).write_bytes(file_data)
+                    saved.append(fname)
+                except OSError as exc:
+                    errors.append(f"{fname}: {exc}")
+            self._send_json({"saved": saved, "errors": errors, "count": len(saved)})
+
         def _handle_health_check(self, data: dict) -> None:
             def run() -> None:
                 _health_cancel.clear()
@@ -2304,7 +3009,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         "cancelled": _health_cancel.is_set(),
                         "issues": [
                             {"source_path": r.source_path, "status": r.status,
-                             "stored_sha1": r.stored_sha1[:12], "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else ""}
+                             "stored_sha1": r.stored_sha1[:12], "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else "",
+                             "platform": r.platform, "canonical_title": r.canonical_title}
                             for r in summary.results
                         ],
                     }
@@ -2349,9 +3055,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     if limit:
                         games = games[:limit]
                     total = len(games)
-                    found = skipped = 0
-                    _scrape_progress.update({"current": 0, "total": total, "found": 0, "current_game": ""})
-                    with repository.batch() as conn:
+                    found = skipped = network_errors = 0
+                    failed_games: list[str] = []
+                    _RETRY_DELAYS = [5, 15, 30]
+                    _scrape_progress.update({"current": 0, "total": total, "found": 0, "network_errors": 0, "current_game": ""})
+                    # B6-3: use connect() + per-game commit instead of batch()
+                    # batch() commits once at exit and rolls back everything on exception —
+                    # a single network error mid-scrape was losing all metadata scraped so far.
+                    with repository.connect() as conn:
                         for idx, game in enumerate(games, 1):
                             if _scrape_cancel.is_set():
                                 break
@@ -2359,35 +3070,79 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 "current": idx,
                                 "total": total,
                                 "found": found,
+                                "network_errors": network_errors,
                                 "current_game": game["original_filename"],
                             })
                             sys_id = get_system_id(game["platform"])
-                            result = client.search(
-                                crc32=game["crc32"],
-                                md5=game["md5"],
-                                sha1=game["sha1"],
-                                filename=game["original_filename"],
-                                size_bytes=game["size_bytes"],
-                                system_id=sys_id,
-                            )
-                            if result is None:
-                                # Fallback: search by cleaned name (no hash)
-                                name_hint = game.get("canonical_title") or game["original_filename"]
-                                result = client.search_by_name(name_hint, system_id=sys_id)
+                            # B6-4: retry with backoff on transient network errors
+                            result = None
+                            last_error = ""
+                            for attempt in range(3):
+                                if _scrape_cancel.is_set():
+                                    break
+                                try:
+                                    result = client.search(
+                                        crc32=game["crc32"],
+                                        md5=game["md5"],
+                                        sha1=game["sha1"],
+                                        filename=game["original_filename"],
+                                        size_bytes=game["size_bytes"],
+                                        system_id=sys_id,
+                                    )
+                                    if result is None:
+                                        # Fallback: search by cleaned name (no hash)
+                                        name_hint = game.get("canonical_title") or game["original_filename"]
+                                        result = client.search_by_name(name_hint, system_id=sys_id)
+                                    last_error = ""
+                                    break  # success
+                                except PermissionError:
+                                    raise  # fatal: wrong credentials or quota exceeded
+                                except Exception as exc:
+                                    last_error = str(exc)
+                                    if attempt < 2 and not _scrape_cancel.is_set():
+                                        time.sleep(_RETRY_DELAYS[attempt])
+                            if _scrape_cancel.is_set():
+                                break
                             # Persist quota snapshot from client
                             if client.last_quota:
                                 _ss_last_quota.update(client.last_quota)
+                            if last_error:
+                                network_errors += 1
+                                failed_games.append(game["original_filename"])
+                                continue
                             if result is None:
                                 skipped += 1
                                 continue
                             box_art_path = ""
-                            if download_images and result.box_art_url:
-                                img_dir = Path(game["source_path"]).parent / "media" / "images"
-                                stem = Path(game["original_filename"]).stem
-                                ext = ".png" if ".png" in result.box_art_url.lower() else ".jpg"
-                                dest = img_dir / f"{stem}{ext}"
-                                download_image(result.box_art_url, dest)
-                                box_art_path = str(dest)
+                            screenshot_path = ""
+                            wheel_path = ""
+                            if download_images:
+                                _src_parent = Path(game["source_path"]).parent
+                                _stem = Path(game["original_filename"]).stem
+                                if result.box_art_url:
+                                    _ext = ".png" if ".png" in result.box_art_url.lower() else ".jpg"
+                                    _dest = _src_parent / "media" / "images" / f"{_stem}{_ext}"
+                                    try:
+                                        download_image(result.box_art_url, _dest)
+                                        box_art_path = str(_dest)
+                                    except Exception:
+                                        pass
+                                if result.screenshot_url:  # B6-7
+                                    _ext = ".png" if ".png" in result.screenshot_url.lower() else ".jpg"
+                                    _dest = _src_parent / "media" / "screenshots" / f"{_stem}{_ext}"
+                                    try:
+                                        download_image(result.screenshot_url, _dest)
+                                        screenshot_path = str(_dest)
+                                    except Exception:
+                                        pass
+                                if result.wheel_url:  # B6-7
+                                    _ext = ".png" if ".png" in result.wheel_url.lower() else ".jpg"
+                                    _dest = _src_parent / "media" / "wheels" / f"{_stem}{_ext}"
+                                    try:
+                                        download_image(result.wheel_url, _dest)
+                                        wheel_path = str(_dest)
+                                    except Exception:
+                                        pass
                             repository.upsert_metadata(
                                 game_id=game["id"],
                                 ss_game_id=result.ss_game_id,
@@ -2395,13 +3150,44 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 genre=result.genre, publisher=result.publisher,
                                 developer=result.developer, description=result.description,
                                 rating=result.rating, box_art_url=result.box_art_url,
-                                box_art_path=box_art_path, scraped_at=utc_now(),
+                                box_art_path=box_art_path,
+                                screenshot_path=screenshot_path,
+                                wheel_path=wheel_path,
+                                scraped_at=utc_now(),
                                 connection=conn,
                             )
+                            conn.commit()  # B6-3: persist immediately — don't lose on interruption
                             found += 1
+                    # Auto-export gamelists to ROM dir (alongside ROMs — ES-DE reads them there)
+                    _gamelist_written: list[dict] = []
+                    try:
+                        from rom_manager.scraper.gamelist_writer import write_gamelist
+                        _out_root = Path(config.library_root) if config.library_root else None
+                        if _out_root:
+                            _plat_filter = platform  # may be None (all)
+                            _plats = repository.get_scraped_platform_summary()
+                            if _plat_filter:
+                                _plats = [p for p in _plats if p["platform"] == _plat_filter]
+                            for _plat in _plats:
+                                if _plat["scraped"] == 0:
+                                    continue
+                                _entries = repository.get_metadata_for_platform(_plat["platform"])
+                                if not _entries:
+                                    continue
+                                _slug = _ES_PLATFORM_FOLDERS.get(_plat["platform"], _plat["platform"].lower().replace(" ", "").replace("/", "_"))
+                                _pdir = _out_root / _slug
+                                _pdir.mkdir(parents=True, exist_ok=True)
+                                write_gamelist(_pdir, _entries)
+                                _gamelist_written.append(_plat["platform"])
+                    except Exception:
+                        pass  # gamelist export is best-effort, don't fail the scrape result
+
                     _job_results["scrape"] = {
                         "total": total, "found": found, "skipped": skipped,
+                        "network_errors": network_errors,
+                        "failed_games": failed_games[:20],
                         "cancelled": _scrape_cancel.is_set(),
+                        "gamelists_written": _gamelist_written,
                     }
                 except Exception as exc:
                     _job_results["scrape"] = {"error": str(exc)}
@@ -2415,7 +3201,6 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
         def _handle_export_gamelists(self, data: dict) -> None:
             from rom_manager.scraper.gamelist_writer import write_gamelist
-            import os as _os
             output_root = Path(data.get("output_dir") or "").resolve() if data.get("output_dir") else config.library_root
             if output_root is None:
                 self._send_json({"error": "library_root not configured"})
@@ -2425,13 +3210,6 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             if platform_filter:
                 platforms = [p for p in platforms if p["platform"] == platform_filter]
 
-            # Detect classic EmulationStation config dir (Windows: %USERPROFILE%\.emulationstation)
-            _es_root: Path | None = None
-            _home = Path(_os.environ.get("USERPROFILE") or _os.path.expanduser("~"))
-            _candidate = _home / ".emulationstation" / "gamelists"
-            if _candidate.parent.exists():
-                _es_root = _candidate
-
             written = []
             for plat in platforms:
                 if plat["scraped"] == 0:
@@ -2439,18 +3217,17 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 entries = repository.get_metadata_for_platform(plat["platform"])
                 if not entries:
                     continue
-                slug = plat["platform"].lower().replace(" ", "").replace("/", "_")
+                slug = _ES_PLATFORM_FOLDERS.get(plat["platform"], plat["platform"].lower().replace(" ", "").replace("/", "_"))
                 platform_dir = Path(output_root) / slug
                 platform_dir.mkdir(parents=True, exist_ok=True)
-                es_config_dir = (_es_root / slug) if _es_root else None
-                out = write_gamelist(platform_dir, entries, es_config_dir=es_config_dir)
+                # ES-DE reads gamelist.xml from the ROM directory (relative paths) — no secondary copy needed
+                out = write_gamelist(platform_dir, entries)
                 written.append({
                     "platform": plat["platform"],
                     "path": str(out),
-                    "es_path": str(es_config_dir / "gamelist.xml") if es_config_dir else None,
                     "entries": len(entries),
                 })
-            self._send_json({"written": written, "es_detected": _es_root is not None})
+            self._send_json({"written": written})
 
         def _handle_delete_duplicate(self, data: dict) -> None:
             import os
@@ -2637,6 +3414,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         suffix = Path(name).suffix.lower()
                         return "save" if suffix in save_exts else "rom"
 
+                    _ASSET_EXTS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
+
                     def _wanted_name(name: str) -> bool:
                         if name.startswith("."):
                             return False
@@ -2647,6 +3426,13 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         return "save" if p.suffix.lower() in save_exts else "rom"
 
                     def _wanted(p: Path) -> bool:
+                        # B7-3: assets (media/ images) and gamelists
+                        if "assets" in what and p.suffix.lower() in _ASSET_EXTS:
+                            # Only sync files inside a media/ subdirectory
+                            if "media" in (part.lower() for part in p.parts):
+                                return True
+                        if "gamelists" in what and p.name.lower() == "gamelist.xml":
+                            return True
                         return _wanted_name(p.name)
 
                     def _iter_files(root: Path):
@@ -3274,6 +4060,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             import logging as _logging
             _dall_log = _logging.getLogger(__name__)
             ra_dups = _build_ra_duplicates(repository, config)
+            # Pass through the note (e.g. "no RA cache") so the frontend can show it
+            if ra_dups.get("note"):
+                self._send_json({"discarded": 0, "failed": 0, "errors": [], "note": ra_dups["note"]})
+                return
             discarded = 0
             failed = 0
             errors: list[str] = []
@@ -3439,11 +4229,21 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             continue
                         try:
                             _bk = config.data_dir if config.backup_saves_enabled else None
-                            outcome = rename_rom_with_saves(
-                                op.source_path, op.target_path, save_exts,
-                                backup_root=_bk,
-                                backup_keep_n=config.backup_saves_keep_n,
-                            )
+                            # Ensure target directory exists (needed for disc subfolders)
+                            op.target_path.parent.mkdir(parents=True, exist_ok=True)
+                            if op.source_path.suffix.lower() in {".cue", ".gdi"}:
+                                from rom_manager.renamer.file_renamer import move_disc_set_to_subfolder
+                                outcome = move_disc_set_to_subfolder(
+                                    op.source_path, op.target_path, save_exts,
+                                    backup_root=_bk,
+                                    backup_keep_n=config.backup_saves_keep_n,
+                                )
+                            else:
+                                outcome = rename_rom_with_saves(
+                                    op.source_path, op.target_path, save_exts,
+                                    backup_root=_bk,
+                                    backup_keep_n=config.backup_saves_keep_n,
+                                )
                         except Exception as exc:
                             skipped += 1
                             skip_details.append(f"{op.source_path.name}: unexpected error — {exc}")
@@ -3587,6 +4387,11 @@ def serve(
 ) -> None:
     global _auto_sync_enabled
     _auto_sync_enabled = config.auto_sync_enabled
+
+    # S34-1: reload platform tables with user override if present
+    from rom_manager.detection.platform_detector import reload_platforms
+    user_platforms = config.data_dir / "platforms.toml"
+    reload_platforms(user_platforms if user_platforms.exists() else None)
 
     if config.auto_sync_enabled:
         t = threading.Thread(

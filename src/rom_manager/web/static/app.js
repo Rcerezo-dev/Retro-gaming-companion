@@ -111,7 +111,7 @@ function setDevice(d) {
   // Reload current active tab
   const activeTab = document.querySelector('nav button.active')?.id?.replace('nav-','');
   if (activeTab) {
-    if (activeTab === 'games')      loadGames(0);
+    if (activeTab === 'games')      { loadFilterOptions(); loadGames(0); }
     if (activeTab === 'plan')       loadPlan();
     if (activeTab === 'duplicates') loadDuplicates();
     if (activeTab === 'assets')     loadAssets();
@@ -135,20 +135,23 @@ function showTab(name) {
   if (navBtn) navBtn.classList.add('active');
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
   if (name === 'overview')   loadOverview();
-  if (name === 'games')      { loadGames(0); _refreshTagFilter(); }
+  if (name === 'games')      { loadFilterOptions(); loadGames(0); _refreshTagFilter(); }
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
   if (name === 'sync')       { loadSync(); loadManualBackups(); }
   if (name === 'cable')      loadCableSync();
-  if (name === 'scraper')    loadScraperSummary();
+  if (name === 'collection') loadCollectionStats();
+  if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); }
+  if (name === 'formats')    { loadTools(); _initToolsContext(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); }
   if (name === 'inbox')      loadInbox();
 }
 
 // ── Guide toggle (update arrow icon) ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  updateInboxBadge();  // 32-1: initial badge check
   const guide = document.getElementById('ov-guide');
   if (guide) {
     const updateArrow = () => {
@@ -318,6 +321,9 @@ function openGamePanel(g) {
       document.getElementById('gp-stateshot-wrap').style.display = '';
     }
   }).catch(() => {});
+  // 34b-4: reset asset info
+  const _assetInfo = document.getElementById('gp-asset-info');
+  if (_assetInfo) _assetInfo.style.display = 'none';
   // S30: reset meta editor state
   const _editWrap = document.getElementById('gp-meta-edit-wrap');
   if (_editWrap) _editWrap.style.display = 'none';
@@ -339,6 +345,8 @@ function openGamePanel(g) {
       }
     }).catch(() => {});
   }
+  // S33-4: Sync history
+  loadGameSyncHistory(g.source_path);
   // Launch button — show if retroarch configured
   const launchBtn = document.getElementById('gp-launch-btn');
   if (launchBtn) launchBtn.style.display = '';
@@ -351,6 +359,13 @@ function openGamePanel(g) {
       if (full.id === _gpGameId) {
         _gpFillMeta(full);
         _gpGameId = full.id;
+      }
+      // 34b-4: show asset path if available
+      const _ai = document.getElementById('gp-asset-info');
+      const _ap = document.getElementById('gp-asset-path');
+      if (_ai && _ap && full.box_art_path) {
+        _ap.textContent = full.box_art_path;
+        _ai.style.display = '';
       }
     }).catch(() => {});
   }
@@ -539,6 +554,16 @@ async function gpApplyScrape() {
   } catch(e) {
     if (res) { res.style.color = '#f44747'; res.textContent = 'Error: ' + e.message; }
   }
+}
+
+async function gpCopyAssetToEsde() {
+  const resultEl = document.getElementById('gp-asset-copy-result');
+  if (resultEl) resultEl.textContent = 'Copiando…';
+  try {
+    const d = await apiFetch('/api/copy-assets-to-esde');
+    if (d.error) { if (resultEl) resultEl.textContent = '✗ ' + d.error; return; }
+    if (resultEl) resultEl.textContent = `✓ ${d.copied} copiadas`;
+  } catch(e) { if (resultEl) resultEl.textContent = '✗ ' + e.message; }
 }
 
 async function toggleRowFavorite(gameId, btn) {
@@ -1210,8 +1235,13 @@ function _applyJobStatus(s) {
     const file  = document.getElementById('scrape-progress-file');
     if (bar)   bar.style.width  = pct + '%';
     if (lbl)   lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
-    if (found) found.textContent = p.found > 0 ? `✓ ${p.found} encontrados` : '';
+    const netErr = p.network_errors > 0 ? `  ⚠ ${p.network_errors} errores de red (reintentando)` : '';
+    if (found) found.textContent = (p.found > 0 ? `✓ ${p.found} encontrados` : '') + netErr;
     if (file)  file.textContent  = p.current_game;
+    // Refresh platform % table every ~10s while scraping
+    if (!window._scrapeSummaryTick) window._scrapeSummaryTick = 0;
+    window._scrapeSummaryTick++;
+    if (window._scrapeSummaryTick % 5 === 0) loadScraperSummary();
     if (btnScrape) {
       btnScrape.disabled = false;
       btnScrape.textContent = 'Cancelar';
@@ -1235,7 +1265,11 @@ function _applyJobStatus(s) {
         el.textContent = 'Error: ' + s.scrape_result.error;
       } else {
         el.className = 'job-result visible success';
-        el.textContent = `Completado — Encontrados: ${s.scrape_result.found}  |  No encontrados: ${s.scrape_result.skipped}  (de ${s.scrape_result.total})`;
+        const r = s.scrape_result;
+        let msg = `Completado — Encontrados: ${r.found}  |  Sin resultado: ${r.skipped}  (de ${r.total})`;
+        if (r.network_errors > 0) msg += `  |  ⚠ Errores de red: ${r.network_errors}`;
+        if (r.cancelled) msg += '  |  (cancelado)';
+        el.textContent = msg;
       }
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Iniciar scraping'; btn.onclick = doScrape; btn.classList.remove('danger'); }
@@ -1657,7 +1691,28 @@ function onGamesFilterChange() {
   gamesState.platform = document.getElementById('games-platform').value;
   gamesState.status   = document.getElementById('games-matched').value;
   gamesState.filetype = document.getElementById('games-filetype').value;
+  gamesState.genre    = document.getElementById('games-genre')?.value || '';
+  gamesState.year     = document.getElementById('games-year')?.value || '';
+  gamesState.sortBy   = document.getElementById('games-sort-by')?.value || '';
   loadGames(0);
+}
+let _filterOptionsLoaded = false;
+async function loadFilterOptions() {
+  if (_filterOptionsLoaded) return;
+  try {
+    const r = await apiFetch('/api/games/filter-options');
+    _filterOptionsLoaded = true;
+    const _populate = (id, items, emptyLabel) => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const cur = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      items.forEach(v => { const o = document.createElement('option'); o.value = v; o.text = v; sel.add(o); });
+      if (cur) sel.value = cur;
+    };
+    _populate('games-genre', r.genres || [], 'Género');
+    _populate('games-year',  r.years  || [], 'Año');
+  } catch (_) {}
 }
 function toggleFavoritesFilter() {
   const btn = document.getElementById('btn-filter-favorites');
@@ -1708,6 +1763,12 @@ async function loadGames(offset) {
   if (gamesState.favorite) params.set('favorite', '1');
   const tagF = document.getElementById('games-tag-filter')?.value;
   if (tagF) params.set('tag', tagF);
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) params.set('genre', genreF);
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) params.set('year', yearF);
+  const sortBy = document.getElementById('games-sort-by')?.value;
+  if (sortBy) params.set('sort_by', sortBy);
   const _gamesRoot = gamesState.root || _deviceRoot();
   if (_gamesRoot)          params.set('root',      _gamesRoot);
 
@@ -2255,35 +2316,30 @@ async function loadDuplicates() {
       dupBar.innerHTML = barHtml;
       dupBar.style.display = '';
     }
-    if (d.groups.length === 0) {
-      if (_activeDevice === 'anbernic') {
-        el.innerHTML = _emptyState('✅', `Sin duplicados en ${_devName}`, `Los duplicados cruzados entre PC y ${_devName} solo aparecen en modo <strong>Sistema completo</strong>.`);
-      } else {
-        el.innerHTML = _emptyState('✅', 'Sin duplicados', 'Los duplicados son ROMs con el mismo contenido exacto (SHA1 idéntico).<br>Si acabas de añadir juegos, ejecuta un Scan y luego un Match.', 'Ir a Inicio', () => showTab('overview'));
-      }
-      return;
+    // Store for platform filter
+    _dupAllGroups = d.groups || [];
+    _dupAllTitleGroups = d.title_groups || [];
+
+    // Populate platform filter dropdown
+    const sel = document.getElementById('dup-platform-filter');
+    if (sel) {
+      const platforms = [...new Set([
+        ..._dupAllGroups.map(g => g.platform || ''),
+        ..._dupAllTitleGroups.map(g => g.platform || ''),
+      ])].filter(Boolean).sort();
+      sel.innerHTML = '<option value="">Todas las plataformas</option>';
+      platforms.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p; opt.textContent = p;
+        sel.appendChild(opt);
+      });
+      sel.style.display = platforms.length > 1 ? '' : 'none';
     }
-    let html = `<p style="color:#888;margin-bottom:16px">${d.groups.length} grupo${d.groups.length !== 1 ? 's' : ''} — ${d.total_files} archivos — ~${fmtSize(d.wasted_bytes)} ocupados de más</p>`;
-    html += d.groups.map(g => `
-      <div class="dup-group" id="dup-${g.sha1}">
-        <div class="title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <span>${g.canonical_title || '(unmatched)'}
-            <span style="color:#555;font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
-          </span>
-          <button class="btn" style="padding:2px 10px;font-size:11px;color:#888;border-color:#444" title="No aparecerá más como duplicado (copia intencional entre dispositivos)" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
-        </div>
-        ${g.entries.map((e, i) => `
-          <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
-            ${i === 0
-              ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
-              : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.source_path}">${e.source_path}</span>
-            <span style="color:#555;flex-shrink:0">${fmtSize(e.size_bytes)}</span>
-          </div>`).join('')}
-      </div>`).join('');
-    el.innerHTML = html;
+
+    _renderDupContent(_dupAllGroups, _dupAllTitleGroups, '');
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    const el = document.getElementById('dup-content');
+    if (el) el.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
 }
 
@@ -2302,7 +2358,12 @@ async function deleteAllDuplicates() {
         const d = await apiPost('/api/duplicates/delete-all', {});
         await loadDuplicates();
         loadOverview();
-        showToast(`Eliminados: ${d.deleted} · Espacio liberado: ${fmtSize(d.freed_bytes)}`, false);
+        if (d.deleted === 0 && d.failed === 0) {
+          showToast('Sin duplicados pendientes — la lista ya está limpia', 'info');
+        } else {
+          const failNote = d.failed > 0 ? ` · ⚠ ${d.failed} no se pudieron eliminar (¿archivo en uso?)` : '';
+          showToast(`Eliminados: ${d.deleted} · Liberados: ${fmtSize(d.freed_bytes)}${failNote}`, d.failed > 0 ? 'err' : 'ok');
+        }
       } catch(e) {
         showToast('Error: ' + e.message, true);
       } finally {
@@ -2434,7 +2495,13 @@ async function deleteRaDuplicate(gameId, sourcePath, btn) {
   btn.textContent = '…';
   try {
     // D8-4: use dedicated discard endpoint
-    await apiPost('/api/ra-duplicates/discard', { path: sourcePath });
+    const d = await apiPost('/api/ra-duplicates/discard', { path: sourcePath });
+    if (d.error) {
+      btn.disabled = false;
+      btn.textContent = 'Eliminar';
+      showToast('Error: ' + d.error, 'err');
+      return;
+    }
     const row = btn.closest('tr');
     if (row) row.remove();
     showToast(`Eliminado: ${filename}`, 'ok');
@@ -2459,7 +2526,7 @@ async function doResolveRaConflicts() {
       if (d.no_cache) {
         msg = 'Sin datos RA en caché — ejecuta primero la comprobación de RetroAchievements en la pestaña Tools';
       } else if (d.resolved === 0 && d.skipped_no_ra > 0) {
-        msg = d.skipped_no_ra + ' conflictos sin datos RA suficientes para decidir — ejecuta la comprobación RA primero';
+        msg = d.skipped_no_ra + ' conflictos sin datos RA (versión no reconocida por RA o plataforma sin soporte) — no hay acción posible';
       } else {
         msg = 'RA resuelto: ' + d.resolved + ' conflictos' + (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : '');
       }
@@ -2623,19 +2690,56 @@ async function loadCatalogStatus() {
   if (!el) return;
   try {
     const d = await apiFetch('/api/catalog-status');
-    const ni = d.nointro.length, rd = d.redump.length;
+    const ni = d.nointro.length, rd = d.redump.length, arc = (d.arcade || []).length;
     const niE = (d.total_nointro_entries || 0).toLocaleString();
     const rdE = (d.total_redump_entries || 0).toLocaleString();
+    const arcE = (d.total_arcade_entries || 0).toLocaleString();
     let html = '';
-    if (ni === 0 && rd === 0) {
+    if (ni === 0 && rd === 0 && arc === 0) {
       html = '<span style="color:#dcdcaa">\u26A0 No hay cat\u00e1logos DAT cargados.</span> El cruce de hashes no estar\u00e1 disponible hasta que importes archivos DAT.';
     } else {
-      html = `\u2705 <strong style="color:#4ec9b0">${ni}</strong> No-Intro (${niE} entradas) &middot; <strong style="color:#4ec9b0">${rd}</strong> Redump (${rdE} entradas)`;
+      const parts = [];
+      if (ni > 0) parts.push(`<strong style="color:#4ec9b0">${ni}</strong> No-Intro (${niE} entradas)`);
+      if (rd > 0) parts.push(`<strong style="color:#4ec9b0">${rd}</strong> Redump (${rdE} entradas)`);
+      if (arc > 0) {
+        const arcFiles = (d.arcade || []).map(f => {
+          const lbl = f.name.toLowerCase().endsWith('.xml') ? 'MAME' : 'FBNeo';
+          return `${lbl}: ${f.entries.toLocaleString()}`;
+        }).join(', ');
+        parts.push(`<strong style="color:#4ec9b0">${arc}</strong> Arcade (${arcFiles})`);
+      }
+      html = '\u2705 ' + parts.join(' &middot; ');
     }
-    html += `<br><span style="color:#555;font-size:10px">No-Intro: <code>${d.nointro_dir}</code><br>Redump: <code>${d.redump_dir}</code></span>`;
+    html += `<br><span style="color:#555;font-size:10px">No-Intro: <code>${d.nointro_dir}</code> &middot; Redump: <code>${d.redump_dir}</code> &middot; Arcade: <code>${d.arcade_dir}</code></span>`;
     el.innerHTML = html;
   } catch(e) {
     el.textContent = 'Error al cargar estado de cat\u00e1logos.';
+  }
+}
+
+async function importArcadeCatalog() {
+  const path = (document.getElementById('arcade-catalog-path')?.value || '').trim();
+  if (!path) { alert('Introduce la carpeta o archivo con el cat\u00e1logo arcade.'); return; }
+  const res = document.getElementById('arcade-catalog-result');
+  if (res) { res.textContent = 'Importando\u2026'; res.style.color = '#888'; }
+  try {
+    const d = await apiPost('/api/import-arcade-catalog', { path });
+    if (d.error) {
+      if (res) { res.textContent = '\u274C ' + d.error; res.style.color = '#f44747'; }
+      return;
+    }
+    const lines = d.imported.map(f => {
+      const lbl = f.format === 'mame_xml' ? 'MAME' : 'FBNeo';
+      return `${f.name} (${lbl}, ${f.entries.toLocaleString()} entradas)`;
+    }).join('<br>');
+    const errTxt = d.errors.length ? ` &mdash; ${d.errors.length} error(es)` : '';
+    if (res) {
+      res.innerHTML = `\u2705 ${d.total_files} archivo(s), ${d.total_entries.toLocaleString()} entradas importadas${errTxt}<br><span style="color:#555;font-size:11px">${lines}</span>`;
+      res.style.color = '#4ec9b0';
+    }
+    loadCatalogStatus();
+  } catch(e) {
+    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
   }
 }
 
@@ -2726,6 +2830,75 @@ async function applyRcloneRemote() {
   } catch(e) {
     if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
   }
+}
+
+// ── S33-3: Save comparator ────────────────────────────────────────────────────
+async function loadSaveComparison() {
+  const el = document.getElementById('save-comparison-content');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  try {
+    const d = await apiFetch('/api/save-comparison');
+    const saves = d.saves || [];
+    if (!saves.length) {
+      el.innerHTML = '<p style="color:#555;font-size:12px">No hay saves en la biblioteca.</p>';
+      return;
+    }
+    const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:#444">—</span>';
+    const _syncBadge = s => {
+      if (!s.last_sync_at) return '<span style="color:#666;font-size:10px">Nunca</span>';
+      const cls = s.last_result === 'ok' ? '#4ec9b0' : '#e06c75';
+      return `<span style="color:${cls};font-size:10px">${_fmtDate(s.last_sync_at)}</span>`;
+    };
+    let html = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:#555;border-bottom:1px solid #2a2a3a">
+        <th style="text-align:left;padding:4px 6px">Plataforma</th>
+        <th style="text-align:left;padding:4px 6px">Título</th>
+        <th style="text-align:left;padding:4px 6px">Mod. local</th>
+        <th style="text-align:left;padding:4px 6px">Último sync</th>
+        <th style="text-align:left;padding:4px 6px">Dirección</th>
+      </tr></thead><tbody>`;
+    saves.forEach(s => {
+      const stale = s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at;
+      const rowStyle = stale ? 'background:#1a1a0a' : '';
+      html += `<tr style="${rowStyle};border-bottom:1px solid #1a1a2a">
+        <td style="padding:4px 6px;color:#888">${_h(s.platform)}</td>
+        <td style="padding:4px 6px;color:#d4d4d4">${_h(s.title)}</td>
+        <td style="padding:4px 6px;color:${stale ? '#f9c74f' : '#888'}">${_fmtDate(s.local_mtime)}</td>
+        <td style="padding:4px 6px">${_syncBadge(s)}</td>
+        <td style="padding:4px 6px;color:#555;font-size:10px">${_h(s.last_direction || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    if (saves.some(s => s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at)) {
+      html = `<div style="font-size:11px;color:#f9c74f;margin-bottom:8px">&#x26A0; Filas en amarillo: save modificado después del último sync.</div>` + html;
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+}
+
+// ── S33-4: Game sync history ──────────────────────────────────────────────────
+async function loadGameSyncHistory(sourcePath) {
+  const wrap = document.getElementById('gp-sync-history-wrap');
+  const list = document.getElementById('gp-sync-history-list');
+  if (!wrap || !list || !sourcePath) return;
+  wrap.style.display = 'none';
+  list.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/game-sync-history?source_path=' + encodeURIComponent(sourcePath));
+    const hist = d.history || [];
+    if (!hist.length) return;
+    wrap.style.display = '';
+    list.innerHTML = hist.map(h => {
+      const clr = h.result === 'ok' ? '#4ec9b0' : '#e06c75';
+      const dir = h.direction === 'up' ? '&#x2191;' : h.direction === 'down' ? '&#x2193;' : '&#x21C4;';
+      return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a">
+        <span style="color:${clr};font-size:11px">${dir} ${_h(h.result || '')}</span>
+        <span style="color:#555;font-size:10px;flex:1">${_h(h.created_at?.substring(0,16) || '')}</span>
+        ${h.message ? `<span style="color:#666;font-size:10px">${_h(h.message.substring(0,40))}</span>` : ''}
+      </div>`;
+    }).join('');
+  } catch(_) {}
 }
 
 async function doLibraryDiff() {
@@ -2873,9 +3046,10 @@ async function doConvertChd() {
   }
 }
 
+let _chdResults = [];
+
 function _renderChdResult(result) {
   const resultEl   = document.getElementById('job-result-convert-chd');
-  const resultsDiv = document.getElementById('chd-results');
   const btn        = document.getElementById('btn-convert-chd');
   if (!resultEl) return;
   if (result.error) {
@@ -2883,19 +3057,45 @@ function _renderChdResult(result) {
     resultEl.textContent = 'Error: ' + result.error;
   } else {
     _showJobResult('convert-chd', result);
-    if (resultsDiv && result.results?.length) {
-      resultsDiv.innerHTML = result.results.map(r => {
-        if (r.success) {
-          const tag = result.dry_run ? 'PREVIEW' : 'OK';
-          return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[${tag}] ${r.cue} → ${r.chd}</div>`;
-        } else {
-          const errMsg = r.error ? `<span style="color:#f44747;margin-left:6px;font-style:italic">${r.error}</span>` : '';
-          return `<div style="font-size:12px;color:#f44747;padding:4px 0;border-bottom:1px solid #2a1a1a"><strong>[FAIL]</strong> ${r.cue}${errMsg}</div>`;
-        }
-      }).join('');
-    }
+    _chdResults = result.results || [];
+    // Show filter header if there are results
+    const hdr = document.getElementById('chd-results-header');
+    if (hdr) hdr.style.display = _chdResults.length ? 'flex' : 'none';
+    // Default: show errors-only if any failures exist
+    const hasFails = _chdResults.some(r => !r.success && r.error);
+    const cb = document.getElementById('chd-filter-errors');
+    if (cb) cb.checked = hasFails;
+    applyChdFilter();
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Convertir a CHD'; }
+}
+
+function applyChdFilter() {
+  const resultsDiv = document.getElementById('chd-results');
+  const countEl    = document.getElementById('chd-results-count');
+  if (!resultsDiv) return;
+  const errorsOnly = document.getElementById('chd-filter-errors')?.checked ?? false;
+  const visible = errorsOnly ? _chdResults.filter(r => !r.success) : _chdResults;
+  if (countEl) countEl.textContent = `${visible.length} / ${_chdResults.length} entradas`;
+  if (!visible.length) {
+    resultsDiv.innerHTML = errorsOnly
+      ? '<p style="color:#4ec9b0;font-size:12px;margin:4px 0">Sin errores.</p>'
+      : '';
+    return;
+  }
+  // Determine if this was a dry_run from the job-result text (best-effort)
+  const isDry = document.getElementById('job-result-convert-chd')?.textContent?.includes('DRY') ?? false;
+  resultsDiv.innerHTML = visible.map(r => {
+    if (r.success) {
+      const tag = isDry ? 'PREVIEW' : 'OK';
+      const bins = r.bin_count > 0 ? ` <span style="color:#555;font-size:10px">(${r.bin_count} bin)</span>` : '';
+      return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[${tag}] ${_h(r.cue)} → ${_h(r.chd)}${bins}</div>`;
+    } else {
+      const bins = r.bin_count > 0 ? ` <span style="color:#555;font-size:10px">(${r.bin_count} bin)</span>` : '';
+      const errMsg = r.error ? `<div style="color:#f44747;font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
+      return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:#f44747"><strong>[FAIL]</strong> ${_h(r.cue)}${bins}</span>${errMsg}</div>`;
+    }
+  }).join('');
 }
 
 // ── Extract ZIP ──────────────────────────────────────────────────────────────
@@ -3180,19 +3380,609 @@ function _renderHealthResult(r) {
   if (r.missing   > 0) html += `  <span style="color:#ce9178">⚠ ${r.missing} no encontrados</span>`;
   html += `  <span style="color:#555">(${total} ROMs verificados)</span></p>`;
   if (r.issues?.length) {
-    html += '<div style="max-height:400px;overflow-y:auto">';
-    html += r.issues.map(i => {
-      const color = i.status === 'corrupted' ? '#f44747' : '#ce9178';
-      const label = i.status === 'corrupted' ? 'CORRUPTO' : 'NO ENCONTRADO';
-      const name  = i.source_path.split(/[\\/]/).pop();
-      return `<div style="font-size:12px;color:${color};padding:2px 0" title="${i.source_path}">[${label}] ${name}</div>`;
-    }).join('');
+    // Platform filter dropdown
+    const platforms = [...new Set(r.issues.map(i => i.platform || '').filter(Boolean))].sort();
+    if (platforms.length > 1) {
+      html += '<div style="margin-bottom:8px">';
+      html += '<label style="font-size:12px;color:#888;margin-right:6px">Plataforma:</label>';
+      html += '<select id="health-plat-filter" onchange="_filterHealthIssues()" style="font-size:12px;background:#1e1e1e;color:#ccc;border:1px solid #333;padding:2px 6px;border-radius:4px">';
+      html += '<option value="">Todas</option>';
+      html += platforms.map(p => `<option value="${_h(p)}">${_h(p)}</option>`).join('');
+      html += '</select></div>';
+    }
+    html += '<div id="health-issues-list" style="max-height:400px;overflow-y:auto">';
+    html += '<table style="font-size:12px;width:100%;border-collapse:collapse">';
+    html += '<thead><tr style="color:#888;border-bottom:1px solid #333">';
+    html += '<th style="text-align:left;padding:4px 6px">Estado</th>';
+    html += '<th style="text-align:left;padding:4px 6px">Plataforma</th>';
+    html += '<th style="text-align:left;padding:4px 6px">Archivo</th>';
+    html += '<th style="text-align:left;padding:4px 6px">Búsqueda</th>';
+    html += '</tr></thead><tbody id="health-issues-tbody">';
+    html += r.issues.map(i => _healthIssueRow(i)).join('');
+    html += '</tbody></table></div>';
+  }
+  el.innerHTML = html;
+  // Store issues for filtering
+  el._issues = r.issues;
+}
+
+function _healthIssueRow(i) {
+  const color = i.status === 'corrupted' ? '#f44747' : '#ce9178';
+  const label = i.status === 'corrupted' ? 'CORRUPTO' : 'NO ENCONTRADO';
+  const name  = i.source_path.split(/[\\/]/).pop();
+  const plat  = i.platform || '';
+  const title = i.canonical_title || name.replace(/\.[^.]+$/, '');
+  const query = title + (plat ? ' ' + plat : '') + ' No-Intro site:archive.org';
+  const qEnc  = encodeURIComponent(query);
+  const qHtml = _h(query);
+  return `<tr data-platform="${_h(plat)}" style="border-bottom:1px solid #222">` +
+    `<td style="padding:3px 6px;color:${color};white-space:nowrap">[${label}]</td>` +
+    `<td style="padding:3px 6px;color:#888;white-space:nowrap">${_h(plat)}</td>` +
+    `<td style="padding:3px 6px;color:${color}" title="${_h(i.source_path)}">${_h(name)}</td>` +
+    `<td style="padding:3px 6px;white-space:nowrap">` +
+    `<span style="font-size:11px;color:#888;margin-right:4px" title="${qHtml}">${_h(title)}</span>` +
+    `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Query copiada','ok'))" ` +
+    `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:#ccc;border-radius:3px;cursor:pointer" title="${qHtml}">Copiar</button>` +
+    `</td></tr>`;
+}
+
+function _filterHealthIssues() {
+  const el = document.getElementById('health-result');
+  const sel = document.getElementById('health-plat-filter');
+  if (!el || !sel || !el._issues) return;
+  const plat = sel.value;
+  const tbody = document.getElementById('health-issues-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = el._issues
+    .filter(i => !plat || (i.platform || '') === plat)
+    .map(i => _healthIssueRow(i)).join('');
+}
+
+// ── Colección: Missing + Estadísticas ────────────────────────────────────────
+
+let _collectionPlatforms = [];  // cache of {platform, entries:[]} per platform
+
+async function loadCollectionStats() {
+  const el = document.getElementById('collection-stats');
+  if (!el) return;
+  el.innerHTML = '<p class="loading">Calculando estadísticas…</p>';
+  try {
+    const d = await apiFetch('/api/collection-stats');
+    if (!d.platforms || d.platforms.length === 0) {
+      el.innerHTML = '<p style="color:#888;font-size:13px">No hay catálogos DAT cargados. Importa archivos DAT en <strong>Herramientas → Catálogos DAT</strong>.</p>';
+      return;
+    }
+    let html = '<h4 style="color:#569cd6;margin-bottom:12px">Completitud por plataforma</h4>';
+    html += '<div style="max-height:320px;overflow-y:auto">';
+    for (const p of d.platforms) {
+      const pct = p.coverage_pct;
+      const barColor = pct >= 80 ? '#4ec9b0' : pct >= 40 ? '#dcdcaa' : '#f44747';
+      html += `<div style="margin-bottom:8px">`;
+      html += `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">`;
+      html += `<span style="color:#ccc">${_h(p.platform)}</span>`;
+      html += `<span style="color:#888">${p.in_library} / ${p.total} &nbsp;<strong style="color:${barColor}">${pct}%</strong></span>`;
+      html += `</div>`;
+      html += `<div style="background:#222;border-radius:3px;height:6px;width:100%">`;
+      html += `<div style="background:${barColor};border-radius:3px;height:6px;width:${pct}%"></div>`;
+      html += `</div></div>`;
+    }
+    html += '</div>';
+    const totalDat = d.platforms.reduce((s, p) => s + p.total, 0);
+    const totalLib = d.platforms.reduce((s, p) => s + p.in_library, 0);
+    const totalPct = totalDat > 0 ? (100 * totalLib / totalDat).toFixed(1) : 0;
+    html += `<p style="color:#666;font-size:12px;margin-top:8px">Total: ${totalLib} de ${totalDat} ROMs en catálogo (${totalPct}%)</p>`;
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function loadMissingRoms() {
+  const sec = document.getElementById('missing-section');
+  const listEl = document.getElementById('missing-list');
+  const sel = document.getElementById('missing-plat-filter');
+  if (!sec || !listEl) return;
+  listEl.innerHTML = '<p class="loading">Cargando faltantes…</p>';
+  sec.style.display = '';
+  try {
+    const d = await apiFetch('/api/missing');
+    _collectionPlatforms = d.platforms || [];
+    // Populate platform filter
+    if (sel) {
+      sel.innerHTML = '<option value="">Todas las plataformas</option>';
+      _collectionPlatforms.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.platform;
+        opt.textContent = `${p.platform} (${p.missing} faltantes)`;
+        sel.appendChild(opt);
+      });
+    }
+    _renderMissingList('');
+  } catch (e) {
+    listEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+function filterMissingByPlatform() {
+  const sel = document.getElementById('missing-plat-filter');
+  _renderMissingList(sel ? sel.value : '');
+}
+
+function _renderMissingList(platformFilter) {
+  const listEl = document.getElementById('missing-list');
+  const countEl = document.getElementById('missing-count');
+  if (!listEl) return;
+
+  const platforms = platformFilter
+    ? _collectionPlatforms.filter(p => p.platform === platformFilter)
+    : _collectionPlatforms;
+
+  const totalMissing = platforms.reduce((s, p) => s + p.missing, 0);
+  if (countEl) countEl.textContent = `${totalMissing} ROMs faltantes`;
+
+  if (totalMissing === 0) {
+    listEl.innerHTML = '<p style="color:#4ec9b0;font-size:13px">✓ Tienes todos los ROMs de los catálogos cargados.</p>';
+    return;
+  }
+
+  let html = '<table style="font-size:12px;width:100%;border-collapse:collapse">';
+  html += '<thead><tr style="color:#888;border-bottom:1px solid #333">';
+  html += '<th style="text-align:left;padding:4px 6px">Plataforma</th>';
+  html += '<th style="text-align:left;padding:4px 6px">Título</th>';
+  html += '<th style="text-align:left;padding:4px 6px">Búsqueda</th>';
+  html += '<th style="text-align:left;padding:4px 6px">Wishlist</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const p of platforms) {
+    for (const entry of p.entries) {
+      const query = `${entry.title} ${p.platform} No-Intro site:archive.org`;
+      const qh = _h(query);
+      const wlKey = `wl_${entry.sha1}`;
+      html += `<tr style="border-bottom:1px solid #1e1e1e" id="${_h(wlKey)}">`;
+      html += `<td style="padding:3px 6px;color:#888;white-space:nowrap">${_h(p.platform)}</td>`;
+      html += `<td style="padding:3px 6px;color:#ccc">${_h(entry.title)}</td>`;
+      html += `<td style="padding:3px 6px;white-space:nowrap">`;
+      html += `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Copiado','ok'))" `;
+      html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:#ccc;border-radius:3px;cursor:pointer" title="${qh}">Copiar</button>`;
+      html += `</td>`;
+      html += `<td style="padding:3px 6px;white-space:nowrap">`;
+      html += `<button id="wlbtn_${_h(entry.sha1)}" onclick="toggleWishlist('${_h(entry.sha1)}','${entry.title.replace(/'/g,"\\'")}','${_h(p.platform)}','searching')" `;
+      html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:#888;border-radius:3px;cursor:pointer">+ Wishlist</button>`;
+      html += `</td></tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  listEl.innerHTML = html;
+}
+
+async function toggleWishlist(sha1, title, platform, currentStatus) {
+  const btn = document.getElementById(`wlbtn_${sha1}`);
+  if (!btn) return;
+  const isAdded = btn.textContent.trim() === '✓ Buscando';
+  if (isAdded) {
+    await apiPost('/api/wishlist', { sha1, remove: true });
+    btn.textContent = '+ Wishlist';
+    btn.style.color = '#888';
+    btn.onclick = () => toggleWishlist(sha1, title, platform, 'searching');
+    showToast('Quitado de wishlist', 'ok');
+  } else {
+    await apiPost('/api/wishlist', { sha1, title, platform, status: currentStatus });
+    btn.textContent = '✓ Buscando';
+    btn.style.color = '#4ec9b0';
+    btn.onclick = () => toggleWishlist(sha1, title, platform, currentStatus);
+    showToast('Añadido a wishlist', 'ok');
+  }
+}
+
+// ── 32-1: Badge de inbox en nav ──────────────────────────────────────────────
+function updateInboxBadge() {
+  apiFetch('/api/inbox-count').then(d => {
+    const badge = document.getElementById('inbox-nav-badge');
+    if (!badge) return;
+    if (d.count > 0) {
+      badge.textContent = d.count;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }).catch(() => {});
+}
+setInterval(updateInboxBadge, 30000);
+// Run on page load (after DOM ready, called from init block below)
+
+// ── 32-2: Filtro por plataforma en Duplicados ─────────────────────────────────
+let _dupAllGroups = [];
+let _dupAllTitleGroups = [];
+
+function filterDuplicatesByPlatform() {
+  const sel = document.getElementById('dup-platform-filter');
+  const plat = sel ? sel.value : '';
+  _renderDupContent(_dupAllGroups, _dupAllTitleGroups, plat);
+}
+
+function _renderDupContent(groups, titleGroups, platformFilter) {
+  const el = document.getElementById('dup-content');
+  if (!el) return;
+  const filtered = platformFilter
+    ? groups.filter(g => (g.platform || '') === platformFilter)
+    : groups;
+
+  if (filtered.length === 0) {
+    if (platformFilter) {
+      el.innerHTML = `<p style="color:#888">Sin duplicados en <strong>${_h(platformFilter)}</strong>.</p>`;
+    } else {
+      const devName = window._devName || 'Consola Android';
+      el.innerHTML = _emptyState('✅', 'Sin duplicados', 'Los duplicados son ROMs con el mismo contenido exacto (SHA1 idéntico).<br>Si acabas de añadir juegos, ejecuta un Scan y luego un Match.', 'Ir a Inicio', () => showTab('overview'));
+    }
+    return;
+  }
+
+  const totalFiles = filtered.reduce((s, g) => s + g.entries.length, 0);
+  const wastedBytes = filtered.reduce((s, g) => s + (g.entries[0]?.size_bytes || 0) * (g.entries.length - 1), 0);
+  let html = `<p style="color:#888;margin-bottom:16px">${filtered.length} grupo${filtered.length !== 1 ? 's' : ''} — ${totalFiles} archivos — ~${fmtSize(wastedBytes)} ocupados de más</p>`;
+  html += filtered.map(g => `
+    <div class="dup-group" id="dup-${g.sha1}">
+      <div class="title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>${g.canonical_title || '(unmatched)'}
+          <span style="color:#555;font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
+        </span>
+        <button class="btn" style="padding:2px 10px;font-size:11px;color:#888;border-color:#444" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
+      </div>
+      ${g.entries.map((e, i) => `
+        <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
+          ${i === 0
+            ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
+            : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.source_path}">${e.source_path}</span>
+          <span style="color:#555;flex-shrink:0">${fmtSize(e.size_bytes)}</span>
+        </div>`).join('')}
+    </div>`).join('');
+
+  // Semantic duplicates
+  const filteredTg = platformFilter
+    ? titleGroups.filter(g => (g.platform || '') === platformFilter)
+    : titleGroups;
+  if (filteredTg.length > 0) {
+    html += `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #2a2a2a">
+      <p style="color:#dcdcaa;font-size:12px;margin-bottom:12px">⚠ ${filteredTg.length} posible${filteredTg.length !== 1?'s':''} duplicado${filteredTg.length !== 1?'s':''} semántico${filteredTg.length !== 1?'s':''} — mismo título canónico, SHA1 distinto</p>`;
+    html += filteredTg.map(g => `
+      <div class="dup-group" style="border-color:#3a3a1a">
+        <div class="title" style="color:#dcdcaa">${_h(g.canonical_title)}
+          <span style="color:#555;font-size:11px;margin-left:8px">${_h(g.platform)}</span>
+        </div>
+        ${g.entries.map((e, i) => `
+          <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
+            ${i === 0
+              ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
+              : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
+            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${fmtSize(e.size_bytes)}</span>
+          </div>`).join('')}
+      </div>`).join('');
     html += '</div>';
   }
   el.innerHTML = html;
 }
 
+// ── 32-3: Drag & drop en Inbox ────────────────────────────────────────────────
+function inboxDragOver(e) {
+  e.preventDefault();
+  const zone = document.getElementById('inbox-dropzone');
+  if (zone) { zone.style.borderColor = '#569cd6'; zone.style.color = '#569cd6'; }
+}
+function inboxDragLeave(e) {
+  const zone = document.getElementById('inbox-dropzone');
+  if (zone) { zone.style.borderColor = '#333'; zone.style.color = '#555'; }
+}
+async function inboxDrop(e) {
+  e.preventDefault();
+  inboxDragLeave(e);
+  const files = Array.from(e.dataTransfer.files);
+  if (!files.length) return;
+  const resultEl = document.getElementById('inbox-drop-result');
+  if (resultEl) resultEl.textContent = `Subiendo ${files.length} archivo(s)…`;
+
+  let saved = 0, errors = [];
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    try {
+      const resp = await fetch('/api/inbox-upload', { method: 'POST', body: fd });
+      const d = await resp.json();
+      saved += d.count || 0;
+      if (d.errors?.length) errors.push(...d.errors);
+    } catch (err) {
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  }
+  if (resultEl) {
+    if (errors.length) {
+      resultEl.innerHTML = `<span style="color:#f44747">✗ ${errors.join('; ')}</span>`;
+    } else {
+      resultEl.innerHTML = `<span style="color:#4ec9b0">✓ ${saved} archivo(s) copiado(s) al Inbox</span>`;
+    }
+  }
+  updateInboxBadge();
+}
+
+// ── 32-4: Timeline de operaciones ─────────────────────────────────────────────
+async function loadOperationsTimeline() {
+  const el = document.getElementById('operations-timeline');
+  if (!el) return;
+  el.innerHTML = '<p class="loading">Cargando…</p>';
+  try {
+    const d = await apiFetch('/api/operations-timeline?limit=100');
+    const ops = d.operations || [];
+    if (!ops.length) {
+      el.innerHTML = '<p style="color:#555">No hay operaciones registradas todavía.</p>';
+      return;
+    }
+    const ICONS = { rename: '✏', delete: '🗑', move: '📦', extract: '📦', copy: '📋' };
+    const COLORS = { success: '#4ec9b0', error: '#f44747', skipped: '#888', ok: '#4ec9b0' };
+    let html = '<div style="display:flex;flex-direction:column;gap:4px">';
+    for (const op of ops) {
+      const icon = ICONS[op.operation_type] || '📄';
+      const color = COLORS[op.result] || '#888';
+      const name = (op.source_path || '').split(/[\\/]/).pop();
+      const ts = (op.created_at || '').replace('T', ' ').slice(0, 16);
+      html += `<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid #1a1a1a">`;
+      html += `<span style="width:20px;text-align:center;flex-shrink:0">${icon}</span>`;
+      html += `<span style="color:${color};width:60px;flex-shrink:0;font-size:11px">${_h(op.result || '')}</span>`;
+      html += `<span style="color:#888;width:80px;flex-shrink:0;font-size:10px;font-family:monospace">${ts}</span>`;
+      html += `<span style="color:#888;width:70px;flex-shrink:0;font-size:11px">${_h(op.operation_type || '')}</span>`;
+      html += `<span style="color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:12px" title="${_h(op.source_path || '')}">${_h(name)}</span>`;
+      if (op.message) html += `<span style="color:#555;font-size:11px;flex-shrink:0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(op.message)}">${_h(op.message)}</span>`;
+      html += `</div>`;
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+// ── 32-5: Playlists RetroArch .lpl ───────────────────────────────────────────
+async function doExportLpl() {
+  const el = document.getElementById('lpl-result');
+  const outputDir = document.getElementById('lpl-output-dir')?.value.trim() || '';
+  if (el) { el.innerHTML = '<span class="loading">Generando…</span>'; el.style.display = 'block'; }
+  try {
+    const d = await apiPost('/api/export-lpl', outputDir ? { output_dir: outputDir } : {});
+    if (d.error) {
+      if (el) el.innerHTML = `<span style="color:#f44747">✗ ${_h(d.error)}</span>`;
+    } else {
+      if (el) el.innerHTML = `<span style="color:#4ec9b0">✓ ${d.platforms} plataformas · ${d.games} juegos → <code style="font-size:11px">${_h(d.output_dir)}</code></span>`;
+    }
+  } catch (e) {
+    if (el) el.innerHTML = `<span style="color:#f44747">✗ ${e.message}</span>`;
+  }
+}
+
+// ── S34-3: N64 converter ─────────────────────────────────────────────────────
+async function doN64Scan() {
+  const path = document.getElementById('n64-path')?.value.trim();
+  const el = document.getElementById('n64-scan-result');
+  if (!path || !el) return;
+  el.innerHTML = '<span class="loading">Escaneando…</span>';
+  try {
+    const d = await apiFetch('/api/n64-scan?path=' + encodeURIComponent(path));
+    const roms = d.roms || [];
+    if (!roms.length) { el.innerHTML = '<p style="color:#555;font-size:12px">No se encontraron ROMs de N64 en esa carpeta.</p>'; return; }
+    const needConv = roms.filter(r => r.needs_conversion);
+    let html = `<p style="font-size:12px;color:#888;margin-bottom:8px">${roms.length} ROMs encontrados — ${needConv.length} necesitan conversión a .z64</p>`;
+    if (needConv.length) {
+      html += `<div style="max-height:200px;overflow-y:auto">`;
+      html += needConv.map(r => `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a;font-size:12px">
+        <span style="color:#f9c74f;width:36px;flex-shrink:0">${_h(r.format.toUpperCase())}</span>
+        <span style="color:#d4d4d4;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_h(r.filename)}</span>
+        <button class="btn" style="padding:1px 8px;font-size:11px;flex-shrink:0" onclick="doN64Convert(${JSON.stringify(r.path)})">Convertir</button>
+      </div>`).join('');
+      html += `</div>`;
+    } else {
+      html += `<p style="color:#4ec9b0;font-size:12px">&#x2713; Todos los ROMs ya están en formato .z64</p>`;
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+}
+
+async function doN64Convert(sourcePath) {
+  try {
+    const d = await apiPost('/api/convert-n64', { source_path: sourcePath });
+    if (d.success) {
+      showToast(`✓ Convertido: ${d.target_path.split(/[\\/]/).pop()}`, 'ok');
+      doN64Scan();  // refresh list
+    } else {
+      showToast(`✗ ${d.error || 'Error desconocido'}`, 'err');
+    }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+// ── S34-5: BIOS Checker ──────────────────────────────────────────────────────
+async function loadBiosStatus() {
+  const el = document.getElementById('bios-status-content');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#555;font-size:12px">Buscando…</p>';
+  try {
+    const d = await apiFetch('/api/bios-status');
+    const bios = d.bios || [];
+    if (!bios.length) { el.innerHTML = '<p style="color:#555;font-size:12px">No hay definiciones de BIOS.</p>'; return; }
+    // Group by platform
+    const byPlat = {};
+    bios.forEach(b => { (byPlat[b.platform] = byPlat[b.platform] || []).push(b); });
+    let html = '';
+    Object.entries(byPlat).sort(([a],[b]) => a.localeCompare(b)).forEach(([plat, entries]) => {
+      const total = entries.length, found = entries.filter(e => e.found).length;
+      const clr = found === total ? '#4ec9b0' : (found > 0 ? '#f9c74f' : '#e06c75');
+      html += `<div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:${clr};margin-bottom:4px">${_h(plat)} <span style="font-weight:400;color:#555">(${found}/${total})</span></div>`;
+      entries.forEach(b => {
+        const icon = b.found ? (b.md5_match === false ? '&#x26A0;' : '&#x2713;') : (b.required ? '&#x2717;' : '&#x25A1;');
+        const clrIcon = b.found ? (b.md5_match === false ? '#f9c74f' : '#4ec9b0') : (b.required ? '#e06c75' : '#555');
+        const md5note = b.found && b.md5_match === false ? ' <span style="color:#f9c74f;font-size:10px">MD5 no coincide</span>' : '';
+        html += `<div style="display:flex;gap:6px;align-items:center;padding:2px 0;font-size:11px">
+          <span style="color:${clrIcon};width:14px;flex-shrink:0">${icon}</span>
+          <code style="color:#ce9178;flex:1">${_h(b.filename)}</code>
+          <span style="color:#555">${_h(b.notes)}</span>${md5note}
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+}
+
+// ── B6-1/B6-6: RetroArch diagnostic ─────────────────────────────────────────
+async function loadRetroArchCheck() {
+  const spinner = document.getElementById('ra-check-spinner');
+  const result  = document.getElementById('ra-check-result');
+  const status  = document.getElementById('ra-check-status');
+  const rows    = document.getElementById('ra-check-rows');
+  const issues  = document.getElementById('ra-check-issues');
+  const coresWrap = document.getElementById('ra-check-cores');
+  const coresList = document.getElementById('ra-check-cores-list');
+  if (!result) return;
+  if (spinner) spinner.style.display = 'inline';
+  result.style.display = 'none';
+  try {
+    const d = await apiFetch('/api/retroarch-check');
+    if (spinner) spinner.style.display = 'none';
+
+    // status badge
+    const okColor = d.ok ? '#4ec9b0' : '#e06c75';
+    const okIcon  = d.ok ? '&#x2713; Todo correcto' : '&#x26A0; Hay problemas';
+    status.innerHTML = `<span style="color:${okColor}">${okIcon}</span>`;
+
+    // main rows
+    const cell = (txt, mono) => mono
+      ? `<td style="padding:2px 0 2px 8px"><code style="color:#ce9178;font-size:11px">${_h(txt)}</code></td>`
+      : `<td style="padding:2px 0 2px 8px;color:#d4d4d4;font-size:11px">${_h(txt)}</td>`;
+    const icon = ok => ok
+      ? `<td style="color:#4ec9b0;font-size:11px;width:14px">&#x2713;</td>`
+      : `<td style="color:#e06c75;font-size:11px;width:14px">&#x2717;</td>`;
+
+    let html = '';
+    html += `<tr>${icon(d.exe_configured)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Ruta configurada</td>${cell(d.exe_path || '\u2014', true)}</tr>`;
+    if (d.exe_configured) {
+      html += `<tr>${icon(d.exe_exists)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Ejecutable existe</td>${cell(d.exe_exists ? 'S\xed' : 'No', false)}</tr>`;
+      html += `<tr>${icon(d.cfg_exists)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">retroarch.cfg</td>${cell(d.cfg_exists ? 'Encontrado' : 'No encontrado', false)}</tr>`;
+      html += `<tr>${icon(d.cores_dir_exists)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Cores</td>${cell(d.cores_dir_exists ? d.cores_count + ' cores' : 'No encontrado', false)}</tr>`;
+      if (d.savefile_dir)   html += `<tr><td></td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Saves dir</td>${cell(d.savefile_dir, true)}</tr>`;
+      if (d.savestate_dir)  html += `<tr><td></td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">States dir</td>${cell(d.savestate_dir, true)}</tr>`;
+      if (d.esde_ra_path) {
+        const matchIcon = d.esde_ra_match === true ? '&#x2713;' : (d.esde_ra_match === false ? '&#x26A0;' : '?');
+        const matchColor = d.esde_ra_match === true ? '#4ec9b0' : '#f9c74f';
+        html += `<tr><td style="color:${matchColor};font-size:11px">${matchIcon}</td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">ES-DE apunta a</td>${cell(d.esde_ra_path, true)}</tr>`;
+      }
+    }
+    rows.innerHTML = html;
+
+    // issues list
+    if (d.issues && d.issues.length) {
+      issues.innerHTML = d.issues.map(i =>
+        `<div style="font-size:11px;color:#f9c74f;margin-bottom:3px">&#x26A0; ${_h(i)}</div>`
+      ).join('');
+    } else {
+      issues.innerHTML = '';
+    }
+
+    // key cores list
+    if (d.key_cores && Object.keys(d.key_cores).length) {
+      coresWrap.style.display = 'block';
+      coresList.innerHTML = Object.entries(d.key_cores).map(([lbl, found]) => {
+        const bg = found ? '#1e3a2f' : '#2a1a1a';
+        const fg = found ? '#4ec9b0' : '#666';
+        const ic = found ? '&#x2713;' : '&#x2717;';
+        return `<span style="background:${bg};color:${fg};font-size:10px;padding:2px 6px;border-radius:3px">${ic} ${_h(lbl)}</span>`;
+      }).join('');
+    } else {
+      coresWrap.style.display = 'none';
+    }
+
+    result.style.display = 'block';
+  } catch(e) {
+    if (spinner) spinner.style.display = 'none';
+    result.style.display = 'block';
+    status.innerHTML = `<span style="color:#e06c75">Error: ${_h(e.message)}</span>`;
+    rows.innerHTML = '';
+    issues.innerHTML = '';
+    coresWrap.style.display = 'none';
+  }
+}
+
+// ── S34-6: ES-DE Status ──────────────────────────────────────────────────────
+async function loadEsdeStatus() {
+  const el = document.getElementById('esde-status-content');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#555;font-size:12px">Detectando…</p>';
+  try {
+    const d = await apiFetch('/api/esde-status');
+    if (!d.installed) {
+      el.innerHTML = `<p style="color:#e06c75;font-size:12px">&#x2717; ES-DE no detectado en las rutas conocidas.</p>
+        <p style="color:#555;font-size:11px">Instala ES-DE desde <a href="https://es-de.org" target="_blank" style="color:#4ec9b0">es-de.org</a> o configura la ruta manualmente.</p>`;
+      return;
+    }
+    el.innerHTML = `
+      <div style="font-size:12px;color:#4ec9b0;margin-bottom:8px">&#x2713; ES-DE detectado</div>
+      <table style="font-size:12px;border-collapse:collapse;width:100%">
+        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Carpeta</td><td><code style="color:#ce9178">${_h(d.install_dir)}</code></td></tr>
+        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">ROMs</td><td><code style="color:#ce9178">${_h(d.roms_path || '—')}</code></td></tr>
+        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Gamelists</td><td><code style="color:#ce9178">${_h(d.gamelists_dir || '—')}</code></td></tr>
+      </table>
+      ${d.gamelists_dir ? `<div style="margin-top:10px"><button class="btn primary" onclick="doExportGamelistsAll(${JSON.stringify(d.gamelists_dir)})" style="font-size:12px">&#x2193; Exportar todas las gamelists a ES-DE</button></div>` : ''}`;
+  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+}
+
+async function doExportGamelistsAll(gamlistsDir) {
+  try {
+    const d = await apiPost('/api/export-gamelists', { output_dir: gamlistsDir });
+    if (d.error) showToast('✗ ' + d.error, 'err');
+    else showToast(`✓ Gamelists exportadas: ${d.written || 0} archivos`, 'ok');
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+// ES-DE gamelists dir — kept for status display only; NOT used as export output.
+// For ES-DE, gamelists go in library_root/{platform}/ (alongside ROMs), not in
+// ~/.emulationstation/gamelists/ — that old path caused broken <path> entries.
+let _esdeGamelistsDir = '';
+
+async function _autoFillEsdeGamelistDir() {
+  // Do NOT auto-fill the export dir — library_root (the default) is correct for ES-DE.
+  // Only fetch gamelists_dir for status/informational display.
+  try {
+    const d = await apiFetch('/api/esde-status');
+    if (d.gamelists_dir) _esdeGamelistsDir = d.gamelists_dir;
+  } catch(_) {}
+}
+
+async function useEsdeGamelistDir() {
+  // For ES-DE: leave the field empty so the export defaults to library_root.
+  // The gamelist.xml belongs alongside the ROMs, not in the ES config dir.
+  const inp = document.getElementById('gamelist-output-dir');
+  if (inp) { inp.value = ''; inp.placeholder = 'Vacío = library_root (correcto para ES-DE)'; }
+  showToast('ES-DE: deja vacío para exportar a library_root (junto a los ROMs)', 'ok');
+}
+
 // ── Análisis de carpeta ───────────────────────────────────────────────────────
+let _faUid = 0;
+function _faCollapsibleList(items, renderItem, limit = 10) {
+  if (!items || items.length === 0) return '';
+  const uid = 'falist_' + (++_faUid);
+  const visible = items.slice(0, limit);
+  const hidden  = items.slice(limit);
+  let html = `<div style="max-height:220px;overflow-y:auto;border:1px solid #222;border-radius:4px;padding:4px 0;margin-bottom:4px">`;
+  html += '<ul style="margin:0;padding-left:20px">';
+  html += visible.map(renderItem).join('');
+  if (hidden.length > 0) {
+    html += `</ul><ul id="${uid}_rest" style="margin:0;padding-left:20px;display:none">`;
+    html += hidden.map(renderItem).join('');
+  }
+  html += '</ul></div>';
+  if (hidden.length > 0) {
+    html += `<button onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');if(r.style.display==='none'){r.style.display='';b.textContent='▲ Mostrar menos';}else{r.style.display='none';b.textContent='▼ Ver todos (${items.length})';}})()" id="${uid}_btn" style="background:none;border:none;color:#569cd6;font-size:11px;cursor:pointer;padding:2px 0">▼ Ver todos (${items.length})</button>`;
+  }
+  return html;
+}
+
 async function doFolderAnalysis() {
   const path = document.getElementById('folder-analysis-path').value.trim();
   const el   = document.getElementById('folder-analysis-result');
@@ -3202,7 +3992,7 @@ async function doFolderAnalysis() {
     const d = await apiFetch('/api/folder-analysis?path=' + encodeURIComponent(path));
     let html = '';
 
-    // Extensions table
+    // Extensions table (usually short — no limit needed)
     if (d.extensions && d.extensions.length > 0) {
       html += '<h4 style="color:#569cd6;margin-bottom:8px">Extensiones encontradas</h4>';
       html += '<div style="overflow-x:auto"><table><thead><tr><th>Extensión</th><th>Archivos</th><th>Categoría</th></tr></thead><tbody>';
@@ -3215,26 +4005,20 @@ async function doFolderAnalysis() {
 
     // CUE sets with missing BIN
     if (d.cue_missing_bin && d.cue_missing_bin.length > 0) {
-      html += `<h4 style="color:#f44747;margin:16px 0 8px">&#x26D4; .cue sin .bin (${d.cue_missing_bin.length})</h4>`;
-      html += '<ul style="margin:0;padding-left:20px">';
-      html += d.cue_missing_bin.map(f => `<li class="mono" style="color:#ce9178;font-size:12px">${_h(f)}</li>`).join('');
-      html += '</ul>';
+      html += `<h4 style="color:#f44747;margin:16px 0 6px">&#x26D4; .cue sin .bin (${d.cue_missing_bin.length})</h4>`;
+      html += _faCollapsibleList(d.cue_missing_bin, f => `<li class="mono" style="color:#ce9178;font-size:12px;padding:1px 0">${_h(f)}</li>`);
     }
 
     // Orphan BIN (no CUE)
     if (d.bin_orphan && d.bin_orphan.length > 0) {
-      html += `<h4 style="color:#ce9178;margin:16px 0 8px">&#x26A0; .bin sin .cue (${d.bin_orphan.length})</h4>`;
-      html += '<ul style="margin:0;padding-left:20px">';
-      html += d.bin_orphan.map(f => `<li class="mono" style="font-size:12px">${_h(f)}</li>`).join('');
-      html += '</ul>';
+      html += `<h4 style="color:#ce9178;margin:16px 0 6px">&#x26A0; .bin sin .cue (${d.bin_orphan.length})</h4>`;
+      html += _faCollapsibleList(d.bin_orphan, f => `<li class="mono" style="font-size:12px;padding:1px 0">${_h(f)}</li>`);
     }
 
     // Formats needing conversion
     if (d.needs_conversion && d.needs_conversion.length > 0) {
-      html += `<h4 style="color:#dcdcaa;margin:16px 0 8px">Formatos que necesitan soporte/conversión</h4>`;
-      html += '<ul style="margin:0;padding-left:20px">';
-      html += d.needs_conversion.map(e => `<li style="color:#888;font-size:12px"><code>${_h(e.ext)}</code> — ${_h(e.note)}</li>`).join('');
-      html += '</ul>';
+      html += `<h4 style="color:#dcdcaa;margin:16px 0 6px">Formatos que necesitan soporte/conversión</h4>`;
+      html += _faCollapsibleList(d.needs_conversion, e => `<li style="color:#888;font-size:12px;padding:1px 0"><code>${_h(e.ext)}</code> — ${_h(e.note)}</li>`);
     }
 
     if (!html) html = '<p style="color:#555">No se encontraron archivos en la carpeta.</p>';
@@ -3344,11 +4128,11 @@ function _renderRaResult(r) {
       const q = _googleQuery(a.ra_title, a.platform);
       return `<tr>
       <td>${a.platform}</td>
-      <td title="${a.filename}" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
-      <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
+      <td title="${a.filename}" style="min-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
+      <td style="min-width:160px"><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
       <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
       <td style="text-align:right;color:#555">${a.ra_points}</td>
-      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})">📋 Copiar</button></td>
+      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})" title="Copiar búsqueda"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><rect x="5" y="5" width="9" height="9" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 10H2a1 1 0 01-1-1V2a1 1 0 011-1h7a1 1 0 011 1v1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></td>
     </tr>`;
     }).join('');
     html += '</tbody></table></div>';
@@ -3404,7 +4188,7 @@ async function loadScraperSummary() {
   const el = document.getElementById('scraper-summary');
   if (!el) return;
   try {
-    const d = await apiFetch('/api/scrape-summary');
+    const d = await apiFetch('/api/scrape-summary?t=' + Date.now());
     if (!d.platforms || d.platforms.length === 0) {
       el.innerHTML = '<p class="empty">No hay datos. Ejecuta un scan primero.</p>';
       return;
@@ -3457,6 +4241,24 @@ async function loadSsQuota() {
   }
 }
 
+async function loadScrapePlatforms() {
+  const sel = document.getElementById('scrape-platform');
+  if (!sel) return;
+  try {
+    const d = await apiFetch('/api/games/filter-options');
+    const current = sel.value;
+    // Keep "all" option, rebuild the rest
+    sel.innerHTML = '<option value="">Todas las plataformas</option>';
+    (d.platforms || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  } catch (_) {}
+}
+
 async function doScrape() {
   const btn = document.getElementById('btn-scrape');
   const resultEl = document.getElementById('job-result-scrape');
@@ -3465,7 +4267,7 @@ async function doScrape() {
   resultEl.className = 'job-result';
   try {
     const d = await apiPost('/api/scrape', {
-      platform: document.getElementById('scrape-platform').value.trim() || null,
+      platform: document.getElementById('scrape-platform').value || null,
       limit:    parseInt(document.getElementById('scrape-limit').value) || 0,
       images:   document.getElementById('scrape-images').checked,
     });
@@ -3647,6 +4449,49 @@ async function testAdbBinary() {
       el.textContent = `✓ adb accesible — ${d.devices?.length ?? 0} dispositivo(s) detectado(s)  (${d.adb_path})`;
     }
   } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
+}
+
+// B7-9: Log viewer
+let _logData = {};
+async function loadLogViewer() {
+  const sel = document.getElementById('log-select');
+  const pre = document.getElementById('log-content');
+  const meta = document.getElementById('log-meta');
+  if (!sel || !pre) return;
+  pre.textContent = 'Cargando…';
+  pre.style.display = '';
+  try {
+    const d = await apiFetch('/api/logs?lines=300');
+    _logData = d.logs || {};
+    const key = sel.value;
+    const log = _logData[key] || {};
+    if (log.error) {
+      pre.textContent = 'Error: ' + log.error;
+    } else if (!log.lines?.length) {
+      pre.textContent = '(Log vacío o no encontrado)';
+    } else {
+      pre.textContent = log.lines.join('\n');
+      pre.scrollTop = pre.scrollHeight;
+    }
+    if (meta && log.size_bytes !== undefined) {
+      meta.textContent = `${log.total_lines || 0} líneas · ${fmtSize(log.size_bytes)} · ${log.path || ''}`;
+    }
+  } catch(e) {
+    if (pre) pre.textContent = 'Error: ' + e.message;
+  }
+}
+
+function downloadLog() {
+  const sel = document.getElementById('log-select');
+  if (!sel) return;
+  const key = sel.value;
+  const log = _logData[key];
+  if (!log?.lines?.length) { showToast('Carga el log primero', 'err'); return; }
+  const blob = new Blob([log.lines.join('\n')], {type: 'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = key + '.log';
+  a.click();
 }
 
 async function loadTools() {
@@ -4164,13 +5009,17 @@ async function doCableSync() {
     : document.getElementById('cable-pc-path'))?.value.trim();
   if (!pcPath) { alert('Introduce la ruta del PC (library_root).'); return; }
 
-  const wantSaves = document.getElementById('cable-what-saves').checked;
-  const wantRoms  = document.getElementById('cable-what-roms').checked;
-  if (!wantSaves && !wantRoms) { alert('Selecciona al menos qué sincronizar: saves o ROMs.'); return; }
+  const wantSaves     = document.getElementById('cable-what-saves').checked;
+  const wantRoms      = document.getElementById('cable-what-roms').checked;
+  const wantAssets    = document.getElementById('cable-what-assets')?.checked ?? false;
+  const wantGamelists = document.getElementById('cable-what-gamelists')?.checked ?? false;
+  if (!wantSaves && !wantRoms && !wantAssets && !wantGamelists) { alert('Selecciona al menos qué sincronizar.'); return; }
 
   const what = [];
-  if (wantSaves) what.push('saves');
-  if (wantRoms)  what.push('roms');
+  if (wantSaves)     what.push('saves');
+  if (wantRoms)      what.push('roms');
+  if (wantAssets)    what.push('assets');
+  if (wantGamelists) what.push('gamelists');
 
   const direction    = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
   const dryRun       = document.getElementById('cable-dry-run').checked;
@@ -4467,6 +5316,87 @@ async function organizeLibrary(dryRun) {
   }
 }
 
+// ── Library Doctor ────────────────────────────────────────────────────────────
+async function doLibraryDoctor() {
+  const el = document.getElementById('library-doctor-result');
+  el.innerHTML = '<p style="color:#555;font-size:12px">Analizando…</p>';
+  try {
+    const d = await apiFetch('/api/library-doctor');
+    if (d.error) { el.innerHTML = `<p class="error-msg">${_h(d.error)}</p>`; return; }
+    if (d.total === 0) {
+      el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">&#x2713; Biblioteca sana — no se encontraron problemas.</p>';
+      return;
+    }
+    const sev = { error: '#f44747', warning: '#ce9178', info: '#555' };
+    const icon = { misplaced_rom: '&#x1F4C2;', incomplete_cue: '&#x274C;', empty_dir: '&#x1F4C1;' };
+    const label = { misplaced_rom: 'ROM mal ubicado', incomplete_cue: 'Set CUE incompleto', empty_dir: 'Carpeta vacía' };
+    let html = `<div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px">`;
+    for (const [type, count] of Object.entries(d.by_type || {})) {
+      html += `<span style="color:${sev[{misplaced_rom:'warning',incomplete_cue:'error',empty_dir:'info'}[type]||'info']}">${icon[type]||'·'} ${count} ${label[type]||type}</span>`;
+    }
+    html += `</div>`;
+    html += '<div style="max-height:420px;overflow-y:auto">';
+    html += '<table style="font-size:11px;width:100%;border-collapse:collapse"><thead><tr>';
+    html += '<th style="text-align:left;padding:3px 6px;color:#555;border-bottom:1px solid #222">Tipo</th>';
+    html += '<th style="text-align:left;padding:3px 6px;color:#555;border-bottom:1px solid #222">Archivo</th>';
+    html += '<th style="text-align:left;padding:3px 6px;color:#555;border-bottom:1px solid #222">Acción sugerida</th>';
+    html += '<th style="padding:3px 6px;border-bottom:1px solid #222"></th>';
+    html += '</tr></thead><tbody>';
+    // Store issues for action handlers (B7-7)
+    window._doctorIssues = d.issues;
+    for (let _di = 0; _di < d.issues.length; _di++) {
+      const iss = d.issues[_di];
+      const c = sev[iss.severity] || '#888';
+      let actionBtn = '';
+      if (iss.type === 'misplaced_rom') {
+        actionBtn = `<button class="btn" style="font-size:10px;padding:2px 6px;min-height:unset" onclick="doctorMoveRom(${_di})">Mover</button>`;
+      } else if (iss.type === 'empty_dir') {
+        actionBtn = `<button class="btn danger" style="font-size:10px;padding:2px 6px;min-height:unset" onclick="doctorDeleteDir(${_di})">Eliminar</button>`;
+      }
+      html += `<tr id="doctor-row-${_di}" style="border-bottom:1px solid #1a1a1a">`;
+      html += `<td style="padding:3px 6px;color:${c};white-space:nowrap">${icon[iss.type]||''} ${label[iss.type]||iss.type}</td>`;
+      html += `<td style="padding:3px 6px;color:#ce9178;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(iss.path)}">${_h(iss.file)}</td>`;
+      html += `<td style="padding:3px 6px;color:#555">${_h(iss.action||'')}${iss.missing_bins ? ' (' + iss.missing_bins.map(_h).join(', ') + ')' : ''}</td>`;
+      html += `<td style="padding:3px 6px">${actionBtn}</td>`;
+      html += `</tr>`;
+    }
+    html += '</tbody></table></div>';
+    if (d.total > 200) html += `<p style="color:#555;font-size:11px;margin-top:6px">… y ${d.total - 200} más</p>`;
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${_h(e.message)}</p>`;
+  }
+}
+
+// B7-7: Doctor action handlers
+async function doctorMoveRom(idx) {
+  const iss = (window._doctorIssues || [])[idx];
+  if (!iss) return;
+  const row = document.getElementById('doctor-row-' + idx);
+  try {
+    const d = await apiPost('/api/doctor-move-rom', { path: iss.path, expected_dir: iss.expected_dir });
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    showToast('Movido a ' + (iss.expected_dir || '').split(/[\\/]/).pop() + '/', 'ok');
+    if (row) row.style.opacity = '0.3';
+    const btn = row?.querySelector('button');
+    if (btn) btn.disabled = true;
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+async function doctorDeleteDir(idx) {
+  const iss = (window._doctorIssues || [])[idx];
+  if (!iss) return;
+  const row = document.getElementById('doctor-row-' + idx);
+  try {
+    const d = await apiPost('/api/doctor-delete-dir', { path: iss.path });
+    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    showToast('Carpeta eliminada: ' + iss.file, 'ok');
+    if (row) row.style.opacity = '0.3';
+    const btn = row?.querySelector('button');
+    if (btn) btn.disabled = true;
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
 // ── Library Report ───────────────────────────────────────────────────────────
 let _reportData = null;
 
@@ -4699,11 +5629,11 @@ function _renderReportRa(d) {
       const q = _googleQuery(a.ra_title, a.platform);
       return `<tr>
       <td>${a.platform}</td>
-      <td title="${a.filename}" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
+      <td title="${a.filename}" style="min-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.filename}</td>
       <td><a href="https://retroachievements.org/game/${a.ra_id}" target="_blank" style="color:#4ec9b0">${a.ra_title}</a></td>
       <td style="text-align:right;color:#ce9178">${a.ra_achievements}</td>
       <td style="text-align:right;color:#555">${a.ra_points}</td>
-      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})">📋 Copiar</button></td>
+      <td style="white-space:nowrap"><button class="btn" style="font-size:10px;padding:2px 7px" onclick="_copyText(${JSON.stringify(q)})" title="Copiar búsqueda"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><rect x="5" y="5" width="9" height="9" rx="1.5" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 10H2a1 1 0 01-1-1V2a1 1 0 011-1h7a1 1 0 011 1v1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button></td>
     </tr>`;
     }).join('');
     html += '</tbody></table></div>';
@@ -4771,6 +5701,15 @@ function exportReportHtml() {
     d.multidisc.issues.map(i => `<div class="bad">${i.base_name}: ${i.detail}</div>`).join('') || '<p class="ok">Todos los sets completos</p>',
     `<h2>Saves huérfanos (${d.orphans.total}) — ${fmtSize(d.orphans.total_bytes)}</h2>`,
     d.orphans.saves.map(s => `<div class="warn">${s.path}</div>`).join('') || '<p class="ok">Sin saves huérfanos</p>',
+    // B7-8: RA section in HTML report
+    (() => {
+      const ra = d.ra;
+      if (!ra || ra.note || ra.error) return '';
+      const alts = (ra.alternatives || []);
+      if (!alts.length) return '<h2>RetroAchievements</h2><p class="ok">Todos los juegos son compatibles con RA.</p>';
+      const rows = alts.map(a => `<tr><td>${a.platform||''}</td><td>${a.filename||''}</td><td><a href="https://retroachievements.org/game/${a.ra_id}" style="color:#4ec9b0">${a.ra_title||''}</a></td><td style="text-align:right;color:#ce9178">${a.ra_achievements||0}</td><td style="text-align:right">${a.ra_points||0}</td></tr>`).join('');
+      return `<h2>RetroAchievements — ${alts.length} con alternativa</h2><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="color:#555"><th style="text-align:left;padding:3px 6px">Plataforma</th><th style="text-align:left;padding:3px 6px">Tu archivo</th><th style="text-align:left;padding:3px 6px">Título RA</th><th style="padding:3px 6px">Logros</th><th style="padding:3px 6px">Puntos</th></tr></thead><tbody>${rows}</tbody></table>`;
+    })(),
     `</body></html>`,
   ];
   const blob = new Blob([lines.join('\n')], {type: 'text/html;charset=utf-8'});
@@ -5014,9 +5953,15 @@ async function scanInbox() {
       (d.unrecognized > 0 ? ' · <span style="color:#f14c4c">' + d.unrecognized + ' no reconocidos</span>' : '') +
       (platStr ? ' &nbsp;|&nbsp; ' + platStr : '');
     if (summaryEl) summaryEl.style.display = '';
-    // Table
+    // Table — B7-4: sort by platform (known first, unknown last), then by name
     if (tbody) {
-      tbody.innerHTML = (d.files || []).map(f => {
+      const sortedFiles = [...(d.files || [])].sort((a, b) => {
+        const pa = a.platform_guess || '\xff';
+        const pb = b.platform_guess || '\xff';
+        if (pa !== pb) return pa < pb ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      tbody.innerHTML = sortedFiles.map(f => {
         const typeColor = f.type === 'zip' ? '#dcdcaa' : f.type === 'disc_image' ? '#4ec9b0' : f.type === 'rom' ? '#9cdcfe' : '#555';
         const platBadge = f.platform_guess ? '<span class="badge">' + f.platform_guess + '</span>' : '<span style="color:#555">—</span>';
         const extract   = f.needs_extraction ? '<span style="color:#dcdcaa">extraer ZIP</span>' : '';
@@ -5116,7 +6061,9 @@ function _renderInboxResult(r) {
   }
   el.className = 'job-result visible';
   let html = '<strong style="color:#4ec9b0">Pipeline completado</strong><br>';
-  html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong> &nbsp;';
+  const archived = r.zips_archived || 0;
+  const zipNote = archived > 0 ? ` <span style="color:#888;font-size:11px">(${archived} movidos a _processed/)</span>` : '';
+  html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';
@@ -5190,6 +6137,9 @@ document.addEventListener('DOMContentLoaded', () => {
     _closeConfirm();
   });
 
+  // S35-1: Apply saved theme on load
+  _applyTheme(localStorage.getItem('rv_theme') || 'dark');
+
   // 24-1: Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     const tag = document.activeElement?.tagName;
@@ -5214,3 +6164,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// ── S35-1: Theme toggle ───────────────────────────────────────────────────────
+function _applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('rv_theme', theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = theme === 'light' ? '\u2600 Claro' : '\u263D Oscuro';
+  const darkBtn  = document.getElementById('theme-btn-dark');
+  const lightBtn = document.getElementById('theme-btn-light');
+  if (darkBtn)  darkBtn.style.opacity  = theme === 'dark'  ? '1' : '0.5';
+  if (lightBtn) lightBtn.style.opacity = theme === 'light' ? '1' : '0.5';
+}
+
+function setTheme(theme) { _applyTheme(theme); }
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme || 'dark';
+  _applyTheme(current === 'dark' ? 'light' : 'dark');
+}

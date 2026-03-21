@@ -23,6 +23,7 @@ class AppConfig:
     logs_dir: Path
     catalogs_nointro_dir: Path
     catalogs_redump_dir: Path
+    catalogs_arcade_dir: Path
     excluded_directories: tuple[str, ...]
     frontend_asset_extensions: tuple[str, ...]
     save_extensions: tuple[str, ...]
@@ -169,6 +170,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         logs_dir=logs_dir,
         catalogs_nointro_dir=catalogs_dir / "nointro",
         catalogs_redump_dir=catalogs_dir / "redump",
+        catalogs_arcade_dir=catalogs_dir / "arcade",
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,

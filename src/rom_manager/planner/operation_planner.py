@@ -20,6 +20,13 @@ def _same_file(a: Path, b: Path) -> bool:
         return False
 
 
+# Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
+# Also used as the heuristic to detect whether source is flat (parent.name in this set)
+# or already in a subfolder (parent.name not in this set).
+_DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset({
+    "psx", "saturn", "ps2", "dreamcast", "gamecube", "wii",
+})
+
 # Annotations de región al estilo No-Intro: (USA), (Europe), (World), etc.
 _REGION_RE = re.compile(
     r"\s*\((?:USA|Europe|World|Japan|Germany|France|Spain|Italy|Australia|"
@@ -110,9 +117,16 @@ def build_plan(
     for game in repository.get_matched_games():
         source = Path(game.source_path)
         new_filename = _canonical_filename(game, opts)
-        target = source.parent / new_filename
 
-        if source.name == new_filename:
+        # Disc platforms: each game lives in its own subfolder (psx/Game/Game.cue)
+        if game.platform and game.platform.lower() in _DISC_SUBFOLDER_PLATFORMS:
+            target = source.parent.parent / Path(new_filename).stem / new_filename \
+                if source.parent.name.lower() not in _DISC_SUBFOLDER_PLATFORMS \
+                else source.parent / Path(new_filename).stem / new_filename
+        else:
+            target = source.parent / new_filename
+
+        if source == target:
             plan.already_correct.append(
                 RenameOperation(game=game, source_path=source, target_path=target, status="already_correct")
             )

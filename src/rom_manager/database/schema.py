@@ -171,6 +171,22 @@ SCHEMA_STATEMENTS = (
         created_at  TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS wishlist (
+        sha1        TEXT NOT NULL PRIMARY KEY,
+        title       TEXT NOT NULL,
+        platform    TEXT NOT NULL DEFAULT '',
+        region      TEXT,
+        year        TEXT,
+        status      TEXT NOT NULL DEFAULT 'searching',
+        dat_source  TEXT,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_wishlist_platform ON wishlist (platform)
+    """,
 )
 
 # Columns added after the initial schema that may be missing in existing databases.
@@ -192,6 +208,11 @@ _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("game_id", "INTEGER"),  # DEPRECATED: added to schema but never written by upsert_asset()
 )
 
+_METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("screenshot_path", "TEXT"),  # B6-7: local path to downloaded screenshot
+    ("wheel_path", "TEXT"),       # B6-7: local path to downloaded wheel/logo
+)
+
 
 def initialize_database(connection: sqlite3.Connection) -> None:
     cursor = connection.cursor()
@@ -199,6 +220,7 @@ def initialize_database(connection: sqlite3.Connection) -> None:
         cursor.execute(statement)
     _migrate_games_columns(cursor)
     _migrate_assets_columns(cursor)
+    _migrate_metadata_columns(cursor)
     _migrate_is_favorite_default(cursor)
     connection.commit()
 
@@ -234,3 +256,11 @@ def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:
     for col_name, col_type in _ASSETS_MIGRATIONS:
         if col_name not in existing:
             _alter_table_add_column(cursor, "assets", col_name, col_type)
+
+
+def _migrate_metadata_columns(cursor: sqlite3.Cursor) -> None:
+    """Add any missing columns to game_metadata without touching existing data."""
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(game_metadata)")}
+    for col_name, col_type in _METADATA_MIGRATIONS:
+        if col_name not in existing:
+            _alter_table_add_column(cursor, "game_metadata", col_name, col_type)
