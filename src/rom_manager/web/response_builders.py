@@ -606,6 +606,63 @@ def _build_plan(
     }
 
 
+def _annotate_duplicates_with_ra(title_groups: list[dict], config: "AppConfig") -> list[dict]:
+    """B1-4: Annotate title_groups entries with RA achievements count if available."""
+    from collections import defaultdict
+    import json as _json
+    from pathlib import Path as _Path
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+    from rom_manager.retroachievements.ra_client import _parse_game_list
+
+    cache_dir = config.project_root / ".rommgr" / "ra_cache"
+
+    # Build platform → {md5 → achievements} map
+    platform_hash_map: dict[str, dict[str, int]] = {}
+    for group in title_groups:
+        plat = group.get("platform") or "unknown"
+        if plat in platform_hash_map:
+            continue
+        console_id = get_ra_console_id(plat)
+        if not console_id:
+            continue
+        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+        if not cache_file.exists():
+            continue
+        try:
+            data = _json.loads(cache_file.read_text(encoding="utf-8"))
+            hash_lib = _parse_game_list(data)
+            platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
+        except Exception:
+            continue
+
+    # Get MD5 mapping: id → md5 from database
+    id_to_md5: dict[int, str] = {}
+    try:
+        from rom_manager.database.repository import LibraryRepository
+        repo = LibraryRepository(config.project_root)
+        with repo.connect() as conn:
+            rows = conn.execute("SELECT id, md5 FROM games").fetchall()
+            id_to_md5 = {r["id"]: r["md5"] for r in rows}
+    except Exception:
+        pass
+
+    # Annotate each entry
+    result = []
+    for group in title_groups:
+        plat = group.get("platform")
+        hash_map = platform_hash_map.get(plat, {})
+        annotated_entries = []
+        for entry in group.get("entries", []):
+            md5 = id_to_md5.get(entry["id"], "")
+            md5_lower = (md5 or "").lower()
+            achievements = hash_map.get(md5_lower, 0)
+            annotated_entry = {**entry, "ra_achievements": achievements}
+            annotated_entries.append(annotated_entry)
+        result.append({**group, "entries": annotated_entries})
+
+    return result
+
+
 def _build_duplicates(
     repository: LibraryRepository,
     source_root: str | None = None,
@@ -651,6 +708,9 @@ def _build_duplicates(
 
     # Semantic duplicates: same canonical_title+platform but different SHA1
     title_groups = repository.get_title_duplicate_groups()
+
+    # Annotate title_groups with RA achievements if available
+    title_groups = _annotate_duplicates_with_ra(title_groups, config)
 
     return {
         "groups": [

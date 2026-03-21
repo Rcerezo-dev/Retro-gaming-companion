@@ -37,7 +37,7 @@ from rom_manager.web.inbox_pipeline import (
 _job_lock = threading.Lock()
 _jobs: dict[str, bool] = {
     "scan": False, "match": False, "sync": False,
-    "convert_chd": False, "scrape": False,
+    "convert_chd": False, "convert_cso": False, "scrape": False,
     "extract_zip": False, "health_check": False,
     "ra_check": False, "cable_sync": False,
     "apply": False, "inbox": False, "setup": False,
@@ -117,6 +117,7 @@ _STANDARD_PLATFORM_FOLDERS: tuple[str, ...] = (
 )
 
 _chd_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
+_cso_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
 _scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "current_game": str}
 _zip_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
 _health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
@@ -130,6 +131,7 @@ _setup_progress: dict = {}   # {"step": str, "step_num": int, "total_steps": int
 _scan_cancel:   threading.Event = threading.Event()
 _cable_cancel:  threading.Event = threading.Event()
 _chd_cancel:    threading.Event = threading.Event()
+_cso_cancel:    threading.Event = threading.Event()
 _zip_cancel:    threading.Event = threading.Event()
 _health_cancel: threading.Event = threading.Event()
 _ra_cancel:     threading.Event = threading.Event()
@@ -1052,13 +1054,16 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             "match_running": _jobs["match"],
                             "sync_running": _jobs["sync"],
                             "convert_chd_running": _jobs["convert_chd"],
+                            "convert_cso_running": _jobs["convert_cso"],
                             "scrape_running": _jobs["scrape"],
                             "scan_result": _job_results.get("scan"),
                             "match_result": _job_results.get("match"),
                             "sync_result": _job_results.get("sync"),
                             "convert_chd_result": _job_results.get("convert_chd"),
+                            "convert_cso_result": _job_results.get("convert_cso"),
                             "scrape_result": _job_results.get("scrape"),
                             "chd_progress": dict(_chd_progress) if _chd_progress else None,
+                            "cso_progress": dict(_cso_progress) if _cso_progress else None,
                             "scrape_progress": dict(_scrape_progress) if _scrape_progress else None,
                             "extract_zip_running": _jobs["extract_zip"],
                             "zip_progress": dict(_zip_progress) if _zip_progress else None,
@@ -1098,6 +1103,21 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         self._send_json({"ok": True, "version": first_line, "path": config.chdman})
                     except FileNotFoundError:
                         self._send_json({"ok": False, "error": f"No encontrado: {config.chdman!r}"})
+                    except Exception as exc:
+                        self._send_json({"ok": False, "error": str(exc)})
+                elif path == "/api/test-maxcso":
+                    import subprocess
+                    maxcso_path = str(config.project_root / "tools" / "maxcso.exe")
+                    try:
+                        r = subprocess.run(
+                            [maxcso_path, "--help"],
+                            capture_output=True, timeout=5,
+                        )
+                        out = (r.stdout or r.stderr or b"").decode(errors="replace").strip()
+                        first_line = out.splitlines()[0] if out else "maxcso disponible"
+                        self._send_json({"ok": True, "version": first_line, "path": maxcso_path})
+                    except FileNotFoundError:
+                        self._send_json({"ok": False, "error": f"No encontrado: {maxcso_path!r}"})
                     except Exception as exc:
                         self._send_json({"ok": False, "error": str(exc)})
                 elif path == "/api/logs":
@@ -1445,6 +1465,48 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         body = buf.getvalue().encode("utf-8-sig")
                         self._send(200, "text/csv; charset=utf-8", body,
                                    extra_headers={"Content-Disposition": 'attachment; filename="library.csv"'})
+                elif path == "/api/collection-stats-v2":
+                    root = qs.get("root", [""])[0]
+                    stats_repo = _get_repo(root or "")
+                    with stats_repo.connect() as conn:
+                        # Totales por platform
+                        by_plat = conn.execute(
+                            "SELECT platform, COUNT(*) as n FROM games GROUP BY platform ORDER BY n DESC"
+                        ).fetchall()
+                        # Totales por play_status
+                        by_status = conn.execute(
+                            "SELECT COALESCE(play_status,'Sin estado') as s, COUNT(*) as n FROM games GROUP BY s ORDER BY n DESC"
+                        ).fetchall()
+                        # Totales por region
+                        by_region = conn.execute(
+                            "SELECT COALESCE(region,'?') as r, COUNT(*) as n FROM games GROUP BY r ORDER BY n DESC"
+                        ).fetchall()
+                        total = sum(r['n'] for r in by_plat)
+                        favs = conn.execute("SELECT COUNT(*) as n FROM games WHERE favorite=1").fetchone()['n']
+                    self._send_json({
+                        'total': total, 'favorites': favs,
+                        'by_platform': [dict(r) for r in by_plat],
+                        'by_status': [dict(r) for r in by_status],
+                        'by_region': [dict(r) for r in by_region],
+                    })
+                elif path == "/api/export-wishlist":
+                    root = qs.get("root", [""])[0]
+                    export_repo = _get_repo(root or "")
+                    rows = export_repo.get_wishlist()
+                    import io as _io3, csv as _csv3
+                    buf = _io3.StringIO()
+                    writer = _csv3.writer(buf)
+                    writer.writerow(["Title", "Platform", "Region", "Notes"])
+                    for r in rows:
+                        writer.writerow([
+                            r.get("title", ""),
+                            r.get("platform", ""),
+                            r.get("region", ""),
+                            r.get("notes", "")
+                        ])
+                    body = buf.getvalue().encode("utf-8-sig")
+                    self._send(200, "text/csv; charset=utf-8", body,
+                               extra_headers={"Content-Disposition": 'attachment; filename="wishlist.csv"'})
                 elif path == "/api/save-comparison":
                     self._send_json({"saves": repository.get_save_comparison()})
                 elif path == "/api/game-sync-history":
@@ -1641,10 +1703,15 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 # Bulk discard games with NO RA support at all (from RA check)
                 elif path == "/api/ra-check/discard-no-support":
                     self._handle_ra_discard_no_support()
+                # B1-4: resolve title-based duplicates by keeping the one with RA support
+                elif path == "/api/resolve-duplicate-ra":
+                    self._handle_resolve_duplicate_ra(data)
                 elif path == "/api/sync":
                     self._handle_sync(data)
                 elif path == "/api/convert-chd":
                     self._handle_convert_chd(data)
+                elif path == "/api/convert-cso":
+                    self._handle_convert_cso(data)
                 elif path == "/api/scrape":
                     self._handle_scrape(data)
                 elif path == "/api/export-gamelists":
@@ -2675,6 +2742,122 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
             threading.Thread(target=run, daemon=True).start()
             self._send_json({"status": "started", "dry_run": dry_run})
+
+        def _handle_convert_cso(self, data: dict) -> None:
+            source_path_str = data.get("source_path", "").strip()
+            if not source_path_str:
+                self._send_json({"error": "source_path is required"})
+                return
+            delete_source = data.get("delete_source", False)
+
+            with _job_lock:
+                if _jobs["convert_cso"]:
+                    self._send_json({"status": "already_running"})
+                    return
+                _jobs["convert_cso"] = True
+
+            def run() -> None:
+                import subprocess
+                _cso_cancel.clear()
+                try:
+                    source = Path(source_path_str).resolve()
+                    maxcso_path = str(config.project_root / "tools" / "maxcso.exe")
+
+                    # Find all .cso and .zso files recursively
+                    cso_files = list(source.rglob("*.cso")) + list(source.rglob("*.zso"))
+
+                    # Filter out MAME/arcade ROMs — they are native ZIP format
+                    arcade_platforms = {"arcade", "fbneo", "mame", "neogeo"}
+                    def _is_arcade(p: Path) -> bool:
+                        return any(plat in str(p).lower() for plat in arcade_platforms)
+
+                    cso_files = [c for c in cso_files if not _is_arcade(c)]
+                    total = len(cso_files)
+                    _cso_progress.update({"current": 0, "total": total, "current_file": ""})
+
+                    converted = 0
+                    skipped = 0
+                    failed = 0
+                    results = []
+
+                    for idx, cso_path in enumerate(cso_files, 1):
+                        if _cso_cancel.is_set():
+                            break
+                        _cso_progress.update({"current": idx, "total": total, "current_file": cso_path.name})
+                        iso_path = cso_path.with_suffix(".iso")
+
+                        # Check if output already exists
+                        if iso_path.exists():
+                            skipped += 1
+                            results.append({
+                                "file": cso_path.name,
+                                "success": False,
+                                "error": "Output .iso already exists"
+                            })
+                            continue
+
+                        # Run maxcso --decompress
+                        try:
+                            r = subprocess.run(
+                                [maxcso_path, "--decompress", f"--output={iso_path}", str(cso_path)],
+                                capture_output=True, timeout=300,
+                            )
+                            if r.returncode == 0:
+                                converted += 1
+                                results.append({
+                                    "file": cso_path.name,
+                                    "success": True,
+                                    "error": None,
+                                })
+                                # Delete source if requested
+                                if delete_source:
+                                    cso_path.unlink()
+                            else:
+                                failed += 1
+                                err = (r.stderr or b"").decode(errors="replace").strip()
+                                results.append({
+                                    "file": cso_path.name,
+                                    "success": False,
+                                    "error": err or "maxcso failed with non-zero exit"
+                                })
+                        except FileNotFoundError:
+                            failed += 1
+                            results.append({
+                                "file": cso_path.name,
+                                "success": False,
+                                "error": f"maxcso not found: {maxcso_path}"
+                            })
+                        except subprocess.TimeoutExpired:
+                            failed += 1
+                            results.append({
+                                "file": cso_path.name,
+                                "success": False,
+                                "error": "Timeout (>300s)"
+                            })
+                        except Exception as e:
+                            failed += 1
+                            results.append({
+                                "file": cso_path.name,
+                                "success": False,
+                                "error": str(e)
+                            })
+
+                    _job_results["convert_cso"] = {
+                        "converted": converted,
+                        "skipped": skipped,
+                        "failed": failed,
+                        "cancelled": _cso_cancel.is_set(),
+                        "results": results,
+                    }
+                except Exception as exc:
+                    _job_results["convert_cso"] = {"error": str(exc)}
+                finally:
+                    with _job_lock:
+                        _cso_progress.clear()
+                        _jobs["convert_cso"] = False
+
+            threading.Thread(target=run, daemon=True).start()
+            self._send_json({"status": "started"})
 
         def _handle_save_config(self, data: dict) -> None:
             from rom_manager.config import write_config_toml, load_config
@@ -4229,6 +4412,65 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         errors.append(f"{p.name}: deleted from disk but DB error — {exc}")
                     else:
                         errors.append(f"{p.name}: {exc}")
+            self._send_json({
+                "discarded": discarded,
+                "failed": failed,
+                "errors": errors[:10],
+            })
+
+        def _handle_resolve_duplicate_ra(self, data: dict) -> None:
+            """B1-4: Resolve title-based duplicates by keeping the one with RA support."""
+            import shutil as _shutil
+            import logging as _logging
+            _b14_log = _logging.getLogger(__name__)
+            keep_path = data.get("keep_path", "").strip()
+            discard_paths = data.get("discard_paths", [])
+            if not keep_path or not discard_paths:
+                self._send_json({"error": "keep_path and discard_paths required"})
+                return
+
+            discarded = 0
+            failed = 0
+            errors = []
+
+            for src_path_str in discard_paths:
+                p = Path(src_path_str)
+                if not p.exists():
+                    # Already gone — remove from DB
+                    try:
+                        with repository.connect() as _c:
+                            _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
+                            _c.commit()
+                        discarded += 1
+                    except Exception as exc:
+                        failed += 1
+                        errors.append(f"{p.name}: {exc}")
+                    continue
+
+                discard_dir = p.parent / "_descartados"
+                dest_file: Path | None = None
+                try:
+                    discard_dir.mkdir(parents=True, exist_ok=True)
+                    dest_file = discard_dir / p.name
+                    if dest_file.exists():
+                        p.unlink()
+                    else:
+                        _shutil.move(str(p), str(dest_file))
+                    # Delete from DB
+                    with repository.connect() as _c:
+                        _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
+                        _c.commit()
+                    discarded += 1
+                except Exception as exc:
+                    failed += 1
+                    _b14_log.error("Failed to discard duplicate %s: %s", p.name, exc)
+                    if dest_file and dest_file.exists():
+                        try:
+                            _shutil.move(str(dest_file), str(p))
+                        except Exception:
+                            pass
+                    errors.append(f"{p.name}: {exc}")
+
             self._send_json({
                 "discarded": discarded,
                 "failed": failed,
