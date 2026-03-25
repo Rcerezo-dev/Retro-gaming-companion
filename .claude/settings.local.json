@@ -72,7 +72,23 @@
       "Bash(\"/e/Emuladores/Retroarch/retroarch.exe\" -L \"/e/Emuladores/Retroarch/cores/mgba_libretro.dll\" \"/e/Carpetas anbernic/gba/Advance Wars \\(Europe\\) \\(En,Fr,De,Es\\).gba\" --verbose)",
       "Bash(powershell -command \"\\(New-Object -COM WScript.Shell\\).CreateShortcut\\('C:\\\\Users\\\\rammu\\\\Desktop\\\\EmulationStation.lnk'\\).TargetPath\" 2>/dev/null)",
       "Bash(\"/e/Emuladores/Retroarch/run_retroarch.bat\":*)",
-      "Bash(find \"C:/Users/rammu/.emulationstation/gamelists\" -name \"gamelist.xml\" -delete)"
+      "Bash(find \"C:/Users/rammu/.emulationstation/gamelists\" -name \"gamelist.xml\" -delete)",
+      "WebFetch(domain:dev.to)",
+      "Bash(grep -n 'elif path == \"\"\"\"/api/' src/rom_manager/web/server.py)",
+      "Bash(find C:/Users/rammu/Documents/projects/Retro_gaming_app -name *.log -newer C:/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/server.py)",
+      "Bash(find C:/Users/rammu/Documents/projects/Retro_gaming_app -name *.log)",
+      "Bash(find C:/Users/rammu -maxdepth 3 -name rommgr*.log -o -name retrovault*.log)",
+      "Bash(find C:/Users/rammu/Documents/projects/Retro_gaming_app -name *.db)",
+      "Bash(python3 -c \"import sys; lines=[l.strip\\(\\) for l in sys.stdin]; found=[l for l in lines if 2050 <= int\\(l.split\\('''':''''\\)[0]\\) <= 2110]; print\\(''''\\\\n''''.join\\(found\\)\\)\")",
+      "Bash(node --check src/rom_manager/web/static/app.js)",
+      "Bash(C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe -c \"\nimport sys\nsys.path.insert\\(0, 'C:/Users/rammu/Documents/projects/Retro_gaming_app/src'\\)\nfrom rom_manager.detection.platform_detector import detect_platform\nfrom pathlib import Path\np = Path\\('test.gba'\\)\nprint\\(detect_platform\\(p\\)\\)\n\")",
+      "Bash(\"/c/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -c \"import sys; print\\(sys.version\\)\")",
+      "Bash(\"/c/Users/rammu/anaconda3/envs/rom_manager/python.exe\" e2e_integration_test.py)",
+      "Bash(python -c \":*)",
+      "Bash(grep -E 'style=\"\"\"\"[^\"\"\"\"]{50,}' '/c/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/frontend.py')",
+      "Bash(C:/Users/rammu/anaconda3envsrom_managerpython.exe -m pytest tests/test_library_structure.py::TestOrganizeLibrary::test_apply_moves_sibling_save -v --tb=long)",
+      "Bash(wc:*)",
+      "Bash(grep -oP \"apiFetch\\\\\\([''''\\\\`][^''''\\\\`]+[''''\\\\`]\\\\\\)\" C:/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/static/app.js)"
     ]
   }
 }

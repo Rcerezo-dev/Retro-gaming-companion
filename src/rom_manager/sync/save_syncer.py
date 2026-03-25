@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.sync.conflict_resolver import SyncDecision, decide
+from rom_manager.sync.delta_cache import DeltaCache
 from rom_manager.sync.rclone_transport import RemoteEntry, RcloneError, RcloneTransport
 from rom_manager.sync.sync_log import get_last_sync, log_sync_event
 
@@ -25,10 +26,11 @@ class SyncResult:
     up_to_date: int = 0
     conflicts: int = 0
     errors: int = 0
+    delta_skipped: int = 0  # files skipped because content hash unchanged
 
     @property
     def total(self) -> int:
-        return self.uploaded + self.downloaded + self.up_to_date + self.conflicts + self.errors
+        return self.uploaded + self.downloaded + self.up_to_date + self.conflicts + self.errors + self.delta_skipped
 
 
 def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[LocalSave]:
@@ -61,6 +63,7 @@ def sync_saves(
     dry_run: bool = True,
     backup_root: Path | None = None,
     backup_keep_n: int = 5,
+    delta_cache: DeltaCache | None = None,
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *remote_root* using rclone.
 
@@ -106,6 +109,17 @@ def sync_saves(
                 result.up_to_date += 1
                 continue
 
+            # S37-2 delta cache: skip upload if content hash is unchanged
+            # (mtime may differ, e.g. emulator opened file without writing new data)
+            if (
+                decision.action == "upload"
+                and delta_cache is not None
+                and local is not None
+                and not delta_cache.content_changed(relative, local_path)
+            ):
+                result.delta_skipped += 1
+                continue
+
             if dry_run:
                 if decision.action == "upload":
                     result.uploaded += 1
@@ -129,6 +143,8 @@ def sync_saves(
                         result="ok",
                         created_at=timestamp,
                     )
+                    if delta_cache is not None:
+                        delta_cache.mark_synced(relative, local_path, "upload")
                     result.uploaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -164,6 +180,8 @@ def sync_saves(
                         result="ok",
                         created_at=timestamp,
                     )
+                    if delta_cache is not None:
+                        delta_cache.mark_synced(relative, local_path, "download")
                     result.downloaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -207,8 +225,12 @@ def sync_saves(
                         message=f"Conflict resolved: local kept; remote backed up as {backup_rel}",
                         created_at=timestamp,
                     )
+                    if delta_cache is not None:
+                        delta_cache.mark_synced(relative, local_path, "upload")
                     result.conflicts += 1
                 except RcloneError as exc:
+                    if delta_cache is not None:
+                        delta_cache.invalidate(relative)
                     log_sync_event(
                         conn,
                         local_path=str(local_path),

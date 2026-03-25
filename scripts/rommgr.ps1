@@ -3,7 +3,7 @@ param(
     [string[]]$Args
 )
 
-$python = 'C:\Users\rammu\AppData\Local\Programs\Python\Python312\python.exe'
+$python = 'C:\Users\rammu\anaconda3\envs\rom_manager\python.exe'
 
 if (-not (Test-Path $python)) {
     Write-Error "Python not found at $python"

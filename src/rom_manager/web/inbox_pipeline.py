@@ -451,9 +451,14 @@ def _run_inbox_pipeline(
 
             _upd("organizing", 6, idx, len(rows), source_file.name)
 
-            # Avoid overwriting
+            # Dest already exists → source is a duplicate; remove it from inbox
             if dest_file.exists():
-                organize_errors.append(f"{source_file.name}: ya existe en destino, omitido")
+                try:
+                    source_file.unlink()
+                    repository.delete_game(game_id)
+                    logger.info("Inbox: removed duplicate %s (already in %s)", source_file.name, dest_folder)
+                except Exception as exc:
+                    organize_errors.append(f"{source_file.name}: duplicado en destino, no se pudo eliminar fuente — {exc}")
                 continue
 
             try:

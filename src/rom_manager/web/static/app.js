@@ -1,5 +1,17 @@
 "use strict";
 
+// ── Visibility helpers ─────────────────────────────────────────────────────
+const _hide    = el => el && el.classList.add('hidden');
+const _show    = el => el && el.classList.remove('hidden');
+const _showIf  = (el, vis) => el && el.classList.toggle('hidden', !vis);
+
+// ── Status text colour helper ──────────────────────────────────────────────
+const _txtCls = (el, cls) => {
+  if (!el) return;
+  el.classList.remove('txt-err', 'txt-ok', 'txt-warn', 'txt-muted', 'txt-dim', 'txt-fav');
+  if (cls) el.classList.add(cls);
+};
+
 // Pagination state for Games tab
 let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null };
 let _gamesViewMode = localStorage.getItem('games_view_mode') || 'list'; // 'list' | 'grid'
@@ -31,7 +43,7 @@ function applyColVisibility() {
     sha1:   document.getElementById('gcol-check-sha1')?.checked   ?? _COL_DEFAULTS.sha1,
   };
   _saveColPrefs(prefs);
-  const show = (id, vis) => { const el = document.getElementById(id); if (el) el.style.display = vis ? '' : 'none'; };
+  const show = (id, vis) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !vis); };
   show('gcol-region', prefs.region);
   show('gcol-match',  prefs.match);
   show('gcol-size',   prefs.size);
@@ -41,7 +53,7 @@ function applyColVisibility() {
   document.querySelectorAll('#games-tbody tr').forEach(tr => {
     Object.entries(COL).forEach(([key, idx]) => {
       const td = tr.cells[idx];
-      if (td) td.style.display = prefs[key] ? '' : 'none';
+      if (td) td.classList.toggle('hidden', !(prefs[key]));
     });
   });
 }
@@ -57,10 +69,10 @@ function toggleColPicker(event) {
   event.stopPropagation();
   const picker = document.getElementById('col-picker');
   if (!picker) return;
-  picker.style.display = picker.style.display === 'none' ? '' : 'none';
-  if (picker.style.display !== 'none') {
+  picker.classList.toggle('hidden');
+  if (!picker.classList.contains('hidden')) {
     // Close when clicking outside
-    const close = (e) => { if (!picker.contains(e.target)) { picker.style.display = 'none'; document.removeEventListener('click', close); }};
+    const close = (e) => { if (!picker.contains(e.target)) { picker.classList.add('hidden'); document.removeEventListener('click', close); }};
     setTimeout(() => document.addEventListener('click', close), 0);
   }
 }
@@ -118,7 +130,7 @@ function setDevice(d) {
     if (b) b.classList.toggle('active', id === d);
   });
   // Reload current active tab
-  const activeTab = document.querySelector('nav button.active')?.id?.replace('nav-','');
+  const activeTab = document.querySelector('.nav-item.active')?.id?.replace('nav-','');
   if (activeTab) {
     if (activeTab === 'games')      { loadFilterOptions(); loadGames(0); }
     if (activeTab === 'plan')       loadPlan();
@@ -135,8 +147,11 @@ function _deviceRoot() {
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function showTab(name) {
+  // Close game panel overlay if open (prevents it covering the sidebar on tab switch)
+  const _overlay = document.getElementById('game-panel-overlay');
+  if (_overlay && _overlay.classList.contains('open')) closeGamePanel();
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const tab = document.getElementById('tab-' + name);
   tab.classList.add('active', 'fading-in');
   tab.addEventListener('animationend', () => tab.classList.remove('fading-in'), { once: true });
@@ -152,7 +167,8 @@ function showTab(name) {
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
-  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); }
+  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
+  if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); }
   if (name === 'inbox')      loadInbox();
@@ -160,8 +176,18 @@ function showTab(name) {
 }
 
 // ── Guide toggle (update arrow icon) ─────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar = document.getElementById('app-sidebar');
+  if (!sidebar) return;
+  const collapsed = sidebar.classList.toggle('collapsed');
+  localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();  // S35-1: initialize theme from localStorage
+  // Restore sidebar collapsed state
+  if (localStorage.getItem('sidebar_collapsed') === '1')
+    document.getElementById('app-sidebar')?.classList.add('collapsed');
   updateInboxBadge();  // 32-1: initial badge check
   const guide = document.getElementById('ov-guide');
   if (guide) {
@@ -182,21 +208,21 @@ let _globalSearchTimer = null;
 function onGlobalSearch(val) {
   clearTimeout(_globalSearchTimer);
   const results = document.getElementById('global-search-results');
-  if (!val.trim()) { results.style.display = 'none'; return; }
+  if (!val.trim()) { results.classList.add('hidden'); return; }
   _globalSearchTimer = setTimeout(async () => {
     try {
       const d = await apiFetch('/api/games?search=' + encodeURIComponent(val) + '&limit=8');
-      if (!d.games || d.games.length === 0) { results.style.display = 'none'; return; }
-      results.style.display = '';
+      if (!d.games || d.games.length === 0) { results.classList.add('hidden'); return; }
+      results.classList.remove('hidden');
       results.innerHTML = d.games.map(g => {
         const title = _h(g.canonical_title || g.original_filename);
         const gj = JSON.stringify(g).replace(/</g,'\\u003c');
-        return `<div class="sr-item" onclick="document.getElementById('global-search').value='';document.getElementById('global-search-results').style.display='none';openGamePanel(${gj})">
-          <img src="/api/asset-image?game_id=${g.id}" width="28" height="28" style="border-radius:3px;object-fit:cover" onerror="this.style.display='none'">
+        return `<div class="sr-item" onclick="document.getElementById('global-search').value='';document.getElementById('global-search-results').classList.add('hidden');openGamePanel(${gj})">
+          <img src="/api/asset-image?game_id=${g.id}" width="28" height="28" style="border-radius:3px;object-fit:cover" onerror="this.classList.add('hidden')">
           <div><div style="color:#d4d4d4">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
         </div>`;
       }).join('');
-    } catch(e) { results.style.display = 'none'; }
+    } catch(e) { results.classList.add('hidden'); }
   }, 200);
 }
 // Close global search results on outside click
@@ -204,7 +230,7 @@ document.addEventListener('click', e => {
   const wrap = document.getElementById('global-search-wrap');
   if (wrap && !wrap.contains(e.target)) {
     const r = document.getElementById('global-search-results');
-    if (r) r.style.display = 'none';
+    if (r) r.classList.add('hidden');
   }
 });
 
@@ -289,7 +315,7 @@ let _gpGameId = null;
 function _gpSetFavStar(isFav) {
   const btn = document.getElementById('gp-fav-btn');
   if (!btn) return;
-  btn.style.color = isFav ? '#f9c74f' : '#555';
+  _txtCls(btn, isFav ? 'txt-fav' : 'txt-dim');
   btn.title = isFav ? 'Quitar de favoritos' : 'Marcar como favorito';
 }
 function _gpFillMeta(g) {
@@ -301,22 +327,23 @@ function _gpFillMeta(g) {
     ['Año',        g.year     ? _h(g.year)     : '<span style="color:#444">—</span>'],
     ['Género',     g.genre    ? _h(g.genre)    : '<span style="color:#444">—</span>'],
     ['Jugadores',  g.players  ? _h(g.players)  : '<span style="color:#444">—</span>'],
-    ['Publisher',  g.publisher? _h(g.publisher): '<span style="color:#444">—</span>'],
+    ['Publisher',  g.publisher ? _h(g.publisher) : '<span style="color:#444">—</span>'],
+    ['Developer',  g.developer ? _h(g.developer) : null],
     ['Nota',       g.rating   ? _h(g.rating)   : '<span style="color:#444">—</span>'],
     ['Tamaño',     fmtSize(g.size_bytes)],
     ['SHA1',       `<span style="color:#444;font-family:Consolas,monospace;font-size:11px">${(g.sha1||'').slice(0,10)}…</span>`],
   ];
   document.getElementById('gp-meta').innerHTML = rows.filter(([,v])=>v).map(([k,v])=>`<span class="gk">${k}</span><span class="gv">${v}</span>`).join('');
   const desc = document.getElementById('gp-desc');
-  if (g.description) { desc.textContent = g.description; desc.style.display = ''; }
-  else { desc.style.display = 'none'; }
+  if (g.description) { desc.textContent = g.description; desc.classList.remove('hidden'); }
+  else { desc.classList.add('hidden'); }
   const sel = document.getElementById('gp-status-sel');
   if (sel) sel.value = g.play_status || '';
   // S30: populate notes
   const notesEl = document.getElementById('gp-notes');
   if (notesEl) {
     notesEl.value = g.notes || '';
-    notesEl.style.color = g.notes ? '#d4d4d4' : '#555';
+    _txtCls(notesEl, g.notes ? null : 'txt-dim');
   }
   // S30: populate metadata edit fields (only when data available)
   const t = g.canonical_title || g.ss_title || '';
@@ -337,7 +364,7 @@ function gpShowPlaytimeInfo(g) {
   const wrap = document.getElementById('gp-playtime-wrap');
   if (!wrap) return;
 
-  wrap.style.display = '';
+  wrap.classList.remove('hidden');
   const infoEl = document.getElementById('gp-playtime-info');
   const hoursEl = document.getElementById('gp-playtime-hours');
   const minsEl = document.getElementById('gp-playtime-mins');
@@ -413,35 +440,42 @@ function openGamePanel(g) {
   tagsList.innerHTML = '<span style="color:#555;font-size:11px">cargando…</span>';
   apiFetch('/api/game-tags?id=' + g.id).then(r => _gpRenderTags(r.tags || [])).catch(() => { tagsList.innerHTML = ''; });
   // Stateshot — load async
-  document.getElementById('gp-stateshot-wrap').style.display = 'none';
+  document.getElementById('gp-stateshot-wrap').classList.add('hidden');
   apiFetch('/api/stateshot?id=' + g.id).then(r => {
     if (r.found && r.data) {
       const img = document.getElementById('gp-stateshot');
       img.src = 'data:image/png;base64,' + r.data;
-      document.getElementById('gp-stateshot-wrap').style.display = '';
+      document.getElementById('gp-stateshot-wrap').classList.remove('hidden');
     }
   }).catch(() => {});
+  // UI-4: reset RA section + saves info
+  const _raSection = document.getElementById('gp-ra-section');
+  if (_raSection) _raSection.classList.add('hidden');
+  const _savesInfo = document.getElementById('gp-saves-info');
+  if (_savesInfo) _savesInfo.classList.add('hidden');
+  // UI-4: store source_path for open-folder
+  document.getElementById('game-panel').dataset.sourcePath = g.source_path || '';
   // 34b-4: reset asset info
   const _assetInfo = document.getElementById('gp-asset-info');
-  if (_assetInfo) _assetInfo.style.display = 'none';
+  if (_assetInfo) _assetInfo.classList.add('hidden');
   // S30: reset meta editor state
   const _editWrap = document.getElementById('gp-meta-edit-wrap');
-  if (_editWrap) _editWrap.style.display = 'none';
+  if (_editWrap) _editWrap.classList.add('hidden');
   const _editToggle = document.getElementById('gp-meta-edit-toggle');
   if (_editToggle) _editToggle.style.color = '#444';
   const _scrapePreview = document.getElementById('gp-scrape-preview');
-  if (_scrapePreview) _scrapePreview.style.display = 'none';
+  if (_scrapePreview) _scrapePreview.classList.add('hidden');
   const _gmeResult = document.getElementById('gme-result');
   if (_gmeResult) _gmeResult.textContent = '';
   // Backup history — load async
   const bkWrap = document.getElementById('gp-backups-wrap');
   if (bkWrap) {
-    bkWrap.style.display = 'none';
+    bkWrap.classList.add('hidden');
     document.getElementById('gp-backups-list').innerHTML = '';
     apiFetch('/api/save-backups?id=' + g.id).then(r => {
       if (r.backups?.length) {
         loadSaveBackupsResult(r.backups, g.id);
-        bkWrap.style.display = '';
+        bkWrap.classList.remove('hidden');
       }
     }).catch(() => {});
   }
@@ -451,24 +485,47 @@ function openGamePanel(g) {
   gpShowPlaytimeInfo(g);
   // Launch button — show if retroarch configured
   const launchBtn = document.getElementById('gp-launch-btn');
-  if (launchBtn) launchBtn.style.display = '';
+  if (launchBtn) launchBtn.classList.remove('hidden');
   // Open
   document.getElementById('game-panel-overlay').classList.add('open');
   document.getElementById('game-panel').classList.add('open');
-  // Load full scraped details async
-  if (g.id && !g.description && !g.year) {
+  // Load full game data async (meta, RA, saves)
+  if (g.id) {
     apiFetch('/api/game?id=' + g.id).then(full => {
-      if (full.id === _gpGameId) {
-        _gpFillMeta(full);
-        _gpGameId = full.id;
-      }
+      if (full.id !== _gpGameId) return;
+      _gpFillMeta(full);
+      _gpGameId = full.id;
       // 34b-4: show asset path if available
       const _ai = document.getElementById('gp-asset-info');
       const _ap = document.getElementById('gp-asset-path');
       if (_ai && _ap && full.box_art_path) {
         _ap.textContent = full.box_art_path;
-        _ai.style.display = '';
+        _ai.classList.remove('hidden');
       }
+      // UI-4: RetroAchievements
+      const _raSection = document.getElementById('gp-ra-section');
+      if (_raSection && full.ra_game_id) {
+        document.getElementById('gp-ra-count').textContent =
+          full.ra_achievements > 0
+            ? `${full.ra_achievements} logros desbloqueables`
+            : 'Juego en RA (sin logros)';
+        const _pts = document.getElementById('gp-ra-points');
+        if (_pts) _pts.textContent = full.ra_points > 0 ? `${full.ra_points} puntos` : '';
+        const _rl = document.getElementById('gp-ra-link');
+        if (_rl) _rl.href = `https://retroachievements.org/game/${full.ra_game_id}`;
+        _raSection.classList.remove('hidden');
+      }
+      // UI-4: saves count badge
+      const _savesInfo = document.getElementById('gp-saves-info');
+      const _savesBadge = document.getElementById('gp-saves-badge');
+      if (_savesInfo && _savesBadge && full.saves_count !== undefined) {
+        if (full.saves_count > 0) {
+          _savesBadge.innerHTML = `&#x1F4BE; ${full.saves_count} save${full.saves_count !== 1 ? 's' : ''} detectado${full.saves_count !== 1 ? 's' : ''}`;
+          _savesInfo.classList.remove('hidden');
+        }
+      }
+      // Update source_path for open-folder
+      document.getElementById('game-panel').dataset.sourcePath = full.source_path || '';
     }).catch(() => {});
   }
 }
@@ -526,6 +583,16 @@ async function gpLaunch() {
     const r = await apiPost('/api/launch', { game_id: _gpGameId });
     if (r.ok) { showToast('RetroArch lanzado', 'ok'); }
     else { showToast(r.error || 'Error al lanzar', 'err'); }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+// UI-4: open containing folder in file explorer
+async function gpOpenFolder() {
+  const panel = document.getElementById('game-panel');
+  const sp = panel?.dataset.sourcePath || '';
+  if (!sp) { showToast('Ruta del juego no disponible', 'err'); return; }
+  try {
+    const r = await apiPost('/api/open-folder', { path: sp });
+    if (!r.ok) showToast(r.error || 'No se pudo abrir la carpeta', 'err');
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 // ── S29: Save backup helpers ───────────────────────────────────────────────────
@@ -592,9 +659,9 @@ function gpToggleMetaEdit() {
   const wrap = document.getElementById('gp-meta-edit-wrap');
   const btn  = document.getElementById('gp-meta-edit-toggle');
   if (!wrap) return;
-  const open = wrap.style.display !== 'none';
-  wrap.style.display = open ? 'none' : '';
-  if (btn) btn.style.color = open ? '#444' : '#4ec9b0';
+  const open = !wrap.classList.contains('hidden');
+  wrap.classList.toggle('hidden', open);
+  if (btn) _txtCls(btn, open ? null : 'txt-ok');
 }
 async function gpSaveMetaFields() {
   if (!_gpGameId) return;
@@ -610,19 +677,19 @@ async function gpSaveMetaFields() {
   const res = document.getElementById('gme-result');
   try {
     await apiPost('/api/set-metadata', payload);
-    if (res) { res.style.color = '#4ec9b0'; res.textContent = '✓ Guardado'; setTimeout(() => { if (res) res.textContent = ''; }, 2000); }
+    if (res) { _txtCls(res, 'txt-ok'); res.textContent = '✓ Guardado'; setTimeout(() => { if (res) res.textContent = ''; }, 2000); }
     // Refresh display
     if (title) document.getElementById('gp-title').textContent = title;
     apiFetch('/api/game?id=' + _gpGameId).then(full => { if (full.id === _gpGameId) _gpFillMeta(full); }).catch(() => {});
   } catch(e) {
-    if (res) { res.style.color = '#f44747'; res.textContent = 'Error: ' + e.message; }
+    if (res) { _txtCls(res, 'txt-err'); res.textContent = 'Error: ' + e.message; }
   }
 }
 async function gpScrapeSingle() {
   if (!_gpGameId) return;
   const previewEl = document.getElementById('gp-scrape-preview');
   const res = document.getElementById('gme-result');
-  if (previewEl) { previewEl.style.display = ''; previewEl.innerHTML = '<span style="color:#555">Consultando ScreenScraper…</span>'; }
+  if (previewEl) { previewEl.classList.remove('hidden'); previewEl.innerHTML = '<span style="color:#555">Consultando ScreenScraper…</span>'; }
   try {
     const r = await apiPost('/api/scrape-single', { game_id: _gpGameId, preview: true });
     if (!r.found) {
@@ -635,7 +702,7 @@ async function gpScrapeSingle() {
     ].filter(([,v]) => v).map(([k,v]) => `<span style="color:#888">${k}:</span> <span style="color:#d4d4d4">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
     if (previewEl) previewEl.innerHTML = `<div style="margin-bottom:8px;line-height:1.8">${rows}</div>
       <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
-      <button onclick="document.getElementById('gp-scrape-preview').style.display='none'" style="margin-left:6px;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
+      <button onclick="document.getElementById('gp-scrape-preview').classList.add('hidden')" style="margin-left:6px;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
   } catch(e) {
     if (previewEl) previewEl.innerHTML = `<span style="color:#f44747">Error: ${_h(e.message)}</span>`;
   }
@@ -647,14 +714,14 @@ async function gpApplyScrape() {
   try {
     const r = await apiPost('/api/scrape-single', { game_id: _gpGameId, preview: false });
     if (r.applied) {
-      if (previewEl) previewEl.style.display = 'none';
-      if (res) { res.style.color = '#4ec9b0'; res.textContent = '✓ Metadatos actualizados'; setTimeout(() => { if(res) res.textContent = ''; }, 2500); }
+      if (previewEl) previewEl.classList.add('hidden');
+      if (res) { _txtCls(res, 'txt-ok'); res.textContent = '✓ Metadatos actualizados'; setTimeout(() => { if(res) res.textContent = ''; }, 2500); }
       apiFetch('/api/game?id=' + _gpGameId).then(full => { if (full.id === _gpGameId) _gpFillMeta(full); }).catch(() => {});
     } else {
-      if (res) { res.style.color = '#f44747'; res.textContent = r.error || 'Error'; }
+      if (res) { _txtCls(res, 'txt-err'); res.textContent = r.error || 'Error'; }
     }
   } catch(e) {
-    if (res) { res.style.color = '#f44747'; res.textContent = 'Error: ' + e.message; }
+    if (res) { _txtCls(res, 'txt-err'); res.textContent = 'Error: ' + e.message; }
   }
 }
 
@@ -725,11 +792,11 @@ function _showConfirm(title, bodyHtml, okLabel, onConfirm) {
   const okBtn = document.getElementById('confirm-ok');
   if (okBtn) okBtn.textContent = okLabel || 'Confirmar';
   _confirmOkHandler = onConfirm;
-  modal.style.display = 'flex';
+  modal.classList.remove('hidden');
 }
 function _closeConfirm() {
   const modal = document.getElementById('confirm-modal');
-  if (modal) modal.style.display = 'none';
+  if (modal) modal.classList.add('hidden');
   _confirmOkHandler = null;
 }
 
@@ -921,7 +988,7 @@ async function _loadNewGameSuggestion() {
     }
     if (imgEl) {
       imgEl.src = `/api/asset-image?game_id=${suggestion.id}`;
-      imgEl.onerror = () => { imgEl.style.display = 'none'; };
+      imgEl.onerror = () => { imgEl.classList.add('hidden'); };
     }
   } catch(err) {
     console.error('Game suggestion error:', err);
@@ -1121,6 +1188,30 @@ async function loadOverview() {
         card('Assets',     d.total_assets,     null, d.total_assets > 0 ? () => { showTab('assets'); } : null)     +
         card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Ver', fn:()=>showTab('duplicates')}] : null) +
         card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
+      // UI-2: populate dashboard bar
+      const dsGames     = document.getElementById('ds-games');
+      const dsPlatforms = document.getElementById('ds-platforms');
+      const dsSync      = document.getElementById('ds-sync');
+      const dsHealth    = document.getElementById('ds-health');
+      if (dsGames)     dsGames.textContent     = d.total_games.toLocaleString();
+      if (dsPlatforms) dsPlatforms.textContent = d.total_platforms || '—';
+      if (dsSync) {
+        dsSync.textContent = d.last_sync_at ? _relTime(d.last_sync_at) : 'nunca';
+        dsSync.title = d.last_sync_at ? d.last_sync_at.replace('T',' ').slice(0,16) : '';
+      }
+      if (dsHealth) {
+        const h = d.health || {};
+        if (h.last_ok !== undefined) {
+          const problems = (h.last_corrupted || 0) + (h.last_missing || 0);
+          if (problems === 0) {
+            dsHealth.innerHTML = `<span style="color:var(--accent-grn)">${h.last_ok.toLocaleString()} OK ✓</span>`;
+          } else {
+            dsHealth.innerHTML = `<span style="color:var(--fg)">${h.last_ok.toLocaleString()} OK</span> <span style="color:var(--accent-red);margin-left:4px">${problems} ⚠</span>`;
+          }
+        } else {
+          dsHealth.innerHTML = '<span style="color:var(--fg-4)">sin datos</span>';
+        }
+      }
       // Auto-collapse guide when library already has data
       const guide = document.getElementById('ov-guide');
       if (guide && d.total_games > 0 && localStorage.getItem('guide_closed') !== '0') {
@@ -1132,7 +1223,7 @@ async function loadOverview() {
       const setupBanner = document.getElementById('ov-setup-banner');
       if (setupBanner) {
         if (d.first_run || !d.setup_complete) {
-          setupBanner.style.display = '';
+          setupBanner.classList.remove('hidden');
           // (wizard pre-fill handled by showWizard() with the path argument)
           // Render setup checklist
           const cl = d.setup_checklist || {};
@@ -1147,7 +1238,7 @@ async function loadOverview() {
             chk(cl.catalogs_loaded, 'Catalogos DAT cargados', 'Copia .dat/.xml a .rommgr/catalogs/nointro/') +
             chk(cl.matched, 'Juegos identificados', 'Ejecuta Match catalogo');
         } else {
-          setupBanner.style.display = 'none';
+          setupBanner.classList.add('hidden');
         }
       }
       // Auto-show wizard only on first page load if first_run (library not configured yet)
@@ -1169,10 +1260,10 @@ async function loadOverview() {
       try {
         const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath) + '&t=' + _t);
         const abMatchPct = ab.total_games > 0 ? Math.round(ab.matched_games / ab.total_games * 100) : 0;
-        if (abDot) abDot.style.color = ab.total_games > 0 ? '#4ec9b0' : '#555';
+        if (abDot) _txtCls(abDot, ab.total_games > 0 ? 'txt-ok' : 'txt-dim');
         // D8-1: show stale badge if scan is outdated
-        if (abStaleBadge) abStaleBadge.style.display = ab.stale ? '' : 'none';
-        if (abScanBtn)    abScanBtn.style.display    = (ab.stale || ab.total_games === 0) ? '' : 'none';
+        if (abStaleBadge) abStaleBadge.classList.toggle('hidden', !(ab.stale));
+        if (abScanBtn)    abScanBtn.classList.toggle('hidden', !((ab.stale || ab.total_games === 0)));
         // Find last scan for this Anbernic path
         const lastScans = ab.last_scans_by_root || {};
         const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
@@ -1196,8 +1287,8 @@ async function loadOverview() {
       }
     } else if (!abPath && abCardsEl) {
       abCardsEl.innerHTML = '<p style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
-      if (abStaleBadge) abStaleBadge.style.display = 'none';
-      if (abScanBtn)    abScanBtn.style.display    = 'none';
+      if (abStaleBadge) abStaleBadge.classList.add('hidden');
+      if (abScanBtn)    abScanBtn.classList.add('hidden');
     }
 
     // Recently played (27-1 hero card + 28-2 horizontal scroll)
@@ -1213,9 +1304,9 @@ async function loadOverview() {
         const last = games[0];
         // 27-1: hero card for last played
         if (heroEl) {
-          heroEl.style.display = '';
+          heroEl.classList.remove('hidden');
           heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${JSON.stringify(last).replace(/</g,'\\u003c')})">
-            <img src="/api/asset-image?game_id=${last.id}" onerror="this.style.display='none'" alt="">
+            <img src="/api/asset-image?game_id=${last.id}" onerror="this.classList.add('hidden')" alt="">
             <div class="hg-body">
               <div class="hg-label">Continuar jugando</div>
               <div class="hg-title">${_h(last.canonical_title || last.original_filename)}</div>
@@ -1225,7 +1316,7 @@ async function loadOverview() {
         }
         // 28-2: Netflix-style horizontal scroll (up to 6 games)
         if (contScroll && contSection) {
-          contSection.style.display = '';
+          contSection.classList.remove('hidden');
           contScroll.innerHTML = games.slice(0, 6).map(g => {
             const gj = JSON.stringify(g).replace(/</g,'\\u003c');
             return `<div class="continue-card" onclick="openGamePanel(${gj})" title="${_h(g.canonical_title||g.original_filename)}">
@@ -1248,13 +1339,13 @@ async function loadOverview() {
           </div>`;
         }).join('');
       } else {
-        if (heroEl) heroEl.style.display = 'none';
-        if (contSection) contSection.style.display = 'none';
+        if (heroEl) heroEl.classList.add('hidden');
+        if (contSection) contSection.classList.add('hidden');
         if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">Juega un rato y vuelve aquí.</p>';
       }
     } catch(_) {
-      if (heroEl) heroEl.style.display = 'none';
-      if (contSection) contSection.style.display = 'none';
+      if (heroEl) heroEl.classList.add('hidden');
+      if (contSection) contSection.classList.add('hidden');
       if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">—</p>';
     }
 
@@ -1289,11 +1380,11 @@ async function loadOverview() {
         if (pcStatusForReport.last_report_at && pcStatusForReport.last_report_mins_ago !== null) {
           const mins = pcStatusForReport.last_report_mins_ago;
           const timeStr = mins < 60 ? ('hace ' + mins + ' min') : ('hace ' + Math.round(mins/60) + 'h');
-          reportNoticeEl.style.display = '';
+          reportNoticeEl.classList.remove('hidden');
           reportNoticeEl.innerHTML = '<span style="color:#dcdcaa;font-size:12px">&#x1F4CA; Informe disponible — generado ' + timeStr + '</span> '
             + '<a href="/api/report/html' + (pcPath ? '?path=' + encodeURIComponent(pcPath) : '') + '" target="_blank" class="btn" style="padding:2px 8px;font-size:11px;margin-left:8px">Ver informe</a>';
         } else {
-          reportNoticeEl.style.display = 'none';
+          reportNoticeEl.classList.add('hidden');
         }
       }
     } catch(_) {}
@@ -1433,10 +1524,10 @@ let _wizardPollingTimer = null;
 function showWizard(prefillPcPath, prefillAndroidPath) {
   const modal = document.getElementById('wizard-modal');
   if (!modal) return;
-  modal.style.display = 'flex';
-  document.getElementById('wizard-page-1').style.display = '';
-  document.getElementById('wizard-page-2').style.display = 'none';
-  document.getElementById('wizard-page-3').style.display = 'none';
+  modal.classList.remove('hidden');
+  document.getElementById('wizard-page-1').classList.remove('hidden');
+  document.getElementById('wizard-page-2').classList.add('hidden');
+  document.getElementById('wizard-page-3').classList.add('hidden');
   // Pre-fill paths from config if available
   const pcInp = document.getElementById('wiz-library-root');
   if (pcInp && !pcInp.value && prefillPcPath) pcInp.value = prefillPcPath;
@@ -1446,7 +1537,7 @@ function showWizard(prefillPcPath, prefillAndroidPath) {
 
 function closeWizard() {
   const modal = document.getElementById('wizard-modal');
-  if (modal) modal.style.display = 'none';
+  if (modal) modal.classList.add('hidden');
   localStorage.setItem('wizard_dismissed', '1');
   if (_wizardPollingTimer) { clearInterval(_wizardPollingTimer); _wizardPollingTimer = null; }
 }
@@ -1455,7 +1546,7 @@ async function wizardAutoDetect() {
   const btn = document.getElementById('wiz-detect-btn');
   const msg = document.getElementById('wiz-detect-msg');
   if (btn) { btn.disabled = true; btn.textContent = 'Detectando\u2026'; }
-  if (msg) { msg.style.display = 'none'; }
+  if (msg) { msg.classList.add('hidden'); }
   try {
     const d = await apiFetch('/api/wizard-detect');
     const lines = [];
@@ -1480,10 +1571,10 @@ async function wizardAutoDetect() {
 
     if (msg) {
       msg.innerHTML = lines.join('<br>') || '\u{1F50D} Detecci\u00F3n completada.';
-      msg.style.display = '';
+      msg.classList.remove('hidden');
     }
   } catch(e) {
-    if (msg) { msg.innerHTML = '\u274C Error al detectar: ' + e.message; msg.style.display = ''; }
+    if (msg) { msg.innerHTML = '\u274C Error al detectar: ' + e.message; msg.classList.remove('hidden'); }
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '&#x1F50D; Detectar autom&#xe1;ticamente'; }
   }
@@ -1498,8 +1589,8 @@ async function startSetup() {
   const doMatch     = document.getElementById('wiz-match')?.checked !== false;
 
   // Switch to page 2
-  document.getElementById('wizard-page-1').style.display = 'none';
-  document.getElementById('wizard-page-2').style.display = '';
+  document.getElementById('wizard-page-1').classList.add('hidden');
+  document.getElementById('wizard-page-2').classList.remove('hidden');
   _renderWizSteps(null);
 
   try {
@@ -1514,8 +1605,8 @@ async function startSetup() {
     startPolling();
     _wizardPollingTimer = setInterval(_pollSetupProgress, 2000);
   } catch(e) {
-    document.getElementById('wizard-page-2').style.display = 'none';
-    document.getElementById('wizard-page-1').style.display = '';
+    document.getElementById('wizard-page-2').classList.add('hidden');
+    document.getElementById('wizard-page-1').classList.remove('hidden');
     alert('Error al iniciar: ' + e.message + '\n\nConsulta los logs para más detalles.');
   }
 }
@@ -1559,8 +1650,8 @@ async function _pollSetupProgress() {
 }
 
 function _showSetupResult(r) {
-  document.getElementById('wizard-page-2').style.display = 'none';
-  document.getElementById('wizard-page-3').style.display = '';
+  document.getElementById('wizard-page-2').classList.add('hidden');
+  document.getElementById('wizard-page-3').classList.remove('hidden');
   const el = document.getElementById('wiz-result-stats');
   if (!el) return;
   if (r.error) {
@@ -1634,13 +1725,13 @@ function _applyJobStatus(s) {
   if (scanProgWrap) {
     if (s.scan_running && s.scan_progress) {
       const p = s.scan_progress;
-      scanProgWrap.style.display = '';
+      scanProgWrap.classList.remove('hidden');
       const counts = document.getElementById('scan-progress-counts');
       const file   = document.getElementById('scan-progress-file');
       if (counts) counts.textContent = `${p.files_seen || 0} archivos — ${p.roms_detected || 0} ROMs`;
       if (file)   file.textContent   = p.current_file || p.current_path || '';
     } else {
-      scanProgWrap.style.display = 'none';
+      scanProgWrap.classList.add('hidden');
     }
   }
   if (btnMatch) {
@@ -1700,7 +1791,7 @@ function _applyJobStatus(s) {
   if (s.convert_chd_running && s.chd_progress && s.chd_progress.total > 0) {
     const p = s.chd_progress;
     const pct = Math.round((p.current / p.total) * 100);
-    if (chdWrap) chdWrap.style.display = '';
+    if (chdWrap) chdWrap.classList.remove('hidden');
     const bar = document.getElementById('chd-progress-bar');
     const lbl = document.getElementById('chd-progress-label');
     const file = document.getElementById('chd-progress-file');
@@ -1708,7 +1799,7 @@ function _applyJobStatus(s) {
     if (lbl) lbl.textContent = `${p.current} / ${p.total} (${pct}%)`;
     if (file) file.textContent = p.current_file;
   } else if (!s.convert_chd_running) {
-    if (chdWrap) chdWrap.style.display = 'none';
+    if (chdWrap) chdWrap.classList.add('hidden');
   }
   if (!s.convert_chd_running && s.convert_chd_result) {
     _renderChdResult(s.convert_chd_result);
@@ -1731,7 +1822,7 @@ function _applyJobStatus(s) {
   if (s.convert_cso_running && s.cso_progress && s.cso_progress.total > 0) {
     const p = s.cso_progress;
     const pct = Math.round((p.current / p.total) * 100);
-    if (csoWrap) csoWrap.style.display = '';
+    if (csoWrap) csoWrap.classList.remove('hidden');
     const bar = document.getElementById('cso-progress-bar');
     const lbl = document.getElementById('cso-progress-label');
     const file = document.getElementById('cso-progress-file');
@@ -1739,7 +1830,7 @@ function _applyJobStatus(s) {
     if (lbl) lbl.textContent = `${p.current} / ${p.total} (${pct}%)`;
     if (file) file.textContent = p.current_file;
   } else if (!s.convert_cso_running) {
-    if (csoWrap) csoWrap.style.display = 'none';
+    if (csoWrap) csoWrap.classList.add('hidden');
   }
   if (!s.convert_cso_running && s.convert_cso_result) {
     _renderCsoResult(s.convert_cso_result);
@@ -1750,7 +1841,7 @@ function _applyJobStatus(s) {
   if (s.scrape_running && s.scrape_progress && s.scrape_progress.total > 0) {
     const p = s.scrape_progress;
     const pct = Math.round((p.current / p.total) * 100);
-    if (scrapeWrap) scrapeWrap.style.display = '';
+    if (scrapeWrap) scrapeWrap.classList.remove('hidden');
     const bar   = document.getElementById('scrape-progress-bar');
     const lbl   = document.getElementById('scrape-progress-label');
     const found = document.getElementById('scrape-progress-found');
@@ -1771,7 +1862,7 @@ function _applyJobStatus(s) {
       btnScrape.classList.add('danger');
     }
   } else if (!s.scrape_running) {
-    if (scrapeWrap) scrapeWrap.style.display = 'none';
+    if (scrapeWrap) scrapeWrap.classList.add('hidden');
     if (btnScrape) {
       btnScrape.textContent = 'Iniciar scraping';
       btnScrape.onclick = doScrape;
@@ -1804,7 +1895,7 @@ function _applyJobStatus(s) {
   if (s.extract_zip_running && s.zip_progress && s.zip_progress.total > 0) {
     const p = s.zip_progress;
     const pct = Math.round((p.current / p.total) * 100);
-    if (zipWrap) zipWrap.style.display = '';
+    if (zipWrap) zipWrap.classList.remove('hidden');
     const bar  = document.getElementById('zip-progress-bar');
     const lbl  = document.getElementById('zip-progress-label');
     const file = document.getElementById('zip-progress-file');
@@ -1812,7 +1903,7 @@ function _applyJobStatus(s) {
     if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
     if (file) file.textContent = p.current_file;
   } else if (!s.extract_zip_running) {
-    if (zipWrap) zipWrap.style.display = 'none';
+    if (zipWrap) zipWrap.classList.add('hidden');
   }
   if (btnZip) {
     if (s.extract_zip_running) {
@@ -1872,7 +1963,7 @@ function _applyJobStatus(s) {
   if (s.health_check_running && s.health_progress && s.health_progress.total > 0) {
     const p = s.health_progress;
     const pct = Math.round((p.current / p.total) * 100);
-    if (healthWrap) healthWrap.style.display = '';
+    if (healthWrap) healthWrap.classList.remove('hidden');
     const bar  = document.getElementById('health-progress-bar');
     const lbl  = document.getElementById('health-progress-label');
     const file = document.getElementById('health-progress-file');
@@ -1880,7 +1971,7 @@ function _applyJobStatus(s) {
     if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
     if (file) file.textContent = p.current_file;
   } else if (!s.health_check_running) {
-    if (healthWrap) healthWrap.style.display = 'none';
+    if (healthWrap) healthWrap.classList.add('hidden');
   }
   if (btnHealth) {
     if (s.health_check_running) {
@@ -1905,7 +1996,7 @@ function _applyJobStatus(s) {
   if (s.ra_check_running && s.ra_progress && s.ra_progress.total > 0) {
     const p = s.ra_progress;
     const pct = Math.round((p.current / p.total) * 100);
-    if (raWrap) raWrap.style.display = '';
+    if (raWrap) raWrap.classList.remove('hidden');
     const bar  = document.getElementById('ra-progress-bar');
     const lbl  = document.getElementById('ra-progress-label');
     const file = document.getElementById('ra-progress-file');
@@ -1913,7 +2004,7 @@ function _applyJobStatus(s) {
     if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
     if (file) file.textContent = p.current_file;
   } else if (!s.ra_check_running) {
-    if (raWrap) raWrap.style.display = 'none';
+    if (raWrap) raWrap.classList.add('hidden');
   }
   if (btnRa) {
     if (s.ra_check_running) {
@@ -1937,7 +2028,7 @@ function _applyJobStatus(s) {
   const cableWrap = document.getElementById('cable-progress-wrap');
   if (s.cable_sync_running && s.cable_progress) {
     const p = s.cable_progress;
-    if (cableWrap) cableWrap.style.display = '';
+    if (cableWrap) cableWrap.classList.remove('hidden');
     const lbl  = document.getElementById('cable-progress-label');
     const file = document.getElementById('cable-progress-file');
     const bar  = document.getElementById('cable-progress-bar');
@@ -1968,7 +2059,7 @@ function _applyJobStatus(s) {
         btnCable.classList.add('danger');
     }
   } else if (!s.cable_sync_running) {
-    if (cableWrap) cableWrap.style.display = 'none';
+    if (cableWrap) cableWrap.classList.add('hidden');
     if (btnCable) {
         btnCable.textContent = 'Iniciar sincronización';
         btnCable.onclick = doCableSync;
@@ -2000,6 +2091,13 @@ function _applyJobStatus(s) {
   }
   // Inbox progress
   _applyInboxProgress(s);
+  // UI-2: inbox pending badge in dashboard bar
+  const inboxBadge = document.getElementById('ov-inbox-badge');
+  if (inboxBadge) {
+    const pending = s.inbox_pending_files || 0;
+    inboxBadge.classList.toggle('hidden', !(pending > 0));
+    inboxBadge.textContent   = pending;
+  }
 }
 
 function _showJobResult(type, result) {
@@ -2035,18 +2133,18 @@ function _showJobResult(type, result) {
 function _onScanAdbChange() {
   const cb  = document.getElementById('scan-include-adb');
   const box = document.getElementById('scan-adb-options');
-  if (box) box.style.display = cb?.checked ? '' : 'none';
+  if (box) box.classList.toggle('hidden', !(cb?.checked));
 }
 
 async function detectAdbDevicesForScan() {
   const sel    = document.getElementById('scan-adb-device');
   const status = document.getElementById('scan-adb-status');
-  if (status) { status.style.color = '#555'; status.textContent = 'Buscando…'; }
+  if (status) { _txtCls(status, 'txt-dim'); status.textContent = 'Buscando…'; }
   try {
     const d = await apiFetch('/api/adb-devices');
-    if (d.error) { if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + d.error; } return; }
+    if (d.error) { if (status) { _txtCls(status, 'txt-err'); status.textContent = '✗ ' + d.error; } return; }
     if (!d.devices?.length) {
-      if (status) { status.style.color = '#ce9178'; status.textContent = `No se encontraron dispositivos — conecta la ${_devName} y activa Depuración USB`; }
+      if (status) { _txtCls(status, 'txt-warn'); status.textContent = `No se encontraron dispositivos — conecta la ${_devName} y activa Depuración USB`; }
       return;
     }
     if (sel) {
@@ -2058,10 +2156,10 @@ async function detectAdbDevicesForScan() {
     }
     const readyCount = d.devices.filter(dv => dv.ready).length;
     if (status) {
-      status.style.color = readyCount ? '#4ec9b0' : '#ce9178';
+      _txtCls(status, readyCount ? 'txt-ok' : 'txt-warn');
       status.textContent = readyCount ? `✓ ${readyCount} dispositivo(s) listo(s)` : `⚠ Acepta el diálogo de depuración USB en la ${_devName}`;
     }
-  } catch(e) { if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + e.message; } }
+  } catch(e) { if (status) { _txtCls(status, 'txt-err'); status.textContent = '✗ ' + e.message; } }
 }
 
 // ── Scan action ───────────────────────────────────────────────────────────────
@@ -2240,7 +2338,7 @@ function toggleFavoritesFilter() {
   const btn = document.getElementById('btn-filter-favorites');
   if (!btn) return;
   gamesState.favorite = !gamesState.favorite;
-  btn.style.color = gamesState.favorite ? '#f9c74f' : '#888';
+  _txtCls(btn, gamesState.favorite ? 'txt-fav' : 'txt-muted');
   btn.style.borderColor = gamesState.favorite ? '#f9c74f' : '#444';
   loadGames(0);
 }
@@ -2254,8 +2352,8 @@ async function loadGames(offset) {
   const _gridV = document.getElementById('games-grid-view');
   const _btnL  = document.getElementById('btn-view-list');
   const _btnG  = document.getElementById('btn-view-grid');
-  if (_listV) _listV.style.display = _gamesViewMode === 'list' ? '' : 'none';
-  if (_gridV) _gridV.style.display = _gamesViewMode === 'grid' ? '' : 'none';
+  if (_listV) _listV.classList.toggle('hidden', !(_gamesViewMode === 'list'));
+  if (_gridV) _gridV.classList.toggle('hidden', !(_gamesViewMode === 'grid'));
   if (_btnL)  _btnL.classList.toggle('active', _gamesViewMode === 'list');
   if (_btnG)  _btnG.classList.toggle('active', _gamesViewMode === 'grid');
 
@@ -2263,10 +2361,10 @@ async function loadGames(offset) {
   const rootBanner = document.getElementById('games-root-banner');
   if (rootBanner) {
     if (gamesState.root) {
-      rootBanner.style.display = 'flex';
-      rootBanner.innerHTML = `<span style="color:#888;font-size:12px">Filtrando por: <code style="color:#ce9178">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').style.display='none';loadGames(0)">&#x2715; Quitar filtro</button>`;
+      rootBanner.classList.remove('hidden');
+      rootBanner.innerHTML = `<span style="color:#888;font-size:12px">Filtrando por: <code style="color:#ce9178">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').classList.add('hidden');loadGames(0)">&#x2715; Quitar filtro</button>`;
     } else {
-      rootBanner.style.display = 'none';
+      rootBanner.classList.add('hidden');
     }
   }
 
@@ -2332,10 +2430,10 @@ async function loadGames(offset) {
       } else {
         empty.innerHTML = _emptyState('🔎', 'Sin resultados', 'Prueba con otros filtros o borra la búsqueda.');
       }
-      empty.style.display = '';
+      empty.classList.remove('hidden');
     }
     else {
-      empty.style.display = 'none';
+      empty.classList.add('hidden');
       const _srcPath = gamesState.root || _deviceRoot() || '';
       tbody.innerHTML = rows.map(g => {
         const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:#0a0a0a" onerror="this.style.display=\'none\'">` : '';
@@ -2406,8 +2504,8 @@ function setGamesView(mode) {
   const gridView = document.getElementById('games-grid-view');
   const btnList  = document.getElementById('btn-view-list');
   const btnGrid  = document.getElementById('btn-view-grid');
-  if (listView) listView.style.display = mode === 'list' ? '' : 'none';
-  if (gridView) gridView.style.display = mode === 'grid' ? '' : 'none';
+  if (listView) listView.classList.toggle('hidden', !(mode === 'list'));
+  if (gridView) gridView.classList.toggle('hidden', !(mode === 'grid'));
   if (btnList)  btnList.classList.toggle('active', mode === 'list');
   if (btnGrid)  btnGrid.classList.toggle('active', mode === 'grid');
   // Re-render current data in the new view mode
@@ -2418,17 +2516,21 @@ function _renderGamesGrid(games) {
   const grid = document.getElementById('games-grid');
   if (!grid) return;
   if (games.length === 0) { grid.innerHTML = ''; return; }
+  const statusIcon = { playing: '▶', completed: '✅', '100pct': '💯', abandoned: '⏸' };
   grid.innerHTML = games.map(g => {
     const thumb = g.id
       ? `<img src="/api/asset-image?game_id=${g.id}" alt="" onerror="this.parentElement.innerHTML='<span class=gc-no-art>&#x1F3AE;</span>'">`
       : `<span class="gc-no-art">&#x1F3AE;</span>`;
     const title = _h(g.canonical_title || g.original_filename || '—');
     const accentGc = _platHex(g.platform);
-    return `<div class="game-card" style="border-top:2px solid ${accentGc}30" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')})">
-      <div class="gc-thumb">${thumb}</div>
+    const statusBadge = (g.play_status && statusIcon[g.play_status])
+      ? `<span class="gc-status-badge" title="${g.play_status}">${statusIcon[g.play_status]}</span>` : '';
+    const favBadge = g.is_favorite ? `<span class="gc-fav-badge" title="Favorito">★</span>` : '';
+    return `<div class="game-card" style="border-top:2px solid ${accentGc}40" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c').replace(/>/g,'\\u003e')})">
+      <div class="gc-thumb">${thumb}${statusBadge}${favBadge}</div>
       <div class="gc-body">
         <div class="gc-title" title="${title}">${title}</div>
-        <div class="gc-plat">${_platBadge(g.platform)}</div>
+        <div class="gc-meta">${_platBadge(g.platform)}</div>
       </div>
     </div>`;
   }).join('');
@@ -2442,7 +2544,7 @@ function _chk(id, def = '1') {
 
 function toggleShaLength() {
   const label = document.getElementById('sha-length-label');
-  if (label) label.style.display = document.getElementById('fmt-sha').checked ? '' : 'none';
+  if (label) label.classList.toggle('hidden', !(document.getElementById('fmt-sha').checked));
 }
 
 function _planQueryString() {
@@ -2475,7 +2577,7 @@ async function loadPlan() {
         barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_devName}) &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       }
       planBar.innerHTML = barHtml;
-      planBar.style.display = '';
+      planBar.classList.remove('hidden');
     }
 
     // Update preview bar
@@ -2484,9 +2586,9 @@ async function loadPlan() {
     const firstPending = d.pending?.[0] || d.already_correct_example;
     if (previewEl && previewTxt && d.pending.length > 0) {
       previewTxt.textContent = d.pending[0].target_name;
-      previewEl.style.display = '';
+      previewEl.classList.remove('hidden');
     } else if (previewEl) {
-      previewEl.style.display = 'none';
+      previewEl.classList.add('hidden');
     }
 
     // ── C2: Summary bar ──────────────────────────────────────────────────────
@@ -2502,7 +2604,7 @@ async function loadPlan() {
       if (conflictsN > 0) parts.push(`<span style="color:#f44747;font-weight:600">${conflictsN}</span> <span style="color:#888">conflictos</span>`);
       if (unmatchedN > 0) parts.push(`<span style="color:#888">${unmatchedN} sin match en catálogo</span>`);
       summaryBar.innerHTML = parts.join('<span style="color:#333;margin:0 4px">·</span>');
-      summaryBar.style.display = parts.length ? 'flex' : 'none';
+      summaryBar.classList.toggle('hidden', !(parts.length));
     }
 
     // D8-2: apply device filter to pending list
@@ -2523,15 +2625,15 @@ async function loadPlan() {
       const collisions = (d.conflicts || []).filter(c => c.reason === 'collision').length;
       if (collisions > 0) {
         btnResolve.textContent = `Resolver ${collisions} colisión${collisions !== 1 ? 'es' : ''}`;
-        btnResolve.style.display = '';
+        btnResolve.classList.remove('hidden');
       } else {
-        btnResolve.style.display = 'none';
+        btnResolve.classList.add('hidden');
       }
     }
     // D8-3: show RA resolver if there are disk conflicts
     if (btnResolveRa) {
       const diskConflictCount = (d.conflicts || []).filter(c => c.reason === 'disk').length;
-      btnResolveRa.style.display = diskConflictCount > 0 ? '' : 'none';
+      btnResolveRa.classList.toggle('hidden', !(diskConflictCount > 0));
       if (diskConflictCount > 0) btnResolveRa.textContent = 'Resolver con RA (' + diskConflictCount + ')';
     }
 
@@ -2683,7 +2785,7 @@ async function applyKeepBoth() {
   const bar  = document.getElementById('apply-progress-bar');
   const lbl  = document.getElementById('apply-progress-label');
   const pct  = document.getElementById('apply-progress-pct');
-  if (wrap) wrap.style.display = '';
+  if (wrap) wrap.classList.remove('hidden');
 
   try {
     await apiPost('/api/apply', applyBody);
@@ -2709,7 +2811,7 @@ async function applyKeepBoth() {
   } catch(e) {
     showToast('Error: ' + e.message, 'err');
   } finally {
-    setTimeout(() => { if (wrap) wrap.style.display = 'none'; if (bar) bar.style.width = '0%'; }, 2000);
+    setTimeout(() => { if (wrap) wrap.classList.add('hidden'); if (bar) bar.style.width = '0%'; }, 2000);
     if (btn) btn.disabled = false;
   }
 }
@@ -2741,7 +2843,7 @@ async function doApply() {
   const bar  = document.getElementById('apply-progress-bar');
   const lbl  = document.getElementById('apply-progress-label');
   const pct  = document.getElementById('apply-progress-pct');
-  if (wrap) wrap.style.display = '';
+  if (wrap) wrap.classList.remove('hidden');
 
   try {
     await apiPost('/api/apply', applyBody);
@@ -2782,9 +2884,9 @@ async function doApply() {
           if (errDetails.length > 0 && errPanel && errList && errCount) {
             errCount.textContent = errDetails.length + ' archivo(s) con errores o no encontrados:';
             errList.innerHTML = errDetails.map(e => '<div style="padding:1px 0">&#x25B8; ' + _h(e) + '</div>').join('');
-            errPanel.style.display = '';
+            errPanel.classList.remove('hidden');
           } else if (errPanel) {
-            errPanel.style.display = 'none';
+            errPanel.classList.add('hidden');
           }
         }
       }
@@ -2795,7 +2897,7 @@ async function doApply() {
   } catch(e) {
     showToast('Error al aplicar: ' + e.message, 'err');
   } finally {
-    setTimeout(() => { if (wrap) wrap.style.display = 'none'; if (bar) bar.style.width = '0%'; }, 2000);
+    setTimeout(() => { if (wrap) wrap.classList.add('hidden'); if (bar) bar.style.width = '0%'; }, 2000);
     if (btnR) btnR.disabled = false;
   }
 }
@@ -2836,7 +2938,7 @@ async function loadDuplicates() {
         barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${_devName} se excluyen</span>`;
       }
       dupBar.innerHTML = barHtml;
-      dupBar.style.display = '';
+      dupBar.classList.remove('hidden');
     }
     // Store for platform filter
     _dupAllGroups = d.groups || [];
@@ -2855,7 +2957,7 @@ async function loadDuplicates() {
         opt.value = p; opt.textContent = p;
         sel.appendChild(opt);
       });
-      sel.style.display = platforms.length > 1 ? '' : 'none';
+      sel.classList.toggle('hidden', !(platforms.length > 1));
     }
 
     _renderDupContent(_dupAllGroups, _dupAllTitleGroups, '');
@@ -2866,7 +2968,8 @@ async function loadDuplicates() {
 }
 
 async function deleteAllDuplicates() {
-  const rows = document.querySelectorAll('#tab-duplicates .btn.danger');
+  // Exclude the delete-all button itself from the count
+  const rows = document.querySelectorAll('#dup-content .btn.danger');
   const count = rows.length;
   if (count === 0) { showToast('No hay duplicados para eliminar.', false); return; }
   _showConfirm(
@@ -2883,7 +2986,11 @@ async function deleteAllDuplicates() {
         if (d.deleted === 0 && d.failed === 0) {
           showToast('Sin duplicados pendientes — la lista ya está limpia', 'info');
         } else {
-          const failNote = d.failed > 0 ? ` · ⚠ ${d.failed} no se pudieron eliminar (¿archivo en uso?)` : '';
+          let failNote = '';
+          if (d.failed > 0) {
+            failNote = ` · ⚠ ${d.failed} no se pudieron eliminar`;
+            if (d.errors && d.errors.length) failNote += ': ' + d.errors[0];
+          }
           showToast(`Eliminados: ${d.deleted} · Liberados: ${fmtSize(d.freed_bytes)}${failNote}`, d.failed > 0 ? 'err' : 'ok');
         }
       } catch(e) {
@@ -2979,7 +3086,7 @@ async function loadRaDuplicates() {
   const batchBtn = document.getElementById('btn-ra-dups-discard-all');
   el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
   if (btn) btn.disabled = true;
-  if (batchBtn) batchBtn.style.display = 'none';
+  if (batchBtn) batchBtn.classList.add('hidden');
   try {
     const d = await apiFetch('/api/ra-duplicates');
     if (d.note) {
@@ -2991,7 +3098,7 @@ async function loadRaDuplicates() {
       return;
     }
     // D8-4: show batch delete button when there are groups
-    if (batchBtn) batchBtn.style.display = '';
+    if (batchBtn) batchBtn.classList.remove('hidden');
     let html = `<p style="color:#888;font-size:12px;margin-bottom:12px">
       <strong style="color:#e0e0e0">${d.total_groups}</strong> grupos encontrados —
       <strong style="color:#f44747">${fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
@@ -3150,6 +3257,11 @@ async function _initToolsContext() {
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function loadSync() {
   const el = document.getElementById('sync-content');
+  // QoL-14: offline badge for rclone
+  apiFetch('/api/system-status').then(st => {
+    const banner = document.getElementById('sync-offline-banner');
+    if (banner) banner.classList.toggle('hidden', st.rclone?.ok);
+  }).catch(() => {});
   try {
     const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
     let html = '';
@@ -3162,7 +3274,7 @@ async function loadSync() {
       } else {
         syncBar.innerHTML = `<span style="color:#f48771">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
       }
-      syncBar.style.display = '';
+      syncBar.classList.remove('hidden');
     }
     if (!sources.length) {
       html += `<p class="error-msg" style="margin-bottom:16px">No hay fuentes de sync configuradas. Edita <code>config.toml</code> y añade entradas <code>[[sync.sources]]</code>.</p>`;
@@ -3211,7 +3323,7 @@ async function loadAssets() {
         barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_devName}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;
-      assetsBar.style.display = '';
+      assetsBar.classList.remove('hidden');
     }
     let stats = d.stats;
     if (filter === 'orphans') stats = stats.filter(s => s.orphan_assets > 0);
@@ -3236,6 +3348,35 @@ async function loadAssets() {
 }
 
 // ── Sync actions ─────────────────────────────────────────────────────────────
+// ── System status (BUG-D) ─────────────────────────────────────────────────────
+async function loadSystemStatus() {
+  const el = document.getElementById('system-status-grid');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/system-status');
+    const row = (label, ok, detail) => {
+      const icon = ok ? '<span style="color:#4ec9b0">✓</span>' : '<span style="color:#f44747">✗</span>';
+      const det = detail ? `<span style="color:#555;margin-left:4px">${_h(detail)}</span>` : '';
+      return `<div>${icon} <strong>${label}</strong>${det}</div>`;
+    };
+    const rcloneDetail = d.rclone.ok
+      ? (d.rclone.remotes.length ? d.rclone.remotes.join(', ') : 'instalado, sin remotes')
+      : 'no encontrado';
+    const catDetail = d.catalogs.ok
+      ? `${d.catalogs.nointro} No-Intro, ${d.catalogs.redump} Redump`
+      : 'ningún catálogo importado — ve a Catálogos DAT';
+    el.innerHTML =
+      row('chdman',   d.chdman.ok,   d.chdman.ok   ? d.chdman.version   : 'no encontrado — configura ruta en Settings') +
+      row('adb',      d.adb.ok,      d.adb.ok      ? d.adb.version      : 'no encontrado — coloca adb.exe en tools/') +
+      row('rclone',   d.rclone.ok,   rcloneDetail) +
+      row('RA API key', d.ra_key.ok, d.ra_key.ok   ? 'configurada'      : 'falta — necesaria para logros') +
+      row('Catálogos DAT', d.catalogs.ok, catDetail) +
+      row('Biblioteca', d.library.ok, d.library.ok ? d.library.path     : 'no configurada — ve a Ajustes');
+  } catch(e) {
+    if (el) el.textContent = 'Error al comprobar estado: ' + e.message;
+  }
+}
+
 // ── Catalog DAT management ─────────────────────────────────────────────────────
 async function loadCatalogStatus() {
   const el = document.getElementById('catalog-status');
@@ -3273,11 +3414,11 @@ async function importArcadeCatalog() {
   const path = (document.getElementById('arcade-catalog-path')?.value || '').trim();
   if (!path) { alert('Introduce la carpeta o archivo con el cat\u00e1logo arcade.'); return; }
   const res = document.getElementById('arcade-catalog-result');
-  if (res) { res.textContent = 'Importando\u2026'; res.style.color = '#888'; }
+  if (res) { res.textContent = 'Importando\u2026'; _txtCls(res, 'txt-muted'); }
   try {
     const d = await apiPost('/api/import-arcade-catalog', { path });
     if (d.error) {
-      if (res) { res.textContent = '\u274C ' + d.error; res.style.color = '#f44747'; }
+      if (res) { res.textContent = '\u274C ' + d.error; _txtCls(res, 'txt-err'); }
       return;
     }
     const lines = d.imported.map(f => {
@@ -3287,11 +3428,11 @@ async function importArcadeCatalog() {
     const errTxt = d.errors.length ? ` &mdash; ${d.errors.length} error(es)` : '';
     if (res) {
       res.innerHTML = `\u2705 ${d.total_files} archivo(s), ${d.total_entries.toLocaleString()} entradas importadas${errTxt}<br><span style="color:#555;font-size:11px">${lines}</span>`;
-      res.style.color = '#4ec9b0';
+      _txtCls(res, 'txt-ok');
     }
     loadCatalogStatus();
   } catch(e) {
-    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
+    if (res) { res.textContent = '\u274C ' + e.message; _txtCls(res, 'txt-err'); }
   }
 }
 
@@ -3299,11 +3440,11 @@ async function importDats() {
   const folder = (document.getElementById('import-dats-folder')?.value || '').trim();
   if (!folder) { alert('Introduce la carpeta con los archivos DAT.'); return; }
   const res = document.getElementById('import-dats-result');
-  if (res) { res.textContent = 'Importando\u2026'; res.style.color = '#888'; }
+  if (res) { res.textContent = 'Importando\u2026'; _txtCls(res, 'txt-muted'); }
   try {
     const d = await apiPost('/api/import-dats', { source_folder: folder });
     if (d.error) {
-      if (res) { res.textContent = '\u274C ' + d.error; res.style.color = '#f44747'; }
+      if (res) { res.textContent = '\u274C ' + d.error; _txtCls(res, 'txt-err'); }
       return;
     }
     const ni = d.imported.filter(x => x.catalog === 'nointro').length;
@@ -3311,19 +3452,212 @@ async function importDats() {
     const msg = d.total > 0
       ? `\u2705 ${d.total} archivo(s) importados: ${ni} No-Intro, ${rd} Redump.` + (d.errors.length ? ` (${d.errors.length} errores)` : '')
       : '\u26A0 No se encontraron archivos DAT reconocidos en esa carpeta.';
-    if (res) { res.innerHTML = msg; res.style.color = d.total > 0 ? '#4ec9b0' : '#dcdcaa'; }
+    if (res) { res.innerHTML = msg; _txtCls(res, d.total > 0 ? 'txt-ok' : null); }
     loadCatalogStatus();
   } catch(e) {
-    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
+    if (res) { res.textContent = '\u274C ' + e.message; _txtCls(res, 'txt-err'); }
   }
+}
+
+// ── BUG-E: Cloud folder auto-detection ───────────────────────────────────────
+async function detectCloudFolder() {
+  const res = document.getElementById('cloud-detect-result');
+  if (!res) return;
+  res.classList.remove('hidden');
+  res.textContent = 'Detectando…';
+  try {
+    const d = await apiFetch('/api/detect-cloud-folder');
+    if (!d.detected.length) {
+      res.innerHTML = '⚠ No se detectó ningún cliente de nube instalado (Dropbox, OneDrive, Google Drive).<br>'
+        + '<span style="color:#555">Para sincronizar sin cliente local, configura rclone manualmente.</span>';
+      return;
+    }
+    res.innerHTML = d.detected.map(item => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="color:#4ec9b0;min-width:90px"><strong>${_h(item.service)}</strong></span>
+        <span style="color:#888;font-size:11px;flex:1">${_h(item.local_folder)}</span>
+        <button class="btn primary" style="font-size:11px;padding:3px 10px;flex-shrink:0"
+          onclick="useCloudFolder(${JSON.stringify(item.suggested_remote)})">Usar esta carpeta</button>
+      </div>`).join('') +
+      '<div style="color:#555;margin-top:6px;font-size:11px">La app copiará los saves a esta carpeta. ' +
+      'El cliente de nube se encarga de subirlos. En la consola Android instala la app de nube correspondiente.</div>';
+  } catch(e) {
+    res.textContent = 'Error: ' + e.message;
+  }
+}
+
+function useCloudFolder(path) {
+  const inp = document.getElementById('cfg-rclone-remote');
+  if (inp) {
+    inp.value = path;
+    inp.dispatchEvent(new Event('input'));
+    showToast('Ruta configurada — guarda los ajustes para aplicar', 'ok');
+  }
+  const res = document.getElementById('cloud-detect-result');
+  if (res) res.classList.add('hidden');
+}
+
+// ── S39-3: Autostart toggle ───────────────────────────────────────────────────
+async function loadAutostart() {
+  try {
+    const d = await apiFetch('/api/autostart-status');
+    const badge = document.getElementById('autostart-badge');
+    const btn   = document.getElementById('autostart-btn');
+    const note  = document.getElementById('autostart-note');
+    const trayNote = document.getElementById('autostart-tray-note');
+    if (!badge || !btn) return;
+    if (d.enabled) {
+      badge.textContent = 'ACTIVADO';
+      badge.style.color = '#6a9955';
+      btn.textContent   = 'Desactivar inicio automatico';
+      btn.classList.add('danger');
+      if (note) note.classList.remove('hidden');
+    } else {
+      badge.textContent = 'desactivado';
+      _txtCls(badge, 'txt-muted');
+      btn.textContent   = 'Activar inicio automatico';
+      btn.classList.remove('danger');
+      if (note) note.classList.add('hidden');
+    }
+    if (trayNote) trayNote.classList.toggle('hidden', !(d.tray_running));
+  } catch (e) {
+    console.warn('loadAutostart:', e);
+  }
+}
+
+async function toggleAutostart() {
+  const btn = document.getElementById('autostart-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiFetch('/api/autostart-toggle', { method: 'POST' });
+    if (d.ok) {
+      const msg = d.enabled ? 'Inicio automatico activado' : 'Inicio automatico desactivado';
+      showToast(msg, 'ok');
+      loadAutostart();
+    } else {
+      showToast(d.error || 'Error al cambiar el inicio automatico', 'error');
+    }
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── S40: Android setup panel ──────────────────────────────────────────────────
+let _androidSetupUrl = '';
+
+async function loadAndroidSetupPanel() {
+  try {
+    const d = await apiFetch('/api/local-url');
+    const ip = d.ip || location.hostname;
+    const port = d.port || 7777;
+    _androidSetupUrl = `http://${ip}:${port}/api/anbernic-setup.sh`;
+    const curlCmd = `curl -s "${_androidSetupUrl}" | bash`;
+
+    // Settings panel QR
+    renderQR(_androidSetupUrl, 'android-setup-qr');
+    const urlEl = document.getElementById('android-setup-url');
+    if (urlEl) urlEl.textContent = _androidSetupUrl;
+    const curlEl = document.getElementById('android-setup-curl');
+    if (curlEl) { curlEl.textContent = curlCmd; curlEl.classList.remove('hidden'); }
+
+    // Android detected panel
+    const panelCurl = document.getElementById('android-panel-curl');
+    if (panelCurl) panelCurl.textContent = curlCmd;
+  } catch(e) {
+    console.warn('loadAndroidSetupPanel:', e);
+  }
+}
+
+function copyAndroidSetupUrl() {
+  if (!_androidSetupUrl) return;
+  navigator.clipboard?.writeText(_androidSetupUrl)
+    .then(() => showToast('URL copiada', 'ok'))
+    .catch(() => {});
+}
+
+function copyAndroidCurlCmd() {
+  const el = document.getElementById('android-panel-curl');
+  const cmd = el?.textContent?.trim();
+  if (!cmd) return;
+  navigator.clipboard?.writeText(cmd)
+    .then(() => showToast('Comando copiado', 'ok'))
+    .catch(() => {});
+}
+
+function downloadAndroidSetupSh() {
+  if (!_androidSetupUrl) return;
+  const a = document.createElement('a');
+  a.href = _androidSetupUrl;
+  a.download = 'retrovault-setup.sh';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function _checkAndroidUserAgent() {
+  if (/Android/i.test(navigator.userAgent)) {
+    const panel = document.getElementById('android-detected-panel');
+    if (panel) panel.classList.remove('hidden');
+    loadAndroidSetupPanel();
+  }
+}
+
+// ── S40: Anbernic tab ─────────────────────────────────────────────────────────
+let _anbernicBaseUrl = '';
+
+async function loadAnbernicTab() {
+  try {
+    const d = await apiFetch('/api/local-url');
+    const ip = d.ip || location.hostname;
+    const port = d.port || 7777;
+    _anbernicBaseUrl = `http://${ip}:${port}`;
+    const setupUrl = `${_anbernicBaseUrl}/s`;
+    const curlCmd  = `curl -s "${setupUrl}" | bash`;
+
+    // Step 1 — big IP display
+    const ipDisplay = document.getElementById('anb-ip-display');
+    if (ipDisplay) ipDisplay.textContent = _anbernicBaseUrl;
+
+    // Step 5 — command box
+    const cmdFull = document.getElementById('anb-cmd-full');
+    if (cmdFull) cmdFull.textContent = curlCmd;
+
+    // Step 5 — download .sh link
+    const dlLink = document.getElementById('anb-script-download');
+    if (dlLink) dlLink.href = `${_anbernicBaseUrl}/api/anbernic-setup.sh`;
+
+    // Sync android overlay curl cmd too
+    const panelCurl = document.getElementById('android-panel-curl');
+    if (panelCurl) panelCurl.textContent = curlCmd;
+    _androidSetupUrl = setupUrl;
+  } catch(e) {
+    console.warn('loadAnbernicTab:', e);
+  }
+}
+
+function copyAnbernicUrl() {
+  if (!_anbernicBaseUrl) return;
+  navigator.clipboard?.writeText(_anbernicBaseUrl)
+    .then(() => showToast('URL copiada', 'ok'))
+    .catch(() => {});
+}
+
+function copyAnbernicCmd() {
+  const cmd = document.getElementById('anb-cmd-full')?.textContent?.trim();
+  if (!cmd || cmd === 'Cargando…') return;
+  navigator.clipboard?.writeText(cmd)
+    .then(() => showToast('Comando copiado', 'ok'))
+    .catch(() => {});
 }
 
 // ── Rclone setup wizard ────────────────────────────────────────────────────────
 function toggleRcloneSetup() {
   const panel = document.getElementById('rclone-setup-panel');
   if (!panel) return;
-  const showing = panel.style.display !== 'none';
-  panel.style.display = showing ? 'none' : '';
+  const showing = !panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', showing);
   if (!showing) loadRcloneStatus();
 }
 
@@ -3331,7 +3665,7 @@ async function loadRcloneStatus() {
   const info = document.getElementById('rclone-status-info');
   const remPanel = document.getElementById('rclone-remotes-panel');
   if (info) info.textContent = 'Comprobando rclone\u2026';
-  if (remPanel) remPanel.style.display = 'none';
+  if (remPanel) remPanel.classList.add('hidden');
   try {
     const d = await apiFetch('/api/rclone-status');
     if (!d.installed) {
@@ -3361,7 +3695,7 @@ async function loadRcloneStatus() {
           if (pathInp && !pathInp.value) pathInp.value = currentPath;
         }
       }
-      if (remPanel) remPanel.style.display = '';
+      if (remPanel) remPanel.classList.remove('hidden');
     }
   } catch(e) {
     if (info) info.textContent = '\u274C Error: ' + e.message;
@@ -3376,11 +3710,11 @@ async function applyRcloneRemote() {
   const fullRemote = remote + pathVal;
   try {
     await apiPost('/api/config', { 'sync.remote': fullRemote });
-    if (res) { res.innerHTML = '\u2705 Guardado: <code>' + fullRemote + '</code>'; res.style.color = '#4ec9b0'; }
+    if (res) { res.innerHTML = '\u2705 Guardado: <code>' + fullRemote + '</code>'; _txtCls(res, 'txt-ok'); }
     const cfgInp = document.getElementById('cfg-rclone-remote');
     if (cfgInp) cfgInp.value = fullRemote;
   } catch(e) {
-    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
+    if (res) { res.textContent = '\u274C ' + e.message; _txtCls(res, 'txt-err'); }
   }
 }
 
@@ -3434,13 +3768,13 @@ async function loadGameSyncHistory(sourcePath) {
   const wrap = document.getElementById('gp-sync-history-wrap');
   const list = document.getElementById('gp-sync-history-list');
   if (!wrap || !list || !sourcePath) return;
-  wrap.style.display = 'none';
+  wrap.classList.add('hidden');
   list.innerHTML = '';
   try {
     const d = await apiFetch('/api/game-sync-history?source_path=' + encodeURIComponent(sourcePath));
     const hist = d.history || [];
     if (!hist.length) return;
-    wrap.style.display = '';
+    wrap.classList.remove('hidden');
     list.innerHTML = hist.map(h => {
       const clr = h.result === 'ok' ? '#4ec9b0' : '#e06c75';
       const dir = h.direction === 'up' ? '&#x2191;' : h.direction === 'down' ? '&#x2193;' : '&#x21C4;';
@@ -3529,7 +3863,8 @@ function _renderSyncResult(result) {
     const verb = result.dry_run ? 'Sincronizaría' : 'Sincronizado';
     const hasErrors = result.errors > 0;
     resultEl.className = 'job-result visible ' + (hasErrors ? 'error-r' : 'success');
-    resultEl.textContent = `${verb} — ↑ ${result.uploaded}  ↓ ${result.downloaded}  ✓ ${result.up_to_date}  ⚠ ${result.conflicts}  ✗ ${result.errors}`;
+    const deltaNote = result.delta_skipped ? `  Δ ${result.delta_skipped}` : '';
+    resultEl.textContent = `${verb} — ↑ ${result.uploaded}  ↓ ${result.downloaded}  ✓ ${result.up_to_date}  ⚠ ${result.conflicts}  ✗ ${result.errors}${deltaNote}`;
     if (!result.dry_run) _sendNotif('Sync completado', '↑ ' + result.uploaded + ' ↓ ' + result.downloaded + ' ✓ ' + result.up_to_date);
 
     if (decisionsEl) {
@@ -3544,7 +3879,8 @@ function _renderSyncResult(result) {
           if (src.error) {
             html += ` <span style="color:#f48771;font-size:12px;margin-left:8px">${src.error}</span>`;
           } else {
-            html += ` <span style="color:#555;font-size:12px;margin-left:8px">↑ ${src.uploaded}  ↓ ${src.downloaded}  ✓ ${src.up_to_date}  ⚠ ${src.conflicts}  ✗ ${src.errors}</span>`;
+            const srcDelta = src.delta_skipped ? `  Δ ${src.delta_skipped}` : '';
+            html += ` <span style="color:#555;font-size:12px;margin-left:8px">↑ ${src.uploaded}  ↓ ${src.downloaded}  ✓ ${src.up_to_date}  ⚠ ${src.conflicts}  ✗ ${src.errors}${srcDelta}</span>`;
             if (src.decisions?.length) {
               html += src.decisions.map(d =>
                 `<div style="font-size:11px;color:${colors[d.action]||'#888'};padding:1px 0 0 8px">[${d.action.toUpperCase()}] ${d.relative}</div>`
@@ -3612,7 +3948,7 @@ function _renderChdResult(result) {
     _chdResults = result.results || [];
     // Show filter header if there are results
     const hdr = document.getElementById('chd-results-header');
-    if (hdr) hdr.style.display = _chdResults.length ? 'flex' : 'none';
+    if (hdr) hdr.classList.toggle('hidden', !(_chdResults.length));
     // Default: show errors-only if any failures exist
     const hasFails = _chdResults.some(r => !r.success && r.error);
     const cb = document.getElementById('chd-filter-errors');
@@ -3795,14 +4131,14 @@ async function autodetectM3UFolders() {
       alert('No se detectaron carpetas de plataformas de disco en library_root.');
     } else if (folders.length === 1) {
       document.getElementById('m3u-path').value = folders[0];
-      if (wrap) wrap.style.display = 'none';
+      if (wrap) wrap.classList.add('hidden');
     } else {
       // Show folder buttons to pick one
       listEl.innerHTML = folders.map(f => {
         const name = f.split(/[\\/]/).pop();
-        return `<button class="btn" style="font-size:12px;padding:3px 10px" onclick="document.getElementById('m3u-path').value='${f.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}';document.getElementById('m3u-folder-select-wrap').style.display='none'">${name}</button>`;
+        return `<button class="btn" style="font-size:12px;padding:3px 10px" onclick="document.getElementById('m3u-path').value='${f.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}';document.getElementById('m3u-folder-select-wrap').classList.add('hidden')">${name}</button>`;
       }).join('');
-      if (wrap) wrap.style.display = '';
+      if (wrap) wrap.classList.remove('hidden');
     }
   } catch(e) {
     alert('Error al detectar carpetas: ' + e.message + '\n\nConsulta los logs para más detalles.');
@@ -4123,7 +4459,7 @@ async function loadMissingRoms() {
   const sel = document.getElementById('missing-plat-filter');
   if (!sec || !listEl) return;
   listEl.innerHTML = '<p class="loading">Cargando faltantes…</p>';
-  sec.style.display = '';
+  sec.classList.remove('hidden');
   try {
     const d = await apiFetch('/api/missing');
     _collectionPlatforms = d.platforms || [];
@@ -4170,6 +4506,7 @@ function _renderMissingList(platformFilter) {
   html += '<th style="text-align:left;padding:4px 6px">Plataforma</th>';
   html += '<th style="text-align:left;padding:4px 6px">Título</th>';
   html += '<th style="text-align:left;padding:4px 6px">Búsqueda</th>';
+  html += '<th style="text-align:left;padding:4px 6px">Internet Archive</th>';
   html += '<th style="text-align:left;padding:4px 6px">Wishlist</th>';
   html += '</tr></thead><tbody>';
 
@@ -4177,6 +4514,8 @@ function _renderMissingList(platformFilter) {
     for (const entry of p.entries) {
       const query = `${entry.title} ${p.platform} No-Intro site:archive.org`;
       const qh = _h(query);
+      const iaUrl = 'https://archive.org/search?query=' + encodeURIComponent(entry.title + ' ' + p.platform + ' No-Intro');
+      const iaUrlEsc = iaUrl.replace(/'/g, "\\'");
       const wlKey = `wl_${entry.sha1}`;
       html += `<tr style="border-bottom:1px solid #1e1e1e" id="${_h(wlKey)}">`;
       html += `<td style="padding:3px 6px;color:#888;white-space:nowrap">${_h(p.platform)}</td>`;
@@ -4184,6 +4523,10 @@ function _renderMissingList(platformFilter) {
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Copiado','ok'))" `;
       html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:#ccc;border-radius:3px;cursor:pointer" title="${qh}">Copiar</button>`;
+      html += `</td>`;
+      html += `<td style="padding:3px 6px;white-space:nowrap">`;
+      html += `<button onclick="navigator.clipboard.writeText('${iaUrlEsc}').then(()=>showToast('Link copiado — pégalo en JDownloader','ok'))" `;
+      html += `style="font-size:11px;padding:1px 6px;background:#1a2a1a;border:1px solid #2d4a2d;color:#4ec9b0;border-radius:3px;cursor:pointer" title="${_h(iaUrl)}">&#x1F517; Link IA</button>`;
       html += `</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button id="wlbtn_${_h(entry.sha1)}" onclick="toggleWishlist('${_h(entry.sha1)}','${entry.title.replace(/'/g,"\\'")}','${_h(p.platform)}','searching')" `;
@@ -4202,13 +4545,13 @@ async function toggleWishlist(sha1, title, platform, currentStatus) {
   if (isAdded) {
     await apiPost('/api/wishlist', { sha1, remove: true });
     btn.textContent = '+ Wishlist';
-    btn.style.color = '#888';
+    _txtCls(btn, 'txt-muted');
     btn.onclick = () => toggleWishlist(sha1, title, platform, 'searching');
     showToast('Quitado de wishlist', 'ok');
   } else {
     await apiPost('/api/wishlist', { sha1, title, platform, status: currentStatus });
     btn.textContent = '✓ Buscando';
-    btn.style.color = '#4ec9b0';
+    _txtCls(btn, 'txt-ok');
     btn.onclick = () => toggleWishlist(sha1, title, platform, currentStatus);
     showToast('Añadido a wishlist', 'ok');
   }
@@ -4266,12 +4609,12 @@ async function loadCollection() {
 
     if (gameList.length === 0 && _colOffset === 0) {
       gridEl.innerHTML = '<p class="empty" style="grid-column:1/-1">Sin juegos. Escanea tu biblioteca en Inicio.</p>';
-      loadMoreBtn.style.display = 'none';
+      loadMoreBtn.classList.add('hidden');
       return;
     }
 
     _renderColGrid(gameList, _colOffset > 0);
-    loadMoreBtn.style.display = gameList.length >= _COL_PAGE ? '' : 'none';
+    loadMoreBtn.classList.toggle('hidden', !(gameList.length >= _COL_PAGE));
   } catch (e) {
     gridEl.innerHTML = `<p class="error-msg" style="grid-column:1/-1">${e.message}</p>`;
   }
@@ -4309,7 +4652,7 @@ async function colLoadMore() {
     _renderColGrid(gameList, true);
     const loadMoreBtn = document.getElementById('col-load-more');
     if (loadMoreBtn) {
-      loadMoreBtn.style.display = gameList.length >= _COL_PAGE ? '' : 'none';
+      loadMoreBtn.classList.toggle('hidden', !(gameList.length >= _COL_PAGE));
     }
   } catch (e) {
     showToast(`Error: ${e.message}`, 'err');
@@ -4418,11 +4761,11 @@ function _renderPie(canvasId, rows) {
 
 function toggleColStats() {
   const panel = document.getElementById('col-stats-panel');
-  if (panel.style.display === 'none') {
-    panel.style.display = 'block';
+  if (panel.classList.contains('hidden')) {
+    panel.classList.remove('hidden');
     loadCollectionStatsV2();
   } else {
-    panel.style.display = 'none';
+    panel.classList.add('hidden');
   }
 }
 
@@ -4456,9 +4799,9 @@ function updateInboxBadge() {
     if (!badge) return;
     if (d.count > 0) {
       badge.textContent = d.count;
-      badge.style.display = '';
+      badge.classList.remove('hidden');
     } else {
-      badge.style.display = 'none';
+      badge.classList.add('hidden');
     }
   }).catch(() => {});
 }
@@ -4576,7 +4919,7 @@ function inboxDragOver(e) {
 }
 function inboxDragLeave(e) {
   const zone = document.getElementById('inbox-dropzone');
-  if (zone) { zone.style.borderColor = '#333'; zone.style.color = '#555'; }
+  if (zone) { zone.style.borderColor = '#333'; _txtCls(zone, 'txt-dim'); }
 }
 async function inboxDrop(e) {
   e.preventDefault();
@@ -4649,7 +4992,7 @@ async function loadOperationsTimeline() {
 async function doExportLpl() {
   const el = document.getElementById('lpl-result');
   const outputDir = document.getElementById('lpl-output-dir')?.value.trim() || '';
-  if (el) { el.innerHTML = '<span class="loading">Generando…</span>'; el.style.display = 'block'; }
+  if (el) { el.innerHTML = '<span class="loading">Generando…</span>'; el.classList.remove('hidden'); }
   try {
     const d = await apiPost('/api/export-lpl', outputDir ? { output_dir: outputDir } : {});
     if (d.error) {
@@ -4745,11 +5088,11 @@ async function loadRetroArchCheck() {
   const coresWrap = document.getElementById('ra-check-cores');
   const coresList = document.getElementById('ra-check-cores-list');
   if (!result) return;
-  if (spinner) spinner.style.display = 'inline';
-  result.style.display = 'none';
+  if (spinner) spinner.classList.remove('hidden');
+  result.classList.add('hidden');
   try {
     const d = await apiFetch('/api/retroarch-check');
-    if (spinner) spinner.style.display = 'none';
+    if (spinner) spinner.classList.add('hidden');
 
     // status badge
     const okColor = d.ok ? '#4ec9b0' : '#e06c75';
@@ -4791,7 +5134,7 @@ async function loadRetroArchCheck() {
 
     // key cores list
     if (d.key_cores && Object.keys(d.key_cores).length) {
-      coresWrap.style.display = 'block';
+      coresWrap.classList.remove('hidden');
       coresList.innerHTML = Object.entries(d.key_cores).map(([lbl, found]) => {
         const bg = found ? '#1e3a2f' : '#2a1a1a';
         const fg = found ? '#4ec9b0' : '#666';
@@ -4799,17 +5142,17 @@ async function loadRetroArchCheck() {
         return `<span style="background:${bg};color:${fg};font-size:10px;padding:2px 6px;border-radius:3px">${ic} ${_h(lbl)}</span>`;
       }).join('');
     } else {
-      coresWrap.style.display = 'none';
+      coresWrap.classList.add('hidden');
     }
 
-    result.style.display = 'block';
+    result.classList.remove('hidden');
   } catch(e) {
-    if (spinner) spinner.style.display = 'none';
-    result.style.display = 'block';
+    if (spinner) spinner.classList.add('hidden');
+    result.classList.remove('hidden');
     status.innerHTML = `<span style="color:#e06c75">Error: ${_h(e.message)}</span>`;
     rows.innerHTML = '';
     issues.innerHTML = '';
-    coresWrap.style.display = 'none';
+    coresWrap.classList.add('hidden');
   }
 }
 
@@ -4882,7 +5225,7 @@ function _faCollapsibleList(items, renderItem, limit = 10) {
   }
   html += '</ul></div>';
   if (hidden.length > 0) {
-    html += `<button onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');if(r.style.display==='none'){r.style.display='';b.textContent='▲ Mostrar menos';}else{r.style.display='none';b.textContent='▼ Ver todos (${items.length})';}})()" id="${uid}_btn" style="background:none;border:none;color:#569cd6;font-size:11px;cursor:pointer;padding:2px 0">▼ Ver todos (${items.length})</button>`;
+    html += `<button onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');if(r.classList.contains('hidden')){r.classList.remove('hidden');b.textContent='▲ Mostrar menos';}else{r.classList.add('hidden');b.textContent='▼ Ver todos (${items.length})';}})()" id="${uid}_btn" style="background:none;border:none;color:#569cd6;font-size:11px;cursor:pointer;padding:2px 0">▼ Ver todos (${items.length})</button>`;
   }
   return html;
 }
@@ -4977,7 +5320,7 @@ function _renderRaResult(r) {
       filterSel.appendChild(opt);
     });
     const filterRow = document.getElementById('ra-filter-row');
-    if (filterRow) filterRow.style.display = platforms.size > 0 ? '' : 'none';
+    if (filterRow) filterRow.classList.toggle('hidden', !(platforms.size > 0));
   }
 
   const selectedPlatform = filterSel?.value || '';
@@ -5149,18 +5492,18 @@ async function loadSsQuota() {
       label.textContent = hasDev
         ? 'Cuenta dev detectada (~3 req/s). Realiza un scraping para ver cuota.'
         : 'Realiza un scraping para ver la cuota.';
-      label.style.color = hasDev ? '#4ec9b0' : '#555';
-      if (bar) bar.style.display = 'none';
+      _txtCls(label, hasDev ? 'txt-ok' : 'txt-dim');
+      if (bar) bar.classList.add('hidden');
       return;
     }
     const pct = max > 0 ? Math.min(100, Math.round(today / max * 100)) : 0;
     const color = pct > 90 ? '#f44747' : pct > 70 ? '#ce9178' : '#4ec9b0';
     label.textContent = `${today.toLocaleString()} / ${max.toLocaleString()} peticiones hoy (${pct}%)${hasDev ? ' · Cuenta dev ✓' : ''}`;
     label.style.color = color;
-    if (bar) { bar.style.display = 'block'; }
+    if (bar) { bar.classList.remove('hidden'); }
     if (fill) { fill.style.background = color; fill.style.width = pct + '%'; }
   } catch(e) {
-    if (label) { label.textContent = 'No disponible'; label.style.color = '#555'; }
+    if (label) { label.textContent = 'No disponible'; _txtCls(label, 'txt-dim'); }
   }
 }
 
@@ -5248,7 +5591,7 @@ async function doExportGamelists() {
 function _onDevicePresetChange() {
   const sel    = document.getElementById('cfg-device-preset');
   const custom = document.getElementById('cfg-device-name-custom');
-  if (custom) custom.style.display = sel?.value === 'custom' ? 'block' : 'none';
+  if (custom) custom.classList.toggle('hidden', sel?.value !== 'custom');
 }
 
 async function loadSettings() {
@@ -5265,10 +5608,10 @@ async function loadSettings() {
       const knownPresets = ['Consola Android', 'Steam Deck'];
       if (knownPresets.includes(dn)) {
         presetEl.value = dn;
-        if (customEl) customEl.style.display = 'none';
+        if (customEl) customEl.classList.add('hidden');
       } else {
         presetEl.value = 'custom';
-        if (customEl) { customEl.style.display = 'block'; customEl.value = dn; }
+        if (customEl) { customEl.classList.remove('hidden'); customEl.value = dn; }
       }
     }
     document.getElementById('cfg-rclone-remote').value = cfg.rclone_remote || '';
@@ -5290,13 +5633,15 @@ async function loadSettings() {
     const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
     if (bkEnabledEl) bkEnabledEl.checked = cfg.backup_saves_enabled !== false;
     if (bkKeepNEl)   bkKeepNEl.value     = cfg.backup_saves_keep_n ?? 5;
+    const notifyEl = document.getElementById('cfg-notify-desktop');
+    if (notifyEl) notifyEl.checked = cfg.notify_desktop !== false;
     document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
     // Show config warnings
     const banner = document.getElementById('cfg-warnings-banner');
     if (banner) {
       const warns = (cfg.warnings || []);
       if (warns.length === 0) {
-        banner.style.display = 'none';
+        banner.classList.add('hidden');
       } else {
         const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         const items = warns.map(w => {
@@ -5305,7 +5650,7 @@ async function loadSettings() {
           return `<div style="color:${color};font-size:12px;margin:2px 0">${icon} ${esc(w.message)}</div>`;
         }).join('');
         banner.innerHTML = items;
-        banner.style.display = 'block';
+        banner.classList.remove('hidden');
       }
     }
     // Show two-DB info
@@ -5324,73 +5669,73 @@ async function loadSettings() {
 async function migrateSplitDb() {
   const el = document.getElementById('migrate-db-result');
   if (!el) return;
-  el.style.color = '#888'; el.textContent = 'Migrando…';
+  _txtCls(el, 'txt-muted'); el.textContent = 'Migrando…';
   try {
     const r = await apiPost('/api/migrate-split-db', {});
-    if (r.error) { el.style.color = '#f44747'; el.textContent = '✗ ' + r.error; return; }
-    el.style.color = '#4ec9b0';
+    if (r.error) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + r.error; return; }
+    _txtCls(el, 'txt-ok');
     el.textContent = '✓ Migrados: ' + r.migrated_games + ' juegos  |  Errores: ' + (r.errors?.length || 0);
     if (r.errors && r.errors.length > 0) {
       el.textContent += '  [' + r.errors.slice(0,3).join('; ') + ']';
     }
-  } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
+  } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
 }
 
 async function testChdman() {
   const el = document.getElementById('chdman-test-result');
-  el.style.color = '#888'; el.textContent = 'Probando…';
+  _txtCls(el, 'txt-muted'); el.textContent = 'Probando…';
   // Save current chdman value first if changed
   const val = document.getElementById('cfg-chdman').value.trim();
   if (val) await apiPost('/api/config', { 'tools.chdman': val }).catch(() => {});
   try {
     const d = await apiFetch('/api/test-chdman');
     if (d.ok) {
-      el.style.color = '#4ec9b0';
+      _txtCls(el, 'txt-ok');
       el.textContent = '✓ ' + (d.version || 'OK') + '  (' + d.path + ')';
       // Update CHD panel status too
       const st = document.getElementById('chdman-status');
-      if (st) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
+      if (st) { _txtCls(st, 'txt-ok'); st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
     } else {
-      el.style.color = '#f44747'; el.textContent = '✗ ' + d.error;
+      _txtCls(el, 'txt-err'); el.textContent = '✗ ' + d.error;
       const st = document.getElementById('chdman-status');
-      if (st) { st.style.color = '#f44747'; st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
+      if (st) { _txtCls(st, 'txt-err'); st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
     }
-  } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
+  } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
 }
 
 async function testMaxcso() {
   const st = document.getElementById('maxcso-status');
   if (!st) return;
-  st.style.color = '#888'; st.textContent = 'Verificando…';
+  _txtCls(st, 'txt-muted'); st.textContent = 'Verificando…';
   try {
     const d = await apiFetch('/api/test-maxcso');
     if (d.ok) {
-      st.style.color = '#4ec9b0';
+      _txtCls(st, 'txt-ok');
       st.textContent = '✓ ' + (d.version || 'maxcso disponible');
     } else {
-      st.style.color = '#f44747';
+      _txtCls(st, 'txt-err');
       st.textContent = '✗ maxcso no encontrado — coloca maxcso.exe en tools/';
     }
   } catch(e) {
-    st.style.color = '#f44747';
+    _txtCls(st, 'txt-err');
     st.textContent = '✗ Error: ' + e.message;
   }
 }
 
 async function testAdbBinary() {
   const el = document.getElementById('adb-test-result');
-  el.style.color = '#888'; el.textContent = 'Probando…';
+  _txtCls(el, 'txt-muted'); el.textContent = 'Probando…';
   const val = document.getElementById('cfg-adb').value.trim();
   if (val) await apiPost('/api/config', { 'tools.adb': val }).catch(() => {});
   try {
     const d = await apiFetch('/api/adb-devices');
     if (d.error) {
-      el.style.color = '#f44747'; el.textContent = '✗ ' + d.error;
+      _txtCls(el, 'txt-err'); el.textContent = '✗ ' + d.error;
     } else {
-      el.style.color = '#4ec9b0';
+      _txtCls(el, 'txt-ok');
       el.textContent = `✓ adb accesible — ${d.devices?.length ?? 0} dispositivo(s) detectado(s)  (${d.adb_path})`;
     }
-  } catch(e) { el.style.color = '#f44747'; el.textContent = '✗ ' + e.message; }
+  } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
 }
 
 // B7-9: Log viewer
@@ -5401,7 +5746,7 @@ async function loadLogViewer() {
   const meta = document.getElementById('log-meta');
   if (!sel || !pre) return;
   pre.textContent = 'Cargando…';
-  pre.style.display = '';
+  pre.classList.remove('hidden');
   try {
     const d = await apiFetch('/api/logs?lines=300');
     _logData = d.logs || {};
@@ -5442,6 +5787,20 @@ async function loadTools() {
       apiFetch('/api/config'),
       apiFetch('/api/disc-folders').catch(() => ({ folders: [], library_root: null })),
     ]);
+    // Health check schedule info
+    apiFetch('/api/health-schedule').then(sched => {
+      const el = document.getElementById('health-schedule-info');
+      if (!el) return;
+      const fmt = iso => iso ? new Date(iso).toLocaleDateString('es-ES', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+      const lastOk = sched.last_ok != null ? `${sched.last_ok} OK` : '';
+      const lastBad = (sched.last_corrupted || 0) + (sched.last_missing || 0);
+      const statusPart = lastOk ? ` · ${lastOk}${lastBad ? `, ${lastBad} problemas` : ''}` : '';
+      const overdueTxt = sched.overdue ? ' <span style="color:var(--accent-ora)">⚠ programado</span>' : '';
+      el.innerHTML = `&#xfa0;ltimo: <strong>${fmt(sched.last_run_at)}</strong>${statusPart} &nbsp;·&nbsp; Pr&#xf3;ximo: <strong>${fmt(sched.next_run_at)}</strong>${overdueTxt}`;
+    }).catch(() => {
+      const el = document.getElementById('health-schedule-info');
+      if (el) el.textContent = '';
+    });
     const root = cfg.library_root || '';
     // Auto-fill simple tools with library_root
     if (root) {
@@ -5458,7 +5817,7 @@ async function loadTools() {
       const hint = document.getElementById('multidisc-folder-hint');
       if (hint) {
         hint.textContent = `Detectadas ${discData.folders.length} carpetas de plataformas de disco: ${discData.folders.map(f => f.split(/[\\/]/).pop()).join(', ')}`;
-        hint.style.display = '';
+        hint.classList.remove('hidden');
       }
     }
     // Test chdman silently and update status
@@ -5466,8 +5825,8 @@ async function loadTools() {
       const d = await apiFetch('/api/test-chdman');
       const st = document.getElementById('chdman-status');
       if (st) {
-        if (d.ok) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
-        else      { st.style.color = '#f44747'; st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
+        if (d.ok) { _txtCls(st, 'txt-ok'); st.textContent = '✓ ' + (d.version || 'chdman disponible'); }
+        else      { _txtCls(st, 'txt-err'); st.textContent = '✗ chdman no encontrado — configura la ruta en Settings'; }
       }
     } catch(_) {}
     // Test maxcso silently and update status
@@ -5475,18 +5834,18 @@ async function loadTools() {
       const d = await apiFetch('/api/test-maxcso');
       const st = document.getElementById('maxcso-status');
       if (st) {
-        if (d.ok) { st.style.color = '#4ec9b0'; st.textContent = '✓ ' + (d.version || 'maxcso disponible'); }
-        else      { st.style.color = '#f44747'; st.textContent = '✗ maxcso no encontrado — coloca maxcso.exe en tools/'; }
+        if (d.ok) { _txtCls(st, 'txt-ok'); st.textContent = '✓ ' + (d.version || 'maxcso disponible'); }
+        else      { _txtCls(st, 'txt-err'); st.textContent = '✗ maxcso no encontrado — coloca maxcso.exe en tools/'; }
       }
     } catch(_) {}
     // Show RA API key status
     const raStatus = document.getElementById('ra-api-key-status');
     if (raStatus) {
       if (cfg.ra_api_key) {
-        raStatus.style.color = '#4ec9b0';
+        _txtCls(raStatus, 'txt-ok');
         raStatus.textContent = '✓ API key configurada';
       } else {
-        raStatus.style.color = '#f44747';
+        _txtCls(raStatus, 'txt-err');
         raStatus.innerHTML = '✗ API key no configurada — <a href="#" onclick="showTab(\'settings\');return false" style="color:#569cd6">ir a Settings</a>';
       }
     }
@@ -5606,12 +5965,12 @@ async function loadAuthStatus() {
     if (statusEl) {
       if (d.pin_configured) {
         statusEl.innerHTML = '<span style="color:#4ec9b0">&#x2713; PIN activado</span> — se pedirá al abrir la app desde otra IP.';
-        if (clearBtn) clearBtn.style.display = '';
-        if (logoutBtn) logoutBtn.style.display = '';
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
       } else {
         statusEl.textContent = 'Sin PIN. La interfaz es accesible sin contraseña.';
-        if (clearBtn) clearBtn.style.display = 'none';
-        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (clearBtn) clearBtn.classList.add('hidden');
+        if (logoutBtn) logoutBtn.classList.add('hidden');
       }
     }
   } catch(e) {
@@ -5656,21 +6015,21 @@ async function loadLocalUrl() {
     if (urlVal) {
       renderQR('http://' + urlVal, 'qr-canvas');
       const noUrlEl = document.getElementById('qr-no-url');
-      if (noUrlEl) noUrlEl.style.display = 'none';
+      if (noUrlEl) noUrlEl.classList.add('hidden');
       const canvasEl = document.getElementById('qr-canvas');
-      if (canvasEl) canvasEl.style.display = '';
+      if (canvasEl) canvasEl.classList.remove('hidden');
     } else {
       const noUrlEl = document.getElementById('qr-no-url');
-      if (noUrlEl) noUrlEl.style.display = '';
+      if (noUrlEl) noUrlEl.classList.remove('hidden');
       const canvasEl = document.getElementById('qr-canvas');
-      if (canvasEl) canvasEl.style.display = 'none';
+      if (canvasEl) canvasEl.classList.add('hidden');
     }
   } catch(e) {
     if (el) el.textContent = '—';
     const noUrlEl = document.getElementById('qr-no-url');
-    if (noUrlEl) noUrlEl.style.display = '';
+    if (noUrlEl) noUrlEl.classList.remove('hidden');
     const canvasEl = document.getElementById('qr-canvas');
-    if (canvasEl) canvasEl.style.display = 'none';
+    if (canvasEl) canvasEl.classList.add('hidden');
   }
 }
 
@@ -5797,6 +6156,8 @@ async function saveSettings() {
   const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
   if (bkEnabledEl) updates['backup.saves_enabled'] = bkEnabledEl.checked;
   if (bkKeepNEl && bkKeepNEl.value) updates['backup.saves_keep_n'] = parseInt(bkKeepNEl.value, 10);
+  const notifyDesktopEl = document.getElementById('cfg-notify-desktop');
+  if (notifyDesktopEl) updates['notifications.desktop'] = notifyDesktopEl.checked;
   if (Object.keys(updates).length === 0) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Nada que guardar — rellena al menos un campo.';
@@ -5837,6 +6198,17 @@ async function saveSettings() {
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function testNotification() {
+  const resultEl = document.getElementById('notify-test-result');
+  if (resultEl) resultEl.textContent = 'Enviando…';
+  try {
+    const d = await apiPost('/api/notify-test', {});
+    if (resultEl) resultEl.textContent = d.ok ? '✓ Notificación enviada' : ('Error: ' + (d.error || 'desconocido'));
+  } catch(e) {
+    if (resultEl) resultEl.textContent = 'Error: ' + e.message;
   }
 }
 
@@ -5888,20 +6260,20 @@ function _onCableModeChange() {
   const adb = _isAdbMode();
   const fsEl  = document.getElementById('cable-fs-section');
   const adbEl = document.getElementById('cable-adb-section');
-  if (fsEl)  fsEl.style.display  = adb ? 'none' : '';
-  if (adbEl) adbEl.style.display = adb ? '' : 'none';
+  if (fsEl)  fsEl.classList.toggle('hidden', adb);
+  if (adbEl) adbEl.classList.toggle('hidden', !(adb));
 }
 
 function _onCableDryRunChange() {
   const cb = document.getElementById('cable-dry-run');
   const warn = document.getElementById('cable-dry-run-warning');
-  if (warn) warn.style.display = cb?.checked ? 'none' : '';
+  if (warn) warn.classList.toggle('hidden', cb?.checked);
 }
 
 function _onCableDirectionChange() {
   const dir = document.querySelector('input[name="cable-direction"]:checked')?.value;
   const row = document.getElementById('cable-sha1-row');
-  if (row) row.style.display = (dir === 'anbernic_to_pc') ? '' : 'none';
+  if (row) row.classList.toggle('hidden', !((dir === 'anbernic_to_pc')));
 }
 
 async function testCablePath(which) {
@@ -5909,26 +6281,26 @@ async function testCablePath(which) {
   const statusId = which === 'pc' ? 'cable-pc-path-status' : 'cable-ab-path-status';
   const path = document.getElementById(inputId)?.value.trim();
   const statusEl = document.getElementById(statusId);
-  if (!path) { if (statusEl) { statusEl.style.color = '#888'; statusEl.textContent = 'Introduce una ruta primero.'; } return; }
-  if (statusEl) { statusEl.style.color = '#555'; statusEl.textContent = 'Verificando…'; }
+  if (!path) { if (statusEl) { _txtCls(statusEl, 'txt-muted'); statusEl.textContent = 'Introduce una ruta primero.'; } return; }
+  if (statusEl) { _txtCls(statusEl, 'txt-dim'); statusEl.textContent = 'Verificando…'; }
   try {
     const d = await apiFetch('/api/test-path?path=' + encodeURIComponent(path));
     if (d.accessible) {
-      statusEl.style.color = '#4ec9b0';
+      _txtCls(statusEl, 'txt-ok');
       statusEl.textContent = `✓ Accesible — ${d.entries} entradas en la carpeta`;
     } else {
-      statusEl.style.color = '#f44747';
+      _txtCls(statusEl, 'txt-err');
       statusEl.textContent = '✗ ' + d.error;
     }
   } catch(e) {
-    if (statusEl) { statusEl.style.color = '#f44747'; statusEl.textContent = '✗ ' + e.message; }
+    if (statusEl) { _txtCls(statusEl, 'txt-err'); statusEl.textContent = '✗ ' + e.message; }
   }
 }
 
 async function detectDrives() {
   const listEl = document.getElementById('cable-drives-list');
   if (!listEl) return;
-  listEl.style.display = '';
+  listEl.classList.remove('hidden');
   listEl.textContent = 'Buscando…';
   try {
     const d = await apiFetch('/api/list-drives');
@@ -5939,7 +6311,7 @@ async function detectDrives() {
       return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0">
         <code style="color:#ce9178;min-width:36px">${dr.letter}</code>
         <span style="color:#888">${label}${size}</span>
-        <button class="btn" style="padding:1px 8px;font-size:11px;margin-left:auto" onclick="document.getElementById('cable-ab-path').value='${dr.letter.replace(/\\/g, '\\\\')}';testCablePath('ab');document.getElementById('cable-drives-list').style.display='none'">Usar</button>
+        <button class="btn" style="padding:1px 8px;font-size:11px;margin-left:auto" onclick="document.getElementById('cable-ab-path').value='${dr.letter.replace(/\\/g, '\\\\')}';testCablePath('ab');document.getElementById('cable-drives-list').classList.add('hidden')">Usar</button>
       </div>`;
     }).join('');
   } catch(e) {
@@ -5951,15 +6323,15 @@ async function detectAdbDevices() {
   const sel    = document.getElementById('cable-adb-device');
   const status = document.getElementById('cable-adb-status');
   const pathStatus = document.getElementById('cable-adb-path-status');
-  if (status) { status.style.color = '#555'; status.textContent = 'Buscando…'; }
+  if (status) { _txtCls(status, 'txt-dim'); status.textContent = 'Buscando…'; }
   try {
     const d = await apiFetch('/api/adb-devices');
     if (d.error) {
-      if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + d.error; }
+      if (status) { _txtCls(status, 'txt-err'); status.textContent = '✗ ' + d.error; }
       return;
     }
     if (!d.devices?.length) {
-      if (status) { status.style.color = '#ce9178'; status.textContent = 'No se encontraron dispositivos. ¿Cable conectado? ¿Depuración USB activada?'; }
+      if (status) { _txtCls(status, 'txt-warn'); status.textContent = 'No se encontraron dispositivos. ¿Cable conectado? ¿Depuración USB activada?'; }
       return;
     }
     if (sel) {
@@ -5971,7 +6343,7 @@ async function detectAdbDevices() {
     }
     const ready = d.devices.filter(dv => dv.ready);
     if (status) {
-      status.style.color = ready.length ? '#4ec9b0' : '#ce9178';
+      _txtCls(status, ready.length ? 'txt-ok' : 'txt-warn');
       status.textContent = ready.length
         ? `✓ ${ready.length} dispositivo(s) listo(s)`
         : '⚠ Dispositivo detectado pero no listo — acepta el diálogo de depuración USB en la pantalla';
@@ -5982,7 +6354,7 @@ async function detectAdbDevices() {
       testAdbPath();
     }
   } catch(e) {
-    if (status) { status.style.color = '#f44747'; status.textContent = '✗ ' + e.message; }
+    if (status) { _txtCls(status, 'txt-err'); status.textContent = '✗ ' + e.message; }
   }
 }
 
@@ -5990,23 +6362,28 @@ async function testAdbPath() {
   const serial  = document.getElementById('cable-adb-device')?.value.trim();
   const ap      = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
   const statusEl = document.getElementById('cable-adb-path-status');
-  if (!serial) { if (statusEl) { statusEl.style.color = '#888'; statusEl.textContent = 'Selecciona un dispositivo primero.'; } return; }
-  if (statusEl) { statusEl.style.color = '#555'; statusEl.textContent = 'Verificando ruta en el dispositivo…'; }
+  if (!serial) { if (statusEl) { _txtCls(statusEl, 'txt-muted'); statusEl.textContent = 'Selecciona un dispositivo primero.'; } return; }
+  if (statusEl) { _txtCls(statusEl, 'txt-dim'); statusEl.textContent = 'Verificando ruta en el dispositivo…'; }
   try {
     const d = await apiFetch(`/api/test-adb-path?serial=${encodeURIComponent(serial)}&path=${encodeURIComponent(ap)}`);
     if (d.accessible) {
-      statusEl.style.color = '#4ec9b0';
+      _txtCls(statusEl, 'txt-ok');
       statusEl.textContent = `✓ Ruta accesible — ${d.entries} entradas`;
     } else {
-      statusEl.style.color = '#f44747';
+      _txtCls(statusEl, 'txt-err');
       statusEl.textContent = '✗ ' + d.error;
     }
   } catch(e) {
-    if (statusEl) { statusEl.style.color = '#f44747'; statusEl.textContent = '✗ ' + e.message; }
+    if (statusEl) { _txtCls(statusEl, 'txt-err'); statusEl.textContent = '✗ ' + e.message; }
   }
 }
 
 async function loadCableSync() {
+  // QoL-14: offline badge for ADB
+  apiFetch('/api/system-status').then(st => {
+    const banner = document.getElementById('cable-offline-banner');
+    if (banner) banner.classList.toggle('hidden', st.adb?.ok);
+  }).catch(() => {});
   try {
     const cfg = await apiFetch('/api/config');
     const ovPc = document.getElementById('ov-pc-path')?.value.trim();
@@ -6099,7 +6476,7 @@ async function doCableSync() {
   btn.disabled = true;
   btn.textContent = 'Sincronizando…';
   resultEl.className = 'job-result';
-  document.getElementById('cable-details-wrap').style.display = 'none';
+  document.getElementById('cable-details-wrap').classList.add('hidden');
   delete window._lastCableSyncResult;
   if (!dryRun) _requestNotifPermission();
 
@@ -6186,7 +6563,7 @@ function _renderCableSyncResult(r) {
     }).join('');
 
     detailsList.innerHTML = detailHtml;
-    detailsWrap.style.display = '';
+    detailsWrap.classList.remove('hidden');
   }
 }
 
@@ -6194,8 +6571,8 @@ function _renderCableSyncResult(r) {
 function toggleCableSyncLog() {
   const wrap = document.getElementById('cable-log-wrap');
   if (!wrap) return;
-  const visible = wrap.style.display !== 'none';
-  wrap.style.display = visible ? 'none' : '';
+  const visible = !wrap.classList.contains('hidden');
+  wrap.classList.toggle('hidden', visible);
   if (!visible) loadCableSyncLog();
 }
 
@@ -6215,7 +6592,7 @@ async function loadCableSyncLog() {
 // ── Junk file cleaner (Fix F) ────────────────────────────────────────────────
 async function exportPegasus() {
   const el = document.getElementById('pegasus-result');
-  if (el) { el.textContent = 'Exportando...'; el.style.display = 'block'; el.className = 'job-result visible'; }
+  if (el) { el.textContent = 'Exportando...'; el.classList.remove('hidden'); el.className = 'job-result visible'; }
   try {
     const d = await apiPost('/api/export-pegasus', {});
     if (d.error) { if (el) { el.textContent = '\u2717 ' + d.error; el.className = 'job-result visible error-r'; } return; }
@@ -6278,7 +6655,7 @@ async function doJunkScan() {
 
 function junkToggleCat(catId) {
   const el = document.getElementById(catId);
-  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el) el.classList.toggle('hidden', !(el.classList.contains('hidden')));
 }
 
 function junkSelectAll(checked) {
@@ -6419,7 +6796,7 @@ async function doLibraryDoctor() {
       iss.type === 'misplaced_rom' || iss.type === 'empty_dir'
     );
     const resolveBtn = document.getElementById('btn-doctor-resolve-all');
-    if (resolveBtn) resolveBtn.style.display = hasActionable ? '' : 'none';
+    if (resolveBtn) resolveBtn.classList.toggle('hidden', !(hasActionable));
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${_h(e.message)}</p>`;
   }
@@ -6497,11 +6874,11 @@ async function doctorResolveAll() {
 let _reportData = null;
 
 function showReportTab(name) {
-  document.querySelectorAll('.rpt-tab').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.rpt-tab').forEach(t => t.classList.add('hidden'));
   document.querySelectorAll('.rpt-tab-btn').forEach(b => b.classList.remove('active'));
   const tab = document.getElementById('rpt-tab-' + name);
   const btn = document.getElementById('rpt-tab-btn-' + name);
-  if (tab) tab.style.display = '';
+  if (tab) tab.classList.remove('hidden');
   if (btn) btn.classList.add('active');
 }
 
@@ -6512,9 +6889,9 @@ async function generateReport() {
   const contentEl  = document.getElementById('report-content');
   const exportBtn  = document.getElementById('btn-export-report');
 
-  if (loadingEl) loadingEl.style.display = '';
-  if (contentEl) contentEl.style.display = 'none';
-  if (exportBtn) exportBtn.style.display = 'none';
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (contentEl) contentEl.classList.add('hidden');
+  if (exportBtn) exportBtn.classList.add('hidden');
 
   try {
     const params = path ? '?path=' + encodeURIComponent(path) : '';
@@ -6524,10 +6901,10 @@ async function generateReport() {
     const notAccessibleBanner = document.getElementById('report-not-accessible');
     if (notAccessibleBanner) {
       if (_reportData.path_accessible === false) {
-        notAccessibleBanner.style.display = '';
+        notAccessibleBanner.classList.remove('hidden');
         notAccessibleBanner.textContent = '\u26A0 La ruta "' + (_reportData.source_path || path) + '" no est\xe1 accesible desde este PC. Los datos del informe provienen de la base de datos local (sin escaneo de disco).';
       } else {
-        notAccessibleBanner.style.display = 'none';
+        notAccessibleBanner.classList.add('hidden');
       }
     }
 
@@ -6543,16 +6920,16 @@ async function generateReport() {
     _renderReportRa(_reportData);
     _renderReportChd(_reportData);
 
-    if (contentEl) contentEl.style.display = '';
-    if (exportBtn) exportBtn.style.display = '';
+    if (contentEl) contentEl.classList.remove('hidden');
+    if (exportBtn) exportBtn.classList.remove('hidden');
     showReportTab('zips');
   } catch(e) {
     const el = document.getElementById('rpt-tab-zips');
     if (el) el.innerHTML = `<p class="error-msg">${e.message}</p>`;
-    if (contentEl) contentEl.style.display = '';
+    if (contentEl) contentEl.classList.remove('hidden');
     showReportTab('zips');
   } finally {
-    if (loadingEl) loadingEl.style.display = 'none';
+    if (loadingEl) loadingEl.classList.add('hidden');
   }
 }
 
@@ -6886,54 +7263,54 @@ function _updateAutoSyncBanner(data, sdStatus) {
   if (statusEl) {
     if (!enabled) {
       statusEl.textContent = 'Sync automatico desactivado';
-      statusEl.style.color = '#ce9178';
+      _txtCls(statusEl, 'txt-warn');
     } else if (state === 'syncing') {
       const dev = s.last_device || '';
       statusEl.textContent = 'Sincronizando' + (dev ? ' con ' + dev : '') + '...';
-      statusEl.style.color = '#4ec9b0';
+      _txtCls(statusEl, 'txt-ok');
     } else if (state === 'idle' && s.last_sync_at) {
       statusEl.textContent = 'Ultimo sync: ' + s.last_sync_at + (s.last_error ? ' | Error: ' + s.last_error : '');
-      statusEl.style.color = s.last_error ? '#ce9178' : '#4ec9b0';
+      _txtCls(statusEl, s.last_error ? 'txt-warn' : 'txt-ok');
     } else {
       statusEl.textContent = 'Esperando conexion...';
-      statusEl.style.color = '#888';
+      _txtCls(statusEl, 'txt-muted');
     }
   }
 
   // Banner
   if (!enabled) {
-    banner.style.display = 'flex';
+    banner.classList.remove('hidden');
     banner.style.background = '#2a2a12';
     banner.style.borderBottomColor = '#4a4a1a';
     icon.textContent = 'Sync automatico desactivado';
-    icon.style.color = '#ce9178';
+    _txtCls(icon, 'txt-warn');
     text.textContent = 'Activa el sync automatico en la pestana Cable Sync.';
-    text.style.color = '#888';
+    _txtCls(text, 'txt-muted');
   } else if (state === 'syncing' || sdState === 'syncing') {
     const dev = state === 'syncing' ? (s.last_device || 'consola') : 'tarjeta SD';
-    banner.style.display = 'flex';
+    banner.classList.remove('hidden');
     banner.style.background = '#0d1f16';
     banner.style.borderBottomColor = '#1a4a2a';
     icon.textContent = sdState === 'syncing' ? 'Sincronizando saves (tarjeta SD)...' : ('Sincronizando saves con ' + dev + '...');
-    icon.style.color = '#4ec9b0';
+    _txtCls(icon, 'txt-ok');
     text.textContent = '';
   } else if (state === 'idle' && s.last_sync_at) {
-    banner.style.display = 'flex';
+    banner.classList.remove('hidden');
     banner.style.background = '#0d1a12';
     banner.style.borderBottomColor = '#1a3a22';
     const lastErr = s.last_error ? ' (' + s.last_error + ')' : '';
     icon.textContent = 'Ultimo sync automatico: ' + s.last_sync_at + lastErr;
-    icon.style.color = s.last_error ? '#ce9178' : '#4ec9b0';
+    _txtCls(icon, s.last_error ? 'txt-warn' : 'txt-ok');
     text.textContent = '';
   } else if (sdState === 'watching') {
-    banner.style.display = 'flex';
+    banner.classList.remove('hidden');
     banner.style.background = '#0d1520';
     banner.style.borderBottomColor = '#1a2a3a';
     icon.textContent = 'Tarjeta SD detectada — sincronizacion automatica activa';
-    icon.style.color = '#4ec9b0';
+    _txtCls(icon, 'txt-ok');
     text.textContent = '';
   } else {
-    banner.style.display = 'none';
+    banner.classList.add('hidden');
   }
 
   // 24-5: always update the compact header indicator
@@ -6963,11 +7340,11 @@ function _updateAutoSyncToggleUI(enabled) {
   if (enabled) {
     wrap.style.background = '#4ec9b0';
     if (knob) knob.style.left = '21px';
-    if (label) { label.textContent = 'Activado'; label.style.color = '#4ec9b0'; }
+    if (label) { label.textContent = 'Activado'; _txtCls(label, 'txt-ok'); }
   } else {
     wrap.style.background = '#444';
     if (knob) knob.style.left = '3px';
-    if (label) { label.textContent = 'Desactivado'; label.style.color = '#888'; }
+    if (label) { label.textContent = 'Desactivado'; _txtCls(label, 'txt-muted'); }
   }
 }
 
@@ -6979,7 +7356,7 @@ async function toggleAutoSync() {
     const statusEl = document.getElementById('auto-sync-status-text');
     if (statusEl) {
       statusEl.textContent = d.enabled ? 'Esperando conexion...' : 'Sync automatico desactivado';
-      statusEl.style.color = d.enabled ? '#888' : '#ce9178';
+      _txtCls(statusEl, d.enabled ? 'txt-muted' : 'txt-warn');
     }
     showToast(d.enabled ? 'Sync automatico activado' : 'Sync automatico desactivado', d.enabled ? 'ok' : 'info');
   } catch(e) {
@@ -7000,13 +7377,13 @@ async function saveAutoSyncSettings() {
       'sync.auto_sync_enabled':     _autoSyncEnabled,
     });
     if (d.error) {
-      if (resultEl) { resultEl.style.display=''; resultEl.style.color='#f44747'; resultEl.textContent = 'Error: ' + d.error; }
+      if (resultEl) { resultEl.classList.remove('hidden'); _txtCls(resultEl, 'txt-err'); resultEl.textContent = 'Error: ' + d.error; }
     } else {
-      if (resultEl) { resultEl.style.display=''; resultEl.style.color='#4ec9b0'; resultEl.textContent = 'Guardado'; setTimeout(() => { if (resultEl) resultEl.style.display='none'; }, 2500); }
+      if (resultEl) { resultEl.classList.remove('hidden'); _txtCls(resultEl, 'txt-ok'); resultEl.textContent = 'Guardado'; setTimeout(() => { if (resultEl) resultEl.classList.add('hidden'); }, 2500); }
       showToast('Ajustes de auto-sync guardados', 'ok');
     }
   } catch(e) {
-    if (resultEl) { resultEl.style.display=''; resultEl.style.color='#f44747'; resultEl.textContent = 'Error: ' + e.message; }
+    if (resultEl) { resultEl.classList.remove('hidden'); _txtCls(resultEl, 'txt-err'); resultEl.textContent = 'Error: ' + e.message; }
   }
 }
 
@@ -7085,7 +7462,7 @@ async function scanInbox() {
       (d.zips > 0 ? ' · <span style="color:#dcdcaa">' + d.zips + ' ZIPs</span>' : '') +
       (d.unrecognized > 0 ? ' · <span style="color:#f14c4c">' + d.unrecognized + ' no reconocidos</span>' : '') +
       (platStr ? ' &nbsp;|&nbsp; ' + platStr : '');
-    if (summaryEl) summaryEl.style.display = '';
+    if (summaryEl) summaryEl.classList.remove('hidden');
     // Table — B7-4: sort by platform (known first, unknown last), then by name
     if (tbody) {
       const sortedFiles = [...(d.files || [])].sort((a, b) => {
@@ -7107,7 +7484,7 @@ async function scanInbox() {
           '</tr>';
       }).join('');
     }
-    if (filesWrap) filesWrap.style.display = d.total > 0 ? '' : 'none';
+    if (filesWrap) filesWrap.classList.toggle('hidden', !(d.total > 0));
     if (d.total === 0) showToast('La carpeta Inbox está vacía', 'ok');
   } catch(e) {
     showToast('Error al analizar: ' + e.message, 'err');
@@ -7163,7 +7540,7 @@ function _applyInboxProgress(s) {
   };
 
   if (s.inbox_running && s.inbox_progress) {
-    if (wrap) wrap.style.display = '';
+    if (wrap) wrap.classList.remove('hidden');
     const p = s.inbox_progress;
     if (stepEl) stepEl.textContent = _STEP_LABELS[p.step] || p.step || 'Procesando…';
     const pct = (p.total > 0) ? Math.round((p.processed / p.total) * 100) : 0;
@@ -7172,7 +7549,7 @@ function _applyInboxProgress(s) {
     if (fileEl) fileEl.textContent = p.current_file || '';
     if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
   } else if (!s.inbox_running) {
-    if (wrap) wrap.style.display = 'none';
+    if (wrap) wrap.classList.add('hidden');
     if (btn) { btn.disabled = false; btn.textContent = 'Organizar todo'; }
     if (s.inbox_result) {
       const ts = s.inbox_result.result_ts || JSON.stringify(s.inbox_result);
@@ -7241,13 +7618,13 @@ async function _pollInboxWatcher() {
     const txt = document.getElementById('inbox-watcher-text');
     if (!el || !txt) return;
     if (d.watching) {
-      el.style.display = '';
+      el.classList.remove('hidden');
       const pending = d.pending_files || 0;
       const lastCheck = d.last_check ? d.last_check.replace('T',' ').slice(0,16) : '—';
       txt.innerHTML = 'Daemon activo · Ultimo chequeo: ' + lastCheck +
         (pending > 0 ? ' · <span style="color:#dcdcaa">' + pending + ' archivos pendientes</span>' : ' · sin archivos pendientes');
     } else {
-      el.style.display = 'none';
+      el.classList.add('hidden');
     }
   } catch(_) {}
 }
@@ -7362,6 +7739,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // S25: Check PIN status on load (shows logout button in header if needed)
   loadAuthStatus();
   loadLocalUrl();
+  _checkAndroidUserAgent();  // S40: show Android setup panel if on Android
 
   // 24-4: Confirm modal OK button
   const confirmOkBtn = document.getElementById('confirm-ok');
@@ -7392,8 +7770,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     // Don't trigger nav shortcuts when a modal is open
-    const confirmOpen = document.getElementById('confirm-modal')?.style.display !== 'none';
-    const wizardOpen  = document.getElementById('wizard-modal')?.style.display  !== 'none';
+    const confirmOpen = !document.getElementById('confirm-modal')?.classList.contains('hidden');
+    const wizardOpen  = !document.getElementById('wizard-modal')?.classList.contains('hidden');
     if (confirmOpen || wizardOpen) return;
     const k = e.key.toLowerCase();
     if (k === 't') { e.preventDefault(); enterTvMode(); return; }
@@ -7401,7 +7779,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (k === 'g') { e.preventDefault(); showTab('games'); }
     if (k === 'r') {
       e.preventDefault();
-      const t = document.querySelector('nav button.active')?.id?.replace('nav-', '');
+      const t = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
       if (t) showTab(t);
     }
   });

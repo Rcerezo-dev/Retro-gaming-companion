@@ -1,10 +1,22 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+# Retry settings for transient rclone failures (timeouts, network blips)
+_RETRY_DELAYS = (5, 15, 45)   # seconds between attempts 1→2, 2→3, 3→4
+_RETRYABLE_PHRASES = (
+    "timeout", "timed out", "connection reset", "connection refused",
+    "eof", "broken pipe", "i/o error", "network error", "no such host",
+    "dial tcp", "read tcp", "write tcp",
+)
 
 
 @dataclass(slots=True)
@@ -60,24 +72,43 @@ class RcloneTransport:
     # ------------------------------------------------------------------
 
     def _run(self, args: list[str]) -> str:
+        """Run rclone with exponential-backoff retries on transient errors."""
         cmd = [self.rclone, *args]
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-            )
-        except FileNotFoundError:
-            raise RcloneError(
-                f"rclone binary not found: '{self.rclone}'. "
-                "Install rclone and ensure it is in PATH, or pass --rclone <path>."
-            )
-        if proc.returncode != 0:
-            raise RcloneError(
-                f"rclone exited with code {proc.returncode}:\n{proc.stderr.strip()}"
-            )
-        return proc.stdout
+        last_exc: RcloneError | None = None
+
+        for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                )
+            except FileNotFoundError:
+                raise RcloneError(
+                    f"rclone binary not found: '{self.rclone}'. "
+                    "Install rclone and ensure it is in PATH, or pass --rclone <path>."
+                )
+
+            if proc.returncode == 0:
+                return proc.stdout
+
+            stderr = proc.stderr.strip()
+            err = RcloneError(f"rclone exited with code {proc.returncode}:\n{stderr}")
+
+            # Only retry on transient network/timeout errors
+            if delay is not None and any(p in stderr.lower() for p in _RETRYABLE_PHRASES):
+                log.warning(
+                    "rclone transient error (attempt %d/%d), retrying in %ds: %s",
+                    attempt, len(_RETRY_DELAYS) + 1, delay, stderr[:120],
+                )
+                last_exc = err
+                time.sleep(delay)
+                continue
+
+            raise err  # permanent error — don't retry
+
+        raise last_exc  # type: ignore[misc]  — all retries exhausted
 
 
 def _parse_rclone_time(raw: str) -> datetime:

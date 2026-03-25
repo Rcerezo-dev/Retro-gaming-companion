@@ -64,6 +64,9 @@ class AppConfig:
     # Save backup (S29)
     backup_saves_enabled: bool      # True = auto-backup before sync/rename overwrites
     backup_saves_keep_n: int        # max versions per save file (default 5)
+    pre_sync_backup: bool           # True = crear ZIP de saves antes de cada sync (QoL-11)
+    # Desktop notifications (S37)
+    notify_desktop: bool            # True = show Windows toast on sync/health/inbox completion
 
 
 _CONFIG_TOML_TEMPLATE = """\
@@ -202,6 +205,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
         backup_saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
         backup_saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
+        pre_sync_backup=bool(backup_cfg.get("pre_sync", True)),
+        notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
         excluded_directories=(  # noqa: E501
             "Android",
             "BIOS",

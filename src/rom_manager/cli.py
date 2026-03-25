@@ -213,6 +213,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="Only export for this platform.",
     )
 
+    # ── Headless commands (S38-2) — suitable for Task Scheduler ─────────────
+
+    sync_parser = subparsers.add_parser(
+        "sync",
+        help="Sync all cloud save sources defined in config.toml (headless, Task Scheduler-friendly).",
+    )
+    sync_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually transfer files. Default is dry-run.",
+    )
+    sync_parser.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Only print summary line (no per-file output).",
+    )
+    sync_parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Show a Windows desktop toast notification when done.",
+    )
+
+    health_parser = subparsers.add_parser(
+        "health",
+        help="Re-hash all ROMs and report corrupted/missing files. Exits 1 if issues found.",
+    )
+    health_parser.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Only print summary line (no per-ROM output).",
+    )
+    health_parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Show a Windows desktop toast notification when done.",
+    )
+
     subparsers.add_parser(
         "init-config",
         help="Generate a sample config.toml in the current directory.",
@@ -233,15 +270,27 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Port to bind (overrides config.toml [web] port, default 7777).",
     )
+    serve_parser.add_argument(
+        "--tray",
+        action="store_true",
+        help="Show a system tray icon (Windows only). The server starts minimised in the background.",
+    )
 
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    import sys
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    config = load_config()
+    # When running as a PyInstaller bundle, use the exe's directory as project root
+    # so config.toml and .rommgr/ live next to RetroVault.exe.
+    if getattr(sys, "frozen", False):
+        _project_root = Path(sys.executable).parent
+    else:
+        _project_root = None  # defaults to cwd
+    config = load_config(_project_root)
     logger = configure_logging(config.logs_dir)
     repository = LibraryRepository(config.database_path)
     repository_android = LibraryRepository(config.database_path_android)
@@ -384,6 +433,8 @@ def main(argv: list[str] | None = None) -> int:
             print("Sync status (no files will be transferred).\n")
 
         try:
+            from rom_manager.sync.delta_cache import DeltaCache
+            _delta = DeltaCache(config.data_dir) if not dry_run else None
             result, decisions = sync_saves(
                 saves_dir,
                 remote,
@@ -391,6 +442,7 @@ def main(argv: list[str] | None = None) -> int:
                 repository=repository,
                 save_extensions=config.save_extensions,
                 dry_run=dry_run,
+                delta_cache=_delta,
             )
         except RcloneError as exc:
             print(f"[ERROR] {exc}")
@@ -405,12 +457,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  [{tag}]  {d.relative}")
 
         verb = "Would " if dry_run else ""
+        delta_note = f"  |  Delta skipped: {result.delta_skipped}" if result.delta_skipped else ""
         print(
             f"\n{verb}Upload: {result.uploaded}  |  "
             f"{verb}Download: {result.downloaded}  |  "
             f"Up to date: {result.up_to_date}  |  "
             f"Conflicts: {result.conflicts}  |  "
-            f"Errors: {result.errors}"
+            f"Errors: {result.errors}{delta_note}"
         )
         if not dry_run and result.errors == 0 and (result.uploaded + result.downloaded) > 0:
             print("Sync complete.")
@@ -728,6 +781,117 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\nExported {total_written} gamelist.xml file(s).")
         return 0
 
+    if args.command == "sync":
+        sources = config.sync_sources
+        if not sources:
+            print("[ERROR] No hay fuentes de sync configuradas. Añade [[sync.sources]] en config.toml.")
+            return 1
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — usa --apply para transferir archivos.\n")
+
+        transport = RcloneTransport(rclone=config.rclone_binary)
+        total_up = total_down = total_ok = total_err = 0
+        any_error = False
+
+        for source in sources:
+            saves_dir = Path(source.local_dir)
+            if not saves_dir.exists():
+                print(f"  [ERROR] {source.name}: directorio no encontrado: {source.local_dir}")
+                any_error = True
+                continue
+
+            exts = tuple() if source.sync_all else config.save_extensions
+            try:
+                from rom_manager.sync.delta_cache import DeltaCache
+                _delta = DeltaCache(config.data_dir) if not dry_run else None
+                result, decisions = sync_saves(
+                    saves_dir,
+                    source.remote,
+                    transport=transport,
+                    repository=repository,
+                    save_extensions=exts,
+                    dry_run=dry_run,
+                    delta_cache=_delta,
+                )
+            except RcloneError as exc:
+                print(f"  [ERROR] {source.name}: {exc}")
+                any_error = True
+                continue
+
+            if not args.quiet:
+                for d in decisions:
+                    if d.action == "up_to_date":
+                        continue
+                    tag = {"upload": "↑", "download": "↓", "conflict": "⚠"}.get(d.action, d.action)
+                    print(f"  [{tag}] {source.name} / {d.relative}")
+
+            verb = "Haría " if dry_run else ""
+            delta_note = f" Δ:{result.delta_skipped}" if result.delta_skipped else ""
+            print(
+                f"  {source.name}: {verb}↑{result.uploaded} ↓{result.downloaded} "
+                f"= {result.up_to_date} conf:{result.conflicts} err:{result.errors}{delta_note}"
+            )
+            total_up  += result.uploaded
+            total_down += result.downloaded
+            total_ok  += result.up_to_date
+            total_err += result.errors
+            if result.errors:
+                any_error = True
+
+        print(f"\nTotal: ↑{total_up} subidos  ↓{total_down} descargados  "
+              f"={total_ok} ya al día  err:{total_err}")
+
+        if args.notify:
+            from rom_manager.utils.notifier import notify
+            parts = []
+            if total_up:   parts.append(f"{total_up} subidos")
+            if total_down: parts.append(f"{total_down} descargados")
+            body = ", ".join(parts) if parts else "Todo al día"
+            if total_err: body += f" ({total_err} errores)"
+            notify("Retro Vault — Sync completado", body)
+
+        return 1 if any_error else 0
+
+    if args.command == "health":
+        from rom_manager.utils.health_checker import check_library_health
+
+        print("Verificando integridad de la biblioteca…")
+        summary = check_library_health(repository)
+
+        if not args.quiet:
+            for r in summary.results:
+                tag = "CORRUPTO" if r.status == "corrupted" else "FALTANTE"
+                title = r.canonical_title or Path(r.source_path).name
+                print(f"  [{tag}]  [{r.platform}]  {title}")
+                print(f"          {r.source_path}")
+                if r.status == "corrupted":
+                    print(f"          SHA1 almacenado: {r.stored_sha1}…")
+                    print(f"          SHA1 actual:     {r.computed_sha1}…")
+
+        issues = summary.corrupted + summary.missing
+        print(f"\nVerificados: {summary.ok}  |  Corruptos: {summary.corrupted}  |  Faltantes: {summary.missing}")
+
+        # Persist schedule so the daemon doesn't re-run immediately
+        try:
+            from rom_manager.web.server import _write_health_schedule
+            _write_health_schedule(config, ok=summary.ok,
+                                   corrupted=summary.corrupted, missing=summary.missing)
+        except Exception:
+            pass
+
+        if args.notify:
+            from rom_manager.utils.notifier import notify
+            if issues:
+                notify("Retro Vault — Health Check",
+                       f"⚠ {summary.corrupted} corruptos, {summary.missing} faltantes")
+            else:
+                notify("Retro Vault — Health Check",
+                       f"✓ {summary.ok} ROMs verificados, sin problemas")
+
+        return 1 if issues else 0
+
     if args.command == "init-config":
         toml_path = Path.cwd() / "config.toml"
         if toml_path.exists():
@@ -745,7 +909,7 @@ def main(argv: list[str] | None = None) -> int:
         port = args.port or config.web_port
         print(f"Retro Vault — http://{host}:{port}/")
         print("Press Ctrl+C to stop.")
-        serve(host=host, port=port, repository=repository, config=config, repository_android=repository_android)
+        serve(host=host, port=port, repository=repository, config=config, repository_android=repository_android, tray=getattr(args, "tray", False))
         return 0
 
     parser.error(f"Unknown command: {args.command}")

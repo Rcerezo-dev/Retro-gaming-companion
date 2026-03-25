@@ -448,6 +448,37 @@ def _build_status(
     except Exception:
         pass
 
+    # UI-2: total_platforms
+    total_platforms = 0
+    try:
+        with active_repo.connect() as _pp:
+            _row = _pp.execute(
+                "SELECT COUNT(DISTINCT platform) FROM games WHERE file_type='rom' AND platform IS NOT NULL AND platform != ''"
+            ).fetchone()
+            total_platforms = _row[0] if _row else 0
+    except Exception:
+        pass
+
+    # UI-2: last_sync_at (most recent save_sync_log entry)
+    last_sync_at: str | None = None
+    try:
+        _sl = active_repo.get_sync_log(limit=1)
+        if _sl:
+            last_sync_at = _sl[0].get("created_at")
+    except Exception:
+        pass
+
+    # UI-2: health summary from health_schedule.json
+    health: dict = {}
+    if project_root is not None:
+        try:
+            import json as _json
+            _hp = project_root / ".rommgr" / "health_schedule.json"
+            if _hp.exists():
+                health = _json.loads(_hp.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
     return {
         "total_games": summary.total_games,
         "total_saves": summary.total_saves,
@@ -471,6 +502,9 @@ def _build_status(
         "setup_complete": setup_complete,
         "setup_checklist": setup_checklist,
         "recently_played": recently_played,
+        "total_platforms": total_platforms,
+        "last_sync_at": last_sync_at,
+        "health": health,
     }
 
 
@@ -665,6 +699,7 @@ def _annotate_duplicates_with_ra(title_groups: list[dict], config: "AppConfig") 
 
 def _build_duplicates(
     repository: LibraryRepository,
+    config: AppConfig,
     source_root: str | None = None,
     pc_root: str | None = None,
     ab_root: str | None = None,
@@ -785,6 +820,7 @@ def _build_library_diff(
 def _build_duplicates_two_repos(
     repository: LibraryRepository,
     repository_android: LibraryRepository,
+    config: AppConfig,
     source_root: str | None = None,
     pc_root: str | None = None,
     ab_root: str | None = None,
@@ -797,7 +833,7 @@ def _build_duplicates_two_repos(
         return _os.path.normcase(_os.path.normpath(p)).rstrip(_os.sep) + _os.sep
 
     if repository_android is repository:
-        return _build_duplicates(repository, source_root=source_root, pc_root=pc_root, ab_root=ab_root)
+        return _build_duplicates(repository, config, source_root=source_root, pc_root=pc_root, ab_root=ab_root)
 
     pc_groups = repository.get_duplicate_groups()
     android_groups = repository_android.get_duplicate_groups()
@@ -1134,6 +1170,7 @@ def _build_config(config: AppConfig) -> dict:
         "launcher_cores": config.launcher_cores or {},
         "backup_saves_enabled": config.backup_saves_enabled,
         "backup_saves_keep_n": config.backup_saves_keep_n,
+        "notify_desktop": config.notify_desktop,
     }
 
 

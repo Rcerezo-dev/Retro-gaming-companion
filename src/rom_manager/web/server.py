@@ -33,6 +33,9 @@ from rom_manager.web.inbox_pipeline import (
     _build_inbox_scan, _run_setup_pipeline, _run_inbox_pipeline, _watcher_now,
 )
 
+# ── Tray icon instance (set by serve() when --tray is passed) ─────────────────
+_tray_instance = None  # type: ignore[assignment]
+
 # ── Background job state ──────────────────────────────────────────────────────
 _job_lock = threading.Lock()
 _jobs: dict[str, bool] = {
@@ -418,6 +421,279 @@ def _handle_import_arcade_catalog(data: dict, config: AppConfig) -> dict:
     }
 
 
+def _handle_detect_cloud_folder() -> dict:
+    """Detect locally-installed cloud clients (Dropbox, OneDrive, Google Drive)."""
+    import json as _json
+    import os as _os
+    from pathlib import Path as _P
+
+    detected: list[dict] = []
+
+    # Dropbox — reads actual sync folder from client config
+    try:
+        info_path = _P(_os.environ.get("LOCALAPPDATA", "")) / "Dropbox" / "info.json"
+        if info_path.exists():
+            info = _json.loads(info_path.read_text(encoding="utf-8"))
+            for key in ("personal", "business"):
+                folder = (info.get(key) or {}).get("path", "")
+                if folder and _P(folder).exists():
+                    detected.append({
+                        "service": "Dropbox",
+                        "local_folder": folder,
+                        "suggested_remote": folder.replace("\\", "/") + "/RetroVault/saves",
+                    })
+                    break
+    except Exception:
+        pass
+
+    # OneDrive — env var set by the client
+    for env_var in ("OneDriveConsumer", "OneDrive"):
+        folder = _os.environ.get(env_var, "")
+        if folder and _P(folder).exists():
+            detected.append({
+                "service": "OneDrive",
+                "local_folder": folder,
+                "suggested_remote": folder.replace("\\", "/") + "/RetroVault/saves",
+            })
+            break
+
+    # Google Drive for Desktop — typical install path
+    try:
+        gdrive = _P(_os.environ.get("LOCALAPPDATA", "")) / "Google" / "Drive File Stream"
+        if not gdrive.exists():
+            gdrive = _P(_os.environ.get("USERPROFILE", "")) / "Google Drive"
+        if gdrive.exists():
+            detected.append({
+                "service": "Google Drive",
+                "local_folder": str(gdrive),
+                "suggested_remote": str(gdrive).replace("\\", "/") + "/RetroVault/saves",
+            })
+    except Exception:
+        pass
+
+    return {"detected": detected}
+
+
+def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
+    """Return the local rclone config file contents as bytes, or an error message."""
+    import subprocess as _sp, shutil as _sh
+    # Locate config file via `rclone config file`
+    rclone_bin = config.rclone_binary or "rclone"
+    if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
+        return b"# rclone not found on this machine\n", "text/plain; charset=utf-8"
+    try:
+        r = _sp.run([rclone_bin, "config", "file"], capture_output=True, text=True, timeout=8)
+        config_path = None
+        for line in (r.stdout or "").splitlines():
+            line = line.strip()
+            if line and line != "Configuration file is stored at:":
+                config_path = line
+                break
+        if config_path:
+            from pathlib import Path as _P
+            p = _P(config_path)
+            if p.exists():
+                return p.read_bytes(), "text/plain; charset=utf-8"
+        return b"# rclone config file not found\n", "text/plain; charset=utf-8"
+    except Exception as exc:
+        return f"# error reading rclone config: {exc}\n".encode(), "text/plain; charset=utf-8"
+
+
+def _build_anbernic_setup_sh(config: AppConfig) -> str:
+    """Generate a personalised Android/Termux setup shell script."""
+    ip = _get_local_ip()
+    port = config.web_port
+    base_url = f"http://{ip}:{port}"
+    rclone_remote = config.rclone_remote or "dropbox:/RetroSync/saves"
+    library_root = str(config.library_root or "/storage/emulated/0/RetroArch").replace("\\", "/")
+
+    # Detect if we have a cloud folder configured too
+    cloud_info = _handle_detect_cloud_folder()
+    has_cloud = bool(cloud_info.get("detected"))
+    cloud_folder = cloud_info["detected"][0]["local_folder"].replace("\\", "/") if has_cloud else ""
+    cloud_service = cloud_info["detected"][0]["service"] if has_cloud else ""
+
+    lines: list[str] = [
+        "#!/data/data/com.termux/files/usr/bin/bash",
+        "# ──────────────────────────────────────────────────────",
+        "# Retro Vault — Script de auto-configuración para Android",
+        f"# Generado por: {base_url}",
+        "# ──────────────────────────────────────────────────────",
+        "set -e",
+        "",
+        'echo "╔══════════════════════════════════════╗"',
+        'echo "║   Retro Vault — Setup para Android   ║"',
+        'echo "╚══════════════════════════════════════╝"',
+        'echo ""',
+        "",
+        "RA_SAVES=/storage/emulated/0/RetroArch/saves",
+        "RA_STATES=/storage/emulated/0/RetroArch/states",
+        f"RETROVAULT_URL={base_url}",
+        f"RCLONE_REMOTE=\"{rclone_remote}\"",
+        "",
+        "# ── Permisos de almacenamiento ────────────────────────",
+        'echo "[1/5] Solicitando permisos de almacenamiento..."',
+        "termux-setup-storage 2>/dev/null || true",
+        'echo ""',
+        "",
+        "# ── Dependencias ─────────────────────────────────────",
+        'echo "[2/5] Instalando dependencias (wget, openssh)..."',
+        "pkg install -y wget openssh 2>/dev/null",
+        "",
+    ]
+
+    # ── Option A: rclone ──────────────────────────────────────
+    lines += [
+        "# ══════════════════════════════════════════════════════",
+        "# OPCIÓN A — Sync via rclone (requiere WiFi al PC)",
+        "# ══════════════════════════════════════════════════════",
+        'echo "[3a/5] Instalando rclone desde Termux..."',
+        "pkg install -y rclone 2>/dev/null",
+        "",
+        f'echo "[4a/5] Descargando configuración rclone del PC ({base_url})..."',
+        "mkdir -p ~/.config/rclone",
+        f"wget -q -O ~/.config/rclone/rclone.conf \"{base_url}/api/rclone-export-config\" && \\",
+        '  echo "  ✓ Config rclone descargada." || \\',
+        '  echo "  ✗ No se pudo descargar la config rclone. Asegúrate de que el PC esté encendido y conectado a la misma red WiFi."',
+        "",
+        '# Crear script de sync',
+        "SYNC_SCRIPT=~/retrovault-sync.sh",
+        "cat > $SYNC_SCRIPT << 'SYNCEOF'",
+        "#!/data/data/com.termux/files/usr/bin/bash",
+        "# Retro Vault — Sync de saves",
+        "SAVES=/storage/emulated/0/RetroArch/saves",
+        "STATES=/storage/emulated/0/RetroArch/states",
+        f'REMOTE="{rclone_remote}"',
+        "# Subir saves al cloud",
+        'echo "Subiendo saves..."',
+        'rclone copy "$SAVES" "$REMOTE/saves" --update --transfers 4',
+        'rclone copy "$STATES" "$REMOTE/states" --update --transfers 4',
+        "# Bajar saves del cloud (sin sobreescribir más nuevos)",
+        'echo "Bajando saves..."',
+        'rclone copy "$REMOTE/saves" "$SAVES" --update --transfers 4',
+        'rclone copy "$REMOTE/states" "$STATES" --update --transfers 4',
+        'echo "✓ Sync completado."',
+        "SYNCEOF",
+        "chmod +x $SYNC_SCRIPT",
+        'echo "  ✓ Script de sync creado en ~/retrovault-sync.sh"',
+        "",
+    ]
+
+    if has_cloud:
+        lines += [
+            "# ══════════════════════════════════════════════════════",
+            f"# OPCIÓN B — Sync via {cloud_service} (app Android)",
+            "# ══════════════════════════════════════════════════════",
+            f'echo "[3b/5] Buscando carpeta {cloud_service} en Android..."',
+            "# Rutas típicas de los clientes Android de cloud",
+            "CLOUD_PATHS=(",
+            '  "/storage/emulated/0/Dropbox"',
+            '  "/storage/emulated/0/OneDrive"',
+            '  "/storage/emulated/0/Google Drive"',
+            ")",
+            "CLOUD_DIR=\"\"",
+            "for p in \"${CLOUD_PATHS[@]}\"; do",
+            "  if [ -d \"$p\" ]; then CLOUD_DIR=\"$p\"; break; fi",
+            "done",
+            "",
+            "if [ -n \"$CLOUD_DIR\" ]; then",
+            f'  echo "  ✓ {cloud_service} encontrado en $CLOUD_DIR"',
+            "  CLOUD_SYNC_SCRIPT=~/retrovault-cloud-sync.sh",
+            "  cat > $CLOUD_SYNC_SCRIPT << 'CLOUDSYNCEOF'",
+            "#!/data/data/com.termux/files/usr/bin/bash",
+            "# Retro Vault — Sync via carpeta cloud local",
+            "SAVES=/storage/emulated/0/RetroArch/saves",
+            "STATES=/storage/emulated/0/RetroArch/states",
+            "CLOUD_DIR=\"\"",
+            "for p in \"/storage/emulated/0/Dropbox\" \"/storage/emulated/0/OneDrive\" \"/storage/emulated/0/Google Drive\"; do",
+            "  if [ -d \"$p\" ]; then CLOUD_DIR=\"$p\"; break; fi",
+            "done",
+            "if [ -z \"$CLOUD_DIR\" ]; then echo \"No se encontró carpeta cloud.\"; exit 1; fi",
+            "DEST=\"$CLOUD_DIR/RetroVault\"",
+            "mkdir -p \"$DEST/saves\" \"$DEST/states\"",
+            "rsync -av --update \"$SAVES/\" \"$DEST/saves/\"",
+            "rsync -av --update \"$STATES/\" \"$DEST/states/\"",
+            "rsync -av --update \"$DEST/saves/\" \"$SAVES/\"",
+            "rsync -av --update \"$DEST/states/\" \"$STATES/\"",
+            'echo "✓ Sync cloud local completado."',
+            "CLOUDSYNCEOF",
+            "  chmod +x $CLOUD_SYNC_SCRIPT",
+            '  echo "  ✓ Script cloud sync creado en ~/retrovault-cloud-sync.sh"',
+            "else",
+            f'  echo "  ✗ No se encontró carpeta {cloud_service} en el dispositivo."',
+            f'  echo "    Instala la app {cloud_service} en Android y asegúrate de que haya sincronizado al menos una vez."',
+            "fi",
+            "",
+        ]
+
+    # ── Termux:Boot ──────────────────────────────────────────
+    lines += [
+        "# ══════════════════════════════════════════════════════",
+        "# Auto-arranque con Termux:Boot",
+        "# ══════════════════════════════════════════════════════",
+        'echo "[5/5] Configurando auto-sync al arrancar..."',
+        "BOOT_DIR=~/.termux/boot",
+        "mkdir -p $BOOT_DIR",
+        "cat > $BOOT_DIR/retrovault-sync.sh << 'BOOTEOF'",
+        "#!/data/data/com.termux/files/usr/bin/bash",
+        "sleep 30  # Esperar a que el sistema cargue",
+        "~/retrovault-sync.sh >> ~/retrovault-sync.log 2>&1",
+        "BOOTEOF",
+        "chmod +x $BOOT_DIR/retrovault-sync.sh",
+        'echo "  ✓ Auto-sync configurado (Termux:Boot)"',
+        "",
+        'echo ""',
+        'echo "╔══════════════════════════════════════════════════╗"',
+        'echo "║  ✓ Configuración completada                      ║"',
+        'echo "║                                                  ║"',
+        'echo "║  Ejecuta ~/retrovault-sync.sh para sincronizar   ║"',
+        'echo "║  El sync se ejecutará automáticamente al arrancar ║"',
+        'echo "║  (requiere Termux:Boot desde F-Droid)            ║"',
+        'echo "╚══════════════════════════════════════════════════╝"',
+        "",
+    ]
+
+    return "\n".join(lines) + "\n"
+
+
+def _handle_system_status(config: AppConfig) -> dict:
+    """Aggregate status of all external tools and data dependencies."""
+    import subprocess as _sp
+    from pathlib import Path as _P
+
+    def _test_binary(path_str: str, flag: str = "--version") -> tuple[bool, str]:
+        p = _P(path_str) if path_str else None
+        if not p or not p.exists():
+            # Try in PATH
+            import shutil
+            found = shutil.which(path_str or "")
+            if not found:
+                return False, ""
+            p = _P(found)
+        try:
+            r = _sp.run([str(p), flag], capture_output=True, text=True, timeout=5)
+            ver = (r.stdout or r.stderr or "").strip().splitlines()[0][:60]
+            return True, ver
+        except Exception:
+            return True, ""  # exists but failed to run version
+
+    chdman_ok, chdman_ver = _test_binary(str(config.chdman) if config.chdman else "")
+    adb_ok, adb_ver = _test_binary(str(config.adb) if config.adb else "")
+    rclone_st = _handle_rclone_status(config)
+    cats = _handle_catalog_status(config)
+    cat_total = len(cats.get("nointro", [])) + len(cats.get("redump", [])) + len(cats.get("arcade", []))
+
+    return {
+        "chdman":   {"ok": chdman_ok, "version": chdman_ver, "path": str(config.chdman or "tools/chdman.exe")},
+        "adb":      {"ok": adb_ok,    "version": adb_ver,    "path": str(config.adb or "tools/adb.exe")},
+        "rclone":   {"ok": rclone_st["installed"], "version": rclone_st.get("version", ""), "remotes": rclone_st.get("remotes", [])},
+        "ra_key":   {"ok": bool(config.ra_api_key)},
+        "catalogs": {"ok": cat_total > 0, "total": cat_total,
+                     "nointro": len(cats.get("nointro", [])), "redump": len(cats.get("redump", []))},
+        "library":  {"ok": bool(config.library_root), "path": str(config.library_root or "")},
+    }
+
+
 def _handle_rclone_status(config: AppConfig) -> dict:
     """Check if rclone is installed and list configured remotes."""
     import subprocess
@@ -798,6 +1074,74 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     def _get_repo(path_str: str) -> LibraryRepository:
         return _repo_for_path(path_str, repository, _repo_android, config)
 
+    def _start_ra_check_bg(api_key: str) -> bool:
+        """Start RA check in background. Returns True if started, False if already running."""
+        with _job_lock:
+            if _jobs.get("ra_check"):
+                return False
+            _jobs["ra_check"] = True
+
+        def _run() -> None:
+            _ra_cancel.clear()
+            try:
+                from rom_manager.retroachievements.ra_checker import check_library, to_csv
+
+                cache_dir = config.data_dir / "ra_cache"
+
+                def _prog(current: int, total: int, filename: str) -> None:
+                    _ra_progress.update({"current": current, "total": total, "current_file": filename})
+                    if _ra_cancel.is_set():
+                        raise InterruptedError("RA check cancelled")
+
+                try:
+                    summary = check_library(repository, api_key, cache_dir=cache_dir, progress_cb=_prog)
+                except InterruptedError:
+                    _job_results["ra_check"] = {
+                        "cancelled": True, "total": 0, "supported": 0,
+                        "no_support_alternative": 0, "no_support": 0,
+                        "no_md5": 0, "platform_unknown": 0,
+                        "alternatives_csv": "", "alternatives": [],
+                    }
+                    return
+                alternatives_csv = to_csv(summary) if summary.no_support_alternative > 0 else ""
+                _job_results["ra_check"] = {
+                    "total": summary.total,
+                    "supported": summary.supported,
+                    "no_support_alternative": summary.no_support_alternative,
+                    "no_support": summary.no_support,
+                    "no_md5": summary.no_md5,
+                    "platform_unknown": summary.platform_unknown,
+                    "cancelled": _ra_cancel.is_set(),
+                    "alternatives_csv": alternatives_csv,
+                    "alternatives": [
+                        {
+                            "platform": r.platform,
+                            "filename": r.original_filename,
+                            "our_md5": r.our_md5[:12],
+                            "ra_id": r.alternative.id,
+                            "ra_title": r.alternative.title,
+                            "ra_achievements": r.alternative.achievements,
+                            "ra_points": r.alternative.points,
+                        }
+                        for r in summary.results
+                        if r.status == "no_support_alternative" and r.alternative
+                    ],
+                    "no_support_entries": [
+                        {"source_path": r.source_path, "filename": r.original_filename, "platform": r.platform}
+                        for r in summary.results
+                        if r.status == "no_support"
+                    ],
+                }
+            except Exception as exc:
+                _job_results["ra_check"] = {"error": str(exc)}
+            finally:
+                with _job_lock:
+                    _ra_progress.clear()
+                    _jobs["ra_check"] = False
+
+        threading.Thread(target=_run, daemon=True).start()
+        return True
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             pass  # suppress default request logging
@@ -856,7 +1200,11 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     if "/" in filename or "\\" in filename or not filename:
                         self._send(404, "text/plain", b"Not found")
                     else:
-                        static_dir = Path(__file__).parent / "static"
+                        import sys as _sys
+                        if getattr(_sys, "frozen", False) and hasattr(_sys, "_MEIPASS"):
+                            static_dir = Path(_sys._MEIPASS) / "rom_manager" / "web" / "static"
+                        else:
+                            static_dir = Path(__file__).parent / "static"
                         file_path = static_dir / filename
                         if not file_path.exists() or not file_path.is_file():
                             self._send(404, "text/plain", b"Not found")
@@ -1036,7 +1384,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     source_root = qs.get("source_root", [None])[0] or None
                     pc_root     = qs.get("pc_root",     [None])[0] or None
                     ab_root     = qs.get("ab_root",     [None])[0] or None
-                    self._send_json(_build_duplicates_two_repos(repository, _repo_android, source_root=source_root, pc_root=pc_root, ab_root=ab_root))
+                    self._send_json(_build_duplicates_two_repos(repository, _repo_android, config, source_root=source_root, pc_root=pc_root, ab_root=ab_root))
                 elif path == "/api/assets":
                     src_root = qs.get("root", [None])[0] or None
                     _assets_repo = _get_repo(src_root or "")
@@ -1089,6 +1437,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             "setup_result": _job_results.get("setup"),
                             "backup_now_running": _jobs.get("backup_now", False),
                             "backup_now_result": _job_results.get("backup_now"),
+                            "inbox_pending_files": _inbox_watcher_status.get("pending_files", 0),
                         })
                 elif path == "/api/test-chdman":
                     import subprocess
@@ -1328,7 +1677,43 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         if not row:
                             self._send_json({"error": "not found"})
                         else:
-                            self._send_json(dict(row))
+                            result = dict(row)
+                            # UI-4: RA data lookup from local cache
+                            try:
+                                import json as _json
+                                from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+                                from rom_manager.retroachievements.ra_client import _parse_game_list
+                                _plat = result.get("platform") or ""
+                                _md5  = result.get("md5") or ""
+                                if _plat and _md5:
+                                    _cid = get_ra_console_id(_plat)
+                                    if _cid:
+                                        _cf = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{_cid}.json"
+                                        if _cf.exists():
+                                            _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
+                                            _rg = _hl.get(_md5.lower())
+                                            if _rg:
+                                                result["ra_game_id"]      = _rg.id
+                                                result["ra_title"]        = _rg.title
+                                                result["ra_achievements"] = _rg.achievements
+                                                result["ra_points"]       = _rg.points
+                            except Exception:
+                                pass
+                            # UI-4: saves count by stem matching
+                            try:
+                                import os as _os2
+                                _sp  = result.get("source_path") or ""
+                                _stem = _os2.path.splitext(_os2.path.basename(_sp))[0]
+                                if _stem:
+                                    with repository.connect() as _sc2:
+                                        _row2 = _sc2.execute(
+                                            "SELECT COUNT(*) FROM saves WHERE original_path LIKE ?",
+                                            (f"%{_stem}%",),
+                                        ).fetchone()
+                                        result["saves_count"] = _row2[0] if _row2 else 0
+                            except Exception:
+                                result["saves_count"] = 0
+                            self._send_json(result)
                 elif path == "/api/ss-quota":
                     has_dev = bool(config.screenscraper_dev_id and config.screenscraper_dev_pass)
                     self._send_json({**_ss_last_quota, "has_dev_account": has_dev})
@@ -1344,6 +1729,33 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     self._send_json(_handle_wizard_detect(config))
                 elif path == "/api/catalog-status":
                     self._send_json(_handle_catalog_status(config))
+                elif path == "/api/system-status":
+                    self._send_json(_handle_system_status(config))
+                elif path == "/api/detect-cloud-folder":
+                    self._send_json(_handle_detect_cloud_folder())
+                elif path == "/s":
+                    # Short redirect to the Android setup script (easy to type in Termux)
+                    ip = _get_local_ip()
+                    long_url = f"http://{ip}:{config.web_port}/api/anbernic-setup.sh"
+                    self._send(302, "text/plain", b"", extra_headers={"Location": long_url})
+                elif path == "/api/anbernic-setup.sh":
+                    script = _build_anbernic_setup_sh(config)
+                    ua = self.headers.get("User-Agent", "")
+                    # If accessed from Android, force download; otherwise serve inline
+                    extra: dict[str, str] = {}
+                    if "Android" not in ua:
+                        extra["Content-Disposition"] = "attachment; filename=\"retrovault-setup.sh\""
+                    self._send(200, "text/x-sh; charset=utf-8", script.encode(), extra_headers=extra or None)
+                elif path == "/api/rclone-export-config":
+                    body, ct = _handle_rclone_export_config(config)
+                    self._send(200, ct, body)
+                elif path == "/api/autostart-status":
+                    import sys as _sys
+                    if _sys.platform == "win32":
+                        from rom_manager.utils.tray_icon import get_autostart_status
+                        self._send_json({"enabled": get_autostart_status(), "tray_running": _tray_instance is not None})
+                    else:
+                        self._send_json({"enabled": False, "tray_running": False})
                 elif path == "/api/collection-stats":
                     data = _build_missing_data(config, repository)
                     self._send_json({
@@ -1394,6 +1806,50 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             "android_path": config.auto_sync_android_path,
                         },
                     })
+                elif path == "/api/health-schedule":
+                    import datetime as _dt
+                    sched = _read_health_schedule(config)
+                    last_raw = sched.get("last_run_at")
+                    next_raw = None
+                    overdue = True
+                    if last_raw:
+                        try:
+                            last_dt = _dt.datetime.fromisoformat(last_raw.replace("Z", "+00:00"))
+                            next_dt = last_dt + _dt.timedelta(days=_HEALTH_CHECK_INTERVAL_DAYS)
+                            next_raw = next_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                            overdue = _dt.datetime.now(tz=_dt.timezone.utc) >= next_dt
+                        except Exception:
+                            pass
+                    self._send_json({
+                        "last_run_at": last_raw,
+                        "next_run_at": next_raw,
+                        "last_ok": sched.get("last_ok"),
+                        "last_corrupted": sched.get("last_corrupted"),
+                        "last_missing": sched.get("last_missing"),
+                        "interval_days": _HEALTH_CHECK_INTERVAL_DAYS,
+                        "overdue": overdue,
+                    })
+                elif path == "/api/openapi.json":
+                    from rom_manager.web.openapi_spec import build_spec
+                    spec = build_spec(config.web_host, config.web_port)
+                    import json as _json
+                    body = _json.dumps(spec, ensure_ascii=False, indent=2).encode()
+                    self._send(200, "application/json; charset=utf-8", body)
+                elif path == "/api/docs":
+                    spec_url = f"http://{config.web_host}:{config.web_port}/api/openapi.json"
+                    html = (
+                        "<!doctype html><html><head><meta charset='utf-8'>"
+                        "<title>Retro Vault — API Docs</title>"
+                        "<style>body{font-family:monospace;background:#02020e;color:#00e5ff;padding:2rem}"
+                        "a{color:#c800ff} h1{text-shadow:0 0 12px #00e5ff}</style></head><body>"
+                        "<h1>Retro Vault REST API</h1>"
+                        f"<p>OpenAPI 3.0 spec: <a href='/api/openapi.json'>/api/openapi.json</a></p>"
+                        f"<p>Import in Postman / Insomnia / Swagger UI:</p>"
+                        f"<pre>{spec_url}</pre>"
+                        "<p><a href='/'>← Back to app</a></p>"
+                        "</body></html>"
+                    )
+                    self._send(200, "text/html; charset=utf-8", html.encode())
                 elif path == "/api/sd-sync-status":
                     self._send_json(dict(_sd_sync_status))
                 elif path == "/api/report.json":
@@ -1718,6 +2174,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     self._handle_export_gamelists(data)
                 elif path == "/api/config":
                     self._handle_save_config(data)
+                elif path == "/api/notify-test":
+                    from rom_manager.utils.notifier import notify
+                    import sys as _sys
+                    if _sys.platform != "win32":
+                        self._send_json({"ok": False, "error": "Solo disponible en Windows"})
+                    else:
+                        notify("Retro Vault — Prueba", "Las notificaciones funcionan correctamente ✓")
+                        self._send_json({"ok": True})
                 elif path == "/api/extract-zip":
                     self._handle_extract_zip(data)
                 elif path == "/api/generate-m3u":
@@ -1975,6 +2439,23 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     else:
                         repository.add_tag(int(game_id), tag)
                     self._send_json({"ok": True, "tags": repository.get_tags(int(game_id))})
+                elif path == "/api/open-folder":
+                    import os as _os_of
+                    import subprocess as _sp_of
+                    folder_path = data.get("path", "").strip()
+                    if not folder_path:
+                        self._send_json({"ok": False, "error": "path required"})
+                    else:
+                        try:
+                            p = _os_of.path.abspath(folder_path)
+                            folder = p if _os_of.path.isdir(p) else _os_of.path.dirname(p)
+                            if sys.platform == "win32":
+                                _sp_of.Popen(["explorer", folder])
+                            else:
+                                _sp_of.Popen(["xdg-open", folder])
+                            self._send_json({"ok": True})
+                        except Exception as _exc_of:
+                            self._send_json({"ok": False, "error": str(_exc_of)})
                 elif path == "/api/launch":
                     import subprocess
                     game_id = data.get("game_id")
@@ -2087,6 +2568,18 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     self._handle_create_library_structure(data)
                 elif path == "/api/organize-library":
                     self._handle_organize_library(data)
+                elif path == "/api/autostart-toggle":
+                    import sys as _sys
+                    if _sys.platform != "win32":
+                        self._send_json({"error": "Solo disponible en Windows"})
+                        return
+                    from rom_manager.utils.tray_icon import (
+                        get_autostart_status, set_autostart, _default_launch_cmd,
+                    )
+                    currently_on = get_autostart_status()
+                    ok = set_autostart(not currently_on, "" if currently_on else _default_launch_cmd())
+                    new_state = get_autostart_status()
+                    self._send_json({"ok": ok, "enabled": new_state})
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
@@ -2157,7 +2650,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     }
                     # D8-7: auto-generate library report cache after scan (background, non-blocking)
                     # Generate a cached report for every scanned path (PC and Android)
+                    # Auto-trigger RA check after scan if API key is configured
                     if not _scan_cancel.is_set():
+                        if config.ra_api_key:
+                            _start_ra_check_bg(config.ra_api_key)
                         for _rpt_path in raw_paths:
                             if not _rpt_path:
                                 continue
@@ -2555,6 +3051,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 _jobs["sync"] = True
 
             def run() -> None:
+                # QoL-13: tray icon status while syncing
+                import rom_manager.web.server as _srv13
+                if _srv13._tray_instance:
+                    _srv13._tray_instance.set_status("Sincronizando…")
                 try:
                     from rom_manager.sync.rclone_transport import RcloneTransport
                     from rom_manager.sync.save_syncer import sync_saves
@@ -2567,6 +3067,19 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                      "Añade [[sync.sources]] en config.toml."
                         }
                         return
+
+                    # QoL-11: pre-sync backup (creates a timestamped ZIP of all saves)
+                    if not dry_run and config.pre_sync_backup and config.library_root:
+                        try:
+                            from rom_manager.backup.save_backup import create_saves_zip
+                            _zip_dest = config.data_dir / "saves-backup"
+                            create_saves_zip(
+                                saves_dirs=[_Path(str(config.library_root))],
+                                save_extensions=set(config.save_extensions),
+                                output_dir=_zip_dest,
+                            )
+                        except Exception as _bk_exc:
+                            _logger.warning("Pre-sync backup failed (non-fatal): %s", _bk_exc)
 
                     transport = RcloneTransport(rclone=config.rclone_binary)
                     all_results = []
@@ -2587,6 +3100,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         exts = tuple() if source.sync_all else config.save_extensions
                         try:
                             _bk_root = config.data_dir if config.backup_saves_enabled else None
+                            from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
+                            _delta = _DeltaCache(config.data_dir) if not dry_run else None
                             result, decisions = sync_saves(
                                 saves_dir,
                                 source.remote,
@@ -2596,6 +3111,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 dry_run=dry_run,
                                 backup_root=_bk_root,
                                 backup_keep_n=config.backup_saves_keep_n,
+                                delta_cache=_delta,
                             )
                             all_results.append({
                                 "name": source.name,
@@ -2606,6 +3122,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 "up_to_date": result.up_to_date,
                                 "conflicts": result.conflicts,
                                 "errors": result.errors,
+                                "delta_skipped": result.delta_skipped,
                                 "decisions": [
                                     {"action": d.action, "relative": d.relative}
                                     for d in decisions if d.action != "up_to_date"
@@ -2622,18 +3139,42 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                                 "decisions": [],
                             })
 
+                    _up   = sum(r.get("uploaded",   0) for r in all_results)
+                    _down = sum(r.get("downloaded", 0) for r in all_results)
+                    _errs = sum(r.get("errors",     0) for r in all_results)
                     _job_results["sync"] = {
                         "dry_run": dry_run,
                         "sources": all_results,
                         # Aggregated totals
-                        "uploaded":   sum(r.get("uploaded",   0) for r in all_results),
-                        "downloaded": sum(r.get("downloaded", 0) for r in all_results),
+                        "uploaded":   _up,
+                        "downloaded": _down,
                         "up_to_date": sum(r.get("up_to_date", 0) for r in all_results),
                         "conflicts":  sum(r.get("conflicts",  0) for r in all_results),
-                        "errors":     sum(r.get("errors",     0) for r in all_results),
+                        "errors":     _errs,
                     }
+                    if not dry_run and config.notify_desktop:
+                        from rom_manager.utils.notifier import notify
+                        _parts = []
+                        if _up:   _parts.append(f"{_up} subidos")
+                        if _down: _parts.append(f"{_down} descargados")
+                        if not _parts: _parts.append("Todo al día")
+                        _body = ", ".join(_parts)
+                        if _errs: _body += f" ({_errs} errores)"
+                        notify("Retro Vault — Sync completado", _body)
+                    # QoL-13: tray icon status after sync
+                    if not dry_run:
+                        _total_conflicts = sum(r.get("conflicts", 0) for r in all_results)
+                        if _errs:
+                            _srv13._tray_instance and _srv13._tray_instance.set_status(f"✗ Sync: {_errs} errores")
+                        elif _total_conflicts:
+                            _srv13._tray_instance and _srv13._tray_instance.set_status(f"⚠ Conflictos: {_total_conflicts}")
+                        else:
+                            _ts = _utc_now_str()[:16].replace("T", " ")
+                            _srv13._tray_instance and _srv13._tray_instance.set_status(f"Sync OK {_ts}")
                 except Exception as exc:
                     _job_results["sync"] = {"error": str(exc)}
+                    import rom_manager.web.server as _srv13e
+                    _srv13e._tray_instance and _srv13e._tray_instance.set_status("✗ Error en sync")
                 finally:
                     with _job_lock:
                         _jobs["sync"] = False
@@ -2875,6 +3416,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 "web.host",
                 "launchers.retroarch",
                 "backup.saves_enabled", "backup.saves_keep_n",
+                "notifications.desktop",
             }
             updates = {k: v for k, v in data.items() if k in allowed}
             if not updates:
@@ -2909,6 +3451,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             config.launcher_cores = new_cfg.launcher_cores
             config.backup_saves_enabled = new_cfg.backup_saves_enabled
             config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
+            config.pre_sync_backup = new_cfg.pre_sync_backup
+            config.notify_desktop = new_cfg.notify_desktop
             _auto_sync_enabled = new_cfg.auto_sync_enabled
             self._send_json({"saved": list(updates.keys())})
 
@@ -3249,6 +3793,17 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             for r in summary.results
                         ],
                     }
+                    _write_health_schedule(config, ok=summary.ok,
+                                           corrupted=summary.corrupted, missing=summary.missing)
+                    if not _health_cancel.is_set() and config.notify_desktop:
+                        from rom_manager.utils.notifier import notify
+                        if summary.corrupted or summary.missing:
+                            notify(
+                                "Retro Vault — Health Check",
+                                f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos — revisa la pestaña Tools",
+                            )
+                        else:
+                            notify("Retro Vault — Health Check", f"✓ {summary.ok} ROMs verificados, sin problemas")
                 except Exception as exc:
                     _job_results["health_check"] = {"error": str(exc)}
                 finally:
@@ -3476,119 +4031,73 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             if p.exists():
                 try:
                     os.remove(str(p))
-                except OSError as exc:
-                    self._send_json({"error": f"No se pudo eliminar el archivo: {exc}"})
+                except Exception as exc:
+                    self._send_json({"error": f"No se pudo eliminar el archivo: {type(exc).__name__}: {exc}"})
                     return
             # Clean up DB even if file was already missing
-            repository.delete_game(int(game_id))
+            try:
+                repository.delete_game(int(game_id))
+            except Exception as exc:
+                self._send_json({"error": f"Archivo eliminado pero error en BD: {type(exc).__name__}: {exc}"})
+                return
             self._send_json({"deleted": source_path})
 
         def _handle_delete_all_duplicates(self) -> None:
             import os
+            import logging as _logging
             from pathlib import Path as _Path
+            _dup_log = _logging.getLogger(__name__)
             groups = repository.get_duplicate_groups()
             deleted = 0
             failed = 0
             freed_bytes = 0
+            errors: list[str] = []
             for group in groups:
                 for entry in group.entries[1:]:
                     p = _Path(entry.source_path)
                     if not p.exists():
-                        repository.delete_game(entry.id)
-                        deleted += 1
+                        try:
+                            repository.delete_game(entry.id)
+                            deleted += 1
+                        except Exception as exc:
+                            failed += 1
+                            _dup_log.warning("Could not remove DB entry for missing file %s: %s", p, exc)
+                            if len(errors) < 20:
+                                errors.append(f"{p.name}: DB error — {type(exc).__name__}: {exc}")
                         continue
+                    file_deleted = False
                     try:
                         os.remove(str(p))
+                        file_deleted = True
+                    except Exception as exc:
+                        failed += 1
+                        msg = f"{p.name}: no se pudo eliminar el archivo — {type(exc).__name__}: {exc}"
+                        _dup_log.warning("Could not delete duplicate file %s: %s", p, exc)
+                        if len(errors) < 20:
+                            errors.append(msg)
+                        continue
+                    try:
                         repository.delete_game(entry.id)
                         deleted += 1
                         freed_bytes += entry.size_bytes
-                    except OSError:
+                    except Exception as exc:
+                        # File was deleted from disk but DB update failed
                         failed += 1
-            self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
+                        msg = f"{p.name}: archivo eliminado pero error en BD — {type(exc).__name__}: {exc}"
+                        _dup_log.warning("File deleted but DB update failed for %s: %s", p, exc)
+                        if len(errors) < 20:
+                            errors.append(msg)
+            self._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes, "errors": errors})
 
         def _handle_ra_check(self, data: dict) -> None:
-            with _job_lock:
-                if _jobs["ra_check"]:
-                    self._send_json({"status": "already_running"})
-                    return
-                _jobs["ra_check"] = True
-
             api_key = data.get("api_key", "").strip() or config.ra_api_key
             if not api_key:
-                with _job_lock:
-                    _jobs["ra_check"] = False
                 self._send_json({"error": "RetroAchievements API key not configured"})
                 return
-
-            def run() -> None:
-                _ra_cancel.clear()
-                try:
-                    from rom_manager.retroachievements.ra_checker import check_library, to_csv
-
-                    cache_dir = config.data_dir / "ra_cache"
-
-                    def progress_cb(current: int, total: int, filename: str) -> None:
-                        _ra_progress.update({"current": current, "total": total, "current_file": filename})
-                        if _ra_cancel.is_set():
-                            raise InterruptedError("RA check cancelled")
-
-                    try:
-                        summary = check_library(
-                            repository,
-                            api_key,
-                            cache_dir=cache_dir,
-                            progress_cb=progress_cb,
-                        )
-                    except InterruptedError:
-                        _job_results["ra_check"] = {"cancelled": True, "total": 0, "supported": 0,
-                                                     "no_support_alternative": 0, "no_support": 0,
-                                                     "no_md5": 0, "platform_unknown": 0,
-                                                     "alternatives_csv": "", "alternatives": []}
-                        return
-
-                    alternatives_csv = ""
-                    if summary.no_support_alternative > 0:
-                        alternatives_csv = to_csv(summary)
-
-                    _job_results["ra_check"] = {
-                        "total": summary.total,
-                        "supported": summary.supported,
-                        "no_support_alternative": summary.no_support_alternative,
-                        "no_support": summary.no_support,
-                        "no_md5": summary.no_md5,
-                        "platform_unknown": summary.platform_unknown,
-                        "cancelled": _ra_cancel.is_set(),
-                        "alternatives_csv": alternatives_csv,
-                        # Full alternatives list — pagination done client-side
-                        "alternatives": [
-                            {
-                                "platform": r.platform,
-                                "filename": r.original_filename,
-                                "our_md5": r.our_md5[:12],
-                                "ra_id": r.alternative.id,
-                                "ra_title": r.alternative.title,
-                                "ra_achievements": r.alternative.achievements,
-                                "ra_points": r.alternative.points,
-                            }
-                            for r in summary.results
-                            if r.status == "no_support_alternative" and r.alternative
-                        ],
-                        # Full list of games with NO RA support (for bulk discard)
-                        "no_support_entries": [
-                            {"source_path": r.source_path, "filename": r.original_filename, "platform": r.platform}
-                            for r in summary.results
-                            if r.status == "no_support"
-                        ],
-                    }
-                except Exception as exc:
-                    _job_results["ra_check"] = {"error": str(exc)}
-                finally:
-                    with _job_lock:
-                        _ra_progress.clear()
-                        _jobs["ra_check"] = False
-
-            threading.Thread(target=run, daemon=True).start()
-            self._send_json({"status": "started"})
+            if _start_ra_check_bg(api_key):
+                self._send_json({"status": "started"})
+            else:
+                self._send_json({"status": "already_running"})
 
         def _handle_cable_sync(self, data: dict) -> None:
             import os
@@ -4032,6 +4541,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         "pc_file_count": _pc_file_count,
                         "ab_file_count": _ab_file_count,
                     }
+                    if not dry_run and not _cable_cancel.is_set() and config.notify_desktop:
+                        from rom_manager.utils.notifier import notify
+                        _via = "ADB" if use_adb else "SD"
+                        _body = f"{copied} archivos copiados vía {_via}"
+                        if errors: _body += f" ({errors} errores)"
+                        notify("Retro Vault — Cable Sync completado", _body)
                 except Exception as exc:
                     _job_results["cable_sync"] = {"error": str(exc)}
                 finally:
@@ -4669,6 +5184,117 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     return Handler
 
 
+# ── Health-check scheduler (S37-1) ────────────────────────────────────────────
+
+_HEALTH_CHECK_INTERVAL_DAYS = 7
+
+
+def _health_schedule_path(config: "AppConfig") -> "Path":
+    return config.data_dir / "health_schedule.json"
+
+
+def _read_health_schedule(config: "AppConfig") -> dict:
+    """Return the stored schedule dict, or empty dict if not found."""
+    import json as _json
+    p = _health_schedule_path(config)
+    try:
+        return _json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_health_schedule(config: "AppConfig", *, ok: int, corrupted: int, missing: int) -> None:
+    """Persist health check completion time and summary."""
+    import json as _json
+    import datetime as _dt
+    data = {
+        "last_run_at": _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_ok": ok,
+        "last_corrupted": corrupted,
+        "last_missing": missing,
+    }
+    p = _health_schedule_path(config)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(_json.dumps(data, indent=2), encoding="utf-8")
+    except Exception as exc:
+        _logger.debug("Could not write health schedule: %s", exc)
+
+
+def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: ignore[type-arg]
+    """Daemon: trigger an automatic health check once per week."""
+    import datetime as _dt
+    import time as _time
+
+    _time.sleep(60)  # let the server finish startup before first check
+
+    while True:
+        try:
+            schedule = _read_health_schedule(config)
+            last_run_raw = schedule.get("last_run_at")
+            overdue = True
+            if last_run_raw:
+                try:
+                    last_run = _dt.datetime.fromisoformat(last_run_raw.replace("Z", "+00:00"))
+                    elapsed = (_dt.datetime.now(tz=_dt.timezone.utc) - last_run).days
+                    overdue = elapsed >= _HEALTH_CHECK_INTERVAL_DAYS
+                except Exception:
+                    pass
+
+            if overdue:
+                # Only run if no health check is already in progress
+                with _job_lock:
+                    already = _jobs.get("health_check", False)
+                if not already:
+                    repository = get_repo_fn()
+                    _logger.info("Scheduled health check starting (overdue by %s days)", "?" if not last_run_raw else elapsed)
+
+                    def _scheduled_run(_repo=repository) -> None:
+                        _health_cancel.clear()
+                        try:
+                            from rom_manager.utils.health_checker import check_library_health
+
+                            def _prog(current: int, total: int, filename: str) -> None:
+                                _health_progress.update({"current": current, "total": total, "current_file": filename})
+
+                            summary = check_library_health(_repo, progress_cb=_prog, cancel_event=_health_cancel)
+                            _job_results["health_check"] = {
+                                "ok": summary.ok,
+                                "corrupted": summary.corrupted,
+                                "missing": summary.missing,
+                                "cancelled": _health_cancel.is_set(),
+                                "auto": True,
+                                "issues": [
+                                    {"source_path": r.source_path, "status": r.status,
+                                     "stored_sha1": r.stored_sha1[:12],
+                                     "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else "",
+                                     "platform": r.platform, "canonical_title": r.canonical_title}
+                                    for r in summary.results
+                                ],
+                            }
+                            _write_health_schedule(config, ok=summary.ok,
+                                                   corrupted=summary.corrupted, missing=summary.missing)
+                            if not _health_cancel.is_set() and config.notify_desktop:
+                                from rom_manager.utils.notifier import notify
+                                if summary.corrupted or summary.missing:
+                                    notify("Retro Vault — Health Check",
+                                           f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos")
+                                else:
+                                    notify("Retro Vault — Health Check",
+                                           f"✓ {summary.ok} ROMs verificados, sin problemas")
+                        except Exception as exc:
+                            _logger.error("Scheduled health check error: %s", exc)
+                        finally:
+                            with _job_lock:
+                                _health_progress.clear()
+                                _jobs["health_check"] = False
+
+                    _start_job("health_check", _scheduled_run)
+
+        except Exception as exc:
+            _logger.debug("Health scheduler error: %s", exc)
+
+        _time.sleep(3600)  # check every hour
 
 
 def serve(
@@ -4678,8 +5304,9 @@ def serve(
     repository: LibraryRepository,
     config: AppConfig,
     repository_android: LibraryRepository | None = None,
+    tray: bool = False,
 ) -> None:
-    global _auto_sync_enabled
+    global _auto_sync_enabled, _tray_instance
     _auto_sync_enabled = config.auto_sync_enabled
 
     # S34-1: reload platform tables with user override if present
@@ -4750,6 +5377,71 @@ def serve(
     tw.start()
     _logger.info("Inbox watcher daemon started")
 
+    # Health check scheduler (S37-1)
+    ht = threading.Thread(
+        target=_health_scheduler_loop,
+        args=(config, lambda: repository),
+        daemon=True,
+    )
+    ht.name = "health-check-scheduler"
+    ht.start()
+    _logger.info("Health check scheduler started (interval: %d days)", _HEALTH_CHECK_INTERVAL_DAYS)
+
+    # S39-3: system tray icon (Windows only)
+    if tray:
+        import sys as _sys
+        if _sys.platform == "win32":
+            try:
+                from rom_manager.utils.tray_icon import TrayIcon
+
+                def _on_sync_from_tray() -> None:
+                    import rom_manager.web.server as _srv
+                    sources = config.sync_sources
+                    if not sources:
+                        return
+                    from rom_manager.sync.rclone_transport import RcloneTransport
+                    from rom_manager.sync.save_syncer import sync_saves
+                    from pathlib import Path as _Path
+                    transport = RcloneTransport(rclone=config.rclone_binary)
+                    for src in sources:
+                        saves_dir = _Path(src.local_dir)
+                        if not saves_dir.exists():
+                            continue
+                        try:
+                            sync_saves(
+                                saves_dir, src.remote,
+                                transport=transport,
+                                repository=repository,
+                                save_extensions=config.save_extensions,
+                                dry_run=False,
+                            )
+                        except Exception:
+                            pass
+                    if _tray_instance:
+                        _tray_instance.set_status(f"Sync OK {_utc_now_str()[:16]}")
+                        _tray_instance.show_balloon("Retro Vault", "Sync completado.")
+
+                def _on_quit_from_tray() -> None:
+                    import threading as _threading
+                    _threading.Thread(target=httpd.shutdown, daemon=True).start()
+
+                _tray_instance = TrayIcon(
+                    port=port,
+                    on_sync=_on_sync_from_tray,
+                    on_quit=_on_quit_from_tray,
+                )
+                _tray_instance.start()
+                _logger.info("Tray icon started")
+            except Exception as _te:
+                _logger.warning("Could not start tray icon: %s", _te)
+
     handler = make_handler(repository, config, repository_android=repository_android)
     with ThreadingHTTPServer((host, port), handler) as httpd:
         httpd.serve_forever()
+
+    # Clean up tray when server exits
+    if _tray_instance is not None:
+        try:
+            _tray_instance.stop()
+        except Exception:
+            pass
