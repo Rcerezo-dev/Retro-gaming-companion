@@ -264,7 +264,7 @@ class TestOrganizeLibrary:
         self._add_game(repo, rom, "Game Boy Advance")
 
         _post("/api/organize-library", {"dry_run": False}, repo, config_root)
-        assert (library / "saves" / "Metroid.sav").exists()
+        assert (library / "saves" / "gba" / "Metroid.sav").exists()
         assert not save.exists()
 
     def test_bios_file_moved_to_bios_folder(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:

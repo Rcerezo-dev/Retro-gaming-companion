@@ -101,6 +101,32 @@ _ES_PLATFORM_FOLDERS: dict[str, str] = {
     "Sega 32X":         "sega32x",
     "Sega CD":          "segacd",
     "Arcade":           "arcade",
+    # Nintendo extras
+    "Virtual Boy":          "virtualboy",
+    "Nintendo 64DD":        "n64dd",
+    "Famicom Disk System":  "fds",
+    "Pokemon Mini":         "pokemini",
+    "Game & Watch":         "gameandwatch",
+    # Sega extras
+    "SuperGrafx":           "supergrafx",
+    # Atari extras
+    "Atari ST":             "atarist",
+    "Atari XL/XE":          "atari800",
+    # Portable / retro micros
+    "WonderSwan":           "wonderswan",
+    "WonderSwan Color":     "wonderswancolor",
+    "Watara Supervision":   "supervision",
+    # Home computers
+    "Amiga":                "amiga",
+    "Commodore 64":         "c64",
+    "ZX Spectrum":          "zxspectrum",
+    "MSX":                  "msx",
+    "DOS":                  "dos",
+    "ScummVM":              "scummvm",
+    # Other consoles
+    "ColecoVision":         "colecovision",
+    "Intellivision":        "intellivision",
+    "PC-FX":                "pcfx",
 }
 
 _STANDARD_PLATFORM_FOLDERS: tuple[str, ...] = (

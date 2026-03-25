@@ -71,7 +71,7 @@ def test_root_returns_html(repo: LibraryRepository) -> None:
     code, ct, body = _make_request("GET", "/", repo)
     assert code == 200
     assert "text/html" in ct
-    assert b"ROM Manager" in body
+    assert b"Retro Vault" in body
 
 
 def test_api_status_empty_library(repo: LibraryRepository) -> None:

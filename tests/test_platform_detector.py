@@ -79,7 +79,7 @@ class TestDetectPlatformUnambiguous:
         (".xci",  "Nintendo Switch"),
         (".sms",  "Master System"),
         (".gg",   "Game Gear"),
-        (".gen",  "Sega Genesis"),
+        (".gen",  "Sega Mega Drive"),
         (".cdi",  "Dreamcast"),
         (".gdi",  "Dreamcast"),
         (".pbp",  "PlayStation"),
