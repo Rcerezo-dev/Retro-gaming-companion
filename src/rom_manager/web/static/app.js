@@ -2442,9 +2442,9 @@ async function loadPlan() {
         btnResolve.classList.add('hidden');
       }
     }
-    // D8-3: show RA resolver if there are disk conflicts
+    // D8-3: show RA resolver if there are disk or collision conflicts
     if (btnResolveRa) {
-      const diskConflictCount = (d.conflicts || []).filter(c => c.reason === 'disk').length;
+      const diskConflictCount = (d.conflicts || []).filter(c => c.reason === 'disk' || c.reason === 'collision').length;
       btnResolveRa.classList.toggle('hidden', !(diskConflictCount > 0));
       if (diskConflictCount > 0) btnResolveRa.textContent = 'Resolver con RA (' + diskConflictCount + ')';
     }
@@ -2493,7 +2493,8 @@ async function loadPlan() {
         html += `</div>`;
         html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
         html += `Causa habitual: tienes múltiples versiones del mismo juego (regional, revisión) y la opción <strong>Región</strong> o <strong>Revisión</strong> está desactivada en el formato. Actívalas para que cada versión obtenga un nombre único.<br>`;
-        html += `O usa <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Resolver automáticamente (añadir sufijo _1 _2)</button> para aplicar ambas con nombres distintos.`;
+        html += `O usa <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Resolver automáticamente (añadir sufijo _1 _2)</button> para aplicar ambas con nombres distintos.<br>`;
+        html += `Si tienes caché de RetroAchievements, usa el botón <strong>Resolver con RA</strong> (arriba) para conservar solo la versión con logros y descartar el duplicado sin logros.`;
         html += `</div>`;
         html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Nombre bloqueado</th></tr></thead><tbody>';
         html += collisions.map(op => `<tr>

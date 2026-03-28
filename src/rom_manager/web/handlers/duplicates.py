@@ -161,10 +161,20 @@ def _delete_all_duplicates(ctx, repository: "LibraryRepository") -> None:
 
 
 def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository") -> None:
-    """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/."""
+    """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/.
+
+    Handles both conflict types:
+    - "disk":      source wants target path already occupied by a different file.
+                   Compare source vs target RA; discard the loser.
+    - "collision": two pending ops share the same target path (two ROMs → same canonical name).
+                   Group by target, compare all sources' RA; discard all but the winner.
+    """
+    from collections import defaultdict
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.planner import build_plan
     import json as _json
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
 
     opts = FormatOptions()
     plan = build_plan(repository, opts)
@@ -174,69 +184,116 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
     errors: list[str] = []
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
-    cache_dir_exists   = cache_dir.exists()
-    cache_files_exist  = cache_dir_exists and any(cache_dir.iterdir()) if cache_dir_exists else False
+    cache_dir_exists  = cache_dir.exists()
+    cache_files_exist = cache_dir_exists and any(cache_dir.iterdir()) if cache_dir_exists else False
 
-    for op in plan.conflicts:
-        if not op.source_path.exists():
-            continue
+    # Build per-platform hash→achievements lookup (lazily cached)
+    _hash_lib_cache: dict[str, dict] = {}
 
-        src_md5: str | None = None
-        tgt_md5: str | None = None
+    def _hash_lib_for(plat: str) -> dict:
+        if plat in _hash_lib_cache:
+            return _hash_lib_cache[plat]
+        console_id = get_ra_console_id(plat)
+        if not console_id:
+            _hash_lib_cache[plat] = {}
+            return {}
+        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+        if not cache_file.exists():
+            _hash_lib_cache[plat] = {}
+            return {}
+        try:
+            lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
+        except Exception:
+            lib = {}
+        _hash_lib_cache[plat] = lib
+        return lib
+
+    def _ra_for_path(path: Path, plat: str) -> int:
+        """Return achievement count for a file (-1 = unknown / no cache)."""
         try:
             with repository.connect() as _c:
-                _src_row = _c.execute(
-                    "SELECT md5 FROM games WHERE source_path = ?", (str(op.source_path),)
+                row = _c.execute(
+                    "SELECT md5 FROM games WHERE source_path = ?", (str(path),)
                 ).fetchone()
-                _tgt_row = _c.execute(
-                    "SELECT md5 FROM games WHERE source_path = ?", (str(op.target_path),)
-                ).fetchone()
-            if _src_row:
-                src_md5 = _src_row["md5"]
-            if _tgt_row:
-                tgt_md5 = _tgt_row["md5"]
+            if not row:
+                return -1
+            md5 = (row["md5"] or "").lower()
         except Exception:
-            pass
+            return -1
+        if not md5:
+            return -1
+        entry = _hash_lib_for(plat).get(md5)
+        return entry.achievements if entry else -1
 
-        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-        from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
+    def _discard(path: Path) -> None:
+        discard_dir = path.parent / "_descartados"
+        discard_dir.mkdir(parents=True, exist_ok=True)
+        dest = discard_dir / path.name
+        if not dest.exists():
+            shutil.move(str(path), dest)
+        else:
+            path.unlink()
+        with repository.connect() as _c:
+            _c.execute("DELETE FROM games WHERE source_path = ?", (str(path),))
+            _c.commit()
 
-        plat       = op.game.platform or ""
-        console_id = get_ra_console_id(plat)
-        src_ra = tgt_ra = -1
-        if console_id:
-            cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-            if cache_file.exists():
-                try:
-                    _hash_lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
-                    if src_md5:
-                        src_entry = _hash_lib.get(src_md5.lower())
-                        src_ra    = src_entry.achievements if src_entry else -1
-                    if tgt_md5:
-                        tgt_entry = _hash_lib.get(tgt_md5.lower())
-                        tgt_ra    = tgt_entry.achievements if tgt_entry else -1
-                except Exception:
-                    pass
+    # ── Disk conflicts ────────────────────────────────────────────────────────
+    # source wants to rename to target_path but target_path already holds a different file.
+    for op in (o for o in plan.conflicts if o.conflict_reason == "disk"):
+        if not op.source_path.exists():
+            continue
+        plat   = op.game.platform or ""
+        src_ra = _ra_for_path(op.source_path, plat)
+        tgt_ra = _ra_for_path(op.target_path, plat)
 
         if src_ra <= 0 and tgt_ra <= 0:
             skipped_no_ra += 1
             continue
 
-        loser_path = op.target_path if tgt_ra > src_ra else op.source_path
-        discard_dir = loser_path.parent / "_descartados"
+        # Lower RA (or unknown) is the loser; equal → discard source (keep existing)
+        loser_path = op.target_path if tgt_ra < src_ra else op.source_path
         try:
-            discard_dir.mkdir(parents=True, exist_ok=True)
-            dest = discard_dir / loser_path.name
-            if not dest.exists():
-                shutil.move(str(loser_path), dest)
-            else:
-                loser_path.unlink()
-            with repository.connect() as _c:
-                _c.execute("DELETE FROM games WHERE source_path = ?", (str(loser_path),))
-                _c.execute("PRAGMA optimize")
+            _discard(loser_path)
             resolved += 1
         except Exception as exc:
             errors.append(f"{loser_path.name}: {exc}")
+
+    # ── Collision conflicts ───────────────────────────────────────────────────
+    # Multiple source files all want to rename to the same canonical target.
+    # Group by target_path so we compare all contenders at once.
+    collision_groups: dict[str, list] = defaultdict(list)
+    for op in (o for o in plan.conflicts if o.conflict_reason == "collision"):
+        collision_groups[str(op.target_path)].append(op)
+
+    for _target_str, ops in collision_groups.items():
+        plat = ops[0].game.platform or ""
+        scored = [
+            (op, _ra_for_path(op.source_path, plat))
+            for op in ops
+            if op.source_path.exists()
+        ]
+        if not scored:
+            continue
+
+        any_has_ra = any(ra > 0 for _, ra in scored)
+        if not any_has_ra:
+            skipped_no_ra += 1
+            continue
+
+        # Highest RA wins; ties keep the first candidate (stable sort)
+        scored.sort(key=lambda x: x[1], reverse=True)
+        winner_ra = scored[0][1]
+        if winner_ra <= 0:
+            skipped_no_ra += 1
+            continue
+
+        # Discard all non-winners
+        for loser_op, _ in scored[1:]:
+            try:
+                _discard(loser_op.source_path)
+                resolved += 1
+            except Exception as exc:
+                errors.append(f"{loser_op.source_path.name}: {exc}")
 
     ctx._send_json({
         "resolved":      resolved,
