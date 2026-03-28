@@ -147,9 +147,8 @@ function _deviceRoot() {
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function showTab(name) {
-  // Close game panel overlay if open (prevents it covering the sidebar on tab switch)
-  const _overlay = document.getElementById('game-panel-overlay');
-  if (_overlay && _overlay.classList.contains('open')) closeGamePanel();
+  // Always close game panel on tab switch (prevents overlay covering the sidebar)
+  closeGamePanel();
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const tab = document.getElementById('tab-' + name);

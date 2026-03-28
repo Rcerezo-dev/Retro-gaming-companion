@@ -101,6 +101,7 @@ main { padding: 24px; flex: 1; }
   overflow-y: auto; overflow-x: hidden;
   transition: width .2s ease;
   position: relative; z-index: 8005; /* always above game-panel-overlay (8000) */
+  will-change: transform; /* force GPU compositing layer — prevents Chrome backdrop-filter z-index bug */
 }
 .sidebar::-webkit-scrollbar { width: 3px; }
 .sidebar::-webkit-scrollbar-thumb { background: var(--border-i); border-radius: 2px; }
