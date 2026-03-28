@@ -88,7 +88,22 @@
       "Bash(grep -E 'style=\"\"\"\"[^\"\"\"\"]{50,}' '/c/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/frontend.py')",
       "Bash(C:/Users/rammu/anaconda3envsrom_managerpython.exe -m pytest tests/test_library_structure.py::TestOrganizeLibrary::test_apply_moves_sibling_save -v --tb=long)",
       "Bash(wc:*)",
-      "Bash(grep -oP \"apiFetch\\\\\\([''''\\\\`][^''''\\\\`]+[''''\\\\`]\\\\\\)\" C:/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/static/app.js)"
+      "Bash(grep -oP \"apiFetch\\\\\\([''''\\\\`][^''''\\\\`]+[''''\\\\`]\\\\\\)\" C:/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/static/app.js)",
+      "Bash(grep:*)",
+      "Bash(python3:*)",
+      "Bash(C:/Users/rammu/anaconda3/envs/rom_manager/python.exe -c \":*)",
+      "Bash(python -:*)",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest tests/ -x -q)",
+      "Bash(\"C:\\\\Users\\\\rammu\\\\anaconda3\\\\envs\\\\rom_manager\\\\python.exe\" -m pytest tests/ -q)",
+      "Bash(find /c/Users/rammu/Documents/projects/Retro_gaming_app -name *.log -newer /c/Users/rammu/Documents/projects/Retro_gaming_app/src/rom_manager/web/server.py)",
+      "Bash(\"C:/Users/rammu/anaconda3/envs/rom_manager/Lib/venv/scripts/nt/python.exe\" --version)",
+      "Bash(ls \"E:/Emuladores/Dolphin \\(GC, Wii\\)/\")",
+      "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/$HOME/**)",
+      "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/$USERPROFILE/ES-DE/**)",
+      "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/$USERPROFILE/ES-DE/settings/**)",
+      "Bash(find 'C:/Program Files/ES-DE/resources/' -name *.xml)",
+      "Bash(PYTHONPATH=src \"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -m pytest tests/ -x -q)",
+      "Bash(PYTHONPATH=src C:/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -x -q)"
     ]
   }
 }
