@@ -16,9 +16,79 @@ def register(
     config: "AppConfig",
     repository: "LibraryRepository",
     repo_android: "LibraryRepository",
+    get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
     from rom_manager.web.response_builders import _build_library_diff
+
+    # ── GET /api/platform-stats ───────────────────────────────────────────────
+    @router.get("/api/platform-stats")
+    def get_platform_stats(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        src_root = qs.get("root", [None])[0] or None
+        ps_repo = get_repo_fn(src_root or "")
+        with ps_repo.connect() as conn:
+            if src_root:
+                rows = conn.execute(
+                    "SELECT platform, COUNT(*) AS cnt FROM games "
+                    "WHERE source_path LIKE ? AND file_type = 'rom' "
+                    "GROUP BY platform ORDER BY cnt DESC",
+                    [src_root.rstrip("/\\") + "%"],
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT platform, COUNT(*) AS cnt FROM games "
+                    "WHERE file_type = 'rom' "
+                    "GROUP BY platform ORDER BY cnt DESC"
+                ).fetchall()
+        ctx._send_json({
+            "platforms": [
+                {"platform": r["platform"] or "?", "total_games": r["cnt"]}
+                for r in rows
+            ]
+        })
+
+    # ── GET /api/export-library ───────────────────────────────────────────────
+    @router.get("/api/export-library")
+    def get_export_library(ctx) -> None:
+        import io as _io, csv as _csv, json as _json
+        qs = getattr(ctx, "_qs", {})
+        fmt = qs.get("format", ["csv"])[0]
+        src_root = qs.get("root", [None])[0] or None
+        exp_repo = get_repo_fn(src_root or "")
+        rows = exp_repo.get_library_export()
+        if fmt == "json":
+            body = _json.dumps(rows, ensure_ascii=False, default=str).encode("utf-8")
+            ctx._send(200, "application/json; charset=utf-8", body,
+                      extra_headers={"Content-Disposition": 'attachment; filename="library.json"'})
+        else:
+            buf = _io.StringIO()
+            writer = _csv.writer(buf)
+            if rows:
+                writer.writerow(rows[0].keys())
+                for r in rows:
+                    writer.writerow(r.values())
+            body = buf.getvalue().encode("utf-8-sig")
+            ctx._send(200, "text/csv; charset=utf-8", body,
+                      extra_headers={"Content-Disposition": 'attachment; filename="library.csv"'})
+
+    # ── GET /api/export-wishlist ──────────────────────────────────────────────
+    @router.get("/api/export-wishlist")
+    def get_export_wishlist(ctx) -> None:
+        import io as _io, csv as _csv
+        qs = getattr(ctx, "_qs", {})
+        src_root = qs.get("root", [None])[0] or None
+        wl_repo = get_repo_fn(src_root or "")
+        rows = wl_repo.get_wishlist()
+        buf = _io.StringIO()
+        writer = _csv.writer(buf)
+        writer.writerow(["Title", "Platform", "Region", "Notes"])
+        for r in rows:
+            writer.writerow([r.get("title", ""), r.get("platform", ""),
+                             r.get("region", ""), r.get("notes", "")])
+        body = buf.getvalue().encode("utf-8-sig")
+        ctx._send(200, "text/csv; charset=utf-8", body,
+                  extra_headers={"Content-Disposition": 'attachment; filename="wishlist.csv"'})
 
     # ── GET /api/collection-stats ─────────────────────────────────────────────
     @router.get("/api/collection-stats")

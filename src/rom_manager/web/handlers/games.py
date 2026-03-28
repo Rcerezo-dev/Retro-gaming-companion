@@ -31,7 +31,7 @@ def register(
         from rom_manager.web.response_builders import _build_games
         qs = getattr(ctx, "_qs", {})
         offset = int(qs.get("offset", ["0"])[0])
-        limit = min(int(qs.get("limit", ["100"])[0]), 500)
+        limit = min(int(qs.get("limit", ["100"])[0]), 5000)
         plat = qs.get("platform", [None])[0] or None
         st = qs.get("status", [None])[0] or None
         root = qs.get("root", [None])[0] or None

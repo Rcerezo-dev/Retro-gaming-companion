@@ -778,7 +778,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     _h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
 
     import rom_manager.web.handlers.collection as _h_collection
-    _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android)
+    _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
 
     # ── End Phase 1 router setup ───────────────────────────────────────────────
 
