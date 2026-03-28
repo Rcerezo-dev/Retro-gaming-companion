@@ -5014,6 +5014,43 @@ async function doFolderAnalysis() {
   }
 }
 
+// ── ROMs no identificadas (QoL-15) ──────────────────────────────────────────
+async function loadUnmatchedDiagnosis() {
+  const el = document.getElementById('unmatched-result');
+  if (!el) return;
+  el.innerHTML = '<span style="color:#555;font-size:12px">Analizando…</span>';
+  try {
+    const d = await apiFetch('/api/unmatched-by-platform');
+    if (d.total_unmatched === 0) {
+      el.innerHTML = '<span style="color:#4ec9b0;font-size:12px">✓ Todas las ROMs escaneadas tienen coincidencia en algún catálogo DAT.</span>';
+      return;
+    }
+    const platCount = d.platforms.length;
+    let html = `<div style="margin-bottom:10px;font-size:12px;color:#ce9178;font-weight:600">${d.total_unmatched} ROM${d.total_unmatched !== 1 ? 's' : ''} sin identificar en ${platCount} plataforma${platCount !== 1 ? 's' : ''}</div>`;
+
+    if (d.loaded_dats && d.loaded_dats.length > 0) {
+      const datItems = d.loaded_dats.map(n => `<li style="color:#555">${_h(n)}</li>`).join('');
+      html += `<details style="margin-bottom:12px"><summary style="cursor:pointer;color:#888;font-size:11px;user-select:none">${d.loaded_dats.length} DAT${d.loaded_dats.length !== 1 ? 's' : ''} cargados — ver lista</summary><ul style="margin:6px 0 0 16px;font-size:11px;line-height:1.8;list-style:disc">${datItems}</ul></details>`;
+    } else {
+      html += `<p style="color:#f48771;font-size:12px;margin-bottom:10px">&#x26A0; No hay DATs cargados. Importa catálogos DAT desde <strong>Organizar → Importar catálogos DAT</strong>.</p>`;
+    }
+
+    html += `<div style="font-size:11px;color:#555;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.8px">Plataforma · ROMs sin match · Ejemplos</div>`;
+    html += d.platforms.map(p => {
+      const ex = (p.examples || []).slice(0, 3).map(f => `<code style="color:#ce9178;font-size:10px;background:#1a1a1a;padding:1px 4px;border-radius:2px">${_h(f)}</code>`).join(' ');
+      return `<div style="display:flex;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid #1e1e2e;flex-wrap:wrap">
+        <span style="min-width:110px;font-size:12px;color:#d4d4d4;flex-shrink:0">${_h(p.platform)}</span>
+        <span style="font-size:13px;font-weight:600;color:#ce9178;min-width:32px;flex-shrink:0">${p.count}</span>
+        <span style="font-size:11px;color:#666;overflow:hidden">${ex}</span>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<span style="color:#f44747;font-size:12px">Error: ${_h(e.message)}</span>`;
+  }
+}
+
 // ── RetroAchievements ────────────────────────────────────────────────────────
 async function doRaCheck() {
   const btn = document.getElementById('btn-ra-check');

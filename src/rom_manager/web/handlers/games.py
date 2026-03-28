@@ -400,3 +400,57 @@ def register(
             m._jobs["backup_now"] = True
         threading.Thread(target=_do_backup_now, daemon=True).start()
         ctx._send_json({"status": "started"})
+
+    # ── GET /api/unmatched-by-platform ───────────────────────────────────────
+    @router.get("/api/unmatched-by-platform")
+    def get_unmatched_by_platform(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        root = qs.get("root", [None])[0] or ""
+        _repo = get_repo_fn(root)
+
+        with _repo.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT COALESCE(platform, '(sin plataforma)') AS platform,
+                       COUNT(*) AS cnt,
+                       GROUP_CONCAT(original_filename, '|||') AS filenames
+                FROM games
+                WHERE canonical_title IS NULL AND file_type = 'rom'
+                GROUP BY platform
+                ORDER BY cnt DESC
+                """
+            ).fetchall()
+
+        total_unmatched = sum(r["cnt"] for r in rows)
+
+        # List loaded DAT files so the user knows which catalogs are present
+        loaded_dats: list[str] = []
+        project_root = config.project_root
+        if project_root:
+            for dat_dir in (
+                Path(project_root) / ".rommgr" / "dats",
+                Path(project_root) / ".rommgr" / "catalogs" / "nointro",
+                Path(project_root) / ".rommgr" / "catalogs" / "redump",
+            ):
+                try:
+                    loaded_dats.extend(
+                        f.name for f in dat_dir.iterdir()
+                        if f.suffix.lower() in {".dat", ".xml"}
+                    )
+                except (OSError, FileNotFoundError):
+                    pass
+
+        platforms = [
+            {
+                "platform": row["platform"],
+                "count": row["cnt"],
+                "examples": (row["filenames"] or "").split("|||")[:5],
+            }
+            for row in rows
+        ]
+
+        ctx._send_json({
+            "total_unmatched": total_unmatched,
+            "loaded_dats": sorted(loaded_dats),
+            "platforms": platforms,
+        })
