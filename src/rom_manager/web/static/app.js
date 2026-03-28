@@ -4508,6 +4508,61 @@ function toggleColStats() {
   }
 }
 
+// ── QoL-4: Platform health dashboard ─────────────────────────────────────────
+function togglePlatformHealth() {
+  const panel = document.getElementById('platform-health-panel');
+  if (panel.classList.contains('hidden')) {
+    panel.classList.remove('hidden');
+    loadPlatformHealth();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+async function loadPlatformHealth() {
+  const tbl = document.getElementById('ph-table');
+  const lbl = document.getElementById('ph-last-scan');
+  if (!tbl) return;
+  tbl.innerHTML = '<span style="color:#555;font-size:12px">Cargando…</span>';
+  try {
+    const root = _deviceRoot() || '';
+    const d = await apiFetch('/api/platform-health' + (root ? '?root=' + encodeURIComponent(root) : ''));
+    if (lbl) lbl.textContent = d.last_scan || '—';
+    if (!d.platforms || d.platforms.length === 0) {
+      tbl.innerHTML = '<span style="color:#555;font-size:12px">Sin datos. Ejecuta un scan primero.</span>';
+      return;
+    }
+    const _bar = (pct, color) => {
+      const w = Math.round(pct);
+      return `<div style="display:flex;align-items:center;gap:6px">
+        <div style="width:80px;height:6px;background:#1e1e2e;border-radius:3px;overflow:hidden;flex-shrink:0">
+          <div style="width:${w}%;height:100%;background:${color}"></div>
+        </div>
+        <span style="font-size:11px;color:#888;min-width:34px">${pct.toFixed(0)}%</span>
+      </div>`;
+    };
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:#555;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #2a2a2a">
+        <th style="text-align:left;padding:4px 8px">Plataforma</th>
+        <th style="text-align:right;padding:4px 8px">ROMs</th>
+        <th style="padding:4px 16px">DAT match</th>
+        <th style="padding:4px 16px">Portadas</th>
+      </tr></thead><tbody>`;
+    for (const p of d.platforms) {
+      html += `<tr style="border-bottom:1px solid #1a1a1a">
+        <td style="padding:5px 8px;color:#d4d4d4">${_h(p.platform)}</td>
+        <td style="text-align:right;padding:5px 8px;color:#888">${p.total_roms}</td>
+        <td style="padding:5px 16px">${_bar(p.match_pct, '#4ec9b0')}</td>
+        <td style="padding:5px 16px">${_bar(p.art_pct, '#c586c0')}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    tbl.innerHTML = html;
+  } catch(e) {
+    tbl.innerHTML = `<span style="color:#f44747;font-size:12px">Error: ${_h(e.message)}</span>`;
+  }
+}
+
 function _renderColGrid(games, append) {
   const gridEl = document.getElementById('col-grid');
   if (!gridEl) return;

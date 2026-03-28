@@ -90,6 +90,47 @@ def register(
         ctx._send(200, "text/csv; charset=utf-8", body,
                   extra_headers={"Content-Disposition": 'attachment; filename="wishlist.csv"'})
 
+    # ── GET /api/platform-health ─────────────────────────────────────────────
+    @router.get("/api/platform-health")
+    def get_platform_health(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        src_root = qs.get("root", [None])[0] or None
+        ph_repo = get_repo_fn(src_root or "")
+        with ph_repo.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    g.platform,
+                    COUNT(*) AS total_roms,
+                    SUM(CASE WHEN g.canonical_title IS NOT NULL THEN 1 ELSE 0 END) AS matched_roms,
+                    SUM(CASE WHEN gm.box_art_path IS NOT NULL THEN 1 ELSE 0 END) AS roms_with_art
+                FROM games g
+                LEFT JOIN game_metadata gm ON gm.game_id = g.id
+                WHERE g.file_type = 'rom'
+                GROUP BY g.platform
+                ORDER BY total_roms DESC
+                """
+            ).fetchall()
+            # Last scan time per platform root (best approximation: last scan_run)
+            last_scan_row = conn.execute(
+                "SELECT MAX(finished_at) AS last_scan FROM scan_runs WHERE finished_at IS NOT NULL"
+            ).fetchone()
+        last_scan = (last_scan_row["last_scan"] or "")[:16].replace("T", " ") if last_scan_row else ""
+        ctx._send_json({
+            "platforms": [
+                {
+                    "platform": r["platform"] or "?",
+                    "total_roms": r["total_roms"],
+                    "matched_roms": r["matched_roms"],
+                    "roms_with_art": r["roms_with_art"],
+                    "match_pct": round(100.0 * r["matched_roms"] / r["total_roms"], 1) if r["total_roms"] else 0.0,
+                    "art_pct": round(100.0 * r["roms_with_art"] / r["total_roms"], 1) if r["total_roms"] else 0.0,
+                }
+                for r in rows
+            ],
+            "last_scan": last_scan,
+        })
+
     # ── GET /api/collection-stats ─────────────────────────────────────────────
     @router.get("/api/collection-stats")
     def get_collection_stats(ctx) -> None:

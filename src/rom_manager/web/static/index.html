@@ -1334,6 +1334,7 @@
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('json')">⬇ JSON</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleColStats()" id="btn-col-stats">📊 Stats</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="togglePlatformHealth()" id="btn-platform-health">🏥 Health</button>
   </div>
   <!-- Stats panel -->
   <div class="hidden" id="col-stats-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
@@ -1356,6 +1357,16 @@
   <div id="col-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px"></div>
   <div style="text-align:center;margin-top:16px">
     <button id="col-load-more" class="btn hidden" onclick="colLoadMore()">Cargar m&#xe1;s</button>
+  </div>
+
+  <!-- QoL-4: Platform health dashboard -->
+  <div class="hidden" id="platform-health-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <span style="color:#888;font-size:11px">Última actualización:</span>
+      <span id="ph-last-scan" style="color:#555;font-size:11px">—</span>
+      <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:auto" onclick="loadPlatformHealth()">&#x27F3; Actualizar</button>
+    </div>
+    <div id="ph-table" style="overflow-x:auto"></div>
   </div>
 
   <!-- LEGACY: Completion stats section (hidden but preserved) -->
