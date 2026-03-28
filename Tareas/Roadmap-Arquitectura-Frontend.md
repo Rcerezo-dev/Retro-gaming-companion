@@ -174,17 +174,22 @@ def do_POST(self):
         self._send_404()
 ```
 
+**Patrón de dependencias establecido:**
+- Router instanciado en `make_handler()`, `self._post_data = data` y `self._qs = qs` adjuntos antes del dispatch
+- Cada handler module recibe deps por closure en `register(router, *, config, ...)`
+- `_auto_sync_enabled` (global) se muta via `_srv_mod._auto_sync_enabled = val`
+
 **Orden de extracción (de menor a mayor acoplamiento):**
-1. `handlers/config.py` — `/api/config`, `/api/wizard*` (sin deps de job state)
-2. `handlers/scan.py` — `/api/scan*` (usa JobManager)
-3. `handlers/collection.py` — `/api/collection`, `/api/stats` (solo response_builders)
-4. `handlers/duplicates.py` — `/api/duplicates`, `/api/delete-*`
-5. `handlers/organize.py` — `/api/conflicts`, `/api/rename*`
-6. `handlers/sync.py` — `/api/sync*`
-7. `handlers/inbox.py` — `/api/inbox*`
-8. `handlers/scraper.py` — `/api/scraper*`
-9. `handlers/esde.py` — `/api/esde*`
-10. `handlers/games.py` — `/api/games*`, `/api/playtime*`
+1. [x] `handlers/config.py` — `GET/POST /api/config`, `GET /api/wizard-detect`
+2. [x] `handlers/collection.py` — `GET /api/collection-stats`, `GET /api/missing`, `GET /api/library-diff`, `GET /api/operations-timeline`, `GET+POST /api/wishlist`
+3. [x] `handlers/scan.py` — `/api/scan`, `/api/adb-scan`, `/api/match`, `/api/stop-job`, `/api/job-status`, `/api/catalog-status`, `/api/logs`, `/api/scrape-summary`, `/api/import-dats`, `/api/import-arcade-catalog`
+4. [x] `handlers/duplicates.py` — `/api/duplicates`, `/api/duplicates/delete`, `/api/duplicates/delete-all`, `/api/duplicates/exclude`, `/api/ra-duplicates`, `/api/ra-duplicates/discard`, `/api/ra-duplicates/discard-all`, `/api/ra-check/discard-no-support`, `/api/resolve-duplicate-ra`, `/api/apply-ra-conflicts`
+5. [x] `handlers/organize.py` — `/api/plan`, `/api/apply`, `/api/fix-platforms`, `/api/create-library-structure`, `/api/organize-library`
+6. [x] `handlers/sync.py` — `/api/sync*`, `/api/cable-sync*`, `/api/rclone*`
+7. [x] `handlers/inbox.py` — `/api/inbox*`
+8. [x] `handlers/scraper.py` — `GET /api/ss-quota`; `POST /api/scrape`, `/api/scrape-single`, `/api/export-gamelists`, `/api/export-pegasus`
+9. [x] `handlers/esde.py` — `/api/esde*`, `/api/export-*`, `/api/status`, `/api/local-url`, `/api/test-path`, `/api/list-drives`, `/api/setup-status`, `/api/library-report`, `/api/report/*`, converters, tools, orphaned-saves, doctor, shutdown
+10. [x] `handlers/games.py` — `GET /api/games`, `/api/games/filter-options`, `/api/tags`, `/api/game-tags`, `/api/stateshot`, `/api/save-backups`, `/api/manual-backups`, `/api/save-comparison`, `/api/game-sync-history`, `/api/game`; `POST /api/set-play-status`, `/api/set-metadata`, `/api/toggle-favorite`, `/api/tag`, `/api/open-folder`, `/api/launch`, `/api/restore-backup`, `/api/backup-now`
 
 **Cada extracción:** mover código → añadir test de humo → commit.
 
@@ -196,22 +201,49 @@ def do_POST(self):
 
 ### FASE 2 — Módulos JS por tab (3-4 sesiones) 🧩 incrementa sin romper
 
+**Sesión 2 completada (2026-03-28):**
+- [x] `js/components/modal.js`: `_showConfirm`, `_closeConfirm`; wires confirm-ok button on DOMContentLoaded
+- [x] `js/tabs/scan.js`: ADB helpers, `doScan`, `quickScanPC/Android`, `doFixPlatforms`, `doMatch`, `loadCatalogStatus`, `importDats`, `importArcadeCatalog`
+- [x] `js/tabs/config.js`: actualizado — ahora importa `_showConfirm` de modal.js (eliminado `window._showConfirm`)
+- [x] `app.js`: `let _devName` → `var _devName` (accesible como `window._devName` desde módulos); eliminados confirm modal, scan/match, DAT catalog (~300 líneas más)
+
+**Métricas acumuladas (Sesiones 1+2):**
+| Archivo | Líneas |
+|---|---|
+| app.js | 6.850 (era 7.799) |
+| js/ módulos | 1.229 líneas (6 archivos) |
+
+**Sesión 1 completada (2026-03-28):**
+- [x] `server.py`: static serving soporta subdirectorios (`js/components/`, `js/tabs/`) con check `relative_to()` anti-traversal
+- [x] `js/api.js`: añadidos exports `apiFetch`/`apiPost` para uso directo en módulos
+- [x] `js/components/toast.js`: `showToast()` extraído; expuesto en `window.showToast`
+- [x] `js/tabs/config.js`: tab Settings (~663 líneas) extraído con imports de api.js y toast.js
+- [x] `js/main.js`: entry point `type="module"`; importa y expone todos los migrados en `window`
+- [x] `index.html`: `<script type="module" src="/static/js/main.js">` antes de app.js (defer)
+- [x] `app.js`: eliminados `showToast` y la sección Settings completa (~673 líneas menos)
+
+**Métricas:**
+| Archivo | Antes | Después |
+|---|---|---|
+| app.js | 7.799 líneas | ~7.126 líneas |
+| js/ módulos | 168 líneas (api.js) | ~1.100 líneas (4 archivos) |
+
 **Objetivo:** dividir `app.js` en módulos ES por tab, manteniendo `app.js` como legacy shim temporalmente.
 
 Estrategia: crear `js/` con módulos nuevos. Cada tab que se migra:
-1. Se crea `js/tabs/collection.js` con la lógica del tab
-2. `main.js` importa y llama `initCollectionTab()`
+1. Se crea `js/tabs/xxx.js` con la lógica del tab
+2. `main.js` importa y expone funciones en `window`
 3. En `app.js` se elimina el código equivalente
 4. Se valida manualmente que el tab funciona igual
 
 **Orden de migración de tabs:**
 1. `js/state.js` — extraer las ~40 variables globales a un objeto `AppState`
-2. `js/api.js` — centralizar todas las llamadas fetch
+2. [x] `js/api.js` — centralizar todas las llamadas fetch ✅
 3. `js/jobs.js` — `startPolling()`, `_applyJobStatus()`, `_shownResultTs`
-4. `js/components/toast.js` — `showToast()`
-5. `js/components/modal.js` — confirm modal, wizard modal
-6. `js/tabs/config.js` — tab Settings (pocas deps)
-7. `js/tabs/scan.js` — tab Scan
+4. [x] `js/components/toast.js` — `showToast()` ✅
+5. [x] `js/components/modal.js` — confirm modal ✅
+6. [x] `js/tabs/config.js` — tab Settings ✅
+7. [x] `js/tabs/scan.js` — tab Scan ✅
 8. `js/tabs/collection.js` — tab Colección
 9. `js/tabs/duplicates.js`
 10. `js/tabs/organize.js`
@@ -327,3 +359,271 @@ Estos bugs/mejoras tienen alto valor y bajo riesgo de conflicto con la migració
 | QoL-12: Exportar colección | Bajo | Medio |
 
 Recomendación: resolver estos bugs antes de empezar FASE 1, para no mezclar bug fixes con refactoring.
+
+---
+
+## 7. Guía para no iniciados — ¿qué hemos hecho y por qué?
+
+> Esta sección explica en términos sencillos todo lo que se ha hecho en esta migración, sin asumir conocimientos previos de arquitectura de software.
+
+---
+
+### El problema de partida
+
+Imagina que toda la lógica de una aplicación web — el servidor, las respuestas a cada petición, el estado interno, el HTML, el JavaScript — está escrita en **tres archivos enormes**:
+
+- `server.py` → **5.447 líneas**. Un único archivo Python que hace absolutamente todo: recibe peticiones HTTP, decide qué hacer con cada una, ejecuta procesos en segundo plano, gestiona el estado, etc.
+- `frontend.py` → **2.503 líneas**. Un archivo Python que contiene todo el HTML de la aplicación como una cadena de texto gigante dentro de una variable Python.
+- `app.js` → **7.791 líneas**. Un único archivo JavaScript con toda la lógica del navegador.
+
+Esto funciona, pero tiene un problema grave: **es imposible de mantener**. Cuando un archivo tiene miles de líneas, cualquier cambio pequeño puede romper algo inesperado, es difícil encontrar el código relevante, y dos personas no pueden trabajar en él a la vez sin conflictos.
+
+---
+
+### La estrategia: migración incremental
+
+En lugar de reescribir todo desde cero (lo que se llama un "big bang" y suele acabar en desastre), decidimos **mover el código en pasos pequeños**, verificando en cada paso que todo sigue funcionando igual.
+
+La regla de oro es: **mover código, no reescribirlo**. Si algo funciona, no se toca la lógica. Solo se cambia de sitio.
+
+---
+
+### Fase 0 — Preparar la infraestructura (sin romper nada)
+
+Antes de mover código, creamos las "herramientas" que vamos a necesitar:
+
+#### ARCH-0a: `web/router.py` — El encaminador
+
+En el servidor original, cuando llega una petición HTTP, el código hace algo así:
+
+```python
+if path == "/api/config":
+    # hacer cosa A
+elif path == "/api/scan":
+    # hacer cosa B
+elif path == "/api/sync":
+    # hacer cosa C
+# ... 138 casos más ...
+```
+
+Esto se llama un **ladder if/elif** ("escalera de condiciones"). Con 138 casos, es imposible de leer.
+
+Creamos un `Router`: una clase que actúa como un **directorio telefónico**. En lugar de recorrer 138 condiciones, el router tiene una tabla:
+
+```
+GET  /api/config    →  función handle_config
+POST /api/config    →  función save_config
+GET  /api/scan      →  función handle_scan
+...
+```
+
+Cuando llega una petición, el router busca directamente en la tabla y llama a la función correcta.
+
+#### ARCH-0b: `web/jobs/manager.py` — El gestor de tareas en segundo plano
+
+El servidor lanza tareas largas en segundo plano (escanear ROMs, sincronizar saves, etc.). El estado de esas tareas se guardaba en **11 variables globales sueltas**:
+
+```python
+_job_lock = threading.Lock()
+_jobs = {"scan": False, "sync": False, ...}
+_scan_progress = {}
+_chd_progress = {}
+# ... 8 más ...
+```
+
+Variables globales sueltas son peligrosas: cualquier parte del código puede modificarlas accidentalmente, y son difíciles de testear.
+
+Creamos un `JobManager`: una clase que **encapsula** todo ese estado en un solo objeto con métodos claros (`start()`, `update_progress()`, `finish()`). El resto del código solo habla con el `JobManager`, sin tocar variables globales directamente.
+
+#### ARCH-0c: `static/index.html` — El HTML en su propio archivo
+
+El HTML de la aplicación vivía así en `frontend.py`:
+
+```python
+HTML = r"""<!DOCTYPE html>
+<html lang="es">
+<head>
+...
+2.500 líneas de HTML...
+</html>
+"""
+```
+
+Un archivo HTML metido dentro de una variable de Python. Esto significa que **ningún editor sabe que es HTML**: no hay autocompletado, no hay validación, no hay coloreado de sintaxis correcto.
+
+Extrajimos el HTML a `static/index.html`, un archivo real. `frontend.py` ahora tiene 8 líneas:
+
+```python
+HTML = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+```
+
+El comportamiento es idéntico, pero ahora cualquier editor puede trabajar con el HTML como HTML.
+
+#### ARCH-0d: `static/js/api.js` — Las llamadas a la API centralizadas
+
+Creamos un fichero JavaScript (`api.js`) que es un **catálogo de todos los endpoints** de la API, con funciones con nombres legibles:
+
+```javascript
+// En lugar de esto disperso por 7.000 líneas:
+await fetch('/api/config')
+await fetch('/api/sync', { method: 'POST', body: ... })
+
+// Tendremos esto en un solo sitio:
+await api.config()
+await api.sync(opciones)
+```
+
+Este archivo no se usa todavía — es infraestructura para la Fase 2.
+
+---
+
+### Fase 1 — Extraer handlers del monolito (en curso)
+
+Ahora que tenemos el Router, empezamos a **vaciar** el `if/elif` ladder de `server.py`, moviendo cada grupo de rutas a su propio archivo en `web/handlers/`.
+
+#### El patrón que seguimos
+
+Cada archivo de handler tiene una función `register(router, *, dependencias...)`:
+
+```python
+# handlers/config.py
+def register(router, *, config, set_auto_sync_fn):
+
+    @router.get("/api/config")
+    def get_config(ctx):
+        ctx._send_json(_build_config(config))
+
+    @router.post("/api/config")
+    def post_config(ctx):
+        _save_config(ctx, ctx._post_data, config, set_auto_sync_fn)
+```
+
+Y en el servidor principal, solo hay que registrarlo:
+
+```python
+# En make_handler():
+import rom_manager.web.handlers.config as _h_config
+_h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
+```
+
+Las dependencias (como `config` o `repository`) se pasan explícitamente — no hay magia ni variables globales ocultas.
+
+#### Lo que se ha extraído hasta ahora
+
+**`handlers/config.py`** (completado):
+- `GET /api/config` — devuelve la configuración actual
+- `POST /api/config` — guarda cambios en `config.toml` y recarga la configuración en memoria
+- `GET /api/wizard-detect` — detecta RetroArch y dispositivos ADB para el asistente inicial
+
+También se movió la lógica de estas funciones fuera de `server.py` a `handlers/config.py`, donde tiene más sentido que viva.
+
+**`handlers/collection.py`** (completado):
+- `GET /api/collection-stats` — estadísticas de cobertura de la colección vs los DATs
+- `GET /api/missing` — lista de ROMs que faltan en la biblioteca
+- `GET /api/library-diff` — diferencias entre la biblioteca PC y la de Android
+- `GET /api/operations-timeline` — historial de operaciones recientes
+- `GET+POST /api/wishlist` — lista de deseos de ROMs buscadas
+
+También se movió `_build_missing_data` (la función que calcula qué ROMs faltan comparando la biblioteca con los catálogos DAT).
+
+**`handlers/scan.py`** (completado):
+- `GET /api/job-status` — estado de todos los jobs en segundo plano (scan, sync, scrape, RA check…)
+- `GET /api/catalog-status` — lista los archivos DAT cargados con conteo de entradas
+- `GET /api/logs` — tail de los archivos de log del servidor
+- `GET /api/scrape-summary` — resumen del último scraping
+- `POST /api/scan` — lanza el escaneo de la biblioteca (job en background)
+- `POST /api/adb-scan` — escanea un dispositivo Android vía ADB
+- `POST /api/match` — lanza el matching de ROMs contra los catálogos DAT
+- `POST /api/stop-job` — cancela cualquier job en ejecución
+- `POST /api/import-dats` — importa archivos DAT desde una carpeta
+- `POST /api/import-arcade-catalog` — importa catálogos MAME/FBNeo
+
+Este handler necesita acceso a las variables globales de estado de jobs (`_jobs`, `_job_lock`, `_scan_progress`, etc.), así que recibe `srv_mod` (referencia al módulo `server.py`) — el mismo patrón que ya usaba `cable_sync_daemon`.
+
+**`handlers/duplicates.py`** (completado):
+- `GET /api/duplicates` — lista todos los grupos de ROMs duplicadas (por SHA1)
+- `GET /api/ra-duplicates` — agrupa duplicados por título, marcando cuáles tienen logros RA
+- `POST /api/duplicates/delete` — elimina un duplicado individual (archivo + entrada BD)
+- `POST /api/duplicates/delete-all` — elimina todos los duplicados excepto el primero de cada grupo
+- `POST /api/duplicates/exclude` — excluye un SHA1 de ser considerado duplicado
+- `POST /api/apply-ra-conflicts` — en conflictos de renombrado, conserva la versión con más logros RA
+- `POST /api/ra-duplicates/discard` — mueve un duplicado sin logros RA a `_descartados/`
+- `POST /api/ra-duplicates/discard-all` — mueve todos los duplicados sin logros RA a `_descartados/`
+- `POST /api/ra-check/discard-no-support` — descarta todos los juegos sin soporte RA del último check
+- `POST /api/resolve-duplicate-ra` — conserva la versión con soporte RA y descarta las demás
+
+Todas las operaciones de descarte tienen rollback atómico: si la base de datos falla después de mover el archivo, el archivo se restaura a su posición original.
+
+#### Resultado medible
+
+| Métrica | Antes | Tras handlers 1–4 |
+|---|---|---|
+**`handlers/organize.py`** (completado):
+- `GET /api/plan` — calcula el plan de renombrado (qué ROMs hay que renombrar y a qué nombres canónicos)
+- `POST /api/apply` — ejecuta el plan en segundo plano: renombra cada ROM con rollback atómico, mueve los saves asociados, registra cada operación en BD
+- `POST /api/fix-platforms` — rellena las plataformas que faltan en la BD relanzando el detector automático
+- `POST /api/create-library-structure` — crea la estructura de carpetas estándar ES-DE (una carpeta por plataforma, con subcarpetas `media/`, `saves/`, `states/`)
+- `POST /api/organize-library` — mueve ROMs ya escaneadas a sus carpetas de plataforma, centraliza saves en `saves/{plataforma}/` y mueve BIOS conocidas a `bios/`
+
+Este handler también usa `srv_mod` para acceder a `_apply_progress`, `_jobs["apply"]` y `_job_results["apply"]` (el job de aplicación del plan), y a las constantes `_ES_PLATFORM_FOLDERS` y `_STANDARD_PLATFORM_FOLDERS` que definen los nombres de carpeta por plataforma.
+
+**`handlers/sync.py`** (completado):
+- `GET /api/adb-devices` — lista los dispositivos Android conectados vía ADB
+- `GET /api/test-adb-path` — comprueba si una ruta Android es accesible vía ADB
+- `GET /api/sync-log` — historial de operaciones de sync en la BD
+- `GET /api/cable-sync-preview` — vista previa de qué archivos se copiarían en el próximo cable sync
+- `GET /api/cable-sync-log` — tail del fichero de log de operaciones de cable sync
+- `GET /api/rclone-export-config` — devuelve el archivo de configuración rclone para copiarlo al Android
+- `GET /api/rclone-status` — versión y remotos configurados en rclone
+- `GET /api/auto-sync-status` — estado del daemon de auto-sync (activo/parado, último device visto)
+- `GET /api/sd-sync-status` — estado del daemon de sync por SD card
+- `POST /api/sync` — lanza sincronización rclone en segundo plano con múltiples fuentes
+- `POST /api/cable-sync` — copia saves y/o ROMs entre PC y consola vía ADB o sistema de archivos; soporta 3 direcciones (PC→consola, consola→PC, más reciente gana); registro de operaciones en log
+- `POST /api/auto-sync-toggle` — activa/desactiva el daemon de auto-sync
+- `POST /api/auto-sync-save` — guarda configuración de auto-sync en `config.toml` y actualiza en memoria
+- `POST /api/migrate-split-db` — migración única: mueve registros Android de la BD de PC a la BD de Android
+- `POST /api/ra-check` — lanza la comprobación de soporte RetroAchievements
+
+**Nota especial:** `_handle_cable_sync`, `_handle_ra_check` y `_handle_migrate_split_db` habían sido eliminados accidentalmente en la sesión anterior al borrar el bloque de duplicates. Los tres métodos se recuperaron desde el historial de git (`git show HEAD:...`) y se incluyeron correctamente en este handler.
+
+#### Resultado medible
+
+| Métrica | Antes | Tras handlers 1–6 |
+|---|---|---|
+**`handlers/inbox.py`** (completado):
+- `GET /api/inbox-count` — número de archivos pendientes en el inbox
+- `GET /api/inbox-scan` — lista el contenido del inbox con detección de plataforma y formato
+- `GET /api/inbox-status` — estado del job de procesado (running, progreso, resultado)
+- `GET /api/inbox-watcher-status` — estado del daemon de vigilancia automática del inbox
+- `POST /api/inbox-run` — lanza el pipeline completo: extraer ZIPs → detectar plataforma → mover a carpeta correcta
+- `POST /api/setup-run` — lanza el wizard de primera configuración (scan + match + estructura ES-DE)
+- `POST /api/inbox-upload` (multipart) — recibe archivos subidos desde el navegador y los deposita en el inbox
+
+**Nota de implementación:** la ruta `/api/inbox-upload` usa multipart en lugar de JSON, por lo que se intercepta antes del router en `do_POST`. La lógica se expone como `handle_inbox_upload(config, content_type, body, ctx)` desde el handler y se llama directamente, manteniendo el patrón limpio sin romper el flujo del router.
+
+#### Resultado medible
+
+| Métrica | Antes | Tras handlers 1–9 |
+|---|---|---|
+| `server.py` líneas | 5.447 | ~1.403 |
+| `frontend.py` líneas | 2.503 | 8 |
+| Archivos de handler | 0 | 9 |
+| Rutas en el ladder (if/elif) | 138 | 3 (solo auth) |
+| Tests pasando | 384/388 | 388/388 |
+
+**FASE 1 completa.** El ladder ha sido eliminado. Los únicos `elif path ==` restantes son `/api/auth/logout`, `/api/set-pin` y `/api/clear-pin`, que están intencionalmente fuera del router porque requieren lógica de sesión antes del dispatch normal.
+
+La reducción del ladder se acelera con cada handler. Los primeros (config, collection) requirieron crear la infraestructura del Router; los siguientes (scan, duplicates, organize, sync, inbox) solo necesitaron aplicar el patrón ya establecido.
+
+---
+
+### Por qué todo esto importa
+
+**Para el desarrollador:**
+- Cuando algo falla en `/api/collection-stats`, sabes exactamente dónde mirar: `handlers/collection.py`.
+- Puedes testear `handlers/config.py` sin levantar un servidor HTTP completo.
+- Dos personas pueden trabajar en `handlers/sync.py` y `handlers/games.py` al mismo tiempo sin conflictos de merge.
+
+**Para el futuro:**
+- Fase 2 dividirá `app.js` (7.791 líneas) de la misma forma: un archivo por sección de la UI.
+- Al final, un cambio en la pantalla de configuración solo tocará `handlers/config.py` (Python) y `js/tabs/config.js` (JS) — dos archivos pequeños y enfocados, en lugar de dos monstruos de 5.000 líneas.

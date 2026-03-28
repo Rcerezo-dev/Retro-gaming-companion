@@ -2291,6 +2291,10 @@
       <button class="btn" onclick="localStorage.removeItem('wizard_dismissed'); showWizard('', ''); showToast('Asistente relanzado', 'ok')">Relanzar asistente de configuracion</button>
       <span style="color:#555;font-size:12px">Vuelve a mostrar el asistente de primeros pasos.</span>
     </div>
+    <div class="actions-row" style="margin-top:10px">
+      <button class="btn" style="background:#3a1a1a;border-color:#6a2a2a;color:#f48771" onclick="shutdownServer()">Cerrar Retro Vault</button>
+      <span style="color:#555;font-size:12px">Detiene el servidor. Tendr&#xe1;s que relanzarlo desde la terminal.</span>
+    </div>
   </div>
 
   <!-- S38-3: API REST docs -->
@@ -2347,7 +2351,8 @@
 </div><!-- /.content-area -->
 </div><!-- /.app-body -->
 
-<script src="/static/app.js"></script>
+<script type="module" src="/static/js/main.js"></script>
+<script src="/static/app.js" defer></script>
 <div id="toast-container"></div>
 
 <!-- 27-3: Game detail side panel -->

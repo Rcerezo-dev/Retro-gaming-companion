@@ -30,6 +30,10 @@ async function _post(url, body = {}) {
 
 // ── API surface ───────────────────────────────────────────────────────────────
 
+// Named exports for direct use in migrated modules
+export const apiFetch = _get;
+export const apiPost  = _post;
+
 export const api = {
 
   // ── System / config ────────────────────────────────────────────────────────
