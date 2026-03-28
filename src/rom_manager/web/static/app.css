@@ -880,3 +880,182 @@ input:focus, select:focus, textarea:focus {
 ::-webkit-scrollbar-track { background: var(--bg-track); }
 ::-webkit-scrollbar-thumb { background: rgba(0,229,255,.18); border-radius: 0; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,229,255,.4); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CYBERPUNK UI — ENHANCED LAYER II
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1 — Circuit-board grid overlay on body */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  background-image:
+    linear-gradient(rgba(0,229,255,.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,.024) 1px, transparent 1px),
+    linear-gradient(rgba(0,229,255,.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,.012) 1px, transparent 1px);
+  background-size: 80px 80px, 80px 80px, 20px 20px, 20px 20px;
+}
+
+/* 2 — Horizontal sweep scanline (slow pass every 12s) */
+@keyframes cp-sweep {
+  0%   { top: -4px; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: .6; }
+  100% { top: 100vh; opacity: 0; }
+}
+.content-area::before {
+  content: '';
+  position: fixed;
+  left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(0,229,255,.06) 15%,
+    rgba(0,229,255,.25) 40%,
+    rgba(200,0,255,.2) 60%,
+    rgba(0,229,255,.06) 85%,
+    transparent 100%
+  );
+  animation: cp-sweep 12s linear 2s infinite;
+  pointer-events: none; z-index: 9997;
+}
+
+/* 3 — Sidebar: dual-color vertical neon strip + deeper bg */
+.sidebar::before {
+  content: '';
+  position: absolute; top: 0; left: 0; bottom: 0; width: 2px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    var(--accent) 25%,
+    var(--accent-pur) 50%,
+    var(--accent) 75%,
+    transparent 100%
+  );
+  opacity: .5;
+  pointer-events: none;
+}
+.sidebar {
+  background: linear-gradient(90deg, rgba(0,229,255,.018) 0%, var(--bg-nav) 18px);
+  border-right: 1px solid rgba(0,229,255,.15);
+}
+
+/* 4 — Active nav item: pulsing left glow */
+@keyframes cp-nav-pulse {
+  0%, 100% { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 transparent; }
+  50%       { box-shadow: inset 3px 0 0 var(--accent), 6px 0 18px rgba(0,229,255,.25); }
+}
+.nav-item.active {
+  animation: cp-nav-pulse 3s ease-in-out infinite;
+  background: rgba(0,229,255,.07) !important;
+}
+.nav-group-label {
+  color: rgba(0,229,255,.3);
+  letter-spacing: 2px;
+}
+
+/* 5 — Header: system status line + dual neon border */
+header {
+  position: relative;
+  border-bottom: 1px solid var(--accent);
+  box-shadow: 0 1px 0 var(--accent), 0 2px 0 rgba(200,0,255,.3), 0 0 40px rgba(0,229,255,.08);
+}
+header::after {
+  content: 'SYS\3A OK  //  ROM-VAULT';
+  position: absolute; bottom: 3px; right: 20px;
+  font-family: 'Consolas', monospace; font-size: 9px;
+  color: rgba(0,229,255,.22); letter-spacing: 2px; text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* 6 — Active tab: top neon rule */
+.tab.active::before {
+  content: '';
+  display: block; height: 1px;
+  background: linear-gradient(90deg,
+    transparent, rgba(0,229,255,.5) 20%,
+    rgba(200,0,255,.4) 60%, transparent
+  );
+  margin-bottom: 18px; margin-top: -4px;
+}
+
+/* 7 — Cards: sharper neon glow on hover */
+.card:hover {
+  box-shadow:
+    0 0 0 1px rgba(0,229,255,.15),
+    0 0 24px rgba(0,229,255,.18),
+    inset 0 0 30px rgba(0,229,255,.04),
+    0 8px 28px rgba(0,0,0,.7);
+  border-color: rgba(0,229,255,.35);
+}
+
+/* 8 — Dashboard bar: neon glow */
+#dash-bar {
+  border-top: 1px solid rgba(0,229,255,.12);
+  border-bottom: 1px solid rgba(0,229,255,.12);
+  background: linear-gradient(90deg, rgba(0,229,255,.02), rgba(200,0,255,.02), rgba(0,229,255,.02));
+}
+
+/* 9 — Section headers (h3 inside main): terminal prefix */
+main h3::before {
+  content: '// ';
+  color: rgba(0,229,255,.3);
+  font-family: 'Consolas', monospace;
+}
+
+/* 10 — Actions panel: stronger corner neons + magenta bottom-right */
+.actions-panel::before { border-color: rgba(0,229,255,.55); }
+.actions-panel::after  { border-color: rgba(200,0,255,.55); }
+
+/* 11 — Input focus: dual-color ring */
+input:focus, select:focus, textarea:focus {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 3px rgba(0,229,255,.08),
+    0 0 16px rgba(0,229,255,.18) !important;
+}
+
+/* 12 — Game panel overlay: stronger blur + neon tint */
+.game-panel-overlay.open {
+  background: rgba(0,0,15,.7);
+  backdrop-filter: blur(4px) saturate(1.3);
+}
+.game-panel {
+  border-left: 1px solid rgba(0,229,255,.2);
+  box-shadow: -4px 0 40px rgba(0,229,255,.08), -2px 0 0 rgba(200,0,255,.15);
+}
+
+/* 13 — Progress bars: neon dual-color gradient (overrides inline styles) */
+[id$="-progress-bar"], #health-progress-bar, #ra-progress-bar {
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-pur) 100%) !important;
+  box-shadow: 0 0 10px rgba(0,229,255,.5);
+}
+
+/* 14 — Toast: bigger glow */
+.toast {
+  border: 1px solid rgba(0,229,255,.25);
+  box-shadow: 0 0 20px rgba(0,229,255,.15), 0 8px 32px rgba(0,0,0,.9) !important;
+}
+.toast.err {
+  border-color: rgba(255,32,96,.3);
+  box-shadow: 0 0 20px rgba(255,32,96,.2), 0 8px 32px rgba(0,0,0,.9) !important;
+}
+
+/* 15 — Collection tiles: hover neon + corner bracket */
+.col-tile:hover {
+  box-shadow:
+    0 0 0 1px rgba(0,229,255,.25),
+    0 0 18px rgba(0,229,255,.18),
+    0 6px 20px rgba(0,0,0,.7) !important;
+  transform: translateY(-2px);
+}
+
+/* 16 — Light theme: disable grid and sweep (too much on light backgrounds) */
+[data-theme="light"] body::before,
+[data-theme="light"] .content-area::before,
+[data-theme="light"] .sidebar::before {
+  display: none;
+}
+[data-theme="light"] header::after { display: none; }
+[data-theme="light"] .tab.active::before { display: none; }
+[data-theme="light"] .nav-item.active { animation: none; }
+[data-theme="light"] main h3::before { display: none; }
