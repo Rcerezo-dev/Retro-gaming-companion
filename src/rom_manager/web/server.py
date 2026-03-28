@@ -777,9 +777,6 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     import rom_manager.web.handlers.config as _h_config
     _h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
 
-    import rom_manager.web.handlers.collection as _h_collection
-    _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
-
     # ── End Phase 1 router setup ───────────────────────────────────────────────
 
     def _get_repo(path_str: str) -> LibraryRepository:
@@ -852,6 +849,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
         threading.Thread(target=_run, daemon=True).start()
         return True
+
+    import rom_manager.web.handlers.collection as _h_collection
+    _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
 
     import rom_manager.web.handlers.scan as _h_scan
     _h_scan.register(

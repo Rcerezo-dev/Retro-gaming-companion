@@ -6,6 +6,18 @@ from pathlib import Path
 
 _DISC_RE = re.compile(r'\(Dis[ck]\s*(\d+)\)', re.IGNORECASE)
 
+# Priority order when deduplicating entries with the same scraped title.
+# Lower index = higher priority.
+_EXT_PRIORITY: dict[str, int] = {
+    ".m3u":  0,   # playlist covers all discs → always preferred
+    ".chd":  1,   # converted disc image (single file, clean)
+    ".pbp":  2,   # PSP packed disc
+    ".cue":  3,   # cue sheet (valid, but inferior to m3u/chd)
+    ".gdi":  4,
+    ".iso":  5,
+}
+_EXT_PRIORITY_DEFAULT = 10
+
 
 def write_gamelist(
     platform_dir: Path,
@@ -14,22 +26,39 @@ def write_gamelist(
     media_subdir: str = "media/images",
     es_config_dir: Path | None = None,
 ) -> Path:
-    """Generate a gamelist.xml in *platform_dir* for EmulationStation / ES-DE.
+    """Genera gamelist.xml en *platform_dir* para EmulationStation / ES-DE.
 
-    Each entry in *entries* is a dict with keys:
-        filename, title, year, genre, publisher, developer,
+    Cada entrada en *entries* es un dict con las claves:
+        filename, source_path (opcional), title, year, genre, publisher, developer,
         description, rating, box_art_path, screenshot_path, wheel_path
 
-    Always writes ``platform_dir/gamelist.xml`` with paths relative to the ROM dir.
-    If *es_config_dir* is given (e.g. ~/.emulationstation/gamelists/{system}/),
-    also writes a copy there using absolute paths — required for classic EmulationStation
-    which looks for gamelists outside the ROM directory.
+    Siempre escribe ``platform_dir/gamelist.xml`` con rutas relativas al dir de ROMs.
+    Si *es_config_dir* se proporciona, también escribe una copia con rutas absolutas.
 
-    Returns the path to the primary written file (alongside ROMs).
+    Correcciones aplicadas:
+    - **Subcarpetas de disco** (PSX/Saturn): si *source_path* está disponible, la
+      ruta relativa se calcula a partir de él en lugar de usar solo *filename*.
+      Esto evita que ES-DE muestre la carpeta como ítem navegable en vez del juego.
+    - **Deduplicación**: si dos entradas tienen el mismo título scrapeado, se conserva
+      solo la de mayor prioridad (.m3u > .chd > .pbp > .cue …). Evita que aparezcan
+      tanto el .m3u como los .cue individuales de un set multi-disco.
+
+    Devuelve la ruta al archivo principal generado (junto a los ROMs).
     """
+    deduped = _deduplicate(entries)
+
+    def _rom_rel(entry: dict) -> str:
+        """Ruta relativa del ROM respecto a platform_dir, con soporte para subcarpetas."""
+        src = entry.get("source_path", "")
+        if src:
+            try:
+                rel = Path(src).relative_to(platform_dir)
+                return rel.as_posix()
+            except ValueError:
+                pass
+        return entry["filename"]
 
     def _media_path(path_str: str, use_absolute: bool) -> str:
-        """Return the path string to embed in the XML (absolute or relative to platform_dir)."""
         if not path_str:
             return ""
         if use_absolute:
@@ -41,12 +70,16 @@ def write_gamelist(
             return path_str
 
     def _build_tree(use_absolute: bool) -> ET.ElementTree:
-        root = ET.Element("gameList")
-        for entry in entries:
-            game_el = ET.SubElement(root, "game")
+        root_el = ET.Element("gameList")
+        for entry in deduped:
+            game_el = ET.SubElement(root_el, "game")
 
-            rom_path = platform_dir / entry["filename"]
-            _sub(game_el, "path", str(rom_path) if use_absolute else f"./{entry['filename']}")
+            rel = _rom_rel(entry)
+            path_val = (
+                str(platform_dir / rel) if use_absolute else f"./{rel}"
+            )
+            _sub(game_el, "path", path_val)
+
             title = entry.get("title") or _stem(entry["filename"])
             m = _DISC_RE.search(entry["filename"])
             if m and f"Disc {m.group(1)}" not in title and f"Disk {m.group(1)}" not in title:
@@ -56,25 +89,22 @@ def write_gamelist(
             if entry.get("description"):
                 _sub(game_el, "desc", entry["description"])
 
-            # Box art → <image>
             _img = _media_path(entry.get("box_art_path", ""), use_absolute)
             if _img:
                 _sub(game_el, "image", _img)
 
-            # Wheel/logo → <thumbnail> + <marquee>  (B6-7)
             _wheel = _media_path(entry.get("wheel_path", ""), use_absolute)
             if _wheel:
                 _sub(game_el, "thumbnail", _wheel)
                 _sub(game_el, "marquee", _wheel)
 
-            # Screenshot → <screenshot>  (B6-7)
             _shot = _media_path(entry.get("screenshot_path", ""), use_absolute)
             if _shot:
                 _sub(game_el, "screenshot", _shot)
 
             if entry.get("rating"):
                 try:
-                    rating_norm = float(entry["rating"]) / 20.0  # SS uses 0–20 scale
+                    rating_norm = float(entry["rating"]) / 20.0
                     _sub(game_el, "rating", f"{rating_norm:.2f}")
                 except (ValueError, TypeError):
                     pass
@@ -89,21 +119,53 @@ def write_gamelist(
             if entry.get("genre"):
                 _sub(game_el, "genre", entry["genre"])
 
-        tree = ET.ElementTree(root)
+        tree = ET.ElementTree(root_el)
         ET.indent(tree, space="  ")
         return tree
 
-    # Primary gamelist alongside ROMs (relative paths — ES-DE, Pegasus)
     out_path = platform_dir / "gamelist.xml"
     _build_tree(use_absolute=False).write(out_path, encoding="utf-8", xml_declaration=True)
 
-    # Secondary gamelist in ES config dir (absolute paths — classic EmulationStation)
     if es_config_dir is not None:
         es_config_dir.mkdir(parents=True, exist_ok=True)
         es_out = es_config_dir / "gamelist.xml"
         _build_tree(use_absolute=True).write(es_out, encoding="utf-8", xml_declaration=True)
 
     return out_path
+
+
+def _deduplicate(entries: list[dict]) -> list[dict]:
+    """Devuelve una lista deduplicada por título scrapeado.
+
+    Cuando dos entradas tienen el mismo *title*, se conserva la de mayor prioridad
+    de extensión (.m3u > .chd > .pbp > .cue …).  Esto evita que los discos
+    individuales (.cue) aparezcan junto al playlist (.m3u) del mismo juego.
+    """
+    best: dict[str, dict] = {}  # title_lower → entry
+    for entry in entries:
+        title_key = (entry.get("title") or _stem(entry["filename"])).lower().strip()
+        ext = Path(entry["filename"]).suffix.lower()
+        priority = _EXT_PRIORITY.get(ext, _EXT_PRIORITY_DEFAULT)
+
+        existing = best.get(title_key)
+        if existing is None:
+            best[title_key] = entry
+        else:
+            existing_ext = Path(existing["filename"]).suffix.lower()
+            existing_priority = _EXT_PRIORITY.get(existing_ext, _EXT_PRIORITY_DEFAULT)
+            if priority < existing_priority:
+                best[title_key] = entry
+
+    # Preserve original order as much as possible
+    seen: set[str] = set()
+    result: list[dict] = []
+    for entry in entries:
+        title_key = (entry.get("title") or _stem(entry["filename"])).lower().strip()
+        winner = best.get(title_key)
+        if winner is not None and title_key not in seen:
+            result.append(winner)
+            seen.add(title_key)
+    return result
 
 
 def _sub(parent: ET.Element, tag: str, text: str) -> ET.Element:
