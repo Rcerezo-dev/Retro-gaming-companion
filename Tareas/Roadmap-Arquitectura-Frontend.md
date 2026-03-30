@@ -236,11 +236,14 @@ Estrategia: crear `js/` con módulos nuevos. Cada tab que se migra:
 3. En `app.js` se elimina el código equivalente
 4. Se valida manualmente que el tab funciona igual
 
-**Métricas acumuladas (Sesiones 1–5):**
+**Métricas acumuladas (Sesiones 1–6):**
 | Archivo | Líneas |
 |---|---|
-| app.js | 4.115 (era 7.799) |
-| js/ módulos | ~3.855 líneas (11 archivos) |
+| app.js | 3.947 (era 7.799) |
+| js/ módulos | ~4.020 líneas (12 archivos) |
+
+**Sesión 6 completada (2026-03-30):**
+- [x] `js/tabs/scraper.js` — creado, cableado en main.js + eliminado de app.js (`loadScraperSummary`, `loadSsQuota`, `loadScrapePlatforms`, `doScrape`, `doExportGamelists`, `doExportGamelistsAll`, `_autoFillEsdeGamelistDir`, `useEsdeGamelistDir`, variable `_esdeGamelistsDir`)
 
 **Sesión 5 completada (2026-03-30):**
 - [x] `js/tabs/inbox.js` — creado, cableado en main.js + eliminado de app.js (`updateInboxBadge`, `_initInboxBadge`, `inboxDragOver/Leave/Drop`, `loadInbox`, `fillInboxTarget`, `scanInbox`, `runInbox`, `_applyInboxProgress`, `_renderInboxResult`, `saveInboxSettings`, `_pollInboxWatcher`); `setInterval` de badge movido al módulo; `_shownResultTs.inbox` → `_lastInboxResultTs` privado
@@ -267,7 +270,7 @@ Estrategia: crear `js/` con módulos nuevos. Cada tab que se migra:
 10. [x] `js/tabs/organize.js` — Organizar (plan, apply, helpers) ✅
 11. [x] `js/tabs/sync.js` — Cable Sync + Cloud Sync + Auto-sync + Rclone ✅
 12. [x] `js/tabs/inbox.js` — Inbox + drag & drop + watcher ✅
-13. `js/tabs/scraper.js` — Scraper + gamelists + Pegasus
+13. [x] `js/tabs/scraper.js` — Scraper + gamelists + Pegasus ✅
 14. `js/tabs/esde.js` — ES-DE + Tools + RA check + Reports + Doctor + Junk
 15. `js/tabs/games.js` — Lista de juegos + game panel + TV mode
 16. `js/tabs/overview.js` — Overview + wizard + heatmap + charts (o queda en app.js)

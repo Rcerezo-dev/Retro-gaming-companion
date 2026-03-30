@@ -43,6 +43,16 @@ import {
   startPolling, _applyJobStatus, _showJobResult,
 } from './jobs.js';
 import {
+  doExportGamelistsAll,
+  _autoFillEsdeGamelistDir,
+  useEsdeGamelistDir,
+  loadScraperSummary,
+  loadSsQuota,
+  loadScrapePlatforms,
+  doScrape,
+  doExportGamelists,
+} from './tabs/scraper.js';
+import {
   updateInboxBadge,
   _initInboxBadge,
   inboxDragOver,
@@ -133,6 +143,15 @@ Object.assign(window, {
   _chk, toggleShaLength, _planQueryString,
   loadPlan, applyKeepBoth, doApply,
   startPolling, _applyJobStatus, _showJobResult,
+  // scraper.js
+  doExportGamelistsAll,
+  _autoFillEsdeGamelistDir,
+  useEsdeGamelistDir,
+  loadScraperSummary,
+  loadSsQuota,
+  loadScrapePlatforms,
+  doScrape,
+  doExportGamelists,
   // inbox.js
   updateInboxBadge,
   _initInboxBadge,
