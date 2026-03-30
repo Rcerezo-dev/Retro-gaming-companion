@@ -43,6 +43,21 @@ import {
   startPolling, _applyJobStatus, _showJobResult,
 } from './jobs.js';
 import {
+  updateInboxBadge,
+  _initInboxBadge,
+  inboxDragOver,
+  inboxDragLeave,
+  inboxDrop,
+  loadInbox,
+  fillInboxTarget,
+  scanInbox,
+  runInbox,
+  _applyInboxProgress,
+  _renderInboxResult,
+  saveInboxSettings,
+  _pollInboxWatcher,
+} from './tabs/inbox.js';
+import {
   loadSync,
   loadAssets,
   loadSystemStatus,
@@ -118,6 +133,20 @@ Object.assign(window, {
   _chk, toggleShaLength, _planQueryString,
   loadPlan, applyKeepBoth, doApply,
   startPolling, _applyJobStatus, _showJobResult,
+  // inbox.js
+  updateInboxBadge,
+  _initInboxBadge,
+  inboxDragOver,
+  inboxDragLeave,
+  inboxDrop,
+  loadInbox,
+  fillInboxTarget,
+  scanInbox,
+  runInbox,
+  _applyInboxProgress,
+  _renderInboxResult,
+  saveInboxSettings,
+  _pollInboxWatcher,
   // sync.js
   loadSync,
   loadAssets,
