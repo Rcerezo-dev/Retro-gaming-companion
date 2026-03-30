@@ -236,23 +236,36 @@ Estrategia: crear `js/` con módulos nuevos. Cada tab que se migra:
 3. En `app.js` se elimina el código equivalente
 4. Se valida manualmente que el tab funciona igual
 
+**Métricas acumuladas (Sesiones 1–3):**
+| Archivo | Líneas |
+|---|---|
+| app.js | 5.307 (era 7.799) |
+| js/ módulos | ~2.600 líneas (9 archivos) |
+
+**Sesión 3 completada (2026-03-30):**
+- [x] `js/tabs/collection.js` — cableado en main.js + eliminado de app.js
+- [x] `js/tabs/duplicates.js` — cableado en main.js + eliminado de app.js
+- [x] `js/tabs/organize.js` — creado, cableado, eliminado de app.js (`loadPlan`, `applyKeepBoth`, `doApply`, helpers)
+- [x] `js/jobs.js` — creado, cableado, eliminado de app.js (`startPolling`, `_applyJobStatus`, `_showJobResult`)
+
 **Orden de migración de tabs:**
 1. `js/state.js` — extraer las ~40 variables globales a un objeto `AppState`
 2. [x] `js/api.js` — centralizar todas las llamadas fetch ✅
-3. `js/jobs.js` — `startPolling()`, `_applyJobStatus()`, `_shownResultTs`
+3. [x] `js/jobs.js` — `startPolling()`, `_applyJobStatus()`, `_showJobResult` ✅
 4. [x] `js/components/toast.js` — `showToast()` ✅
 5. [x] `js/components/modal.js` — confirm modal ✅
 6. [x] `js/tabs/config.js` — tab Settings ✅
 7. [x] `js/tabs/scan.js` — tab Scan ✅
-8. `js/tabs/collection.js` — tab Colección
-9. `js/tabs/duplicates.js`
-10. `js/tabs/organize.js`
-11. `js/tabs/sync.js` — Cloud Sync
-12. `js/tabs/inbox.js`
-13. `js/tabs/scraper.js`
-14. `js/tabs/esde.js`
-15. `js/tabs/games.js`
-16. Eliminar `app.js` legacy cuando todos los tabs estén migrados
+8. [x] `js/tabs/collection.js` — tab Colección ✅
+9. [x] `js/tabs/duplicates.js` — Duplicados + RA Duplicados ✅
+10. [x] `js/tabs/organize.js` — Organizar (plan, apply, helpers) ✅
+11. `js/tabs/sync.js` — Cable Sync + Cloud Sync + Auto-sync + Rclone
+12. `js/tabs/inbox.js` — Inbox + drag & drop + watcher
+13. `js/tabs/scraper.js` — Scraper + gamelists + Pegasus
+14. `js/tabs/esde.js` — ES-DE + Tools + RA check + Reports + Doctor + Junk
+15. `js/tabs/games.js` — Lista de juegos + game panel + TV mode
+16. `js/tabs/overview.js` — Overview + wizard + heatmap + charts (o queda en app.js)
+17. Eliminar `app.js` legacy cuando todos los tabs estén migrados
 
 ---
 

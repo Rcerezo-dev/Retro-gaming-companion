@@ -77,7 +77,7 @@ async function loadDuplicates() {
 }
 
 async function deleteAllDuplicates() {
-  const rows = document.querySelectorAll('#dup-content .btn.danger');
+  const rows = document.querySelectorAll('#dup-content .dup-group[id] .btn.danger');
   const count = rows.length;
   if (count === 0) { showToast('No hay duplicados para eliminar.', false); return; }
   _showConfirm(

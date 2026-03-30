@@ -19,6 +19,28 @@ import {
   doFixPlatforms, doMatch,
   loadCatalogStatus, importArcadeCatalog, importDats,
 } from './tabs/scan.js';
+import {
+  loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
+  toggleWishlist,
+  loadCollection, colSetPlatform, colSearch, colLoadMore,
+  exportCollection, exportWishlist,
+  loadCollectionStatsV2, toggleColStats,
+} from './tabs/collection.js';
+import {
+  loadDuplicates, deleteAllDuplicates, deleteDuplicate,
+  resolveDuplicateRA, markAsIntentionalCopy,
+  loadRaDuplicates, deleteRaDuplicate,
+  doResolveRaConflicts, discardAllRaDuplicates,
+  setToolsContext, _initToolsContext,
+  filterDuplicatesByPlatform, _renderDupContent,
+} from './tabs/duplicates.js';
+import {
+  _chk, toggleShaLength, _planQueryString,
+  loadPlan, applyKeepBoth, doApply,
+} from './tabs/organize.js';
+import {
+  startPolling, _applyJobStatus, _showJobResult,
+} from './jobs.js';
 
 // Expose all migrated functions on window for:
 // - Inline onclick="xxx()" handlers in index.html
@@ -37,4 +59,18 @@ Object.assign(window, {
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
   loadCatalogStatus, importArcadeCatalog, importDats,
+  loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
+  toggleWishlist,
+  loadCollection, colSetPlatform, colSearch, colLoadMore,
+  exportCollection, exportWishlist,
+  loadCollectionStatsV2, toggleColStats,
+  loadDuplicates, deleteAllDuplicates, deleteDuplicate,
+  resolveDuplicateRA, markAsIntentionalCopy,
+  loadRaDuplicates, deleteRaDuplicate,
+  doResolveRaConflicts, discardAllRaDuplicates,
+  setToolsContext, _initToolsContext,
+  filterDuplicatesByPlatform, _renderDupContent,
+  _chk, toggleShaLength, _planQueryString,
+  loadPlan, applyKeepBoth, doApply,
+  startPolling, _applyJobStatus, _showJobResult,
 });
