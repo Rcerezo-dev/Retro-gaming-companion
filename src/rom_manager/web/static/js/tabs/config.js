@@ -41,6 +41,10 @@ async function loadSettings() {
       }
     }
     document.getElementById('cfg-rclone-remote').value = cfg.rclone_remote || '';
+    const savesRemEl  = document.getElementById('cfg-saves-remote');
+    const statesRemEl = document.getElementById('cfg-states-remote');
+    if (savesRemEl)  savesRemEl.value  = cfg.saves_remote  || '';
+    if (statesRemEl) statesRemEl.value = cfg.states_remote || '';
     const whEl = document.getElementById('cfg-web-host');
     if (whEl) whEl.value = cfg.web_host || '127.0.0.1';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
@@ -566,6 +570,10 @@ async function saveSettings() {
   if (ar) updates['library.anbernic_root']        = ar;
   if (dn) updates['android.device_name']          = dn;
   if (rr) updates['sync.remote']                 = rr;
+  const savesR  = document.getElementById('cfg-saves-remote')?.value.trim()  || '';
+  const statesR = document.getElementById('cfg-states-remote')?.value.trim() || '';
+  if (savesR)  updates['sync.saves_remote']  = savesR;
+  if (statesR) updates['sync.states_remote'] = statesR;
   updates['web.host'] = document.getElementById('cfg-web-host')?.value || '127.0.0.1';
   const sd = document.getElementById('cfg-ss-devid')?.value.trim()   || '';
   const sdp = document.getElementById('cfg-ss-devpass')?.value        || '';
@@ -676,6 +684,34 @@ async function saveOvPaths() {
   setTimeout(() => { resultEl.className = 'job-result'; }, 3000);
 }
 
+async function doMigrateSavesStructure(dryRun) {
+  const res = document.getElementById('migrate-saves-result');
+  const dryBtn   = document.getElementById('btn-migrate-saves-dry');
+  const applyBtn = document.getElementById('btn-migrate-saves-apply');
+  if (res) { res.textContent = dryRun ? 'Analizando\u2026' : 'Migrando\u2026'; res.style.color = '#888'; }
+  if (dryBtn)   dryBtn.disabled = true;
+  if (applyBtn) applyBtn.disabled = true;
+  try {
+    const d = await apiPost('/api/migrate-saves-structure', { dry_run: dryRun });
+    if (d.error) {
+      if (res) { res.textContent = '\u274C ' + d.error; res.style.color = '#f44747'; }
+      return;
+    }
+    const action = dryRun ? 'Mover\xeda' : 'Movidos';
+    let msg = `${action}: ${d.moves_saves} saves + ${d.moves_states} savestates`;
+    if (d.errors?.length) msg += ` \u2014 ${d.errors.length} error(es)`;
+    if (dryRun && d.preview?.length) {
+      msg += '<br><small style="color:#555">' + d.preview.slice(0, 5).map(p => p.source.split(/[\\/]/).pop()).join(', ') + (d.preview.length > 5 ? '\u2026' : '') + '</small>';
+    }
+    if (res) { res.innerHTML = (dryRun ? '\u2139\uFE0F ' : '\u2705 ') + msg; res.style.color = dryRun ? '#dcdcaa' : '#4ec9b0'; }
+  } catch(e) {
+    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
+  } finally {
+    if (dryBtn)   dryBtn.disabled = false;
+    if (applyBtn) applyBtn.disabled = false;
+  }
+}
+
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   _onDevicePresetChange,
@@ -685,4 +721,5 @@ export {
   loadAuthStatus, doLogout, setPin, clearPin,
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
+  doMigrateSavesStructure,
 };

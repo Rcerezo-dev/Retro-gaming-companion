@@ -1050,6 +1050,41 @@ class LibraryRepository:
                 })
         return results
 
+    def get_metadata_for_nlp(self) -> list[dict]:
+        """Return scraped ROMs with NLP-relevant fields only (no paths/hashes).
+
+        Only includes games that have been scraped AND have a non-empty description.
+        Tags are aggregated into a comma-separated string.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    COALESCE(gm.title, g.canonical_title, g.original_filename) AS title,
+                    g.platform,
+                    g.region,
+                    gm.year,
+                    gm.genre,
+                    gm.developer,
+                    gm.publisher,
+                    gm.description,
+                    gm.rating,
+                    g.play_status,
+                    g.is_favorite,
+                    g.notes,
+                    (SELECT GROUP_CONCAT(tag, ', ')
+                     FROM game_tags
+                     WHERE game_id = g.id) AS tags
+                FROM games g
+                JOIN game_metadata gm ON gm.game_id = g.id
+                WHERE g.file_type = 'rom'
+                  AND gm.description IS NOT NULL AND gm.description != ''
+                  AND (g.set_type IS NULL OR g.set_type NOT IN ('disc_image', 'disc_auxiliary'))
+                ORDER BY g.platform, title
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_library_export(self) -> list[dict]:
         """Return all ROMs with their metadata (genre, year, publisher, etc.) for export."""
         with self.connect() as conn:

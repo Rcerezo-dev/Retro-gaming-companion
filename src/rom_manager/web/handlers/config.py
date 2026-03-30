@@ -110,6 +110,7 @@ def _save_config(
 
     allowed = {
         "library.library_root", "library.anbernic_root", "sync.remote",
+        "sync.saves_remote", "sync.states_remote",
         "screenscraper.user", "screenscraper.pass",
         "screenscraper.dev_id", "screenscraper.dev_pass",
         "tools.chdman", "tools.adb",
@@ -160,6 +161,8 @@ def _save_config(
     config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
     config.pre_sync_backup = new_cfg.pre_sync_backup
     config.notify_desktop = new_cfg.notify_desktop
+    config.saves_remote = new_cfg.saves_remote
+    config.states_remote = new_cfg.states_remote
     set_auto_sync_fn(new_cfg.auto_sync_enabled)
 
     ctx._send_json({"saved": list(updates.keys())})

@@ -26,7 +26,8 @@ class AppConfig:
     catalogs_arcade_dir: Path
     excluded_directories: tuple[str, ...]
     frontend_asset_extensions: tuple[str, ...]
-    save_extensions: tuple[str, ...]
+    save_extensions: tuple[str, ...]   # permanent saves only (.sav, .srm, …)
+    state_extensions: tuple[str, ...]  # savestates (.state, .st0, …)
     # From config.toml (optional)
     library_root: Path | None   # root of the ROM+saves library on this PC
     rclone_remote: str
@@ -67,6 +68,9 @@ class AppConfig:
     pre_sync_backup: bool           # True = crear ZIP de saves antes de cada sync (QoL-11)
     # Desktop notifications (S37)
     notify_desktop: bool            # True = show Windows toast on sync/health/inbox completion
+    # Dual-remote cloud sync (D2)
+    saves_remote: str               # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
+    states_remote: str              # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
 
 
 _CONFIG_TOML_TEMPLATE = """\
@@ -207,6 +211,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         backup_saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
         pre_sync_backup=bool(backup_cfg.get("pre_sync", True)),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
+        saves_remote=str(sync.get("saves_remote", "")),
+        states_remote=str(sync.get("states_remote", "")),
         excluded_directories=(  # noqa: E501
             "Android",
             "BIOS",
@@ -260,7 +266,24 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ".mcd",   # DuckStation (PSX memory card)
             ".ps2",   # PCSX2 (PS2 memory card)
             ".gci",   # Dolphin (GameCube memory card slot file)
+        ),
+        state_extensions=(
+            ".state",
+            ".state1",
+            ".state2",
+            ".st0",
+            ".st1",
+            ".st2",
+            ".st3",
+            ".st4",
+            ".st5",
             ".ppst",  # PPSSPP save state
+            ".fcs",
+            ".sps",
+            ".psv",
+            ".hi",
+            ".brmc",
+            ".ml1",
         ),
     )
 

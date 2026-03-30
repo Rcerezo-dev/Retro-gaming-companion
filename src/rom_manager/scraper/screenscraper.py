@@ -93,8 +93,8 @@ class ScreenScraperClient:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
-            if exc.code in (404, 426):
-                # 404 = not found
+            if exc.code in (400, 404, 426):
+                # 400 = bad request (missing parameters instead of crashing), 404 = not found
                 return None
             if exc.code == 430:
                 # 430 = rate limited / daily quota exceeded
@@ -147,6 +147,10 @@ class ScreenScraperClient:
         if not clean:
             return None
 
+        # ScreenScraper exige un system_id si solo buscamos por nombre
+        if system_id is None:
+            return None
+
         self._rate_limit()
         params: dict[str, str] = {
             "ssid": self.user,
@@ -168,7 +172,7 @@ class ScreenScraperClient:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
-            if exc.code in (404, 426, 430):
+            if exc.code in (400, 404, 426, 430):
                 return None
             raise
         except (urllib.error.URLError, OSError):

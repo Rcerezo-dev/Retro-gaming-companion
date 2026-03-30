@@ -93,6 +93,17 @@ def register(
     def get_rclone_status(ctx) -> None:
         ctx._send_json(_handle_rclone_status(config))
 
+    # ── POST /api/rclone-open-config ─────────────────────────────────────────
+    @router.post("/api/rclone-open-config")
+    def post_rclone_open_config(ctx) -> None:
+        ctx._send_json(_handle_rclone_open_config(config))
+
+    # ── POST /api/rclone-test-remote ─────────────────────────────────────────
+    @router.post("/api/rclone-test-remote")
+    def post_rclone_test_remote(ctx) -> None:
+        remote = ctx._post_data.get("remote", "").strip()
+        ctx._send_json(_handle_rclone_test_remote(config, remote))
+
     # ── GET /api/auto-sync-status ────────────────────────────────────────────
     @router.get("/api/auto-sync-status")
     def get_auto_sync_status(ctx) -> None:
@@ -190,6 +201,57 @@ def _handle_rclone_status(config: "AppConfig") -> dict:
         return {"installed": True, "version": version_line, "remotes": remotes, "binary": rclone_bin}
     except Exception as exc:
         return {"installed": False, "version": None, "remotes": [], "binary": rclone_bin, "error": str(exc)}
+
+
+def _handle_rclone_open_config(config: "AppConfig") -> dict:
+    """Open a terminal window running 'rclone config' so the user can add remotes."""
+    import subprocess as _sp
+    import sys as _sys
+
+    rclone_bin = config.rclone_binary or "rclone"
+    try:
+        if _sys.platform == "win32":
+            _sp.Popen(
+                ["cmd", "/c", "start", "cmd", "/k", rclone_bin, "config"],
+                creationflags=_sp.CREATE_NEW_CONSOLE,
+            )
+        elif _sys.platform == "darwin":
+            _sp.Popen(["open", "-a", "Terminal", "--args", rclone_bin, "config"])
+        else:
+            for term in ("x-terminal-emulator", "xterm", "gnome-terminal", "konsole"):
+                import shutil as _sh
+                if _sh.which(term):
+                    _sp.Popen([term, "-e", f"{rclone_bin} config"])
+                    break
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
+    """Run 'rclone lsd <remote>:' to verify the connection is working."""
+    import subprocess as _sp
+    import shutil as _sh
+
+    if not remote:
+        return {"ok": False, "error": "remote requerido"}
+    rclone_bin = config.rclone_binary or "rclone"
+    if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
+        return {"ok": False, "error": "rclone no encontrado"}
+    remote_arg = remote if remote.endswith(":") else remote + ":"
+    try:
+        r = _sp.run(
+            [rclone_bin, "lsd", remote_arg, "--max-depth", "1"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode == 0:
+            lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
+            return {"ok": True, "remote": remote, "entries": len(lines), "sample": lines[:5]}
+        return {"ok": False, "remote": remote, "error": r.stderr.strip() or "error desconocido"}
+    except _sp.TimeoutExpired:
+        return {"ok": False, "remote": remote, "error": "timeout — comprueba la conexión a internet"}
+    except Exception as exc:
+        return {"ok": False, "remote": remote, "error": str(exc)}
 
 
 # ── Handler logic (moved from server.py) ─────────────────────────────────────
@@ -343,6 +405,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
     skip_sha1_dups    = bool(data.get("skip_sha1_dups", False))
     skip_existing     = bool(data.get("skip_existing", False))
     safe_mode         = bool(data.get("safe_mode", True))
+    delete_extra      = bool(data.get("delete_extra", False))
     use_adb           = bool(data.get("use_adb", False))
     adb_serial        = data.get("adb_serial", "").strip()
     android_path      = data.get("android_path", "/storage/emulated/0").strip()
@@ -415,7 +478,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                     for fname in files:
                         yield Path(dirpath) / fname
 
-            copied = skipped = errors = sha1_skipped = safe_mode_skipped = 0
+            copied = skipped = errors = sha1_skipped = safe_mode_skipped = deleted_extra = 0
             copied_bytes = 0
             details: list[dict] = []
 
@@ -543,6 +606,26 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         rel_posix = rel.as_posix()
                         _adb_copy_to_device(src, rel_posix, "→ ADB")
 
+                    if delete_extra and not m._cable_cancel.is_set():
+                        _pc_rels = {f.relative_to(pc_root).as_posix() for f in _iter_files(pc_root) if _wanted(f)}
+                        for _info in ab_adb_files:
+                            _aname = PurePosixPath(_info.android_path).name
+                            if not _wanted_name(_aname):
+                                continue
+                            _arel = _info.android_path.removeprefix(android_prefix)
+                            if _arel not in _pc_rels:
+                                if not dry_run:
+                                    try:
+                                        transport._shell("rm", _info.android_path, timeout=30)
+                                        deleted_extra += 1
+                                        _log("DEL", _info.android_path, "", "espejo: extra en dispositivo")
+                                    except Exception as _exc:
+                                        errors += 1
+                                        _log("ERROR", _info.android_path, "", f"DEL: {_exc}")
+                                else:
+                                    deleted_extra += 1
+                                    _log("DEL?", _info.android_path, "", "espejo (dry run)")
+
                 elif direction == "anbernic_to_pc":
                     use_sha1 = skip_sha1_dups and "roms" in what
                     for info in ab_adb_files:
@@ -586,6 +669,29 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                                     details.append({"file": f"ERROR: {exc}", "path": name})
                         else:
                             _adb_copy_to_pc(info, rel_posix, "← ADB")
+
+                    if delete_extra and not m._cable_cancel.is_set():
+                        _ab_rels = {
+                            _i.android_path.removeprefix(android_prefix)
+                            for _i in ab_adb_files
+                            if _wanted_name(PurePosixPath(_i.android_path).name)
+                        }
+                        for _f in _iter_files(pc_root):
+                            if not _wanted(_f):
+                                continue
+                            _frel = _f.relative_to(pc_root).as_posix()
+                            if _frel not in _ab_rels:
+                                if not dry_run:
+                                    try:
+                                        _f.unlink()
+                                        deleted_extra += 1
+                                        _log("DEL", str(_f), "", "espejo: extra en PC")
+                                    except OSError as _exc:
+                                        errors += 1
+                                        _log("ERROR", str(_f), "", f"DEL: {_exc}")
+                                else:
+                                    deleted_extra += 1
+                                    _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
                     ab_index = {
@@ -660,6 +766,28 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         dst = ab_root / rel
                         _copy(src, dst, "→ Anbernic")
 
+                    if delete_extra and not m._cable_cancel.is_set():
+                        _pc_rels = {f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)}
+                        for _f in _iter_files(ab_root):
+                            if not _wanted(_f):
+                                continue
+                            try:
+                                _frel = _f.relative_to(ab_root)
+                            except ValueError:
+                                continue
+                            if _frel not in _pc_rels:
+                                if not dry_run:
+                                    try:
+                                        _f.unlink()
+                                        deleted_extra += 1
+                                        _log("DEL", str(_f), "", "espejo: extra en destino")
+                                    except OSError as _exc:
+                                        errors += 1
+                                        _log("ERROR", str(_f), "", f"DEL: {_exc}")
+                                else:
+                                    deleted_extra += 1
+                                    _log("DEL?", str(_f), "", "espejo: extra en destino (dry run)")
+
                 elif direction == "anbernic_to_pc":
                     use_sha1 = skip_sha1_dups and "roms" in what
                     if use_sha1:
@@ -687,6 +815,31 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                                 pass
                         dst = pc_root / rel
                         _copy(src, dst, "← PC")
+
+                    if delete_extra and not m._cable_cancel.is_set():
+                        _ab_rels: set[Path] = set()
+                        for _f in _iter_files(ab_root):
+                            if _wanted(_f):
+                                try:
+                                    _ab_rels.add(_f.relative_to(ab_root))
+                                except ValueError:
+                                    pass
+                        for _f in _iter_files(pc_root):
+                            if not _wanted(_f):
+                                continue
+                            _frel = _f.relative_to(pc_root)
+                            if _frel not in _ab_rels:
+                                if not dry_run:
+                                    try:
+                                        _f.unlink()
+                                        deleted_extra += 1
+                                        _log("DEL", str(_f), "", "espejo: extra en PC")
+                                    except OSError as _exc:
+                                        errors += 1
+                                        _log("ERROR", str(_f), "", f"DEL: {_exc}")
+                                else:
+                                    deleted_extra += 1
+                                    _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
                     pc_files: dict[Path, Path] = {}
@@ -724,7 +877,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
 
             _ts1 = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             _log_file.write(
-                f"=== Fin {_ts1} | copied={copied} skipped={skipped} safe_skipped={safe_mode_skipped} errors={errors} cancelled={m._cable_cancel.is_set()} ===\n"
+                f"=== Fin {_ts1} | copied={copied} skipped={skipped} safe_skipped={safe_mode_skipped} deleted_extra={deleted_extra} errors={errors} cancelled={m._cable_cancel.is_set()} ===\n"
             )
             _pc_file_count = 0
             _ab_file_count = 0
@@ -753,6 +906,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                 "errors":                      errors,
                 "copied_bytes":                copied_bytes,
                 "cancelled":                   m._cable_cancel.is_set(),
+                "deleted_extra":               deleted_extra,
                 "details":                     details,
                 "pc_file_count":               _pc_file_count,
                 "ab_file_count":               _ab_file_count,

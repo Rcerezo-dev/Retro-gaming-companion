@@ -780,7 +780,26 @@
     <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:#0d1117;border:1px solid #2a3a2a;border-radius:4px;font-size:12px"></div>
     <p style="color:#555;font-size:12px;margin-bottom:0;margin-top:8px">Comprueba si tienes Dropbox/OneDrive instalado o si rclone est&#xe1; configurado.</p>
     <div class="hidden" id="rclone-setup-panel" style="margin-top:14px">
-      <div id="rclone-status-info" style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.7">Comprobando&#x2026;</div>
+      <div id="rclone-status-info" style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.7">Comprobando&#x2026;</div>
+      <div style="margin-bottom:10px">
+        <button id="btn-rclone-open-config" class="btn" onclick="openRcloneConfig()" style="font-size:12px;padding:4px 12px">Configurar nuevo remote&#x2026;</button>
+        <span style="color:#555;font-size:11px;margin-left:8px">Abre un terminal con <code>rclone config</code> para a&#xf1;adir Dropbox, Google Drive, etc.</span>
+      </div>
+      <!-- Instrucciones paso a paso Dropbox -->
+      <details style="margin-bottom:12px;border:1px solid #2a2a3a;border-radius:6px;padding:8px 12px;background:#0f0f1a">
+        <summary style="cursor:pointer;color:#888;font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Dropbox</summary>
+        <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
+          <li>Pulsa <strong style="color:#d4d4d4">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
+          <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
+          <li>Nombre: escribe <code>dropbox</code> y pulsa Enter.</li>
+          <li>Tipo: escribe <code>13</code> (Dropbox) y pulsa Enter.</li>
+          <li>En las preguntas de App Key y Secret pulsa Enter (dejar en blanco = usar app p&#xfa;blica).</li>
+          <li>Responde <code>n</code> a "Edit advanced config".</li>
+          <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar.</li>
+          <li>Tras autorizar, responde <code>y</code> para guardar y <code>q</code> para salir.</li>
+          <li>Pulsa <strong style="color:#d4d4d4">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
+        </ol>
+      </details>
       <div class="hidden" id="rclone-remotes-panel">
         <div style="margin-bottom:10px">
           <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
@@ -788,9 +807,11 @@
             <select id="rclone-remote-select" style="flex:1;min-width:140px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
             <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync/saves">
             <button class="btn primary" onclick="applyRcloneRemote()" style="font-size:12px;padding:5px 14px;flex-shrink:0">Guardar</button>
+            <button class="btn" onclick="testRcloneRemote()" style="font-size:12px;padding:5px 12px;flex-shrink:0">Verificar conexi&#xf3;n</button>
           </div>
           <div style="font-size:11px;color:#555;margin-top:4px">El valor se guardar&#xe1; en <code>config.toml</code> como <code>sync.remote</code>.</div>
         </div>
+        <div id="rclone-test-result" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
         <div id="rclone-apply-result" style="font-size:12px;min-height:16px"></div>
       </div>
     </div>
@@ -1088,6 +1109,10 @@
       <label class="fmt-check" title="En modo seguro nunca se sobreescribe un archivo que ya existe en el destino. Recomendado para evitar pérdida de datos.">
         <input type="checkbox" id="cable-safe-mode" checked> <span style="color:#f4c842">Modo seguro</span>
         <span style="color:#555;font-size:11px;margin-left:4px">(no sobreescribir)</span>
+      </label>
+      <label class="fmt-check hidden" id="cable-mirror-label" title="Elimina del destino los archivos que no existen en el origen. Solo para modos PC→Consola y Consola→PC. Usa Dry run primero para previsualizar qué se borraría.">
+        <input type="checkbox" id="cable-mirror"> <span style="color:#f48771">Espejo completo</span>
+        <span style="color:#555;font-size:11px;margin-left:4px">(eliminar extra en destino)</span>
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
     </div>
@@ -1476,6 +1501,18 @@
       <button class="btn primary" onclick="doExportGamelists()">Exportar gamelist.xml</button>
     </div>
     <div id="gamelist-result" class="job-result"></div>
+  </div>
+
+  <div class="actions-panel" style="max-width:800px;margin-top:24px">
+    <h3>Exportar metadatos para NLP / ML</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">
+      CSV con solo los juegos que tienen descripción scrapeada: título, plataforma, región, año, género,
+      developer, publisher, descripción, rating, play_status, favorito, notas y tags.<br>
+      <span style="color:#555">Sin rutas ni hashes — listo para entrenar modelos o hacer análisis de texto.</span>
+    </p>
+    <div class="actions-row">
+      <a href="/api/export-metadata-nlp" class="btn" style="border-color:#4ec9b0;color:#4ec9b0">&#x2193; Descargar CSV (NLP)</a>
+    </div>
   </div>
 </div>
 
@@ -2048,6 +2085,30 @@
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote — ruta en el cloud para saves</label>
         <input id="cfg-rclone-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
         <span class="cfg-saved" id="cfg-check-rclone-remote">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote saves permanentes <span style="color:#555">(D2 — separación saves/states)</span></label>
+        <input id="cfg-saves-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
+        <span class="cfg-saved" id="cfg-check-saves-remote">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote savestates <span style="color:#555">(D2 — separación saves/states)</span></label>
+        <input id="cfg-states-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/states">
+        <span class="cfg-saved" id="cfg-check-states-remote">&#x2713; Guardado</span>
+      </div>
+      <!-- D1: Migración estructura saves/states -->
+      <div style="width:100%;padding:10px 14px;background:#12120a;border:1px solid #3a3a1a;border-radius:6px">
+        <div style="color:#dcdcaa;font-size:12px;font-weight:600;margin-bottom:6px">&#x1F4C2; Migrar estructura saves/states</div>
+        <div style="color:#888;font-size:11px;margin-bottom:10px;line-height:1.6">
+          Mueve los saves (<code>.sav</code>, <code>.srm</code>…) a <code>&lt;plataforma&gt;/saves/</code>
+          y los savestates (<code>.state</code>, <code>.st0</code>…) a <code>&lt;plataforma&gt;/states/</code>.<br>
+          Tras migrar actualiza en RetroArch: <em>Settings → Directory → Savefile/Savestate</em>.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="btn-migrate-saves-dry" onclick="doMigrateSavesStructure(true)" style="font-size:12px;padding:4px 12px">Previsualizar</button>
+          <button class="btn" id="btn-migrate-saves-apply" onclick="doMigrateSavesStructure(false)" style="font-size:12px;padding:4px 12px;color:#f44747;border-color:#f44747">Migrar ahora</button>
+        </div>
+        <div id="migrate-saves-result" style="font-size:12px;min-height:16px;margin-top:8px"></div>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Acceso a la interfaz web</label>

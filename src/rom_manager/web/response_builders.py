@@ -1171,6 +1171,8 @@ def _build_config(config: AppConfig) -> dict:
         "backup_saves_enabled": config.backup_saves_enabled,
         "backup_saves_keep_n": config.backup_saves_keep_n,
         "notify_desktop": config.notify_desktop,
+        "saves_remote": config.saves_remote or "",
+        "states_remote": config.states_remote or "",
     }
 
 

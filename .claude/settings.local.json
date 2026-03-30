@@ -103,7 +103,8 @@
       "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/$USERPROFILE/ES-DE/settings/**)",
       "Bash(find 'C:/Program Files/ES-DE/resources/' -name *.xml)",
       "Bash(PYTHONPATH=src \"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -m pytest tests/ -x -q)",
-      "Bash(PYTHONPATH=src C:/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -x -q)"
+      "Bash(PYTHONPATH=src C:/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -x -q)",
+      "Bash(find C:/Users/rammu/Documents/projects/Retro_gaming_app -name *.log -o -name scrape*.json)"
     ]
   }
 }

@@ -61,6 +61,11 @@ def register(
     def post_organize_library(ctx) -> None:
         _do_organize_library(ctx, ctx._post_data, config, repository, srv_mod)
 
+    # ── POST /api/migrate-saves-structure ─────────────────────────────────────
+    @router.post("/api/migrate-saves-structure")
+    def post_migrate_saves_structure(ctx) -> None:
+        _do_migrate_saves_structure(ctx, ctx._post_data, config)
+
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
@@ -362,4 +367,77 @@ def _do_organize_library(
         "moves_bios":  len(moves_bios),
         "errors":      errors,
         "preview":     total_preview if dry_run else [],
+    })
+
+
+def _do_migrate_saves_structure(ctx, data: dict, config: "AppConfig") -> None:
+    """Move saves → <platform>/saves/ and savestates → <platform>/states/.
+
+    Each ROM platform folder keeps its ROM files in place; sibling .sav/.srm etc.
+    go into a 'saves' subfolder and .state/.st0 etc. go into a 'states' subfolder.
+    """
+    import shutil
+
+    dry_run = bool(data.get("dry_run", True))
+    if not config.library_root:
+        ctx._send_json({"error": "library_root no configurado"})
+        return
+
+    root          = Path(config.library_root)
+    save_exts     = frozenset(config.save_extensions)
+    state_exts    = frozenset(config.state_extensions)
+    all_save_like = save_exts | state_exts
+
+    moves_saves:  list[dict] = []
+    moves_states: list[dict] = []
+    errors:       list[str]  = []
+
+    for plat_dir in root.iterdir():
+        if not plat_dir.is_dir():
+            continue
+        if plat_dir.name in ("saves", "states", "bios", "inbox", "screenshots", "_descartados"):
+            continue
+
+        saves_sub  = plat_dir / "saves"
+        states_sub = plat_dir / "states"
+
+        for f in list(plat_dir.iterdir()):
+            if not f.is_file():
+                continue
+            ext = f.suffix.lower()
+            if ext not in all_save_like:
+                continue
+
+            if ext in state_exts:
+                target = states_sub / f.name
+                moves_states.append({"source": str(f), "target": str(target), "platform": plat_dir.name})
+                if not dry_run:
+                    try:
+                        states_sub.mkdir(parents=True, exist_ok=True)
+                        if not target.exists():
+                            shutil.move(str(f), target)
+                        else:
+                            errors.append(f"Conflicto state: {f.name} ya existe en {plat_dir.name}/states/")
+                    except Exception as exc:
+                        errors.append(f"{f.name}: {exc}")
+            else:
+                target = saves_sub / f.name
+                moves_saves.append({"source": str(f), "target": str(target), "platform": plat_dir.name})
+                if not dry_run:
+                    try:
+                        saves_sub.mkdir(parents=True, exist_ok=True)
+                        if not target.exists():
+                            shutil.move(str(f), target)
+                        else:
+                            errors.append(f"Conflicto save: {f.name} ya existe en {plat_dir.name}/saves/")
+                    except Exception as exc:
+                        errors.append(f"{f.name}: {exc}")
+
+    preview = (moves_saves + moves_states)[:40]
+    ctx._send_json({
+        "dry_run":       dry_run,
+        "moves_saves":   len(moves_saves),
+        "moves_states":  len(moves_states),
+        "errors":        errors,
+        "preview":       preview if dry_run else [],
     })

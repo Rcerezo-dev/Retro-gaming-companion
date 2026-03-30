@@ -44,6 +44,21 @@ def register(
     def post_export_gamelists(ctx) -> None:
         _do_export_gamelists(ctx, ctx._post_data, config, repository, srv_mod)
 
+    # ── GET /api/export-metadata-nlp ────────────────────────────────────────
+    @router.get("/api/export-metadata-nlp")
+    def get_export_metadata_nlp(ctx) -> None:
+        import io as _io, csv as _csv
+        rows = repository.get_metadata_for_nlp()
+        buf = _io.StringIO()
+        writer = _csv.writer(buf)
+        if rows:
+            writer.writerow(rows[0].keys())
+            for r in rows:
+                writer.writerow(r.values())
+        body = buf.getvalue().encode("utf-8-sig")
+        ctx._send(200, "text/csv; charset=utf-8", body,
+                  extra_headers={"Content-Disposition": 'attachment; filename="metadata_nlp.csv"'})
+
     # ── POST /api/export-pegasus ─────────────────────────────────────────────
     @router.post("/api/export-pegasus")
     def post_export_pegasus(ctx) -> None:
