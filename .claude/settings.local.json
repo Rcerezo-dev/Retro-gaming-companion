@@ -104,7 +104,12 @@
       "Bash(find 'C:/Program Files/ES-DE/resources/' -name *.xml)",
       "Bash(PYTHONPATH=src \"C:/Users/rammu/anaconda3/envs/rom_manager/python.exe\" -m pytest tests/ -x -q)",
       "Bash(PYTHONPATH=src C:/Users/rammu/anaconda3/envs/rom_manager/python.exe -m pytest tests/ -x -q)",
-      "Bash(find C:/Users/rammu/Documents/projects/Retro_gaming_app -name *.log -o -name scrape*.json)"
+      "Bash(find C:/Users/rammu/Documents/projects/Retro_gaming_app -name *.log -o -name scrape*.json)",
+      "Bash(ls /e/Emuladores/PCSX2/*.exe)",
+      "Bash(ls \"/e/Emuladores/Dolphin \\(GC, Wii\\)/Dolphin.exe\")",
+      "Bash(ls \"/e/Emuladores/Dolphin \\(GC, Wii\\)/\")",
+      "Bash(find /e/Emuladores/Retroarch/ -name *.cfg -maxdepth 1)",
+      "Bash(/dev/null ls:*)"
     ]
   }
 }

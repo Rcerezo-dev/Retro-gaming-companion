@@ -1376,6 +1376,25 @@ def serve(
                             )
                         except Exception:
                             pass
+                    # D2: implicit saves/states remotes
+                    _implicit_tray = []
+                    if config.saves_remote and config.library_root:
+                        _implicit_tray.append((_Path(config.library_root) / "saves", config.saves_remote, config.save_extensions))
+                    if config.states_remote and config.library_root:
+                        _implicit_tray.append((_Path(config.library_root) / "states", config.states_remote, config.state_extensions))
+                    for _dir, _remote, _exts in _implicit_tray:
+                        if not _dir.exists():
+                            continue
+                        try:
+                            sync_saves(
+                                _dir, _remote,
+                                transport=transport,
+                                repository=repository,
+                                save_extensions=_exts,
+                                dry_run=False,
+                            )
+                        except Exception:
+                            pass
                     if _tray_instance:
                         _tray_instance.set_status(f"Sync OK {_utc_now_str()[:16]}")
                         _tray_instance.show_balloon("Retro Vault", "Sync completado.")

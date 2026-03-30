@@ -351,6 +351,70 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                         "decisions": [],
                     })
 
+            # D2: implicit sync for saves/states remotes
+            _bk_root = config.data_dir if config.backup_saves_enabled else None
+            _implicit = []
+            if config.saves_remote and config.library_root:
+                _implicit.append((
+                    _Path(config.library_root) / "saves",
+                    config.saves_remote,
+                    "Saves (permanentes)",
+                    config.save_extensions,
+                ))
+            if config.states_remote and config.library_root:
+                _implicit.append((
+                    _Path(config.library_root) / "states",
+                    config.states_remote,
+                    "States",
+                    config.state_extensions,
+                ))
+            for _dir, _remote, _name, _exts in _implicit:
+                if not _dir.exists():
+                    all_results.append({
+                        "name": _name, "local_dir": str(_dir), "remote": _remote,
+                        "error": f"Directorio no encontrado: {_dir}",
+                        "uploaded": 0, "downloaded": 0,
+                        "up_to_date": 0, "conflicts": 0, "errors": 0,
+                        "decisions": [],
+                    })
+                    continue
+                try:
+                    from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
+                    _delta = _DeltaCache(config.data_dir) if not dry_run else None
+                    result, decisions = sync_saves(
+                        _dir, _remote,
+                        transport=transport,
+                        repository=repository,
+                        save_extensions=_exts,
+                        dry_run=dry_run,
+                        backup_root=_bk_root,
+                        backup_keep_n=config.backup_saves_keep_n,
+                        delta_cache=_delta,
+                    )
+                    all_results.append({
+                        "name":          _name,
+                        "local_dir":     str(_dir),
+                        "remote":        _remote,
+                        "uploaded":      result.uploaded,
+                        "downloaded":    result.downloaded,
+                        "up_to_date":    result.up_to_date,
+                        "conflicts":     result.conflicts,
+                        "errors":        result.errors,
+                        "delta_skipped": result.delta_skipped,
+                        "decisions": [
+                            {"action": d.action, "relative": d.relative}
+                            for d in decisions if d.action != "up_to_date"
+                        ],
+                    })
+                except Exception as exc:
+                    all_results.append({
+                        "name": _name, "local_dir": str(_dir), "remote": _remote,
+                        "error": str(exc),
+                        "uploaded": 0, "downloaded": 0,
+                        "up_to_date": 0, "conflicts": 0, "errors": 0,
+                        "decisions": [],
+                    })
+
             _up   = sum(r.get("uploaded",   0) for r in all_results)
             _down = sum(r.get("downloaded", 0) for r in all_results)
             _errs = sum(r.get("errors",     0) for r in all_results)
