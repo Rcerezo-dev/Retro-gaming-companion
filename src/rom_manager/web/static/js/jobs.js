@@ -198,6 +198,7 @@ function _applyJobStatus(s) {
         el.className = 'job-result visible success';
         const r = s.scrape_result;
         let msg = `Completado — Encontrados: ${r.found}  |  Sin resultado: ${r.skipped}  (de ${r.total})`;
+        if (r.images_filled > 0) msg += `  |  Portadas añadidas: ${r.images_filled}`;
         if (r.network_errors > 0) msg += `  |  ⚠ Errores de red: ${r.network_errors}`;
         if (r.cancelled) msg += '  |  (cancelado)';
         el.textContent = msg;

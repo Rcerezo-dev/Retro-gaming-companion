@@ -109,7 +109,8 @@
       "Bash(ls \"/e/Emuladores/Dolphin \\(GC, Wii\\)/Dolphin.exe\")",
       "Bash(ls \"/e/Emuladores/Dolphin \\(GC, Wii\\)/\")",
       "Bash(find /e/Emuladores/Retroarch/ -name *.cfg -maxdepth 1)",
-      "Bash(/dev/null ls:*)"
+      "Bash(/dev/null ls:*)",
+      "Bash(git:*)"
     ]
   }
 }

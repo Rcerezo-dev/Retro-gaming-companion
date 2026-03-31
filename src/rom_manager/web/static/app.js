@@ -95,11 +95,13 @@ function _sendNotif(title, body) {
 
 // ── Device selector ───────────────────────────────────────────────────────────
 let _activeDevice = 'pc';  // 'pc' | 'both' | 'anbernic'
-var _devName = 'Consola Android';  // display name for the Android device — updated from config; var → window._devName for ES modules
+var _devName = 'Consola Android';  // display name for the Android device
+window._activeDevice = _activeDevice;  // expose for ES modules (state.js keeps it in sync)
 
 /** Update every UI element that shows the device name. Called once after config loads. */
 function _applyDeviceName(name) {
   _devName = name || 'Consola Android';
+  if (window.setDevName) window.setDevName(_devName);  // sync to state.js
   // Simple text replacements
   const simple = {
     'dev-anbernic':        _devName,
@@ -125,6 +127,7 @@ function _applyDeviceName(name) {
 
 function setDevice(d) {
   _activeDevice = d;
+  if (window.setActiveDevice) window.setActiveDevice(d);  // sync to state.js
   ['pc','both','anbernic'].forEach(id => {
     const b = document.getElementById('dev-' + id);
     if (b) b.classList.toggle('active', id === d);

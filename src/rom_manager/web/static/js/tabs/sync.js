@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { getActiveDevice, getDevName } from '../state.js';
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _androidSetupUrl = '';
@@ -69,14 +70,15 @@ async function loadAssets() {
     const [d, cfg] = await Promise.all([apiFetch(assetsUrl), apiFetch('/api/config')]);
     const assetsBar = document.getElementById('assets-context-bar');
     if (assetsBar) {
+      const _ad = getActiveDevice(), _dn = getDevName();
       let barHtml = '';
-      if (_activeDevice === 'pc') {
+      if (_ad === 'pc') {
         barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
-      } else if (_activeDevice === 'anbernic') {
+      } else if (_ad === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:#ce9178">${_devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:#ce9178">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_devName}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_dn}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;
       assetsBar.classList.remove('hidden');
@@ -698,7 +700,8 @@ function _renderCableSyncResult(r) {
   }
 
   const verb   = r.dry_run ? 'Copiaría' : 'Copiados';
-  const dirMap = { pc_to_anbernic: `PC → ${_devName}`, anbernic_to_pc: `${_devName} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_devName}`, device_to_pc: `${_devName} → PC` };
+  const _dn = getDevName();
+  const dirMap = { pc_to_anbernic: `PC → ${_dn}`, anbernic_to_pc: `${_dn} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_dn}`, device_to_pc: `${_dn} → PC` };
   const dirStr = dirMap[r.direction] || r.direction;
   const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
   const sha1Msg     = r.sha1_skipped > 0 ? `  |  Dups SHA1: ${r.sha1_skipped}` : '';

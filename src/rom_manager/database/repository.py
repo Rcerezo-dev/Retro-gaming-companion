@@ -1235,6 +1235,20 @@ class LibraryRepository:
              screenshot_path, wheel_path),
         )
 
+    def update_image_paths(
+        self,
+        *,
+        game_id: int,
+        box_art_path: str = "",
+        connection: "sqlite3.Connection",
+    ) -> None:
+        """Update only the local cover path for an existing metadata row.
+        Used when downloading images that were previously skipped (no API call needed)."""
+        connection.execute(
+            "UPDATE game_metadata SET box_art_path = ? WHERE game_id = ?",
+            (box_art_path, game_id),
+        )
+
     def get_games_for_scraping(self, platform: str | None = None) -> list[dict]:
         """Return games that have no metadata yet, with their hashes."""
         sql = """
@@ -1243,6 +1257,26 @@ class LibraryRepository:
             FROM games g
             LEFT JOIN game_metadata m ON m.game_id = g.id
             WHERE m.id IS NULL
+        """
+        params: list = []
+        if platform:
+            sql += " AND g.platform = ?"
+            params.append(platform)
+        sql += " ORDER BY g.platform, g.original_filename"
+        with self.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_games_missing_images(self, platform: str | None = None) -> list[dict]:
+        """Return games that have metadata with a stored box_art_url but no local
+        box_art_path. These can have their cover downloaded without a new API call."""
+        sql = """
+            SELECT g.id, g.original_filename, g.source_path, g.platform,
+                   m.box_art_url
+            FROM games g
+            JOIN game_metadata m ON m.game_id = g.id
+            WHERE m.box_art_url IS NOT NULL AND m.box_art_url != ''
+              AND (m.box_art_path IS NULL OR m.box_art_path = '')
         """
         params: list = []
         if platform:

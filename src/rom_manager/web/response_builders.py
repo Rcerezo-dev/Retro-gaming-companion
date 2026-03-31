@@ -871,8 +871,6 @@ def _build_duplicates_two_repos(
             "wasted_bytes": total_wasted,
         }
 
-    pc_sha1_map: dict[str, list[DuplicateEntry]] = {g.sha1: g.entries for g in pc_groups}
-    android_sha1_map: dict[str, list[DuplicateEntry]] = {g.sha1: g.entries for g in android_groups}
     combined: list[DuplicateGroup] = []
 
     if pc_root:
@@ -892,9 +890,6 @@ def _build_duplicates_two_repos(
                 combined.append(DuplicateGroup(sha1=g.sha1, entries=entries))
     else:
         combined.extend(android_groups)
-
-    for sha1 in set(pc_sha1_map) & set(android_sha1_map):
-        combined.append(DuplicateGroup(sha1=sha1, entries=pc_sha1_map[sha1] + android_sha1_map[sha1]))
 
     seen: set[str] = set()
     deduped: list[DuplicateGroup] = []

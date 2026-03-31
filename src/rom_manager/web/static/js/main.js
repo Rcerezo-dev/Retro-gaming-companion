@@ -2,6 +2,7 @@
 // Loaded as type="module" (deferred) before app.js.
 // Sets up window globals so inline onclick handlers and app.js can call these functions.
 
+import { AppState, getActiveDevice, getDevName, setActiveDevice, setDevName } from './state.js';
 import { showToast } from './components/toast.js';
 import { _showConfirm, _closeConfirm } from './components/modal.js';
 import {
@@ -115,6 +116,8 @@ import {
 // - Inline onclick="xxx()" handlers in index.html
 // - Legacy app.js callers (e.g. DOMContentLoaded calling loadAuthStatus)
 Object.assign(window, {
+  // state.js — shared device context
+  AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
   showToast,
   _showConfirm, _closeConfirm,
   _onDevicePresetChange,

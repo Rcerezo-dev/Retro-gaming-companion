@@ -108,7 +108,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
             if limit:
                 games = games[:limit]
             total = len(games)
-            found = skipped = network_errors = 0
+            found = skipped = network_errors = images_filled = 0
             failed_games: list[str] = []
             _RETRY_DELAYS = [5, 15, 30]
             m._scrape_progress.update({"current": 0, "total": total, "found": 0, "network_errors": 0, "current_game": ""})
@@ -164,27 +164,33 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                         if result.box_art_url:
                             _ext  = ".png" if ".png" in result.box_art_url.lower() else ".jpg"
                             _dest = _src_parent / "media" / "images" / f"{_stem}{_ext}"
-                            try:
-                                download_image(result.box_art_url, _dest)
+                            if not _dest.exists():
+                                try:
+                                    download_image(result.box_art_url, _dest)
+                                except Exception:
+                                    pass
+                            if _dest.exists():
                                 box_art_path = str(_dest)
-                            except Exception:
-                                pass
                         if result.screenshot_url:
                             _ext  = ".png" if ".png" in result.screenshot_url.lower() else ".jpg"
                             _dest = _src_parent / "media" / "screenshots" / f"{_stem}{_ext}"
-                            try:
-                                download_image(result.screenshot_url, _dest)
+                            if not _dest.exists():
+                                try:
+                                    download_image(result.screenshot_url, _dest)
+                                except Exception:
+                                    pass
+                            if _dest.exists():
                                 screenshot_path = str(_dest)
-                            except Exception:
-                                pass
                         if result.wheel_url:
                             _ext  = ".png" if ".png" in result.wheel_url.lower() else ".jpg"
                             _dest = _src_parent / "media" / "wheels" / f"{_stem}{_ext}"
-                            try:
-                                download_image(result.wheel_url, _dest)
+                            if not _dest.exists():
+                                try:
+                                    download_image(result.wheel_url, _dest)
+                                except Exception:
+                                    pass
+                            if _dest.exists():
                                 wheel_path = str(_dest)
-                            except Exception:
-                                pass
                     repository.upsert_metadata(
                         game_id=game["id"],
                         ss_game_id=result.ss_game_id,
@@ -200,6 +206,35 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                     )
                     conn.commit()
                     found += 1
+
+            # ── Pasada 2: descargar portadas desde URLs almacenadas (sin llamada API) ──
+            if download_images and not m._scrape_cancel.is_set():
+                missing_img = repository.get_games_missing_images(platform=platform)
+                img_total = len(missing_img)
+                with repository.connect() as conn:
+                    for img_idx, img_game in enumerate(missing_img, 1):
+                        if m._scrape_cancel.is_set():
+                            break
+                        m._scrape_progress.update({
+                            "current": img_idx, "total": img_total,
+                            "found": images_filled, "network_errors": 0,
+                            "current_game": f"[portadas] {img_game['original_filename']}",
+                        })
+                        _ext  = ".png" if ".png" in img_game["box_art_url"].lower() else ".jpg"
+                        _dest = Path(img_game["source_path"]).parent / "media" / "images" / f"{Path(img_game['original_filename']).stem}{_ext}"
+                        if not _dest.exists():
+                            try:
+                                download_image(img_game["box_art_url"], _dest)
+                            except Exception:
+                                pass
+                        if _dest.exists():
+                            repository.update_image_paths(
+                                game_id=img_game["id"],
+                                box_art_path=str(_dest),
+                                connection=conn,
+                            )
+                            conn.commit()
+                            images_filled += 1
 
             # Auto-export gamelists after scrape (best-effort)
             _gamelist_written: list[str] = []
@@ -229,6 +264,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
             m._job_results["scrape"] = {
                 "total": total, "found": found, "skipped": skipped,
                 "network_errors": network_errors,
+                "images_filled": images_filled,
                 "failed_games": failed_games[:20],
                 "cancelled": m._scrape_cancel.is_set(),
                 "gamelists_written": _gamelist_written,
