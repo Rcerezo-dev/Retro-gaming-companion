@@ -17,34 +17,35 @@ _logger = logging.getLogger(__name__)
 # ── Inbox (Pilar 2) ───────────────────────────────────────────────────────────
 
 _PLATFORM_FOLDERS: dict[str, str] = {
-    "gba": "Game Boy Advance",
-    "gbc": "Game Boy Color",
-    "gb": "Game Boy",
-    "snes": "Super Nintendo",
-    "nes": "NES",
-    "n64": "Nintendo 64",
-    "nds": "Nintendo DS",
-    "psx": "PlayStation",
-    "ps1": "PlayStation",
-    "ps2": "PlayStation 2",
-    "psp": "PSP",
-    "megadrive": "Mega Drive",
-    "genesis": "Mega Drive",
-    "gg": "Game Gear",
-    "sms": "Master System",
-    "saturn": "Saturn",
-    "dreamcast": "Dreamcast",
-    "gamecube": "GameCube",
-    "wii": "Wii",
-    "wiiu": "Wii U",
-    "3ds": "Nintendo 3DS",
-    "mame": "Arcade",
-    "neogeo": "Neo Geo",
-    "lynx": "Atari Lynx",
-    "jaguar": "Atari Jaguar",
-    "atari2600": "Atari 2600",
-    "atari7800": "Atari 7800",
+    "gba": "gba",
+    "gbc": "gbc",
+    "gb": "gb",
+    "snes": "snes",
+    "nes": "nes",
+    "n64": "n64",
+    "nds": "nds",
+    "psx": "psx",
+    "ps1": "psx",
+    "ps2": "ps2",
+    "psp": "psp",
+    "megadrive": "megadrive",
+    "genesis": "megadrive",
+    "gg": "gamegear",
+    "sms": "mastersystem",
+    "saturn": "saturn",
+    "dreamcast": "dreamcast",
+    "gamecube": "gamecube",
+    "wii": "wii",
+    "wiiu": "wiiu",
+    "3ds": "3ds",
+    "mame": "arcade",
+    "neogeo": "neogeo",
+    "lynx": "atarilynx",
+    "jaguar": "atarijaguar",
+    "atari2600": "atari2600",
+    "atari7800": "atari7800",
 }
+
 
 _DISC_EXTENSIONS_INBOX = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".ccd", ".chd"})
 _ROM_EXTENSIONS_INBOX = frozenset({
@@ -52,6 +53,38 @@ _ROM_EXTENSIONS_INBOX = frozenset({
     ".nds", ".3ds", ".cia", ".gcm", ".wbfs", ".sms", ".gg", ".gen", ".pbp",
     ".cso", ".a26", ".a52", ".a78", ".lnx", ".j64", ".jag", ".md",
 })
+
+_KNOWN_BIOS_MAP: dict[str, str] = {
+    # Sony
+    "scph1001.bin": "psx", "scph5500.bin": "psx", "scph5501.bin": "psx",
+    "scph5502.bin": "psx", "scph7001.bin": "psx", "scph7502.bin": "psx",
+    "psxonpsp660.bin": "psx",
+    "scph10000.bin": "ps2", "scph39001.bin": "ps2", "scph39001.mec": "ps2",
+    # Sega
+    "bios_cd_e.bin": "segacd", "bios_cd_j.bin": "segacd", "bios_cd_u.bin": "segacd",
+    "dc_boot.bin": "dreamcast", "dc_flash.bin": "dreamcast",
+    "mpr-17933.bin": "saturn", "mpr-18811-mx.ic1": "saturn", "mpr-19367-mx.ic1": "saturn",
+    "sega_101.bin": "saturn", "stvbios.zip": "saturn", "qtsza.bin": "saturn",
+    "bios.gg": "gamegear",
+    # Nintendo
+    "gba_bios.bin": "gba",
+    "bios7.bin": "nds", "bios9.bin": "nds", "firmware.bin": "nds",
+    "fst.bin": "wii", "misc.bin": "wii", "sysconf": "wii",
+    "wiimmfi.bin": "wii", "nwc24dl.bin": "wii", "nwc24fl.bin": "wii", "nwc24fls.bin": "wii",
+    "disksys.rom": "fds", "sgb_bios.bin": "snes", "sgb2_bios.bin": "snes",
+    "bios.min": "pokemini",
+    # PC Engine / NEC
+    "syscard3.pce": "pcenginecd", "syscard2.pce": "pcenginecd", "syscard1.pce": "pcenginecd",
+    "pcfx.rom": "pcfx",
+    # Otros
+    "ym2608_adpcm_rom.bin": "neogeocd",
+    "neogeo.zip": "neogeo",
+    "kick34005.a500": "amiga", "kick40063.a600": "amiga",
+    "kick40068.a1200": "amiga", "kick40068.a4000": "amiga",
+    "coleco.rom": "colecovision",
+    "exec.bin": "intellivision", "grom.bin": "intellivision",
+    "awbios.zip": "naomi", "naomi_boot.bin": "naomi",
+}
 
 
 def _platform_folder_name(platform: str) -> str:
@@ -353,6 +386,26 @@ def _run_inbox_pipeline(
                 source_zips.append(zp)
             else:
                 logger.info("Inbox: skipped ZIP %s — %s", zp.name, result.skipped_reason or result.error)
+
+        # ── Step 1.5: Intercept BIOS files ───────────────────────────────────
+        _upd("intercepting bios", 1)
+        bios_moved = 0
+        for ext_file in list(inbox.rglob("*")):
+            if not ext_file.is_file(): continue
+            if any(part.startswith("_") for part in ext_file.relative_to(inbox).parts[:-1]):
+                continue
+            name_lower = ext_file.name.lower()
+            if name_lower in _KNOWN_BIOS_MAP:
+                plat = _KNOWN_BIOS_MAP[name_lower]
+                dst = target_root / "bios" / plat / ext_file.name
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                # handle duplicate bios in dest
+                if dst.exists():
+                    ext_file.unlink()
+                else:
+                    _shutil.move(str(ext_file), dst)
+                bios_moved += 1
+                logger.info("Inbox: routed BIOS %s to bios/%s", ext_file.name, plat)
 
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)

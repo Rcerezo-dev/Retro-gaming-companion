@@ -195,31 +195,30 @@ def _do_create_library_structure(ctx, data: dict, config: "AppConfig", srv_mod) 
     def _create_tree(root: Path) -> tuple[list[str], list[str]]:
         created: list[str] = []
         skipped: list[str] = []
-        for folder in std_folders:
-            plat_dir = root / folder
-            if not plat_dir.exists():
-                plat_dir.mkdir(parents=True, exist_ok=True)
-                created.append(folder)
+
+        def _ensure(r_d: Path, label: str):
+            if not r_d.exists():
+                r_d.mkdir(parents=True, exist_ok=True)
+                created.append(label)
             else:
-                skipped.append(folder)
-            for sub in ("media/images", "media/videos"):
-                sub_dir = plat_dir / Path(sub)
-                if not sub_dir.exists():
-                    sub_dir.mkdir(parents=True, exist_ok=True)
-                    created.append(f"{folder}/{sub}")
-        for special in ("saves", "states", "bios", "inbox", "screenshots"):
-            d = root / special
-            if not d.exists():
-                d.mkdir(parents=True, exist_ok=True)
-                created.append(special)
-            else:
-                skipped.append(special)
+                skipped.append(label)
+
+        # 1. Rutas base
+        for special in ("saves", "media", "configs", "bios", "inbox", "screenshots"):
+            _ensure(root / special, special)
+            
+        _ensure(root / "bios" / "wii", "bios/wii")
+        _ensure(root / "bios" / "shaders", "bios/shaders")
+
+        # 2. Rutas por plataforma
         for folder in std_folders:
-            for special_sub in ("saves", "states"):
-                sub_dir = root / special_sub / folder
-                if not sub_dir.exists():
-                    sub_dir.mkdir(parents=True, exist_ok=True)
-                    created.append(f"{special_sub}/{folder}")
+            _ensure(root / folder, folder)
+            _ensure(root / "saves" / folder, f"saves/{folder}")
+            _ensure(root / "saves" / folder / "states", f"saves/{folder}/states")
+            _ensure(root / "media" / folder / "images", f"media/{folder}/images")
+            _ensure(root / "media" / folder / "videos", f"media/{folder}/videos")
+            _ensure(root / "configs" / folder, f"configs/{folder}")
+
         return created, skipped
 
     pc_root              = Path(config.library_root)
@@ -371,10 +370,13 @@ def _do_organize_library(
 
 
 def _do_migrate_saves_structure(ctx, data: dict, config: "AppConfig") -> None:
-    """Move saves → <platform>/saves/ and savestates → <platform>/states/.
-
-    Each ROM platform folder keeps its ROM files in place; sibling .sav/.srm etc.
-    go into a 'saves' subfolder and .state/.st0 etc. go into a 'states' subfolder.
+    """Migrate the entire root directory to the new standard format:
+    - Normalizes folders (Game Boy Advance -> gba, ss -> saturn)
+    - Moves states to saves/<plataforma>/states
+    - Moves saves to saves/<plataforma>
+    - Moves media to media/<plataforma>/{images,videos}
+    - Moves configs to configs/<plataforma>
+    - Moves shaders/sys files to bios/shaders
     """
     import shutil
 
@@ -383,61 +385,77 @@ def _do_migrate_saves_structure(ctx, data: dict, config: "AppConfig") -> None:
         ctx._send_json({"error": "library_root no configurado"})
         return
 
-    root          = Path(config.library_root)
-    save_exts     = frozenset(config.save_extensions)
-    state_exts    = frozenset(config.state_extensions)
-    all_save_like = save_exts | state_exts
+    root = Path(config.library_root)
+    save_exts = frozenset(config.save_extensions)
+    state_exts = frozenset(config.state_extensions)
 
-    moves_saves:  list[dict] = []
-    moves_states: list[dict] = []
-    errors:       list[str]  = []
+    moves: list[dict] = []
+    errors: list[str] = []
 
-    for plat_dir in root.iterdir():
-        if not plat_dir.is_dir():
+    # Map of folders to rename/merge
+    folder_aliases = {
+        "Game Boy Advance": "gba",
+        "ss": "saturn",
+        "Saturn": "saturn"
+    }
+
+    def _add_move(src: Path, dst: Path, cat: str):
+        moves.append({"source": str(src), "target": str(dst), "category": cat})
+        if not dry_run:
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if not dst.exists():
+                    shutil.move(str(src), dst)
+                else:
+                    errors.append(f"Conflicto {cat}: {src.name} ya existe en {dst.parent.name}")
+            except Exception as exc:
+                errors.append(f"{src.name}: {exc}")
+
+    # 1. Sweep platforms and sort bad files
+    for plat_dir in list(root.iterdir()):
+        if not plat_dir.is_dir() or plat_dir.name in ("saves", "states", "bios", "inbox", "screenshots", "media", "configs", "_descartados"):
             continue
-        if plat_dir.name in ("saves", "states", "bios", "inbox", "screenshots", "_descartados"):
-            continue
-
-        saves_sub  = plat_dir / "saves"
-        states_sub = plat_dir / "states"
+        
+        actual_plat = plat_dir.name
+        is_alias = actual_plat in folder_aliases
+        target_plat = folder_aliases[actual_plat] if is_alias else actual_plat
 
         for f in list(plat_dir.iterdir()):
             if not f.is_file():
                 continue
             ext = f.suffix.lower()
-            if ext not in all_save_like:
-                continue
-
+            name = f.name.lower()
+            
             if ext in state_exts:
-                target = states_sub / f.name
-                moves_states.append({"source": str(f), "target": str(target), "platform": plat_dir.name})
-                if not dry_run:
-                    try:
-                        states_sub.mkdir(parents=True, exist_ok=True)
-                        if not target.exists():
-                            shutil.move(str(f), target)
-                        else:
-                            errors.append(f"Conflicto state: {f.name} ya existe en {plat_dir.name}/states/")
-                    except Exception as exc:
-                        errors.append(f"{f.name}: {exc}")
-            else:
-                target = saves_sub / f.name
-                moves_saves.append({"source": str(f), "target": str(target), "platform": plat_dir.name})
-                if not dry_run:
-                    try:
-                        saves_sub.mkdir(parents=True, exist_ok=True)
-                        if not target.exists():
-                            shutil.move(str(f), target)
-                        else:
-                            errors.append(f"Conflicto save: {f.name} ya existe en {plat_dir.name}/saves/")
-                    except Exception as exc:
-                        errors.append(f"{f.name}: {exc}")
+                _add_move(f, root / "saves" / target_plat / "states" / f.name, "states")
+            elif ext in save_exts:
+                _add_move(f, root / "saves" / target_plat / f.name, "saves")
+            elif ext == ".mp4":
+                _add_move(f, root / "media" / target_plat / "videos" / f.name, "media")
+            elif ext in (".png", ".jpg", ".jpeg"):
+                _add_move(f, root / "media" / target_plat / "images" / f.name, "media")
+            elif ext == ".cfg":
+                _add_move(f, root / "configs" / target_plat / f.name, "config")
+            elif actual_plat == "arcade" and ext == ".bin" and (name.startswith("fs_") or name.startswith("vs_")):
+                _add_move(f, root / "bios" / "shaders" / f.name, "bios")
+            elif actual_plat == "wii" and ext == ".bin" and name in ("fst.bin", "misc.bin", "nwc24dl.bin", "nwc24fl.bin", "nwc24fls.bin", "wiimmfi.bin"):
+                _add_move(f, root / "bios" / "wii" / f.name, "bios")
+            elif is_alias:
+                # If it's a valid ROM in an alias folder, move to standard folder
+                _add_move(f, root / target_plat / f.name, "folder_merge")
 
-    preview = (moves_saves + moves_states)[:40]
+    # 2. Legacy states folder cleanup
+    old_states = root / "states"
+    if old_states.exists() and old_states.is_dir():
+        for plat_dir in old_states.iterdir():
+            if plat_dir.is_dir():
+                for f in plat_dir.iterdir():
+                    if f.is_file():
+                        _add_move(f, root / "saves" / plat_dir.name / "states" / f.name, "states_legacy")
+
     ctx._send_json({
-        "dry_run":       dry_run,
-        "moves_saves":   len(moves_saves),
-        "moves_states":  len(moves_states),
-        "errors":        errors,
-        "preview":       preview if dry_run else [],
+        "dry_run": dry_run,
+        "moves_total": len(moves),
+        "errors": errors,
+        "preview": moves[:40] if dry_run else [],
     })

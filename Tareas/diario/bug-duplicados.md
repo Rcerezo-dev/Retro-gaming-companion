@@ -196,3 +196,21 @@ ve el ganador con el nombre original y cree que no funcionó.
 - Reescribir la lógica de selección de ganador — ya es correcta conceptualmente.
 - Añadir el botón RA para conflictos de tipo "collision" — ya está desde Día 22.
 - Manejar el caso `no_cache` — ya está desde Día 22.
+
+
+
+# comprobación a mano:
+224 grupos — 484 archivos — ~313.7 MB ocupados de más
+
+al pulsar "eliminar todos los duplicados", me devuelve un error de que 99 no han podido ser eliminados.
+Es desconcertante ver cómo dice que hay 224 grupos, 484 archivos, pero 100 no han podido ser eliminados (que pasa con los otros 124? )
+
+En la pestaña organizar, hay 
+Conflictos — 429
+⚠ Colisión de plan (356) — dos ROMs quieren el mismo nombre canónico
+Causa habitual: tienes múltiples versiones del mismo juego (regional, revisión) y la opción Región o Revisión está desactivada en el formato. Actívalas para que cada versión obtenga un nombre único.
+O usa para aplicar ambas con nombres distintos.
+Si tienes caché de RetroAchievements, usa el botón Resolver con RA (arriba) para conservar solo la versión con logros y descartar el duplicado sin logros.
+esta opción de renombrado no me gusta. de hecho, si 2 archivos tienen el mismo nombre canónico, eso implica que están duplicados, por lo que yo los eliminaría desde esta misma pestaña 
+por cierto, entiendo que la App tiene una base de datos de mi anbernic, pero no me gusta que aparezca como que está conectada la SD cuando no es así. Podríamos marcar de alguna manera en las cards de inicio que no lo está? también habría que evitar que se puedan "ejecutar cambios" en dispositivo activo "consola android" cuando no está enchufada
+También necesito saber si 

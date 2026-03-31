@@ -224,6 +224,13 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             "System Volume Information",
             "backup",
             "recovery_log",
+            "media",
+            "configs",
+            "saves",
+            "states",
+            "bios",
+            "inbox",
+            "screenshots",
         ),
         frontend_asset_extensions=(
             ".png",
