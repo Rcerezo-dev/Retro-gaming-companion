@@ -47,6 +47,7 @@ _jobs: dict[str, bool] = {
     "ra_check": False, "cable_sync": False,
     "apply": False, "inbox": False, "setup": False,
     "backup_now": False,
+    "tree_diff": False,
 }
 _job_results: dict[str, dict] = {}
 

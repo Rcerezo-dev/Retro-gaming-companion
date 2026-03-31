@@ -110,7 +110,9 @@
       "Bash(ls \"/e/Emuladores/Dolphin \\(GC, Wii\\)/\")",
       "Bash(find /e/Emuladores/Retroarch/ -name *.cfg -maxdepth 1)",
       "Bash(/dev/null ls:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Read(//c/Users/rammu/Documents/projects/Retro_gaming_app/**)",
+      "Bash(ls -d \"C:\\\\Users\\\\rammu\\\\Documents\\\\projects\\\\Retro_gaming_app\\\\src\\\\rom_manager\"/*/)"
     ]
   }
 }

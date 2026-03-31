@@ -213,4 +213,5 @@ O usa para aplicar ambas con nombres distintos.
 Si tienes caché de RetroAchievements, usa el botón Resolver con RA (arriba) para conservar solo la versión con logros y descartar el duplicado sin logros.
 esta opción de renombrado no me gusta. de hecho, si 2 archivos tienen el mismo nombre canónico, eso implica que están duplicados, por lo que yo los eliminaría desde esta misma pestaña 
 por cierto, entiendo que la App tiene una base de datos de mi anbernic, pero no me gusta que aparezca como que está conectada la SD cuando no es así. Podríamos marcar de alguna manera en las cards de inicio que no lo está? también habría que evitar que se puedan "ejecutar cambios" en dispositivo activo "consola android" cuando no está enchufada
-También necesito saber si 
+También necesito saber si hay alguna manera de comprobar cuáles tienen metadatos ANTES DE SCRAPEAR, o incluso, si es posible asignar un valor a un archivo (un booleano) en nuestra base de datos para saber que, ya ha sido escaneado sin encontrar datos, por lo que no hay que volver a pasarlo por el scraper 
+Además... crees que es buena cosa usar este formato de SQLite para nuestra colección? me da la sensación de que los archivos no se eliminan de la base de datos cuando ya los he borrado de la normal

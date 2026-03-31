@@ -72,6 +72,8 @@ def register(
                 "setup_result":          m._job_results.get("setup"),
                 "backup_now_running":    m._jobs.get("backup_now", False),
                 "backup_now_result":     m._job_results.get("backup_now"),
+                "tree_diff_running":     m._jobs.get("tree_diff", False),
+                "tree_diff_result":      m._job_results.get("tree_diff"),
                 "inbox_pending_files":   m._inbox_watcher_status.get("pending_files", 0),
             })
 

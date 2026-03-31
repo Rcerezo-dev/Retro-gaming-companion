@@ -768,6 +768,39 @@
     <div id="lib-diff-result" style="margin-top:14px"></div>
   </div>
 
+  <!-- AUDITORÍA DE ÁRBOL DE ARCHIVOS -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Auditor&#xed;a de &#xe1;rbol de archivos</h3>
+    <p style="color:#888;font-size:13px;margin:0 0 12px">Compara los archivos presentes en PC y consola por ruta relativa. Muestra qu&#xe9; hay en uno pero no en el otro.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Ruta PC</label>
+        <input id="tree-diff-pc-path" type="text" placeholder="(usa library_root)" style="width:100%;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Ruta consola</label>
+        <input id="tree-diff-android-path" type="text" placeholder="(usa anbernic_root)" style="width:100%;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="margin-bottom:12px;font-size:13px">
+      <label style="color:#888;margin-right:12px">Origen consola:</label>
+      <label style="margin-right:16px"><input type="radio" name="tree-diff-source" value="local" checked onchange="window._onTreeDiffSourceChange()"> Montaje local (SD / E:)</label>
+      <label><input type="radio" name="tree-diff-source" value="adb" onchange="window._onTreeDiffSourceChange()"> ADB (cable USB)</label>
+    </div>
+    <div id="tree-diff-adb-row" class="hidden" style="margin-bottom:12px">
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Dispositivo ADB</label>
+      <div style="display:flex;gap:8px">
+        <select id="tree-diff-serial" style="flex:1"><option value="">&#8212; selecciona dispositivo &#8212;</option></select>
+        <button class="btn" onclick="window._loadTreeDiffDevices()" style="font-size:12px;padding:4px 10px">&#x21BB;</button>
+      </div>
+    </div>
+    <div class="actions-row">
+      <button id="btn-tree-diff" class="btn primary" onclick="window.doTreeDiff()">Comparar &#xe1;rboles</button>
+      <span style="color:#555;font-size:12px">Puede tardar varios minutos en bibliotecas grandes</span>
+    </div>
+    <div id="tree-diff-result" style="margin-top:14px"></div>
+  </div>
+
   <!-- RCLONE SETUP -->
   <div class="actions-panel" style="margin-top:20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">

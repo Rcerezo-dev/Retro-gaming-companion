@@ -110,6 +110,10 @@ import {
   toggleAutoSync,
   saveAutoSyncSettings,
   startAutoSyncPolling,
+  _onTreeDiffSourceChange,
+  _loadTreeDiffDevices,
+  doTreeDiff,
+  _renderTreeDiff,
 } from './tabs/sync.js';
 
 // Expose all migrated functions on window for:
@@ -211,4 +215,8 @@ Object.assign(window, {
   toggleAutoSync,
   saveAutoSyncSettings,
   startAutoSyncPolling,
+  _onTreeDiffSourceChange,
+  _loadTreeDiffDevices,
+  doTreeDiff,
+  _renderTreeDiff,
 });

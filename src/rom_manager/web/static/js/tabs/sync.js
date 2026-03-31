@@ -957,6 +957,119 @@ function startAutoSyncPolling() {
   _autoSyncTimer = setInterval(_pollAutoSync, 5000);
 }
 
+// ── Tree diff ─────────────────────────────────────────────────────────────────
+
+function _onTreeDiffSourceChange() {
+  const isAdb = document.querySelector('input[name="tree-diff-source"]:checked')?.value === 'adb';
+  const row = document.getElementById('tree-diff-adb-row');
+  if (row) row.classList.toggle('hidden', !isAdb);
+  if (isAdb) _loadTreeDiffDevices();
+}
+
+async function _loadTreeDiffDevices() {
+  const sel = document.getElementById('tree-diff-serial');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  try {
+    const d = await apiFetch('/api/adb-devices');
+    const ready = (d.devices || []).filter(x => x.ready);
+    if (!ready.length) {
+      sel.innerHTML = '<option value="">Sin dispositivos conectados</option>';
+      return;
+    }
+    sel.innerHTML = ready.map(x => `<option value="${x.serial}">${x.display}</option>`).join('');
+  } catch(_) {
+    sel.innerHTML = '<option value="">Error al cargar dispositivos</option>';
+  }
+}
+
+async function doTreeDiff() {
+  const pcPath      = document.getElementById('tree-diff-pc-path')?.value.trim() || '';
+  const androidPath = document.getElementById('tree-diff-android-path')?.value.trim() || '';
+  const source      = document.querySelector('input[name="tree-diff-source"]:checked')?.value || 'local';
+  const serial      = document.getElementById('tree-diff-serial')?.value || '';
+  const btn         = document.getElementById('btn-tree-diff');
+  const resEl       = document.getElementById('tree-diff-result');
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Comparando…'; }
+  if (resEl) resEl.innerHTML = '<p class="loading">Escaneando &#xe1;rboles de directorios…</p>';
+
+  try {
+    await apiPost('/api/rom-tree-diff', { pc_path: pcPath, android_path: androidPath, source, serial });
+    import('../jobs.js').then(m => m.startPolling());
+  } catch(e) {
+    showToast('Error al iniciar comparaci\u00f3n: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Comparar \u00e1rboles'; }
+    if (resEl) resEl.innerHTML = '';
+  }
+}
+
+function _renderTreeDiff(r) {
+  const btn   = document.getElementById('btn-tree-diff');
+  const resEl = document.getElementById('tree-diff-result');
+  if (btn) { btn.disabled = false; btn.textContent = 'Comparar \u00e1rboles'; }
+  if (!resEl) return;
+
+  if (r.error) {
+    resEl.innerHTML = `<p class="error-msg">Error: ${r.error}</p>`;
+    return;
+  }
+
+  const pcOnly      = r.only_pc_total     || 0;
+  const androidOnly = r.only_android_total || 0;
+  const both        = r.in_both           || 0;
+  const totalPc     = r.total_pc          || 0;
+  const totalAnd    = r.total_android     || 0;
+  const MAX_SHOW    = 200;
+
+  let html = `<div style="font-size:11px;color:#555;margin-bottom:10px">
+    PC: <strong>${totalPc.toLocaleString()}</strong> archivos &nbsp;·&nbsp;
+    Consola: <strong>${totalAnd.toLocaleString()}</strong> archivos
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:14px">
+    <div style="flex:1;padding:10px 14px;background:#0e1e0e;border:1px solid #2a3a2a;border-radius:4px">
+      <div style="font-size:20px;color:#4ec9b0;font-weight:bold">${both.toLocaleString()}</div>
+      <div style="font-size:11px;color:#4a8a4a">en ambos</div>
+    </div>
+    <div style="flex:1;padding:10px 14px;background:#0e1020;border:1px solid #2a2a40;border-radius:4px">
+      <div style="font-size:20px;color:#569cd6;font-weight:bold">${pcOnly.toLocaleString()}</div>
+      <div style="font-size:11px;color:#556;margin-bottom:3px">solo en PC</div>
+      <div style="font-size:11px;color:#888">(faltan en consola)</div>
+    </div>
+    <div style="flex:1;padding:10px 14px;background:#1e0e0a;border:1px solid #3a2a20;border-radius:4px">
+      <div style="font-size:20px;color:#ce9178;font-weight:bold">${androidOnly.toLocaleString()}</div>
+      <div style="font-size:11px;color:#6a4a38;margin-bottom:3px">solo en consola</div>
+      <div style="font-size:11px;color:#888">(faltan en PC)</div>
+    </div>
+  </div>`;
+
+  if (!pcOnly && !androidOnly) {
+    html += `<p style="color:#4ec9b0">&#x2713; Las rutas son id\u00e9nticas. No hay diferencias.</p>`;
+  }
+
+  if (r.only_pc?.length) {
+    const extra = pcOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_pc.length, MAX_SHOW)} de ${pcOnly.toLocaleString()})` : '';
+    html += `<details style="margin-bottom:8px">
+      <summary style="cursor:pointer;color:#569cd6;font-size:13px;user-select:none">Solo en PC${extra}</summary>
+      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#0a0a14;border-radius:4px;margin-top:6px">
+        ${r.only_pc.slice(0, MAX_SHOW).map(p => `<div style="color:#888;padding:1px 0">${p}</div>`).join('')}
+      </div>
+    </details>`;
+  }
+
+  if (r.only_android?.length) {
+    const extra = androidOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_android.length, MAX_SHOW)} de ${androidOnly.toLocaleString()})` : '';
+    html += `<details style="margin-bottom:8px">
+      <summary style="cursor:pointer;color:#ce9178;font-size:13px;user-select:none">Solo en consola${extra}</summary>
+      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#140a00;border-radius:4px;margin-top:6px">
+        ${r.only_android.slice(0, MAX_SHOW).map(p => `<div style="color:#888;padding:1px 0">${p}</div>`).join('')}
+      </div>
+    </details>`;
+  }
+
+  resEl.innerHTML = html;
+}
+
 export {
   // Cloud Sync
   loadSync,
@@ -1004,4 +1117,9 @@ export {
   toggleAutoSync,
   saveAutoSyncSettings,
   startAutoSyncPolling,
+  // Tree diff
+  _onTreeDiffSourceChange,
+  _loadTreeDiffDevices,
+  doTreeDiff,
+  _renderTreeDiff,
 };

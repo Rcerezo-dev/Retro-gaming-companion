@@ -14,7 +14,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running && !s.backup_now_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running && !s.backup_now_running && !s.tree_diff_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -406,6 +406,20 @@ function _applyJobStatus(s) {
         else { const sz = r.size > 1048576 ? (r.size/1048576).toFixed(1)+' MB' : (r.size/1024).toFixed(1)+' KB'; el.className = 'job-result visible success'; el.textContent = `Backup completado — ZIP: ${sz}`; }
       }
       window.loadManualBackups();
+    }
+  }
+  // Tree diff
+  const btnTreeDiff = document.getElementById('btn-tree-diff');
+  if (s.tree_diff_running) {
+    if (btnTreeDiff) { btnTreeDiff.disabled = true; btnTreeDiff.textContent = 'Comparando\u2026'; }
+  } else {
+    if (btnTreeDiff) { btnTreeDiff.disabled = false; btnTreeDiff.textContent = 'Comparar \u00e1rboles'; }
+  }
+  if (!s.tree_diff_running && s.tree_diff_result) {
+    const ts = s.tree_diff_result.result_ts || JSON.stringify(s.tree_diff_result);
+    if (_shownResultTs.tree_diff !== ts) {
+      _shownResultTs.tree_diff = ts;
+      window._renderTreeDiff(s.tree_diff_result);
     }
   }
   // Inbox progress

@@ -150,6 +150,11 @@ def register(
     def post_migrate_split_db(ctx) -> None:
         _do_migrate_split_db(ctx, config, repository, repo_android)
 
+    # ── POST /api/rom-tree-diff ──────────────────────────────────────────────
+    @router.post("/api/rom-tree-diff")
+    def post_rom_tree_diff(ctx) -> None:
+        _do_tree_diff(ctx, ctx._post_data, config, srv_mod)
+
     # ── POST /api/ra-check ───────────────────────────────────────────────────
     @router.post("/api/ra-check")
     def post_ra_check(ctx) -> None:
@@ -995,6 +1000,84 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
 
     threading.Thread(target=run, daemon=True).start()
     ctx._send_json({"status": "started", "dry_run": dry_run})
+
+
+def _do_tree_diff(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
+    """Background job: compare the ROM file tree between PC and console."""
+    from pathlib import Path as _Path
+
+    source       = data.get("source", "local")        # "local" | "adb"
+    serial       = data.get("serial", "").strip()
+    pc_path_str  = data.get("pc_path", "").strip()    or (str(config.library_root) if config.library_root else "")
+    and_path_str = data.get("android_path", "").strip() or config.anbernic_root or config.auto_sync_android_path
+
+    m = srv_mod
+    with m._job_lock:
+        if m._jobs.get("tree_diff", False):
+            ctx._send_json({"status": "already_running"})
+            return
+        m._jobs["tree_diff"] = True
+
+    def run() -> None:
+        import time as _time
+        try:
+            from rom_manager.utils.dir_diff import get_local_tree, get_adb_tree, diff_trees
+
+            if not pc_path_str:
+                m._job_results["tree_diff"] = {"error": "Ruta PC no configurada (library_root)"}
+                return
+            pc_root = _Path(pc_path_str)
+            if not pc_root.exists():
+                m._job_results["tree_diff"] = {"error": f"Ruta PC no existe: {pc_path_str}"}
+                return
+
+            skip = frozenset(config.excluded_directories)
+            pc_tree = get_local_tree(pc_root, skip)
+
+            if source == "adb":
+                if not serial:
+                    m._job_results["tree_diff"] = {"error": "serial ADB requerido"}
+                    return
+                if not and_path_str:
+                    m._job_results["tree_diff"] = {"error": "Ruta Android no configurada"}
+                    return
+                from rom_manager.sync.adb_transport import AdbTransport
+                transport = AdbTransport(config.adb, serial, timeout=60)
+                android_tree = get_adb_tree(transport, and_path_str, timeout=300)
+            else:
+                if not and_path_str:
+                    m._job_results["tree_diff"] = {"error": "Ruta consola no configurada (anbernic_root)"}
+                    return
+                and_root = _Path(and_path_str)
+                if not and_root.exists():
+                    m._job_results["tree_diff"] = {"error": f"Ruta consola no existe: {and_path_str}"}
+                    return
+                android_tree = get_local_tree(and_root, skip)
+
+            diff = diff_trees(pc_tree, android_tree)
+            MAX = 500
+            m._job_results["tree_diff"] = {
+                "ok":                True,
+                "pc_path":           pc_path_str,
+                "android_path":      and_path_str,
+                "source":            source,
+                "only_pc":           diff.only_a[:MAX],
+                "only_android":      diff.only_b[:MAX],
+                "only_pc_total":     len(diff.only_a),
+                "only_android_total": len(diff.only_b),
+                "in_both":           diff.in_both,
+                "total_pc":          diff.total_a,
+                "total_android":     diff.total_b,
+                "result_ts":         _time.time(),
+            }
+        except Exception as exc:
+            m._job_results["tree_diff"] = {"error": str(exc)}
+        finally:
+            with m._job_lock:
+                m._jobs["tree_diff"] = False
+
+    threading.Thread(target=run, daemon=True).start()
+    ctx._send_json({"status": "started"})
 
 
 def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:

@@ -295,11 +295,26 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
             except Exception as exc:
                 errors.append(f"{loser_op.source_path.name}: {exc}")
 
+    # Diagnostic: sample MD5 lookups from the first few conflicts (helps diagnose H1/H2)
+    debug_samples: list[dict] = []
+    for op in (list(plan.conflicts) + list(plan.operations))[:3]:
+        try:
+            with repository.connect() as _c:
+                row = _c.execute(
+                    "SELECT md5, source_path FROM games WHERE source_path = ?",
+                    (str(op.source_path),)
+                ).fetchone()
+            debug_samples.append(dict(row) if row else {"not_found": str(op.source_path)})
+        except Exception as _e:
+            debug_samples.append({"error": str(_e)})
+
     ctx._send_json({
         "resolved":      resolved,
         "skipped_no_ra": skipped_no_ra,
         "errors":        errors[:10],
         "no_cache":      not cache_files_exist,
+        "debug_samples": debug_samples,
+        "hint":          "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
     })
 
 
