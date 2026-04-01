@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-02
+> Last updated: 2026-04-02 (DB-1 & DB-2 complete)
 > Completed Phase 2 tasks moved to `Tareas/archivo.md` to save tokens.
 > Active bug tracking: `Tareas/bugs/duplicados.md`
 > Architecture reference: `docs/refactor/Roadmap-Arquitectura-Frontend.md`
@@ -52,8 +52,8 @@ Device is "connected" if EITHER:
 |----|------|----------|--------|
 | UX-1 ✅ | **Device connectivity indicator** — Show on startup cards if Android SD is NOT plugged in | High | Complete |
 | UX-2 ✅ | **Block operations on inactive device** — Prevent "Ejecutar cambios" when target device (consola android) is not plugged in | High | Complete |
-| DB-1 | **Metadata cache flag** — Add boolean in games table to mark files already scraped (found no metadata) | Medium | Avoid re-scraping same files repeatedly. Allows "Check metadata BEFORE scraping" workflow. |
-| DB-2 | **Orphaned record cleanup** — Clean up DB entries when files are deleted from disk | Medium | Currently unclear if `os.remove()` in delete workflows triggers DB cleanup. Verify and document cleanup policy. |
+| DB-1 ✅ | **Metadata cache flag** — Add boolean in games table to mark files already scraped (found no metadata) | Medium | Complete: Added metadata_scraped flag to avoid re-scraping. Schema migration + repository method + scraper updates. |
+| DB-2 ✅ | **Orphaned record cleanup** — Clean up DB entries when files are deleted from disk | Medium | Complete: Enhanced prune_stale_entries() to clean up metadata, tags, and operation logs. Display cleanup count in CLI. |
 | DUP-3 ✅ | **Delete option for "Colisión de plan"** — If 2 files have same canonical name, offer delete-from-duplicates button alongside rename | Medium | Complete: Added "Eliminar duplicados" button to conflict resolution in plan view |
 | DUP-4 | **Clarify delete-all counts** — Show breakdown: X disk duplicates deleted, Y skipped (no source), Z failed (Android unmounted) | Low | UX clarity. Currently "99 failed" out of 224 groups is confusing — users don't understand what happened to the rest. |
 
