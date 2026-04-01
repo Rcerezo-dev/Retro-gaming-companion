@@ -69,6 +69,25 @@ import {
   _pollInboxWatcher,
 } from './tabs/inbox.js';
 import {
+  gamesState,
+  applyColVisibility, _initColPicker, toggleColPicker,
+  goToGames, onGamesSearchChange, onGamesFilterChange,
+  loadFilterOptions, toggleFavoritesFilter, _refreshTagFilter, toggleRowFavorite,
+  _platHex,
+  loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
+  _gpSetFavStar,
+  gpShowPlaytimeInfo, gpLogPlaytime,
+  openGamePanel, closeGamePanel,
+  gpSetStatus, gpToggleFavorite,
+  gpAddTag, gpRemoveTag,
+  gpLaunch, gpOpenFolder,
+  loadSaveBackupsResult, restoreBackup,
+  gpNotesInput, gpToggleMetaEdit, gpSaveMetaFields,
+  gpScrapeSingle, gpApplyScrape, gpCopyAssetToEsde,
+  loadGameSyncHistory,
+  enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
+} from './tabs/games.js';
+import {
   loadSync,
   loadAssets,
   loadSystemStatus,
@@ -120,6 +139,24 @@ import {
 // - Inline onclick="xxx()" handlers in index.html
 // - Legacy app.js callers (e.g. DOMContentLoaded calling loadAuthStatus)
 Object.assign(window, {
+  // games.js — games tab, game panel, TV mode
+  gamesState,
+  applyColVisibility, _initColPicker, toggleColPicker,
+  goToGames, onGamesSearchChange, onGamesFilterChange,
+  loadFilterOptions, toggleFavoritesFilter, _refreshTagFilter, toggleRowFavorite,
+  _platHex,
+  loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
+  _gpSetFavStar,
+  gpShowPlaytimeInfo, gpLogPlaytime,
+  openGamePanel, closeGamePanel,
+  gpSetStatus, gpToggleFavorite,
+  gpAddTag, gpRemoveTag,
+  gpLaunch, gpOpenFolder,
+  loadSaveBackupsResult, restoreBackup,
+  gpNotesInput, gpToggleMetaEdit, gpSaveMetaFields,
+  gpScrapeSingle, gpApplyScrape, gpCopyAssetToEsde,
+  loadGameSyncHistory,
+  enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
   // state.js — shared device context
   AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
   showToast,
