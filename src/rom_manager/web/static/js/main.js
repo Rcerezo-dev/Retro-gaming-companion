@@ -86,6 +86,7 @@ import {
   gpScrapeSingle, gpApplyScrape, gpCopyAssetToEsde,
   loadGameSyncHistory,
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
+  _tvActive, _tvFocusIdx, _tvCols, _tvGames,
 } from './tabs/games.js';
 import {
   loadSync,
@@ -256,4 +257,19 @@ Object.assign(window, {
   _loadTreeDiffDevices,
   doTreeDiff,
   _renderTreeDiff,
+});
+
+// TV mode keyboard handler — uses live module bindings from games.js
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement?.tagName;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+    if (!_tvActive) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); _tvMoveFocus(_tvFocusIdx + 1); return; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); _tvMoveFocus(_tvFocusIdx - 1); return; }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); _tvMoveFocus(_tvFocusIdx + _tvCols); return; }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); _tvMoveFocus(_tvFocusIdx - _tvCols); return; }
+    if (e.key === 'Enter')      { e.preventDefault(); openGamePanel(_tvGames[_tvFocusIdx]); return; }
+    if (e.key === 'Escape')     { e.preventDefault(); exitTvMode(); return; }
+  });
 });
