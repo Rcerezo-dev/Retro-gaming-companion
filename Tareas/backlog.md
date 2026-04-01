@@ -38,7 +38,15 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | 2d-4 ✅ | Migrate wizard | `showWizard`, `closeWizard`, `wizardAutoDetect`, `startSetup`, `_renderWizSteps`, `_pollSetupProgress`, `_showSetupResult`, `wizardGoToOrganize` |
 | 2d-5 ✅ | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
 | 2d-6 ✅ | Remove migrated code from `app.js` | Delete all migrated functions |
-| 2e | Delete `app.js` legacy — only after 2c + 2d done | `static/app.js` |
+| 2e | Create `js/tabs/esde.js` — ES-DE status, BIOS checker, RetroArch check | `loadEsdeStatus`, `loadBiosStatus`, `loadRetroArchCheck` |
+| 2f | Create `js/tabs/tools.js` — CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure | `doConvertChd`, `doConvertCso`, `doCleanupZips`, `doCleanupCueBin`, `doExtractZip`, `doGenerateM3U`, `autodetectM3UFolders`, `doVerifyMultidisc`, `doN64Scan`, `doN64Convert`, `doExportLpl`, `createLibraryStructure`, `organizeLibrary` |
+| 2g | Extend `esde.js` — RA check + all RA helpers | `doRaCheck`, `_renderRaResult`, `filterRaByPlatform`, `_raGoToPage`, `discardRaNoSupport`, `_copyText`, `_googleQuery`, `_archiveOrgUrl`, `_openArchiveOrg`, `_copyArchiveOrgLink` |
+| 2h | Extend `esde.js` — health check, platform health, operations timeline | `doHealthCheck`, `_renderHealthResult`, `_healthIssueRow`, `_filterHealthIssues`, `togglePlatformHealth`, `loadPlatformHealth`, `loadOperationsTimeline` |
+| 2i | Extend `esde.js` — junk, orphaned saves, doctor, folder analysis, unmatched | `doJunkScan`, `junkToggleCat/SelectAll/CatCheck/Delete`, `doFindOrphans`, `doDeleteOrphans`, `doMoveOrphansToArchive`, `moveOrphanedSave`, `doFolderAnalysis`, `loadUnmatchedDiagnosis`, `doLibraryDoctor`, `doctorMoveRom/DeleteDir/ResolveAll` |
+| 2j | Extend `esde.js` — library report | `generateReport`, `showReportTab`, all `_renderReport*`, `exportReportHtml` |
+| 2k | Move sync leftovers → `sync.js` | `doSync`, `_renderSyncResult`, `loadSaveComparison`, `doLibraryDiff` |
+| 2l | Move global infra → `main.js` / `state.js` | `showTab`, `setDevice`, `_applyDeviceName`, `_deviceRoot`, `toggleSidebar`, `onGlobalSearch`, `initTheme`, `setTheme`, `_applyTheme`, `toggleTheme`, `stopJob`, `openHtmlReport`, notifications, clipboard, init block |
+| 2-final | Delete `app.js` | Only after 2e–2l are all done |
 
 ---
 
