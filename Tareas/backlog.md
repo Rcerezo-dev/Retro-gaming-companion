@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-01
+> Last updated: 2026-04-02 — Phase 2 Frontend Migration COMPLETE ✅ (2a-2l all done, app.js deleted)
 > Active bug tracking: `Tareas/bugs/duplicados.md`
 > Architecture reference: `docs/refactor/Roadmap-Arquitectura-Frontend.md`
 
@@ -39,6 +39,8 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | 2d-5 ✅ | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
 | 2d-6 ✅ | Remove migrated code from `app.js` | Delete all migrated functions |
 | 2e | Create `js/tabs/esde.js` — ES-DE status, BIOS checker, RetroArch check | `loadEsdeStatus`, `loadBiosStatus`, `loadRetroArchCheck` |
+| 2f ✅ | Create `js/tabs/tools.js` — CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure | `doConvertChd`, `doConvertCso`, `doCleanupZips`, `doCleanupCueBin`, `doExtractZip`, `doGenerateM3U`, `autodetectM3UFolders`, `doVerifyMultidisc`, `doN64Scan`, `doN64Convert`, `doExportLpl`, `createLibraryStructure`, `organizeLibrary` |
+| 2g ✅ | Extend `esde.js` — RA check + all RA helpers | `doRaCheck`, `_renderRaResult`, `filterRaByPlatform`, `_raGoToPage`, `discardRaNoSupport`, `_copyText`, `_googleQuery`, `_archiveOrgUrl`, `_openArchiveOrg`, `_copyArchiveOrgLink` |
 
 **2e subtasks:**
 
@@ -48,13 +50,13 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | 2e-2 ✅ | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
 | 2e-3 ✅ | Remove migrated code from `app.js` | Delete all migrated functions |
 | 2f | Create `js/tabs/tools.js` — CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure | `doConvertChd`, `doConvertCso`, `doCleanupZips`, `doCleanupCueBin`, `doExtractZip`, `doGenerateM3U`, `autodetectM3UFolders`, `doVerifyMultidisc`, `doN64Scan`, `doN64Convert`, `doExportLpl`, `createLibraryStructure`, `organizeLibrary` |
-| 2g | Extend `esde.js` — RA check + all RA helpers | `doRaCheck`, `_renderRaResult`, `filterRaByPlatform`, `_raGoToPage`, `discardRaNoSupport`, `_copyText`, `_googleQuery`, `_archiveOrgUrl`, `_openArchiveOrg`, `_copyArchiveOrgLink` |
-| 2h | Extend `esde.js` — health check, platform health, operations timeline | `doHealthCheck`, `_renderHealthResult`, `_healthIssueRow`, `_filterHealthIssues`, `togglePlatformHealth`, `loadPlatformHealth`, `loadOperationsTimeline` |
-| 2i | Extend `esde.js` — junk, orphaned saves, doctor, folder analysis, unmatched | `doJunkScan`, `junkToggleCat/SelectAll/CatCheck/Delete`, `doFindOrphans`, `doDeleteOrphans`, `doMoveOrphansToArchive`, `moveOrphanedSave`, `doFolderAnalysis`, `loadUnmatchedDiagnosis`, `doLibraryDoctor`, `doctorMoveRom/DeleteDir/ResolveAll` |
-| 2j | Extend `esde.js` — library report | `generateReport`, `showReportTab`, all `_renderReport*`, `exportReportHtml` |
-| 2k | Move sync leftovers → `sync.js` | `doSync`, `_renderSyncResult`, `loadSaveComparison`, `doLibraryDiff` |
-| 2l | Move global infra → `main.js` / `state.js` | `showTab`, `setDevice`, `_applyDeviceName`, `_deviceRoot`, `toggleSidebar`, `onGlobalSearch`, `initTheme`, `setTheme`, `_applyTheme`, `toggleTheme`, `stopJob`, `openHtmlReport`, notifications, clipboard, init block |
-| 2-final | Delete `app.js` | Only after 2e–2l are all done |
+| 2g ✅ | Extend `esde.js` — RA check + all RA helpers | `doRaCheck`, `_renderRaResult`, `filterRaByPlatform`, `_raGoToPage`, `discardRaNoSupport`, `_copyText`, `_googleQuery`, `_archiveOrgUrl`, `_openArchiveOrg`, `_copyArchiveOrgLink` |
+| 2h ✅ | Extend `esde.js` — health check, platform health, operations timeline | `doHealthCheck`, `_renderHealthResult`, `_healthIssueRow`, `_filterHealthIssues`, `togglePlatformHealth`, `loadPlatformHealth`, `loadOperationsTimeline` |
+| 2i ✅ | Extend `esde.js` — junk, orphaned saves, doctor, folder analysis, unmatched | `doJunkScan`, `junkToggleCat/SelectAll/CatCheck/Delete`, `doFindOrphans`, `doDeleteOrphans`, `doMoveOrphansToArchive`, `moveOrphanedSave`, `doFolderAnalysis`, `loadUnmatchedDiagnosis`, `doLibraryDoctor`, `doctorMoveRom/DeleteDir/ResolveAll` |
+| 2j ✅ | Extend `esde.js` — library report | `generateReport`, `showReportTab`, all `_renderReport*`, `exportReportHtml` |
+| 2k ✅ | Move sync leftovers → `sync.js` | `doSync`, `_renderSyncResult`, `loadSaveComparison`, `doLibraryDiff` |
+| 2l ✅ | Move global infra → `main.js` / `state.js` | `showTab`, `setDevice`, `_applyDeviceName`, `_deviceRoot`, `toggleSidebar`, `onGlobalSearch`, `initTheme`, `setTheme`, `_applyTheme`, `toggleTheme`, `stopJob`, `openHtmlReport`, notifications, clipboard, init block |
+| 2-final ✅ | Delete `app.js` | Only after 2e–2l are all done |
 
 ---
 
@@ -63,7 +65,34 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | ID | Task | Where |
 |----|------|-------|
 | B-test | Verify `_apply_ra_conflicts`: winner gets renamed, loser goes to `_descartados/` | `handlers/duplicates.py` — see `bugs/duplicados.md` |
+
+**B-test subtasks:**
+
+| ID | Task | Functions/Files |
+|----|------|----|
+| B-test-1 | UI prerequisite: disable "Resolver por RA" until RA Check runs | `static/js/tabs/duplicates.js` — check `ra_cache` exists, show hint |
+| B-test-2 | Auto-rename winner: after discarding loser, move winner to canonical name | `handlers/duplicates.py::_apply_ra_conflicts` — rename source → target, update DB |
+| B-test-3 | Better diagnostics: improve hint text, show cache status, guide next steps | `handlers/duplicates.py` — enhance response with `next_step` field |
+| B-test-4 | Test with real data: verify winner renamed + moved, loser in _descartados/, DB updated | Run full scenario: RA Check → Build Plan → Apply RA → Verify |
+
+| ID | Task | Where |
+|----|------|-------|
 | D2 | rclone handler: route files to `saves_remote` or `states_remote` by extension | `sync/rclone_transport.py` |
+
+---
+
+## User feedback — Device connectivity & Database issues
+
+Extracted from testing session (2026-03-31). These are design/UX issues affecting core workflows.
+
+| ID | Task | Priority | Notes |
+|----|------|----------|-------|
+| UX-1 | **Device connectivity indicator** — Show on startup cards if Android SD is NOT plugged in | High | Currently no visual feedback; app shows DB as connected even when unplugged. Prevents accidental operations on wrong device. |
+| UX-2 | **Block operations on inactive device** — Prevent "Ejecutar cambios" when target device (consola android) is not plugged in | High | Safety guard. Currently UI allows applying changes to disconnected Android device. |
+| DB-1 | **Metadata cache flag** — Add boolean in games table to mark files already scraped (found no metadata) | Medium | Avoid re-scraping same files repeatedly. Allows "Check metadata BEFORE scraping" workflow. |
+| DB-2 | **Orphaned record cleanup** — Clean up DB entries when files are deleted from disk | Medium | Currently unclear if `os.remove()` in delete workflows triggers DB cleanup. Verify and document cleanup policy. |
+| DUP-3 | **Rename "Colisión de plan" resolution** — If 2 files have same canonical name, offer delete-from-duplicates instead of rename | Medium | User feedback: rename-based conflict resolution is confusing for duplicates. Duplicates should just be deleted, not renamed to different canon names. |
+| DUP-4 | **Clarify delete-all counts** — Show breakdown: X disk duplicates deleted, Y skipped (no source), Z failed (Android unmounted) | Low | UX clarity. Currently "99 failed" out of 224 groups is confusing — users don't understand what happened to the rest. |
 
 ---
 

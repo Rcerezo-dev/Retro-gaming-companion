@@ -25,6 +25,7 @@ Backlog activo: `Tareas/backlog.md`. Estado de fases: memoria `phases.md`.
 - La biblioteca debe ser compatible con RetroArch en Android Y en PC
 - En sync: ante duda, no sobreescribir; guardar backup primero
 - Sin dependencias externas de runtime (solo stdlib)
+- **No vuelvas a leer archivos ya leídos en esta sesión a menos que te lo pida. Minimiza las llamadas a herramientas y trabaja con lo que ya tienes en contexto.**
 
 ---
 

@@ -1070,7 +1070,155 @@ function _renderTreeDiff(r) {
   resEl.innerHTML = html;
 }
 
+// ── Save Comparison & Library Diff ────────────────────────────────────────────
+export async function loadSaveComparison() {
+  const el = document.getElementById('save-comparison-content');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  try {
+    const d = await apiFetch('/api/save-comparison');
+    const saves = d.saves || [];
+    if (!saves.length) {
+      el.innerHTML = '<p style="color:#555;font-size:12px">No hay saves en la biblioteca.</p>';
+      return;
+    }
+    const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:#444">—</span>';
+    const _syncBadge = s => {
+      if (!s.last_sync_at) return '<span style="color:#666;font-size:10px">Nunca</span>';
+      const cls = s.last_result === 'ok' ? '#4ec9b0' : '#e06c75';
+      return `<span style="color:${cls};font-size:10px">${_fmtDate(s.last_sync_at)}</span>`;
+    };
+    let html = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:#555;border-bottom:1px solid #2a2a3a">
+        <th style="text-align:left;padding:4px 6px">Plataforma</th>
+        <th style="text-align:left;padding:4px 6px">Título</th>
+        <th style="text-align:left;padding:4px 6px">Mod. local</th>
+        <th style="text-align:left;padding:4px 6px">Último sync</th>
+        <th style="text-align:left;padding:4px 6px">Dirección</th>
+      </tr></thead><tbody>`;
+    saves.forEach(s => {
+      const stale = s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at;
+      const rowStyle = stale ? 'background:#1a1a0a' : '';
+      const _h = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html += `<tr style="${rowStyle};border-bottom:1px solid #1a1a2a">
+        <td style="padding:4px 6px;color:#888">${_h(s.platform)}</td>
+        <td style="padding:4px 6px;color:#d4d4d4">${_h(s.title)}</td>
+        <td style="padding:4px 6px;color:${stale ? '#f9c74f' : '#888'}">${_fmtDate(s.local_mtime)}</td>
+        <td style="padding:4px 6px">${_syncBadge(s)}</td>
+        <td style="padding:4px 6px;color:#555;font-size:10px">${_h(s.last_direction || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    if (saves.some(s => s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at)) {
+      html = `<div style="font-size:11px;color:#f9c74f;margin-bottom:8px">⚠ Filas en amarillo: save modificado después del último sync.</div>` + html;
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`; }
+}
+
+export async function doLibraryDiff() {
+  const parityEl = document.getElementById('lib-diff-parity');
+  const resultEl = document.getElementById('lib-diff-result');
+  if (parityEl) parityEl.textContent = 'Comparando…';
+  if (resultEl) resultEl.innerHTML   = '';
+  try {
+    const d = await apiFetch('/api/library-diff');
+    const { only_pc, only_android, in_both, total_pc, total_android, parity } = d;
+
+    if (parityEl) {
+      if (parity) {
+        parityEl.innerHTML = '<span style="color:#a6e3a1">✓ Bibliotecas sincronizadas</span>';
+      } else {
+        const diff = only_pc.length + only_android.length;
+        parityEl.innerHTML = '<span style="color:#f38ba8">⚠ ' + diff + ' ROM' + (diff !== 1 ? 's' : '') + ' difieren</span>';
+      }
+    }
+
+    if (!resultEl) return;
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const makeTable = (rows, loc) => {
+      if (!rows.length) return '<p style="color:#888;font-size:13px;margin:6px 0 0">Ninguno.</p>';
+      let t = '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px">Plataforma</th><th style="text-align:left;padding:4px">Título</th></tr></thead><tbody>';
+      for (const r of rows) t += '<tr style="border-bottom:1px solid #1a1a2a"><td style="padding:4px">' + esc(r.platform) + '</td><td>' + esc(r.title) + '</td></tr>';
+      return t + '</tbody></table>';
+    };
+
+    let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px">';
+    html += '<div><h4 style="margin:0 0 6px;color:#f38ba8">Solo en PC (' + only_pc.length + ' / ' + total_pc + ')</h4>' + makeTable(only_pc) + '</div>';
+    html += '<div><h4 style="margin:0 0 6px;color:#89b4fa">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
+    html += '</div>';
+    html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#888;font-size:13px">En ambos (' + in_both.length + ')</summary>' + makeTable(in_both) + '</details>';
+
+    resultEl.innerHTML = html;
+  } catch (e) {
+    if (parityEl) parityEl.textContent = '';
+    if (resultEl) resultEl.innerHTML = '<p style="color:#f38ba8">Error: ' + String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+  }
+}
+
+export async function doSync(dryRun) {
+  const btnDry   = document.getElementById('btn-sync-dry');
+  const btnApply = document.getElementById('btn-sync-apply');
+  const resultEl = document.getElementById('job-result-sync');
+  if (btnDry)   btnDry.disabled   = true;
+  if (btnApply) btnApply.disabled = true;
+  resultEl.className = 'job-result';
+  if (!dryRun) {
+    // Request notification permission if needed
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+  try {
+    const d = await apiPost('/api/sync', { dry_run: dryRun });
+    if (d.status === 'already_running') {
+      resultEl.className = 'job-result visible';
+      resultEl.textContent = 'Ya hay un sync en curso…';
+      return;
+    }
+    window.startPolling();
+  } catch(e) {
+    resultEl.className = 'job-result visible';
+    resultEl.textContent = 'Error: ' + String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (btnDry)   btnDry.disabled   = false;
+    if (btnApply) btnApply.disabled = false;
+  }
+}
+
+export function _renderSyncResult(result) {
+  const resultEl = document.getElementById('job-result-sync');
+  if (!resultEl) return;
+  if (result.error) {
+    resultEl.className = 'job-result visible';
+    resultEl.textContent = 'Error: ' + String(result.error).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  } else {
+    const verb = result.dry_run ? 'Sincronizaría' : 'Sincronizado';
+    const hasErrors = result.errors > 0;
+    resultEl.className = 'job-result visible' + (hasErrors ? ' error' : ' success');
+    const deltaNote = result.delta_skipped ? `  Δ ${result.delta_skipped}` : '';
+    resultEl.textContent = `${verb} — ↑ ${result.uploaded}  ↓ ${result.downloaded}  ✓ ${result.up_to_date}  ⚠ ${result.conflicts}  ✗ ${result.errors}${deltaNote}`;
+    if (!result.dry_run) {
+      // Send notification if available
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('Sync completado', {
+            body: '↑ ' + result.uploaded + ' ↓ ' + result.downloaded + ' ✓ ' + result.up_to_date,
+            icon: '/static/icon.png'
+          });
+        } catch(e) {
+          // Notification might fail silently
+        }
+      }
+    }
+  }
+}
+
 export {
+  // Save comparison & library diff
+  loadSaveComparison,
+  doLibraryDiff,
+  doSync,
+  _renderSyncResult,
   // Cloud Sync
   loadSync,
   loadAssets,
