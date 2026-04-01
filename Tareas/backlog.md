@@ -1,78 +1,99 @@
-# Backlog activo — Retro Vault
+# Retro Vault — Backlog
 
-> Archivo vivo. Actualizar en cada sesión.
-> Última actualización: 2026-03-18 (Día 15)
-> Roadmap detallado de mañana: `Tareas/Día15-Roadmap-S24-S26.md`
-> Histórico: `Tareas/diario/`
-
----
-
-## 🔴 Pendiente — Validación en hardware (requiere consola o SD)
-
-| ID | Tarea | Notas |
-|----|-------|-------|
-| V1 | **Sync automático con SD card** | Configurar `anbernic_root` → insertar SD → verificar banner y log |
-| V2 | **Migración a dos bases de datos** | Settings → "Migrar BD" → verificar conteos separados PC/Android |
-| V3 | **Inbox end-to-end** ⭐ | Configurar `inbox_path` → soltar ZIP → verificar extracción + renombrado + movimiento |
-| V4 | **RetroAchievements con API key real** | retroachievements.org → Settings → Web API Key → pegar en Ajustes |
-| V5 | **Guía Termux en la consola** | Seguir `docs/guia-consola-android.md` — prerequisito para WiFi sync directo |
-| B1-hw | **Renombrador Android no reduce la cola** | Con SD insertada → Organizar → filtrar consola → aplicar → ver errores |
+> Single source of truth for pending work. Updated every session.
+> Last updated: 2026-04-01
+> Active bug tracking: `Tareas/bugs/duplicados.md`
+> Architecture reference: `docs/refactor/Roadmap-Arquitectura-Frontend.md`
 
 ---
 
-## 🔴 Pendiente — Acciones del usuario (sin código)
+## Now — Frontend migration Phase 2 (in progress)
 
-| ID | Tarea | Notas |
-|----|-------|-------|
-| STRUCT-4 | **Configurar RetroArch PC** → Saving → Savefile Directory → `E:\Carpetas anbernic\saves\` | Prerequisito de STRUCT-3 |
-| STRUCT-3 | **Actualizar config.toml** → `local_dir = "E:\\Carpetas anbernic\\saves"` | Hacer después de STRUCT-4 |
-| ES-1 | **Descargar core genesis_plus_gx** en RetroArch → Online Updater → Core Updater | Necesario para Master System y Game Gear en EmulationStation |
-| ES-2 | **Configurar Citra (3DS)** en EmulationStation | Indicar ruta completa en `es_systems.cfg` si no funciona |
+Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 
----
-
-## 🟡 Próximas sesiones de desarrollo
-
-Ver detalle completo en `Tareas/Día15-Roadmap-S24-S26.md`.
-
-| Sesión | Foco | Estado |
-|--------|------|--------|
-| 22 | Wizard de primer arranque | ✅ Hecho |
-| 23 | DATs sin esfuerzo + Sync wizard rclone | ✅ Hecho |
-| 24 | UX y pulido (shortcuts, estados vacíos, feedback inline) | ⏳ |
-| 25 | Auth (PIN + QR de acceso LAN) | ⏳ |
-| 26 | Distribución (PyInstaller + instalador + tray icon) | ⏳ |
-| — | Backup de saves versionado | ⏳ nueva |
-| — | Editor de metadatos inline | ⏳ nueva |
-| — | "Missing in action" — colección vs DAT | ⏳ nueva |
-| — | Timeline de operaciones (historial) | ⏳ nueva |
+| ID | Task | File |
+|----|------|------|
+| 2c | Create `js/tabs/games.js` — game list, filters, pagination, game panel, TV mode | `static/js/tabs/games.js` |
+| 2d | Create `js/tabs/overview.js` — overview, wizard, heatmap, charts | `static/js/tabs/overview.js` |
+| 2e | Delete `app.js` legacy — only after 2c + 2d done | `static/app.js` |
 
 ---
 
-## ✅ Implementado (referencia rápida)
+## Now — Quick fixes (carry-over from Day 23)
 
-| Feature | Sesión | Nota |
-|---------|--------|------|
-| **Wizard de primer arranque** | S22 | `GET /api/wizard-detect`; autodetecta RetroArch + ADB; branding Retro Vault |
-| **DATs sin esfuerzo** | S23 | `GET /api/catalog-status` + `POST /api/import-dats`; panel en Settings |
-| **Sync wizard rclone** | S23 | `GET /api/rclone-status`; panel colapsable Sync con remotes dropdown |
-| **Partir frontend.py** | S21 | CSS → `static/app.css`; JS → `static/app.js`; frontend.py 5891→1433 líneas |
-| **Tests repository.py** | S20 | 20 tests con BD real en tmp_path |
-| **Partir server.py** | S18-19 | `response_builders.py` + `cable_sync_daemon.py` + `inbox_pipeline.py` |
-| **Batch run completo** | S15 | Scan → Match → ZIP → CHD → Health → RA en un clic |
-| **Comparador PC vs Android** | S16 | `GET /api/library-diff` diff por SHA1 |
-| **Rutas persisten** | S15 | `saveOvPaths()` guarda en `config.toml` |
-| Cable Sync (ADB + SD) | Día 5 | PC↔Android vía ADB o sistema de archivos |
-| Cloud Sync multi-fuente | Día 7 | Dropbox/OneDrive/GDrive; múltiples emuladores |
-| Tracker de partidas | Día 10 | `last_played_at` + sección "Últimas partidas" |
-| Estado de completado | Día 10 | `play_status` en BD + dropdown + filtro |
-| Grid view con carátulas | Día 12 | Toggle tabla/mosaico; persistido en localStorage |
-| Estructura ES-DE | Día 11-14 | Crear carpetas + organizar ROMs/saves/BIOS |
-| Validación de config | S17 | `AppConfig.validate()` + warnings en Settings |
-| Scanner incremental | Día 5 | mtime + `prune_stale_entries` |
-| Renombrador atómico | Día 3 | `rename_rom_with_saves()` con rollback |
-| CHD converter | Día 3 | cue→chd vía chdman |
-| Scraper + gamelists | Día 8-9 | ScreenScraper + gamelist.xml ES-DE + Pegasus |
-| RetroAchievements | Día 4 | Cross-ref MD5 + caché 1 semana |
-| Duplicados (fix) | Día 11 | Rutas normalizadas; UI recarga tras borrar |
-| UI/UX español | Día 11-12 | Traducción completa; device name genérico; errores accionables |
+| ID | Task | Where |
+|----|------|-------|
+| B-test | Verify `_apply_ra_conflicts`: winner gets renamed, loser goes to `_descartados/` | `handlers/duplicates.py` — see `bugs/duplicados.md` |
+| D2 | rclone handler: route files to `saves_remote` or `states_remote` by extension | `sync/rclone_transport.py` |
+
+---
+
+## Next — Features
+
+| ID | Task | Notes |
+|----|------|-------|
+| B2 | Batch run: add checkboxes per tool, respect logical order, context selector PC/Android | Tools tab |
+| B3 | Library comparator PC vs Android — diff screen + `POST /api/sync-roms` + conflict policy | |
+| P1 | Inbox file watcher — polling 30s → auto-pipeline → toast | |
+| P3 | Disk usage panel per platform — `GET /api/disk-usage` | |
+| P5 | Collection completeness — cross with DATs, % per platform | |
+
+---
+
+## Roadmap App Universal
+
+### Phase 1 — Frictionless first run
+- Auto-detect RetroArch (common paths + Steam + RetroBat)
+- Auto-detect cores from `cores/` folder; warn if missing
+- Generate `es_systems.cfg` from detected cores
+- Auto-detect Android device via ADB on USB connect
+- Folder picker with "Browse" button (Settings fields)
+
+### Phase 2 — DATs without effort
+- Guided DAT download with contextual explanation
+- Clear UI for matching mode (with DAT vs by filename)
+
+### Phase 3 — Sync without config
+- WiFi sync PC ↔ console via SFTP (prereq: Termux guide at `Tareas/guias/Guia-Termux-Anbernic.md`)
+- Auto-sync on connect — detect via ADB, prompt "Sync now?"
+- Sync status always visible in header
+
+### Phase 4 — Non-technical UX
+- Human-readable errors (no stack traces in UI)
+- Contextual help — tooltips and `?` icons per section
+- Responsive UI (works from Android browser)
+- Windows toast notifications on sync complete / inbox detected
+- Rename jargon: "DATs" → "Game database", "SHA1 match" → "Auto-identification"
+
+### Phase 5 — Auth
+- PIN when `host = 0.0.0.0`
+
+### Phase 6 — Distribution
+- PyInstaller executable (`RetroVault.exe`)
+- Windows installer (Inno Setup) — shortcut, Add/Remove Programs, minimal DATs
+- Auto-update via GitHub Releases
+- Decide final name: Retro Vault vs Retro Companion
+
+---
+
+## Hardware validation (requires console or SD card)
+
+| ID | Task |
+|----|------|
+| V1 | SD card auto-sync — configure `anbernic_root`, insert SD, verify banner + log |
+| V2 | Two-database migration — Settings → "Migrate DB" → verify separate PC/Android counts |
+| V3 | Inbox end-to-end — configure `inbox_path`, drop ZIP, verify extraction + rename + move |
+| V4 | RetroAchievements with real API key |
+| V5 | Termux guide on console — prereq for WiFi sync |
+| B1-hw | Android renamer doesn't reduce queue — test with SD inserted |
+
+---
+
+## User actions (no code needed)
+
+| ID | Task |
+|----|------|
+| STRUCT-4 | Configure RetroArch PC: Saving → Savefile Directory → `E:\Carpetas anbernic\saves\` |
+| STRUCT-3 | Update `config.toml`: `local_dir = "E:\\Carpetas anbernic\\saves"` (after STRUCT-4) |
+| ES-1 | Download `genesis_plus_gx` core in RetroArch → Online Updater |
+| ES-2 | Configure Citra (3DS) in EmulationStation |
