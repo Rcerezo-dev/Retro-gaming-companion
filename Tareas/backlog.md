@@ -23,7 +23,7 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | 2c-2 ✅ | Migrate filter helpers | `goToGames`, `onGamesFilter/SearchChange`, `loadFilterOptions`, `toggleFavoritesFilter`, `_refreshTagFilter`, `toggleRowFavorite` |
 | 2c-3 ✅ | Migrate core load/render | `loadGames`, `renderPagination`, `_renderGamesGrid`, `setGamesView`, `setPlayStatus` |
 | 2c-4 ✅ | Migrate game panel | `openGamePanel`, `closeGamePanel`, all `gp*` and `_gp*` functions, `loadSaveBackupsResult` |
-| 2c-5 | Migrate TV mode | `enterTvMode`, `exitTvMode`, `loadTvGrid`, `_renderTvGrid`, `_tvMoveFocus`, `_updateTvInfoBar` |
+| 2c-5 ✅ | Migrate TV mode | `enterTvMode`, `exitTvMode`, `loadTvGrid`, `_renderTvGrid`, `_tvMoveFocus`, `_updateTvInfoBar` |
 | 2c-6 | Wire into `main.js` | import all exports + add to `Object.assign(window, {...})` |
 | 2c-7 | Remove migrated code from `app.js` | Delete all migrated functions + state vars + `_initColPicker()` bottom call |
 | 2d | Create `js/tabs/overview.js` — overview, wizard, heatmap, charts | `static/js/tabs/overview.js` |

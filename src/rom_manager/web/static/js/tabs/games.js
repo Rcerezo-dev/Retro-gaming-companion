@@ -805,3 +805,77 @@ export async function loadGameSyncHistory(sourcePath) {
     }).join('');
   } catch(_) {}
 }
+
+// ── TV Mode ───────────────────────────────────────────────────────────────────
+export async function enterTvMode() {
+  _tvActive = true;
+  showTab('tv');
+  try { await document.documentElement.requestFullscreen(); } catch(_) {}
+  await loadTvGrid('', 0);
+}
+
+export function exitTvMode() {
+  _tvActive = false;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  showTab('collection');
+}
+
+export async function loadTvGrid(platform, offset) {
+  try {
+    const params = new URLSearchParams({ limit: _TV_LIMIT, offset, sort_by: 'canonical_title' });
+    if (platform) params.append('platform', platform);
+    const resp = await fetch(`/api/games?${params}`);
+    const data = await resp.json();
+    const games = data.games || [];
+    if (offset === 0) {
+      _tvGames = games;
+    } else {
+      _tvGames.push(...games);
+    }
+    _tvPlatform = platform;
+    _tvOffset = offset;
+    _renderTvGrid(games, offset > 0);
+  } catch(e) { console.error('loadTvGrid failed:', e); }
+}
+
+function _renderTvGrid(games, append) {
+  const gridEl = document.getElementById('tv-grid');
+  if (!gridEl) return;
+  if (!append) gridEl.innerHTML = '';
+  games.forEach((g, idx) => {
+    const tile = document.createElement('div');
+    tile.className = 'tv-tile';
+    tile.setAttribute('data-tv-idx', _tvOffset + idx);
+    tile.innerHTML = `
+      <div class="tv-cover skeleton">
+        <img src="/api/asset-image?game_id=${g.id}" alt="${g.canonical_title || ''}"
+          onload="this.parentElement.classList.remove('skeleton')"
+          onerror="this.parentElement.classList.remove('skeleton');this.parentElement.innerHTML='<span>🎮</span>'">
+      </div>
+      <div class="tv-label">${_h(g.canonical_title || g.original_filename)}</div>
+      <div class="tv-plat">${_h(g.platform || '')}</div>
+    `;
+    tile.addEventListener('click', () => {
+      _tvMoveFocus(_tvOffset + idx);
+      openGamePanel(g);
+    });
+    gridEl.appendChild(tile);
+  });
+  _tvCols = Math.max(1, Math.round(gridEl.offsetWidth / 196));
+  if (_tvGames.length > 0) _tvMoveFocus(0);
+}
+
+export function _tvMoveFocus(idx) {
+  document.querySelector('.tv-tile.tv-focused')?.classList.remove('tv-focused');
+  _tvFocusIdx = Math.max(0, Math.min(idx, _tvGames.length - 1));
+  const tile = document.querySelector(`.tv-tile[data-tv-idx="${_tvFocusIdx}"]`);
+  if (tile) { tile.classList.add('tv-focused'); tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  if (_tvGames[_tvFocusIdx]) _updateTvInfoBar(_tvGames[_tvFocusIdx]);
+}
+
+function _updateTvInfoBar(g) {
+  document.getElementById('tv-info-title').textContent = g.canonical_title || '';
+  document.getElementById('tv-info-platform').textContent = g.platform || '';
+  const statusEl = document.getElementById('tv-info-status');
+  if (statusEl) statusEl.textContent = g.play_status || '';
+}
