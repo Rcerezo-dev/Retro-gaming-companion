@@ -55,17 +55,23 @@ def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[
 
 def sync_saves(
     saves_dir: Path,
-    remote_root: str,
+    saves_remote: str,
     *,
     transport: RcloneTransport,
     repository: LibraryRepository,
     save_extensions: tuple[str, ...],
+    state_extensions: tuple[str, ...] = (),
+    states_remote: str | None = None,
     dry_run: bool = True,
     backup_root: Path | None = None,
     backup_keep_n: int = 5,
     delta_cache: DeltaCache | None = None,
 ) -> tuple[SyncResult, list[SyncDecision]]:
-    """Synchronise local *saves_dir* with *remote_root* using rclone.
+    """Synchronise local *saves_dir* with *saves_remote* and *states_remote* using rclone.
+
+    Files are routed to the correct remote based on extension:
+    - state_extensions → states_remote
+    - save_extensions → saves_remote
 
     Returns a SyncResult and the full list of decisions (for status display).
     """
@@ -77,9 +83,21 @@ def sync_saves(
         s.relative: s for s in list_local_saves(saves_dir, save_extensions)
     }
     try:
-        remote_entries: dict[str, RemoteEntry] = {
-            e.relative: e for e in transport.list_remote(remote_root)
-        }
+        # List from both remotes (combine results)
+        remote_entries: dict[str, RemoteEntry] = {}
+        try:
+            remote_entries.update({
+                e.relative: e for e in transport.list_remote(saves_remote)
+            })
+        except RcloneError:
+            pass  # saves_remote may be empty or unavailable
+        if states_remote:
+            try:
+                remote_entries.update({
+                    e.relative: e for e in transport.list_remote(states_remote)
+                })
+            except RcloneError:
+                pass  # states_remote may be empty or unavailable
     except RcloneError as exc:
         raise
 
@@ -93,7 +111,7 @@ def sync_saves(
             remote = remote_entries.get(relative)
 
             local_path = saves_dir / Path(relative)
-            remote_path = f"{remote_root.rstrip('/')}/{relative}"
+            # remote_path is now determined by routing logic in upload/download
 
             last_sync = get_last_sync(conn, str(local_path))
 
@@ -132,7 +150,16 @@ def sync_saves(
             # --- Apply ---
             if decision.action == "upload":
                 try:
-                    transport.upload(local_path, remote_root, relative)
+                    transport.upload(
+                        local_path,
+                        relative,
+                        saves_remote=saves_remote,
+                        states_remote=states_remote,
+                        save_extensions=save_extensions,
+                        state_extensions=state_extensions,
+                    )
+                    # Construct remote_path for logging (routing already determined in upload)
+                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -169,7 +196,16 @@ def sync_saves(
                             backup_save(local_path, backup_root, keep_n=backup_keep_n)
                         except Exception:
                             pass  # backup failure must never block sync
-                    transport.download(remote_root, relative, local_path)
+                    transport.download(
+                        relative,
+                        local_path,
+                        saves_remote=saves_remote,
+                        states_remote=states_remote,
+                        save_extensions=save_extensions,
+                        state_extensions=state_extensions,
+                    )
+                    # Construct remote_path for logging (routing already determined in download)
+                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -211,9 +247,25 @@ def sync_saves(
 
                 try:
                     # Keep remote copy with backup name.
-                    transport.download(remote_root, relative, local_path.parent / (local_path.name + backup_suffix))
+                    transport.download(
+                        relative,
+                        local_path.parent / (local_path.name + backup_suffix),
+                        saves_remote=saves_remote,
+                        states_remote=states_remote,
+                        save_extensions=save_extensions,
+                        state_extensions=state_extensions,
+                    )
                     # Upload current local as the winner.
-                    transport.upload(local_path, remote_root, relative)
+                    transport.upload(
+                        local_path,
+                        relative,
+                        saves_remote=saves_remote,
+                        states_remote=states_remote,
+                        save_extensions=save_extensions,
+                        state_extensions=state_extensions,
+                    )
+                    # Construct remote_path for logging
+                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),

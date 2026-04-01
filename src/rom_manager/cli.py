@@ -435,12 +435,17 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from rom_manager.sync.delta_cache import DeltaCache
             _delta = DeltaCache(config.data_dir) if not dry_run else None
+            # Use dual remotes if configured, otherwise fall back to single remote
+            saves_remote_to_use = config.saves_remote or remote
+            states_remote_to_use = config.states_remote or None
             result, decisions = sync_saves(
                 saves_dir,
-                remote,
+                saves_remote=saves_remote_to_use,
                 transport=transport,
                 repository=repository,
                 save_extensions=config.save_extensions,
+                state_extensions=config.state_extensions,
+                states_remote=states_remote_to_use,
                 dry_run=dry_run,
                 delta_cache=_delta,
             )
@@ -808,10 +813,12 @@ def main(argv: list[str] | None = None) -> int:
                 _delta = DeltaCache(config.data_dir) if not dry_run else None
                 result, decisions = sync_saves(
                     saves_dir,
-                    source.remote,
+                    saves_remote=source.remote,
                     transport=transport,
                     repository=repository,
                     save_extensions=exts,
+                    state_extensions=config.state_extensions if not source.sync_all else tuple(),
+                    states_remote=None,
                     dry_run=dry_run,
                     delta_cache=_delta,
                 )

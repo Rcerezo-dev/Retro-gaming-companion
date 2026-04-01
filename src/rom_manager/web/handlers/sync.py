@@ -323,10 +323,13 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                     from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
                     _delta  = _DeltaCache(config.data_dir) if not dry_run else None
                     result, decisions = sync_saves(
-                        saves_dir, source.remote,
+                        saves_dir,
+                        saves_remote=source.remote,
                         transport=transport,
                         repository=repository,
                         save_extensions=exts,
+                        state_extensions=config.state_extensions if not source.sync_all else tuple(),
+                        states_remote=None,
                         dry_run=dry_run,
                         backup_root=_bk_root,
                         backup_keep_n=config.backup_saves_keep_n,
@@ -386,11 +389,18 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                 try:
                     from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
                     _delta = _DeltaCache(config.data_dir) if not dry_run else None
+                    # D2: For implicit saves/states sync, determine routing based on what type we're syncing
+                    _is_states = "States" in _name
+                    _saves_remote = _remote if not _is_states else None
+                    _states_remote = _remote if _is_states else None
                     result, decisions = sync_saves(
-                        _dir, _remote,
+                        _dir,
+                        saves_remote=_saves_remote or _remote,
                         transport=transport,
                         repository=repository,
                         save_extensions=_exts,
+                        state_extensions=_exts if _is_states else tuple(),
+                        states_remote=_states_remote,
                         dry_run=dry_run,
                         backup_root=_bk_root,
                         backup_keep_n=config.backup_saves_keep_n,

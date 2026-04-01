@@ -1369,10 +1369,13 @@ def serve(
                             continue
                         try:
                             sync_saves(
-                                saves_dir, src.remote,
+                                saves_dir,
+                                saves_remote=src.remote,
                                 transport=transport,
                                 repository=repository,
                                 save_extensions=config.save_extensions,
+                                state_extensions=config.state_extensions,
+                                states_remote=None,
                                 dry_run=False,
                             )
                         except Exception:
@@ -1387,11 +1390,16 @@ def serve(
                         if not _dir.exists():
                             continue
                         try:
+                            # D2: implicit tray sync with dual remotes
+                            _is_states_tray = _exts == config.state_extensions
                             sync_saves(
-                                _dir, _remote,
+                                _dir,
+                                saves_remote=_remote if not _is_states_tray else None,
                                 transport=transport,
                                 repository=repository,
                                 save_extensions=_exts,
+                                state_extensions=_exts if _is_states_tray else tuple(),
+                                states_remote=_remote if _is_states_tray else None,
                                 dry_run=False,
                             )
                         except Exception:
