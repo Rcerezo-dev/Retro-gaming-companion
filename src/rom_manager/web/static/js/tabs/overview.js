@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { gamesState } from './games.js';
 
 // ── Local helpers (duplicated for module scope) ───────────────────────────────
 const _h = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -324,5 +325,352 @@ export async function _renderMonthlyChart() {
     });
   } catch(err) {
     console.error('Monthly chart error:', err);
+  }
+}
+
+// ── Additional local helpers (duplicated for module scope) ────────────────────
+const _txtCls = (el, cls) => {
+  if (!el) return;
+  el.classList.remove('txt-err', 'txt-ok', 'txt-warn', 'txt-muted', 'txt-dim', 'txt-fav');
+  if (cls) el.classList.add(cls);
+};
+
+function fmtSize(n) {
+  const units = ['B','KB','MB','GB','TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return n.toFixed(1) + ' ' + units[i];
+}
+
+const _PLAT_HEX = {
+  gba: '#4ec9b0', snes: '#569cd6', nes: '#f44747', gb: '#dcdcaa',
+  gbc: '#d7ba7d', nds: '#c586c0', '3ds': '#9cdcfe', n64: '#4ec9b0',
+  psx: '#9cdcfe', ps2: '#569cd6', psp: '#79c0ff',
+  genesis: '#ce9178', md: '#ce9178', sms: '#6a9955', gg: '#4ec9b0',
+};
+function _platHex(plat) {
+  const cls = _PLAT_CLASS[(plat||'').toLowerCase()] || 'other';
+  return _PLAT_HEX[cls] || '#555';
+}
+
+// ── Overview load ─────────────────────────────────────────────────────────────
+export async function loadOverview() {
+  try {
+    const _t = Date.now();
+    const cfg = await apiFetch('/api/config?t=' + _t);
+
+    // Apply device name to all labels
+    _applyDeviceName(cfg.device_name || 'Consola Android');
+
+    // Populate path inputs (only if empty)
+    const pcInput = document.getElementById('ov-pc-path');
+    const abInput = document.getElementById('ov-ab-path');
+    const pcPath  = pcInput?.value.trim() || cfg.library_root || '';
+    const abStored = cfg.anbernic_root || localStorage.getItem('anbernic_path') || '';
+    const abAdbPath = localStorage.getItem('anbernic_adb_path') || '';
+    const abPath   = abInput?.value.trim() || abStored || abAdbPath;
+    if (pcInput && !pcInput.value) pcInput.value = pcPath;
+    if (abInput && !abInput.value) abInput.value = abPath;
+
+    // Update path labels in stats columns
+    const pcLbl = document.getElementById('ov-pc-path-label');
+    const abLbl = document.getElementById('ov-ab-path-label');
+    if (pcLbl) pcLbl.textContent = pcPath ? '— ' + pcPath : '';
+    if (abLbl) abLbl.textContent = abPath ? '— ' + abPath : '';
+
+    // Update scan checkboxes
+    const pcLabel = document.getElementById('scan-pc-label');
+    const abLabel = document.getElementById('scan-ab-label');
+    const abCb    = document.getElementById('scan-include-ab');
+    if (pcLabel) pcLabel.textContent = pcPath || '(configura la ruta arriba)';
+    if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
+    if (abCb) { abCb.disabled = !abPath; if (abPath && !abCb.checked) abCb.checked = true; }
+
+    // Enable/disable Anbernic device button
+    const devAb = document.getElementById('dev-anbernic');
+    if (devAb) devAb.disabled = !abPath;
+
+    // Config summary
+    const cfgEl = document.getElementById('ov-config-summary');
+    if (cfgEl) {
+      cfgEl.innerHTML = `<div class="config-grid" style="max-width:560px">
+        <span class="cfg-key">library_root</span>
+        <span class="cfg-val ${cfg.library_root ? '' : 'missing'}">${cfg.library_root || '(not set — configura en Settings)'}</span>
+        <span class="cfg-key">rclone remote</span>
+        <span class="cfg-val ${cfg.rclone_remote ? '' : 'missing'}">${cfg.rclone_remote || '(not set)'}</span>
+        <span class="cfg-key">ScreenScraper</span>
+        <span class="cfg-val ${cfg.screenscraper_user ? '' : 'missing'}">${cfg.screenscraper_user || '(not set)'}</span>
+        <span class="cfg-key">web</span>
+        <span class="cfg-val">${cfg.web_host}:${cfg.web_port}</span>
+      </div>`;
+    }
+
+    // Fetch PC stats (filter by library_root)
+    const pcCardsEl = document.getElementById('ov-pc-cards');
+    try {
+      const pcParam = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + _t;
+      const d = await apiFetch('/api/status' + pcParam);
+      const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
+      if (pcCardsEl) pcCardsEl.innerHTML =
+        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''), '', d.total_games > 0 ? [{label:'Ver juegos', fn:()=>showTab('games')}] : null)          +
+        card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'), 'blue')    +
+        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'), 'orange', d.unmatched_games > 0 ? [{label:'Identificar →', fn:()=>showTab('plan')}] : null)  +
+        card('Saves',      d.total_saves,      null, d.total_saves > 0 ? () => goToGames(pcPath, '', 'save') : null, 'purple')      +
+        card('Assets',     d.total_assets,     null, d.total_assets > 0 ? () => { showTab('assets'); } : null)     +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Ver', fn:()=>showTab('duplicates')}] : null) +
+        card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
+      // UI-2: populate dashboard bar
+      const dsGames     = document.getElementById('ds-games');
+      const dsPlatforms = document.getElementById('ds-platforms');
+      const dsSync      = document.getElementById('ds-sync');
+      const dsHealth    = document.getElementById('ds-health');
+      if (dsGames)     dsGames.textContent     = d.total_games.toLocaleString();
+      if (dsPlatforms) dsPlatforms.textContent = d.total_platforms || '—';
+      if (dsSync) {
+        dsSync.textContent = d.last_sync_at ? _relTime(d.last_sync_at) : 'nunca';
+        dsSync.title = d.last_sync_at ? d.last_sync_at.replace('T',' ').slice(0,16) : '';
+      }
+      if (dsHealth) {
+        const h = d.health || {};
+        if (h.last_ok !== undefined) {
+          const problems = (h.last_corrupted || 0) + (h.last_missing || 0);
+          if (problems === 0) {
+            dsHealth.innerHTML = `<span style="color:var(--accent-grn)">${h.last_ok.toLocaleString()} OK ✓</span>`;
+          } else {
+            dsHealth.innerHTML = `<span style="color:var(--fg)">${h.last_ok.toLocaleString()} OK</span> <span style="color:var(--accent-red);margin-left:4px">${problems} ⚠</span>`;
+          }
+        } else {
+          dsHealth.innerHTML = '<span style="color:var(--fg-4)">sin datos</span>';
+        }
+      }
+      // Auto-collapse guide when library already has data
+      const guide = document.getElementById('ov-guide');
+      if (guide && d.total_games > 0 && localStorage.getItem('guide_closed') !== '0') {
+        guide.removeAttribute('open');
+      } else if (guide && d.total_games === 0) {
+        guide.setAttribute('open', '');
+      }
+      // D8-P1: setup banner + auto-show wizard on first run
+      const setupBanner = document.getElementById('ov-setup-banner');
+      if (setupBanner) {
+        if (d.first_run || !d.setup_complete) {
+          setupBanner.classList.remove('hidden');
+          const cl = d.setup_checklist || {};
+          const chk = (ok, label, hint) =>
+            '<div>' + (ok ? '<span style="color:#4ec9b0">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
+            ' <span style="color:' + (ok ? '#d4d4d4' : '#888') + '">' + label + '</span>' +
+            (hint && !ok ? ' <span style="color:#555;font-size:11px">— ' + hint + '</span>' : '') + '</div>';
+          const clEl = document.getElementById('ov-setup-checklist');
+          if (clEl) clEl.innerHTML =
+            chk(cl.library_root_set, 'Carpeta configurada', 'Configura en Settings') +
+            chk(cl.scanned, 'Biblioteca escaneada', 'Lanza el asistente') +
+            chk(cl.catalogs_loaded, 'Catalogos DAT cargados', 'Copia .dat/.xml a .rommgr/catalogs/nointro/') +
+            chk(cl.matched, 'Juegos identificados', 'Ejecuta Match catalogo');
+        } else {
+          setupBanner.classList.add('hidden');
+        }
+      }
+      // Auto-show wizard only on first page load if first_run
+      if (d.first_run && !localStorage.getItem('wizard_dismissed')) {
+        showWizard(pcPath || cfg.library_root || '', cfg.anbernic_root || '');
+      }
+    } catch(e) {
+      if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
+    }
+
+    // Fetch Anbernic stats (if path configured)
+    const abCardsEl  = document.getElementById('ov-ab-cards');
+    const abDot      = document.getElementById('ov-ab-dot');
+    const abStaleBadge = document.getElementById('ov-ab-stale-badge');
+    const abScanBtn    = document.getElementById('ov-ab-scan-btn');
+    if (abPath && abCardsEl) {
+      try {
+        const ab = await apiFetch('/api/status?root=' + encodeURIComponent(abPath) + '&t=' + _t);
+        const abMatchPct = ab.total_games > 0 ? Math.round(ab.matched_games / ab.total_games * 100) : 0;
+        if (abDot) _txtCls(abDot, ab.total_games > 0 ? 'txt-ok' : 'txt-dim');
+        if (abStaleBadge) abStaleBadge.classList.toggle('hidden', !(ab.stale));
+        if (abScanBtn)    abScanBtn.classList.toggle('hidden', !((ab.stale || ab.total_games === 0)));
+        const lastScans = ab.last_scans_by_root || {};
+        const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
+        if (ab.total_games === 0) {
+          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de <em>${_devName}</em> en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
+        } else {
+          const lastScanStr = abLastScan ? abLastScan.replace('T',' ').slice(0,16) : 'nunca';
+          const daysAgo = ab.scan_days_ago !== null && ab.scan_days_ago !== undefined ? ab.scan_days_ago : null;
+          const scanSub = daysAgo !== null ? 'hace ' + daysAgo + ' día' + (daysAgo !== 1 ? 's' : '') : 'nunca';
+          if (abCardsEl) abCardsEl.innerHTML =
+            card('Games',      ab.total_games,    null, () => goToGames(abPath, ''), '')          +
+            card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'), 'blue')  +
+            card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'), 'orange')  +
+            card('Saves',      ab.total_saves,     null, ab.total_saves > 0 ? () => goToGames(abPath, '', 'save') : null, 'purple')     +
+            card('Assets',     ab.total_assets,   null, ab.total_assets > 0 ? () => { showTab('assets'); } : null)   +
+            card('Último scan', lastScanStr, scanSub);
+        }
+      } catch(e) {
+        if (abCardsEl) abCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
+      }
+    } else if (!abPath && abCardsEl) {
+      abCardsEl.innerHTML = '<p style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
+      if (abStaleBadge) abStaleBadge.classList.add('hidden');
+      if (abScanBtn)    abScanBtn.classList.add('hidden');
+    }
+
+    // Recently played (hero card + horizontal scroll)
+    const recentEl     = document.getElementById('ov-recently-played');
+    const heroEl       = document.getElementById('ov-hero-game');
+    const contSection  = document.getElementById('ov-continue-section');
+    const contScroll   = document.getElementById('ov-continue-scroll');
+    try {
+      const pcParam2 = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + (_t+2);
+      const dRecent = await apiFetch('/api/status' + pcParam2);
+      if (dRecent.recently_played && dRecent.recently_played.length > 0) {
+        const games = dRecent.recently_played;
+        const last = games[0];
+        if (heroEl) {
+          heroEl.classList.remove('hidden');
+          heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${JSON.stringify(last).replace(/</g,'\\u003c')})">
+            <img src="/api/asset-image?game_id=${last.id}" onerror="this.classList.add('hidden')" alt="">
+            <div class="hg-body">
+              <div class="hg-label">Continuar jugando</div>
+              <div class="hg-title">${_h(last.canonical_title || last.original_filename)}</div>
+              <div class="hg-meta">${_platBadge(last.platform)} · ${_relTime(last.last_played_at)}</div>
+            </div>
+          </div>`;
+        }
+        if (contScroll && contSection) {
+          contSection.classList.remove('hidden');
+          contScroll.innerHTML = games.slice(0, 6).map(g => {
+            const gj = JSON.stringify(g).replace(/</g,'\\u003c');
+            return `<div class="continue-card" onclick="openGamePanel(${gj})" title="${_h(g.canonical_title||g.original_filename)}">
+              <div class="cc-cover">
+                <img src="/api/asset-image?game_id=${g.id}" onerror="this.parentElement.innerHTML='&#127918;'" alt="">
+              </div>
+              <div class="cc-info">
+                <div class="cc-title">${_h(g.canonical_title||g.original_filename)}</div>
+                <div class="cc-plat">${_h(g.platform||'')} · ${_relTime(g.last_played_at)}</div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+        if (recentEl) recentEl.innerHTML = games.map(g => {
+          const title = g.canonical_title || g.original_filename;
+          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #1e1e2e;font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
+            <span>${_platBadge(g.platform)} <span style="color:#d4d4d4">${_h(title)}</span></span>
+            <span style="color:#555">${_relTime(g.last_played_at)}</span>
+          </div>`;
+        }).join('');
+      } else {
+        if (heroEl) heroEl.classList.add('hidden');
+        if (contSection) contSection.classList.add('hidden');
+        if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">Juega un rato y vuelve aquí.</p>';
+      }
+    } catch(_) {
+      if (heroEl) heroEl.classList.add('hidden');
+      if (contSection) contSection.classList.add('hidden');
+      if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">—</p>';
+    }
+
+    // Platform breakdown chart
+    const chartEl = document.getElementById('ov-platform-chart');
+    if (chartEl && pcPath) {
+      try {
+        const ps = await apiFetch('/api/platform-stats?root=' + encodeURIComponent(pcPath));
+        if (ps.platforms && ps.platforms.length > 0) {
+          const maxCount = ps.platforms[0].count;
+          chartEl.innerHTML = ps.platforms.slice(0, 15).map(p => {
+            const pct = Math.round(p.count / maxCount * 100);
+            return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px">
+              <span style="width:110px;color:#888;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(p.platform)}">${_h(p.platform)}</span>
+              <div style="flex:1;background:#1e1e2e;border-radius:2px;height:14px">
+                <div style="width:${pct}%;background:#569cd6;height:14px;border-radius:2px;transition:width 0.3s"></div>
+              </div>
+              <span style="width:40px;color:#d4d4d4;font-size:11px">${p.count}</span>
+            </div>`;
+          }).join('');
+        } else {
+          chartEl.innerHTML = '<p style="color:#555;font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
+        }
+      } catch(_) { /* silent */ }
+    }
+
+    // Show report available notice
+    try {
+      const pcStatusForReport = await apiFetch('/api/status' + (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&t=' + (_t+1) : ('?t=' + (_t+1))));
+      const reportNoticeEl = document.getElementById('ov-report-notice');
+      if (reportNoticeEl) {
+        if (pcStatusForReport.last_report_at && pcStatusForReport.last_report_mins_ago !== null) {
+          const mins = pcStatusForReport.last_report_mins_ago;
+          const timeStr = mins < 60 ? ('hace ' + mins + ' min') : ('hace ' + Math.round(mins/60) + 'h');
+          reportNoticeEl.classList.remove('hidden');
+          reportNoticeEl.innerHTML = '<span style="color:#dcdcaa;font-size:12px">&#x1F4CA; Informe disponible — generado ' + timeStr + '</span> '
+            + '<a href="/api/report/html' + (pcPath ? '?path=' + encodeURIComponent(pcPath) : '') + '" target="_blank" class="btn" style="padding:2px 8px;font-size:11px;margin-left:8px">Ver informe</a>';
+        } else {
+          reportNoticeEl.classList.add('hidden');
+        }
+      }
+    } catch(_) {}
+
+    // Render platform grid
+    if (pcPath) {
+      try { _renderPlatformGrid(pcPath); } catch(_) { /* silent */ }
+    }
+
+    // Render activity heatmap
+    try { _renderActivityHeatmap(); } catch(e) { console.error('Heatmap error:', e); }
+
+    // Render monthly analysis chart
+    try { _renderMonthlyChart(); } catch(e) { console.error('Monthly chart error:', e); }
+
+    // Load game suggestion
+    try { _loadNewGameSuggestion(); } catch(e) { console.error('Game suggestion error:', e); }
+
+  } catch(e) {
+    const pcCardsEl = document.getElementById('ov-pc-cards');
+    if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+// ── Platform grid ─────────────────────────────────────────────────────────────
+export async function _renderPlatformGrid(pcPath) {
+  const gridEl = document.getElementById('ov-platform-grid');
+  if (!gridEl) return;
+
+  try {
+    const ps = await apiFetch('/api/platform-stats?root=' + encodeURIComponent(pcPath));
+    if (!ps.platforms || ps.platforms.length === 0) {
+      gridEl.innerHTML = '<p style="color:#555;font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
+      return;
+    }
+
+    const maxCount = Math.max(...ps.platforms.map(p => p.count));
+
+    gridEl.innerHTML = ps.platforms.slice(0, 12).map((p, idx) => {
+      const logo = _getPlatformLogo(p.platform);
+      const size = Math.max(40, Math.round(p.count / maxCount * 100));
+      const platName = _h(p.platform || '?');
+      return `<div class="platform-tile" data-idx="${idx}"
+        style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px;background:#1e1e2e;border:1px solid #2a2a3a;border-radius:6px;cursor:pointer;transition:all 0.2s;text-align:center"
+        onmouseover="this.style.background='#252535';this.style.borderColor='#3a3a5c'"
+        onmouseout="this.style.background='#1e1e2e';this.style.borderColor='#2a2a3a'">
+        <div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">${logo}</div>
+        <div style="font-size:11px;font-weight:600;color:#d4d4d4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%" title="${platName}">${platName}</div>
+        <div style="font-size:10px;color:#888">${p.count} game${p.count !== 1 ? 's' : ''}</div>
+      </div>`;
+    }).join('');
+
+    ps.platforms.slice(0, 12).forEach((p, idx) => {
+      const tile = gridEl.querySelector(`[data-idx="${idx}"]`);
+      if (tile) {
+        tile.addEventListener('click', () => {
+          gamesState.root = pcPath;
+          gamesState.status = '';
+          gamesState.platform = p.platform || '';
+          gamesState.filetype = '';
+          showTab('games');
+        });
+      }
+    });
+  } catch(_) {
+    gridEl.innerHTML = '<p style="color:#555;font-size:12px">Error al cargar plataformas.</p>';
   }
 }
