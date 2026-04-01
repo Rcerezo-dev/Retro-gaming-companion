@@ -674,3 +674,151 @@ export async function _renderPlatformGrid(pcPath) {
     gridEl.innerHTML = '<p style="color:#555;font-size:12px">Error al cargar plataformas.</p>';
   }
 }
+
+// ── Setup Wizard ──────────────────────────────────────────────────────────────
+let _wizardPollingTimer = null;
+
+export function showWizard(prefillPcPath, prefillAndroidPath) {
+  const modal = document.getElementById('wizard-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  document.getElementById('wizard-page-1').classList.remove('hidden');
+  document.getElementById('wizard-page-2').classList.add('hidden');
+  document.getElementById('wizard-page-3').classList.add('hidden');
+  const pcInp = document.getElementById('wiz-library-root');
+  if (pcInp && !pcInp.value && prefillPcPath) pcInp.value = prefillPcPath;
+  const andInp = document.getElementById('wiz-android-root');
+  if (andInp && !andInp.value && prefillAndroidPath) andInp.value = prefillAndroidPath;
+}
+
+export function closeWizard() {
+  const modal = document.getElementById('wizard-modal');
+  if (modal) modal.classList.add('hidden');
+  localStorage.setItem('wizard_dismissed', '1');
+  if (_wizardPollingTimer) { clearInterval(_wizardPollingTimer); _wizardPollingTimer = null; }
+}
+
+export async function wizardAutoDetect() {
+  const btn = document.getElementById('wiz-detect-btn');
+  const msg = document.getElementById('wiz-detect-msg');
+  if (btn) { btn.disabled = true; btn.textContent = 'Detectando\u2026'; }
+  if (msg) { msg.classList.add('hidden'); }
+  try {
+    const d = await apiFetch('/api/wizard-detect');
+    const lines = [];
+    const pcInp = document.getElementById('wiz-library-root');
+    if (pcInp && !pcInp.value && d.library_root_suggestion) {
+      pcInp.value = d.library_root_suggestion;
+      lines.push('\u2705 Carpeta PC detectada: <strong>' + d.library_root_suggestion + '</strong>');
+    } else if (!d.library_root_suggestion) {
+      lines.push('\u26A0\uFE0F No se encontr\u00F3 RetroArch en rutas habituales. Introduce la carpeta manualmente.');
+    }
+    const andInp = document.getElementById('wiz-android-root');
+    if (andInp && !andInp.value && d.android_suggestion) {
+      andInp.value = d.android_suggestion;
+      lines.push('\u2705 Consola Android conectada: <strong>' + (d.device_display || d.android_suggestion) + '</strong>');
+    } else if (!d.android_suggestion && d.adb_ok) {
+      lines.push('\u{1F4F1} ADB listo pero no hay consola conectada.');
+    }
+    if (msg) {
+      msg.innerHTML = lines.join('<br>') || '\u{1F50D} Detecci\u00F3n completada.';
+      msg.classList.remove('hidden');
+    }
+  } catch(e) {
+    if (msg) { msg.innerHTML = '\u274C Error al detectar: ' + e.message; msg.classList.remove('hidden'); }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#x1F50D; Detectar autom&#xe1;ticamente'; }
+  }
+}
+
+export async function startSetup() {
+  const libRoot     = (document.getElementById('wiz-library-root')?.value || '').trim();
+  const androidRoot = (document.getElementById('wiz-android-root')?.value || '').trim();
+  if (!libRoot) { alert('Introduce la carpeta de biblioteca (PC) primero.'); return; }
+  const cleanJunk   = document.getElementById('wiz-clean-junk')?.checked || false;
+  const extractZips = document.getElementById('wiz-extract-zips')?.checked !== false;
+  const doMatch     = document.getElementById('wiz-match')?.checked !== false;
+
+  document.getElementById('wizard-page-1').classList.add('hidden');
+  document.getElementById('wizard-page-2').classList.remove('hidden');
+  _renderWizSteps(null);
+
+  try {
+    await apiPost('/api/setup-run', {
+      library_root:  libRoot,
+      android_root:  androidRoot,
+      clean_junk:    cleanJunk,
+      extract_zips:  extractZips,
+      scan:          true,
+      match:         doMatch,
+    });
+    startPolling();
+    _wizardPollingTimer = setInterval(_pollSetupProgress, 2000);
+  } catch(e) {
+    document.getElementById('wizard-page-2').classList.add('hidden');
+    document.getElementById('wizard-page-1').classList.remove('hidden');
+    alert('Error al iniciar: ' + e.message + '\n\nConsulta los logs para más detalles.');
+  }
+}
+
+export function _renderWizSteps(progress) {
+  const stepsEl = document.getElementById('wiz-steps');
+  if (!stepsEl) return;
+  const steps = [
+    'Limpiando archivos no relacionados',
+    'Extrayendo ZIPs',
+    'Escaneando biblioteca',
+    'Cruzando con catalogos No-Intro/Redump',
+    'Preparando plan de renombrado',
+  ];
+  const current = progress ? (progress.step_num || 0) : 0;
+  const pct = progress ? (progress.pct || 0) : 0;
+  stepsEl.innerHTML = steps.map((s, i) => {
+    const n = i + 1;
+    let icon, color;
+    if (n < current) { icon = '&#x2705;'; color = '#4ec9b0'; }
+    else if (n === current) { icon = '&#x23F3;'; color = '#c9bcf5'; }
+    else { icon = '&nbsp;&nbsp;&nbsp;'; color = '#444'; }
+    return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:#777;font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
+  }).join('');
+  const bar = document.getElementById('wiz-prog-bar');
+  if (bar) bar.style.width = pct + '%';
+  const fileEl = document.getElementById('wiz-prog-file');
+  if (fileEl) fileEl.textContent = progress ? (progress.current_file || '') : '';
+}
+
+export async function _pollSetupProgress() {
+  try {
+    const s = await apiFetch('/api/setup-status');
+    if (s.setup_progress) _renderWizSteps(s.setup_progress);
+    if (!s.setup_running && s.setup_result) {
+      if (_wizardPollingTimer) { clearInterval(_wizardPollingTimer); _wizardPollingTimer = null; }
+      _showSetupResult(s.setup_result);
+    }
+  } catch(_) {}
+}
+
+export function _showSetupResult(r) {
+  document.getElementById('wizard-page-2').classList.add('hidden');
+  document.getElementById('wizard-page-3').classList.remove('hidden');
+  const el = document.getElementById('wiz-result-stats');
+  if (!el) return;
+  if (r.error) {
+    el.innerHTML = '<span style="color:#f44747">Error: ' + _h(r.error) + '</span><span style="color:#888;font-size:12px;margin-left:8px">— Recarga la página o comprueba que hay ROMs escaneados.</span>';
+    return;
+  }
+  const fmtB = (b) => b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : b >= 1024 ? (b/1024).toFixed(0) + ' KB' : b + ' B';
+  let html = '';
+  html += '<div>&#x2022; <strong>' + (r.games_found || 0) + '</strong> juegos encontrados</div>';
+  html += '<div>&#x2022; <strong>' + (r.games_matched || 0) + '</strong> identificados con nombre canonico</div>';
+  if (r.junk_deleted > 0) html += '<div>&#x2022; <strong>' + r.junk_deleted + '</strong> archivos basura eliminados (' + fmtB(r.junk_freed_bytes || 0) + ' liberados)</div>';
+  if (r.zips_extracted > 0) html += '<div>&#x2022; <strong>' + r.zips_extracted + '</strong> ZIPs extraidos</div>';
+  html += '<div>&#x2022; <strong>' + (r.plan_pending || 0) + '</strong> archivos listos para renombrar</div>';
+  el.innerHTML = html;
+  loadOverview();
+}
+
+export function wizardGoToOrganize() {
+  closeWizard();
+  showTab('plan');
+}

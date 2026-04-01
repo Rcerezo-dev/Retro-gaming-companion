@@ -35,8 +35,8 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | 2d-1 ✅ | Scaffold `overview.js`: imports + small helpers | `_relTime`, `_emptyState`, `card`, `_getPlatformLogo` |
 | 2d-2 ✅ | Migrate heatmap + charts | `_renderActivityHeatmap`, `_getHeatmapColor`, `_handleHeatmapHover`, `_renderMonthlyChart`, `_loadNewGameSuggestion` |
 | 2d-3 ✅ | Migrate overview load + platform grid | `loadOverview`, `_renderPlatformGrid` |
-| 2d-4 | Migrate wizard | `showWizard`, `closeWizard`, `wizardAutoDetect`, `startSetup`, `_renderWizSteps`, `_pollSetupProgress`, `_showSetupResult`, `wizardGoToOrganize` |
-| 2d-5 | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
+| 2d-4 ✅ | Migrate wizard | `showWizard`, `closeWizard`, `wizardAutoDetect`, `startSetup`, `_renderWizSteps`, `_pollSetupProgress`, `_showSetupResult`, `wizardGoToOrganize` |
+| 2d-5 ✅ | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
 | 2d-6 | Remove migrated code from `app.js` | Delete all migrated functions |
 | 2e | Delete `app.js` legacy — only after 2c + 2d done | `static/app.js` |
 

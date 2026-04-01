@@ -89,6 +89,13 @@ import {
   _tvActive, _tvFocusIdx, _tvCols, _tvGames,
 } from './tabs/games.js';
 import {
+  _relTime, _emptyState, card, _getPlatformLogo,
+  _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
+  loadOverview, _renderPlatformGrid,
+  showWizard, closeWizard, wizardAutoDetect, startSetup,
+  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
+} from './tabs/overview.js';
+import {
   loadSync,
   loadAssets,
   loadSystemStatus,
@@ -158,6 +165,12 @@ Object.assign(window, {
   gpScrapeSingle, gpApplyScrape, gpCopyAssetToEsde,
   loadGameSyncHistory,
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
+  // overview.js — overview tab, heatmap, charts, wizard
+  _relTime, _emptyState, card, _getPlatformLogo,
+  _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
+  loadOverview, _renderPlatformGrid,
+  showWizard, closeWizard, wizardAutoDetect, startSetup,
+  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
   // state.js — shared device context
   AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
   showToast,
