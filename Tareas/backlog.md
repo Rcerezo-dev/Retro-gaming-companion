@@ -39,6 +39,14 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | 2d-5 ✅ | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
 | 2d-6 ✅ | Remove migrated code from `app.js` | Delete all migrated functions |
 | 2e | Create `js/tabs/esde.js` — ES-DE status, BIOS checker, RetroArch check | `loadEsdeStatus`, `loadBiosStatus`, `loadRetroArchCheck` |
+
+**2e subtasks:**
+
+| ID | Task | Functions |
+|----|------|-----------|
+| 2e-1 ✅ | Scaffold `esde.js` + migrate all 3 functions | `loadEsdeStatus`, `loadBiosStatus`, `loadRetroArchCheck` |
+| 2e-2 ✅ | Wire into `main.js` | import all exports + `Object.assign(window, {...})` |
+| 2e-3 ✅ | Remove migrated code from `app.js` | Delete all migrated functions |
 | 2f | Create `js/tabs/tools.js` — CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure | `doConvertChd`, `doConvertCso`, `doCleanupZips`, `doCleanupCueBin`, `doExtractZip`, `doGenerateM3U`, `autodetectM3UFolders`, `doVerifyMultidisc`, `doN64Scan`, `doN64Convert`, `doExportLpl`, `createLibraryStructure`, `organizeLibrary` |
 | 2g | Extend `esde.js` — RA check + all RA helpers | `doRaCheck`, `_renderRaResult`, `filterRaByPlatform`, `_raGoToPage`, `discardRaNoSupport`, `_copyText`, `_googleQuery`, `_archiveOrgUrl`, `_openArchiveOrg`, `_copyArchiveOrgLink` |
 | 2h | Extend `esde.js` — health check, platform health, operations timeline | `doHealthCheck`, `_renderHealthResult`, `_healthIssueRow`, `_filterHealthIssues`, `togglePlatformHealth`, `loadPlatformHealth`, `loadOperationsTimeline` |
