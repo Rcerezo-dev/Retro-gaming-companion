@@ -14,6 +14,18 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | ID | Task | File |
 |----|------|------|
 | 2c | Create `js/tabs/games.js` — game list, filters, pagination, game panel, TV mode | `static/js/tabs/games.js` |
+
+**2c subtasks:**
+
+| ID | Task | Functions |
+|----|------|-----------|
+| 2c-1 ✅ | Scaffold `games.js`: imports, state vars, column picker | `_COL_DEFAULTS`, `applyColVisibility`, `_initColPicker` + TV/games state |
+| 2c-2 ✅ | Migrate filter helpers | `goToGames`, `onGamesFilter/SearchChange`, `loadFilterOptions`, `toggleFavoritesFilter`, `_refreshTagFilter`, `toggleRowFavorite` |
+| 2c-3 ✅ | Migrate core load/render | `loadGames`, `renderPagination`, `_renderGamesGrid`, `setGamesView`, `setPlayStatus` |
+| 2c-4 ✅ | Migrate game panel | `openGamePanel`, `closeGamePanel`, all `gp*` and `_gp*` functions, `loadSaveBackupsResult` |
+| 2c-5 | Migrate TV mode | `enterTvMode`, `exitTvMode`, `loadTvGrid`, `_renderTvGrid`, `_tvMoveFocus`, `_updateTvInfoBar` |
+| 2c-6 | Wire into `main.js` | import all exports + add to `Object.assign(window, {...})` |
+| 2c-7 | Remove migrated code from `app.js` | Delete all migrated functions + state vars + `_initColPicker()` bottom call |
 | 2d | Create `js/tabs/overview.js` — overview, wizard, heatmap, charts | `static/js/tabs/overview.js` |
 | 2e | Delete `app.js` legacy — only after 2c + 2d done | `static/app.js` |
 
@@ -37,6 +49,25 @@ Phase 2 status: 2a (state.js) ✅ 2b (esde.js) ✅ — continuing with 2c.
 | P1 | Inbox file watcher — polling 30s → auto-pipeline → toast | |
 | P3 | Disk usage panel per platform — `GET /api/disk-usage` | |
 | P5 | Collection completeness — cross with DATs, % per platform | |
+
+---
+
+## Sync — Android emulator path mapping
+
+Android emulators use fixed paths under `Android/Data/<package>/` (scoped storage, cannot be changed). The app must know these paths and use ADB to pull/push files. Paths confirmed so far:
+
+| Emulator | Package | Saves path | Savestates path |
+|----------|---------|------------|-----------------|
+| DuckStation (PS1) | `com.github.stenzek.duckstation` | `.../files/memcards` | `.../files/savestates` |
+| AetherSX2 / NetherSX2 (PS2) | `xyz.aethersx2.android` | TBD | TBD |
+
+**Tasks:**
+
+| ID | Task | Notes |
+|----|------|-------|
+| SYNC-A1 | Document save/savestate paths for all target emulators | DuckStation ✓ partially, AetherSX2 package name known — paths need verification |
+| SYNC-A2 | Add emulator path mapping table to `config.toml` or hardcode as defaults | Keyed by package name; user can override |
+| SYNC-A3 | Update sync logic to pull/push via ADB using mapped paths instead of assuming a configurable root | Replaces assumption that emulator paths are user-configurable |
 
 ---
 
