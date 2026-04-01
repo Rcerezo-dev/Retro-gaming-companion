@@ -278,29 +278,47 @@ async function deleteRaDuplicate(gameId, sourcePath, btn) {
 
 async function doResolveRaConflicts() {
   const btn = document.getElementById('btn-resolve-ra-conflicts');
-  if (btn) { btn.disabled = true; btn.textContent = 'Resolviendo…'; }
-  try {
-    const d = await apiPost('/api/apply-ra-conflicts', {});
-    if (d.error) {
-      showToast('Error: ' + d.error, 'err');
-    } else {
-      let msg;
-      if (d.no_cache) {
-        msg = 'Sin datos RA en caché — ejecuta primero la comprobación de RetroAchievements en la pestaña Tools';
-      } else if (d.resolved === 0 && d.skipped_no_ra > 0) {
-        msg = d.skipped_no_ra + ' conflictos sin datos RA (versión no reconocida por RA o plataforma sin soporte) — no hay acción posible';
-      } else {
-        msg = 'RA resuelto: ' + d.resolved + ' conflictos' + (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : '');
+
+  // Show warning about RA checker taking time
+  _showConfirm(
+    'Resolver conflictos con RetroAchievements',
+    '⏱️ <strong>Atención:</strong> El sistema ejecutará primero la comprobación de RetroAchievements si no existe caché.<br><br>Esto puede tomar <strong>varios minutos</strong> dependiendo de tu biblioteca.<br><br>¿Continuar?',
+    'Resolver',
+    async () => {
+      if (btn) { btn.disabled = true; btn.textContent = 'Resolviendo…'; }
+      try {
+        // First check if cache exists
+        const d = await apiPost('/api/apply-ra-conflicts', {});
+        if (d.error) {
+          showToast('Error: ' + d.error, 'err');
+        } else {
+          let msg;
+          if (d.no_cache) {
+            msg = '⏳ Sin caché RA — iniciando comprobación de RetroAchievements (puede tomar varios minutos)…';
+            showToast(msg, 'info');
+            // Run RA check first
+            if (typeof window.doRaCheck === 'function') {
+              await window.doRaCheck();
+              // Wait briefly for RA check to complete, then reapply conflicts
+              showToast('RA check iniciado. Una vez complete, los conflictos se resolverán automáticamente.', 'info');
+            }
+          } else if (d.resolved === 0 && d.skipped_no_ra > 0) {
+            msg = d.skipped_no_ra + ' conflictos sin datos RA (versión no reconocida por RA o plataforma sin soporte)';
+            showToast(msg, 'info');
+          } else {
+            msg = '✓ RA resuelto: ' + d.resolved + ' conflictos' + (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : '');
+            showToast(msg, d.resolved > 0 ? 'ok' : 'info');
+            await window.loadPlan();
+            window.loadOverview();
+          }
+        }
+      } catch(e) {
+        showToast('Error: ' + e.message, 'err');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Resolver por RA'; }
       }
-      showToast(msg, d.resolved > 0 ? 'ok' : 'info');
-      await window.loadPlan();
-      window.loadOverview();
     }
-  } catch(e) {
-    showToast('Error: ' + e.message, 'err');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+  );
 }
 
 async function discardAllRaDuplicates() {

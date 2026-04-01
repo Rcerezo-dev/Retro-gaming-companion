@@ -165,7 +165,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
 
     Handles both conflict types:
     - "disk":      source wants target path already occupied by a different file.
-                   Compare source vs target RA; discard the loser.
+                   Compare source vs target RA; discard the loser, rename winner to target.
     - "collision": two pending ops share the same target path (two ROMs → same canonical name).
                    Group by target, compare all sources' RA; discard all but the winner.
     """
@@ -175,6 +175,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
     import json as _json
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
     from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
+    from rom_manager.renamer.file_renamer import rename_rom_with_saves
 
     opts = FormatOptions()
     plan = build_plan(repository, opts)
@@ -251,9 +252,33 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
             continue
 
         # Lower RA (or unknown) is the loser; equal → discard source (keep existing)
-        loser_path = op.target_path if tgt_ra < src_ra else op.source_path
+        if tgt_ra < src_ra:
+            # Target is loser; discard it and rename source to target
+            loser_path = op.target_path
+            winner_path = op.source_path
+            winner_target = op.target_path
+        else:
+            # Source is loser; discard it (target stays in place)
+            loser_path = op.source_path
+            winner_path = None
+            winner_target = None
+
         try:
             _discard(loser_path)
+            if winner_path and winner_target and winner_path.exists():
+                # Rename winner to canonical target path
+                save_exts = (config.save_extensions or "").split(",") if config.save_extensions else []
+                outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
+                if not outcome.success:
+                    errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
+                else:
+                    # Update DB with new path
+                    with repository.connect() as _c:
+                        _c.execute(
+                            "UPDATE games SET source_path = ? WHERE source_path = ?",
+                            (str(winner_target), str(winner_path))
+                        )
+                        _c.commit()
             resolved += 1
         except Exception as exc:
             errors.append(f"{loser_path.name}: {exc}")
@@ -282,18 +307,36 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
 
         # Highest RA wins; ties keep the first candidate (stable sort)
         scored.sort(key=lambda x: x[1], reverse=True)
-        winner_ra = scored[0][1]
+        winner_op, winner_ra = scored[0]
         if winner_ra <= 0:
             skipped_no_ra += 1
             continue
 
-        # Discard all non-winners
+        # Discard all non-winners and rename winner to canonical target
         for loser_op, _ in scored[1:]:
             try:
                 _discard(loser_op.source_path)
                 resolved += 1
             except Exception as exc:
                 errors.append(f"{loser_op.source_path.name}: {exc}")
+
+        # Rename winner to canonical target path
+        if winner_op.source_path.exists() and winner_op.source_path != winner_op.target_path:
+            try:
+                save_exts = (config.save_extensions or "").split(",") if config.save_extensions else []
+                outcome = rename_rom_with_saves(winner_op.source_path, winner_op.target_path, save_exts)
+                if not outcome.success:
+                    errors.append(f"{winner_op.source_path.name}: rename failed — {outcome.error}")
+                else:
+                    # Update DB with new path
+                    with repository.connect() as _c:
+                        _c.execute(
+                            "UPDATE games SET source_path = ? WHERE source_path = ?",
+                            (str(winner_op.target_path), str(winner_op.source_path))
+                        )
+                        _c.commit()
+            except Exception as exc:
+                errors.append(f"{winner_op.source_path.name}: rename error — {exc}")
 
     # Diagnostic: sample MD5 lookups from the first few conflicts (helps diagnose H1/H2)
     debug_samples: list[dict] = []
@@ -308,6 +351,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
         except Exception as _e:
             debug_samples.append({"error": str(_e)})
 
+    next_step = "Si hay errores de rename, verifica que los archivos de guardado existan y sean accesibles. Luego ejecuta 'rommgr scan' para actualizar la BD si es necesario."
     ctx._send_json({
         "resolved":      resolved,
         "skipped_no_ra": skipped_no_ra,
@@ -315,6 +359,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
         "no_cache":      not cache_files_exist,
         "debug_samples": debug_samples,
         "hint":          "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
+        "next_step":     next_step,
     })
 
 
