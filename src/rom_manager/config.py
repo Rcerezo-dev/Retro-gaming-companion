@@ -72,6 +72,62 @@ class AppConfig:
     saves_remote: str               # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
     states_remote: str              # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
 
+    # ── Device connectivity check (UX-1/2) ────────────────────────────────────
+    def is_device_connected(self) -> tuple[bool, str]:
+        """Check if Android device is connected.
+
+        Returns (connected: bool, reason: str) where reason explains the status.
+        Device is connected if EITHER:
+        - ADB device is available (Android device plugged in via USB), OR
+        - SD card is mounted at anbernic_root path
+
+        Checks in order: ADB first (more reliable), then SD card.
+        """
+        import subprocess
+        from pathlib import Path
+
+        # Check ADB device
+        if self.adb:
+            try:
+                result = subprocess.run(
+                    [self.adb, "devices"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                )
+                # Parse output for connected devices (exclude "daemon started" and headers)
+                lines = result.stdout.strip().split('\n')[1:]  # skip "List of attached devices"
+                for line in lines:
+                    if '\t' in line:
+                        device_id, status = line.split('\t', 1)
+                        if status.strip() == 'device':  # online device
+                            return True, f"ADB device: {device_id}"
+            except Exception:
+                pass  # ADB check failed, continue to SD card check
+
+        # Check SD card mount
+        if self.anbernic_root:
+            try:
+                root_path = Path(self.anbernic_root).expanduser().resolve()
+                if root_path.exists() and root_path.is_dir():
+                    # Check if path is accessible (can list it)
+                    list(root_path.iterdir())
+                    return True, f"SD card mounted: {self.anbernic_root}"
+            except (OSError, PermissionError):
+                pass  # SD card path not accessible
+
+        # Not connected
+        if self.adb and self.anbernic_root:
+            reason = "Device not found (not plugged in via ADB, SD card not mounted)"
+        elif self.adb:
+            reason = "Android device not connected via ADB"
+        elif self.anbernic_root:
+            reason = f"SD card not mounted at {self.anbernic_root}"
+        else:
+            reason = "No device configured (anbernic_root or adb not set)"
+
+        return False, reason
+
 
 _CONFIG_TOML_TEMPLATE = """\
 # ROM Manager Local — user configuration

@@ -4,6 +4,7 @@
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { gamesState } from './games.js';
+import { getDeviceConnected, getDeviceConnectReason } from '../state.js';
 
 // ── Local helpers (duplicated for module scope) ───────────────────────────────
 const _h = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -353,6 +354,26 @@ function _platHex(plat) {
   return _PLAT_HEX[cls] || '#555';
 }
 
+// UX-1/2-4: Update device connectivity badge
+function _updateDeviceConnectivityBadge() {
+  const badge = document.getElementById('ov-ab-device-badge');
+  if (!badge) return;
+
+  const connected = getDeviceConnected();
+  const reason = getDeviceConnectReason();
+
+  if (connected) {
+    badge.classList.add('hidden');
+  } else {
+    badge.classList.remove('hidden');
+    badge.style.color = '#f44747';
+    badge.style.borderColor = '#4a2a2a';
+    badge.style.backgroundColor = '#2a1a1a';
+    badge.textContent = '● No conectado';
+    badge.title = reason || 'Consola Android no disponible';
+  }
+}
+
 // ── Overview load ─────────────────────────────────────────────────────────────
 export async function loadOverview() {
   try {
@@ -361,6 +382,9 @@ export async function loadOverview() {
 
     // Apply device name to all labels
     _applyDeviceName(cfg.device_name || 'Consola Android');
+
+    // UX-1/2-4: Update device connectivity badge
+    _updateDeviceConnectivityBadge();
 
     // Populate path inputs (only if empty)
     const pcInput = document.getElementById('ov-pc-path');

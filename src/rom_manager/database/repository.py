@@ -606,6 +606,7 @@ class LibraryRepository:
 
         *seen_paths* is the set of resolved absolute path strings found during the scan.
         Only paths that start with *source_root* are considered — other roots are untouched.
+        DB-2: Also cleans up orphaned metadata, tags, and operation logs when games are deleted.
         Returns the total number of records deleted across all tables.
         """
         import os
@@ -629,12 +630,24 @@ class LibraryRepository:
             return 0
 
         with self.batch() as conn:
+            # Get game IDs for stale games to clean up related records
+            stale_game_ids = []
             for p in stale_games:
-                conn.execute("DELETE FROM games  WHERE source_path   = ?", (p,))
+                rows = conn.execute("SELECT id FROM games WHERE source_path = ?", (p,)).fetchall()
+                stale_game_ids.extend([r[0] for r in rows])
+
+            # Delete stale games and their related metadata, tags, and operation logs (cascading cleanup)
+            for game_id in stale_game_ids:
+                conn.execute("DELETE FROM game_metadata WHERE game_id = ?", (game_id,))
+                conn.execute("DELETE FROM game_tags WHERE game_id = ?", (game_id,))
+                conn.execute("DELETE FROM file_operations WHERE game_id = ?", (game_id,))
+            for p in stale_games:
+                conn.execute("DELETE FROM games WHERE source_path = ?", (p,))
+
             for p in stale_saves:
-                conn.execute("DELETE FROM saves  WHERE original_path = ?", (p,))
+                conn.execute("DELETE FROM saves WHERE original_path = ?", (p,))
             for p in stale_assets:
-                conn.execute("DELETE FROM assets WHERE source_path   = ?", (p,))
+                conn.execute("DELETE FROM assets WHERE source_path = ?", (p,))
         return total
 
     def delete_game(self, game_id: int) -> None:
@@ -1249,14 +1262,20 @@ class LibraryRepository:
             (box_art_path, game_id),
         )
 
+    def mark_metadata_scraped(self, game_id: int, connection: "sqlite3.Connection") -> None:
+        """DB-1: Mark a game as checked for metadata (success or failure).
+        Prevents re-scraping files that were already checked but had no match."""
+        connection.execute("UPDATE games SET metadata_scraped = 1 WHERE id = ?", (game_id,))
+
     def get_games_for_scraping(self, platform: str | None = None) -> list[dict]:
-        """Return games that have no metadata yet, with their hashes."""
+        """Return games that have no metadata yet and haven't been checked, with their hashes.
+        DB-1: Excludes games where metadata_scraped=1 (checked but no match found)."""
         sql = """
             SELECT g.id, g.original_filename, g.source_path, g.platform,
                    g.crc32, g.md5, g.sha1, g.size_bytes, g.canonical_title
             FROM games g
             LEFT JOIN game_metadata m ON m.game_id = g.id
-            WHERE m.id IS NULL
+            WHERE m.id IS NULL AND (g.metadata_scraped IS NULL OR g.metadata_scraped = 0)
         """
         params: list = []
         if platform:

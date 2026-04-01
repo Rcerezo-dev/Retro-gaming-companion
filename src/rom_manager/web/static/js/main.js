@@ -2,7 +2,7 @@
 // Loaded as type="module" (deferred) before app.js.
 // Sets up window globals so inline onclick handlers and app.js can call these functions.
 
-import { AppState, getActiveDevice, getDevName, setActiveDevice, setDevName } from './state.js';
+import { AppState, getActiveDevice, getDevName, setActiveDevice, setDevName, getDeviceConnected, getDeviceConnectReason, startDeviceStatusPolling, stopDeviceStatusPolling } from './state.js';
 import { showToast } from './components/toast.js';
 import { _showConfirm, _closeConfirm } from './components/modal.js';
 import {
@@ -38,7 +38,7 @@ import {
 } from './tabs/duplicates.js';
 import {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply,
+  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates,
 } from './tabs/organize.js';
 import {
   startPolling, _applyJobStatus, _showJobResult,
@@ -218,6 +218,8 @@ Object.assign(window, {
   createLibraryStructure, organizeLibrary,
   // state.js — shared device context
   AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
+  getDeviceConnected, getDeviceConnectReason,
+  startDeviceStatusPolling, stopDeviceStatusPolling,
   showToast,
   _showConfirm, _closeConfirm,
   // Global UI control (2l migration)
@@ -250,7 +252,7 @@ Object.assign(window, {
   setToolsContext, _initToolsContext,
   filterDuplicatesByPlatform, _renderDupContent,
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply,
+  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates,
   startPolling, _applyJobStatus, _showJobResult,
   // scraper.js
   doExportGamelistsAll,
@@ -578,6 +580,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadLocalUrl();
   _checkAndroidUserAgent();
   startAutoSyncPolling();
+
+  // Start device connectivity polling (UX-1/2-3)
+  startDeviceStatusPolling();
 
   // TV mode keyboard handler — uses live module bindings from games.js
   document.addEventListener('keydown', (e) => {

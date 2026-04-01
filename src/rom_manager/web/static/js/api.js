@@ -39,6 +39,7 @@ export const api = {
   // ── System / config ────────────────────────────────────────────────────────
   config:            ()       => _get('/api/config'),
   saveConfig:        (body)   => _post('/api/config', body),
+  deviceStatus:      ()       => _get('/api/device-status'),
   systemStatus:      ()       => _get('/api/system-status'),
   listDrives:        ()       => _get('/api/list-drives'),
   localUrl:          ()       => _get('/api/local-url'),

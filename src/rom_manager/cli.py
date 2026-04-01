@@ -312,6 +312,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"System files skipped:  {result.system_files_detected}")
         print(f"Unknown files:         {result.unknown_files_detected}")
         print(f"Errors:                {result.errors}")
+        if result.pruned:
+            print(f"Orphaned records cleaned: {result.pruned}")  # DB-2: orphan cleanup
         return 0
 
     if args.command == "status":
@@ -717,6 +719,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if result is None:
                     print(f"  [—]   {game['original_filename']}")
+                    repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
                     skipped += 1
                     continue
 
@@ -744,6 +747,7 @@ def main(argv: list[str] | None = None) -> int:
                     scraped_at=utc_now(),
                     connection=conn,
                 )
+                repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
                 print(f"  [OK]  {game['original_filename']}  →  {result.title}")
                 found += 1
 

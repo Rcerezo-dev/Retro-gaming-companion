@@ -23,9 +23,9 @@
 | B-test-3 ✅ | Better diagnostics: improve hint text, show cache status, guide next steps | `handlers/duplicates.py` — added `next_step` field in response |
 | B-test-4 | Test with real data: verify winner renamed + moved, loser in _descartados/, DB updated | Run full scenario: RA Check → Build Plan → Apply RA → Verify |
 
-| ID | Task | Where |
-|----|------|-------|
-| D2 | rclone handler: route files to `saves_remote` or `states_remote` by extension | `sync/rclone_transport.py` |
+| ID | Task | Where | Status |
+|----|------|-------|--------|
+| D2 ✅ | rclone handler: route files to `saves_remote` or `states_remote` by extension | `sync/rclone_transport.py` + 4 callers | Done: routing, diagnostics, edge cases |
 
 ---
 
@@ -33,13 +33,28 @@
 
 Extracted from testing session (2026-03-31). These are design/UX issues affecting core workflows.
 
-| ID | Task | Priority | Notes |
-|----|------|----------|-------|
-| UX-1 | **Device connectivity indicator** — Show on startup cards if Android SD is NOT plugged in | High | Currently no visual feedback; app shows DB as connected even when unplugged. Prevents accidental operations on wrong device. |
-| UX-2 | **Block operations on inactive device** — Prevent "Ejecutar cambios" when target device (consola android) is not plugged in | High | Safety guard. Currently UI allows applying changes to disconnected Android device. |
+### UX-1 & UX-2 — Device Connectivity (in progress)
+
+Device is "connected" if EITHER:
+- ADB device available (USB Android device), OR
+- SD card mounted at configured `anbernic_root` path
+
+**Subtasks:**
+| ID | Task | File |
+|----|------|------|
+| UX-1/2-1 ✅ | Create `is_device_connected()` function — checks both ADB + SD card mount | `config.py` |
+| UX-1/2-2 ✅ | Add `/api/device-status` endpoint — returns `{connected: bool, reason: str}` | `web/handlers/config.py` |
+| UX-1/2-3 ✅ | Frontend polling — call `/api/device-status` every 4s, update state | `static/js/state.js` + `main.js` |
+| UX-1/2-4 ✅ | Update startup cards — show status badge (✗ No conectado when offline) | `static/js/tabs/overview.js` + `index.html` |
+| UX-1/2-5 ✅ | Disable rename button when offline + targeting Android — prevent offline operations | `static/js/tabs/organize.js` |
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| UX-1 ✅ | **Device connectivity indicator** — Show on startup cards if Android SD is NOT plugged in | High | Complete |
+| UX-2 ✅ | **Block operations on inactive device** — Prevent "Ejecutar cambios" when target device (consola android) is not plugged in | High | Complete |
 | DB-1 | **Metadata cache flag** — Add boolean in games table to mark files already scraped (found no metadata) | Medium | Avoid re-scraping same files repeatedly. Allows "Check metadata BEFORE scraping" workflow. |
 | DB-2 | **Orphaned record cleanup** — Clean up DB entries when files are deleted from disk | Medium | Currently unclear if `os.remove()` in delete workflows triggers DB cleanup. Verify and document cleanup policy. |
-| DUP-3 | **Rename "Colisión de plan" resolution** — If 2 files have same canonical name, offer delete-from-duplicates instead of rename | Medium | User feedback: rename-based conflict resolution is confusing for duplicates. Duplicates should just be deleted, not renamed to different canon names. |
+| DUP-3 ✅ | **Delete option for "Colisión de plan"** — If 2 files have same canonical name, offer delete-from-duplicates button alongside rename | Medium | Complete: Added "Eliminar duplicados" button to conflict resolution in plan view |
 | DUP-4 | **Clarify delete-all counts** — Show breakdown: X disk duplicates deleted, Y skipped (no source), Z failed (Android unmounted) | Low | UX clarity. Currently "99 failed" out of 224 groups is confusing — users don't understand what happened to the rest. |
 
 ---

@@ -156,6 +156,8 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                         continue
                     if result is None:
                         skipped += 1
+                        repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
+                        conn.commit()
                         continue
                     box_art_path = screenshot_path = wheel_path = ""
                     if download_images:
@@ -204,6 +206,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                         scraped_at=utc_now(),
                         connection=conn,
                     )
+                    repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
                     conn.commit()
                     found += 1
 
@@ -376,6 +379,7 @@ def _do_scrape_single(ctx, data: dict, config: "AppConfig", repository: "Library
                 scraped_at=utc_now(),
                 connection=_bconn,
             )
+            repository.mark_metadata_scraped(int(game_id), _bconn)  # DB-1: mark as checked
         ctx._send_json({**_preview_data, "applied": True})
     except Exception as _exc:
         ctx._send_json({"error": str(_exc)})

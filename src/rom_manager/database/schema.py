@@ -202,6 +202,7 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("last_played_at", "TEXT"),
     ("is_favorite", "INTEGER"),
     ("notes", "TEXT"),
+    ("metadata_scraped", "INTEGER"),  # DB-1: boolean flag for metadata cache
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (

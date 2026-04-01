@@ -27,6 +27,16 @@ def register(
     def get_config(ctx) -> None:
         ctx._send_json(_build_config(config))
 
+    @router.get("/api/device-status")
+    def get_device_status(ctx) -> None:
+        """UX-1/2: Check if Android device (ADB or SD card) is connected."""
+        connected, reason = config.is_device_connected()
+        ctx._send_json({
+            "connected": connected,
+            "reason": reason,
+            "device_name": config.device_name or "Android Device",
+        })
+
     @router.get("/api/wizard-detect")
     def get_wizard_detect(ctx) -> None:
         ctx._send_json(_detect_wizard(config))

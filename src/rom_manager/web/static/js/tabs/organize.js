@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { getDeviceConnected, getActiveDevice } from '../state.js';
 
 // ── Plan ─────────────────────────────────────────────────────────────────────
 function _chk(id, def = '1') {
@@ -20,6 +21,28 @@ function _planQueryString() {
   return `?include_region=${_chk('fmt-region')}&include_revision=${_chk('fmt-revision')}` +
          `&include_platform=${_chk('fmt-platform', '0')}&include_sha=${_chk('fmt-sha', '0')}` +
          `&sha_length=${shaLength}`;
+}
+
+// UX-1/2-5: Update button disabled state based on device connectivity
+function _updateApplyButtonState() {
+  const btn = document.getElementById('btn-apply');
+  if (!btn) return;
+
+  const activeDevice = getActiveDevice();
+  const deviceConnected = getDeviceConnected();
+  const targetsDevice = activeDevice === 'anbernic' || activeDevice === 'both';
+
+  const shouldDisable = btn.disabled || (targetsDevice && !deviceConnected);
+  const wasDisabled = btn.disabled;
+
+  btn.disabled = shouldDisable;
+
+  // Update tooltip if needed
+  if (targetsDevice && !deviceConnected) {
+    btn.title = 'Consola Android no conectada. Conecta por USB o inserta la SD card.';
+  } else if (wasDisabled && shouldDisable) {
+    btn.title = ''; // Clear old tooltip if button is disabled for other reasons
+  }
 }
 
 async function loadPlan() {
@@ -88,6 +111,8 @@ async function loadPlan() {
       const n = pendingFiltered.length;
       btnApply.textContent = n > 0 ? `Renombrar ${n} archivo${n !== 1 ? 's' : ''}` : 'Nada que renombrar';
       btnApply.disabled = n === 0;
+      // UX-1/2-5: Update disabled state based on device connectivity
+      _updateApplyButtonState();
     }
     if (btnResolve) {
       const collisions = (d.conflicts || []).filter(c => c.reason === 'collision').length;
@@ -149,12 +174,13 @@ async function loadPlan() {
         html += `</div>`;
         html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
         html += `Causa habitual: tienes múltiples versiones del mismo juego (regional, revisión) y la opción <strong>Región</strong> o <strong>Revisión</strong> está desactivada en el formato. Actívalas para que cada versión obtenga un nombre único.<br>`;
-        html += `O usa <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Resolver automáticamente (añadir sufijo _1 _2)</button> para aplicar ambas con nombres distintos.<br>`;
-        html += `Si tienes caché de RetroAchievements, usa el botón <strong>Resolver con RA</strong> (arriba) para conservar solo la versión con logros y descartar el duplicado sin logros.`;
+        html += `Opciones: <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Renombrar (añadir sufijo _1 _2)</button>`;
+        html += ` o <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px;border-color:#f44747;color:#f44747" onclick="deleteCollisionDuplicates()">Eliminar duplicados</button><br>`;
+        html += `Si tienes caché de RetroAchievements, usa el botón <strong>Resolver con RA</strong> (arriba) para conservar solo la versión con logros.`;
         html += `</div>`;
         html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Nombre bloqueado</th></tr></thead><tbody>';
         html += collisions.map(op => `<tr>
-          <td class="mono" style="color:#9cdcfe">${window._h(op.source_name)}</td>
+          <td class="mono" style="color:#9cdcfe" data-game-id="${op.game_id}" data-path="${op.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${window._h(op.source_name)}</td>
           <td class="mono" style="color:#ce9178">${window._h(op.target_name)}</td>
         </tr>`).join('');
         html += '</tbody></table></div></div>';
@@ -285,10 +311,79 @@ async function applyKeepBoth() {
   }
 }
 
+// DUP-3: Delete collision duplicates instead of renaming them
+async function deleteCollisionDuplicates() {
+  // Find all collision rows in the current view
+  const collisionRows = document.querySelectorAll(
+    '#plan-content table:has(thead:contains("ROM")) tbody tr td[data-game-id]'
+  );
+
+  if (collisionRows.length === 0) {
+    showToast('No hay duplicados en colisión para eliminar.', 'info');
+    return;
+  }
+
+  // Collect unique game IDs (avoid duplicates in case multiple rows have same game)
+  const gameIds = new Set();
+  collisionRows.forEach(row => {
+    const gameId = row.dataset.gameId;
+    if (gameId) gameIds.add(parseInt(gameId));
+  });
+
+  if (gameIds.size === 0) {
+    showToast('No se encontraron juegos para eliminar.', 'err');
+    return;
+  }
+
+  // Show confirmation
+  const count = gameIds.size;
+  const confirmMsg = `¿Eliminar ${count} archivo${count !== 1 ? 's' : ''} duplicado${count !== 1 ? 's' : ''}?<br><br>Se eliminarán los archivos en colisión del disco.<br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`;
+
+  _showConfirm(
+    'Eliminar duplicados de colisión',
+    confirmMsg,
+    'Eliminar',
+    async () => {
+      let deleted = 0;
+      let failed = 0;
+      const errors = [];
+
+      for (const gameId of gameIds) {
+        try {
+          await apiPost('/api/duplicates/delete', { game_id: gameId });
+          deleted++;
+        } catch (e) {
+          failed++;
+          errors.push(e.message);
+        }
+      }
+
+      showToast(
+        `✓ ${deleted} duplicado${deleted !== 1 ? 's' : ''} eliminado${deleted !== 1 ? 's' : ''}` +
+        (failed > 0 ? ` · ${failed} error${failed !== 1 ? 'es' : ''}` : ''),
+        failed > 0 ? 'info' : 'ok'
+      );
+
+      // Reload plan after deletion
+      if (deleted > 0) {
+        setTimeout(() => loadPlan(), 1000);
+      }
+    }
+  );
+}
+
 async function doApply() {
   const btn = document.getElementById('btn-apply');
   const total = parseInt(btn?.textContent?.match(/\d+/)?.[0] || '0');
   if (!total) return;
+
+  // UX-1/2-5: Check device connectivity if targeting Android device
+  const activeDevice = getActiveDevice();
+  if ((activeDevice === 'anbernic' || activeDevice === 'both') && !getDeviceConnected()) {
+    showToast('Consola Android no conectada. Conecta por USB o inserta la SD card.', 'err');
+    return;
+  }
+
   if (!confirm(`¿Renombrar ${total} archivo${total !== 1 ? 's' : ''} en disco? Los saves compañeros se moverán automáticamente. La operación es reversible.`)) return;
 
   const applyBody = {
@@ -374,5 +469,5 @@ async function doApply() {
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply,
+  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates,
 };

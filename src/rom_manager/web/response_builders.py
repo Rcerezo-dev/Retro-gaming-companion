@@ -628,8 +628,10 @@ def _build_plan(
         "pending": pending_rows,
         "conflicts": [
             {
+                "game_id": op.game.id,
                 "source_name": op.source_path.name,
                 "target_name": op.target_path.name,
+                "source_path": str(op.source_path),
                 "reason": op.conflict_reason,
             }
             for op in conflict_ops
