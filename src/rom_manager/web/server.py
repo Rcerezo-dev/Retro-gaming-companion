@@ -852,9 +852,20 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         return True
 
     import rom_manager.web.handlers.collection as _h_collection
-    _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
     import sys as _sys_dbg
-    print(f"[DEBUG] Registered routes so far: {[r for r in _router.routes() if 'asset' in r[1].lower()]}", file=_sys_dbg.stderr)
+    try:
+        _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
+        asset_routes = [r for r in _router.routes() if 'asset' in r[1].lower()]
+        print(f"[DEBUG] Registered asset routes: {asset_routes}", file=_sys_dbg.stderr)
+        print(f"[DEBUG] Total routes after collection: {len(_router.routes())}", file=_sys_dbg.stderr)
+        if not asset_routes:
+            print(f"[DEBUG] WARNING: No asset routes registered!", file=_sys_dbg.stderr)
+            print(f"[DEBUG] All routes: {_router.routes()[:10]}", file=_sys_dbg.stderr)
+    except Exception as _reg_err:
+        print(f"[ERROR] Failed to register collection handlers: {_reg_err}", file=_sys_dbg.stderr)
+        import traceback
+        traceback.print_exc(file=_sys_dbg.stderr)
+        raise
 
     import rom_manager.web.handlers.scan as _h_scan
     _h_scan.register(

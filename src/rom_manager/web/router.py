@@ -68,21 +68,43 @@ class Router:
             ``True`` if a handler was found and called, ``False`` otherwise.
         """
         # 1. Exact match
-        handler = self._exact.get((method, path))
+        key = (method, path)
+        handler = self._exact.get(key)
         if handler is not None:
-            handler(ctx)
-            return True
+            try:
+                handler(ctx)
+                return True
+            except Exception as e:
+                import sys
+                print(f"[DISPATCH-ERROR] {method} {path} | Handler raised: {e}", file=sys.stderr, flush=True)
+                raise
 
         # 2. Prefix match (first registered wins)
         for m, prefix, handler in self._prefix:
             if m == method and path.startswith(prefix):
-                handler(ctx)
-                return True
+                try:
+                    handler(ctx)
+                    return True
+                except Exception as e:
+                    import sys
+                    print(f"[DISPATCH-PREFIX-ERROR] {method} {path} | Handler raised: {e}", file=sys.stderr, flush=True)
+                    raise
 
         # DEBUG: Log failed dispatch for /api/ routes
         if path.startswith("/api/"):
             import sys
-            print(f"[DISPATCH-FAIL] {method} {path} | Registered exact routes: {list(self._exact.keys())}", file=sys.stderr, flush=True)
+            exact_keys = list(self._exact.keys())
+            matching_method_keys = [k for k in exact_keys if k[0] == method]
+            matching_path_keys = [k for k in exact_keys if k[1] == path]
+            print(f"[DISPATCH-FAIL] {method} {path}", file=sys.stderr, flush=True)
+            print(f"  Exact match key not found: {key}", file=sys.stderr, flush=True)
+            print(f"  Total exact routes: {len(exact_keys)}", file=sys.stderr, flush=True)
+            print(f"  Routes with method {method}: {len(matching_method_keys)}", file=sys.stderr, flush=True)
+            if matching_method_keys:
+                print(f"    {matching_method_keys}", file=sys.stderr, flush=True)
+            print(f"  Routes with path {path}: {len(matching_path_keys)}", file=sys.stderr, flush=True)
+            if matching_path_keys:
+                print(f"    {matching_path_keys}", file=sys.stderr, flush=True)
 
         return False
 
