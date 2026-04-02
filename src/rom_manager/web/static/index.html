@@ -1565,7 +1565,7 @@
   <!-- ── Aplicar todo ── -->
   <div class="actions-panel" style="margin-bottom:24px;border-left-color:#c586c0">
     <h3 style="color:#c586c0">Aplicar todo — Limpieza en un clic</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta las herramientas seleccionadas en secuencia sobre <code>library_root</code>. Cada herramienta espera a que la anterior termine.</p>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta las herramientas seleccionadas en secuencia sobre el directorio del contexto activo (PC o Android). Cada herramienta espera a que la anterior termine.</p>
     <div class="actions-row" style="gap:20px;align-items:center;flex-wrap:wrap">
       <label class="fmt-check"><input type="checkbox" id="batch-scan" checked> Escanear</label>
       <label class="fmt-check"><input type="checkbox" id="batch-match" checked> Identificar (DAT)</label>
@@ -1575,7 +1575,7 @@
       <label class="fmt-check"><input type="checkbox" id="batch-ra"> RetroAchievements</label>
     </div>
     <div class="actions-row" style="margin-top:10px">
-      <button id="btn-batch-run" class="btn" style="border-color:#c586c0;color:#c586c0" onclick="doBatchRun()">Ejecutar todo sobre library_root</button>
+      <button id="btn-batch-run" class="btn" style="border-color:#c586c0;color:#c586c0" onclick="doBatchRun()">Ejecutar selección</button>
     </div>
     <div id="batch-status" style="margin-top:10px;font-size:12px;color:#888"></div>
   </div>

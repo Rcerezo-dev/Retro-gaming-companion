@@ -299,8 +299,18 @@ function _setIfEmpty(id, value) {
 // ── Batch run (Fix 11) ────────────────────────────────────────────────────────
 async function doBatchRun() {
   const cfg = await apiFetch('/api/config');
-  const root = cfg.library_root;
+
+  // Resolve root from context selector (PC vs Android) — B2
+  const ctx = localStorage.getItem('tools_context') || 'pc';
+  const root = ctx === 'android'
+    ? (localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || cfg.library_root)
+    : cfg.library_root;
+
   if (!root) { alert('Configura library_root en Settings primero.'); return; }
+  if (ctx === 'android' && !localStorage.getItem('anbernic_path') && !localStorage.getItem('cable_ab_path')) {
+    alert('Contexto Android: configura la ruta de la consola en Settings o conecta el cable.');
+    return;
+  }
 
   const jobs = [];
   if (document.getElementById('batch-scan')?.checked) jobs.push({
