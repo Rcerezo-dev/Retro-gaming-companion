@@ -97,7 +97,7 @@ To identify root cause:
 | ID | Task | Notes | Status |
 |----|------|-------|--------|
 | B2 ✅ | Batch run: add checkboxes per tool, respect logical order, context selector PC/Android | Tools tab | Complete: Wired context selector to batch run. doBatchRun() now respects PC/Android mode and resolves correct root path. |
-| B3 | Library comparator PC vs Android — diff screen + `POST /api/sync-roms` + conflict policy | | In progress: B3-1 ✅ (backend diff enhancement), B3-2 through B3-5 pending |
+| B3 | Library comparator PC vs Android — diff screen + `POST /api/sync-roms` + conflict policy | | In progress: B3-1 ✅ (backend diff enhancement), B3-2 ✅ (UI diff screen), B3-3 through B3-5 pending |
 | P1 | Inbox file watcher — polling 30s → auto-pipeline → toast | | |
 | P3 | Disk usage panel per platform — `GET /api/disk-usage` | | |
 | P5 | Collection completeness — cross with DATs, % per platform | | |

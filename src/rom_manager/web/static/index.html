@@ -1395,6 +1395,7 @@
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleColStats()" id="btn-col-stats">📊 Stats</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="togglePlatformHealth()" id="btn-platform-health">🏥 Health</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiff()" id="btn-col-diff">🔀 Comparar</button>
   </div>
   <!-- Stats panel -->
   <div class="hidden" id="col-stats-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
@@ -1417,6 +1418,39 @@
   <div id="col-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px"></div>
   <div style="text-align:center;margin-top:16px">
     <button id="col-load-more" class="btn hidden" onclick="colLoadMore()">Cargar m&#xe1;s</button>
+  </div>
+
+  <!-- Library diff panel (B3) -->
+  <div class="hidden actions-panel" id="col-diff-panel" style="margin-top:16px;border-left-color:#7aa2f7">
+    <h3 style="color:#7aa2f7">Comparar bibliotecas — PC vs Android</h3>
+    <div class="toolbar" style="margin-bottom:14px">
+      <select id="diff-platform-filter" onchange="loadLibraryDiff()"
+        style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+        <option value="">Todas las plataformas</option>
+      </select>
+      <button class="btn" onclick="loadLibraryDiff()" style="font-size:12px;padding:4px 10px">Comparar</button>
+    </div>
+    <div id="diff-summary" style="font-size:12px;color:#888;margin-bottom:14px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start">
+      <div>
+        <div style="color:#f38ba8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Solo PC <span id="diff-pc-count" class="badge" style="background:#2a1a1a;color:#f38ba8"></span>
+        </div>
+        <div id="diff-pc-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+      <div>
+        <div style="color:#89b4fa;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Solo Android <span id="diff-and-count" class="badge" style="background:#1a1a2a;color:#89b4fa"></span>
+        </div>
+        <div id="diff-and-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+      <div>
+        <div style="color:#f9e2af;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Conflictos <span id="diff-conf-count" class="badge" style="background:#2a2a1a;color:#f9e2af"></span>
+        </div>
+        <div id="diff-conf-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+    </div>
   </div>
 
   <!-- QoL-4: Platform health dashboard -->

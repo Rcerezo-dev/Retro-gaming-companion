@@ -369,6 +369,92 @@ function _renderPie(canvasId, rows) {
   });
 }
 
+// ── Library diff (B3) ──────────────────────────────────────────────────────────
+function toggleDiff() {
+  const panel = document.getElementById('col-diff-panel');
+  if (panel.classList.contains('hidden')) {
+    panel.classList.remove('hidden');
+    _populateDiffPlatforms();
+    loadLibraryDiff();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+async function _populateDiffPlatforms() {
+  const sel = document.getElementById('diff-platform-filter');
+  if (sel.options.length > 1) return; // already populated
+  try {
+    const d = await apiFetch('/api/platform-stats');
+    for (const p of d.platforms) {
+      const opt = document.createElement('option');
+      opt.value = p.platform;
+      opt.textContent = `${p.platform} (${p.total_games})`;
+      sel.appendChild(opt);
+    }
+  } catch (_) {}
+}
+
+async function loadLibraryDiff() {
+  const platform = document.getElementById('diff-platform-filter')?.value || '';
+  const url = '/api/library-diff' + (platform ? `?platform=${encodeURIComponent(platform)}` : '');
+
+  const pcEl   = document.getElementById('diff-pc-list');
+  const andEl  = document.getElementById('diff-and-list');
+  const confEl = document.getElementById('diff-conf-list');
+  const sumEl  = document.getElementById('diff-summary');
+  [pcEl, andEl, confEl].forEach(el => { if (el) el.innerHTML = '<p class="loading">Cargando…</p>'; });
+
+  try {
+    const d = await apiFetch(url);
+    document.getElementById('diff-pc-count').textContent  = d.only_pc.length;
+    document.getElementById('diff-and-count').textContent = d.only_android.length;
+    document.getElementById('diff-conf-count').textContent = d.conflicts.length;
+
+    const syncIcon = d.parity ? '✓ Sincronizadas' : `${d.only_pc.length + d.only_android.length + d.conflicts.length} diferencias`;
+    sumEl.innerHTML = `PC: <b style="color:#ccc">${d.total_pc}</b> ROMs &nbsp;|&nbsp; Android: <b style="color:#ccc">${d.total_android}</b> ROMs &nbsp;|&nbsp; En ambas: <b style="color:#ccc">${d.in_both.length}</b> &nbsp;|&nbsp; <span class="${d.parity ? 'txt-ok' : 'txt-warn'}">${syncIcon}</span>`;
+
+    pcEl.innerHTML   = _renderDiffTable(d.only_pc,      'pc');
+    andEl.innerHTML  = _renderDiffTable(d.only_android, 'android');
+    confEl.innerHTML = _renderDiffConflicts(d.conflicts);
+  } catch (e) {
+    [pcEl, andEl, confEl].forEach(el => { if (el) el.innerHTML = `<p class="error-msg">${window._h(e.message)}</p>`; });
+  }
+}
+
+function _renderDiffTable(entries, side) {
+  if (!entries.length) return '<p style="color:#555;font-size:11px;padding:4px">Sin diferencias.</p>';
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr style="color:#555;font-size:11px;border-bottom:1px solid #222">'
+    + '<th style="padding:3px 6px;text-align:left">Plataforma</th>'
+    + '<th style="padding:3px 6px;text-align:left">Título</th>'
+    + '<th style="padding:3px 6px;text-align:center" title="Seleccionar para sincronizar"></th>'
+    + '</tr></thead><tbody>';
+  for (const e of entries) {
+    html += `<tr style="border-bottom:1px solid #1a1a1a" title="${window._h(e.source_path)}">`;
+    html += `<td style="padding:3px 6px;color:#888;white-space:nowrap">${window._h(e.platform)}</td>`;
+    html += `<td style="padding:3px 6px;color:#ccc;word-break:break-word">${window._h(e.title)}</td>`;
+    html += `<td style="padding:3px 6px;text-align:center"><input type="checkbox" class="diff-sel" data-sha1="${window._h(e.sha1)}" data-side="${side}" style="accent-color:var(--accent)"></td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function _renderDiffConflicts(conflicts) {
+  if (!conflicts.length) return '<p style="color:#555;font-size:11px;padding:4px">Sin conflictos.</p>';
+  let html = '';
+  for (const c of conflicts) {
+    html += `<div style="border:1px solid #2a2a1a;border-radius:4px;margin-bottom:8px;padding:7px 10px">`;
+    html += `<div style="color:#f9e2af;font-size:11px;margin-bottom:4px">${window._h(c.platform)} — ${window._h(c.title)}</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">`;
+    for (const e of c.pc)      html += `<div style="color:#f38ba8">PC: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
+    for (const e of c.android) html += `<div style="color:#89b4fa">Android: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
+    html += '</div></div>';
+  }
+  return html;
+}
+
 function toggleColStats() {
   const panel = document.getElementById('col-stats-panel');
   if (panel.classList.contains('hidden')) {
@@ -386,4 +472,5 @@ export {
   loadCollection, colSetPlatform, colSearch, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
+  toggleDiff, loadLibraryDiff,
 };
