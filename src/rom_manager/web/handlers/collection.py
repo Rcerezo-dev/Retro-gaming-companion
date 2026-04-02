@@ -214,7 +214,9 @@ def register(
     # ── GET /api/library-diff ─────────────────────────────────────────────────
     @router.get("/api/library-diff")
     def get_library_diff(ctx) -> None:
-        ctx._send_json(_build_library_diff(repository, repo_android, config))
+        qs = getattr(ctx, "_qs", {})
+        platform = qs.get("platform", [None])[0] or None
+        ctx._send_json(_build_library_diff(repository, repo_android, config, platform=platform))
 
     # ── GET /api/operations-timeline ─────────────────────────────────────────
     @router.get("/api/operations-timeline")
