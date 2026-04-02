@@ -19,7 +19,9 @@ def register(
     get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
-    from rom_manager.web.response_builders import _build_library_diff
+    from rom_manager.web.response_builders import _build_library_diff, _build_assets
+    import sys
+    print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
     @router.get("/api/platform-stats")
@@ -47,6 +49,62 @@ def register(
                 for r in rows
             ]
         })
+
+    # ── GET /api/assets ───────────────────────────────────────────────────────
+    @router.get("/api/assets")
+    def get_assets(ctx) -> None:
+        try:
+            qs = getattr(ctx, "_qs", {})
+            src_root = qs.get("root", [None])[0] or None
+            assets_repo = get_repo_fn(src_root or "")
+            result = _build_assets(assets_repo, source_root=src_root)
+            if not result or "stats" not in result:
+                ctx._send_error(500, f"Invalid assets response: {result}")
+                return
+            ctx._send_json(result)
+        except Exception as e:
+            import traceback
+            ctx._send_error(500, f"Asset query failed: {str(e)} | {traceback.format_exc()}")
+
+    # ── GET /api/asset-image ──────────────────────────────────────────────────
+    @router.get("/api/asset-image")
+    def get_asset_image(ctx) -> None:
+        from pathlib import Path
+        import mimetypes
+        qs = getattr(ctx, "_qs", {})
+        game_id = qs.get("game_id", [None])[0]
+        if not game_id:
+            ctx._send_error(400, "game_id required")
+            return
+        try:
+            game_id = int(game_id)
+        except (ValueError, TypeError):
+            ctx._send_error(400, "game_id must be integer")
+            return
+
+        # Query metadata for box art path
+        with repository.connect() as conn:
+            row = conn.execute(
+                "SELECT box_art_path FROM game_metadata WHERE game_id = ?", (game_id,)
+            ).fetchone()
+
+        if not row or not row["box_art_path"]:
+            ctx._send_error(404, "No asset found")
+            return
+
+        img_path = Path(row["box_art_path"])
+        if not img_path.exists():
+            ctx._send_error(404, "Asset file not found")
+            return
+
+        # Serve the image file
+        try:
+            body = img_path.read_bytes()
+            mime_type, _ = mimetypes.guess_type(str(img_path))
+            mime_type = mime_type or "application/octet-stream"
+            ctx._send(200, mime_type, body)
+        except Exception as e:
+            ctx._send_error(500, f"Could not read asset: {e}")
 
     # ── GET /api/export-library ───────────────────────────────────────────────
     @router.get("/api/export-library")

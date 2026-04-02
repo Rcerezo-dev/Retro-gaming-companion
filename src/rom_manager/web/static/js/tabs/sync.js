@@ -1071,7 +1071,7 @@ function _renderTreeDiff(r) {
 }
 
 // ── Save Comparison & Library Diff ────────────────────────────────────────────
-export async function loadSaveComparison() {
+async function loadSaveComparison() {
   const el = document.getElementById('save-comparison-content');
   if (!el) return;
   el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
@@ -1116,7 +1116,7 @@ export async function loadSaveComparison() {
   } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`; }
 }
 
-export async function doLibraryDiff() {
+async function doLibraryDiff() {
   const parityEl = document.getElementById('lib-diff-parity');
   const resultEl = document.getElementById('lib-diff-result');
   if (parityEl) parityEl.textContent = 'Comparando…';
@@ -1156,7 +1156,7 @@ export async function doLibraryDiff() {
   }
 }
 
-export async function doSync(dryRun) {
+async function doSync(dryRun) {
   const btnDry   = document.getElementById('btn-sync-dry');
   const btnApply = document.getElementById('btn-sync-apply');
   const resultEl = document.getElementById('job-result-sync');
@@ -1185,7 +1185,7 @@ export async function doSync(dryRun) {
   }
 }
 
-export function _renderSyncResult(result) {
+function _renderSyncResult(result) {
   const resultEl = document.getElementById('job-result-sync');
   if (!resultEl) return;
   if (result.error) {

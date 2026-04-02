@@ -853,6 +853,8 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
     import rom_manager.web.handlers.collection as _h_collection
     _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
+    import sys as _sys_dbg
+    print(f"[DEBUG] Registered routes so far: {[r for r in _router.routes() if 'asset' in r[1].lower()]}", file=_sys_dbg.stderr)
 
     import rom_manager.web.handlers.scan as _h_scan
     _h_scan.register(
@@ -1140,6 +1142,10 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         def _send_json(self, data: object) -> None:
             body = _json_response(data)
             self._send(200, "application/json; charset=utf-8", body)
+
+        def _send_error(self, code: int, message: str) -> None:
+            body = _json_response({"error": message})
+            self._send(code, "application/json; charset=utf-8", body)
 
     return Handler
 

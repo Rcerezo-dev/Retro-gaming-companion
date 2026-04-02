@@ -79,6 +79,11 @@ class Router:
                 handler(ctx)
                 return True
 
+        # DEBUG: Log failed dispatch for /api/ routes
+        if path.startswith("/api/"):
+            import sys
+            print(f"[DISPATCH-FAIL] {method} {path} | Registered exact routes: {list(self._exact.keys())}", file=sys.stderr, flush=True)
+
         return False
 
     # ── Introspection ─────────────────────────────────────────────────────────

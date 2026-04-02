@@ -120,44 +120,70 @@ def _delete_duplicate(ctx, data: dict, repository: "LibraryRepository") -> None:
 def _delete_all_duplicates(ctx, repository: "LibraryRepository") -> None:
     groups       = repository.get_duplicate_groups()
     deleted      = 0
-    failed       = 0
+    skipped      = 0  # Files that don't exist (already deleted or moved)
+    failed       = 0  # Files that exist but couldn't be deleted (perms, device unmounted, etc.)
     freed_bytes  = 0
     errors: list[str] = []
+    diagnostics: list[dict] = []  # Detailed log of each attempt
 
     for group in groups:
         for entry in group.entries[1:]:
             p = Path(entry.source_path)
+            diag = {"path": str(p), "exists": p.exists(), "deleted_file": False, "deleted_db": False}
+
             if not p.exists():
+                _log.info(f"Skipping missing file (file gone, cleaning DB): {p}")
                 try:
                     repository.delete_game(entry.id)
-                    deleted += 1
+                    skipped += 1  # Count as skipped (file already gone, just cleaned up DB)
+                    diag["deleted_db"] = True
                 except Exception as exc:
                     failed += 1
+                    diag["db_error"] = str(exc)
                     _log.warning("Could not remove DB entry for missing file %s: %s", p, exc)
                     if len(errors) < 20:
                         errors.append(f"{p.name}: DB error — {type(exc).__name__}: {exc}")
+                diagnostics.append(diag)
                 continue
 
             try:
+                _log.info(f"Deleting file: {p}")
                 os.remove(str(p))
+                diag["deleted_file"] = True
+                _log.info(f"File deleted successfully: {p}")
             except Exception as exc:
                 failed += 1
+                diag["file_error"] = str(exc)
                 _log.warning("Could not delete duplicate file %s: %s", p, exc)
                 if len(errors) < 20:
                     errors.append(f"{p.name}: no se pudo eliminar el archivo — {type(exc).__name__}: {exc}")
+                diagnostics.append(diag)
                 continue
 
             try:
                 repository.delete_game(entry.id)
                 deleted     += 1
                 freed_bytes += entry.size_bytes
+                diag["deleted_db"] = True
+                _log.info(f"DB record deleted for: {p}")
             except Exception as exc:
                 failed += 1
+                diag["db_error"] = str(exc)
                 _log.warning("File deleted but DB update failed for %s: %s", p, exc)
                 if len(errors) < 20:
                     errors.append(f"{p.name}: archivo eliminado pero error en BD — {type(exc).__name__}: {exc}")
 
-    ctx._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes, "errors": errors})
+            diagnostics.append(diag)
+
+    ctx._send_json({
+        "deleted": deleted,
+        "skipped": skipped,
+        "failed": failed,
+        "freed_bytes": freed_bytes,
+        "errors": errors,
+        "summary": f"{deleted} eliminados, {skipped} omitidos (no existen), {failed} errores",
+        "diagnostics": diagnostics[:10]  # Return first 10 for debugging
+    })
 
 
 def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository") -> None:
@@ -340,7 +366,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
 
     # Diagnostic: sample MD5 lookups from the first few conflicts (helps diagnose H1/H2)
     debug_samples: list[dict] = []
-    for op in (list(plan.conflicts) + list(plan.operations))[:3]:
+    for op in (list(plan.conflicts) + list(plan.pending))[:3]:
         try:
             with repository.connect() as _c:
                 row = _c.execute(

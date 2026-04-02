@@ -168,7 +168,7 @@ export async function toggleRowFavorite(gameId, btn) {
 }
 
 // ── Platform helpers (duplicated for module scope) ────────────────────────────
-function fmtSize(n) {
+export function fmtSize(n) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0;
   while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
@@ -196,7 +196,7 @@ const _PLAT_CLASS = {
   gg: 'gg', 'game gear': 'gg',
 };
 
-function _platBadge(plat) {
+export function _platBadge(plat) {
   if (!plat) return '<span class="plat plat-other">?</span>';
   const key = plat.toLowerCase();
   const cls = _PLAT_CLASS[key] || 'other';

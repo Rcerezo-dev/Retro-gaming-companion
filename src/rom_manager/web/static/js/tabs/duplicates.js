@@ -89,17 +89,30 @@ async function deleteAllDuplicates() {
       if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
       try {
         const d = await apiPost('/api/duplicates/delete-all', {});
+
+        // Log diagnostics for troubleshooting
+        if (d.diagnostics && d.diagnostics.length) {
+          console.log('Delete-all diagnostics:', d.diagnostics);
+        }
+
         await loadDuplicates();
         window.loadOverview();
-        if (d.deleted === 0 && d.failed === 0) {
+        if (d.deleted === 0 && d.skipped === 0 && d.failed === 0) {
           showToast('Sin duplicados pendientes — la lista ya está limpia', 'info');
         } else {
-          let failNote = '';
+          let msg = `✓ ${d.deleted} eliminados`;
+          if (d.freed_bytes > 0) msg += ` · Liberados: ${window.fmtSize(d.freed_bytes)}`;
+          if (d.skipped > 0) msg += ` · ${d.skipped} omitidos (no existen)`;
           if (d.failed > 0) {
-            failNote = ` · ⚠ ${d.failed} no se pudieron eliminar`;
-            if (d.errors && d.errors.length) failNote += ': ' + d.errors[0];
+            msg += ` · ⚠ ${d.failed} error${d.failed !== 1 ? 'es' : ''}`;
+            if (d.errors && d.errors.length) msg += `: ${d.errors[0]}`;
           }
-          showToast(`Eliminados: ${d.deleted} · Liberados: ${window.fmtSize(d.freed_bytes)}${failNote}`, d.failed > 0 ? 'err' : 'ok');
+          showToast(msg, d.failed > 0 ? 'err' : 'ok');
+
+          // Extra note if diagnostics show something unexpected
+          if (d.diagnostics && d.diagnostics.some(d => d.exists && !d.deleted_file)) {
+            console.warn('⚠️ Some files still exist after delete-all — see diagnostics');
+          }
         }
       } catch(e) {
         showToast('Error: ' + e.message, true);

@@ -1,0 +1,4 @@
+The tab organizar says "windows._h is not a function" so it doesn't return the table that I could see before
+the tab duplicados says "sin duplicados" but knowing the table in organizar doesnt work, i dont rely on this
+The tab "assets" says "not found" instead of returning a list of assets
+and the tab coleccion says window._h is not a function

@@ -73,7 +73,7 @@ import {
   applyColVisibility, _initColPicker, toggleColPicker,
   goToGames, onGamesSearchChange, onGamesFilterChange,
   loadFilterOptions, toggleFavoritesFilter, _refreshTagFilter, toggleRowFavorite,
-  _platHex,
+  _platHex, _platBadge, fmtSize,
   loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
   _gpSetFavStar,
   gpShowPlaytimeInfo, gpLogPlaytime,
@@ -178,7 +178,7 @@ Object.assign(window, {
   applyColVisibility, _initColPicker, toggleColPicker,
   goToGames, onGamesSearchChange, onGamesFilterChange,
   loadFilterOptions, toggleFavoritesFilter, _refreshTagFilter, toggleRowFavorite,
-  _platHex,
+  _platHex, _platBadge, fmtSize,
   loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
   _gpSetFavStar,
   gpShowPlaytimeInfo, gpLogPlaytime,
@@ -222,6 +222,7 @@ Object.assign(window, {
   startDeviceStatusPolling, stopDeviceStatusPolling,
   showToast,
   _showConfirm, _closeConfirm,
+  _h,  // HTML escape helper for collection.js, organize.js
   // Global UI control (2l migration)
   _applyDeviceName, setDevice, _deviceRoot, showTab, toggleSidebar,
   initTheme, setTheme, _applyTheme, toggleTheme, onGlobalSearch,
@@ -331,6 +332,11 @@ Object.assign(window, {
 
 // Initialize tools.js with main.js functions (late imports to avoid circular deps)
 _initToolsImports(startPolling, _showJobResult);
+
+// ── HTML escape helper (used by collection.js, organize.js) ──────────────────
+function _h(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 // ── Global UI functions (2l migration) ────────────────────────────────────────
 

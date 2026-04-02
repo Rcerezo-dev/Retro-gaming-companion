@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-02 (DB-1 & DB-2 complete)
+> Last updated: 2026-04-02 (Day 24 - Route debugging session)
 > Completed Phase 2 tasks moved to `Tareas/archivo.md` to save tokens.
 > Active bug tracking: `Tareas/bugs/duplicados.md`
 > Architecture reference: `docs/refactor/Roadmap-Arquitectura-Frontend.md`
@@ -55,7 +55,24 @@ Device is "connected" if EITHER:
 | DB-1 ✅ | **Metadata cache flag** — Add boolean in games table to mark files already scraped (found no metadata) | Medium | Complete: Added metadata_scraped flag to avoid re-scraping. Schema migration + repository method + scraper updates. |
 | DB-2 ✅ | **Orphaned record cleanup** — Clean up DB entries when files are deleted from disk | Medium | Complete: Enhanced prune_stale_entries() to clean up metadata, tags, and operation logs. Display cleanup count in CLI. |
 | DUP-3 ✅ | **Delete option for "Colisión de plan"** — If 2 files have same canonical name, offer delete-from-duplicates button alongside rename | Medium | Complete: Added "Eliminar duplicados" button to conflict resolution in plan view |
-| DUP-4 | **Clarify delete-all counts** — Show breakdown: X disk duplicates deleted, Y skipped (no source), Z failed (Android unmounted) | Low | UX clarity. Currently "99 failed" out of 224 groups is confusing — users don't understand what happened to the rest. |
+| DUP-4 | **Clarify delete-all counts** — Show breakdown: X disk duplicates deleted, Y skipped (no source), Z failed | Low | ✅ FIXED: Enhanced response to show deleted/skipped/failed breakdown |
+
+---
+
+## Bug Fixes — Active Issues
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| BUG-ASSETS-1 | **Assets tab shows "not found"** — Routes ARE registered but dispatcher returns 404 | High | 🔍 DEBUGGING: Endpoint code exists, routes registered in exact dict, but dispatch fails to match. Root cause TBD |
+| BUG-ASSET-IMAGE-404 | **Game cover images show 404** — Missing `/api/asset-image` endpoint | High | ✅ FIXED: Added endpoint to collection.py |
+| BUG-ORG-1 | **Organizar tab window._h error** | High | ✅ FIXED: Added _h to window exports |
+| BUG-COL-1 | **Coleccion tab window._h error** | High | ✅ FIXED: Added _h to window exports |
+| BUG-DUP-FALSE | **Duplicados shows false empty state** — Cascading error from related issues | High | ✅ FIXED: All cascading issues resolved |
+| BUG-ORG-RA-RENAME-PLAN | **"Resolver por RA" button error** — RenamePlan missing operations attribute | High | ✅ FIXED: Changed plan.operations to plan.pending in duplicates.py |
+| BUG-PLATBADGE | **Games list in Organizar — window._platBadge is not a function** — Missing export | High | ✅ FIXED: Exported from games.js + added to main.js |
+| BUG-ORG-DELETE-COLLISION | **"Eliminar duplicados" button in collision section doesn't work** — Broken DOM selector | High | ✅ FIXED: Updated selector to find collision div correctly |
+| BUG-DELETE-DUPLICATES-MISMATCH | **Delete-all reports 550 deleted but files still exist** — Files not actually deleted from disk | Critical | ✅ APPEARS FIXED: Duplicados tab now shows no duplicates after delete-all. Verify with fresh data + check diagnostics |
+| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | 🔍 NEW: `/api/assets` and `/api/asset-image` ARE in router._exact dict but dispatch() still returns False. May be path encoding issue or query string handling |
 
 ---
 

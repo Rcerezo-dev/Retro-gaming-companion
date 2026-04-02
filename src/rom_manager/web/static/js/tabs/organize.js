@@ -314,9 +314,13 @@ async function applyKeepBoth() {
 // DUP-3: Delete collision duplicates instead of renaming them
 async function deleteCollisionDuplicates() {
   // Find all collision rows in the current view
-  const collisionRows = document.querySelectorAll(
-    '#plan-content table:has(thead:contains("ROM")) tbody tr td[data-game-id]'
-  );
+  // Collision rows are in a div that contains "Colisión de plan" text
+  const collisionDivs = Array.from(document.querySelectorAll('#plan-content > div'))
+    .filter(div => div.textContent.includes('Colisión de plan'));
+
+  const collisionRows = collisionDivs.length > 0
+    ? collisionDivs[0].querySelectorAll('td[data-game-id]')
+    : [];
 
   if (collisionRows.length === 0) {
     showToast('No hay duplicados en colisión para eliminar.', 'info');
