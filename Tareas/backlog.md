@@ -72,7 +72,23 @@ Device is "connected" if EITHER:
 | BUG-PLATBADGE | **Games list in Organizar — window._platBadge is not a function** — Missing export | High | ✅ FIXED: Exported from games.js + added to main.js |
 | BUG-ORG-DELETE-COLLISION | **"Eliminar duplicados" button in collision section doesn't work** — Broken DOM selector | High | ✅ FIXED: Updated selector to find collision div correctly |
 | BUG-DELETE-DUPLICATES-MISMATCH | **Delete-all reports 550 deleted but files still exist** — Files not actually deleted from disk | Critical | ✅ APPEARS FIXED: Duplicados tab now shows no duplicates after delete-all. Verify with fresh data + check diagnostics |
-| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | 🔍 NEW: `/api/assets` and `/api/asset-image` ARE in router._exact dict but dispatch() still returns False. May be path encoding issue or query string handling |
+| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | 🔍 DIAGNOSTICS ADDED: Enhanced router.dispatch() and server.py startup logging to identify root cause. Check stderr output when server starts. Suspected causes: path encoding, handler exceptions, or registration failure |
+
+---
+
+---
+
+## Debug Instructions for BUG-ROUTING-404
+
+To identify root cause:
+1. Start server: `python -m rom_manager web 2>&1 | grep -E "\[DEBUG\]|\[DISPATCH"` to capture diagnostic output
+2. Check if asset routes are registered at startup:
+   - Should see: `[DEBUG] Registered asset routes: [('GET', '/api/assets'), ('GET', '/api/asset-image'), ...]`
+   - If none, registration failed - check for `[ERROR] Failed to register`
+3. Make a request to `/api/assets` and check stderr:
+   - If dispatch succeeds: handler is called, check response in browser/curl
+   - If dispatch fails: check `[DISPATCH-FAIL]` log for why key doesn't match
+4. Report findings to next session
 
 ---
 
