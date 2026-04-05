@@ -445,14 +445,66 @@ function _renderDiffConflicts(conflicts) {
   if (!conflicts.length) return '<p style="color:#555;font-size:11px;padding:4px">Sin conflictos.</p>';
   let html = '';
   for (const c of conflicts) {
+    const pcSha1  = c.pc[0]?.sha1  || '';
+    const andSha1 = c.android[0]?.sha1 || '';
     html += `<div style="border:1px solid #2a2a1a;border-radius:4px;margin-bottom:8px;padding:7px 10px">`;
     html += `<div style="color:#f9e2af;font-size:11px;margin-bottom:4px">${window._h(c.platform)} — ${window._h(c.title)}</div>`;
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:6px">`;
     for (const e of c.pc)      html += `<div style="color:#f38ba8">PC: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
     for (const e of c.android) html += `<div style="color:#89b4fa">Android: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
-    html += '</div></div>';
+    html += '</div>';
+    if (pcSha1 && andSha1) {
+      html += `<div style="display:flex;gap:6px">`;
+      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:#1a1215;border:1px solid #f38ba8;color:#f38ba8;border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
+      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:#12151a;border:1px solid #89b4fa;color:#89b4fa;border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
+      html += `</div>`;
+    }
+    html += '</div>';
   }
   return html;
+}
+
+async function syncConflict(pcSha1, andSha1, winner) {
+  const item = winner === 'pc'
+    ? { sha1: pcSha1, direction: 'pc_to_android' }
+    : { sha1: andSha1, direction: 'android_to_pc' };
+  try {
+    const r = await apiPost('/api/sync-roms', { items: [item] });
+    if (r.synced) {
+      showToast(`✓ Versión ${winner === 'pc' ? 'PC' : 'Android'} aplicada`, 'ok');
+      await loadLibraryDiff();
+    } else {
+      showToast(r.errors[0]?.error || 'Error al sincronizar', 'err');
+    }
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'err');
+  }
+}
+
+// ── B3-3: Sync selected diff items ────────────────────────────────────────────
+async function syncSelected() {
+  const checks = document.querySelectorAll('#col-diff-panel .diff-sel:checked');
+  if (!checks.length) {
+    showToast('Selecciona al menos un juego', 'warn');
+    return;
+  }
+  const items = Array.from(checks).map(cb => ({
+    sha1: cb.dataset.sha1,
+    direction: cb.dataset.side === 'pc' ? 'pc_to_android' : 'android_to_pc',
+  }));
+  const statusEl = document.getElementById('diff-sync-status');
+  if (statusEl) statusEl.textContent = `Copiando ${items.length} archivo(s)…`;
+  try {
+    const r = await apiPost('/api/sync-roms', { items });
+    const msg = `✓ ${r.synced} copiado(s)` + (r.errors.length ? ` · ${r.errors.length} error(es)` : '');
+    if (statusEl) statusEl.textContent = msg;
+    showToast(msg, r.errors.length ? 'warn' : 'ok');
+    if (r.errors.length) console.error('Sync errors:', r.errors);
+    if (r.synced > 0) await loadLibraryDiff();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '';
+    showToast(`Error: ${e.message}`, 'err');
+  }
 }
 
 function toggleColStats() {
@@ -472,5 +524,5 @@ export {
   loadCollection, colSetPlatform, colSearch, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
-  toggleDiff, loadLibraryDiff,
+  toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
 };

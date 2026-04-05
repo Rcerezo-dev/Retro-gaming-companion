@@ -27,7 +27,7 @@ import {
   loadCollection, colSetPlatform, colSearch, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
-  toggleDiff, loadLibraryDiff,
+  toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
 } from './tabs/collection.js';
 import {
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
@@ -247,7 +247,7 @@ Object.assign(window, {
   loadCollection, colSetPlatform, colSearch, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
-  toggleDiff, loadLibraryDiff,
+  toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
   resolveDuplicateRA, markAsIntentionalCopy,
   loadRaDuplicates, deleteRaDuplicate,

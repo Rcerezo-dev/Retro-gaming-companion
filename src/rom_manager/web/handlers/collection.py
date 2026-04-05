@@ -218,6 +218,84 @@ def register(
         platform = qs.get("platform", [None])[0] or None
         ctx._send_json(_build_library_diff(repository, repo_android, config, platform=platform))
 
+    # ── POST /api/sync-roms (B3-4) ───────────────────────────────────────────
+    @router.post("/api/sync-roms")
+    def post_sync_roms(ctx) -> None:
+        import shutil
+        from pathlib import Path
+
+        items = (ctx._post_data or {}).get("items", [])
+        if not items:
+            ctx._send_json({"synced": 0, "errors": []})
+            return
+
+        connected, reason = config.is_device_connected()
+        if not connected:
+            ctx._send_error(400, f"Dispositivo no conectado: {reason}")
+            return
+
+        anbernic_root = config.anbernic_root
+        library_root = config.library_root
+        if not anbernic_root:
+            ctx._send_error(400, "anbernic_root no configurado")
+            return
+        if not library_root:
+            ctx._send_error(400, "library_root no configurado")
+            return
+
+        synced = 0
+        errors = []
+
+        for item in items:
+            sha1 = (item.get("sha1") or "").strip().upper()
+            direction = item.get("direction", "")
+            if not sha1:
+                errors.append({"sha1": sha1, "error": "sha1 vacío"})
+                continue
+            try:
+                if direction == "pc_to_android":
+                    with repository.connect() as conn:
+                        row = conn.execute(
+                            "SELECT source_path, platform FROM games "
+                            "WHERE sha1 = ? AND file_type = 'rom' LIMIT 1", (sha1,)
+                        ).fetchone()
+                    if not row:
+                        errors.append({"sha1": sha1, "error": "SHA1 no encontrado en biblioteca PC"})
+                        continue
+                    src = Path(row["source_path"])
+                    if not src.exists():
+                        errors.append({"sha1": sha1, "error": f"Archivo no existe: {src.name}"})
+                        continue
+                    dest_dir = Path(anbernic_root) / (row["platform"] or "Unknown")
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dest_dir / src.name)
+                    synced += 1
+
+                elif direction == "android_to_pc":
+                    with repo_android.connect() as conn:
+                        row = conn.execute(
+                            "SELECT source_path, platform FROM games "
+                            "WHERE sha1 = ? AND file_type = 'rom' LIMIT 1", (sha1,)
+                        ).fetchone()
+                    if not row:
+                        errors.append({"sha1": sha1, "error": "SHA1 no encontrado en biblioteca Android"})
+                        continue
+                    src = Path(row["source_path"])
+                    if not src.exists():
+                        errors.append({"sha1": sha1, "error": f"Archivo SD no accesible: {src.name}"})
+                        continue
+                    dest_dir = library_root / (row["platform"] or "Unknown")
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dest_dir / src.name)
+                    synced += 1
+
+                else:
+                    errors.append({"sha1": sha1, "error": f"Dirección desconocida: {direction}"})
+            except Exception as e:
+                errors.append({"sha1": sha1, "error": str(e)})
+
+        ctx._send_json({"synced": synced, "errors": errors})
+
     # ── GET /api/operations-timeline ─────────────────────────────────────────
     @router.get("/api/operations-timeline")
     def get_operations_timeline(ctx) -> None:
