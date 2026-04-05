@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-02 (Day 24 - Route debugging session)
+> Last updated: 2026-04-05 (Idea_final.md triage — expanded into roadmap tasks)
 > Completed Phase 2 tasks moved to `Tareas/archivo.md` to save tokens.
 > Active bug tracking: `Tareas/bugs/duplicados.md`
 > Architecture reference: `docs/refactor/Roadmap-Arquitectura-Frontend.md`
@@ -156,6 +156,131 @@ Android emulators use fixed paths under `Android/Data/<package>/` (scoped storag
 - Windows installer (Inno Setup) — shortcut, Add/Remove Programs, minimal DATs
 - Auto-update via GitHub Releases
 - Decide final name: Retro Vault vs Retro Companion
+
+---
+
+## Roadmap — Ideas from Idea_final.md
+
+Extracted from `docs/refactor/Idea_final.md` and broken into actionable tasks.
+
+---
+
+### RENAME-CONFLICT — Name collision: prefer RA version
+
+When two games map to the same canonical name during rename, discard the non-RA version instead of appending `_1`/`_2`. Reuses `_apply_ra_conflicts` logic.
+
+| ID | Task | File |
+|----|------|------|
+| RENAME-CONFLICT-1 | Detect name collisions in rename planner — flag pairs where two sources share the same canonical target | `renamer/operation_planner.py` |
+| RENAME-CONFLICT-2 | For each collision pair, run RA check to determine which file has RetroAchievements support | `handlers/organize.py` — reuse existing RA cache |
+| RENAME-CONFLICT-3 | Auto-resolve: rename RA winner to canonical name, move loser to `_descartados/` | `handlers/organize.py` + `_apply_ra_conflicts` |
+| RENAME-CONFLICT-4 | Show collision resolution in plan view — label winner and loser clearly before user confirms | `static/js/tabs/organize.js` |
+
+---
+
+### COL-REVIEW — Decide fate of Colección tab
+
+Currently overlaps heavily with Juegos. Options: merge it away, or add unique value.
+
+| ID | Task | Notes |
+|----|------|-------|
+| COL-REVIEW-1 | Audit: list what Colección shows that Juegos doesn't — make a decision | Design/discussion task before any code |
+| COL-REVIEW-2a | **If merging**: remove Colección tab, move any unique data into Juegos tab | `index.html` + `static/js/tabs/collection.js` |
+| COL-REVIEW-2b | **If keeping**: add playtime source — read RetroArch `.lpl` playlist timestamps or save file mtime as proxy | `handlers/collection.py` |
+| COL-REVIEW-2c | **If keeping**: add RA sync — fetch user's earned achievements per game via RA API and display in tab | `handlers/collection.py` + `static/js/tabs/collection.js` |
+
+---
+
+### RA-COPY-LINK — "Copy download link" per game (RetroAchievements)
+
+For games where a RA-compatible version exists, a copy button lets JDownloader pick up the link directly.
+
+| ID | Task | File |
+|----|------|------|
+| RA-COPY-LINK-1 | Backend: `/api/ra-game-url?game_id=X` — return the RA game page URL and the no-intro/redump entry link | `handlers/retroachievements.py` |
+| RA-COPY-LINK-2 | Frontend: add "Copiar link" button per game row in RA results table — uses `navigator.clipboard` | `static/js/tabs/tools.js` or relevant RA tab |
+| RA-COPY-LINK-3 | Show a small toast confirming the link was copied | shared toast utility |
+
+---
+
+### FLOW-WIZARD — Unified "run all" wizard
+
+One button runs scan + rename plan + duplicate detection + sync, then walks the user tab-by-tab to approve or skip each step.
+
+| ID | Task | File |
+|----|------|------|
+| FLOW-WIZARD-1 | Backend: `POST /api/plan-all` — runs scan, rename plan, and duplicate detection; returns a combined summary object | `handlers/wizard.py` (new) |
+| FLOW-WIZARD-2 | Frontend: wizard modal shell — step list (Escanear → Organizar → Duplicados → Sync) with Next/Skip buttons | `static/js/wizard.js` (new) + `index.html` |
+| FLOW-WIZARD-3 | Per-step diff view — show pending changes for each step; user approves or skips | `static/js/wizard.js` |
+| FLOW-WIZARD-4 | Execute approved steps in sequence via existing endpoints; show combined progress + results summary | `static/js/wizard.js` |
+
+---
+
+### CLOUD-RESEARCH — rclone + Termux for Dropbox sync
+
+Prerequisite for the Cloud sync tab. Must work on both PC (rclone binary) and Android (Termux + rclone).
+
+| ID | Task | Notes |
+|----|------|-------|
+| CLOUD-RESEARCH-1 | Document rclone setup on PC — install path, Dropbox OAuth config, test push/pull | `docs/cloud-sync-setup.md` |
+| CLOUD-RESEARCH-2 | Document Termux setup on Anbernic RG556 — install rclone, auth, verify it can reach Dropbox | `docs/cloud-sync-setup.md` |
+| CLOUD-RESEARCH-3 | Define sync protocol — which direction is authoritative, conflict policy, file filter (saves only) | Design doc before code |
+| CLOUD-RESEARCH-4 | Prototype: extend `rclone_transport.py` with cloud push/pull calls | `sync/rclone_transport.py` |
+| CLOUD-RESEARCH-5 | Cloud sync UI — status panel, last sync timestamp, manual trigger button in Cloud tab | `static/js/tabs/sync.js` |
+
+---
+
+### EMULATOR-COMPAT — Save compatibility PC ↔ Android
+
+Verify that synced saves from PC actually load on Android and vice versa, for each emulator pair.
+
+| ID | Task | Notes |
+|----|------|-------|
+| EMULATOR-COMPAT-1 | Create compatibility matrix — PC emulator, Android emulator, save format, save path per platform | `docs/emulator-compat.md` |
+| EMULATOR-COMPAT-2 | Test PS1 round-trip: DuckStation PC → sync → DuckStation Android → load | Hardware test with RG556 |
+| EMULATOR-COMPAT-3 | Test PS2 round-trip: PCSX2 PC → sync → AetherSX2/NetherSX2 Android → load | Hardware test |
+| EMULATOR-COMPAT-4 | Test remaining platforms (GBA, SNES, GBC, NDS…) and document any format mismatches | Update matrix per result |
+
+---
+
+### BUG-TOOLS-SIDEBAR — Sidebar hides in Tools subtabs
+
+| ID | Task | File |
+|----|------|------|
+| BUG-TOOLS-SIDEBAR-1 | Reproduce: identify exactly which Tools subtabs hide the left nav | Browser + dev tools |
+| BUG-TOOLS-SIDEBAR-2 | Find root cause — likely a full-width container, missing class, or JS toggling sidebar state | `static/js/tabs/tools.js` + `app.css` |
+| BUG-TOOLS-SIDEBAR-3 | Fix and verify all Tools subtabs show sidebar consistently | same files |
+
+---
+
+### ANBERNIC-TV — TV-friendly UI for console browsing
+
+A simplified guided flow usable from the Anbernic screen without a keyboard.
+
+| ID | Task | File |
+|----|------|------|
+| ANBERNIC-TV-1 | Design guided flow — steps: Connect check → Sync → Results; large touch targets, minimal text input | Design task |
+| ANBERNIC-TV-2 | Responsive CSS for small/touch screens — Anbernic RG556 browser resolution | `static/app.css` |
+| ANBERNIC-TV-3 | TV UI step 1: device status check + connect prompt | `static/js/tabs/anbernic.js` |
+| ANBERNIC-TV-4 | TV UI step 2: one-tap sync trigger with live progress bar | `static/js/tabs/anbernic.js` |
+| ANBERNIC-TV-5 | TV UI step 3: results summary in large readable format | `static/js/tabs/anbernic.js` |
+
+---
+
+### ARCADE-SETUP — Research arcade ROM config (no code)
+
+| ID | Task | Notes |
+|----|------|-------|
+| ARCADE-SETUP-1 | Research MAME vs FBNeo ROM set version compatible with Anbernic RG556 RetroArch | Check RG556 community guides |
+| ARCADE-SETUP-2 | Identify target arcade systems and map each to the correct RetroArch core | e.g. CPS1/2/3, Neo-Geo, MAME 2003 Plus |
+| ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` |
+| ARCADE-SETUP-4 | Test a sample ROM end-to-end: scan → rename → launch on device | Hardware test |
+
+---
+
+### SYNC-PS1PS2 ✅ — ADB access to PSX/PS2 hidden save paths
+
+Completed. DuckStation and AetherSX2 paths verified and mapped in `EMULATOR_SAVE_PATHS_DEFAULT`.
 
 ---
 
