@@ -6,6 +6,7 @@ import { showToast } from '../components/toast.js';
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _lastInboxResultTs = null;
+let _lastTriggerTs = 0;
 
 // ── Badge (32-1) ──────────────────────────────────────────────────────────────
 function updateInboxBadge() {
@@ -21,9 +22,22 @@ function updateInboxBadge() {
   }).catch(() => {});
 }
 
+async function _checkAutoTrigger() {
+  try {
+    const d = await apiFetch('/api/inbox-watcher-status');
+    if (d.trigger_ts && d.trigger_ts > _lastTriggerTs) {
+      _lastTriggerTs = d.trigger_ts;
+      const n = d.pending_files || 0;
+      showToast(`Inbox: ${n} archivo(s) detectado(s), organizando automáticamente…`, 'ok');
+      if (window.startPolling) window.startPolling();
+    }
+  } catch (_) {}
+}
+
 function _initInboxBadge() {
   updateInboxBadge();
-  setInterval(updateInboxBadge, 30000);
+  _checkAutoTrigger();
+  setInterval(() => { updateInboxBadge(); _checkAutoTrigger(); }, 30000);
 }
 
 // ── Drag & drop (32-3) ────────────────────────────────────────────────────────

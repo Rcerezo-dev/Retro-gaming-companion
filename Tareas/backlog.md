@@ -98,7 +98,7 @@ To identify root cause:
 |----|------|-------|--------|
 | B2 ✅ | Batch run: add checkboxes per tool, respect logical order, context selector PC/Android | Tools tab | Complete: Wired context selector to batch run. doBatchRun() now respects PC/Android mode and resolves correct root path. |
 | B3 ✅ | Library comparator PC vs Android — diff screen + `POST /api/sync-roms` + conflict policy | | Complete: B3-1 ✅ B3-2 ✅ B3-3 ✅ B3-4 ✅ B3-5 ✅ |
-| P1 | Inbox file watcher — polling 30s → auto-pipeline → toast | | |
+| P1 ✅ | Inbox file watcher — polling 30s → auto-pipeline → toast | | Complete: watcher + auto-pipeline already existed; added trigger_ts stamp on auto-trigger + _checkAutoTrigger() frontend poll (30s) that shows toast and starts job poller |
 | P3 | Disk usage panel per platform — `GET /api/disk-usage` | | |
 | P5 | Collection completeness — cross with DATs, % per platform | | |
 

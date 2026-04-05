@@ -158,7 +158,7 @@ _cable_progress: dict = {}   # {"copied": int, "total_files": int, "bytes_copied
 _scan_progress: dict = {}    # {"files_seen": int, "roms_detected": int, "current_path": str}
 _apply_progress: dict = {}   # {"current": int, "total": int, "current_file": str}
 _inbox_progress: dict = {}    # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "processed": int, "total": int}
-_inbox_watcher_status: dict = {"watching": False, "last_check": None, "pending_files": 0}
+_inbox_watcher_status: dict = {"watching": False, "last_check": None, "pending_files": 0, "trigger_ts": 0}
 _setup_progress: dict = {}   # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "pct": int}
 _scan_cancel:   threading.Event = threading.Event()
 _cable_cancel:  threading.Event = threading.Event()
@@ -1340,6 +1340,7 @@ def serve(
                         _logger.info("Inbox watcher: %d files detected, launching pipeline", len(pending))
                         with _job_lock:
                             _jobs["inbox"] = True
+                        _inbox_watcher_status["trigger_ts"] = _time.time()
                         target_root_str = config.inbox_target_root or (str(config.library_root) if config.library_root else "")
                         threading.Thread(
                             target=_run_inbox_pipeline,
