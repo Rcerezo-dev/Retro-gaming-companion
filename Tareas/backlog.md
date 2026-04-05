@@ -1,86 +1,29 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-05 (Idea_final.md triage — expanded into roadmap tasks)
-> Completed Phase 2 tasks moved to `Tareas/archivo.md` to save tokens.
-> Active bug tracking: `Tareas/bugs/duplicados.md`
-> Architecture reference: `docs/refactor/Roadmap-Arquitectura-Frontend.md`
+> Last updated: 2026-04-05 (Archived all completed tasks to `archivo.md`)
+> Completed tasks → `Tareas/archivo.md`
+> Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
 ---
 
-## Now — Quick fixes (carry-over from Day 23)
+## Now
 
 | ID | Task | Where |
 |----|------|-------|
-| B-test | Verify `_apply_ra_conflicts`: winner gets renamed, loser goes to `_descartados/` | `handlers/duplicates.py` — see `bugs/duplicados.md` |
-
-**B-test subtasks:**
-
-| ID | Task | Functions/Files |
-|----|------|----|
-| B-test-1 ✅ | UI warning: show confirmation dialog that RA Check will run and may take time | `static/js/tabs/duplicates.js::doResolveRaConflicts` — warn user, trigger RA Check if needed |
-| B-test-2 ✅ | Auto-rename winner: after discarding loser, move winner to canonical name | `handlers/duplicates.py::_apply_ra_conflicts` — rename source → target, update DB |
-| B-test-3 ✅ | Better diagnostics: improve hint text, show cache status, guide next steps | `handlers/duplicates.py` — added `next_step` field in response |
-| B-test-4 | Test with real data: verify winner renamed + moved, loser in _descartados/, DB updated | Run full scenario: RA Check → Build Plan → Apply RA → Verify |
-
-| ID | Task | Where | Status |
-|----|------|-------|--------|
-| D2 ✅ | rclone handler: route files to `saves_remote` or `states_remote` by extension | `sync/rclone_transport.py` + 4 callers | Done: routing, diagnostics, edge cases |
+| B-test-4 | Test `_apply_ra_conflicts` with real data: verify winner renamed, loser in `_descartados/`, DB updated | Run full scenario: RA Check → Build Plan → Apply RA → Verify |
 
 ---
 
-## User feedback — Device connectivity & Database issues
-
-Extracted from testing session (2026-03-31). These are design/UX issues affecting core workflows.
-
-### UX-1 & UX-2 — Device Connectivity (in progress)
-
-Device is "connected" if EITHER:
-- ADB device available (USB Android device), OR
-- SD card mounted at configured `anbernic_root` path
-
-**Subtasks:**
-| ID | Task | File |
-|----|------|------|
-| UX-1/2-1 ✅ | Create `is_device_connected()` function — checks both ADB + SD card mount | `config.py` |
-| UX-1/2-2 ✅ | Add `/api/device-status` endpoint — returns `{connected: bool, reason: str}` | `web/handlers/config.py` |
-| UX-1/2-3 ✅ | Frontend polling — call `/api/device-status` every 4s, update state | `static/js/state.js` + `main.js` |
-| UX-1/2-4 ✅ | Update startup cards — show status badge (✗ No conectado when offline) | `static/js/tabs/overview.js` + `index.html` |
-| UX-1/2-5 ✅ | Disable rename button when offline + targeting Android — prevent offline operations | `static/js/tabs/organize.js` |
-
-| ID | Task | Priority | Status |
-|----|------|----------|--------|
-| UX-1 ✅ | **Device connectivity indicator** — Show on startup cards if Android SD is NOT plugged in | High | Complete |
-| UX-2 ✅ | **Block operations on inactive device** — Prevent "Ejecutar cambios" when target device (consola android) is not plugged in | High | Complete |
-| DB-1 ✅ | **Metadata cache flag** — Add boolean in games table to mark files already scraped (found no metadata) | Medium | Complete: Added metadata_scraped flag to avoid re-scraping. Schema migration + repository method + scraper updates. |
-| DB-2 ✅ | **Orphaned record cleanup** — Clean up DB entries when files are deleted from disk | Medium | Complete: Enhanced prune_stale_entries() to clean up metadata, tags, and operation logs. Display cleanup count in CLI. |
-| DUP-3 ✅ | **Delete option for "Colisión de plan"** — If 2 files have same canonical name, offer delete-from-duplicates button alongside rename | Medium | Complete: Added "Eliminar duplicados" button to conflict resolution in plan view |
-| DUP-4 | **Clarify delete-all counts** — Show breakdown: X disk duplicates deleted, Y skipped (no source), Z failed | Low | ✅ FIXED: Enhanced response to show deleted/skipped/failed breakdown |
-
----
-
-## Bug Fixes — Active Issues
+## Bug Fixes — Active
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
 | BUG-ASSETS-1 | **Assets tab shows "not found"** — Routes ARE registered but dispatcher returns 404 | High | 🔍 DEBUGGING: Endpoint code exists, routes registered in exact dict, but dispatch fails to match. Root cause TBD |
-| BUG-ASSET-IMAGE-404 | **Game cover images show 404** — Missing `/api/asset-image` endpoint | High | ✅ FIXED: Added endpoint to collection.py |
-| BUG-ORG-1 | **Organizar tab window._h error** | High | ✅ FIXED: Added _h to window exports |
-| BUG-COL-1 | **Coleccion tab window._h error** | High | ✅ FIXED: Added _h to window exports |
-| BUG-DUP-FALSE | **Duplicados shows false empty state** — Cascading error from related issues | High | ✅ FIXED: All cascading issues resolved |
-| BUG-ORG-RA-RENAME-PLAN | **"Resolver por RA" button error** — RenamePlan missing operations attribute | High | ✅ FIXED: Changed plan.operations to plan.pending in duplicates.py |
-| BUG-PLATBADGE | **Games list in Organizar — window._platBadge is not a function** — Missing export | High | ✅ FIXED: Exported from games.js + added to main.js |
-| BUG-ORG-DELETE-COLLISION | **"Eliminar duplicados" button in collision section doesn't work** — Broken DOM selector | High | ✅ FIXED: Updated selector to find collision div correctly |
-| BUG-DELETE-DUPLICATES-MISMATCH | **Delete-all reports 550 deleted but files still exist** — Files not actually deleted from disk | Critical | ✅ APPEARS FIXED: Duplicados tab now shows no duplicates after delete-all. Verify with fresh data + check diagnostics |
-| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | 🔍 DIAGNOSTICS ADDED: Enhanced router.dispatch() and server.py startup logging to identify root cause. Check stderr output when server starts. Suspected causes: path encoding, handler exceptions, or registration failure |
+| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | 🔍 DIAGNOSTICS ADDED: Enhanced router.dispatch() and server.py startup logging to identify root cause. Suspected causes: path encoding, handler exceptions, or registration failure |
 
----
+### Debug instructions for BUG-ROUTING-404
 
----
-
-## Debug Instructions for BUG-ROUTING-404
-
-To identify root cause:
 1. Start server: `python -m rom_manager web 2>&1 | grep -E "\[DEBUG\]|\[DISPATCH"` to capture diagnostic output
 2. Check if asset routes are registered at startup:
    - Should see: `[DEBUG] Registered asset routes: [('GET', '/api/assets'), ('GET', '/api/asset-image'), ...]`
@@ -88,38 +31,6 @@ To identify root cause:
 3. Make a request to `/api/assets` and check stderr:
    - If dispatch succeeds: handler is called, check response in browser/curl
    - If dispatch fails: check `[DISPATCH-FAIL]` log for why key doesn't match
-4. Report findings to next session
-
----
-
-## Next — Features
-
-| ID | Task | Notes | Status |
-|----|------|-------|--------|
-| B2 ✅ | Batch run: add checkboxes per tool, respect logical order, context selector PC/Android | Tools tab | Complete: Wired context selector to batch run. doBatchRun() now respects PC/Android mode and resolves correct root path. |
-| B3 ✅ | Library comparator PC vs Android — diff screen + `POST /api/sync-roms` + conflict policy | | Complete: B3-1 ✅ B3-2 ✅ B3-3 ✅ B3-4 ✅ B3-5 ✅ |
-| P1 ✅ | Inbox file watcher — polling 30s → auto-pipeline → toast | | Complete: watcher + auto-pipeline already existed; added trigger_ts stamp on auto-trigger + _checkAutoTrigger() frontend poll (30s) that shows toast and starts job poller |
-| P3 ✅ | Disk usage panel per platform — `GET /api/disk-usage` | | Complete: backend sums file sizes via Path.stat() grouped by platform + shutil.disk_usage for drive free/total; frontend panel with per-platform bars + disk bar, toggled via 💾 Disco button in collection toolbar |
-| P5 ✅ | Collection completeness — cross with DATs, % per platform | | Complete: backend already existed (/api/collection-stats via _build_missing_data); restored UI as 📋 Completitud toggle panel in collection toolbar |
-
----
-
-## Sync — Android emulator path mapping
-
-Android emulators use fixed paths under `Android/Data/<package>/` (scoped storage, cannot be changed). The app must know these paths and use ADB to pull/push files. Paths confirmed so far:
-
-| Emulator | Package | Saves path | Savestates path |
-|----------|---------|------------|-----------------|
-| DuckStation (PS1) | `com.github.stenzek.duckstation` | `.../files/memcards` | `.../files/savestates` |
-| AetherSX2 / NetherSX2 (PS2) | `xyz.aethersx2.android` | TBD | TBD |
-
-**Tasks:**
-
-| ID | Task | Notes |
-|----|------|-------|
-| SYNC-A1 ✅ | Document save/savestate paths for all target emulators | Verified live on RG556 via ADB. Full reference: `docs/android-save-paths-RG556.md` |
-| SYNC-A2 ✅ | Add emulator path mapping table to `config.toml` or hardcode as defaults | Keyed by package name; user can override. Done: `EMULATOR_SAVE_PATHS_DEFAULT` in config.py (18 emulators), `[[emulator_paths]]` overrides in config.toml, merged into `AppConfig.emulator_paths` |
-| SYNC-A3 ✅ | Update sync logic to pull/push via ADB using mapped paths instead of assuming a configurable root | Done: `get_adb_sync_sources()` in config.py builds 13 per-emulator sources from `emulator_paths`; `_run_auto_sync()` in cable_sync_daemon.py loops sources instead of single root. Saves to `library_root/emulator_saves/<package>/saves\|states/`. SD-card emulators (RetroArch/PPSSPP) handled by SD daemon as before. |
 
 ---
 
@@ -137,7 +48,7 @@ Android emulators use fixed paths under `Android/Data/<package>/` (scoped storag
 - Clear UI for matching mode (with DAT vs by filename)
 
 ### Phase 3 — Sync without config
-- WiFi sync PC ↔ console via SFTP (prereq: Termux guide at `Tareas/guias/Guia-Termux-Anbernic.md`)
+- WiFi sync PC ↔ console via SFTP (prereq: `docs/sync/Guia-Termux-Anbernic.md`)
 - Auto-sync on connect — detect via ADB, prompt "Sync now?"
 - Sync status always visible in header
 
@@ -161,7 +72,7 @@ Android emulators use fixed paths under `Android/Data/<package>/` (scoped storag
 
 ## Roadmap — Ideas from Idea_final.md
 
-Extracted from `docs/refactor/Idea_final.md` and broken into actionable tasks.
+Extracted from `docs/ideas/Idea_final.md` and broken into actionable tasks.
 
 ---
 
@@ -222,8 +133,8 @@ Prerequisite for the Cloud sync tab. Must work on both PC (rclone binary) and An
 
 | ID | Task | Notes |
 |----|------|-------|
-| CLOUD-RESEARCH-1 | Document rclone setup on PC — install path, Dropbox OAuth config, test push/pull | `docs/cloud-sync-setup.md` |
-| CLOUD-RESEARCH-2 | Document Termux setup on Anbernic RG556 — install rclone, auth, verify it can reach Dropbox | `docs/cloud-sync-setup.md` |
+| CLOUD-RESEARCH-1 | Document rclone setup on PC — install path, Dropbox OAuth config, test push/pull | `docs/sync/sync-cloud.md` |
+| CLOUD-RESEARCH-2 | Document Termux setup on Anbernic RG556 — install rclone, auth, verify it can reach Dropbox | `docs/sync/Guia-Termux-Anbernic.md` |
 | CLOUD-RESEARCH-3 | Define sync protocol — which direction is authoritative, conflict policy, file filter (saves only) | Design doc before code |
 | CLOUD-RESEARCH-4 | Prototype: extend `rclone_transport.py` with cloud push/pull calls | `sync/rclone_transport.py` |
 | CLOUD-RESEARCH-5 | Cloud sync UI — status panel, last sync timestamp, manual trigger button in Cloud tab | `static/js/tabs/sync.js` |
@@ -275,12 +186,6 @@ A simplified guided flow usable from the Anbernic screen without a keyboard.
 | ARCADE-SETUP-2 | Identify target arcade systems and map each to the correct RetroArch core | e.g. CPS1/2/3, Neo-Geo, MAME 2003 Plus |
 | ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` |
 | ARCADE-SETUP-4 | Test a sample ROM end-to-end: scan → rename → launch on device | Hardware test |
-
----
-
-### SYNC-PS1PS2 ✅ — ADB access to PSX/PS2 hidden save paths
-
-Completed. DuckStation and AetherSX2 paths verified and mapped in `EMULATOR_SAVE_PATHS_DEFAULT`.
 
 ---
 

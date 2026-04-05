@@ -1,6 +1,7 @@
 # Retro Vault — Archivo de Tareas Completadas
 
-> Archivo de tareas terminadas. Movidas de `backlog.md` el 2026-04-02 para optimizar tokens.
+> Archivo de tareas terminadas. Movidas de `backlog.md` para optimizar tokens.
+> Última actualización: 2026-04-05
 
 ---
 
@@ -103,3 +104,69 @@ Migración de code de `app.js` a módulos JavaScript separados. Completada 2026-
 |----|------|--------|
 | 2-final | Delete app.js | ✅ |
 
+---
+
+## Session — 2026-03-31 / 2026-04-02 ✅
+
+### B-test — RA conflicts flow (subtasks completadas)
+
+| ID | Task | Files |
+|----|------|-------|
+| B-test-1 ✅ | UI warning: confirmation dialog before RA Check | `static/js/tabs/duplicates.js::doResolveRaConflicts` |
+| B-test-2 ✅ | Auto-rename winner after discarding loser | `handlers/duplicates.py::_apply_ra_conflicts` |
+| B-test-3 ✅ | Better diagnostics: hint text, cache status, next_step field | `handlers/duplicates.py` |
+
+| ID | Task | Status |
+|----|------|--------|
+| D2 ✅ | rclone handler: route files to `saves_remote` or `states_remote` by extension | Done: routing, diagnostics, edge cases |
+
+### UX-1 & UX-2 — Device connectivity ✅
+
+| ID | Task | File |
+|----|------|------|
+| UX-1/2-1 ✅ | Create `is_device_connected()` — checks ADB + SD card mount | `config.py` |
+| UX-1/2-2 ✅ | Add `/api/device-status` endpoint | `web/handlers/config.py` |
+| UX-1/2-3 ✅ | Frontend polling every 4s, update state | `static/js/state.js` + `main.js` |
+| UX-1/2-4 ✅ | Startup cards: status badge when offline | `static/js/tabs/overview.js` + `index.html` |
+| UX-1/2-5 ✅ | Disable rename button when offline + targeting Android | `static/js/tabs/organize.js` |
+
+| ID | Task |
+|----|------|
+| UX-1 ✅ | Device connectivity indicator on startup cards |
+| UX-2 ✅ | Block operations on inactive device |
+| DB-1 ✅ | Metadata cache flag — `metadata_scraped` column, schema migration, scraper updates |
+| DB-2 ✅ | Orphaned record cleanup — enhanced `prune_stale_entries()`, cleanup count in CLI |
+| DUP-3 ✅ | Delete option for "Colisión de plan" — "Eliminar duplicados" button in conflict resolution |
+| DUP-4 ✅ | Clarify delete-all counts — breakdown: deleted / skipped / failed |
+
+### Bug fixes ✅
+
+| ID | Bug | Fix |
+|----|-----|-----|
+| BUG-ASSET-IMAGE-404 ✅ | Game cover images 404 — missing `/api/asset-image` | Added endpoint to `collection.py` |
+| BUG-ORG-1 ✅ | Organizar tab `window._h` error | Added `_h` to window exports |
+| BUG-COL-1 ✅ | Coleccion tab `window._h` error | Added `_h` to window exports |
+| BUG-DUP-FALSE ✅ | Duplicados shows false empty state | All cascading issues resolved |
+| BUG-ORG-RA-RENAME-PLAN ✅ | "Resolver por RA" button error — RenamePlan missing `operations` | Changed `plan.operations` → `plan.pending` in `duplicates.py` |
+| BUG-PLATBADGE ✅ | `window._platBadge is not a function` in Organizar | Exported from `games.js` + added to `main.js` |
+| BUG-ORG-DELETE-COLLISION ✅ | "Eliminar duplicados" button broken DOM selector | Updated selector to find collision div correctly |
+| BUG-DELETE-DUPLICATES-MISMATCH ✅ | Delete-all reports 550 deleted but files still exist | Fixed; Duplicados tab shows no duplicates after delete-all |
+
+### Features ✅
+
+| ID | Task |
+|----|------|
+| B2 ✅ | Batch run: checkboxes per tool, logical order, PC/Android context selector — `doBatchRun()` wired |
+| B3 ✅ | Library comparator PC vs Android — diff screen + `POST /api/sync-roms` + conflict policy (B3-1…B3-5) |
+| P1 ✅ | Inbox file watcher — polling 30s → auto-pipeline → toast with `trigger_ts` stamp |
+| P3 ✅ | Disk usage panel per platform — `GET /api/disk-usage`, per-platform bars + drive bar |
+| P5 ✅ | Collection completeness — cross with DATs, % per platform (📋 Completitud toggle panel) |
+
+### Sync — Android emulator path mapping ✅
+
+| ID | Task |
+|----|------|
+| SYNC-A1 ✅ | Documented save/savestate paths for all target emulators — `docs/sync/android-save-paths-RG556.md` |
+| SYNC-A2 ✅ | `EMULATOR_SAVE_PATHS_DEFAULT` in `config.py` (18 emulators), `[[emulator_paths]]` overrides in `config.toml` |
+| SYNC-A3 ✅ | `get_adb_sync_sources()` in `config.py`; `_run_auto_sync()` loops per-emulator sources instead of single root |
+| SYNC-PS1PS2 ✅ | ADB access to PSX/PS2 hidden save paths — DuckStation + AetherSX2 paths verified and mapped |
