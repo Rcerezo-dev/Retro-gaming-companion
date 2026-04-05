@@ -510,6 +510,58 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     )
 
 
+def get_adb_sync_sources(config: "AppConfig") -> list[dict]:
+    """Return ADB sync source descriptors derived from config.emulator_paths.
+
+    Each entry is a dict with:
+      - ``name``              : human-readable emulator name
+      - ``package``           : Android package name
+      - ``android_saves``     : absolute Android saves path, or None
+      - ``android_states``    : absolute Android states path, or None
+      - ``local_saves``       : local Path for saves (under library_root)
+      - ``local_states``      : local Path for states (under library_root), or None
+      - ``save_extensions``   : frozenset of save file extensions (or None = use config defaults)
+      - ``state_extensions``  : frozenset of state file extensions (or None = use config defaults)
+
+    Emulators with ``accessible: False`` (e.g. Dolphin) are excluded.
+    Emulators that don't require ADB (RetroArch, PPSSPP) are excluded — they are
+    handled by the SD card sync path.
+
+    Local paths use ``library_root/emulator_saves/<package>/`` to keep each
+    emulator's saves isolated and avoid clashing with the existing ROM/save tree.
+    """
+    if not config.library_root:
+        return []
+
+    sources: list[dict] = []
+    for pkg, info in config.emulator_paths.items():
+        if not info.get("accessible", True):
+            continue  # Dolphin etc — ADB permission denied even with USB debugging
+        if not info.get("adb_required", True):
+            continue  # RetroArch/PPSSPP use SD card path, handled by SD sync daemon
+
+        saves_path = info.get("saves_path")
+        states_path = info.get("states_path")
+        if not saves_path and not states_path:
+            continue  # no known path yet (Mupen64Plus FZ etc.)
+
+        local_root = config.library_root / "emulator_saves" / pkg
+        raw_save_ext = info.get("save_extensions")
+        raw_state_ext = info.get("state_extensions")
+
+        sources.append({
+            "name": info.get("name", pkg),
+            "package": pkg,
+            "android_saves": saves_path,
+            "android_states": states_path,
+            "local_saves": local_root / "saves" if saves_path else None,
+            "local_states": local_root / "states" if states_path else None,
+            "save_extensions": frozenset(raw_save_ext) if raw_save_ext else None,
+            "state_extensions": frozenset(raw_state_ext) if raw_state_ext else None,
+        })
+    return sources
+
+
 def _path_exists(p: str) -> bool:
     """Return True if p resolves to an existing path (handles relative paths too)."""
     try:

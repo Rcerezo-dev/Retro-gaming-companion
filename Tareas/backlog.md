@@ -119,7 +119,7 @@ Android emulators use fixed paths under `Android/Data/<package>/` (scoped storag
 |----|------|-------|
 | SYNC-A1 ✅ | Document save/savestate paths for all target emulators | Verified live on RG556 via ADB. Full reference: `docs/android-save-paths-RG556.md` |
 | SYNC-A2 ✅ | Add emulator path mapping table to `config.toml` or hardcode as defaults | Keyed by package name; user can override. Done: `EMULATOR_SAVE_PATHS_DEFAULT` in config.py (18 emulators), `[[emulator_paths]]` overrides in config.toml, merged into `AppConfig.emulator_paths` |
-| SYNC-A3 | Update sync logic to pull/push via ADB using mapped paths instead of assuming a configurable root | Replaces assumption that emulator paths are user-configurable |
+| SYNC-A3 ✅ | Update sync logic to pull/push via ADB using mapped paths instead of assuming a configurable root | Done: `get_adb_sync_sources()` in config.py builds 13 per-emulator sources from `emulator_paths`; `_run_auto_sync()` in cable_sync_daemon.py loops sources instead of single root. Saves to `library_root/emulator_saves/<package>/saves\|states/`. SD-card emulators (RetroArch/PPSSPP) handled by SD daemon as before. |
 
 ---
 

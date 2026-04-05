@@ -101,11 +101,26 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
                 _log_file = None
                 try:
+                    from rom_manager.config import get_adb_sync_sources
                     pc_root   = config.library_root
                     direction = config.auto_sync_direction
-                    android_path = config.auto_sync_android_path.rstrip("/")
                     save_exts = frozenset(config.save_extensions)
+                    state_exts = frozenset(config.state_extensions)
                     what = ["saves"]
+                    # Build per-emulator sync sources from mapped paths (SYNC-A3)
+                    adb_sources = get_adb_sync_sources(config)
+                    # Fallback: if no mapped sources, use old single-root behaviour
+                    if not adb_sources:
+                        adb_sources = [{
+                            "name": "RetroArch (legacy)",
+                            "package": "com.retroarch.aarch64",
+                            "android_saves": config.auto_sync_android_path.rstrip("/"),
+                            "android_states": None,
+                            "local_saves": pc_root,
+                            "local_states": None,
+                            "save_extensions": None,
+                            "state_extensions": None,
+                        }]
 
                     log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
                     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -121,12 +136,6 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         note_part = (" | " + note) if note else ""
                         _log_file.write(f"[{ts}] [{tag:5s}] {src}{arrow}{note_part}\n")
 
-                    def _wanted_name(name: str) -> bool:
-                        if name.startswith("."):
-                            return False
-                        suffix = Path(name).suffix.lower()
-                        return suffix in save_exts
-
                     copied = skipped = errors = 0
                     copied_bytes = 0
 
@@ -141,10 +150,11 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     from rom_manager.sync.adb_transport import AdbTransport
                     transport = AdbTransport(config.adb, serial, timeout=60)
 
-                    def _adb_copy_to_pc(adb_info, rel_posix: str) -> None:
+                    def _adb_copy_to_pc(adb_info, local_root: Path, android_prefix: str) -> None:
                         nonlocal copied, errors, copied_bytes
                         name = PurePosixPath(adb_info.android_path).name
-                        local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                        rel_posix = adb_info.android_path.removeprefix(android_prefix)
+                        local_dst = local_root / Path(rel_posix.replace("/", os.sep))
                         try:
                             size = transport.pull(adb_info.android_path, local_dst, dry_run=False)
                             _log("ADB←", adb_info.android_path, str(local_dst))
@@ -155,9 +165,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
                             errors += 1
 
-                    def _adb_copy_to_device(local_src: Path, rel_posix: str) -> None:
+                    def _adb_copy_to_device(local_src: Path, local_root: Path, android_root: str) -> None:
                         nonlocal copied, errors, copied_bytes
-                        android_dst = android_path + "/" + rel_posix
+                        rel = local_src.relative_to(local_root)
+                        android_dst = android_root.rstrip("/") + "/" + rel.as_posix()
                         try:
                             size = transport.push(local_src, android_dst, dry_run=False)
                             _log("ADB→", str(local_src), android_dst)
@@ -173,55 +184,74 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         "current_file": "Auto-sync: listando saves en el dispositivo…",
                     })
 
-                    ab_adb_files = transport.ls_recursive(android_path)
-                    android_prefix = android_path + "/"
-
-                    def _iter_pc_files():
-                        for dirpath, dirs, files in os.walk(pc_root):
-                            dirs[:] = [d for d in dirs if not d.startswith(".")]
-                            for fname in files:
-                                yield Path(dirpath) / fname
-
-                    if direction == "pc_to_anbernic":
-                        for src in _iter_pc_files():
-                            if not _wanted_name(src.name):
+                    # Sync each emulator source — saves and states paths separately
+                    for src_info in adb_sources:
+                        for path_type in ("saves", "states"):
+                            android_root = src_info[f"android_{path_type}"]
+                            local_root_p  = src_info[f"local_{path_type}"]
+                            if not android_root or not local_root_p:
                                 continue
-                            rel = src.relative_to(pc_root)
-                            _adb_copy_to_device(src, rel.as_posix())
+                            # Extension filter: use emulator-specific if defined, else global
+                            exts_for_type = src_info[
+                                "save_extensions" if path_type == "saves" else "state_extensions"
+                            ]
+                            effective_exts = exts_for_type if exts_for_type is not None else (
+                                save_exts if path_type == "saves" else state_exts
+                            )
 
-                    elif direction == "anbernic_to_pc":
-                        for info in ab_adb_files:
-                            name = PurePosixPath(info.android_path).name
-                            if not _wanted_name(name):
-                                continue
-                            rel_posix = info.android_path.removeprefix(android_prefix)
-                            _adb_copy_to_pc(info, rel_posix)
+                            def _wanted_src(name: str, _exts=effective_exts) -> bool:
+                                return not name.startswith(".") and Path(name).suffix.lower() in _exts
 
-                    else:  # newest
-                        ab_index = {
-                            info.android_path.removeprefix(android_prefix): info
-                            for info in ab_adb_files
-                            if _wanted_name(PurePosixPath(info.android_path).name)
-                        }
-                        pc_index: dict = {}
-                        for f in _iter_pc_files():
-                            if _wanted_name(f.name):
-                                pc_index[f.relative_to(pc_root).as_posix()] = f
+                            android_prefix = android_root.rstrip("/") + "/"
+                            _log_file.write(
+                                f"  [source] {src_info['name']} {path_type}: {android_root} → {local_root_p}\n"
+                            )
 
-                        for rel_posix in sorted(set(pc_index) | set(ab_index)):
-                            pc_f   = pc_index.get(rel_posix)
-                            ab_inf = ab_index.get(rel_posix)
-                            if pc_f and ab_inf:
-                                if pc_f.stat().st_mtime > ab_inf.mtime:
-                                    _adb_copy_to_device(pc_f, rel_posix)
-                                elif ab_inf.mtime > pc_f.stat().st_mtime:
-                                    _adb_copy_to_pc(ab_inf, rel_posix)
-                                else:
-                                    skipped += 1
-                            elif pc_f:
-                                _adb_copy_to_device(pc_f, rel_posix)
-                            elif ab_inf:
-                                _adb_copy_to_pc(ab_inf, rel_posix)
+                            ab_files = transport.ls_recursive(android_root)
+
+                            def _iter_local():
+                                if not local_root_p.exists():
+                                    return
+                                for dp, dirs, files in os.walk(local_root_p):
+                                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                                    for fname in files:
+                                        yield Path(dp) / fname
+
+                            if direction == "pc_to_anbernic":
+                                for lf in _iter_local():
+                                    if _wanted_src(lf.name):
+                                        _adb_copy_to_device(lf, local_root_p, android_root)
+
+                            elif direction == "anbernic_to_pc":
+                                for af in ab_files:
+                                    if _wanted_src(PurePosixPath(af.android_path).name):
+                                        _adb_copy_to_pc(af, local_root_p, android_prefix)
+
+                            else:  # newest
+                                ab_idx = {
+                                    af.android_path.removeprefix(android_prefix): af
+                                    for af in ab_files
+                                    if _wanted_src(PurePosixPath(af.android_path).name)
+                                }
+                                pc_idx: dict = {}
+                                for lf in _iter_local():
+                                    if _wanted_src(lf.name):
+                                        pc_idx[lf.relative_to(local_root_p).as_posix()] = lf
+
+                                for rel_posix in sorted(set(pc_idx) | set(ab_idx)):
+                                    pc_f  = pc_idx.get(rel_posix)
+                                    ab_f  = ab_idx.get(rel_posix)
+                                    if pc_f and ab_f:
+                                        if pc_f.stat().st_mtime > ab_f.mtime:
+                                            _adb_copy_to_device(pc_f, local_root_p, android_root)
+                                        elif ab_f.mtime > pc_f.stat().st_mtime:
+                                            _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
+                                        else:
+                                            skipped += 1
+                                    elif pc_f:
+                                        _adb_copy_to_device(pc_f, local_root_p, android_root)
+                                    elif ab_f:
+                                        _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
 
                     ts1 = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     _log_file.write(
