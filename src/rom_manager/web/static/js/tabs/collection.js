@@ -517,6 +517,17 @@ function toggleColStats() {
   }
 }
 
+// ── P5: Completeness toggle ───────────────────────────────────────────────────
+function toggleCompleteness() {
+  const panel = document.getElementById('col-completeness-panel');
+  if (panel.classList.contains('hidden')) {
+    panel.classList.remove('hidden');
+    loadCollectionStats();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
 // ── P3: Disk usage panel ──────────────────────────────────────────────────────
 function toggleDiskUsage() {
   const panel = document.getElementById('col-disk-panel');
@@ -594,4 +605,5 @@ export {
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   toggleDiskUsage, loadDiskUsage,
+  toggleCompleteness,
 };

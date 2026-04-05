@@ -29,6 +29,7 @@ import {
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   toggleDiskUsage, loadDiskUsage,
+  toggleCompleteness,
 } from './tabs/collection.js';
 import {
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
@@ -250,6 +251,7 @@ Object.assign(window, {
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   toggleDiskUsage, loadDiskUsage,
+  toggleCompleteness,
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
   resolveDuplicateRA, markAsIntentionalCopy,
   loadRaDuplicates, deleteRaDuplicate,
