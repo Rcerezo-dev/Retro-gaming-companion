@@ -5,6 +5,141 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+# Default Android emulator save/savestate path mappings.
+# Verified live on Anbernic RG556 (serial: RG556006101273).
+# Source: docs/android-save-paths-RG556.md
+# Keys are Android package names. Users can override entries via [[emulator_paths]] in config.toml.
+EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
+    "com.retroarch.aarch64": {
+        "name": "RetroArch",
+        "saves_path": "/storage/emulated/0/RetroArch/saves",
+        "states_path": "/storage/emulated/0/RetroArch/states",
+        "adb_required": False,
+        "notes": "Saves/states are per-core subfolder (e.g. saves/Beetle PSX/)",
+    },
+    "org.ppsspp.ppsspp": {
+        "name": "PPSSPP",
+        "saves_path": "/storage/emulated/0/PSP/SAVEDATA",
+        "states_path": "/storage/emulated/0/PSP/PPSSPP_STATE",
+        "adb_required": False,
+    },
+    "com.github.stenzek.duckstation": {
+        "name": "DuckStation (PS1)",
+        "saves_path": "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/memcards",
+        "states_path": "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/savestates",
+        "adb_required": True,
+        "save_extensions": [".mcd", ".mcr", ".srm"],
+        "state_extensions": [".sav"],
+    },
+    "xyz.aethersx2.android": {
+        "name": "AetherSX2 / NetherSX2 (PS2)",
+        "saves_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/memcards",
+        "states_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/sstates",
+        "adb_required": True,
+        "save_extensions": [".ps2"],
+        "state_extensions": [".p2s", ".p2s.backup"],
+    },
+    "org.dolphinemu.dolphinemu": {
+        "name": "Dolphin (GC/Wii)",
+        "saves_path": "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/GC",
+        "states_path": "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/StateSaves",
+        "adb_required": True,
+        "notes": "Permission denied via ADB without root — use Dolphin in-app backup instead",
+        "accessible": False,
+    },
+    "org.dolphinemu.mmjr": {
+        "name": "Dolphin MMJ (GC/Wii)",
+        "saves_path": "/storage/emulated/0/Android/data/org.dolphinemu.mmjr/files/GC",
+        "states_path": "/storage/emulated/0/Android/data/org.dolphinemu.mmjr/files/StateSaves",
+        "adb_required": True,
+        "notes": "Permission denied via ADB without root",
+        "accessible": False,
+    },
+    "org.citra.emu": {
+        "name": "Citra (3DS)",
+        "saves_path": "/storage/emulated/0/Android/data/org.citra.emu/files/citra-emu/sdmc/Nintendo 3DS",
+        "states_path": None,
+        "adb_required": True,
+    },
+    "io.github.lime3ds.android": {
+        "name": "Lime3DS (3DS)",
+        "saves_path": "/storage/emulated/0/Android/data/io.github.lime3ds.android/files",
+        "states_path": None,
+        "adb_required": True,
+    },
+    "io.recompiled.redream": {
+        "name": "Redream (Dreamcast)",
+        "saves_path": "/storage/emulated/0/Android/data/io.recompiled.redream/files",
+        "states_path": "/storage/emulated/0/Android/data/io.recompiled.redream/files/states",
+        "adb_required": True,
+        "state_extensions": [".sav"],
+        "notes": "VMU saves: vmu0.bin–vmu3.bin at saves_path root",
+    },
+    "com.flycast.emulator": {
+        "name": "Flycast (Dreamcast)",
+        "saves_path": "/storage/emulated/0/Android/data/com.flycast.emulator/files",
+        "states_path": None,
+        "adb_required": True,
+    },
+    "org.devmiyax.yabasanshioro2.pro": {
+        "name": "Yaba Sanshiro 2 (Saturn)",
+        "saves_path": "/storage/emulated/0/Android/data/org.devmiyax.yabasanshioro2.pro/files/yabause/memory",
+        "states_path": "/storage/emulated/0/Android/data/org.devmiyax.yabasanshioro2.pro/files/yabause/state",
+        "adb_required": True,
+    },
+    "com.explusalpha.Snes9xPlus": {
+        "name": "Snes9x EX+ (SNES)",
+        "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.Snes9xPlus/files/EmuEx/SFC-SNES/saves",
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+        "notes": "State format: <GameTitle>.<slot>.frz",
+    },
+    "com.explusalpha.GbaEmu": {
+        "name": "GBA.emu (GBA)",
+        "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.GbaEmu/files/EmuEx/GBA/saves",
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+    },
+    "com.explusalpha.GbcEmu": {
+        "name": "GBC.emu (GBC)",
+        "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.GbcEmu/files/EmuEx/GBC/saves",
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+    },
+    "com.explusalpha.NesEmu": {
+        "name": "NES.emu (NES)",
+        "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.NesEmu/files/EmuEx/NES/saves",
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+    },
+    "com.explusalpha.MdEmu": {
+        "name": "MD.emu (Mega Drive)",
+        "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.MdEmu/files/EmuEx/MD/saves",
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+    },
+    "me.magnum.melonds": {
+        "name": "melonDS (Nintendo DS)",
+        "saves_path": "/storage/emulated/0/Android/data/me.magnum.melonds/files",
+        "states_path": None,
+        "adb_required": True,
+        "notes": "Save location may vary; may be alongside ROMs",
+    },
+    "org.mupen64plusae.v3.fzurita.pro": {
+        "name": "Mupen64Plus FZ (N64)",
+        "saves_path": None,
+        "states_path": None,
+        "adb_required": True,
+        "notes": "Save location unknown — may be alongside ROMs or user-configured sdcard path",
+    },
+}
+
+
 @dataclass(slots=True)
 class SyncSource:
     """One emulator's save directory paired with its cloud remote path."""
@@ -71,6 +206,9 @@ class AppConfig:
     # Dual-remote cloud sync (D2)
     saves_remote: str               # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
     states_remote: str              # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
+    # Android emulator path mappings (SYNC-A2)
+    # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
+    emulator_paths: dict            # package_name → {name, saves_path, states_path, adb_required, ...}
 
     # ── Device connectivity check (UX-1/2) ────────────────────────────────────
     def is_device_connected(self) -> tuple[bool, str]:
@@ -162,6 +300,15 @@ chdman = "chdman"
 [web]
 host = "127.0.0.1"
 port = 7777
+
+# Android emulator path overrides — one entry per emulator you want to customise.
+# Defaults for all known emulators are built-in (see EMULATOR_SAVE_PATHS_DEFAULT in config.py).
+# Use this section only when a path differs from the defaults.
+# Example:
+# [[emulator_paths]]
+# package = "com.github.stenzek.duckstation"
+# saves_path = "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/memcards"
+# states_path = "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/savestates"
 """
 
 
@@ -189,6 +336,17 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     android_cfg = toml.get("android", {})
     launchers_cfg = toml.get("launchers", {})
     backup_cfg = toml.get("backup", {})
+
+    # Merge emulator path defaults with any user overrides from [[emulator_paths]]
+    emulator_paths: dict = {k: dict(v) for k, v in EMULATOR_SAVE_PATHS_DEFAULT.items()}
+    for entry in toml.get("emulator_paths", []):
+        if isinstance(entry, dict) and entry.get("package"):
+            pkg = entry["package"]
+            override = {k: v for k, v in entry.items() if k != "package"}
+            if pkg in emulator_paths:
+                emulator_paths[pkg].update(override)
+            else:
+                emulator_paths[pkg] = override
 
     library_root_raw = lib.get("library_root")
     library_root = Path(library_root_raw) if library_root_raw else None
@@ -269,6 +427,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
         saves_remote=str(sync.get("saves_remote", "")),
         states_remote=str(sync.get("states_remote", "")),
+        emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501
             "Android",
             "BIOS",
