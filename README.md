@@ -161,7 +161,7 @@ rclone = "rclone"                   # Binario rclone (o ruta completa)
 # ── Una entrada por emulador ──────────────────────────────────────────────────
 [[sync.sources]]
 name      = "RetroArch"
-local_dir = "E:\\ROMs\\saves"       # Después de centralizar saves con "Organizar biblioteca"
+local_dir = "E:\\ROMs\\saves"
 remote    = "dropbox:/RetroSync/saves/retroarch"
 
 [[sync.sources]]
@@ -178,7 +178,7 @@ remote    = "dropbox:/RetroSync/saves/pcsx2"
 name      = "PPSSPP (PSP)"
 local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PPSSPP\\PSP\\SAVEDATA"
 remote    = "dropbox:/RetroSync/saves/ppsspp"
-sync_all  = true   # sincroniza todos los archivos (estructura de subcarpetas por juego)
+sync_all  = true
 
 [[sync.sources]]
 name      = "Dolphin (GC/Wii)"
@@ -256,7 +256,6 @@ library_root/
 │   │   ├── images/            ← carátulas (mismo nombre que el ROM)
 │   │   └── videos/
 │   └── Final Fantasy VII (USA).chd
-│   └── Final Fantasy VII (USA).m3u
 ├── gba/
 │   └── Metroid Fusion (USA).gba
 ├── snes/
@@ -266,9 +265,8 @@ library_root/
 ├── gamecube/
 ├── ...
 ├── saves/                     ← TODOS los saves de RetroArch (planos)
-│   └── Metroid Fusion (USA).srm
 ├── bios/                      ← BIOS (scph1001.bin, etc.)
-└── inbox/                     ← ZIPs nuevos sin organizar → Pilar 2
+└── inbox/                     ← ZIPs nuevos sin organizar
 ```
 
 El botón **"Crear estructura"** en Herramientas → Estructura de biblioteca crea todas las carpetas automáticamente.
@@ -285,7 +283,7 @@ El botón **"Crear estructura"** en Herramientas → Estructura de biblioteca cr
 2. Añade las entradas `[[sync.sources]]` en `config.toml` (ver arriba)
 3. En la pestaña **Sync** → pulsa **Sincronizar**
 
-La Anbernic / consola Android usa la misma cuenta de rclone configurada en Termux para hacer el sync en la dirección contraria. Guía detallada: [`docs/sync-cloud.md`](docs/sync-cloud.md).
+La Anbernic / consola Android usa la misma cuenta de rclone configurada en Termux. Guía detallada: [`docs/sync/sync-cloud.md`](docs/sync/sync-cloud.md) · [`docs/sync/Guia-Termux-Anbernic.md`](docs/sync/Guia-Termux-Anbernic.md).
 
 ### Cable sync (PC ↔ Android por USB)
 
@@ -294,7 +292,7 @@ Opciones para montar el almacenamiento Android en Windows:
 2. **Termux SFTP** — `sshd` en Termux + WinFsp/SSHFS-Win o `rclone mount`
 3. **ADB** — modo directo, no requiere montar unidad
 
-El modo MTP estándar ("Transferencia de archivos") **no** expone una letra de unidad y no es compatible. Guía: [`docs/sync-cable.md`](docs/sync-cable.md).
+El modo MTP estándar ("Transferencia de archivos") **no** expone una letra de unidad y no es compatible. Guía: [`docs/sync/sync-cable.md`](docs/sync/sync-cable.md).
 
 ---
 
@@ -318,58 +316,33 @@ El matcher usa SHA1 para encontrar coincidencias exactas.
 src/rom_manager/
   cli.py                     # Entrypoint CLI (argparse)
   config.py                  # AppConfig + SyncSource + lectura de config.toml
-  catalog/
-    catalog_loader.py        # Parseo DATs XML Logiqx → sha1 → CatalogEntry
-    matcher.py               # Búsqueda SHA1 en todos los DATs cargados
-  database/
-    schema.py                # Tablas SQLite + migraciones automáticas de columnas
-    repository.py            # LibraryRepository (upsert, batch, duplicates, prune)
-  detection/
-    file_classifier.py       # ROM / save / asset / system / unknown
-    platform_detector.py     # Plataforma por extensión + contexto de carpeta
-    region_parser.py         # Región desde nombre de archivo (No-Intro / GoodTools)
-  hashing/
-    hash_calculator.py       # SHA1 + MD5 + CRC32, chunks de 1 MB
-  scanner/
-    rom_scanner.py           # Bucle principal (incremental + stale prune)
-  planner/
-    operation_planner.py     # RenamePlan: pending / already_correct / conflicts
-  renamer/
-    file_renamer.py          # rename_rom_with_saves() — atómico con rollback
-    cue_rewriter.py          # Reescribe .cue al renombrar sets PSX
-  converters/
-    chd_converter.py         # .cue+.bin → .chd vía chdman
-    zip_extractor.py         # Extracción de .zip
-  utils/
-    m3u_generator.py         # Genera .m3u para multi-disco
-    multidisc_verifier.py    # Verifica integridad de sets
-    orphan_finder.py         # Saves sin ROM asociada
-    health_checker.py        # Re-hashea ROMs vs SHA1 almacenado
-  sync/
-    rclone_transport.py      # Wrapper sobre el binario rclone
-    save_syncer.py           # list_local_saves() + sync_saves() multi-fuente
-    conflict_resolver.py     # El más reciente gana; backup ante ambigüedad
-    sync_log.py              # Tabla save_sync_log en SQLite
-  scraper/
-    screenscraper.py         # Cliente REST ScreenScraper (CRC/MD5/SHA1 + fallback nombre)
-    gamelist_writer.py       # gamelist.xml formato EmulationStation / ES-DE
-    pegasus_writer.py        # metadata.pegasus.txt formato Pegasus Frontend
-  retroachievements/
-    ra_client.py             # API_GetGameList; caché .rommgr/ra_cache/ 1 semana
-    ra_checker.py            # Cross-reference MD5 + búsqueda alternativa por título
-  web/
-    server.py                # ThreadingHTTPServer stdlib; todos los endpoints REST
-    frontend.py              # SPA HTML+JS inline (sin deps externas)
+  catalog/                   # Parseo DATs + matching SHA1
+  database/                  # Schema SQLite + LibraryRepository
+  detection/                 # Clasificación de archivos, plataforma, región
+  hashing/                   # SHA1 + MD5 + CRC32
+  scanner/                   # Escaneo incremental
+  planner/                   # RenamePlan: pending / already_correct / conflicts
+  renamer/                   # Renombrado atómico + reescritura .cue
+  converters/                # CHD, ZIP
+  utils/                     # M3U, multi-disco, orphan finder, health check
+  sync/                      # rclone transport, save syncer, conflict resolver
+  scraper/                   # ScreenScraper, gamelist.xml, Pegasus
+  retroachievements/         # RA API client + MD5 checker
+  web/                       # ThreadingHTTPServer + SPA HTML/JS
 scripts/
-  rommgr.cmd                 # Lanzador Windows (Conda env)
-  rommgr.ps1                 # Lanzador PowerShell
+  rommgr.cmd / rommgr.ps1   # Lanzadores Windows
 tools/
-  chdman.exe                 # No incluido en el repo — descargar de mamedev.org
-  adb.exe                    # No incluido — descargar de developer.android.com
+  chdman.exe / adb.exe       # Binarios externos (no incluidos en el repo)
 docs/
-  sync-cloud.md              # Guía de cloud sync con rclone
-  sync-cable.md              # Guía de cable sync (ADB / SFTP / SD)
-  library-structure.md       # Estructura de carpetas ES-DE reference
+  architecture/              # Arquitectura técnica y diseño
+  config/                    # Estructura de biblioteca, ES-DE, rutas de referencia
+  sync/                      # Guías de sincronización (cable, cloud, Termux, ADB)
+  ideas/                     # Propuestas y visión del producto
+  _archive/                  # Documentos obsoletos
+Tareas/
+  backlog.md                 # Backlog activo
+  archivo.md                 # Tareas completadas
+  diario/                    # Diario de sesiones de trabajo
 ```
 
 ---
@@ -394,7 +367,9 @@ scripts\rommgr.cmd pytest tests/ -v
 | 4 | Duplicados, escaneo incremental, reportes, interfaz web | ✅ |
 | 5 | Cloud sync · Cable Sync · ScreenScraper · RetroAchievements | ✅ |
 | 6 | Multi-source sync · Estructura ES-DE · Inbox · Fix duplicados | ✅ |
-| 7 | Tracker de tiempo de juego · Vista de cuadrícula · WiFi sync directo | 🔜 |
+| 7 | Wizard unificado · Sync Anbernic TV · Cloud (Termux+rclone) | 🔜 |
+
+Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 ---
 

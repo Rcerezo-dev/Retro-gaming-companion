@@ -1,58 +1,50 @@
-# Documentación de Retro Vault
+# Retro Vault — Documentación
 
-Índice completo de documentación técnica, guías de usuario y referencias arquitectónicas.
-
----
-
-## 📚 Documentación principal
-
-### 🏗️ Arquitectura y diseño
-
-- **[architecture.md](architecture.md)** — Estructura técnica completa del proyecto
-- **[platforms-cores.md](platforms-cores.md)** — Plataformas soportadas y núcleos emuladores
-
-### 🎮 Configuración
-
-- **[library-structure.md](library-structure.md)** — Cómo organizar tu biblioteca de ROMs
-- **[sync-cable.md](sync-cable.md)** — Sincronización por cable USB (ADB / SD card)
-- **[sync-cloud.md](sync-cloud.md)** — Sincronización en la nube (rclone, Dropbox, etc.)
-- **[android-sync.md](android-sync.md)** — Setup de sync automático en Anbernic/Android
+Índice de toda la documentación técnica, guías y referencias del proyecto.
 
 ---
 
-## 📖 Guías prácticas
+## Arquitectura
 
-Ver carpeta **[`guias/`](guias/README.md)** para:
+| Documento | Contenido |
+|-----------|-----------|
+| [architecture.md](architecture/architecture.md) | Estructura técnica completa: módulos, base de datos, flujos |
+| [frontend.md](architecture/frontend.md) | Arquitectura del frontend JS: tabs, estado, polling |
+| [platforms-cores.md](architecture/platforms-cores.md) | Plataformas soportadas y núcleos RetroArch |
+| [Roadmap-Arquitectura-Frontend.md](architecture/Roadmap-Arquitectura-Frontend.md) | Diseño original de la migración frontend (referencia histórica) |
 
-- **[Estructura de saves en Anbernic](guias/retroarch-saves-anbernic.md)** — Mapeo de plataformas, configuración, troubleshooting
-- Más guías en desarrollo...
+## Configuración
 
----
+| Documento | Contenido |
+|-----------|-----------|
+| [library-structure.md](config/library-structure.md) | Estructura de carpetas de la biblioteca (ES-DE compatible) |
+| [Rutas-Referencia.md](config/Rutas-Referencia.md) | Rutas absolutas de plataformas en PC y consola |
+| [Configuración-ES-DE.md](config/Configuración-ES-DE.md) | Guía de configuración de EmulationStation DE |
+| [esde-themes.md](config/esde-themes.md) | Temas y personalización de ES-DE |
 
-## 🔍 Búsqueda rápida
+## Sincronización
 
-| Busco... | Documento |
-|----------|-----------|
-| Cómo configurar mi consola Android | [guias/retroarch-saves-anbernic.md](guias/retroarch-saves-anbernic.md) |
-| Sincronizar saves automáticamente | [android-sync.md](android-sync.md) |
-| Organizar mis ROMs | [library-structure.md](library-structure.md) |
-| Entender la arquitectura del código | [architecture.md](architecture.md) |
-| Qué emuladores/núcleos se soportan | [platforms-cores.md](platforms-cores.md) |
-| Transferir datos por USB | [sync-cable.md](sync-cable.md) |
-| Usar Dropbox/Google Drive | [sync-cloud.md](sync-cloud.md) |
+| Documento | Contenido |
+|-----------|-----------|
+| [android-save-paths-RG556.md](sync/android-save-paths-RG556.md) | Rutas ADB de saves por emulador — verificadas en RG556 |
+| [sync-cable.md](sync/sync-cable.md) | Cable Sync: ADB, SD card, SFTP — cómo conectar y transferir |
+| [sync-cloud.md](sync/sync-cloud.md) | Cloud Sync: rclone + Dropbox — setup y flujo |
+| [Guia-Termux-Anbernic.md](sync/Guia-Termux-Anbernic.md) | Guía completa: Termux + rclone en la Anbernic RG556 |
 
----
+## Ideas y propuestas
 
-## 📋 Notas
+| Documento | Contenido |
+|-----------|-----------|
+| [Idea_final.md](ideas/Idea_final.md) | Visión completa de la app: tabs, flujo, problemas abiertos |
+| [propuestas-recomendador-nlp.md](ideas/propuestas-recomendador-nlp.md) | Análisis de viabilidad de recomendador de juegos con NLP |
 
-- **Última actualización:** 2026-03-21
-- **Versión:** Retro Vault v1.0 (en desarrollo)
-- **Plataforma soportada:** Windows 10+, Python 3.11+
+## Archivo
 
----
+Documentos obsoletos o supersedidos, conservados como referencia histórica.
 
-## 🔗 Enlaces relacionados
-
-- **GitHub:** https://github.com/anthropics/retro-vault
-- **Configuración inicial:** Ver `config.toml.example`
-- **Roadmap futuro:** Ver `Tareas/Día16.md`
+| Documento | Por qué está archivado |
+|-----------|------------------------|
+| [refactor-plan.md](_archive/refactor-plan.md) | El refactor está completado |
+| [retroarch-saves-anbernic.md](_archive/retroarch-saves-anbernic.md) | Supersedido por `android-save-paths-RG556.md` |
+| [android-sync.md](_archive/android-sync.md) | Supersedido por `Guia-Termux-Anbernic.md` |
+| [guia-consola-android.md](_archive/guia-consola-android.md) | Supersedido por `Guia-Termux-Anbernic.md` |

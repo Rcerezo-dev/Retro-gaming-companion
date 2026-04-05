@@ -1,10 +1,10 @@
-Crea el siguiente archivo de diario de trabajo en la carpeta `Tareas/`.
+Crea el siguiente archivo de diario de trabajo en la carpeta `Tareas/diario/`.
 
 Pasos:
-1. Mira qué archivos `Día*.md` existen ya en `Tareas/` para determinar el número del próximo día
-2. Lee el último archivo de avances (`Tareas/Avances-*.md` o el `Día` más reciente) para conocer el contexto del trabajo anterior
-3. Lee `phases.md` de la memoria del proyecto para saber el estado actual de las fases
-4. Crea el archivo `Tareas/DíaN.md` (donde N es el número siguiente) con esta estructura:
+1. Mira qué archivos `Día*.md` existen ya en `Tareas/diario/` y `Tareas/diario/archivo/` para determinar el número del próximo día
+2. Lee el `Día` más reciente en `Tareas/diario/` para conocer el contexto del trabajo anterior
+3. Lee `Tareas/backlog.md` para saber las tareas activas y el estado del proyecto
+4. Crea el archivo `Tareas/diario/DíaN.md` (donde N es el número siguiente) con esta estructura:
 
 ```
 # ROM Manager Local — Día N
@@ -34,4 +34,4 @@ Lista concreta de lo que se quiere conseguir.
 (Se rellena al terminar.)
 ```
 
-Después de crear el archivo, actualiza `phases.md` si alguna tarea pasó a estado "Hecho" en la sesión anterior.
+Después de crear el archivo, mueve el día anterior a `Tareas/diario/archivo/` si no está ya ahí.
