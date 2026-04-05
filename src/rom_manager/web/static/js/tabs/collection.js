@@ -517,6 +517,74 @@ function toggleColStats() {
   }
 }
 
+// ── P3: Disk usage panel ──────────────────────────────────────────────────────
+function toggleDiskUsage() {
+  const panel = document.getElementById('col-disk-panel');
+  if (panel.classList.contains('hidden')) {
+    panel.classList.remove('hidden');
+    loadDiskUsage();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+async function loadDiskUsage() {
+  const el = document.getElementById('col-disk-content');
+  if (!el) return;
+  el.innerHTML = '<p class="loading">Calculando…</p>';
+  const root = window._deviceRoot();
+  const url = '/api/disk-usage' + (root ? `?root=${encodeURIComponent(root)}` : '');
+  try {
+    const d = await apiFetch(url);
+    const platforms = d.platforms || [];
+    const total = d.total_bytes || 0;
+
+    let html = '';
+
+    // Disk free/used bar (if available)
+    if (d.disk_total) {
+      const usedPct = Math.round(d.disk_used / d.disk_total * 100);
+      const freePct = 100 - usedPct;
+      html += `<div style="margin-bottom:14px">`;
+      html += `<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px">`;
+      html += `<span>Disco: <b style="color:#ccc">${d.total_human}</b> total</span>`;
+      html += `<span><b style="color:#4ec9b0">${_fmtBytes(d.disk_free)}</b> libre</span>`;
+      html += `</div>`;
+      html += `<div style="background:#1e1e2e;border-radius:4px;height:8px;width:100%;overflow:hidden">`;
+      html += `<div style="background:#7c3aed;width:${usedPct}%;height:100%;border-radius:4px"></div>`;
+      html += `</div>`;
+      html += `<div style="font-size:10px;color:#555;margin-top:2px">${usedPct}% usado · ${freePct}% libre</div>`;
+      html += `</div>`;
+    }
+
+    // Per-platform bars
+    html += `<div style="font-size:11px;color:#888;margin-bottom:6px">ROMs: <b style="color:#ccc">${d.total_human}</b> total</div>`;
+    for (const p of platforms) {
+      const pct = total > 0 ? Math.round(p.size_bytes / total * 100) : 0;
+      const missing = p.missing ? ` <span style="color:#f38ba8">(${p.missing} no encontrados)</span>` : '';
+      html += `<div style="margin-bottom:7px">`;
+      html += `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">`;
+      html += `<span style="color:#ccc">${window._h(p.platform)}</span>`;
+      html += `<span style="color:#888">${p.rom_count} ROMs &nbsp;<b style="color:#d4d4d4">${p.size_human}</b> &nbsp;<span style="color:#555">${pct}%</span>${missing}</span>`;
+      html += `</div>`;
+      html += `<div style="background:#1e1e2e;border-radius:3px;height:5px;width:100%">`;
+      html += `<div style="background:#7aa2f7;width:${pct}%;height:100%;border-radius:3px"></div>`;
+      html += `</div></div>`;
+    }
+    if (!platforms.length) html = '<p style="color:#555;font-size:12px">Sin datos. Escanea tu biblioteca primero.</p>';
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<p class="error-msg">${window._h(e.message)}</p>`;
+  }
+}
+
+function _fmtBytes(n) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(1)} ${units[i]}`;
+}
+
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
@@ -525,4 +593,5 @@ export {
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
+  toggleDiskUsage, loadDiskUsage,
 };

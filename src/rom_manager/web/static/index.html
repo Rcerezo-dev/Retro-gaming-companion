@@ -1396,6 +1396,15 @@
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleColStats()" id="btn-col-stats">📊 Stats</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="togglePlatformHealth()" id="btn-platform-health">🏥 Health</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiff()" id="btn-col-diff">🔀 Comparar</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiskUsage()" id="btn-disk-usage">💾 Disco</button>
+  </div>
+  <!-- Disk usage panel (P3) -->
+  <div class="hidden" id="col-disk-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="color:#7aa2f7;font-size:13px;font-weight:600">Uso de disco por plataforma</span>
+      <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadDiskUsage()">&#x27F3; Actualizar</button>
+    </div>
+    <div id="col-disk-content"></div>
   </div>
   <!-- Stats panel -->
   <div class="hidden" id="col-stats-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">

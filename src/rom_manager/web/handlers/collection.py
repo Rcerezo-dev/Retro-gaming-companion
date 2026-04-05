@@ -296,6 +296,57 @@ def register(
 
         ctx._send_json({"synced": synced, "errors": errors})
 
+    # ── GET /api/disk-usage (P3) ─────────────────────────────────────────────
+    @router.get("/api/disk-usage")
+    def get_disk_usage(ctx) -> None:
+        import shutil
+        from pathlib import Path
+
+        qs = getattr(ctx, "_qs", {})
+        src_root = qs.get("root", [None])[0] or None
+        du_repo = get_repo_fn(src_root or "")
+
+        with du_repo.connect() as conn:
+            rows = conn.execute(
+                "SELECT platform, source_path FROM games WHERE file_type = 'rom'"
+            ).fetchall()
+
+        by_platform: dict[str, dict] = {}
+        for row in rows:
+            plat = row["platform"] or "?"
+            entry = by_platform.setdefault(plat, {"size_bytes": 0, "rom_count": 0, "missing": 0})
+            entry["rom_count"] += 1
+            try:
+                entry["size_bytes"] += Path(row["source_path"]).stat().st_size
+            except OSError:
+                entry["missing"] += 1
+
+        def _fmt(n: int) -> str:
+            for unit in ("B", "KB", "MB", "GB", "TB"):
+                if n < 1024:
+                    return f"{n:.1f} {unit}"
+                n //= 1024
+            return f"{n:.1f} PB"
+
+        platforms = sorted(
+            [{"platform": p, **v, "size_human": _fmt(v["size_bytes"])} for p, v in by_platform.items()],
+            key=lambda x: x["size_bytes"],
+            reverse=True,
+        )
+        total = sum(p["size_bytes"] for p in platforms)
+
+        result: dict = {"platforms": platforms, "total_bytes": total, "total_human": _fmt(total)}
+        root_path = Path(src_root) if src_root else config.library_root
+        if root_path:
+            try:
+                du = shutil.disk_usage(root_path)
+                result["disk_total"] = du.total
+                result["disk_used"]  = du.used
+                result["disk_free"]  = du.free
+            except OSError:
+                pass
+        ctx._send_json(result)
+
     # ── GET /api/operations-timeline ─────────────────────────────────────────
     @router.get("/api/operations-timeline")
     def get_operations_timeline(ctx) -> None:
