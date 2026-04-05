@@ -117,7 +117,7 @@ Android emulators use fixed paths under `Android/Data/<package>/` (scoped storag
 
 | ID | Task | Notes |
 |----|------|-------|
-| SYNC-A1 | Document save/savestate paths for all target emulators | DuckStation ✓ partially, AetherSX2 package name known — paths need verification |
+| SYNC-A1 ✅ | Document save/savestate paths for all target emulators | Verified live on RG556 via ADB. Full reference: `docs/android-save-paths-RG556.md` |
 | SYNC-A2 | Add emulator path mapping table to `config.toml` or hardcode as defaults | Keyed by package name; user can override |
 | SYNC-A3 | Update sync logic to pull/push via ADB using mapped paths instead of assuming a configurable root | Replaces assumption that emulator paths are user-configurable |
 
