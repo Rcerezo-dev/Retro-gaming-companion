@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-05 (Archived all completed tasks to `archivo.md`)
+> Last updated: 2026-04-09 (sesión routing bugs + tools sidebar)
 > Completed tasks → `Tareas/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -23,16 +23,6 @@
 | BUG-MISSING-ROUTES | **Frontend calls 5 unregistered API routes** — `DISPATCH-FAIL` logged on every page load | Medium | ✅ FIXED: Added all 5 handlers. `auth/status`, `health-schedule`, `test-chdman`, `test-maxcso` → `handlers/config.py`. `disc-folders` → `handlers/esde.py`. |
 | BUG-ASSETS-1 | **Assets tab shows "not found"** | High | ✅ FIXED: Root cause was missing route registration. `/api/assets` always existed in collection.py; the 404 was caused by BUG-MISSING-ROUTES polluting dispatch. All routes verified returning 200. |
 | BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | ✅ FIXED: Root cause identified — 13 routes called by the frontend were never registered in handlers. Added `system-status`, `detect-cloud-folder`, `library-doctor`, `retroarch-check`, `bios-status`, `n64-scan` → `handlers/esde.py`. Added `autostart-status`, `autostart-toggle` → `handlers/config.py`. Total routes now 132 (was 119). |
-
-### Debug instructions for BUG-ROUTING-404
-
-1. Start server: `python -m rom_manager web 2>&1 | grep -E "\[DEBUG\]|\[DISPATCH"` to capture diagnostic output
-2. Check if asset routes are registered at startup:
-   - Should see: `[DEBUG] Registered asset routes: [('GET', '/api/assets'), ('GET', '/api/asset-image'), ...]`
-   - If none, registration failed - check for `[ERROR] Failed to register`
-3. Make a request to `/api/assets` and check stderr:
-   - If dispatch succeeds: handler is called, check response in browser/curl
-   - If dispatch fails: check `[DISPATCH-FAIL]` log for why key doesn't match
 
 ---
 
@@ -191,11 +181,7 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 
 ### BUG-TOOLS-SIDEBAR — Sidebar hides in Tools subtabs
 
-| ID | Task | File |
-|----|------|------|
-| BUG-TOOLS-SIDEBAR-1 | Reproduce: identify exactly which Tools subtabs hide the left nav | Browser + dev tools |
-| BUG-TOOLS-SIDEBAR-2 | Find root cause — likely a full-width container, missing class, or JS toggling sidebar state | `static/js/tabs/tools.js` + `app.css` |
-| BUG-TOOLS-SIDEBAR-3 | Fix and verify all Tools subtabs show sidebar consistently | same files |
+✅ FIXED: La causa raíz era la misma que BUG-INBOX-SIDEBAR. Los dos `</div>` extra en `tab-collection` cerraban `.content-area` y `.app-body` prematuramente, rompiendo el flex layout para todas las tabs posteriores (tv, scraper, tools, formats, inbox, settings). Al eliminar esos tags (commit del BUG-INBOX-SIDEBAR), el sidebar volvió a ser visible en todas las tabs afectadas. Verificado: `tab-collection` Delta=0, `.content-area` cierra en L2522 después de todos los tabs.
 
 ---
 
