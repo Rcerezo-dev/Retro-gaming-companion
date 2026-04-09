@@ -304,7 +304,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
             _discard(loser_path)
             if winner_path and winner_target and winner_path.exists():
                 # Rename winner to canonical target path
-                save_exts = (config.save_extensions or "").split(",") if config.save_extensions else []
+                save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
                 outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
                 if not outcome.success:
                     errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
@@ -360,7 +360,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
         # Rename winner to canonical target path
         if winner_op.source_path.exists() and winner_op.source_path != winner_op.target_path:
             try:
-                save_exts = (config.save_extensions or "").split(",") if config.save_extensions else []
+                save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
                 outcome = rename_rom_with_saves(winner_op.source_path, winner_op.target_path, save_exts)
                 if not outcome.success:
                     errors.append(f"{winner_op.source_path.name}: rename failed — {outcome.error}")

@@ -70,9 +70,10 @@ class LibraryRepository:
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.database_path, timeout=10)
+        connection = sqlite3.connect(self.database_path, timeout=30)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA busy_timeout=30000")
         try:
             yield connection
         finally:
@@ -81,9 +82,10 @@ class LibraryRepository:
     @contextmanager
     def batch(self) -> Iterator[sqlite3.Connection]:
         """Single open connection for bulk writes. Commits once on exit, rolls back on error."""
-        connection = sqlite3.connect(self.database_path, timeout=10)
+        connection = sqlite3.connect(self.database_path, timeout=30)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA busy_timeout=30000")
         try:
             yield connection
             connection.commit()
@@ -1093,6 +1095,14 @@ class LibraryRepository:
                 WHERE g.file_type = 'rom'
                   AND gm.description IS NOT NULL AND gm.description != ''
                   AND (g.set_type IS NULL OR g.set_type NOT IN ('disc_image', 'disc_auxiliary'))
+                  AND g.id = (
+                      SELECT MIN(g2.id) FROM games g2
+                      JOIN game_metadata gm2 ON gm2.game_id = g2.id
+                      WHERE gm2.ss_game_id IS NOT NULL AND gm2.ss_game_id = gm.ss_game_id
+                      UNION ALL
+                      SELECT g3.id FROM games g3
+                      WHERE gm.ss_game_id IS NULL AND g3.id = g.id
+                  )
                 ORDER BY g.platform, title
                 """
             ).fetchall()
