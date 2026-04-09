@@ -19,8 +19,10 @@
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| BUG-ASSETS-1 | **Assets tab shows "not found"** — Routes ARE registered but dispatcher returns 404 | High | 🔍 DEBUGGING: Endpoint code exists, routes registered in exact dict, but dispatch fails to match. Root cause TBD |
-| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | 🔍 DIAGNOSTICS ADDED: Enhanced router.dispatch() and server.py startup logging to identify root cause. Suspected causes: path encoding, handler exceptions, or registration failure |
+| BUG-DUP-PERM | **Duplicate deletion fails with WinError 5 (Access Denied)** on `E:\Carpetas anbernic\gb\` — all `os.remove()` calls silently fail; duplicates not deleted | High | ✅ FIXED: Added `_force_remove()` helper in `handlers/duplicates.py` that clears the read-only attribute (`os.chmod(S_IWRITE)`) before retrying deletion. Applied to `_delete_duplicate` and `_delete_all_duplicates`. |
+| BUG-MISSING-ROUTES | **Frontend calls 5 unregistered API routes** — `DISPATCH-FAIL` logged on every page load | Medium | ✅ FIXED: Added all 5 handlers. `auth/status`, `health-schedule`, `test-chdman`, `test-maxcso` → `handlers/config.py`. `disc-folders` → `handlers/esde.py`. |
+| BUG-ASSETS-1 | **Assets tab shows "not found"** | High | ✅ FIXED: Root cause was missing route registration. `/api/assets` always existed in collection.py; the 404 was caused by BUG-MISSING-ROUTES polluting dispatch. All routes verified returning 200. |
+| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | ✅ FIXED: Root cause identified — 13 routes called by the frontend were never registered in handlers. Added `system-status`, `detect-cloud-folder`, `library-doctor`, `retroarch-check`, `bios-status`, `n64-scan` → `handlers/esde.py`. Added `autostart-status`, `autostart-toggle` → `handlers/config.py`. Total routes now 132 (was 119). |
 
 ### Debug instructions for BUG-ROUTING-404
 
@@ -31,6 +33,33 @@
 3. Make a request to `/api/assets` and check stderr:
    - If dispatch succeeds: handler is called, check response in browser/curl
    - If dispatch fails: check `[DISPATCH-FAIL]` log for why key doesn't match
+
+---
+
+## Debug Playbook
+
+Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
+
+| ID | Técnica | Cómo | Dónde mirar |
+|----|---------|------|-------------|
+| DBG-1 | Lanzar servidor con logs en terminal | `scripts\rommgr.cmd serve` (o `-m rom_manager serve`) — stdout muestra requests, errores y jobs | Terminal |
+| DBG-2 | Verificar esquema SQLite | `/db-check` skill, o `sqlite3` / DB Browser sobre `.rommgr/*.db` | `database/repository.py`, `schema.py` |
+| DBG-3 | Testear pipeline por etapas | `rommgr.cmd scan --dry-run` → `plan` → (nunca `apply` sin plan) | CLI |
+| DBG-4 | Diagnosticar jobs en background | DevTools → Network → `/api/job-status` cada 2s; buscar `result_ts` ausente en respuesta | `web/server.py`, `web/jobs/manager.py` |
+| DBG-5 | Verificar ADB / sync | `tools\adb.exe devices`, `tools\adb.exe shell ls /sdcard/RetroArch/saves` | `sync/adb_transport.py` |
+| DBG-6 | Logging puntual por módulo | `import logging; logging.basicConfig(level=logging.DEBUG)` en el módulo sospechoso | `logging_utils.py` |
+| DBG-7 | Test integración completa | Skill `/test-pipeline` — scan → match → plan sobre datos sintéticos | — |
+
+### Síntomas frecuentes
+
+| Síntoma | Dónde mirar |
+|---------|-------------|
+| UI no actualiza | `frontend.py` polling + `result_ts` en `server.py` |
+| Config no persiste tras guardar | `_handle_save_config()` en `handlers/config.py` (recarga obligatoria) |
+| Renombrado PSX roto | `cue_rewriter.py` + `operation_planner.py` |
+| ADB no encuentra saves | `adb_transport.py` (mapeo de rutas por emulador) |
+| Circular import al arrancar | Late imports en `cable_sync_daemon.py` / `inbox_pipeline.py` |
+| 404 en rutas registradas | `router.dispatch()` — ver BUG-ROUTING-404 arriba |
 
 ---
 
@@ -151,6 +180,12 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 | EMULATOR-COMPAT-2 | Test PS1 round-trip: DuckStation PC → sync → DuckStation Android → load | Hardware test with RG556 |
 | EMULATOR-COMPAT-3 | Test PS2 round-trip: PCSX2 PC → sync → AetherSX2/NetherSX2 Android → load | Hardware test |
 | EMULATOR-COMPAT-4 | Test remaining platforms (GBA, SNES, GBC, NDS…) and document any format mismatches | Update matrix per result |
+
+---
+
+### BUG-INBOX-SIDEBAR — Sidebar renders at bottom in Inbox tab
+
+✅ FIXED: Two stray `</div>` tags inside `tab-collection` (index.html ~line 1499) were prematurely closing `content-area` and `app-body`. This broke the flex layout for every tab from `tab-tv` onwards (tv, scraper, tools, formats, inbox, settings), pushing the sidebar outside the flex row. Removed the 2 extra closing tags.
 
 ---
 

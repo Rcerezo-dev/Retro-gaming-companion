@@ -848,11 +848,6 @@ def _build_library_diff(
     conflicted_pc_sha1s = {e["sha1"] for k in conflict_keys for e in pc_by_title[k]}
     conflicted_and_sha1s = {e["sha1"] for k in conflict_keys for e in and_by_title[k]}
     only_pc = sorted(
-        [{"sha1": s, **e, "location": "pc"} for e in only_pc_list if s not in conflicted_pc_sha1s for s in [next((k for k in pc_sha1s - and_sha1s if pc_roms[k] == e), None)]],
-        key=lambda x: (x["platform"], x["title"]),
-    )
-    # Simpler approach:
-    only_pc = sorted(
         [{"sha1": s, **pc_roms[s], "location": "pc"} for s in (pc_sha1s - and_sha1s) if s not in conflicted_pc_sha1s],
         key=lambda x: (x["platform"], x["title"]),
     )

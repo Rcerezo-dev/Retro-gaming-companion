@@ -86,6 +86,11 @@ def register(
     def get_copy_assets_to_esde(ctx) -> None:
         ctx._send_json(_handle_copy_assets_to_esde(config))
 
+    # ── GET /api/disc-folders ─────────────────────────────────────────────────
+    @router.get("/api/disc-folders")
+    def get_disc_folders(ctx) -> None:
+        ctx._send_json(_handle_disc_folders(config))
+
     # ── GET /api/library-report ───────────────────────────────────────────────
     @router.get("/api/library-report")
     def get_library_report(ctx) -> None:
@@ -767,6 +772,53 @@ def register(
             daemon=True,
         ).start()
 
+    # ── GET /api/system-status ────────────────────────────────────────────────
+    @router.get("/api/system-status")
+    def get_system_status(ctx) -> None:
+        ctx._send_json(srv_mod._handle_system_status(config))
+
+    # ── GET /api/detect-cloud-folder ─────────────────────────────────────────
+    @router.get("/api/detect-cloud-folder")
+    def get_detect_cloud_folder(ctx) -> None:
+        ctx._send_json(srv_mod._handle_detect_cloud_folder())
+
+    # ── GET /api/library-doctor ───────────────────────────────────────────────
+    @router.get("/api/library-doctor")
+    def get_library_doctor(ctx) -> None:
+        ctx._send_json(srv_mod._handle_library_doctor(config, repository))
+
+    # ── GET /api/retroarch-check ──────────────────────────────────────────────
+    @router.get("/api/retroarch-check")
+    def get_retroarch_check(ctx) -> None:
+        ctx._send_json(srv_mod._handle_retroarch_check(config))
+
+    # ── GET /api/bios-status ──────────────────────────────────────────────────
+    @router.get("/api/bios-status")
+    def get_bios_status(ctx) -> None:
+        from rom_manager.detection.bios_checker import check_bios
+        search_dirs = []
+        if config.library_root:
+            search_dirs.append(config.library_root)
+            search_dirs.append(config.library_root / "bios")
+        if config.retroarch_path:
+            ra_system = Path(config.retroarch_path).parent / "system"
+            search_dirs.append(ra_system)
+        ctx._send_json({"bios": check_bios(search_dirs)})
+
+    # ── GET /api/n64-scan ─────────────────────────────────────────────────────
+    @router.get("/api/n64-scan")
+    def get_n64_scan(ctx) -> None:
+        from rom_manager.converters.n64_converter import scan_n64_roms
+        path_str = ctx._qs.get("path", [None])[0] or str(config.library_root or "")
+        if not path_str:
+            ctx._send_json({"roms": []})
+            return
+        scan_dir = Path(path_str)
+        if not scan_dir.exists():
+            ctx._send_json({"roms": [], "error": "Carpeta no encontrada"})
+            return
+        ctx._send_json({"roms": scan_n64_roms(scan_dir)})
+
 
 # ── Module-level helpers (also used by server.py internals) ──────────────────
 
@@ -849,3 +901,31 @@ def _handle_copy_assets_to_esde(config: "AppConfig") -> dict:
                     errors.append(str(exc))
                     skipped += 1
     return {"copied": copied, "skipped": skipped, "errors": errors[:5]}
+
+
+# Keywords that identify disc-based platforms (multi-disc games common)
+_DISC_PLATFORM_KEYWORDS = {
+    "ps1", "psx", "playstation", "ps2", "psp",
+    "saturn", "dreamcast",
+    "segacd", "sega-cd", "mega-cd", "megacd",
+    "pcenginecd", "pc-engine-cd", "turbografx-cd", "turbografxcd",
+    "neogeocd", "neo-geo-cd",
+    "3do", "cd-i", "cdi",
+}
+
+
+def _handle_disc_folders(config: "AppConfig") -> dict:
+    """Return subfolders of library_root whose name matches known disc-based platforms."""
+    root = config.library_root
+    if not root or not root.exists():
+        return {"folders": [], "library_root": str(root or "")}
+
+    folders: list[str] = []
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir():
+            continue
+        name_lower = entry.name.lower()
+        if any(kw in name_lower for kw in _DISC_PLATFORM_KEYWORDS):
+            folders.append(str(entry))
+
+    return {"folders": folders, "library_root": str(root)}

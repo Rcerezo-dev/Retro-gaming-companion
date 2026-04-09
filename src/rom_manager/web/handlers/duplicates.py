@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import stat
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -96,6 +97,16 @@ def register(
 _log = logging.getLogger(__name__)
 
 
+def _force_remove(path: Path) -> None:
+    """Remove a file, clearing the read-only attribute first if needed (WinError 5)."""
+    try:
+        os.remove(str(path))
+    except PermissionError:
+        # Clear read-only flag and retry (common on drives formatted by consoles)
+        os.chmod(str(path), stat.S_IWRITE)
+        os.remove(str(path))
+
+
 def _delete_duplicate(ctx, data: dict, repository: "LibraryRepository") -> None:
     game_id     = data.get("game_id")
     source_path = data.get("source_path", "").strip()
@@ -105,7 +116,7 @@ def _delete_duplicate(ctx, data: dict, repository: "LibraryRepository") -> None:
     p = Path(source_path)
     if p.exists():
         try:
-            os.remove(str(p))
+            _force_remove(p)
         except Exception as exc:
             ctx._send_json({"error": f"No se pudo eliminar el archivo: {type(exc).__name__}: {exc}"})
             return
@@ -148,7 +159,7 @@ def _delete_all_duplicates(ctx, repository: "LibraryRepository") -> None:
 
             try:
                 _log.info(f"Deleting file: {p}")
-                os.remove(str(p))
+                _force_remove(p)
                 diag["deleted_file"] = True
                 _log.info(f"File deleted successfully: {p}")
             except Exception as exc:

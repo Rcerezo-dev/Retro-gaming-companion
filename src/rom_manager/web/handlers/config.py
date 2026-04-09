@@ -45,6 +45,48 @@ def register(
     def post_config(ctx) -> None:
         _save_config(ctx, ctx._post_data, config, set_auto_sync_fn)
 
+    @router.get("/api/auth/status")
+    def get_auth_status(ctx) -> None:
+        ctx._send_json({"pin_configured": bool(config.web_pin_hash)})
+
+    @router.get("/api/health-schedule")
+    def get_health_schedule(ctx) -> None:
+        ctx._send_json(_read_health_schedule(config))
+
+    @router.get("/api/test-chdman")
+    def get_test_chdman(ctx) -> None:
+        ctx._send_json(_test_binary_status(
+            str(config.chdman) if config.chdman else str(config.project_root / "tools" / "chdman.exe"),
+        ))
+
+    @router.get("/api/test-maxcso")
+    def get_test_maxcso(ctx) -> None:
+        ctx._send_json(_test_binary_status(
+            str(config.project_root / "tools" / "maxcso.exe"),
+        ))
+
+    @router.get("/api/autostart-status")
+    def get_autostart_status(ctx) -> None:
+        from rom_manager.utils.tray_icon import get_autostart_status as _get_autostart
+        ctx._send_json({"enabled": _get_autostart()})
+
+    @router.post("/api/autostart-toggle")
+    def post_autostart_toggle(ctx) -> None:
+        from rom_manager.utils.tray_icon import (
+            get_autostart_status as _get_autostart,
+            set_autostart as _set_autostart,
+            _default_launch_cmd,
+        )
+        try:
+            new_state = not _get_autostart()
+            if new_state:
+                _set_autostart(True, _default_launch_cmd())
+            else:
+                _set_autostart(False)
+            ctx._send_json({"ok": True, "enabled": new_state})
+        except Exception as exc:
+            ctx._send_json({"ok": False, "error": str(exc)})
+
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
@@ -176,3 +218,56 @@ def _save_config(
     set_auto_sync_fn(new_cfg.auto_sync_enabled)
 
     ctx._send_json({"saved": list(updates.keys())})
+
+
+def _read_health_schedule(config: "AppConfig") -> dict:
+    """Return health-check schedule info for GET /api/health-schedule."""
+    import json as _json
+    import datetime as _dt
+
+    _INTERVAL_DAYS = 7
+    p = config.data_dir / "health_schedule.json"
+    try:
+        data = _json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+
+    last_run_at = data.get("last_run_at")
+    next_run_at: str | None = None
+    overdue = False
+    if last_run_at:
+        try:
+            last = _dt.datetime.fromisoformat(last_run_at.replace("Z", "+00:00"))
+            nxt = last + _dt.timedelta(days=_INTERVAL_DAYS)
+            next_run_at = nxt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            overdue = _dt.datetime.now(tz=_dt.timezone.utc) >= nxt
+        except Exception:
+            pass
+
+    return {
+        "last_run_at":    last_run_at,
+        "next_run_at":    next_run_at,
+        "last_ok":        data.get("last_ok"),
+        "last_corrupted": data.get("last_corrupted"),
+        "last_missing":   data.get("last_missing"),
+        "overdue":        overdue,
+    }
+
+
+def _test_binary_status(path_str: str) -> dict:
+    """Return {ok, version, path} for an external binary."""
+    import subprocess as _sp
+    import shutil as _shutil
+
+    p = Path(path_str) if path_str else None
+    if not p or not p.exists():
+        found = _shutil.which(path_str or "")
+        if not found:
+            return {"ok": False, "version": "", "path": path_str}
+        p = Path(found)
+    try:
+        r = _sp.run([str(p), "--version"], capture_output=True, text=True, timeout=5)
+        ver = (r.stdout or r.stderr or "").strip().splitlines()[0][:60]
+        return {"ok": True, "version": ver, "path": str(p)}
+    except Exception:
+        return {"ok": True, "version": "", "path": str(p)}
