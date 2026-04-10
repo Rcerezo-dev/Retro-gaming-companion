@@ -11,7 +11,7 @@
 
 | ID | Task | Where |
 |----|------|-------|
-| — | *(sin tareas activas)* | — |
+| B3/0B | ✅ DONE — Comparador PC vs Android completo: `/api/library-diff` + `/api/sync-roms` + UI con checkboxes, select-all y "Sincronizar todo →" por columna | `Collection` tab → botón 🔀 Comparar |
 
 ---
 

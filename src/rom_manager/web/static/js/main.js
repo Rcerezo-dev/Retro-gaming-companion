@@ -29,6 +29,7 @@ import {
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
+  _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
 } from './tabs/collection.js';
@@ -252,6 +253,7 @@ Object.assign(window, {
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
+  _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,

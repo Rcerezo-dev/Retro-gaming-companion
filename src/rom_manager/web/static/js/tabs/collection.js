@@ -424,11 +424,19 @@ async function loadLibraryDiff() {
 
 function _renderDiffTable(entries, side) {
   if (!entries.length) return '<p style="color:#555;font-size:11px;padding:4px">Sin diferencias.</p>';
-  let html = '<table style="width:100%;border-collapse:collapse">';
+  const selectAllId = `diff-sel-all-${side}`;
+  const dirLabel = side === 'pc' ? 'PC &#x2192; Android' : 'Android &#x2192; PC';
+  let html = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">`;
+  html += `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555;cursor:pointer">`;
+  html += `<input type="checkbox" id="${selectAllId}" style="accent-color:var(--accent)" onchange="_diffToggleAll('${side}',this.checked)"> Todo`;
+  html += `</label>`;
+  html += `<button class="btn" style="padding:1px 10px;font-size:11px" onclick="_syncAllSide('${side}')" title="Copiar todos los ROMs de este lado al otro">Sincronizar ${dirLabel}</button>`;
+  html += `</div>`;
+  html += '<table style="width:100%;border-collapse:collapse">';
   html += '<thead><tr style="color:#555;font-size:11px;border-bottom:1px solid #222">'
     + '<th style="padding:3px 6px;text-align:left">Plataforma</th>'
     + '<th style="padding:3px 6px;text-align:left">Título</th>'
-    + '<th style="padding:3px 6px;text-align:center" title="Seleccionar para sincronizar"></th>'
+    + '<th style="padding:3px 6px;text-align:center"></th>'
     + '</tr></thead><tbody>';
   for (const e of entries) {
     html += `<tr style="border-bottom:1px solid #1a1a1a" title="${window._h(e.source_path)}">`;
@@ -439,6 +447,30 @@ function _renderDiffTable(entries, side) {
   }
   html += '</tbody></table>';
   return html;
+}
+
+function _diffToggleAll(side, checked) {
+  document.querySelectorAll(`#col-diff-panel .diff-sel[data-side="${side}"]`)
+    .forEach(cb => { cb.checked = checked; });
+}
+
+async function _syncAllSide(side) {
+  const checks = document.querySelectorAll(`#col-diff-panel .diff-sel[data-side="${side}"]`);
+  if (!checks.length) { showToast('No hay diferencias en este lado', 'info'); return; }
+  const direction = side === 'pc' ? 'pc_to_android' : 'android_to_pc';
+  const items = Array.from(checks).map(cb => ({ sha1: cb.dataset.sha1, direction }));
+  const statusEl = document.getElementById('diff-sync-status');
+  if (statusEl) statusEl.textContent = `Copiando ${items.length} archivo(s)…`;
+  try {
+    const r = await apiPost('/api/sync-roms', { items });
+    const msg = `✓ ${r.synced} copiado(s)` + (r.errors.length ? ` · ${r.errors.length} error(es)` : '');
+    if (statusEl) statusEl.textContent = msg;
+    showToast(msg, r.errors.length ? 'warn' : 'ok');
+    if (r.synced > 0) await loadLibraryDiff();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '';
+    showToast(`Error: ${e.message}`, 'err');
+  }
 }
 
 function _renderDiffConflicts(conflicts) {
@@ -604,6 +636,7 @@ export {
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
+  _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
 };
