@@ -337,6 +337,10 @@ async function doBatchRun() {
     name: 'RetroAchievements', runningKey: 'ra_check_running',
     start: () => apiPost('/api/ra-check', {}),
   });
+  if (document.getElementById('batch-scraper')?.checked) jobs.push({
+    name: 'Scraper (ScreenScraper)', runningKey: 'scrape_running',
+    start: () => apiPost('/api/scrape', { platform: null, limit: 0, images: true }),
+  });
   if (jobs.length === 0) { alert('Selecciona al menos una herramienta.'); return; }
 
   const btn = document.getElementById('btn-batch-run');
