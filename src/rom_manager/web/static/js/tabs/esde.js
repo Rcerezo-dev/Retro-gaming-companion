@@ -328,7 +328,8 @@ function _renderRaPage() {
       const filename = (r.original_filename || '?').split(/[\\/]/).pop();
       const filenameNoExt = filename.replace(/\.[^.]+$/, '');
       const raTitle = r.alternative ? r.alternative.title : '—';
-      const achievements = r.alternative ? (r.alternative.achievements_count || 0) : '—';
+      const achievements = r.alternative ? (r.alternative.achievements || 0) : '—';
+      const raId = r.alternative ? r.alternative.id : null;
 
       let row = `<div style="display:grid;grid-template-columns:20px 1fr 1fr 60px 1fr;gap:6px;padding:6px;align-items:center;border-bottom:1px solid #333;font-size:11px">
         <div style="color:${statusColor};text-align:center">${statusIcon}</div>
@@ -339,6 +340,7 @@ function _renderRaPage() {
           <button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._copyText('${filenameNoExt.replace(/'/g, "\\'")}', 'nombre')" title="Copiar nombre del juego">📋</button>
           <button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._googleQuery('${filenameNoExt.replace(/'/g, "\\'")} ROM')" title="Google búsqueda">🔍</button>
           <button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._openArchiveOrg('${filenameNoExt.replace(/'/g, "\\'")}', '${r.platform.replace(/'/g, "\\'")}')" title="Archive.org">📦</button>
+          ${raId ? `<button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._copyText('https://retroachievements.org/game/${raId}', 'link RA')" title="Copiar link RetroAchievements">🔗</button>` : ''}
         </div>`;
 
       if (r.status === 'no_support_alternative') {

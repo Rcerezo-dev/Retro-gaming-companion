@@ -809,7 +809,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         "cancelled": True, "total": 0, "supported": 0,
                         "no_support_alternative": 0, "no_support": 0,
                         "no_md5": 0, "platform_unknown": 0,
-                        "alternatives_csv": "", "alternatives": [],
+                        "alternatives_csv": "", "results": [], "alternatives": [],
                     }
                     return
                 alternatives_csv = to_csv(summary) if summary.no_support_alternative > 0 else ""
@@ -822,6 +822,21 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     "platform_unknown": summary.platform_unknown,
                     "cancelled": _ra_cancel.is_set(),
                     "alternatives_csv": alternatives_csv,
+                    "results": [
+                        {
+                            "status": r.status,
+                            "original_filename": r.original_filename,
+                            "platform": r.platform,
+                            "source_path": r.source_path,
+                            **({"alternative": {
+                                "id": r.alternative.id,
+                                "title": r.alternative.title,
+                                "achievements": r.alternative.achievements,
+                                "points": r.alternative.points,
+                            }} if r.alternative else {}),
+                        }
+                        for r in summary.results
+                    ],
                     "alternatives": [
                         {
                             "platform": r.platform,

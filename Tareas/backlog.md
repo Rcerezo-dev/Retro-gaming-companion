@@ -120,13 +120,13 @@ Currently overlaps heavily with Juegos. Options: merge it away, or add unique va
 
 ### RA-COPY-LINK — "Copy download link" per game (RetroAchievements)
 
-For games where a RA-compatible version exists, a copy button lets JDownloader pick up the link directly.
+✅ DONE: No backend endpoint needed — `ra_id` was already in the server response. Fixed the underlying bug where `result.results` was missing from the serialized job result (the RA table was always rendering empty). Added `"results"` key to `_job_results["ra_check"]` in `server.py`, serializing all results with status/platform/alternative. Added 🔗 button per row in `esde.js` that copies `https://retroachievements.org/game/{id}` via `_copyText` (shows toast). Also fixed `achievements_count` → `achievements` field name mismatch.
 
 | ID | Task | File |
 |----|------|------|
-| RA-COPY-LINK-1 | Backend: `/api/ra-game-url?game_id=X` — return the RA game page URL and the no-intro/redump entry link | `handlers/retroachievements.py` |
-| RA-COPY-LINK-2 | Frontend: add "Copiar link" button per game row in RA results table — uses `navigator.clipboard` | `static/js/tabs/tools.js` or relevant RA tab |
-| RA-COPY-LINK-3 | Show a small toast confirming the link was copied | shared toast utility |
+| RA-COPY-LINK-1 | ✅ No endpoint needed — `ra_id` serialized inline in `results` array | `server.py` |
+| RA-COPY-LINK-2 | ✅ 🔗 button per row copies RA game URL | `static/js/tabs/esde.js` |
+| RA-COPY-LINK-3 | ✅ Toast via existing `_copyText()` utility | `static/js/tabs/esde.js` |
 
 ---
 
