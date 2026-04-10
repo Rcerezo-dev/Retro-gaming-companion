@@ -168,6 +168,7 @@ async function loadPlan() {
       html += `<h3 style="color:#f44747;margin:20px 0 8px">Conflictos — ${d.conflicts.length}</h3>`;
 
       if (collisions.length) {
+        const hasRaData = collisions.some(c => c.ra_achievements != null);
         html += `<div style="background:#1a1218;border:1px solid #3a2030;border-left:3px solid #ce9178;border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
         html += `<div style="color:#ce9178;font-size:12px;font-weight:600;margin-bottom:6px">`;
         html += `&#x26A0; Colisión de plan (${collisions.length}) — dos ROMs quieren el mismo nombre canónico`;
@@ -178,15 +179,47 @@ async function loadPlan() {
         html += ` o <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px;border-color:#f44747;color:#f44747" onclick="deleteCollisionDuplicates()">Eliminar duplicados</button><br>`;
         html += `Si tienes caché de RetroAchievements, usa el botón <strong>Resolver con RA</strong> (arriba) para conservar solo la versión con logros.`;
         html += `</div>`;
-        html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Nombre bloqueado</th></tr></thead><tbody>';
-        html += collisions.map(op => `<tr>
-          <td class="mono" style="color:#9cdcfe" data-game-id="${op.game_id}" data-path="${op.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${window._h(op.source_name)}</td>
-          <td class="mono" style="color:#ce9178">${window._h(op.target_name)}</td>
-        </tr>`).join('');
-        html += '</tbody></table></div></div>';
+        if (hasRaData) {
+          html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th style="text-align:center">Logros RA</th><th>Nombre canónico</th><th>Resultado previsto</th></tr></thead><tbody>';
+          html += collisions.map(op => {
+            const safeSource = op.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+            const safeName   = op.source_name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+            const raCell = op.ra_achievements != null
+              ? `<span style="color:#dcdcaa">${op.ra_achievements}</span>`
+              : '<span style="color:#555">—</span>';
+            let roleCell = '';
+            if (op.ra_role === 'winner') {
+              roleCell = `<span style="color:#4ec9b0;font-weight:600">&#x2713; Ganador RA</span>`;
+            } else if (op.ra_role === 'loser') {
+              roleCell = `<span style="color:#888">&#x2192; _descartados/</span>`;
+            } else {
+              roleCell = `<button class="btn" style="padding:1px 8px;font-size:11px;color:#ce9178;border-color:#ce9178" onclick="_discardCollisionEntry(${op.game_id},'${safeSource}','${safeName}')">Descartar</button>`;
+            }
+            return `<tr style="${op.ra_role === 'winner' ? 'background:#0d1f17' : op.ra_role === 'loser' ? 'opacity:0.6' : ''}">
+              <td class="mono" style="color:#9cdcfe" data-game-id="${op.game_id}" data-path="${safeSource}" data-target="${window._h(op.target_name)}">${window._h(op.source_name)}</td>
+              <td style="text-align:center">${raCell}</td>
+              <td class="mono" style="color:#ce9178">${window._h(op.target_name)}</td>
+              <td style="font-size:11px">${roleCell}</td>
+            </tr>`;
+          }).join('');
+          html += '</tbody></table></div></div>';
+        } else {
+          html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Nombre bloqueado</th><th></th></tr></thead><tbody>';
+          html += collisions.map(op => {
+            const safeSource = op.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+            const safeName   = op.source_name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+            return `<tr>
+              <td class="mono" style="color:#9cdcfe" data-game-id="${op.game_id}" data-path="${safeSource}" data-target="${window._h(op.target_name)}">${window._h(op.source_name)}</td>
+              <td class="mono" style="color:#ce9178">${window._h(op.target_name)}</td>
+              <td><button class="btn" style="padding:1px 8px;font-size:11px;color:#ce9178;border-color:#ce9178" onclick="_discardCollisionEntry(${op.game_id},'${safeSource}','${safeName}')">Descartar</button></td>
+            </tr>`;
+          }).join('');
+          html += '</tbody></table></div></div>';
+        }
       }
 
       if (diskConflicts.length) {
+        const hasRaData = diskConflicts.some(c => c.ra_achievements != null || c.ra_target_achievements != null);
         html += `<div style="background:#1a1212;border:1px solid #3a2020;border-left:3px solid #f44747;border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
         html += `<div style="color:#f44747;font-size:12px;font-weight:600;margin-bottom:6px">`;
         html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — el nombre de destino ya está ocupado por un archivo diferente`;
@@ -204,12 +237,31 @@ async function loadPlan() {
         html += `<button class="btn" style="font-size:12px;padding:4px 12px" title="Activa Región y Revisión en las opciones de formato y recalcula el plan para que cada versión obtenga un nombre único" onclick="document.getElementById('fmt-region').checked=true;document.getElementById('fmt-revision').checked=true;loadPlan()">&#x21BB; Recalcular con Región + Revisión</button>`;
         html += `<span style="color:#555;font-size:11px">Resuelve la mayoría de conflictos de disco añadiendo la región o versión al nombre</span>`;
         html += `</div>`;
-        html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Destino bloqueado</th></tr></thead><tbody>';
-        html += diskConflicts.map(op => `<tr>
-          <td class="mono" style="color:#9cdcfe">${window._h(op.source_name)}</td>
-          <td class="mono" style="color:#f44747">${window._h(op.target_name)}</td>
-        </tr>`).join('');
-        html += '</tbody></table></div></div>';
+        if (hasRaData) {
+          html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM (pendiente)</th><th style="text-align:center">Logros RA</th><th>Destino bloqueado</th><th style="text-align:center">Logros RA</th><th>Resultado previsto</th></tr></thead><tbody>';
+          html += diskConflicts.map(op => {
+            const srcRa = op.ra_achievements != null ? `<span style="color:#dcdcaa">${op.ra_achievements}</span>` : '<span style="color:#555">—</span>';
+            const tgtRa = op.ra_target_achievements != null ? `<span style="color:#dcdcaa">${op.ra_target_achievements}</span>` : '<span style="color:#555">—</span>';
+            let roleCell = '';
+            if (op.ra_role === 'winner') roleCell = `<span style="color:#4ec9b0;font-weight:600">&#x2713; Ganador RA — se renombrará</span>`;
+            else if (op.ra_role === 'loser') roleCell = `<span style="color:#888">&#x2192; _descartados/ (menos logros)</span>`;
+            return `<tr>
+              <td class="mono" style="color:#9cdcfe">${window._h(op.source_name)}</td>
+              <td style="text-align:center">${srcRa}</td>
+              <td class="mono" style="color:#f44747">${window._h(op.target_name)}</td>
+              <td style="text-align:center">${tgtRa}</td>
+              <td style="font-size:11px">${roleCell}</td>
+            </tr>`;
+          }).join('');
+          html += '</tbody></table></div></div>';
+        } else {
+          html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th>Destino bloqueado</th></tr></thead><tbody>';
+          html += diskConflicts.map(op => `<tr>
+            <td class="mono" style="color:#9cdcfe">${window._h(op.source_name)}</td>
+            <td class="mono" style="color:#f44747">${window._h(op.target_name)}</td>
+          </tr>`).join('');
+          html += '</tbody></table></div></div>';
+        }
       }
 
       if (unknown.length) {
@@ -311,66 +363,83 @@ async function applyKeepBoth() {
   }
 }
 
-// DUP-3: Delete collision duplicates instead of renaming them
+// DUP-3: Delete collision duplicates instead of renaming them.
+// Keeps ONE file per collision group (the first), discards the rest.
 async function deleteCollisionDuplicates() {
-  // Find all collision rows in the current view
-  // Collision rows are in a div that contains "Colisión de plan" text
+  // Collision rows carry data-game-id and data-target on the first <td>
   const collisionDivs = Array.from(document.querySelectorAll('#plan-content > div'))
     .filter(div => div.textContent.includes('Colisión de plan'));
 
-  const collisionRows = collisionDivs.length > 0
-    ? collisionDivs[0].querySelectorAll('td[data-game-id]')
+  const allRows = collisionDivs.length > 0
+    ? Array.from(collisionDivs[0].querySelectorAll('td[data-game-id]'))
     : [];
 
-  if (collisionRows.length === 0) {
+  if (allRows.length === 0) {
     showToast('No hay duplicados en colisión para eliminar.', 'info');
     return;
   }
 
-  // Collect unique game IDs (avoid duplicates in case multiple rows have same game)
-  const gameIds = new Set();
-  collisionRows.forEach(row => {
-    const gameId = row.dataset.gameId;
-    if (gameId) gameIds.add(parseInt(gameId));
+  // Group by target name — keep index-0 in each group, discard the rest
+  const byTarget = new Map();
+  allRows.forEach(td => {
+    const key = td.dataset.target || 'unknown';
+    if (!byTarget.has(key)) byTarget.set(key, []);
+    byTarget.get(key).push({ game_id: parseInt(td.dataset.gameId), source_path: td.dataset.path });
   });
 
-  if (gameIds.size === 0) {
-    showToast('No se encontraron juegos para eliminar.', 'err');
+  const toDelete = [];
+  byTarget.forEach(entries => {
+    // Skip index 0 (keep one), delete the rest
+    entries.slice(1).forEach(e => toDelete.push(e));
+  });
+
+  if (toDelete.length === 0) {
+    showToast('Cada grupo ya tiene un solo archivo — nada que eliminar.', 'info');
     return;
   }
 
-  // Show confirmation
-  const count = gameIds.size;
-  const confirmMsg = `¿Eliminar ${count} archivo${count !== 1 ? 's' : ''} duplicado${count !== 1 ? 's' : ''}?<br><br>Se eliminarán los archivos en colisión del disco.<br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`;
-
+  const count = toDelete.length;
+  const kept = byTarget.size;
   _showConfirm(
     'Eliminar duplicados de colisión',
-    confirmMsg,
+    `¿Eliminar ${count} archivo${count !== 1 ? 's' : ''} duplicado${count !== 1 ? 's' : ''}?<br><br>` +
+    `Se conservará <strong>1 archivo por grupo</strong> (${kept} grupo${kept !== 1 ? 's' : ''}) y se eliminará${count !== 1 ? 'n' : ''} el resto.<br>` +
+    `<span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
     'Eliminar',
     async () => {
-      let deleted = 0;
-      let failed = 0;
-      const errors = [];
-
-      for (const gameId of gameIds) {
+      let deleted = 0, failed = 0;
+      for (const { game_id, source_path } of toDelete) {
         try {
-          await apiPost('/api/duplicates/delete', { game_id: gameId });
+          await apiPost('/api/duplicates/delete', { game_id, source_path });
           deleted++;
         } catch (e) {
           failed++;
-          errors.push(e.message);
         }
       }
-
       showToast(
-        `✓ ${deleted} duplicado${deleted !== 1 ? 's' : ''} eliminado${deleted !== 1 ? 's' : ''}` +
+        `✓ ${deleted} eliminado${deleted !== 1 ? 's' : ''}` +
         (failed > 0 ? ` · ${failed} error${failed !== 1 ? 'es' : ''}` : ''),
         failed > 0 ? 'info' : 'ok'
       );
+      if (deleted > 0) setTimeout(() => loadPlan(), 800);
+    }
+  );
+}
 
-      // Reload plan after deletion
-      if (deleted > 0) {
-        setTimeout(() => loadPlan(), 1000);
+// Discard a single collision entry from the plan view (row-level button)
+async function _discardCollisionEntry(gameId, sourcePath, filename) {
+  _showConfirm(
+    'Descartar ROM',
+    `¿Mover <strong>${window._h(filename)}</strong> a <code>_descartados/</code> y eliminar de la base de datos?<br>` +
+    `<span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    'Descartar',
+    async () => {
+      try {
+        await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
+        showToast(`✓ ${filename} eliminado`, 'ok');
+        setTimeout(() => loadPlan(), 800);
+      } catch (e) {
+        showToast('Error: ' + e.message, 'err');
       }
     }
   );
@@ -473,5 +542,5 @@ async function doApply() {
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates,
+  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
 };

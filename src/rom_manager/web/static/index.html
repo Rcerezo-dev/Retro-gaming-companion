@@ -2006,6 +2006,7 @@
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta Inbox</label>
         <div style="display:flex;gap:6px">
           <input id="inbox-path" type="text" style="flex:1" placeholder="C:/Users/tu/Desktop/Inbox ROMs">
+          <button class="btn" data-browse="inbox-path" style="flex-shrink:0;padding:4px 10px;font-size:12px" onclick="browseFolder('inbox-path','Carpeta Inbox de ROMs')">Examinar</button>
         </div>
       </div>
       <div style="flex:1;min-width:260px">
@@ -2149,7 +2150,10 @@
     <div class="actions-row" style="flex-direction:column;align-items:flex-start;gap:12px">
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">library_root — carpeta raíz de la biblioteca (ROMs + saves)</label>
-        <input id="cfg-library-root" type="text" style="width:100%" placeholder="E:/ROMs">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="cfg-library-root" type="text" style="flex:1" placeholder="E:/ROMs">
+          <button class="btn" data-browse="cfg-library-root" style="flex-shrink:0;padding:4px 10px;font-size:12px" onclick="browseFolder('cfg-library-root','Carpeta raíz de la biblioteca')">Examinar</button>
+        </div>
         <span class="cfg-saved" id="cfg-check-library-root">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
@@ -2166,7 +2170,10 @@
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta de la consola Android / Tarjeta SD — carpeta raíz montada en el PC</label>
-        <input id="cfg-anbernic-root" type="text" style="width:100%" placeholder="E:\\Carpetas anbernic">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="cfg-anbernic-root" type="text" style="flex:1" placeholder="E:\\Carpetas anbernic">
+          <button class="btn" data-browse="cfg-anbernic-root" style="flex-shrink:0;padding:4px 10px;font-size:12px" onclick="browseFolder('cfg-anbernic-root','Carpeta raíz de la consola Android / SD')">Examinar</button>
+        </div>
         <span class="cfg-saved" id="cfg-check-anbernic-root">&#x2713; Guardado</span>
         <div style="color:#555;font-size:11px;margin-top:3px">Se usa para el sync automático al detectar la tarjeta SD y en Cable Sync modo filesystem.</div>
       </div>

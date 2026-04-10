@@ -108,11 +108,25 @@ def _force_remove(path: Path) -> None:
 
 
 def _delete_duplicate(ctx, data: dict, repository: "LibraryRepository") -> None:
-    game_id     = data.get("game_id")
-    source_path = data.get("source_path", "").strip()
-    if not game_id or not source_path:
-        ctx._send_json({"error": "game_id y source_path son obligatorios"})
+    game_id = data.get("game_id")
+    if not game_id:
+        ctx._send_json({"error": "game_id es obligatorio"})
         return
+    source_path = data.get("source_path", "").strip()
+    if not source_path:
+        # Derive from DB so callers don't need to pass it
+        try:
+            with repository.connect() as _c:
+                row = _c.execute(
+                    "SELECT source_path FROM games WHERE id = ?", (int(game_id),)
+                ).fetchone()
+            if not row or not row["source_path"]:
+                ctx._send_json({"error": f"Juego {game_id} no encontrado en la base de datos"})
+                return
+            source_path = row["source_path"]
+        except Exception as exc:
+            ctx._send_json({"error": f"Error consultando BD: {type(exc).__name__}: {exc}"})
+            return
     p = Path(source_path)
     if p.exists():
         try:

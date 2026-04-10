@@ -36,6 +36,7 @@ def register(
                 plan_repo, opts, frozenset(config.save_extensions),
                 source_root=source_root,
                 library_root=str(config.library_root) if config.library_root else None,
+                config=config,
             )
         )
 
@@ -333,7 +334,40 @@ def _do_organize_library(
                     except Exception as exc:
                         errors.append(f"Save {sibling.name}: {exc}")
 
-    # 2. BIOS candidates
+    # 2. Flat saves/ → saves/{platform}/ (saves already in saves/ root, not yet in subfolders)
+    if saves_dir.exists():
+        stem_to_folder: dict[str, tuple[str, str]] = {}
+        for row in rows:
+            _, src_str, plat = row[0], row[1], row[2] or ""
+            es_f = es_folders.get(plat, "")
+            if src_str and es_f:
+                stem_to_folder.setdefault(Path(src_str).stem.lower(), (plat, es_f))
+
+        for save_file in saves_dir.iterdir():
+            if not save_file.is_file():
+                continue
+            if save_file.suffix.lower() not in save_exts:
+                continue
+            match_ = stem_to_folder.get(save_file.stem.lower())
+            if not match_:
+                continue
+            plat_name, es_f = match_
+            plat_save_dir = saves_dir / es_f
+            save_target = plat_save_dir / save_file.name
+            if save_file == save_target:
+                continue
+            moves_saves.append({"source": str(save_file), "target": str(save_target), "platform": plat_name})
+            if not dry_run:
+                try:
+                    plat_save_dir.mkdir(parents=True, exist_ok=True)
+                    if not save_target.exists():
+                        shutil.move(str(save_file), str(save_target))
+                    else:
+                        errors.append(f"Conflicto save: {save_file.name} ya existe en saves/{es_f}/")
+                except Exception as exc:
+                    errors.append(f"Save {save_file.name}: {exc}")
+
+    # 4. BIOS candidates
     with repository.connect() as conn:
         known_paths = {row[0] for row in conn.execute("SELECT source_path FROM games").fetchall()}
 

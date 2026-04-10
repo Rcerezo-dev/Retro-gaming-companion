@@ -14,6 +14,7 @@ import {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
+  browseFolder,
 } from './tabs/config.js';
 import {
   _onScanAdbChange, detectAdbDevicesForScan,
@@ -41,7 +42,7 @@ import {
 } from './tabs/duplicates.js';
 import {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates,
+  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
 } from './tabs/organize.js';
 import {
   startPolling, _applyJobStatus, _showJobResult,
@@ -240,6 +241,7 @@ Object.assign(window, {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
+  browseFolder,
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
@@ -259,7 +261,7 @@ Object.assign(window, {
   setToolsContext, _initToolsContext,
   filterDuplicatesByPlatform, _renderDupContent,
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates,
+  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
   startPolling, _applyJobStatus, _showJobResult,
   // scraper.js
   doExportGamelistsAll,

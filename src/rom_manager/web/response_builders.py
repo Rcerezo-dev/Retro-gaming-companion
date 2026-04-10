@@ -557,6 +557,7 @@ def _build_plan(
     save_extensions: frozenset[str] | None = None,
     source_root: str | None = None,
     library_root: str | None = None,
+    config=None,
 ) -> dict:
     plan = build_plan(repository, opts)
     if plan.total == 0:
@@ -622,24 +623,134 @@ def _build_plan(
         for g in unmatched_games
     ]
 
+    conflict_rows = _annotate_conflicts_with_ra(conflict_ops, repository, config)
+
     return {
         "total": plan.total,
         "already_correct": len(already_correct),
         "pending": pending_rows,
-        "conflicts": [
-            {
-                "game_id": op.game.id,
-                "source_name": op.source_path.name,
-                "target_name": op.target_path.name,
-                "source_path": str(op.source_path),
-                "reason": op.conflict_reason,
-            }
-            for op in conflict_ops
-        ],
+        "conflicts": conflict_rows,
         "total_saves_affected": total_saves,
         "unmatched_count": len(unmatched_rows),
         "unmatched": unmatched_rows,
     }
+
+
+def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
+    """Return conflict rows annotated with RA achievement counts and winner/loser roles.
+
+    Fields added per row:
+    - ra_achievements: int | null    — achievements for the source file
+    - ra_target_achievements: int | null — (disk only) achievements for the blocker file
+    - ra_role: "winner" | "loser" | null — predicted outcome if "Resolver con RA" is applied
+    """
+    import json as _json
+    from collections import defaultdict
+    from pathlib import Path as _Path
+
+    base_row = lambda op: {
+        "game_id": op.game.id,
+        "source_name": op.source_path.name,
+        "target_name": op.target_path.name,
+        "source_path": str(op.source_path),
+        "reason": op.conflict_reason,
+        "ra_achievements": None,
+        "ra_target_achievements": None,
+        "ra_role": None,
+    }
+
+    if config is None or not conflict_ops:
+        return [base_row(op) for op in conflict_ops]
+
+    try:
+        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+        from rom_manager.retroachievements.ra_client import _parse_game_list
+    except Exception:
+        return [base_row(op) for op in conflict_ops]
+
+    cache_dir = _Path(config.project_root) / ".rommgr" / "ra_cache"
+    _hash_lib_cache: dict[str, dict] = {}
+
+    def _hash_lib_for(plat: str) -> dict:
+        if plat in _hash_lib_cache:
+            return _hash_lib_cache[plat]
+        console_id = get_ra_console_id(plat or "")
+        if not console_id:
+            _hash_lib_cache[plat] = {}
+            return {}
+        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+        if not cache_file.exists():
+            _hash_lib_cache[plat] = {}
+            return {}
+        try:
+            lib = _parse_game_list(_json.loads(cache_file.read_text(encoding="utf-8")))
+        except Exception:
+            lib = {}
+        _hash_lib_cache[plat] = lib
+        return lib
+
+    def _ra_for_path(path: _Path) -> int:
+        """Return achievement count (-1 = no data)."""
+        try:
+            with repository.connect() as _c:
+                row = _c.execute(
+                    "SELECT md5, platform FROM games WHERE source_path = ?", (str(path),)
+                ).fetchone()
+            if not row:
+                return -1
+            md5  = (row["md5"]  or "").lower()
+            plat = (row["platform"] or "")
+        except Exception:
+            return -1
+        if not md5:
+            return -1
+        entry = _hash_lib_for(plat).get(md5)
+        return entry.achievements if entry else -1
+
+    # Pre-compute RA scores for all source paths
+    ra_scores: dict[str, int] = {}
+    for op in conflict_ops:
+        key = str(op.source_path)
+        if key not in ra_scores:
+            ra_scores[key] = _ra_for_path(op.source_path)
+
+    # For disk conflicts, also score the target path (the blocker file)
+    for op in conflict_ops:
+        if op.conflict_reason == "disk":
+            key = str(op.target_path)
+            if key not in ra_scores:
+                ra_scores[key] = _ra_for_path(op.target_path)
+
+    # Determine collision winners (highest RA per target group)
+    collision_winners: set[str] = set()
+    collision_groups: dict[str, list] = defaultdict(list)
+    for op in conflict_ops:
+        if op.conflict_reason == "collision":
+            collision_groups[str(op.target_path)].append(op)
+    for ops in collision_groups.values():
+        scored = [(op, ra_scores.get(str(op.source_path), -1)) for op in ops if op.source_path.exists()]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        if scored and scored[0][1] > 0:
+            collision_winners.add(str(scored[0][0].source_path))
+
+    rows = []
+    for op in conflict_ops:
+        row = base_row(op)
+        src_ra = ra_scores.get(str(op.source_path), -1)
+        row["ra_achievements"] = src_ra if src_ra >= 0 else None
+
+        if op.conflict_reason == "disk":
+            tgt_ra = ra_scores.get(str(op.target_path), -1)
+            row["ra_target_achievements"] = tgt_ra if tgt_ra >= 0 else None
+            if src_ra > 0 or tgt_ra > 0:
+                row["ra_role"] = "winner" if src_ra > tgt_ra else "loser"
+        elif op.conflict_reason == "collision":
+            if str(op.source_path) in collision_winners:
+                row["ra_role"] = "winner"
+            elif src_ra >= 0:
+                row["ra_role"] = "loser"
+        rows.append(row)
+    return rows
 
 
 def _annotate_duplicates_with_ra(title_groups: list[dict], config: "AppConfig") -> list[dict]:

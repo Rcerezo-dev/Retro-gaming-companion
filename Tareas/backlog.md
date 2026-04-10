@@ -11,7 +11,7 @@
 
 | ID | Task | Where |
 |----|------|-------|
-| B-test-4 | Test `_apply_ra_conflicts` with real data: verify winner renamed, loser in `_descartados/`, DB updated | Run full scenario: RA Check → Build Plan → Apply RA → Verify |
+| — | *(sin tareas activas)* | — |
 
 ---
 
@@ -95,16 +95,13 @@ Extracted from `docs/ideas/Idea_final.md` and broken into actionable tasks.
 
 ---
 
-### RENAME-CONFLICT — Name collision: prefer RA version
+### RENAME-CONFLICT — Name collision: prefer RA version ✅
 
-When two games map to the same canonical name during rename, discard the non-RA version instead of appending `_1`/`_2`. Reuses `_apply_ra_conflicts` logic.
-
-| ID | Task | File |
-|----|------|------|
-| RENAME-CONFLICT-1 | Detect name collisions in rename planner — flag pairs where two sources share the same canonical target | `renamer/operation_planner.py` |
-| RENAME-CONFLICT-2 | For each collision pair, run RA check to determine which file has RetroAchievements support | `handlers/organize.py` — reuse existing RA cache |
-| RENAME-CONFLICT-3 | Auto-resolve: rename RA winner to canonical name, move loser to `_descartados/` | `handlers/organize.py` + `_apply_ra_conflicts` |
-| RENAME-CONFLICT-4 | Show collision resolution in plan view — label winner and loser clearly before user confirms | `static/js/tabs/organize.js` |
+✅ DONE: All 4 tasks complete.
+- Collision/disk conflict detection: `planner/operation_planner.py` (build_plan)
+- RA resolution: `handlers/duplicates.py::_apply_ra_conflicts` (B-test-4 passing)
+- Plan view preview: `response_builders.py::_annotate_conflicts_with_ra` — adds `ra_achievements`, `ra_target_achievements`, `ra_role` per conflict row
+- Frontend badges: `static/js/tabs/organize.js` — winner/loser labels shown in conflict tables when RA cache is available
 
 ---
 

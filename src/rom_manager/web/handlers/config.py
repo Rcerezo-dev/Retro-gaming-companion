@@ -87,6 +87,10 @@ def register(
         except Exception as exc:
             ctx._send_json({"ok": False, "error": str(exc)})
 
+    @router.get("/api/browse-folder")
+    def get_browse_folder(ctx) -> None:
+        _browse_folder(ctx, getattr(ctx, "_qs", {}))
+
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
@@ -271,3 +275,41 @@ def _test_binary_status(path_str: str) -> dict:
         return {"ok": True, "version": ver, "path": str(p)}
     except Exception:
         return {"ok": True, "version": "", "path": str(p)}
+
+
+def _browse_folder(ctx, qs: dict) -> None:
+    """Open a native OS folder picker and return the selected path.
+
+    Query params:
+      - initial_dir: optional starting directory (falls back to user home)
+      - title: optional dialog title
+    """
+    initial_dir = (qs.get("initial_dir", [None])[0] or "").strip() or None
+    title       = (qs.get("title",       [None])[0] or "").strip() or "Seleccionar carpeta"
+
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()                        # hide blank root window
+        root.wm_attributes("-topmost", True)   # bring dialog to front on Windows
+        root.lift()
+        folder = filedialog.askdirectory(
+            parent=root,
+            title=title,
+            initialdir=initial_dir or Path.home(),
+            mustexist=False,
+        )
+        root.destroy()
+    except Exception as exc:
+        ctx._send_json({"ok": False, "error": f"No se pudo abrir el selector: {exc}"})
+        return
+
+    if not folder:
+        # User cancelled
+        ctx._send_json({"ok": False, "cancelled": True})
+        return
+
+    # Normalize to OS-native separators
+    ctx._send_json({"ok": True, "path": str(Path(folder))})

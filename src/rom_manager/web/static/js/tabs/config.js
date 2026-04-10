@@ -723,6 +723,37 @@ async function doMigrateSavesStructure(dryRun) {
 }
 
 // ── Public exports ────────────────────────────────────────────────────────────
+// ── Folder picker ─────────────────────────────────────────────────────────────
+
+/**
+ * Open the native OS folder picker and fill *inputId* with the selected path.
+ * Uses GET /api/browse-folder (backend: tkinter.filedialog).
+ */
+async function browseFolder(inputId, title) {
+  const input = document.getElementById(inputId);
+  const btn   = document.querySelector(`button[data-browse="${inputId}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    const initialDir = input?.value.trim() || '';
+    const params = new URLSearchParams({ title: title || 'Seleccionar carpeta' });
+    if (initialDir) params.set('initial_dir', initialDir);
+
+    const d = await apiFetch('/api/browse-folder?' + params.toString());
+    if (d.ok && d.path) {
+      if (input) input.value = d.path;
+      // Trigger a change event so auto-save listeners can react
+      input?.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (!d.cancelled) {
+      showToast(d.error || 'No se pudo abrir el selector de carpeta', 'err');
+    }
+  } catch (e) {
+    showToast('Error al abrir el selector: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Examinar'; }
+  }
+}
+
 export {
   _onDevicePresetChange,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
@@ -732,4 +763,5 @@ export {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
+  browseFolder,
 };
