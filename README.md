@@ -1,4 +1,9 @@
 # Retro Vault
+## Para aquél que no tenga un perfil técnico:
+He terminado un bootcamp en IA, y mi primera inquietud ha sido la de mostrar al mundo mi capacidad de crear y resolver problemas. ¿Por dónde he empezado? por aquellos que me afectaban directamente:
+
+En este caso, Retro Vault surge con la idea de crear un sistema integrado como un steam deck, donde sea fácil terminar de jugar en mi PC, y continuar la partida en mi consola Anbernic. Siguiendo esta línea de trabajo, he decidido crear nuevas funcionalidades con las cuales organizar y gestionar mejor mi biblioteca, que veréis abajo descritas. 
+En definitiva: Tener la biblioteca limpia de duplicados, con ROMS bien organizadas y nombradas
 
 **Gestiona, organiza y sincroniza tu colección de ROMs retro.**
 
