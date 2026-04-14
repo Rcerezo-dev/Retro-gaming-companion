@@ -1216,3 +1216,53 @@ export function exportReportHtml() {
   a.click();
   showToast('✓ Informe exportado', 'ok');
 }
+
+
+// ── ES-DE systems.xml generator ───────────────────────────────────────────────
+export async function generateEsSystems() {
+  const btn = document.getElementById('btn-gen-es-systems');
+  const res = document.getElementById('es-systems-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
+  if (res) res.classList.add('hidden');
+
+  try {
+    const d = await apiFetch('/api/generate-es-systems');
+    if (!res) return;
+    res.classList.remove('hidden');
+
+    if (d.error && !d.written) {
+      res.innerHTML = `<p style="color:#f38ba8">&#x2717; ${_h(d.error)}</p>`;
+      return;
+    }
+
+    const gen = d.generated ?? [];
+    const miss = d.missing ?? [];
+
+    let html = '';
+    if (d.written) {
+      html += `<p style="color:#4ec9b0;margin:0 0 8px">&#x2713; Archivo generado en <code style="font-size:10px">${_h(d.output_path)}</code></p>`;
+    }
+    if (d.error) {
+      html += `<p style="color:#f9c74f;margin:0 0 8px">&#x26A0; ${_h(d.error)}</p>`;
+    }
+
+    if (gen.length) {
+      html += `<div style="color:#888;font-size:11px;margin-bottom:4px">${gen.length} sistema${gen.length !== 1 ? 's' : ''} incluido${gen.length !== 1 ? 's' : ''}:</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">`;
+      gen.forEach(s => {
+        html += `<span style="background:#1a2a1a;border:1px solid #2a4a2a;color:#4ec9b0;padding:2px 7px;border-radius:10px;font-size:10px" title="${_h(s.core_dll)}">${_h(s.fullname)}</span>`;
+      });
+      html += `</div>`;
+    }
+
+    if (miss.length) {
+      html += `<div style="color:#555;font-size:11px">Sin core: ${miss.map(m => _h(m)).join(', ')}</div>`;
+    }
+
+    res.innerHTML = html;
+  } catch(e) {
+    if (res) { res.classList.remove('hidden'); res.innerHTML = `<p style="color:#f38ba8">Error: ${_h(e.message)}</p>`; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚙ Generar'; }
+  }
+}

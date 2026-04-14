@@ -792,6 +792,11 @@ def register(
     def get_retroarch_check(ctx) -> None:
         ctx._send_json(srv_mod._handle_retroarch_check(config))
 
+    # ── GET /api/generate-es-systems ─────────────────────────────────────────
+    @router.get("/api/generate-es-systems")
+    def get_generate_es_systems(ctx) -> None:
+        ctx._send_json(_handle_generate_es_systems(config))
+
     # ── GET /api/bios-status ──────────────────────────────────────────────────
     @router.get("/api/bios-status")
     def get_bios_status(ctx) -> None:
@@ -912,6 +917,41 @@ _DISC_PLATFORM_KEYWORDS = {
     "neogeocd", "neo-geo-cd",
     "3do", "cd-i", "cdi",
 }
+
+
+def _handle_generate_es_systems(config: "AppConfig") -> dict:
+    """Generate custom_systems/es_systems.xml based on detected RetroArch cores."""
+    import os
+    from rom_manager.esde.systems_generator import generate_es_systems_xml
+
+    # Locate the cores/ directory from the configured RetroArch path
+    ra_exe = (config.retroarch_path or "").strip()
+    if not ra_exe:
+        return {"ok": False, "error": "RetroArch no está configurado en Settings (launchers.retroarch)."}
+
+    cores_dir = Path(ra_exe).parent / "cores"
+
+    # Locate the ES-DE custom_systems dir
+    esde_info = _handle_esde_status(config)
+    if not esde_info.get("installed"):
+        return {"ok": False, "error": "ES-DE no detectado. Instala ES-DE y vuelve a intentarlo."}
+
+    output_path = Path(esde_info["install_dir"]) / "custom_systems" / "es_systems.xml"
+
+    result = generate_es_systems_xml(cores_dir, output_path)
+
+    return {
+        "ok": result.written and not result.error,
+        "error": result.error,
+        "output_path": result.output_path,
+        "written": result.written,
+        "generated": [
+            {"name": s.name, "fullname": s.fullname, "core_dll": s.core_dll, "core_label": s.core_label}
+            for s in result.generated_systems
+        ],
+        "missing": result.missing_systems,
+        "cores_dir": str(cores_dir),
+    }
 
 
 def _handle_disc_folders(config: "AppConfig") -> dict:

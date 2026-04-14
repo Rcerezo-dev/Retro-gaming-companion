@@ -434,5 +434,19 @@
     <p style="color:#555;font-size:12px;margin-bottom:10px">Detecta si EmulationStation DE est&#xe1; instalado y d&#xf3;nde busca las gamelists.</p>
     <div id="esde-status-content"></div>
   </div>
+
+  <!-- ES-SYSTEMS GENERATOR -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F4DD; Generar es_systems.xml</h3>
+      <button class="btn" id="btn-gen-es-systems" onclick="generateEsSystems()" style="font-size:12px;padding:3px 10px">&#x2699; Generar</button>
+    </div>
+    <p style="color:#555;font-size:12px;margin-bottom:10px">
+      Escanea los cores instalados en RetroArch y genera
+      <code>custom_systems/es_systems.xml</code> en la carpeta de ES-DE.
+      S&#xf3;lo se incluyen los sistemas para los que hay un core disponible.
+    </p>
+    <div id="es-systems-result" class="hidden" style="font-size:12px;margin-top:8px"></div>
+  </div>
 </div>
 
