@@ -110,6 +110,8 @@ def _detect_wizard(config: "AppConfig") -> dict:
             Path(f"{drive_letter}:\\RetroArch"),
             Path(f"{drive_letter}:\\Program Files\\RetroArch"),
             Path(f"{drive_letter}:\\Program Files (x86)\\RetroArch"),
+            Path(f"{drive_letter}:\\Program Files (x86)\\Steam\\steamapps\\common\\RetroArch"),
+            Path(f"{drive_letter}:\\RetroBat\\emulators\\retroarch"),
         ]
 
     library_root_suggestion = None
