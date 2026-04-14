@@ -1,0 +1,77 @@
+<div id="tab-games" class="tab">
+  <div class="hidden" id="games-root-banner" style="margin-bottom:8px;padding:6px 10px;background:#1e1e2e;border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
+  <div class="toolbar">
+    <input id="games-search" type="text" placeholder="Buscar título o archivo…" oninput="onGamesSearchChange()">
+    <select id="games-platform" onchange="onGamesFilterChange()"><option value="">Todas las plataformas</option></select>
+    <select id="games-matched" onchange="onGamesFilterChange()">
+      <option value="">Todos</option>
+      <option value="matched">Con match</option>
+      <option value="unmatched">Sin match</option>
+    </select>
+    <select id="games-filetype" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="rom">Solo ROMs</option>
+      <option value="">ROMs + saves</option>
+      <option value="save">Solo saves</option>
+      <option value="all">Todo</option>
+    </select>
+    <select id="games-play-status" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">Todos los estados</option>
+      <option value="playing">&#x1F3AE; Jugando</option>
+      <option value="completed">&#x2705; Completado</option>
+      <option value="100pct">&#x1F4AF; Al 100%</option>
+      <option value="abandoned">&#x23F8; Abandonado</option>
+    </select>
+    <button id="btn-filter-favorites" title="Solo favoritos" onclick="toggleFavoritesFilter()" style="background:#1e1e2e;border:1px solid #444;color:#888;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2605; Favoritos</button>
+    <select id="games-tag-filter" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">Todos los tags</option>
+    </select>
+    <select id="games-genre" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">G&#xe9;nero</option>
+    </select>
+    <select id="games-year" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">A&#xf1;o</option>
+    </select>
+    <select id="games-sort-by" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+      <option value="">Orden: T&#xed;tulo</option>
+      <option value="platform">Orden: Plataforma</option>
+      <option value="year">Orden: A&#xf1;o</option>
+      <option value="last_played">Orden: &#xda;ltima partida</option>
+    </select>
+    <span id="games-count" style="color:#666;margin-left:8px;"></span>
+    <div class="view-toggle" style="margin-left:auto" title="Cambiar vista">
+      <button id="btn-view-list" class="active" onclick="setGamesView('list')" title="Vista lista">&#x2630;</button>
+      <button id="btn-view-grid" onclick="setGamesView('grid')" title="Vista cuadrícula">&#x229E;</button>
+    </div>
+    <a href="/api/export-library?format=csv" class="btn" title="Exportar biblioteca completa con metadatos a CSV">&#x2193; CSV</a>
+    <a href="/api/export-library?format=json" class="btn" title="Exportar biblioteca completa con metadatos a JSON">&#x2193; JSON</a>
+  </div>
+  <div id="games-view-wrap">
+    <div id="games-list-view" style="overflow-x:auto">
+      <table id="games-table">
+        <thead><tr>
+          <th style="width:28px;padding:6px 4px" title="Favorito">&#x2605;</th>
+          <th style="width:42px"></th>
+          <th>Plataforma</th><th>Título canónico</th><th>Archivo original</th>
+          <th>Estado</th>
+          <th id="gcol-region">Región</th><th id="gcol-match">Match</th><th id="gcol-size">Tamaño</th><th id="gcol-sha1">SHA1
+            <button title="Configurar columnas" onclick="toggleColPicker(event)" style="background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle">&#x2699;</button>
+            <div class="hidden" id="col-picker" style="position:absolute;background:#252535;border:1px solid #444;border-radius:6px;padding:10px 14px;z-index:100;min-width:160px;font-size:13px;font-weight:normal">
+              <div style="color:#888;font-size:11px;margin-bottom:8px">Mostrar columnas</div>
+              <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-region" onchange="applyColVisibility()"> Región</label>
+              <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-match" onchange="applyColVisibility()"> Match</label>
+              <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-size" onchange="applyColVisibility()"> Tamaño</label>
+              <label style="display:block;cursor:pointer"><input type="checkbox" id="gcol-check-sha1" onchange="applyColVisibility()"> SHA1</label>
+            </div>
+          </th>
+        </tr></thead>
+        <tbody id="games-tbody"></tbody>
+      </table>
+    </div>
+    <div class="hidden" id="games-grid-view">
+      <div id="games-grid" class="games-grid"></div>
+    </div>
+  </div>
+  <p id="games-empty" class="empty hidden">Sin resultados. Prueba con otros filtros o ejecuta un Scan primero.</p>
+  <div id="games-pagination" style="display:flex;gap:8px;align-items:center;margin-top:12px;color:#888;font-size:13px"></div>
+</div>
+

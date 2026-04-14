@@ -1,0 +1,25 @@
+<div id="tab-assets" class="tab">
+  <div class="hidden" id="assets-context-bar" style="margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
+  <div class="toolbar" style="flex-direction:column;align-items:flex-start;gap:10px">
+    <select id="assets-filter" onchange="loadAssets()">
+      <option value="all">Todas las plataformas</option>
+      <option value="orphans">Solo huérfanos (assets sin ROMs)</option>
+      <option value="missing">Solo sin assets</option>
+    </select>
+    <details style="font-size:12px;color:#888;max-width:700px">
+      <summary style="cursor:pointer;color:#569cd6">¿Qué son los archivos "Unknown"?</summary>
+      <p style="margin:8px 0 0 0;line-height:1.6">
+        Son archivos que el escáner no pudo clasificar como ROM, save, ni asset.
+        Suelen ser: <strong>BIOS</strong> (.bin con nombre no reconocido),
+        <strong>gamelist.xml</strong> y otros XMLs de metadatos,
+        <strong>imágenes sueltas</strong> (.png/.jpg fuera de carpetas de assets),
+        <strong>archivos de texto</strong> (.txt, .nfo, .dat de redump),
+        <strong>ejecutables</strong> (.exe, .bat), o formatos de disco poco comunes
+        no incluidos en la lista de extensiones reconocidas.
+        No se tocan ni se renombran — están ahí solo para que los veas.
+      </p>
+    </details>
+  </div>
+  <div id="assets-content"><p class="loading">Cargando…</p></div>
+</div>
+

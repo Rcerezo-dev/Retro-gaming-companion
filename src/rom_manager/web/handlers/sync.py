@@ -334,6 +334,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                         backup_root=_bk_root,
                         backup_keep_n=config.backup_saves_keep_n,
                         delta_cache=_delta,
+                        conflict_policy=config.conflict_policy,
                     )
                     all_results.append({
                         "name":          source.name,
@@ -405,6 +406,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                         backup_root=_bk_root,
                         backup_keep_n=config.backup_saves_keep_n,
                         delta_cache=_delta,
+                        conflict_policy=config.conflict_policy,
                     )
                     all_results.append({
                         "name":          _name,

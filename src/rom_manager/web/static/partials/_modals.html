@@ -1,0 +1,40 @@
+
+<!-- FLOW WIZARD MODAL -->
+<div id="flow-wizard-modal" class="hidden" role="dialog" aria-modal="true">
+  <div id="flow-wizard-box">
+    <div class="fw-header">
+      <span style="font-size:15px;font-weight:700;color:var(--accent)">&#x1F680; Ejecutar todo</span>
+      <button class="fw-close" onclick="closeFlowWizard()" title="Cerrar">&#x2715;</button>
+    </div>
+    <!-- Step indicator -->
+    <div class="fw-step-indicator">
+      <div class="fw-si-item" id="fw-si-scan"><span class="fw-si-icon">&#x1F50D;</span><span class="fw-si-label">Escanear</span></div>
+      <div class="fw-si-sep"></div>
+      <div class="fw-si-item" id="fw-si-organize"><span class="fw-si-icon">&#x270F;&#xFE0F;</span><span class="fw-si-label">Organizar</span></div>
+      <div class="fw-si-sep"></div>
+      <div class="fw-si-item" id="fw-si-dupes"><span class="fw-si-icon">&#x1F5C2;&#xFE0F;</span><span class="fw-si-label">Duplicados</span></div>
+      <div class="fw-si-sep"></div>
+      <div class="fw-si-item" id="fw-si-sync"><span class="fw-si-icon">&#x2601;&#xFE0F;</span><span class="fw-si-label">Sync</span></div>
+    </div>
+    <!-- Body -->
+    <div id="fw-body" style="min-height:120px;padding:16px 0"></div>
+    <!-- Actions -->
+    <div class="fw-actions">
+      <button class="btn hidden" id="fw-btn-skip" style="border-color:#444;color:#888">Omitir</button>
+      <button class="btn" id="fw-btn-next" disabled>Comenzar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL (24-4) -->
+<div id="confirm-modal" class="hidden" role="dialog" aria-modal="true">
+  <div id="confirm-box">
+    <div id="confirm-title"></div>
+    <div id="confirm-body"></div>
+    <div class="confirm-actions">
+      <button class="btn" onclick="_closeConfirm()">Cancelar</button>
+      <button id="confirm-ok" class="btn danger">Confirmar</button>
+    </div>
+  </div>
+</div>
+

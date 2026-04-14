@@ -1,0 +1,93 @@
+<div id="tab-inbox" class="tab">
+  <div class="actions-panel" style="max-width:900px">
+    <h3>Inbox — Organizar juegos nuevos</h3>
+    <p style="color:#555;font-size:12px;margin-bottom:16px">
+      Suelta ROMs o ZIPs en la carpeta Inbox. La herramienta los detecta, extrae, cruza con los
+      catálogos No-Intro/Redump y los mueve a la carpeta de plataforma correcta dentro de la biblioteca.
+    </p>
+
+    <div class="actions-row" style="flex-wrap:wrap;gap:12px;margin-bottom:8px">
+      <div style="flex:1;min-width:260px">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta Inbox</label>
+        <div style="display:flex;gap:6px">
+          <input id="inbox-path" type="text" style="flex:1" placeholder="C:/Users/tu/Desktop/Inbox ROMs">
+          <button class="btn" data-browse="inbox-path" style="flex-shrink:0;padding:4px 10px;font-size:12px" onclick="browseFolder('inbox-path','Carpeta Inbox de ROMs')">Examinar</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Destino (library_root por defecto)</label>
+        <div style="display:flex;gap:6px">
+          <input id="inbox-target" type="text" style="flex:1" placeholder="Dejar vacío para usar library_root">
+          <button class="btn" onclick="fillInboxTarget()" title="Usar library_root">Usar library</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-row" style="margin-bottom:16px;gap:20px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#d4d4d4">
+        <input type="checkbox" id="inbox-delete-source" style="accent-color:#569cd6">
+        Eliminar ZIPs originales tras organizar
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#d4d4d4">
+        <input type="checkbox" id="inbox-auto-process" style="accent-color:#569cd6">
+        Procesar automáticamente (daemon)
+      </label>
+    </div>
+
+    <div class="actions-row" style="margin-bottom:20px">
+      <button class="btn" id="btn-inbox-scan" onclick="scanInbox()">Analizar carpeta</button>
+      <button class="btn primary" id="btn-inbox-run" onclick="runInbox()">Organizar todo</button>
+      <button class="btn" onclick="saveInboxSettings()" style="margin-left:auto;border-color:#555;color:#888">Guardar ajustes</button>
+    </div>
+
+    <!-- Scan summary -->
+    <div class="hidden" id="inbox-summary" style="margin-bottom:16px;padding:10px 14px;background:#1e1e2e;border:1px solid #2a2a4a;border-radius:4px;font-size:12px">
+      <span id="inbox-summary-text" style="color:#888"></span>
+    </div>
+
+    <!-- File table -->
+    <div class="hidden" id="inbox-files-wrap" style="margin-bottom:20px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid #333;color:#555">
+            <th style="text-align:left;padding:4px 8px">Archivo</th>
+            <th style="text-align:left;padding:4px 8px">Tipo</th>
+            <th style="text-align:left;padding:4px 8px">Plataforma</th>
+            <th style="text-align:right;padding:4px 8px">Tamaño</th>
+            <th style="text-align:left;padding:4px 8px">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="inbox-files-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Progress -->
+    <div class="hidden" id="inbox-progress-wrap" style="margin-bottom:16px;padding:12px 14px;background:#1e1e2e;border:1px solid #2a2a4a;border-radius:4px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span id="inbox-progress-step" style="font-size:12px;color:#d4d4d4">Preparando…</span>
+        <span id="inbox-progress-counts" style="font-size:11px;color:#888"></span>
+      </div>
+      <div style="background:#2a2a2a;border-radius:3px;height:6px;overflow:hidden;margin-bottom:6px">
+        <div id="inbox-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      </div>
+      <div id="inbox-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    </div>
+
+    <!-- Result -->
+    <div id="inbox-result" class="job-result"></div>
+
+    <!-- 32-3: drag & drop zone -->
+    <div id="inbox-dropzone"
+      ondragover="inboxDragOver(event)" ondragleave="inboxDragLeave(event)" ondrop="inboxDrop(event)"
+      style="margin-top:16px;border:2px dashed #333;border-radius:8px;padding:28px 20px;text-align:center;color:#555;font-size:13px;transition:border-color .2s,color .2s;cursor:default">
+      &#x1F4E5; Arrastra archivos aquí para copiarlos a la carpeta Inbox
+      <div id="inbox-drop-result" style="margin-top:8px;font-size:12px"></div>
+    </div>
+
+    <!-- Watcher status -->
+    <div class="hidden" id="inbox-watcher-info" style="margin-top:16px;padding:8px 12px;background:#161626;border:1px solid #2a2a4a;border-radius:4px;font-size:11px;color:#555">
+      <span id="inbox-watcher-text">Daemon inactivo</span>
+    </div>
+  </div>
+</div>
+

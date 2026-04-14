@@ -66,6 +66,7 @@ def sync_saves(
     backup_root: Path | None = None,
     backup_keep_n: int = 5,
     delta_cache: DeltaCache | None = None,
+    conflict_policy: str = "newest",
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *saves_remote* and *states_remote* using rclone.
 
@@ -234,38 +235,76 @@ def sync_saves(
                     result.errors += 1
 
             elif decision.action == "conflict":
-                # S29: backup local save before conflict resolution
+                # P4: auto-resolve conflict using configured policy
                 if backup_root and local_path.exists():
                     try:
                         from rom_manager.backup.save_backup import backup_save
                         backup_save(local_path, backup_root, keep_n=backup_keep_n)
                     except Exception:
                         pass
-                # Back up both sides by appending a timestamp suffix, then upload local.
+
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
-                backup_rel = relative + backup_suffix
+                remote_path = f"<routed to saves/states remote>/{relative}"
+
+                # Determine winner
+                if conflict_policy in ("keep_pc", "keep_local"):
+                    local_wins = True
+                    policy_reason = "policy=keep_local"
+                elif conflict_policy in ("keep_android", "keep_remote"):
+                    local_wins = False
+                    policy_reason = "policy=keep_remote"
+                else:  # "newest" or "ask" (can't prompt in background, fall back to newest)
+                    local_wins = (
+                        decision.local_mtime is None
+                        or decision.remote_mtime is None
+                        or decision.local_mtime >= decision.remote_mtime
+                    )
+                    policy_reason = "policy=newest;" + (" local" if local_wins else " remote")
 
                 try:
-                    # Keep remote copy with backup name.
-                    transport.download(
-                        relative,
-                        local_path.parent / (local_path.name + backup_suffix),
-                        saves_remote=saves_remote,
-                        states_remote=states_remote,
-                        save_extensions=save_extensions,
-                        state_extensions=state_extensions,
-                    )
-                    # Upload current local as the winner.
-                    transport.upload(
-                        local_path,
-                        relative,
-                        saves_remote=saves_remote,
-                        states_remote=states_remote,
-                        save_extensions=save_extensions,
-                        state_extensions=state_extensions,
-                    )
-                    # Construct remote_path for logging
-                    remote_path = f"<routed to saves/states remote>/{relative}"
+                    if local_wins:
+                        # Backup remote copy locally with conflict suffix, then upload local as winner
+                        transport.download(
+                            relative,
+                            local_path.parent / (local_path.name + backup_suffix),
+                            saves_remote=saves_remote,
+                            states_remote=states_remote,
+                            save_extensions=save_extensions,
+                            state_extensions=state_extensions,
+                        )
+                        transport.upload(
+                            local_path,
+                            relative,
+                            saves_remote=saves_remote,
+                            states_remote=states_remote,
+                            save_extensions=save_extensions,
+                            state_extensions=state_extensions,
+                        )
+                        msg = (
+                            f"Conflict resolved ({policy_reason}): local kept; "
+                            f"remote backed up as {relative}{backup_suffix}"
+                        )
+                        if delta_cache is not None:
+                            delta_cache.mark_synced(relative, local_path, "upload")
+                    else:
+                        # Backup local file with conflict suffix, then download remote as winner
+                        import shutil as _shutil
+                        _shutil.copy2(local_path, local_path.parent / (local_path.name + backup_suffix))
+                        transport.download(
+                            relative,
+                            local_path,
+                            saves_remote=saves_remote,
+                            states_remote=states_remote,
+                            save_extensions=save_extensions,
+                            state_extensions=state_extensions,
+                        )
+                        msg = (
+                            f"Conflict resolved ({policy_reason}): remote kept; "
+                            f"local backed up as {relative}{backup_suffix}"
+                        )
+                        if delta_cache is not None:
+                            delta_cache.mark_synced(relative, local_path, "download")
+
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -274,11 +313,9 @@ def sync_saves(
                         local_mtime=decision.local_mtime,
                         remote_mtime=decision.remote_mtime,
                         result="ok",
-                        message=f"Conflict resolved: local kept; remote backed up as {backup_rel}",
+                        message=msg,
                         created_at=timestamp,
                     )
-                    if delta_cache is not None:
-                        delta_cache.mark_synced(relative, local_path, "upload")
                     result.conflicts += 1
                 except RcloneError as exc:
                     if delta_cache is not None:

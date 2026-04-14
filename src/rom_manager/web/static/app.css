@@ -363,8 +363,9 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 
 /* 24-5: Header last-sync indicator */
 #header-last-sync { margin-left: auto; font-size: 11px; color: var(--fg-4); white-space: nowrap; cursor: default; }
-#header-last-sync.sync-ok  { color: var(--accent); }
-#header-last-sync.sync-err { color: var(--accent-ora); }
+#header-last-sync.sync-ok    { color: var(--accent); }
+#header-last-sync.sync-stale { color: #e5c200; }
+#header-last-sync.sync-err   { color: var(--accent-ora); }
 
 /* 24-7: Card quick-action buttons */
 .card-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); flex-wrap: wrap; }
@@ -854,6 +855,37 @@ input:focus, select:focus, textarea:focus {
 
 /* ── Visibility utility ──────────────────────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── Flow Wizard Modal ───────────────────────────────────────────────────── */
+#flow-wizard-modal {
+  display: flex;
+  position: fixed; inset: 0; z-index: 9100;
+  background: rgba(0,0,0,.82);
+  align-items: center; justify-content: center;
+}
+#flow-wizard-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-s);
+  border-radius: 12px;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.fw-header { display: flex; justify-content: space-between; align-items: center; }
+.fw-close { background: none; border: none; color: var(--fg-3); font-size: 16px; cursor: pointer; padding: 0; line-height: 1; }
+.fw-close:hover { color: var(--fg); }
+/* Step indicator */
+.fw-step-indicator { display: flex; align-items: center; gap: 0; }
+.fw-si-item { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; opacity: .35; transition: opacity .2s; }
+.fw-si-item.fw-si-active { opacity: 1; }
+.fw-si-item.fw-si-done { opacity: .7; }
+.fw-si-done .fw-si-icon::after { content: ' ✓'; font-size: 10px; color: var(--accent); }
+.fw-si-icon { font-size: 18px; }
+.fw-si-label { font-size: 10px; color: var(--fg-3); }
+.fw-si-sep { flex: 0 0 20px; height: 1px; background: var(--border-s); margin-bottom: 14px; }
+/* Actions row */
+.fw-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border-s); }
 
 /* ── Flex-displayed elements (toggle with .hidden) ───────────────────────── */
 #wizard-modal {

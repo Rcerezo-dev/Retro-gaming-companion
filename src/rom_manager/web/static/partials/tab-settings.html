@@ -1,0 +1,438 @@
+<div id="tab-settings" class="tab">
+  <div class="hidden" id="cfg-warnings-banner" style="margin-bottom:14px;padding:10px 14px;background:#1e1e10;border:1px solid #665500;border-radius:5px"></div>
+
+  <!-- BUG-D: System status panel -->
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#4ec9b0">
+    <h3 style="color:#4ec9b0">Estado del sistema</h3>
+    <div id="system-status-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;line-height:1.8">
+      Comprobando&#x2026;
+    </div>
+  </div>
+
+  <!-- S40: Configurar consola Android -->
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#c586c0">
+    <h3 style="color:#c586c0">Configurar consola Android</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.6">
+      Escanea el QR desde Termux en tu consola Android para instalar el script de auto-sync de saves.<br>
+      El script configura rclone <em>y</em> detecta si tienes Dropbox/OneDrive instalado.
+    </p>
+    <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+      <div>
+        <canvas id="android-setup-qr" width="140" height="140" style="border:2px solid #2d2d2d;border-radius:4px;display:block"></canvas>
+        <p id="android-setup-url" style="font-size:10px;color:#555;margin-top:4px;word-break:break-all;max-width:140px">Cargando&#x2026;</p>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <p style="font-size:12px;color:#d4d4d4;margin-bottom:8px"><strong>Pasos:</strong></p>
+        <ol style="font-size:12px;color:#888;line-height:2;padding-left:18px;margin:0">
+          <li>Instala <strong>Termux</strong> desde F-Droid (no Play Store)</li>
+          <li>Abre Termux y ejecuta:<br>
+            <code style="background:#0d1117;padding:2px 6px;border-radius:3px;font-size:11px">curl -s &lt;URL&gt; | bash</code>
+          </li>
+          <li>Sigue las instrucciones en pantalla</li>
+          <li>Instala <strong>Termux:Boot</strong> desde F-Droid para auto-sync al arrancar</li>
+        </ol>
+        <div class="hidden" id="android-setup-curl" style="margin-top:10px;background:#0d1117;padding:8px 10px;border-radius:4px;font-size:11px;color:#4ec9b0;word-break:break-all"></div>
+        <button onclick="copyAndroidSetupUrl()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:4px;cursor:pointer">Copiar URL</button>
+        <button onclick="downloadAndroidSetupSh()" style="margin-top:8px;margin-left:6px;padding:4px 12px;font-size:11px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:4px;cursor:pointer">Descargar .sh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- S35-1: Theme toggle -->
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#569cd6">
+    <h3 style="color:#569cd6">Apariencia</h3>
+    <div class="actions-row" style="align-items:center;gap:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#d4d4d4">
+        <input type="radio" id="theme-dark" name="theme" value="dark" onchange="setTheme('dark')" style="cursor:pointer">
+        🌙 Oscuro (predeterminado)
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#d4d4d4">
+        <input type="radio" id="theme-light" name="theme" value="light" onchange="setTheme('light')" style="cursor:pointer">
+        ☀️ Claro
+      </label>
+    </div>
+    <p style="color:#555;font-size:11px;margin-top:8px">El tema se guarda automáticamente y se aplica en la próxima sesión.</p>
+  </div>
+
+  <div class="actions-panel" style="max-width:640px">
+    <h3>Configuración</h3>
+    <p style="color:#555;font-size:11px;margin-bottom:16px">Los cambios se guardan en <code>config.toml</code>. Reinicia el servidor para que surtan efecto en el sync.</p>
+
+    <div class="actions-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">library_root — carpeta raíz de la biblioteca (ROMs + saves)</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="cfg-library-root" type="text" style="flex:1" placeholder="E:/ROMs">
+          <button class="btn" data-browse="cfg-library-root" style="flex-shrink:0;padding:4px 10px;font-size:12px" onclick="browseFolder('cfg-library-root','Carpeta raíz de la biblioteca')">Examinar</button>
+        </div>
+        <span class="cfg-saved" id="cfg-check-library-root">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Nombre del dispositivo Android</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="cfg-device-preset" onchange="_onDevicePresetChange()" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
+            <option value="Consola Android">Consola Android</option>
+            <option value="Steam Deck">Steam Deck</option>
+            <option value="custom">Personalizado...</option>
+          </select>
+          <input class="hidden" id="cfg-device-name-custom" type="text" style="flex:1" placeholder="Nombre personalizado">
+        </div>
+        <div style="color:#555;font-size:11px;margin-top:3px">Aparece en botones, etiquetas y mensajes de la interfaz.</div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta de la consola Android / Tarjeta SD — carpeta raíz montada en el PC</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="cfg-anbernic-root" type="text" style="flex:1" placeholder="E:\\Carpetas anbernic">
+          <button class="btn" data-browse="cfg-anbernic-root" style="flex-shrink:0;padding:4px 10px;font-size:12px" onclick="browseFolder('cfg-anbernic-root','Carpeta raíz de la consola Android / SD')">Examinar</button>
+        </div>
+        <span class="cfg-saved" id="cfg-check-anbernic-root">&#x2713; Guardado</span>
+        <div style="color:#555;font-size:11px;margin-top:3px">Se usa para el sync automático al detectar la tarjeta SD y en Cable Sync modo filesystem.</div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote — ruta en el cloud para saves</label>
+        <input id="cfg-rclone-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
+        <span class="cfg-saved" id="cfg-check-rclone-remote">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote saves permanentes <span style="color:#555">(D2 — separación saves/states)</span></label>
+        <input id="cfg-saves-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/saves">
+        <span class="cfg-saved" id="cfg-check-saves-remote">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">rclone remote savestates <span style="color:#555">(D2 — separación saves/states)</span></label>
+        <input id="cfg-states-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/states">
+        <span class="cfg-saved" id="cfg-check-states-remote">&#x2713; Guardado</span>
+      </div>
+      <!-- D1: Migración estructura saves/states -->
+      <div style="width:100%;padding:10px 14px;background:#12120a;border:1px solid #3a3a1a;border-radius:6px">
+        <div style="color:#dcdcaa;font-size:12px;font-weight:600;margin-bottom:6px">&#x1F4C2; Migrar estructura saves/states</div>
+        <div style="color:#888;font-size:11px;margin-bottom:10px;line-height:1.6">
+          Mueve los saves (<code>.sav</code>, <code>.srm</code>…) a <code>&lt;plataforma&gt;/saves/</code>
+          y los savestates (<code>.state</code>, <code>.st0</code>…) a <code>&lt;plataforma&gt;/states/</code>.<br>
+          Tras migrar actualiza en RetroArch: <em>Settings → Directory → Savefile/Savestate</em>.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="btn-migrate-saves-dry" onclick="doMigrateSavesStructure(true)" style="font-size:12px;padding:4px 12px">Previsualizar</button>
+          <button class="btn" id="btn-migrate-saves-apply" onclick="doMigrateSavesStructure(false)" style="font-size:12px;padding:4px 12px;color:#f44747;border-color:#f44747">Migrar ahora</button>
+        </div>
+        <div id="migrate-saves-result" style="font-size:12px;min-height:16px;margin-top:8px"></div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Acceso a la interfaz web</label>
+        <select id="cfg-web-host" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
+          <option value="127.0.0.1">127.0.0.1 — solo este PC (recomendado)</option>
+          <option value="0.0.0.0">0.0.0.0 — toda la red local (acceso desde la consola)</option>
+        </select>
+        <div style="color:#555;font-size:11px;margin-top:3px">Con <code>0.0.0.0</code> puedes abrir la app desde el navegador de tu consola si están en la misma red WiFi. Requiere reiniciar el servidor.</div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper usuario</label>
+        <input id="cfg-ss-user" type="text" style="width:100%" placeholder="tu_usuario">
+        <span class="cfg-saved" id="cfg-check-ss-user">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper contraseña</label>
+        <input id="cfg-ss-pass" type="password" style="width:100%" placeholder="••••••••">
+        <span class="cfg-saved" id="cfg-check-ss-pass">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper devid <span style="color:#555">(requerido para API — screenscraper.fr → Mi cuenta → Solicitar acceso API)</span></label>
+        <input id="cfg-ss-devid" type="text" style="width:100%" placeholder="tu_devid">
+        <span class="cfg-saved" id="cfg-check-ss-devid">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">ScreenScraper devpassword</label>
+        <input id="cfg-ss-devpass" type="password" style="width:100%" placeholder="••••••••">
+        <span class="cfg-saved" id="cfg-check-ss-devpass">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="color:#888;font-size:11px">Cuota ScreenScraper (última sesión de scraping)</label>
+          <button class="btn" style="font-size:11px;padding:3px 10px" onclick="loadSsQuota()">&#x21BB; Actualizar</button>
+        </div>
+        <div class="hidden" id="ss-quota-bar" style="background:#161626;border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px">
+          <div id="ss-quota-fill" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.5s"></div>
+        </div>
+        <div id="ss-quota-label" style="font-size:11px;color:#555">Realiza un scraping para ver la cuota.</div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">chdman — ruta al binario (para conversión a CHD)</label>
+        <div style="display:flex;gap:8px">
+          <input id="cfg-chdman" type="text" style="flex:1" placeholder="chdman  o  C:/tools/chdman.exe">
+          <button class="btn" onclick="testChdman()" style="flex-shrink:0">Probar</button>
+        </div>
+        <span class="cfg-saved" id="cfg-check-chdman">&#x2713; Guardado</span>
+        <div id="chdman-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">adb — ruta al binario (para Cable Sync por ADB) <span style="color:#555">— descargar Android Platform Tools de developer.android.com</span></label>
+        <div style="display:flex;gap:8px">
+          <input id="cfg-adb" type="text" style="flex:1" placeholder="adb  o  tools/adb.exe">
+          <button class="btn" onclick="testAdbBinary()" style="flex-shrink:0">Probar</button>
+        </div>
+        <span class="cfg-saved" id="cfg-check-adb">&#x2713; Guardado</span>
+        <div id="adb-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
+      </div>
+      <div style="width:100%">
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">RetroAchievements API key — <a href="https://retroachievements.org/settings" target="_blank" style="color:#4ec9b0">obtener en RA Settings → Web API Key</a></label>
+        <input id="cfg-ra-api-key" type="text" style="width:100%" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+        <span class="cfg-saved" id="cfg-check-ra-api-key">&#x2713; Guardado</span>
+      </div>
+    </div>
+
+    <div class="actions-row" style="margin-top:16px">
+      <button class="btn primary" onclick="saveSettings()">Guardar config.toml</button>
+    </div>
+    <div id="settings-result" class="job-result"></div>
+  </div>
+
+  <!-- S25: PIN + URL local -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Acceso remoto — PIN y URL</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      El PIN protege la interfaz cuando el servidor está expuesto en la red local (<code>host = 0.0.0.0</code> en Settings).
+      Sin PIN configurado no hay protección. <strong style="color:#4ec9b0">Solo actívalo si usas <code>0.0.0.0</code>.</strong>
+    </p>
+
+    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">PIN de acceso (4–10 dígitos)</label>
+        <input id="pin-input" type="password" placeholder="••••" maxlength="10" style="width:160px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:7px 12px;border-radius:4px;font:inherit;font-size:18px;letter-spacing:6px;text-align:center">
+      </div>
+      <button class="btn primary" onclick="setPin()">Activar PIN</button>
+      <button class="btn danger hidden" id="btn-clear-pin" onclick="clearPin()">Desactivar PIN</button>
+    </div>
+    <div id="pin-status" style="font-size:12px;color:#555;margin-bottom:20px">Comprobando…</div>
+
+    <div style="border-top:1px solid #2a2a3a;padding-top:16px">
+      <label style="color:#888;font-size:11px;display:block;margin-bottom:8px">URL de acceso desde la red local</label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <code id="local-url-display" style="color:#4ec9b0;font-size:14px;background:#0a0a0a;padding:6px 12px;border-radius:4px">cargando…</code>
+        <button class="btn" onclick="copyLocalUrl()" style="font-size:12px">Copiar</button>
+        <button class="btn" onclick="loadLocalUrl()" style="font-size:12px">&#x21BB;</button>
+      </div>
+      <div style="color:#555;font-size:11px;margin-top:6px">Abre esta URL desde el navegador de tu consola cuando estés en la misma red WiFi.</div>
+      <div style="margin-top:14px">
+        <div style="color:#888;font-size:11px;margin-bottom:8px">Escanea desde tu consola o m&#xf3;vil:</div>
+        <canvas class="hidden" id="qr-canvas" width="140" height="140"
+          style="border:6px solid #fff;border-radius:4px;image-rendering:pixelated"></canvas>
+        <p id="qr-no-url" style="color:#555;font-size:11px">Configura la URL local primero.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- S28/B6-1: Launcher settings + diagnostic -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x25B6; Lanzador — RetroArch</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Configura la ruta a RetroArch para abrir juegos directamente desde el panel de detalle.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:100px">RetroArch exe</label>
+      <input id="cfg-retroarch-path" type="text" style="flex:1" placeholder="C:/RetroArch/retroarch.exe">
+    </div>
+    <div style="font-size:11px;color:#555;margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente a&#xf1;adiendo <code>[launchers] retroarch = "ruta"</code>.</div>
+    <div class="actions-row" style="margin-top:4px">
+      <button onclick="loadRetroArchCheck()" style="font-size:11px;padding:4px 12px">&#x1F50D; Diagnosticar</button>
+      <span class="hidden" id="ra-check-spinner" style="color:#888;font-size:11px;margin-left:8px">Comprobando&#x2026;</span>
+    </div>
+    <div class="hidden" id="ra-check-result" style="margin-top:12px">
+      <div id="ra-check-status" style="font-size:12px;font-weight:bold;margin-bottom:8px"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tbody id="ra-check-rows"></tbody>
+      </table>
+      <div id="ra-check-issues" style="margin-top:8px"></div>
+      <div class="hidden" id="ra-check-cores" style="margin-top:10px">
+        <div style="color:#888;font-size:11px;margin-bottom:4px">Cores instalados:</div>
+        <div id="ra-check-cores-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ES-DE PC setup guide -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F5A5; Configurar ES-DE en PC</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">
+      ES-DE es un frontend de juegos retro disponible para Windows, macOS y Linux.
+      Con tu biblioteca ya organizada, el setup es de 5 minutos.
+    </p>
+    <ol style="color:#d4d4d4;font-size:12px;line-height:2;padding-left:18px;margin:0 0 12px 0">
+      <li>Descarga ES-DE desde <code>es-de.org</code> e inst&#xe1;lalo en el PC.</li>
+      <li>Al arrancar ES-DE por primera vez, apunta a tu <strong>library_root</strong>:<br>
+          <span id="esde-library-root-hint" style="color:#569cd6;font-family:monospace;font-size:11px">cargando…</span>
+      </li>
+      <li>Pulsa <strong>"Exportar gamelist.xml"</strong> en la pesta&#xf1;a <em>Scraper</em> para que ES-DE vea las car&#xe1;tulas.</li>
+      <li>Abre ES-DE &#x2192; men&#xfa; &#x2192; <em>Scan for games</em> &#x2014; detectar&#xe1; todos tus ROMs autom&#xe1;ticamente.</li>
+    </ol>
+    <p style="color:#555;font-size:11px;margin:0">
+      La misma estructura de carpetas y los mismos <code>gamelist.xml</code> funcionan en PC y en la consola Android &#x2014;
+      s&#xf3;lo necesitas scrapear una vez.
+    </p>
+  </div>
+
+  <!-- S29: Backup settings -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F9F2; Backup de saves</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Backup local versionado antes de cada sync/rename. Se guarda en <code>.rommgr/saves-backup/</code>.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:160px">Activar backup autom&#xe1;tico</label>
+      <input type="checkbox" id="cfg-backup-enabled" style="width:auto;margin:0">
+    </div>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:160px">Versiones a conservar</label>
+      <input type="number" id="cfg-backup-keep-n" min="1" max="50" style="width:70px">
+    </div>
+  </div>
+
+  <!-- S37: Notificaciones de escritorio -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F514; Notificaciones de escritorio</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Toast nativo de Windows al terminar sync, cable sync y health check. Solo Windows 10/11.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:#888;font-size:11px;min-width:160px">Activar notificaciones</label>
+      <input type="checkbox" id="cfg-notify-desktop" style="width:auto;margin:0">
+    </div>
+    <button class="btn" style="font-size:12px;padding:4px 10px" onclick="testNotification()">Probar notificaci&#xf3;n</button>
+    <span id="notify-test-result" style="font-size:11px;color:#888;margin-left:8px"></span>
+  </div>
+
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Cat&#xe1;logos DAT</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:10px">No-Intro y Redump &#x2014; necesarios para identificar ROMs y renombrarlos seg&#xfa;n su t&#xed;tulo can&#xf3;nico.</p>
+    <div id="catalog-status" style="margin-bottom:12px;font-size:12px;color:#888">Cargando&#x2026;</div>
+    <div class="actions-row" style="margin-bottom:6px">
+      <input id="import-dats-folder" type="text" style="flex:1" placeholder="Carpeta con archivos .dat / .xml">
+      <button class="btn" onclick="importDats()">Importar DATs</button>
+    </div>
+    <div id="import-dats-result" class="job-result"></div>
+    <div style="margin-top:8px;font-size:11px;color:#555;line-height:1.8">
+      Descarga DATs de <strong style="color:#888">dat.no-intro.org</strong> (requiere cuenta gratuita) y de
+      <strong style="color:#888">redump.org</strong>. Pon los archivos en cualquier carpeta y usa el importador de arriba,
+      o c&#xf3;pialos manualmente a las carpetas indicadas en el estado.
+    </div>
+  </div>
+
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Cat&#xe1;logo Arcade (MAME / FBNeo)</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:8px">
+      Las ROMs de arcade usan el nombre del set como identificador (no SHA1). Importa un cat&#xe1;logo para que la app reconozca los t&#xed;tulos y asigne la plataforma correcta (MAME o FBNeo).
+    </p>
+    <div style="margin-bottom:10px;font-size:11px;color:#555;line-height:1.8">
+      <strong style="color:#888">MAME listxml</strong> &#x2014; genera con: <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">mame -listxml &gt; mame.xml</code><br>
+      <strong style="color:#888">FBNeo DAT</strong> &#x2014; descarga de <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">github.com/libretro/FBNeo</code> carpeta <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">dats/</code><br>
+      Puedes indicar una <strong style="color:#888">carpeta</strong> con varios archivos o un <strong style="color:#888">archivo</strong> individual.
+    </div>
+    <div class="actions-row" style="margin-bottom:6px">
+      <input id="arcade-catalog-path" type="text" style="flex:1" placeholder="Carpeta o archivo .xml / .dat">
+      <button class="btn" onclick="importArcadeCatalog()">Importar</button>
+    </div>
+    <div id="arcade-catalog-result" class="job-result"></div>
+  </div>
+  <!-- S35-1: Apariencia -->
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>Apariencia</h3>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="color:var(--fg-2);font-size:12px;margin-bottom:10px">Tema de color de la interfaz</div>
+        <div style="display:flex;gap:8px">
+          <button id="theme-btn-dark" class="btn" style="font-size:12px;padding:5px 16px" onclick="setTheme('dark')">&#x263D; Oscuro</button>
+          <button id="theme-btn-light" class="btn" style="font-size:12px;padding:5px 16px" onclick="setTheme('light')">&#x2600; Claro</button>
+        </div>
+        <div style="color:var(--fg-4);font-size:11px;margin-top:8px">La preferencia se guarda localmente en el navegador.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>Base de datos</h3>
+    <div id="settings-db-info" style="margin-bottom:12px;font-size:11px;color:#888"></div>
+    <div class="actions-row">
+      <a href="/api/db-backup" download class="btn">Descargar copia de seguridad (PC)</a>
+      <span style="color:#555;font-size:12px">Descarga library_pc.db — guárdala antes de operaciones destructivas</span>
+    </div>
+    <div class="actions-row" style="margin-top:8px">
+      <button class="btn" style="border-color:#dcdcaa;color:#dcdcaa" onclick="migrateSplitDb()" title="Mueve los registros con rutas no-PC de la BD del PC a la BD de la consola Android (operación segura e idempotente)">Migrar BD a dos DBs</button>
+      <span style="color:#555;font-size:12px">Necesario solo si la BD estaba mezclada. Mueve ROMs de Android a library_android.db.</span>
+    </div>
+    <div id="migrate-db-result" class="job-result"></div>
+  </div>
+  <!-- S39-3: Autostart toggle -->
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>Inicio automatico con Windows</h3>
+    <p style="color:#555;font-size:12px;line-height:1.7;margin-bottom:12px">
+      Cuando esta activado, Retro Vault arranca automaticamente con Windows
+      (icono en la bandeja del sistema) y el sync siempre esta listo.
+    </p>
+    <div id="autostart-panel" style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+      <span id="autostart-badge" style="font-size:13px;color:#888">Cargando...</span>
+      <button id="autostart-btn" class="btn" onclick="toggleAutostart()" style="min-width:160px">—</button>
+    </div>
+    <div class="hidden" id="autostart-note" style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:4px;padding:8px 12px;font-size:12px;color:#6a9955">
+      Retro Vault arrancara automaticamente la proxima vez que inicies Windows.<br>
+      Usa <strong>rommgr serve --tray</strong> para iniciarlo ahora con el icono en la bandeja.
+    </div>
+    <div class="hidden" id="autostart-tray-note" style="background:#161626;border:1px solid #2a2a4a;border-radius:4px;padding:8px 12px;font-size:12px;color:#888;margin-top:8px">
+      <strong style="color:#569cd6">Icono en bandeja activo.</strong>
+      Haz clic derecho en el icono para sincronizar o cerrar el servidor.
+    </div>
+  </div>
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>Herramientas</h3>
+    <div class="actions-row">
+      <button class="btn" onclick="localStorage.removeItem('wizard_dismissed'); showWizard('', ''); showToast('Asistente relanzado', 'ok')">Relanzar asistente de configuracion</button>
+      <span style="color:#555;font-size:12px">Vuelve a mostrar el asistente de primeros pasos.</span>
+    </div>
+    <div class="actions-row" style="margin-top:10px">
+      <button class="btn" style="background:#3a1a1a;border-color:#6a2a2a;color:#f48771" onclick="shutdownServer()">Cerrar Retro Vault</button>
+      <span style="color:#555;font-size:12px">Detiene el servidor. Tendr&#xe1;s que relanzarlo desde la terminal.</span>
+    </div>
+  </div>
+
+  <!-- S38-3: API REST docs -->
+  <div class="actions-panel" style="margin-top:20px;max-width:640px">
+    <h3>API REST</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">
+      Retro Vault expone una API REST documentada en formato OpenAPI 3.0.
+      &#xda;sala para automatizaciones, integraciones o scripts externos.
+    </p>
+    <div class="actions-row" style="flex-wrap:wrap;gap:8px">
+      <a href="/api/openapi.json" target="_blank" class="btn" style="font-size:12px;padding:5px 14px">&#x1F4C4; openapi.json</a>
+      <a href="/api/docs" target="_blank" class="btn" style="font-size:12px;padding:5px 14px">&#x1F4D6; Gu&#xed;a API</a>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:#555;line-height:1.8">
+      Importa <code style="background:#1a1a2e;padding:2px 6px;border-radius:3px">openapi.json</code> en
+      <strong style="color:#888">Postman</strong>, <strong style="color:#888">Insomnia</strong> o
+      <strong style="color:#888">Swagger UI</strong> para explorar todos los endpoints.
+    </div>
+  </div>
+
+  <!-- 32-4: timeline de operaciones -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <h3 style="margin:0">&#x1F4DC; Historial de operaciones</h3>
+      <button class="btn" onclick="loadOperationsTimeline()" style="font-size:12px;padding:3px 10px">&#x21BB; Cargar</button>
+    </div>
+    <div id="operations-timeline" style="max-height:360px;overflow-y:auto;font-size:12px;color:#888">
+      <p style="color:#555">Pulsa "Cargar" para ver el historial de renombrados, eliminaciones y movimientos.</p>
+    </div>
+  </div>
+
+  <!-- S34-5: BIOS Checker -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F9A0; BIOS Checker</h3>
+      <button class="btn" onclick="loadBiosStatus()" style="font-size:12px;padding:3px 10px">&#x21BB; Comprobar</button>
+    </div>
+    <p style="color:#555;font-size:12px;margin-bottom:10px">Busca archivos BIOS en <code>library_root</code> y en la carpeta <code>system/</code> de RetroArch. Muestra qu&#xe9; BIOS tienes y cu&#xe1;les faltan.</p>
+    <div id="bios-status-content"></div>
+  </div>
+
+  <!-- S34-6: ES-DE Status -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F3AE; Estado de ES-DE</h3>
+      <button class="btn" onclick="loadEsdeStatus()" style="font-size:12px;padding:3px 10px">&#x21BB; Detectar</button>
+    </div>
+    <p style="color:#555;font-size:12px;margin-bottom:10px">Detecta si EmulationStation DE est&#xe1; instalado y d&#xf3;nde busca las gamelists.</p>
+    <div id="esde-status-content"></div>
+  </div>
+</div>
+

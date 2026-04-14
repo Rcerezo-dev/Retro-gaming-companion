@@ -862,9 +862,13 @@ function _updateAutoSyncBanner(data, sdStatus) {
   if (hdr) {
     const lastAt = s.last_sync_at;
     if (lastAt) {
-      hdr.textContent = `Sync ${_relTime(lastAt)}`;
-      hdr.className = s.last_error ? 'sync-err' : 'sync-ok';
-      hdr.title = `Última sync: ${lastAt}` + (s.last_error ? ` · Error: ${s.last_error}` : '');
+      const _daysSince = (Date.now() - new Date(lastAt).getTime()) / 86400000;
+      const _isStale = !s.last_error && _daysSince > 3;
+      hdr.textContent = (_isStale ? '⚠ ' : '') + `Sync ${_relTime(lastAt)}`;
+      hdr.className = s.last_error ? 'sync-err' : (_isStale ? 'sync-stale' : 'sync-ok');
+      hdr.title = `Última sync: ${lastAt}`
+        + (_isStale ? ` · Sin sync hace más de ${Math.round(_daysSince)}d` : '')
+        + (s.last_error ? ` · Error: ${s.last_error}` : '');
     } else if (enabled) {
       hdr.textContent = 'Sync en espera';
       hdr.className = '';

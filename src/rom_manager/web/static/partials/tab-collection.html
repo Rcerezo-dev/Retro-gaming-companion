@@ -1,0 +1,117 @@
+<div id="tab-collection" class="tab">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0">Colección</h3>
+    <input id="col-search" type="text" placeholder="Buscar…"
+      oninput="colSearch(this.value)"
+      style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 10px;border-radius:4px;font:inherit;font-size:12px;width:180px">
+  </div>
+  <!-- Export & Stats buttons -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('csv')">⬇ CSV</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('json')">⬇ JSON</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleColStats()" id="btn-col-stats">📊 Stats</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="togglePlatformHealth()" id="btn-platform-health">🏥 Health</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiff()" id="btn-col-diff">🔀 Comparar</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiskUsage()" id="btn-disk-usage">💾 Disco</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleCompleteness()" id="btn-completeness">📋 Completitud</button>
+  </div>
+  <!-- Completeness panel (P5) -->
+  <div class="hidden" id="col-completeness-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="color:#ce9178;font-size:13px;font-weight:600">Completitud de colección (vs. catálogos DAT)</span>
+      <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadCollectionStats()">&#x27F3; Actualizar</button>
+    </div>
+    <div id="collection-stats"></div>
+  </div>
+  <!-- Disk usage panel (P3) -->
+  <div class="hidden" id="col-disk-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="color:#7aa2f7;font-size:13px;font-weight:600">Uso de disco por plataforma</span>
+      <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadDiskUsage()">&#x27F3; Actualizar</button>
+    </div>
+    <div id="col-disk-content"></div>
+  </div>
+  <!-- Stats panel -->
+  <div class="hidden" id="col-stats-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div id="col-stat-total"></div>
+      <div style="flex:1;min-width:200px">
+        <div style="color:#888;font-size:11px;margin-bottom:8px">Estado de juego</div>
+        <div id="col-bar-status"></div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div style="color:#888;font-size:11px;margin-bottom:8px">Región</div>
+        <div id="col-bar-region"></div>
+      </div>
+      <div><canvas id="col-pie" width="120" height="120"></canvas></div>
+    </div>
+  </div>
+  <!-- Plataformas -->
+  <div id="col-platform-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #2a2a2a"></div>
+  <!-- Grid -->
+  <div id="col-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px"></div>
+  <div style="text-align:center;margin-top:16px">
+    <button id="col-load-more" class="btn hidden" onclick="colLoadMore()">Cargar m&#xe1;s</button>
+  </div>
+
+  <!-- Library diff panel (B3) -->
+  <div class="hidden actions-panel" id="col-diff-panel" style="margin-top:16px;border-left-color:#7aa2f7">
+    <h3 style="color:#7aa2f7">Comparar bibliotecas — PC vs Android</h3>
+    <div class="toolbar" style="margin-bottom:14px">
+      <select id="diff-platform-filter" onchange="loadLibraryDiff()"
+        style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+        <option value="">Todas las plataformas</option>
+      </select>
+      <button class="btn" onclick="loadLibraryDiff()" style="font-size:12px;padding:4px 10px">Comparar</button>
+    </div>
+    <div id="diff-summary" style="font-size:12px;color:#888;margin-bottom:14px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start">
+      <div>
+        <div style="color:#f38ba8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Solo PC <span id="diff-pc-count" class="badge" style="background:#2a1a1a;color:#f38ba8"></span>
+        </div>
+        <div id="diff-pc-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+      <div>
+        <div style="color:#89b4fa;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Solo Android <span id="diff-and-count" class="badge" style="background:#1a1a2a;color:#89b4fa"></span>
+        </div>
+        <div id="diff-and-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+      <div>
+        <div style="color:#f9e2af;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Conflictos <span id="diff-conf-count" class="badge" style="background:#2a2a1a;color:#f9e2af"></span>
+        </div>
+        <div id="diff-conf-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid #222;padding-top:10px">
+      <button class="btn" onclick="syncSelected()" style="background:#12221a;border-color:#4ec9b0;color:#4ec9b0;font-size:12px">&#x2195; Sincronizar seleccionados</button>
+      <span id="diff-sync-status" style="font-size:12px;color:#888"></span>
+    </div>
+  </div>
+
+  <!-- QoL-4: Platform health dashboard -->
+  <div class="hidden" id="platform-health-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <span style="color:#888;font-size:11px">Última actualización:</span>
+      <span id="ph-last-scan" style="color:#555;font-size:11px">—</span>
+      <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:auto" onclick="loadPlatformHealth()">&#x27F3; Actualizar</button>
+    </div>
+    <div id="ph-table" style="overflow-x:auto"></div>
+  </div>
+
+  <!-- LEGACY: Completion stats section (hidden but preserved) -->
+  <div class="hidden" id="missing-section">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+      <h4 style="margin:0;color:#ce9178">ROMs faltantes</h4>
+      <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+        <option value="">Todas las plataformas</option>
+        </select>
+        <span id="missing-count" style="color:#666;font-size:12px"></span>
+      </div>
+      <div id="missing-list" style="max-height:520px;overflow-y:auto"></div>
+    </div>
+  </div>
+

@@ -170,3 +170,41 @@ Migración de code de `app.js` a módulos JavaScript separados. Completada 2026-
 | SYNC-A2 ✅ | `EMULATOR_SAVE_PATHS_DEFAULT` in `config.py` (18 emulators), `[[emulator_paths]]` overrides in `config.toml` |
 | SYNC-A3 ✅ | `get_adb_sync_sources()` in `config.py`; `_run_auto_sync()` loops per-emulator sources instead of single root |
 | SYNC-PS1PS2 ✅ | ADB access to PSX/PS2 hidden save paths — DuckStation + AetherSX2 paths verified and mapped |
+
+---
+
+## Session — 2026-04-09 ✅
+
+### B3/0B — Comparador PC vs Android ✅
+
+Completado. `/api/library-diff` + `/api/sync-roms` + UI con checkboxes, select-all y "Sincronizar todo →" por columna.
+
+### Bug Fixes ✅
+
+| ID | Bug | Fix |
+|----|-----|-----|
+| BUG-DUP-PERM ✅ | Duplicate deletion fails with WinError 5 (Access Denied) on `E:\Carpetas anbernic\gb\` | Added `_force_remove()` helper in `handlers/duplicates.py` — clears read-only attribute (`os.chmod(S_IWRITE)`) before retrying deletion |
+| BUG-MISSING-ROUTES ✅ | Frontend calls 5 unregistered API routes — `DISPATCH-FAIL` logged on every page load | Added all 5 handlers: `auth/status`, `health-schedule`, `test-chdman`, `test-maxcso` → `handlers/config.py`; `disc-folders` → `handlers/esde.py` |
+| BUG-ASSETS-1 ✅ | Assets tab shows "not found" | Root cause was BUG-MISSING-ROUTES polluting dispatch. `/api/assets` already existed; all routes verified 200 |
+| BUG-ROUTING-404 ✅ | Router dispatch returns False for registered GET routes | Added 13 missing routes: `system-status`, `detect-cloud-folder`, `library-doctor`, `retroarch-check`, `bios-status`, `n64-scan` → `handlers/esde.py`; `autostart-status`, `autostart-toggle` → `handlers/config.py`. Total: 132 routes |
+| BUG-INBOX-SIDEBAR ✅ | Sidebar renders at bottom in Inbox tab | Two stray `</div>` tags in `tab-collection` (index.html ~L1499) were prematurely closing `content-area` and `app-body`, breaking flex layout for all subsequent tabs |
+| BUG-TOOLS-SIDEBAR ✅ | Sidebar hides in Tools subtabs | Same root cause as BUG-INBOX-SIDEBAR — resolved by the same fix |
+
+### RENAME-CONFLICT — Name collision: prefer RA version ✅
+
+| ID | Task | File |
+|----|------|------|
+| RENAME-CONFLICT-1 ✅ | Collision/disk conflict detection | `planner/operation_planner.py` (build_plan) |
+| RENAME-CONFLICT-2 ✅ | RA resolution | `handlers/duplicates.py::_apply_ra_conflicts` (B-test-4 passing) |
+| RENAME-CONFLICT-3 ✅ | Plan view preview with RA badges | `response_builders.py::_annotate_conflicts_with_ra` |
+| RENAME-CONFLICT-4 ✅ | Frontend winner/loser labels | `static/js/tabs/organize.js` |
+
+### RA-COPY-LINK — "Copy download link" per game ✅
+
+Fixed underlying bug: `result.results` was missing from serialized job result (RA table always rendered empty). Added `"results"` key to `_job_results["ra_check"]` in `server.py`. Also fixed `achievements_count` → `achievements` field name mismatch.
+
+| ID | Task | File |
+|----|------|------|
+| RA-COPY-LINK-1 ✅ | `ra_id` serialized inline in `results` array | `server.py` |
+| RA-COPY-LINK-2 ✅ | 🔗 button per row copies RA game URL | `static/js/tabs/esde.js` |
+| RA-COPY-LINK-3 ✅ | Toast via existing `_copyText()` utility | `static/js/tabs/esde.js` |

@@ -1,28 +1,9 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-09 (sesión routing bugs + tools sidebar)
+> Last updated: 2026-04-11 (archivadas tareas completadas)
 > Completed tasks → `Tareas/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
-
----
-
-## Now
-
-| ID | Task | Where |
-|----|------|-------|
-| B3/0B | ✅ DONE — Comparador PC vs Android completo: `/api/library-diff` + `/api/sync-roms` + UI con checkboxes, select-all y "Sincronizar todo →" por columna | `Collection` tab → botón 🔀 Comparar |
-
----
-
-## Bug Fixes — Active
-
-| ID | Task | Priority | Status |
-|----|------|----------|--------|
-| BUG-DUP-PERM | **Duplicate deletion fails with WinError 5 (Access Denied)** on `E:\Carpetas anbernic\gb\` — all `os.remove()` calls silently fail; duplicates not deleted | High | ✅ FIXED: Added `_force_remove()` helper in `handlers/duplicates.py` that clears the read-only attribute (`os.chmod(S_IWRITE)`) before retrying deletion. Applied to `_delete_duplicate` and `_delete_all_duplicates`. |
-| BUG-MISSING-ROUTES | **Frontend calls 5 unregistered API routes** — `DISPATCH-FAIL` logged on every page load | Medium | ✅ FIXED: Added all 5 handlers. `auth/status`, `health-schedule`, `test-chdman`, `test-maxcso` → `handlers/config.py`. `disc-folders` → `handlers/esde.py`. |
-| BUG-ASSETS-1 | **Assets tab shows "not found"** | High | ✅ FIXED: Root cause was missing route registration. `/api/assets` always existed in collection.py; the 404 was caused by BUG-MISSING-ROUTES polluting dispatch. All routes verified returning 200. |
-| BUG-ROUTING-404 | **Router dispatch returns False for registered GET routes** | Critical | ✅ FIXED: Root cause identified — 13 routes called by the frontend were never registered in handlers. Added `system-status`, `detect-cloud-folder`, `library-doctor`, `retroarch-check`, `bios-status`, `n64-scan` → `handlers/esde.py`. Added `autostart-status`, `autostart-toggle` → `handlers/config.py`. Total routes now 132 (was 119). |
 
 ---
 
@@ -49,7 +30,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | Renombrado PSX roto | `cue_rewriter.py` + `operation_planner.py` |
 | ADB no encuentra saves | `adb_transport.py` (mapeo de rutas por emulador) |
 | Circular import al arrancar | Late imports en `cable_sync_daemon.py` / `inbox_pipeline.py` |
-| 404 en rutas registradas | `router.dispatch()` — ver BUG-ROUTING-404 arriba |
+| 404 en rutas registradas | `router.dispatch()` — ver BUG-ROUTING-404 en `archivo.md` |
 
 ---
 
@@ -95,16 +76,6 @@ Extracted from `docs/ideas/Idea_final.md` and broken into actionable tasks.
 
 ---
 
-### RENAME-CONFLICT — Name collision: prefer RA version ✅
-
-✅ DONE: All 4 tasks complete.
-- Collision/disk conflict detection: `planner/operation_planner.py` (build_plan)
-- RA resolution: `handlers/duplicates.py::_apply_ra_conflicts` (B-test-4 passing)
-- Plan view preview: `response_builders.py::_annotate_conflicts_with_ra` — adds `ra_achievements`, `ra_target_achievements`, `ra_role` per conflict row
-- Frontend badges: `static/js/tabs/organize.js` — winner/loser labels shown in conflict tables when RA cache is available
-
----
-
 ### COL-REVIEW — Decide fate of Colección tab
 
 Currently overlaps heavily with Juegos. Options: merge it away, or add unique value.
@@ -115,18 +86,6 @@ Currently overlaps heavily with Juegos. Options: merge it away, or add unique va
 | COL-REVIEW-2a | **If merging**: remove Colección tab, move any unique data into Juegos tab | `index.html` + `static/js/tabs/collection.js` |
 | COL-REVIEW-2b | **If keeping**: add playtime source — read RetroArch `.lpl` playlist timestamps or save file mtime as proxy | `handlers/collection.py` |
 | COL-REVIEW-2c | **If keeping**: add RA sync — fetch user's earned achievements per game via RA API and display in tab | `handlers/collection.py` + `static/js/tabs/collection.js` |
-
----
-
-### RA-COPY-LINK — "Copy download link" per game (RetroAchievements)
-
-✅ DONE: No backend endpoint needed — `ra_id` was already in the server response. Fixed the underlying bug where `result.results` was missing from the serialized job result (the RA table was always rendering empty). Added `"results"` key to `_job_results["ra_check"]` in `server.py`, serializing all results with status/platform/alternative. Added 🔗 button per row in `esde.js` that copies `https://retroachievements.org/game/{id}` via `_copyText` (shows toast). Also fixed `achievements_count` → `achievements` field name mismatch.
-
-| ID | Task | File |
-|----|------|------|
-| RA-COPY-LINK-1 | ✅ No endpoint needed — `ra_id` serialized inline in `results` array | `server.py` |
-| RA-COPY-LINK-2 | ✅ 🔗 button per row copies RA game URL | `static/js/tabs/esde.js` |
-| RA-COPY-LINK-3 | ✅ Toast via existing `_copyText()` utility | `static/js/tabs/esde.js` |
 
 ---
 
@@ -167,18 +126,6 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 | EMULATOR-COMPAT-2 | Test PS1 round-trip: DuckStation PC → sync → DuckStation Android → load | Hardware test with RG556 |
 | EMULATOR-COMPAT-3 | Test PS2 round-trip: PCSX2 PC → sync → AetherSX2/NetherSX2 Android → load | Hardware test |
 | EMULATOR-COMPAT-4 | Test remaining platforms (GBA, SNES, GBC, NDS…) and document any format mismatches | Update matrix per result |
-
----
-
-### BUG-INBOX-SIDEBAR — Sidebar renders at bottom in Inbox tab
-
-✅ FIXED: Two stray `</div>` tags inside `tab-collection` (index.html ~line 1499) were prematurely closing `content-area` and `app-body`. This broke the flex layout for every tab from `tab-tv` onwards (tv, scraper, tools, formats, inbox, settings), pushing the sidebar outside the flex row. Removed the 2 extra closing tags.
-
----
-
-### BUG-TOOLS-SIDEBAR — Sidebar hides in Tools subtabs
-
-✅ FIXED: La causa raíz era la misma que BUG-INBOX-SIDEBAR. Los dos `</div>` extra en `tab-collection` cerraban `.content-area` y `.app-body` prematuramente, rompiendo el flex layout para todas las tabs posteriores (tv, scraper, tools, formats, inbox, settings). Al eliminar esos tags (commit del BUG-INBOX-SIDEBAR), el sidebar volvió a ser visible en todas las tabs afectadas. Verificado: `tab-collection` Delta=0, `.content-area` cierra en L2522 después de todos los tabs.
 
 ---
 

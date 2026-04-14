@@ -124,7 +124,7 @@ Esto:
 2. Mueve cada ROM a `library_root/<plataforma>/`
 3. Actualiza la ruta en la BD automáticamente
 
-> Los saves no se mueven con esta herramienta. Muévelos manualmente a `saves/` la primera vez, luego configura RetroArch PC para que use esa carpeta (Settings → Saving → Savefile Directory).
+> Los saves que estén junto a sus ROMs **o** en la carpeta `saves/` plana se mueven automáticamente a `saves/<plataforma>/`. Configura RetroArch PC para que use esa carpeta con subdirectorios (Settings → Saving → Savefile Directory → apunta a `saves/`).
 
 ---
 

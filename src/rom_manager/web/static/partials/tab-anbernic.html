@@ -1,0 +1,165 @@
+<div id="tab-anbernic" class="tab">
+<div style="max-width:680px">
+
+  <h2 style="color:#c586c0;font-size:20px;font-weight:700;margin-bottom:4px">&#x1F4F1; Configurar Anbernic</h2>
+  <p style="color:#888;font-size:13px;line-height:1.6;margin-bottom:20px">
+    Sigue estos pasos para que los saves se sincronicen solos entre tu PC y la Anbernic.
+    Solo necesitas escribir <strong style="color:#d4d4d4">una URL</strong> en el navegador de la consola &mdash; el resto son botones.
+  </p>
+
+  <!-- === PASO 0: URL para escribir en la Anbernic === -->
+  <div style="background:#12122a;border:2px solid #c586c0;border-radius:10px;padding:20px 22px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="width:28px;height:28px;border-radius:50%;background:#c586c0;color:#0d1117;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
+      <div style="font-size:15px;font-weight:700;color:#d4d4d4">Abre el navegador en la Anbernic y escribe esta direcci&#xf3;n</div>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:14px;line-height:1.6">
+      La Anbernic y el PC deben estar en la <strong style="color:#d4d4d4">misma red WiFi</strong>.
+      Escribe exactamente esta direcci&#xf3;n en el navegador de la consola:
+    </p>
+    <!-- IP address — big and readable -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div id="anb-ip-display" style="flex:1;min-width:200px;background:#0d1117;border:2px solid #4ec9b0;border-radius:8px;padding:12px 18px;font-size:22px;font-weight:700;color:#4ec9b0;font-family:monospace;letter-spacing:0.05em;text-align:center">
+        Detectando&#x2026;
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button onclick="copyAnbernicUrl()" style="padding:8px 16px;background:#4ec9b0;border:none;color:#0d1117;font-weight:700;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap">&#x1F4CB; Copiar URL</button>
+        <button onclick="loadAnbernicTab()" style="padding:6px 16px;background:#2d2d2d;border:1px solid #3d3d3d;color:#888;border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:#555;margin-top:10px">
+      Al abrir esta URL en la Anbernic aparecer&#xe1; autom&#xe1;ticamente una gu&#xed;a de instalaci&#xf3;n con todos los botones de descarga.
+    </p>
+  </div>
+
+  <!-- === DESDE EL PC: guía de referencia === -->
+  <p style="font-size:12px;color:#555;margin-bottom:10px;text-align:center">
+    &#x2500;&#x2500; O descarga desde este PC y pasa los APKs a la Anbernic por cable o tarjeta SD &#x2500;&#x2500;
+  </p>
+
+  <!-- PASO 2: F-Droid -->
+  <div class="anbernic-step">
+    <div class="anbernic-step-header">
+      <span class="anbernic-step-num">2</span>
+      <div>
+        <div class="anbernic-step-title">Instalar F-Droid</div>
+        <div class="anbernic-step-desc">Tienda de apps necesaria para instalar Termux. Permite actualizaciones autom&#xe1;ticas.</div>
+      </div>
+    </div>
+    <div class="anbernic-step-body">
+      <p style="font-size:12px;color:#888;line-height:1.7;margin-bottom:12px">
+        Descarga el APK y c&#xf3;pialo a la Anbernic (cable USB o tarjeta SD).<br>
+        En la Anbernic: abre el APK &#x2192; permite instalar de fuentes desconocidas &#x2192; instala.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="https://f-droid.org/F-Droid.apk" target="_blank"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 16px;background:#4ec9b0;border:none;color:#0d1117;font-weight:700;border-radius:6px;font-size:13px;text-decoration:none;cursor:pointer">
+          &#x2B07; Descargar F-Droid.apk
+        </a>
+        <a href="https://f-droid.org/en/packages/org.fdroid.fdroid/" target="_blank"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:6px;font-size:12px;text-decoration:none">
+          &#x2139; M&#xe1;s info
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASO 3: Termux -->
+  <div class="anbernic-step">
+    <div class="anbernic-step-header">
+      <span class="anbernic-step-num">3</span>
+      <div>
+        <div class="anbernic-step-title">Instalar Termux</div>
+        <div class="anbernic-step-desc">Terminal Linux para Android. Necesario para ejecutar el script de sync. <strong style="color:#f4a623">No instales desde la Play Store</strong> &mdash; usa F-Droid o el APK de abajo.</div>
+      </div>
+    </div>
+    <div class="anbernic-step-body">
+      <p style="font-size:12px;color:#888;line-height:1.7;margin-bottom:12px">
+        Con F-Droid ya instalado: abre F-Droid &#x2192; busca <strong style="color:#d4d4d4">Termux</strong> &#x2192; instala.<br>
+        O descarga el APK directamente desde GitHub:
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a id="anb-termux-apk-link" href="https://github.com/termux/termux-app/releases/latest" target="_blank"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 16px;background:#4ec9b0;border:none;color:#0d1117;font-weight:700;border-radius:6px;font-size:13px;text-decoration:none">
+          &#x2B07; Descargar Termux APK
+        </a>
+        <a href="https://f-droid.org/packages/com.termux/" target="_blank"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:6px;font-size:12px;text-decoration:none">
+          &#x2139; En F-Droid
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASO 4: Termux:Boot -->
+  <div class="anbernic-step">
+    <div class="anbernic-step-header">
+      <span class="anbernic-step-num">4</span>
+      <div>
+        <div class="anbernic-step-title">Instalar Termux:Boot <span style="font-size:11px;color:#555;font-weight:400">(recomendado)</span></div>
+        <div class="anbernic-step-desc">Hace que el sync se ejecute autom&#xe1;ticamente cada vez que enciendes la Anbernic.</div>
+      </div>
+    </div>
+    <div class="anbernic-step-body">
+      <p style="font-size:12px;color:#888;line-height:1.7;margin-bottom:12px">
+        Instala igual que Termux. Despu&#xe9;s: <strong style="color:#d4d4d4">&#xe1;brelo una vez</strong> para activarlo.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="https://github.com/termux/termux-boot/releases/latest" target="_blank"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 16px;background:#4ec9b0;border:none;color:#0d1117;font-weight:700;border-radius:6px;font-size:13px;text-decoration:none">
+          &#x2B07; Descargar Termux:Boot APK
+        </a>
+        <a href="https://f-droid.org/packages/com.termux.boot/" target="_blank"
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:6px;font-size:12px;text-decoration:none">
+          &#x2139; En F-Droid
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASO 5: Ejecutar el script -->
+  <div class="anbernic-step" style="border-left-color:#c586c0">
+    <div class="anbernic-step-header">
+      <span class="anbernic-step-num" style="background:#c586c0">5</span>
+      <div>
+        <div class="anbernic-step-title" style="color:#c586c0">Ejecutar el script de configuraci&#xf3;n</div>
+        <div class="anbernic-step-desc">Abre Termux en la Anbernic y ejecuta un &#xfa;nico comando. Instala rclone, descarga la config del PC y programa el sync autom&#xe1;tico.</div>
+      </div>
+    </div>
+    <div class="anbernic-step-body">
+      <p style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.7">
+        Abre Termux &#x2192; toca la pantalla para que aparezca el teclado virtual &#x2192; escribe o pega:
+      </p>
+      <div id="anb-cmd-full" style="background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;padding:10px 14px;font-size:14px;font-weight:700;color:#4ec9b0;font-family:monospace;word-break:break-all;margin-bottom:12px;letter-spacing:0.02em">
+        Cargando&#x2026;
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button onclick="copyAnbernicCmd()" style="padding:8px 18px;background:#c586c0;border:none;color:#0d1117;font-weight:700;border-radius:6px;cursor:pointer;font-size:13px">
+          &#x1F4CB; Copiar comando
+        </button>
+        <a id="anb-script-download" href="#" download="retrovault-setup.sh"
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:6px;font-size:12px;text-decoration:none">
+          &#x2B07; Descargar .sh
+        </a>
+      </div>
+      <div style="background:#1a1400;border:1px solid #3a3000;border-radius:6px;padding:10px 14px;font-size:11px;color:#888;line-height:1.8">
+        <strong style="color:#f4a623">Consejo teclado Anbernic:</strong> en Termux, mant&#xe9;n pulsado en la pantalla &#x2192; aparece un men&#xfa; &#x2192; <em>Pegar</em>.<br>
+        Si hab&#xed;as copiado la URL desde el PC mediante ADB, el portapapeles ya est&#xe1; listo.
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTADO -->
+  <div style="margin-top:8px;background:#0a1a0a;border:1px solid #2a4a2a;border-radius:8px;padding:18px 20px">
+    <p style="font-size:14px;color:#4ec9b0;font-weight:600;margin-bottom:10px">&#x2705; Despu&#xe9;s del setup</p>
+    <ul style="font-size:12px;color:#888;line-height:2.1;padding-left:18px;margin:0">
+      <li>El script crea <code style="color:#d4d4d4">~/retrovault-sync.sh</code> — ej&#xe9;cutalo cuando quieras sincronizar manualmente</li>
+      <li>Con Termux:Boot, el sync corre <strong style="color:#d4d4d4">autom&#xe1;ticamente al encender la consola</strong></li>
+      <li>Los saves van al cloud (rclone) o a la carpeta de Dropbox/OneDrive del dispositivo</li>
+      <li>Si algo falla: abre Termux, ejecuta <code style="color:#d4d4d4">~/retrovault-sync.sh</code> para ver el error</li>
+    </ul>
+  </div>
+
+</div>
+</div>
+

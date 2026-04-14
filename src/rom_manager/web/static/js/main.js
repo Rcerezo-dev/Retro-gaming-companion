@@ -173,11 +173,14 @@ import {
   doSync,
   _renderSyncResult,
 } from './tabs/sync.js';
+import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
 // Expose all migrated functions on window for:
 // - Inline onclick="xxx()" handlers in index.html
 // - Legacy app.js callers (e.g. DOMContentLoaded calling loadAuthStatus)
 Object.assign(window, {
+  // flow_wizard.js — run-all wizard
+  openFlowWizard, closeFlowWizard,
   // games.js — games tab, game panel, TV mode
   gamesState,
   applyColVisibility, _initColPicker, toggleColPicker,

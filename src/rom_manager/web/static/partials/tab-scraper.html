@@ -1,0 +1,90 @@
+<div id="tab-scraper" class="tab">
+  <div class="actions-panel" style="max-width:800px">
+    <h3>ScreenScraper — Metadatos y portadas</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      Requiere cuenta gratuita en <a href="https://www.screenscraper.fr" target="_blank">screenscraper.fr</a>.
+      Configura usuario y contraseña en la pestaña <strong>Settings</strong>.
+    </p>
+
+    <div class="actions-row" style="flex-wrap:wrap;gap:16px">
+      <div>
+        <label>Plataforma</label>
+        <select id="scrape-platform" style="width:220px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
+          <option value="">Todas las plataformas</option>
+        </select>
+      </div>
+      <div>
+        <label>Límite de ROMs (0 = todos)</label>
+        <input id="scrape-limit" type="number" value="0" min="0" style="width:80px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
+      </div>
+      <label class="fmt-check" style="align-self:flex-end">
+        <input type="checkbox" id="scrape-images"> Descargar portadas
+      </label>
+    </div>
+    <p style="color:#555;font-size:11px;margin:4px 0 10px">
+      &#x1F5BC; Las portadas se guardan junto a los ROMs: <code>{plataforma}/media/images/{nombre}.jpg</code><br>
+      El <code>gamelist.xml</code> las referencia automáticamente — ES-DE las muestra sin copiar nada extra.
+    </p>
+    <div class="actions-row" style="margin-top:10px">
+      <button id="btn-scrape" class="btn primary" onclick="doScrape()">Iniciar scraping</button>
+      <span id="scrape-rate-note" style="color:#555;font-size:12px">Respeta el rate limit de ScreenScraper (~1 req/s sin cuenta dev, ~3 req/s con dev)</span>
+    </div>
+    <div class="hidden" id="scrape-progress-wrap" style="margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="scrape-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="scrape-progress-found" style="font-size:11px;color:#4ec9b0"></span>
+        <span id="scrape-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="scrape-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.4s"></div>
+      </div>
+    </div>
+    <div id="job-result-scrape" class="job-result"></div>
+  </div>
+
+  <div style="margin-top:24px;max-width:800px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px">Estado del scraping por plataforma</h3>
+      <button class="btn" onclick="loadScraperSummary()">&#x21BB; Actualizar</button>
+    </div>
+    <div id="scraper-summary"><p class="loading">Cargando…</p></div>
+  </div>
+
+  <div class="actions-panel" style="max-width:800px;margin-top:24px">
+    <h3>Exportar gamelist.xml</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:16px">
+      Genera un <code>gamelist.xml</code> por plataforma en el formato ES-DE.<br>
+      Los archivos se escriben en <code>library_root/{plataforma}/</code>, junto a los ROMs — exactamente donde ES-DE los espera.
+      Sin estos archivos, ES-DE muestra s&#xf3;lo nombres de archivo, sin car&#xe1;tulas ni metadatos.
+    </p>
+    <div class="actions-row" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <label>Carpeta de destino <span style="color:#555;font-weight:normal">(vac&#xed;o = library_root)</span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="gamelist-output-dir" type="text" placeholder="Vacío = library_root (recomendado para ES-DE)" style="width:360px">
+        </div>
+      </div>
+      <div>
+        <label>Plataforma (opcional)</label>
+        <input id="gamelist-platform" type="text" placeholder="Todas" style="width:160px">
+      </div>
+    </div>
+    <div class="actions-row">
+      <button class="btn primary" onclick="doExportGamelists()">Exportar gamelist.xml</button>
+    </div>
+    <div id="gamelist-result" class="job-result"></div>
+  </div>
+
+  <div class="actions-panel" style="max-width:800px;margin-top:24px">
+    <h3>Exportar metadatos para NLP / ML</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">
+      CSV con solo los juegos que tienen descripción scrapeada: título, plataforma, región, año, género,
+      developer, publisher, descripción, rating, play_status, favorito, notas y tags.<br>
+      <span style="color:#555">Sin rutas ni hashes — listo para entrenar modelos o hacer análisis de texto.</span>
+    </p>
+    <div class="actions-row">
+      <a href="/api/export-metadata-nlp" class="btn" style="border-color:#4ec9b0;color:#4ec9b0">&#x2193; Descargar CSV (NLP)</a>
+    </div>
+  </div>
+</div>
+

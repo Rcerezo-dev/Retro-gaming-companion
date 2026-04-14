@@ -1,0 +1,70 @@
+<div class="app-body">
+<nav class="sidebar" id="app-sidebar">
+  <button class="sidebar-toggle" onclick="toggleSidebar()" title="Expandir/colapsar men&#xfa;">&#x2630;</button>
+
+  <button class="nav-item active" id="nav-overview" onclick="showTab('overview')">
+    <span class="nav-icon">&#x1F3E0;</span><span class="nav-label">Inicio</span>
+  </button>
+
+  <div class="nav-group-label">Biblioteca</div>
+  <button class="nav-item" id="nav-games" onclick="showTab('games')">
+    <span class="nav-icon">&#x1F3AE;</span><span class="nav-label">Juegos</span>
+  </button>
+  <button class="nav-item" id="nav-plan" onclick="showTab('plan')">
+    <span class="nav-icon">&#x1F4CB;</span><span class="nav-label">Organizar</span>
+  </button>
+  <button class="nav-item" id="nav-duplicates" onclick="showTab('duplicates')">
+    <span class="nav-icon">&#x1F5C2;</span><span class="nav-label">Duplicados</span>
+  </button>
+  <button class="nav-item" id="nav-assets" onclick="showTab('assets')">
+    <span class="nav-icon">&#x1F5BC;</span><span class="nav-label">Assets</span>
+  </button>
+  <button class="nav-item" id="nav-collection" onclick="showTab('collection')">
+    <span class="nav-icon">&#x1F3C6;</span><span class="nav-label">Colecci&#xf3;n</span>
+  </button>
+
+  <div class="nav-group-label">Sync</div>
+  <button class="nav-item" id="nav-sync" onclick="showTab('sync')">
+    <span class="nav-icon">&#x2601;</span><span class="nav-label">Cloud</span>
+  </button>
+  <button class="nav-item" id="nav-cable" onclick="showTab('cable')">
+    <span class="nav-icon">&#x1F50C;</span><span class="nav-label">Cable Sync</span>
+  </button>
+  <button class="nav-item" id="nav-anbernic" onclick="showTab('anbernic')">
+    <span class="nav-icon">&#x1F4F1;</span><span class="nav-label">Anbernic</span>
+  </button>
+
+  <div class="nav-group-label">Herramientas</div>
+  <button class="nav-item" id="nav-tools" onclick="showTab('tools')">
+    <span class="nav-icon">&#x1F527;</span><span class="nav-label">Herramientas</span>
+  </button>
+  <button class="nav-item" id="nav-formats" onclick="showTab('formats')">
+    <span class="nav-icon">&#x1F4C0;</span><span class="nav-label">Formatos</span>
+  </button>
+  <button class="nav-item" id="nav-scraper" onclick="showTab('scraper')">
+    <span class="nav-icon">&#x1F3A8;</span><span class="nav-label">Scraper</span>
+  </button>
+  <button class="nav-item" id="nav-inbox" onclick="showTab('inbox')">
+    <span class="nav-icon">&#x1F4E5;</span>
+    <span class="nav-label">Inbox<span class="hidden" id="inbox-nav-badge" style="background:#f44747;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle">0</span></span>
+  </button>
+
+  <div class="sidebar-spacer"></div>
+  <div class="sidebar-bottom">
+    <button class="nav-item" id="nav-tv" onclick="enterTvMode()" title="Modo TV fullscreen (T)">
+      <span class="nav-icon">&#x1F4FA;</span><span class="nav-label">Modo TV</span>
+    </button>
+    <button class="nav-item" id="nav-settings" onclick="showTab('settings')">
+      <span class="nav-icon">&#x2699;</span><span class="nav-label">Ajustes</span>
+    </button>
+  </div>
+</nav>
+<div class="content-area">
+
+<div id="device-selector" style="display:flex;align-items:center;gap:0;padding:6px 20px;background:#161626;border-bottom:1px solid #2a2a2a">
+  <span style="color:#555;font-size:11px;margin-right:10px">Dispositivo activo:</span>
+  <button class="dev-btn active" id="dev-pc" onclick="setDevice('pc')">PC</button>
+  <button class="dev-btn" id="dev-both" onclick="setDevice('both')">Sistema completo</button>
+  <button class="dev-btn" id="dev-anbernic" onclick="setDevice('anbernic')" disabled>Consola Android</button>
+</div>
+

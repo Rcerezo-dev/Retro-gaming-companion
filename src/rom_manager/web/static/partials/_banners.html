@@ -1,0 +1,163 @@
+
+<!-- AUTO-SYNC BANNER -->
+<div id="auto-sync-banner" class="hidden">
+  <span id="auto-sync-banner-icon"></span>
+  <span id="auto-sync-banner-text"></span>
+  <a href="#" onclick="showTab('cable');return false;" style="margin-left:auto;font-size:11px;color:#888;text-decoration:underline">Ver Cable Sync</a>
+</div>
+
+<!-- S40: Android setup panel (shown when User-Agent is Android) -->
+<div id="android-detected-panel" class="hidden">
+  <div style="max-width:560px;margin:0 auto">
+    <div style="font-size:22px;font-weight:700;color:#c586c0;margin-bottom:6px">&#x1F4F1; Retro Vault en Android</div>
+    <p style="font-size:13px;color:#888;margin-bottom:24px;line-height:1.6">
+      Se ha detectado que est&#xe1;s accediendo desde Android. Instala el script de configuraci&#xf3;n autom&#xe1;tica en Termux para sincronizar saves entre este dispositivo y el PC.
+    </p>
+    <!-- APK downloads — tap from Android browser -->
+    <div style="background:#1a1a1a;border:1px solid #2d2d2d;border-radius:8px;padding:20px;margin-bottom:20px">
+      <p style="font-size:13px;color:#d4d4d4;margin-bottom:14px"><strong>Paso 1 &mdash; Instalar las apps necesarias</strong></p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <a href="https://f-droid.org/F-Droid.apk"
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;text-decoration:none">
+          <span style="font-size:22px">&#x1F4E6;</span>
+          <div>
+            <div style="font-size:13px;color:#d4d4d4;font-weight:600">F-Droid</div>
+            <div style="font-size:11px;color:#666">Tienda de apps (necesaria para Termux)</div>
+          </div>
+          <span style="margin-left:auto;font-size:11px;color:#4ec9b0;font-weight:600">DESCARGAR</span>
+        </a>
+        <a href="https://f-droid.org/packages/com.termux/"
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;text-decoration:none">
+          <span style="font-size:22px">&#x1F5A5;</span>
+          <div>
+            <div style="font-size:13px;color:#d4d4d4;font-weight:600">Termux</div>
+            <div style="font-size:11px;color:#666">Terminal Linux — instala desde F-Droid</div>
+          </div>
+          <span style="margin-left:auto;font-size:11px;color:#4ec9b0;font-weight:600">VER</span>
+        </a>
+        <a href="https://f-droid.org/packages/com.termux.boot/"
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;text-decoration:none">
+          <span style="font-size:22px">&#x23F0;</span>
+          <div>
+            <div style="font-size:13px;color:#d4d4d4;font-weight:600">Termux:Boot</div>
+            <div style="font-size:11px;color:#666">Auto-sync al arrancar — instala desde F-Droid</div>
+          </div>
+          <span style="margin-left:auto;font-size:11px;color:#c586c0;font-weight:600">OPCIONAL</span>
+        </a>
+      </div>
+    </div>
+
+    <div style="background:#1a1a1a;border:1px solid #2d2d2d;border-radius:8px;padding:20px;margin-bottom:20px">
+      <p style="font-size:13px;color:#d4d4d4;margin-bottom:10px"><strong>Paso 2 &mdash; Ejecutar el script de configuraci&#xf3;n</strong></p>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6">Abre Termux, pega este comando y pulsa Enter:</p>
+      <div id="android-panel-curl" style="background:#0d1117;padding:10px 14px;border-radius:6px;font-size:12px;color:#4ec9b0;word-break:break-all;margin-bottom:12px;border:1px solid #2a3a2a">Cargando&#x2026;</div>
+      <button onclick="copyAndroidCurlCmd()" style="padding:8px 20px;background:#c586c0;border:none;color:#0d1117;font-weight:700;border-radius:4px;cursor:pointer;font-size:13px;width:100%">&#x1F4CB; Copiar comando</button>
+    </div>
+    <button onclick="document.getElementById('android-detected-panel').style.display='none'" style="padding:8px 20px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:4px;cursor:pointer;font-size:12px">
+      Continuar a la interfaz normal
+    </button>
+  </div>
+</div>
+
+<!-- D8-P1: SETUP WIZARD MODAL -->
+<div id="wizard-modal" class="hidden" aria-modal="true" role="dialog">
+  <div style="background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;width:100%;max-width:680px;box-shadow:0 8px 40px rgba(0,0,0,0.7);position:relative;overflow:hidden">
+    <!-- Close button -->
+    <button onclick="closeWizard()" title="Cerrar" style="position:absolute;top:14px;right:16px;background:none;border:none;color:#666;font-size:20px;cursor:pointer;line-height:1">&times;</button>
+
+    <!-- PAGE 1: Welcome -->
+    <div id="wizard-page-1">
+      <div style="padding:32px 36px 0">
+        <div style="font-size:26px;font-weight:700;color:#c9bcf5;margin-bottom:6px">&#x1F3AE; Bienvenido a Retro Vault</div>
+        <div style="font-size:14px;color:#888;margin-bottom:24px">Vamos a organizar tu biblioteca en unos minutos.</div>
+
+        <!-- Auto-detect -->
+        <div style="margin-bottom:16px;display:flex;justify-content:flex-end">
+          <button id="wiz-detect-btn" class="btn" onclick="wizardAutoDetect()" style="font-size:12px;padding:5px 12px;background:#1e1e3a">
+            &#x1F50D; Detectar autom&#xe1;ticamente
+          </button>
+        </div>
+        <div class="hidden" id="wiz-detect-msg" style="font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px;border:1px solid #2a2a3c;background:#0d0d1a;color:#888"></div>
+
+        <!-- Carpeta PC (obligatoria) -->
+        <div style="margin-bottom:16px">
+          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">
+            Carpeta de biblioteca (PC) <span style="color:#e06c75">*</span>
+          </label>
+          <input id="wiz-library-root" type="text"
+            style="width:100%;box-sizing:border-box;background:#0d0d1a;border:1px solid #3a3a5c;color:#d4d4d4;padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
+            placeholder="Ej: E:\\ROMs">
+          <div style="font-size:11px;color:#555;margin-top:4px">Raiz donde est&#xe1;n todas las carpetas de tus ROMs en el PC.</div>
+        </div>
+
+        <!-- Carpeta consola Android (opcional) -->
+        <div style="margin-bottom:20px">
+          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">
+            Carpeta de biblioteca (consola Android) <span style="color:#555;font-weight:400">— opcional</span>
+          </label>
+          <input id="wiz-android-root" type="text"
+            style="width:100%;box-sizing:border-box;background:#0d0d1a;border:1px solid #3a3a5c;color:#d4d4d4;padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
+            placeholder="Ej: /storage/emulated/0/RetroArch/roms">
+          <div style="font-size:11px;color:#555;margin-top:4px">Solo si usas una consola Android. Se puede configurar despu&#xe9;s en Settings.</div>
+        </div>
+
+        <div style="margin-bottom:18px">
+          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:10px">Opciones de primer arranque</label>
+          <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-clean-junk" style="width:15px;height:15px">
+            <span style="font-size:13px;color:#d4d4d4">Eliminar archivos no relacionados (Office, scripts, etc.)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-extract-zips" checked style="width:15px;height:15px">
+            <span style="font-size:13px;color:#d4d4d4">Extraer ZIPs autom&#xe1;ticamente</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-match" checked style="width:15px;height:15px">
+            <span style="font-size:13px;color:#d4d4d4">Cruzar con cat&#xe1;logos No-Intro/Redump</span>
+          </label>
+        </div>
+
+        <div id="wiz-dats-info" style="padding:10px 14px;background:#0d0d1a;border:1px solid #2a2a3c;border-radius:6px;font-size:12px;color:#666;line-height:1.7;margin-bottom:8px">
+          <span style="color:#c9bcf5">i</span> Para cruzar con cat&#xe1;logos, pon los DAT de No-Intro/Redump en:<br>
+          <code id="wiz-dats-hint" style="color:#888">.rommgr/catalogs/nointro/  &amp;  .rommgr/catalogs/redump/</code><br>
+          <span style="color:#555">(opcional &#x2014; puedes hacerlo despu&#xe9;s desde Settings)</span>
+        </div>
+      </div>
+      <div style="padding:16px 36px 28px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #2a2a3c;margin-top:4px">
+        <button class="btn" onclick="closeWizard()" style="background:#2a2a2a">Cancelar</button>
+        <button class="btn primary" onclick="startSetup()" style="background:#5a4dab;border-color:#7a6dcb;font-weight:600">Iniciar organizacion &#x25B6;</button>
+      </div>
+    </div>
+
+    <!-- PAGE 2: Progress -->
+    <div class="hidden" id="wizard-page-2" style="padding:32px 36px 28px">
+      <div style="font-size:20px;font-weight:700;color:#c9bcf5;margin-bottom:20px">Organizando tu biblioteca&hellip;</div>
+      <div id="wiz-steps" style="margin-bottom:20px">
+        <!-- Steps rendered by JS -->
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="background:#0d0d1a;border-radius:6px;height:10px;overflow:hidden">
+          <div id="wiz-prog-bar" style="background:#5a4dab;height:100%;width:0%;transition:width 0.4s"></div>
+        </div>
+      </div>
+      <div id="wiz-prog-file" style="font-size:11px;color:#555;min-height:16px;margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+      <div style="text-align:right">
+        <button class="btn" onclick="closeWizard()" style="background:#2a2a2a;font-size:12px">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- PAGE 3: Result -->
+    <div class="hidden" id="wizard-page-3" style="padding:32px 36px 28px">
+      <div style="font-size:20px;font-weight:700;color:#4ec9b0;margin-bottom:20px">&#x2705; Biblioteca analizada</div>
+      <div id="wiz-result-stats" style="margin-bottom:24px;line-height:2;font-size:14px;color:#d4d4d4"></div>
+      <div style="font-size:13px;color:#888;margin-bottom:20px;padding:12px 16px;background:#0d0d1a;border-radius:6px;border:1px solid #2a2a3c">
+        <strong style="color:#c9bcf5">Siguiente paso:</strong> revisa el plan de renombrado y aprueba los cambios.
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px">
+        <button class="btn" onclick="closeWizard()" style="background:#2a2a2a">Cerrar</button>
+        <button class="btn primary" onclick="wizardGoToOrganize()" style="background:#5a4dab;border-color:#7a6dcb;font-weight:600">Ir a Organizar y renombrar &#x25B6;</button>
+      </div>
+    </div>
+  </div>
+</div>
+

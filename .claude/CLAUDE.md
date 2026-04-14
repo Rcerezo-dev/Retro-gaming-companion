@@ -25,6 +25,12 @@ Backlog activo: `Tareas/backlog.md`. Estado de fases: memoria `phases.md`.
 - La biblioteca debe ser compatible con RetroArch en Android Y en PC
 - En sync: ante duda, no sobreescribir; guardar backup primero
 - Sin dependencias externas de runtime (solo stdlib)
+- Usa Siempre los principios SOLID 
+        El Principio de responsabilidad única (Single Responsibility Principle)
+        El Principio Abierto-Cerrado (Open-Closed Principle)
+        El Principio de sustitución de Liskov (Liskov Substitution Principle)
+        El Principio de segregación de interfaz (Interface Segregation Principle)
+        El Principio de inversión de dependencia (Dependency Inversion Principle) 
 - **No vuelvas a leer archivos ya leídos en esta sesión a menos que te lo pida. Minimiza las llamadas a herramientas y trabaja con lo que ya tienes en contexto.**
 
 ---
