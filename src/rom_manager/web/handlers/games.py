@@ -173,6 +173,7 @@ def register(
                        g.canonical_title, g.match_confidence, g.catalog_source,
                        g.play_status, g.last_played_at, g.file_type,
                        g.notes, g.is_favorite,
+                       g.user_rating, g.play_count, g.first_played_at,
                        m.title AS ss_title, m.year, m.genre, m.publisher,
                        m.developer, m.description, m.rating, m.box_art_url,
                        m.box_art_path, m.scraped_at, m.ss_game_id

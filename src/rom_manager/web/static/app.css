@@ -236,6 +236,8 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .fmt-check input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
 
 /* ── Games grid view ──────────────────────────────────────────────────────── */
+.rec-card { background: #111a11; border: 1px solid #1a3a1a; border-radius: 6px; padding: 8px 10px; cursor: pointer; transition: border-color .15s; min-width: 140px; max-width: 200px; }
+.rec-card:hover { border-color: #4ec9b0; }
 .game-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; display: flex; flex-direction: column; position: relative; }
 .game-card:hover { border-color: var(--accent); box-shadow: 0 6px 20px var(--shadow); transform: translateY(-3px); }
 .game-card .gc-thumb { width: 100%; aspect-ratio: 2/3; background: var(--bg-cover); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
@@ -444,6 +446,9 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .fav-star { background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 2px; color: var(--border-s); line-height: 1; transition: color .1s; }
 .fav-star.active { color: #f9c74f; }
 .fav-star:hover  { color: #f9c74f; }
+.gp-star { cursor: pointer; color: #444; transition: color .1s; user-select: none; }
+.gp-star.active { color: #f9c74f; }
+.gp-star:hover  { color: #f9c74f; }
 
 .tag-chip { display: inline-flex; align-items: center; gap: 4px; background: #1a2a3a; border: 1px solid #2a4a6a; color: #7ab8d4; font-size: 11px; padding: 2px 8px; border-radius: 12px; cursor: default; }
 .tag-chip .tag-remove { cursor: pointer; color: var(--fg-4); font-size: 13px; line-height: 1; }

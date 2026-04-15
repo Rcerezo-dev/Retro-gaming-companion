@@ -102,17 +102,15 @@ One button runs scan + rename plan + duplicate detection + sync, then walks the 
 
 ---
 
-### CLOUD-RESEARCH — rclone + Termux for Dropbox sync
+### CLOUD-RESEARCH — rclone + Termux for Dropbox sync ✅ COMPLETADO
 
-Prerequisite for the Cloud sync tab. Must work on both PC (rclone binary) and Android (Termux + rclone).
-
-| ID | Task | Notes |
-|----|------|-------|
-| CLOUD-RESEARCH-1 | Document rclone setup on PC — install path, Dropbox OAuth config, test push/pull | `docs/sync/sync-cloud.md` |
-| CLOUD-RESEARCH-2 | Document Termux setup on Anbernic RG556 — install rclone, auth, verify it can reach Dropbox | `docs/sync/Guia-Termux-Anbernic.md` |
-| CLOUD-RESEARCH-3 | Define sync protocol — which direction is authoritative, conflict policy, file filter (saves only) | Design doc before code |
-| CLOUD-RESEARCH-4 | Prototype: extend `rclone_transport.py` with cloud push/pull calls | `sync/rclone_transport.py` |
-| CLOUD-RESEARCH-5 | Cloud sync UI — status panel, last sync timestamp, manual trigger button in Cloud tab | `static/js/tabs/sync.js` |
+| ID | Task | Estado |
+|----|------|--------|
+| CLOUD-RESEARCH-1 | Document rclone setup on PC | ✅ `docs/sync/sync-cloud.md` |
+| CLOUD-RESEARCH-2 | Document Termux setup on Anbernic RG556 | ✅ `docs/sync/Guia-Termux-Anbernic.md` |
+| CLOUD-RESEARCH-3 | Define sync protocol + conflict policy | ✅ sync-cloud.md §6 |
+| CLOUD-RESEARCH-4 | rclone_transport.py con upload/download/list_remote | ✅ implementado |
+| CLOUD-RESEARCH-5 | Cloud sync UI con estado + último sync en header | ✅ sync.js |
 
 ---
 
@@ -151,6 +149,21 @@ A simplified guided flow usable from the Anbernic screen without a keyboard.
 | ARCADE-SETUP-2 | Identify target arcade systems and map each to the correct RetroArch core | e.g. CPS1/2/3, Neo-Geo, MAME 2003 Plus |
 | ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` |
 | ARCADE-SETUP-4 | Test a sample ROM end-to-end: scan → rename → launch on device | Hardware test |
+
+---
+
+### NLP-REC — Recomendador de juegos con NLP ✅ COMPLETADO
+
+Infraestructura de datos en el ROM Manager para alimentar el modelo NLP de recomendación.
+
+| ID | Task | Estado |
+|----|------|--------|
+| NLP-REC-1 | Schema: columnas `user_rating`, `play_count`, `first_played_at` en tabla `games` + migración retrocompatible | ✅ `database/schema.py` |
+| NLP-REC-2 | Backend: poblar `play_count` + timestamps automáticamente al detectar saves en sync | ✅ `database/play_history.py` + `sync/save_syncer.py` |
+| NLP-REC-3 | Backend: `GET /api/play-history`, `POST /api/play-history` (rating, status, tags, notes) | ✅ `handlers/play_history.py` |
+| NLP-REC-4 | Frontend: widget de 5 estrellas (rating) + contador de sesiones en game panel | ✅ `_foot.html` + `games.js` + `app.css` |
+| NLP-REC-5 | Export: `GET /api/export-history` — JSON con todos los juegos + metadatos para el modelo NLP | ✅ `handlers/play_history.py` |
+| NLP-REC-6 | Import: `POST /api/recommendations` + `GET /api/recommendations` + panel "Recomendados" en tab Juegos | ✅ `handlers/play_history.py` + `tab-games.html` + `games.js` |
 
 ---
 

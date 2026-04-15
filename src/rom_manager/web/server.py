@@ -946,6 +946,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         srv_mod=_srv_mod,
     )
 
+    import rom_manager.web.handlers.play_history as _h_play_history
+    _h_play_history.register(
+        _router,
+        repository=repository,
+    )
+
     import rom_manager.web.handlers.esde as _h_esde
     _h_esde.register(
         _router,

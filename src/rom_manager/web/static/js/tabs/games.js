@@ -448,6 +448,13 @@ function _gpFillMeta(g) {
   if (sel) sel.value = g.play_status || '';
   const notesEl = document.getElementById('gp-notes');
   if (notesEl) { notesEl.value = g.notes || ''; _txtCls(notesEl, g.notes ? null : 'txt-dim'); }
+  // NLP-REC: rating stars + play count
+  _gpRenderStars(g.user_rating || null);
+  const pcEl = document.getElementById('gp-play-count');
+  if (pcEl) {
+    const n = g.play_count || 0;
+    pcEl.textContent = n > 0 ? `${n} sesión${n !== 1 ? 'es' : ''} detectada${n !== 1 ? 's' : ''}` : '';
+  }
   // Populate metadata edit fields
   _gpSetEditField('gme-title',       g.canonical_title || g.ss_title || '');
   _gpSetEditField('gme-year',        g.year        || '');
@@ -604,6 +611,25 @@ export async function gpSetStatus(status) {
   try {
     await apiPost('/api/set-play-status', { game_id: _gpGameId, status: status || null, source_path: '' });
     if (document.getElementById('tab-games')?.classList.contains('active')) loadGames(gamesState.offset);
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+function _gpRenderStars(rating) {
+  document.querySelectorAll('#gp-stars .gp-star').forEach(el => {
+    const v = parseInt(el.dataset.v);
+    el.textContent = v <= (rating || 0) ? '★' : '☆';
+    el.classList.toggle('active', v <= (rating || 0));
+  });
+}
+
+export async function gpSetRating(n) {
+  if (!_gpGameId) return;
+  // Toggle off if clicking the same star again
+  const current = parseInt(document.querySelector('#gp-stars .gp-star.active:last-of-type')?.dataset.v || '0');
+  const newRating = current === n ? null : n;
+  try {
+    await apiPost('/api/play-history', { game_id: _gpGameId, rating: newRating });
+    _gpRenderStars(newRating);
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 
@@ -878,4 +904,41 @@ function _updateTvInfoBar(g) {
   document.getElementById('tv-info-platform').textContent = g.platform || '';
   const statusEl = document.getElementById('tv-info-status');
   if (statusEl) statusEl.textContent = g.play_status || '';
+}
+
+// ── NLP-REC: Recommendations panel ───────────────────────────────────────────
+
+export async function loadRecommendations() {
+  try {
+    const r = await apiFetch('/api/recommendations');
+    const panel = document.getElementById('rec-panel');
+    if (!panel) return;
+    if (!r.items || r.items.length === 0) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    const updEl = document.getElementById('rec-updated-at');
+    if (updEl && r.updated_at) {
+      const d = new Date(r.updated_at);
+      updEl.textContent = `· ${d.toLocaleDateString('es-ES', { day:'2-digit', month:'short' })}`;
+    }
+    const list = document.getElementById('rec-list');
+    list.innerHTML = r.items.map(it => {
+      const title = _h(it.title || '—');
+      const plat  = _h(it.platform || '');
+      const score = it.score != null ? `<span style="color:#555;font-size:10px">${Math.round(it.score * 100)}%</span>` : '';
+      const reason = it.reason ? `<div style="font-size:10px;color:#555;margin-top:2px">${_h(it.reason)}</div>` : '';
+      const gameData = it.id ? ` onclick="apiFetch('/api/game?id=${it.id}').then(g=>{if(g.id)openGamePanel(g)}).catch(()=>{})"` : '';
+      return `<div class="rec-card"${gameData}>
+        <div style="font-size:12px;font-weight:600;color:#d4d4d4">${title} ${score}</div>
+        <div style="font-size:11px;color:#888">${plat}</div>
+        ${reason}
+      </div>`;
+    }).join('');
+  } catch(_) {}
+}
+
+export function dismissRecommendations() {
+  document.getElementById('rec-panel')?.classList.add('hidden');
 }

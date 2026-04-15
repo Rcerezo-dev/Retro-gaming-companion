@@ -45,6 +45,16 @@
     <a href="/api/export-library?format=csv" class="btn" title="Exportar biblioteca completa con metadatos a CSV">&#x2193; CSV</a>
     <a href="/api/export-library?format=json" class="btn" title="Exportar biblioteca completa con metadatos a JSON">&#x2193; JSON</a>
   </div>
+  <!-- NLP-REC: recommendations panel (hidden until model pushes data) -->
+  <div class="hidden" id="rec-panel" style="margin-bottom:14px;padding:10px 14px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:6px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:15px">&#x2728;</span>
+      <span style="font-size:13px;font-weight:600;color:#4ec9b0">Recomendados para ti</span>
+      <span id="rec-updated-at" style="font-size:11px;color:#555;margin-left:4px"></span>
+      <button onclick="dismissRecommendations()" title="Ocultar" style="margin-left:auto;background:none;border:none;color:#555;font-size:16px;cursor:pointer;padding:0;line-height:1">&times;</button>
+    </div>
+    <div id="rec-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  </div>
   <div id="games-view-wrap">
     <div id="games-list-view" style="overflow-x:auto">
       <table id="games-table">

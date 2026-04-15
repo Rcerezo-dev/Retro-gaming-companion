@@ -50,7 +50,10 @@ SCHEMA_STATEMENTS = (
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         is_favorite INTEGER NOT NULL DEFAULT 0,
-        notes TEXT
+        notes TEXT,
+        user_rating INTEGER,
+        first_played_at TEXT,
+        play_count INTEGER NOT NULL DEFAULT 0
     )
     """,
     """
@@ -203,6 +206,9 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("is_favorite", "INTEGER"),
     ("notes", "TEXT"),
     ("metadata_scraped", "INTEGER"),  # DB-1: boolean flag for metadata cache
+    ("user_rating", "INTEGER"),       # NLP-REC: rating 1-5 por el usuario
+    ("first_played_at", "TEXT"),      # NLP-REC: primera vez jugado
+    ("play_count", "INTEGER"),        # NLP-REC: número de sesiones detectadas vía saves
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (

@@ -971,14 +971,15 @@ class LibraryRepository:
             f"SELECT {id_col} AS id, g.original_filename, g.source_path, g.platform, g.region,"
             " g.extension, g.size_bytes, g.sha1, g.canonical_title,"
             " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
-            f" g.is_favorite, g.notes, gm.genre, gm.year AS meta_year, gm.publisher"
+            f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
+            " gm.genre, gm.year AS meta_year, gm.publisher"
             f" FROM {table_expr} " + where_sql +
             f" ORDER BY {_order} LIMIT ? OFFSET ?"
         ) if need_meta else (
             "SELECT id, original_filename, source_path, platform, region,"
             " extension, size_bytes, sha1, canonical_title,"
             " match_confidence, catalog_source, play_status, last_played_at,"
-            " is_favorite, notes"
+            " is_favorite, notes, user_rating, play_count, first_played_at"
             " FROM games " + where_sql +
             f" ORDER BY {_order} LIMIT ? OFFSET ?"
         )
@@ -1010,6 +1011,9 @@ class LibraryRepository:
                 "last_played_at": row["last_played_at"],
                 "is_favorite": bool(row["is_favorite"]),
                 "notes": row["notes"],
+                "user_rating": row["user_rating"],
+                "play_count": row["play_count"] or 0,
+                "first_played_at": row["first_played_at"],
                 **({"genre": row["genre"], "year": row["meta_year"], "publisher": row["publisher"]}
                    if "genre" in _keys else {}),
             }

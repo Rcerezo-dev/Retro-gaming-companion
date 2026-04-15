@@ -37,6 +37,17 @@
         &#x25B6; Abrir en RetroArch
       </button>
     </div>
+    <!-- NLP-REC: rating + play count -->
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      <div id="gp-stars" style="display:flex;gap:2px;font-size:20px;line-height:1">
+        <span class="gp-star" data-v="1" onclick="gpSetRating(1)" title="1 estrella">&#x2606;</span>
+        <span class="gp-star" data-v="2" onclick="gpSetRating(2)" title="2 estrellas">&#x2606;</span>
+        <span class="gp-star" data-v="3" onclick="gpSetRating(3)" title="3 estrellas">&#x2606;</span>
+        <span class="gp-star" data-v="4" onclick="gpSetRating(4)" title="4 estrellas">&#x2606;</span>
+        <span class="gp-star" data-v="5" onclick="gpSetRating(5)" title="5 estrellas">&#x2606;</span>
+      </div>
+      <span id="gp-play-count" style="font-size:11px;color:#555"></span>
+    </div>
     <div class="hidden" id="gp-stateshot-wrap" style="margin-top:10px">
       <div style="color:#555;font-size:11px;margin-bottom:4px">&#x1F4BE; Save-state</div>
       <img id="gp-stateshot" src="" alt="save-state screenshot" style="width:100%;border-radius:4px;border:1px solid #333">
