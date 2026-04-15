@@ -89,16 +89,14 @@ Currently overlaps heavily with Juegos. Options: merge it away, or add unique va
 
 ---
 
-### FLOW-WIZARD — Unified "run all" wizard
+### FLOW-WIZARD — Unified "run all" wizard ✅ COMPLETADO
 
-One button runs scan + rename plan + duplicate detection + sync, then walks the user tab-by-tab to approve or skip each step.
-
-| ID | Task | File |
-|----|------|------|
-| FLOW-WIZARD-1 | Backend: `POST /api/plan-all` — runs scan, rename plan, and duplicate detection; returns a combined summary object | `handlers/wizard.py` (new) |
-| FLOW-WIZARD-2 | Frontend: wizard modal shell — step list (Escanear → Organizar → Duplicados → Sync) with Next/Skip buttons | `static/js/wizard.js` (new) + `index.html` |
-| FLOW-WIZARD-3 | Per-step diff view — show pending changes for each step; user approves or skips | `static/js/wizard.js` |
-| FLOW-WIZARD-4 | Execute approved steps in sequence via existing endpoints; show combined progress + results summary | `static/js/wizard.js` |
+| ID | Task | Estado |
+|----|------|--------|
+| FLOW-WIZARD-1 | Backend: wizard-detect + plan-all | ✅ `flow_wizard.js` + `handlers/` |
+| FLOW-WIZARD-2 | Frontend: modal shell con pasos | ✅ `flow_wizard.js` + partials |
+| FLOW-WIZARD-3 | Per-step diff view | ✅ implementado |
+| FLOW-WIZARD-4 | Ejecución secuencial + resumen | ✅ implementado |
 
 ---
 

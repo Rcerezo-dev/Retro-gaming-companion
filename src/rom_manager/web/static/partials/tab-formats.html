@@ -46,6 +46,39 @@
     </div>
   </div>
 
+  <!-- ── Verificar integridad CHD (P6) ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Verificar integridad CHD</h3>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta <code>chdman verify</code> sobre cada <code>.chd</code> encontrado en la carpeta. Detecta archivos corruptos o truncados sin modificarlos.</p>
+    <div class="actions-row" style="align-items:flex-end;gap:8px">
+      <div style="flex:1">
+        <label for="verify-chd-path">Carpeta con archivos .chd</label>
+        <input id="verify-chd-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
+      </div>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('verify-chd-path')">library_root</button>
+    </div>
+    <div class="actions-row">
+      <button id="btn-verify-chd" class="btn primary" onclick="doVerifyChd()">Verificar CHDs</button>
+    </div>
+    <div class="hidden" id="verify-chd-progress-wrap" style="margin-top:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span id="verify-chd-progress-label" style="font-size:12px;color:#888"></span>
+        <span id="verify-chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+      </div>
+      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
+        <div id="verify-chd-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.3s"></div>
+      </div>
+    </div>
+    <div id="verify-chd-result" class="job-result"></div>
+    <div style="margin-top:12px;margin-bottom:4px;display:flex;align-items:center;gap:10px">
+      <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="verify-chd-filter-errors" checked onchange="applyVerifyChdFilter()"> Solo corruptos
+      </label>
+      <span id="verify-chd-count" style="font-size:11px;color:#555"></span>
+    </div>
+    <div id="verify-chd-list" style="margin-top:4px;max-height:400px;overflow-y:auto"></div>
+  </div>
+
   <!-- ── Convertir CSO/ZSO → ISO (PSP) ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>CSO / ZSO &#x2192; ISO (PSP)</h3>

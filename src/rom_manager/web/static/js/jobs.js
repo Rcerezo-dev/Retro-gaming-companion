@@ -14,7 +14,7 @@ function startPolling() {
     try {
       const s = await apiFetch('/api/job-status');
       _applyJobStatus(s);
-      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running && !s.backup_now_running && !s.tree_diff_running) {
+      if (!s.scan_running && !s.match_running && !s.sync_running && !s.convert_chd_running && !s.scrape_running && !s.extract_zip_running && !s.health_check_running && !s.ra_check_running && !s.cable_sync_running && !s.apply_running && !s.inbox_running && !s.setup_running && !s.backup_now_running && !s.tree_diff_running && !s.verify_chd_running) {
         clearInterval(_pollingTimer);
         _pollingTimer = null;
       }
@@ -121,6 +121,37 @@ function _applyJobStatus(s) {
   }
   if (!s.convert_chd_running && s.convert_chd_result) {
     window._renderChdResult(s.convert_chd_result);
+  }
+  // Verify CHD progress bar (P6)
+  const btnVerifyChd = document.getElementById('btn-verify-chd');
+  if (btnVerifyChd) {
+    if (s.verify_chd_running) {
+      btnVerifyChd.disabled = false;
+      btnVerifyChd.textContent = 'Cancelar';
+      btnVerifyChd.onclick = () => window.stopJob('verify_chd');
+      btnVerifyChd.classList.add('danger');
+    } else {
+      btnVerifyChd.textContent = 'Verificar CHDs';
+      btnVerifyChd.onclick = window.doVerifyChd;
+      btnVerifyChd.classList.remove('danger');
+    }
+  }
+  const verifyWrap = document.getElementById('verify-chd-progress-wrap');
+  if (s.verify_chd_running && s.verify_chd_progress && s.verify_chd_progress.total > 0) {
+    const p = s.verify_chd_progress;
+    const pct = Math.round((p.current / p.total) * 100);
+    if (verifyWrap) verifyWrap.classList.remove('hidden');
+    const bar  = document.getElementById('verify-chd-progress-bar');
+    const lbl  = document.getElementById('verify-chd-progress-label');
+    const file = document.getElementById('verify-chd-progress-file');
+    if (bar)  bar.style.width = pct + '%';
+    if (lbl)  lbl.textContent = `${p.current} / ${p.total} (${pct}%)`;
+    if (file) file.textContent = p.current_file;
+  } else if (!s.verify_chd_running) {
+    if (verifyWrap) verifyWrap.classList.add('hidden');
+  }
+  if (!s.verify_chd_running && s.verify_chd_result) {
+    window._renderVerifyChdResult(s.verify_chd_result);
   }
   // CSO progress bar
   const btnCso = document.getElementById('btn-convert-cso');

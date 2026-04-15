@@ -265,6 +265,62 @@ def register(
         threading.Thread(target=run, daemon=True).start()
         ctx._send_json({"status": "started", "dry_run": dry_run})
 
+    # ── POST /api/verify-chd (P6) ────────────────────────────────────────────
+    @router.post("/api/verify-chd")
+    def post_verify_chd(ctx) -> None:
+        data = ctx._post_data
+        m = srv_mod
+        source_path_str = (data.get("source_path") or "").strip()
+        if not source_path_str:
+            ctx._send_json({"error": "source_path is required"})
+            return
+
+        with m._job_lock:
+            if m._jobs["verify_chd"]:
+                ctx._send_json({"status": "already_running"})
+                return
+            m._jobs["verify_chd"] = True
+
+        def run() -> None:
+            m._verify_chd_cancel.clear()
+            try:
+                from rom_manager.converters.chd_converter import find_chd_files, verify_chd
+                source = Path(source_path_str).resolve()
+                chd_files = find_chd_files(source)
+                total = len(chd_files)
+                m._verify_chd_progress.update({"current": 0, "total": total, "current_file": ""})
+
+                results = []
+                ok_count = 0
+                fail_count = 0
+                for idx, chd_path in enumerate(chd_files, 1):
+                    if m._verify_chd_cancel.is_set():
+                        break
+                    m._verify_chd_progress.update({"current": idx, "total": total, "current_file": chd_path.name})
+                    r = verify_chd(chd_path, chdman=str(config.chdman))
+                    results.append({"file": chd_path.name, "ok": r.ok, "error": r.error or ""})
+                    if r.ok:
+                        ok_count += 1
+                    else:
+                        fail_count += 1
+
+                m._job_results["verify_chd"] = {
+                    "total": total,
+                    "ok": ok_count,
+                    "failed": fail_count,
+                    "cancelled": m._verify_chd_cancel.is_set(),
+                    "results": results,
+                }
+            except Exception as exc:
+                m._job_results["verify_chd"] = {"error": str(exc)}
+            finally:
+                with m._job_lock:
+                    m._verify_chd_progress.clear()
+                    m._jobs["verify_chd"] = False
+
+        threading.Thread(target=run, daemon=True).start()
+        ctx._send_json({"status": "started"})
+
     # ── POST /api/convert-cso ─────────────────────────────────────────────────
     @router.post("/api/convert-cso")
     def post_convert_cso(ctx) -> None:

@@ -122,6 +122,7 @@ import {
   doExportLpl,
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
+  doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
   _initToolsImports,
 } from './tabs/tools.js';
 import {
@@ -228,6 +229,7 @@ Object.assign(window, {
   doExportLpl,
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
+  doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
   // state.js — shared device context
   AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
   getDeviceConnected, getDeviceConnectReason,

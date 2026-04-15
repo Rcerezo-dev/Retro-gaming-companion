@@ -25,6 +25,7 @@ export function _initToolsImports(startPolling, showJobResult) {
 
 // ── State variables ────────────────────────────────────────────────────────────
 let _chdResults = [];
+let _verifyChdResults = [];
 let _faUid = 0;
 
 // ── Convert CHD ────────────────────────────────────────────────────────────────
@@ -457,4 +458,80 @@ export async function organizeLibrary(dryRun) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Error: ' + e.message;
   }
+}
+
+// ── Verify CHD (P6) ──────────────────────────────────────────────────────────
+export async function doVerifyChd() {
+  const pathVal = document.getElementById('verify-chd-path').value.trim();
+  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .chd'); return; }
+  const btn = document.getElementById('btn-verify-chd');
+  const resultEl = document.getElementById('verify-chd-result');
+  btn.disabled = true;
+  btn.textContent = 'Iniciando…';
+  if (resultEl) { resultEl.className = 'job-result'; resultEl.textContent = ''; }
+  const listEl = document.getElementById('verify-chd-list');
+  if (listEl) listEl.innerHTML = '';
+  try {
+    const d = await apiPost('/api/verify-chd', { source_path: pathVal });
+    if (d.status === 'already_running') {
+      if (resultEl) { resultEl.className = 'job-result visible'; resultEl.textContent = 'Ya hay una verificación en curso…'; }
+      btn.disabled = false;
+      btn.textContent = 'Verificar CHDs';
+      return;
+    }
+    _startPolling();
+  } catch(e) {
+    if (resultEl) { resultEl.className = 'job-result visible error-r'; resultEl.textContent = 'Error: ' + e.message; }
+    btn.disabled = false;
+    btn.textContent = 'Verificar CHDs';
+  }
+}
+
+export function _renderVerifyChdResult(result) {
+  const resultEl = document.getElementById('verify-chd-result');
+  const btn = document.getElementById('btn-verify-chd');
+  const listEl = document.getElementById('verify-chd-list');
+  if (!resultEl) return;
+  if (result.error) {
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + result.error;
+  } else {
+    const cancelled = result.cancelled ? ' (cancelado)' : '';
+    const cls = result.failed > 0 ? 'error-r' : 'success';
+    resultEl.className = 'job-result visible ' + cls;
+    resultEl.innerHTML = `${result.ok} / ${result.total} CHDs correctos` +
+      (result.failed > 0 ? ` &nbsp;·&nbsp; <span style="color:#f44747">${result.failed} corruptos</span>` : '') +
+      `<span style="color:#555;font-size:11px;margin-left:8px">${cancelled}</span>`;
+    _verifyChdResults = result.results || [];
+    if (listEl && _verifyChdResults.length) {
+      const errorsOnly = document.getElementById('verify-chd-filter-errors')?.checked ?? true;
+      _renderVerifyChdList(listEl, errorsOnly);
+    }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Verificar CHDs'; btn.onclick = window.doVerifyChd; btn.classList.remove('danger'); }
+}
+
+export function applyVerifyChdFilter() {
+  const listEl = document.getElementById('verify-chd-list');
+  const errorsOnly = document.getElementById('verify-chd-filter-errors')?.checked ?? false;
+  if (listEl) _renderVerifyChdList(listEl, errorsOnly);
+}
+
+function _renderVerifyChdList(listEl, errorsOnly) {
+  const visible = errorsOnly ? _verifyChdResults.filter(r => !r.ok) : _verifyChdResults;
+  const countEl = document.getElementById('verify-chd-count');
+  if (countEl) countEl.textContent = `${visible.length} / ${_verifyChdResults.length}`;
+  if (!visible.length) {
+    listEl.innerHTML = errorsOnly
+      ? '<p style="color:#4ec9b0;font-size:12px;padding:4px 0">Todos los CHDs son correctos.</p>'
+      : '<p style="color:#555;font-size:12px;padding:4px 0">Sin resultados.</p>';
+    return;
+  }
+  listEl.innerHTML = visible.map(r => {
+    if (r.ok) {
+      return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[OK] ${_h(r.file)}</div>`;
+    }
+    const errMsg = r.error ? `<div style="color:#f44747;font-size:11px;padding-left:8px;margin-top:1px">${_h(r.error)}</div>` : '';
+    return `<div style="padding:3px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:#f44747">[CORRUPT] ${_h(r.file)}</span>${errMsg}</div>`;
+  }).join('');
 }

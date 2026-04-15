@@ -22,6 +22,39 @@ class ConversionSummary:
     results: list[ConversionResult] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class VerifyResult:
+    chd_path: Path
+    ok: bool
+    error: str | None = None
+
+
+def verify_chd(chd_path: Path, *, chdman: str = "chdman") -> VerifyResult:
+    """Run ``chdman verify -i <file>`` and return whether the CHD is intact."""
+    try:
+        proc = subprocess.run(
+            [chdman, "verify", "-i", str(chd_path)],
+            capture_output=True,
+            timeout=120,
+        )
+        if proc.returncode == 0:
+            return VerifyResult(chd_path=chd_path, ok=True)
+        stderr = proc.stderr.decode(errors="replace").strip()
+        stdout = proc.stdout.decode(errors="replace").strip()
+        return VerifyResult(chd_path=chd_path, ok=False, error=stderr or stdout or f"exit {proc.returncode}")
+    except FileNotFoundError:
+        return VerifyResult(chd_path=chd_path, ok=False, error=f"chdman no encontrado: {chdman!r}")
+    except subprocess.TimeoutExpired:
+        return VerifyResult(chd_path=chd_path, ok=False, error="Timeout al verificar CHD (>120 s)")
+    except Exception as exc:
+        return VerifyResult(chd_path=chd_path, ok=False, error=str(exc))
+
+
+def find_chd_files(directory: Path) -> list[Path]:
+    """Return all .chd files under directory, sorted."""
+    return sorted(directory.rglob("*.chd"))
+
+
 def find_cue_files(directory: Path) -> list[Path]:
     """Return all .cue files under directory, sorted."""
     return sorted(directory.rglob("*.cue"))

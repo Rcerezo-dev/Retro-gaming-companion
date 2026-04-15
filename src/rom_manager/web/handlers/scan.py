@@ -75,6 +75,9 @@ def register(
                 "tree_diff_running":     m._jobs.get("tree_diff", False),
                 "tree_diff_result":      m._job_results.get("tree_diff"),
                 "inbox_pending_files":   m._inbox_watcher_status.get("pending_files", 0),
+                "verify_chd_running":    m._jobs.get("verify_chd", False),
+                "verify_chd_progress":   dict(m._verify_chd_progress) if m._verify_chd_progress else None,
+                "verify_chd_result":     m._job_results.get("verify_chd"),
             })
 
     # ── GET /api/catalog-status ───────────────────────────────────────────────

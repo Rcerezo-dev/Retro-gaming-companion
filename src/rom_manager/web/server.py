@@ -48,6 +48,7 @@ _jobs: dict[str, bool] = {
     "apply": False, "inbox": False, "setup": False,
     "backup_now": False,
     "tree_diff": False,
+    "verify_chd": False,
 }
 _job_results: dict[str, dict] = {}
 
@@ -160,9 +161,11 @@ _apply_progress: dict = {}   # {"current": int, "total": int, "current_file": st
 _inbox_progress: dict = {}    # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "processed": int, "total": int}
 _inbox_watcher_status: dict = {"watching": False, "last_check": None, "pending_files": 0, "trigger_ts": 0}
 _setup_progress: dict = {}   # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "pct": int}
+_verify_chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _scan_cancel:   threading.Event = threading.Event()
 _cable_cancel:  threading.Event = threading.Event()
 _chd_cancel:    threading.Event = threading.Event()
+_verify_chd_cancel: threading.Event = threading.Event()
 _cso_cancel:    threading.Event = threading.Event()
 _zip_cancel:    threading.Event = threading.Event()
 _health_cancel: threading.Event = threading.Event()
