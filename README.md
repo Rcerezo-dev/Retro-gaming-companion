@@ -1,9 +1,11 @@
 # Retro Vault
-## Para aquél que no tenga un perfil técnico:
-He terminado un bootcamp en IA, y mi primera inquietud ha sido la de mostrar al mundo mi capacidad de crear y resolver problemas. ¿Por dónde he empezado? por aquellos que me afectaban directamente:
+## ¿Por qué existe esto?
 
-En este caso, Retro Vault surge con la idea de crear un sistema integrado como un steam deck, donde sea fácil terminar de jugar en mi PC, y continuar la partida en mi consola Anbernic. Siguiendo esta línea de trabajo, he decidido crear nuevas funcionalidades con las cuales organizar y gestionar mejor mi biblioteca, que veréis abajo descritas. 
-En definitiva: Tener la biblioteca limpia de duplicados, con ROMS bien organizadas y nombradas
+Soy aficionado a los videojuegos retro y tengo una consola portátil Android (Anbernic) además del PC. El problema era siempre el mismo: terminar una partida en el PC y no poder continuarla en la consola, o tener cientos de ROMs sin organizar, con nombres crípticos, duplicados y sin carátulas.
+
+Decidí resolver ese problema construyendo la herramienta que necesitaba. El resultado es Retro Vault: una aplicación que organiza tu colección de forma automática, descarga los metadatos y carátulas de cada juego, y mantiene tus partidas guardadas sincronizadas entre el PC y la consola, igual que hace Steam con sus juegos en la nube, pero para emuladores retro.
+
+Este proyecto nació también como forma de demostrar lo que soy capaz de hacer después de formarme en IA y desarrollo de software: resolver problemas reales con código real.
 
 **Gestiona, organiza y sincroniza tu colección de ROMs retro.**
 
