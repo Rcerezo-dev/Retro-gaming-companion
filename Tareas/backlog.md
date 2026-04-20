@@ -76,16 +76,14 @@ Extracted from `docs/ideas/Idea_final.md` and broken into actionable tasks.
 
 ---
 
-### COL-REVIEW — Decide fate of Colección tab
+### COL-REVIEW — Decide fate of Colección tab ✅ COMPLETADO
 
-Currently overlaps heavily with Juegos. Options: merge it away, or add unique value.
-
-| ID | Task | Notes |
-|----|------|-------|
-| COL-REVIEW-1 | Audit: list what Colección shows that Juegos doesn't — make a decision | Design/discussion task before any code |
-| COL-REVIEW-2a | **If merging**: remove Colección tab, move any unique data into Juegos tab | `index.html` + `static/js/tabs/collection.js` |
-| COL-REVIEW-2b | **If keeping**: add playtime source — read RetroArch `.lpl` playlist timestamps or save file mtime as proxy | `handlers/collection.py` |
-| COL-REVIEW-2c | **If keeping**: add RA sync — fetch user's earned achievements per game via RA API and display in tab | `handlers/collection.py` + `static/js/tabs/collection.js` |
+| ID | Task | Estado |
+|----|------|--------|
+| COL-REVIEW-1 | Audit: decidido → KEEP Colección (gallery, missing ROMs, diff, disk usage son únicos) | ✅ |
+| COL-REVIEW-2b | Playtime en galería: `last_played_at`, `play_count`, `user_rating` en tiles + sort "Jugados recientemente" | ✅ `collection.js` + `app.css` + `tab-collection.html` |
+| COL-REVIEW-2a | **Descartado** — Colección tiene valor único, no se fusiona | — |
+| COL-REVIEW-2c | RA sync — fetch logros del usuario por juego y mostrar en tab | Pendiente |
 
 ---
 
@@ -125,17 +123,15 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 
 ---
 
-### ANBERNIC-TV — TV-friendly UI for console browsing
+### ANBERNIC-TV — TV-friendly UI for console browsing ✅ COMPLETADO
 
-A simplified guided flow usable from the Anbernic screen without a keyboard.
-
-| ID | Task | File |
-|----|------|------|
-| ANBERNIC-TV-1 | Design guided flow — steps: Connect check → Sync → Results; large touch targets, minimal text input | Design task |
-| ANBERNIC-TV-2 | Responsive CSS for small/touch screens — Anbernic RG556 browser resolution | `static/app.css` |
-| ANBERNIC-TV-3 | TV UI step 1: device status check + connect prompt | `static/js/tabs/anbernic.js` |
-| ANBERNIC-TV-4 | TV UI step 2: one-tap sync trigger with live progress bar | `static/js/tabs/anbernic.js` |
-| ANBERNIC-TV-5 | TV UI step 3: results summary in large readable format | `static/js/tabs/anbernic.js` |
+| ID | Task | Estado |
+|----|------|--------|
+| ANBERNIC-TV-1 | Diseño: 3 pasos — Status → Sync → Results, touch targets grandes | ✅ |
+| ANBERNIC-TV-2 | CSS responsive — `.tv-step`, `.tv-btn`, media query 600px | ✅ `app.css` |
+| ANBERNIC-TV-3 | Paso 1: connection OK + último sync desde `/api/auto-sync-status` | ✅ `sync.js:tvCheckStatus()` |
+| ANBERNIC-TV-4 | Paso 2: trigger `/api/do-sync` + polling con barra animada | ✅ `sync.js:tvStartSync()` |
+| ANBERNIC-TV-5 | Paso 3: resumen ↑ enviados / ↓ recibidos / errores + botón "Sync de nuevo" | ✅ `sync.js:tvShowResult()` |
 
 ---
 

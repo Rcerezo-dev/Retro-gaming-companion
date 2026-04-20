@@ -14,9 +14,17 @@ const _txtCls = (el, cls) => {
 let _collectionPlatforms = [];
 let _colPlatform = '';
 let _colSearch = '';
+let _colSortBy = '';
 let _colOffset = 0;
 const _COL_PAGE = 30;
 let _colRoot = null;
+
+function _fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+}
 
 // ── Colección: Missing + Estadísticas ────────────────────────────────────────
 async function loadCollectionStats() {
@@ -193,7 +201,8 @@ async function loadCollection() {
       platform: _colPlatform,
       search: _colSearch,
       offset: _colOffset,
-      limit: _COL_PAGE
+      limit: _COL_PAGE,
+      sort_by: _colSortBy,
     });
     const games = await apiFetch(`/api/games?${params}`);
     const gameList = games.games || [];
@@ -223,6 +232,12 @@ function colSearch(v) {
   loadCollection();
 }
 
+function colSort(v) {
+  _colSortBy = v;
+  _colOffset = 0;
+  loadCollection();
+}
+
 async function colLoadMore() {
   _colOffset += _COL_PAGE;
   const root = window._deviceRoot();
@@ -235,7 +250,8 @@ async function colLoadMore() {
       platform: _colPlatform,
       search: _colSearch,
       offset: _colOffset,
-      limit: _COL_PAGE
+      limit: _COL_PAGE,
+      sort_by: _colSortBy,
     });
     const games = await apiFetch(`/api/games?${params}`);
     const gameList = games.games || [];
@@ -260,14 +276,28 @@ function _renderColGrid(games, append) {
     const tile = document.createElement('div');
     tile.className = 'col-tile';
     tile.onclick = () => window.openGamePanel(g);
+
+    const playBadge = g.play_count > 0
+      ? `<span class="col-play-badge" title="${g.play_count} sesión(es)">${g.play_count}▶</span>`
+      : '';
+    const lastPlayed = g.last_played_at
+      ? `<div class="col-last-played">${_fmtDate(g.last_played_at)}</div>`
+      : '';
+    const stars = g.user_rating
+      ? `<div class="col-stars">${'★'.repeat(g.user_rating)}${'☆'.repeat(5 - g.user_rating)}</div>`
+      : '';
+
     tile.innerHTML = `
-      <div class="col-cover skeleton">
+      <div class="col-cover skeleton" style="position:relative">
         <img src="/api/asset-image?game_id=${g.id}"
           onload="this.parentElement.classList.remove('skeleton')"
           onerror="this.parentElement.classList.remove('skeleton');this.parentElement.innerHTML='<span>🎮</span>'">
+        ${playBadge}
       </div>
       <div class="col-title">${window._h(g.canonical_title || g.original_filename)}</div>
       <div class="col-plat">${window._h(g.platform || '')}</div>
+      ${stars}
+      ${lastPlayed}
     `;
     gridEl.appendChild(tile);
   }
@@ -632,7 +662,7 @@ function _fmtBytes(n) {
 export {
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colLoadMore,
+  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,

@@ -6,57 +6,38 @@
   <a href="#" onclick="showTab('cable');return false;" style="margin-left:auto;font-size:11px;color:#888;text-decoration:underline">Ver Cable Sync</a>
 </div>
 
-<!-- S40: Android setup panel (shown when User-Agent is Android) -->
+<!-- S40 / ANBERNIC-TV: Touch-friendly guided sync UI (shown when User-Agent is Android) -->
 <div id="android-detected-panel" class="hidden">
-  <div style="max-width:560px;margin:0 auto">
-    <div style="font-size:22px;font-weight:700;color:#c586c0;margin-bottom:6px">&#x1F4F1; Retro Vault en Android</div>
-    <p style="font-size:13px;color:#888;margin-bottom:24px;line-height:1.6">
-      Se ha detectado que est&#xe1;s accediendo desde Android. Instala el script de configuraci&#xf3;n autom&#xe1;tica en Termux para sincronizar saves entre este dispositivo y el PC.
-    </p>
-    <!-- APK downloads — tap from Android browser -->
-    <div style="background:#1a1a1a;border:1px solid #2d2d2d;border-radius:8px;padding:20px;margin-bottom:20px">
-      <p style="font-size:13px;color:#d4d4d4;margin-bottom:14px"><strong>Paso 1 &mdash; Instalar las apps necesarias</strong></p>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <a href="https://f-droid.org/F-Droid.apk"
-           style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;text-decoration:none">
-          <span style="font-size:22px">&#x1F4E6;</span>
-          <div>
-            <div style="font-size:13px;color:#d4d4d4;font-weight:600">F-Droid</div>
-            <div style="font-size:11px;color:#666">Tienda de apps (necesaria para Termux)</div>
-          </div>
-          <span style="margin-left:auto;font-size:11px;color:#4ec9b0;font-weight:600">DESCARGAR</span>
-        </a>
-        <a href="https://f-droid.org/packages/com.termux/"
-           style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;text-decoration:none">
-          <span style="font-size:22px">&#x1F5A5;</span>
-          <div>
-            <div style="font-size:13px;color:#d4d4d4;font-weight:600">Termux</div>
-            <div style="font-size:11px;color:#666">Terminal Linux — instala desde F-Droid</div>
-          </div>
-          <span style="margin-left:auto;font-size:11px;color:#4ec9b0;font-weight:600">VER</span>
-        </a>
-        <a href="https://f-droid.org/packages/com.termux.boot/"
-           style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0d1117;border:1px solid #2a2a2a;border-radius:6px;text-decoration:none">
-          <span style="font-size:22px">&#x23F0;</span>
-          <div>
-            <div style="font-size:13px;color:#d4d4d4;font-weight:600">Termux:Boot</div>
-            <div style="font-size:11px;color:#666">Auto-sync al arrancar — instala desde F-Droid</div>
-          </div>
-          <span style="margin-left:auto;font-size:11px;color:#c586c0;font-weight:600">OPCIONAL</span>
-        </a>
-      </div>
-    </div>
 
-    <div style="background:#1a1a1a;border:1px solid #2d2d2d;border-radius:8px;padding:20px;margin-bottom:20px">
-      <p style="font-size:13px;color:#d4d4d4;margin-bottom:10px"><strong>Paso 2 &mdash; Ejecutar el script de configuraci&#xf3;n</strong></p>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6">Abre Termux, pega este comando y pulsa Enter:</p>
-      <div id="android-panel-curl" style="background:#0d1117;padding:10px 14px;border-radius:6px;font-size:12px;color:#4ec9b0;word-break:break-all;margin-bottom:12px;border:1px solid #2a3a2a">Cargando&#x2026;</div>
-      <button onclick="copyAndroidCurlCmd()" style="padding:8px 20px;background:#c586c0;border:none;color:#0d1117;font-weight:700;border-radius:4px;cursor:pointer;font-size:13px;width:100%">&#x1F4CB; Copiar comando</button>
+  <!-- Step 1: Connection status + sync button -->
+  <div id="tv-step-1" class="tv-step">
+    <div class="tv-logo">&#x1F3AE; Retro Vault</div>
+    <div class="tv-status-card">
+      <div class="tv-status-row">
+        <span class="tv-status-dot"></span>
+        <span>PC conectado</span>
+      </div>
+      <div id="tv-last-sync" class="tv-status-sub">Comprobando &#xfa;ltimo sync&#x2026;</div>
     </div>
-    <button onclick="document.getElementById('android-detected-panel').style.display='none'" style="padding:8px 20px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:4px;cursor:pointer;font-size:12px">
-      Continuar a la interfaz normal
-    </button>
+    <button class="tv-btn primary" onclick="tvStartSync()">&#x25B6; Sincronizar saves ahora</button>
+    <button class="tv-btn secondary" onclick="tvSkipToFull()">Ir a la interfaz completa &rarr;</button>
   </div>
+
+  <!-- Step 2: Syncing in progress -->
+  <div id="tv-step-2" class="tv-step hidden">
+    <div class="tv-logo">&#x1F504; Sincronizando&#x2026;</div>
+    <div class="tv-progress-bar"><div id="tv-prog-fill"></div></div>
+    <div id="tv-sync-msg" class="tv-status-sub">Iniciando&#x2026;</div>
+  </div>
+
+  <!-- Step 3: Results -->
+  <div id="tv-step-3" class="tv-step hidden">
+    <div id="tv-result-icon" class="tv-logo"></div>
+    <div id="tv-result-body" class="tv-status-card"></div>
+    <button class="tv-btn primary" onclick="tvReset()">&#x21BA; Sincronizar de nuevo</button>
+    <button class="tv-btn secondary" onclick="tvSkipToFull()">Ir a la interfaz completa &rarr;</button>
+  </div>
+
 </div>
 
 <!-- D8-P1: SETUP WIZARD MODAL -->

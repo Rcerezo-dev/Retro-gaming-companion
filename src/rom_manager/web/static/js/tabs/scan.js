@@ -265,10 +265,103 @@ async function importDats() {
   }
 }
 
+// ── DAT auto-download ─────────────────────────────────────────────────────────
+let _datDlPollTimer = null;
+
+async function loadDatCatalogList() {
+  const container = document.getElementById('dat-catalog-list');
+  if (!container) return;
+  container.innerHTML = '<span class="txt-muted">Cargando catálogo…</span>';
+  try {
+    const data = await apiFetch('/api/dat-catalog-list');
+    if (data.error) { container.textContent = '❌ ' + data.error; return; }
+    const byType = {};
+    for (const sys of data.systems) {
+      const k = sys.catalog === 'redump' ? 'Redump (óptico)' : 'No-Intro (cartuchos)';
+      (byType[k] = byType[k] || []).push(sys);
+    }
+    let html = '';
+    for (const [label, systems] of Object.entries(byType)) {
+      html += `<div class="dat-catalog-group"><strong>${label}</strong><div class="dat-catalog-items">`;
+      for (const sys of systems) {
+        const chk = sys.present ? 'checked' : '';
+        const cls = sys.present ? 'dat-item-present' : '';
+        html += `<label class="dat-item ${cls}">
+          <input type="checkbox" name="dat-sys" value="${sys.name}" ${chk}> ${sys.short}
+        </label>`;
+      }
+      html += '</div></div>';
+    }
+    container.innerHTML = html;
+  } catch(e) {
+    container.textContent = '❌ ' + e.message;
+  }
+}
+
+async function downloadDats(all) {
+  const bar     = document.getElementById('dat-dl-bar');
+  const barFill = document.getElementById('dat-dl-bar-fill');
+  const status  = document.getElementById('dat-dl-status');
+  let systems;
+  if (all) {
+    systems = null; // backend downloads all
+  } else {
+    const checked = [...document.querySelectorAll('input[name="dat-sys"]:checked')];
+    systems = checked.map(el => el.value);
+    if (!systems.length) { alert('Selecciona al menos un sistema.'); return; }
+  }
+  if (status) { status.textContent = 'Iniciando descarga…'; _txtCls(status, 'txt-muted'); }
+  if (bar)     bar.classList.remove('hidden');
+  if (barFill) barFill.style.width = '0%';
+  try {
+    const body = systems ? { systems } : {};
+    const d = await apiPost('/api/download-dats', body);
+    if (d.error) {
+      if (status) { status.textContent = '❌ ' + d.error; _txtCls(status, 'txt-err'); }
+      return;
+    }
+    clearInterval(_datDlPollTimer);
+    _datDlPollTimer = setInterval(_pollDatDownload, 1000);
+  } catch(e) {
+    if (status) { status.textContent = '❌ ' + e.message; _txtCls(status, 'txt-err'); }
+  }
+}
+
+async function _pollDatDownload() {
+  const barFill = document.getElementById('dat-dl-bar-fill');
+  const status  = document.getElementById('dat-dl-status');
+  const bar     = document.getElementById('dat-dl-bar');
+  try {
+    const d = await apiFetch('/api/download-dats-status');
+    if (d.running) {
+      const pct = d.total > 0 ? Math.round((d.done / d.total) * 100) : 0;
+      if (barFill) barFill.style.width = pct + '%';
+      if (status)  status.textContent  = `Descargando… ${d.done}/${d.total} — ${d.current}`;
+      return;
+    }
+    clearInterval(_datDlPollTimer);
+    _datDlPollTimer = null;
+    if (barFill) barFill.style.width = '100%';
+    const r = d.result || {};
+    const ok   = (r.downloaded || []).length;
+    const skip = (r.skipped    || []).length;
+    const err  = (r.errors     || []).length;
+    const msg  = `✅ ${ok} descargados, ${skip} ya existían` + (err ? `, ❌ ${err} errores` : '');
+    if (status) { status.textContent = msg; _txtCls(status, 'txt-ok'); }
+    if (bar && !err) setTimeout(() => bar.classList.add('hidden'), 3000);
+    loadCatalogStatus();
+    loadDatCatalogList();
+  } catch(e) {
+    clearInterval(_datDlPollTimer);
+    if (status) { status.textContent = '❌ ' + e.message; _txtCls(status, 'txt-err'); }
+  }
+}
+
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
   loadCatalogStatus, importArcadeCatalog, importDats,
+  loadDatCatalogList, downloadDats,
 };

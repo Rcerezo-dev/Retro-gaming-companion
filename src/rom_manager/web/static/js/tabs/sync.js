@@ -282,7 +282,109 @@ function _checkAndroidUserAgent() {
     const panel = document.getElementById('android-detected-panel');
     if (panel) panel.classList.remove('hidden');
     loadAndroidSetupPanel();
+    tvCheckStatus();
   }
+}
+
+// ── ANBERNIC-TV: Touch-friendly guided sync flow ──────────────────────────────
+let _tvSyncPollTimer = null;
+let _tvSyncResultTs  = null;
+
+function tvSkipToFull() {
+  const panel = document.getElementById('android-detected-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function _tvShowStep(n) {
+  [1, 2, 3].forEach(i => {
+    const el = document.getElementById('tv-step-' + i);
+    if (el) el.classList.toggle('hidden', i !== n);
+  });
+}
+
+async function tvCheckStatus() {
+  const subEl = document.getElementById('tv-last-sync');
+  if (!subEl) return;
+  try {
+    const d = await apiFetch('/api/auto-sync-status');
+    const st = d.status || {};
+    if (st.last_sync_at) {
+      const ts = new Date(st.last_sync_at);
+      subEl.textContent = `Último sync: ${ts.toLocaleDateString('es-ES')} ${ts.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      subEl.textContent = 'Sin synchronización previa registrada';
+    }
+  } catch {
+    subEl.textContent = 'Estado desconocido';
+  }
+}
+
+async function tvStartSync() {
+  clearTimeout(_tvSyncPollTimer);
+  _tvSyncResultTs = null;
+  _tvShowStep(2);
+  const msgEl = document.getElementById('tv-sync-msg');
+  if (msgEl) msgEl.textContent = 'Iniciando sync…';
+  try {
+    await apiPost('/api/do-sync', { dry_run: false });
+  } catch (e) {
+    tvShowResult({ error: e.message });
+    return;
+  }
+  _tvPollSync();
+}
+
+function _tvPollSync() {
+  _tvSyncPollTimer = setTimeout(async () => {
+    try {
+      const d = await apiFetch('/api/job-status');
+      const msgEl = document.getElementById('tv-sync-msg');
+      if (d.sync_running) {
+        if (msgEl) msgEl.textContent = 'Sincronizando saves…';
+        _tvPollSync();
+        return;
+      }
+      const res = d.sync_result;
+      if (res && res.result_ts !== _tvSyncResultTs) {
+        _tvSyncResultTs = res.result_ts;
+        tvShowResult(res);
+      } else {
+        _tvPollSync();
+      }
+    } catch (e) {
+      tvShowResult({ error: 'Error de conexión: ' + e.message });
+    }
+  }, 2000);
+}
+
+function tvShowResult(result) {
+  clearTimeout(_tvSyncPollTimer);
+  _tvShowStep(3);
+  const iconEl = document.getElementById('tv-result-icon');
+  const bodyEl = document.getElementById('tv-result-body');
+  if (!bodyEl) return;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  if (result.error) {
+    if (iconEl) iconEl.textContent = '❌ Error';
+    bodyEl.innerHTML = `<div class="tv-result-err">${esc(result.error)}</div>`;
+    return;
+  }
+
+  if (iconEl) iconEl.textContent = '✅ Sync completado';
+  const sources = result.sources || [];
+  const up   = sources.reduce((s, r) => s + (r.uploaded   || 0), 0);
+  const down = sources.reduce((s, r) => s + (r.downloaded || 0), 0);
+  const errs = sources.reduce((s, r) => s + (r.errors     || 0), 0);
+  let html = `<div class="tv-result-row">&#x2191; ${up} enviado${up !== 1 ? 's' : ''}</div>`;
+  html    += `<div class="tv-result-row">&#x2193; ${down} recibido${down !== 1 ? 's' : ''}</div>`;
+  if (errs) html += `<div class="tv-result-row tv-result-err">&#x26A0; ${errs} error${errs !== 1 ? 'es' : ''}</div>`;
+  bodyEl.innerHTML = html;
+}
+
+function tvReset() {
+  _tvShowStep(1);
+  tvCheckStatus();
 }
 
 // ── Anbernic tab ─────────────────────────────────────────────────────────────
@@ -307,9 +409,6 @@ async function loadAnbernicTab() {
     const dlLink = document.getElementById('anb-script-download');
     if (dlLink) dlLink.href = `${_anbernicBaseUrl}/api/anbernic-setup.sh`;
 
-    // Sync android overlay curl cmd too
-    const panelCurl = document.getElementById('android-panel-curl');
-    if (panelCurl) panelCurl.textContent = curlCmd;
     _androidSetupUrl = setupUrl;
   } catch(e) {
     console.warn('loadAnbernicTab:', e);
@@ -1241,6 +1340,8 @@ export {
   loadAnbernicTab,
   copyAnbernicUrl,
   copyAnbernicCmd,
+  // ANBERNIC-TV: touch-friendly sync flow
+  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   // Rclone
   toggleRcloneSetup,
   loadRcloneStatus,

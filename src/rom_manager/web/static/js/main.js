@@ -20,12 +20,12 @@ import {
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
-  loadCatalogStatus, importArcadeCatalog, importDats,
+  loadCatalogStatus, importArcadeCatalog, importDats, loadDatCatalogList, downloadDats,
 } from './tabs/scan.js';
 import {
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colLoadMore,
+  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
@@ -142,6 +142,7 @@ import {
   loadAnbernicTab,
   copyAnbernicUrl,
   copyAnbernicCmd,
+  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
@@ -255,10 +256,10 @@ Object.assign(window, {
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
-  loadCatalogStatus, importArcadeCatalog, importDats,
+  loadCatalogStatus, importArcadeCatalog, importDats, loadDatCatalogList, downloadDats,
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colLoadMore,
+  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
   exportCollection, exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
@@ -314,6 +315,7 @@ Object.assign(window, {
   loadAnbernicTab,
   copyAnbernicUrl,
   copyAnbernicCmd,
+  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
@@ -428,7 +430,7 @@ export function showTab(name) {
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
-  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
+  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); }

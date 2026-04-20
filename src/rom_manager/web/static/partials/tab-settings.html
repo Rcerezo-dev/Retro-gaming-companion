@@ -303,10 +303,22 @@
       <button class="btn" onclick="importDats()">Importar DATs</button>
     </div>
     <div id="import-dats-result" class="job-result"></div>
-    <div style="margin-top:8px;font-size:11px;color:#555;line-height:1.8">
-      Descarga DATs de <strong style="color:#888">dat.no-intro.org</strong> (requiere cuenta gratuita) y de
-      <strong style="color:#888">redump.org</strong>. Pon los archivos en cualquier carpeta y usa el importador de arriba,
-      o c&#xf3;pialos manualmente a las carpetas indicadas en el estado.
+
+    <div style="margin-top:16px;border-top:1px solid #2a2a2a;padding-top:14px">
+      <p style="color:#aaa;font-size:12px;margin-bottom:10px">
+        <strong>Descarga autom&#xe1;tica</strong> &#x2014; DATs libres desde
+        <a href="https://github.com/libretro/libretro-database" target="_blank" style="color:#7aadff">libretro-database</a>
+        (MIT), compatibles con No-Intro y Redump.
+      </p>
+      <div id="dat-catalog-list" style="margin-bottom:10px;font-size:12px"></div>
+      <div class="actions-row" style="gap:8px;margin-bottom:6px">
+        <button class="btn" onclick="downloadDats(true)">&#x2B07; Descargar todos</button>
+        <button class="btn btn-secondary" onclick="downloadDats(false)">&#x2B07; Descargar seleccionados</button>
+      </div>
+      <div id="dat-dl-bar" class="hidden" style="background:#2a2a2a;border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
+        <div id="dat-dl-bar-fill" style="height:100%;width:0%;background:#4a9eff;transition:width 0.3s"></div>
+      </div>
+      <div id="dat-dl-status" class="job-result"></div>
     </div>
   </div>
 

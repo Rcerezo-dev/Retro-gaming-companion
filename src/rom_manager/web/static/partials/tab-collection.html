@@ -1,9 +1,17 @@
 <div id="tab-collection" class="tab">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <h3 style="margin:0">Colección</h3>
-    <input id="col-search" type="text" placeholder="Buscar…"
-      oninput="colSearch(this.value)"
-      style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 10px;border-radius:4px;font:inherit;font-size:12px;width:180px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select onchange="colSort(this.value)"
+        style="background:#0f0f0f;border:1px solid #444;color:#888;padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
+        <option value="">Ordenar: plataforma</option>
+        <option value="last_played">Jugados recientemente</option>
+        <option value="title">Título</option>
+      </select>
+      <input id="col-search" type="text" placeholder="Buscar…"
+        oninput="colSearch(this.value)"
+        style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:5px 10px;border-radius:4px;font:inherit;font-size:12px;width:180px">
+    </div>
   </div>
   <!-- Export & Stats buttons -->
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">

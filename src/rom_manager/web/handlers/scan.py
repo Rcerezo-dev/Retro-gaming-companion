@@ -2,8 +2,59 @@ from __future__ import annotations
 
 import json
 import threading
+import urllib.parse
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
+
+
+# ── DAT auto-download catalog (libretro-database, MIT license) ────────────────
+_LIBRETRO_DAT_CATALOG = [
+    # Nintendo cartridge → nointro/
+    {"name": "Nintendo - Nintendo Entertainment System",         "short": "NES",          "catalog": "nointro"},
+    {"name": "Nintendo - Super Nintendo Entertainment System",   "short": "SNES",         "catalog": "nointro"},
+    {"name": "Nintendo - Nintendo 64",                           "short": "N64",          "catalog": "nointro"},
+    {"name": "Nintendo - Game Boy",                              "short": "Game Boy",     "catalog": "nointro"},
+    {"name": "Nintendo - Game Boy Color",                        "short": "GBC",          "catalog": "nointro"},
+    {"name": "Nintendo - Game Boy Advance",                      "short": "GBA",          "catalog": "nointro"},
+    {"name": "Nintendo - Nintendo DS",                           "short": "DS",           "catalog": "nointro"},
+    {"name": "Nintendo - Nintendo 3DS",                          "short": "3DS",          "catalog": "nointro"},
+    {"name": "Nintendo - Virtual Boy",                           "short": "Virtual Boy",  "catalog": "nointro"},
+    # Sega cartridge → nointro/
+    {"name": "Sega - Master System - Mark III",                  "short": "Master System","catalog": "nointro"},
+    {"name": "Sega - Mega Drive - Genesis",                      "short": "Mega Drive",   "catalog": "nointro"},
+    {"name": "Sega - Game Gear",                                 "short": "Game Gear",    "catalog": "nointro"},
+    {"name": "Sega - 32X",                                       "short": "32X",          "catalog": "nointro"},
+    # Atari → nointro/
+    {"name": "Atari - 2600",                                     "short": "Atari 2600",   "catalog": "nointro"},
+    {"name": "Atari - 7800",                                     "short": "Atari 7800",   "catalog": "nointro"},
+    {"name": "Atari - Lynx",                                     "short": "Lynx",         "catalog": "nointro"},
+    # NEC → nointro/ + redump/
+    {"name": "NEC - PC Engine - TurboGrafx 16",                 "short": "PC Engine",    "catalog": "nointro"},
+    {"name": "NEC - PC Engine CD - TurboGrafx-CD",              "short": "PC-CD",        "catalog": "redump"},
+    # SNK → nointro/
+    {"name": "SNK - Neo Geo Pocket",                             "short": "NGP",          "catalog": "nointro"},
+    {"name": "SNK - Neo Geo Pocket Color",                       "short": "NGPC",         "catalog": "nointro"},
+    # Bandai → nointro/
+    {"name": "Bandai - WonderSwan",                              "short": "WonderSwan",   "catalog": "nointro"},
+    {"name": "Bandai - WonderSwan Color",                        "short": "WSC",          "catalog": "nointro"},
+    # Sony → redump/
+    {"name": "Sony - PlayStation",                               "short": "PS1",          "catalog": "redump"},
+    {"name": "Sony - PlayStation 2",                             "short": "PS2",          "catalog": "redump"},
+    {"name": "Sony - PlayStation Portable",                      "short": "PSP",          "catalog": "redump"},
+    # Sega optical → redump/
+    {"name": "Sega - Saturn",                                    "short": "Saturn",       "catalog": "redump"},
+    {"name": "Sega - Dreamcast",                                 "short": "Dreamcast",    "catalog": "redump"},
+    # Nintendo optical → redump/
+    {"name": "Nintendo - GameCube",                              "short": "GameCube",     "catalog": "redump"},
+    {"name": "Nintendo - Wii",                                   "short": "Wii",          "catalog": "redump"},
+    # Microsoft → redump/
+    {"name": "Microsoft - Xbox",                                 "short": "Xbox",         "catalog": "redump"},
+]
+
+_LIBRETRO_DB_BASE = "https://raw.githubusercontent.com/libretro/libretro-database/master/dat/"
+
+_dat_dl_lock  = threading.Lock()
+_dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -164,6 +215,47 @@ def register(
     @router.post("/api/import-arcade-catalog")
     def post_import_arcade_catalog(ctx) -> None:
         ctx._send_json(_import_arcade_catalog(ctx._post_data, config))
+
+    # ── GET /api/dat-catalog-list ─────────────────────────────────────────────
+    @router.get("/api/dat-catalog-list")
+    def get_dat_catalog_list(ctx) -> None:
+        """Return the downloadable DAT catalog with downloaded status per entry."""
+        existing_nointro = {f.stem for f in config.catalogs_nointro_dir.iterdir()
+                            if f.suffix.lower() == ".dat"} if config.catalogs_nointro_dir.exists() else set()
+        existing_redump  = {f.stem for f in config.catalogs_redump_dir.iterdir()
+                            if f.suffix.lower() == ".dat"} if config.catalogs_redump_dir.exists() else set()
+        result = []
+        for entry in _LIBRETRO_DAT_CATALOG:
+            existing = existing_nointro if entry["catalog"] == "nointro" else existing_redump
+            result.append({**entry, "downloaded": entry["name"] in existing})
+        ctx._send_json({"systems": result})
+
+    # ── GET /api/download-dats-status ─────────────────────────────────────────
+    @router.get("/api/download-dats-status")
+    def get_download_dats_status(ctx) -> None:
+        with _dat_dl_lock:
+            ctx._send_json(dict(_dat_dl_state))
+
+    # ── POST /api/download-dats ───────────────────────────────────────────────
+    @router.post("/api/download-dats")
+    def post_download_dats(ctx) -> None:
+        with _dat_dl_lock:
+            if _dat_dl_state["running"]:
+                ctx._send_json({"status": "already_running"})
+                return
+
+        data    = ctx._post_data or {}
+        all_sys = data.get("all", False)
+        names   = set(data.get("systems", []))
+        systems = _LIBRETRO_DAT_CATALOG if all_sys else [
+            s for s in _LIBRETRO_DAT_CATALOG if s["name"] in names
+        ]
+        if not systems:
+            ctx._send_json({"status": "error", "error": "No se han seleccionado sistemas"})
+            return
+
+        threading.Thread(target=_run_dat_download, args=(systems, config), daemon=True).start()
+        ctx._send_json({"status": "started", "total": len(systems)})
 
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
@@ -523,6 +615,54 @@ def _import_dats(data: dict, config: "AppConfig") -> dict:
             errors.append({"name": f.name, "error": str(exc)})
 
     return {"imported": imported, "errors": errors, "total": len(imported)}
+
+
+def _run_dat_download(systems: list[dict], config: "AppConfig") -> None:
+    """Download DAT files from libretro-database and save to the catalog dirs."""
+    import urllib.request as _urlreq
+
+    downloaded: list[str] = []
+    skipped:    list[str] = []
+    errors:     list[dict] = []
+
+    with _dat_dl_lock:
+        _dat_dl_state.update({"running": True, "total": len(systems), "done": 0, "current": "", "result": None})
+
+    for i, entry in enumerate(systems):
+        name     = entry["name"]
+        catalog  = entry["catalog"]
+        filename = name + ".dat"
+        dest_dir = config.catalogs_redump_dir if catalog == "redump" else config.catalogs_nointro_dir
+        dest_file = dest_dir / filename
+
+        with _dat_dl_lock:
+            _dat_dl_state["current"] = name
+            _dat_dl_state["done"]    = i
+
+        if dest_file.exists():
+            skipped.append(name)
+            continue
+
+        url = _LIBRETRO_DB_BASE + urllib.parse.quote(filename)
+        try:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            with _urlreq.urlopen(url, timeout=30) as resp:  # noqa: S310 — URL is a hardcoded constant
+                data = resp.read()
+            if b"<game" not in data and b"<machine" not in data:
+                errors.append({"name": name, "error": "Respuesta inesperada del servidor"})
+                continue
+            dest_file.write_bytes(data)
+            downloaded.append(name)
+        except Exception as exc:
+            errors.append({"name": name, "error": str(exc)})
+
+    with _dat_dl_lock:
+        _dat_dl_state.update({
+            "running": False,
+            "done":    len(systems),
+            "current": "",
+            "result":  {"downloaded": downloaded, "skipped": skipped, "errors": errors},
+        })
 
 
 def _import_arcade_catalog(data: dict, config: "AppConfig") -> dict:
