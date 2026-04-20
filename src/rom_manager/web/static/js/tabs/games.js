@@ -537,6 +537,8 @@ export function openGamePanel(g) {
   // Reset RA section + saves info
   const _raSection = document.getElementById('gp-ra-section');
   if (_raSection) _raSection.classList.add('hidden');
+  const _raProgress = document.getElementById('gp-ra-user-progress');
+  if (_raProgress) _raProgress.textContent = '';
   const _savesInfo = document.getElementById('gp-saves-info');
   if (_savesInfo) _savesInfo.classList.add('hidden');
   document.getElementById('game-panel').dataset.sourcePath = g.source_path || '';
@@ -589,6 +591,7 @@ export function openGamePanel(g) {
         const _rl = document.getElementById('gp-ra-link');
         if (_rl) _rl.href = `https://retroachievements.org/game/${full.ra_game_id}`;
         _raSec.classList.remove('hidden');
+        _gpLoadRaProgress(full.ra_game_id);
       }
       const _si = document.getElementById('gp-saves-info');
       const _sb = document.getElementById('gp-saves-badge');
@@ -598,6 +601,27 @@ export function openGamePanel(g) {
       }
       document.getElementById('game-panel').dataset.sourcePath = full.source_path || '';
     }).catch(() => {});
+  }
+}
+
+async function _gpLoadRaProgress(raGameId) {
+  const el = document.getElementById('gp-ra-user-progress');
+  if (!el) return;
+  el.textContent = 'Cargando progreso…';
+  try {
+    const d = await apiFetch('/api/ra-user-progress?ra_game_id=' + raGameId);
+    if (d.error) {
+      el.textContent = '';
+      return;
+    }
+    if (d.total === 0) { el.textContent = ''; return; }
+    const pct = Math.round(d.unlocked / d.total * 100);
+    const hc  = d.hardcore > 0 ? ` · ${d.hardcore} hardcore` : '';
+    const pts = d.points_earned > 0 ? ` · ${d.points_earned}/${d.points_total} pts` : '';
+    const color = pct >= 100 ? '#ffcc00' : pct >= 50 ? '#4ec9b0' : '#888';
+    el.innerHTML = `<span style="color:${color};font-weight:600">${d.unlocked}/${d.total} logros (${pct}%)</span>${hc}${pts}`;
+  } catch(_) {
+    el.textContent = '';
   }
 }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
     from rom_manager.web.router import Router
     import types
 
+
+_ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ...}
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -220,6 +223,58 @@ def register(
                     result["saves_count"] = _row2[0] if _row2 else 0
         except Exception:
             result["saves_count"] = 0
+        ctx._send_json(result)
+
+    # ── GET /api/ra-user-progress ─────────────────────────────────────────────
+    @router.get("/api/ra-user-progress")
+    def get_ra_user_progress(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        ra_game_id = qs.get("ra_game_id", [None])[0]
+        if not ra_game_id:
+            ctx._send_json({"error": "ra_game_id required"})
+            return
+        try:
+            ra_game_id = int(ra_game_id)
+        except (ValueError, TypeError):
+            ctx._send_json({"error": "ra_game_id must be integer"})
+            return
+
+        api_key  = config.ra_api_key
+        username = config.ra_username
+        if not api_key or not username:
+            ctx._send_json({"error": "retroachievements.api_key and retroachievements.username must be configured"})
+            return
+
+        # 1-hour in-memory cache
+        cache_key = (ra_game_id, username)
+        cached = _ra_progress_cache.get(cache_key)
+        if cached and time.time() - cached["_ts"] < 3600:
+            ctx._send_json(cached)
+            return
+
+        try:
+            import json as _json
+            import urllib.request as _req
+            url = (
+                f"https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php"
+                f"?g={ra_game_id}&u={username}&y={api_key}"
+            )
+            request = _req.Request(url, headers={"User-Agent": "ROMManagerLocal/1.0"})
+            with _req.urlopen(request, timeout=15) as resp:
+                data = _json.loads(resp.read())
+        except Exception as exc:
+            ctx._send_json({"error": str(exc)})
+            return
+
+        result = {
+            "total":          int(data.get("NumAchievements", 0) or 0),
+            "unlocked":       int(data.get("NumAwardedToUser", 0) or 0),
+            "hardcore":       int(data.get("NumAwardedToUserHardcore", 0) or 0),
+            "points_earned":  int(data.get("ScoreAchieved", 0) or 0),
+            "points_total":   int(data.get("PossibleScore", 0) or 0),
+            "_ts":            time.time(),
+        }
+        _ra_progress_cache[cache_key] = result
         ctx._send_json(result)
 
     # ── POST /api/set-play-status ────────────────────────────────────────────

@@ -1324,6 +1324,7 @@ def _build_config(config: AppConfig) -> dict:
         "chdman": config.chdman,
         "adb": config.adb,
         "ra_api_key": config.ra_api_key or None,
+        "ra_username": config.ra_username or None,
         "pc_db_path": str(config.database_path),
         "pc_db_size": _db_size(config.database_path),
         "android_db_path": str(config.database_path_android),

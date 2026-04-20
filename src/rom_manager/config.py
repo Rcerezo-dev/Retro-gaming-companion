@@ -179,6 +179,7 @@ class AppConfig:
     screenscraper_dev_id: str
     screenscraper_dev_pass: str
     ra_api_key: str
+    ra_username: str
     # Auto-sync daemon settings
     auto_sync_enabled: bool
     auto_sync_direction: str        # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
@@ -409,6 +410,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         screenscraper_dev_id=ss.get("dev_id", ""),
         screenscraper_dev_pass=ss.get("dev_pass", ""),
         ra_api_key=ra.get("api_key", ""),
+        ra_username=ra.get("username", ""),
         auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
         auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
         auto_sync_android_path=str(sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")),

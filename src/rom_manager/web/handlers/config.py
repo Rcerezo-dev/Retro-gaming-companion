@@ -173,6 +173,7 @@ def _save_config(
         "screenscraper.dev_id", "screenscraper.dev_pass",
         "tools.chdman", "tools.adb",
         "retroachievements.api_key",
+        "retroachievements.username",
         "sync.auto_sync_enabled", "sync.auto_sync_direction",
         "sync.auto_sync_android_path", "sync.conflict_policy",
         "inbox.path", "inbox.target_root",
@@ -203,6 +204,7 @@ def _save_config(
     config.chdman = new_cfg.chdman
     config.adb = new_cfg.adb
     config.ra_api_key = new_cfg.ra_api_key
+    config.ra_username = new_cfg.ra_username
     config.auto_sync_enabled = new_cfg.auto_sync_enabled
     config.auto_sync_direction = new_cfg.auto_sync_direction
     config.auto_sync_android_path = new_cfg.auto_sync_android_path

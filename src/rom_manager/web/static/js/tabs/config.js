@@ -66,6 +66,8 @@ async function loadSettings() {
     const notifyEl = document.getElementById('cfg-notify-desktop');
     if (notifyEl) notifyEl.checked = cfg.notify_desktop !== false;
     document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
+    const raUserEl = document.getElementById('cfg-ra-username');
+    if (raUserEl) raUserEl.value = cfg.ra_username || '';
     // Show config warnings
     const banner = document.getElementById('cfg-warnings-banner');
     if (banner) {
@@ -598,6 +600,8 @@ async function saveSettings() {
   if (ch) updates['tools.chdman']                 = ch;
   if (ab) updates['tools.adb']                    = ab;
   if (ra) updates['retroachievements.api_key']    = ra;
+  const raUser = document.getElementById('cfg-ra-username')?.value.trim();
+  if (raUser) updates['retroachievements.username'] = raUser;
   const raPath = document.getElementById('cfg-retroarch-path')?.value.trim();
   if (raPath) updates['launchers.retroarch'] = raPath;
   const bkEnabledEl = document.getElementById('cfg-backup-enabled');

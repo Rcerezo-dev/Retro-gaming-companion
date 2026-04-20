@@ -77,6 +77,7 @@ Colección en todos tus dispositivos
   - Filtro por plataforma en los resultados
   - Identifica qué versión de tus ROMs es la compatible con logros
   - Exportación CSV
+  - **Progreso personal** — muestra `X / Y logros desbloqueados (Z%)` en el panel de juego, con caché de 1h
 
 ### Sincronización en la nube
 - **Multi-fuente**: cada emulador tiene su propia carpeta de saves y su propio path remoto
@@ -89,6 +90,12 @@ Colección en todos tus dispositivos
 - Tres modos: PC→Consola, Consola→PC, el más reciente gana
 - Filtros: solo saves, solo ROMs, o todo
 - Deduplicación por SHA1: nunca copia algo que ya está en el destino
+
+### Colección
+- Galería de portadas con sorting por plataforma, título o "Jugados recientemente"
+- Tiles con **rating de 5 estrellas**, sesiones detectadas y fecha de último juego
+- Panel de detalle por juego: notas, tags, historial de sync, logros de RA, backup de saves
+- **UI TV-friendly** para la pestaña Sync — tres pasos grandes (Estado → Sync → Resultado) optimizados para consolas/pantallas táctiles
 
 ### Interfaz web
 - SPA embebida — **sin dependencias externas de runtime**, solo Python stdlib
@@ -204,7 +211,8 @@ user = ""
 pass = ""
 
 [retroachievements]
-api_key = ""   # retroachievements.org → Settings → Web API Key
+api_key  = ""   # retroachievements.org → Settings → Web API Key
+username = ""   # tu nombre de usuario en retroachievements.org (para ver tu progreso personal)
 ```
 
 ---
@@ -221,16 +229,17 @@ rommgr serve
 | Pestaña | Descripción |
 |---------|-------------|
 | **Inicio** | Dashboard: totales, % match, duplicados, espacio. Botón de escaneo con progreso en tiempo real. |
-| **Juegos** | Tabla filtrable por plataforma, región y estado de match. Búsqueda por título o archivo. |
+| **Juegos** | Tabla filtrable por plataforma, región y estado de match. Búsqueda por título o archivo. Panel de detalle con rating, tags, notas y progreso RA. |
+| **Colección** | Galería de portadas con rating ★, sesiones, último juego, sort "Jugados recientemente". Stats, health, diff PC↔Android y uso de disco. |
 | **Organizar** | Preview de renombrados y conflictos. Botón Apply para ejecutar. |
 | **Duplicados** | Grupos de ROMs con el mismo SHA1. Botón para eliminar los sobrantes. |
-| **Sync** | Cloud sync multi-emulador. Estado por fuente (RetroArch, DuckStation, PPSSPP…). Log de operaciones. |
+| **Sync** | Cloud sync multi-emulador. Estado por fuente (RetroArch, DuckStation, PPSSPP…). Log de operaciones. UI TV-friendly para consolas táctiles. |
 | **Cable Sync** | Copia directa PC ↔ consola Android por USB. Tres modos de dirección. |
 | **Scraper** | Descarga metadatos y carátulas desde ScreenScraper. Exporta `gamelist.xml`. |
-| **RetroAchievements** | Compatibilidad de logros por MD5. Filtro por plataforma. Export CSV. |
+| **RetroAchievements** | Compatibilidad de logros por MD5. Filtro por plataforma. Export CSV. Progreso personal por juego. |
 | **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. |
 | **Inbox** | Procesa ZIPs nuevos: identifica plataforma, descomprime y organiza automáticamente. |
-| **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático. |
+| **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático. Descarga automática de DATs. |
 
 ### CLI
 
@@ -310,7 +319,8 @@ El modo MTP estándar ("Transferencia de archivos") **no** expone una letra de u
     redump/    ← DATs de disco (PSX, PS2, PSP, GameCube, Dreamcast…)
 ```
 
-Descarga los DATs desde [No-Intro](https://www.no-intro.org/) y [Redump](http://redump.org/).
+Puedes descargar los DATs manualmente desde [No-Intro](https://www.no-intro.org/) y [Redump](http://redump.org/), o usar el botón integrado en **Ajustes → Catálogos DAT → Descarga automática**: selecciona los sistemas que quieres (o pulsa "Descargar todos") y los DATs se descargan directamente desde [libretro-database](https://github.com/libretro/libretro-database) (MIT), con barra de progreso en tiempo real.
+
 El matcher usa SHA1 para encontrar coincidencias exactas.
 
 ---
@@ -372,7 +382,8 @@ scripts\rommgr.cmd pytest tests/ -v
 | 4 | Duplicados, escaneo incremental, reportes, interfaz web | ✅ |
 | 5 | Cloud sync · Cable Sync · ScreenScraper · RetroAchievements | ✅ |
 | 6 | Multi-source sync · Estructura ES-DE · Inbox · Fix duplicados | ✅ |
-| 7 | Wizard unificado · Sync Anbernic TV · Cloud (Termux+rclone) | 🔜 |
+| 7 | Wizard unificado · Sync Anbernic TV · Cloud (Termux+rclone) · Galería con ratings · DAT auto-download · Progreso RA personal | ✅ |
+| 8 | PyInstaller exe · instalador Windows · auto-update · PIN de acceso | 🔜 |
 
 Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
