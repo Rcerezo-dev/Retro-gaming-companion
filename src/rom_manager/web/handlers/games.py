@@ -15,6 +15,52 @@ if TYPE_CHECKING:
 
 
 _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ...}
+_ra_hash_cache: dict = {}     # (cid, mtime) → (hash_map, title_index)
+
+
+def _enrich_games_with_ra(games: list[dict], config: "AppConfig") -> None:
+    """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
+
+    MD5-only match, consistent with the /api/game detail endpoint.
+    """
+    if not games:
+        return
+    import json as _json
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+    from rom_manager.retroachievements.ra_client import _parse_game_list
+    cache_dir = config.project_root / ".rommgr" / "ra_cache"
+    hl_by_cid: dict = {}
+
+    for g in games:
+        try:
+            plat = g.get("platform") or ""
+            if not plat:
+                continue
+            cid = get_ra_console_id(plat)
+            if not cid:
+                continue
+            if cid not in hl_by_cid:
+                cf = cache_dir / f"ra_hashes_{cid}.json"
+                if cf.exists():
+                    key = (cid, cf.stat().st_mtime)
+                    if key not in _ra_hash_cache:
+                        try:
+                            hl = _parse_game_list(_json.loads(cf.read_text("utf-8")))
+                        except Exception:
+                            hl = {}
+                        _ra_hash_cache[key] = hl
+                    hl = _ra_hash_cache[key]
+                else:
+                    hl = {}
+                hl_by_cid[cid] = hl
+
+            md5 = g.get("md5") or ""
+            rg = hl_by_cid[cid].get(md5.lower()) if md5 else None
+            if rg:
+                g["ra_game_id"] = rg.id
+                g["ra_achievements"] = rg.achievements
+        except Exception:
+            continue
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -49,13 +95,15 @@ def register(
         region_filter = qs.get("region", [None])[0] or None
         sort_by = qs.get("sort_by", [None])[0] or None
         _games_repo = get_repo_fn(root or "")
-        ctx._send_json(_build_games(
+        _result = _build_games(
             _games_repo, offset=offset, limit=limit, platform=plat, status=st,
             source_root=root, file_type=file_type, search=search,
             play_status=play_status, favorite=favorite, tag=tag_filter,
             genre=genre_filter, year=year_filter, region=region_filter,
             sort_by=sort_by,
-        ))
+        )
+        _enrich_games_with_ra(_result["games"], config)
+        ctx._send_json(_result)
 
     # ── GET /api/games/filter-options ────────────────────────────────────────
     @router.get("/api/games/filter-options")
@@ -200,8 +248,14 @@ def register(
                 if _cid:
                     _cf = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{_cid}.json"
                     if _cf.exists():
-                        _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
-                        _rg = _hl.get(_md5.lower())
+                        _key = (_cid, _cf.stat().st_mtime)
+                        if _key not in _ra_hash_cache:
+                            try:
+                                _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
+                            except Exception:
+                                _hl = {}
+                            _ra_hash_cache[_key] = _hl
+                        _rg = _ra_hash_cache[_key].get(_md5.lower())
                         if _rg:
                             result["ra_game_id"]      = _rg.id
                             result["ra_title"]        = _rg.title

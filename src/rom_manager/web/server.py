@@ -1325,7 +1325,6 @@ def serve(
         t.start()
         _logger.info("Auto-sync daemon started (polling every 10 s)")
 
-    # SD card daemon always runs (checks config.anbernic_root internally)
     sd_t = threading.Thread(
         target=_sd_card_sync_loop,
         args=(config, lambda: repository),

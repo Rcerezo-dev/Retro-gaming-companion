@@ -83,7 +83,7 @@ Extracted from `docs/ideas/Idea_final.md` and broken into actionable tasks.
 | COL-REVIEW-1 | Audit: decidido → KEEP Colección (gallery, missing ROMs, diff, disk usage son únicos) | ✅ |
 | COL-REVIEW-2b | Playtime en galería: `last_played_at`, `play_count`, `user_rating` en tiles + sort "Jugados recientemente" | ✅ `collection.js` + `app.css` + `tab-collection.html` |
 | COL-REVIEW-2a | **Descartado** — Colección tiene valor único, no se fusiona | — |
-| COL-REVIEW-2c | RA sync — fetch logros del usuario por juego y mostrar en tab | Pendiente |
+| COL-REVIEW-2c | RA sync — fetch logros del usuario por juego y mostrar en tab | ✅ tile badge `🏆N` + progreso en panel |
 
 ---
 
@@ -158,6 +158,22 @@ Infraestructura de datos en el ROM Manager para alimentar el modelo NLP de recom
 | NLP-REC-4 | Frontend: widget de 5 estrellas (rating) + contador de sesiones en game panel | ✅ `_foot.html` + `games.js` + `app.css` |
 | NLP-REC-5 | Export: `GET /api/export-history` — JSON con todos los juegos + metadatos para el modelo NLP | ✅ `handlers/play_history.py` |
 | NLP-REC-6 | Import: `POST /api/recommendations` + `GET /api/recommendations` + panel "Recomendados" en tab Juegos | ✅ `handlers/play_history.py` + `tab-games.html` + `games.js` |
+
+---
+
+## ULTRAREVIEW-0421 — Bugs detectados por revisión automática (2026-04-21)
+
+Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 del).
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| UR-1 | 🔴 Normal | **SD daemon no arranca si se activa desde la UI tras el inicio** — quitar la condición de startup en `serve()` y dejar que el loop interno en `cable_sync_daemon.py:486` se autogestione (ya lo hace). | `server.py:1328-1336` | ✅ |
+| UR-2 | 🔴 Normal | **RA: badges falsos por fallback de título** — `_enrich_games_with_ra` asigna 🏆N de una ROM regional distinta cuando falla el match MD5. Eliminar el fallback del listado, o propagar estado `"alternative"` con badge diferenciado y aplicarlo también al endpoint `/api/game` (detalle). | `handlers/games.py:57-69` | ✅ |
+| UR-3 | 🔴 Normal | **RA: inconsistencia lista vs detalle** — `/api/games` usa fallback por título; `/api/game` es solo MD5. Un juego muestra badge en la grid pero lo pierde en la vista de detalle. Resolver junto con UR-2. | `handlers/games.py:~260` | ✅ |
+| UR-4 | 🟡 Normal | **RA: caché de hashes re-parseada en cada request** — `hl_by_cid`/`ti_by_cid` son locales a `_enrich_games_with_ra`, se reconstruyen desde disco en cada `/api/games`. Mover a nivel módulo keyed por `(cid, mtime)`, siguiendo el patrón `_ra_progress_cache` (línea 17). | `handlers/games.py:44-55` | ✅ |
+| UR-5 | ⚪ Nit | **RA: `try/except` demasiado amplio corta el enriquecimiento para todos los juegos** — un JSON corrupto o error en una plataforma aborta el loop entero. Mover el try/except dentro del cuerpo del loop con un `continue` en el except. | `handlers/games.py:65-71` | ✅ |
+
+> **Orden recomendado:** UR-5 → UR-4 → UR-2+UR-3 (juntas) → UR-1
 
 ---
 
