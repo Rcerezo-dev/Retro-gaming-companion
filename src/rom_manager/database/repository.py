@@ -969,7 +969,7 @@ class LibraryRepository:
         count_sql = f"SELECT COUNT(*) AS cnt FROM {table_expr} " + where_sql
         select_sql = (
             f"SELECT {id_col} AS id, g.original_filename, g.source_path, g.platform, g.region,"
-            " g.extension, g.size_bytes, g.sha1, g.canonical_title,"
+            " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
             " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
             f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
             " gm.genre, gm.year AS meta_year, gm.publisher"
@@ -977,7 +977,7 @@ class LibraryRepository:
             f" ORDER BY {_order} LIMIT ? OFFSET ?"
         ) if need_meta else (
             "SELECT id, original_filename, source_path, platform, region,"
-            " extension, size_bytes, sha1, canonical_title,"
+            " extension, size_bytes, sha1, md5, canonical_title,"
             " match_confidence, catalog_source, play_status, last_played_at,"
             " is_favorite, notes, user_rating, play_count, first_played_at"
             " FROM games " + where_sql +
@@ -1004,6 +1004,7 @@ class LibraryRepository:
                 "extension": row["extension"],
                 "size_bytes": int(row["size_bytes"]),
                 "sha1": row["sha1"],
+                "md5": row["md5"],
                 "canonical_title": row["canonical_title"],
                 "match_confidence": row["match_confidence"],
                 "catalog_source": row["catalog_source"],

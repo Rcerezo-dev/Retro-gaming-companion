@@ -25,6 +25,7 @@ export function _initToolsImports(startPolling, showJobResult) {
 
 // ── State variables ────────────────────────────────────────────────────────────
 let _chdResults = [];
+let _chdIsDry = false;
 let _verifyChdResults = [];
 let _faUid = 0;
 
@@ -67,6 +68,7 @@ export function _renderChdResult(result) {
   } else {
     _showJobResult('convert-chd', result);
     _chdResults = result.results || [];
+    _chdIsDry = result.dry_run === true;
     // Show filter header if there are results
     const hdr = document.getElementById('chd-results-header');
     if (hdr) hdr.classList.toggle('hidden', !(_chdResults.length));
@@ -92,8 +94,7 @@ export function applyChdFilter() {
       : '';
     return;
   }
-  // Determine if this was a dry_run from the job-result text (best-effort)
-  const isDry = document.getElementById('job-result-convert-chd')?.textContent?.includes('DRY') ?? false;
+  const isDry = _chdIsDry;
   resultsDiv.innerHTML = visible.map(r => {
     if (r.success) {
       const tag = isDry ? 'PREVIEW' : 'OK';

@@ -280,6 +280,9 @@ function _renderColGrid(games, append) {
     const playBadge = g.play_count > 0
       ? `<span class="col-play-badge" title="${g.play_count} sesión(es)">${g.play_count}▶</span>`
       : '';
+    const raBadge = g.ra_achievements > 0
+      ? `<span class="col-ra-badge" title="${g.ra_achievements} logros RetroAchievements">🏆${g.ra_achievements}</span>`
+      : '';
     const lastPlayed = g.last_played_at
       ? `<div class="col-last-played">${_fmtDate(g.last_played_at)}</div>`
       : '';
@@ -293,6 +296,7 @@ function _renderColGrid(games, append) {
           onload="this.parentElement.classList.remove('skeleton')"
           onerror="this.parentElement.classList.remove('skeleton');this.parentElement.innerHTML='<span>🎮</span>'">
         ${playBadge}
+        ${raBadge}
       </div>
       <div class="col-title">${window._h(g.canonical_title || g.original_filename)}</div>
       <div class="col-plat">${window._h(g.platform || '')}</div>

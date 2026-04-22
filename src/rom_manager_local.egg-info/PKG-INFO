@@ -7,231 +7,315 @@ Description-Content-Type: text/markdown
 Provides-Extra: dev
 Requires-Dist: pytest>=8; extra == "dev"
 
-# ROM Manager Local
+# Retro Vault
 
-Herramienta CLI local para escanear, identificar, organizar y sincronizar colecciones de ROMs de videojuegos retro.
+**Gestiona, organiza y sincroniza tu colección de ROMs retro.**
 
-Diseñada para un setup compartido: una única colección de ROMs que funciona tanto en el PC (emuladores de escritorio) como en la Anbernic RG 556 (RetroArch para Android), con sincronización de saves en la nube incluida.
+Retro Vault es una herramienta local en Python con interfaz web que convierte una carpeta caótica de ROMs en una biblioteca identificada, organizada por plataforma, con metadatos, carátulas y — lo más importante — con los **saves sincronizados automáticamente** entre tu PC y tu consola portátil Android.
+
+```
+http://127.0.0.1:7777
+```
+
+---
+
+## ¿Qué hace?
+
+### El flujo habitual
+
+```
+ROM nueva en inbox/
+    ↓  Inbox: identifica plataforma, descomprime, renombra
+    ↓  Scan: hashea SHA1+MD5+CRC32, inventaría en SQLite
+    ↓  Match: cruza con catálogos No-Intro / Redump
+    ↓  Plan → Apply: renombra a nombre canónico (atómico, con rollback)
+    ↓  Scraper: descarga metadatos + carátulas de ScreenScraper
+    ↓  gamelist.xml para EmulationStation / ES-DE
+    ↓  RetroAchievements: comprueba compatibilidad de logros por MD5
+Biblioteca organizada
+    ↓  Cloud Sync: saves ↔ Dropbox ↔ consola Android (vía rclone)
+    ↓  Cable Sync: ROMs + saves ↔ consola por USB (sin WiFi)
+Colección en todos tus dispositivos
+```
 
 ---
 
 ## Características
 
-- Escaneo recursivo de cualquier carpeta — clasifica cada archivo como ROM, save, asset de frontend, soporte del sistema o desconocido
-- Hashing SHA1 + MD5 + CRC32 para cada ROM
-- Detección de plataforma por extensión de archivo
-- Detección de región desde el nombre de archivo (estilo No-Intro con paréntesis, códigos GoodTools entre corchetes, texto plano como fallback)
-- Matching contra catálogos locales No-Intro y Redump en formato DAT (búsqueda por SHA1 → título canónico)
-- Escaneo incremental: omite el re-hasheo de ROMs cuyo mtime y tamaño no han cambiado
-- Inventario SQLite en `.rommgr/library.sqlite` — sobrevive re-escaneos mediante upsert
-- Renombrado seguro: `plan` para previsualizar, `apply` para ejecutar, sin sobrescrituras
-- Detección de duplicados exactos por SHA1
-- Conversión de sets PSX `.cue+.bin` a `.chd` (dry run por defecto)
-- Sincronización de saves entre PC y dispositivos remotos vía rclone
-- Interfaz web local para explorar la biblioteca sin tocar la terminal
-- Exportación de reportes en JSON y CSV
-- Sin dependencias de runtime externas — Python stdlib puro
+### Escaneo e inventario
+- Escaneo recursivo con clasificación automática: ROM / save / asset / BIOS / desconocido
+- Hashing triple: **SHA1 + MD5 + CRC32** por cada ROM
+- **Incremental**: omite el re-hasheo si mtime y tamaño no cambiaron
+- Base de datos SQLite en `.rommgr/library_pc.db` — sobrevive re-escaneos mediante upsert
+- Limpieza automática de entradas huérfanas al finalizar cada escaneo
+- Modo rápido (`--quick`) sin hashing para escaneos instantáneos
+
+### Identificación y renombrado
+- Matching por SHA1 contra catálogos **No-Intro** y **Redump** en formato DAT XML Logiqx
+- `Plan` para previsualizar, `Apply` para ejecutar — nunca sobreescribe sin confirmar
+- Renombrado **atómico con rollback**: si algo falla, los archivos vuelven a su estado original
+- Los saves se renombran junto al ROM (mismo stem) para no perder el progreso
+- **PSX**: nunca renombra `.bin` sin reescribir el `.cue`; genera `.m3u` para sets multi-disco
+- Detección y resolución de conflictos de nombre (mismo título canónico, ROMs distintos)
+
+### Conversión y herramientas de biblioteca
+- Conversión `.cue+.bin` → `.chd` vía `chdman` (sets PSX, Saturn, Dreamcast)
+- Extracción de `.zip`
+- Generador de playlists `.m3u` para sets multi-disco
+- Verificación de integridad de sets multi-disco
+- Búsqueda de saves huérfanos (sin ROM asociada)
+- Health check: re-hashea ROMs contra el SHA1 almacenado para detectar corrupción
+- **Escaneo de archivos basura**: detecta y elimina `.DS_Store`, thumbs, temporales, etc.
+
+### Estructura de biblioteca (ES-DE compatible)
+- Crea automáticamente la estructura de carpetas estándar ES-DE/EmulationStation:
+  `psx/ gba/ snes/ megadrive/ ...` + `saves/ bios/ inbox/ media/`
+- **Organizar biblioteca**: mueve ROMs existentes a su carpeta de plataforma y actualiza la BD
+- `gamelist.xml` en cada carpeta de plataforma con metadatos y rutas de carátulas
+
+### Metadatos y logros
+- Scraping desde **ScreenScraper** (título, año, género, publisher, portadas, vídeos)
+- Exportación de `gamelist.xml` formato EmulationStation / ES-DE
+- Comprobación de compatibilidad con **RetroAchievements** por MD5
+  - Caché local de 1 semana para no agotar la API
+  - Filtro por plataforma en los resultados
+  - Identifica qué versión de tus ROMs es la compatible con logros
+  - Exportación CSV
+
+### Sincronización en la nube
+- **Multi-fuente**: cada emulador tiene su propia carpeta de saves y su propio path remoto
+- Política de conflictos: el archivo más reciente gana; ante ambigüedad, se guardan ambas versiones con sufijo timestamp
+- Soporte para Dropbox, OneDrive, Google Drive y cualquier remoto rclone
+- Log de operaciones de sync almacenado en SQLite
+
+### Cable Sync (USB directo)
+- Copia ROMs y/o saves entre PC y consola Android por USB, sin WiFi
+- Tres modos: PC→Consola, Consola→PC, el más reciente gana
+- Filtros: solo saves, solo ROMs, o todo
+- Deduplicación por SHA1: nunca copia algo que ya está en el destino
+
+### Interfaz web
+- SPA embebida — **sin dependencias externas de runtime**, solo Python stdlib
+- Operaciones pesadas en background con barra de progreso en tiempo real
+- Dos bases de datos independientes: una para el PC y otra para la consola Android
+
+---
+
+## Emuladores compatibles (multi-sync)
+
+| Plataformas | PC | Android (consola) | Saves compatibles |
+|---|---|---|---|
+| NES · SNES · MD · N64 · GB/GBC/GBA · DS · Dreamcast · Saturn | RetroArch | RetroArch | ✅ Mismos cores → 100% |
+| PlayStation (PSX) | DuckStation | DuckStation Android | ✅ `.mcd` |
+| PlayStation 2 | PCSX2 | NetherSX2 | ✅ `.ps2` |
+| PSP | PPSSPP | PPSSPP Android | ✅ `SAVEDATA/` completo |
+| Nintendo DS | MelonDS | MelonDS Android | ✅ `.sav` |
+| GameCube / Wii | Dolphin | Dolphin Android | ✅ `.gci` + NAND |
 
 ---
 
 ## Instalación
 
-Requiere **Python 3.11+**.
+### Requisitos
+- **Python 3.11+** (recomendado 3.12)
+- **rclone** — para cloud sync ([rclone.org](https://rclone.org/))
+- **chdman** v0.286+ — para convertir a CHD ([MAME tools](https://www.mamedev.org/tools/))
+- **adb** — opcional, para Cable Sync por USB ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools))
+
+### Instalación rápida
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/your-username/Retro_gaming_app.git
-cd Retro_gaming_app
-
-# Instalar (modo editable)
+git clone https://github.com/Rcerezo-dev/Retro-gaming-companion.git
+cd Retro-gaming-companion
 pip install -e .
-
-# Instalar con herramientas de desarrollo (pytest)
-pip install -e .[dev]
 ```
 
-> Con Conda, crear el entorno primero:
-> ```bash
-> conda create -n rom_manager python=3.12
-> conda activate rom_manager
-> pip install -e .[dev]
-> ```
+**Con Conda (recomendado en Windows):**
 
-En Windows hay un lanzador de conveniencia que no requiere modificar el PATH:
+```bash
+conda create -n rom_manager python=3.12
+conda activate rom_manager
+pip install -e .
+```
+
+**Lanzador Windows (sin activar entorno):**
 
 ```bat
-scripts\rommgr.cmd <comando>
+scripts\rommgr.cmd serve
+```
+
+### Binarios externos
+
+Coloca los binarios en `tools/` o añádelos al PATH:
+
+```
+tools/
+  chdman.exe     ← descargar de mamedev.org/tools
+  adb.exe        ← descargar de developer.android.com/tools
 ```
 
 ---
 
 ## Configuración
 
-Genera un `config.toml` de ejemplo en la carpeta del proyecto:
-
-```bash
-rommgr init-config
-```
-
-El archivo generado documenta todas las opciones disponibles:
+Crea `config.toml` en la raíz del proyecto (o ejecuta `rommgr init-config`):
 
 ```toml
 [library]
-# Carpeta local donde están los saves del PC
-# saves_dir = "D:/RetroArch/saves"
+library_root = "E:\\ROMs"           # Raíz de la biblioteca
 
 [sync]
-# Remote de rclone, p.ej. "dropbox:/RetroArch/saves"
-# remote = "dropbox:/RetroArch/saves"
-rclone = "rclone"
+rclone = "rclone"                   # Binario rclone (o ruta completa)
+
+# ── Una entrada por emulador ──────────────────────────────────────────────────
+[[sync.sources]]
+name      = "RetroArch"
+local_dir = "E:\\ROMs\\saves"
+remote    = "dropbox:/RetroSync/saves/retroarch"
+
+[[sync.sources]]
+name      = "DuckStation (PSX)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\DuckStation\\memcards"
+remote    = "dropbox:/RetroSync/saves/duckstation"
+
+[[sync.sources]]
+name      = "PCSX2 (PS2)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PCSX2\\memcards"
+remote    = "dropbox:/RetroSync/saves/pcsx2"
+
+[[sync.sources]]
+name      = "PPSSPP (PSP)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PPSSPP\\PSP\\SAVEDATA"
+remote    = "dropbox:/RetroSync/saves/ppsspp"
+sync_all  = true
+
+[[sync.sources]]
+name      = "Dolphin (GC/Wii)"
+local_dir = "C:\\Users\\TU_USUARIO\\Documents\\Dolphin Emulator"
+remote    = "dropbox:/RetroSync/saves/dolphin"
+sync_all  = true
 
 [tools]
-chdman = "chdman"
+chdman = "tools\\chdman.exe"
+adb    = "tools\\adb.exe"
 
 [web]
 host = "127.0.0.1"
 port = 7777
-```
 
-Todos los valores son opcionales; se usan los defaults si no se especifican.
+[screenscraper]
+user = ""
+pass = ""
+
+[retroachievements]
+api_key = ""   # retroachievements.org → Settings → Web API Key
+```
 
 ---
 
 ## Uso
 
-### Escanear y hashear
-
-```bash
-# Escanear una carpeta (el segundo escaneo omite ROMs sin cambios)
-rommgr scan <ruta-a-roms>
-
-# Ver resumen de la biblioteca
-rommgr status
-```
-
-### Matching con catálogos
-
-```bash
-# Cargar DATs y matchear todos los ROMs sin resolver
-rommgr match
-
-# Listar ROMs que todavía no tienen match
-rommgr unresolved
-```
-
-### Renombrado
-
-```bash
-# Previsualizar renombrados (no modifica ningún archivo)
-rommgr plan
-
-# Ejecutar los renombrados
-rommgr apply
-```
-
-### Duplicados y reportes
-
-```bash
-# Listar ROMs con el mismo SHA1 almacenados en rutas distintas
-rommgr duplicates
-
-# Exportar reporte completo de la biblioteca
-rommgr report --format json --output report.json
-rommgr report --format csv  --output report.csv
-```
-
-### Conversión a CHD (PSX)
-
-```bash
-# Previsualizar conversiones (dry run)
-rommgr convert-chd <ruta-a-roms-psx>
-
-# Convertir y eliminar los archivos fuente
-rommgr convert-chd <ruta-a-roms-psx> --apply --delete-source
-```
-
-Si `chdman` no está en el PATH, especifícalo con `--chdman "C:\tools\chdman.exe"` o configúralo en `config.toml`.
-
-### Sincronización de saves
-
-```bash
-# Ver qué saves están desactualizados (sin transferir nada)
-rommgr sync-status --saves-dir "D:/RetroArch/saves" --remote "dropbox:/RetroArch/saves"
-
-# Dry run de sincronización
-rommgr sync-saves --saves-dir "D:/RetroArch/saves" --remote "dropbox:/RetroArch/saves"
-
-# Sincronizar de verdad
-rommgr sync-saves --saves-dir "D:/RetroArch/saves" --remote "dropbox:/RetroArch/saves" --apply
-```
-
-Si `saves_dir` y `remote` están definidos en `config.toml`, no hace falta pasarlos como argumentos.
-
-**Política de conflictos:** si ambos lados cambiaron desde el último sync, el remoto se respalda con sufijo de timestamp y el local gana. Todo queda registrado en SQLite.
-
-### Interfaz web local
+### Interfaz web (recomendado)
 
 ```bash
 rommgr serve
-# Abre http://127.0.0.1:7777/ en el navegador
+# Abre http://127.0.0.1:7777
 ```
 
-La interfaz incluye cuatro pestañas:
+| Pestaña | Descripción |
+|---------|-------------|
+| **Inicio** | Dashboard: totales, % match, duplicados, espacio. Botón de escaneo con progreso en tiempo real. |
+| **Juegos** | Tabla filtrable por plataforma, región y estado de match. Búsqueda por título o archivo. |
+| **Organizar** | Preview de renombrados y conflictos. Botón Apply para ejecutar. |
+| **Duplicados** | Grupos de ROMs con el mismo SHA1. Botón para eliminar los sobrantes. |
+| **Sync** | Cloud sync multi-emulador. Estado por fuente (RetroArch, DuckStation, PPSSPP…). Log de operaciones. |
+| **Cable Sync** | Copia directa PC ↔ consola Android por USB. Tres modos de dirección. |
+| **Scraper** | Descarga metadatos y carátulas desde ScreenScraper. Exporta `gamelist.xml`. |
+| **RetroAchievements** | Compatibilidad de logros por MD5. Filtro por plataforma. Export CSV. |
+| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. |
+| **Inbox** | Procesa ZIPs nuevos: identifica plataforma, descomprime y organiza automáticamente. |
+| **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático. |
 
-| Pestaña | Contenido |
-|---|---|
-| Overview | Totales de juegos, saves, assets, % de match, duplicados y espacio desperdiciado |
-| Games | Lista filtrable por plataforma y estado de match; descarga de reporte JSON/CSV |
-| Plan | Preview de renombrados pendientes y conflictos |
-| Duplicates | Grupos de ROMs con el mismo SHA1 y espacio recuperable |
+### CLI
 
----
-
-### Sesión de ejemplo
-
-```
-> rommgr scan D:\ROMs
-Scanned: D:\ROMs
-Files seen:            4 821
-ROMs detected:         4 203
-ROMs skipped (cached): 0
-Saves detected:        312
-Assets detected:       180
-Unknown files:         126
-
-> rommgr match
-Loading catalogs…
-  No-Intro: 98 432 entries
-  Redump:   45 678 entries
-
-Matching 4 203 unresolved ROMs…
-Matched:   4 101
-Not found: 102
-
-> rommgr duplicates
-Duplicate groups: 3  (7 files, ~24.0 MB wasted)
-
-[SHA1: A1B2C3D4E5F6…]  Game Boy  ·  Tetris (World)
-  D:\ROMs\GB\tetris.gb        (1.0 MB)
-  D:\ROMs\Backup\tetris.gb    (1.0 MB)
+```bash
+rommgr serve                            # Arranca la interfaz web
+rommgr scan <ruta> [--quick]            # Escanea una carpeta
+rommgr status                           # Resumen de la biblioteca
+rommgr match                            # Cruza con catálogos DAT
+rommgr plan                             # Previsualiza renombrados
+rommgr apply                            # Ejecuta renombrados
+rommgr duplicates                       # Lista duplicados por SHA1
+rommgr report --format json             # Genera reporte de biblioteca
+rommgr convert-chd <ruta> --apply       # Convierte PSX a CHD
+rommgr sync-saves --apply               # Sincroniza saves con la nube
 ```
 
 ---
 
-## Archivos DAT de catálogos
+## Estructura de biblioteca recomendada
 
-El matcher lee archivos `.dat` en formato XML Logiqx (el estándar de No-Intro y Redump).
+Compatible con **EmulationStation / ES-DE** en PC y Android:
 
-Colócalos en:
+```
+library_root/
+├── psx/
+│   ├── gamelist.xml           ← generado por el Scraper
+│   ├── media/
+│   │   ├── images/            ← carátulas (mismo nombre que el ROM)
+│   │   └── videos/
+│   └── Final Fantasy VII (USA).chd
+├── gba/
+│   └── Metroid Fusion (USA).gba
+├── snes/
+├── megadrive/
+├── n64/
+├── nds/
+├── gamecube/
+├── ...
+├── saves/                     ← TODOS los saves de RetroArch (planos)
+├── bios/                      ← BIOS (scph1001.bin, etc.)
+└── inbox/                     ← ZIPs nuevos sin organizar
+```
+
+El botón **"Crear estructura"** en Herramientas → Estructura de biblioteca crea todas las carpetas automáticamente.
+
+> **Nota sobre RetroArch PC:** configura Settings → Saving → Savefile Directory apuntando a `library_root/saves/` para que los saves queden centralizados y el cloud sync funcione sin fricción.
+
+---
+
+## Sincronización de saves
+
+### Cloud sync (PC ↔ Nube ↔ Android)
+
+1. Configura rclone con tu servicio preferido: `rclone config`
+2. Añade las entradas `[[sync.sources]]` en `config.toml` (ver arriba)
+3. En la pestaña **Sync** → pulsa **Sincronizar**
+
+La Anbernic / consola Android usa la misma cuenta de rclone configurada en Termux. Guía detallada: [`docs/sync/sync-cloud.md`](docs/sync/sync-cloud.md) · [`docs/sync/Guia-Termux-Anbernic.md`](docs/sync/Guia-Termux-Anbernic.md).
+
+### Cable sync (PC ↔ Android por USB)
+
+Opciones para montar el almacenamiento Android en Windows:
+1. **Tarjeta SD en lector** — el método más rápido y fiable
+2. **Termux SFTP** — `sshd` en Termux + WinFsp/SSHFS-Win o `rclone mount`
+3. **ADB** — modo directo, no requiere montar unidad
+
+El modo MTP estándar ("Transferencia de archivos") **no** expone una letra de unidad y no es compatible. Guía: [`docs/sync/sync-cable.md`](docs/sync/sync-cable.md).
+
+---
+
+## Catálogos DAT
 
 ```
 .rommgr/
   catalogs/
-    nointro/   ← DATs de cartuchos (GB, GBC, GBA, NES, SNES, N64, DS, …)
-    redump/    ← DATs de disco (PSX, PS2, PSP, GameCube, Wii, Dreamcast, …)
+    nointro/   ← DATs de cartuchos (GB, GBC, GBA, NES, SNES, N64, DS…)
+    redump/    ← DATs de disco (PSX, PS2, PSP, GameCube, Dreamcast…)
 ```
 
 Descarga los DATs desde [No-Intro](https://www.no-intro.org/) y [Redump](http://redump.org/).
+El matcher usa SHA1 para encontrar coincidencias exactas.
 
 ---
 
@@ -239,68 +323,36 @@ Descarga los DATs desde [No-Intro](https://www.no-intro.org/) y [Redump](http://
 
 ```
 src/rom_manager/
-  cli.py                       # Todos los comandos
-  config.py                    # AppConfig + lectura de config.toml
-  logging_utils.py
-  catalog/
-    catalog_loader.py          # Parseo de DATs XML Logiqx → sha1→CatalogEntry
-    matcher.py                 # CatalogMatcher: búsqueda SHA1 en todos los DATs
-  database/
-    schema.py                  # Esquema SQLite + migraciones automáticas
-    repository.py              # LibraryRepository (upsert, batch, match, duplicados)
-  detection/
-    file_classifier.py         # ROM / save / asset / system / unknown
-    platform_detector.py       # Plataforma desde extensión
-    region_parser.py           # Región desde nombre de archivo
-    filename_normalizer.py
-    set_detector.py
-  hashing/
-    hash_calculator.py         # SHA1 + MD5 + CRC32, chunks de 1 MB
-  scanner/
-    rom_scanner.py             # Bucle principal de escaneo (incremental)
-    asset_scanner.py
-    save_scanner.py
-  planner/
-    operation_planner.py       # Genera RenamePlan con estados pending/correct/conflict
-  converters/
-    chd_converter.py           # Conversión PSX .cue+.bin → .chd
-  reports/
-    reporter.py                # LibraryReport → JSON / CSV
-  sync/
-    rclone_transport.py        # Wrapper sobre el binario rclone
-    conflict_resolver.py       # Lógica de resolución: el más reciente gana
-    save_syncer.py             # Orquestador de sync
-    sync_log.py                # Tabla save_sync_log en SQLite
-  web/
-    server.py                  # ThreadingHTTPServer stdlib (sin deps externas)
-    frontend.py                # SPA embebida (HTML/CSS/JS)
-tests/
-  test_catalog_matcher.py
-  test_chd_converter.py
-  test_conflict_resolver.py
-  test_config.py
-  test_duplicates.py
-  test_file_classifier.py
-  test_filename_normalizer.py
-  test_operation_planner.py
-  test_region_parser.py
-  test_reporter.py
-  test_save_syncer.py
-  test_web_server.py
+  cli.py                     # Entrypoint CLI (argparse)
+  config.py                  # AppConfig + SyncSource + lectura de config.toml
+  catalog/                   # Parseo DATs + matching SHA1
+  database/                  # Schema SQLite + LibraryRepository
+  detection/                 # Clasificación de archivos, plataforma, región
+  hashing/                   # SHA1 + MD5 + CRC32
+  scanner/                   # Escaneo incremental
+  planner/                   # RenamePlan: pending / already_correct / conflicts
+  renamer/                   # Renombrado atómico + reescritura .cue
+  converters/                # CHD, ZIP
+  utils/                     # M3U, multi-disco, orphan finder, health check
+  sync/                      # rclone transport, save syncer, conflict resolver
+  scraper/                   # ScreenScraper, gamelist.xml, Pegasus
+  retroachievements/         # RA API client + MD5 checker
+  web/                       # ThreadingHTTPServer + SPA HTML/JS
+scripts/
+  rommgr.cmd / rommgr.ps1   # Lanzadores Windows
+tools/
+  chdman.exe / adb.exe       # Binarios externos (no incluidos en el repo)
+docs/
+  architecture/              # Arquitectura técnica y diseño
+  config/                    # Estructura de biblioteca, ES-DE, rutas de referencia
+  sync/                      # Guías de sincronización (cable, cloud, Termux, ADB)
+  ideas/                     # Propuestas y visión del producto
+  _archive/                  # Documentos obsoletos
+Tareas/
+  backlog.md                 # Backlog activo
+  archivo.md                 # Tareas completadas
+  diario/                    # Diario de sesiones de trabajo
 ```
-
----
-
-## Hoja de ruta
-
-| Fase | Descripción | Estado |
-|---|---|---|
-| 1 | Escaneo, hashing, inventario SQLite, CLI básico | Completada |
-| 2 | Matching por SHA1 contra catálogos No-Intro y Redump | Completada |
-| 3 | Plan + Apply: renombrado seguro + conversión CHD para PSX | Completada |
-| 4 | Detección de duplicados, escaneo incremental, reportes | Completada |
-| 5 | Sincronización de saves (PC ↔ Anbernic RG 556) vía rclone | Completada |
-| 6 | Frontend web local | Completada |
 
 ---
 
@@ -308,9 +360,25 @@ tests/
 
 ```bash
 pytest
+# o con el lanzador Windows:
+scripts\rommgr.cmd pytest tests/ -v
 ```
 
-152 tests, sin dependencias externas requeridas.
+---
+
+## Hoja de ruta
+
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| 1 | Escaneo, hashing, inventario SQLite, CLI básico | ✅ |
+| 2 | Matching SHA1 contra catálogos No-Intro y Redump | ✅ |
+| 3 | Plan + Apply — renombrado seguro + conversión CHD | ✅ |
+| 4 | Duplicados, escaneo incremental, reportes, interfaz web | ✅ |
+| 5 | Cloud sync · Cable Sync · ScreenScraper · RetroAchievements | ✅ |
+| 6 | Multi-source sync · Estructura ES-DE · Inbox · Fix duplicados | ✅ |
+| 7 | Wizard unificado · Sync Anbernic TV · Cloud (Termux+rclone) | 🔜 |
+
+Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 ---
 
