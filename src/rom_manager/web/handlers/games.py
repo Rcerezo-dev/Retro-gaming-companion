@@ -103,6 +103,13 @@ def register(
             sort_by=sort_by,
         )
         _enrich_games_with_ra(_result["games"], config)
+        _ni = config.catalogs_nointro_dir
+        _rd = config.catalogs_redump_dir
+        _result["dat_count"] = (
+            sum(1 for f in _ni.iterdir() if f.suffix.lower() == ".dat") if _ni.exists() else 0
+        ) + (
+            sum(1 for f in _rd.iterdir() if f.suffix.lower() == ".dat") if _rd.exists() else 0
+        )
         ctx._send_json(_result)
 
     # ── GET /api/games/filter-options ────────────────────────────────────────

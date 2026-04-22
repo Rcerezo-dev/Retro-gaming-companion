@@ -175,8 +175,21 @@ export function fmtSize(n) {
   return n.toFixed(1) + ' ' + units[i];
 }
 
-function badge(cls, text) {
-  return `<span class="badge ${cls}">${text}</span>`;
+function badge(cls, text, title) {
+  const t = title ? ` title="${window._h(title)}"` : '';
+  return `<span class="badge ${cls}"${t}>${text}</span>`;
+}
+
+const _MATCH_BADGE = {
+  high:   { cls: 'high', text: 'SHA1 ✓', tip: 'Identificado por hash SHA1 exacto en catálogo DAT' },
+  medium: { cls: 'high', text: 'DAT ~',  tip: 'Identificado por nombre de archivo en catálogo DAT' },
+  low:    { cls: 'low',  text: '? DAT',  tip: 'Varios juegos con este nombre — coincidencia ambigua' },
+};
+
+function matchBadge(confidence) {
+  const m = _MATCH_BADGE[confidence];
+  if (m) return badge(m.cls, m.text, m.tip);
+  return badge('none', '—', 'Sin identificar — sin catálogo DAT o sin coincidencia');
 }
 
 const _PLAT_CLASS = {
@@ -297,6 +310,21 @@ export async function loadGames(offset) {
     document.getElementById('games-count').textContent =
       `${d.total} juego${d.total !== 1 ? 's' : ''} (página ${Math.floor(gamesState.offset / gamesState.limit) + 1} de ${Math.max(1, Math.ceil(d.total / gamesState.limit))})`;
 
+    // DAT matching mode banner
+    const _datBanner = document.getElementById('games-dat-banner');
+    if (_datBanner) {
+      const _unmatched = d.games.filter(g => !g.match_confidence).length;
+      if (d.dat_count === 0 && d.total > 0) {
+        _datBanner.innerHTML = `<span style="color:#e5c200">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:#7aadff;text-decoration:underline">→ Descargar catálogos</a>`;
+        _datBanner.classList.remove('hidden');
+      } else if (d.dat_count > 0 && _unmatched > 0) {
+        _datBanner.innerHTML = `<span style="color:#4ec9b0">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:#888">${_unmatched} sin identificar</span>`;
+        _datBanner.classList.remove('hidden');
+      } else if (d.dat_count > 0) {
+        _datBanner.classList.add('hidden');
+      }
+    }
+
     const rows = d.games;
     const empty = document.getElementById('games-empty');
     if (rows.length === 0) {
@@ -338,7 +366,7 @@ export async function loadGames(offset) {
           <td class="mono" title="${_h(g.original_filename)}" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
           <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
-          <td>${g.match_confidence ? badge(g.match_confidence, g.match_confidence) : badge('none', '—')}</td>
+          <td>${matchBadge(g.match_confidence)}</td>
           <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
           <td class="mono" style="color:#444;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
         </tr>`;
