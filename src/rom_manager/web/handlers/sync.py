@@ -462,6 +462,8 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                 else:
                     _ts = _utc_now_str()[:16].replace("T", " ")
                     _srv13._tray_instance and _srv13._tray_instance.set_status(f"Sync OK {_ts}")
+                _srv13._auto_sync_status["last_sync_at"] = _utc_now_str()
+                _srv13._auto_sync_status["last_error"] = (f"{_errs} errores en cloud sync") if _errs else None
         except Exception as exc:
             m._job_results["sync"] = {"error": str(exc)}
             import rom_manager.web.server as _srv13e
