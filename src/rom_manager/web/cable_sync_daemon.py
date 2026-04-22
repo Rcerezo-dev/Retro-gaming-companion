@@ -32,9 +32,6 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
         try:
             _time.sleep(_POLL_INTERVAL)
 
-            if not _srv._auto_sync_enabled:
-                continue
-
             # Don't poll if a cable_sync job is already running
             with _job_lock:
                 cable_running = _jobs.get("cable_sync", False)
@@ -49,7 +46,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             if not config.library_root:
                 continue
 
-            # Poll ADB devices
+            # Poll ADB devices (always, even when auto-sync is disabled, for UI prompt)
             try:
                 from rom_manager.sync.adb_transport import list_devices
                 devices = list_devices(config.adb, timeout=8)
@@ -58,6 +55,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 continue
 
             current_serials = {d.serial for d in devices if d.ready}
+
+            # Clear device_prompt when the device disconnects
+            if not current_serials and _srv._auto_sync_status.get("state") == "device_prompt":
+                _srv._auto_sync_status["state"] = "waiting"
 
             # Detect newly connected devices
             new_serials = current_serials - _srv._auto_sync_last_devices
@@ -74,6 +75,18 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 continue
 
             serial = next(iter(new_serials))
+
+            if not _srv._auto_sync_enabled:
+                # Auto-sync disabled: show prompt in UI, let user decide
+                _logger.info("Auto-sync: new device %s — auto-sync disabled, showing prompt", serial)
+                _srv._auto_sync_status = {
+                    "state": "device_prompt",
+                    "last_device": serial,
+                    "last_sync_at": _srv._auto_sync_status.get("last_sync_at"),
+                    "last_error": None,
+                }
+                continue
+
             _logger.info("Auto-sync: new device %s — starting sync", serial)
 
             now_str = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

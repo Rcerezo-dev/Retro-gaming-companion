@@ -176,6 +176,7 @@ import {
   doLibraryDiff,
   doSync,
   _renderSyncResult,
+  promptSyncNow,
 } from './tabs/sync.js';
 import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
@@ -349,6 +350,7 @@ Object.assign(window, {
   doLibraryDiff,
   doSync,
   _renderSyncResult,
+  promptSyncNow,
 });
 
 // Initialize tools.js with main.js functions (late imports to avoid circular deps)

@@ -887,11 +887,24 @@ async function exportPegasus() {
 }
 
 // ── Auto-sync UI ─────────────────────────────────────────────────────────────
+async function promptSyncNow() {
+  const btn = document.getElementById('auto-sync-prompt-btn');
+  if (btn) btn.classList.add('hidden');
+  try {
+    await apiFetch('/api/cable-sync', { method: 'POST', body: JSON.stringify({}) });
+    showTab('cable');
+  } catch(e) { /* silent — cable tab will show the error */ }
+}
+
 function _updateAutoSyncBanner(data, sdStatus) {
   const banner  = document.getElementById('auto-sync-banner');
   const icon    = document.getElementById('auto-sync-banner-icon');
   const text    = document.getElementById('auto-sync-banner-text');
   if (!banner || !icon || !text) return;
+
+  // Reset prompt button on every update; shown only for device_prompt state
+  const promptBtn = document.getElementById('auto-sync-prompt-btn');
+  if (promptBtn) promptBtn.classList.add('hidden');
 
   const enabled = data.enabled;
   const s       = data.status || {};
@@ -945,6 +958,16 @@ function _updateAutoSyncBanner(data, sdStatus) {
     icon.textContent = 'Ultimo sync automatico: ' + s.last_sync_at + lastErr;
     _txtCls(icon, s.last_error ? 'txt-warn' : 'txt-ok');
     text.textContent = '';
+  } else if (state === 'device_prompt') {
+    const dev = s.last_device || 'consola Android';
+    banner.classList.remove('hidden');
+    banner.style.background = '#1a150d';
+    banner.style.borderBottomColor = '#3a2a1a';
+    icon.textContent = '📱 ' + dev + ' conectado';
+    _txtCls(icon, 'txt-warn');
+    text.textContent = '¿Sincronizar saves ahora?';
+    _txtCls(text, 'txt-muted');
+    if (promptBtn) promptBtn.classList.remove('hidden');
   } else if (sdState === 'watching') {
     banner.classList.remove('hidden');
     banner.style.background = '#0d1520';
@@ -1370,6 +1393,7 @@ export {
   toggleAutoSync,
   saveAutoSyncSettings,
   startAutoSyncPolling,
+  promptSyncNow,
   // Tree diff
   _onTreeDiffSourceChange,
   _loadTreeDiffDevices,
