@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-11 (archivadas tareas completadas)
+> Last updated: 2026-04-27 (tareas del Roadmap y ARC pendientes subdivididas en sub-pasos)
 > Completed tasks → `Tareas/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -37,36 +37,59 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 ## Roadmap App Universal
 
 ### Phase 1 — Frictionless first run
-- Auto-detect RetroArch (common paths + Steam + RetroBat)
-- Auto-detect cores from `cores/` folder; warn if missing
-- Generate `es_systems.cfg` from detected cores
-- Auto-detect Android device via ADB on USB connect
-- Folder picker with "Browse" button (Settings fields)
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE1-1 | Auto-detect RetroArch paths (common + Steam + RetroBat) | ✅ `GET /api/detect-retroarch` + botón en Settings |
+| PHASE1-2 | Auto-detect cores from `cores/` folder; warn if missing | ✅ cores status inline en Settings + warnings en banner + key_cores ampliado (15 plataformas) |
+| PHASE1-3 | Generate `es_systems.cfg` from detected cores | ⬜ |
+| PHASE1-4 | Auto-detect Android device via ADB on USB connect | ✅ `cable_sync_daemon.py` (commit 2a3c579) |
+| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ⬜ |
 
 ### Phase 2 — DATs without effort
-- Guided DAT download with contextual explanation
-- Clear UI for matching mode (with DAT vs by filename)
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE2-1 | Guided DAT download with contextual explanation | ✅ aviso contextual en paso ② Match del Overview + link directo a Settings → Catálogos DAT |
+| PHASE2-2 | Clear UI for matching mode (with DAT vs by filename) | ✅ `tab-games.html` (commit ccb3a8e) |
 
 ### Phase 3 — Sync without config
-- WiFi sync PC ↔ console via SFTP (prereq: `docs/sync/Guia-Termux-Anbernic.md`)
-- Auto-sync on connect — detect via ADB, prompt "Sync now?"
-- Sync status always visible in header
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE3-1a | Research SFTP server options on Termux (dropbear vs openssh) | ⬜ prereq: V5 |
+| PHASE3-1b | Implement `sftp_transport.py` (upload/download/list) | ⬜ |
+| PHASE3-1c | UI: WiFi sync toggle + status en Settings | ⬜ |
+| PHASE3-2 | Auto-sync on connect — detect via ADB, prompt "Sync now?" | ✅ (commit 2a3c579) |
+| PHASE3-3 | Sync status always visible in header | ✅ (commit 7eba736) |
 
 ### Phase 4 — Non-technical UX
-- Human-readable errors (no stack traces in UI)
-- Contextual help — tooltips and `?` icons per section
-- Responsive UI (works from Android browser)
-- Windows toast notifications on sync complete / inbox detected
-- Rename jargon: "DATs" → "Game database", "SHA1 match" → "Auto-identification"
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE4-1 | Human-readable errors — capturar excepciones en handlers y devolver mensaje legible | ⬜ |
+| PHASE4-2 | Contextual help — tooltips y `?` icons por sección | ⬜ |
+| PHASE4-3 | Responsive UI — media queries para viewport 480px (Android browser) | ⬜ |
+| PHASE4-4 | Windows toast notifications en sync complete / inbox detected | ⬜ |
+| PHASE4-5 | Renombrar jargon: "DATs" → "Base de datos", "SHA1 match" → "Identificación automática" | ⬜ |
 
 ### Phase 5 — Auth
-- PIN when `host = 0.0.0.0`
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE5-1 | Forzar PIN cuando `host != 127.0.0.1` (no solo advertir) | ⬜ prereq: SEC-3 ya avisa |
 
 ### Phase 6 — Distribution
-- PyInstaller executable (`RetroVault.exe`)
-- Windows installer (Inno Setup) — shortcut, Add/Remove Programs, minimal DATs
-- Auto-update via GitHub Releases
-- Decide final name: Retro Vault vs Retro Companion
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ⬜ |
+| PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
+| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ⬜ |
+| PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
+| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ⬜ |
+| PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ⬜ |
+| PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ⬜ |
 
 ---
 
@@ -177,6 +200,85 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 
 ---
 
+## SEC — Fallos de ciberseguridad (detectados 2026-04-22)
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| SEC-1 | 🔴 Crítico | **Command injection en ADB** — Las rutas Android se interpolan con f-strings directamente en comandos shell (`find_cmd = f"find {android_path} ..."`). Un valor malicioso ejecuta comandos arbitrarios en el dispositivo. Fix: usar listas de argumentos separados o `shlex.quote()` sobre las rutas antes de interpolar. | `sync/adb_transport.py:131,177,193` | ✅ `shlex.quote()` en los 5 puntos de inyección |
+| SEC-2 | 🔴 Crítico | **Credenciales en texto plano en la API** — `GET /api/config` devuelve `screenscraper_pass`, `screenscraper_dev_pass` y `ra_api_key` en claro. Fix: devolver solo `{configured: true/false}`, nunca el valor real. | `web/response_builders.py:1320-1326` | ✅ Devuelve `*_set: bool`; frontend muestra placeholder `••••••••` |
+| SEC-3 | 🟠 Alto | **Sin autenticación por defecto** — El PIN es opcional; sin él, todos los endpoints (scan, sync, borrar, exportar config) son accesibles sin autenticación. Si el servidor escucha en `0.0.0.0`, toda la LAN tiene acceso libre. Fix: forzar PIN cuando `host != 127.0.0.1`, o activarlo por defecto. | `web/server.py:974-991` | ✅ Warning en arranque si host != 127.0.0.1 y sin PIN |
+| SEC-4 | 🟠 Alto | **`rclone.conf` completo accesible vía API** — `GET /api/rclone-export-config` devuelve el archivo con tokens OAuth y secrets de todos los servicios cloud. Desprotegido si no hay PIN (ver SEC-3). Fix: exigir PIN siempre en este endpoint independientemente de la config global. | `web/handlers/sync.py:174-190` | ✅ Bloquea el endpoint si host != 127.0.0.1 y sin PIN |
+| SEC-5 | 🟡 Medio | **Sin rate limiting en `POST /api/auth`** — Fuerza bruta al PIN sin ninguna limitación. Un PIN de 4 dígitos son solo 10.000 combinaciones. Fix: delay progresivo + bloqueo por IP tras N intentos fallidos. | `web/server.py:1080-1095` | ✅ Lockout por IP tras 10 intentos en 60s (5 min bloqueo) |
+| SEC-6 | 🟡 Medio | **Cookie de sesión sin flag `Secure`** — La cookie tiene `HttpOnly` y `SameSite=Strict` pero no `Secure`. Si el servidor se expone via proxy HTTPS o túnel, el token viaja en claro. Fix: añadir `Secure` al header `Set-Cookie`. | `web/server.py:997-998` | N/A — app es HTTP-only; añadir `Secure` rompería las sesiones HTTP |
+| SEC-7 | ⚪ Bajo | **Logs accesibles vía API sin límite de tamaño** — `GET /api/logs` acepta el parámetro `lines` sin valor máximo validado; un valor muy alto puede causar un pico de memoria si el log es grande. Fix: clamp a un máximo razonable (ej. 5000 líneas). | `web/handlers/scan.py:139-164` | ✅ `min(lines_n, 5000)` |
+
+> **Orden recomendado:** SEC-1 → SEC-2 → SEC-3 → SEC-4 → SEC-5 → SEC-6 → SEC-7
+
+---
+
+## ARC — Fallos de arquitectura (detectados 2026-04-22)
+
+### Completados
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| ARC-4 | 🟡 Medio | **Config mutable desde handlers sin sincronización** — `_save_config` mutaba los campos de `AppConfig` sin lock mientras threads de background podían estar leyéndolos. | `web/handlers/config.py` | ✅ `_config_lock` en `_save_config`, todas las asignaciones dentro del lock |
+
+### Pendientes — Migración al JobManager (ARC-1 + ARC-2)
+
+> Contexto: ya existe `web/jobs/manager.py` (`JobManager`) con locking correcto. Sustituye los 12 dicts de progreso globales y `_jobs`/`_job_results` de `server.py`. Solo falta migrar los handlers a usarlo.
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| ARC-JM-1 | 🟠 Alto | **Instanciar `JobManager` y exponerlo en `make_handler`** — Crear `_job_manager = JobManager()` a nivel de módulo en `server.py` y pasarlo a todos los handlers vía `register(router, ..., job_manager=_job_manager)`. | `web/server.py`, `web/jobs/manager.py` | ✅ Instanciado + cableado a los 8 handlers; `"tree_diff"` y `"verify_chd"` añadidos a `JOB_NAMES` |
+| ARC-JM-2 | 🟠 Alto | **Migrar handlers de scan y apply al JobManager** — Reemplazar accesos a `m._scan_progress`, `m._apply_progress`, `m._jobs["scan"]`, `m._job_results["scan"]` por llamadas a `job_manager`. | `web/handlers/scan.py` | ✅ `_do_scan`, `_do_adb_scan`, `_do_match`, `_do_apply` migrados; `get_job_status` híbrido hasta ARC-JM-6 |
+| ARC-JM-3 | 🟠 Alto | **Migrar handlers de sync y cable al JobManager** | `web/handlers/sync.py` | 🔶 `sync`/`tree_diff` migrados; `cable_sync` bloqueado |
+| ARC-JM-3a | | ↳ Añadir parámetro `on_progress(data)` a `run_cable_sync_loop()` y eliminar el late import de `server.py` | `sync/cable_sync_daemon.py` | ⬜ |
+| ARC-JM-3b | | ↳ En `server.py`, pasar `lambda data: job_manager.update("cable_sync", data)` al arrancar el daemon | `web/server.py` | ⬜ |
+| ARC-JM-3c | | ↳ Migrar handler `cable_sync` en `sync.py` — reemplazar refs a `m._cable_progress` / `m._cable_cancel` por `job_manager` | `web/handlers/sync.py` | ⬜ |
+| ARC-JM-4 | 🟡 Medio | **Migrar handlers de CHD, CSO, ZIP, scraper, health, RA al JobManager** — 6 handlers con patrón idéntico. | `handlers/organize.py`, `handlers/scraper.py`, `handlers/games.py` | ✅ ZIP + health en `esde.py`; RA en `sync.py` + scheduler en `server.py`; scraper/CHD/CSO/verifyChd ya migrados. `scan.py` híbrido limpiado. |
+| ARC-JM-5 | 🟡 Medio | **Migrar handler de inbox y setup al JobManager** — Reemplazar `m._inbox_progress`, `m._setup_progress`. | `handlers/inbox.py`, `web/server.py` (setup) | ✅ `_run_inbox_pipeline` y `_run_setup_pipeline` usan `job_manager`; watcher migrado; `get_setup_status` e `inbox-status` limpios. |
+| ARC-JM-6 | 🟡 Medio | **Eliminar los 12 dicts globales y `srv_mod`** — Bloqueado por ARC-JM-3 | `web/server.py` | ⬜ |
+| ARC-JM-6a | | ↳ Verificar migración completa: grep por `_progress`, `_jobs`, `_job_results` en `server.py` | `web/server.py` | ⬜ |
+| ARC-JM-6b | | ↳ Eliminar los 12 dicts de progreso (`_chd_progress`, `_cso_progress`, `_cable_progress`, …) | `web/server.py` | ⬜ |
+| ARC-JM-6c | | ↳ Eliminar `_jobs` y `_job_results` | `web/server.py` | ⬜ |
+| ARC-JM-6d | | ↳ Eliminar parámetro `srv_mod` de `make_handler` y actualizar los 8 `register()` | `web/server.py`, handlers | ⬜ |
+
+> **Orden:** ARC-JM-1 → ARC-JM-2 → ARC-JM-3 → ARC-JM-4 → ARC-JM-5 → ARC-JM-6
+
+### Pendientes — Split de AppConfig (ARC-3)
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| ARC-CFG-3 | 🟡 Medio | **Mover `is_device_connected()` fuera de `AppConfig`** | `config.py:215-268` | ⬜ |
+| ARC-CFG-3a | | ↳ Crear `sync/device_detector.py` con `is_device_connected(adb_path, android_root)` | `sync/device_detector.py` (nuevo) | ⬜ |
+| ARC-CFG-3b | | ↳ Eliminar método de `AppConfig`; actualizar todos los callers a importar de `device_detector` | `config.py`, callers | ⬜ |
+| ARC-CFG-1 | 🟡 Medio | **Extraer `SyncConfig`** — `rclone_remote`, `auto_sync_*`, `conflict_policy`, `saves_remote`, `states_remote`, `sync_sources` | `config.py` | ⬜ |
+| ARC-CFG-1a | | ↳ Definir dataclass `SyncConfig` con defaults en `config.py` | `config.py` | ⬜ |
+| ARC-CFG-1b | | ↳ Sustituir campos planos en `AppConfig` por `sync: SyncConfig` | `config.py` | ⬜ |
+| ARC-CFG-1c | | ↳ Actualizar `to_dict()` / `from_dict()` | `config.py` | ⬜ |
+| ARC-CFG-1d | | ↳ Actualizar callers en `handlers/sync.py` y `handlers/config.py` | handlers | ⬜ |
+| ARC-CFG-2 | 🟡 Medio | **Extraer `CredentialsConfig`** — `screenscraper_*`, `ra_api_key`, `ra_username`, `web_pin_*` | `config.py` | ⬜ |
+| ARC-CFG-2a | | ↳ Definir dataclass `CredentialsConfig` | `config.py` | ⬜ |
+| ARC-CFG-2b | | ↳ Mover campos + actualizar serialización (enmascarar en logs) | `config.py` | ⬜ |
+| ARC-CFG-2c | | ↳ Actualizar callers en scraper, RA y auth | handlers | ⬜ |
+| ARC-CFG-4 | ⚪ Bajo | **Extraer `InboxConfig` y `BackupConfig`** | `config.py` | ⬜ |
+| ARC-CFG-4a | | ↳ Definir `InboxConfig`; mover campos `inbox_*` | `config.py` | ⬜ |
+| ARC-CFG-4b | | ↳ Definir `BackupConfig`; mover campos `backup_*` | `config.py` | ⬜ |
+| ARC-CFG-4c | | ↳ Actualizar callers en `handlers/inbox.py` y server | handlers | ⬜ |
+
+> **Orden:** ARC-CFG-3 → ARC-CFG-1 → ARC-CFG-2 → ARC-CFG-4
+
+### Pendientes — Capa de servicio (ARC-5)
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| ARC-SVC-1 | ⚪ Bajo | **Extraer lógica de negocio de `duplicates.py`** — Bloqueado por ARC-JM-6 | `web/handlers/duplicates.py` | ⬜ |
+| ARC-SVC-1a | | ↳ Crear `services/duplicates_service.py` con `delete_duplicate(repo, path)` y `delete_all_duplicates(repo, paths)` como funciones puras (sin `ctx`) | `services/` (nuevo) | ⬜ |
+| ARC-SVC-1b | | ↳ Slim down handler — delegar a las funciones del service | `web/handlers/duplicates.py` | ⬜ |
+
+---
+
 ## Hardware validation (requires console or SD card)
 
 | ID | Task |
@@ -187,6 +289,57 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 | V4 | RetroAchievements with real API key |
 | V5 | Termux guide on console — prereq for WiFi sync |
 | B1-hw | Android renamer doesn't reduce queue — test with SD inserted |
+
+---
+
+## Frontend redesign — Design system integration
+
+**Scope**: Integrate new RetroVault UI design system (colors_and_type.css + Lucide icons) into existing vanilla JS frontend. Maintains backend compatibility; purely visual upgrade.
+
+**Status**: Discovery complete. Design assets ready (`~/Desktop/ui_kits/`, `~/Desktop/preview/`, `colors_and_type.css`).
+
+### Core tasks (Phase 1 — CSS + fonts)
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| DESIGN-1 | Add `--rv-*` token variables to `app.css` | ✅ | Colors, typography, spacing, radius, shadow, transition, z-index. Alias to existing `--` vars where identical (e.g. `--rv-bg: var(--bg)`) |
+| DESIGN-2 | Add Google Fonts import | ✅ | Exo 2 (display), Space Mono (mono), Inter (body). Via `<link>` tags in `index.html` + preconnect |
+| DESIGN-3 | Update body font-family | ✅ | `font-family: var(--rv-font-body);` (Inter instead of system-ui) |
+| DESIGN-4 | Add cyberpunk animations | ✅ | `@keyframes rv-glitch`, `rv-shimmer`, `rv-prog-slide`, `rv-tab-in`, `rv-toast-in`, `.rv-skeleton` |
+| DESIGN-5 | Add `.rv-brand-glitch` class to header | ✅ | Logo already has glitch effect (cp-glitch), add rv variant + apply to `<h1>` |
+
+### Lucide icons integration (Phase 2 — nav)
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| DESIGN-6 | Add Lucide CDN + script initialization | ✅ | `<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>` + `lucide.createIcons()` call en `_foot.html` |
+| DESIGN-7 | Replace emoji nav icons with Lucide | ✅ | 15 tabs mapeados (house, gamepad-2, layout-list, copy, image, star, cloud, usb, smartphone, wrench, disc, layers, inbox, tv, settings) |
+| DESIGN-8 | Update `.nav-icon` CSS for SVG | ✅ | Ya estaba: `display:flex` + `.nav-icon svg { width:15px; height:15px }` |
+| DESIGN-9 | Test icon rendering in sidebar (expanded + collapsed) | ✅ | Verificado visualmente — Lucide icons renderizan OK en expanded y collapsed |
+
+### Optional (Phase 3 — polish)
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| DESIGN-10 | Update device selector bar styling | ⬜ | Use CSS variables instead of hardcoded `#161626` / `#2a2a2a` |
+| DESIGN-11 | Add description bar below device selector | ⬜ | Show current tab name + 1-sentence description (from `TABS` config) |
+| DESIGN-12 | Convert remaining hardcoded colors to variables | ⬜ | Game panel, footer, inline styles (~100+ places) — low priority, cosmetic |
+| DESIGN-13 | Test light theme with new fonts | ⬜ | Verify Inter + Exo 2 readable on light bg; no scanlines overlay ([data-theme="light"] already disabled it) |
+| DESIGN-14 | Performance audit | ⬜ | Google Fonts CDN + Lucide CDN impact; consider preload/prefetch hints |
+
+### Files to modify
+
+- **`src/rom_manager/web/static/app.css`** — Add `--rv-*` tokens, animations, update fonts/border-radius
+- **`src/rom_manager/web/static/index.html`** — Add Google Fonts `<link>` + Lucide `<script>`, add glitch class to `<h1>`
+- **`src/rom_manager/web/static/partials/_nav.html`** — Replace emoji icons with Lucide `<i data-lucide>`
+- **`src/rom_manager/web/static/partials/_foot.html`** — Add `lucide.createIcons()` initialization (non-module script before main.js)
+
+### Design assets (reference only)
+
+- `docs/design/ui_kits/retrovault/` — React prototype (FYI, not needed for integration)
+- `docs/design/preview/` — 16 reference HTML files (component showcase)
+- `docs/design/colors_and_type.css` — Source of truth for tokens + animations
+- `.claude/plugins/retrovault-design/` — Design system skill (Claude)
 
 ---
 
