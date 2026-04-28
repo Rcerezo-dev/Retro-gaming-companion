@@ -1,0 +1,330 @@
+/* ═══════════════════════════════════════════════════════════════════
+   RETROVAULT DESIGN SYSTEM — colors_and_type.css
+   Base tokens + semantic variables for the cyberpunk dark theme.
+   Source: Rcerezo-dev/Retro-gaming-companion / src/rom_manager/web/static/app.css
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Google Fonts (substitutes for system Consolas + system-ui) ─── */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ─────────────────────────────────────────────────────────────────
+   1. BASE COLOR TOKENS
+   ───────────────────────────────────────────────────────────────── */
+:root {
+
+  /* Background scale — deepest black-blue to panel surface */
+  --rv-bg:         #02020e;   /* page root background */
+  --rv-bg-panel:   #07071f;   /* card / panel surface */
+  --rv-bg-nav:     #050518;   /* sidebar / nav surface */
+  --rv-bg-alt:     #050514;   /* alternating row */
+  --rv-bg-subtle:  #060618;   /* subtle inset */
+  --rv-bg-deep:    #0a0a22;   /* recessed / deep container */
+  --rv-bg-input:   #02020e;   /* input background */
+  --rv-bg-surface: #06061a;   /* floating panel (game detail) */
+  --rv-bg-cover:   #030312;   /* game cover placeholder */
+  --rv-bg-track:   #080820;   /* progress track */
+
+  /* Border scale */
+  --rv-border:     #1a1a40;   /* default panel border */
+  --rv-border-s:   #22224a;   /* slightly stronger */
+  --rv-border-i:   #2d2d60;   /* interactive element */
+  --rv-border-row: #0f0f28;   /* table row separator */
+
+  /* Foreground / text scale */
+  --rv-fg:   #c8d8ff;   /* primary text — cool blue-white */
+  --rv-fg-2: #6878a8;   /* secondary / muted */
+  --rv-fg-3: #484870;   /* tertiary / inactive */
+  --rv-fg-4: #303058;   /* very dim labels */
+  --rv-fg-5: #1a1a38;   /* near-invisible separator */
+
+  /* Neon accent palette */
+  --rv-accent:     #00e5ff;   /* PRIMARY — neon cyan */
+  --rv-accent-h:   #33eeff;   /* cyan hover / brighter */
+  --rv-accent-blue:#4d79ff;   /* secondary actions, info */
+  --rv-accent-pur: #c800ff;   /* neon purple — highlights */
+  --rv-accent-red: #ff2060;   /* errors, danger, conflicts */
+  --rv-accent-grn: #39ff14;   /* success, download */
+  --rv-accent-ora: #ff6b00;   /* warnings, orange accents */
+  --rv-accent-cyn: #00e5ff;   /* alias for accent */
+  --rv-on-accent:  #000010;   /* text on filled accent button */
+
+  /* Semantic text colors */
+  --rv-txt-ok:     #00e5ff;   /* success / matched */
+  --rv-txt-err:    #ff2060;   /* error / conflict */
+  --rv-txt-warn:   #ff6b00;   /* warning / low priority */
+  --rv-txt-info:   #4d79ff;   /* info / pending */
+  --rv-txt-muted:  #6878a8;   /* subdued label */
+  --rv-txt-dim:    #484870;   /* very subdued */
+  --rv-txt-fav:    #f9c74f;   /* favourite star gold */
+
+  /* Special backgrounds */
+  --rv-modal-bg:   rgba(0, 0, 10, .92);
+  --rv-overlay-bg: rgba(0, 0, 15, .65);
+  --rv-shadow-glow:rgba(0, 229, 255, .08);
+
+  /* Gradient tokens */
+  --rv-header-grad: linear-gradient(135deg, #02020e 0%, #070718 50%, #02020e 100%);
+  --rv-progress-grad: linear-gradient(90deg, #00e5ff 0%, #c800ff 100%);
+  --rv-scanlines: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 10, .07) 2px,
+    rgba(0, 0, 10, .07) 4px
+  );
+
+  /* ─────────────────────────────────────────────────────────────
+     2. TYPOGRAPHY TOKENS
+     ───────────────────────────────────────────────────────────── */
+
+  /* Font families */
+  --rv-font-mono:    'Space Mono', 'Consolas', 'Courier New', monospace;
+  --rv-font-display: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+  --rv-font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* Font sizes */
+  --rv-text-xs:   10px;
+  --rv-text-sm:   11px;
+  --rv-text-base: 13px;
+  --rv-text-md:   14px;
+  --rv-text-lg:   16px;
+  --rv-text-xl:   20px;
+  --rv-text-2xl:  22px;
+  --rv-text-3xl:  28px;
+
+  /* Font weights */
+  --rv-weight-normal: 400;
+  --rv-weight-medium: 500;
+  --rv-weight-semibold: 600;
+  --rv-weight-bold: 700;
+
+  /* Letter spacing */
+  --rv-tracking-tight: 0;
+  --rv-tracking-normal: 0.5px;
+  --rv-tracking-wide: 1px;
+  --rv-tracking-wider: 1.5px;
+  --rv-tracking-brand: 5px;    /* header logo */
+
+  /* Line heights */
+  --rv-leading-tight: 1.2;
+  --rv-leading-normal: 1.5;
+  --rv-leading-relaxed: 1.75;
+
+  /* ─────────────────────────────────────────────────────────────
+     3. SPACING TOKENS (4px base grid)
+     ───────────────────────────────────────────────────────────── */
+  --rv-space-1:  4px;
+  --rv-space-2:  8px;
+  --rv-space-3:  12px;
+  --rv-space-4:  16px;
+  --rv-space-5:  20px;
+  --rv-space-6:  24px;
+  --rv-space-8:  32px;
+  --rv-space-10: 40px;
+  --rv-space-12: 48px;
+
+  /* ─────────────────────────────────────────────────────────────
+     4. BORDER RADIUS TOKENS
+     ───────────────────────────────────────────────────────────── */
+  --rv-radius-sharp: 2px;    /* cyberpunk elements: buttons, badges, cards */
+  --rv-radius-sm:    4px;    /* inputs, small elements */
+  --rv-radius-md:    6px;    /* medium panels */
+  --rv-radius-lg:    8px;    /* large panels, modals */
+  --rv-radius-xl:    10px;   /* large modals */
+  --rv-radius-pill:  20px;   /* pill buttons / search */
+  --rv-radius-full:  50%;    /* circles */
+
+  /* ─────────────────────────────────────────────────────────────
+     5. SHADOW / GLOW TOKENS
+     ───────────────────────────────────────────────────────────── */
+  --rv-glow-sm:   0 0 8px  rgba(0, 229, 255, .3);
+  --rv-glow-md:   0 0 14px rgba(0, 229, 255, .4);
+  --rv-glow-lg:   0 0 28px rgba(0, 229, 255, .25);
+  --rv-glow-xl:   0 0 60px rgba(0, 229, 255, .2);
+  --rv-glow-red:  0 0 12px rgba(255, 32, 96, .45);
+  --rv-glow-blue: 0 0 12px rgba(77, 121, 255, .45);
+  --rv-glow-pur:  0 0 12px rgba(200, 0, 255, .4);
+  --rv-shadow-panel: 0 8px 24px rgba(0, 0, 0, .6);
+  --rv-header-glow: 0 1px 0 var(--rv-accent), 0 0 30px rgba(0, 229, 255, .06);
+
+  /* ─────────────────────────────────────────────────────────────
+     6. TRANSITION TOKENS
+     ───────────────────────────────────────────────────────────── */
+  --rv-trans-fast:   0.15s ease;
+  --rv-trans-normal: 0.25s ease;
+  --rv-trans-panel:  0.25s cubic-bezier(.4, 0, .2, 1);
+  --rv-trans-tab:    0.18s ease;
+
+  /* ─────────────────────────────────────────────────────────────
+     7. Z-INDEX SCALE
+     ───────────────────────────────────────────────────────────── */
+  --rv-z-content:   1;
+  --rv-z-sticky:    10;
+  --rv-z-sidebar:   8005;
+  --rv-z-panel:     8001;
+  --rv-z-overlay:   8000;
+  --rv-z-modal:     9100;
+  --rv-z-toast:     9999;
+  --rv-z-scanlines: 9998;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   8. SEMANTIC / COMPONENT ALIASES
+   Map the raw tokens to semantic usage contexts
+   ───────────────────────────────────────────────────────────────── */
+:root {
+  /* Page */
+  --color-bg:       var(--rv-bg);
+  --color-surface:  var(--rv-bg-panel);
+  --color-nav:      var(--rv-bg-nav);
+  --color-inset:    var(--rv-bg-deep);
+
+  /* Text */
+  --color-text:     var(--rv-fg);
+  --color-text-2:   var(--rv-fg-2);
+  --color-text-dim: var(--rv-fg-3);
+  --color-text-sub: var(--rv-fg-4);
+
+  /* Brand */
+  --color-brand:    var(--rv-accent);
+  --color-brand-hover: var(--rv-accent-h);
+
+  /* States */
+  --color-success:  var(--rv-accent-grn);
+  --color-error:    var(--rv-accent-red);
+  --color-warning:  var(--rv-accent-ora);
+  --color-info:     var(--rv-accent-blue);
+
+  /* Interactive */
+  --color-border:   var(--rv-border);
+  --color-border-focus: var(--rv-accent);
+  --color-input-bg: var(--rv-bg-input);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   9. BASE SEMANTIC STYLES
+   ───────────────────────────────────────────────────────────────── */
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--rv-font-body);
+  font-size: var(--rv-text-md);
+  line-height: var(--rv-leading-normal);
+}
+
+/* Display / brand heading — logo, section titles */
+.rv-h1, h1 {
+  font-family: var(--rv-font-mono);
+  font-size: var(--rv-text-xl);
+  letter-spacing: var(--rv-tracking-brand);
+  color: var(--rv-accent);
+  font-weight: var(--rv-weight-bold);
+  text-shadow: var(--rv-glow-sm);
+}
+
+/* Section header */
+.rv-h2, h2 {
+  font-family: var(--rv-font-mono);
+  font-size: var(--rv-text-base);
+  letter-spacing: var(--rv-tracking-wider);
+  text-transform: uppercase;
+  color: var(--rv-accent);
+  font-weight: var(--rv-weight-semibold);
+}
+
+/* Panel heading */
+.rv-h3, h3 {
+  font-size: var(--rv-text-base);
+  font-weight: var(--rv-weight-semibold);
+  color: var(--rv-fg);
+}
+
+/* Label (ALL CAPS small) */
+.rv-label {
+  font-size: var(--rv-text-xs);
+  font-family: var(--rv-font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--rv-tracking-wide);
+  color: var(--rv-fg-2);
+}
+
+/* Body paragraph */
+.rv-body, p {
+  font-family: var(--rv-font-body);
+  font-size: var(--rv-text-base);
+  color: var(--rv-fg-2);
+  line-height: var(--rv-leading-relaxed);
+}
+
+/* Monospace / code */
+.rv-mono, code, .mono {
+  font-family: var(--rv-font-mono);
+  font-size: var(--rv-text-base);
+  color: var(--rv-fg);
+}
+
+/* Stat readout (large number) */
+.rv-stat-value {
+  font-family: var(--rv-font-mono);
+  font-size: var(--rv-text-3xl);
+  font-weight: var(--rv-weight-bold);
+  color: var(--rv-accent);
+  line-height: 1.1;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   10. CYBERPUNK ANIMATIONS
+   ───────────────────────────────────────────────────────────────── */
+
+@keyframes rv-glitch {
+  0%, 88%, 100% {
+    text-shadow: var(--rv-glow-sm), 0 0 20px var(--rv-accent), 0 0 45px rgba(0,229,255,.35);
+    transform: none;
+  }
+  90% {
+    text-shadow: -3px 0 var(--rv-accent-red), 3px 0 var(--rv-accent-pur), var(--rv-glow-sm);
+    transform: skewX(-1deg);
+  }
+  92% {
+    text-shadow: 3px 0 var(--rv-accent-red), -3px 0 var(--rv-accent-pur), var(--rv-glow-sm);
+    transform: skewX(0.8deg);
+  }
+  94% {
+    text-shadow: var(--rv-glow-sm), 0 0 20px var(--rv-accent);
+    transform: none;
+  }
+}
+
+@keyframes rv-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+@keyframes rv-prog-slide {
+  0%   { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+@keyframes rv-tab-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes rv-toast-in {
+  from { opacity: 0; transform: translateX(20px) scale(.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* Apply glitch to brand heading */
+.rv-brand-glitch {
+  animation: rv-glitch 14s infinite;
+}
+
+/* Skeleton loading */
+.rv-skeleton {
+  background: linear-gradient(90deg, #07071f 25%, #0e0e30 50%, #07071f 75%);
+  background-size: 400px 100%;
+  animation: rv-shimmer 1.4s ease infinite;
+  border-radius: var(--rv-radius-sharp);
+}
