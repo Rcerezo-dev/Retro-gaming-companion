@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -20,6 +21,7 @@ def register(
     repository: "LibraryRepository",
     get_repo_fn: "Callable[[str], LibraryRepository]",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register organize / plan / apply routes on *router*."""
     from rom_manager.web.response_builders import _parse_format_opts, _build_plan
@@ -43,7 +45,7 @@ def register(
     # ── POST /api/apply ───────────────────────────────────────────────────────
     @router.post("/api/apply")
     def post_apply(ctx) -> None:
-        _do_apply(ctx, ctx._post_data, config, get_repo_fn, srv_mod)
+        _do_apply(ctx, ctx._post_data, config, get_repo_fn, job_manager)
 
     # ── POST /api/fix-platforms ───────────────────────────────────────────────
     @router.post("/api/fix-platforms")
@@ -75,17 +77,10 @@ def _do_apply(
     data: dict,
     config: "AppConfig",
     get_repo_fn: "Callable[[str], LibraryRepository]",
-    srv_mod,
+    job_manager: "JobManager",
 ) -> None:
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.planner import build_plan
-
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["apply"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["apply"] = True
 
     fmt  = data.get("format_opts", {})
     opts = FormatOptions(
@@ -99,6 +94,7 @@ def _do_apply(
     keep_both   = bool(data.get("keep_both", False))
 
     def run() -> None:
+        job_result = None
         try:
             from rom_manager.renamer.file_renamer import rename_rom_with_saves
             from rom_manager.scanner.rom_scanner import utc_now
@@ -111,14 +107,14 @@ def _do_apply(
                 root_lower  = source_root.lower()
                 pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
 
-            total      = len(pending_ops)
+            total     = len(pending_ops)
             renamed = failed = skipped = saves_renamed = 0
             skip_details: list[str] = []
             timestamp = utc_now()
-            m._apply_progress.update({"current": 0, "total": total, "current_file": ""})
+            job_manager.update_progress("apply", {"current": 0, "total": total, "current_file": ""})
 
             for idx, op in enumerate(pending_ops, 1):
-                m._apply_progress.update({"current": idx, "total": total, "current_file": op.source_path.name})
+                job_manager.update_progress("apply", {"current": idx, "total": total, "current_file": op.source_path.name})
                 if not op.source_path.exists():
                     skipped += 1
                     skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
@@ -163,7 +159,7 @@ def _do_apply(
                         failed += 1
                     skip_details.append(f"{op.source_path.name}: {outcome.error}")
 
-            m._job_results["apply"] = {
+            job_result = {
                 "renamed":       renamed,
                 "failed":        failed,
                 "skipped":       skipped,
@@ -174,14 +170,11 @@ def _do_apply(
                 "result_ts":     utc_now(),
             }
         except Exception as exc:
-            m._job_results["apply"] = {"error": str(exc), "result_ts": ""}
+            job_result = {"error": str(exc), "result_ts": ""}
         finally:
-            with m._job_lock:
-                m._apply_progress.clear()
-                m._jobs["apply"] = False
+            job_manager.finish("apply", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started"})
+    ctx._send_json(job_manager.start("apply", run))
 
 
 def _do_create_library_structure(ctx, data: dict, config: "AppConfig", srv_mod) -> None:

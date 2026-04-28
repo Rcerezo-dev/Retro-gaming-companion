@@ -12,6 +12,7 @@ JOB_NAMES: tuple[str, ...] = (
     "ra_check", "cable_sync",
     "apply", "inbox", "setup",
     "backup_now",
+    "tree_diff", "verify_chd",
 )
 
 
@@ -67,9 +68,12 @@ class JobManager:
         return {"status": "started"}
 
     def update_progress(self, job_id: str, data: dict[str, Any]) -> None:
-        """Overwrite progress dict for *job_id*."""
+        """Merge *data* into the progress dict for *job_id*."""
         with self._lock:
-            self._progress[job_id] = dict(data)
+            if job_id in self._progress:
+                self._progress[job_id].update(data)
+            else:
+                self._progress[job_id] = dict(data)
 
     def finish(self, job_id: str, result: dict[str, Any] | None = None) -> None:
         """Mark *job_id* as done and optionally store its result."""
@@ -85,6 +89,10 @@ class JobManager:
 
     def is_cancel_requested(self, job_id: str) -> bool:
         return self._cancel[job_id].is_set()
+
+    def cancel_event(self, job_id: str) -> threading.Event:
+        """Return the cancel Event so workers can pass it directly to I/O helpers."""
+        return self._cancel[job_id]
 
     def clear_result(self, job_id: str) -> None:
         with self._lock:
@@ -123,6 +131,8 @@ class JobManager:
             "inbox_running":        running.get("inbox", False),
             "setup_running":        running.get("setup", False),
             "backup_now_running":   running.get("backup_now", False),
+            "tree_diff_running":    running.get("tree_diff", False),
+            "verify_chd_running":   running.get("verify_chd", False),
             # results
             "scan_result":          r.get("scan"),
             "match_result":         r.get("match"),
@@ -138,6 +148,8 @@ class JobManager:
             "inbox_result":         r.get("inbox"),
             "setup_result":         r.get("setup"),
             "backup_now_result":    r.get("backup_now"),
+            "tree_diff_result":     r.get("tree_diff"),
+            "verify_chd_result":    r.get("verify_chd"),
             # progress
             "chd_progress":         _prog("convert_chd"),
             "cso_progress":         _prog("convert_cso"),
@@ -150,4 +162,5 @@ class JobManager:
             "apply_progress":       _prog("apply"),
             "inbox_progress":       _prog("inbox"),
             "setup_progress":       _prog("setup"),
+            "verify_chd_progress":  _prog("verify_chd"),
         }

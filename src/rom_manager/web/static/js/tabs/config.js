@@ -48,15 +48,17 @@ async function loadSettings() {
     const whEl = document.getElementById('cfg-web-host');
     if (whEl) whEl.value = cfg.web_host || '127.0.0.1';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
-    document.getElementById('cfg-ss-pass').value       = cfg.screenscraper_pass || '';
+    const _ssPassEl = document.getElementById('cfg-ss-pass');
+    if (_ssPassEl) { _ssPassEl.value = ''; _ssPassEl.placeholder = cfg.screenscraper_pass_set ? '••••••••' : ''; }
     const ssDevId  = document.getElementById('cfg-ss-devid');
     const ssDevPass = document.getElementById('cfg-ss-devpass');
     if (ssDevId)   ssDevId.value   = cfg.screenscraper_dev_id   || '';
-    if (ssDevPass) ssDevPass.value = cfg.screenscraper_dev_pass  || '';
+    if (ssDevPass) { ssDevPass.value = ''; ssDevPass.placeholder = cfg.screenscraper_dev_pass_set ? '••••••••' : ''; }
     document.getElementById('cfg-chdman').value        = cfg.chdman || 'chdman';
     document.getElementById('cfg-adb').value           = cfg.adb || 'adb';
     const raPathEl = document.getElementById('cfg-retroarch-path');
     if (raPathEl) raPathEl.value = cfg.retroarch_path || '';
+    if (cfg.retroarch_path) _loadCoresStatus();
     const esdeHint = document.getElementById('esde-library-root-hint');
     if (esdeHint) esdeHint.textContent = cfg.library_root || '(configura library_root primero)';
     const bkEnabledEl = document.getElementById('cfg-backup-enabled');
@@ -65,7 +67,8 @@ async function loadSettings() {
     if (bkKeepNEl)   bkKeepNEl.value     = cfg.backup_saves_keep_n ?? 5;
     const notifyEl = document.getElementById('cfg-notify-desktop');
     if (notifyEl) notifyEl.checked = cfg.notify_desktop !== false;
-    document.getElementById('cfg-ra-api-key').value   = cfg.ra_api_key || '';
+    const _raKeyEl = document.getElementById('cfg-ra-api-key');
+    if (_raKeyEl) { _raKeyEl.value = ''; _raKeyEl.placeholder = cfg.ra_api_key_set ? '••••••••' : ''; }
     const raUserEl = document.getElementById('cfg-ra-username');
     if (raUserEl) raUserEl.value = cfg.ra_username || '';
     // Show config warnings
@@ -273,7 +276,7 @@ async function loadTools() {
     // Show RA API key status
     const raStatus = document.getElementById('ra-api-key-status');
     if (raStatus) {
-      if (cfg.ra_api_key) {
+      if (cfg.ra_api_key_set) {
         _txtCls(raStatus, 'txt-ok');
         raStatus.textContent = '✓ API key configurada';
       } else {
@@ -737,6 +740,54 @@ async function doMigrateSavesStructure(dryRun) {
  * Open the native OS folder picker and fill *inputId* with the selected path.
  * Uses GET /api/browse-folder (backend: tkinter.filedialog).
  */
+async function _loadCoresStatus() {
+  const el = document.getElementById('ra-cores-status');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/retroarch-check');
+    if (!d.exe_configured || !d.exe_exists) { el.innerHTML = ''; return; }
+    if (!d.cores_dir_exists) {
+      el.innerHTML = '<span style="color:#f9c74f">⚠ Carpeta cores/ no encontrada — instala cores desde RetroArch → Online Updater</span>';
+      return;
+    }
+    const missing = Object.entries(d.key_cores || {}).filter(([, ok]) => !ok).map(([lbl]) => lbl);
+    let html = `<span style="color:#4ec9b0">✓ ${d.cores_count} cores instalados</span>`;
+    if (missing.length) {
+      html += `&nbsp;·&nbsp;<span style="color:#f9c74f">Sin instalar: ${missing.map(l => window._h(l)).join(', ')}</span>`;
+    }
+    el.innerHTML = html;
+  } catch(_) { el.innerHTML = ''; }
+}
+
+async function detectRetroArch() {
+  const resultEl = document.getElementById('ra-detect-result');
+  const btn = document.querySelector('[data-action="detect-retroarch"]');
+  if (resultEl) { resultEl.textContent = 'Buscando…'; resultEl.style.color = '#888'; }
+  if (btn) btn.disabled = true;
+  try {
+    const d = await apiFetch('/api/detect-retroarch');
+    if (d.found) {
+      const input = document.getElementById('cfg-retroarch-path');
+      if (input) input.value = d.retroarch_path;
+      let msg = '✓ Encontrado: ' + d.retroarch_path;
+      if (d.library_root) {
+        const lrInput = document.getElementById('cfg-library-root');
+        if (lrInput && !lrInput.value.trim()) {
+          lrInput.value = d.library_root;
+          msg += '  ·  Biblioteca: ' + d.library_root;
+        }
+      }
+      if (resultEl) { resultEl.textContent = msg; resultEl.style.color = '#4ec9b0'; }
+    } else {
+      if (resultEl) { resultEl.textContent = '✗ No encontrado — introduce la ruta manualmente.'; resultEl.style.color = '#f44747'; }
+    }
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = '✗ Error: ' + e.message; resultEl.style.color = '#f44747'; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function browseFolder(inputId, title) {
   const input = document.getElementById(inputId);
   const btn   = document.querySelector(`button[data-browse="${inputId}"]`);
@@ -771,5 +822,5 @@ export {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder,
+  browseFolder, detectRetroArch,
 };

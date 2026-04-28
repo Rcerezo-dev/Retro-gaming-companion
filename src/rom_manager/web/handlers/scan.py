@@ -60,6 +60,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -74,6 +75,7 @@ def register(
     get_repo_fn: "Callable[[str], LibraryRepository]",
     start_ra_check_fn: "Callable[[str], bool]",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register scan / catalog / job-status routes on *router*."""
     from rom_manager.web.response_builders import _build_scrape_summary
@@ -81,55 +83,21 @@ def register(
     # ── GET /api/job-status ───────────────────────────────────────────────────
     @router.get("/api/job-status")
     def get_job_status(ctx) -> None:
+        # scan, match, apply are now managed by job_manager.
+        # All other jobs still use the legacy srv_mod dicts (removed as each is migrated).
+        # scan, match, apply, sync, tree_diff managed by job_manager.
+        # Remaining legacy jobs still read from srv_mod (removed as each is migrated).
+        # job_manager handles all jobs except cable_sync (migrated in ARC-JM-5+ARC-JM-6).
+        status = job_manager.get_status()
         m = srv_mod
         with m._job_lock:
-            ctx._send_json({
-                "scan_running":          m._jobs["scan"],
-                "match_running":         m._jobs["match"],
-                "sync_running":          m._jobs["sync"],
-                "convert_chd_running":   m._jobs["convert_chd"],
-                "convert_cso_running":   m._jobs["convert_cso"],
-                "scrape_running":        m._jobs["scrape"],
-                "scan_result":           m._job_results.get("scan"),
-                "match_result":          m._job_results.get("match"),
-                "sync_result":           m._job_results.get("sync"),
-                "convert_chd_result":    m._job_results.get("convert_chd"),
-                "convert_cso_result":    m._job_results.get("convert_cso"),
-                "scrape_result":         m._job_results.get("scrape"),
-                "chd_progress":          dict(m._chd_progress)    if m._chd_progress    else None,
-                "cso_progress":          dict(m._cso_progress)    if m._cso_progress    else None,
-                "scrape_progress":       dict(m._scrape_progress) if m._scrape_progress else None,
-                "extract_zip_running":   m._jobs["extract_zip"],
-                "zip_progress":          dict(m._zip_progress)    if m._zip_progress    else None,
-                "health_check_running":  m._jobs["health_check"],
-                "health_progress":       dict(m._health_progress) if m._health_progress else None,
-                "health_check_result":   m._job_results.get("health_check"),
-                "extract_zip_result":    m._job_results.get("extract_zip"),
-                "ra_check_running":      m._jobs["ra_check"],
-                "ra_progress":           dict(m._ra_progress)     if m._ra_progress     else None,
-                "ra_check_result":       m._job_results.get("ra_check"),
-                "cable_sync_running":    m._jobs["cable_sync"],
-                "cable_progress":        dict(m._cable_progress)  if m._cable_progress  else None,
-                "cable_sync_result":     m._job_results.get("cable_sync"),
-                "scan_progress":         dict(m._scan_progress)   if m._scan_progress   else None,
-                "apply_running":         m._jobs["apply"],
-                "apply_progress":        dict(m._apply_progress)  if m._apply_progress  else None,
-                "apply_result":          m._job_results.get("apply"),
-                "inbox_running":         m._jobs["inbox"],
-                "inbox_progress":        dict(m._inbox_progress)  if m._inbox_progress  else None,
-                "inbox_result":          m._job_results.get("inbox"),
-                "setup_running":         m._jobs["setup"],
-                "setup_progress":        dict(m._setup_progress)  if m._setup_progress  else None,
-                "setup_result":          m._job_results.get("setup"),
-                "backup_now_running":    m._jobs.get("backup_now", False),
-                "backup_now_result":     m._job_results.get("backup_now"),
-                "tree_diff_running":     m._jobs.get("tree_diff", False),
-                "tree_diff_result":      m._job_results.get("tree_diff"),
-                "inbox_pending_files":   m._inbox_watcher_status.get("pending_files", 0),
-                "verify_chd_running":    m._jobs.get("verify_chd", False),
-                "verify_chd_progress":   dict(m._verify_chd_progress) if m._verify_chd_progress else None,
-                "verify_chd_result":     m._job_results.get("verify_chd"),
+            status.update({
+                "cable_sync_running": m._jobs["cable_sync"],
+                "cable_sync_result":  m._job_results.get("cable_sync"),
+                "cable_progress":     dict(m._cable_progress) if m._cable_progress else None,
             })
+        status["inbox_pending_files"] = m._inbox_watcher_status.get("pending_files", 0)
+        ctx._send_json(status)
 
     # ── GET /api/catalog-status ───────────────────────────────────────────────
     @router.get("/api/catalog-status")
@@ -140,7 +108,7 @@ def register(
     @router.get("/api/logs")
     def get_logs(ctx) -> None:
         qs = getattr(ctx, "_qs", {})
-        lines_n = int(qs.get("lines", ["200"])[0])
+        lines_n = min(int(qs.get("lines", ["200"])[0]), 5000)
         log_files = {
             "rommgr":     config.logs_dir / "rommgr.log",
             "cable_sync": config.project_root / ".rommgr" / "cable_sync_ops.log",
@@ -171,39 +139,39 @@ def register(
     # ── POST /api/scan ────────────────────────────────────────────────────────
     @router.post("/api/scan")
     def post_scan(ctx) -> None:
-        _do_scan(ctx, ctx._post_data, config, repository, get_repo_fn, start_ra_check_fn, srv_mod)
+        _do_scan(ctx, ctx._post_data, config, repository, get_repo_fn, start_ra_check_fn, job_manager)
 
     # ── POST /api/adb-scan ────────────────────────────────────────────────────
     @router.post("/api/adb-scan")
     def post_adb_scan(ctx) -> None:
-        _do_adb_scan(ctx, ctx._post_data, config, repo_android, srv_mod)
+        _do_adb_scan(ctx, ctx._post_data, config, repo_android, job_manager)
 
     # ── POST /api/match ───────────────────────────────────────────────────────
     @router.post("/api/match")
     def post_match(ctx) -> None:
-        _do_match(ctx, config, repository, srv_mod)
+        _do_match(ctx, config, repository, job_manager)
 
     # ── POST /api/stop-job ────────────────────────────────────────────────────
     @router.post("/api/stop-job")
     def post_stop_job(ctx) -> None:
         m = srv_mod
         job_name = ctx._post_data.get("job", "")
-        cancel_map = {
-            "scan":         m._scan_cancel,
-            "cable_sync":   m._cable_cancel,
-            "convert_chd":  m._chd_cancel,
-            "extract_zip":  m._zip_cancel,
-            "health_check": m._health_cancel,
-            "ra_check":     m._ra_cancel,
-            "scrape":       m._scrape_cancel,
-            "match":        m._match_cancel,
+        # cable_sync is the only remaining legacy job (ARC-JM-6 pending).
+        _migrated = {
+            "scan", "match", "apply", "sync", "tree_diff", "backup_now", "scrape",
+            "convert_chd", "convert_cso", "verify_chd",
+            "extract_zip", "health_check", "ra_check",
+            "inbox", "setup",
         }
-        if job_name in cancel_map:
-            cancel_map[job_name].set()
-        with m._job_lock:
-            if job_name in m._jobs:
-                m._jobs[job_name] = False
-            m._scan_progress.clear()
+        if job_name in _migrated:
+            job_manager.cancel(job_name)
+        else:
+            # Legacy: cable_sync only
+            if job_name == "cable_sync":
+                m._cable_cancel.set()
+            with m._job_lock:
+                if job_name in m._jobs:
+                    m._jobs[job_name] = False
         ctx._send_json({"status": "stopped", "job": job_name})
 
     # ── POST /api/import-dats ─────────────────────────────────────────────────
@@ -304,7 +272,7 @@ def _do_scan(
     repository: "LibraryRepository",
     get_repo_fn: "Callable[[str], LibraryRepository]",
     start_ra_check_fn: "Callable[[str], bool]",
-    srv_mod,
+    job_manager: "JobManager",
 ) -> None:
     from rom_manager.web.response_builders import _build_library_report
 
@@ -313,25 +281,19 @@ def _do_scan(
     if single and not raw_paths:
         raw_paths = [single]
     raw_paths = [p.strip() for p in raw_paths if str(p).strip()]
+    if not raw_paths and config.library_root:
+        raw_paths = [str(config.library_root)]
     if not raw_paths:
         ctx._send_error(400, "source_path is required")
         return
     quick = bool(data.get("quick", False))
 
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["scan"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["scan"] = True
-
-    m._scan_cancel.clear()
-    m._scan_progress.clear()
-
     import logging
     logger = logging.getLogger(__name__)
+    _cancel = job_manager.cancel_event("scan")
 
     def run() -> None:
+        job_result = None
         try:
             from rom_manager.scanner import scan_library
             from rom_manager.scanner.rom_scanner import ScanResult, utc_now
@@ -339,7 +301,7 @@ def _do_scan(
             total = ScanResult()
 
             def _progress_cb(files_seen: int, roms: int, current_file: str = "") -> None:
-                m._scan_progress.update({
+                job_manager.update_progress("scan", {
                     "files_seen": files_seen,
                     "roms_detected": roms,
                     "current_path": str(source),
@@ -348,11 +310,11 @@ def _do_scan(
 
             for raw in raw_paths:
                 source = Path(raw).resolve()
-                m._scan_progress["current_path"] = str(source)
+                job_manager.update_progress("scan", {"current_path": str(source)})
                 _scan_repo = get_repo_fn(str(source))
                 r = scan_library(
                     source, config, _scan_repo, logger, quick=quick,
-                    stop_event=m._scan_cancel, progress_cb=_progress_cb,
+                    stop_event=_cancel, progress_cb=_progress_cb,
                 )
                 total.files_seen      += r.files_seen
                 total.roms_detected   += r.roms_detected
@@ -360,7 +322,7 @@ def _do_scan(
                 total.saves_detected  += r.saves_detected
                 total.errors          += r.errors
 
-            m._job_results["scan"] = {
+            job_result = {
                 "result_ts":     utc_now(),
                 "files_seen":    total.files_seen,
                 "roms_detected": total.roms_detected,
@@ -369,10 +331,10 @@ def _do_scan(
                 "errors":        total.errors,
                 "paths_scanned": len(raw_paths),
                 "pruned":        total.pruned,
-                "cancelled":     m._scan_cancel.is_set(),
+                "cancelled":     _cancel.is_set(),
             }
 
-            if not m._scan_cancel.is_set():
+            if not _cancel.is_set():
                 if config.ra_api_key:
                     start_ra_check_fn(config.ra_api_key)
                 for _rpt_path in raw_paths:
@@ -390,17 +352,14 @@ def _do_scan(
                             pass
                     threading.Thread(target=_cache_report, daemon=True).start()
         except Exception as exc:
-            m._job_results["scan"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
         finally:
-            with m._job_lock:
-                m._scan_progress.clear()
-                m._jobs["scan"] = False
+            job_manager.finish("scan", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started"})
+    ctx._send_json(job_manager.start("scan", run))
 
 
-def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRepository", srv_mod) -> None:
+def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRepository", job_manager: "JobManager") -> None:
     adb_serial   = data.get("adb_serial", "").strip()
     android_path = data.get("android_path", "/storage/emulated/0").strip().rstrip("/")
 
@@ -408,17 +367,11 @@ def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRep
         ctx._send_error(400, "adb_serial is required")
         return
 
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["scan"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["scan"] = True
-
     import logging
     logger = logging.getLogger(__name__)
 
     def run() -> None:
+        job_result = None
         try:
             from pathlib import PurePosixPath
             from rom_manager.sync.adb_transport import AdbTransport
@@ -511,7 +464,7 @@ def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRep
                 unknown_files_detected=0,
                 errors=errors,
             )
-            m._job_results["scan"] = {
+            job_result = {
                 "result_ts":     utc_now(),
                 "files_seen":    len(all_files),
                 "roms_detected": roms,
@@ -524,20 +477,18 @@ def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRep
                 "android_path":  android_path,
             }
         except Exception as exc:
-            m._job_results["scan"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
         finally:
-            with m._job_lock:
-                m._jobs["scan"] = False
+            job_manager.finish("scan", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started"})
+    ctx._send_json(job_manager.start("scan", run))
 
 
-def _do_match(ctx, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
-    m = srv_mod
+def _do_match(ctx, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
+    _cancel = job_manager.cancel_event("match")
 
     def run() -> None:
-        m._match_cancel.clear()
+        job_result = None
         try:
             from rom_manager.catalog.matcher import CatalogMatcher
             matcher = CatalogMatcher(
@@ -549,38 +500,37 @@ def _do_match(ctx, config: "AppConfig", repository: "LibraryRepository", srv_mod
             matched_high = matched_low = unmatched = 0
             with repository.batch() as conn:
                 for game in games:
-                    if m._match_cancel.is_set():
+                    if _cancel.is_set():
                         break
-                    result = matcher.match(game.sha1, game.original_filename)
-                    if result is not None:
+                    match = matcher.match(game.sha1, game.original_filename)
+                    if match is not None:
                         repository.update_match(
                             game.source_path,
-                            canonical_title=result.title,
-                            match_confidence=result.confidence,
-                            catalog_source=result.catalog_source,
-                            platform=result.platform,
+                            canonical_title=match.title,
+                            match_confidence=match.confidence,
+                            catalog_source=match.catalog_source,
+                            platform=match.platform,
                             connection=conn,
                         )
-                        if result.confidence == "high":
+                        if match.confidence == "high":
                             matched_high += 1
                         else:
                             matched_low += 1
                     else:
                         unmatched += 1
-            m._job_results["match"] = {
+            job_result = {
                 "total":         len(games),
                 "matched_high":  matched_high,
                 "matched_low":   matched_low,
                 "unmatched":     unmatched,
-                "cancelled":     m._match_cancel.is_set(),
+                "cancelled":     _cancel.is_set(),
             }
         except Exception as exc:
-            m._job_results["match"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
         finally:
-            with m._job_lock:
-                m._jobs["match"] = False
+            job_manager.finish("match", job_result)
 
-    ctx._send_json(m._start_job("match", run))
+    ctx._send_json(job_manager.start("match", run))
 
 
 def _import_dats(data: dict, config: "AppConfig") -> dict:

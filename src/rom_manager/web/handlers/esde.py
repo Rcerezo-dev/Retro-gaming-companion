@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -11,6 +10,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -24,6 +24,7 @@ def register(
     repo_android: "LibraryRepository",
     get_repo_fn: "Callable[[str], LibraryRepository]",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register ES-DE, export, report, utility and tool routes on *router*."""
 
@@ -68,13 +69,12 @@ def register(
     # ── GET /api/setup-status ─────────────────────────────────────────────────
     @router.get("/api/setup-status")
     def get_setup_status(ctx) -> None:
-        m = srv_mod
-        with m._job_lock:
-            ctx._send_json({
-                "setup_running":  m._jobs["setup"],
-                "setup_progress": dict(m._setup_progress) if m._setup_progress else None,
-                "setup_result":   m._job_results.get("setup"),
-            })
+        status = job_manager.get_status()
+        ctx._send_json({
+            "setup_running":  status["setup_running"],
+            "setup_progress": status.get("setup_progress"),
+            "setup_result":   status.get("setup_result"),
+        })
 
     # ── GET /api/esde-status ──────────────────────────────────────────────────
     @router.get("/api/esde-status")
@@ -94,7 +94,6 @@ def register(
     # ── GET /api/library-report ───────────────────────────────────────────────
     @router.get("/api/library-report")
     def get_library_report(ctx) -> None:
-        m = srv_mod
         qs = ctx._qs
         rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
         if not rpt_path:
@@ -102,10 +101,11 @@ def register(
             return
         _rpt_repo = get_repo_fn(rpt_path)
         rpt = _build_library_report(rpt_path, _rpt_repo, config)
-        rpt["retroachievements"] = m._job_results.get("ra_check") or {
+        _st = job_manager.get_status()
+        rpt["retroachievements"] = _st.get("ra_check_result") or {
             "note": "Ejecuta primero la comprobación de RetroAchievements en la pestaña Tools"
         }
-        rpt["chd"] = m._job_results.get("convert_chd") or {
+        rpt["chd"] = _st.get("convert_chd_result") or {
             "note": "Ejecuta primero la conversión CHD en la pestaña Tools"
         }
         ctx._send_json(rpt)
@@ -113,7 +113,6 @@ def register(
     # ── GET /api/report/html ──────────────────────────────────────────────────
     @router.get("/api/report/html")
     def get_report_html(ctx) -> None:
-        m = srv_mod
         qs = ctx._qs
         rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
         if not rpt_path:
@@ -123,8 +122,9 @@ def register(
         from rom_manager.utils.library_report_html import generate_html_report
         _rpt_repo = get_repo_fn(rpt_path)
         rpt = _build_library_report(rpt_path, _rpt_repo, config)
-        rpt["retroachievements"] = m._job_results.get("ra_check") or {}
-        rpt["chd"] = m._job_results.get("convert_chd") or {}
+        _st = job_manager.get_status()
+        rpt["retroachievements"] = _st.get("ra_check_result") or {}
+        rpt["chd"] = _st.get("convert_chd_result") or {}
         html = generate_html_report(rpt)
         ctx._send(200, "text/html; charset=utf-8", html.encode("utf-8"))
 
@@ -166,7 +166,6 @@ def register(
     @router.post("/api/convert-chd")
     def post_convert_chd(ctx) -> None:
         data = ctx._post_data
-        m = srv_mod
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
             ctx._send_json({"error": "source_path is required"})
@@ -174,14 +173,10 @@ def register(
         dry_run = data.get("dry_run", True)
         delete_source = data.get("delete_source", False)
 
-        with m._job_lock:
-            if m._jobs["convert_chd"]:
-                ctx._send_json({"status": "already_running"})
-                return
-            m._jobs["convert_chd"] = True
+        _cancel = job_manager.cancel_event("convert_chd")
 
         def run() -> None:
-            m._chd_cancel.clear()
+            job_result = None
             try:
                 from rom_manager.converters.chd_converter import (
                     find_cue_files, convert_to_chd, parse_bins_from_cue,
@@ -190,13 +185,13 @@ def register(
                 source = Path(source_path_str).resolve()
                 cue_files = find_cue_files(source)
                 total = len(cue_files)
-                m._chd_progress.update({"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress("convert_chd", {"current": 0, "total": total, "current_file": ""})
 
                 summary = ConversionSummary()
                 for idx, cue_path in enumerate(cue_files, 1):
-                    if m._chd_cancel.is_set():
+                    if _cancel.is_set():
                         break
-                    m._chd_progress.update({"current": idx, "total": total, "current_file": cue_path.name})
+                    job_manager.update_progress("convert_chd", {"current": idx, "total": total, "current_file": cue_path.name})
                     chd_path = cue_path.with_suffix(".chd")
                     bin_paths = parse_bins_from_cue(cue_path)
                     if dry_run:
@@ -238,12 +233,12 @@ def register(
                         else:
                             summary.failed += 1
 
-                m._job_results["convert_chd"] = {
+                job_result = {
                     "dry_run": dry_run,
                     "converted": summary.converted,
                     "skipped": summary.skipped,
                     "failed": summary.failed,
-                    "cancelled": m._chd_cancel.is_set(),
+                    "cancelled": _cancel.is_set(),
                     "results": [
                         {
                             "cue": r.cue_path.name,
@@ -256,47 +251,39 @@ def register(
                     ],
                 }
             except Exception as exc:
-                m._job_results["convert_chd"] = {"error": str(exc)}
+                job_result = {"error": str(exc)}
             finally:
-                with m._job_lock:
-                    m._chd_progress.clear()
-                    m._jobs["convert_chd"] = False
+                job_manager.finish("convert_chd", job_result)
 
-        threading.Thread(target=run, daemon=True).start()
-        ctx._send_json({"status": "started", "dry_run": dry_run})
+        ctx._send_json({**job_manager.start("convert_chd", run), "dry_run": dry_run})
 
     # ── POST /api/verify-chd (P6) ────────────────────────────────────────────
     @router.post("/api/verify-chd")
     def post_verify_chd(ctx) -> None:
         data = ctx._post_data
-        m = srv_mod
         source_path_str = (data.get("source_path") or "").strip()
         if not source_path_str:
             ctx._send_json({"error": "source_path is required"})
             return
 
-        with m._job_lock:
-            if m._jobs["verify_chd"]:
-                ctx._send_json({"status": "already_running"})
-                return
-            m._jobs["verify_chd"] = True
+        _cancel = job_manager.cancel_event("verify_chd")
 
         def run() -> None:
-            m._verify_chd_cancel.clear()
+            job_result = None
             try:
                 from rom_manager.converters.chd_converter import find_chd_files, verify_chd
                 source = Path(source_path_str).resolve()
                 chd_files = find_chd_files(source)
                 total = len(chd_files)
-                m._verify_chd_progress.update({"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress("verify_chd", {"current": 0, "total": total, "current_file": ""})
 
                 results = []
                 ok_count = 0
                 fail_count = 0
                 for idx, chd_path in enumerate(chd_files, 1):
-                    if m._verify_chd_cancel.is_set():
+                    if _cancel.is_set():
                         break
-                    m._verify_chd_progress.update({"current": idx, "total": total, "current_file": chd_path.name})
+                    job_manager.update_progress("verify_chd", {"current": idx, "total": total, "current_file": chd_path.name})
                     r = verify_chd(chd_path, chdman=str(config.chdman))
                     results.append({"file": chd_path.name, "ok": r.ok, "error": r.error or ""})
                     if r.ok:
@@ -304,43 +291,35 @@ def register(
                     else:
                         fail_count += 1
 
-                m._job_results["verify_chd"] = {
+                job_result = {
                     "total": total,
                     "ok": ok_count,
                     "failed": fail_count,
-                    "cancelled": m._verify_chd_cancel.is_set(),
+                    "cancelled": _cancel.is_set(),
                     "results": results,
                 }
             except Exception as exc:
-                m._job_results["verify_chd"] = {"error": str(exc)}
+                job_result = {"error": str(exc)}
             finally:
-                with m._job_lock:
-                    m._verify_chd_progress.clear()
-                    m._jobs["verify_chd"] = False
+                job_manager.finish("verify_chd", job_result)
 
-        threading.Thread(target=run, daemon=True).start()
-        ctx._send_json({"status": "started"})
+        ctx._send_json(job_manager.start("verify_chd", run))
 
     # ── POST /api/convert-cso ─────────────────────────────────────────────────
     @router.post("/api/convert-cso")
     def post_convert_cso(ctx) -> None:
         data = ctx._post_data
-        m = srv_mod
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
             ctx._send_json({"error": "source_path is required"})
             return
         delete_source = data.get("delete_source", False)
 
-        with m._job_lock:
-            if m._jobs["convert_cso"]:
-                ctx._send_json({"status": "already_running"})
-                return
-            m._jobs["convert_cso"] = True
+        _cancel = job_manager.cancel_event("convert_cso")
 
         def run() -> None:
             import subprocess
-            m._cso_cancel.clear()
+            job_result = None
             try:
                 source = Path(source_path_str).resolve()
                 maxcso_path = str(config.project_root / "tools" / "maxcso.exe")
@@ -354,7 +333,7 @@ def register(
 
                 cso_files = [c for c in cso_files if not _is_arcade(c)]
                 total = len(cso_files)
-                m._cso_progress.update({"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress("convert_cso", {"current": 0, "total": total, "current_file": ""})
 
                 converted = 0
                 skipped = 0
@@ -362,9 +341,9 @@ def register(
                 results = []
 
                 for idx, cso_path in enumerate(cso_files, 1):
-                    if m._cso_cancel.is_set():
+                    if _cancel.is_set():
                         break
-                    m._cso_progress.update({"current": idx, "total": total, "current_file": cso_path.name})
+                    job_manager.update_progress("convert_cso", {"current": idx, "total": total, "current_file": cso_path.name})
                     iso_path = cso_path.with_suffix(".iso")
 
                     if iso_path.exists():
@@ -399,28 +378,24 @@ def register(
                         failed += 1
                         results.append({"file": cso_path.name, "success": False, "error": str(e)})
 
-                m._job_results["convert_cso"] = {
+                job_result = {
                     "converted": converted,
                     "skipped": skipped,
                     "failed": failed,
-                    "cancelled": m._cso_cancel.is_set(),
+                    "cancelled": _cancel.is_set(),
                     "results": results,
                 }
             except Exception as exc:
-                m._job_results["convert_cso"] = {"error": str(exc)}
+                job_result = {"error": str(exc)}
             finally:
-                with m._job_lock:
-                    m._cso_progress.clear()
-                    m._jobs["convert_cso"] = False
+                job_manager.finish("convert_cso", job_result)
 
-        threading.Thread(target=run, daemon=True).start()
-        ctx._send_json({"status": "started"})
+        ctx._send_json(job_manager.start("convert_cso", run))
 
     # ── POST /api/extract-zip ─────────────────────────────────────────────────
     @router.post("/api/extract-zip")
     def post_extract_zip(ctx) -> None:
         data = ctx._post_data
-        m = srv_mod
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
             ctx._send_json({"error": "source_path is required"})
@@ -428,30 +403,27 @@ def register(
         dry_run = bool(data.get("dry_run", True))
         delete_source = bool(data.get("delete_source", False))
 
-        with m._job_lock:
-            if m._jobs["extract_zip"]:
-                ctx._send_json({"status": "already_running"})
-                return
-            m._jobs["extract_zip"] = True
+        _cancel = job_manager.cancel_event("extract_zip")
 
         def run() -> None:
-            m._zip_cancel.clear()
+            job_result = None
             try:
                 from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
+                from rom_manager.scanner.rom_scanner import utc_now
                 source = Path(source_path_str).resolve()
                 zip_files = find_zip_files(source)
                 total = len(zip_files)
-                m._zip_progress.update({"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress("extract_zip", {"current": 0, "total": total, "current_file": ""})
                 extracted = skipped = failed = disc_sets = 0
                 results = []
                 for idx, zp in enumerate(zip_files, 1):
-                    if m._zip_cancel.is_set():
+                    if _cancel.is_set():
                         break
                     try:
                         rel = str(zp.relative_to(source))
                     except ValueError:
                         rel = zp.name
-                    m._zip_progress.update({"current": idx, "total": total, "current_file": rel})
+                    job_manager.update_progress("extract_zip", {"current": idx, "total": total, "current_file": rel})
                     r = extract_zip(zp, dry_run=dry_run, delete_source=delete_source)
                     if r.is_disc_set:
                         disc_sets += 1
@@ -470,24 +442,22 @@ def register(
                         "error": r.error,
                         "extracted": [f.name for f in r.extracted_files],
                     })
-                m._job_results["extract_zip"] = {
+                job_result = {
                     "dry_run": dry_run,
                     "extracted": extracted,
                     "skipped": skipped,
                     "failed": failed,
                     "disc_sets": disc_sets,
-                    "cancelled": m._zip_cancel.is_set(),
+                    "cancelled": _cancel.is_set(),
                     "results": results,
+                    "result_ts": utc_now(),
                 }
             except Exception as exc:
-                m._job_results["extract_zip"] = {"error": str(exc)}
+                job_result = {"error": str(exc)}
             finally:
-                with m._job_lock:
-                    m._zip_progress.clear()
-                    m._jobs["extract_zip"] = False
+                job_manager.finish("extract_zip", job_result)
 
-        threading.Thread(target=run, daemon=True).start()
-        ctx._send_json({"status": "started", "dry_run": dry_run})
+        ctx._send_json({**job_manager.start("extract_zip", run), "dry_run": dry_run})
 
     # ── POST /api/generate-m3u ────────────────────────────────────────────────
     @router.post("/api/generate-m3u")
@@ -539,23 +509,24 @@ def register(
     # ── POST /api/health-check ────────────────────────────────────────────────
     @router.post("/api/health-check")
     def post_health_check(ctx) -> None:
-        m = srv_mod
+        _cancel = job_manager.cancel_event("health_check")
 
         def run() -> None:
-            m._health_cancel.clear()
+            job_result = None
             try:
                 from rom_manager.utils.health_checker import check_library_health
+                from rom_manager.scanner.rom_scanner import utc_now
 
                 def progress_cb(current: int, total: int, filename: str) -> None:
-                    m._health_progress.update({"current": current, "total": total, "current_file": filename})
+                    job_manager.update_progress("health_check", {"current": current, "total": total, "current_file": filename})
 
                 summary = check_library_health(repository, progress_cb=progress_cb,
-                                               cancel_event=m._health_cancel)
-                m._job_results["health_check"] = {
+                                               cancel_event=_cancel)
+                job_result = {
                     "ok": summary.ok,
                     "corrupted": summary.corrupted,
                     "missing": summary.missing,
-                    "cancelled": m._health_cancel.is_set(),
+                    "cancelled": _cancel.is_set(),
                     "issues": [
                         {
                             "source_path": r.source_path,
@@ -567,11 +538,12 @@ def register(
                         }
                         for r in summary.results
                     ],
+                    "result_ts": utc_now(),
                 }
                 from rom_manager.web.server import _write_health_schedule
                 _write_health_schedule(config, ok=summary.ok,
                                        corrupted=summary.corrupted, missing=summary.missing)
-                if not m._health_cancel.is_set() and config.notify_desktop:
+                if not _cancel.is_set() and config.notify_desktop:
                     from rom_manager.utils.notifier import notify
                     if summary.corrupted or summary.missing:
                         notify(
@@ -582,13 +554,11 @@ def register(
                         notify("Retro Vault — Health Check",
                                f"✓ {summary.ok} ROMs verificados, sin problemas")
             except Exception as exc:
-                m._job_results["health_check"] = {"error": str(exc)}
+                job_result = {"error": str(exc)}
             finally:
-                with m._job_lock:
-                    m._health_progress.clear()
-                    m._jobs["health_check"] = False
+                job_manager.finish("health_check", job_result)
 
-        ctx._send_json(m._start_job("health_check", run))
+        ctx._send_json(job_manager.start("health_check", run))
 
     # ── POST /api/cleanup-zips ────────────────────────────────────────────────
     @router.post("/api/cleanup-zips")

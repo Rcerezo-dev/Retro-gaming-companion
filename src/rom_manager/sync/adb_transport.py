@@ -13,6 +13,7 @@ Requires:
 """
 from __future__ import annotations
 
+import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -105,10 +106,10 @@ class AdbTransport:
 
     def test_path(self, android_path: str) -> dict:
         """Check whether *android_path* exists and is a directory on the device."""
-        out = self._shell("test", "-d", android_path, "&&", "echo", "DIR", "||", "echo", "NODIR").strip()
+        out = self._shell(f"test -d {shlex.quote(android_path)} && echo DIR || echo NODIR").strip()
         if "DIR" in out and "NO" not in out:
             # Count top-level entries
-            ls_out = self._shell("ls", android_path).strip()
+            ls_out = self._shell(f"ls {shlex.quote(android_path)}").strip()
             entries = len([l for l in ls_out.splitlines() if l.strip()]) if ls_out else 0
             return {"accessible": True, "path": android_path, "entries": entries}
         return {"accessible": False, "error": f"La ruta {android_path!r} no existe en el dispositivo"}
@@ -128,7 +129,7 @@ class AdbTransport:
         Uses ``find … -exec stat -c '%n|%s|%Y' {} +`` — single round-trip.
         Falls back to a slower path if the device's toybox doesn't support it.
         """
-        find_cmd = f"find {android_path} -type f -exec stat -c '%n|%s|%Y' {{}} +"
+        find_cmd = f"find {shlex.quote(android_path)} -type f -exec stat -c '%n|%s|%Y' {{}} +"
         out = self._shell(find_cmd, timeout=timeout)
 
         results: list[AdbFileInfo] = []
@@ -174,7 +175,7 @@ class AdbTransport:
                 raise OSError(f"adb pull falló: {err}")
         # Return size (approximate from listing, or stat after pull)
         try:
-            size_str = self._shell(f"stat -c '%s' {android_src}").strip()
+            size_str = self._shell(f"stat -c '%s' {shlex.quote(android_src)}").strip()
             return int(size_str)
         except (ValueError, OSError):
             return 0
@@ -190,7 +191,7 @@ class AdbTransport:
         size = local_src.stat().st_size if local_src.exists() else 0
         if not dry_run:
             parent = str(PurePosixPath(android_dst).parent)
-            self._shell(f"mkdir -p {parent}")
+            self._shell(f"mkdir -p {shlex.quote(parent)}")
             r = self._run("push", str(local_src), android_dst)
             if r.returncode != 0:
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()

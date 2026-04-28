@@ -960,42 +960,69 @@ export async function doFolderAnalysis() {
 
 // ── Unmatched Games ───────────────────────────────────────────────────────────
 export async function loadUnmatchedDiagnosis() {
-  const el = document.getElementById('unmatched-diagnosis-content');
+  const el = document.getElementById('unmatched-result');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  el.innerHTML = '<span style="color:#555;font-size:12px">Analizando biblioteca…</span>';
 
   try {
     const d = await apiFetch('/api/unmatched-by-platform');
     const total = d.total_unmatched || 0;
+    const platforms = d.platforms || [];
 
     if (total === 0) {
-      el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Todos los juegos están identificados</p>';
+      el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Todos los juegos están identificados. No es necesario descargar catálogos.</p>';
       return;
     }
 
-    let html = `<div style="margin-bottom:12px;font-size:12px;color:#e06c75">
-      ⚠ ${total} juegos sin identificar
-    </div>`;
-
-    html += '<div style="max-height:420px;overflow-y:auto;border:1px solid #222;border-radius:4px">';
-
-    const byPlatform = d.results || [];
-    byPlatform.forEach(plat => {
-      const files = (plat.filenames || '').split('|||').filter(f => f);
-      html += `<div style="background:#1a1a1a;padding:6px;border-bottom:1px solid #222">
-        <div style="font-weight:600;color:#f9c74f;margin-bottom:4px">${_h(plat.platform)} (${plat.cnt})</div>
-        <div style="font-size:11px;color:#888">`;
-      files.slice(0, 3).forEach(f => {
-        html += `<div style="margin:2px 0">• ${_h(f)}</div>`;
-      });
-      if (files.length > 3) {
-        html += `<div style="margin:2px 0;color:#666">… y ${files.length - 3} más</div>`;
-      }
-      html += `</div></div>`;
+    let html = `<div style="margin-bottom:10px;font-size:12px;color:#e06c75">⚠ ${total} juego(s) sin identificar en ${platforms.length} plataforma(s)</div>`;
+    html += '<div style="max-height:180px;overflow-y:auto;border:1px solid #222;border-radius:4px;margin-bottom:12px">';
+    platforms.forEach(plat => {
+      const examples = (plat.examples || []).slice(0, 3);
+      html += `<div style="background:#1a1a1a;padding:6px 10px;border-bottom:1px solid #222">
+        <span style="font-weight:600;color:#f9c74f">${_h(plat.platform)}</span>
+        <span style="color:#888;font-size:11px;margin-left:6px">(${plat.count})</span>
+        <div style="font-size:11px;color:#666;margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
+      </div>`;
     });
-
     html += '</div>';
+    html += `<div id="unmatched-dl-info" style="font-size:12px;color:#888">Iniciando descarga de todos los catálogos…</div>
+    <div style="background:#2a2a2a;border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
+      <div id="unmatched-dl-bar" style="height:100%;width:0%;background:#4a9eff;transition:width 0.3s"></div>
+    </div>`;
     el.innerHTML = html;
+
+    const r = await apiPost('/api/download-dats', { all: true });
+    const infoEl = () => document.getElementById('unmatched-dl-info');
+    if (r.error) { infoEl().textContent = '❌ ' + r.error; return; }
+    if (r.status === 'already_running') { infoEl().textContent = 'Ya hay una descarga en curso…'; return; }
+
+    const _poll = setInterval(async () => {
+      try {
+        const s = await apiFetch('/api/download-dats-status');
+        const info = infoEl();
+        const bar  = document.getElementById('unmatched-dl-bar');
+        if (!info) { clearInterval(_poll); return; }
+        if (s.running) {
+          const pct = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+          if (bar) bar.style.width = pct + '%';
+          info.textContent = `Descargando… ${s.done}/${s.total} — ${s.current}`;
+          return;
+        }
+        clearInterval(_poll);
+        if (bar) bar.style.width = '100%';
+        const res  = s.result || {};
+        const ok   = (res.downloaded || []).length;
+        const skip = (res.skipped   || []).length;
+        const err  = (res.errors    || []).length;
+        info.innerHTML = `✅ ${ok} catálogos descargados, ${skip} ya existían` + (err ? `, ❌ ${err} errores` : '');
+        info.style.color = '#4ec9b0';
+      } catch(e) {
+        clearInterval(_poll);
+        const info = infoEl();
+        if (info) { info.textContent = '❌ ' + e.message; info.style.color = '#e06c75'; }
+      }
+    }, 1000);
+
   } catch(e) {
     el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
   }

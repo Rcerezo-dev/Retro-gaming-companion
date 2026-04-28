@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -21,6 +22,7 @@ def register(
     repo_android: "LibraryRepository",
     start_ra_check_fn: "Callable[[str], bool]",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register sync / cable-sync / rclone / ADB / auto-sync routes on *router*."""
 
@@ -85,6 +87,9 @@ def register(
     # ── GET /api/rclone-export-config ────────────────────────────────────────
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
+        if config.web_host != "127.0.0.1" and not config.web_pin_hash:
+            ctx._send_json({"error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."})
+            return
         body, ct = _handle_rclone_export_config(config)
         ctx._send(200, ct, body)
 
@@ -125,7 +130,7 @@ def register(
     # ── POST /api/sync ───────────────────────────────────────────────────────
     @router.post("/api/sync")
     def post_sync(ctx) -> None:
-        _do_sync(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_sync(ctx, ctx._post_data, config, repository, job_manager)
 
     # ── POST /api/cable-sync ─────────────────────────────────────────────────
     @router.post("/api/cable-sync")
@@ -153,7 +158,7 @@ def register(
     # ── POST /api/rom-tree-diff ──────────────────────────────────────────────
     @router.post("/api/rom-tree-diff")
     def post_rom_tree_diff(ctx) -> None:
-        _do_tree_diff(ctx, ctx._post_data, config, srv_mod)
+        _do_tree_diff(ctx, ctx._post_data, config, job_manager)
 
     # ── POST /api/ra-check ───────────────────────────────────────────────────
     @router.post("/api/ra-check")
@@ -163,13 +168,94 @@ def register(
         if not api_key:
             ctx._send_json({"error": "RetroAchievements API key not configured"})
             return
-        if start_ra_check_fn(api_key):
-            ctx._send_json({"status": "started"})
-        else:
-            ctx._send_json({"status": "already_running"})
+        ctx._send_json(_do_ra_check(api_key, config, repository, job_manager))
 
 
-# ── Module-level helpers (moved from server.py) ───────────────────────────────
+# ── Module-level helpers ─────────────────────────────────────────────────────
+
+def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
+    """Start RA check in background using JobManager. Returns start status dict."""
+    _cancel = job_manager.cancel_event("ra_check")
+
+    def run() -> None:
+        job_result = None
+        try:
+            from rom_manager.retroachievements.ra_checker import check_library, to_csv
+            from rom_manager.scanner.rom_scanner import utc_now
+
+            cache_dir = config.data_dir / "ra_cache"
+
+            def _prog(current: int, total: int, filename: str) -> None:
+                job_manager.update_progress("ra_check", {"current": current, "total": total, "current_file": filename})
+                if _cancel.is_set():
+                    raise InterruptedError("RA check cancelled")
+
+            try:
+                summary = check_library(repository, api_key, cache_dir=cache_dir, progress_cb=_prog)
+            except InterruptedError:
+                job_result = {
+                    "cancelled": True, "total": 0, "supported": 0,
+                    "no_support_alternative": 0, "no_support": 0,
+                    "no_md5": 0, "platform_unknown": 0,
+                    "alternatives_csv": "", "results": [], "alternatives": [],
+                    "result_ts": "",
+                }
+                return
+
+            alternatives_csv = to_csv(summary) if summary.no_support_alternative > 0 else ""
+            job_result = {
+                "total":                   summary.total,
+                "supported":               summary.supported,
+                "no_support_alternative":  summary.no_support_alternative,
+                "no_support":              summary.no_support,
+                "no_md5":                  summary.no_md5,
+                "platform_unknown":        summary.platform_unknown,
+                "cancelled":               _cancel.is_set(),
+                "alternatives_csv":        alternatives_csv,
+                "results": [
+                    {
+                        "status":            r.status,
+                        "original_filename": r.original_filename,
+                        "platform":          r.platform,
+                        "source_path":       r.source_path,
+                        **({"alternative": {
+                            "id":           r.alternative.id,
+                            "title":        r.alternative.title,
+                            "achievements": r.alternative.achievements,
+                            "points":       r.alternative.points,
+                        }} if r.alternative else {}),
+                    }
+                    for r in summary.results
+                ],
+                "alternatives": [
+                    {
+                        "platform":      r.platform,
+                        "filename":      r.original_filename,
+                        "our_md5":       r.our_md5[:12],
+                        "ra_id":         r.alternative.id,
+                        "ra_title":      r.alternative.title,
+                        "ra_achievements": r.alternative.achievements,
+                        "ra_points":     r.alternative.points,
+                    }
+                    for r in summary.results
+                    if r.status == "no_support_alternative" and r.alternative
+                ],
+                "no_support_entries": [
+                    {"source_path": r.source_path, "filename": r.original_filename, "platform": r.platform}
+                    for r in summary.results
+                    if r.status == "no_support"
+                ],
+                "result_ts": utc_now(),
+            }
+        except Exception as exc:
+            job_result = {"error": str(exc)}
+        finally:
+            job_manager.finish("ra_check", job_result)
+
+    return job_manager.start("ra_check", run)
+
+
+# ── rclone / ADB helpers (moved from server.py) ───────────────────────────────
 
 def _handle_rclone_export_config(config: "AppConfig") -> tuple[bytes, str]:
     """Return the local rclone config file contents as bytes, or an error message."""
@@ -261,18 +347,13 @@ def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
 
 # ── Handler logic (moved from server.py) ─────────────────────────────────────
 
-def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
     from rom_manager.web.response_builders import _utc_now_str
 
     dry_run = data.get("dry_run", True)
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["sync"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["sync"] = True
 
     def run() -> None:
+        job_result = None
         import rom_manager.web.server as _srv13
         if _srv13._tray_instance:
             _srv13._tray_instance.set_status("Sincronizando…")
@@ -283,7 +364,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
 
             sources = config.sync_sources
             if not sources:
-                m._job_results["sync"] = {
+                job_result = {
                     "error": "No hay fuentes de sync configuradas. "
                              "Añade [[sync.sources]] en config.toml."
                 }
@@ -435,7 +516,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
             _up   = sum(r.get("uploaded",   0) for r in all_results)
             _down = sum(r.get("downloaded", 0) for r in all_results)
             _errs = sum(r.get("errors",     0) for r in all_results)
-            m._job_results["sync"] = {
+            job_result = {
                 "dry_run":    dry_run,
                 "sources":    all_results,
                 "uploaded":   _up,
@@ -465,15 +546,14 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                 _srv13._auto_sync_status["last_sync_at"] = _utc_now_str()
                 _srv13._auto_sync_status["last_error"] = (f"{_errs} errores en cloud sync") if _errs else None
         except Exception as exc:
-            m._job_results["sync"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
             import rom_manager.web.server as _srv13e
             _srv13e._tray_instance and _srv13e._tray_instance.set_status("✗ Error en sync")
         finally:
-            with m._job_lock:
-                m._jobs["sync"] = False
+            job_manager.finish("sync", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started", "dry_run": dry_run})
+    start_result = job_manager.start("sync", run)
+    ctx._send_json({**start_result, "dry_run": dry_run})
 
 
 def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
@@ -1016,7 +1096,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
     ctx._send_json({"status": "started", "dry_run": dry_run})
 
 
-def _do_tree_diff(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
+def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager") -> None:
     """Background job: compare the ROM file tree between PC and console."""
     from pathlib import Path as _Path
 
@@ -1025,24 +1105,18 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
     pc_path_str  = data.get("pc_path", "").strip()    or (str(config.library_root) if config.library_root else "")
     and_path_str = data.get("android_path", "").strip() or config.anbernic_root or config.auto_sync_android_path
 
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs.get("tree_diff", False):
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["tree_diff"] = True
-
     def run() -> None:
         import time as _time
+        job_result = None
         try:
             from rom_manager.utils.dir_diff import get_local_tree, get_adb_tree, diff_trees
 
             if not pc_path_str:
-                m._job_results["tree_diff"] = {"error": "Ruta PC no configurada (library_root)"}
+                job_result = {"error": "Ruta PC no configurada (library_root)"}
                 return
             pc_root = _Path(pc_path_str)
             if not pc_root.exists():
-                m._job_results["tree_diff"] = {"error": f"Ruta PC no existe: {pc_path_str}"}
+                job_result = {"error": f"Ruta PC no existe: {pc_path_str}"}
                 return
 
             skip = frozenset(config.excluded_directories)
@@ -1050,27 +1124,27 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
 
             if source == "adb":
                 if not serial:
-                    m._job_results["tree_diff"] = {"error": "serial ADB requerido"}
+                    job_result = {"error": "serial ADB requerido"}
                     return
                 if not and_path_str:
-                    m._job_results["tree_diff"] = {"error": "Ruta Android no configurada"}
+                    job_result = {"error": "Ruta Android no configurada"}
                     return
                 from rom_manager.sync.adb_transport import AdbTransport
                 transport = AdbTransport(config.adb, serial, timeout=60)
                 android_tree = get_adb_tree(transport, and_path_str, timeout=300)
             else:
                 if not and_path_str:
-                    m._job_results["tree_diff"] = {"error": "Ruta consola no configurada (anbernic_root)"}
+                    job_result = {"error": "Ruta consola no configurada (anbernic_root)"}
                     return
                 and_root = _Path(and_path_str)
                 if not and_root.exists():
-                    m._job_results["tree_diff"] = {"error": f"Ruta consola no existe: {and_path_str}"}
+                    job_result = {"error": f"Ruta consola no existe: {and_path_str}"}
                     return
                 android_tree = get_local_tree(and_root, skip)
 
             diff = diff_trees(pc_tree, android_tree)
             MAX = 500
-            m._job_results["tree_diff"] = {
+            job_result = {
                 "ok":                True,
                 "pc_path":           pc_path_str,
                 "android_path":      and_path_str,
@@ -1085,13 +1159,11 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
                 "result_ts":         _time.time(),
             }
         except Exception as exc:
-            m._job_results["tree_diff"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
         finally:
-            with m._job_lock:
-                m._jobs["tree_diff"] = False
+            job_manager.finish("tree_diff", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started"})
+    ctx._send_json(job_manager.start("tree_diff", run))
 
 
 def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:

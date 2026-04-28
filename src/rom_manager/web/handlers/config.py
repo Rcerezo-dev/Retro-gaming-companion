@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
+
+_config_lock = threading.Lock()
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -87,6 +90,10 @@ def register(
         except Exception as exc:
             ctx._send_json({"ok": False, "error": str(exc)})
 
+    @router.get("/api/detect-retroarch")
+    def get_detect_retroarch(ctx) -> None:
+        ctx._send_json(_detect_retroarch_install())
+
     @router.get("/api/browse-folder")
     def get_browse_folder(ctx) -> None:
         _browse_folder(ctx, getattr(ctx, "_qs", {}))
@@ -94,46 +101,89 @@ def register(
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
-def _detect_wizard(config: "AppConfig") -> dict:
-    """Auto-detect RetroArch installation and connected ADB devices for the first-run wizard."""
+def _detect_retroarch_install() -> dict:
+    """Scan common Windows paths for a RetroArch installation.
+
+    Checks common install directories, Steam libraries (including non-default ones
+    via libraryfolders.vdf), and RetroBat. Returns the first ``retroarch.exe`` found
+    plus the ``content_directory`` from its ``retroarch.cfg`` if readable.
+    """
     import os
     import re
 
-    # --- 1. Scan common RetroArch installation paths ---
     candidates: list[Path] = []
+
     appdata = os.environ.get("APPDATA", "")
     if appdata:
         candidates.append(Path(appdata) / "RetroArch")
-    for drive_letter in ("C", "D", "E"):
+
+    for drive in ("C", "D", "E"):
         candidates += [
-            Path(f"{drive_letter}:\\RetroArch-Win64"),
-            Path(f"{drive_letter}:\\RetroArch"),
-            Path(f"{drive_letter}:\\Program Files\\RetroArch"),
-            Path(f"{drive_letter}:\\Program Files (x86)\\RetroArch"),
-            Path(f"{drive_letter}:\\Program Files (x86)\\Steam\\steamapps\\common\\RetroArch"),
-            Path(f"{drive_letter}:\\RetroBat\\emulators\\retroarch"),
+            Path(f"{drive}:\\RetroArch-Win64"),
+            Path(f"{drive}:\\RetroArch"),
+            Path(f"{drive}:\\Program Files\\RetroArch"),
+            Path(f"{drive}:\\Program Files (x86)\\RetroArch"),
+            Path(f"{drive}:\\Program Files (x86)\\Steam\\steamapps\\common\\RetroArch"),
         ]
 
-    library_root_suggestion = None
-    for ra_dir in candidates:
-        cfg_path = ra_dir / "retroarch.cfg"
-        if not cfg_path.exists():
+    # Steam — additional library folders from libraryfolders.vdf
+    localappdata = os.environ.get("LOCALAPPDATA", "")
+    vdf_paths = [
+        Path(localappdata) / "Steam" / "steamapps" / "libraryfolders.vdf" if localappdata else None,
+        Path("C:\\Program Files (x86)\\Steam\\steamapps\\libraryfolders.vdf"),
+    ]
+    for vdf in vdf_paths:
+        if not vdf or not vdf.exists():
             continue
         try:
-            text = cfg_path.read_text(encoding="utf-8", errors="replace")
+            text = vdf.read_text(encoding="utf-8", errors="replace")
+            for m in re.finditer(r'"path"\s+"([^"]+)"', text):
+                lib_path = m.group(1).strip().replace("\\\\", "\\")
+                candidates.append(Path(lib_path) / "steamapps" / "common" / "RetroArch")
         except OSError:
-            continue
-        m = re.search(r'^content_directory\s*=\s*"(.+)"', text, re.MULTILINE)
-        if m:
-            candidate = m.group(1).strip()
-            if candidate not in ("", "default"):
-                library_root_suggestion = candidate
-                break
-        # Fallback: use the RetroArch dir itself as a hint
-        if library_root_suggestion is None:
-            library_root_suggestion = str(ra_dir)
+            pass
 
-    # --- 2. Check ADB for connected devices ---
+    # RetroBat
+    user_profile = os.environ.get("USERPROFILE", "")
+    if user_profile:
+        candidates.append(Path(user_profile) / "RetroBat" / "emulators" / "retroarch")
+    for drive in ("C", "D", "E"):
+        candidates.append(Path(f"{drive}:\\RetroBat\\emulators\\retroarch"))
+
+    retroarch_path: str | None = None
+    library_root: str | None = None
+
+    for ra_dir in candidates:
+        exe = ra_dir / "retroarch.exe"
+        if not exe.exists():
+            continue
+        retroarch_path = str(exe)
+        cfg_path = ra_dir / "retroarch.cfg"
+        if cfg_path.exists():
+            try:
+                text = cfg_path.read_text(encoding="utf-8", errors="replace")
+                m = re.search(r'^content_directory\s*=\s*"(.+)"', text, re.MULTILINE)
+                if m:
+                    val = m.group(1).strip()
+                    if val not in ("", "default"):
+                        library_root = val
+            except OSError:
+                pass
+        break
+
+    return {
+        "found": retroarch_path is not None,
+        "retroarch_path": retroarch_path,
+        "library_root": library_root,
+    }
+
+
+def _detect_wizard(config: "AppConfig") -> dict:
+    """Auto-detect RetroArch installation and connected ADB devices for the first-run wizard."""
+    ra = _detect_retroarch_install()
+    library_root_suggestion = ra["library_root"] or ra["retroarch_path"]
+
+    # Check ADB for connected devices
     android_suggestion = None
     device_display = None
     adb_ok = False
@@ -151,6 +201,7 @@ def _detect_wizard(config: "AppConfig") -> dict:
 
     return {
         "library_root_suggestion": library_root_suggestion,
+        "retroarch_path_suggestion": ra["retroarch_path"],
         "android_suggestion": android_suggestion,
         "device_display": device_display,
         "adb_ok": adb_ok,
@@ -191,38 +242,40 @@ def _save_config(
 
     write_config_toml(config.project_root, updates)
 
-    # Reload in-memory config so changes take effect without restart
+    # Reload in-memory config so changes take effect without restart.
+    # Lock prevents concurrent saves from interleaving partial field writes.
     new_cfg = load_config(config.project_root)
-    config.library_root = new_cfg.library_root
-    config.anbernic_root = new_cfg.anbernic_root
-    config.device_name = new_cfg.device_name
-    config.rclone_remote = new_cfg.rclone_remote
-    config.screenscraper_user = new_cfg.screenscraper_user
-    config.screenscraper_pass = new_cfg.screenscraper_pass
-    config.screenscraper_dev_id = new_cfg.screenscraper_dev_id
-    config.screenscraper_dev_pass = new_cfg.screenscraper_dev_pass
-    config.chdman = new_cfg.chdman
-    config.adb = new_cfg.adb
-    config.ra_api_key = new_cfg.ra_api_key
-    config.ra_username = new_cfg.ra_username
-    config.auto_sync_enabled = new_cfg.auto_sync_enabled
-    config.auto_sync_direction = new_cfg.auto_sync_direction
-    config.auto_sync_android_path = new_cfg.auto_sync_android_path
-    config.conflict_policy = new_cfg.conflict_policy
-    config.inbox_path = new_cfg.inbox_path
-    config.inbox_target_root = new_cfg.inbox_target_root
-    config.inbox_auto_process = new_cfg.inbox_auto_process
-    config.inbox_delete_source = new_cfg.inbox_delete_source
-    config.sync_sources = new_cfg.sync_sources
-    config.web_host = new_cfg.web_host
-    config.retroarch_path = new_cfg.retroarch_path
-    config.launcher_cores = new_cfg.launcher_cores
-    config.backup_saves_enabled = new_cfg.backup_saves_enabled
-    config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
-    config.pre_sync_backup = new_cfg.pre_sync_backup
-    config.notify_desktop = new_cfg.notify_desktop
-    config.saves_remote = new_cfg.saves_remote
-    config.states_remote = new_cfg.states_remote
+    with _config_lock:
+        config.library_root = new_cfg.library_root
+        config.anbernic_root = new_cfg.anbernic_root
+        config.device_name = new_cfg.device_name
+        config.rclone_remote = new_cfg.rclone_remote
+        config.screenscraper_user = new_cfg.screenscraper_user
+        config.screenscraper_pass = new_cfg.screenscraper_pass
+        config.screenscraper_dev_id = new_cfg.screenscraper_dev_id
+        config.screenscraper_dev_pass = new_cfg.screenscraper_dev_pass
+        config.chdman = new_cfg.chdman
+        config.adb = new_cfg.adb
+        config.ra_api_key = new_cfg.ra_api_key
+        config.ra_username = new_cfg.ra_username
+        config.auto_sync_enabled = new_cfg.auto_sync_enabled
+        config.auto_sync_direction = new_cfg.auto_sync_direction
+        config.auto_sync_android_path = new_cfg.auto_sync_android_path
+        config.conflict_policy = new_cfg.conflict_policy
+        config.inbox_path = new_cfg.inbox_path
+        config.inbox_target_root = new_cfg.inbox_target_root
+        config.inbox_auto_process = new_cfg.inbox_auto_process
+        config.inbox_delete_source = new_cfg.inbox_delete_source
+        config.sync_sources = new_cfg.sync_sources
+        config.web_host = new_cfg.web_host
+        config.retroarch_path = new_cfg.retroarch_path
+        config.launcher_cores = new_cfg.launcher_cores
+        config.backup_saves_enabled = new_cfg.backup_saves_enabled
+        config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
+        config.pre_sync_backup = new_cfg.pre_sync_backup
+        config.notify_desktop = new_cfg.notify_desktop
+        config.saves_remote = new_cfg.saves_remote
+        config.states_remote = new_cfg.states_remote
     set_auto_sync_fn(new_cfg.auto_sync_enabled)
 
     ctx._send_json({"saved": list(updates.keys())})

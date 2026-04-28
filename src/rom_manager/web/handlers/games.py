@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -71,6 +72,7 @@ def register(
     repository: "LibraryRepository",
     get_repo_fn,
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register game library / backup / launch routes on *router*."""
 
@@ -474,11 +476,10 @@ def register(
     # ── POST /api/backup-now ─────────────────────────────────────────────────
     @router.post("/api/backup-now")
     def post_backup_now(ctx) -> None:
-        m = srv_mod
-
         def _do_backup_now() -> None:
+            import time as _t
+            job_result = None
             try:
-                import rom_manager.web.server as _srv
                 from rom_manager.backup.save_backup import create_saves_zip
                 saves_dirs = []
                 if config.library_root and config.library_root.exists():
@@ -492,31 +493,18 @@ def register(
                     set(config.save_extensions),
                     config.data_dir / "saves-backup" / "saves-zips",
                 )
-                import time as _t
-                _srv._job_results["backup_now"] = {
+                job_result = {
                     "ok": True,
                     "zip": str(zip_path),
                     "size": zip_path.stat().st_size,
                     "result_ts": str(_t.time()),
                 }
             except Exception as exc:
-                import time as _t
-                import rom_manager.web.server as _srv
-                _srv._job_results["backup_now"] = {
-                    "ok": False, "error": str(exc), "result_ts": str(_t.time()),
-                }
+                job_result = {"ok": False, "error": str(exc), "result_ts": str(_t.time())}
             finally:
-                import rom_manager.web.server as _srv
-                with _srv._job_lock:
-                    _srv._jobs["backup_now"] = False
+                job_manager.finish("backup_now", job_result)
 
-        with m._job_lock:
-            if m._jobs.get("backup_now"):
-                ctx._send_json({"status": "already_running"})
-                return
-            m._jobs["backup_now"] = True
-        threading.Thread(target=_do_backup_now, daemon=True).start()
-        ctx._send_json({"status": "started"})
+        ctx._send_json(job_manager.start("backup_now", _do_backup_now))
 
     # ── GET /api/unmatched-by-platform ───────────────────────────────────────
     @router.get("/api/unmatched-by-platform")

@@ -185,8 +185,8 @@ async function doMatch() {
 
 // ── Catalog DAT management ─────────────────────────────────────────────────────
 async function loadCatalogStatus() {
-  const el = document.getElementById('catalog-status');
-  if (!el) return;
+  const el   = document.getElementById('catalog-status');
+  const ovEl = document.getElementById('ov-catalog-status');
   try {
     const d = await apiFetch('/api/catalog-status');
     const ni = d.nointro.length, rd = d.redump.length, arc = (d.arcade || []).length;
@@ -210,9 +210,19 @@ async function loadCatalogStatus() {
       html = '\u2705 ' + parts.join(' &middot; ');
     }
     html += `<br><span style="color:#555;font-size:10px">No-Intro: <code>${d.nointro_dir}</code> &middot; Redump: <code>${d.redump_dir}</code> &middot; Arcade: <code>${d.arcade_dir}</code></span>`;
-    el.innerHTML = html;
+    if (el) el.innerHTML = html;
+    if (ovEl && (ni > 0 || rd > 0 || arc > 0)) {
+      const _p = [];
+      if (ni > 0) _p.push(ni + ' No-Intro');
+      if (rd > 0) _p.push(rd + ' Redump');
+      if (arc > 0) _p.push(arc + ' Arcade');
+      ovEl.innerHTML = `\u2705 ${_p.join(' \u00b7 ')} <a href="#" onclick="showTab('settings');return false" style="color:#555;font-size:10px">gestionar \u2192</a>`;
+    } else if (ovEl) {
+      ovEl.innerHTML = `<span style="color:#dcdcaa">\u26A0 Sin cat\u00e1logos DAT</span> \u2014 los ROMs no se pueden identificar. `
+        + `<a href="#" onclick="showTab('settings');setTimeout(function(){var s=document.getElementById('dat-catalog-list');if(s)s.scrollIntoView({behavior:'smooth'})},350);return false" style="color:#7aadff">Descargar cat\u00e1logos \u2192</a>`;
+    }
   } catch(e) {
-    el.textContent = 'Error al cargar estado de cat\u00e1logos.';
+    if (el) el.textContent = 'Error al cargar estado de cat\u00e1logos.';
   }
 }
 
@@ -314,7 +324,7 @@ async function downloadDats(all) {
   if (bar)     bar.classList.remove('hidden');
   if (barFill) barFill.style.width = '0%';
   try {
-    const body = systems ? { systems } : {};
+    const body = systems ? { systems } : { all: true };
     const d = await apiPost('/api/download-dats', body);
     if (d.error) {
       if (status) { status.textContent = '❌ ' + d.error; _txtCls(status, 'txt-err'); }

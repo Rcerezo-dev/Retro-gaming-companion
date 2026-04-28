@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -8,6 +7,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -19,6 +19,7 @@ def register(
     config: "AppConfig",
     repository: "LibraryRepository",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register inbox / setup routes on *router*."""
 
@@ -47,11 +48,11 @@ def register(
     # ── GET /api/inbox-status ────────────────────────────────────────────────
     @router.get("/api/inbox-status")
     def get_inbox_status(ctx) -> None:
-        m = srv_mod
+        status = job_manager.get_status()
         ctx._send_json({
-            "running":  m._jobs["inbox"],
-            "progress": dict(m._inbox_progress) if m._inbox_progress else None,
-            "result":   m._job_results.get("inbox"),
+            "running":  status["inbox_running"],
+            "progress": status.get("inbox_progress"),
+            "result":   status.get("inbox_result"),
         })
 
     # ── GET /api/inbox-watcher-status ────────────────────────────────────────
@@ -62,12 +63,12 @@ def register(
     # ── POST /api/inbox-run ──────────────────────────────────────────────────
     @router.post("/api/inbox-run")
     def post_inbox_run(ctx) -> None:
-        _do_inbox_run(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_inbox_run(ctx, ctx._post_data, config, repository, job_manager)
 
     # ── POST /api/setup-run ──────────────────────────────────────────────────
     @router.post("/api/setup-run")
     def post_setup_run(ctx) -> None:
-        _do_setup_run(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_setup_run(ctx, ctx._post_data, config, repository, srv_mod, job_manager)
 
 
 # ── Multipart upload — called directly from do_POST (pre-router) ─────────────
@@ -115,7 +116,7 @@ def handle_inbox_upload(config: "AppConfig", content_type: str, body: bytes, ctx
 
 # ── Handler logic ─────────────────────────────────────────────────────────────
 
-def _do_inbox_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_inbox_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager) -> None:
     from rom_manager.web.inbox_pipeline import _run_inbox_pipeline
 
     inbox_path_str = data.get("path", "").strip() or config.inbox_path
@@ -129,22 +130,13 @@ def _do_inbox_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepo
     )
     delete_source = bool(data.get("delete_source", config.inbox_delete_source))
 
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["inbox"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["inbox"] = True
+    def run() -> None:
+        _run_inbox_pipeline(inbox_path_str, target_root_str, delete_source, repository, config, job_manager)
 
-    threading.Thread(
-        target=_run_inbox_pipeline,
-        args=(inbox_path_str, target_root_str, delete_source, repository, config),
-        daemon=True,
-    ).start()
-    ctx._send_json({"status": "started"})
+    ctx._send_json(job_manager.start("inbox", run))
 
 
-def _do_setup_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_setup_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod, job_manager) -> None:
     """Launch the first-time setup wizard pipeline as a background job."""
     from rom_manager.web.inbox_pipeline import _run_setup_pipeline
 
@@ -168,24 +160,14 @@ def _do_setup_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepo
             config.anbernic_root = new_cfg.anbernic_root
         config.device_name = new_cfg.device_name
 
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["setup"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["setup"] = True
-
-    m._setup_progress.clear()
-    m._job_results.pop("setup", None)
     options = {
         "clean_junk":   bool(data.get("clean_junk", False)),
         "extract_zips": bool(data.get("extract_zips", True)),
         "scan":         bool(data.get("scan", True)),
         "match":        bool(data.get("match", True)),
     }
-    threading.Thread(
-        target=_run_setup_pipeline,
-        args=(lib_root, options, repository, config),
-        daemon=True,
-    ).start()
-    ctx._send_json({"status": "started"})
+
+    def run() -> None:
+        _run_setup_pipeline(lib_root, options, repository, config, job_manager)
+
+    ctx._send_json(job_manager.start("setup", run))

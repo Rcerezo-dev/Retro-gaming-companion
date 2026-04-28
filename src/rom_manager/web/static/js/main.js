@@ -14,7 +14,7 @@ import {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder,
+  browseFolder, detectRetroArch,
 } from './tabs/config.js';
 import {
   _onScanAdbChange, detectAdbDevicesForScan,
@@ -253,7 +253,7 @@ Object.assign(window, {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder,
+  browseFolder, detectRetroArch,
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
@@ -423,7 +423,7 @@ export function showTab(name) {
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
-  if (name === 'overview')   loadOverview();
+  if (name === 'overview')   { loadOverview(); loadCatalogStatus(); }
   if (name === 'games')      { loadFilterOptions(); loadGames(0); _refreshTagFilter(); loadRecommendations(); }
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();

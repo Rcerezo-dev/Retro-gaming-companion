@@ -31,6 +31,7 @@ from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loo
 from rom_manager.web.inbox_pipeline import (
     _build_inbox_scan, _run_setup_pipeline, _run_inbox_pipeline, _watcher_now,
 )
+from rom_manager.web.jobs.manager import JobManager
 
 # ── Tray icon instance (set by serve() when --tray is passed) ─────────────────
 _tray_instance = None  # type: ignore[assignment]
@@ -51,6 +52,9 @@ _jobs: dict[str, bool] = {
     "verify_chd": False,
 }
 _job_results: dict[str, dict] = {}
+
+# Centralised job state — replaces _jobs/_job_results/_*_progress progressively (ARC-JM-*)
+_job_manager = JobManager()
 
 
 def _start_job(name: str, fn: "Callable[[], None]") -> dict:
@@ -179,6 +183,12 @@ _SESSION_COOKIE = "rvm_session"
 _sessions: dict[str, float] = {}   # {token: expires_at (monotonic)}
 _sessions_lock = threading.Lock()
 
+_auth_failures: dict[str, list] = {}  # {ip: [monotonic_timestamp, ...]}
+_auth_failures_lock = threading.Lock()
+_AUTH_MAX_ATTEMPTS = 10
+_AUTH_WINDOW_SECS  = 60
+_AUTH_LOCKOUT_SECS = 300
+
 def _get_local_ip() -> str:
     """Best-effort: return the machine's LAN IP address."""
     try:
@@ -190,6 +200,21 @@ def _get_local_ip() -> str:
 
 def _hash_pin(pin: str, salt: str) -> str:
     return hashlib.sha256((pin + salt).encode()).hexdigest()
+
+def _check_auth_rate_limit(ip: str) -> bool:
+    now = time.monotonic()
+    with _auth_failures_lock:
+        window = [t for t in _auth_failures.get(ip, []) if now - t < _AUTH_LOCKOUT_SECS]
+        _auth_failures[ip] = window
+        return len(window) >= _AUTH_MAX_ATTEMPTS
+
+def _record_auth_failure(ip: str) -> None:
+    with _auth_failures_lock:
+        _auth_failures.setdefault(ip, []).append(time.monotonic())
+
+def _clear_auth_failures(ip: str) -> None:
+    with _auth_failures_lock:
+        _auth_failures.pop(ip, None)
 
 def _create_session(ttl: int) -> str:
     token = secrets.token_urlsafe(32)
@@ -721,13 +746,20 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         # Check key cores
         key_map = {
             "mgba": "GBA",
+            "gambatte": "GB/GBC",
             "snes9x": "SNES",
             "genesis_plus_gx": "Mega Drive",
+            "fceumm": "NES",
+            "nestopia": "NES (alt)",
             "pcsx_rearmed": "PSX",
             "duckstation": "PSX (DuckStation)",
+            "pcsx2": "PS2",
             "flycast": "Dreamcast",
             "mupen64plus_next": "N64",
+            "melonds": "NDS",
+            "ppsspp": "PSP",
             "mame": "MAME/Arcade",
+            "fbneo": "FBNeo/Arcade",
         }
         for core_prefix, label in key_map.items():
             found = any(d.name.startswith(core_prefix) for d in dlls)
@@ -787,87 +819,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         return _repo_for_path(path_str, repository, _repo_android, config)
 
     def _start_ra_check_bg(api_key: str) -> bool:
-        """Start RA check in background. Returns True if started, False if already running."""
-        with _job_lock:
-            if _jobs.get("ra_check"):
-                return False
-            _jobs["ra_check"] = True
-
-        def _run() -> None:
-            _ra_cancel.clear()
-            try:
-                from rom_manager.retroachievements.ra_checker import check_library, to_csv
-
-                cache_dir = config.data_dir / "ra_cache"
-
-                def _prog(current: int, total: int, filename: str) -> None:
-                    _ra_progress.update({"current": current, "total": total, "current_file": filename})
-                    if _ra_cancel.is_set():
-                        raise InterruptedError("RA check cancelled")
-
-                try:
-                    summary = check_library(repository, api_key, cache_dir=cache_dir, progress_cb=_prog)
-                except InterruptedError:
-                    _job_results["ra_check"] = {
-                        "cancelled": True, "total": 0, "supported": 0,
-                        "no_support_alternative": 0, "no_support": 0,
-                        "no_md5": 0, "platform_unknown": 0,
-                        "alternatives_csv": "", "results": [], "alternatives": [],
-                    }
-                    return
-                alternatives_csv = to_csv(summary) if summary.no_support_alternative > 0 else ""
-                _job_results["ra_check"] = {
-                    "total": summary.total,
-                    "supported": summary.supported,
-                    "no_support_alternative": summary.no_support_alternative,
-                    "no_support": summary.no_support,
-                    "no_md5": summary.no_md5,
-                    "platform_unknown": summary.platform_unknown,
-                    "cancelled": _ra_cancel.is_set(),
-                    "alternatives_csv": alternatives_csv,
-                    "results": [
-                        {
-                            "status": r.status,
-                            "original_filename": r.original_filename,
-                            "platform": r.platform,
-                            "source_path": r.source_path,
-                            **({"alternative": {
-                                "id": r.alternative.id,
-                                "title": r.alternative.title,
-                                "achievements": r.alternative.achievements,
-                                "points": r.alternative.points,
-                            }} if r.alternative else {}),
-                        }
-                        for r in summary.results
-                    ],
-                    "alternatives": [
-                        {
-                            "platform": r.platform,
-                            "filename": r.original_filename,
-                            "our_md5": r.our_md5[:12],
-                            "ra_id": r.alternative.id,
-                            "ra_title": r.alternative.title,
-                            "ra_achievements": r.alternative.achievements,
-                            "ra_points": r.alternative.points,
-                        }
-                        for r in summary.results
-                        if r.status == "no_support_alternative" and r.alternative
-                    ],
-                    "no_support_entries": [
-                        {"source_path": r.source_path, "filename": r.original_filename, "platform": r.platform}
-                        for r in summary.results
-                        if r.status == "no_support"
-                    ],
-                }
-            except Exception as exc:
-                _job_results["ra_check"] = {"error": str(exc)}
-            finally:
-                with _job_lock:
-                    _ra_progress.clear()
-                    _jobs["ra_check"] = False
-
-        threading.Thread(target=_run, daemon=True).start()
-        return True
+        """Start RA check via JobManager. Returns True if started, False if already running."""
+        from rom_manager.web.handlers.sync import _do_ra_check
+        return _do_ra_check(api_key, config, repository, _job_manager).get("status") == "started"
 
     import rom_manager.web.handlers.collection as _h_collection
     import sys as _sys_dbg
@@ -894,6 +848,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         get_repo_fn=_get_repo,
         start_ra_check_fn=_start_ra_check_bg,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.duplicates as _h_duplicates
@@ -903,6 +858,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         repository=repository,
         repo_android=_repo_android,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.organize as _h_organize
@@ -912,6 +868,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         repository=repository,
         get_repo_fn=_get_repo,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.sync as _h_sync
@@ -922,6 +879,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         repo_android=_repo_android,
         start_ra_check_fn=_start_ra_check_bg,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.inbox as _h_inbox
@@ -930,6 +888,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         config=config,
         repository=repository,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.scraper as _h_scraper
@@ -938,6 +897,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         config=config,
         repository=repository,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.games as _h_games
@@ -947,6 +907,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         repository=repository,
         get_repo_fn=_get_repo,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     import rom_manager.web.handlers.play_history as _h_play_history
@@ -963,6 +924,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         repo_android=_repo_android,
         get_repo_fn=_get_repo,
         srv_mod=_srv_mod,
+        job_manager=_job_manager,
     )
 
     class Handler(BaseHTTPRequestHandler):
@@ -1078,20 +1040,27 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             try:
                 # S25: auth endpoints bypass session check
                 if path == "/api/auth":
+                    client_ip = self.client_address[0]
                     pin = str(data.get("pin", "")).strip()
                     if not config.web_pin_hash:
                         self._send_json({"ok": True})   # no PIN set → open access
+                        return
+                    if _check_auth_rate_limit(client_ip):
+                        self._send(429, "application/json; charset=utf-8",
+                                   _json_response({"ok": False, "error": "Demasiados intentos fallidos. Espera unos minutos."}))
                         return
                     if not pin:
                         self._send_json({"ok": False, "error": "PIN requerido"})
                         return
                     expected = _hash_pin(pin, config.web_pin_salt)
                     if secrets.compare_digest(expected, config.web_pin_hash):
+                        _clear_auth_failures(client_ip)
                         token = _create_session(config.web_session_ttl)
                         self._send(200, "application/json; charset=utf-8",
                                    _json_response({"ok": True}),
                                    extra_headers=self._set_session_header(token))
                     else:
+                        _record_auth_failure(client_ip)
                         self._send_json({"ok": False, "error": "PIN incorrecto"})
                     return
                 elif path == "/api/auth/logout":
@@ -1243,27 +1212,25 @@ def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: i
                     pass
 
             if overdue:
-                # Only run if no health check is already in progress
-                with _job_lock:
-                    already = _jobs.get("health_check", False)
-                if not already:
+                if not _job_manager.get_status()["health_check_running"]:
                     repository = get_repo_fn()
                     _logger.info("Scheduled health check starting (overdue by %s days)", "?" if not last_run_raw else elapsed)
+                    _cancel = _job_manager.cancel_event("health_check")
 
-                    def _scheduled_run(_repo=repository) -> None:
-                        _health_cancel.clear()
+                    def _scheduled_run(_repo=repository, _c=_cancel) -> None:
+                        job_result = None
                         try:
                             from rom_manager.utils.health_checker import check_library_health
 
                             def _prog(current: int, total: int, filename: str) -> None:
-                                _health_progress.update({"current": current, "total": total, "current_file": filename})
+                                _job_manager.update_progress("health_check", {"current": current, "total": total, "current_file": filename})
 
-                            summary = check_library_health(_repo, progress_cb=_prog, cancel_event=_health_cancel)
-                            _job_results["health_check"] = {
+                            summary = check_library_health(_repo, progress_cb=_prog, cancel_event=_c)
+                            job_result = {
                                 "ok": summary.ok,
                                 "corrupted": summary.corrupted,
                                 "missing": summary.missing,
-                                "cancelled": _health_cancel.is_set(),
+                                "cancelled": _c.is_set(),
                                 "auto": True,
                                 "issues": [
                                     {"source_path": r.source_path, "status": r.status,
@@ -1275,7 +1242,7 @@ def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: i
                             }
                             _write_health_schedule(config, ok=summary.ok,
                                                    corrupted=summary.corrupted, missing=summary.missing)
-                            if not _health_cancel.is_set() and config.notify_desktop:
+                            if not _c.is_set() and config.notify_desktop:
                                 from rom_manager.utils.notifier import notify
                                 if summary.corrupted or summary.missing:
                                     notify("Retro Vault — Health Check",
@@ -1286,11 +1253,9 @@ def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: i
                         except Exception as exc:
                             _logger.error("Scheduled health check error: %s", exc)
                         finally:
-                            with _job_lock:
-                                _health_progress.clear()
-                                _jobs["health_check"] = False
+                            _job_manager.finish("health_check", job_result)
 
-                    _start_job("health_check", _scheduled_run)
+                    _job_manager.start("health_check", _scheduled_run)
 
         except Exception as exc:
             _logger.debug("Health scheduler error: %s", exc)
@@ -1309,6 +1274,14 @@ def serve(
 ) -> None:
     global _auto_sync_enabled, _tray_instance
     _auto_sync_enabled = config.auto_sync_enabled
+
+    if host != "127.0.0.1" and not config.web_pin_hash:
+        _logger.warning(
+            "AVISO DE SEGURIDAD: el servidor está expuesto en la red (%s:%d) sin PIN configurado. "
+            "Cualquier usuario de tu red local puede acceder y modificar todos los datos. "
+            "Activa un PIN en Settings → Seguridad.",
+            host, port,
+        )
 
     # S34-1: reload platform tables with user override if present
     from rom_manager.detection.platform_detector import reload_platforms
@@ -1357,19 +1330,15 @@ def serve(
                     "pending_files": len(pending),
                 })
                 if pending:
-                    with _job_lock:
-                        already = _jobs.get("inbox", False)
-                    if not already:
+                    if not _job_manager.get_status()["inbox_running"]:
                         _logger.info("Inbox watcher: %d files detected, launching pipeline", len(pending))
-                        with _job_lock:
-                            _jobs["inbox"] = True
                         _inbox_watcher_status["trigger_ts"] = _time.time()
                         target_root_str = config.inbox_target_root or (str(config.library_root) if config.library_root else "")
-                        threading.Thread(
-                            target=_run_inbox_pipeline,
-                            args=(config.inbox_path, target_root_str, config.inbox_delete_source, repository, config),
-                            daemon=True,
-                        ).start()
+
+                        def _watcher_run(_tr=target_root_str) -> None:
+                            _run_inbox_pipeline(config.inbox_path, _tr, config.inbox_delete_source, repository, config, _job_manager)
+
+                        _job_manager.start("inbox", _watcher_run)
             except Exception as exc:
                 _logger.debug("Inbox watcher error: %s", exc)
 

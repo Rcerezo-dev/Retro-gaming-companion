@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,6 +8,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -20,6 +20,7 @@ def register(
     config: "AppConfig",
     repository: "LibraryRepository",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register scraper / gamelist / ScreenScraper routes on *router*."""
 
@@ -32,7 +33,7 @@ def register(
     # ── POST /api/scrape ─────────────────────────────────────────────────────
     @router.post("/api/scrape")
     def post_scrape(ctx) -> None:
-        _do_scrape(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_scrape(ctx, ctx._post_data, config, repository, job_manager)
 
     # ── POST /api/scrape-single ──────────────────────────────────────────────
     @router.post("/api/scrape-single")
@@ -75,27 +76,23 @@ def register(
 
 # ── Handler logic ─────────────────────────────────────────────────────────────
 
-def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["scrape"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["scrape"] = True
-
+def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
     platform        = data.get("platform") or None
     download_images = bool(data.get("images", False))
     limit           = int(data.get("limit", 0))
 
+    _cancel = job_manager.cancel_event("scrape")
+
     def run() -> None:
-        m._scrape_cancel.clear()
+        import rom_manager.web.server as _srv
+        job_result = None
         try:
             from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
             from rom_manager.scraper.platform_ids import get_system_id
             from rom_manager.scanner.rom_scanner import utc_now
 
             if not config.screenscraper_user:
-                m._job_results["scrape"] = {"error": "screenscraper credentials not configured"}
+                job_result = {"error": "screenscraper credentials not configured"}
                 return
 
             client = ScreenScraperClient(
@@ -111,14 +108,14 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
             found = skipped = network_errors = images_filled = 0
             failed_games: list[str] = []
             _RETRY_DELAYS = [5, 15, 30]
-            m._scrape_progress.update({"current": 0, "total": total, "found": 0, "network_errors": 0, "current_game": ""})
+            job_manager.update_progress("scrape", {"current": 0, "total": total, "found": 0, "network_errors": 0, "current_game": ""})
             # B6-3: use connect() + per-game commit instead of batch() so a single
             # network error mid-scrape doesn't lose all previously scraped metadata.
             with repository.connect() as conn:
                 for idx, game in enumerate(games, 1):
-                    if m._scrape_cancel.is_set():
+                    if _cancel.is_set():
                         break
-                    m._scrape_progress.update({
+                    job_manager.update_progress("scrape", {
                         "current": idx, "total": total,
                         "found": found, "network_errors": network_errors,
                         "current_game": game["original_filename"],
@@ -127,7 +124,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                     result = None
                     last_error = ""
                     for attempt in range(3):
-                        if m._scrape_cancel.is_set():
+                        if _cancel.is_set():
                             break
                         try:
                             result = client.search(
@@ -144,12 +141,12 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                             raise
                         except Exception as exc:
                             last_error = str(exc)
-                            if attempt < 2 and not m._scrape_cancel.is_set():
+                            if attempt < 2 and not _cancel.is_set():
                                 time.sleep(_RETRY_DELAYS[attempt])
-                    if m._scrape_cancel.is_set():
+                    if _cancel.is_set():
                         break
                     if client.last_quota:
-                        m._ss_last_quota.update(client.last_quota)
+                        _srv._ss_last_quota.update(client.last_quota)
                     if last_error:
                         network_errors += 1
                         failed_games.append(game["original_filename"])
@@ -211,14 +208,14 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                     found += 1
 
             # ── Pasada 2: descargar portadas desde URLs almacenadas (sin llamada API) ──
-            if download_images and not m._scrape_cancel.is_set():
+            if download_images and not _cancel.is_set():
                 missing_img = repository.get_games_missing_images(platform=platform)
                 img_total = len(missing_img)
                 with repository.connect() as conn:
                     for img_idx, img_game in enumerate(missing_img, 1):
-                        if m._scrape_cancel.is_set():
+                        if _cancel.is_set():
                             break
-                        m._scrape_progress.update({
+                        job_manager.update_progress("scrape", {
                             "current": img_idx, "total": img_total,
                             "found": images_filled, "network_errors": 0,
                             "current_game": f"[portadas] {img_game['original_filename']}",
@@ -244,7 +241,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
             try:
                 from rom_manager.scraper.gamelist_writer import write_gamelist
                 _out_root    = Path(config.library_root) if config.library_root else None
-                _es_folders  = m._ES_PLATFORM_FOLDERS
+                _es_folders  = _srv._ES_PLATFORM_FOLDERS
                 if _out_root:
                     _plat_filter = platform
                     _plats = repository.get_scraped_platform_summary()
@@ -264,23 +261,21 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
             except Exception:
                 pass
 
-            m._job_results["scrape"] = {
+            job_result = {
                 "total": total, "found": found, "skipped": skipped,
                 "network_errors": network_errors,
                 "images_filled": images_filled,
                 "failed_games": failed_games[:20],
-                "cancelled": m._scrape_cancel.is_set(),
+                "cancelled": _cancel.is_set(),
                 "gamelists_written": _gamelist_written,
+                "result_ts": utc_now(),
             }
         except Exception as exc:
-            m._job_results["scrape"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
         finally:
-            with m._job_lock:
-                m._scrape_progress.clear()
-                m._jobs["scrape"] = False
+            job_manager.finish("scrape", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started"})
+    ctx._send_json(job_manager.start("scrape", run))
 
 
 def _do_scrape_single(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:

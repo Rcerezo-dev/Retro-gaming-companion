@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+    from rom_manager.web.jobs.manager import JobManager
     import types
 
 
@@ -23,6 +24,7 @@ def register(
     repository: "LibraryRepository",
     repo_android: "LibraryRepository",
     srv_mod: "types.ModuleType",
+    job_manager: "JobManager",
 ) -> None:
     """Register duplicate-management routes on *router*."""
     from rom_manager.web.response_builders import _build_duplicates_two_repos, _build_ra_duplicates

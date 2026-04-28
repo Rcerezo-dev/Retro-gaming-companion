@@ -617,6 +617,18 @@ def validate(config: "AppConfig") -> list[dict]:
     if not config.ra_api_key:
         warn("ra_api_key", "API key de RetroAchievements no configurada. Necesaria para el informe de logros.", "info")
 
+    # retroarch_path — exe + cores
+    if config.retroarch_path:
+        ra_exe = Path(config.retroarch_path)
+        if not ra_exe.exists():
+            warn("retroarch_path", f"RetroArch no encontrado en: {config.retroarch_path}")
+        else:
+            cores_dir = ra_exe.parent / "cores"
+            if not cores_dir.exists():
+                warn("retroarch_path", "Carpeta cores/ no encontrada. Instala cores desde RetroArch → Online Updater.", "info")
+            elif not any(cores_dir.glob("*_libretro.dll")):
+                warn("retroarch_path", "No hay cores instalados en cores/. Descárgalos desde RetroArch → Online Updater.", "info")
+
     return warnings
 
 

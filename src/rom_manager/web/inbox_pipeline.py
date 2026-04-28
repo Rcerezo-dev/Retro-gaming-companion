@@ -201,6 +201,7 @@ def _run_setup_pipeline(
     options: dict,
     repository: "LibraryRepository",
     config: "AppConfig",
+    job_manager,
 ) -> None:
     """Background job: first-time setup wizard pipeline (junk → zip → scan → match → plan)."""
     from rom_manager.scanner import scan_library
@@ -209,17 +210,13 @@ def _run_setup_pipeline(
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
     from rom_manager.web.response_builders import _build_junk_scan
-    import rom_manager.web.server as _srv
-    _setup_progress = _srv._setup_progress
-    _job_lock = _srv._job_lock
-    _jobs = _srv._jobs
-    _job_results = _srv._job_results
 
     logger = _logger
     source = Path(library_root).resolve()
+    job_result = None
 
     def _upd(step: str, step_num: int, pct: int = 0, current_file: str = "") -> None:
-        _setup_progress.update({
+        job_manager.update_progress("setup", {
             "step": step,
             "step_num": step_num,
             "total_steps": 5,
@@ -321,15 +318,13 @@ def _run_setup_pipeline(
         _upd("Completado", 5, 100)
         from rom_manager.scanner.rom_scanner import utc_now as _utc_now
         result["result_ts"] = _utc_now()
-        _job_results["setup"] = result
+        job_result = result
 
     except Exception as exc:
-        _job_results["setup"] = {"error": str(exc)}
+        job_result = {"error": str(exc)}
         logger.exception("Setup pipeline error: %s", exc)
     finally:
-        with _job_lock:
-            _setup_progress.clear()
-            _jobs["setup"] = False
+        job_manager.finish("setup", job_result)
 
 
 def _run_inbox_pipeline(
@@ -338,6 +333,7 @@ def _run_inbox_pipeline(
     delete_source: bool,
     repository: LibraryRepository,
     config: "AppConfig",
+    job_manager,
 ) -> None:
     """Background job: extract → scan → match → plan → rename → move → cleanup."""
     import shutil as _shutil
@@ -348,19 +344,15 @@ def _run_inbox_pipeline(
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves
     from rom_manager.scanner.rom_scanner import utc_now
-    import rom_manager.web.server as _srv
-    _inbox_progress = _srv._inbox_progress
-    _job_lock = _srv._job_lock
-    _jobs = _srv._jobs
-    _job_results = _srv._job_results
 
     inbox = Path(inbox_path_str).resolve()
     target_root = Path(target_root_str).resolve() if target_root_str else (config.library_root or inbox)
 
     logger = _logger
+    job_result = None
 
     def _upd(step: str, step_num: int, processed: int = 0, total: int = 0, current_file: str = "") -> None:
-        _inbox_progress.update({
+        job_manager.update_progress("inbox", {
             "step": step,
             "step_num": step_num,
             "total_steps": 6,
@@ -556,7 +548,7 @@ def _run_inbox_pipeline(
             except Exception:
                 pass
 
-        _job_results["inbox"] = {
+        job_result = {
             "result_ts": utc_now(),
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
@@ -571,11 +563,9 @@ def _run_inbox_pipeline(
 
     except Exception as exc:
         logger.exception("Inbox pipeline error: %s", exc)
-        _job_results["inbox"] = {"error": str(exc), "result_ts": ""}
+        job_result = {"error": str(exc), "result_ts": ""}
     finally:
-        with _job_lock:
-            _inbox_progress.clear()
-            _jobs["inbox"] = False
+        job_manager.finish("inbox", job_result)
 
 
 def _watcher_now() -> str:
