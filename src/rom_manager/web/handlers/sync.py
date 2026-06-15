@@ -140,10 +140,10 @@ def register(
     # ── POST /api/auto-sync-toggle ───────────────────────────────────────────
     @router.post("/api/auto-sync-toggle")
     def post_auto_sync_toggle(ctx) -> None:
-        import rom_manager.web.server as _srv
-        _srv._auto_sync_enabled = not _srv._auto_sync_enabled
-        config.auto_sync_enabled = _srv._auto_sync_enabled
-        ctx._send_json({"enabled": _srv._auto_sync_enabled})
+        import rom_manager.web.state as _state
+        _state._auto_sync_enabled = not _state._auto_sync_enabled
+        config.auto_sync_enabled = _state._auto_sync_enabled
+        ctx._send_json({"enabled": _state._auto_sync_enabled})
 
     # ── POST /api/auto-sync-save ─────────────────────────────────────────────
     @router.post("/api/auto-sync-save")
@@ -354,7 +354,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
 
     def run() -> None:
         job_result = None
-        import rom_manager.web.server as _srv13
+        import rom_manager.web.state as _srv13
         if _srv13._tray_instance:
             _srv13._tray_instance.set_status("Sincronizando…")
         try:
@@ -547,7 +547,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                 _srv13._auto_sync_status["last_error"] = (f"{_errs} errores en cloud sync") if _errs else None
         except Exception as exc:
             job_result = {"error": str(exc)}
-            import rom_manager.web.server as _srv13e
+            import rom_manager.web.state as _srv13e
             _srv13e._tray_instance and _srv13e._tray_instance.set_status("✗ Error en sync")
         finally:
             job_manager.finish("sync", job_result)
@@ -1169,7 +1169,7 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager
 def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
     """Save auto-sync settings to config.toml and update in-memory config."""
     from rom_manager.config import write_config_toml
-    import rom_manager.web.server as _srv
+    import rom_manager.web.state as _srv
 
     updates: dict = {}
     if "sync.auto_sync_direction" in data:

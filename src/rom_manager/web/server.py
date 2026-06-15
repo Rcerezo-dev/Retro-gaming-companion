@@ -434,7 +434,6 @@ def serve(
     repository_android: LibraryRepository | None = None,
     tray: bool = False,
 ) -> None:
-    global _tray_instance
     _state._auto_sync_enabled = config.auto_sync_enabled
 
     if host != "127.0.0.1" and not config.web_pin_hash:
@@ -509,20 +508,20 @@ def serve(
                             )
                         except Exception:
                             pass
-                    if _tray_instance:
-                        _tray_instance.set_status(f"Sync OK {_utc_now_str()[:16]}")
-                        _tray_instance.show_balloon("Retro Vault", "Sync completado.")
+                    if _state._tray_instance:
+                        _state._tray_instance.set_status(f"Sync OK {_utc_now_str()[:16]}")
+                        _state._tray_instance.show_balloon("Retro Vault", "Sync completado.")
 
                 def _on_quit_from_tray() -> None:
                     import threading as _threading
                     _threading.Thread(target=httpd.shutdown, daemon=True).start()
 
-                _tray_instance = TrayIcon(
+                _state._tray_instance = TrayIcon(
                     port=port,
                     on_sync=_on_sync_from_tray,
                     on_quit=_on_quit_from_tray,
                 )
-                _tray_instance.start()
+                _state._tray_instance.start()
                 _logger.info("Tray icon started")
             except Exception as _te:
                 _logger.warning("Could not start tray icon: %s", _te)
@@ -534,8 +533,8 @@ def serve(
         httpd.serve_forever()
 
     # Clean up tray when server exits
-    if _tray_instance is not None:
+    if _state._tray_instance is not None:
         try:
-            _tray_instance.stop()
+            _state._tray_instance.stop()
         except Exception:
             pass

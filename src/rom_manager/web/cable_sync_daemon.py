@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 
 from rom_manager.config import AppConfig
+import rom_manager.web.state as _state
 
 _logger = logging.getLogger(__name__)
 
@@ -18,11 +19,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
     """Daemon thread: polls ADB every 10 s, triggers Cable Sync when a device connects."""
     import time as _time
     import datetime as _dt
-    import rom_manager.web.server as _srv
-    _job_lock = _srv._job_lock
-    _jobs = _srv._jobs
-    _cable_progress = _srv._cable_progress
-    _job_results = _srv._job_results
+    _job_lock = _state._job_lock
+    _jobs = _state._jobs
+    _cable_progress = _state._cable_progress
+    _job_results = _state._job_results
 
     _POLL_INTERVAL = 10        # seconds between ADB polls
     _COOLDOWN      = 30        # seconds to wait after a sync before syncing again
@@ -57,12 +57,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             current_serials = {d.serial for d in devices if d.ready}
 
             # Clear device_prompt when the device disconnects
-            if not current_serials and _srv._auto_sync_status.get("state") == "device_prompt":
-                _srv._auto_sync_status["state"] = "waiting"
+            if not current_serials and _state._auto_sync_status.get("state") == "device_prompt":
+                _state._auto_sync_status["state"] = "waiting"
 
             # Detect newly connected devices
-            new_serials = current_serials - _srv._auto_sync_last_devices
-            _srv._auto_sync_last_devices = current_serials
+            new_serials = current_serials - _state._auto_sync_last_devices
+            _state._auto_sync_last_devices = current_serials
 
             if not new_serials:
                 continue
@@ -76,13 +76,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
             serial = next(iter(new_serials))
 
-            if not _srv._auto_sync_enabled:
+            if not _state._auto_sync_enabled:
                 # Auto-sync disabled: show prompt in UI, let user decide
                 _logger.info("Auto-sync: new device %s — auto-sync disabled, showing prompt", serial)
-                _srv._auto_sync_status = {
+                _state._auto_sync_status = {
                     "state": "device_prompt",
                     "last_device": serial,
-                    "last_sync_at": _srv._auto_sync_status.get("last_sync_at"),
+                    "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
                     "last_error": None,
                 }
                 continue
@@ -90,7 +90,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             _logger.info("Auto-sync: new device %s — starting sync", serial)
 
             now_str = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            _srv._auto_sync_status = {
+            _state._auto_sync_status = {
                 "state": "syncing",
                 "last_device": serial,
                 "last_sync_at": now_str,
@@ -100,7 +100,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             # Mark cable_sync job as running
             with _job_lock:
                 if _jobs.get("cable_sync"):
-                    _srv._auto_sync_status["state"] = "waiting"
+                    _state._auto_sync_status["state"] = "waiting"
                     continue
                 _jobs["cable_sync"] = True
 
@@ -289,7 +289,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     }
 
                     finish_ts = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                    _srv._auto_sync_status = {
+                    _state._auto_sync_status = {
                         "state": "idle",
                         "last_device": serial,
                         "last_sync_at": finish_ts,
@@ -298,10 +298,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
                 except Exception as exc:
                     _logger.exception("Auto-sync error: %s", exc)
-                    _srv._auto_sync_status = {
+                    _state._auto_sync_status = {
                         "state": "idle",
                         "last_device": serial,
-                        "last_sync_at": _srv._auto_sync_status.get("last_sync_at"),
+                        "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
                         "last_error": str(exc),
                     }
                     _job_results["cable_sync"] = {"error": str(exc), "auto_sync": True}
@@ -321,7 +321,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             # Never crash the daemon
             _logger.debug("Auto-sync daemon exception: %s", exc)
             try:
-                _srv._auto_sync_status["state"] = "waiting"
+                _state._auto_sync_status["state"] = "waiting"
             except Exception:
                 pass
 
@@ -333,12 +333,11 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
     import os
     import shutil
     import datetime as _dt2
-    import rom_manager.web.server as _srv
-    _sd_sync_status = _srv._sd_sync_status
-    _job_results = _srv._job_results
-    _job_lock = _srv._job_lock
-    _jobs = _srv._jobs
-    _cable_progress = _srv._cable_progress
+    _sd_sync_status = _state._sd_sync_status
+    _job_results = _state._job_results
+    _job_lock = _state._job_lock
+    _jobs = _state._jobs
+    _cable_progress = _state._cable_progress
 
     _log_file = None
     copied = 0
@@ -483,10 +482,9 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
 def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
     """Daemon thread: polls for SD card drive letter, triggers Cable Sync when inserted."""
     import time as _time
-    import rom_manager.web.server as _srv
-    _sd_sync_status = _srv._sd_sync_status
-    _job_lock = _srv._job_lock
-    _jobs = _srv._jobs
+    _sd_sync_status = _state._sd_sync_status
+    _job_lock = _state._job_lock
+    _jobs = _state._jobs
 
     _last_available = False
     _last_sync_at = 0.0
