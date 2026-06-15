@@ -31,30 +31,20 @@ from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loo
 from rom_manager.web.inbox_pipeline import (
     _build_inbox_scan, _run_setup_pipeline, _run_inbox_pipeline, _watcher_now,
 )
-from rom_manager.web.jobs.manager import JobManager
-
-# ── Tray icon instance (set by serve() when --tray is passed) ─────────────────
-_tray_instance = None  # type: ignore[assignment]
-
-# ── HTTP server instance (set by serve(), used by /api/shutdown) ───────────────
-_httpd_instance = None  # type: ignore[assignment]
-
-# ── Background job state ──────────────────────────────────────────────────────
-_job_lock = threading.Lock()
-_jobs: dict[str, bool] = {
-    "scan": False, "match": False, "sync": False,
-    "convert_chd": False, "convert_cso": False, "scrape": False,
-    "extract_zip": False, "health_check": False,
-    "ra_check": False, "cable_sync": False,
-    "apply": False, "inbox": False, "setup": False,
-    "backup_now": False,
-    "tree_diff": False,
-    "verify_chd": False,
-}
-_job_results: dict[str, dict] = {}
-
-# Centralised job state — replaces _jobs/_job_results/_*_progress progressively (ARC-JM-*)
-_job_manager = JobManager()
+import rom_manager.web.state as _state
+from rom_manager.web.state import (
+    _job_lock, _jobs, _job_results, _job_manager,
+    _chd_progress, _cso_progress, _scrape_progress, _zip_progress,
+    _health_progress, _ra_progress, _cable_progress, _scan_progress,
+    _apply_progress, _inbox_progress, _setup_progress,
+    _verify_chd_progress, _inbox_watcher_status,
+    _scan_cancel, _cable_cancel, _chd_cancel, _verify_chd_cancel,
+    _cso_cancel, _zip_cancel, _health_cancel, _ra_cancel,
+    _scrape_cancel, _match_cancel, _ss_last_quota,
+    _auto_sync_enabled, _auto_sync_last_devices,
+    _auto_sync_status, _sd_sync_status,
+    _tray_instance, _httpd_instance,
+)
 
 
 def _start_job(name: str, fn: "Callable[[], None]") -> dict:
@@ -152,31 +142,6 @@ _STANDARD_PLATFORM_FOLDERS: tuple[str, ...] = (
     # Arcade
     "arcade",
 )
-
-_chd_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
-_cso_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
-_scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "current_game": str}
-_zip_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
-_health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
-_ra_progress: dict = {}      # {"current": int, "total": int, "current_file": str}
-_cable_progress: dict = {}   # {"copied": int, "total_files": int, "bytes_copied": int, "bytes_total": int, "speed_bps": float, "current_file": str}
-_scan_progress: dict = {}    # {"files_seen": int, "roms_detected": int, "current_path": str}
-_apply_progress: dict = {}   # {"current": int, "total": int, "current_file": str}
-_inbox_progress: dict = {}    # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "processed": int, "total": int}
-_inbox_watcher_status: dict = {"watching": False, "last_check": None, "pending_files": 0, "trigger_ts": 0}
-_setup_progress: dict = {}   # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "pct": int}
-_verify_chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
-_scan_cancel:   threading.Event = threading.Event()
-_cable_cancel:  threading.Event = threading.Event()
-_chd_cancel:    threading.Event = threading.Event()
-_verify_chd_cancel: threading.Event = threading.Event()
-_cso_cancel:    threading.Event = threading.Event()
-_zip_cancel:    threading.Event = threading.Event()
-_health_cancel: threading.Event = threading.Event()
-_ra_cancel:     threading.Event = threading.Event()
-_scrape_cancel: threading.Event = threading.Event()
-_match_cancel:  threading.Event = threading.Event()
-_ss_last_quota: dict = {}   # last ScreenScraper quota snapshot from any scrape run
 
 # ── S25: Session auth ─────────────────────────────────────────────────────────
 _SESSION_COOKIE = "rvm_session"
@@ -278,15 +243,6 @@ document.getElementById('f').addEventListener('submit',async function(e){
 </body>
 </html>"""
 _logger = logging.getLogger(__name__)
-
-# ── Auto-sync daemon state ─────────────────────────────────────────────────────
-_auto_sync_enabled: bool = True
-_auto_sync_last_devices: set = set()   # serial numbers seen in last poll
-_auto_sync_status: dict = {"state": "waiting", "last_sync_at": None, "last_device": None, "last_error": None}
-
-# ── SD card daemon state ────────────────────────────────────────────────────────
-_sd_sync_status: dict = {"state": "waiting", "last_sync_at": None, "drive": None}
-
 
 def _handle_detect_cloud_folder() -> dict:
     """Detect locally-installed cloud clients (Dropbox, OneDrive, Google Drive)."""
@@ -808,7 +764,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     _router = Router()
 
     def _set_auto_sync_fn(val: bool) -> None:
-        _srv_mod._auto_sync_enabled = val
+        _state._auto_sync_enabled = val
 
     import rom_manager.web.handlers.config as _h_config
     _h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
@@ -1272,8 +1228,8 @@ def serve(
     repository_android: LibraryRepository | None = None,
     tray: bool = False,
 ) -> None:
-    global _auto_sync_enabled, _tray_instance
-    _auto_sync_enabled = config.auto_sync_enabled
+    global _tray_instance
+    _state._auto_sync_enabled = config.auto_sync_enabled
 
     if host != "127.0.0.1" and not config.web_pin_hash:
         _logger.warning(
