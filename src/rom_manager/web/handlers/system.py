@@ -39,6 +39,7 @@ _ES_PLATFORM_FOLDERS: dict[str, str] = {
     "Atari Lynx":       "atarilynx",
     "Atari Jaguar":     "atarijaguar",
     "Neo Geo":          "neogeo",
+    "Neo Geo Pocket Color": "ngpc",
     "PC Engine":        "pcengine",
     "Sega 32X":         "sega32x",
     "Sega CD":          "segacd",

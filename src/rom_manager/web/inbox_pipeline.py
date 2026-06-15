@@ -10,42 +10,13 @@ from pathlib import Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
 
 
 # ── Inbox (Pilar 2) ───────────────────────────────────────────────────────────
-
-_PLATFORM_FOLDERS: dict[str, str] = {
-    "gba": "gba",
-    "gbc": "gbc",
-    "gb": "gb",
-    "snes": "snes",
-    "nes": "nes",
-    "n64": "n64",
-    "nds": "nds",
-    "psx": "psx",
-    "ps1": "psx",
-    "ps2": "ps2",
-    "psp": "psp",
-    "megadrive": "megadrive",
-    "genesis": "megadrive",
-    "gg": "gamegear",
-    "sms": "mastersystem",
-    "saturn": "saturn",
-    "dreamcast": "dreamcast",
-    "gamecube": "gamecube",
-    "wii": "wii",
-    "wiiu": "wiiu",
-    "3ds": "3ds",
-    "mame": "arcade",
-    "neogeo": "neogeo",
-    "lynx": "atarilynx",
-    "jaguar": "atarijaguar",
-    "atari2600": "atari2600",
-    "atari7800": "atari7800",
-}
-
 
 _DISC_EXTENSIONS_INBOX = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".ccd", ".chd"})
 _ROM_EXTENSIONS_INBOX = frozenset({
@@ -85,21 +56,6 @@ _KNOWN_BIOS_MAP: dict[str, str] = {
     "exec.bin": "intellivision", "grom.bin": "intellivision",
     "awbios.zip": "naomi", "naomi_boot.bin": "naomi",
 }
-
-
-def _platform_folder_name(platform: str) -> str:
-    """Map a platform ID/name to a human-readable folder name."""
-    if not platform:
-        return "Unknown"
-    key = platform.lower().replace(" ", "").replace("-", "")
-    # Direct lookup first
-    if platform.lower() in _PLATFORM_FOLDERS:
-        return _PLATFORM_FOLDERS[platform.lower()]
-    # Try stripped key
-    for k, v in _PLATFORM_FOLDERS.items():
-        if k.replace(" ", "").replace("-", "") == key:
-            return v
-    return platform
 
 
 def _build_inbox_scan(inbox_path_str: str) -> dict:
@@ -489,7 +445,8 @@ def _run_inbox_pipeline(
             if not source_file.exists():
                 continue
 
-            folder_name = _platform_folder_name(platform or "Unknown")
+            canonical   = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
+            folder_name = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
             dest_folder = target_root / folder_name
             dest_folder.mkdir(parents=True, exist_ok=True)
             dest_file = dest_folder / source_file.name
