@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rom_manager.web.state as _state
+
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
@@ -73,7 +75,6 @@ def register_cloud(
     # ── POST /api/auto-sync-toggle ───────────────────────────────────────────
     @router.post("/api/auto-sync-toggle")
     def post_auto_sync_toggle(ctx) -> None:
-        import rom_manager.web.state as _state
         _state._auto_sync_enabled = not _state._auto_sync_enabled
         config.auto_sync_enabled = _state._auto_sync_enabled
         ctx._send_json({"enabled": _state._auto_sync_enabled})
@@ -184,9 +185,8 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
 
     def run() -> None:
         job_result = None
-        import rom_manager.web.state as _srv13
-        if _srv13._tray_instance:
-            _srv13._tray_instance.set_status("Sincronizando…")
+        if _state._tray_instance:
+            _state._tray_instance.set_status("Sincronizando…")
         try:
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
@@ -367,18 +367,17 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
             if not dry_run:
                 _total_conflicts = sum(r.get("conflicts", 0) for r in all_results)
                 if _errs:
-                    _srv13._tray_instance and _srv13._tray_instance.set_status(f"✗ Sync: {_errs} errores")
+                    _state._tray_instance and _state._tray_instance.set_status(f"✗ Sync: {_errs} errores")
                 elif _total_conflicts:
-                    _srv13._tray_instance and _srv13._tray_instance.set_status(f"⚠ Conflictos: {_total_conflicts}")
+                    _state._tray_instance and _state._tray_instance.set_status(f"⚠ Conflictos: {_total_conflicts}")
                 else:
                     _ts = _utc_now_str()[:16].replace("T", " ")
-                    _srv13._tray_instance and _srv13._tray_instance.set_status(f"Sync OK {_ts}")
-                _srv13._auto_sync_status["last_sync_at"] = _utc_now_str()
-                _srv13._auto_sync_status["last_error"] = (f"{_errs} errores en cloud sync") if _errs else None
+                    _state._tray_instance and _state._tray_instance.set_status(f"Sync OK {_ts}")
+                _state._auto_sync_status["last_sync_at"] = _utc_now_str()
+                _state._auto_sync_status["last_error"] = (f"{_errs} errores en cloud sync") if _errs else None
         except Exception as exc:
             job_result = {"error": str(exc)}
-            import rom_manager.web.state as _srv13e
-            _srv13e._tray_instance and _srv13e._tray_instance.set_status("✗ Error en sync")
+            _state._tray_instance and _state._tray_instance.set_status("✗ Error en sync")
         finally:
             job_manager.finish("sync", job_result)
 
@@ -389,7 +388,6 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
 def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
     """Save auto-sync settings to config.toml and update in-memory config."""
     from rom_manager.config import write_config_toml
-    import rom_manager.web.state as _srv
 
     updates: dict = {}
     if "sync.auto_sync_direction" in data:
@@ -405,12 +403,12 @@ def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
         val = bool(data["sync.auto_sync_enabled"])
         updates["sync.auto_sync_enabled"] = val
         config.auto_sync_enabled = val
-        _srv._auto_sync_enabled = val
+        _state._auto_sync_enabled = val
 
     if updates:
         write_config_toml(config.project_root, updates)
 
-    ctx._send_json({"saved": list(updates.keys()), "enabled": _srv._auto_sync_enabled})
+    ctx._send_json({"saved": list(updates.keys()), "enabled": _state._auto_sync_enabled})
 
 
 def _do_migrate_split_db(ctx, config: "AppConfig", repository: "LibraryRepository", repo_android: "LibraryRepository") -> None:

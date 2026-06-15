@@ -6,6 +6,8 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+import rom_manager.web.state as _state
+
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
@@ -40,7 +42,6 @@ def register(
         _handle_library_doctor,
         _handle_retroarch_check,
     )
-    import rom_manager.web.state as _state
 
     # ── GET /api/local-url ────────────────────────────────────────────────────
     @router.get("/api/local-url")

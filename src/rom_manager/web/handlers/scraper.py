@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rom_manager.web.state as _state
+
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
@@ -84,7 +86,6 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
     _cancel = job_manager.cancel_event("scrape")
 
     def run() -> None:
-        import rom_manager.web.state as _state_s
         job_result = None
         try:
             from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
@@ -146,7 +147,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
                     if _cancel.is_set():
                         break
                     if client.last_quota:
-                        _state_s._ss_last_quota.update(client.last_quota)
+                        _state._ss_last_quota.update(client.last_quota)
                     if last_error:
                         network_errors += 1
                         failed_games.append(game["original_filename"])
