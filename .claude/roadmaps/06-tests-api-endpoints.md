@@ -376,4 +376,4 @@ Opcional: medir cobertura de `web/` con `pytest --cov=rom_manager.web --cov-repo
 - [x] Paso 5 — `test_handlers_config.py`
 - [x] Paso 6 — `test_handlers_scan.py`
 - [x] Paso 7 — suite completa en verde (412 tests, 2 fallos preexistentes no relacionados). Cobertura opcional omitida (`pytest-cov` no instalado)
-- [ ] Commit en rama, PR a main
+- [x] Commit en rama, PR a main — [#6](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/6)
