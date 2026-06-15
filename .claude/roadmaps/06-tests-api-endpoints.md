@@ -360,18 +360,20 @@ Opcional: medir cobertura de `web/` con `pytest --cov=rom_manager.web --cov-repo
 |--------|------------|
 | `do_POST` para `/api/scan` lanza un hilo real (`threading.Thread`) | Librería de test vacía → termina casi instantáneo; usar `_wait_job` con timeout generoso (5 s) |
 | Estado global de `auth.py` (`_sessions`, `_auth_failures`) contamina otros tests si se importa `rom_manager.web.server` en el mismo proceso | Fixture `autouse` que limpia antes/después (Paso 4) |
-| `JobManager` es por-instancia, pero `make_handler` crea uno nuevo en cada llamada a `TestClient(...)` — dos clientes en el mismo test no comparten jobs | Documentar: un solo `client` por test de scan/match |
+| `_job_manager` (`web/state.py`) es un **singleton de módulo** (desde rama 04), no por-instancia — todos los `WebClient` del proceso comparten el mismo `JobManager` | Fixture `autouse` `_reset_job_manager` en `conftest.py` limpia `_running`/`_results`/`_progress`/`_cancel` antes de cada test |
+| El fixture `config` original (`load_config(Path(__file__).parent.parent.parent)`) usaría el **`config.toml` real del repo** como `project_root` — `POST /api/config` lo sobreescribiría | `config` usa `load_config(tmp_path)` → `write_config_toml` escribe en `tmp_path/config.toml`, aislado por test. `library_root` se asigna como `Path`, no `str` (si no, `_validate_config` falla con `'str' object has no attribute 'exists'`) |
+| `TestClient` como nombre de clase dispara un `PytestCollectionWarning` (pytest la trata como clase de test por el prefijo `Test`) | Renombrada a `WebClient` |
 | Dos tests fallando ya en `tests/test_scanner.py` y `tests/test_library_structure.py` (preexistentes, no relacionados) | No deben confundirse con regresiones de esta rama — ya fallan en `main` |
 
 ---
 
 ## Checklist
 
-- [ ] Paso 1 — `tests/web/conftest.py` con `TestClient` (GET + POST)
-- [ ] Paso 2 — `test_router.py`
-- [ ] Paso 3 — `test_jobs_manager.py`
-- [ ] Paso 4 — `test_auth.py` con reset de estado global
-- [ ] Paso 5 — `test_handlers_config.py`
-- [ ] Paso 6 — `test_handlers_scan.py`
-- [ ] Paso 7 — suite completa en verde, cobertura `web/` > 60%
+- [x] Paso 1 — `tests/web/conftest.py` con `WebClient` (GET + POST)
+- [x] Paso 2 — `test_router.py`
+- [x] Paso 3 — `test_jobs_manager.py`
+- [x] Paso 4 — `test_auth.py` con reset de estado global
+- [x] Paso 5 — `test_handlers_config.py`
+- [x] Paso 6 — `test_handlers_scan.py`
+- [x] Paso 7 — suite completa en verde (412 tests, 2 fallos preexistentes no relacionados). Cobertura opcional omitida (`pytest-cov` no instalado)
 - [ ] Commit en rama, PR a main
