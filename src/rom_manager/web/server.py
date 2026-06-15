@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
@@ -12,22 +11,8 @@ from urllib.parse import parse_qs, urlparse
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.planner import build_plan
-from rom_manager.planner.operation_planner import FormatOptions
-from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.web.frontend import HTML
-from rom_manager.web.response_builders import (
-    _json_response, _test_path, _list_drives, _utc_now_str,
-    _repo_for_path,
-    _build_junk_scan, _build_library_report, _build_status,
-    _build_games, _count_companion_saves,
-    _build_folder_analysis,
-    _build_assets, _build_sync_log,
-    _build_cable_sync_preview,
-)
-from rom_manager.web.inbox_pipeline import (
-    _build_inbox_scan, _run_setup_pipeline,
-)
+from rom_manager.web.response_builders import _json_response, _utc_now_str, _repo_for_path
 import rom_manager.web.state as _state
 from rom_manager.web.state import (
     _job_lock, _jobs, _job_results, _job_manager,
@@ -120,20 +105,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         return _do_ra_check(api_key, config, repository, _job_manager).get("status") == "started"
 
     import rom_manager.web.handlers.collection as _h_collection
-    import sys as _sys_dbg
-    try:
-        _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
-        asset_routes = [r for r in _router.routes() if 'asset' in r[1].lower()]
-        print(f"[DEBUG] Registered asset routes: {asset_routes}", file=_sys_dbg.stderr)
-        print(f"[DEBUG] Total routes after collection: {len(_router.routes())}", file=_sys_dbg.stderr)
-        if not asset_routes:
-            print(f"[DEBUG] WARNING: No asset routes registered!", file=_sys_dbg.stderr)
-            print(f"[DEBUG] All routes: {_router.routes()[:10]}", file=_sys_dbg.stderr)
-    except Exception as _reg_err:
-        print(f"[ERROR] Failed to register collection handlers: {_reg_err}", file=_sys_dbg.stderr)
-        import traceback
-        traceback.print_exc(file=_sys_dbg.stderr)
-        raise
+    _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
 
     import rom_manager.web.handlers.scan as _h_scan
     _h_scan.register(
