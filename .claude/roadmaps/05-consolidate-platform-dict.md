@@ -105,4 +105,4 @@ Si hay datos de prueba disponibles, ejecutar el agente `inbox-watchdog` para con
 - [x] Paso 3 — `_PLATFORM_FOLDERS` y `_platform_folder_name()` eliminados
 - [x] Paso 4 — Step 6 del Inbox usa el nuevo resolver de dos pasos
 - [x] Paso 5 — 390 tests pasan (2 fallos preexistentes no relacionados, sin cambios)
-- [ ] Commit en rama, PR a main
+- [x] Commit en rama, PR a main — [#5](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/5)

@@ -14,7 +14,7 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 | 02 | [02-split-sync-handler.md](02-split-sync-handler.md) | `refactor/split-sync-handler` | **Completado** ✅ | 🔴 P1 |
 | 03 | [03-eliminate-late-imports.md](03-eliminate-late-imports.md) | `refactor/eliminate-late-imports` | **Completado** ✅ | 🟠 P2 |
 | 04 | [04-consolidate-state.md](04-consolidate-state.md) | `refactor/consolidate-state` | **Completado** ✅ | 🟠 P2 |
-| 05 | [05-consolidate-platform-dict.md](05-consolidate-platform-dict.md) | `refactor/consolidate-platform-dict` | **En curso** | 🟠 P2 |
+| 05 | [05-consolidate-platform-dict.md](05-consolidate-platform-dict.md) | `refactor/consolidate-platform-dict` | **Completado** ✅ | 🟠 P2 |
 | 06 | [06-tests-api-endpoints.md](06-tests-api-endpoints.md) | `tests/api-endpoints` | **Pendiente** | 🟠 P2 |
 | 07 | — | `fix/remove-debug-prints` | Sin roadmap | 🟡 P3 |
 | 08 | — | `fix/error-handling` | Sin roadmap | 🟡 P3 |
