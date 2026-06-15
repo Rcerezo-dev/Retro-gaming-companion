@@ -25,9 +25,8 @@ from rom_manager.web.response_builders import (
     _build_assets, _build_sync_log,
     _build_cable_sync_preview,
 )
-from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loop
 from rom_manager.web.inbox_pipeline import (
-    _build_inbox_scan, _run_setup_pipeline, _run_inbox_pipeline, _watcher_now,
+    _build_inbox_scan, _run_setup_pipeline,
 )
 import rom_manager.web.state as _state
 from rom_manager.web.state import (
@@ -451,113 +450,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     return Handler
 
 
-# ── Health-check scheduler (S37-1) ────────────────────────────────────────────
-
-_HEALTH_CHECK_INTERVAL_DAYS = 7
-
-
-def _health_schedule_path(config: "AppConfig") -> "Path":
-    return config.data_dir / "health_schedule.json"
-
-
-def _read_health_schedule(config: "AppConfig") -> dict:
-    """Return the stored schedule dict, or empty dict if not found."""
-    import json as _json
-    p = _health_schedule_path(config)
-    try:
-        return _json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _write_health_schedule(config: "AppConfig", *, ok: int, corrupted: int, missing: int) -> None:
-    """Persist health check completion time and summary."""
-    import json as _json
-    import datetime as _dt
-    data = {
-        "last_run_at": _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "last_ok": ok,
-        "last_corrupted": corrupted,
-        "last_missing": missing,
-    }
-    p = _health_schedule_path(config)
-    try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(_json.dumps(data, indent=2), encoding="utf-8")
-    except Exception as exc:
-        _logger.debug("Could not write health schedule: %s", exc)
-
-
-def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: ignore[type-arg]
-    """Daemon: trigger an automatic health check once per week."""
-    import datetime as _dt
-    import time as _time
-
-    _time.sleep(60)  # let the server finish startup before first check
-
-    while True:
-        try:
-            schedule = _read_health_schedule(config)
-            last_run_raw = schedule.get("last_run_at")
-            overdue = True
-            if last_run_raw:
-                try:
-                    last_run = _dt.datetime.fromisoformat(last_run_raw.replace("Z", "+00:00"))
-                    elapsed = (_dt.datetime.now(tz=_dt.timezone.utc) - last_run).days
-                    overdue = elapsed >= _HEALTH_CHECK_INTERVAL_DAYS
-                except Exception:
-                    pass
-
-            if overdue:
-                if not _job_manager.get_status()["health_check_running"]:
-                    repository = get_repo_fn()
-                    _logger.info("Scheduled health check starting (overdue by %s days)", "?" if not last_run_raw else elapsed)
-                    _cancel = _job_manager.cancel_event("health_check")
-
-                    def _scheduled_run(_repo=repository, _c=_cancel) -> None:
-                        job_result = None
-                        try:
-                            from rom_manager.utils.health_checker import check_library_health
-
-                            def _prog(current: int, total: int, filename: str) -> None:
-                                _job_manager.update_progress("health_check", {"current": current, "total": total, "current_file": filename})
-
-                            summary = check_library_health(_repo, progress_cb=_prog, cancel_event=_c)
-                            job_result = {
-                                "ok": summary.ok,
-                                "corrupted": summary.corrupted,
-                                "missing": summary.missing,
-                                "cancelled": _c.is_set(),
-                                "auto": True,
-                                "issues": [
-                                    {"source_path": r.source_path, "status": r.status,
-                                     "stored_sha1": r.stored_sha1[:12],
-                                     "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else "",
-                                     "platform": r.platform, "canonical_title": r.canonical_title}
-                                    for r in summary.results
-                                ],
-                            }
-                            _write_health_schedule(config, ok=summary.ok,
-                                                   corrupted=summary.corrupted, missing=summary.missing)
-                            if not _c.is_set() and config.notify_desktop:
-                                from rom_manager.utils.notifier import notify
-                                if summary.corrupted or summary.missing:
-                                    notify("Retro Vault — Health Check",
-                                           f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos")
-                                else:
-                                    notify("Retro Vault — Health Check",
-                                           f"✓ {summary.ok} ROMs verificados, sin problemas")
-                        except Exception as exc:
-                            _logger.error("Scheduled health check error: %s", exc)
-                        finally:
-                            _job_manager.finish("health_check", job_result)
-
-                    _job_manager.start("health_check", _scheduled_run)
-
-        except Exception as exc:
-            _logger.debug("Health scheduler error: %s", exc)
-
-        _time.sleep(3600)  # check every hour
+from rom_manager.web.daemons import start_all as _start_all_daemons
 
 
 def serve(
@@ -585,74 +478,7 @@ def serve(
     user_platforms = config.data_dir / "platforms.toml"
     reload_platforms(user_platforms if user_platforms.exists() else None)
 
-    if config.auto_sync_enabled:
-        t = threading.Thread(
-            target=_auto_sync_loop,
-            args=(config, lambda: repository),
-            daemon=True,
-        )
-        t.name = "auto-sync-daemon"
-        t.start()
-        _logger.info("Auto-sync daemon started (polling every 10 s)")
-
-    sd_t = threading.Thread(
-        target=_sd_card_sync_loop,
-        args=(config, lambda: repository),
-        daemon=True,
-    )
-    sd_t.name = "sd-sync-daemon"
-    sd_t.start()
-    _logger.info("SD card sync daemon started (polling every 8 s)")
-
-    # Inbox watcher daemon (runs only when inbox_auto_process is True)
-    def _inbox_watcher_with_repo() -> None:
-        import time as _time
-        while True:
-            try:
-                _time.sleep(30)
-                if not config.inbox_path or not config.inbox_auto_process:
-                    _inbox_watcher_status.update({"watching": False, "last_check": None, "pending_files": 0})
-                    continue
-                inbox = Path(config.inbox_path).resolve()
-                if not inbox.exists():
-                    _inbox_watcher_status.update({"watching": True, "last_check": _watcher_now(), "pending_files": 0})
-                    continue
-                pending: list[Path] = [
-                    e for e in inbox.iterdir()
-                    if e.is_file() and not e.name.startswith(".") and not e.name.startswith("_")
-                ]
-                _inbox_watcher_status.update({
-                    "watching": True,
-                    "last_check": _watcher_now(),
-                    "pending_files": len(pending),
-                })
-                if pending:
-                    if not _job_manager.get_status()["inbox_running"]:
-                        _logger.info("Inbox watcher: %d files detected, launching pipeline", len(pending))
-                        _inbox_watcher_status["trigger_ts"] = _time.time()
-                        target_root_str = config.inbox_target_root or (str(config.library_root) if config.library_root else "")
-
-                        def _watcher_run(_tr=target_root_str) -> None:
-                            _run_inbox_pipeline(config.inbox_path, _tr, config.inbox_delete_source, repository, config, _job_manager)
-
-                        _job_manager.start("inbox", _watcher_run)
-            except Exception as exc:
-                _logger.debug("Inbox watcher error: %s", exc)
-
-    tw = threading.Thread(target=_inbox_watcher_with_repo, daemon=True)
-    tw.name = "inbox-watcher-daemon"
-    tw.start()
-    _logger.info("Inbox watcher daemon started")
-
-    # Health check scheduler (S37-1)
-    ht = threading.Thread(
-        target=_health_scheduler_loop,
-        args=(config, lambda: repository),
-        daemon=True,
-    )
-    ht.name = "health-check-scheduler"
-    ht.start()
-    _logger.info("Health check scheduler started (interval: %d days)", _HEALTH_CHECK_INTERVAL_DAYS)
+    _start_all_daemons(config, repository)
 
     # S39-3: system tray icon (Windows only)
     if tray:
