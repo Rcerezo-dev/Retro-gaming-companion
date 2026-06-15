@@ -84,7 +84,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 
     # ── Phase 1: Router (replaces if/elif ladder incrementally) ───────────────
     from rom_manager.web.router import Router
-    import rom_manager.web.server as _srv_mod  # used by set_auto_sync_fn
+    import rom_manager.web.state as _srv_mod
 
     _router = Router()
 
@@ -459,7 +459,6 @@ def serve(
                 from rom_manager.utils.tray_icon import TrayIcon
 
                 def _on_sync_from_tray() -> None:
-                    import rom_manager.web.server as _srv
                     sources = config.sync_sources
                     if not sources:
                         return

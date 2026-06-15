@@ -395,7 +395,8 @@ def _do_export_gamelists(ctx, data: dict, config: "AppConfig", repository: "Libr
     if platform_filter:
         platforms = [p for p in platforms if p["platform"] == platform_filter]
 
-    es_folders = srv_mod._ES_PLATFORM_FOLDERS
+    from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
+    es_folders = _ES_PLATFORM_FOLDERS
     written    = []
     for plat in platforms:
         if plat["scraped"] == 0:

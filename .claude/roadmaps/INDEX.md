@@ -12,7 +12,7 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 |---|---------|----------|--------|-----------|
 | 01 | [01-split-server-monolith.md](01-split-server-monolith.md) | `refactor/split-server-monolith` | **Completado** ✅ | 🔴 P1 |
 | 02 | [02-split-sync-handler.md](02-split-sync-handler.md) | `refactor/split-sync-handler` | **Completado** ✅ | 🔴 P1 |
-| 03 | — | `refactor/eliminate-late-imports` | Sin roadmap | 🟠 P2 |
+| 03 | [03-eliminate-late-imports.md](03-eliminate-late-imports.md) | `refactor/eliminate-late-imports` | **Completado** ✅ | 🟠 P2 |
 | 04 | — | `refactor/consolidate-state` | Sin roadmap | 🟠 P2 |
 | 05 | — | `refactor/consolidate-platform-dict` | Sin roadmap | 🟠 P2 |
 | 06 | — | `tests/api-endpoints` | Sin roadmap | 🟠 P2 |
