@@ -4,6 +4,9 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rom_manager.web.state as _state
+from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
+
 if TYPE_CHECKING:
     import types
 
@@ -98,8 +101,6 @@ def _do_scrape(
     _cancel = job_manager.cancel_event("scrape")
 
     def run() -> None:
-        import rom_manager.web.server as _srv
-
         job_result = None
         try:
             from rom_manager.scanner.rom_scanner import utc_now
@@ -172,7 +173,7 @@ def _do_scrape(
                     if _cancel.is_set():
                         break
                     if client.last_quota:
-                        _srv._ss_last_quota.update(client.last_quota)
+                        _state._ss_last_quota.update(client.last_quota)
                     if last_error:
                         network_errors += 1
                         failed_games.append(game["original_filename"])
@@ -282,7 +283,7 @@ def _do_scrape(
                 from rom_manager.scraper.gamelist_writer import write_gamelist
 
                 _out_root = Path(config.library_root) if config.library_root else None
-                _es_folders = _srv._ES_PLATFORM_FOLDERS
+                _es_folders = _ES_PLATFORM_FOLDERS
                 if _out_root:
                     _plat_filter = platform
                     _plats = repository.get_scraped_platform_summary()
@@ -457,7 +458,9 @@ def _do_export_gamelists(
     if platform_filter:
         platforms = [p for p in platforms if p["platform"] == platform_filter]
 
-    es_folders = srv_mod._ES_PLATFORM_FOLDERS
+    from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
+
+    es_folders = _ES_PLATFORM_FOLDERS
     written = []
     for plat in platforms:
         if plat["scraped"] == 0:
