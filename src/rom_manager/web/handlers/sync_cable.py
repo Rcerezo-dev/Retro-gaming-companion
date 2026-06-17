@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import threading
@@ -13,6 +14,9 @@ if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+_logger = logging.getLogger(__name__)
 
 
 def register_cable(
@@ -330,7 +334,9 @@ def _do_cable_sync(
                         }
                     )
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "No se pudo actualizar el progreso de cable-sync (ADB)", exc_info=True
+                    )
                 android_prefix = android_path.rstrip("/") + "/"
 
                 if direction == "pc_to_anbernic":
@@ -520,7 +526,9 @@ def _do_cable_sync(
                         }
                     )
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "No se pudo actualizar el progreso de cable-sync (SD)", exc_info=True
+                    )
 
                 if direction == "pc_to_anbernic":
                     for src in _iter_files(pc_root):
@@ -658,13 +666,17 @@ def _do_cable_sync(
                         if _wanted(_ff):
                             _pc_file_count += 1
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "Conteo de archivos en PC para preview de sync falló", exc_info=True
+                    )
                 try:
                     for _ff in _iter_files(_ab_r):
                         if _wanted(_ff):
                             _ab_file_count += 1
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "Conteo de archivos en Android para preview de sync falló", exc_info=True
+                    )
             m._job_results["cable_sync"] = {
                 "dry_run": dry_run,
                 "direction": direction,
@@ -696,7 +708,7 @@ def _do_cable_sync(
                 try:
                     _log_file.close()
                 except Exception:
-                    pass
+                    _logger.debug("No se pudo cerrar el log de cable-sync", exc_info=True)
             with m._job_lock:
                 m._cable_progress.clear()
                 m._jobs["cable_sync"] = False

@@ -171,6 +171,9 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
                     if not platform_guess:
                         platform_guess = _detect_platform(entry)
             except Exception:
+                _logger.debug(
+                    "Inspección de ZIP para detectar plataforma falló: %s", entry, exc_info=True
+                )
                 platform_guess = _detect_platform(entry)
             needs_extraction = True
         elif ext in _DISC_EXTENSIONS_INBOX:
@@ -585,7 +588,7 @@ def _run_inbox_pipeline(
                     else:
                         _shutil.move(str(zp), dest_zp)
             except Exception:
-                pass
+                _logger.warning("No se pudo archivar el ZIP procesado: %s", zp, exc_info=True)
 
         # Remove _extracted temp folder if empty
         extracted_dir = inbox / "_extracted"
@@ -593,7 +596,7 @@ def _run_inbox_pipeline(
             try:
                 extracted_dir.rmdir()
             except Exception:
-                pass
+                _logger.debug("No se pudo eliminar la carpeta temporal _extracted", exc_info=True)
 
         job_result = {
             "result_ts": utc_now(),

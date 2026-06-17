@@ -394,7 +394,9 @@ def _do_scan(
                                 json.dumps(_rpt_data, ensure_ascii=False), encoding="utf-8"
                             )
                         except Exception:
-                            pass
+                            logger.debug(
+                                "No se pudo cachear last_report.json tras el scan", exc_info=True
+                            )
 
                     threading.Thread(target=_cache_report, daemon=True).start()
         except Exception as exc:

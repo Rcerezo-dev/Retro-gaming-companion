@@ -54,7 +54,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
                 devices = list_devices(config.adb, timeout=8)
             except Exception:
-                # adb not found or timed out — silently skip
+                # adb not found or timed out — skip this poll cycle
+                _logger.debug("ADB no disponible en el sondeo de auto-sync", exc_info=True)
                 continue
 
             current_serials = {d.serial for d in devices if d.ready}
@@ -329,7 +330,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         try:
                             _log_file.close()
                         except Exception:
-                            pass
+                            _logger.debug("No se pudo cerrar el log de auto-sync", exc_info=True)
                     with _job_lock:
                         _cable_progress.clear()
                         _jobs["cable_sync"] = False
@@ -342,7 +343,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             try:
                 _state._auto_sync_status["state"] = "waiting"
             except Exception:
-                pass
+                _logger.debug("No se pudo restaurar el estado de auto-sync", exc_info=True)
 
 
 # ── SD card auto-sync daemon ───────────────────────────────────────────────────
@@ -496,7 +497,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
             try:
                 _log_file.close()
             except Exception:
-                pass
+                _logger.debug("No se pudo cerrar el log de cable-sync", exc_info=True)
         with _job_lock:
             _cable_progress.clear()
             _jobs["cable_sync"] = False
@@ -527,6 +528,7 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
             try:
                 currently_available = ab_path.exists() and ab_path.is_dir()
             except Exception:
+                _logger.debug("No se pudo comprobar disponibilidad de %s", ab_path, exc_info=True)
                 currently_available = False
 
             just_inserted = currently_available and not _last_available
@@ -567,4 +569,4 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
             try:
                 _sd_sync_status["state"] = "waiting"
             except Exception:
-                pass
+                _logger.debug("No se pudo restaurar el estado de SD-sync", exc_info=True)
