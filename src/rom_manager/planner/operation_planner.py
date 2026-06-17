@@ -24,9 +24,16 @@ def _same_file(a: Path, b: Path) -> bool:
 # Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
 # Also used as the heuristic to detect whether source is flat (parent.name in this set)
 # or already in a subfolder (parent.name not in this set).
-_DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset({
-    "psx", "saturn", "ps2", "dreamcast", "gamecube", "wii",
-})
+_DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset(
+    {
+        "psx",
+        "saturn",
+        "ps2",
+        "dreamcast",
+        "gamecube",
+        "wii",
+    }
+)
 
 # Annotations de región al estilo No-Intro: (USA), (Europe), (World), etc.
 _REGION_RE = re.compile(
@@ -87,7 +94,7 @@ def _canonical_filename(game: MatchedGame, opts: FormatOptions | None = None) ->
             title = _REVISION_RE.sub("", title)
         title = sanitize_filename(title.strip())
 
-        sha_part = f" [{game.sha1[:max(4, min(40, opts.sha_length))]}]" if opts.include_sha else ""
+        sha_part = f" [{game.sha1[: max(4, min(40, opts.sha_length))]}]" if opts.include_sha else ""
         if opts.include_platform and game.platform:
             title = f"{game.platform} - {title}"
 
@@ -121,20 +128,30 @@ def build_plan(
 
         # Disc platforms: each game lives in its own subfolder (psx/Game/Game.cue)
         if game.platform and game.platform.lower() in _DISC_SUBFOLDER_PLATFORMS:
-            target = source.parent.parent / Path(new_filename).stem / new_filename \
-                if source.parent.name.lower() not in _DISC_SUBFOLDER_PLATFORMS \
+            target = (
+                source.parent.parent / Path(new_filename).stem / new_filename
+                if source.parent.name.lower() not in _DISC_SUBFOLDER_PLATFORMS
                 else source.parent / Path(new_filename).stem / new_filename
+            )
         else:
             target = source.parent / new_filename
 
         if source == target:
             plan.already_correct.append(
-                RenameOperation(game=game, source_path=source, target_path=target, status="already_correct")
+                RenameOperation(
+                    game=game, source_path=source, target_path=target, status="already_correct"
+                )
             )
         elif target.exists() and not _same_file(source, target):
             # Target exists and is a *different* file — genuine disk conflict
             plan.conflicts.append(
-                RenameOperation(game=game, source_path=source, target_path=target, status="conflict", conflict_reason="disk")
+                RenameOperation(
+                    game=game,
+                    source_path=source,
+                    target_path=target,
+                    status="conflict",
+                    conflict_reason="disk",
+                )
             )
         else:
             # Either target doesn't exist, or it's the same file (case-only rename on Windows)

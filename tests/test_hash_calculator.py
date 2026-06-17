@@ -1,4 +1,5 @@
 """Tests for hash_calculator.py — SHA1, MD5, CRC32 calculation."""
+
 from __future__ import annotations
 
 import hashlib

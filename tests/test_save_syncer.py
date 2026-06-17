@@ -30,6 +30,7 @@ def _mock_transport(remote_entries: list[RemoteEntry]) -> MagicMock:
 # list_local_saves
 # ---------------------------------------------------------------------------
 
+
 def test_list_local_saves_finds_saves(tmp_path: Path) -> None:
     (tmp_path / "gb").mkdir()
     (tmp_path / "gb" / "tetris.sav").write_bytes(b"\x00" * 8)
@@ -50,6 +51,7 @@ def test_list_local_saves_empty_dir(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # sync_saves — dry run
 # ---------------------------------------------------------------------------
+
 
 def test_dry_run_upload(tmp_path: Path) -> None:
     saves_dir = tmp_path / "saves"
@@ -102,6 +104,7 @@ def test_dry_run_up_to_date(tmp_path: Path) -> None:
     save_file.write_bytes(b"\x00" * 8)
     # Force mtime to match remote exactly.
     import os
+
     ts = _NOW.timestamp()
     os.utime(save_file, (ts, ts))
 

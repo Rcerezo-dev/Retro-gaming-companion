@@ -8,6 +8,7 @@ from pathlib import Path
 @dataclass(slots=True)
 class RenameOutcome:
     """Result of a single atomic ROM+saves rename."""
+
     success: bool
     source: Path
     target: Path
@@ -43,12 +44,15 @@ def rename_rom_with_saves(
     stem = source.stem
     try:
         companions: list[Path] = [
-            f for f in source.parent.iterdir()
+            f
+            for f in source.parent.iterdir()
             if f != source and f.stem == stem and f.suffix.lower() in save_extensions
         ]
     except OSError as exc:
         return RenameOutcome(
-            success=False, source=source, target=target,
+            success=False,
+            source=source,
+            target=target,
             error=f"Cannot list directory '{source.parent}': {exc}",
         )
 
@@ -58,6 +62,7 @@ def rename_rom_with_saves(
     if backup_root:
         try:
             from rom_manager.backup.save_backup import backup_save
+
             for sav in companions:
                 backup_save(sav, backup_root, keep_n=backup_keep_n)
         except Exception:
@@ -142,7 +147,8 @@ def move_disc_set_to_subfolder(
     new_stem = target_cue.stem
     try:
         companions: list[Path] = [
-            f for f in source_cue.parent.iterdir()
+            f
+            for f in source_cue.parent.iterdir()
             if f != source_cue and f.stem == stem and f.suffix.lower() in save_extensions
         ]
     except OSError:
@@ -151,6 +157,7 @@ def move_disc_set_to_subfolder(
     if backup_root and companions:
         try:
             from rom_manager.backup.save_backup import backup_save
+
             for sav in companions:
                 backup_save(sav, backup_root, keep_n=backup_keep_n)
         except Exception:
@@ -159,8 +166,12 @@ def move_disc_set_to_subfolder(
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        return RenameOutcome(success=False, source=source_cue, target=target_cue,
-                             error=f"Cannot create directory '{target_dir}': {exc}")
+        return RenameOutcome(
+            success=False,
+            source=source_cue,
+            target=target_cue,
+            error=f"Cannot create directory '{target_dir}': {exc}",
+        )
 
     moved: list[tuple[Path, Path]] = []  # (new_path, original_path)
 
@@ -183,8 +194,12 @@ def move_disc_set_to_subfolder(
             moved.append((bin_dest, bin_path))
         except OSError as exc:
             _rollback()
-            return RenameOutcome(success=False, source=source_cue, target=target_cue,
-                                 error=f"Failed to move track '{bin_path.name}': {exc}")
+            return RenameOutcome(
+                success=False,
+                source=source_cue,
+                target=target_cue,
+                error=f"Failed to move track '{bin_path.name}': {exc}",
+            )
 
     # Move saves (renaming stem to match new CUE name)
     saves_moved = 0
@@ -196,16 +211,25 @@ def move_disc_set_to_subfolder(
             saves_moved += 1
         except OSError as exc:
             _rollback()
-            return RenameOutcome(success=False, source=source_cue, target=target_cue,
-                                 error=f"Failed to move save '{sav.name}': {exc}")
+            return RenameOutcome(
+                success=False,
+                source=source_cue,
+                target=target_cue,
+                error=f"Failed to move save '{sav.name}': {exc}",
+            )
 
     # Move and rename the CUE itself
     try:
         os.rename(source_cue, target_cue)
     except OSError as exc:
         _rollback()
-        return RenameOutcome(success=False, source=source_cue, target=target_cue,
-                             error=f"Failed to move CUE '{source_cue.name}': {exc}")
+        return RenameOutcome(
+            success=False,
+            source=source_cue,
+            target=target_cue,
+            error=f"Failed to move CUE '{source_cue.name}': {exc}",
+        )
 
-    return RenameOutcome(success=True, source=source_cue, target=target_cue,
-                         saves_renamed=saves_moved)
+    return RenameOutcome(
+        success=True, source=source_cue, target=target_cue, saves_renamed=saves_moved
+    )

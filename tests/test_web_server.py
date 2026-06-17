@@ -15,6 +15,7 @@ from rom_manager.web.server import make_handler
 # Minimal fake HTTP infrastructure — no real socket needed.
 # ---------------------------------------------------------------------------
 
+
 class FakeSocket:
     def makefile(self, mode: str) -> io.BytesIO:
         return io.BytesIO(b"")
@@ -59,6 +60,7 @@ def _make_request(method: str, path: str, repository: LibraryRepository):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def repo(tmp_path: Path) -> LibraryRepository:

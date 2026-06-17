@@ -4,6 +4,7 @@ Does NOT touch the real library at E:\\Carpetas anbernic.
 Run with:
   C:\\Users\\rammu\\anaconda3\\envs\\rom_manager\\python.exe tests/integration_test_pipeline.py
 """
+
 from __future__ import annotations
 
 import os
@@ -21,16 +22,20 @@ PYTHON = r"C:\Users\rammu\anaconda3\envs\rom_manager\python.exe"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def _ok(detail: str = "") -> str:
     return f"PASS  {detail}"
+
 
 def _fail(detail: str = "") -> str:
     return f"FAIL  {detail}"
 
+
 def section(title: str) -> None:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
+
 
 # ── stage 0: create test library ─────────────────────────────────────────────
 
@@ -87,7 +92,7 @@ try:
     )
 
     cfg = load_config(test_project_root)
-    db_path = cfg.database_path           # .rommgr/library_pc.db inside tmpdir/_project
+    db_path = cfg.database_path  # .rommgr/library_pc.db inside tmpdir/_project
     repo = LibraryRepository(db_path)
 
     logger = logging.getLogger("integration_test")
@@ -105,7 +110,9 @@ try:
     else:
         scan2_result = _fail(f"roms_detected={roms} (expected >=3), errors={errors}")
 
-    print(f"files_seen={files_seen}, roms_detected={roms}, errors={errors}, pruned={scan_result_obj.pruned}")
+    print(
+        f"files_seen={files_seen}, roms_detected={roms}, errors={errors}, pruned={scan_result_obj.pruned}"
+    )
     print(scan2_result)
 except Exception:
     scan2_result = _fail(traceback.format_exc())
@@ -129,7 +136,9 @@ try:
 
     print(f"Rows in games table: {len(rows)}")
     for r in rows:
-        print(f"  id={r['id']}  file={r['original_filename']}  platform={r['platform']}  type={r['file_type']}")
+        print(
+            f"  id={r['id']}  file={r['original_filename']}  platform={r['platform']}  type={r['file_type']}"
+        )
 
     # Verify: all 3 GBA files present
     filenames = {r["original_filename"] for r in rows}
@@ -140,8 +149,7 @@ try:
     # Verify platform detection
     platforms = {r["platform"] for r in rows}
     gba_platform_ok = all(
-        r["platform"] == "Game Boy Advance"
-        for r in rows if r["original_filename"].endswith(".gba")
+        r["platform"] == "Game Boy Advance" for r in rows if r["original_filename"].endswith(".gba")
     )
 
     # Verify no duplicate source_path
@@ -153,7 +161,9 @@ try:
 
     if len(rows) == 3 and not missing and gba_platform_ok and no_dupes and all_rom_type:
         step3_ok = True
-        step3_result = _ok(f"{len(rows)} rows, platform=Game Boy Advance for all, no dupes, file_type=rom")
+        step3_result = _ok(
+            f"{len(rows)} rows, platform=Game Boy Advance for all, no dupes, file_type=rom"
+        )
     else:
         issues = []
         if len(rows) != 3:
@@ -161,7 +171,11 @@ try:
         if missing:
             issues.append(f"missing filenames: {missing}")
         if not gba_platform_ok:
-            bad = [(r['original_filename'], r['platform']) for r in rows if r['platform'] != 'Game Boy Advance']
+            bad = [
+                (r["original_filename"], r["platform"])
+                for r in rows
+                if r["platform"] != "Game Boy Advance"
+            ]
             issues.append(f"bad platforms: {bad}")
         if not no_dupes:
             issues.append("duplicate source_path entries found")
@@ -189,7 +203,9 @@ try:
 
     plan = build_plan(repo)
     total = plan.total
-    print(f"plan.total={total}, pending={len(plan.pending)}, conflicts={len(plan.conflicts)}, already_correct={len(plan.already_correct)}")
+    print(
+        f"plan.total={total}, pending={len(plan.pending)}, conflicts={len(plan.conflicts)}, already_correct={len(plan.already_correct)}"
+    )
 
     # plan.total >= 0 is guaranteed; no exception = success
     step4_ok = True
@@ -217,21 +233,19 @@ try:
 
     # Re-scan
     scan2 = scan_library(tmpdir, cfg, repo, logger, quick=True)
-    print(f"Second scan: files_seen={scan2.files_seen}, roms_detected={scan2.roms_detected}, pruned={scan2.pruned}")
+    print(
+        f"Second scan: files_seen={scan2.files_seen}, roms_detected={scan2.roms_detected}, pruned={scan2.pruned}"
+    )
 
     # Check DB
     with repo.connect() as conn:
-        rows2 = conn.execute(
-            "SELECT original_filename FROM games ORDER BY id"
-        ).fetchall()
+        rows2 = conn.execute("SELECT original_filename FROM games ORDER BY id").fetchall()
 
     remaining = {r["original_filename"] for r in rows2}
     print(f"Remaining in DB: {sorted(remaining)}")
 
     deleted_gone = deleted_file.name not in remaining
-    others_present = all(
-        f.name in remaining for f in files_to_create[1:]
-    )
+    others_present = all(f.name in remaining for f in files_to_create[1:])
 
     if deleted_gone and others_present and scan2.pruned == 1:
         step5_ok = True
@@ -275,16 +289,16 @@ except Exception:
 section("RESULTS TABLE")
 
 results = [
-    (1, "Crear biblioteca de prueba",      step1_ok, step1_result),
-    (2, "Scan",                            scan2_ok, scan2_result),
-    (3, "Verificar BD",                    step3_ok, step3_result),
-    (4, "Plan",                            step4_ok, step4_result),
-    (5, "Prune stale",                     step5_ok, step5_result),
-    (6, "Limpieza",                        step6_ok, step6_result),
+    (1, "Crear biblioteca de prueba", step1_ok, step1_result),
+    (2, "Scan", scan2_ok, scan2_result),
+    (3, "Verificar BD", step3_ok, step3_result),
+    (4, "Plan", step4_ok, step4_result),
+    (5, "Prune stale", step5_ok, step5_result),
+    (6, "Limpieza", step6_ok, step6_result),
 ]
 
 passed = sum(1 for _, _, ok, _ in results if ok)
-total  = len(results)
+total = len(results)
 
 print()
 print("| Paso | Descripcion                 | Resultado |")

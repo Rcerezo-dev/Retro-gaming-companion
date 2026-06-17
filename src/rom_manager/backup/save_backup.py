@@ -13,6 +13,7 @@ Structure on disk::
 Backup files are named only by timestamp; the caller knows the original
 save path and can restore back there.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -24,8 +25,8 @@ from pathlib import Path
 @dataclass(slots=True)
 class BackupEntry:
     backup_path: Path
-    timestamp: str        # ISO-8601 string  e.g. "2026-03-18T14:30:22Z"
-    extension: str        # original save extension, e.g. ".sav"
+    timestamp: str  # ISO-8601 string  e.g. "2026-03-18T14:30:22Z"
+    extension: str  # original save extension, e.g. ".sav"
     size: int
 
 
@@ -94,13 +95,15 @@ def list_backups(save_path: Path, backup_root: Path) -> list[BackupEntry]:
             continue
         if f.suffix.lower() != ext:
             continue
-        ts_raw = f.stem   # e.g. "20260318T143022Z"
-        entries.append(BackupEntry(
-            backup_path=f,
-            timestamp=_ts_iso(ts_raw),
-            extension=ext,
-            size=f.stat().st_size,
-        ))
+        ts_raw = f.stem  # e.g. "20260318T143022Z"
+        entries.append(
+            BackupEntry(
+                backup_path=f,
+                timestamp=_ts_iso(ts_raw),
+                extension=ext,
+                size=f.stat().st_size,
+            )
+        )
     return entries
 
 
@@ -125,7 +128,7 @@ def _prune_backups(backup_dir: Path, ext: str, keep_n: int) -> int:
         return 0
     files = sorted(
         (f for f in backup_dir.iterdir() if f.is_file() and f.suffix.lower() == ext),
-        reverse=True,   # newest first
+        reverse=True,  # newest first
     )
     deleted = 0
     for old in files[keep_n:]:
@@ -179,10 +182,12 @@ def list_manual_zips(backup_root: Path) -> list[dict]:
     for f in sorted(zips_dir.iterdir(), reverse=True):
         if f.is_file() and f.suffix == ".zip":
             ts_raw = f.stem.replace("backup-", "")
-            result.append({
-                "filename": f.name,
-                "path": str(f),
-                "timestamp": _ts_iso(ts_raw),
-                "size": f.stat().st_size,
-            })
+            result.append(
+                {
+                    "filename": f.name,
+                    "path": str(f),
+                    "timestamp": _ts_iso(ts_raw),
+                    "size": f.stat().st_size,
+                }
+            )
     return result

@@ -11,8 +11,8 @@ from rom_manager.detection.filename_normalizer import normalize_for_match
 @dataclass(slots=True)
 class MatchResult:
     title: str
-    confidence: str       # "high" | "medium" | "low"
-    catalog_source: str   # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
+    confidence: str  # "high" | "medium" | "low"
+    catalog_source: str  # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
     ambiguous: bool = False
     platform: str | None = None  # set by arcade pass ("MAME" or "FBNeo")
 

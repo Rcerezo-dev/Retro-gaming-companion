@@ -1,4 +1,5 @@
 """Tests for health_checker.py — library integrity verification."""
+
 from __future__ import annotations
 
 import hashlib
@@ -142,7 +143,9 @@ class TestCheckLibraryHealth:
         assert summary.missing == 0
         assert summary.results == []
 
-    def test_stored_and_computed_sha1_in_result(self, tmp_path: Path, repo: LibraryRepository) -> None:
+    def test_stored_and_computed_sha1_in_result(
+        self, tmp_path: Path, repo: LibraryRepository
+    ) -> None:
         p = tmp_path / "game.nes"
         p.write_bytes(b"data")
         stored = "A" * 40

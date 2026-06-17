@@ -97,6 +97,7 @@ def test_missing_catalog_dir(tmp_path: Path) -> None:
 # Name-based fallback tests
 # ---------------------------------------------------------------------------
 
+
 def test_name_fallback_medium_confidence(catalog_dirs: tuple[Path, Path]) -> None:
     """SHA1 miss + unique normalised name → medium confidence."""
     nointro, redump = catalog_dirs

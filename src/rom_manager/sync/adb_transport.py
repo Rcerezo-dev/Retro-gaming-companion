@@ -11,6 +11,7 @@ Requires:
   - Device connected via USB cable (any mode works; "No transferir datos" is fine)
   - Accept the "Allow USB Debugging" prompt on the device
 """
+
 from __future__ import annotations
 
 import shlex
@@ -22,7 +23,7 @@ from pathlib import Path, PurePosixPath
 @dataclass(slots=True)
 class AdbDevice:
     serial: str
-    state: str          # "device" | "unauthorized" | "offline" | "no permissions"
+    state: str  # "device" | "unauthorized" | "offline" | "no permissions"
     model: str = ""
     product: str = ""
 
@@ -42,9 +43,9 @@ class AdbDevice:
 
 @dataclass(slots=True)
 class AdbFileInfo:
-    android_path: str   # full absolute Android path
-    size: int           # bytes
-    mtime: float        # unix timestamp (from stat)
+    android_path: str  # full absolute Android path
+    size: int  # bytes
+    mtime: float  # unix timestamp (from stat)
 
 
 def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
@@ -52,7 +53,8 @@ def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
     try:
         r = subprocess.run(
             [adb_path, "devices", "-l"],
-            capture_output=True, timeout=timeout,
+            capture_output=True,
+            timeout=timeout,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"adb no encontrado o no respondió: {exc}") from exc
@@ -67,8 +69,8 @@ def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
         if len(parts) < 2:
             continue
         serial = parts[0]
-        state  = parts[1]
-        model   = ""
+        state = parts[1]
+        model = ""
         product = ""
         for token in parts[2:]:
             if token.startswith("model:"):
@@ -86,15 +88,16 @@ class AdbTransport:
 
     def __init__(self, adb_path: str, serial: str, *, timeout: int = 60):
         self.adb_path = adb_path
-        self.serial   = serial
-        self.timeout  = timeout
+        self.serial = serial
+        self.timeout = timeout
 
     # ── low-level ─────────────────────────────────────────────────────────────
 
     def _run(self, *args: str, timeout: int | None = None) -> subprocess.CompletedProcess:
         cmd = [self.adb_path, "-s", self.serial] + list(args)
         return subprocess.run(
-            cmd, capture_output=True,
+            cmd,
+            capture_output=True,
             timeout=timeout or self.timeout,
         )
 
@@ -112,7 +115,10 @@ class AdbTransport:
             ls_out = self._shell(f"ls {shlex.quote(android_path)}").strip()
             entries = len([ln for ln in ls_out.splitlines() if ln.strip()]) if ls_out else 0
             return {"accessible": True, "path": android_path, "entries": entries}
-        return {"accessible": False, "error": f"La ruta {android_path!r} no existe en el dispositivo"}
+        return {
+            "accessible": False,
+            "error": f"La ruta {android_path!r} no existe en el dispositivo",
+        }
 
     # ── file listing ──────────────────────────────────────────────────────────
 
@@ -148,11 +154,13 @@ class AdbTransport:
                 if suffix not in wanted_extensions:
                     continue
             try:
-                results.append(AdbFileInfo(
-                    android_path=path_str,
-                    size=int(size_str),
-                    mtime=float(mtime_str),
-                ))
+                results.append(
+                    AdbFileInfo(
+                        android_path=path_str,
+                        size=int(size_str),
+                        mtime=float(mtime_str),
+                    )
+                )
             except ValueError:
                 continue
         return results

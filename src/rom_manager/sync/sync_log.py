@@ -38,15 +38,16 @@ def ensure_sync_log_schema(connection: sqlite3.Connection) -> None:
 # Data class
 # ---------------------------------------------------------------------------
 
+
 @dataclass(slots=True)
 class SyncLogEntry:
     id: int
     local_path: str
     remote_path: str
-    direction: str          # 'upload' | 'download' | 'conflict'
+    direction: str  # 'upload' | 'download' | 'conflict'
     local_mtime: str | None
     remote_mtime: str | None
-    result: str             # 'ok' | 'error' | 'skipped'
+    result: str  # 'ok' | 'error' | 'skipped'
     message: str | None
     created_at: str
 
@@ -54,6 +55,7 @@ class SyncLogEntry:
 # ---------------------------------------------------------------------------
 # Repository helpers
 # ---------------------------------------------------------------------------
+
 
 def log_sync_event(
     connection: sqlite3.Connection,

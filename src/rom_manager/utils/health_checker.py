@@ -13,7 +13,7 @@ class HealthResult:
     source_path: str
     stored_sha1: str
     computed_sha1: str
-    status: str   # "ok" | "corrupted" | "missing"
+    status: str  # "ok" | "corrupted" | "missing"
     platform: str = ""
     canonical_title: str = ""
 
@@ -58,14 +58,16 @@ def check_library_health(
 
         if not path.exists():
             summary.missing += 1
-            summary.results.append(HealthResult(
-                source_path=row["source_path"],
-                stored_sha1=stored,
-                computed_sha1="",
-                status="missing",
-                platform=row["platform"] or "",
-                canonical_title=row["canonical_title"] or "",
-            ))
+            summary.results.append(
+                HealthResult(
+                    source_path=row["source_path"],
+                    stored_sha1=stored,
+                    computed_sha1="",
+                    status="missing",
+                    platform=row["platform"] or "",
+                    canonical_title=row["canonical_title"] or "",
+                )
+            )
             continue
 
         try:
@@ -79,13 +81,15 @@ def check_library_health(
             # Only store non-OK results to keep memory usage low
         else:
             summary.corrupted += 1
-            summary.results.append(HealthResult(
-                source_path=row["source_path"],
-                stored_sha1=stored,
-                computed_sha1=computed,
-                status="corrupted" if computed else "missing",
-                platform=row["platform"] or "",
-                canonical_title=row["canonical_title"] or "",
-            ))
+            summary.results.append(
+                HealthResult(
+                    source_path=row["source_path"],
+                    stored_sha1=stored,
+                    computed_sha1=computed,
+                    status="corrupted" if computed else "missing",
+                    platform=row["platform"] or "",
+                    canonical_title=row["canonical_title"] or "",
+                )
+            )
 
     return summary

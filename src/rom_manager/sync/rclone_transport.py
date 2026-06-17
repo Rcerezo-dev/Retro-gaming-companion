@@ -11,18 +11,27 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # Retry settings for transient rclone failures (timeouts, network blips)
-_RETRY_DELAYS = (5, 15, 45)   # seconds between attempts 1→2, 2→3, 3→4
+_RETRY_DELAYS = (5, 15, 45)  # seconds between attempts 1→2, 2→3, 3→4
 _RETRYABLE_PHRASES = (
-    "timeout", "timed out", "connection reset", "connection refused",
-    "eof", "broken pipe", "i/o error", "network error", "no such host",
-    "dial tcp", "read tcp", "write tcp",
+    "timeout",
+    "timed out",
+    "connection reset",
+    "connection refused",
+    "eof",
+    "broken pipe",
+    "i/o error",
+    "network error",
+    "no such host",
+    "dial tcp",
+    "read tcp",
+    "write tcp",
 )
 
 
 @dataclass(slots=True)
 class RemoteEntry:
-    relative: str       # path relative to the remote root
-    mtime: datetime     # UTC
+    relative: str  # path relative to the remote root
+    mtime: datetime  # UTC
     size: int
 
 
@@ -165,12 +174,20 @@ class RcloneTransport:
         # Log diagnostics if requested
         if verbose_logging:
             diag = self.diagnose_routing(
-                local_path.name, saves_remote, states_remote, save_extensions, state_extensions, fallback_remote
+                local_path.name,
+                saves_remote,
+                states_remote,
+                save_extensions,
+                state_extensions,
+                fallback_remote,
             )
             log.info(
                 "Upload diagnostics: %s → %s (%s) | Config: saves=%s, states=%s, fallback=%s",
-                diag["filename"], diag["routing_decision"], diag["routing_reason"],
-                diag["config_summary"]["saves_remote"], diag["config_summary"]["states_remote"],
+                diag["filename"],
+                diag["routing_decision"],
+                diag["routing_reason"],
+                diag["config_summary"]["saves_remote"],
+                diag["config_summary"]["states_remote"],
                 diag["config_summary"]["fallback_remote"],
             )
 
@@ -193,7 +210,8 @@ class RcloneTransport:
                 log.warning(
                     "File %s matches state extension (%s) but states_remote not configured; "
                     "will use fallback or saves_remote",
-                    local_path.name, file_ext,
+                    local_path.name,
+                    file_ext,
                 )
         # Then check saves_remote
         elif save_extensions and file_ext in save_extensions:
@@ -204,13 +222,15 @@ class RcloneTransport:
                 log.warning(
                     "File %s matches save extension (%s) but saves_remote not configured; "
                     "will use fallback or states_remote",
-                    local_path.name, file_ext,
+                    local_path.name,
+                    file_ext,
                 )
         else:
             # Unknown extension
             log.warning(
                 "File %s has unknown extension (%s); will use fallback or default remote",
-                local_path.name, file_ext,
+                local_path.name,
+                file_ext,
             )
 
         # Fallback chain: explicit fallback → saves_remote → states_remote
@@ -234,7 +254,9 @@ class RcloneTransport:
         remote_dest = f"{chosen_remote.rstrip('/')}/{relative}"
         log.debug(
             "Uploading %s → %s (routing: %s)",
-            local_path.name, relative, routing_reason,
+            local_path.name,
+            relative,
+            routing_reason,
         )
         self._run(["copyto", str(local_path), remote_dest])
 
@@ -269,12 +291,20 @@ class RcloneTransport:
         # Log diagnostics if requested
         if verbose_logging:
             diag = self.diagnose_routing(
-                Path(relative).name, saves_remote, states_remote, save_extensions, state_extensions, fallback_remote
+                Path(relative).name,
+                saves_remote,
+                states_remote,
+                save_extensions,
+                state_extensions,
+                fallback_remote,
             )
             log.info(
                 "Download diagnostics: %s ← %s (%s) | Config: saves=%s, states=%s, fallback=%s",
-                diag["filename"], diag["routing_decision"], diag["routing_reason"],
-                diag["config_summary"]["saves_remote"], diag["config_summary"]["states_remote"],
+                diag["filename"],
+                diag["routing_decision"],
+                diag["routing_reason"],
+                diag["config_summary"]["saves_remote"],
+                diag["config_summary"]["states_remote"],
                 diag["config_summary"]["fallback_remote"],
             )
 
@@ -304,7 +334,8 @@ class RcloneTransport:
                 log.warning(
                     "File %s matches state extension (%s) but states_remote not configured; "
                     "will use fallback or saves_remote",
-                    Path(relative).name, file_ext,
+                    Path(relative).name,
+                    file_ext,
                 )
         # Then check saves_remote
         elif save_extensions and file_ext in save_extensions:
@@ -315,13 +346,15 @@ class RcloneTransport:
                 log.warning(
                     "File %s matches save extension (%s) but saves_remote not configured; "
                     "will use fallback or states_remote",
-                    Path(relative).name, file_ext,
+                    Path(relative).name,
+                    file_ext,
                 )
         else:
             # Unknown extension
             log.warning(
                 "File %s has unknown extension (%s); will use fallback or default remote",
-                Path(relative).name, file_ext,
+                Path(relative).name,
+                file_ext,
             )
 
         # Fallback chain: explicit fallback → saves_remote → states_remote
@@ -345,7 +378,9 @@ class RcloneTransport:
         remote_src = f"{chosen_remote.rstrip('/')}/{relative}"
         log.debug(
             "Downloading %s → %s (routing: %s)",
-            relative, local_path.name, routing_reason,
+            relative,
+            local_path.name,
+            routing_reason,
         )
         self._run(["copyto", remote_src, str(local_path)])
 
@@ -382,7 +417,10 @@ class RcloneTransport:
             if delay is not None and any(p in stderr.lower() for p in _RETRYABLE_PHRASES):
                 log.warning(
                     "rclone transient error (attempt %d/%d), retrying in %ds: %s",
-                    attempt, len(_RETRY_DELAYS) + 1, delay, stderr[:120],
+                    attempt,
+                    len(_RETRY_DELAYS) + 1,
+                    delay,
+                    stderr[:120],
                 )
                 last_exc = err
                 time.sleep(delay)

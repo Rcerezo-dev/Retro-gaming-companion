@@ -14,9 +14,9 @@ from rom_manager.sync.sync_log import get_last_sync, log_sync_event
 
 @dataclass(slots=True)
 class LocalSave:
-    relative: str       # path relative to saves_dir, forward slashes
+    relative: str  # path relative to saves_dir, forward slashes
     absolute: Path
-    mtime: datetime     # UTC
+    mtime: datetime  # UTC
     size: int
 
 
@@ -31,7 +31,14 @@ class SyncResult:
 
     @property
     def total(self) -> int:
-        return self.uploaded + self.downloaded + self.up_to_date + self.conflicts + self.errors + self.delta_skipped
+        return (
+            self.uploaded
+            + self.downloaded
+            + self.up_to_date
+            + self.conflicts
+            + self.errors
+            + self.delta_skipped
+        )
 
 
 def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[LocalSave]:
@@ -88,16 +95,12 @@ def sync_saves(
         # List from both remotes (combine results)
         remote_entries: dict[str, RemoteEntry] = {}
         try:
-            remote_entries.update({
-                e.relative: e for e in transport.list_remote(saves_remote)
-            })
+            remote_entries.update({e.relative: e for e in transport.list_remote(saves_remote)})
         except RcloneError:
             pass  # saves_remote may be empty or unavailable
         if states_remote:
             try:
-                remote_entries.update({
-                    e.relative: e for e in transport.list_remote(states_remote)
-                })
+                remote_entries.update({e.relative: e for e in transport.list_remote(states_remote)})
             except RcloneError:
                 pass  # states_remote may be empty or unavailable
     except RcloneError:
@@ -196,6 +199,7 @@ def sync_saves(
                     if backup_root and local_path.exists():
                         try:
                             from rom_manager.backup.save_backup import backup_save
+
                             backup_save(local_path, backup_root, keep_n=backup_keep_n)
                         except Exception:
                             pass  # backup failure must never block sync
@@ -242,6 +246,7 @@ def sync_saves(
                 if backup_root and local_path.exists():
                     try:
                         from rom_manager.backup.save_backup import backup_save
+
                         backup_save(local_path, backup_root, keep_n=backup_keep_n)
                     except Exception:
                         pass
@@ -292,7 +297,10 @@ def sync_saves(
                     else:
                         # Backup local file with conflict suffix, then download remote as winner
                         import shutil as _shutil
-                        _shutil.copy2(local_path, local_path.parent / (local_path.name + backup_suffix))
+
+                        _shutil.copy2(
+                            local_path, local_path.parent / (local_path.name + backup_suffix)
+                        )
                         transport.download(
                             relative,
                             local_path,

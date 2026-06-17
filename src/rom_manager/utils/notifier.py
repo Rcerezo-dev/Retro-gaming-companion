@@ -3,6 +3,7 @@
 Uses PowerShell + Windows.UI.Notifications WinRT — no external modules needed.
 On non-Windows or if PowerShell fails, does nothing (fire-and-forget).
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -42,8 +43,15 @@ def notify(title: str, body: str) -> None:
     )
     try:
         subprocess.Popen(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
-             "-Command", script],
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                script,
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=0x08000000,  # CREATE_NO_WINDOW

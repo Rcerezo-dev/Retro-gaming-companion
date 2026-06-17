@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
     router: Router,
     *,
@@ -30,13 +31,15 @@ def register(
     # ── GET /api/plan ─────────────────────────────────────────────────────────
     @router.get("/api/plan")
     def get_plan(ctx) -> None:
-        qs          = getattr(ctx, "_qs", {})
-        opts        = _parse_format_opts(qs)
+        qs = getattr(ctx, "_qs", {})
+        opts = _parse_format_opts(qs)
         source_root = qs.get("source_root", [None])[0] or None
-        plan_repo   = get_repo_fn(source_root or "")
+        plan_repo = get_repo_fn(source_root or "")
         ctx._send_json(
             _build_plan(
-                plan_repo, opts, frozenset(config.save_extensions),
+                plan_repo,
+                opts,
+                frozenset(config.save_extensions),
                 source_root=source_root,
                 library_root=str(config.library_root) if config.library_root else None,
                 config=config,
@@ -52,6 +55,7 @@ def register(
     @router.post("/api/fix-platforms")
     def post_fix_platforms(ctx) -> None:
         from rom_manager.detection.platform_detector import detect_platform
+
         updated = repository.backfill_platforms(detect_platform)
         ctx._send_json({"updated": updated})
 
@@ -73,6 +77,7 @@ def register(
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
+
 def _do_apply(
     ctx,
     data: dict,
@@ -83,7 +88,7 @@ def _do_apply(
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
 
-    fmt  = data.get("format_opts", {})
+    fmt = data.get("format_opts", {})
     opts = FormatOptions(
         include_region=fmt.get("include_region", True),
         include_revision=fmt.get("include_revision", True),
@@ -92,7 +97,7 @@ def _do_apply(
         sha_length=min(40, max(4, int(fmt.get("sha_length", 8)))),
     )
     source_root = data.get("source_root") or None
-    keep_both   = bool(data.get("keep_both", False))
+    keep_both = bool(data.get("keep_both", False))
 
     def run() -> None:
         job_result = None
@@ -100,39 +105,50 @@ def _do_apply(
             from rom_manager.renamer.file_renamer import rename_rom_with_saves
             from rom_manager.scanner.rom_scanner import utc_now
 
-            save_exts  = frozenset(config.save_extensions)
+            save_exts = frozenset(config.save_extensions)
             apply_repo = get_repo_fn(source_root or "")
-            plan       = build_plan(apply_repo, opts, keep_both=keep_both)
+            plan = build_plan(apply_repo, opts, keep_both=keep_both)
             pending_ops = plan.pending
             if source_root:
-                root_lower  = source_root.lower()
-                pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
+                root_lower = source_root.lower()
+                pending_ops = [
+                    op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)
+                ]
 
-            total     = len(pending_ops)
+            total = len(pending_ops)
             renamed = failed = skipped = saves_renamed = 0
             skip_details: list[str] = []
             timestamp = utc_now()
             job_manager.update_progress("apply", {"current": 0, "total": total, "current_file": ""})
 
             for idx, op in enumerate(pending_ops, 1):
-                job_manager.update_progress("apply", {"current": idx, "total": total, "current_file": op.source_path.name})
+                job_manager.update_progress(
+                    "apply", {"current": idx, "total": total, "current_file": op.source_path.name}
+                )
                 if not op.source_path.exists():
                     skipped += 1
-                    skip_details.append(f"{op.source_path.name}: source not found (outdated DB entry)")
+                    skip_details.append(
+                        f"{op.source_path.name}: source not found (outdated DB entry)"
+                    )
                     continue
                 try:
                     bk = config.data_dir if config.backup_saves_enabled else None
                     op.target_path.parent.mkdir(parents=True, exist_ok=True)
                     if op.source_path.suffix.lower() in {".cue", ".gdi"}:
                         from rom_manager.renamer.file_renamer import move_disc_set_to_subfolder
+
                         outcome = move_disc_set_to_subfolder(
-                            op.source_path, op.target_path, save_exts,
+                            op.source_path,
+                            op.target_path,
+                            save_exts,
                             backup_root=bk,
                             backup_keep_n=config.backup_saves_keep_n,
                         )
                     else:
                         outcome = rename_rom_with_saves(
-                            op.source_path, op.target_path, save_exts,
+                            op.source_path,
+                            op.target_path,
+                            save_exts,
                             backup_root=bk,
                             backup_keep_n=config.backup_saves_keep_n,
                         )
@@ -150,7 +166,7 @@ def _do_apply(
                         new_filename=op.target_path.name,
                         timestamp=timestamp,
                     )
-                    renamed       += 1
+                    renamed += 1
                     saves_renamed += outcome.saves_renamed
                 else:
                     err_lower = outcome.error.lower()
@@ -161,14 +177,14 @@ def _do_apply(
                     skip_details.append(f"{op.source_path.name}: {outcome.error}")
 
             job_result = {
-                "renamed":       renamed,
-                "failed":        failed,
-                "skipped":       skipped,
+                "renamed": renamed,
+                "failed": failed,
+                "skipped": skipped,
                 "saves_renamed": saves_renamed,
-                "conflicts":     len(plan.conflicts),
-                "skip_details":  skip_details[:20],
+                "conflicts": len(plan.conflicts),
+                "skip_details": skip_details[:20],
                 "error_details": skip_details[:50],
-                "result_ts":     utc_now(),
+                "result_ts": utc_now(),
             }
         except Exception as exc:
             job_result = {"error": str(exc), "result_ts": ""}
@@ -184,7 +200,7 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) ->
         return
 
     std_folders = srv_mod._STANDARD_PLATFORM_FOLDERS
-    also_android    = bool(data.get("also_android"))
+    also_android = bool(data.get("also_android"))
     android_root_str = config.anbernic_root or None
 
     def _create_tree(root: Path) -> tuple[list[str], list[str]]:
@@ -201,7 +217,7 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) ->
         # 1. Rutas base
         for special in ("saves", "media", "configs", "bios", "inbox", "screenshots"):
             _ensure(root / special, special)
-            
+
         _ensure(root / "bios" / "wii", "bios/wii")
         _ensure(root / "bios" / "shaders", "bios/shaders")
 
@@ -216,7 +232,7 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) ->
 
         return created, skipped
 
-    pc_root              = Path(config.library_root)
+    pc_root = Path(config.library_root)
     pc_created, pc_skipped = _create_tree(pc_root)
 
     android_result: dict = {}
@@ -224,19 +240,25 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) ->
         android_root = Path(android_root_str)
         if android_root.exists():
             ab_created, ab_skipped = _create_tree(android_root)
-            android_result = {"root": str(android_root), "created": ab_created, "skipped": ab_skipped}
+            android_result = {
+                "root": str(android_root),
+                "created": ab_created,
+                "skipped": ab_skipped,
+            }
         else:
             android_result = {
                 "root": str(android_root),
                 "error": "Ruta no accesible — conecta la tarjeta SD o el dispositivo primero",
             }
 
-    ctx._send_json({
-        "created": pc_created,
-        "skipped": pc_skipped,
-        "root":    str(pc_root),
-        "android": android_result,
-    })
+    ctx._send_json(
+        {
+            "created": pc_created,
+            "skipped": pc_skipped,
+            "root": str(pc_root),
+            "android": android_result,
+        }
+    )
 
 
 def _do_organize_library(
@@ -251,33 +273,55 @@ def _do_organize_library(
 
     from rom_manager.web.response_builders import _utc_now_str
 
-    es_folders  = srv_mod._ES_PLATFORM_FOLDERS
-    dry_run     = data.get("dry_run", True)
+    es_folders = srv_mod._ES_PLATFORM_FOLDERS
+    dry_run = data.get("dry_run", True)
     if not config.library_root:
         ctx._send_json({"error": "library_root no configurado"})
         return
 
-    root      = Path(config.library_root)
+    root = Path(config.library_root)
     saves_dir = root / "saves"
-    bios_dir  = root / "bios"
+    bios_dir = root / "bios"
 
-    save_exts = frozenset(getattr(config, "save_extensions", [
-        ".sav", ".srm", ".state", ".ogg", ".rtc",
-    ]))
-    _known_bios_names = frozenset({
-        "scph1001.bin", "scph5500.bin", "scph5501.bin", "scph5502.bin",
-        "scph7001.bin", "scph7502.bin", "scph10000.bin",
-        "bios_CD_E.bin", "bios_CD_J.bin", "bios_CD_U.bin",
-        "dc_boot.bin", "dc_flash.bin",
-        "gba_bios.bin",
-        "bios7.bin", "bios9.bin", "firmware.bin",
-        "ym2608_adpcm_rom.bin",
-    })
+    save_exts = frozenset(
+        getattr(
+            config,
+            "save_extensions",
+            [
+                ".sav",
+                ".srm",
+                ".state",
+                ".ogg",
+                ".rtc",
+            ],
+        )
+    )
+    _known_bios_names = frozenset(
+        {
+            "scph1001.bin",
+            "scph5500.bin",
+            "scph5501.bin",
+            "scph5502.bin",
+            "scph7001.bin",
+            "scph7502.bin",
+            "scph10000.bin",
+            "bios_CD_E.bin",
+            "bios_CD_J.bin",
+            "bios_CD_U.bin",
+            "dc_boot.bin",
+            "dc_flash.bin",
+            "gba_bios.bin",
+            "bios7.bin",
+            "bios9.bin",
+            "firmware.bin",
+            "ym2608_adpcm_rom.bin",
+        }
+    )
 
-    moves_roms:  list[dict] = []
+    moves_roms: list[dict] = []
     moves_saves: list[dict] = []
-    moves_bios:  list[dict] = []
-    errors:      list[str]  = []
+    moves_bios: list[dict] = []
+    errors: list[str] = []
 
     # 1. ROMs + their associated saves
     with repository.connect() as conn:
@@ -290,13 +334,20 @@ def _do_organize_library(
         src = Path(src_str)
         if not src.exists():
             continue
-        es_folder  = es_folders.get(platform, "")
+        es_folder = es_folders.get(platform, "")
         if not es_folder:
             continue
         target_dir = root / es_folder
-        target     = target_dir / src.name
+        target = target_dir / src.name
         if src != target:
-            moves_roms.append({"source": str(src), "target": str(target), "platform": platform, "filename": src.name})
+            moves_roms.append(
+                {
+                    "source": str(src),
+                    "target": str(target),
+                    "platform": platform,
+                    "filename": src.name,
+                }
+            )
             if not dry_run:
                 try:
                     target_dir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +370,9 @@ def _do_organize_library(
             sibling = src.with_suffix(save_ext)
             if sibling.exists() and sibling.parent != plat_save_dir:
                 save_target = plat_save_dir / sibling.name
-                moves_saves.append({"source": str(sibling), "target": str(save_target), "platform": platform})
+                moves_saves.append(
+                    {"source": str(sibling), "target": str(save_target), "platform": platform}
+                )
                 if not dry_run:
                     try:
                         plat_save_dir.mkdir(parents=True, exist_ok=True)
@@ -350,14 +403,18 @@ def _do_organize_library(
             save_target = plat_save_dir / save_file.name
             if save_file == save_target:
                 continue
-            moves_saves.append({"source": str(save_file), "target": str(save_target), "platform": plat_name})
+            moves_saves.append(
+                {"source": str(save_file), "target": str(save_target), "platform": plat_name}
+            )
             if not dry_run:
                 try:
                     plat_save_dir.mkdir(parents=True, exist_ok=True)
                     if not save_target.exists():
                         shutil.move(str(save_file), str(save_target))
                     else:
-                        errors.append(f"Conflicto save: {save_file.name} ya existe en saves/{es_f}/")
+                        errors.append(
+                            f"Conflicto save: {save_file.name} ya existe en saves/{es_f}/"
+                        )
                 except Exception as exc:
                     errors.append(f"Save {save_file.name}: {exc}")
 
@@ -377,7 +434,9 @@ def _do_organize_library(
         bios_target = bios_dir / candidate.name
         if candidate == bios_target:
             continue
-        moves_bios.append({"source": str(candidate), "target": str(bios_target), "filename": candidate.name})
+        moves_bios.append(
+            {"source": str(candidate), "target": str(bios_target), "filename": candidate.name}
+        )
         if not dry_run:
             try:
                 bios_dir.mkdir(parents=True, exist_ok=True)
@@ -387,14 +446,16 @@ def _do_organize_library(
                 errors.append(f"BIOS {candidate.name}: {exc}")
 
     total_preview = (moves_roms + moves_saves + moves_bios)[:40]
-    ctx._send_json({
-        "dry_run":     dry_run,
-        "moves_roms":  len(moves_roms),
-        "moves_saves": len(moves_saves),
-        "moves_bios":  len(moves_bios),
-        "errors":      errors,
-        "preview":     total_preview if dry_run else [],
-    })
+    ctx._send_json(
+        {
+            "dry_run": dry_run,
+            "moves_roms": len(moves_roms),
+            "moves_saves": len(moves_saves),
+            "moves_bios": len(moves_bios),
+            "errors": errors,
+            "preview": total_preview if dry_run else [],
+        }
+    )
 
 
 def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
@@ -421,11 +482,7 @@ def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
     errors: list[str] = []
 
     # Map of folders to rename/merge
-    folder_aliases = {
-        "Game Boy Advance": "gba",
-        "ss": "saturn",
-        "Saturn": "saturn"
-    }
+    folder_aliases = {"Game Boy Advance": "gba", "ss": "saturn", "Saturn": "saturn"}
 
     def _add_move(src: Path, dst: Path, cat: str):
         moves.append({"source": str(src), "target": str(dst), "category": cat})
@@ -441,9 +498,18 @@ def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
 
     # 1. Sweep platforms and sort bad files
     for plat_dir in list(root.iterdir()):
-        if not plat_dir.is_dir() or plat_dir.name in ("saves", "states", "bios", "inbox", "screenshots", "media", "configs", "_descartados"):
+        if not plat_dir.is_dir() or plat_dir.name in (
+            "saves",
+            "states",
+            "bios",
+            "inbox",
+            "screenshots",
+            "media",
+            "configs",
+            "_descartados",
+        ):
             continue
-        
+
         actual_plat = plat_dir.name
         is_alias = actual_plat in folder_aliases
         target_plat = folder_aliases[actual_plat] if is_alias else actual_plat
@@ -453,7 +519,7 @@ def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
                 continue
             ext = f.suffix.lower()
             name = f.name.lower()
-            
+
             if ext in state_exts:
                 _add_move(f, root / "saves" / target_plat / "states" / f.name, "states")
             elif ext in save_exts:
@@ -464,9 +530,25 @@ def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
                 _add_move(f, root / "media" / target_plat / "images" / f.name, "media")
             elif ext == ".cfg":
                 _add_move(f, root / "configs" / target_plat / f.name, "config")
-            elif actual_plat == "arcade" and ext == ".bin" and (name.startswith("fs_") or name.startswith("vs_")):
+            elif (
+                actual_plat == "arcade"
+                and ext == ".bin"
+                and (name.startswith("fs_") or name.startswith("vs_"))
+            ):
                 _add_move(f, root / "bios" / "shaders" / f.name, "bios")
-            elif actual_plat == "wii" and ext == ".bin" and name in ("fst.bin", "misc.bin", "nwc24dl.bin", "nwc24fl.bin", "nwc24fls.bin", "wiimmfi.bin"):
+            elif (
+                actual_plat == "wii"
+                and ext == ".bin"
+                and name
+                in (
+                    "fst.bin",
+                    "misc.bin",
+                    "nwc24dl.bin",
+                    "nwc24fl.bin",
+                    "nwc24fls.bin",
+                    "wiimmfi.bin",
+                )
+            ):
                 _add_move(f, root / "bios" / "wii" / f.name, "bios")
             elif is_alias:
                 # If it's a valid ROM in an alias folder, move to standard folder
@@ -479,11 +561,15 @@ def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
             if plat_dir.is_dir():
                 for f in plat_dir.iterdir():
                     if f.is_file():
-                        _add_move(f, root / "saves" / plat_dir.name / "states" / f.name, "states_legacy")
+                        _add_move(
+                            f, root / "saves" / plat_dir.name / "states" / f.name, "states_legacy"
+                        )
 
-    ctx._send_json({
-        "dry_run": dry_run,
-        "moves_total": len(moves),
-        "errors": errors,
-        "preview": moves[:40] if dry_run else [],
-    })
+    ctx._send_json(
+        {
+            "dry_run": dry_run,
+            "moves_total": len(moves),
+            "errors": errors,
+            "preview": moves[:40] if dry_run else [],
+        }
+    )

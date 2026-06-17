@@ -42,11 +42,13 @@ def test_unresolved_export_csv(db_path: Path, tmp_path: Path, monkeypatch) -> No
     out_path = tmp_path / "unresolved.csv"
     # monkeypatch config so it uses our db
     import rom_manager.cli as cli_mod
+
     original_load = cli_mod.load_config
 
     def patched_load(*args, **kwargs):
         cfg = original_load(*args, **kwargs)
         from dataclasses import replace
+
         return replace(cfg, database_path=db_path)
 
     monkeypatch.setattr(cli_mod, "load_config", patched_load)
@@ -72,6 +74,7 @@ def test_unresolved_export_empty(db_path: Path, tmp_path: Path, monkeypatch) -> 
     def patched_load(*args, **kwargs):
         cfg = cli_mod.__wrapped_load(*args, **kwargs)
         from dataclasses import replace
+
         return replace(cfg, database_path=db_path)
 
     # Just check that when no unresolved games, export flag is not needed
@@ -81,6 +84,7 @@ def test_unresolved_export_empty(db_path: Path, tmp_path: Path, monkeypatch) -> 
     def patched2(*args, **kwargs):
         cfg = original_load(*args, **kwargs)
         from dataclasses import replace
+
         return replace(cfg, database_path=db_path)
 
     monkeypatch.setattr(cli_mod, "load_config", patched2)

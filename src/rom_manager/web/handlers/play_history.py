@@ -54,20 +54,22 @@ def register(
 
         games = []
         for row in rows:
-            games.append({
-                "id":              row["id"],
-                "title":           row["canonical_title"] or row["original_filename"],
-                "platform":        row["platform"],
-                "play_status":     row["play_status"],
-                "play_count":      row["play_count"] or 0,
-                "first_played_at": row["first_played_at"],
-                "last_played_at":  row["last_played_at"],
-                "user_rating":     row["user_rating"],
-                "notes":           row["notes"],
-                "genre":           row["genre"],
-                "year":            row["year"],
-                "description":     row["description"],
-            })
+            games.append(
+                {
+                    "id": row["id"],
+                    "title": row["canonical_title"] or row["original_filename"],
+                    "platform": row["platform"],
+                    "play_status": row["play_status"],
+                    "play_count": row["play_count"] or 0,
+                    "first_played_at": row["first_played_at"],
+                    "last_played_at": row["last_played_at"],
+                    "user_rating": row["user_rating"],
+                    "notes": row["notes"],
+                    "genre": row["genre"],
+                    "year": row["year"],
+                    "description": row["description"],
+                }
+            )
 
         ctx._send_json({"games": games, "total": len(games)})
 
@@ -98,7 +100,9 @@ def register(
         status = data.get("status")
         valid_statuses = {None, "played", "completed", "abandoned"}
         if status not in valid_statuses:
-            ctx._send_json({"error": f"status debe ser uno de {sorted(s for s in valid_statuses if s)}"})
+            ctx._send_json(
+                {"error": f"status debe ser uno de {sorted(s for s in valid_statuses if s)}"}
+            )
             return
 
         notes = data.get("notes")
@@ -186,23 +190,25 @@ def register(
         games = []
         for row in rows:
             gid = row["id"]
-            games.append({
-                "id":              gid,
-                "title":           row["title"],
-                "platform":        row["platform"],
-                "genre":           row["genre"],
-                "year":            row["year"],
-                "developer":       row["developer"],
-                "publisher":       row["publisher"],
-                "description":     row["description"],
-                "play_count":      row["play_count"] or 0,
-                "first_played_at": row["first_played_at"],
-                "last_played_at":  row["last_played_at"],
-                "play_status":     row["play_status"],
-                "user_rating":     row["user_rating"],
-                "tags":            tags_by_game.get(gid, []),
-                "notes":           row["notes"],
-            })
+            games.append(
+                {
+                    "id": gid,
+                    "title": row["title"],
+                    "platform": row["platform"],
+                    "genre": row["genre"],
+                    "year": row["year"],
+                    "developer": row["developer"],
+                    "publisher": row["publisher"],
+                    "description": row["description"],
+                    "play_count": row["play_count"] or 0,
+                    "first_played_at": row["first_played_at"],
+                    "last_played_at": row["last_played_at"],
+                    "play_status": row["play_status"],
+                    "user_rating": row["user_rating"],
+                    "tags": tags_by_game.get(gid, []),
+                    "notes": row["notes"],
+                }
+            )
 
         payload = {
             "exported_at": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -246,15 +252,17 @@ def register(
         for it in items:
             gid = it.get("id")
             base = games_by_id.get(gid, {}) if isinstance(gid, int) else {}
-            enriched.append({
-                "id":       gid,
-                "title":    it.get("title") or base.get("title"),
-                "platform": it.get("platform") or base.get("platform"),
-                "genre":    it.get("genre") or base.get("genre"),
-                "year":     it.get("year") or base.get("year"),
-                "score":    it.get("score"),
-                "reason":   it.get("reason"),
-            })
+            enriched.append(
+                {
+                    "id": gid,
+                    "title": it.get("title") or base.get("title"),
+                    "platform": it.get("platform") or base.get("platform"),
+                    "genre": it.get("genre") or base.get("genre"),
+                    "year": it.get("year") or base.get("year"),
+                    "score": it.get("score"),
+                    "reason": it.get("reason"),
+                }
+            )
 
         ctx._send_json({"items": enriched, "updated_at": _recommendations["updated_at"]})
 
@@ -278,8 +286,8 @@ def register(
             return
 
         _recommendations["items"] = items[:50]  # cap at 50
-        _recommendations["updated_at"] = datetime.datetime.now(
-            datetime.UTC
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _recommendations["updated_at"] = datetime.datetime.now(datetime.UTC).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
 
         ctx._send_json({"ok": True, "stored": len(_recommendations["items"])})

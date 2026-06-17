@@ -1,4 +1,5 @@
 """Tests for platform_detector.py — extension and folder-based platform detection."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,6 +16,7 @@ from rom_manager.detection.platform_detector import (
 
 # ── normalize_extension ────────────────────────────────────────────────────────
 
+
 class TestNormalizeExtension:
     def test_lowercase(self, tmp_path: Path) -> None:
         assert normalize_extension(Path("game.GBA")) == ".gba"
@@ -30,6 +32,7 @@ class TestNormalizeExtension:
 
 
 # ── is_rom_file ────────────────────────────────────────────────────────────────
+
 
 class TestIsRomFile:
     def test_unambiguous_rom(self) -> None:
@@ -58,37 +61,41 @@ class TestIsRomFile:
 
 # ── detect_platform — unambiguous extensions ──────────────────────────────────
 
+
 class TestDetectPlatformUnambiguous:
-    @pytest.mark.parametrize("ext,expected", [
-        (".nes",  "NES"),
-        (".sfc",  "SNES"),
-        (".smc",  "SNES"),
-        (".gb",   "Game Boy"),
-        (".gbc",  "Game Boy Color"),
-        (".gba",  "Game Boy Advance"),
-        (".nds",  "Nintendo DS"),
-        (".3ds",  "Nintendo 3DS"),
-        (".cia",  "Nintendo 3DS"),
-        (".gcm",  "GameCube"),
-        (".wbfs", "Wii"),
-        (".wud",  "Wii U"),
-        (".nsp",  "Nintendo Switch"),
-        (".xci",  "Nintendo Switch"),
-        (".sms",  "Master System"),
-        (".gg",   "Game Gear"),
-        (".gen",  "Sega Mega Drive"),
-        (".cdi",  "Dreamcast"),
-        (".gdi",  "Dreamcast"),
-        (".pbp",  "PlayStation"),
-        (".cso",  "PSP"),
-        (".vpk",  "PS Vita"),
-        (".a26",  "Atari 2600"),
-        (".a52",  "Atari 5200"),
-        (".a78",  "Atari 7800"),
-        (".lnx",  "Atari Lynx"),
-        (".j64",  "Atari Jaguar"),
-        (".jag",  "Atari Jaguar"),
-    ])
+    @pytest.mark.parametrize(
+        "ext,expected",
+        [
+            (".nes", "NES"),
+            (".sfc", "SNES"),
+            (".smc", "SNES"),
+            (".gb", "Game Boy"),
+            (".gbc", "Game Boy Color"),
+            (".gba", "Game Boy Advance"),
+            (".nds", "Nintendo DS"),
+            (".3ds", "Nintendo 3DS"),
+            (".cia", "Nintendo 3DS"),
+            (".gcm", "GameCube"),
+            (".wbfs", "Wii"),
+            (".wud", "Wii U"),
+            (".nsp", "Nintendo Switch"),
+            (".xci", "Nintendo Switch"),
+            (".sms", "Master System"),
+            (".gg", "Game Gear"),
+            (".gen", "Sega Mega Drive"),
+            (".cdi", "Dreamcast"),
+            (".gdi", "Dreamcast"),
+            (".pbp", "PlayStation"),
+            (".cso", "PSP"),
+            (".vpk", "PS Vita"),
+            (".a26", "Atari 2600"),
+            (".a52", "Atari 5200"),
+            (".a78", "Atari 7800"),
+            (".lnx", "Atari Lynx"),
+            (".j64", "Atari Jaguar"),
+            (".jag", "Atari Jaguar"),
+        ],
+    )
     def test_extension(self, ext: str, expected: str) -> None:
         assert detect_platform(Path(f"game{ext}")) == expected
 
@@ -100,6 +107,7 @@ class TestDetectPlatformUnambiguous:
 
 
 # ── detect_platform — .md files (context-dependent) ──────────────────────────
+
 
 class TestDetectPlatformMd:
     def test_md_in_megadrive_folder(self) -> None:
@@ -120,38 +128,42 @@ class TestDetectPlatformMd:
 
 # ── detect_platform — ambiguous extensions (folder context) ───────────────────
 
+
 class TestDetectPlatformAmbiguous:
-    @pytest.mark.parametrize("folder,expected", [
-        ("psx",          "PlayStation"),
-        ("ps1",          "PlayStation"),
-        ("ps2",          "PlayStation 2"),
-        ("ps3",          "PlayStation 3"),
-        ("psp",          "PSP"),
-        ("psvita",       "PS Vita"),
-        ("saturn",       "Sega Saturn"),
-        ("segasaturn",   "Sega Saturn"),
-        ("dreamcast",    "Dreamcast"),
-        ("megadrive",    "Sega Mega Drive"),
-        ("genesis",      "Sega Mega Drive"),
-        ("mastersystem", "Master System"),
-        ("gamegear",     "Game Gear"),
-        ("neogeo",       "Neo Geo"),
-        ("gamecube",     "GameCube"),
-        ("ngc",          "GameCube"),
-        ("wii",          "Wii"),
-        ("n64",          "Nintendo 64"),
-        ("nds",          "Nintendo DS"),
-        ("gba",          "Game Boy Advance"),
-        ("gbc",          "Game Boy Color"),
-        ("gb",           "Game Boy"),
-        ("nes",          "NES"),
-        ("snes",         "SNES"),
-        ("atari2600",    "Atari 2600"),
-        ("atarilynx",    "Atari Lynx"),
-        ("segacd",       "Sega CD"),
-        ("sega32x",      "Sega 32X"),
-        ("32x",          "Sega 32X"),
-    ])
+    @pytest.mark.parametrize(
+        "folder,expected",
+        [
+            ("psx", "PlayStation"),
+            ("ps1", "PlayStation"),
+            ("ps2", "PlayStation 2"),
+            ("ps3", "PlayStation 3"),
+            ("psp", "PSP"),
+            ("psvita", "PS Vita"),
+            ("saturn", "Sega Saturn"),
+            ("segasaturn", "Sega Saturn"),
+            ("dreamcast", "Dreamcast"),
+            ("megadrive", "Sega Mega Drive"),
+            ("genesis", "Sega Mega Drive"),
+            ("mastersystem", "Master System"),
+            ("gamegear", "Game Gear"),
+            ("neogeo", "Neo Geo"),
+            ("gamecube", "GameCube"),
+            ("ngc", "GameCube"),
+            ("wii", "Wii"),
+            ("n64", "Nintendo 64"),
+            ("nds", "Nintendo DS"),
+            ("gba", "Game Boy Advance"),
+            ("gbc", "Game Boy Color"),
+            ("gb", "Game Boy"),
+            ("nes", "NES"),
+            ("snes", "SNES"),
+            ("atari2600", "Atari 2600"),
+            ("atarilynx", "Atari Lynx"),
+            ("segacd", "Sega CD"),
+            ("sega32x", "Sega 32X"),
+            ("32x", "Sega 32X"),
+        ],
+    )
     def test_iso_in_folder(self, folder: str, expected: str) -> None:
         assert detect_platform(Path(f"/roms/{folder}/game.iso")) == expected
 
@@ -174,12 +186,14 @@ class TestDetectPlatformAmbiguous:
 
 # ── Platform consistency: _ES_PLATFORM_FOLDERS aligns with platform_detector ──
 
+
 class TestEsPlatformFoldersConsistency:
     """Verify that platform_detector output strings match keys in _ES_PLATFORM_FOLDERS."""
 
     def test_saturn_mapped_correctly(self) -> None:
         """saturn folder → 'Sega Saturn' → should find 'saturn' in ES folder map."""
         from rom_manager.web.server import _ES_PLATFORM_FOLDERS
+
         platform = detect_platform(Path("/roms/saturn/game.chd"))
         assert platform == "Sega Saturn"
         assert _ES_PLATFORM_FOLDERS.get(platform) == "saturn", (
@@ -188,11 +202,13 @@ class TestEsPlatformFoldersConsistency:
 
     def test_megadrive_mapped_correctly(self) -> None:
         from rom_manager.web.server import _ES_PLATFORM_FOLDERS
+
         platform = detect_platform(Path("/roms/megadrive/game.bin"))
         assert _ES_PLATFORM_FOLDERS.get(platform) == "megadrive"
 
     def test_psx_mapped_correctly(self) -> None:
         from rom_manager.web.server import _ES_PLATFORM_FOLDERS
+
         platform = detect_platform(Path("/roms/psx/game.bin"))
         assert platform == "PlayStation"
         assert _ES_PLATFORM_FOLDERS.get(platform) == "psx"
@@ -209,8 +225,7 @@ class TestEsPlatformFoldersConsistency:
         all_platforms = folder_platforms | extension_platforms
 
         missing = {
-            p for p in all_platforms
-            if p not in _ES_PLATFORM_FOLDERS and p not in unmapped_ok
+            p for p in all_platforms if p not in _ES_PLATFORM_FOLDERS and p not in unmapped_ok
         }
         assert missing == set(), (
             f"Platforms returned by detector but missing from _ES_PLATFORM_FOLDERS: {missing}\n"
@@ -220,6 +235,7 @@ class TestEsPlatformFoldersConsistency:
     def test_standard_folders_subset_of_es_folders(self) -> None:
         """Every folder in _STANDARD_PLATFORM_FOLDERS must exist as a value in _ES_PLATFORM_FOLDERS."""
         from rom_manager.web.server import _ES_PLATFORM_FOLDERS, _STANDARD_PLATFORM_FOLDERS
+
         es_values = set(_ES_PLATFORM_FOLDERS.values())
         missing = set(_STANDARD_PLATFORM_FOLDERS) - es_values - {"saves", "bios", "inbox"}
         assert missing == set(), (

@@ -13,9 +13,7 @@ def configure_logging(logs_dir: Path) -> logging.Logger:
         return logger
 
     logger.setLevel(logging.INFO)
-    formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 
     file_handler = logging.FileHandler(logs_dir / "rommgr.log", encoding="utf-8")
     file_handler.setFormatter(formatter)

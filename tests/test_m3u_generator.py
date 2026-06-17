@@ -1,4 +1,5 @@
 """Tests for m3u_generator.py — multi-disc playlist generation."""
+
 from __future__ import annotations
 
 from pathlib import Path

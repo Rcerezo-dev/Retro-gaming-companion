@@ -1,4 +1,5 @@
 """Tests for orphan_finder.py — saves without matching ROMs."""
+
 from __future__ import annotations
 
 from pathlib import Path

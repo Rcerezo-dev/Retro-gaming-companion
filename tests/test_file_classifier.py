@@ -27,12 +27,32 @@ def _make_file(root: Path, *parts: str) -> Path:
 
 # --- ROM detection ---
 
-@pytest.mark.parametrize("filename", [
-    "game.gb", "game.gbc", "game.gba", "game.nes", "game.sfc", "game.smc",
-    "game.n64", "game.z64", "game.nds", "game.3ds",
-    "game.bin", "game.iso", "game.cue", "game.zip", "game.chd",
-    "game.img", "game.mdf", "game.mds", "game.ccd", "game.ecm",
-])
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "game.gb",
+        "game.gbc",
+        "game.gba",
+        "game.nes",
+        "game.sfc",
+        "game.smc",
+        "game.n64",
+        "game.z64",
+        "game.nds",
+        "game.3ds",
+        "game.bin",
+        "game.iso",
+        "game.cue",
+        "game.zip",
+        "game.chd",
+        "game.img",
+        "game.mdf",
+        "game.mds",
+        "game.ccd",
+        "game.ecm",
+    ],
+)
 def test_rom_extensions(tmp_path, config, filename):
     path = _make_file(tmp_path, filename)
     assert classify_path(path, config, tmp_path) is FileCategory.ROM
@@ -40,10 +60,20 @@ def test_rom_extensions(tmp_path, config, filename):
 
 # --- Save detection ---
 
-@pytest.mark.parametrize("filename", [
-    "game.sav", "game.srm", "game.state", "game.st0", "game.mcr",
-    "game.dsv", "game.eep", "game.nv",
-])
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "game.sav",
+        "game.srm",
+        "game.state",
+        "game.st0",
+        "game.mcr",
+        "game.dsv",
+        "game.eep",
+        "game.nv",
+    ],
+)
 def test_save_extensions(tmp_path, config, filename):
     path = _make_file(tmp_path, filename)
     assert classify_path(path, config, tmp_path) is FileCategory.SAVE
@@ -51,9 +81,16 @@ def test_save_extensions(tmp_path, config, filename):
 
 # --- Frontend asset detection ---
 
-@pytest.mark.parametrize("filename", [
-    "cover.png", "screenshot.jpg", "preview.jpeg", "video.mp4",
-])
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "cover.png",
+        "screenshot.jpg",
+        "preview.jpeg",
+        "video.mp4",
+    ],
+)
 def test_frontend_asset_extensions(tmp_path, config, filename):
     path = _make_file(tmp_path, filename)
     assert classify_path(path, config, tmp_path) is FileCategory.FRONTEND_ASSET
@@ -71,6 +108,7 @@ def test_gamelist_xml_case_insensitive(tmp_path, config):
 
 # --- Unknown ---
 
+
 def test_unknown_extension(tmp_path, config):
     path = _make_file(tmp_path, "file.xyz")
     assert classify_path(path, config, tmp_path) is FileCategory.UNKNOWN
@@ -78,10 +116,21 @@ def test_unknown_extension(tmp_path, config):
 
 # --- Excluded directory → SYSTEM_SUPPORT ---
 
-@pytest.mark.parametrize("excluded_dir", [
-    "Android", "BIOS", "DCIM", "Documents", "Movies",
-    "Music", "Notifications", "backup", "recovery_log",
-])
+
+@pytest.mark.parametrize(
+    "excluded_dir",
+    [
+        "Android",
+        "BIOS",
+        "DCIM",
+        "Documents",
+        "Movies",
+        "Music",
+        "Notifications",
+        "backup",
+        "recovery_log",
+    ],
+)
 def test_excluded_directory(tmp_path, config, excluded_dir):
     path = _make_file(tmp_path, excluded_dir, "game.gb")
     assert classify_path(path, config, tmp_path) is FileCategory.SYSTEM_SUPPORT

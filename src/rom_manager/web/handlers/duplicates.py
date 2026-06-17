@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
     router: Router,
     *,
@@ -33,14 +34,18 @@ def register(
     # ── GET /api/duplicates ───────────────────────────────────────────────────
     @router.get("/api/duplicates")
     def get_duplicates(ctx) -> None:
-        qs          = getattr(ctx, "_qs", {})
+        qs = getattr(ctx, "_qs", {})
         source_root = qs.get("source_root", [None])[0] or None
-        pc_root     = qs.get("pc_root",     [None])[0] or None
-        ab_root     = qs.get("ab_root",     [None])[0] or None
+        pc_root = qs.get("pc_root", [None])[0] or None
+        ab_root = qs.get("ab_root", [None])[0] or None
         ctx._send_json(
             _build_duplicates_two_repos(
-                repository, repo_android, config,
-                source_root=source_root, pc_root=pc_root, ab_root=ab_root,
+                repository,
+                repo_android,
+                config,
+                source_root=source_root,
+                pc_root=pc_root,
+                ab_root=ab_root,
             )
         )
 
@@ -135,29 +140,38 @@ def _delete_duplicate(ctx, data: dict, repository: LibraryRepository) -> None:
         try:
             _force_remove(p)
         except Exception as exc:
-            ctx._send_json({"error": f"No se pudo eliminar el archivo: {type(exc).__name__}: {exc}"})
+            ctx._send_json(
+                {"error": f"No se pudo eliminar el archivo: {type(exc).__name__}: {exc}"}
+            )
             return
     try:
         repository.delete_game(int(game_id))
     except Exception as exc:
-        ctx._send_json({"error": f"Archivo eliminado pero error en BD: {type(exc).__name__}: {exc}"})
+        ctx._send_json(
+            {"error": f"Archivo eliminado pero error en BD: {type(exc).__name__}: {exc}"}
+        )
         return
     ctx._send_json({"deleted": source_path})
 
 
 def _delete_all_duplicates(ctx, repository: LibraryRepository) -> None:
-    groups       = repository.get_duplicate_groups()
-    deleted      = 0
-    skipped      = 0  # Files that don't exist (already deleted or moved)
-    failed       = 0  # Files that exist but couldn't be deleted (perms, device unmounted, etc.)
-    freed_bytes  = 0
+    groups = repository.get_duplicate_groups()
+    deleted = 0
+    skipped = 0  # Files that don't exist (already deleted or moved)
+    failed = 0  # Files that exist but couldn't be deleted (perms, device unmounted, etc.)
+    freed_bytes = 0
     errors: list[str] = []
     diagnostics: list[dict] = []  # Detailed log of each attempt
 
     for group in groups:
         for entry in group.entries[1:]:
             p = Path(entry.source_path)
-            diag = {"path": str(p), "exists": p.exists(), "deleted_file": False, "deleted_db": False}
+            diag = {
+                "path": str(p),
+                "exists": p.exists(),
+                "deleted_file": False,
+                "deleted_db": False,
+            }
 
             if not p.exists():
                 _log.info(f"Skipping missing file (file gone, cleaning DB): {p}")
@@ -184,13 +198,15 @@ def _delete_all_duplicates(ctx, repository: LibraryRepository) -> None:
                 diag["file_error"] = str(exc)
                 _log.warning("Could not delete duplicate file %s: %s", p, exc)
                 if len(errors) < 20:
-                    errors.append(f"{p.name}: no se pudo eliminar el archivo — {type(exc).__name__}: {exc}")
+                    errors.append(
+                        f"{p.name}: no se pudo eliminar el archivo — {type(exc).__name__}: {exc}"
+                    )
                 diagnostics.append(diag)
                 continue
 
             try:
                 repository.delete_game(entry.id)
-                deleted     += 1
+                deleted += 1
                 freed_bytes += entry.size_bytes
                 diag["deleted_db"] = True
                 _log.info(f"DB record deleted for: {p}")
@@ -199,19 +215,23 @@ def _delete_all_duplicates(ctx, repository: LibraryRepository) -> None:
                 diag["db_error"] = str(exc)
                 _log.warning("File deleted but DB update failed for %s: %s", p, exc)
                 if len(errors) < 20:
-                    errors.append(f"{p.name}: archivo eliminado pero error en BD — {type(exc).__name__}: {exc}")
+                    errors.append(
+                        f"{p.name}: archivo eliminado pero error en BD — {type(exc).__name__}: {exc}"
+                    )
 
             diagnostics.append(diag)
 
-    ctx._send_json({
-        "deleted": deleted,
-        "skipped": skipped,
-        "failed": failed,
-        "freed_bytes": freed_bytes,
-        "errors": errors,
-        "summary": f"{deleted} eliminados, {skipped} omitidos (no existen), {failed} errores",
-        "diagnostics": diagnostics[:10]  # Return first 10 for debugging
-    })
+    ctx._send_json(
+        {
+            "deleted": deleted,
+            "skipped": skipped,
+            "failed": failed,
+            "freed_bytes": freed_bytes,
+            "errors": errors,
+            "summary": f"{deleted} eliminados, {skipped} omitidos (no existen), {failed} errores",
+            "diagnostics": diagnostics[:10],  # Return first 10 for debugging
+        }
+    )
 
 
 def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
@@ -235,12 +255,12 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
     opts = FormatOptions()
     plan = build_plan(repository, opts)
 
-    resolved       = 0
-    skipped_no_ra  = 0
+    resolved = 0
+    skipped_no_ra = 0
     errors: list[str] = []
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
-    cache_dir_exists  = cache_dir.exists()
+    cache_dir_exists = cache_dir.exists()
     cache_files_exist = cache_dir_exists and any(cache_dir.iterdir()) if cache_dir_exists else False
 
     # Build per-platform hash→achievements lookup (lazily cached)
@@ -298,7 +318,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
     for op in (o for o in plan.conflicts if o.conflict_reason == "disk"):
         if not op.source_path.exists():
             continue
-        plat   = op.game.platform or ""
+        plat = op.game.platform or ""
         src_ra = _ra_for_path(op.source_path, plat)
         tgt_ra = _ra_for_path(op.target_path, plat)
 
@@ -322,7 +342,9 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
             _discard(loser_path)
             if winner_path and winner_target and winner_path.exists():
                 # Rename winner to canonical target path
-                save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
+                save_exts = (
+                    frozenset(config.save_extensions) if config.save_extensions else frozenset()
+                )
                 outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
                 if not outcome.success:
                     errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
@@ -331,7 +353,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
                     with repository.connect() as _c:
                         _c.execute(
                             "UPDATE games SET source_path = ? WHERE source_path = ?",
-                            (str(winner_target), str(winner_path))
+                            (str(winner_target), str(winner_path)),
                         )
                         _c.commit()
             resolved += 1
@@ -347,11 +369,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
 
     for _target_str, ops in collision_groups.items():
         plat = ops[0].game.platform or ""
-        scored = [
-            (op, _ra_for_path(op.source_path, plat))
-            for op in ops
-            if op.source_path.exists()
-        ]
+        scored = [(op, _ra_for_path(op.source_path, plat)) for op in ops if op.source_path.exists()]
         if not scored:
             continue
 
@@ -378,8 +396,12 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
         # Rename winner to canonical target path
         if winner_op.source_path.exists() and winner_op.source_path != winner_op.target_path:
             try:
-                save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
-                outcome = rename_rom_with_saves(winner_op.source_path, winner_op.target_path, save_exts)
+                save_exts = (
+                    frozenset(config.save_extensions) if config.save_extensions else frozenset()
+                )
+                outcome = rename_rom_with_saves(
+                    winner_op.source_path, winner_op.target_path, save_exts
+                )
                 if not outcome.success:
                     errors.append(f"{winner_op.source_path.name}: rename failed — {outcome.error}")
                 else:
@@ -387,7 +409,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
                     with repository.connect() as _c:
                         _c.execute(
                             "UPDATE games SET source_path = ? WHERE source_path = ?",
-                            (str(winner_op.target_path), str(winner_op.source_path))
+                            (str(winner_op.target_path), str(winner_op.source_path)),
                         )
                         _c.commit()
             except Exception as exc:
@@ -400,22 +422,24 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
             with repository.connect() as _c:
                 row = _c.execute(
                     "SELECT md5, source_path FROM games WHERE source_path = ?",
-                    (str(op.source_path),)
+                    (str(op.source_path),),
                 ).fetchone()
             debug_samples.append(dict(row) if row else {"not_found": str(op.source_path)})
         except Exception as _e:
             debug_samples.append({"error": str(_e)})
 
     next_step = "Si hay errores de rename, verifica que los archivos de guardado existan y sean accesibles. Luego ejecuta 'rommgr scan' para actualizar la BD si es necesario."
-    ctx._send_json({
-        "resolved":      resolved,
-        "skipped_no_ra": skipped_no_ra,
-        "errors":        errors[:10],
-        "no_cache":      not cache_files_exist,
-        "debug_samples": debug_samples,
-        "hint":          "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
-        "next_step":     next_step,
-    })
+    ctx._send_json(
+        {
+            "resolved": resolved,
+            "skipped_no_ra": skipped_no_ra,
+            "errors": errors[:10],
+            "no_cache": not cache_files_exist,
+            "debug_samples": debug_samples,
+            "hint": "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
+            "next_step": next_step,
+        }
+    )
 
 
 def _ra_duplicate_discard(ctx, data: dict, repository: LibraryRepository) -> None:
@@ -434,7 +458,7 @@ def _ra_duplicate_discard(ctx, data: dict, repository: LibraryRepository) -> Non
 
     discard_dir = p.parent / "_descartados"
     dest: Path | None = None
-    moved              = False
+    moved = False
     permanently_deleted = False
     try:
         discard_dir.mkdir(parents=True, exist_ok=True)
@@ -456,11 +480,19 @@ def _ra_duplicate_discard(ctx, data: dict, repository: LibraryRepository) -> Non
                 _log.warning("RA discard rollback: restored %s after DB error", p.name)
             except Exception as rb_exc:
                 _log.error("RA discard rollback FAILED for %s: %s", p.name, rb_exc)
-                ctx._send_json({"error": f"DB error AND rollback failed — {p.name} may be lost: {exc} | rollback: {rb_exc}"})
+                ctx._send_json(
+                    {
+                        "error": f"DB error AND rollback failed — {p.name} may be lost: {exc} | rollback: {rb_exc}"
+                    }
+                )
                 return
         elif permanently_deleted:
             _log.error("File %s was permanently deleted but DB delete failed: %s", p.name, exc)
-            ctx._send_json({"error": f"File was deleted but DB update failed — stale entry will be removed on next scan: {exc}"})
+            ctx._send_json(
+                {
+                    "error": f"File was deleted but DB update failed — stale entry will be removed on next scan: {exc}"
+                }
+            )
             return
         ctx._send_json({"error": str(exc)})
         return
@@ -477,7 +509,7 @@ def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryReposit
         return
 
     discarded = 0
-    failed    = 0
+    failed = 0
     errors: list[str] = []
 
     for group in ra_dups.get("groups", []):
@@ -487,10 +519,10 @@ def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryReposit
             src_path_str = entry.get("source_path", "")
             if not src_path_str:
                 continue
-            p           = Path(src_path_str)
+            p = Path(src_path_str)
             discard_dir = p.parent / "_descartados"
             dest_file: Path | None = None
-            moved               = False
+            moved = False
             permanently_deleted = False
             try:
                 discard_dir.mkdir(parents=True, exist_ok=True)
@@ -498,7 +530,7 @@ def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryReposit
                     dest_file = discard_dir / p.name
                     if dest_file.exists():
                         p.unlink()
-                        dest_file           = None
+                        dest_file = None
                         permanently_deleted = True
                     else:
                         shutil.move(str(p), dest_file)
@@ -516,9 +548,13 @@ def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryReposit
                         errors.append(f"{p.name}: DB error (file restored) — {exc}")
                     except Exception as rb_exc:
                         _log.error("RA discard-all rollback FAILED for %s: %s", p.name, rb_exc)
-                        errors.append(f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}")
+                        errors.append(
+                            f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}"
+                        )
                 elif permanently_deleted:
-                    errors.append(f"{p.name}: deleted but DB not updated (stale entry — will be removed on next scan)")
+                    errors.append(
+                        f"{p.name}: deleted but DB not updated (stale entry — will be removed on next scan)"
+                    )
                 else:
                     errors.append(f"{p.name}: {exc}")
 
@@ -537,17 +573,17 @@ def _ra_discard_no_support(ctx, repository: LibraryRepository, srv_mod) -> None:
         return
 
     discarded = 0
-    failed    = 0
+    failed = 0
     errors: list[str] = []
 
     for entry in entries:
         src_path_str = entry.get("source_path", "")
         if not src_path_str:
             continue
-        p           = Path(src_path_str)
+        p = Path(src_path_str)
         discard_dir = p.parent / "_descartados"
         dest_file: Path | None = None
-        moved               = False
+        moved = False
         permanently_deleted = False
         try:
             discard_dir.mkdir(parents=True, exist_ok=True)
@@ -571,7 +607,9 @@ def _ra_discard_no_support(ctx, repository: LibraryRepository, srv_mod) -> None:
                     errors.append(f"{p.name}: DB error (file restored) — {exc}")
                 except Exception as rb_exc:
                     _log.error("RA discard-no-support rollback FAILED for %s: %s", p.name, rb_exc)
-                    errors.append(f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}")
+                    errors.append(
+                        f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}"
+                    )
             elif permanently_deleted:
                 errors.append(f"{p.name}: deleted from disk but DB error — {exc}")
             else:
@@ -582,14 +620,14 @@ def _ra_discard_no_support(ctx, repository: LibraryRepository, srv_mod) -> None:
 
 def _resolve_duplicate_ra(ctx, data: dict, repository: LibraryRepository) -> None:
     """B1-4: Resolve title-based duplicates by keeping the one with RA support."""
-    keep_path     = data.get("keep_path", "").strip()
+    keep_path = data.get("keep_path", "").strip()
     discard_paths = data.get("discard_paths", [])
     if not keep_path or not discard_paths:
         ctx._send_json({"error": "keep_path and discard_paths required"})
         return
 
     discarded = 0
-    failed    = 0
+    failed = 0
     errors: list[str] = []
 
     for src_path_str in discard_paths:

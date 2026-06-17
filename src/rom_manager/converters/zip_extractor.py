@@ -9,6 +9,7 @@ from pathlib import Path
 # The \s*$ anchor prevents false matches on track files like "Game (Disc 1) (Track 2)"
 _DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)\s*$", re.IGNORECASE)
 
+
 @dataclass(slots=True)
 class ExtractionResult:
     zip_path: Path
@@ -34,10 +35,20 @@ _DISC_EXTENSIONS = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".
 
 # B7-5: Folder names that indicate arcade/MAME ROMs — ZIPs must NOT be extracted
 # because the ZIP *is* the ROM (MAME loads directly from the archive).
-_ARCADE_FOLDER_NAMES = frozenset({
-    "mame", "arcade", "fbneo", "fba", "neogeo", "mame2003", "mame2010",
-    "mame2015", "mame2016", "mame_libretro",
-})
+_ARCADE_FOLDER_NAMES = frozenset(
+    {
+        "mame",
+        "arcade",
+        "fbneo",
+        "fba",
+        "neogeo",
+        "mame2003",
+        "mame2010",
+        "mame2015",
+        "mame2016",
+        "mame_libretro",
+    }
+)
 
 
 def find_zip_files(directory: Path) -> list[Path]:

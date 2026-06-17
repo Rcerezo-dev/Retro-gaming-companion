@@ -11,6 +11,7 @@ Synthetic data scenarios:
   4. No-RA skip     — neither file has achievements in the cache → both kept,
      nothing moved.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,8 +34,10 @@ _TS = "2024-01-01T00:00:00"
 # Minimal stubs
 # ---------------------------------------------------------------------------
 
+
 class _FakeCtx:
     """Captures the JSON response sent by _apply_ra_conflicts."""
+
     def __init__(self) -> None:
         self.response: dict[str, Any] = {}
 
@@ -51,6 +54,7 @@ class _FakeConfig:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _insert_game(
     repo: LibraryRepository,
@@ -99,13 +103,14 @@ def _ra_entry(game_id: int, md5: str, achievements: int) -> dict:
         "NumAchievements": achievements,
         "NumLeaderboards": 0,
         "Points": achievements * 10,
-        "Hashes": [md5.upper()],   # API returns upper-case; parser lowercases
+        "Hashes": [md5.upper()],  # API returns upper-case; parser lowercases
     }
 
 
 # ---------------------------------------------------------------------------
 # Scenario 1 — Disk conflict: target wins (higher RA)
 # ---------------------------------------------------------------------------
+
 
 def test_disk_conflict_target_wins(tmp_path: Path) -> None:
     """
@@ -123,22 +128,25 @@ def test_disk_conflict_target_wins(tmp_path: Path) -> None:
     roms = tmp_path / "roms"
     roms.mkdir()
 
-    loser_file   = roms / "tetris_old.gb"
-    winner_file  = roms / "Tetris (World).gb"
+    loser_file = roms / "tetris_old.gb"
+    winner_file = roms / "Tetris (World).gb"
     loser_file.write_bytes(b"LOSER_ROM")
     winner_file.write_bytes(b"WINNER_ROM")
 
-    md5_loser  = "a" * 32
+    md5_loser = "a" * 32
     md5_winner = "b" * 32
 
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert_game(repo, source_path=loser_file,  md5=md5_loser,  canonical_title="Tetris (World)")
+    _insert_game(repo, source_path=loser_file, md5=md5_loser, canonical_title="Tetris (World)")
     _insert_game(repo, source_path=winner_file, md5=md5_winner, canonical_title="Tetris (World)")
 
-    _write_ra_cache(tmp_path, [
-        _ra_entry(1, md5_loser,  5),
-        _ra_entry(2, md5_winner, 50),
-    ])
+    _write_ra_cache(
+        tmp_path,
+        [
+            _ra_entry(1, md5_loser, 5),
+            _ra_entry(2, md5_winner, 50),
+        ],
+    )
 
     ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
@@ -166,6 +174,7 @@ def test_disk_conflict_target_wins(tmp_path: Path) -> None:
 # Scenario 2 — Disk conflict: source wins (higher RA)
 # ---------------------------------------------------------------------------
 
+
 def test_disk_conflict_source_wins(tmp_path: Path) -> None:
     """
     Setup
@@ -182,22 +191,25 @@ def test_disk_conflict_source_wins(tmp_path: Path) -> None:
     roms = tmp_path / "roms"
     roms.mkdir()
 
-    winner_src  = roms / "tetris_new.gb"
+    winner_src = roms / "tetris_new.gb"
     blocker_file = roms / "Tetris (World).gb"
     winner_src.write_bytes(b"WINNER_ROM")
     blocker_file.write_bytes(b"BLOCKER_ROM")
 
-    md5_winner  = "c" * 32
+    md5_winner = "c" * 32
     md5_blocker = "d" * 32
 
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert_game(repo, source_path=winner_src,   md5=md5_winner,  canonical_title="Tetris (World)")
+    _insert_game(repo, source_path=winner_src, md5=md5_winner, canonical_title="Tetris (World)")
     _insert_game(repo, source_path=blocker_file, md5=md5_blocker, canonical_title="Tetris (World)")
 
-    _write_ra_cache(tmp_path, [
-        _ra_entry(3, md5_winner,  50),
-        _ra_entry(4, md5_blocker, 5),
-    ])
+    _write_ra_cache(
+        tmp_path,
+        [
+            _ra_entry(3, md5_winner, 50),
+            _ra_entry(4, md5_blocker, 5),
+        ],
+    )
 
     ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
@@ -228,6 +240,7 @@ def test_disk_conflict_source_wins(tmp_path: Path) -> None:
 # Scenario 3 — Collision: two sources → same canonical name
 # ---------------------------------------------------------------------------
 
+
 def test_collision_conflict(tmp_path: Path) -> None:
     """
     Setup
@@ -245,21 +258,28 @@ def test_collision_conflict(tmp_path: Path) -> None:
     roms.mkdir()
 
     winner_src = roms / "mario_v1.gb"
-    loser_src  = roms / "mario_v2.gb"
+    loser_src = roms / "mario_v2.gb"
     winner_src.write_bytes(b"WINNER_MARIO")
     loser_src.write_bytes(b"LOSER_MARIO")
 
     md5_winner = "e" * 32
-    md5_loser  = "f" * 32
+    md5_loser = "f" * 32
 
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert_game(repo, source_path=winner_src, md5=md5_winner, canonical_title="Super Mario Land (World)")
-    _insert_game(repo, source_path=loser_src,  md5=md5_loser,  canonical_title="Super Mario Land (World)")
+    _insert_game(
+        repo, source_path=winner_src, md5=md5_winner, canonical_title="Super Mario Land (World)"
+    )
+    _insert_game(
+        repo, source_path=loser_src, md5=md5_loser, canonical_title="Super Mario Land (World)"
+    )
 
-    _write_ra_cache(tmp_path, [
-        _ra_entry(5, md5_winner, 30),
-        _ra_entry(6, md5_loser,  5),
-    ])
+    _write_ra_cache(
+        tmp_path,
+        [
+            _ra_entry(5, md5_winner, 30),
+            _ra_entry(6, md5_loser, 5),
+        ],
+    )
 
     ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
@@ -280,6 +300,7 @@ def test_collision_conflict(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Scenario 4 — No RA data: both files skipped
 # ---------------------------------------------------------------------------
+
 
 def test_no_ra_data_skips_conflict(tmp_path: Path) -> None:
     """When neither conflicting file has RA data, both files are left untouched."""

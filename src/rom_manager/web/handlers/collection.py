@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
     router: Router,
     *,
@@ -22,6 +23,7 @@ def register(
     import sys
 
     from rom_manager.web.response_builders import _build_assets, _build_library_diff
+
     print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
@@ -44,12 +46,13 @@ def register(
                     "WHERE file_type = 'rom' "
                     "GROUP BY platform ORDER BY cnt DESC"
                 ).fetchall()
-        ctx._send_json({
-            "platforms": [
-                {"platform": r["platform"] or "?", "total_games": r["cnt"]}
-                for r in rows
-            ]
-        })
+        ctx._send_json(
+            {
+                "platforms": [
+                    {"platform": r["platform"] or "?", "total_games": r["cnt"]} for r in rows
+                ]
+            }
+        )
 
     # ── GET /api/assets ───────────────────────────────────────────────────────
     @router.get("/api/assets")
@@ -65,6 +68,7 @@ def register(
             ctx._send_json(result)
         except Exception as e:
             import traceback
+
             ctx._send_error(500, f"Asset query failed: {str(e)} | {traceback.format_exc()}")
 
     # ── GET /api/asset-image ──────────────────────────────────────────────────
@@ -72,6 +76,7 @@ def register(
     def get_asset_image(ctx) -> None:
         import mimetypes
         from pathlib import Path
+
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("game_id", [None])[0]
         if not game_id:
@@ -113,6 +118,7 @@ def register(
         import csv as _csv
         import io as _io
         import json as _json
+
         qs = getattr(ctx, "_qs", {})
         fmt = qs.get("format", ["csv"])[0]
         src_root = qs.get("root", [None])[0] or None
@@ -120,8 +126,12 @@ def register(
         rows = exp_repo.get_library_export()
         if fmt == "json":
             body = _json.dumps(rows, ensure_ascii=False, default=str).encode("utf-8")
-            ctx._send(200, "application/json; charset=utf-8", body,
-                      extra_headers={"Content-Disposition": 'attachment; filename="library.json"'})
+            ctx._send(
+                200,
+                "application/json; charset=utf-8",
+                body,
+                extra_headers={"Content-Disposition": 'attachment; filename="library.json"'},
+            )
         else:
             buf = _io.StringIO()
             writer = _csv.writer(buf)
@@ -130,14 +140,19 @@ def register(
                 for r in rows:
                     writer.writerow(r.values())
             body = buf.getvalue().encode("utf-8-sig")
-            ctx._send(200, "text/csv; charset=utf-8", body,
-                      extra_headers={"Content-Disposition": 'attachment; filename="library.csv"'})
+            ctx._send(
+                200,
+                "text/csv; charset=utf-8",
+                body,
+                extra_headers={"Content-Disposition": 'attachment; filename="library.csv"'},
+            )
 
     # ── GET /api/export-wishlist ──────────────────────────────────────────────
     @router.get("/api/export-wishlist")
     def get_export_wishlist(ctx) -> None:
         import csv as _csv
         import io as _io
+
         qs = getattr(ctx, "_qs", {})
         src_root = qs.get("root", [None])[0] or None
         wl_repo = get_repo_fn(src_root or "")
@@ -146,11 +161,16 @@ def register(
         writer = _csv.writer(buf)
         writer.writerow(["Title", "Platform", "Region", "Notes"])
         for r in rows:
-            writer.writerow([r.get("title", ""), r.get("platform", ""),
-                             r.get("region", ""), r.get("notes", "")])
+            writer.writerow(
+                [r.get("title", ""), r.get("platform", ""), r.get("region", ""), r.get("notes", "")]
+            )
         body = buf.getvalue().encode("utf-8-sig")
-        ctx._send(200, "text/csv; charset=utf-8", body,
-                  extra_headers={"Content-Disposition": 'attachment; filename="wishlist.csv"'})
+        ctx._send(
+            200,
+            "text/csv; charset=utf-8",
+            body,
+            extra_headers={"Content-Disposition": 'attachment; filename="wishlist.csv"'},
+        )
 
     # ── GET /api/platform-health ─────────────────────────────────────────────
     @router.get("/api/platform-health")
@@ -177,37 +197,43 @@ def register(
             last_scan_row = conn.execute(
                 "SELECT MAX(finished_at) AS last_scan FROM scan_runs WHERE finished_at IS NOT NULL"
             ).fetchone()
-        last_scan = (last_scan_row["last_scan"] or "")[:16].replace("T", " ") if last_scan_row else ""
-        ctx._send_json({
-            "platforms": [
-                {
-                    "platform": r["platform"] or "?",
-                    "total_roms": r["total_roms"],
-                    "matched_roms": r["matched_roms"],
-                    "roms_with_art": r["roms_with_art"],
-                    "match_pct": round(100.0 * r["matched_roms"] / r["total_roms"], 1) if r["total_roms"] else 0.0,
-                    "art_pct": round(100.0 * r["roms_with_art"] / r["total_roms"], 1) if r["total_roms"] else 0.0,
-                }
-                for r in rows
-            ],
-            "last_scan": last_scan,
-        })
+        last_scan = (
+            (last_scan_row["last_scan"] or "")[:16].replace("T", " ") if last_scan_row else ""
+        )
+        ctx._send_json(
+            {
+                "platforms": [
+                    {
+                        "platform": r["platform"] or "?",
+                        "total_roms": r["total_roms"],
+                        "matched_roms": r["matched_roms"],
+                        "roms_with_art": r["roms_with_art"],
+                        "match_pct": round(100.0 * r["matched_roms"] / r["total_roms"], 1)
+                        if r["total_roms"]
+                        else 0.0,
+                        "art_pct": round(100.0 * r["roms_with_art"] / r["total_roms"], 1)
+                        if r["total_roms"]
+                        else 0.0,
+                    }
+                    for r in rows
+                ],
+                "last_scan": last_scan,
+            }
+        )
 
     # ── GET /api/collection-stats ─────────────────────────────────────────────
     @router.get("/api/collection-stats")
     def get_collection_stats(ctx) -> None:
         data = _build_missing_data(config, repository)
-        ctx._send_json({
-            "platforms": [
-                {k: v for k, v in p.items() if k != "entries"}
-                for p in data
-            ]
-        })
+        ctx._send_json(
+            {"platforms": [{k: v for k, v in p.items() if k != "entries"} for p in data]}
+        )
 
     # ── GET /api/missing ──────────────────────────────────────────────────────
     @router.get("/api/missing")
     def get_missing(ctx) -> None:
         import urllib.parse
+
         data = _build_missing_data(config, repository)
         qs = getattr(ctx, "_qs", {})
         pf = urllib.parse.unquote_plus(qs.get("platform", [""])[0])
@@ -261,10 +287,13 @@ def register(
                     with repository.connect() as conn:
                         row = conn.execute(
                             "SELECT source_path, platform FROM games "
-                            "WHERE sha1 = ? AND file_type = 'rom' LIMIT 1", (sha1,)
+                            "WHERE sha1 = ? AND file_type = 'rom' LIMIT 1",
+                            (sha1,),
                         ).fetchone()
                     if not row:
-                        errors.append({"sha1": sha1, "error": "SHA1 no encontrado en biblioteca PC"})
+                        errors.append(
+                            {"sha1": sha1, "error": "SHA1 no encontrado en biblioteca PC"}
+                        )
                         continue
                     src = Path(row["source_path"])
                     if not src.exists():
@@ -279,14 +308,19 @@ def register(
                     with repo_android.connect() as conn:
                         row = conn.execute(
                             "SELECT source_path, platform FROM games "
-                            "WHERE sha1 = ? AND file_type = 'rom' LIMIT 1", (sha1,)
+                            "WHERE sha1 = ? AND file_type = 'rom' LIMIT 1",
+                            (sha1,),
                         ).fetchone()
                     if not row:
-                        errors.append({"sha1": sha1, "error": "SHA1 no encontrado en biblioteca Android"})
+                        errors.append(
+                            {"sha1": sha1, "error": "SHA1 no encontrado en biblioteca Android"}
+                        )
                         continue
                     src = Path(row["source_path"])
                     if not src.exists():
-                        errors.append({"sha1": sha1, "error": f"Archivo SD no accesible: {src.name}"})
+                        errors.append(
+                            {"sha1": sha1, "error": f"Archivo SD no accesible: {src.name}"}
+                        )
                         continue
                     dest_dir = library_root / (row["platform"] or "Unknown")
                     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -333,7 +367,10 @@ def register(
             return f"{n:.1f} PB"
 
         platforms = sorted(
-            [{"platform": p, **v, "size_human": _fmt(v["size_bytes"])} for p, v in by_platform.items()],
+            [
+                {"platform": p, **v, "size_human": _fmt(v["size_bytes"])}
+                for p, v in by_platform.items()
+            ],
             key=lambda x: x["size_bytes"],
             reverse=True,
         )
@@ -345,8 +382,8 @@ def register(
             try:
                 du = shutil.disk_usage(root_path)
                 result["disk_total"] = du.total
-                result["disk_used"]  = du.used
-                result["disk_free"]  = du.free
+                result["disk_used"] = du.used
+                result["disk_free"] = du.free
             except OSError:
                 pass
         ctx._send_json(result)
@@ -394,6 +431,7 @@ def register(
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
+
 def _build_missing_data(config: AppConfig, repository: LibraryRepository) -> list[dict]:
     """Load all DAT files and compute missing ROMs vs. the library.
 
@@ -428,14 +466,16 @@ def _build_missing_data(config: AppConfig, repository: LibraryRepository) -> lis
         total = len(entries)
         missing = len(missing_entries)
         in_lib = total - missing
-        results.append({
-            "platform": platform_label,
-            "total": total,
-            "in_library": in_lib,
-            "missing": missing,
-            "coverage_pct": round(100.0 * in_lib / total, 1) if total > 0 else 0.0,
-            "entries": missing_entries,
-        })
+        results.append(
+            {
+                "platform": platform_label,
+                "total": total,
+                "in_library": in_lib,
+                "missing": missing,
+                "coverage_pct": round(100.0 * in_lib / total, 1) if total > 0 else 0.0,
+                "entries": missing_entries,
+            }
+        )
 
     results.sort(key=lambda r: r["platform"])
     return results

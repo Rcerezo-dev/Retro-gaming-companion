@@ -7,6 +7,7 @@ N64 ROMs come in three byte-order variants:
 
 Converting to .z64 is done entirely in Python — no external tools needed.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,7 +26,7 @@ class N64ConvertResult:
     success: bool
     source_path: str
     target_path: str
-    source_format: str   # "z64" | "v64" | "n64" | "unknown"
+    source_format: str  # "z64" | "v64" | "n64" | "unknown"
     size_bytes: int
     error: str = ""
 
@@ -99,8 +100,12 @@ def convert_to_z64(source: Path, target: Path | None = None) -> N64ConvertResult
                     # Reverse each 4-byte word
                     arr = bytearray(chunk)
                     for i in range(0, len(arr), 4):
-                        arr[i], arr[i+1], arr[i+2], arr[i+3] = \
-                            arr[i+3], arr[i+2], arr[i+1], arr[i]
+                        arr[i], arr[i + 1], arr[i + 2], arr[i + 3] = (
+                            arr[i + 3],
+                            arr[i + 2],
+                            arr[i + 1],
+                            arr[i],
+                        )
                     fout.write(bytes(arr))
                 else:  # z64 → just copy
                     fout.write(chunk)
@@ -123,11 +128,13 @@ def scan_n64_roms(directory: Path) -> list[dict]:
     for ext in (".z64", ".v64", ".n64"):
         for path in directory.rglob("*" + ext):
             fmt = detect_n64_format(path)
-            results.append({
-                "path": str(path),
-                "filename": path.name,
-                "format": fmt,
-                "needs_conversion": fmt not in ("z64", "unknown"),
-                "size_bytes": path.stat().st_size if path.exists() else 0,
-            })
+            results.append(
+                {
+                    "path": str(path),
+                    "filename": path.name,
+                    "format": fmt,
+                    "needs_conversion": fmt not in ("z64", "unknown"),
+                    "size_bytes": path.stat().st_size if path.exists() else 0,
+                }
+            )
     return results

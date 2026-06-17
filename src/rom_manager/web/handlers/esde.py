@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
     router: Router,
     *,
@@ -42,6 +43,7 @@ def register(
     @router.get("/api/local-url")
     def get_local_url(ctx) -> None:
         from rom_manager.web.server import _get_local_ip
+
         ctx._send_json({"ip": _get_local_ip(), "port": config.web_port})
 
     # ── GET /api/status ───────────────────────────────────────────────────────
@@ -52,7 +54,8 @@ def register(
         repo = get_repo_fn(src_root) if src_root else repository
         ctx._send_json(
             _build_status(
-                repo, src_root,
+                repo,
+                src_root,
                 project_root=config.project_root,
                 repository_android=repo_android,
                 library_root=config.library_root,
@@ -74,11 +77,13 @@ def register(
     @router.get("/api/setup-status")
     def get_setup_status(ctx) -> None:
         status = job_manager.get_status()
-        ctx._send_json({
-            "setup_running":  status["setup_running"],
-            "setup_progress": status.get("setup_progress"),
-            "setup_result":   status.get("setup_result"),
-        })
+        ctx._send_json(
+            {
+                "setup_running": status["setup_running"],
+                "setup_progress": status.get("setup_progress"),
+                "setup_result": status.get("setup_result"),
+            }
+        )
 
     # ── GET /api/esde-status ──────────────────────────────────────────────────
     @router.get("/api/esde-status")
@@ -120,10 +125,14 @@ def register(
         qs = ctx._qs
         rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
         if not rpt_path:
-            ctx._send(400, "text/plain; charset=utf-8",
-                      b"path parameter required (or set library_root in config)")
+            ctx._send(
+                400,
+                "text/plain; charset=utf-8",
+                b"path parameter required (or set library_root in config)",
+            )
             return
         from rom_manager.utils.library_report_html import generate_html_report
+
         _rpt_repo = get_repo_fn(rpt_path)
         rpt = _build_library_report(rpt_path, _rpt_repo, config)
         _st = job_manager.get_status()
@@ -137,16 +146,24 @@ def register(
     def get_report_json(ctx) -> None:
         report = build_report(repository)
         body = _to_json(report).encode()
-        ctx._send(200, "application/json; charset=utf-8", body,
-                  extra_headers={"Content-Disposition": 'attachment; filename="report.json"'})
+        ctx._send(
+            200,
+            "application/json; charset=utf-8",
+            body,
+            extra_headers={"Content-Disposition": 'attachment; filename="report.json"'},
+        )
 
     # ── GET /api/report.csv ───────────────────────────────────────────────────
     @router.get("/api/report.csv")
     def get_report_csv(ctx) -> None:
         report = build_report(repository)
         body = to_csv(report).encode()
-        ctx._send(200, "text/csv; charset=utf-8", body,
-                  extra_headers={"Content-Disposition": 'attachment; filename="report.csv"'})
+        ctx._send(
+            200,
+            "text/csv; charset=utf-8",
+            body,
+            extra_headers={"Content-Disposition": 'attachment; filename="report.csv"'},
+        )
 
     # ── POST /api/export-lpl ──────────────────────────────────────────────────
     @router.post("/api/export-lpl")
@@ -156,6 +173,7 @@ def register(
             ctx._send_json({"error": "library_root not configured"})
             return
         from rom_manager.utils.lpl_generator import generate_lpl_playlists
+
         try:
             result = generate_lpl_playlists(
                 Path(config.library_root),
@@ -189,39 +207,64 @@ def register(
                     find_cue_files,
                     parse_bins_from_cue,
                 )
+
                 source = Path(source_path_str).resolve()
                 cue_files = find_cue_files(source)
                 total = len(cue_files)
-                job_manager.update_progress("convert_chd", {"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress(
+                    "convert_chd", {"current": 0, "total": total, "current_file": ""}
+                )
 
                 summary = ConversionSummary()
                 for idx, cue_path in enumerate(cue_files, 1):
                     if _cancel.is_set():
                         break
-                    job_manager.update_progress("convert_chd", {"current": idx, "total": total, "current_file": cue_path.name})
+                    job_manager.update_progress(
+                        "convert_chd",
+                        {"current": idx, "total": total, "current_file": cue_path.name},
+                    )
                     chd_path = cue_path.with_suffix(".chd")
                     bin_paths = parse_bins_from_cue(cue_path)
                     if dry_run:
                         if chd_path.exists():
                             summary.skipped += 1
-                            summary.results.append(ConversionResult(
-                                cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
-                                success=False, error="Output .chd already exists — would skip."))
+                            summary.results.append(
+                                ConversionResult(
+                                    cue_path=cue_path,
+                                    chd_path=chd_path,
+                                    bin_paths=bin_paths,
+                                    success=False,
+                                    error="Output .chd already exists — would skip.",
+                                )
+                            )
                         else:
                             missing_bins = [b for b in bin_paths if not b.exists()]
                             if missing_bins:
                                 summary.failed += 1
-                                summary.results.append(ConversionResult(
-                                    cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
-                                    success=False,
-                                    error="Bin file(s) not found: " + ", ".join(b.name for b in missing_bins)))
+                                summary.results.append(
+                                    ConversionResult(
+                                        cue_path=cue_path,
+                                        chd_path=chd_path,
+                                        bin_paths=bin_paths,
+                                        success=False,
+                                        error="Bin file(s) not found: "
+                                        + ", ".join(b.name for b in missing_bins),
+                                    )
+                                )
                             else:
                                 summary.converted += 1
-                                summary.results.append(ConversionResult(
-                                    cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths,
-                                    success=True))
+                                summary.results.append(
+                                    ConversionResult(
+                                        cue_path=cue_path,
+                                        chd_path=chd_path,
+                                        bin_paths=bin_paths,
+                                        success=True,
+                                    )
+                                )
                     else:
-                        result = convert_to_chd(cue_path, chdman=config.chdman, delete_source=delete_source)
+                        result = convert_to_chd(
+                            cue_path, chdman=config.chdman, delete_source=delete_source
+                        )
                         summary.results.append(result)
                         if result.success:
                             summary.converted += 1
@@ -279,10 +322,13 @@ def register(
             job_result = None
             try:
                 from rom_manager.converters.chd_converter import find_chd_files, verify_chd
+
                 source = Path(source_path_str).resolve()
                 chd_files = find_chd_files(source)
                 total = len(chd_files)
-                job_manager.update_progress("verify_chd", {"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress(
+                    "verify_chd", {"current": 0, "total": total, "current_file": ""}
+                )
 
                 results = []
                 ok_count = 0
@@ -290,7 +336,10 @@ def register(
                 for idx, chd_path in enumerate(chd_files, 1):
                     if _cancel.is_set():
                         break
-                    job_manager.update_progress("verify_chd", {"current": idx, "total": total, "current_file": chd_path.name})
+                    job_manager.update_progress(
+                        "verify_chd",
+                        {"current": idx, "total": total, "current_file": chd_path.name},
+                    )
                     r = verify_chd(chd_path, chdman=str(config.chdman))
                     results.append({"file": chd_path.name, "ok": r.ok, "error": r.error or ""})
                     if r.ok:
@@ -326,6 +375,7 @@ def register(
 
         def run() -> None:
             import subprocess
+
             job_result = None
             try:
                 source = Path(source_path_str).resolve()
@@ -340,7 +390,9 @@ def register(
 
                 cso_files = [c for c in cso_files if not _is_arcade(c)]
                 total = len(cso_files)
-                job_manager.update_progress("convert_cso", {"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress(
+                    "convert_cso", {"current": 0, "total": total, "current_file": ""}
+                )
 
                 converted = 0
                 skipped = 0
@@ -350,19 +402,28 @@ def register(
                 for idx, cso_path in enumerate(cso_files, 1):
                     if _cancel.is_set():
                         break
-                    job_manager.update_progress("convert_cso", {"current": idx, "total": total, "current_file": cso_path.name})
+                    job_manager.update_progress(
+                        "convert_cso",
+                        {"current": idx, "total": total, "current_file": cso_path.name},
+                    )
                     iso_path = cso_path.with_suffix(".iso")
 
                     if iso_path.exists():
                         skipped += 1
-                        results.append({"file": cso_path.name, "success": False,
-                                         "error": "Output .iso already exists"})
+                        results.append(
+                            {
+                                "file": cso_path.name,
+                                "success": False,
+                                "error": "Output .iso already exists",
+                            }
+                        )
                         continue
 
                     try:
                         r = subprocess.run(
                             [maxcso_path, "--decompress", f"--output={iso_path}", str(cso_path)],
-                            capture_output=True, timeout=300,
+                            capture_output=True,
+                            timeout=300,
                         )
                         if r.returncode == 0:
                             converted += 1
@@ -372,15 +433,27 @@ def register(
                         else:
                             failed += 1
                             err = (r.stderr or b"").decode(errors="replace").strip()
-                            results.append({"file": cso_path.name, "success": False,
-                                             "error": err or "maxcso failed with non-zero exit"})
+                            results.append(
+                                {
+                                    "file": cso_path.name,
+                                    "success": False,
+                                    "error": err or "maxcso failed with non-zero exit",
+                                }
+                            )
                     except FileNotFoundError:
                         failed += 1
-                        results.append({"file": cso_path.name, "success": False,
-                                         "error": f"maxcso not found: {maxcso_path}"})
+                        results.append(
+                            {
+                                "file": cso_path.name,
+                                "success": False,
+                                "error": f"maxcso not found: {maxcso_path}",
+                            }
+                        )
                     except subprocess.TimeoutExpired:
                         failed += 1
-                        results.append({"file": cso_path.name, "success": False, "error": "Timeout (>300s)"})
+                        results.append(
+                            {"file": cso_path.name, "success": False, "error": "Timeout (>300s)"}
+                        )
                     except Exception as e:
                         failed += 1
                         results.append({"file": cso_path.name, "success": False, "error": str(e)})
@@ -417,10 +490,13 @@ def register(
             try:
                 from rom_manager.converters.zip_extractor import extract_zip, find_zip_files
                 from rom_manager.scanner.rom_scanner import utc_now
+
                 source = Path(source_path_str).resolve()
                 zip_files = find_zip_files(source)
                 total = len(zip_files)
-                job_manager.update_progress("extract_zip", {"current": 0, "total": total, "current_file": ""})
+                job_manager.update_progress(
+                    "extract_zip", {"current": 0, "total": total, "current_file": ""}
+                )
                 extracted = skipped = failed = disc_sets = 0
                 results = []
                 for idx, zp in enumerate(zip_files, 1):
@@ -430,7 +506,9 @@ def register(
                         rel = str(zp.relative_to(source))
                     except ValueError:
                         rel = zp.name
-                    job_manager.update_progress("extract_zip", {"current": idx, "total": total, "current_file": rel})
+                    job_manager.update_progress(
+                        "extract_zip", {"current": idx, "total": total, "current_file": rel}
+                    )
                     r = extract_zip(zp, dry_run=dry_run, delete_source=delete_source)
                     if r.is_disc_set:
                         disc_sets += 1
@@ -441,14 +519,16 @@ def register(
                         failed += 1
                     else:
                         extracted += 1
-                    results.append({
-                        "zip": rel,
-                        "success": r.success,
-                        "skipped_reason": r.skipped_reason,
-                        "is_disc_set": r.is_disc_set,
-                        "error": r.error,
-                        "extracted": [f.name for f in r.extracted_files],
-                    })
+                    results.append(
+                        {
+                            "zip": rel,
+                            "success": r.success,
+                            "skipped_reason": r.skipped_reason,
+                            "is_disc_set": r.is_disc_set,
+                            "error": r.error,
+                            "extracted": [f.name for f in r.extracted_files],
+                        }
+                    )
                 job_result = {
                     "dry_run": dry_run,
                     "extracted": extracted,
@@ -476,21 +556,24 @@ def register(
             return
         dry_run = bool(data.get("dry_run", True))
         from rom_manager.utils.m3u_generator import generate_m3u_playlists
+
         source = Path(source_path_str).resolve()
         summary = generate_m3u_playlists(source, dry_run=dry_run)
-        ctx._send_json({
-            "dry_run": dry_run,
-            "created": summary.created,
-            "skipped": summary.skipped,
-            "groups": [
-                {
-                    "base_name": g.base_name,
-                    "discs": [d.name for d in g.discs],
-                    "m3u": g.m3u_path.name,
-                }
-                for g in summary.groups
-            ],
-        })
+        ctx._send_json(
+            {
+                "dry_run": dry_run,
+                "created": summary.created,
+                "skipped": summary.skipped,
+                "groups": [
+                    {
+                        "base_name": g.base_name,
+                        "discs": [d.name for d in g.discs],
+                        "m3u": g.m3u_path.name,
+                    }
+                    for g in summary.groups
+                ],
+            }
+        )
 
     # ── POST /api/verify-multidisc ────────────────────────────────────────────
     @router.post("/api/verify-multidisc")
@@ -501,17 +584,24 @@ def register(
             ctx._send_json({"error": "source_path is required"})
             return
         from rom_manager.utils.multidisc_verifier import verify_multidisc
+
         source = Path(source_path_str).resolve()
         summary = verify_multidisc(source, repository)
-        ctx._send_json({
-            "groups_ok": summary.groups_ok,
-            "groups_with_issues": summary.groups_with_issues,
-            "issues": [
-                {"base_name": i.base_name, "issue_type": i.issue_type,
-                 "detail": i.detail, "platform": i.platform}
-                for i in summary.issues
-            ],
-        })
+        ctx._send_json(
+            {
+                "groups_ok": summary.groups_ok,
+                "groups_with_issues": summary.groups_with_issues,
+                "issues": [
+                    {
+                        "base_name": i.base_name,
+                        "issue_type": i.issue_type,
+                        "detail": i.detail,
+                        "platform": i.platform,
+                    }
+                    for i in summary.issues
+                ],
+            }
+        )
 
     # ── POST /api/health-check ────────────────────────────────────────────────
     @router.post("/api/health-check")
@@ -525,10 +615,14 @@ def register(
                 from rom_manager.utils.health_checker import check_library_health
 
                 def progress_cb(current: int, total: int, filename: str) -> None:
-                    job_manager.update_progress("health_check", {"current": current, "total": total, "current_file": filename})
+                    job_manager.update_progress(
+                        "health_check",
+                        {"current": current, "total": total, "current_file": filename},
+                    )
 
-                summary = check_library_health(repository, progress_cb=progress_cb,
-                                               cancel_event=_cancel)
+                summary = check_library_health(
+                    repository, progress_cb=progress_cb, cancel_event=_cancel
+                )
                 job_result = {
                     "ok": summary.ok,
                     "corrupted": summary.corrupted,
@@ -548,18 +642,23 @@ def register(
                     "result_ts": utc_now(),
                 }
                 from rom_manager.web.server import _write_health_schedule
-                _write_health_schedule(config, ok=summary.ok,
-                                       corrupted=summary.corrupted, missing=summary.missing)
+
+                _write_health_schedule(
+                    config, ok=summary.ok, corrupted=summary.corrupted, missing=summary.missing
+                )
                 if not _cancel.is_set() and config.notify_desktop:
                     from rom_manager.utils.notifier import notify
+
                     if summary.corrupted or summary.missing:
                         notify(
                             "Retro Vault — Health Check",
                             f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos — revisa la pestaña Tools",
                         )
                     else:
-                        notify("Retro Vault — Health Check",
-                               f"✓ {summary.ok} ROMs verificados, sin problemas")
+                        notify(
+                            "Retro Vault — Health Check",
+                            f"✓ {summary.ok} ROMs verificados, sin problemas",
+                        )
             except Exception as exc:
                 job_result = {"error": str(exc)}
             finally:
@@ -604,6 +703,7 @@ def register(
                 skipped += 1
                 continue
             from rom_manager.converters.chd_converter import parse_bins_from_cue
+
             bins = parse_bins_from_cue(cue)
             for f in [cue, *bins]:
                 try:
@@ -612,8 +712,9 @@ def register(
                     deleted += 1
                 except OSError:
                     failed += 1
-        ctx._send_json({"deleted": deleted, "failed": failed, "skipped": skipped,
-                         "freed_bytes": freed_bytes})
+        ctx._send_json(
+            {"deleted": deleted, "failed": failed, "skipped": skipped, "freed_bytes": freed_bytes}
+        )
 
     # ── POST /api/junk-delete ─────────────────────────────────────────────────
     @router.post("/api/junk-delete")
@@ -636,8 +737,15 @@ def register(
             except OSError as exc:
                 failed += 1
                 errors.append(str(exc))
-        ctx._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes,
-                         "dry_run": dry_run, "errors": errors[:10]})
+        ctx._send_json(
+            {
+                "deleted": deleted,
+                "failed": failed,
+                "freed_bytes": freed_bytes,
+                "dry_run": dry_run,
+                "errors": errors[:10],
+            }
+        )
 
     # ── POST /api/convert-n64 ─────────────────────────────────────────────────
     @router.post("/api/convert-n64")
@@ -649,11 +757,16 @@ def register(
             ctx._send_json({"error": "source_path required"})
             return
         from rom_manager.converters.n64_converter import convert_to_z64
+
         res = convert_to_z64(Path(src), Path(dst) if dst else None)
-        ctx._send_json({
-            "success": res.success, "source_format": res.source_format,
-            "target_path": res.target_path, "error": res.error,
-        })
+        ctx._send_json(
+            {
+                "success": res.success,
+                "source_format": res.source_format,
+                "target_path": res.target_path,
+                "error": res.error,
+            }
+        )
 
     # ── POST /api/orphaned-saves/delete ───────────────────────────────────────
     @router.post("/api/orphaned-saves/delete")
@@ -745,12 +858,14 @@ def register(
             except OSError:
                 failed += 1
 
-        ctx._send_json({
-            "moved": moved,
-            "failed": failed,
-            "moved_bytes": moved_bytes,
-            "archive_dir": str(archive_dir),
-        })
+        ctx._send_json(
+            {
+                "moved": moved,
+                "failed": failed,
+                "moved_bytes": moved_bytes,
+                "archive_dir": str(archive_dir),
+            }
+        )
 
     # ── POST /api/doctor-move-rom ─────────────────────────────────────────────
     @router.post("/api/doctor-move-rom")
@@ -800,6 +915,7 @@ def register(
     def post_shutdown(ctx) -> None:
         ctx._send_json({"ok": True})
         import threading as _threading
+
         _threading.Thread(
             target=srv_mod._httpd_instance.shutdown,
             daemon=True,
@@ -834,6 +950,7 @@ def register(
     @router.get("/api/bios-status")
     def get_bios_status(ctx) -> None:
         from rom_manager.detection.bios_checker import check_bios
+
         search_dirs = []
         if config.library_root:
             search_dirs.append(config.library_root)
@@ -847,6 +964,7 @@ def register(
     @router.get("/api/n64-scan")
     def get_n64_scan(ctx) -> None:
         from rom_manager.converters.n64_converter import scan_n64_roms
+
         path_str = ctx._qs.get("path", [None])[0] or str(config.library_root or "")
         if not path_str:
             ctx._send_json({"roms": []})
@@ -859,6 +977,7 @@ def register(
 
 
 # ── Module-level helpers (also used by server.py internals) ──────────────────
+
 
 def _handle_esde_status(config: AppConfig) -> dict:
     """Detect ES-DE installation and return status + suggested gamelist paths."""
@@ -892,6 +1011,7 @@ def _handle_esde_status(config: AppConfig) -> dict:
             if settings.exists():
                 try:
                     import re as _re
+
                     text = settings.read_text(encoding="utf-8", errors="replace")
                     m = _re.search(r'name="ROMsDirectory"[^>]*value="([^"]+)"', text)
                     if m:
@@ -943,12 +1063,26 @@ def _handle_copy_assets_to_esde(config: AppConfig) -> dict:
 
 # Keywords that identify disc-based platforms (multi-disc games common)
 _DISC_PLATFORM_KEYWORDS = {
-    "ps1", "psx", "playstation", "ps2", "psp",
-    "saturn", "dreamcast",
-    "segacd", "sega-cd", "mega-cd", "megacd",
-    "pcenginecd", "pc-engine-cd", "turbografx-cd", "turbografxcd",
-    "neogeocd", "neo-geo-cd",
-    "3do", "cd-i", "cdi",
+    "ps1",
+    "psx",
+    "playstation",
+    "ps2",
+    "psp",
+    "saturn",
+    "dreamcast",
+    "segacd",
+    "sega-cd",
+    "mega-cd",
+    "megacd",
+    "pcenginecd",
+    "pc-engine-cd",
+    "turbografx-cd",
+    "turbografxcd",
+    "neogeocd",
+    "neo-geo-cd",
+    "3do",
+    "cd-i",
+    "cdi",
 }
 
 
@@ -959,7 +1093,10 @@ def _handle_generate_es_systems(config: AppConfig) -> dict:
     # Locate the cores/ directory from the configured RetroArch path
     ra_exe = (config.retroarch_path or "").strip()
     if not ra_exe:
-        return {"ok": False, "error": "RetroArch no está configurado en Settings (launchers.retroarch)."}
+        return {
+            "ok": False,
+            "error": "RetroArch no está configurado en Settings (launchers.retroarch).",
+        }
 
     cores_dir = Path(ra_exe).parent / "cores"
 
@@ -978,7 +1115,12 @@ def _handle_generate_es_systems(config: AppConfig) -> dict:
         "output_path": result.output_path,
         "written": result.written,
         "generated": [
-            {"name": s.name, "fullname": s.fullname, "core_dll": s.core_dll, "core_label": s.core_label}
+            {
+                "name": s.name,
+                "fullname": s.fullname,
+                "core_dll": s.core_dll,
+                "core_label": s.core_label,
+            }
             for s in result.generated_systems
         ],
         "missing": result.missing_systems,

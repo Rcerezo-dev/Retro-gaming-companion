@@ -493,23 +493,25 @@ class LibraryRepository:
             key = (row["platform"], row["canonical_title"])
             if key not in groups:
                 groups[key] = []
-            groups[key].append({
-                "id": row["id"],
-                "original_filename": row["original_filename"],
-                "source_path": row["source_path"],
-                "platform": row["platform"],
-                "canonical_title": row["canonical_title"],
-                "size_bytes": int(row["size_bytes"]),
-                "sha1": row["sha1"],
-            })
+            groups[key].append(
+                {
+                    "id": row["id"],
+                    "original_filename": row["original_filename"],
+                    "source_path": row["source_path"],
+                    "platform": row["platform"],
+                    "canonical_title": row["canonical_title"],
+                    "size_bytes": int(row["size_bytes"]),
+                    "sha1": row["sha1"],
+                }
+            )
         return [
-            {"platform": k[0], "canonical_title": k[1], "entries": v}
-            for k, v in groups.items()
+            {"platform": k[0], "canonical_title": k[1], "entries": v} for k, v in groups.items()
         ]
 
     def exclude_duplicate_sha1(self, sha1: str, reason: str = "intentional_copy") -> None:
         """Mark a SHA1 group as an intentional copy — it will no longer appear as a duplicate."""
         from datetime import datetime
+
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             conn.execute(
@@ -549,6 +551,7 @@ class LibraryRepository:
         dat_source: str = "",
     ) -> None:
         from datetime import datetime
+
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             conn.execute(
@@ -588,9 +591,7 @@ class LibraryRepository:
         Returns the number of rows updated.
         """
         with self.connect() as conn:
-            rows = conn.execute(
-                "SELECT source_path FROM games WHERE platform IS NULL"
-            ).fetchall()
+            rows = conn.execute("SELECT source_path FROM games WHERE platform IS NULL").fetchall()
 
         updated = 0
         with self.batch() as conn:
@@ -613,6 +614,7 @@ class LibraryRepository:
         Returns the total number of records deleted across all tables.
         """
         import os
+
         root_prefix = source_root + os.sep
 
         def _under_root(p: str) -> bool:
@@ -620,12 +622,12 @@ class LibraryRepository:
             return p_lower == source_root.lower() or p_lower.startswith(root_prefix.lower())
 
         with self.connect() as conn:
-            game_paths  = [r[0] for r in conn.execute("SELECT source_path  FROM games").fetchall()]
-            save_paths  = [r[0] for r in conn.execute("SELECT original_path FROM saves").fetchall()]
+            game_paths = [r[0] for r in conn.execute("SELECT source_path  FROM games").fetchall()]
+            save_paths = [r[0] for r in conn.execute("SELECT original_path FROM saves").fetchall()]
             asset_paths = [r[0] for r in conn.execute("SELECT source_path  FROM assets").fetchall()]
 
-        stale_games  = [p for p in game_paths  if _under_root(p) and p not in seen_paths]
-        stale_saves  = [p for p in save_paths  if _under_root(p) and p not in seen_paths]
+        stale_games = [p for p in game_paths if _under_root(p) and p not in seen_paths]
+        stale_saves = [p for p in save_paths if _under_root(p) and p not in seen_paths]
         stale_assets = [p for p in asset_paths if _under_root(p) and p not in seen_paths]
 
         total = len(stale_games) + len(stale_saves) + len(stale_assets)
@@ -745,14 +747,18 @@ class LibraryRepository:
         for plat in all_platforms:
             g = game_counts.get(plat, 0)
             a = asset_stats.get(plat, {"images": 0, "videos": 0, "xml": 0, "other": 0})
-            result.append({
-                "platform": plat,
-                "rom_count": g,
-                "image_count": a["images"],
-                "video_count": a["videos"],
-                "xml_count": a["xml"],
-                "orphan_assets": a["images"] + a["videos"] + a["xml"] + a["other"] if g == 0 else 0,
-            })
+            result.append(
+                {
+                    "platform": plat,
+                    "rom_count": g,
+                    "image_count": a["images"],
+                    "video_count": a["videos"],
+                    "xml_count": a["xml"],
+                    "orphan_assets": a["images"] + a["videos"] + a["xml"] + a["other"]
+                    if g == 0
+                    else 0,
+                }
+            )
         return result
 
     def get_roms_without_assets(self, *, platform: str | None = None) -> list[dict]:
@@ -833,22 +839,26 @@ class LibraryRepository:
         """Return distinct values for advanced filter dropdowns: genres, years, regions, platforms."""
         with self.connect() as conn:
             genres = [
-                r[0] for r in conn.execute(
+                r[0]
+                for r in conn.execute(
                     "SELECT DISTINCT genre FROM game_metadata WHERE genre IS NOT NULL AND genre != '' ORDER BY genre"
                 ).fetchall()
             ]
             years = [
-                r[0] for r in conn.execute(
+                r[0]
+                for r in conn.execute(
                     "SELECT DISTINCT year FROM game_metadata WHERE year IS NOT NULL AND year != '' ORDER BY year DESC"
                 ).fetchall()
             ]
             regions = [
-                r[0] for r in conn.execute(
+                r[0]
+                for r in conn.execute(
                     "SELECT DISTINCT region FROM games WHERE region IS NOT NULL AND region != '' ORDER BY region"
                 ).fetchall()
             ]
             platforms = [
-                r[0] for r in conn.execute(
+                r[0]
+                for r in conn.execute(
                     "SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL AND platform != '' AND file_type='rom' ORDER BY platform"
                 ).fetchall()
             ]
@@ -915,9 +925,7 @@ class LibraryRepository:
         if favorite:
             conditions.append("is_favorite = 1")
         if tag:
-            conditions.append(
-                "id IN (SELECT game_id FROM game_tags WHERE tag = ?)"
-            )
+            conditions.append("id IN (SELECT game_id FROM game_tags WHERE tag = ?)")
             params.append(tag)
         if region:
             conditions.append("region = ?")
@@ -933,61 +941,65 @@ class LibraryRepository:
             params.append(year)
 
         table_expr = (
-            "games g LEFT JOIN game_metadata gm ON gm.game_id = g.id"
-            if need_meta else "games"
+            "games g LEFT JOIN game_metadata gm ON gm.game_id = g.id" if need_meta else "games"
         )
         # Rewrite conditions that reference bare column names when we alias
         if need_meta:
             conditions = [
-                c if c.startswith("gm.") or c.startswith("id IN") else
-                c.replace("file_type", "g.file_type")
-                 .replace("platform", "g.platform")
-                 .replace("canonical_title", "g.canonical_title")
-                 .replace("source_path", "g.source_path")
-                 .replace("play_status", "g.play_status")
-                 .replace("is_favorite", "g.is_favorite")
-                 .replace("region", "g.region")
-                 .replace("id IN", "g.id IN")
+                c
+                if c.startswith("gm.") or c.startswith("id IN")
+                else c.replace("file_type", "g.file_type")
+                .replace("platform", "g.platform")
+                .replace("canonical_title", "g.canonical_title")
+                .replace("source_path", "g.source_path")
+                .replace("play_status", "g.play_status")
+                .replace("is_favorite", "g.is_favorite")
+                .replace("region", "g.region")
+                .replace("id IN", "g.id IN")
                 for c in conditions
             ]
 
         where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        _order = {
-            "year": "gm.year DESC, g.platform, g.canonical_title, g.original_filename",
-            "last_played": "g.last_played_at DESC, g.platform, g.canonical_title",
-            "title": "g.canonical_title, g.original_filename",
-            "platform": "g.platform, g.canonical_title, g.original_filename",
-        }.get(sort_by or "", "g.platform, g.canonical_title, g.original_filename") if need_meta else {
-            "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, canonical_title",
-            "last_played": "last_played_at DESC, platform, canonical_title",
-            "title": "canonical_title, original_filename",
-            "platform": "platform, canonical_title, original_filename",
-        }.get(sort_by or "", "platform, canonical_title, original_filename")
+        _order = (
+            {
+                "year": "gm.year DESC, g.platform, g.canonical_title, g.original_filename",
+                "last_played": "g.last_played_at DESC, g.platform, g.canonical_title",
+                "title": "g.canonical_title, g.original_filename",
+                "platform": "g.platform, g.canonical_title, g.original_filename",
+            }.get(sort_by or "", "g.platform, g.canonical_title, g.original_filename")
+            if need_meta
+            else {
+                "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, canonical_title",
+                "last_played": "last_played_at DESC, platform, canonical_title",
+                "title": "canonical_title, original_filename",
+                "platform": "platform, canonical_title, original_filename",
+            }.get(sort_by or "", "platform, canonical_title, original_filename")
+        )
 
         id_col = "g.id" if need_meta else "id"
         count_sql = f"SELECT COUNT(*) AS cnt FROM {table_expr} " + where_sql
         select_sql = (
-            f"SELECT {id_col} AS id, g.original_filename, g.source_path, g.platform, g.region,"
-            " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
-            " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
-            f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
-            " gm.genre, gm.year AS meta_year, gm.publisher"
-            f" FROM {table_expr} " + where_sql +
-            f" ORDER BY {_order} LIMIT ? OFFSET ?"
-        ) if need_meta else (
-            "SELECT id, original_filename, source_path, platform, region,"
-            " extension, size_bytes, sha1, md5, canonical_title,"
-            " match_confidence, catalog_source, play_status, last_played_at,"
-            " is_favorite, notes, user_rating, play_count, first_played_at"
-            " FROM games " + where_sql +
-            f" ORDER BY {_order} LIMIT ? OFFSET ?"
+            (
+                f"SELECT {id_col} AS id, g.original_filename, g.source_path, g.platform, g.region,"
+                " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
+                " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
+                f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
+                " gm.genre, gm.year AS meta_year, gm.publisher"
+                f" FROM {table_expr} " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
+            )
+            if need_meta
+            else (
+                "SELECT id, original_filename, source_path, platform, region,"
+                " extension, size_bytes, sha1, md5, canonical_title,"
+                " match_confidence, catalog_source, play_status, last_played_at,"
+                " is_favorite, notes, user_rating, play_count, first_played_at"
+                " FROM games " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
+            )
         )
 
         with self.connect() as connection:
-            total = int(
-                connection.execute(count_sql, params).fetchone()["cnt"]
-            )
+            total = int(connection.execute(count_sql, params).fetchone()["cnt"])
             rows = connection.execute(
                 select_sql,
                 [*params, limit, offset],
@@ -1015,8 +1027,11 @@ class LibraryRepository:
                 "user_rating": row["user_rating"],
                 "play_count": row["play_count"] or 0,
                 "first_played_at": row["first_played_at"],
-                **({"genre": row["genre"], "year": row["meta_year"], "publisher": row["publisher"]}
-                   if "genre" in _keys else {}),
+                **(
+                    {"genre": row["genre"], "year": row["meta_year"], "publisher": row["publisher"]}
+                    if "genre" in _keys
+                    else {}
+                ),
             }
             for row in rows
         ]
@@ -1036,6 +1051,7 @@ class LibraryRepository:
     def get_save_comparison(self) -> list[dict]:
         """Return save files with their last sync event, for the comparator UI."""
         from datetime import datetime
+
         with self.connect() as conn:
             rows = conn.execute(
                 "SELECT id, canonical_title, original_filename, platform, source_path, updated_at "
@@ -1052,22 +1068,24 @@ class LibraryRepository:
                 ).fetchone()
                 local_mtime = None
                 try:
-                    local_mtime = datetime.fromtimestamp(
-                        Path(sp).stat().st_mtime, tz=UTC
-                    ).strftime("%Y-%m-%dT%H:%M:%S")
+                    local_mtime = datetime.fromtimestamp(Path(sp).stat().st_mtime, tz=UTC).strftime(
+                        "%Y-%m-%dT%H:%M:%S"
+                    )
                 except (OSError, ValueError):
                     pass
-                results.append({
-                    "title": g["canonical_title"] or g["original_filename"],
-                    "filename": g["original_filename"],
-                    "platform": g["platform"],
-                    "local_path": sp,
-                    "local_mtime": local_mtime,
-                    "db_updated": g["updated_at"],
-                    "last_sync_at": sync["created_at"] if sync else None,
-                    "last_direction": sync["direction"] if sync else None,
-                    "last_result": sync["result"] if sync else None,
-                })
+                results.append(
+                    {
+                        "title": g["canonical_title"] or g["original_filename"],
+                        "filename": g["original_filename"],
+                        "platform": g["platform"],
+                        "local_path": sp,
+                        "local_mtime": local_mtime,
+                        "db_updated": g["updated_at"],
+                        "last_sync_at": sync["created_at"] if sync else None,
+                        "last_direction": sync["direction"] if sync else None,
+                        "last_result": sync["result"] if sync else None,
+                    }
+                )
         return results
 
     def get_metadata_for_nlp(self) -> list[dict]:
@@ -1135,6 +1153,7 @@ class LibraryRepository:
     def toggle_favorite(self, game_id: int) -> bool:
         """Toggle is_favorite for a game. Returns the new value."""
         from datetime import datetime
+
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             current = conn.execute(
@@ -1184,9 +1203,7 @@ class LibraryRepository:
     def get_all_tags(self) -> list[str]:
         """Return all unique tags in the library."""
         with self.connect() as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT tag FROM game_tags ORDER BY tag"
-            ).fetchall()
+            rows = conn.execute("SELECT DISTINCT tag FROM game_tags ORDER BY tag").fetchall()
         return [r["tag"] for r in rows]
 
     def set_notes(self, game_id: int, notes: str | None) -> None:
@@ -1196,7 +1213,10 @@ class LibraryRepository:
 
     def set_canonical_title(self, game_id: int, title: str) -> None:
         with self.connect() as conn:
-            conn.execute("UPDATE games SET canonical_title = ? WHERE id = ?", (title.strip() or None, game_id))
+            conn.execute(
+                "UPDATE games SET canonical_title = ? WHERE id = ?",
+                (title.strip() or None, game_id),
+            )
             conn.commit()
 
     def upsert_metadata_manual(self, game_id: int, **fields: str) -> None:
@@ -1206,6 +1226,7 @@ class LibraryRepository:
         if not updates:
             return
         from rom_manager.scanner.rom_scanner import utc_now
+
         with self.connect() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO game_metadata (game_id, scraped_at) VALUES (?, ?)",
@@ -1258,9 +1279,22 @@ class LibraryRepository:
                 screenshot_path=excluded.screenshot_path,
                 wheel_path=excluded.wheel_path
             """,
-            (game_id, ss_game_id, title, year, genre, publisher, developer,
-             description, rating, box_art_url, box_art_path, scraped_at,
-             screenshot_path, wheel_path),
+            (
+                game_id,
+                ss_game_id,
+                title,
+                year,
+                genre,
+                publisher,
+                developer,
+                description,
+                rating,
+                box_art_url,
+                box_art_path,
+                scraped_at,
+                screenshot_path,
+                wheel_path,
+            ),
         )
 
     def update_image_paths(
@@ -1357,8 +1391,12 @@ class LibraryRepository:
         with self.connect() as conn:
             rows = conn.execute(sql).fetchall()
         return [
-            {"platform": r["platform"], "total": r["total"], "scraped": r["scraped"],
-             "missing": r["total"] - r["scraped"]}
+            {
+                "platform": r["platform"],
+                "total": r["total"],
+                "scraped": r["scraped"],
+                "missing": r["total"] - r["scraped"],
+            }
             for r in rows
         ]
 
@@ -1391,12 +1429,12 @@ class LibraryRepository:
                     "SELECT COUNT(*) AS count FROM assets WHERE source_path LIKE ?", (like,)
                 ).fetchone()["count"]
             else:
-                games_count = connection.execute(
-                    "SELECT COUNT(*) AS count FROM games"
-                ).fetchone()["count"]
-                saves_count = connection.execute(
-                    "SELECT COUNT(*) AS count FROM saves"
-                ).fetchone()["count"]
+                games_count = connection.execute("SELECT COUNT(*) AS count FROM games").fetchone()[
+                    "count"
+                ]
+                saves_count = connection.execute("SELECT COUNT(*) AS count FROM saves").fetchone()[
+                    "count"
+                ]
                 assets_count = connection.execute(
                     "SELECT COUNT(*) AS count FROM assets"
                 ).fetchone()["count"]

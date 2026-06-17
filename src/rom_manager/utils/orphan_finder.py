@@ -33,22 +33,22 @@ def find_orphaned_saves(
         # Look for a sibling file with same stem but different (non-save) extension
         stem = save_file.stem
         siblings = [
-            f for f in save_file.parent.iterdir()
-            if f != save_file
-            and f.stem == stem
-            and f.suffix.lower() not in exts
-            and f.is_file()
+            f
+            for f in save_file.parent.iterdir()
+            if f != save_file and f.stem == stem and f.suffix.lower() not in exts and f.is_file()
         ]
         if not siblings:
             try:
                 size = save_file.stat().st_size
             except OSError:
                 size = 0
-            orphans.append(OrphanedSave(
-                save_path=str(save_file.resolve()),
-                stem=stem,
-                extension=save_file.suffix.lower(),
-                size_bytes=size,
-            ))
+            orphans.append(
+                OrphanedSave(
+                    save_path=str(save_file.resolve()),
+                    stem=stem,
+                    extension=save_file.suffix.lower(),
+                    size_bytes=size,
+                )
+            )
 
     return sorted(orphans, key=lambda o: o.save_path)

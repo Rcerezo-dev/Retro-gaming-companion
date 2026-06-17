@@ -37,6 +37,7 @@ def _repo_with(games: list[MatchedGame]) -> MagicMock:
 # resolve() — direct unit tests
 # ---------------------------------------------------------------------------
 
+
 def test_no_collision_unchanged(tmp_path: Path) -> None:
     from rom_manager.planner.conflict_resolver import resolve
 
@@ -46,8 +47,12 @@ def test_no_collision_unchanged(tmp_path: Path) -> None:
     g2.touch()
 
     ops = [
-        RenameOperation(game=MagicMock(), source_path=g1, target_path=tmp_path / "Mario.snes", status="pending"),
-        RenameOperation(game=MagicMock(), source_path=g2, target_path=tmp_path / "Zelda.snes", status="pending"),
+        RenameOperation(
+            game=MagicMock(), source_path=g1, target_path=tmp_path / "Mario.snes", status="pending"
+        ),
+        RenameOperation(
+            game=MagicMock(), source_path=g2, target_path=tmp_path / "Zelda.snes", status="pending"
+        ),
     ]
     result = resolve(ops)
     assert all(op.status == "pending" for op in result)
@@ -65,8 +70,12 @@ def test_collision_marks_both_conflict(tmp_path: Path) -> None:
     same_target = tmp_path / "Tetris (World).snes"
 
     ops = [
-        RenameOperation(game=MagicMock(), source_path=g1, target_path=same_target, status="pending"),
-        RenameOperation(game=MagicMock(), source_path=g2, target_path=same_target, status="pending"),
+        RenameOperation(
+            game=MagicMock(), source_path=g1, target_path=same_target, status="pending"
+        ),
+        RenameOperation(
+            game=MagicMock(), source_path=g2, target_path=same_target, status="pending"
+        ),
     ]
     result = resolve(ops)
     assert all(op.status == "conflict" for op in result)
@@ -84,8 +93,12 @@ def test_keep_both_generates_unique_suffixes(tmp_path: Path) -> None:
     same_target = tmp_path / "Tetris (World).snes"
 
     ops = [
-        RenameOperation(game=MagicMock(), source_path=g1, target_path=same_target, status="pending"),
-        RenameOperation(game=MagicMock(), source_path=g2, target_path=same_target, status="pending"),
+        RenameOperation(
+            game=MagicMock(), source_path=g1, target_path=same_target, status="pending"
+        ),
+        RenameOperation(
+            game=MagicMock(), source_path=g2, target_path=same_target, status="pending"
+        ),
     ]
     result = resolve(ops, keep_both=True)
     assert all(op.status == "pending" for op in result)
@@ -98,7 +111,12 @@ def test_three_way_collision_keep_both(tmp_path: Path) -> None:
 
     same_target = tmp_path / "Sonic.smd"
     ops = [
-        RenameOperation(game=MagicMock(), source_path=tmp_path / f"s{i}.smd", target_path=same_target, status="pending")
+        RenameOperation(
+            game=MagicMock(),
+            source_path=tmp_path / f"s{i}.smd",
+            target_path=same_target,
+            status="pending",
+        )
         for i in range(3)
     ]
     result = resolve(ops, keep_both=True)
@@ -111,6 +129,7 @@ def test_three_way_collision_keep_both(tmp_path: Path) -> None:
 # build_plan() integration
 # ---------------------------------------------------------------------------
 
+
 def test_build_plan_detects_plan_level_conflict(tmp_path: Path) -> None:
     """Two games with the same canonical title → plan-level conflict."""
     g1 = tmp_path / "tetris_dump_a.gb"
@@ -119,10 +138,22 @@ def test_build_plan_detects_plan_level_conflict(tmp_path: Path) -> None:
     g2.touch()
 
     games = [
-        _make_game(id=1, original_filename="tetris_dump_a.gb", source_path=str(g1),
-                   canonical_title="Tetris (World)", extension=".gb", platform="Game Boy"),
-        _make_game(id=2, original_filename="tetris_dump_b.gb", source_path=str(g2),
-                   canonical_title="Tetris (World)", extension=".gb", platform="Game Boy"),
+        _make_game(
+            id=1,
+            original_filename="tetris_dump_a.gb",
+            source_path=str(g1),
+            canonical_title="Tetris (World)",
+            extension=".gb",
+            platform="Game Boy",
+        ),
+        _make_game(
+            id=2,
+            original_filename="tetris_dump_b.gb",
+            source_path=str(g2),
+            canonical_title="Tetris (World)",
+            extension=".gb",
+            platform="Game Boy",
+        ),
     ]
     plan = build_plan(_repo_with(games))
     assert len(plan.conflicts) == 2
@@ -137,10 +168,22 @@ def test_build_plan_keep_both_no_conflict(tmp_path: Path) -> None:
     g2.touch()
 
     games = [
-        _make_game(id=1, original_filename="tetris_a.gb", source_path=str(g1),
-                   canonical_title="Tetris (World)", extension=".gb", platform="Game Boy"),
-        _make_game(id=2, original_filename="tetris_b.gb", source_path=str(g2),
-                   canonical_title="Tetris (World)", extension=".gb", platform="Game Boy"),
+        _make_game(
+            id=1,
+            original_filename="tetris_a.gb",
+            source_path=str(g1),
+            canonical_title="Tetris (World)",
+            extension=".gb",
+            platform="Game Boy",
+        ),
+        _make_game(
+            id=2,
+            original_filename="tetris_b.gb",
+            source_path=str(g2),
+            canonical_title="Tetris (World)",
+            extension=".gb",
+            platform="Game Boy",
+        ),
     ]
     plan = build_plan(_repo_with(games), keep_both=True)
     assert len(plan.conflicts) == 0
@@ -157,10 +200,20 @@ def test_build_plan_no_collision_unchanged(tmp_path: Path) -> None:
     g2.touch()
 
     games = [
-        _make_game(id=1, original_filename="mario.gb", source_path=str(g1),
-                   canonical_title="Super Mario Land (World)", extension=".gb"),
-        _make_game(id=2, original_filename="zelda.gb", source_path=str(g2),
-                   canonical_title="The Legend of Zelda (USA)", extension=".gb"),
+        _make_game(
+            id=1,
+            original_filename="mario.gb",
+            source_path=str(g1),
+            canonical_title="Super Mario Land (World)",
+            extension=".gb",
+        ),
+        _make_game(
+            id=2,
+            original_filename="zelda.gb",
+            source_path=str(g2),
+            canonical_title="The Legend of Zelda (USA)",
+            extension=".gb",
+        ),
     ]
     plan = build_plan(_repo_with(games))
     assert len(plan.pending) == 2

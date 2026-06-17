@@ -37,11 +37,19 @@ _httpd_instance = None  # type: ignore[assignment]
 # ── Background job state ──────────────────────────────────────────────────────
 _job_lock = threading.Lock()
 _jobs: dict[str, bool] = {
-    "scan": False, "match": False, "sync": False,
-    "convert_chd": False, "convert_cso": False, "scrape": False,
-    "extract_zip": False, "health_check": False,
-    "ra_check": False, "cable_sync": False,
-    "apply": False, "inbox": False, "setup": False,
+    "scan": False,
+    "match": False,
+    "sync": False,
+    "convert_chd": False,
+    "convert_cso": False,
+    "scrape": False,
+    "extract_zip": False,
+    "health_check": False,
+    "ra_check": False,
+    "cable_sync": False,
+    "apply": False,
+    "inbox": False,
+    "setup": False,
     "backup_now": False,
     "tree_diff": False,
     "verify_chd": False,
@@ -69,119 +77,150 @@ def _start_job(name: str, fn: Callable[[], None]) -> dict:
 
 # Canonical ES-DE platform folder names (platform detector name → ES folder)
 _ES_PLATFORM_FOLDERS: dict[str, str] = {
-    "NES":              "nes",
-    "SNES":             "snes",
-    "Nintendo 64":      "n64",
-    "Game Boy":         "gb",
-    "Game Boy Color":   "gbc",
+    "NES": "nes",
+    "SNES": "snes",
+    "Nintendo 64": "n64",
+    "Game Boy": "gb",
+    "Game Boy Color": "gbc",
     "Game Boy Advance": "gba",
-    "Nintendo DS":      "nds",
-    "Nintendo 3DS":     "3ds",
-    "GameCube":         "gamecube",
-    "Wii":              "wii",
-    "Wii U":            "wiiu",
-    "Nintendo Switch":  "switch",
-    "Master System":    "mastersystem",
-    "Game Gear":        "gamegear",
-    "Sega Genesis":     "megadrive",
-    "Sega Mega Drive":  "megadrive",
-    "Dreamcast":        "dreamcast",
-    "PlayStation":      "psx",
-    "PlayStation 2":    "ps2",
-    "PlayStation 3":    "ps3",
-    "PSP":              "psp",
-    "PS Vita":          "psvita",
-    "Sega Saturn":      "saturn",
-    "Saturn":           "saturn",      # alias legacy
-    "Atari 2600":       "atari2600",
-    "Atari 5200":       "atari5200",
-    "Atari 7800":       "atari7800",
-    "Atari Lynx":       "atarilynx",
-    "Atari Jaguar":     "atarijaguar",
-    "Neo Geo":          "neogeo",
-    "PC Engine":        "pcengine",
-    "Sega 32X":         "sega32x",
-    "Sega CD":          "segacd",
-    "Arcade":           "arcade",
+    "Nintendo DS": "nds",
+    "Nintendo 3DS": "3ds",
+    "GameCube": "gamecube",
+    "Wii": "wii",
+    "Wii U": "wiiu",
+    "Nintendo Switch": "switch",
+    "Master System": "mastersystem",
+    "Game Gear": "gamegear",
+    "Sega Genesis": "megadrive",
+    "Sega Mega Drive": "megadrive",
+    "Dreamcast": "dreamcast",
+    "PlayStation": "psx",
+    "PlayStation 2": "ps2",
+    "PlayStation 3": "ps3",
+    "PSP": "psp",
+    "PS Vita": "psvita",
+    "Sega Saturn": "saturn",
+    "Saturn": "saturn",  # alias legacy
+    "Atari 2600": "atari2600",
+    "Atari 5200": "atari5200",
+    "Atari 7800": "atari7800",
+    "Atari Lynx": "atarilynx",
+    "Atari Jaguar": "atarijaguar",
+    "Neo Geo": "neogeo",
+    "PC Engine": "pcengine",
+    "Sega 32X": "sega32x",
+    "Sega CD": "segacd",
+    "Arcade": "arcade",
     # Nintendo extras
-    "Virtual Boy":          "virtualboy",
-    "Nintendo 64DD":        "n64dd",
-    "Famicom Disk System":  "fds",
-    "Pokemon Mini":         "pokemini",
-    "Game & Watch":         "gameandwatch",
+    "Virtual Boy": "virtualboy",
+    "Nintendo 64DD": "n64dd",
+    "Famicom Disk System": "fds",
+    "Pokemon Mini": "pokemini",
+    "Game & Watch": "gameandwatch",
     # Sega extras
-    "SuperGrafx":           "supergrafx",
+    "SuperGrafx": "supergrafx",
     # Atari extras
-    "Atari ST":             "atarist",
-    "Atari XL/XE":          "atari800",
+    "Atari ST": "atarist",
+    "Atari XL/XE": "atari800",
     # Portable / retro micros
-    "WonderSwan":           "wonderswan",
-    "WonderSwan Color":     "wonderswancolor",
-    "Watara Supervision":   "supervision",
+    "WonderSwan": "wonderswan",
+    "WonderSwan Color": "wonderswancolor",
+    "Watara Supervision": "supervision",
     # Home computers
-    "Amiga":                "amiga",
-    "Commodore 64":         "c64",
-    "ZX Spectrum":          "zxspectrum",
-    "MSX":                  "msx",
-    "DOS":                  "dos",
-    "ScummVM":              "scummvm",
+    "Amiga": "amiga",
+    "Commodore 64": "c64",
+    "ZX Spectrum": "zxspectrum",
+    "MSX": "msx",
+    "DOS": "dos",
+    "ScummVM": "scummvm",
     # Other consoles
-    "ColecoVision":         "colecovision",
-    "Intellivision":        "intellivision",
-    "PC-FX":                "pcfx",
+    "ColecoVision": "colecovision",
+    "Intellivision": "intellivision",
+    "PC-FX": "pcfx",
 }
 
 _STANDARD_PLATFORM_FOLDERS: tuple[str, ...] = (
     # Nintendo
-    "nes", "snes", "n64", "gb", "gbc", "gba", "nds", "3ds",
-    "gamecube", "wii", "wiiu", "switch",
+    "nes",
+    "snes",
+    "n64",
+    "gb",
+    "gbc",
+    "gba",
+    "nds",
+    "3ds",
+    "gamecube",
+    "wii",
+    "wiiu",
+    "switch",
     # Sony
-    "psx", "ps2", "ps3", "psp", "psvita",
+    "psx",
+    "ps2",
+    "ps3",
+    "psp",
+    "psvita",
     # Sega
-    "megadrive", "mastersystem", "gamegear", "dreamcast", "saturn", "sega32x", "segacd",
+    "megadrive",
+    "mastersystem",
+    "gamegear",
+    "dreamcast",
+    "saturn",
+    "sega32x",
+    "segacd",
     # Atari
-    "atari2600", "atari5200", "atari7800", "atarilynx", "atarijaguar",
+    "atari2600",
+    "atari5200",
+    "atari7800",
+    "atarilynx",
+    "atarijaguar",
     # Otros
-    "neogeo", "pcengine",
+    "neogeo",
+    "pcengine",
     # Arcade
     "arcade",
 )
 
-_chd_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
-_cso_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
+_chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
+_cso_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _scrape_progress: dict = {}  # {"current": int, "total": int, "found": int, "current_game": str}
-_zip_progress: dict = {}     # {"current": int, "total": int, "current_file": str}
+_zip_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
 _health_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
-_ra_progress: dict = {}      # {"current": int, "total": int, "current_file": str}
-_cable_progress: dict = {}   # {"copied": int, "total_files": int, "bytes_copied": int, "bytes_total": int, "speed_bps": float, "current_file": str}
-_scan_progress: dict = {}    # {"files_seen": int, "roms_detected": int, "current_path": str}
-_apply_progress: dict = {}   # {"current": int, "total": int, "current_file": str}
-_inbox_progress: dict = {}    # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "processed": int, "total": int}
-_inbox_watcher_status: dict = {"watching": False, "last_check": None, "pending_files": 0, "trigger_ts": 0}
-_setup_progress: dict = {}   # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "pct": int}
+_ra_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
+_cable_progress: dict = {}  # {"copied": int, "total_files": int, "bytes_copied": int, "bytes_total": int, "speed_bps": float, "current_file": str}
+_scan_progress: dict = {}  # {"files_seen": int, "roms_detected": int, "current_path": str}
+_apply_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
+_inbox_progress: dict = {}  # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "processed": int, "total": int}
+_inbox_watcher_status: dict = {
+    "watching": False,
+    "last_check": None,
+    "pending_files": 0,
+    "trigger_ts": 0,
+}
+_setup_progress: dict = {}  # {"step": str, "step_num": int, "total_steps": int, "current_file": str, "pct": int}
 _verify_chd_progress: dict = {}  # {"current": int, "total": int, "current_file": str}
-_scan_cancel:   threading.Event = threading.Event()
-_cable_cancel:  threading.Event = threading.Event()
-_chd_cancel:    threading.Event = threading.Event()
+_scan_cancel: threading.Event = threading.Event()
+_cable_cancel: threading.Event = threading.Event()
+_chd_cancel: threading.Event = threading.Event()
 _verify_chd_cancel: threading.Event = threading.Event()
-_cso_cancel:    threading.Event = threading.Event()
-_zip_cancel:    threading.Event = threading.Event()
+_cso_cancel: threading.Event = threading.Event()
+_zip_cancel: threading.Event = threading.Event()
 _health_cancel: threading.Event = threading.Event()
-_ra_cancel:     threading.Event = threading.Event()
+_ra_cancel: threading.Event = threading.Event()
 _scrape_cancel: threading.Event = threading.Event()
-_match_cancel:  threading.Event = threading.Event()
-_ss_last_quota: dict = {}   # last ScreenScraper quota snapshot from any scrape run
+_match_cancel: threading.Event = threading.Event()
+_ss_last_quota: dict = {}  # last ScreenScraper quota snapshot from any scrape run
 
 # ── S25: Session auth ─────────────────────────────────────────────────────────
 _SESSION_COOKIE = "rvm_session"
-_sessions: dict[str, float] = {}   # {token: expires_at (monotonic)}
+_sessions: dict[str, float] = {}  # {token: expires_at (monotonic)}
 _sessions_lock = threading.Lock()
 
 _auth_failures: dict[str, list] = {}  # {ip: [monotonic_timestamp, ...]}
 _auth_failures_lock = threading.Lock()
 _AUTH_MAX_ATTEMPTS = 10
-_AUTH_WINDOW_SECS  = 60
+_AUTH_WINDOW_SECS = 60
 _AUTH_LOCKOUT_SECS = 300
+
 
 def _get_local_ip() -> str:
     """Best-effort: return the machine's LAN IP address."""
@@ -192,8 +231,10 @@ def _get_local_ip() -> str:
     except Exception:
         return "127.0.0.1"
 
+
 def _hash_pin(pin: str, salt: str) -> str:
     return hashlib.sha256((pin + salt).encode()).hexdigest()
+
 
 def _check_auth_rate_limit(ip: str) -> bool:
     now = time.monotonic()
@@ -202,13 +243,16 @@ def _check_auth_rate_limit(ip: str) -> bool:
         _auth_failures[ip] = window
         return len(window) >= _AUTH_MAX_ATTEMPTS
 
+
 def _record_auth_failure(ip: str) -> None:
     with _auth_failures_lock:
         _auth_failures.setdefault(ip, []).append(time.monotonic())
 
+
 def _clear_auth_failures(ip: str) -> None:
     with _auth_failures_lock:
         _auth_failures.pop(ip, None)
+
 
 def _create_session(ttl: int) -> str:
     token = secrets.token_urlsafe(32)
@@ -216,9 +260,11 @@ def _create_session(ttl: int) -> str:
         _sessions[token] = time.monotonic() + ttl
     return token
 
+
 def _destroy_session(token: str) -> None:
     with _sessions_lock:
         _sessions.pop(token, None)
+
 
 def _validate_session(token: str) -> bool:
     with _sessions_lock:
@@ -229,6 +275,7 @@ def _validate_session(token: str) -> bool:
             del _sessions[token]
             return False
         return True
+
 
 _LOGIN_HTML = """<!DOCTYPE html>
 <html lang="es">
@@ -275,8 +322,13 @@ _logger = logging.getLogger(__name__)
 
 # ── Auto-sync daemon state ─────────────────────────────────────────────────────
 _auto_sync_enabled: bool = True
-_auto_sync_last_devices: set = set()   # serial numbers seen in last poll
-_auto_sync_status: dict = {"state": "waiting", "last_sync_at": None, "last_device": None, "last_error": None}
+_auto_sync_last_devices: set = set()  # serial numbers seen in last poll
+_auto_sync_status: dict = {
+    "state": "waiting",
+    "last_sync_at": None,
+    "last_device": None,
+    "last_error": None,
+}
 
 # ── SD card daemon state ────────────────────────────────────────────────────────
 _sd_sync_status: dict = {"state": "waiting", "last_sync_at": None, "drive": None}
@@ -298,11 +350,13 @@ def _handle_detect_cloud_folder() -> dict:
             for key in ("personal", "business"):
                 folder = (info.get(key) or {}).get("path", "")
                 if folder and _P(folder).exists():
-                    detected.append({
-                        "service": "Dropbox",
-                        "local_folder": folder,
-                        "suggested_remote": folder.replace("\\", "/") + "/RetroVault/saves",
-                    })
+                    detected.append(
+                        {
+                            "service": "Dropbox",
+                            "local_folder": folder,
+                            "suggested_remote": folder.replace("\\", "/") + "/RetroVault/saves",
+                        }
+                    )
                     break
     except Exception:
         pass
@@ -311,11 +365,13 @@ def _handle_detect_cloud_folder() -> dict:
     for env_var in ("OneDriveConsumer", "OneDrive"):
         folder = _os.environ.get(env_var, "")
         if folder and _P(folder).exists():
-            detected.append({
-                "service": "OneDrive",
-                "local_folder": folder,
-                "suggested_remote": folder.replace("\\", "/") + "/RetroVault/saves",
-            })
+            detected.append(
+                {
+                    "service": "OneDrive",
+                    "local_folder": folder,
+                    "suggested_remote": folder.replace("\\", "/") + "/RetroVault/saves",
+                }
+            )
             break
 
     # Google Drive for Desktop — typical install path
@@ -324,11 +380,13 @@ def _handle_detect_cloud_folder() -> dict:
         if not gdrive.exists():
             gdrive = _P(_os.environ.get("USERPROFILE", "")) / "Google Drive"
         if gdrive.exists():
-            detected.append({
-                "service": "Google Drive",
-                "local_folder": str(gdrive),
-                "suggested_remote": str(gdrive).replace("\\", "/") + "/RetroVault/saves",
-            })
+            detected.append(
+                {
+                    "service": "Google Drive",
+                    "local_folder": str(gdrive),
+                    "suggested_remote": str(gdrive).replace("\\", "/") + "/RetroVault/saves",
+                }
+            )
     except Exception:
         pass
 
@@ -339,6 +397,7 @@ def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
     """Return the local rclone config file contents as bytes, or an error message."""
     import shutil as _sh
     import subprocess as _sp
+
     # Locate config file via `rclone config file`
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
@@ -353,6 +412,7 @@ def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
                 break
         if config_path:
             from pathlib import Path as _P
+
             p = _P(config_path)
             if p.exists():
                 return p.read_bytes(), "text/plain; charset=utf-8"
@@ -391,7 +451,7 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
         "RA_SAVES=/storage/emulated/0/RetroArch/saves",
         "RA_STATES=/storage/emulated/0/RetroArch/states",
         f"RETROVAULT_URL={base_url}",
-        f"RCLONE_REMOTE=\"{rclone_remote}\"",
+        f'RCLONE_REMOTE="{rclone_remote}"',
         "",
         "# ── Permisos de almacenamiento ────────────────────────",
         'echo "[1/5] Solicitando permisos de almacenamiento..."',
@@ -414,11 +474,11 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
         "",
         f'echo "[4a/5] Descargando configuración rclone del PC ({base_url})..."',
         "mkdir -p ~/.config/rclone",
-        f"wget -q -O ~/.config/rclone/rclone.conf \"{base_url}/api/rclone-export-config\" && \\",
+        f'wget -q -O ~/.config/rclone/rclone.conf "{base_url}/api/rclone-export-config" && \\',
         '  echo "  ✓ Config rclone descargada." || \\',
         '  echo "  ✗ No se pudo descargar la config rclone. Asegúrate de que el PC esté encendido y conectado a la misma red WiFi."',
         "",
-        '# Crear script de sync',
+        "# Crear script de sync",
         "SYNC_SCRIPT=~/retrovault-sync.sh",
         "cat > $SYNC_SCRIPT << 'SYNCEOF'",
         "#!/data/data/com.termux/files/usr/bin/bash",
@@ -453,12 +513,12 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
             '  "/storage/emulated/0/OneDrive"',
             '  "/storage/emulated/0/Google Drive"',
             ")",
-            "CLOUD_DIR=\"\"",
-            "for p in \"${CLOUD_PATHS[@]}\"; do",
-            "  if [ -d \"$p\" ]; then CLOUD_DIR=\"$p\"; break; fi",
+            'CLOUD_DIR=""',
+            'for p in "${CLOUD_PATHS[@]}"; do',
+            '  if [ -d "$p" ]; then CLOUD_DIR="$p"; break; fi',
             "done",
             "",
-            "if [ -n \"$CLOUD_DIR\" ]; then",
+            'if [ -n "$CLOUD_DIR" ]; then',
             f'  echo "  ✓ {cloud_service} encontrado en $CLOUD_DIR"',
             "  CLOUD_SYNC_SCRIPT=~/retrovault-cloud-sync.sh",
             "  cat > $CLOUD_SYNC_SCRIPT << 'CLOUDSYNCEOF'",
@@ -466,17 +526,17 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
             "# Retro Vault — Sync via carpeta cloud local",
             "SAVES=/storage/emulated/0/RetroArch/saves",
             "STATES=/storage/emulated/0/RetroArch/states",
-            "CLOUD_DIR=\"\"",
-            "for p in \"/storage/emulated/0/Dropbox\" \"/storage/emulated/0/OneDrive\" \"/storage/emulated/0/Google Drive\"; do",
-            "  if [ -d \"$p\" ]; then CLOUD_DIR=\"$p\"; break; fi",
+            'CLOUD_DIR=""',
+            'for p in "/storage/emulated/0/Dropbox" "/storage/emulated/0/OneDrive" "/storage/emulated/0/Google Drive"; do',
+            '  if [ -d "$p" ]; then CLOUD_DIR="$p"; break; fi',
             "done",
-            "if [ -z \"$CLOUD_DIR\" ]; then echo \"No se encontró carpeta cloud.\"; exit 1; fi",
-            "DEST=\"$CLOUD_DIR/RetroVault\"",
-            "mkdir -p \"$DEST/saves\" \"$DEST/states\"",
-            "rsync -av --update \"$SAVES/\" \"$DEST/saves/\"",
-            "rsync -av --update \"$STATES/\" \"$DEST/states/\"",
-            "rsync -av --update \"$DEST/saves/\" \"$SAVES/\"",
-            "rsync -av --update \"$DEST/states/\" \"$STATES/\"",
+            'if [ -z "$CLOUD_DIR" ]; then echo "No se encontró carpeta cloud."; exit 1; fi',
+            'DEST="$CLOUD_DIR/RetroVault"',
+            'mkdir -p "$DEST/saves" "$DEST/states"',
+            'rsync -av --update "$SAVES/" "$DEST/saves/"',
+            'rsync -av --update "$STATES/" "$DEST/states/"',
+            'rsync -av --update "$DEST/saves/" "$SAVES/"',
+            'rsync -av --update "$DEST/states/" "$STATES/"',
             'echo "✓ Sync cloud local completado."',
             "CLOUDSYNCEOF",
             "  chmod +x $CLOUD_SYNC_SCRIPT",
@@ -528,6 +588,7 @@ def _handle_system_status(config: AppConfig) -> dict:
         if not p or not p.exists():
             # Try in PATH
             import shutil
+
             found = shutil.which(path_str or "")
             if not found:
                 return False, ""
@@ -543,17 +604,32 @@ def _handle_system_status(config: AppConfig) -> dict:
     adb_ok, adb_ver = _test_binary(str(config.adb) if config.adb else "")
     rclone_st = _handle_rclone_status(config)
     from rom_manager.web.handlers.scan import _catalog_status
+
     cats = _catalog_status(config)
-    cat_total = len(cats.get("nointro", [])) + len(cats.get("redump", [])) + len(cats.get("arcade", []))
+    cat_total = (
+        len(cats.get("nointro", [])) + len(cats.get("redump", [])) + len(cats.get("arcade", []))
+    )
 
     return {
-        "chdman":   {"ok": chdman_ok, "version": chdman_ver, "path": str(config.chdman or "tools/chdman.exe")},
-        "adb":      {"ok": adb_ok,    "version": adb_ver,    "path": str(config.adb or "tools/adb.exe")},
-        "rclone":   {"ok": rclone_st["installed"], "version": rclone_st.get("version", ""), "remotes": rclone_st.get("remotes", [])},
-        "ra_key":   {"ok": bool(config.ra_api_key)},
-        "catalogs": {"ok": cat_total > 0, "total": cat_total,
-                     "nointro": len(cats.get("nointro", [])), "redump": len(cats.get("redump", []))},
-        "library":  {"ok": bool(config.library_root), "path": str(config.library_root or "")},
+        "chdman": {
+            "ok": chdman_ok,
+            "version": chdman_ver,
+            "path": str(config.chdman or "tools/chdman.exe"),
+        },
+        "adb": {"ok": adb_ok, "version": adb_ver, "path": str(config.adb or "tools/adb.exe")},
+        "rclone": {
+            "ok": rclone_st["installed"],
+            "version": rclone_st.get("version", ""),
+            "remotes": rclone_st.get("remotes", []),
+        },
+        "ra_key": {"ok": bool(config.ra_api_key)},
+        "catalogs": {
+            "ok": cat_total > 0,
+            "total": cat_total,
+            "nointro": len(cats.get("nointro", [])),
+            "redump": len(cats.get("redump", [])),
+        },
+        "library": {"ok": bool(config.library_root), "path": str(config.library_root or "")},
     }
 
 
@@ -568,7 +644,9 @@ def _handle_rclone_status(config: AppConfig) -> dict:
     try:
         proc = subprocess.run(
             [config.rclone_binary, "version"],
-            capture_output=True, text=True, timeout=8,
+            capture_output=True,
+            text=True,
+            timeout=8,
         )
         installed = proc.returncode == 0
         if installed:
@@ -580,7 +658,9 @@ def _handle_rclone_status(config: AppConfig) -> dict:
         try:
             rem_proc = subprocess.run(
                 [config.rclone_binary, "listremotes"],
-                capture_output=True, text=True, timeout=8,
+                capture_output=True,
+                text=True,
+                timeout=8,
             )
             remotes = [r.strip() for r in rem_proc.stdout.strip().split("\n") if r.strip()]
         except Exception:
@@ -597,6 +677,7 @@ def _handle_rclone_status(config: AppConfig) -> dict:
 def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> dict:
     """Scan library_root for common issues: misplaced ROMs, incomplete CUE sets, empty dirs."""
     import re as _re
+
     if not config.library_root:
         return {"error": "library_root no configurado"}
     root = Path(config.library_root)
@@ -616,15 +697,17 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
                 continue
             _expected_dir = str(root / _expected_slug)
             if not _sp.startswith(_expected_dir):
-                issues.append({
-                    "type": "misplaced_rom",
-                    "severity": "warning",
-                    "file": _fname,
-                    "path": _sp,
-                    "platform": _plat,
-                    "expected_dir": _expected_dir,
-                    "action": f"Mover a {_expected_slug}/",
-                })
+                issues.append(
+                    {
+                        "type": "misplaced_rom",
+                        "severity": "warning",
+                        "file": _fname,
+                        "path": _sp,
+                        "platform": _plat,
+                        "expected_dir": _expected_dir,
+                        "action": f"Mover a {_expected_slug}/",
+                    }
+                )
     except Exception:
         pass
 
@@ -636,32 +719,43 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
             _refs = _cue_bin_re.findall(_text)
             _missing = [r for r in _refs if not (_cue.parent / r).exists()]
             if _missing:
-                issues.append({
-                    "type": "incomplete_cue",
-                    "severity": "error",
-                    "file": _cue.name,
-                    "path": str(_cue),
-                    "platform": None,
-                    "missing_bins": _missing[:5],
-                    "action": f"Faltan {len(_missing)} .bin — set incompleto",
-                })
+                issues.append(
+                    {
+                        "type": "incomplete_cue",
+                        "severity": "error",
+                        "file": _cue.name,
+                        "path": str(_cue),
+                        "platform": None,
+                        "missing_bins": _missing[:5],
+                        "action": f"Faltan {len(_missing)} .bin — set incompleto",
+                    }
+                )
         except Exception:
             pass
 
     # (c) Empty platform directories
     for _d in root.iterdir():
-        if _d.is_dir() and _d.name not in ("saves", "bios", "inbox", "states", "screenshots", "_descartados"):
+        if _d.is_dir() and _d.name not in (
+            "saves",
+            "bios",
+            "inbox",
+            "states",
+            "screenshots",
+            "_descartados",
+        ):
             try:
                 _files = [f for f in _d.rglob("*") if f.is_file()]
                 if not _files:
-                    issues.append({
-                        "type": "empty_dir",
-                        "severity": "info",
-                        "file": _d.name,
-                        "path": str(_d),
-                        "platform": None,
-                        "action": "Carpeta vacía — puedes eliminarla",
-                    })
+                    issues.append(
+                        {
+                            "type": "empty_dir",
+                            "severity": "info",
+                            "file": _d.name,
+                            "path": str(_d),
+                            "platform": None,
+                            "action": "Carpeta vacía — puedes eliminarla",
+                        }
+                    )
             except Exception:
                 pass
 
@@ -721,7 +815,10 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
     if cfg.exists():
         try:
             text = cfg.read_text(encoding="utf-8", errors="replace")
-            for key, field in (("savefile_directory", "savefile_dir"), ("savestate_directory", "savestate_dir")):
+            for key, field in (
+                ("savefile_directory", "savefile_dir"),
+                ("savestate_directory", "savestate_dir"),
+            ):
                 m = re.search(rf'^{key}\s*=\s*"(.+)"', text, re.MULTILINE)
                 if m:
                     val = m.group(1).strip()
@@ -764,6 +861,7 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
 
     # 5. ES-DE configured emulator path (check es_settings.xml for RetroArch path)
     from rom_manager.web.handlers.esde import _handle_esde_status
+
     esde_info = _handle_esde_status(config)
     if esde_info.get("installed") and esde_info.get("install_dir"):
         esde_cfg = Path(esde_info["install_dir"]) / "es_systems.xml"
@@ -782,19 +880,33 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
 
     if result["esde_ra_path"] and ra_exe:
         # Normalize for comparison
-        a = Path(result["esde_ra_path"]).resolve() if Path(result["esde_ra_path"]).exists() else None
+        a = (
+            Path(result["esde_ra_path"]).resolve()
+            if Path(result["esde_ra_path"]).exists()
+            else None
+        )
         b = ra_path.resolve() if ra_path.exists() else None
         result["esde_ra_match"] = (str(a).lower() == str(b).lower()) if (a and b) else None
 
-    result["ok"] = result["exe_exists"] and result["cfg_exists"] and result["cores_dir_exists"] and len(result["issues"]) == 0
+    result["ok"] = (
+        result["exe_exists"]
+        and result["cfg_exists"]
+        and result["cores_dir_exists"]
+        and len(result["issues"]) == 0
+    )
     return result
 
 
-
-def make_handler(repository: LibraryRepository, config: AppConfig, repository_android: LibraryRepository | None = None):
+def make_handler(
+    repository: LibraryRepository,
+    config: AppConfig,
+    repository_android: LibraryRepository | None = None,
+):
     logging.getLogger(__name__)
     # If no android repo is provided (e.g. called from CLI), use a no-op fallback = same as PC repo
-    _repo_android: LibraryRepository = repository_android if repository_android is not None else repository
+    _repo_android: LibraryRepository = (
+        repository_android if repository_android is not None else repository
+    )
 
     # ── Phase 1: Router (replaces if/elif ladder incrementally) ───────────────
     import rom_manager.web.server as _srv_mod  # used by set_auto_sync_fn
@@ -806,6 +918,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         _srv_mod._auto_sync_enabled = val
 
     import rom_manager.web.handlers.config as _h_config
+
     _h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
 
     # ── End Phase 1 router setup ───────────────────────────────────────────────
@@ -816,26 +929,38 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     def _start_ra_check_bg(api_key: str) -> bool:
         """Start RA check via JobManager. Returns True if started, False if already running."""
         from rom_manager.web.handlers.sync import _do_ra_check
+
         return _do_ra_check(api_key, config, repository, _job_manager).get("status") == "started"
 
     import sys as _sys_dbg
 
     import rom_manager.web.handlers.collection as _h_collection
+
     try:
-        _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
-        asset_routes = [r for r in _router.routes() if 'asset' in r[1].lower()]
+        _h_collection.register(
+            _router,
+            config=config,
+            repository=repository,
+            repo_android=_repo_android,
+            get_repo_fn=_get_repo,
+        )
+        asset_routes = [r for r in _router.routes() if "asset" in r[1].lower()]
         print(f"[DEBUG] Registered asset routes: {asset_routes}", file=_sys_dbg.stderr)
-        print(f"[DEBUG] Total routes after collection: {len(_router.routes())}", file=_sys_dbg.stderr)
+        print(
+            f"[DEBUG] Total routes after collection: {len(_router.routes())}", file=_sys_dbg.stderr
+        )
         if not asset_routes:
             print("[DEBUG] WARNING: No asset routes registered!", file=_sys_dbg.stderr)
             print(f"[DEBUG] All routes: {_router.routes()[:10]}", file=_sys_dbg.stderr)
     except Exception as _reg_err:
         print(f"[ERROR] Failed to register collection handlers: {_reg_err}", file=_sys_dbg.stderr)
         import traceback
+
         traceback.print_exc(file=_sys_dbg.stderr)
         raise
 
     import rom_manager.web.handlers.scan as _h_scan
+
     _h_scan.register(
         _router,
         config=config,
@@ -848,6 +973,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.duplicates as _h_duplicates
+
     _h_duplicates.register(
         _router,
         config=config,
@@ -858,6 +984,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.organize as _h_organize
+
     _h_organize.register(
         _router,
         config=config,
@@ -868,6 +995,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.sync as _h_sync
+
     _h_sync.register(
         _router,
         config=config,
@@ -879,6 +1007,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.inbox as _h_inbox
+
     _h_inbox.register(
         _router,
         config=config,
@@ -888,6 +1017,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.scraper as _h_scraper
+
     _h_scraper.register(
         _router,
         config=config,
@@ -897,6 +1027,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.games as _h_games
+
     _h_games.register(
         _router,
         config=config,
@@ -907,12 +1038,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
     )
 
     import rom_manager.web.handlers.play_history as _h_play_history
+
     _h_play_history.register(
         _router,
         repository=repository,
     )
 
     import rom_manager.web.handlers.esde as _h_esde
+
     _h_esde.register(
         _router,
         config=config,
@@ -981,8 +1114,9 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                 if path == "/":
                     self._send(200, "text/html; charset=utf-8", HTML.encode())
                 elif path.startswith("/static/"):
-                    filename = path[len("/static/"):]
+                    filename = path[len("/static/") :]
                     import sys as _sys
+
                     if getattr(_sys, "frozen", False) and hasattr(_sys, "_MEIPASS"):
                         static_dir = Path(_sys._MEIPASS) / "rom_manager" / "web" / "static"
                     else:
@@ -1003,7 +1137,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                             ext = file_path.suffix.lower()
                             content_type = {
                                 ".css": "text/css; charset=utf-8",
-                                ".js":  "application/javascript; charset=utf-8",
+                                ".js": "application/javascript; charset=utf-8",
                             }.get(ext, "application/octet-stream")
                             self._send(200, content_type, file_path.read_bytes())
                 else:
@@ -1025,6 +1159,7 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
             _ct = self.headers.get("Content-Type", "")
             if _ct.startswith("multipart/form-data") and path == "/api/inbox-upload":
                 from rom_manager.web.handlers.inbox import handle_inbox_upload
+
                 handle_inbox_upload(config, _ct, raw, self)
                 return
 
@@ -1039,11 +1174,19 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     client_ip = self.client_address[0]
                     pin = str(data.get("pin", "")).strip()
                     if not config.web_pin_hash:
-                        self._send_json({"ok": True})   # no PIN set → open access
+                        self._send_json({"ok": True})  # no PIN set → open access
                         return
                     if _check_auth_rate_limit(client_ip):
-                        self._send(429, "application/json; charset=utf-8",
-                                   _json_response({"ok": False, "error": "Demasiados intentos fallidos. Espera unos minutos."}))
+                        self._send(
+                            429,
+                            "application/json; charset=utf-8",
+                            _json_response(
+                                {
+                                    "ok": False,
+                                    "error": "Demasiados intentos fallidos. Espera unos minutos.",
+                                }
+                            ),
+                        )
                         return
                     if not pin:
                         self._send_json({"ok": False, "error": "PIN requerido"})
@@ -1052,9 +1195,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     if secrets.compare_digest(expected, config.web_pin_hash):
                         _clear_auth_failures(client_ip)
                         token = _create_session(config.web_session_ttl)
-                        self._send(200, "application/json; charset=utf-8",
-                                   _json_response({"ok": True}),
-                                   extra_headers=self._set_session_header(token))
+                        self._send(
+                            200,
+                            "application/json; charset=utf-8",
+                            _json_response({"ok": True}),
+                            extra_headers=self._set_session_header(token),
+                        )
                     else:
                         _record_auth_failure(client_ip)
                         self._send_json({"ok": False, "error": "PIN incorrecto"})
@@ -1063,9 +1209,12 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     token = self._session_token()
                     if token:
                         _destroy_session(token)
-                    self._send(200, "application/json; charset=utf-8",
-                               _json_response({"ok": True}),
-                               extra_headers={"Set-Cookie": f"{_SESSION_COOKIE}=; Max-Age=0; Path=/"})
+                    self._send(
+                        200,
+                        "application/json; charset=utf-8",
+                        _json_response({"ok": True}),
+                        extra_headers={"Set-Cookie": f"{_SESSION_COOKIE}=; Max-Age=0; Path=/"},
+                    )
                     return
                 elif path == "/api/set-pin":
                     # Authenticated OR no PIN configured yet (first-time setup)
@@ -1079,10 +1228,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                     salt = secrets.token_hex(16)
                     pin_hash = _hash_pin(pin, salt)
                     from rom_manager.config import write_config_toml
-                    write_config_toml(config.project_root, {
-                        "web.pin_hash": pin_hash,
-                        "web.pin_salt": salt,
-                    })
+
+                    write_config_toml(
+                        config.project_root,
+                        {
+                            "web.pin_hash": pin_hash,
+                            "web.pin_salt": salt,
+                        },
+                    )
                     config.web_pin_hash = pin_hash
                     config.web_pin_salt = salt
                     # Invalidate all existing sessions so new PIN takes effect
@@ -1095,10 +1248,14 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
                         self._send_json({"error": "No autorizado"})
                         return
                     from rom_manager.config import write_config_toml
-                    write_config_toml(config.project_root, {
-                        "web.pin_hash": "",
-                        "web.pin_salt": "",
-                    })
+
+                    write_config_toml(
+                        config.project_root,
+                        {
+                            "web.pin_hash": "",
+                            "web.pin_salt": "",
+                        },
+                    )
                     config.web_pin_hash = ""
                     config.web_pin_salt = ""
                     with _sessions_lock:
@@ -1162,6 +1319,7 @@ def _health_schedule_path(config: AppConfig) -> Path:
 def _read_health_schedule(config: AppConfig) -> dict:
     """Return the stored schedule dict, or empty dict if not found."""
     import json as _json
+
     p = _health_schedule_path(config)
     try:
         return _json.loads(p.read_text(encoding="utf-8"))
@@ -1173,6 +1331,7 @@ def _write_health_schedule(config: AppConfig, *, ok: int, corrupted: int, missin
     """Persist health check completion time and summary."""
     import datetime as _dt
     import json as _json
+
     data = {
         "last_run_at": _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "last_ok": ok,
@@ -1210,7 +1369,10 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
             if overdue:
                 if not _job_manager.get_status()["health_check_running"]:
                     repository = get_repo_fn()
-                    _logger.info("Scheduled health check starting (overdue by %s days)", "?" if not last_run_raw else elapsed)
+                    _logger.info(
+                        "Scheduled health check starting (overdue by %s days)",
+                        "?" if not last_run_raw else elapsed,
+                    )
                     _cancel = _job_manager.cancel_event("health_check")
 
                     def _scheduled_run(_repo=repository, _c=_cancel) -> None:
@@ -1219,9 +1381,14 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                             from rom_manager.utils.health_checker import check_library_health
 
                             def _prog(current: int, total: int, filename: str) -> None:
-                                _job_manager.update_progress("health_check", {"current": current, "total": total, "current_file": filename})
+                                _job_manager.update_progress(
+                                    "health_check",
+                                    {"current": current, "total": total, "current_file": filename},
+                                )
 
-                            summary = check_library_health(_repo, progress_cb=_prog, cancel_event=_c)
+                            summary = check_library_health(
+                                _repo, progress_cb=_prog, cancel_event=_c
+                            )
                             job_result = {
                                 "ok": summary.ok,
                                 "corrupted": summary.corrupted,
@@ -1229,23 +1396,38 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                                 "cancelled": _c.is_set(),
                                 "auto": True,
                                 "issues": [
-                                    {"source_path": r.source_path, "status": r.status,
-                                     "stored_sha1": r.stored_sha1[:12],
-                                     "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else "",
-                                     "platform": r.platform, "canonical_title": r.canonical_title}
+                                    {
+                                        "source_path": r.source_path,
+                                        "status": r.status,
+                                        "stored_sha1": r.stored_sha1[:12],
+                                        "computed_sha1": r.computed_sha1[:12]
+                                        if r.computed_sha1
+                                        else "",
+                                        "platform": r.platform,
+                                        "canonical_title": r.canonical_title,
+                                    }
                                     for r in summary.results
                                 ],
                             }
-                            _write_health_schedule(config, ok=summary.ok,
-                                                   corrupted=summary.corrupted, missing=summary.missing)
+                            _write_health_schedule(
+                                config,
+                                ok=summary.ok,
+                                corrupted=summary.corrupted,
+                                missing=summary.missing,
+                            )
                             if not _c.is_set() and config.notify_desktop:
                                 from rom_manager.utils.notifier import notify
+
                                 if summary.corrupted or summary.missing:
-                                    notify("Retro Vault — Health Check",
-                                           f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos")
+                                    notify(
+                                        "Retro Vault — Health Check",
+                                        f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos",
+                                    )
                                 else:
-                                    notify("Retro Vault — Health Check",
-                                           f"✓ {summary.ok} ROMs verificados, sin problemas")
+                                    notify(
+                                        "Retro Vault — Health Check",
+                                        f"✓ {summary.ok} ROMs verificados, sin problemas",
+                                    )
                         except Exception as exc:
                             _logger.error("Scheduled health check error: %s", exc)
                         finally:
@@ -1276,11 +1458,13 @@ def serve(
             "AVISO DE SEGURIDAD: el servidor está expuesto en la red (%s:%d) sin PIN configurado. "
             "Cualquier usuario de tu red local puede acceder y modificar todos los datos. "
             "Activa un PIN en Settings → Seguridad.",
-            host, port,
+            host,
+            port,
         )
 
     # S34-1: reload platform tables with user override if present
     from rom_manager.detection.platform_detector import reload_platforms
+
     user_platforms = config.data_dir / "platforms.toml"
     reload_platforms(user_platforms if user_platforms.exists() else None)
 
@@ -1306,33 +1490,52 @@ def serve(
     # Inbox watcher daemon (runs only when inbox_auto_process is True)
     def _inbox_watcher_with_repo() -> None:
         import time as _time
+
         while True:
             try:
                 _time.sleep(30)
                 if not config.inbox_path or not config.inbox_auto_process:
-                    _inbox_watcher_status.update({"watching": False, "last_check": None, "pending_files": 0})
+                    _inbox_watcher_status.update(
+                        {"watching": False, "last_check": None, "pending_files": 0}
+                    )
                     continue
                 inbox = Path(config.inbox_path).resolve()
                 if not inbox.exists():
-                    _inbox_watcher_status.update({"watching": True, "last_check": _watcher_now(), "pending_files": 0})
+                    _inbox_watcher_status.update(
+                        {"watching": True, "last_check": _watcher_now(), "pending_files": 0}
+                    )
                     continue
                 pending: list[Path] = [
-                    e for e in inbox.iterdir()
+                    e
+                    for e in inbox.iterdir()
                     if e.is_file() and not e.name.startswith(".") and not e.name.startswith("_")
                 ]
-                _inbox_watcher_status.update({
-                    "watching": True,
-                    "last_check": _watcher_now(),
-                    "pending_files": len(pending),
-                })
+                _inbox_watcher_status.update(
+                    {
+                        "watching": True,
+                        "last_check": _watcher_now(),
+                        "pending_files": len(pending),
+                    }
+                )
                 if pending:
                     if not _job_manager.get_status()["inbox_running"]:
-                        _logger.info("Inbox watcher: %d files detected, launching pipeline", len(pending))
+                        _logger.info(
+                            "Inbox watcher: %d files detected, launching pipeline", len(pending)
+                        )
                         _inbox_watcher_status["trigger_ts"] = _time.time()
-                        target_root_str = config.inbox_target_root or (str(config.library_root) if config.library_root else "")
+                        target_root_str = config.inbox_target_root or (
+                            str(config.library_root) if config.library_root else ""
+                        )
 
                         def _watcher_run(_tr=target_root_str) -> None:
-                            _run_inbox_pipeline(config.inbox_path, _tr, config.inbox_delete_source, repository, config, _job_manager)
+                            _run_inbox_pipeline(
+                                config.inbox_path,
+                                _tr,
+                                config.inbox_delete_source,
+                                repository,
+                                config,
+                                _job_manager,
+                            )
 
                         _job_manager.start("inbox", _watcher_run)
             except Exception as exc:
@@ -1356,6 +1559,7 @@ def serve(
     # S39-3: system tray icon (Windows only)
     if tray:
         import sys as _sys
+
         if _sys.platform == "win32":
             try:
                 from rom_manager.utils.tray_icon import TrayIcon
@@ -1368,6 +1572,7 @@ def serve(
 
                     from rom_manager.sync.rclone_transport import RcloneTransport
                     from rom_manager.sync.save_syncer import sync_saves
+
                     transport = RcloneTransport(rclone=config.rclone_binary)
                     for src in sources:
                         saves_dir = _Path(src.local_dir)
@@ -1389,9 +1594,21 @@ def serve(
                     # D2: implicit saves/states remotes
                     _implicit_tray = []
                     if config.saves_remote and config.library_root:
-                        _implicit_tray.append((_Path(config.library_root) / "saves", config.saves_remote, config.save_extensions))
+                        _implicit_tray.append(
+                            (
+                                _Path(config.library_root) / "saves",
+                                config.saves_remote,
+                                config.save_extensions,
+                            )
+                        )
                     if config.states_remote and config.library_root:
-                        _implicit_tray.append((_Path(config.library_root) / "states", config.states_remote, config.state_extensions))
+                        _implicit_tray.append(
+                            (
+                                _Path(config.library_root) / "states",
+                                config.states_remote,
+                                config.state_extensions,
+                            )
+                        )
                     for _dir, _remote, _exts in _implicit_tray:
                         if not _dir.exists():
                             continue
@@ -1416,6 +1633,7 @@ def serve(
 
                 def _on_quit_from_tray() -> None:
                     import threading as _threading
+
                     _threading.Thread(target=httpd.shutdown, daemon=True).start()
 
                 _tray_instance = TrayIcon(

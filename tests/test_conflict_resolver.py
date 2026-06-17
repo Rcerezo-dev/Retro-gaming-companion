@@ -14,6 +14,7 @@ def _dt(offset_seconds: float = 0) -> datetime:
 # Basic direction decisions
 # ---------------------------------------------------------------------------
 
+
 def test_upload_when_local_newer() -> None:
     d = decide("game.sav", local_mtime=_dt(100), remote_mtime=_dt(0), last_sync_at=None)
     assert d.action == "upload"
@@ -39,6 +40,7 @@ def test_up_to_date_exactly_equal() -> None:
 # Missing sides
 # ---------------------------------------------------------------------------
 
+
 def test_upload_when_remote_missing() -> None:
     d = decide("game.sav", local_mtime=_dt(0), remote_mtime=None, last_sync_at=None)
     assert d.action == "upload"
@@ -57,6 +59,7 @@ def test_up_to_date_when_both_missing() -> None:
 # ---------------------------------------------------------------------------
 # Conflict detection
 # ---------------------------------------------------------------------------
+
 
 def test_conflict_when_both_changed_after_last_sync() -> None:
     last_sync = _dt(0)

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ...}
-_ra_hash_cache: dict = {}     # (cid, mtime) → (hash_map, title_index)
+_ra_hash_cache: dict = {}  # (cid, mtime) → (hash_map, title_index)
 
 
 def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
@@ -29,6 +29,7 @@ def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
 
     from rom_manager.retroachievements.ra_client import _parse_game_list
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
     hl_by_cid: dict = {}
 
@@ -63,7 +64,9 @@ def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
         except Exception:
             continue
 
+
 # ── Public entry point ────────────────────────────────────────────────────────
+
 
 def register(
     router: Router,
@@ -80,6 +83,7 @@ def register(
     @router.get("/api/games")
     def get_games(ctx) -> None:
         from rom_manager.web.response_builders import _build_games
+
         qs = getattr(ctx, "_qs", {})
         offset = int(qs.get("offset", ["0"])[0])
         limit = min(int(qs.get("limit", ["100"])[0]), 5000)
@@ -98,10 +102,20 @@ def register(
         sort_by = qs.get("sort_by", [None])[0] or None
         _games_repo = get_repo_fn(root or "")
         _result = _build_games(
-            _games_repo, offset=offset, limit=limit, platform=plat, status=st,
-            source_root=root, file_type=file_type, search=search,
-            play_status=play_status, favorite=favorite, tag=tag_filter,
-            genre=genre_filter, year=year_filter, region=region_filter,
+            _games_repo,
+            offset=offset,
+            limit=limit,
+            platform=plat,
+            status=st,
+            source_root=root,
+            file_type=file_type,
+            search=search,
+            play_status=play_status,
+            favorite=favorite,
+            tag=tag_filter,
+            genre=genre_filter,
+            year=year_filter,
+            region=region_filter,
             sort_by=sort_by,
         )
         _enrich_games_with_ra(_result["games"], config)
@@ -109,9 +123,7 @@ def register(
         _rd = config.catalogs_redump_dir
         _result["dat_count"] = (
             sum(1 for f in _ni.iterdir() if f.suffix.lower() == ".dat") if _ni.exists() else 0
-        ) + (
-            sum(1 for f in _rd.iterdir() if f.suffix.lower() == ".dat") if _rd.exists() else 0
-        )
+        ) + (sum(1 for f in _rd.iterdir() if f.suffix.lower() == ".dat") if _rd.exists() else 0)
         ctx._send_json(_result)
 
     # ── GET /api/games/filter-options ────────────────────────────────────────
@@ -155,6 +167,7 @@ def register(
             candidates = list(Path(config.library_root).rglob(rom_path.stem + ".state*.png"))
         if candidates:
             import base64
+
             png = sorted(candidates)[-1]
             img_b64 = base64.b64encode(png.read_bytes()).decode()
             ctx._send_json({"found": True, "data": img_b64, "filename": png.name})
@@ -165,6 +178,7 @@ def register(
     @router.get("/api/save-backups")
     def get_save_backups(ctx) -> None:
         from rom_manager.backup.save_backup import list_backups
+
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
@@ -183,24 +197,29 @@ def register(
             save_path = rom_path.parent / (rom_path.stem + ext)
             entries = list_backups(save_path, config.data_dir)
             for e in entries:
-                all_entries.append({
-                    "backup_path": str(e.backup_path),
-                    "timestamp": e.timestamp,
-                    "extension": e.extension,
-                    "size": e.size,
-                    "original_save": str(save_path),
-                })
+                all_entries.append(
+                    {
+                        "backup_path": str(e.backup_path),
+                        "timestamp": e.timestamp,
+                        "extension": e.extension,
+                        "size": e.size,
+                        "original_save": str(save_path),
+                    }
+                )
         all_entries.sort(key=lambda x: x["timestamp"], reverse=True)
-        ctx._send_json({
-            "backups": all_entries,
-            "backup_enabled": config.backup_saves_enabled,
-            "keep_n": config.backup_saves_keep_n,
-        })
+        ctx._send_json(
+            {
+                "backups": all_entries,
+                "backup_enabled": config.backup_saves_enabled,
+                "keep_n": config.backup_saves_keep_n,
+            }
+        )
 
     # ── GET /api/manual-backups ──────────────────────────────────────────────
     @router.get("/api/manual-backups")
     def get_manual_backups(ctx) -> None:
         from rom_manager.backup.save_backup import list_manual_zips
+
         ctx._send_json({"zips": list_manual_zips(config.data_dir)})
 
     # ── GET /api/save-comparison ─────────────────────────────────────────────
@@ -227,7 +246,8 @@ def register(
             ctx._send_json({"error": "id required"})
             return
         with repository.connect() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT g.id, g.original_filename, g.source_path, g.platform,
                        g.region, g.extension, g.size_bytes, g.sha1, g.md5, g.crc32,
                        g.canonical_title, g.match_confidence, g.catalog_source,
@@ -240,7 +260,9 @@ def register(
                 FROM games g
                 LEFT JOIN game_metadata m ON m.game_id = g.id
                 WHERE g.id = ?
-            """, (int(game_id),)).fetchone()
+            """,
+                (int(game_id),),
+            ).fetchone()
         if not row:
             ctx._send_json({"error": "not found"})
             return
@@ -251,8 +273,9 @@ def register(
 
             from rom_manager.retroachievements.ra_client import _parse_game_list
             from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
             _plat = result.get("platform") or ""
-            _md5  = result.get("md5") or ""
+            _md5 = result.get("md5") or ""
             if _plat and _md5:
                 _cid = get_ra_console_id(_plat)
                 if _cid:
@@ -267,16 +290,17 @@ def register(
                             _ra_hash_cache[_key] = _hl
                         _rg = _ra_hash_cache[_key].get(_md5.lower())
                         if _rg:
-                            result["ra_game_id"]      = _rg.id
-                            result["ra_title"]        = _rg.title
+                            result["ra_game_id"] = _rg.id
+                            result["ra_title"] = _rg.title
                             result["ra_achievements"] = _rg.achievements
-                            result["ra_points"]       = _rg.points
+                            result["ra_points"] = _rg.points
         except Exception:
             pass
         # saves count by stem matching
         try:
             import os as _os2
-            _sp  = result.get("source_path") or ""
+
+            _sp = result.get("source_path") or ""
             _stem = _os2.path.splitext(_os2.path.basename(_sp))[0]
             if _stem:
                 with repository.connect() as _sc2:
@@ -303,10 +327,14 @@ def register(
             ctx._send_json({"error": "ra_game_id must be integer"})
             return
 
-        api_key  = config.ra_api_key
+        api_key = config.ra_api_key
         username = config.ra_username
         if not api_key or not username:
-            ctx._send_json({"error": "retroachievements.api_key and retroachievements.username must be configured"})
+            ctx._send_json(
+                {
+                    "error": "retroachievements.api_key and retroachievements.username must be configured"
+                }
+            )
             return
 
         # 1-hour in-memory cache
@@ -319,6 +347,7 @@ def register(
         try:
             import json as _json
             import urllib.request as _req
+
             url = (
                 f"https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php"
                 f"?g={ra_game_id}&u={username}&y={api_key}"
@@ -331,12 +360,12 @@ def register(
             return
 
         result = {
-            "total":          int(data.get("NumAchievements", 0) or 0),
-            "unlocked":       int(data.get("NumAwardedToUser", 0) or 0),
-            "hardcore":       int(data.get("NumAwardedToUserHardcore", 0) or 0),
-            "points_earned":  int(data.get("ScoreAchieved", 0) or 0),
-            "points_total":   int(data.get("PossibleScore", 0) or 0),
-            "_ts":            time.time(),
+            "total": int(data.get("NumAchievements", 0) or 0),
+            "unlocked": int(data.get("NumAwardedToUser", 0) or 0),
+            "hardcore": int(data.get("NumAwardedToUserHardcore", 0) or 0),
+            "points_earned": int(data.get("ScoreAchieved", 0) or 0),
+            "points_total": int(data.get("PossibleScore", 0) or 0),
+            "_ts": time.time(),
         }
         _ra_progress_cache[cache_key] = result
         ctx._send_json(result)
@@ -346,7 +375,7 @@ def register(
     def post_set_play_status(ctx) -> None:
         data = ctx._post_data
         game_id = data.get("game_id")
-        status  = data.get("status") or None
+        status = data.get("status") or None
         if not game_id:
             ctx._send_json({"error": "game_id required"})
             return
@@ -367,8 +396,11 @@ def register(
             repository.set_notes(gid, data["notes"] or None)
         if "canonical_title" in data:
             repository.set_canonical_title(gid, data["canonical_title"])
-        _meta_fields = {k: v for k, v in data.items()
-                        if k in {"year", "genre", "publisher", "developer", "description", "rating"}}
+        _meta_fields = {
+            k: v
+            for k, v in data.items()
+            if k in {"year", "genre", "publisher", "developer", "description", "rating"}
+        }
         if _meta_fields:
             repository.upsert_metadata_manual(gid, **_meta_fields)
         ctx._send_json({"ok": True})
@@ -405,6 +437,7 @@ def register(
     def post_open_folder(ctx) -> None:
         import os as _os_of
         import subprocess as _sp_of
+
         folder_path = ctx._post_data.get("path", "").strip()
         if not folder_path:
             ctx._send_json({"ok": False, "error": "path required"})
@@ -424,6 +457,7 @@ def register(
     @router.post("/api/launch")
     def post_launch(ctx) -> None:
         import subprocess
+
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
@@ -438,7 +472,9 @@ def register(
             return
         retroarch_exe = config.retroarch_path or ""
         if not retroarch_exe or not Path(retroarch_exe).exists():
-            ctx._send_json({"error": "RetroArch no configurado. Ajusta retroarch_path en Settings."})
+            ctx._send_json(
+                {"error": "RetroArch no configurado. Ajusta retroarch_path en Settings."}
+            )
             return
         platform = row["platform"] or ""
         core = (config.launcher_cores or {}).get(platform, "")
@@ -457,12 +493,13 @@ def register(
     @router.post("/api/restore-backup")
     def post_restore_backup(ctx) -> None:
         data = ctx._post_data
-        backup_path_str   = data.get("backup_path", "").strip()
+        backup_path_str = data.get("backup_path", "").strip()
         original_save_str = data.get("original_save", "").strip()
         if not backup_path_str or not original_save_str:
             ctx._send_json({"error": "backup_path and original_save required"})
             return
         from rom_manager.backup.save_backup import restore_backup
+
         bp = Path(backup_path_str)
         tp = Path(original_save_str)
         if config.library_root and not str(tp).startswith(str(config.library_root)):
@@ -479,9 +516,11 @@ def register(
     def post_backup_now(ctx) -> None:
         def _do_backup_now() -> None:
             import time as _t
+
             job_result = None
             try:
                 from rom_manager.backup.save_backup import create_saves_zip
+
                 saves_dirs = []
                 if config.library_root and config.library_root.exists():
                     saves_dirs.append(config.library_root)
@@ -540,8 +579,7 @@ def register(
             ):
                 try:
                     loaded_dats.extend(
-                        f.name for f in dat_dir.iterdir()
-                        if f.suffix.lower() in {".dat", ".xml"}
+                        f.name for f in dat_dir.iterdir() if f.suffix.lower() in {".dat", ".xml"}
                     )
                 except (OSError, FileNotFoundError):
                     pass
@@ -555,8 +593,10 @@ def register(
             for row in rows
         ]
 
-        ctx._send_json({
-            "total_unmatched": total_unmatched,
-            "loaded_dats": sorted(loaded_dats),
-            "platforms": platforms,
-        })
+        ctx._send_json(
+            {
+                "total_unmatched": total_unmatched,
+                "loaded_dats": sorted(loaded_dats),
+                "platforms": platforms,
+            }
+        )

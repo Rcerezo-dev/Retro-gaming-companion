@@ -15,6 +15,7 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
 # Complete set (no errors expected)
 # ---------------------------------------------------------------------------
 
+
 def test_valid_cue_single_bin(tmp_path: Path) -> None:
     (tmp_path / "game.bin").write_bytes(b"\x00" * 8)
     cue = _write(tmp_path, "game.cue", 'FILE "game.bin" BINARY\n  TRACK 01 MODE2/2352\n')
@@ -35,6 +36,7 @@ def test_valid_cue_multiple_bins(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Missing bins
 # ---------------------------------------------------------------------------
+
 
 def test_missing_single_bin(tmp_path: Path) -> None:
     cue = _write(tmp_path, "game.cue", 'FILE "game.bin" BINARY\n')
@@ -58,6 +60,7 @@ def test_missing_one_of_two_bins(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_empty_cue(tmp_path: Path) -> None:
     cue = _write(tmp_path, "empty.cue", "")

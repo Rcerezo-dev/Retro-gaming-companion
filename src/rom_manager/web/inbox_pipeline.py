@@ -3,6 +3,7 @@
 Extracted from server.py (Session 19). Global state in server.py is accessed
 via late imports inside each function to avoid circular imports at load time.
 """
+
 from __future__ import annotations
 
 import logging
@@ -48,42 +49,95 @@ _PLATFORM_FOLDERS: dict[str, str] = {
 
 
 _DISC_EXTENSIONS_INBOX = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".ccd", ".chd"})
-_ROM_EXTENSIONS_INBOX = frozenset({
-    ".nes", ".sfc", ".smc", ".n64", ".z64", ".v64", ".gb", ".gbc", ".gba",
-    ".nds", ".3ds", ".cia", ".gcm", ".wbfs", ".sms", ".gg", ".gen", ".pbp",
-    ".cso", ".a26", ".a52", ".a78", ".lnx", ".j64", ".jag", ".md",
-})
+_ROM_EXTENSIONS_INBOX = frozenset(
+    {
+        ".nes",
+        ".sfc",
+        ".smc",
+        ".n64",
+        ".z64",
+        ".v64",
+        ".gb",
+        ".gbc",
+        ".gba",
+        ".nds",
+        ".3ds",
+        ".cia",
+        ".gcm",
+        ".wbfs",
+        ".sms",
+        ".gg",
+        ".gen",
+        ".pbp",
+        ".cso",
+        ".a26",
+        ".a52",
+        ".a78",
+        ".lnx",
+        ".j64",
+        ".jag",
+        ".md",
+    }
+)
 
 _KNOWN_BIOS_MAP: dict[str, str] = {
     # Sony
-    "scph1001.bin": "psx", "scph5500.bin": "psx", "scph5501.bin": "psx",
-    "scph5502.bin": "psx", "scph7001.bin": "psx", "scph7502.bin": "psx",
+    "scph1001.bin": "psx",
+    "scph5500.bin": "psx",
+    "scph5501.bin": "psx",
+    "scph5502.bin": "psx",
+    "scph7001.bin": "psx",
+    "scph7502.bin": "psx",
     "psxonpsp660.bin": "psx",
-    "scph10000.bin": "ps2", "scph39001.bin": "ps2", "scph39001.mec": "ps2",
+    "scph10000.bin": "ps2",
+    "scph39001.bin": "ps2",
+    "scph39001.mec": "ps2",
     # Sega
-    "bios_cd_e.bin": "segacd", "bios_cd_j.bin": "segacd", "bios_cd_u.bin": "segacd",
-    "dc_boot.bin": "dreamcast", "dc_flash.bin": "dreamcast",
-    "mpr-17933.bin": "saturn", "mpr-18811-mx.ic1": "saturn", "mpr-19367-mx.ic1": "saturn",
-    "sega_101.bin": "saturn", "stvbios.zip": "saturn", "qtsza.bin": "saturn",
+    "bios_cd_e.bin": "segacd",
+    "bios_cd_j.bin": "segacd",
+    "bios_cd_u.bin": "segacd",
+    "dc_boot.bin": "dreamcast",
+    "dc_flash.bin": "dreamcast",
+    "mpr-17933.bin": "saturn",
+    "mpr-18811-mx.ic1": "saturn",
+    "mpr-19367-mx.ic1": "saturn",
+    "sega_101.bin": "saturn",
+    "stvbios.zip": "saturn",
+    "qtsza.bin": "saturn",
     "bios.gg": "gamegear",
     # Nintendo
     "gba_bios.bin": "gba",
-    "bios7.bin": "nds", "bios9.bin": "nds", "firmware.bin": "nds",
-    "fst.bin": "wii", "misc.bin": "wii", "sysconf": "wii",
-    "wiimmfi.bin": "wii", "nwc24dl.bin": "wii", "nwc24fl.bin": "wii", "nwc24fls.bin": "wii",
-    "disksys.rom": "fds", "sgb_bios.bin": "snes", "sgb2_bios.bin": "snes",
+    "bios7.bin": "nds",
+    "bios9.bin": "nds",
+    "firmware.bin": "nds",
+    "fst.bin": "wii",
+    "misc.bin": "wii",
+    "sysconf": "wii",
+    "wiimmfi.bin": "wii",
+    "nwc24dl.bin": "wii",
+    "nwc24fl.bin": "wii",
+    "nwc24fls.bin": "wii",
+    "disksys.rom": "fds",
+    "sgb_bios.bin": "snes",
+    "sgb2_bios.bin": "snes",
     "bios.min": "pokemini",
     # PC Engine / NEC
-    "syscard3.pce": "pcenginecd", "syscard2.pce": "pcenginecd", "syscard1.pce": "pcenginecd",
+    "syscard3.pce": "pcenginecd",
+    "syscard2.pce": "pcenginecd",
+    "syscard1.pce": "pcenginecd",
     "pcfx.rom": "pcfx",
     # Otros
     "ym2608_adpcm_rom.bin": "neogeocd",
     "neogeo.zip": "neogeo",
-    "kick34005.a500": "amiga", "kick40063.a600": "amiga",
-    "kick40068.a1200": "amiga", "kick40068.a4000": "amiga",
+    "kick34005.a500": "amiga",
+    "kick40063.a600": "amiga",
+    "kick40068.a1200": "amiga",
+    "kick40068.a4000": "amiga",
     "coleco.rom": "colecovision",
-    "exec.bin": "intellivision", "grom.bin": "intellivision",
-    "awbios.zip": "naomi", "naomi_boot.bin": "naomi",
+    "exec.bin": "intellivision",
+    "grom.bin": "intellivision",
+    "awbios.zip": "naomi",
+    "naomi_boot.bin": "naomi",
 }
 
 
@@ -149,7 +203,10 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
                         if inner_ext in _DISC_EXTENSIONS_INBOX:
                             file_type = "zip"  # remains zip but disc content
                             break
-                        if inner_ext in _ROM_EXTENSIONS_INBOX or inner_ext in _DISC_EXTENSIONS_INBOX:
+                        if (
+                            inner_ext in _ROM_EXTENSIONS_INBOX
+                            or inner_ext in _DISC_EXTENSIONS_INBOX
+                        ):
                             inner_path = inbox / inner
                             platform_guess = _detect_platform(inner_path)
                             if platform_guess:
@@ -177,14 +234,16 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
         if platform_guess:
             by_platform[platform_guess] = by_platform.get(platform_guess, 0) + 1
 
-        files_out.append({
-            "name": entry.name,
-            "path": str(entry),
-            "size_bytes": size_bytes,
-            "type": file_type,
-            "platform_guess": platform_guess,
-            "needs_extraction": needs_extraction,
-        })
+        files_out.append(
+            {
+                "name": entry.name,
+                "path": str(entry),
+                "size_bytes": size_bytes,
+                "type": file_type,
+                "platform_guess": platform_guess,
+                "needs_extraction": needs_extraction,
+            }
+        )
 
     return {
         "files": files_out,
@@ -217,13 +276,16 @@ def _run_setup_pipeline(
     job_result = None
 
     def _upd(step: str, step_num: int, pct: int = 0, current_file: str = "") -> None:
-        job_manager.update_progress("setup", {
-            "step": step,
-            "step_num": step_num,
-            "total_steps": 5,
-            "current_file": current_file,
-            "pct": pct,
-        })
+        job_manager.update_progress(
+            "setup",
+            {
+                "step": step,
+                "step_num": step_num,
+                "total_steps": 5,
+                "current_file": current_file,
+                "pct": pct,
+            },
+        )
 
     result: dict = {
         "junk_deleted": 0,
@@ -278,10 +340,18 @@ def _run_setup_pipeline(
         # ── Step 3: Scan library ─────────────────────────────────────────────
         _upd("Escaneando biblioteca", 3, 35)
         if options.get("scan", True):
-            def _scan_cb(files_seen: int, roms: int, current_file: str = "") -> None:
-                _upd("Escaneando biblioteca", 3, 35 + min(25, int(roms / max(files_seen, 1) * 25)), current_file)
 
-            scan_r = scan_library(source, config, repository, logger, quick=False, progress_cb=_scan_cb)
+            def _scan_cb(files_seen: int, roms: int, current_file: str = "") -> None:
+                _upd(
+                    "Escaneando biblioteca",
+                    3,
+                    35 + min(25, int(roms / max(files_seen, 1) * 25)),
+                    current_file,
+                )
+
+            scan_r = scan_library(
+                source, config, repository, logger, quick=False, progress_cb=_scan_cb
+            )
             result["games_found"] = scan_r.roms_detected
 
         # ── Step 4: Catalog match ────────────────────────────────────────────
@@ -318,6 +388,7 @@ def _run_setup_pipeline(
 
         _upd("Completado", 5, 100)
         from rom_manager.scanner.rom_scanner import utc_now as _utc_now
+
         result["result_ts"] = _utc_now()
         job_result = result
 
@@ -348,20 +419,27 @@ def _run_inbox_pipeline(
     from rom_manager.scanner.rom_scanner import utc_now
 
     inbox = Path(inbox_path_str).resolve()
-    target_root = Path(target_root_str).resolve() if target_root_str else (config.library_root or inbox)
+    target_root = (
+        Path(target_root_str).resolve() if target_root_str else (config.library_root or inbox)
+    )
 
     logger = _logger
     job_result = None
 
-    def _upd(step: str, step_num: int, processed: int = 0, total: int = 0, current_file: str = "") -> None:
-        job_manager.update_progress("inbox", {
-            "step": step,
-            "step_num": step_num,
-            "total_steps": 6,
-            "current_file": current_file,
-            "processed": processed,
-            "total": total,
-        })
+    def _upd(
+        step: str, step_num: int, processed: int = 0, total: int = 0, current_file: str = ""
+    ) -> None:
+        job_manager.update_progress(
+            "inbox",
+            {
+                "step": step,
+                "step_num": step_num,
+                "total_steps": 6,
+                "current_file": current_file,
+                "processed": processed,
+                "total": total,
+            },
+        )
 
     try:
         # ── Step 1: Extract ZIPs ─────────────────────────────────────────────
@@ -379,7 +457,9 @@ def _run_inbox_pipeline(
                 extracted_count += 1
                 source_zips.append(zp)
             else:
-                logger.info("Inbox: skipped ZIP %s — %s", zp.name, result.skipped_reason or result.error)
+                logger.info(
+                    "Inbox: skipped ZIP %s — %s", zp.name, result.skipped_reason or result.error
+                )
 
         # ── Step 1.5: Intercept BIOS files ───────────────────────────────────
         _upd("intercepting bios", 1)
@@ -409,8 +489,12 @@ def _run_inbox_pipeline(
             _upd("scanning", 2, files_seen, 0, current_file)
 
         scan_result = scan_library(
-            inbox, config, repository, logger,
-            quick=False, progress_cb=_scan_progress_cb,
+            inbox,
+            config,
+            repository,
+            logger,
+            quick=False,
+            progress_cb=_scan_progress_cb,
         )
         logger.info("Inbox scan: %d ROMs found", scan_result.roms_detected)
 
@@ -442,8 +526,7 @@ def _run_inbox_pipeline(
         plan = build_plan(repository, opts)
         inbox_str_lower = str(inbox).lower()
         pending_ops = [
-            op for op in plan.pending
-            if str(op.source_path).lower().startswith(inbox_str_lower)
+            op for op in plan.pending if str(op.source_path).lower().startswith(inbox_str_lower)
         ]
         logger.info("Inbox plan: %d operations", len(pending_ops))
 
@@ -504,9 +587,13 @@ def _run_inbox_pipeline(
                 try:
                     source_file.unlink()
                     repository.delete_game(game_id)
-                    logger.info("Inbox: removed duplicate %s (already in %s)", source_file.name, dest_folder)
+                    logger.info(
+                        "Inbox: removed duplicate %s (already in %s)", source_file.name, dest_folder
+                    )
                 except Exception as exc:
-                    organize_errors.append(f"{source_file.name}: duplicado en destino, no se pudo eliminar fuente — {exc}")
+                    organize_errors.append(
+                        f"{source_file.name}: duplicado en destino, no se pudo eliminar fuente — {exc}"
+                    )
                 continue
 
             try:
@@ -573,4 +660,5 @@ def _run_inbox_pipeline(
 
 def _watcher_now() -> str:
     import datetime as _dt_mod
+
     return _dt_mod.datetime.now(_dt_mod.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

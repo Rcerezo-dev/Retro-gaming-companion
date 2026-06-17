@@ -89,14 +89,16 @@ def generate_lpl_playlists(
         items = []
         for game in games:
             label = game["canonical_title"] or Path(game["original_filename"]).stem
-            items.append({
-                "path": game["source_path"],
-                "label": label,
-                "core_path": _DEFAULT_CORE,
-                "core_name": _DEFAULT_CORE,
-                "crc32": "",
-                "db_name": db_name,
-            })
+            items.append(
+                {
+                    "path": game["source_path"],
+                    "label": label,
+                    "core_path": _DEFAULT_CORE,
+                    "core_name": _DEFAULT_CORE,
+                    "crc32": "",
+                    "db_name": db_name,
+                }
+            )
 
         playlist = {
             "version": "1.4",

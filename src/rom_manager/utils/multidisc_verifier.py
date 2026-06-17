@@ -9,7 +9,7 @@ from rom_manager.utils.m3u_generator import find_disc_groups
 @dataclass(slots=True)
 class DiscIssue:
     base_name: str
-    issue_type: str   # "gap" | "mixed_ext" | "missing_file" | "unmatched"
+    issue_type: str  # "gap" | "mixed_ext" | "missing_file" | "unmatched"
     detail: str
     platform: str = ""  # parent folder name (e.g. "psx")
 
@@ -45,22 +45,26 @@ def verify_multidisc(
         # Check all files exist
         for disc in group.discs:
             if not disc.exists():
-                group_issues.append(DiscIssue(
-                    base_name=group.base_name,
-                    issue_type="missing_file",
-                    detail=f"Archivo no encontrado: {disc.name}",
-                    platform=plat,
-                ))
+                group_issues.append(
+                    DiscIssue(
+                        base_name=group.base_name,
+                        issue_type="missing_file",
+                        detail=f"Archivo no encontrado: {disc.name}",
+                        platform=plat,
+                    )
+                )
 
         # Check extension homogeneity
         extensions = {d.suffix.lower() for d in group.discs}
         if len(extensions) > 1:
-            group_issues.append(DiscIssue(
-                base_name=group.base_name,
-                issue_type="mixed_ext",
-                detail=f"Extensiones mezcladas: {', '.join(sorted(extensions))}",
-                platform=plat,
-            ))
+            group_issues.append(
+                DiscIssue(
+                    base_name=group.base_name,
+                    issue_type="mixed_ext",
+                    detail=f"Extensiones mezcladas: {', '.join(sorted(extensions))}",
+                    platform=plat,
+                )
+            )
 
         # Check consecutive disc numbers
         disc_numbers = []
@@ -72,12 +76,14 @@ def verify_multidisc(
         expected = list(range(disc_numbers[0], disc_numbers[0] + len(disc_numbers)))
         if disc_numbers != expected:
             missing_nums = sorted(set(expected) - set(disc_numbers))
-            group_issues.append(DiscIssue(
-                base_name=group.base_name,
-                issue_type="gap",
-                detail=f"Discos faltantes: {missing_nums}",
-                platform=plat,
-            ))
+            group_issues.append(
+                DiscIssue(
+                    base_name=group.base_name,
+                    issue_type="gap",
+                    detail=f"Discos faltantes: {missing_nums}",
+                    platform=plat,
+                )
+            )
 
         # Check catalog match
         if repository is not None:
@@ -87,12 +93,14 @@ def verify_multidisc(
                 if str(disc.resolve()) not in matched_games:
                     unmatched.append(disc.name)
             if unmatched:
-                group_issues.append(DiscIssue(
-                    base_name=group.base_name,
-                    issue_type="unmatched",
-                    detail=f"Sin match en catálogo: {', '.join(unmatched)}",
-                    platform=plat,
-                ))
+                group_issues.append(
+                    DiscIssue(
+                        base_name=group.base_name,
+                        issue_type="unmatched",
+                        detail=f"Sin match en catálogo: {', '.join(unmatched)}",
+                        platform=plat,
+                    )
+                )
 
         if group_issues:
             summary.groups_with_issues += 1

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
     router: Router,
     *,
@@ -39,6 +40,7 @@ def register(
     @router.get("/api/inbox-scan")
     def get_inbox_scan(ctx) -> None:
         from rom_manager.web.inbox_pipeline import _build_inbox_scan
+
         qs = getattr(ctx, "_qs", {})
         inbox_path_str = qs.get("path", [""])[0].strip() or config.inbox_path
         if not inbox_path_str:
@@ -50,11 +52,13 @@ def register(
     @router.get("/api/inbox-status")
     def get_inbox_status(ctx) -> None:
         status = job_manager.get_status()
-        ctx._send_json({
-            "running":  status["inbox_running"],
-            "progress": status.get("inbox_progress"),
-            "result":   status.get("inbox_result"),
-        })
+        ctx._send_json(
+            {
+                "running": status["inbox_running"],
+                "progress": status.get("inbox_progress"),
+                "result": status.get("inbox_result"),
+            }
+        )
 
     # ── GET /api/inbox-watcher-status ────────────────────────────────────────
     @router.get("/api/inbox-watcher-status")
@@ -74,9 +78,11 @@ def register(
 
 # ── Multipart upload — called directly from do_POST (pre-router) ─────────────
 
+
 def handle_inbox_upload(config: AppConfig, content_type: str, body: bytes, ctx) -> None:
     """Save multipart file-upload(s) directly to inbox_path."""
     import re as _re
+
     bm = _re.search(r"boundary=([^\s;]+)", content_type)
     if not bm:
         ctx._send_error(400, "Missing multipart boundary")
@@ -117,7 +123,10 @@ def handle_inbox_upload(config: AppConfig, content_type: str, body: bytes, ctx) 
 
 # ── Handler logic ─────────────────────────────────────────────────────────────
 
-def _do_inbox_run(ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager) -> None:
+
+def _do_inbox_run(
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager
+) -> None:
     from rom_manager.web.inbox_pipeline import _run_inbox_pipeline
 
     inbox_path_str = data.get("path", "").strip() or config.inbox_path
@@ -132,21 +141,28 @@ def _do_inbox_run(ctx, data: dict, config: AppConfig, repository: LibraryReposit
     delete_source = bool(data.get("delete_source", config.inbox_delete_source))
 
     def run() -> None:
-        _run_inbox_pipeline(inbox_path_str, target_root_str, delete_source, repository, config, job_manager)
+        _run_inbox_pipeline(
+            inbox_path_str, target_root_str, delete_source, repository, config, job_manager
+        )
 
     ctx._send_json(job_manager.start("inbox", run))
 
 
-def _do_setup_run(ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod, job_manager) -> None:
+def _do_setup_run(
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod, job_manager
+) -> None:
     """Launch the first-time setup wizard pipeline as a background job."""
     from rom_manager.web.inbox_pipeline import _run_setup_pipeline
 
-    lib_root = data.get("library_root", "").strip() or (str(config.library_root) if config.library_root else "")
+    lib_root = data.get("library_root", "").strip() or (
+        str(config.library_root) if config.library_root else ""
+    )
     if not lib_root:
         ctx._send_json({"error": "library_root is required"})
         return
 
     from rom_manager.config import load_config, write_config_toml
+
     updates: dict = {}
     if not config.library_root or str(config.library_root) != lib_root:
         updates["library.library_root"] = lib_root
@@ -162,10 +178,10 @@ def _do_setup_run(ctx, data: dict, config: AppConfig, repository: LibraryReposit
         config.device_name = new_cfg.device_name
 
     options = {
-        "clean_junk":   bool(data.get("clean_junk", False)),
+        "clean_junk": bool(data.get("clean_junk", False)),
         "extract_zips": bool(data.get("extract_zips", True)),
-        "scan":         bool(data.get("scan", True)),
-        "match":        bool(data.get("match", True)),
+        "scan": bool(data.get("scan", True)),
+        "match": bool(data.get("match", True)),
     }
 
     def run() -> None:

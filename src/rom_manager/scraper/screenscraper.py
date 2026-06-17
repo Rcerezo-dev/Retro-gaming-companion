@@ -25,7 +25,7 @@ class ScraperResult:
     box_art_url: str
     # Extended fields (S26)
     players: str = ""
-    genres_list: str = ""       # comma-separated full genres
+    genres_list: str = ""  # comma-separated full genres
     screenshot_url: str = ""
     wheel_url: str = ""
 
@@ -104,8 +104,8 @@ class ScreenScraperClient:
                     "Faltan las credenciales de desarrollador (devid / devpassword). "
                     "Regístrate en screenscraper.fr → Mi cuenta → Solicitar acceso API "
                     "y añade los campos 'ScreenScraper devid' y 'ScreenScraper devpassword' en Settings."
-                    if missing_dev else
-                    "Credenciales incorrectas o cuenta bloqueada. "
+                    if missing_dev
+                    else "Credenciales incorrectas o cuenta bloqueada. "
                     "Verifica usuario, contraseña y devid/devpassword en Settings."
                 )
                 raise PermissionError(f"ScreenScraper HTTP 403 — {detail}") from exc
@@ -141,6 +141,7 @@ class ScreenScraperClient:
         Uses jeuInfos.php with romnom only; slower than hash search.
         """
         import re
+
         clean = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", name)  # strip (USA), [Rev A], etc.
         clean = clean.strip().removesuffix(Path(clean).suffix)  # remove extension
         if not clean:
@@ -235,6 +236,7 @@ class ScreenScraperClient:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _pick_regional(items: list[dict], lang: str) -> str:
     """Return the text for *lang*, falling back to 'en', then first item."""

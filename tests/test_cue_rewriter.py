@@ -14,6 +14,7 @@ def _write_cue(path: Path, content: str) -> Path:
 # Happy path
 # ---------------------------------------------------------------------------
 
+
 def test_rewrite_single_bin(tmp_path: Path) -> None:
     cue = _write_cue(
         tmp_path / "game.cue",
@@ -53,6 +54,7 @@ def test_no_change_when_bin_not_referenced(tmp_path: Path) -> None:
 # Case-insensitive matching
 # ---------------------------------------------------------------------------
 
+
 def test_case_insensitive_match(tmp_path: Path) -> None:
     cue = _write_cue(
         tmp_path / "game.cue",
@@ -67,6 +69,7 @@ def test_case_insensitive_match(tmp_path: Path) -> None:
 # Subdirectory guard
 # ---------------------------------------------------------------------------
 
+
 def test_skips_subdirectory_bin(tmp_path: Path) -> None:
     """If old_bin has a path component, rewrite_cue must do nothing."""
     cue = _write_cue(
@@ -80,6 +83,7 @@ def test_skips_subdirectory_bin(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Newline preservation
 # ---------------------------------------------------------------------------
+
 
 def test_newlines_preserved(tmp_path: Path) -> None:
     content = 'FILE "a.bin" BINARY\r\n  TRACK 01 MODE2/2352\r\n    INDEX 01 00:00:00\r\n'

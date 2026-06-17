@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
     router: Router,
     *,
@@ -35,11 +36,13 @@ def register(
     def get_device_status(ctx) -> None:
         """UX-1/2: Check if Android device (ADB or SD card) is connected."""
         connected, reason = config.is_device_connected()
-        ctx._send_json({
-            "connected": connected,
-            "reason": reason,
-            "device_name": config.device_name or "Android Device",
-        })
+        ctx._send_json(
+            {
+                "connected": connected,
+                "reason": reason,
+                "device_name": config.device_name or "Android Device",
+            }
+        )
 
     @router.get("/api/wizard-detect")
     def get_wizard_detect(ctx) -> None:
@@ -59,19 +62,26 @@ def register(
 
     @router.get("/api/test-chdman")
     def get_test_chdman(ctx) -> None:
-        ctx._send_json(_test_binary_status(
-            str(config.chdman) if config.chdman else str(config.project_root / "tools" / "chdman.exe"),
-        ))
+        ctx._send_json(
+            _test_binary_status(
+                str(config.chdman)
+                if config.chdman
+                else str(config.project_root / "tools" / "chdman.exe"),
+            )
+        )
 
     @router.get("/api/test-maxcso")
     def get_test_maxcso(ctx) -> None:
-        ctx._send_json(_test_binary_status(
-            str(config.project_root / "tools" / "maxcso.exe"),
-        ))
+        ctx._send_json(
+            _test_binary_status(
+                str(config.project_root / "tools" / "maxcso.exe"),
+            )
+        )
 
     @router.get("/api/autostart-status")
     def get_autostart_status(ctx) -> None:
         from rom_manager.utils.tray_icon import get_autostart_status as _get_autostart
+
         ctx._send_json({"enabled": _get_autostart()})
 
     @router.post("/api/autostart-toggle")
@@ -85,6 +95,7 @@ def register(
         from rom_manager.utils.tray_icon import (
             set_autostart as _set_autostart,
         )
+
         try:
             new_state = not _get_autostart()
             if new_state:
@@ -105,6 +116,7 @@ def register(
 
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
+
 
 def _detect_retroarch_install() -> dict:
     """Scan common Windows paths for a RetroArch installation.
@@ -194,6 +206,7 @@ def _detect_wizard(config: AppConfig) -> dict:
     adb_ok = False
     try:
         from rom_manager.sync.adb_transport import list_devices
+
         devs = list_devices(config.adb)
         adb_ok = True
         ready_devs = [d for d in devs if d.ready]
@@ -223,21 +236,32 @@ def _save_config(
     from rom_manager.config import load_config, write_config_toml
 
     allowed = {
-        "library.library_root", "library.anbernic_root", "sync.remote",
-        "sync.saves_remote", "sync.states_remote",
-        "screenscraper.user", "screenscraper.pass",
-        "screenscraper.dev_id", "screenscraper.dev_pass",
-        "tools.chdman", "tools.adb",
+        "library.library_root",
+        "library.anbernic_root",
+        "sync.remote",
+        "sync.saves_remote",
+        "sync.states_remote",
+        "screenscraper.user",
+        "screenscraper.pass",
+        "screenscraper.dev_id",
+        "screenscraper.dev_pass",
+        "tools.chdman",
+        "tools.adb",
         "retroachievements.api_key",
         "retroachievements.username",
-        "sync.auto_sync_enabled", "sync.auto_sync_direction",
-        "sync.auto_sync_android_path", "sync.conflict_policy",
-        "inbox.path", "inbox.target_root",
-        "inbox.auto_process", "inbox.delete_source",
+        "sync.auto_sync_enabled",
+        "sync.auto_sync_direction",
+        "sync.auto_sync_android_path",
+        "sync.conflict_policy",
+        "inbox.path",
+        "inbox.target_root",
+        "inbox.auto_process",
+        "inbox.delete_source",
         "android.device_name",
         "web.host",
         "launchers.retroarch",
-        "backup.saves_enabled", "backup.saves_keep_n",
+        "backup.saves_enabled",
+        "backup.saves_keep_n",
         "notifications.desktop",
     }
     updates = {k: v for k, v in data.items() if k in allowed}
@@ -311,12 +335,12 @@ def _read_health_schedule(config: AppConfig) -> dict:
             pass
 
     return {
-        "last_run_at":    last_run_at,
-        "next_run_at":    next_run_at,
-        "last_ok":        data.get("last_ok"),
+        "last_run_at": last_run_at,
+        "next_run_at": next_run_at,
+        "last_ok": data.get("last_ok"),
         "last_corrupted": data.get("last_corrupted"),
-        "last_missing":   data.get("last_missing"),
-        "overdue":        overdue,
+        "last_missing": data.get("last_missing"),
+        "overdue": overdue,
     }
 
 
@@ -347,15 +371,15 @@ def _browse_folder(ctx, qs: dict) -> None:
       - title: optional dialog title
     """
     initial_dir = (qs.get("initial_dir", [None])[0] or "").strip() or None
-    title       = (qs.get("title",       [None])[0] or "").strip() or "Seleccionar carpeta"
+    title = (qs.get("title", [None])[0] or "").strip() or "Seleccionar carpeta"
 
     try:
         import tkinter as tk
         from tkinter import filedialog
 
         root = tk.Tk()
-        root.withdraw()                        # hide blank root window
-        root.wm_attributes("-topmost", True)   # bring dialog to front on Windows
+        root.withdraw()  # hide blank root window
+        root.wm_attributes("-topmost", True)  # bring dialog to front on Windows
         root.lift()
         folder = filedialog.askdirectory(
             parent=root,

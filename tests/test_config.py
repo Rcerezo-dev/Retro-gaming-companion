@@ -16,9 +16,7 @@ def test_defaults_without_toml(tmp_path: Path) -> None:
 
 
 def test_reads_library_root(tmp_path: Path) -> None:
-    (tmp_path / "config.toml").write_text(
-        '[library]\nlibrary_root = "/roms"\n', encoding="utf-8"
-    )
+    (tmp_path / "config.toml").write_text('[library]\nlibrary_root = "/roms"\n', encoding="utf-8")
     cfg = load_config(tmp_path)
     assert cfg.library_root == Path("/roms")
 
@@ -43,7 +41,7 @@ def test_reads_tools_section(tmp_path: Path) -> None:
 
 def test_reads_web_section(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text(
-        "[web]\nhost = \"0.0.0.0\"\nport = 8080\n", encoding="utf-8"
+        '[web]\nhost = "0.0.0.0"\nport = 8080\n', encoding="utf-8"
     )
     cfg = load_config(tmp_path)
     assert cfg.web_host == "0.0.0.0"
@@ -51,10 +49,8 @@ def test_reads_web_section(tmp_path: Path) -> None:
 
 
 def test_partial_toml_uses_defaults(tmp_path: Path) -> None:
-    (tmp_path / "config.toml").write_text(
-        '[library]\nlibrary_root = "/roms"\n', encoding="utf-8"
-    )
+    (tmp_path / "config.toml").write_text('[library]\nlibrary_root = "/roms"\n', encoding="utf-8")
     cfg = load_config(tmp_path)
-    assert cfg.rclone_binary == "rclone"   # default preserved
-    assert cfg.chdman == "chdman"          # default preserved
-    assert cfg.web_port == 7777            # default preserved
+    assert cfg.rclone_binary == "rclone"  # default preserved
+    assert cfg.chdman == "chdman"  # default preserved
+    assert cfg.web_port == 7777  # default preserved
