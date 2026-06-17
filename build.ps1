@@ -1,4 +1,4 @@
-# build.ps1 — Retro Vault — PyInstaller build script
+﻿# build.ps1 — Retro Vault — PyInstaller build script
 # Usage:  .\build.ps1
 # Output: dist\RetroVault\RetroVault.exe
 #
@@ -10,18 +10,66 @@ $Root = $PSScriptRoot
 
 Write-Host "=== Retro Vault — Build ===" -ForegroundColor Cyan
 
-# ── 1. Detect Python ──────────────────────────────────────────────────────────
-$CondaEnv = "C:\Users\rammu\anaconda3\envs\rom_manager"
-$Python = if (Test-Path "$CondaEnv\python.exe") {
-    "$CondaEnv\python.exe"
-} else {
-    "python"
+# ── 1. Detect the rom_manager Python environment ──────────────────────────────
+# No hardcoded username/path: discover the conda env dynamically so the build
+# works on any machine. If it can't be found we warn loudly instead of silently
+# falling back to a bare `python`, which would mask a missing/incomplete env.
+$EnvName = "rom_manager"
+
+function Find-CondaEnv {
+    param([string]$Name)
+
+    # 1) An already-activated conda env wins (respects `conda activate`).
+    if ($env:CONDA_PREFIX -and (Test-Path (Join-Path $env:CONDA_PREFIX "python.exe"))) {
+        return $env:CONDA_PREFIX
+    }
+
+    # 2) Common conda roots for the current user — derived from the environment,
+    #    never a literal username.
+    $roots = @(
+        (Join-Path $env:USERPROFILE "anaconda3"),
+        (Join-Path $env:USERPROFILE "miniconda3"),
+        (Join-Path $env:USERPROFILE "miniforge3"),
+        (Join-Path $env:LOCALAPPDATA "anaconda3"),
+        (Join-Path $env:LOCALAPPDATA "miniconda3"),
+        "C:\ProgramData\anaconda3",
+        "C:\ProgramData\miniconda3"
+    )
+    foreach ($r in $roots) {
+        $candidate = Join-Path $r "envs\$Name"
+        if (Test-Path (Join-Path $candidate "python.exe")) {
+            return $candidate
+        }
+    }
+
+    # 3) Ask conda itself, if it's on PATH.
+    if (Get-Command conda -ErrorAction SilentlyContinue) {
+        try {
+            $prefix = (& conda run -n $Name python -c "import sys; print(sys.prefix)" 2>$null |
+                Select-Object -Last 1)
+            if ($prefix -and (Test-Path (Join-Path $prefix "python.exe"))) {
+                return $prefix
+            }
+        } catch { }
+    }
+
+    return $null
 }
-Write-Host "Python: $Python" -ForegroundColor Gray
+
+$CondaEnv = Find-CondaEnv -Name $EnvName
+if ($CondaEnv) {
+    $Python = Join-Path $CondaEnv "python.exe"
+    Write-Host "Python env: $CondaEnv" -ForegroundColor Gray
+} else {
+    $Python = "python"
+    Write-Host "WARNING: conda env '$EnvName' not found." -ForegroundColor Yellow
+    Write-Host "         Falling back to bare 'python' on PATH — the build will use" -ForegroundColor Yellow
+    Write-Host "         whatever that resolves to; verify it has the dependencies." -ForegroundColor Yellow
+}
 
 # ── 2. Ensure PyInstaller is available ────────────────────────────────────────
-$PyInstaller = if (Test-Path "$CondaEnv\Scripts\pyinstaller.exe") {
-    "$CondaEnv\Scripts\pyinstaller.exe"
+$PyInstaller = if ($CondaEnv -and (Test-Path (Join-Path $CondaEnv "Scripts\pyinstaller.exe"))) {
+    Join-Path $CondaEnv "Scripts\pyinstaller.exe"
 } else {
     "pyinstaller"
 }
