@@ -315,6 +315,7 @@ def make_handler(
             try:
                 data: dict = json.loads(raw) if raw else {}
             except Exception:
+                _logger.debug("Cuerpo de petición no era JSON válido; usando {}", exc_info=True)
                 data = {}
 
             try:
@@ -518,7 +519,9 @@ def serve(
                                 dry_run=False,
                             )
                         except Exception:
-                            pass
+                            _logger.warning(
+                                "Sync automático tras setup (saves) falló", exc_info=True
+                            )
                     # D2: implicit saves/states remotes
                     _implicit_tray = []
                     if config.saves_remote and config.library_root:
@@ -554,7 +557,10 @@ def serve(
                                 dry_run=False,
                             )
                         except Exception:
-                            pass
+                            _logger.warning(
+                                "Sync automático tras setup (remote configurado) falló",
+                                exc_info=True,
+                            )
                     if _state._tray_instance:
                         _state._tray_instance.set_status(f"Sync OK {_utc_now_str()[:16]}")
                         _state._tray_instance.show_balloon("Retro Vault", "Sync completado.")
@@ -585,4 +591,4 @@ def serve(
         try:
             _state._tray_instance.stop()
         except Exception:
-            pass
+            _logger.debug("No se pudo detener el icono de la bandeja al salir", exc_info=True)

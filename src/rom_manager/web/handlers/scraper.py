@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,6 +15,9 @@ if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+_logger = logging.getLogger(__name__)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -194,7 +198,11 @@ def _do_scrape(
                                 try:
                                     download_image(result.box_art_url, _dest)
                                 except Exception:
-                                    pass
+                                    _logger.warning(
+                                        "Descarga de carátula falló: %s",
+                                        result.box_art_url,
+                                        exc_info=True,
+                                    )
                             if _dest.exists():
                                 box_art_path = str(_dest)
                         if result.screenshot_url:
@@ -204,7 +212,11 @@ def _do_scrape(
                                 try:
                                     download_image(result.screenshot_url, _dest)
                                 except Exception:
-                                    pass
+                                    _logger.warning(
+                                        "Descarga de captura falló: %s",
+                                        result.screenshot_url,
+                                        exc_info=True,
+                                    )
                             if _dest.exists():
                                 screenshot_path = str(_dest)
                         if result.wheel_url:
@@ -214,7 +226,11 @@ def _do_scrape(
                                 try:
                                     download_image(result.wheel_url, _dest)
                                 except Exception:
-                                    pass
+                                    _logger.warning(
+                                        "Descarga de wheel falló: %s",
+                                        result.wheel_url,
+                                        exc_info=True,
+                                    )
                             if _dest.exists():
                                 wheel_path = str(_dest)
                     repository.upsert_metadata(
@@ -267,7 +283,11 @@ def _do_scrape(
                             try:
                                 download_image(img_game["box_art_url"], _dest)
                             except Exception:
-                                pass
+                                _logger.warning(
+                                    "Descarga de portada (2ª pasada) falló: %s",
+                                    img_game["box_art_url"],
+                                    exc_info=True,
+                                )
                         if _dest.exists():
                             repository.update_image_paths(
                                 game_id=img_game["id"],
@@ -304,7 +324,7 @@ def _do_scrape(
                         write_gamelist(_pdir, _entries)
                         _gamelist_written.append(_plat["platform"])
             except Exception:
-                pass
+                _logger.warning("Auto-exportación de gamelists tras scrape falló", exc_info=True)
 
             job_result = {
                 "total": total,
@@ -407,7 +427,9 @@ def _do_scrape_single(
                     download_image(_result.screenshot_url, _dest)
                     _screenshot_path = str(_dest)
                 except Exception:
-                    pass
+                    _logger.warning(
+                        "Descarga de captura falló: %s", _result.screenshot_url, exc_info=True
+                    )
             if _result.wheel_url:
                 _ext = ".png" if ".png" in _result.wheel_url.lower() else ".jpg"
                 _dest = _src_parent / "media" / "wheels" / f"{_stem}{_ext}"
@@ -415,7 +437,7 @@ def _do_scrape_single(
                     download_image(_result.wheel_url, _dest)
                     _wheel_path = str(_dest)
                 except Exception:
-                    pass
+                    _logger.warning("Descarga de wheel falló: %s", _result.wheel_url, exc_info=True)
         with repository.batch() as _bconn:
             repository.upsert_metadata(
                 game_id=int(game_id),

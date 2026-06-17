@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from collections.abc import Callable
@@ -15,6 +16,9 @@ if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+_logger = logging.getLogger(__name__)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -284,7 +288,9 @@ def register(
                                     )
                                     _dc.commit()
                             except Exception:
-                                pass
+                                _logger.warning(
+                                    "No se pudo marcar set_type tras conversión CHD", exc_info=True
+                                )
                         elif result.error and "already exists" in result.error:
                             summary.skipped += 1
                         else:

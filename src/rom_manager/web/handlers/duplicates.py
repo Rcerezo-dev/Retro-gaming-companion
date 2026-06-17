@@ -280,6 +280,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
         try:
             lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
         except Exception:
+            _log.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
             lib = {}
         _hash_lib_cache[plat] = lib
         return lib
@@ -295,6 +296,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryR
                 return -1
             md5 = (row["md5"] or "").lower()
         except Exception:
+            _log.debug("Consulta RA por ruta falló: %s", path, exc_info=True)
             return -1
         if not md5:
             return -1
@@ -663,7 +665,7 @@ def _resolve_duplicate_ra(ctx, data: dict, repository: LibraryRepository) -> Non
                 try:
                     shutil.move(str(dest_file), str(p))
                 except Exception:
-                    pass
+                    _log.warning("Rollback de archivo descartado falló: %s", p.name, exc_info=True)
             errors.append(f"{p.name}: {exc}")
 
     ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})

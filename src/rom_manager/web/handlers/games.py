@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import time
 from pathlib import Path
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
 
+
+_logger = logging.getLogger(__name__)
 
 _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ...}
 _ra_hash_cache: dict = {}  # (cid, mtime) → (hash_map, title_index)
@@ -49,6 +52,7 @@ def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
                         try:
                             hl = _parse_game_list(_json.loads(cf.read_text("utf-8")))
                         except Exception:
+                            _logger.warning("Caché RA corrupta o ilegible: %s", cf, exc_info=True)
                             hl = {}
                         _ra_hash_cache[key] = hl
                     hl = _ra_hash_cache[key]
@@ -62,6 +66,7 @@ def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
                 g["ra_game_id"] = rg.id
                 g["ra_achievements"] = rg.achievements
         except Exception:
+            _logger.debug("Anotación RA de un juego falló; se omite", exc_info=True)
             continue
 
 
@@ -286,6 +291,9 @@ def register(
                             try:
                                 _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
                             except Exception:
+                                _logger.warning(
+                                    "Caché RA corrupta o ilegible: %s", _cf, exc_info=True
+                                )
                                 _hl = {}
                             _ra_hash_cache[_key] = _hl
                         _rg = _ra_hash_cache[_key].get(_md5.lower())
@@ -295,7 +303,7 @@ def register(
                             result["ra_achievements"] = _rg.achievements
                             result["ra_points"] = _rg.points
         except Exception:
-            pass
+            _logger.debug("Anotación RA en detalle de juego falló", exc_info=True)
         # saves count by stem matching
         try:
             import os as _os2
@@ -310,6 +318,7 @@ def register(
                     ).fetchone()
                     result["saves_count"] = _row2[0] if _row2 else 0
         except Exception:
+            _logger.warning("Conteo de saves por stem falló", exc_info=True)
             result["saves_count"] = 0
         ctx._send_json(result)
 

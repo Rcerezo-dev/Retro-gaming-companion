@@ -25,6 +25,7 @@ def _read_health_schedule(config: AppConfig) -> dict:
     try:
         return _json.loads(_health_schedule_path(config).read_text(encoding="utf-8"))
     except Exception:
+        _logger.debug("No se pudo leer health_schedule.json", exc_info=True)
         return {}
 
 
@@ -65,7 +66,7 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                     elapsed = (_dt.datetime.now(tz=_dt.UTC) - last_run).days
                     overdue = elapsed >= _HEALTH_CHECK_INTERVAL_DAYS
                 except Exception:
-                    pass
+                    _logger.debug("No se pudo parsear last_run del health schedule", exc_info=True)
 
             if overdue and not _state._job_manager.get_status()["health_check_running"]:
                 repository = get_repo_fn()

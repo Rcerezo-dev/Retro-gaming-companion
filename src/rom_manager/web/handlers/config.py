@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 _config_lock = threading.Lock()
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -215,7 +217,7 @@ def _detect_wizard(config: AppConfig) -> dict:
             device_display = dev.display or dev.serial
             android_suggestion = config.anbernic_root or "/storage/emulated/0/RetroArch/roms"
     except Exception:
-        pass
+        _logger.debug("Detección de dispositivos ADB falló", exc_info=True)
 
     return {
         "library_root_suggestion": library_root_suggestion,
@@ -320,6 +322,7 @@ def _read_health_schedule(config: AppConfig) -> dict:
     try:
         data = _json.loads(p.read_text(encoding="utf-8"))
     except Exception:
+        _logger.debug("No se pudo leer health_schedule.json", exc_info=True)
         data = {}
 
     last_run_at = data.get("last_run_at")
@@ -332,7 +335,7 @@ def _read_health_schedule(config: AppConfig) -> dict:
             next_run_at = nxt.strftime("%Y-%m-%dT%H:%M:%SZ")
             overdue = _dt.datetime.now(tz=_dt.UTC) >= nxt
         except Exception:
-            pass
+            _logger.debug("No se pudo calcular next_run del health schedule", exc_info=True)
 
     return {
         "last_run_at": last_run_at,
@@ -360,6 +363,7 @@ def _test_binary_status(path_str: str) -> dict:
         ver = (r.stdout or r.stderr or "").strip().splitlines()[0][:60]
         return {"ok": True, "version": ver, "path": str(p)}
     except Exception:
+        _logger.debug("No se pudo leer la versión del binario %s", p, exc_info=True)
         return {"ok": True, "version": "", "path": str(p)}
 
 
