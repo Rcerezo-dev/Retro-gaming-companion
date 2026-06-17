@@ -1,0 +1,14 @@
+# Pre-commit hooks — run `pre-commit install` once to activate.
+# Mirrors the CI "Lint (ruff)" gate so formatting/lint issues are caught
+# locally before they reach GitHub Actions.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.17
+    hooks:
+      # Linter (auto-fixes what it safely can: imports, pyupgrade, etc.)
+      - id: ruff-check
+        args: [--fix]
+        files: ^(src|tests)/
+      # Formatter (the canonical-style gate)
+      - id: ruff-format
+        files: ^(src|tests)/
