@@ -9,6 +9,7 @@ Extracted from server.py (Session 18) to reduce the monolith size.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.planner import build_plan
 from rom_manager.planner.operation_planner import FormatOptions
+
+_logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # HTTP / path utilities
@@ -364,6 +367,7 @@ def _build_library_report(
         try:
             zip_files = find_zip_files(source)
         except Exception:
+            _logger.warning("find_zip_files falló en %s", source, exc_info=True)
             zip_files = []
         for zp in zip_files:
             try:
@@ -401,7 +405,7 @@ def _build_library_report(
                 for g in groups
             ]
         except Exception:
-            pass
+            _logger.warning("find_disc_groups falló en %s", source, exc_info=True)
         try:
             multidisc = verify_multidisc(source, repository)
             multidisc_data = {
@@ -418,7 +422,7 @@ def _build_library_report(
                 ],
             }
         except Exception:
-            pass
+            _logger.warning("verify_multidisc falló en %s", source, exc_info=True)
 
     # ── Orphaned saves ────────────────────────────────────────────────────────
     from rom_manager.utils.orphan_finder import find_orphaned_saves
@@ -428,7 +432,7 @@ def _build_library_report(
         try:
             orphans = find_orphaned_saves(source, config.save_extensions)
         except Exception:
-            pass
+            _logger.warning("find_orphaned_saves falló en %s", source, exc_info=True)
     orphan_data = {
         "total": len(orphans),
         "total_bytes": sum(o.size_bytes for o in orphans),
@@ -500,7 +504,7 @@ def _build_status(
         try:
             android_summary = repository_android.get_summary()
         except Exception:
-            pass
+            _logger.debug("get_summary (Android) falló", exc_info=True)
 
     # compute per-root scan staleness
     scan_days_ago: int | None = None
@@ -522,6 +526,9 @@ def _build_status(
                 scan_days_ago = delta.days
                 stale = scan_days_ago > 7
             except Exception:
+                _logger.debug(
+                    "No se pudo parsear la fecha del último scan (%r)", best_at, exc_info=True
+                )
                 stale = True
 
     # check for cached report
@@ -539,7 +546,7 @@ def _build_status(
                 )
                 last_report_mins_ago = _mins
         except Exception:
-            pass
+            _logger.debug("No se pudo leer la caché de last_report.json", exc_info=True)
 
     # first_run / setup_complete / setup_checklist
     scan_count = 0
@@ -552,7 +559,7 @@ def _build_status(
             ).fetchone()
             matched_count = _m[0] if _m else 0
     except Exception:
-        pass
+        _logger.warning("Consulta de scan_count/matched_count falló", exc_info=True)
 
     first_run = not bool(library_root)
     setup_complete = scan_count > 0 and matched_count > 0
@@ -569,7 +576,9 @@ def _build_status(
                     1 for f in _dat_dir.iterdir() if f.suffix.lower() in {".dat", ".xml"}
                 )
             except Exception:
-                pass
+                _logger.debug(
+                    "No se pudo listar el directorio de catálogos %s", _dat_dir, exc_info=True
+                )
 
     setup_checklist = {
         "library_root_set": bool(library_root),
@@ -588,7 +597,7 @@ def _build_status(
             ).fetchall()
             recently_played = [dict(r) for r in _rows]
     except Exception:
-        pass
+        _logger.warning("Consulta de recently_played falló", exc_info=True)
 
     # UI-2: total_platforms
     total_platforms = 0
@@ -599,7 +608,7 @@ def _build_status(
             ).fetchone()
             total_platforms = _row[0] if _row else 0
     except Exception:
-        pass
+        _logger.warning("Consulta de total_platforms falló", exc_info=True)
 
     # UI-2: last_sync_at (most recent save_sync_log entry)
     last_sync_at: str | None = None
@@ -608,7 +617,7 @@ def _build_status(
         if _sl:
             last_sync_at = _sl[0].get("created_at")
     except Exception:
-        pass
+        _logger.debug("No se pudo leer el último sync_log", exc_info=True)
 
     # UI-2: health summary from health_schedule.json
     health: dict = {}
@@ -620,7 +629,7 @@ def _build_status(
             if _hp.exists():
                 health = _json.loads(_hp.read_text(encoding="utf-8"))
         except Exception:
-            pass
+            _logger.debug("No se pudo leer health_schedule.json", exc_info=True)
 
     return {
         "total_games": summary.total_games,
@@ -835,6 +844,9 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
         from rom_manager.retroachievements.ra_client import _parse_game_list
         from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
     except Exception:
+        _logger.debug(
+            "Módulos de RetroAchievements no disponibles; conflictos sin anotar RA", exc_info=True
+        )
         return [base_row(op) for op in conflict_ops]
 
     cache_dir = _Path(config.project_root) / ".rommgr" / "ra_cache"
@@ -854,6 +866,7 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
         try:
             lib = _parse_game_list(_json.loads(cache_file.read_text(encoding="utf-8")))
         except Exception:
+            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
             lib = {}
         _hash_lib_cache[plat] = lib
         return lib
@@ -870,6 +883,7 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
             md5 = (row["md5"] or "").lower()
             plat = row["platform"] or ""
         except Exception:
+            _logger.debug("Consulta RA por ruta falló: %s", path, exc_info=True)
             return -1
         if not md5:
             return -1
@@ -950,6 +964,7 @@ def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) ->
             hash_lib = _parse_game_list(data)
             platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
         except Exception:
+            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
             continue
 
     # Get MD5 mapping: id → md5 from database
@@ -962,7 +977,7 @@ def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) ->
             rows = conn.execute("SELECT id, md5 FROM games").fetchall()
             id_to_md5 = {r["id"]: r["md5"] for r in rows}
     except Exception:
-        pass
+        _logger.warning("Consulta id→md5 para duplicados RA falló", exc_info=True)
 
     # Annotate each entry
     result = []
@@ -1095,10 +1110,6 @@ def _build_library_diff(
     and_roms = _fetch_roms(repository_android)
     pc_sha1s = set(pc_roms)
     and_sha1s = set(and_roms)
-
-    # Build only_pc and only_and before conflict detection
-    [pc_roms[s] for s in pc_sha1s - and_sha1s]
-    [and_roms[s] for s in and_sha1s - pc_sha1s]
 
     # Detect conflicts: same (platform, canonical_title) but different SHA1
     pc_by_title = {}
@@ -1444,6 +1455,7 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
             hash_lib = _parse_game_list(data)
             platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
         except Exception:
+            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
             continue
 
     if not platform_hash_map:
