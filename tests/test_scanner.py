@@ -63,7 +63,10 @@ def test_scan_sd_card_path(tmp_path):
     result = scan_library(tmp_path, cfg, repo, logger)
 
     assert result.roms_detected >= 3  # .gba x2, .chd
-    assert result.saves_detected >= 1  # .srm
+    # Saves inside the dedicated saves/ folder are intentionally excluded from
+    # the ROM scan (the sync subsystem owns them); they count as system files.
+    assert result.saves_detected == 0
+    assert result.system_files_detected >= 1  # the .srm under saves/
     assert result.errors == 0
 
 

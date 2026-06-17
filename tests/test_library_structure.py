@@ -178,8 +178,8 @@ class TestCreateLibraryStructure:
 
     def test_creates_media_subfolders(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
         _post("/api/create-library-structure", {}, repo, config_root)
-        assert (library / "gba" / "media" / "images").is_dir()
-        assert (library / "gba" / "media" / "videos").is_dir()
+        assert (library / "media" / "gba" / "images").is_dir()
+        assert (library / "media" / "gba" / "videos").is_dir()
 
     def test_idempotent_second_call(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
         _post("/api/create-library-structure", {}, repo, config_root)
