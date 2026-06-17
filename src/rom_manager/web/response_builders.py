@@ -8,13 +8,13 @@ Extracted from server.py (Session 18) to reduce the monolith size.
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.planner import build_plan
 from rom_manager.planner.operation_planner import FormatOptions
-
 
 # ---------------------------------------------------------------------------
 # HTTP / path utilities
@@ -66,8 +66,8 @@ def _list_drives() -> dict:
     import platform
     drives: list[dict] = []
     if platform.system() == "Windows":
-        import string
         import ctypes
+        import string
         for letter in string.ascii_uppercase:
             root = Path(f"{letter}:\\")
             if root.exists():
@@ -108,8 +108,8 @@ def _list_drives() -> dict:
 
 
 def _utc_now_str() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    from datetime import datetime
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _parse_format_opts(qs: dict) -> FormatOptions:
@@ -242,7 +242,8 @@ def _build_library_report(
     path_accessible = source.exists() and source.is_dir()
 
     # ── ZIPs ──────────────────────────────────────────────────────────────────
-    from rom_manager.converters.zip_extractor import find_zip_files, _DISC_RE as _ZIP_DISC_RE
+    from rom_manager.converters.zip_extractor import _DISC_RE as _ZIP_DISC_RE
+    from rom_manager.converters.zip_extractor import find_zip_files
     zip_list = []
     zip_files: list[Path] = []
     if path_accessible:
@@ -314,11 +315,11 @@ def _build_library_report(
         ],
     }
 
-    from datetime import datetime, timezone
+    from datetime import datetime
     return {
         "source_path": str(source),
         "path_accessible": path_accessible,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "zips": {"total": len(zip_files), "files": zip_list},
         "playlists": {
             "total_groups": len(groups),
@@ -338,7 +339,8 @@ def _build_status(
     repository_android: LibraryRepository | None = None,
     library_root: Path | None = None,
 ) -> dict:
-    from datetime import UTC, datetime as _dt_cls
+    from datetime import UTC
+    from datetime import datetime as _dt_cls
     # If source_root is an Android-style path (starts with /) and we have an Android
     # repository, query it instead of the PC repository so ADB-scanned stats show up.
     _is_android_root = bool(source_root and source_root.startswith("/") and repository_android is not None and repository_android is not repository)
@@ -389,7 +391,6 @@ def _build_status(
     last_report_mins_ago: int | None = None
     if project_root is not None:
         try:
-            import os as _os
             _rpt_cache = project_root / ".rommgr" / "last_report.json"
             if _rpt_cache.exists():
                 _mtime = _rpt_cache.stat().st_mtime
@@ -648,23 +649,24 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     from collections import defaultdict
     from pathlib import Path as _Path
 
-    base_row = lambda op: {
-        "game_id": op.game.id,
-        "source_name": op.source_path.name,
-        "target_name": op.target_path.name,
-        "source_path": str(op.source_path),
-        "reason": op.conflict_reason,
-        "ra_achievements": None,
-        "ra_target_achievements": None,
-        "ra_role": None,
-    }
+    def base_row(op):
+        return {
+            "game_id": op.game.id,
+            "source_name": op.source_path.name,
+            "target_name": op.target_path.name,
+            "source_path": str(op.source_path),
+            "reason": op.conflict_reason,
+            "ra_achievements": None,
+            "ra_target_achievements": None,
+            "ra_role": None,
+        }
 
     if config is None or not conflict_ops:
         return [base_row(op) for op in conflict_ops]
 
     try:
-        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
         from rom_manager.retroachievements.ra_client import _parse_game_list
+        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
     except Exception:
         return [base_row(op) for op in conflict_ops]
 
@@ -753,13 +755,12 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     return rows
 
 
-def _annotate_duplicates_with_ra(title_groups: list[dict], config: "AppConfig") -> list[dict]:
+def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) -> list[dict]:
     """B1-4: Annotate title_groups entries with RA achievements count if available."""
-    from collections import defaultdict
     import json as _json
-    from pathlib import Path as _Path
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
     from rom_manager.retroachievements.ra_client import _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
@@ -818,6 +819,7 @@ def _build_duplicates(
     ab_root: str | None = None,
 ) -> dict:
     import os as _os
+
     from rom_manager.database.repository import DuplicateGroup
 
     def _norm(p: str) -> str:
@@ -918,8 +920,8 @@ def _build_library_diff(
     and_sha1s = set(and_roms)
 
     # Build only_pc and only_and before conflict detection
-    only_pc_list = [pc_roms[s] for s in pc_sha1s - and_sha1s]
-    only_and_list = [and_roms[s] for s in and_sha1s - pc_sha1s]
+    [pc_roms[s] for s in pc_sha1s - and_sha1s]
+    [and_roms[s] for s in and_sha1s - pc_sha1s]
 
     # Detect conflicts: same (platform, canonical_title) but different SHA1
     pc_by_title = {}
@@ -1002,7 +1004,8 @@ def _build_duplicates_two_repos(
 ) -> dict:
     """Two-DB version of duplicate detection."""
     import os as _os
-    from rom_manager.database.repository import DuplicateGroup, DuplicateEntry
+
+    from rom_manager.database.repository import DuplicateGroup
 
     def _norm(p: str) -> str:
         return _os.path.normcase(_os.path.normpath(p)).rstrip(_os.sep) + _os.sep
@@ -1097,8 +1100,8 @@ def _build_duplicates_two_repos(
 
 def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
     """Analyse a folder: count extensions, find broken PSX sets, flag conversion needs."""
-    from pathlib import Path as _Path
     from collections import Counter
+    from pathlib import Path as _Path
 
     _ROM_EXTS = {
         ".gba", ".gb", ".gbc", ".nes", ".snes", ".sfc", ".md", ".smd", ".gen",
@@ -1190,12 +1193,13 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     Conserva automáticamente la versión con logros activos en RetroAchievements.
     Las versiones sin logros se marcan como candidatas a eliminar.
     """
-    from collections import defaultdict
     import json as _json
+    from collections import defaultdict
     from pathlib import Path as _Path
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-    from rom_manager.retroachievements.ra_client import _parse_game_list
+
     from rom_manager.retroachievements.ra_checker import _normalize_title
+    from rom_manager.retroachievements.ra_client import _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 

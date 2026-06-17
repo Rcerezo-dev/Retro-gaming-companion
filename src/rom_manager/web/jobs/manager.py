@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from typing import Any
-
 
 # ── Job names (canonical) ─────────────────────────────────────────────────────
 JOB_NAMES: tuple[str, ...] = (
@@ -52,13 +52,12 @@ class JobManager:
 
     # ── Job lifecycle ─────────────────────────────────────────────────────────
 
-    def start(self, job_id: str, fn: "Callable[[], None]") -> dict[str, str]:
+    def start(self, job_id: str, fn: Callable[[], None]) -> dict[str, str]:
         """Start *job_id* in a daemon thread if not already running.
 
         Returns ``{"status": "started"}`` or ``{"status": "already_running"}``.
         *fn* is responsible for calling :meth:`finish` in its ``finally`` block.
         """
-        from typing import Callable  # noqa: F401
         with self._lock:
             if self._running.get(job_id, False):
                 return {"status": "already_running"}

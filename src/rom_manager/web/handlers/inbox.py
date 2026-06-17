@@ -4,22 +4,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register inbox / setup routes on *router*."""
 
@@ -73,7 +74,7 @@ def register(
 
 # ── Multipart upload — called directly from do_POST (pre-router) ─────────────
 
-def handle_inbox_upload(config: "AppConfig", content_type: str, body: bytes, ctx) -> None:
+def handle_inbox_upload(config: AppConfig, content_type: str, body: bytes, ctx) -> None:
     """Save multipart file-upload(s) directly to inbox_path."""
     import re as _re
     bm = _re.search(r"boundary=([^\s;]+)", content_type)
@@ -116,7 +117,7 @@ def handle_inbox_upload(config: "AppConfig", content_type: str, body: bytes, ctx
 
 # ── Handler logic ─────────────────────────────────────────────────────────────
 
-def _do_inbox_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager) -> None:
+def _do_inbox_run(ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager) -> None:
     from rom_manager.web.inbox_pipeline import _run_inbox_pipeline
 
     inbox_path_str = data.get("path", "").strip() or config.inbox_path
@@ -136,7 +137,7 @@ def _do_inbox_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepo
     ctx._send_json(job_manager.start("inbox", run))
 
 
-def _do_setup_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod, job_manager) -> None:
+def _do_setup_run(ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod, job_manager) -> None:
     """Launch the first-time setup wizard pipeline as a background job."""
     from rom_manager.web.inbox_pipeline import _run_setup_pipeline
 
@@ -145,7 +146,7 @@ def _do_setup_run(ctx, data: dict, config: "AppConfig", repository: "LibraryRepo
         ctx._send_json({"error": "library_root is required"})
         return
 
-    from rom_manager.config import write_config_toml, load_config
+    from rom_manager.config import load_config, write_config_toml
     updates: dict = {}
     if not config.library_root or str(config.library_root) != lib_root:
         updates["library.library_root"] = lib_root

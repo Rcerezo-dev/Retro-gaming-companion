@@ -1,28 +1,30 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    repo_android: "LibraryRepository",
-    start_ra_check_fn: "Callable[[str], bool]",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    repo_android: LibraryRepository,
+    start_ra_check_fn: Callable[[str], bool],
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register sync / cable-sync / rclone / ADB / auto-sync routes on *router*."""
 
@@ -77,7 +79,7 @@ def register(
     def get_cable_sync_log(ctx) -> None:
         log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
         if log_path.exists():
-            with open(log_path, "r", encoding="utf-8", errors="replace") as _lf:
+            with open(log_path, encoding="utf-8", errors="replace") as _lf:
                 lines = _lf.readlines()
             tail = "".join(lines[-500:])
             ctx._send_json({"log": tail, "lines": len(lines)})
@@ -257,10 +259,10 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
 
 # ── rclone / ADB helpers (moved from server.py) ───────────────────────────────
 
-def _handle_rclone_export_config(config: "AppConfig") -> tuple[bytes, str]:
+def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
     """Return the local rclone config file contents as bytes, or an error message."""
-    import subprocess as _sp
     import shutil as _sh
+    import subprocess as _sp
 
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
@@ -276,10 +278,10 @@ def _handle_rclone_export_config(config: "AppConfig") -> tuple[bytes, str]:
         return f"# error reading rclone config: {exc}\n".encode(), "text/plain; charset=utf-8"
 
 
-def _handle_rclone_status(config: "AppConfig") -> dict:
+def _handle_rclone_status(config: AppConfig) -> dict:
     """Check if rclone is installed and list configured remotes."""
-    import subprocess as _sp
     import shutil as _sh
+    import subprocess as _sp
 
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
@@ -288,13 +290,13 @@ def _handle_rclone_status(config: "AppConfig") -> dict:
         r = _sp.run([rclone_bin, "version"], capture_output=True, text=True, timeout=8)
         version_line = r.stdout.strip().splitlines()[0] if r.stdout.strip() else "unknown"
         remotes_r = _sp.run([rclone_bin, "listremotes"], capture_output=True, text=True, timeout=8)
-        remotes = [l.rstrip(":") for l in remotes_r.stdout.strip().splitlines() if l.strip()]
+        remotes = [ln.rstrip(":") for ln in remotes_r.stdout.strip().splitlines() if ln.strip()]
         return {"installed": True, "version": version_line, "remotes": remotes, "binary": rclone_bin}
     except Exception as exc:
         return {"installed": False, "version": None, "remotes": [], "binary": rclone_bin, "error": str(exc)}
 
 
-def _handle_rclone_open_config(config: "AppConfig") -> dict:
+def _handle_rclone_open_config(config: AppConfig) -> dict:
     """Open a terminal window running 'rclone config' so the user can add remotes."""
     import subprocess as _sp
     import sys as _sys
@@ -319,10 +321,10 @@ def _handle_rclone_open_config(config: "AppConfig") -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
+def _handle_rclone_test_remote(config: AppConfig, remote: str) -> dict:
     """Run 'rclone lsd <remote>:' to verify the connection is working."""
-    import subprocess as _sp
     import shutil as _sh
+    import subprocess as _sp
 
     if not remote:
         return {"ok": False, "error": "remote requerido"}
@@ -336,7 +338,7 @@ def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
             capture_output=True, text=True, timeout=30,
         )
         if r.returncode == 0:
-            lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
+            lines = [ln.strip() for ln in r.stdout.strip().splitlines() if ln.strip()]
             return {"ok": True, "remote": remote, "entries": len(lines), "sample": lines[:5]}
         return {"ok": False, "remote": remote, "error": r.stderr.strip() or "error desconocido"}
     except _sp.TimeoutExpired:
@@ -347,7 +349,7 @@ def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
 
 # ── Handler logic (moved from server.py) ─────────────────────────────────────
 
-def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
+def _do_sync(ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager) -> None:
     from rom_manager.web.response_builders import _utc_now_str
 
     dry_run = data.get("dry_run", True)
@@ -358,9 +360,10 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
         if _srv13._tray_instance:
             _srv13._tray_instance.set_status("Sincronizando…")
         try:
+            from pathlib import Path as _Path
+
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
-            from pathlib import Path as _Path
 
             sources = config.sync_sources
             if not sources:
@@ -528,11 +531,15 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
             if not dry_run and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
                 _parts: list[str] = []
-                if _up:   _parts.append(f"{_up} subidos")
-                if _down: _parts.append(f"{_down} descargados")
-                if not _parts: _parts.append("Todo al día")
+                if _up:
+                    _parts.append(f"{_up} subidos")
+                if _down:
+                    _parts.append(f"{_down} descargados")
+                if not _parts:
+                    _parts.append("Todo al día")
                 _body = ", ".join(_parts)
-                if _errs: _body += f" ({_errs} errores)"
+                if _errs:
+                    _body += f" ({_errs} errores)"
                 notify("Retro Vault — Sync completado", _body)
             if not dry_run:
                 _total_conflicts = sum(r.get("conflicts", 0) for r in all_results)
@@ -556,7 +563,7 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 
-def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_cable_sync(ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod) -> None:
     import os
     import shutil
 
@@ -594,22 +601,22 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
         m._cable_cancel.clear()
         _log_file = None
         try:
+            import datetime as _dt
             import time as _time
             from pathlib import PurePosixPath
-            import datetime as _dt
             pc_root   = Path(pc_path_str)
             save_exts = frozenset(config.save_extensions)
 
             log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             _log_file = open(log_path, "a", encoding="utf-8", buffering=1)
-            _ts0 = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _ts0 = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _log_file.write(
                 f"\n=== Cable Sync {_ts0} | direction={direction} dry_run={dry_run} safe_mode={safe_mode} ===\n"
             )
 
             def _log(tag: str, src: str, dst: str = "", note: str = "") -> None:
-                ts = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%H:%M:%S")
+                ts = _dt.datetime.now(tz=_dt.UTC).strftime("%H:%M:%S")
                 _log_file.write(f"[{ts}] [{tag:5s}] {src}{(' -> ' + dst) if dst else ''}{(' | ' + note) if note else ''}\n")
 
             def _cat_name(name: str) -> str:
@@ -895,25 +902,33 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                     if direction == "pc_to_anbernic":
                         for _f in _iter_files(pc_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                     elif direction == "anbernic_to_pc":
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                     elif direction == "newest":
                         for _f in _iter_files(pc_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                     m._cable_progress.update({"bytes_total": _pre_total, "total_files": _pre_files, "copied": 0, "bytes_copied": 0, "speed_bps": 0.0})
                 except Exception:
@@ -1038,7 +1053,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         elif ab_f:
                             _copy(ab_f, pc_root / rel, "← PC (solo en Anbernic)")
 
-            _ts1 = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _ts1 = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _log_file.write(
                 f"=== Fin {_ts1} | copied={copied} skipped={skipped} safe_skipped={safe_mode_skipped} deleted_extra={deleted_extra} errors={errors} cancelled={m._cable_cancel.is_set()} ===\n"
             )
@@ -1078,7 +1093,8 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                 from rom_manager.utils.notifier import notify
                 _via  = "ADB" if use_adb else "SD"
                 _body = f"{copied} archivos copiados vía {_via}"
-                if errors: _body += f" ({errors} errores)"
+                if errors:
+                    _body += f" ({errors} errores)"
                 notify("Retro Vault — Cable Sync completado", _body)
         except Exception as exc:
             m._job_results["cable_sync"] = {"error": str(exc)}
@@ -1096,7 +1112,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
     ctx._send_json({"status": "started", "dry_run": dry_run})
 
 
-def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager") -> None:
+def _do_tree_diff(ctx, data: dict, config: AppConfig, job_manager: JobManager) -> None:
     """Background job: compare the ROM file tree between PC and console."""
     from pathlib import Path as _Path
 
@@ -1109,7 +1125,7 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager
         import time as _time
         job_result = None
         try:
-            from rom_manager.utils.dir_diff import get_local_tree, get_adb_tree, diff_trees
+            from rom_manager.utils.dir_diff import diff_trees, get_adb_tree, get_local_tree
 
             if not pc_path_str:
                 job_result = {"error": "Ruta PC no configurada (library_root)"}
@@ -1166,10 +1182,10 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager
     ctx._send_json(job_manager.start("tree_diff", run))
 
 
-def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
+def _do_auto_sync_save(ctx, data: dict, config: AppConfig, srv_mod) -> None:
     """Save auto-sync settings to config.toml and update in-memory config."""
-    from rom_manager.config import write_config_toml
     import rom_manager.web.server as _srv
+    from rom_manager.config import write_config_toml
 
     updates: dict = {}
     if "sync.auto_sync_direction" in data:
@@ -1193,7 +1209,7 @@ def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
     ctx._send_json({"saved": list(updates.keys()), "enabled": _srv._auto_sync_enabled})
 
 
-def _do_migrate_split_db(ctx, config: "AppConfig", repository: "LibraryRepository", repo_android: "LibraryRepository") -> None:
+def _do_migrate_split_db(ctx, config: AppConfig, repository: LibraryRepository, repo_android: LibraryRepository) -> None:
     """One-time migration: move Android-path games from PC repo to Android repo."""
     lib_root = str(config.library_root or "").lower().rstrip("/\\")
     if not lib_root:

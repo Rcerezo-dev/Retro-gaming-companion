@@ -498,7 +498,6 @@ def main(argv: list[str] | None = None) -> int:
         for result in summary.results:
             bins = ", ".join(p.name for p in result.bin_paths)
             if result.success:
-                action = "would convert" if dry_run else "converted"
                 print(f"  [OK]  {result.cue_path.name}  →  {result.chd_path.name}")
                 if bins:
                     print(f"        bins: {bins}")
@@ -680,9 +679,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "scrape":
-        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
-        from rom_manager.scraper.platform_ids import get_system_id
         from rom_manager.scanner.rom_scanner import utc_now
+        from rom_manager.scraper.platform_ids import get_system_id
+        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
         if not config.screenscraper_user or not config.screenscraper_pass:
             parser.error(
@@ -857,10 +856,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.notify:
             from rom_manager.utils.notifier import notify
             parts = []
-            if total_up:   parts.append(f"{total_up} subidos")
-            if total_down: parts.append(f"{total_down} descargados")
+            if total_up:
+                parts.append(f"{total_up} subidos")
+            if total_down:
+                parts.append(f"{total_down} descargados")
             body = ", ".join(parts) if parts else "Todo al día"
-            if total_err: body += f" ({total_err} errores)"
+            if total_err:
+                body += f" ({total_err} errores)"
             notify("Retro Vault — Sync completado", body)
 
         return 1 if any_error else 0

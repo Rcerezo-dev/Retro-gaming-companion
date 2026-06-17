@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from rom_manager.detection.region_parser import parse_region_from_name
 
 

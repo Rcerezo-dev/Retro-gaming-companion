@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import io
 import json
-import shutil
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -24,7 +23,6 @@ from rom_manager.web.server import (
     _STANDARD_PLATFORM_FOLDERS,
     make_handler,
 )
-
 
 # ── HTTP test helpers (same pattern as test_web_server.py) ─────────────────────
 

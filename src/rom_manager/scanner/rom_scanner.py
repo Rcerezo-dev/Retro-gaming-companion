@@ -12,10 +12,10 @@ from pathlib import Path
 from rom_manager.config import AppConfig
 from rom_manager.database import LibraryRepository
 from rom_manager.detection import FileCategory, classify_path, detect_platform
+from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.set_detector import detect_set_type
 from rom_manager.hashing import calculate_hashes
-from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.scanner.asset_scanner import inspect_asset
 
 _PROGRESS_INTERVAL = 10

@@ -75,7 +75,7 @@ def test_unresolved_export_empty(db_path: Path, tmp_path: Path, monkeypatch) -> 
         return replace(cfg, database_path=db_path)
 
     # Just check that when no unresolved games, export flag is not needed
-    repo = LibraryRepository(db_path)
+    LibraryRepository(db_path)
     original_load = cli_mod.load_config
 
     def patched2(*args, **kwargs):

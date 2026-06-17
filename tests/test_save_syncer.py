@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.sync.rclone_transport import RemoteEntry, RcloneTransport
-from rom_manager.sync.save_syncer import LocalSave, list_local_saves, sync_saves
-
+from rom_manager.sync.rclone_transport import RcloneTransport, RemoteEntry
+from rom_manager.sync.save_syncer import list_local_saves, sync_saves
 
 _SAVE_EXTS = (".sav", ".state")
-_NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC)
 
 
 def _remote_entry(relative: str, offset_seconds: float = 0) -> RemoteEntry:

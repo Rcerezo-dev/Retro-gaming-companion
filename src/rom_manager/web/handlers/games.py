@@ -2,24 +2,23 @@ from __future__ import annotations
 
 import sys
 import time
-import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ...}
 _ra_hash_cache: dict = {}     # (cid, mtime) → (hash_map, title_index)
 
 
-def _enrich_games_with_ra(games: list[dict], config: "AppConfig") -> None:
+def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
     """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
 
     MD5-only match, consistent with the /api/game detail endpoint.
@@ -27,8 +26,9 @@ def _enrich_games_with_ra(games: list[dict], config: "AppConfig") -> None:
     if not games:
         return
     import json as _json
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
     from rom_manager.retroachievements.ra_client import _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
     hl_by_cid: dict = {}
 
@@ -66,13 +66,13 @@ def _enrich_games_with_ra(games: list[dict], config: "AppConfig") -> None:
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
+    config: AppConfig,
+    repository: LibraryRepository,
     get_repo_fn,
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register game library / backup / launch routes on *router*."""
 
@@ -248,8 +248,9 @@ def register(
         # RA data lookup from local cache
         try:
             import json as _json
-            from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
             from rom_manager.retroachievements.ra_client import _parse_game_list
+            from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
             _plat = result.get("platform") or ""
             _md5  = result.get("md5") or ""
             if _plat and _md5:

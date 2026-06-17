@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -43,14 +43,14 @@ def _backup_dir_for_save(save_path: Path, backup_root: Path) -> Path:
 
 def _ts() -> str:
     """UTC timestamp formatted for filenames: ``20260318T143022Z``."""
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _ts_iso(ts_filename: str) -> str:
     """Convert filename timestamp ``20260318T143022Z`` → ISO ``2026-03-18T14:30:22Z``."""
     try:
         s = ts_filename.rstrip("Z")
-        dt = datetime.strptime(s, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+        dt = datetime.strptime(s, "%Y%m%dT%H%M%S").replace(tzinfo=UTC)
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         return ts_filename

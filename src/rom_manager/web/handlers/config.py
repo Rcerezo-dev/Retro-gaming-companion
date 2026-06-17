@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 _config_lock = threading.Lock()
 
@@ -14,10 +15,10 @@ if TYPE_CHECKING:
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    set_auto_sync_fn: "Callable[[bool], None]",
+    config: AppConfig,
+    set_auto_sync_fn: Callable[[bool], None],
 ) -> None:
     """Register config and wizard routes on *router*.
 
@@ -76,9 +77,13 @@ def register(
     @router.post("/api/autostart-toggle")
     def post_autostart_toggle(ctx) -> None:
         from rom_manager.utils.tray_icon import (
-            get_autostart_status as _get_autostart,
-            set_autostart as _set_autostart,
             _default_launch_cmd,
+        )
+        from rom_manager.utils.tray_icon import (
+            get_autostart_status as _get_autostart,
+        )
+        from rom_manager.utils.tray_icon import (
+            set_autostart as _set_autostart,
         )
         try:
             new_state = not _get_autostart()
@@ -178,7 +183,7 @@ def _detect_retroarch_install() -> dict:
     }
 
 
-def _detect_wizard(config: "AppConfig") -> dict:
+def _detect_wizard(config: AppConfig) -> dict:
     """Auto-detect RetroArch installation and connected ADB devices for the first-run wizard."""
     ra = _detect_retroarch_install()
     library_root_suggestion = ra["library_root"] or ra["retroarch_path"]
@@ -211,11 +216,11 @@ def _detect_wizard(config: "AppConfig") -> dict:
 def _save_config(
     ctx,
     data: dict,
-    config: "AppConfig",
-    set_auto_sync_fn: "Callable[[bool], None]",
+    config: AppConfig,
+    set_auto_sync_fn: Callable[[bool], None],
 ) -> None:
     """Handle POST /api/config — persist allowed fields and reload in-memory config."""
-    from rom_manager.config import write_config_toml, load_config
+    from rom_manager.config import load_config, write_config_toml
 
     allowed = {
         "library.library_root", "library.anbernic_root", "sync.remote",
@@ -281,10 +286,10 @@ def _save_config(
     ctx._send_json({"saved": list(updates.keys())})
 
 
-def _read_health_schedule(config: "AppConfig") -> dict:
+def _read_health_schedule(config: AppConfig) -> dict:
     """Return health-check schedule info for GET /api/health-schedule."""
-    import json as _json
     import datetime as _dt
+    import json as _json
 
     _INTERVAL_DAYS = 7
     p = config.data_dir / "health_schedule.json"
@@ -301,7 +306,7 @@ def _read_health_schedule(config: "AppConfig") -> dict:
             last = _dt.datetime.fromisoformat(last_run_at.replace("Z", "+00:00"))
             nxt = last + _dt.timedelta(days=_INTERVAL_DAYS)
             next_run_at = nxt.strftime("%Y-%m-%dT%H:%M:%SZ")
-            overdue = _dt.datetime.now(tz=_dt.timezone.utc) >= nxt
+            overdue = _dt.datetime.now(tz=_dt.UTC) >= nxt
         except Exception:
             pass
 
@@ -317,8 +322,8 @@ def _read_health_schedule(config: "AppConfig") -> dict:
 
 def _test_binary_status(path_str: str) -> dict:
     """Return {ok, version, path} for an external binary."""
-    import subprocess as _sp
     import shutil as _shutil
+    import subprocess as _sp
 
     p = Path(path_str) if path_str else None
     if not p or not p.exists():

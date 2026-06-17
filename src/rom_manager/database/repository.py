@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC
 from pathlib import Path
-from typing import Iterator
 
 from rom_manager.database.schema import initialize_database
 
@@ -508,8 +509,8 @@ class LibraryRepository:
 
     def exclude_duplicate_sha1(self, sha1: str, reason: str = "intentional_copy") -> None:
         """Mark a SHA1 group as an intentional copy — it will no longer appear as a duplicate."""
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        from datetime import datetime
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO excluded_duplicates (sha1, reason, created_at) VALUES (?, ?, ?)",
@@ -547,8 +548,8 @@ class LibraryRepository:
         year: str = "",
         dat_source: str = "",
     ) -> None:
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        from datetime import datetime
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             conn.execute(
                 """
@@ -935,7 +936,6 @@ class LibraryRepository:
             "games g LEFT JOIN game_metadata gm ON gm.game_id = g.id"
             if need_meta else "games"
         )
-        col_prefix = "g." if need_meta else ""
         # Rewrite conditions that reference bare column names when we alias
         if need_meta:
             conditions = [
@@ -1035,7 +1035,7 @@ class LibraryRepository:
 
     def get_save_comparison(self) -> list[dict]:
         """Return save files with their last sync event, for the comparator UI."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         with self.connect() as conn:
             rows = conn.execute(
                 "SELECT id, canonical_title, original_filename, platform, source_path, updated_at "
@@ -1053,7 +1053,7 @@ class LibraryRepository:
                 local_mtime = None
                 try:
                     local_mtime = datetime.fromtimestamp(
-                        Path(sp).stat().st_mtime, tz=timezone.utc
+                        Path(sp).stat().st_mtime, tz=UTC
                     ).strftime("%Y-%m-%dT%H:%M:%S")
                 except (OSError, ValueError):
                     pass
@@ -1134,8 +1134,8 @@ class LibraryRepository:
 
     def toggle_favorite(self, game_id: int) -> bool:
         """Toggle is_favorite for a game. Returns the new value."""
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        from datetime import datetime
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             current = conn.execute(
                 "SELECT is_favorite FROM games WHERE id = ?", (game_id,)
@@ -1268,7 +1268,7 @@ class LibraryRepository:
         *,
         game_id: int,
         box_art_path: str = "",
-        connection: "sqlite3.Connection",
+        connection: sqlite3.Connection,
     ) -> None:
         """Update only the local cover path for an existing metadata row.
         Used when downloading images that were previously skipped (no API call needed)."""
@@ -1277,7 +1277,7 @@ class LibraryRepository:
             (box_art_path, game_id),
         )
 
-    def mark_metadata_scraped(self, game_id: int, connection: "sqlite3.Connection") -> None:
+    def mark_metadata_scraped(self, game_id: int, connection: sqlite3.Connection) -> None:
         """DB-1: Mark a game as checked for metadata (success or failure).
         Prevents re-scraping files that were already checked but had no match."""
         connection.execute("UPDATE games SET metadata_scraped = 1 WHERE id = ?", (game_id,))

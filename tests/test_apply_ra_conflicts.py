@@ -14,11 +14,9 @@ Synthetic data scenarios:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
-
-import pytest
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.web.handlers.duplicates import _apply_ra_conflicts

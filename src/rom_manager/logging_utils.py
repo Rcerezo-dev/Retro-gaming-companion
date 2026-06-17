@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-
 LOGGER_NAME = "rom_manager"
 
 

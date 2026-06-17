@@ -7,6 +7,7 @@ from pathlib import Path
 from rom_manager.database.repository import LibraryRepository, MatchedGame
 from rom_manager.detection.filename_normalizer import sanitize_filename
 
+
 def _same_file(a: Path, b: Path) -> bool:
     """Return True if *a* and *b* refer to the same file on disk.
 

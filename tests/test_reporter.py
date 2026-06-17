@@ -5,11 +5,8 @@ import io
 import json
 from pathlib import Path
 
-import pytest
-
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.reports.reporter import build_report, to_csv, to_json
-
 
 _TS = "2024-01-01T00:00:00"
 _SHA1_A = "A" * 40

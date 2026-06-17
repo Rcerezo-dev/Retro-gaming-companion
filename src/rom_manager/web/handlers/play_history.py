@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import datetime
+import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -16,9 +16,9 @@ _recommendations: dict = {"items": [], "updated_at": None}
 
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    repository: "LibraryRepository",
+    repository: LibraryRepository,
 ) -> None:
     """Register play-history CRUD routes on *router*."""
 
@@ -205,7 +205,7 @@ def register(
             })
 
         payload = {
-            "exported_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "exported_at": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "total": len(games),
             "games": games,
         }
@@ -279,7 +279,7 @@ def register(
 
         _recommendations["items"] = items[:50]  # cap at 50
         _recommendations["updated_at"] = datetime.datetime.now(
-            datetime.timezone.utc
+            datetime.UTC
         ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         ctx._send_json({"ok": True, "stored": len(_recommendations["items"])})

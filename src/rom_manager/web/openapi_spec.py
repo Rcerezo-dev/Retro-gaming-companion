@@ -10,15 +10,6 @@ def build_spec(host: str, port: int) -> dict:
     server_url = f"http://{host}:{port}"
 
     # Reusable components
-    job_status_resp = {
-        "description": "Job started or already running",
-        "content": {"application/json": {"schema": {
-            "type": "object",
-            "properties": {
-                "status": {"type": "string", "enum": ["started", "already_running"]}
-            }
-        }}}
-    }
     ok_resp = {
         "description": "Success",
         "content": {"application/json": {"schema": {"type": "object"}}}
@@ -354,8 +345,6 @@ def build_spec(host: str, port: int) -> dict:
             "Aggregated stats for the Overview dashboard", ["Collection"])},
         "/api/collection-stats-v2": {"get": get(
             "Extended stats including playtime heatmap data", ["Collection"])},
-        "/api/platform-stats": {"get": get(
-            "ROM count per platform", ["Collection"], params=qs("root"))},
         "/api/assets": {"get": get(
             "List scraped asset files per platform", ["Collection"],
             params=qs("root", "platform"))},

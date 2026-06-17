@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rom_manager.database.repository import LibraryRepository
-
 
 _TS = "2024-01-01T00:00:00"
 _SHA1_A = "A" * 40

@@ -6,15 +6,12 @@ from pathlib import Path
 import pytest
 
 from rom_manager.detection.platform_detector import (
-    AMBIGUOUS_EXTENSIONS,
     PLATFORM_BY_EXTENSION,
     PLATFORM_BY_FOLDER,
-    ROM_EXTENSIONS,
     detect_platform,
     is_rom_file,
     normalize_extension,
 )
-
 
 # ── normalize_extension ────────────────────────────────────────────────────────
 

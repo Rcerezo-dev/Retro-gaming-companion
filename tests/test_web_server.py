@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 import io
-import csv
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -11,7 +10,6 @@ import pytest
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.web.server import make_handler
-
 
 # ---------------------------------------------------------------------------
 # Minimal fake HTTP infrastructure — no real socket needed.

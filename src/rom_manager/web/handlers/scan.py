@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import threading
 import urllib.parse
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
-
+from typing import TYPE_CHECKING
 
 # ── DAT auto-download catalog (libretro-database, MIT license) ────────────────
 _LIBRETRO_DAT_CATALOG = [
@@ -57,25 +57,26 @@ _dat_dl_lock  = threading.Lock()
 _dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    repo_android: "LibraryRepository",
-    get_repo_fn: "Callable[[str], LibraryRepository]",
-    start_ra_check_fn: "Callable[[str], bool]",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    repo_android: LibraryRepository,
+    get_repo_fn: Callable[[str], LibraryRepository],
+    start_ra_check_fn: Callable[[str], bool],
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register scan / catalog / job-status routes on *router*."""
     from rom_manager.web.response_builders import _build_scrape_summary
@@ -228,7 +229,7 @@ def register(
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
-def _catalog_status(config: "AppConfig") -> dict:
+def _catalog_status(config: AppConfig) -> dict:
     """List DAT files in the nointro/redump/arcade catalog dirs with quick entry counts."""
     def _scan_dir(directory: Path, is_arcade: bool = False) -> list[dict]:
         files: list[dict] = []
@@ -268,11 +269,11 @@ def _catalog_status(config: "AppConfig") -> dict:
 def _do_scan(
     ctx,
     data: dict,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    get_repo_fn: "Callable[[str], LibraryRepository]",
-    start_ra_check_fn: "Callable[[str], bool]",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    get_repo_fn: Callable[[str], LibraryRepository],
+    start_ra_check_fn: Callable[[str], bool],
+    job_manager: JobManager,
 ) -> None:
     from rom_manager.web.response_builders import _build_library_report
 
@@ -359,7 +360,7 @@ def _do_scan(
     ctx._send_json(job_manager.start("scan", run))
 
 
-def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRepository", job_manager: "JobManager") -> None:
+def _do_adb_scan(ctx, data: dict, config: AppConfig, repo_android: LibraryRepository, job_manager: JobManager) -> None:
     adb_serial   = data.get("adb_serial", "").strip()
     android_path = data.get("android_path", "/storage/emulated/0").strip().rstrip("/")
 
@@ -374,11 +375,12 @@ def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRep
         job_result = None
         try:
             from pathlib import PurePosixPath
-            from rom_manager.sync.adb_transport import AdbTransport
+
             from rom_manager.detection.platform_detector import detect_platform
             from rom_manager.detection.region_parser import parse_region_from_name
             from rom_manager.detection.set_detector import detect_set_type
             from rom_manager.scanner.rom_scanner import utc_now
+            from rom_manager.sync.adb_transport import AdbTransport
 
             transport  = AdbTransport(config.adb, adb_serial, timeout=120)
             timestamp  = utc_now()
@@ -484,7 +486,7 @@ def _do_adb_scan(ctx, data: dict, config: "AppConfig", repo_android: "LibraryRep
     ctx._send_json(job_manager.start("scan", run))
 
 
-def _do_match(ctx, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
+def _do_match(ctx, config: AppConfig, repository: LibraryRepository, job_manager: JobManager) -> None:
     _cancel = job_manager.cancel_event("match")
 
     def run() -> None:
@@ -533,7 +535,7 @@ def _do_match(ctx, config: "AppConfig", repository: "LibraryRepository", job_man
     ctx._send_json(job_manager.start("match", run))
 
 
-def _import_dats(data: dict, config: "AppConfig") -> dict:
+def _import_dats(data: dict, config: AppConfig) -> dict:
     import shutil
 
     source = Path(data.get("source_folder", "")).expanduser()
@@ -567,7 +569,7 @@ def _import_dats(data: dict, config: "AppConfig") -> dict:
     return {"imported": imported, "errors": errors, "total": len(imported)}
 
 
-def _run_dat_download(systems: list[dict], config: "AppConfig") -> None:
+def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
     """Download DAT files from libretro-database and save to the catalog dirs."""
     import urllib.request as _urlreq
 
@@ -615,9 +617,10 @@ def _run_dat_download(systems: list[dict], config: "AppConfig") -> None:
         })
 
 
-def _import_arcade_catalog(data: dict, config: "AppConfig") -> dict:
+def _import_arcade_catalog(data: dict, config: AppConfig) -> dict:
     import shutil
-    from rom_manager.catalog.mame_loader import load_mame_xml, load_fbneo_dat
+
+    from rom_manager.catalog.mame_loader import load_fbneo_dat, load_mame_xml
 
     src = Path(data.get("path", "")).expanduser()
     if not src.exists():

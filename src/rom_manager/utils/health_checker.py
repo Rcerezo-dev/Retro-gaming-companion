@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from rom_manager.hashing.hash_calculator import calculate_hashes
 

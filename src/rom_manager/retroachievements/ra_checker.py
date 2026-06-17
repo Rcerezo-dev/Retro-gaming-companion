@@ -3,9 +3,9 @@ from __future__ import annotations
 import csv
 import io
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from rom_manager.retroachievements.ra_client import RAGame, fetch_hash_library
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id

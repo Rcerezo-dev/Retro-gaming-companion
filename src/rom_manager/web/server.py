@@ -7,31 +7,26 @@ import secrets
 import socket
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from collections.abc import Callable
 from http.cookies import SimpleCookie
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.planner import build_plan
-from rom_manager.planner.operation_planner import FormatOptions
-from rom_manager.reports import build_report, to_csv, to_json
-from rom_manager.web.frontend import HTML
-from rom_manager.web.response_builders import (
-    _json_response, _test_path, _list_drives, _utc_now_str,
-    _repo_for_path,
-    _build_junk_scan, _build_library_report, _build_status,
-    _build_games, _count_companion_saves,
-    _build_folder_analysis,
-    _build_assets, _build_sync_log,
-    _build_cable_sync_preview,
-)
 from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loop
+from rom_manager.web.frontend import HTML
 from rom_manager.web.inbox_pipeline import (
-    _build_inbox_scan, _run_setup_pipeline, _run_inbox_pipeline, _watcher_now,
+    _run_inbox_pipeline,
+    _watcher_now,
 )
 from rom_manager.web.jobs.manager import JobManager
+from rom_manager.web.response_builders import (
+    _json_response,
+    _repo_for_path,
+    _utc_now_str,
+)
 
 # ── Tray icon instance (set by serve() when --tray is passed) ─────────────────
 _tray_instance = None  # type: ignore[assignment]
@@ -57,14 +52,13 @@ _job_results: dict[str, dict] = {}
 _job_manager = JobManager()
 
 
-def _start_job(name: str, fn: "Callable[[], None]") -> dict:
+def _start_job(name: str, fn: Callable[[], None]) -> dict:
     """Start a background job if not already running.
 
     Returns ``{"status": "started"}`` or ``{"status": "already_running"}``.
     *fn* is responsible for setting ``_job_results[name]`` and clearing
     ``_jobs[name]`` in its own finally block.
     """
-    from typing import Callable  # noqa: F401
     with _job_lock:
         if _jobs[name]:
             return {"status": "already_running"}
@@ -343,7 +337,8 @@ def _handle_detect_cloud_folder() -> dict:
 
 def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
     """Return the local rclone config file contents as bytes, or an error message."""
-    import subprocess as _sp, shutil as _sh
+    import shutil as _sh
+    import subprocess as _sp
     # Locate config file via `rclone config file`
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
@@ -372,12 +367,12 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
     port = config.web_port
     base_url = f"http://{ip}:{port}"
     rclone_remote = config.rclone_remote or "dropbox:/RetroSync/saves"
-    library_root = str(config.library_root or "/storage/emulated/0/RetroArch").replace("\\", "/")
+    str(config.library_root or "/storage/emulated/0/RetroArch").replace("\\", "/")
 
     # Detect if we have a cloud folder configured too
     cloud_info = _handle_detect_cloud_folder()
     has_cloud = bool(cloud_info.get("detected"))
-    cloud_folder = cloud_info["detected"][0]["local_folder"].replace("\\", "/") if has_cloud else ""
+    cloud_info["detected"][0]["local_folder"].replace("\\", "/") if has_cloud else ""
     cloud_service = cloud_info["detected"][0]["service"] if has_cloud else ""
 
     lines: list[str] = [
@@ -599,7 +594,7 @@ def _handle_rclone_status(config: AppConfig) -> dict:
     }
 
 
-def _handle_library_doctor(config: "AppConfig", repository: "LibraryRepository") -> dict:
+def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> dict:
     """Scan library_root for common issues: misplaced ROMs, incomplete CUE sets, empty dirs."""
     import re as _re
     if not config.library_root:
@@ -797,13 +792,13 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
 
 
 def make_handler(repository: LibraryRepository, config: AppConfig, repository_android: LibraryRepository | None = None):
-    logger = logging.getLogger(__name__)
+    logging.getLogger(__name__)
     # If no android repo is provided (e.g. called from CLI), use a no-op fallback = same as PC repo
     _repo_android: LibraryRepository = repository_android if repository_android is not None else repository
 
     # ── Phase 1: Router (replaces if/elif ladder incrementally) ───────────────
-    from rom_manager.web.router import Router
     import rom_manager.web.server as _srv_mod  # used by set_auto_sync_fn
+    from rom_manager.web.router import Router
 
     _router = Router()
 
@@ -823,15 +818,16 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
         from rom_manager.web.handlers.sync import _do_ra_check
         return _do_ra_check(api_key, config, repository, _job_manager).get("status") == "started"
 
-    import rom_manager.web.handlers.collection as _h_collection
     import sys as _sys_dbg
+
+    import rom_manager.web.handlers.collection as _h_collection
     try:
         _h_collection.register(_router, config=config, repository=repository, repo_android=_repo_android, get_repo_fn=_get_repo)
         asset_routes = [r for r in _router.routes() if 'asset' in r[1].lower()]
         print(f"[DEBUG] Registered asset routes: {asset_routes}", file=_sys_dbg.stderr)
         print(f"[DEBUG] Total routes after collection: {len(_router.routes())}", file=_sys_dbg.stderr)
         if not asset_routes:
-            print(f"[DEBUG] WARNING: No asset routes registered!", file=_sys_dbg.stderr)
+            print("[DEBUG] WARNING: No asset routes registered!", file=_sys_dbg.stderr)
             print(f"[DEBUG] All routes: {_router.routes()[:10]}", file=_sys_dbg.stderr)
     except Exception as _reg_err:
         print(f"[ERROR] Failed to register collection handlers: {_reg_err}", file=_sys_dbg.stderr)
@@ -1159,11 +1155,11 @@ def make_handler(repository: LibraryRepository, config: AppConfig, repository_an
 _HEALTH_CHECK_INTERVAL_DAYS = 7
 
 
-def _health_schedule_path(config: "AppConfig") -> "Path":
+def _health_schedule_path(config: AppConfig) -> Path:
     return config.data_dir / "health_schedule.json"
 
 
-def _read_health_schedule(config: "AppConfig") -> dict:
+def _read_health_schedule(config: AppConfig) -> dict:
     """Return the stored schedule dict, or empty dict if not found."""
     import json as _json
     p = _health_schedule_path(config)
@@ -1173,12 +1169,12 @@ def _read_health_schedule(config: "AppConfig") -> dict:
         return {}
 
 
-def _write_health_schedule(config: "AppConfig", *, ok: int, corrupted: int, missing: int) -> None:
+def _write_health_schedule(config: AppConfig, *, ok: int, corrupted: int, missing: int) -> None:
     """Persist health check completion time and summary."""
-    import json as _json
     import datetime as _dt
+    import json as _json
     data = {
-        "last_run_at": _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_run_at": _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "last_ok": ok,
         "last_corrupted": corrupted,
         "last_missing": missing,
@@ -1191,7 +1187,7 @@ def _write_health_schedule(config: "AppConfig", *, ok: int, corrupted: int, miss
         _logger.debug("Could not write health schedule: %s", exc)
 
 
-def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: ignore[type-arg]
+def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ignore[type-arg]
     """Daemon: trigger an automatic health check once per week."""
     import datetime as _dt
     import time as _time
@@ -1206,7 +1202,7 @@ def _health_scheduler_loop(config: "AppConfig", get_repo_fn) -> None:  # type: i
             if last_run_raw:
                 try:
                     last_run = _dt.datetime.fromisoformat(last_run_raw.replace("Z", "+00:00"))
-                    elapsed = (_dt.datetime.now(tz=_dt.timezone.utc) - last_run).days
+                    elapsed = (_dt.datetime.now(tz=_dt.UTC) - last_run).days
                     overdue = elapsed >= _HEALTH_CHECK_INTERVAL_DAYS
                 except Exception:
                     pass
@@ -1365,13 +1361,13 @@ def serve(
                 from rom_manager.utils.tray_icon import TrayIcon
 
                 def _on_sync_from_tray() -> None:
-                    import rom_manager.web.server as _srv
                     sources = config.sync_sources
                     if not sources:
                         return
+                    from pathlib import Path as _Path
+
                     from rom_manager.sync.rclone_transport import RcloneTransport
                     from rom_manager.sync.save_syncer import sync_saves
-                    from pathlib import Path as _Path
                     transport = RcloneTransport(rclone=config.rclone_binary)
                     for src in sources:
                         saves_dir = _Path(src.local_dir)

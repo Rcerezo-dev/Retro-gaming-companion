@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 # RetroArch playlist format reference:
 # https://docs.libretro.com/guides/roms-playlists-thumbnails/
 # Each platform gets a <Platform Name>.lpl file that RetroArch reads directly.

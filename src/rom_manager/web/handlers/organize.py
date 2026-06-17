@@ -1,30 +1,31 @@
 from __future__ import annotations
 
-import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    get_repo_fn: "Callable[[str], LibraryRepository]",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    get_repo_fn: Callable[[str], LibraryRepository],
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register organize / plan / apply routes on *router*."""
-    from rom_manager.web.response_builders import _parse_format_opts, _build_plan
+    from rom_manager.web.response_builders import _build_plan, _parse_format_opts
 
     # ── GET /api/plan ─────────────────────────────────────────────────────────
     @router.get("/api/plan")
@@ -75,12 +76,12 @@ def register(
 def _do_apply(
     ctx,
     data: dict,
-    config: "AppConfig",
-    get_repo_fn: "Callable[[str], LibraryRepository]",
-    job_manager: "JobManager",
+    config: AppConfig,
+    get_repo_fn: Callable[[str], LibraryRepository],
+    job_manager: JobManager,
 ) -> None:
-    from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.planner import build_plan
+    from rom_manager.planner.operation_planner import FormatOptions
 
     fmt  = data.get("format_opts", {})
     opts = FormatOptions(
@@ -177,7 +178,7 @@ def _do_apply(
     ctx._send_json(job_manager.start("apply", run))
 
 
-def _do_create_library_structure(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
+def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) -> None:
     if not config.library_root:
         ctx._send_json({"error": "library_root no configurado"})
         return
@@ -241,8 +242,8 @@ def _do_create_library_structure(ctx, data: dict, config: "AppConfig", srv_mod) 
 def _do_organize_library(
     ctx,
     data: dict,
-    config: "AppConfig",
-    repository: "LibraryRepository",
+    config: AppConfig,
+    repository: LibraryRepository,
     srv_mod,
 ) -> None:
     """Move ROMs → platform folders, saves → saves/{platform}/, BIOS candidates → bios/."""
@@ -285,7 +286,7 @@ def _do_organize_library(
         ).fetchall()
 
     for row in rows:
-        game_id, src_str, platform = row[0], row[1], row[2] or ""
+        _game_id, src_str, platform = row[0], row[1], row[2] or ""
         src = Path(src_str)
         if not src.exists():
             continue
@@ -396,7 +397,7 @@ def _do_organize_library(
     })
 
 
-def _do_migrate_saves_structure(ctx, data: dict, config: "AppConfig") -> None:
+def _do_migrate_saves_structure(ctx, data: dict, config: AppConfig) -> None:
     """Migrate the entire root directory to the new standard format:
     - Normalizes folders (Game Boy Advance -> gba, ss -> saturn)
     - Moves states to saves/<plataforma>/states

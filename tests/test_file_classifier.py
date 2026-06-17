@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from rom_manager.config import load_config
 from rom_manager.detection.file_classifier import FileCategory, classify_path
 

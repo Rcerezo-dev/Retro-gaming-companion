@@ -5,22 +5,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register scraper / gamelist / ScreenScraper routes on *router*."""
 
@@ -48,7 +49,8 @@ def register(
     # ── GET /api/export-metadata-nlp ────────────────────────────────────────
     @router.get("/api/export-metadata-nlp")
     def get_export_metadata_nlp(ctx) -> None:
-        import io as _io, csv as _csv
+        import csv as _csv
+        import io as _io
         rows = repository.get_metadata_for_nlp()
         buf = _io.StringIO()
         writer = _csv.writer(buf)
@@ -76,7 +78,7 @@ def register(
 
 # ── Handler logic ─────────────────────────────────────────────────────────────
 
-def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
+def _do_scrape(ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager) -> None:
     platform        = data.get("platform") or None
     download_images = bool(data.get("images", False))
     limit           = int(data.get("limit", 0))
@@ -87,9 +89,9 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
         import rom_manager.web.server as _srv
         job_result = None
         try:
-            from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
-            from rom_manager.scraper.platform_ids import get_system_id
             from rom_manager.scanner.rom_scanner import utc_now
+            from rom_manager.scraper.platform_ids import get_system_id
+            from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
             if not config.screenscraper_user:
                 job_result = {"error": "screenscraper credentials not configured"}
@@ -278,7 +280,7 @@ def _do_scrape(ctx, data: dict, config: "AppConfig", repository: "LibraryReposit
     ctx._send_json(job_manager.start("scrape", run))
 
 
-def _do_scrape_single(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod) -> None:
     game_id         = data.get("game_id")
     preview         = bool(data.get("preview", False))
     download_images = bool(data.get("images", False))
@@ -289,9 +291,9 @@ def _do_scrape_single(ctx, data: dict, config: "AppConfig", repository: "Library
         ctx._send_json({"error": "Credenciales de ScreenScraper no configuradas"})
         return
     try:
-        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
-        from rom_manager.scraper.platform_ids import get_system_id
         from rom_manager.scanner.rom_scanner import utc_now
+        from rom_manager.scraper.platform_ids import get_system_id
+        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
         with repository.connect() as _conn:
             _grow = _conn.execute(
                 "SELECT g.id, g.original_filename, g.source_path, g.platform, "
@@ -380,7 +382,7 @@ def _do_scrape_single(ctx, data: dict, config: "AppConfig", repository: "Library
         ctx._send_json({"error": str(_exc)})
 
 
-def _do_export_gamelists(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_export_gamelists(ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod) -> None:
     from rom_manager.scraper.gamelist_writer import write_gamelist
     output_root = (
         Path(data.get("output_dir") or "").resolve()

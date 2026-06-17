@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 _FILE_LINE_RE = re.compile(
     r"(^\s*FILE\s+\")(.+?)(\"\s*\S*.*)",
     re.IGNORECASE | re.MULTILINE,

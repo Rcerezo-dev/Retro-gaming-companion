@@ -3,8 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from rom_manager.database.repository import MatchedGame
 from rom_manager.planner.operation_planner import RenameOperation, build_plan
 

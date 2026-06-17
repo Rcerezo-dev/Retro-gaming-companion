@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from rom_manager.detection.filename_normalizer import normalize_for_match, sanitize_filename
 
 

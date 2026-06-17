@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.utils.health_checker import HealthSummary, check_library_health
+from rom_manager.utils.health_checker import check_library_health
 
 
 def _insert_game(repo: LibraryRepository, path: Path, sha1: str) -> None:

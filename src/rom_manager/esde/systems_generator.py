@@ -20,7 +20,6 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 # ── System catalogue ──────────────────────────────────────────────────────────
 # Each entry defines one ES-DE system.  `cores` is an ordered list of candidate
 # core DLL prefixes — the first one found on disk wins.

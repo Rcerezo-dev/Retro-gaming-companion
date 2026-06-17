@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import sqlite3
 import sys
 import tempfile
 import traceback
@@ -72,6 +71,7 @@ cfg = None
 
 try:
     import logging
+
     from rom_manager.config import load_config
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.scanner.rom_scanner import scan_library

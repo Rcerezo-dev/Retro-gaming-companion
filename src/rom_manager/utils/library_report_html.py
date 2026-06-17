@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-from pathlib import Path
 
 
 def _fmt_bytes(n: int) -> str:

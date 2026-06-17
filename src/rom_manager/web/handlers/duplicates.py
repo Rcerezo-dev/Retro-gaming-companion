@@ -2,29 +2,30 @@ from __future__ import annotations
 
 import logging
 import os
-import stat
 import shutil
+import stat
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    repo_android: "LibraryRepository",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    repo_android: LibraryRepository,
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register duplicate-management routes on *router*."""
     from rom_manager.web.response_builders import _build_duplicates_two_repos, _build_ra_duplicates
@@ -109,7 +110,7 @@ def _force_remove(path: Path) -> None:
         os.remove(str(path))
 
 
-def _delete_duplicate(ctx, data: dict, repository: "LibraryRepository") -> None:
+def _delete_duplicate(ctx, data: dict, repository: LibraryRepository) -> None:
     game_id = data.get("game_id")
     if not game_id:
         ctx._send_json({"error": "game_id es obligatorio"})
@@ -144,7 +145,7 @@ def _delete_duplicate(ctx, data: dict, repository: "LibraryRepository") -> None:
     ctx._send_json({"deleted": source_path})
 
 
-def _delete_all_duplicates(ctx, repository: "LibraryRepository") -> None:
+def _delete_all_duplicates(ctx, repository: LibraryRepository) -> None:
     groups       = repository.get_duplicate_groups()
     deleted      = 0
     skipped      = 0  # Files that don't exist (already deleted or moved)
@@ -213,7 +214,7 @@ def _delete_all_duplicates(ctx, repository: "LibraryRepository") -> None:
     })
 
 
-def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository") -> None:
+def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
     """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/.
 
     Handles both conflict types:
@@ -222,13 +223,14 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
     - "collision": two pending ops share the same target path (two ROMs → same canonical name).
                    Group by target, compare all sources' RA; discard all but the winner.
     """
-    from collections import defaultdict
-    from rom_manager.planner.operation_planner import FormatOptions
-    from rom_manager.planner import build_plan
     import json as _json
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
+    from collections import defaultdict
+
+    from rom_manager.planner import build_plan
+    from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves
+    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     opts = FormatOptions()
     plan = build_plan(repository, opts)
@@ -416,7 +418,7 @@ def _apply_ra_conflicts(ctx, data: dict, config: "AppConfig", repository: "Libra
     })
 
 
-def _ra_duplicate_discard(ctx, data: dict, repository: "LibraryRepository") -> None:
+def _ra_duplicate_discard(ctx, data: dict, repository: LibraryRepository) -> None:
     source_path = data.get("path", "").strip()
     if not source_path:
         ctx._send_error(400, "path required")
@@ -465,7 +467,7 @@ def _ra_duplicate_discard(ctx, data: dict, repository: "LibraryRepository") -> N
     ctx._send_json({"ok": True})
 
 
-def _ra_duplicate_discard_all(ctx, config: "AppConfig", repository: "LibraryRepository") -> None:
+def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryRepository) -> None:
     """Discard ALL entries without RA support from version-duplicate groups."""
     from rom_manager.web.response_builders import _build_ra_duplicates
 
@@ -523,7 +525,7 @@ def _ra_duplicate_discard_all(ctx, config: "AppConfig", repository: "LibraryRepo
     ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})
 
 
-def _ra_discard_no_support(ctx, repository: "LibraryRepository", srv_mod) -> None:
+def _ra_discard_no_support(ctx, repository: LibraryRepository, srv_mod) -> None:
     """Bulk-discard all games with NO RA support at all (status='no_support')."""
     result = srv_mod._job_results.get("ra_check")
     if not result:
@@ -578,7 +580,7 @@ def _ra_discard_no_support(ctx, repository: "LibraryRepository", srv_mod) -> Non
     ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})
 
 
-def _resolve_duplicate_ra(ctx, data: dict, repository: "LibraryRepository") -> None:
+def _resolve_duplicate_ra(ctx, data: dict, repository: LibraryRepository) -> None:
     """B1-4: Resolve title-based duplicates by keeping the one with RA support."""
     keep_path     = data.get("keep_path", "").strip()
     discard_paths = data.get("discard_paths", [])

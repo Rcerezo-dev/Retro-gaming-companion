@@ -3,9 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from rom_manager.utils.orphan_finder import OrphanedSave, find_orphaned_saves
+from rom_manager.utils.orphan_finder import find_orphaned_saves
 
 SAVE_EXTS = frozenset({".sav", ".srm", ".state", ".rtc"})
 

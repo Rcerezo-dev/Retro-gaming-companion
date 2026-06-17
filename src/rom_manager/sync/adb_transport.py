@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import shlex
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 
@@ -110,7 +110,7 @@ class AdbTransport:
         if "DIR" in out and "NO" not in out:
             # Count top-level entries
             ls_out = self._shell(f"ls {shlex.quote(android_path)}").strip()
-            entries = len([l for l in ls_out.splitlines() if l.strip()]) if ls_out else 0
+            entries = len([ln for ln in ls_out.splitlines() if ln.strip()]) if ls_out else 0
             return {"accessible": True, "path": android_path, "entries": entries}
         return {"accessible": False, "error": f"La ruta {android_path!r} no existe en el dispositivo"}
 

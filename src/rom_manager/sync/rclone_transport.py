@@ -5,7 +5,7 @@ import logging
 import subprocess
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -411,4 +411,4 @@ def _parse_rclone_time(raw: str) -> datetime:
                 raw = f"{base}.{frac}{tz}"
                 break
     dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    return dt.astimezone(timezone.utc).replace(tzinfo=timezone.utc)
+    return dt.astimezone(UTC).replace(tzinfo=UTC)

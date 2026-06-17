@@ -105,6 +105,7 @@ def _platform_folder_name(platform: str) -> str:
 def _build_inbox_scan(inbox_path_str: str) -> dict:
     """Scan the inbox folder and return summary + file list."""
     import zipfile as _zf
+
     from rom_manager.detection.platform_detector import detect_platform as _detect_platform
 
     inbox = Path(inbox_path_str).resolve()
@@ -199,16 +200,16 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
 def _run_setup_pipeline(
     library_root: str,
     options: dict,
-    repository: "LibraryRepository",
-    config: "AppConfig",
+    repository: LibraryRepository,
+    config: AppConfig,
     job_manager,
 ) -> None:
     """Background job: first-time setup wizard pipeline (junk → zip → scan → match → plan)."""
-    from rom_manager.scanner import scan_library
     from rom_manager.catalog.matcher import CatalogMatcher
+    from rom_manager.converters.zip_extractor import extract_zip, find_zip_files
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
-    from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
+    from rom_manager.scanner import scan_library
     from rom_manager.web.response_builders import _build_junk_scan
 
     logger = _logger
@@ -332,17 +333,18 @@ def _run_inbox_pipeline(
     target_root_str: str,
     delete_source: bool,
     repository: LibraryRepository,
-    config: "AppConfig",
+    config: AppConfig,
     job_manager,
 ) -> None:
     """Background job: extract → scan → match → plan → rename → move → cleanup."""
     import shutil as _shutil
-    from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
-    from rom_manager.scanner import scan_library
+
     from rom_manager.catalog.matcher import CatalogMatcher
+    from rom_manager.converters.zip_extractor import extract_zip, find_zip_files
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves
+    from rom_manager.scanner import scan_library
     from rom_manager.scanner.rom_scanner import utc_now
 
     inbox = Path(inbox_path_str).resolve()
@@ -383,7 +385,8 @@ def _run_inbox_pipeline(
         _upd("intercepting bios", 1)
         bios_moved = 0
         for ext_file in list(inbox.rglob("*")):
-            if not ext_file.is_file(): continue
+            if not ext_file.is_file():
+                continue
             if any(part.startswith("_") for part in ext_file.relative_to(inbox).parts[:-1]):
                 continue
             name_lower = ext_file.name.lower()
@@ -570,4 +573,4 @@ def _run_inbox_pipeline(
 
 def _watcher_now() -> str:
     import datetime as _dt_mod
-    return _dt_mod.datetime.now(_dt_mod.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return _dt_mod.datetime.now(_dt_mod.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -105,4 +104,4 @@ def get_last_sync(
     if row is None:
         return None
     raw = row[0]
-    return datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
+    return datetime.fromisoformat(raw).replace(tzinfo=UTC)

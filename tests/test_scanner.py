@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.scanner.rom_scanner import ScanResult, scan_library
-
+from rom_manager.scanner.rom_scanner import scan_library
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -183,9 +180,9 @@ def test_prune_stale_entries(tmp_path):
     rom_dir.mkdir()
     db_path = tmp_path / ".rommgr" / "library.db"
 
-    game_a = _write(rom_dir, "gba", "GameA.gba")
+    _write(rom_dir, "gba", "GameA.gba")
     game_b = _write(rom_dir, "gba", "GameB.gba")
-    game_c = _write(rom_dir, "gba", "GameC.gba")
+    _write(rom_dir, "gba", "GameC.gba")
 
     repo = LibraryRepository(db_path)
     cfg = load_config()

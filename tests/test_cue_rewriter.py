@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rom_manager.renamer.cue_rewriter import rewrite_cue
 
 

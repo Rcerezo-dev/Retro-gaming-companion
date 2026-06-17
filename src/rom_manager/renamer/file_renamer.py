@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -91,11 +91,9 @@ def rename_rom_with_saves(
             except OSError as rb_exc:
                 rollback_failures.append(f"{new_path.name} → {original_path.name}: {rb_exc}")
         # Rollback: undo the ROM rename
-        rom_rb_failed = False
         try:
             os.rename(target, source)
         except OSError as rb_exc:
-            rom_rb_failed = True
             rollback_failures.append(f"ROM {target.name} → {source.name}: {rb_exc}")
         if rollback_failures:
             detail = "; rollback INCOMPLETE — manual fix needed: " + " | ".join(rollback_failures)

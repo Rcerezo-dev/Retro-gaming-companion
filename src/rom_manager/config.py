@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-
 
 # Default Android emulator save/savestate path mappings.
 # Verified live on Anbernic RG556 (serial: RG556006101273).
@@ -512,7 +511,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     )
 
 
-def get_adb_sync_sources(config: "AppConfig") -> list[dict]:
+def get_adb_sync_sources(config: AppConfig) -> list[dict]:
     """Return ADB sync source descriptors derived from config.emulator_paths.
 
     Each entry is a dict with:
@@ -572,7 +571,7 @@ def _path_exists(p: str) -> bool:
         return False
 
 
-def validate(config: "AppConfig") -> list[dict]:
+def validate(config: AppConfig) -> list[dict]:
     """Return a list of configuration warnings (non-fatal issues).
 
     Each entry is a dict with keys:

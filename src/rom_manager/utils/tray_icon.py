@@ -21,8 +21,8 @@ import sys
 import threading
 import webbrowser
 import winreg
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 if sys.platform != "win32":
     raise ImportError("tray_icon is Windows-only")
@@ -145,7 +145,7 @@ def _default_launch_cmd() -> str:
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}" --tray'
     # Running via rommgr.cmd / Python
-    scripts_dir = Path(sys.executable).parent / "Scripts"
+    Path(sys.executable).parent / "Scripts"
     cmd_script = Path(__file__).resolve().parents[3] / "scripts" / "rommgr.cmd"
     if cmd_script.exists():
         return f'"{cmd_script}" serve --tray'

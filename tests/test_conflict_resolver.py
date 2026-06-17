@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import UTC, datetime, timedelta
 
 from rom_manager.sync.conflict_resolver import decide
 
 
 def _dt(offset_seconds: float = 0) -> datetime:
-    base = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    base = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
     return base + timedelta(seconds=offset_seconds)
 
 

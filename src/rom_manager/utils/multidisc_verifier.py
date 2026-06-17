@@ -63,7 +63,6 @@ def verify_multidisc(
             ))
 
         # Check consecutive disc numbers
-        import re
         disc_numbers = []
         for disc in group.discs:
             m = _DISC_RE.match(disc.stem)

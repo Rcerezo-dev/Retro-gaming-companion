@@ -1,38 +1,42 @@
 from __future__ import annotations
 
-import json
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    repo_android: "LibraryRepository",
-    get_repo_fn: "Callable[[str], LibraryRepository]",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    repo_android: LibraryRepository,
+    get_repo_fn: Callable[[str], LibraryRepository],
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register ES-DE, export, report, utility and tool routes on *router*."""
 
+    from rom_manager.reports import build_report, to_csv
+    from rom_manager.reports import to_json as _to_json
     from rom_manager.web.response_builders import (
-        _json_response, _test_path, _list_drives,
-        _build_library_report, _build_status,
+        _build_library_report,
+        _build_status,
+        _list_drives,
+        _test_path,
     )
-    from rom_manager.reports import build_report, to_csv, to_json as _to_json
 
     # ── GET /api/local-url ────────────────────────────────────────────────────
     @router.get("/api/local-url")
@@ -179,8 +183,11 @@ def register(
             job_result = None
             try:
                 from rom_manager.converters.chd_converter import (
-                    find_cue_files, convert_to_chd, parse_bins_from_cue,
-                    ConversionResult, ConversionSummary,
+                    ConversionResult,
+                    ConversionSummary,
+                    convert_to_chd,
+                    find_cue_files,
+                    parse_bins_from_cue,
                 )
                 source = Path(source_path_str).resolve()
                 cue_files = find_cue_files(source)
@@ -408,7 +415,7 @@ def register(
         def run() -> None:
             job_result = None
             try:
-                from rom_manager.converters.zip_extractor import find_zip_files, extract_zip
+                from rom_manager.converters.zip_extractor import extract_zip, find_zip_files
                 from rom_manager.scanner.rom_scanner import utc_now
                 source = Path(source_path_str).resolve()
                 zip_files = find_zip_files(source)
@@ -514,8 +521,8 @@ def register(
         def run() -> None:
             job_result = None
             try:
-                from rom_manager.utils.health_checker import check_library_health
                 from rom_manager.scanner.rom_scanner import utc_now
+                from rom_manager.utils.health_checker import check_library_health
 
                 def progress_cb(current: int, total: int, filename: str) -> None:
                     job_manager.update_progress("health_check", {"current": current, "total": total, "current_file": filename})
@@ -853,7 +860,7 @@ def register(
 
 # ── Module-level helpers (also used by server.py internals) ──────────────────
 
-def _handle_esde_status(config: "AppConfig") -> dict:
+def _handle_esde_status(config: AppConfig) -> dict:
     """Detect ES-DE installation and return status + suggested gamelist paths."""
     appdata = os.environ.get("APPDATA", "")
     localappdata = os.environ.get("LOCALAPPDATA", "")
@@ -902,7 +909,7 @@ def _handle_esde_status(config: "AppConfig") -> dict:
     }
 
 
-def _handle_copy_assets_to_esde(config: "AppConfig") -> dict:
+def _handle_copy_assets_to_esde(config: AppConfig) -> dict:
     """Copy scraped box art from library_root/{platform}/media/images/ to ES-DE gamelists dir."""
     esde = _handle_esde_status(config)
     if not esde.get("gamelists_dir"):
@@ -945,9 +952,8 @@ _DISC_PLATFORM_KEYWORDS = {
 }
 
 
-def _handle_generate_es_systems(config: "AppConfig") -> dict:
+def _handle_generate_es_systems(config: AppConfig) -> dict:
     """Generate custom_systems/es_systems.xml based on detected RetroArch cores."""
-    import os
     from rom_manager.esde.systems_generator import generate_es_systems_xml
 
     # Locate the cores/ directory from the configured RetroArch path
@@ -980,7 +986,7 @@ def _handle_generate_es_systems(config: "AppConfig") -> dict:
     }
 
 
-def _handle_disc_folders(config: "AppConfig") -> dict:
+def _handle_disc_folders(config: AppConfig) -> dict:
     """Return subfolders of library_root whose name matches known disc-based platforms."""
     root = config.library_root
     if not root or not root.exists():

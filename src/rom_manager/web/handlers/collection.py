@@ -11,16 +11,17 @@ if TYPE_CHECKING:
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    repo_android: "LibraryRepository",
+    config: AppConfig,
+    repository: LibraryRepository,
+    repo_android: LibraryRepository,
     get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
-    from rom_manager.web.response_builders import _build_library_diff, _build_assets
     import sys
+
+    from rom_manager.web.response_builders import _build_assets, _build_library_diff
     print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
@@ -69,8 +70,8 @@ def register(
     # ── GET /api/asset-image ──────────────────────────────────────────────────
     @router.get("/api/asset-image")
     def get_asset_image(ctx) -> None:
-        from pathlib import Path
         import mimetypes
+        from pathlib import Path
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("game_id", [None])[0]
         if not game_id:
@@ -109,7 +110,9 @@ def register(
     # ── GET /api/export-library ───────────────────────────────────────────────
     @router.get("/api/export-library")
     def get_export_library(ctx) -> None:
-        import io as _io, csv as _csv, json as _json
+        import csv as _csv
+        import io as _io
+        import json as _json
         qs = getattr(ctx, "_qs", {})
         fmt = qs.get("format", ["csv"])[0]
         src_root = qs.get("root", [None])[0] or None
@@ -133,7 +136,8 @@ def register(
     # ── GET /api/export-wishlist ──────────────────────────────────────────────
     @router.get("/api/export-wishlist")
     def get_export_wishlist(ctx) -> None:
-        import io as _io, csv as _csv
+        import csv as _csv
+        import io as _io
         qs = getattr(ctx, "_qs", {})
         src_root = qs.get("root", [None])[0] or None
         wl_repo = get_repo_fn(src_root or "")
@@ -390,7 +394,7 @@ def register(
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
-def _build_missing_data(config: "AppConfig", repository: "LibraryRepository") -> list[dict]:
+def _build_missing_data(config: AppConfig, repository: LibraryRepository) -> list[dict]:
     """Load all DAT files and compute missing ROMs vs. the library.
 
     Returns a list of dicts, one per DAT platform:

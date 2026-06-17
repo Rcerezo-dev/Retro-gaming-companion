@@ -5,11 +5,11 @@ All state is isolated per test via the `repo` fixture.
 """
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
-from rom_manager.database.repository import LibraryRepository, DuplicateGroup
+import pytest
 
+from rom_manager.database.repository import LibraryRepository
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -245,7 +245,7 @@ def test_prune_stale_removes_missing(repo, tmp_path):
 
 def test_prune_stale_ignores_other_roots(repo, tmp_path):
     root_a = str(tmp_path / "a")
-    root_b = str(tmp_path / "b")
+    str(tmp_path / "b")
     path_a = str(tmp_path / "a" / "game.gba")
     path_b = str(tmp_path / "b" / "game.gba")
 

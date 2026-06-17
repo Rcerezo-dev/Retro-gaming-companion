@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import json
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
-
 
 _API_BASE = "https://www.screenscraper.fr/api2"
 _SOFT_NAME = "rommgr"

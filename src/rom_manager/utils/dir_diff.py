@@ -10,7 +10,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-
 # Dirs that are never ROMs — skip them on any platform
 _OS_SKIP: frozenset[str] = frozenset({
     "System Volume Information",
