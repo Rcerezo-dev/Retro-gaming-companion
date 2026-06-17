@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from typing import Any
-
 
 # ── Job names (canonical) ─────────────────────────────────────────────────────
 JOB_NAMES: tuple[str, ...] = (
-    "scan", "match", "sync",
-    "convert_chd", "convert_cso", "scrape",
-    "extract_zip", "health_check",
-    "ra_check", "cable_sync",
-    "apply", "inbox", "setup",
+    "scan",
+    "match",
+    "sync",
+    "convert_chd",
+    "convert_cso",
+    "scrape",
+    "extract_zip",
+    "health_check",
+    "ra_check",
+    "cable_sync",
+    "apply",
+    "inbox",
+    "setup",
     "backup_now",
-    "tree_diff", "verify_chd",
+    "tree_diff",
+    "verify_chd",
 )
 
 
@@ -46,19 +55,16 @@ class JobManager:
         self._progress: dict[str, dict[str, Any]] = {}
 
         # Per-job cancel events
-        self._cancel: dict[str, threading.Event] = {
-            name: threading.Event() for name in JOB_NAMES
-        }
+        self._cancel: dict[str, threading.Event] = {name: threading.Event() for name in JOB_NAMES}
 
     # ── Job lifecycle ─────────────────────────────────────────────────────────
 
-    def start(self, job_id: str, fn: "Callable[[], None]") -> dict[str, str]:
+    def start(self, job_id: str, fn: Callable[[], None]) -> dict[str, str]:
         """Start *job_id* in a daemon thread if not already running.
 
         Returns ``{"status": "started"}`` or ``{"status": "already_running"}``.
         *fn* is responsible for calling :meth:`finish` in its ``finally`` block.
         """
-        from typing import Callable  # noqa: F401
         with self._lock:
             if self._running.get(job_id, False):
                 return {"status": "already_running"}
@@ -117,50 +123,50 @@ class JobManager:
 
         return {
             # running flags
-            "scan_running":         running.get("scan", False),
-            "match_running":        running.get("match", False),
-            "sync_running":         running.get("sync", False),
-            "convert_chd_running":  running.get("convert_chd", False),
-            "convert_cso_running":  running.get("convert_cso", False),
-            "scrape_running":       running.get("scrape", False),
-            "extract_zip_running":  running.get("extract_zip", False),
+            "scan_running": running.get("scan", False),
+            "match_running": running.get("match", False),
+            "sync_running": running.get("sync", False),
+            "convert_chd_running": running.get("convert_chd", False),
+            "convert_cso_running": running.get("convert_cso", False),
+            "scrape_running": running.get("scrape", False),
+            "extract_zip_running": running.get("extract_zip", False),
             "health_check_running": running.get("health_check", False),
-            "ra_check_running":     running.get("ra_check", False),
-            "cable_sync_running":   running.get("cable_sync", False),
-            "apply_running":        running.get("apply", False),
-            "inbox_running":        running.get("inbox", False),
-            "setup_running":        running.get("setup", False),
-            "backup_now_running":   running.get("backup_now", False),
-            "tree_diff_running":    running.get("tree_diff", False),
-            "verify_chd_running":   running.get("verify_chd", False),
+            "ra_check_running": running.get("ra_check", False),
+            "cable_sync_running": running.get("cable_sync", False),
+            "apply_running": running.get("apply", False),
+            "inbox_running": running.get("inbox", False),
+            "setup_running": running.get("setup", False),
+            "backup_now_running": running.get("backup_now", False),
+            "tree_diff_running": running.get("tree_diff", False),
+            "verify_chd_running": running.get("verify_chd", False),
             # results
-            "scan_result":          r.get("scan"),
-            "match_result":         r.get("match"),
-            "sync_result":          r.get("sync"),
-            "convert_chd_result":   r.get("convert_chd"),
-            "convert_cso_result":   r.get("convert_cso"),
-            "scrape_result":        r.get("scrape"),
-            "extract_zip_result":   r.get("extract_zip"),
-            "health_check_result":  r.get("health_check"),
-            "ra_check_result":      r.get("ra_check"),
-            "cable_sync_result":    r.get("cable_sync"),
-            "apply_result":         r.get("apply"),
-            "inbox_result":         r.get("inbox"),
-            "setup_result":         r.get("setup"),
-            "backup_now_result":    r.get("backup_now"),
-            "tree_diff_result":     r.get("tree_diff"),
-            "verify_chd_result":    r.get("verify_chd"),
+            "scan_result": r.get("scan"),
+            "match_result": r.get("match"),
+            "sync_result": r.get("sync"),
+            "convert_chd_result": r.get("convert_chd"),
+            "convert_cso_result": r.get("convert_cso"),
+            "scrape_result": r.get("scrape"),
+            "extract_zip_result": r.get("extract_zip"),
+            "health_check_result": r.get("health_check"),
+            "ra_check_result": r.get("ra_check"),
+            "cable_sync_result": r.get("cable_sync"),
+            "apply_result": r.get("apply"),
+            "inbox_result": r.get("inbox"),
+            "setup_result": r.get("setup"),
+            "backup_now_result": r.get("backup_now"),
+            "tree_diff_result": r.get("tree_diff"),
+            "verify_chd_result": r.get("verify_chd"),
             # progress
-            "chd_progress":         _prog("convert_chd"),
-            "cso_progress":         _prog("convert_cso"),
-            "scrape_progress":      _prog("scrape"),
-            "zip_progress":         _prog("extract_zip"),
-            "health_progress":      _prog("health_check"),
-            "ra_progress":          _prog("ra_check"),
-            "cable_progress":       _prog("cable_sync"),
-            "scan_progress":        _prog("scan"),
-            "apply_progress":       _prog("apply"),
-            "inbox_progress":       _prog("inbox"),
-            "setup_progress":       _prog("setup"),
-            "verify_chd_progress":  _prog("verify_chd"),
+            "chd_progress": _prog("convert_chd"),
+            "cso_progress": _prog("convert_cso"),
+            "scrape_progress": _prog("scrape"),
+            "zip_progress": _prog("extract_zip"),
+            "health_progress": _prog("health_check"),
+            "ra_progress": _prog("ra_check"),
+            "cable_progress": _prog("cable_sync"),
+            "scan_progress": _prog("scan"),
+            "apply_progress": _prog("apply"),
+            "inbox_progress": _prog("inbox"),
+            "setup_progress": _prog("setup"),
+            "verify_chd_progress": _prog("verify_chd"),
         }

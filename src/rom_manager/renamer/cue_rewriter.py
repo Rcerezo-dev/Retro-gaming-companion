@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 _FILE_LINE_RE = re.compile(
     r"(^\s*FILE\s+\")(.+?)(\"\s*\S*.*)",
     re.IGNORECASE | re.MULTILINE,
@@ -34,7 +33,7 @@ def rewrite_cue(cue_path: Path, old_bin: str, new_bin: str) -> bool:
         m = _FILE_LINE_RE.match(line)
         if m and m.group(2).lower() == old_bin.lower():
             # Preserve everything after the match (e.g. trailing newline)
-            tail = line[m.end():]
+            tail = line[m.end() :]
             line = m.group(1) + new_bin + m.group(3) + tail
             changed = True
         new_lines.append(line)

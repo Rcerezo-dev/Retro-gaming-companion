@@ -13,7 +13,7 @@ _DISC_RE = re.compile(r"^(.+?)\s*\(Dis[ck]\s*(\d+)\)\s*$", re.IGNORECASE)
 @dataclass(slots=True)
 class DiscGroup:
     base_name: str
-    discs: list[Path]   # sorted by disc number
+    discs: list[Path]  # sorted by disc number
     m3u_path: Path
     platform: str = ""  # parent folder name (e.g. "psx", "saturn")
 
@@ -50,12 +50,14 @@ def find_disc_groups(directory: Path) -> list[DiscGroup]:
         base_name = _DISC_RE.match(base_name).group(1).strip()  # type: ignore[union-attr]
         parent = entries[0][1].parent
         m3u_path = parent / f"{base_name}.m3u"
-        groups.append(DiscGroup(
-            base_name=base_name,
-            discs=[p for _, p in entries],
-            m3u_path=m3u_path,
-            platform=parent.name,
-        ))
+        groups.append(
+            DiscGroup(
+                base_name=base_name,
+                discs=[p for _, p in entries],
+                m3u_path=m3u_path,
+                platform=parent.name,
+            )
+        )
 
     return sorted(groups, key=lambda g: g.base_name)
 

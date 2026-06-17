@@ -4,17 +4,17 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-_DISC_RE = re.compile(r'\(Dis[ck]\s*(\d+)\)', re.IGNORECASE)
+_DISC_RE = re.compile(r"\(Dis[ck]\s*(\d+)\)", re.IGNORECASE)
 
 # Priority order when deduplicating entries with the same scraped title.
 # Lower index = higher priority.
 _EXT_PRIORITY: dict[str, int] = {
-    ".m3u":  0,   # playlist covers all discs → always preferred
-    ".chd":  1,   # converted disc image (single file, clean)
-    ".pbp":  2,   # PSP packed disc
-    ".cue":  3,   # cue sheet (valid, but inferior to m3u/chd)
-    ".gdi":  4,
-    ".iso":  5,
+    ".m3u": 0,  # playlist covers all discs → always preferred
+    ".chd": 1,  # converted disc image (single file, clean)
+    ".pbp": 2,  # PSP packed disc
+    ".cue": 3,  # cue sheet (valid, but inferior to m3u/chd)
+    ".gdi": 4,
+    ".iso": 5,
 }
 _EXT_PRIORITY_DEFAULT = 10
 
@@ -75,9 +75,7 @@ def write_gamelist(
             game_el = ET.SubElement(root_el, "game")
 
             rel = _rom_rel(entry)
-            path_val = (
-                str(platform_dir / rel) if use_absolute else f"./{rel}"
-            )
+            path_val = str(platform_dir / rel) if use_absolute else f"./{rel}"
             _sub(game_el, "path", path_val)
 
             title = entry.get("title") or _stem(entry["filename"])

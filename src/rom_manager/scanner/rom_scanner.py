@@ -12,10 +12,10 @@ from pathlib import Path
 from rom_manager.config import AppConfig
 from rom_manager.database import LibraryRepository
 from rom_manager.detection import FileCategory, classify_path, detect_platform
+from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.set_detector import detect_set_type
 from rom_manager.hashing import calculate_hashes
-from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.scanner.asset_scanner import inspect_asset
 
 _PROGRESS_INTERVAL = 10
@@ -95,11 +95,15 @@ def scan_library(
                     result.saves_detected += 1
                     # Update last_played_at for the associated ROM (same directory + same stem)
                     try:
-                        save_mtime_ts = datetime.fromtimestamp(path.stat().st_mtime, UTC).replace(microsecond=0).isoformat()
+                        save_mtime_ts = (
+                            datetime.fromtimestamp(path.stat().st_mtime, UTC)
+                            .replace(microsecond=0)
+                            .isoformat()
+                        )
                         stem_like = str(path.parent.resolve()) + os.sep + path.stem + ".%"
                         conn.execute(
                             "UPDATE games SET last_played_at = ? WHERE source_path LIKE ? AND (last_played_at IS NULL OR last_played_at < ?)",
-                            (save_mtime_ts, stem_like, save_mtime_ts)
+                            (save_mtime_ts, stem_like, save_mtime_ts),
                         )
                     except Exception:
                         pass

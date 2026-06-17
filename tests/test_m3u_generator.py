@@ -1,13 +1,10 @@
 """Tests for m3u_generator.py — multi-disc playlist generation."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rom_manager.utils.m3u_generator import (
-    DiscGroup,
-    M3USummary,
     find_disc_groups,
     generate_m3u_playlists,
     write_m3u,

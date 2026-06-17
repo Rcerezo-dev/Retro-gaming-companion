@@ -8,6 +8,7 @@ Usage
 - MAME listxml: generated with ``mame -listxml > mame.xml``
 - FBNeo DAT: downloaded from https://github.com/libretro/FBNeo/tree/master/dats
 """
+
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET

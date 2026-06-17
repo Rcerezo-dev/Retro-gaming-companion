@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-
 
 # Default Android emulator save/savestate path mappings.
 # Verified live on Anbernic RG556 (serial: RG556006101273).
@@ -143,10 +142,13 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
 @dataclass(slots=True)
 class SyncSource:
     """One emulator's save directory paired with its cloud remote path."""
+
     name: str
     local_dir: str
     remote: str
-    sync_all: bool = False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
+    sync_all: bool = (
+        False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
+    )
 
 
 @dataclass(slots=True)
@@ -161,18 +163,18 @@ class AppConfig:
     catalogs_arcade_dir: Path
     excluded_directories: tuple[str, ...]
     frontend_asset_extensions: tuple[str, ...]
-    save_extensions: tuple[str, ...]   # permanent saves only (.sav, .srm, …)
+    save_extensions: tuple[str, ...]  # permanent saves only (.sav, .srm, …)
     state_extensions: tuple[str, ...]  # savestates (.state, .st0, …)
     # From config.toml (optional)
-    library_root: Path | None   # root of the ROM+saves library on this PC
+    library_root: Path | None  # root of the ROM+saves library on this PC
     rclone_remote: str
     rclone_binary: str
     chdman: str
     adb: str
     web_host: str
     web_port: int
-    web_pin_hash: str   # SHA-256(pin+salt); empty = no auth
-    web_pin_salt: str   # random hex salt for the PIN hash
+    web_pin_hash: str  # SHA-256(pin+salt); empty = no auth
+    web_pin_salt: str  # random hex salt for the PIN hash
     web_session_ttl: int  # session cookie TTL in seconds (default 86400 = 24h)
     screenscraper_user: str
     screenscraper_pass: str
@@ -182,34 +184,36 @@ class AppConfig:
     ra_username: str
     # Auto-sync daemon settings
     auto_sync_enabled: bool
-    auto_sync_direction: str        # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
-    auto_sync_android_path: str     # Android RetroArch root path
-    auto_sync_known_devices: list   # serial numbers; empty = any device
-    conflict_policy: str            # "newest" | "keep_pc" | "keep_android" | "ask"
-    anbernic_root: str              # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
-    device_name: str                # display name for the Android device (e.g. "Consola Android", "Steam Deck")
+    auto_sync_direction: str  # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
+    auto_sync_android_path: str  # Android RetroArch root path
+    auto_sync_known_devices: list  # serial numbers; empty = any device
+    conflict_policy: str  # "newest" | "keep_pc" | "keep_android" | "ask"
+    anbernic_root: str  # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
+    device_name: str  # display name for the Android device (e.g. "Consola Android", "Steam Deck")
     # Inbox (Pilar 2) settings
-    inbox_path: str                 # folder to watch for new files
-    inbox_target_root: str          # where to place organized files (defaults to library_root)
-    inbox_auto_process: bool        # auto-process when files detected
-    inbox_delete_source: bool       # delete original ZIP after organizing
+    inbox_path: str  # folder to watch for new files
+    inbox_target_root: str  # where to place organized files (defaults to library_root)
+    inbox_auto_process: bool  # auto-process when files detected
+    inbox_delete_source: bool  # delete original ZIP after organizing
     # Multi-source cloud sync
-    sync_sources: list[SyncSource]  # one entry per emulator; populated from [[sync.sources]] in config.toml
+    sync_sources: list[
+        SyncSource
+    ]  # one entry per emulator; populated from [[sync.sources]] in config.toml
     # Launcher (S28)
-    retroarch_path: str             # path to retroarch.exe
-    launcher_cores: dict            # platform → libretro core path
+    retroarch_path: str  # path to retroarch.exe
+    launcher_cores: dict  # platform → libretro core path
     # Save backup (S29)
-    backup_saves_enabled: bool      # True = auto-backup before sync/rename overwrites
-    backup_saves_keep_n: int        # max versions per save file (default 5)
-    pre_sync_backup: bool           # True = crear ZIP de saves antes de cada sync (QoL-11)
+    backup_saves_enabled: bool  # True = auto-backup before sync/rename overwrites
+    backup_saves_keep_n: int  # max versions per save file (default 5)
+    pre_sync_backup: bool  # True = crear ZIP de saves antes de cada sync (QoL-11)
     # Desktop notifications (S37)
-    notify_desktop: bool            # True = show Windows toast on sync/health/inbox completion
+    notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
     # Dual-remote cloud sync (D2)
-    saves_remote: str               # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
-    states_remote: str              # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
+    saves_remote: str  # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
+    states_remote: str  # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
     # Android emulator path mappings (SYNC-A2)
     # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
-    emulator_paths: dict            # package_name → {name, saves_path, states_path, adb_required, ...}
+    emulator_paths: dict  # package_name → {name, saves_path, states_path, adb_required, ...}
 
     # ── Device connectivity check (UX-1/2) ────────────────────────────────────
     def is_device_connected(self) -> tuple[bool, str]:
@@ -235,11 +239,11 @@ class AppConfig:
                     timeout=2,
                 )
                 # Parse output for connected devices (exclude "daemon started" and headers)
-                lines = result.stdout.strip().split('\n')[1:]  # skip "List of attached devices"
+                lines = result.stdout.strip().split("\n")[1:]  # skip "List of attached devices"
                 for line in lines:
-                    if '\t' in line:
-                        device_id, status = line.split('\t', 1)
-                        if status.strip() == 'device':  # online device
+                    if "\t" in line:
+                        device_id, status = line.split("\t", 1)
+                        if status.strip() == "device":  # online device
                             return True, f"ADB device: {device_id}"
             except Exception:
                 pass  # ADB check failed, continue to SD card check
@@ -359,21 +363,25 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     sync_sources: list[SyncSource] = []
     for s in raw_sources:
         if isinstance(s, dict) and s.get("local_dir") and s.get("remote"):
-            sync_sources.append(SyncSource(
-                name=str(s.get("name", s.get("local_dir", "?"))),
-                local_dir=str(s["local_dir"]),
-                remote=str(s["remote"]),
-                sync_all=bool(s.get("sync_all", False)),
-            ))
+            sync_sources.append(
+                SyncSource(
+                    name=str(s.get("name", s.get("local_dir", "?"))),
+                    local_dir=str(s["local_dir"]),
+                    remote=str(s["remote"]),
+                    sync_all=bool(s.get("sync_all", False)),
+                )
+            )
     # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote
     if not sync_sources:
         legacy_remote = sync.get("remote", "")
         if legacy_remote and library_root:
-            sync_sources.append(SyncSource(
-                name="RetroArch",
-                local_dir=str(library_root),
-                remote=legacy_remote,
-            ))
+            sync_sources.append(
+                SyncSource(
+                    name="RetroArch",
+                    local_dir=str(library_root),
+                    remote=legacy_remote,
+                )
+            )
 
     # Parse auto_sync_known_devices — stored as comma-separated string or TOML array
     _known_raw = sync.get("auto_sync_known_devices", "")
@@ -413,7 +421,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         ra_username=ra.get("username", ""),
         auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
         auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
-        auto_sync_android_path=str(sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")),
+        auto_sync_android_path=str(
+            sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")
+        ),
         auto_sync_known_devices=auto_sync_known_devices,
         conflict_policy=str(sync.get("conflict_policy", "newest")),
         inbox_path=str(inbox_cfg.get("path", "")),
@@ -487,9 +497,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ".brmc",
             ".ml1",
             # Standalone emulators
-            ".mcd",   # DuckStation (PSX memory card)
-            ".ps2",   # PCSX2 (PS2 memory card)
-            ".gci",   # Dolphin (GameCube memory card slot file)
+            ".mcd",  # DuckStation (PSX memory card)
+            ".ps2",  # PCSX2 (PS2 memory card)
+            ".gci",  # Dolphin (GameCube memory card slot file)
         ),
         state_extensions=(
             ".state",
@@ -512,7 +522,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     )
 
 
-def get_adb_sync_sources(config: "AppConfig") -> list[dict]:
+def get_adb_sync_sources(config: AppConfig) -> list[dict]:
     """Return ADB sync source descriptors derived from config.emulator_paths.
 
     Each entry is a dict with:
@@ -551,16 +561,18 @@ def get_adb_sync_sources(config: "AppConfig") -> list[dict]:
         raw_save_ext = info.get("save_extensions")
         raw_state_ext = info.get("state_extensions")
 
-        sources.append({
-            "name": info.get("name", pkg),
-            "package": pkg,
-            "android_saves": saves_path,
-            "android_states": states_path,
-            "local_saves": local_root / "saves" if saves_path else None,
-            "local_states": local_root / "states" if states_path else None,
-            "save_extensions": frozenset(raw_save_ext) if raw_save_ext else None,
-            "state_extensions": frozenset(raw_state_ext) if raw_state_ext else None,
-        })
+        sources.append(
+            {
+                "name": info.get("name", pkg),
+                "package": pkg,
+                "android_saves": saves_path,
+                "android_states": states_path,
+                "local_saves": local_root / "saves" if saves_path else None,
+                "local_states": local_root / "states" if states_path else None,
+                "save_extensions": frozenset(raw_save_ext) if raw_save_ext else None,
+                "state_extensions": frozenset(raw_state_ext) if raw_state_ext else None,
+            }
+        )
     return sources
 
 
@@ -572,7 +584,7 @@ def _path_exists(p: str) -> bool:
         return False
 
 
-def validate(config: "AppConfig") -> list[dict]:
+def validate(config: AppConfig) -> list[dict]:
     """Return a list of configuration warnings (non-fatal issues).
 
     Each entry is a dict with keys:
@@ -587,17 +599,26 @@ def validate(config: "AppConfig") -> list[dict]:
 
     # library_root
     if config.library_root is None:
-        warn("library_root", "Ruta de biblioteca no configurada. Las herramientas no podrán escanear ROMs.")
+        warn(
+            "library_root",
+            "Ruta de biblioteca no configurada. Las herramientas no podrán escanear ROMs.",
+        )
     elif not config.library_root.exists():
         warn("library_root", f"La carpeta de biblioteca no existe: {config.library_root}")
 
     # anbernic_root
     if config.anbernic_root and not _path_exists(config.anbernic_root):
-        warn("anbernic_root", f"La ruta de la consola no existe o no está conectada: {config.anbernic_root}", "info")
+        warn(
+            "anbernic_root",
+            f"La ruta de la consola no existe o no está conectada: {config.anbernic_root}",
+            "info",
+        )
 
     # chdman
     if config.chdman and config.chdman != "chdman" and not _path_exists(config.chdman):
-        warn("chdman", f"chdman no encontrado en: {config.chdman}. La conversión CHD no funcionará.")
+        warn(
+            "chdman", f"chdman no encontrado en: {config.chdman}. La conversión CHD no funcionará."
+        )
 
     # adb
     if config.adb and config.adb != "adb" and not _path_exists(config.adb):
@@ -615,7 +636,11 @@ def validate(config: "AppConfig") -> list[dict]:
 
     # retroachievements
     if not config.ra_api_key:
-        warn("ra_api_key", "API key de RetroAchievements no configurada. Necesaria para el informe de logros.", "info")
+        warn(
+            "ra_api_key",
+            "API key de RetroAchievements no configurada. Necesaria para el informe de logros.",
+            "info",
+        )
 
     # retroarch_path — exe + cores
     if config.retroarch_path:
@@ -625,9 +650,17 @@ def validate(config: "AppConfig") -> list[dict]:
         else:
             cores_dir = ra_exe.parent / "cores"
             if not cores_dir.exists():
-                warn("retroarch_path", "Carpeta cores/ no encontrada. Instala cores desde RetroArch → Online Updater.", "info")
+                warn(
+                    "retroarch_path",
+                    "Carpeta cores/ no encontrada. Instala cores desde RetroArch → Online Updater.",
+                    "info",
+                )
             elif not any(cores_dir.glob("*_libretro.dll")):
-                warn("retroarch_path", "No hay cores instalados en cores/. Descárgalos desde RetroArch → Online Updater.", "info")
+                warn(
+                    "retroarch_path",
+                    "No hay cores instalados en cores/. Descárgalos desde RetroArch → Online Updater.",
+                    "info",
+                )
 
     return warnings
 
@@ -668,8 +701,7 @@ def write_config_toml(project_root: Path, updates: dict) -> None:
             return str(v)
         if isinstance(v, list):
             items = ", ".join(
-                '"{}"'.format(str(x).replace("\\", "\\\\").replace('"', '\\"'))
-                for x in v
+                '"{}"'.format(str(x).replace("\\", "\\\\").replace('"', '\\"')) for x in v
             )
             return f"[{items}]"
         escaped = str(v).replace("\\", "\\\\").replace('"', '\\"')
@@ -677,7 +709,7 @@ def write_config_toml(project_root: Path, updates: dict) -> None:
 
     def _emit(lines: list[str], k: str, v: object) -> None:
         fv = _fmt(v)
-        lines.append(f"# {k} = \"\"\n" if fv is None else f"{k} = {fv}\n")
+        lines.append(f'# {k} = ""\n' if fv is None else f"{k} = {fv}\n")
 
     # Serialise back to TOML (simple writer — no comment preservation)
     lines: list[str] = ["# ROM Manager Local — user configuration\n"]
@@ -686,11 +718,13 @@ def write_config_toml(project_root: Path, updates: dict) -> None:
     for section, contents in existing.items():
         if isinstance(contents, dict):
             regular = {
-                k: v for k, v in contents.items()
+                k: v
+                for k, v in contents.items()
                 if not (isinstance(v, list) and v and isinstance(v[0], dict))
             }
             aot = {
-                k: v for k, v in contents.items()
+                k: v
+                for k, v in contents.items()
                 if isinstance(v, list) and v and isinstance(v[0], dict)
             }
             if regular:
@@ -701,7 +735,7 @@ def write_config_toml(project_root: Path, updates: dict) -> None:
                 deferred_aot.append((section, k, tables))
         else:
             fv = _fmt(contents)
-            lines.append(f"# {section} = \"\"\n" if fv is None else f"{section} = {fv}\n")
+            lines.append(f'# {section} = ""\n' if fv is None else f"{section} = {fv}\n")
 
     # Array-of-tables written after all regular sections (TOML requirement)
     for section, key, tables in deferred_aot:

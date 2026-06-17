@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
@@ -11,8 +11,8 @@ from rom_manager.detection.filename_normalizer import normalize_for_match
 @dataclass(slots=True)
 class MatchResult:
     title: str
-    confidence: str       # "high" | "medium" | "low"
-    catalog_source: str   # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
+    confidence: str  # "high" | "medium" | "low"
+    catalog_source: str  # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
     ambiguous: bool = False
     platform: str | None = None  # set by arcade pass ("MAME" or "FBNeo")
 

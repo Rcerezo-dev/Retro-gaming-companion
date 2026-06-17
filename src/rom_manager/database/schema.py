@@ -206,9 +206,9 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("is_favorite", "INTEGER"),
     ("notes", "TEXT"),
     ("metadata_scraped", "INTEGER"),  # DB-1: boolean flag for metadata cache
-    ("user_rating", "INTEGER"),       # NLP-REC: rating 1-5 por el usuario
-    ("first_played_at", "TEXT"),      # NLP-REC: primera vez jugado
-    ("play_count", "INTEGER"),        # NLP-REC: número de sesiones detectadas vía saves
+    ("user_rating", "INTEGER"),  # NLP-REC: rating 1-5 por el usuario
+    ("first_played_at", "TEXT"),  # NLP-REC: primera vez jugado
+    ("play_count", "INTEGER"),  # NLP-REC: número de sesiones detectadas vía saves
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
@@ -217,7 +217,7 @@ _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
 
 _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("screenshot_path", "TEXT"),  # B6-7: local path to downloaded screenshot
-    ("wheel_path", "TEXT"),       # B6-7: local path to downloaded wheel/logo
+    ("wheel_path", "TEXT"),  # B6-7: local path to downloaded wheel/logo
 )
 
 
@@ -240,7 +240,9 @@ def _migrate_is_favorite_default(cursor: sqlite3.Cursor) -> None:
         pass
 
 
-def _alter_table_add_column(cursor: sqlite3.Cursor, table: str, col_name: str, col_type: str) -> None:
+def _alter_table_add_column(
+    cursor: sqlite3.Cursor, table: str, col_name: str, col_type: str
+) -> None:
     """Execute ALTER TABLE ... ADD COLUMN with validated identifiers (no f-string injection risk)."""
     if not _COL_NAME_RE.match(col_name):
         raise ValueError(f"Invalid column name: {col_name!r}")

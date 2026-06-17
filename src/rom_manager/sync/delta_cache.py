@@ -22,12 +22,13 @@ Format:
       ...
     }
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ class DeltaCache:
         except OSError as exc:
             log.warning("delta cache: cannot hash %s after sync: %s", local_path.name, exc)
             return
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         self._data[relative] = {"hash": h, "synced_at": now, "direction": direction}
         self._flush()
 

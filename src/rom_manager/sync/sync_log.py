@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -39,15 +38,16 @@ def ensure_sync_log_schema(connection: sqlite3.Connection) -> None:
 # Data class
 # ---------------------------------------------------------------------------
 
+
 @dataclass(slots=True)
 class SyncLogEntry:
     id: int
     local_path: str
     remote_path: str
-    direction: str          # 'upload' | 'download' | 'conflict'
+    direction: str  # 'upload' | 'download' | 'conflict'
     local_mtime: str | None
     remote_mtime: str | None
-    result: str             # 'ok' | 'error' | 'skipped'
+    result: str  # 'ok' | 'error' | 'skipped'
     message: str | None
     created_at: str
 
@@ -55,6 +55,7 @@ class SyncLogEntry:
 # ---------------------------------------------------------------------------
 # Repository helpers
 # ---------------------------------------------------------------------------
+
 
 def log_sync_event(
     connection: sqlite3.Connection,
@@ -105,4 +106,4 @@ def get_last_sync(
     if row is None:
         return None
     raw = row[0]
-    return datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
+    return datetime.fromisoformat(raw).replace(tzinfo=UTC)

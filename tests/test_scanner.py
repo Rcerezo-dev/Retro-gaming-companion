@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.scanner.rom_scanner import ScanResult, scan_library
-
+from rom_manager.scanner.rom_scanner import scan_library
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def _write(root: Path, *parts: str, content: bytes = b"\x00" * 64) -> Path:
     p = root.joinpath(*parts)
@@ -32,11 +30,17 @@ def _mock_repo():
 
 # ── scan is recursive ─────────────────────────────────────────────────────────
 
+
 def test_scan_recursive(tmp_path):
     """scan_library must walk subdirectories recursively."""
     _write(tmp_path, "gba", "Castlevania.gba")
-    _write(tmp_path, "psx", "disc1", "FFVII.cue",
-           content=b'FILE "FFVII.bin" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n')
+    _write(
+        tmp_path,
+        "psx",
+        "disc1",
+        "FFVII.cue",
+        content=b'FILE "FFVII.bin" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n',
+    )
     _write(tmp_path, "psx", "disc1", "FFVII.bin")
     _write(tmp_path, "snes", "sub", "deep", "Zelda.sfc")
 
@@ -66,15 +70,18 @@ def test_scan_sd_card_path(tmp_path):
     result = scan_library(tmp_path, cfg, repo, logger)
 
     assert result.roms_detected >= 3  # .gba x2, .chd
-    assert result.saves_detected >= 1  # .srm
+    # Saves inside the dedicated saves/ folder are intentionally excluded from
+    # the ROM scan (the sync subsystem owns them); they count as system files.
+    assert result.saves_detected == 0
+    assert result.system_files_detected >= 1  # the .srm under saves/
     assert result.errors == 0
 
 
 def test_scan_excludes_android_folder(tmp_path):
     """Files inside excluded directories (Android, DCIM, etc.) are not stored as ROMs."""
     _write(tmp_path, "roms", "game.gba")
-    _write(tmp_path, "Android", "data", "some.gba")   # excluded
-    _write(tmp_path, "DCIM", "Camera", "photo.jpg")   # excluded
+    _write(tmp_path, "Android", "data", "some.gba")  # excluded
+    _write(tmp_path, "DCIM", "Camera", "photo.jpg")  # excluded
 
     repo = _mock_repo()
     cfg = load_config()
@@ -126,8 +133,9 @@ def test_scan_stop_event_mid_run(tmp_path):
     cfg = load_config()
     logger = MagicMock()
 
-    result = scan_library(tmp_path, cfg, repo, logger,
-                          stop_event=stop_event, progress_cb=progress_cb)
+    result = scan_library(
+        tmp_path, cfg, repo, logger, stop_event=stop_event, progress_cb=progress_cb
+    )
 
     # Scan should have stopped before all 200 files
     assert result.files_seen < 200
@@ -160,8 +168,8 @@ def test_scan_progress_callback(tmp_path):
 def test_scan_result_aggregation(tmp_path):
     """ScanResult fields are populated correctly."""
     _write(tmp_path, "gba", "game.gba")
-    _write(tmp_path, "gba", "game.sav")   # save file
-    _write(tmp_path, "text.txt")           # unknown
+    _write(tmp_path, "gba", "game.sav")  # save file
+    _write(tmp_path, "text.txt")  # unknown
 
     repo = _mock_repo()
     cfg = load_config()
@@ -177,15 +185,16 @@ def test_scan_result_aggregation(tmp_path):
 
 # ── prune stale entries (integration) ─────────────────────────────────────────
 
+
 def test_prune_stale_entries(tmp_path):
     """Scan 3 files → delete 1 → re-scan → stale entry pruned from DB."""
     rom_dir = tmp_path / "roms"
     rom_dir.mkdir()
     db_path = tmp_path / ".rommgr" / "library.db"
 
-    game_a = _write(rom_dir, "gba", "GameA.gba")
+    _write(rom_dir, "gba", "GameA.gba")
     game_b = _write(rom_dir, "gba", "GameB.gba")
-    game_c = _write(rom_dir, "gba", "GameC.gba")
+    _write(rom_dir, "gba", "GameC.gba")
 
     repo = LibraryRepository(db_path)
     cfg = load_config()

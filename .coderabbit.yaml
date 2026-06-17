@@ -1,0 +1,30 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/guides/configure-coderabbit
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "es-ES"
+early_access: false
+
+reviews:
+  profile: "chill"            # menos ruido; usa "assertive" para revisiones más exigentes
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "develop"
+      - "main"
+  path_filters:
+    - "!**/*.lock"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!**/library.db"
+    - "!Tareas/**"
+  tools:
+    ruff:
+      enabled: true
+
+chat:
+  auto_reply: true

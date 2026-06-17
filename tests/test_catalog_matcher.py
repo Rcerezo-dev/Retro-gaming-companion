@@ -97,6 +97,7 @@ def test_missing_catalog_dir(tmp_path: Path) -> None:
 # Name-based fallback tests
 # ---------------------------------------------------------------------------
 
+
 def test_name_fallback_medium_confidence(catalog_dirs: tuple[Path, Path]) -> None:
     """SHA1 miss + unique normalised name → medium confidence."""
     nointro, redump = catalog_dirs
@@ -122,7 +123,8 @@ def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
     """Two titles with the same normalised key → low confidence, ambiguous=True."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
-    nointro.mkdir(); redump.mkdir()
+    nointro.mkdir()
+    redump.mkdir()
     _write_dat(
         nointro / "test.dat",
         [

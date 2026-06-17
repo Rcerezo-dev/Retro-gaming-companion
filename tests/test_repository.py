@@ -3,15 +3,17 @@
 Uses a real SQLite database in a pytest tmp_path — no mocks, no :memory: tricks.
 All state is isolated per test via the `repo` fixture.
 """
+
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
-from rom_manager.database.repository import LibraryRepository, DuplicateGroup
+import pytest
 
+from rom_manager.database.repository import LibraryRepository
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def repo(tmp_path: Path) -> LibraryRepository:
@@ -34,7 +36,7 @@ def _upsert(repo: LibraryRepository, **overrides) -> None:
         extension=".gba",
         size_bytes=1024,
         mtime=1700000000,
-        sha1="aabbccdd" * 5,   # 40 hex chars
+        sha1="aabbccdd" * 5,  # 40 hex chars
         md5="11223344" * 4,
         crc32="deadbeef",
         set_type="single",
@@ -46,6 +48,7 @@ def _upsert(repo: LibraryRepository, **overrides) -> None:
 
 # ── Schema initialisation ─────────────────────────────────────────────────────
 
+
 def test_fresh_repo_has_empty_summary(repo):
     s = repo.get_summary()
     assert s.total_games == 0
@@ -54,6 +57,7 @@ def test_fresh_repo_has_empty_summary(repo):
 
 
 # ── upsert_game ───────────────────────────────────────────────────────────────
+
 
 def test_upsert_game_inserts(repo):
     _upsert(repo)
@@ -98,6 +102,7 @@ def test_upsert_game_via_batch(repo):
 
 # ── upsert_save / upsert_asset ────────────────────────────────────────────────
 
+
 def test_upsert_save(repo):
     repo.upsert_save(
         original_path="/roms/gba/Game.sav",
@@ -121,6 +126,7 @@ def test_upsert_asset(repo):
 
 
 # ── get_unresolved_games / update_match / get_matched_games ───────────────────
+
 
 def test_get_unresolved_returns_unmatched(repo):
     _upsert(repo, source_path="/roms/A.gba", sha1="aa" * 20)
@@ -156,6 +162,7 @@ def test_update_match_and_get_matched(repo):
 
 # ── get_duplicate_groups / exclude_duplicate_sha1 ────────────────────────────
 
+
 def test_duplicate_groups_same_sha1(repo):
     sha = "deadbeef" * 5
     _upsert(repo, source_path="/roms/Copy1.gba", sha1=sha, size_bytes=1024)
@@ -165,7 +172,7 @@ def test_duplicate_groups_same_sha1(repo):
     assert len(groups) == 1
     assert groups[0].sha1 == sha
     assert len(groups[0].entries) == 2
-    assert groups[0].wasted_bytes == 1024   # one copy is "wasted"
+    assert groups[0].wasted_bytes == 1024  # one copy is "wasted"
 
 
 def test_unique_sha1_not_a_duplicate(repo):
@@ -183,6 +190,7 @@ def test_exclude_duplicate_sha1_hides_group(repo):
 
 
 # ── apply_rename ──────────────────────────────────────────────────────────────
+
 
 def test_apply_rename_updates_path(repo):
     _upsert(repo, source_path="/roms/Old.gba", original_filename="Old.gba")
@@ -225,6 +233,7 @@ def test_apply_rename_logs_file_operation(repo):
 
 # ── prune_stale_entries ───────────────────────────────────────────────────────
 
+
 def test_prune_stale_removes_missing(repo, tmp_path):
     root = str(tmp_path / "roms")
     keep = str(tmp_path / "roms" / "keep.gba")
@@ -245,7 +254,7 @@ def test_prune_stale_removes_missing(repo, tmp_path):
 
 def test_prune_stale_ignores_other_roots(repo, tmp_path):
     root_a = str(tmp_path / "a")
-    root_b = str(tmp_path / "b")
+    str(tmp_path / "b")
     path_a = str(tmp_path / "a" / "game.gba")
     path_b = str(tmp_path / "b" / "game.gba")
 
@@ -260,6 +269,7 @@ def test_prune_stale_ignores_other_roots(repo, tmp_path):
 
 
 # ── scan run lifecycle ────────────────────────────────────────────────────────
+
 
 def test_scan_run_lifecycle(repo):
     root = "/roms/gba"
@@ -285,6 +295,7 @@ def test_scan_run_lifecycle(repo):
 
 # ── batch rollback on error ───────────────────────────────────────────────────
 
+
 def test_batch_rollback_on_error(repo):
     """If an exception is raised inside batch(), the transaction is rolled back."""
     try:
@@ -304,6 +315,7 @@ def test_batch_rollback_on_error(repo):
 
 # ── get_known_roms ────────────────────────────────────────────────────────────
 
+
 def test_get_known_roms_returns_mtime_and_size(repo):
     _upsert(repo, source_path="/roms/Known.gba", mtime=999, size_bytes=2048)
     known = repo.get_known_roms()
@@ -312,6 +324,7 @@ def test_get_known_roms_returns_mtime_and_size(repo):
 
 
 # ── delete_game ───────────────────────────────────────────────────────────────
+
 
 def test_delete_game_removes_row(repo):
     _upsert(repo)
@@ -323,6 +336,7 @@ def test_delete_game_removes_row(repo):
 
 
 # ── sha1_exists ───────────────────────────────────────────────────────────────
+
 
 def test_sha1_exists(repo):
     sha = "12345678" * 5

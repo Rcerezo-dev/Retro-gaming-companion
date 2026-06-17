@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 def write_pegasus_metadata(
     library_root: Path,
-    repository: "LibraryRepository",
+    repository: LibraryRepository,
     output_dir: Path | None = None,
 ) -> dict[str, int]:
     """Write Pegasus Metadata Format files (metadata.pegasus.txt) per platform.

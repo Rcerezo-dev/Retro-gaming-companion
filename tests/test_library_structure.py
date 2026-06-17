@@ -7,11 +7,11 @@ Tests cover:
 - The /api/create-library-structure endpoint (via fake HTTP client)
 - The /api/organize-library endpoint: ROM moves, save relocation, BIOS detection
 """
+
 from __future__ import annotations
 
 import io
 import json
-import shutil
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -25,8 +25,8 @@ from rom_manager.web.server import (
     make_handler,
 )
 
-
 # ── HTTP test helpers (same pattern as test_web_server.py) ─────────────────────
+
 
 class FakeSocket:
     def makefile(self, mode: str) -> io.BytesIO:
@@ -98,6 +98,7 @@ def repo(config_root: Path) -> LibraryRepository:
 
 # ── Static consistency tests (no I/O needed) ──────────────────────────────────
 
+
 class TestPlatformFolderConsistency:
     def test_all_standard_folders_in_es_mapping(self) -> None:
         """Every folder in _STANDARD_PLATFORM_FOLDERS should appear as an ES-DE folder value."""
@@ -144,10 +145,21 @@ class TestPlatformFolderConsistency:
 
     def test_essential_platforms_present(self) -> None:
         essential = {
-            "nes", "snes", "n64", "gb", "gbc", "gba", "nds",
-            "psx", "ps2", "psp",
-            "megadrive", "dreamcast", "saturn",
-            "gamecube", "wii",
+            "nes",
+            "snes",
+            "n64",
+            "gb",
+            "gbc",
+            "gba",
+            "nds",
+            "psx",
+            "ps2",
+            "psp",
+            "megadrive",
+            "dreamcast",
+            "saturn",
+            "gamecube",
+            "wii",
         }
         for folder in essential:
             assert folder in _STANDARD_PLATFORM_FOLDERS, (
@@ -164,8 +176,11 @@ class TestPlatformFolderConsistency:
 
 # ── /api/create-library-structure endpoint ────────────────────────────────────
 
+
 class TestCreateLibraryStructure:
-    def test_creates_platform_folders(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_creates_platform_folders(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         code, data = _post("/api/create-library-structure", {}, repo, config_root)
         assert code == 200
         assert "created" in data
@@ -173,28 +188,38 @@ class TestCreateLibraryStructure:
         for folder in ("nes", "gba", "psx", "megadrive", "saturn"):
             assert (library / folder).is_dir(), f"Missing folder: {folder}"
 
-    def test_creates_special_folders(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_creates_special_folders(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         _post("/api/create-library-structure", {}, repo, config_root)
         for special in ("saves", "bios", "inbox"):
             assert (library / special).is_dir(), f"Missing special folder: {special}"
 
-    def test_creates_media_subfolders(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_creates_media_subfolders(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         _post("/api/create-library-structure", {}, repo, config_root)
-        assert (library / "gba" / "media" / "images").is_dir()
-        assert (library / "gba" / "media" / "videos").is_dir()
+        assert (library / "media" / "gba" / "images").is_dir()
+        assert (library / "media" / "gba" / "videos").is_dir()
 
-    def test_idempotent_second_call(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_idempotent_second_call(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         _post("/api/create-library-structure", {}, repo, config_root)
         code, data = _post("/api/create-library-structure", {}, repo, config_root)
         assert code == 200
         # All folders already exist → created should be empty or zero
         assert data.get("created") == [] or len(data.get("created", [])) == 0
 
-    def test_root_in_response(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_root_in_response(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         _, data = _post("/api/create-library-structure", {}, repo, config_root)
         assert "root" in data
 
-    def test_android_error_when_no_path(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_android_error_when_no_path(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         """Requesting also_android without a configured android_root should return an error in android key."""
         _, data = _post("/api/create-library-structure", {"also_android": True}, repo, config_root)
         # Either android key is empty (no path configured) or contains an error
@@ -204,6 +229,7 @@ class TestCreateLibraryStructure:
 
 
 # ── /api/organize-library endpoint ────────────────────────────────────────────
+
 
 class TestOrganizeLibrary:
     def _add_game(self, repo: LibraryRepository, path: Path, platform: str) -> None:
@@ -218,7 +244,9 @@ class TestOrganizeLibrary:
             )
             conn.commit()
 
-    def test_dry_run_returns_preview(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_dry_run_returns_preview(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         rom = library / "Metroid Fusion (USA).gba"
         rom.write_bytes(b"\x00")
         self._add_game(repo, rom, "Game Boy Advance")
@@ -231,7 +259,9 @@ class TestOrganizeLibrary:
         # File must NOT have moved in dry_run
         assert rom.exists()
 
-    def test_apply_moves_rom_to_platform_folder(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_apply_moves_rom_to_platform_folder(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         (library / "gba").mkdir()
         rom = library / "Metroid Fusion (USA).gba"
         rom.write_bytes(b"\x00" * 32)
@@ -241,7 +271,9 @@ class TestOrganizeLibrary:
         assert (library / "gba" / "Metroid Fusion (USA).gba").exists()
         assert not rom.exists()
 
-    def test_apply_updates_db_source_path(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_apply_updates_db_source_path(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         (library / "gba").mkdir()
         rom = library / "Metroid.gba"
         rom.write_bytes(b"\x00" * 32)
@@ -250,11 +282,15 @@ class TestOrganizeLibrary:
         _post("/api/organize-library", {"dry_run": False}, repo, config_root)
 
         with repo.connect() as conn:
-            row = conn.execute("SELECT source_path FROM games WHERE original_filename = 'Metroid.gba'").fetchone()
+            row = conn.execute(
+                "SELECT source_path FROM games WHERE original_filename = 'Metroid.gba'"
+            ).fetchone()
         new_path = Path(row["source_path"])
         assert new_path.parent.name == "gba"
 
-    def test_apply_moves_sibling_save(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_apply_moves_sibling_save(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         (library / "gba").mkdir()
         (library / "saves").mkdir()
         rom = library / "Metroid.gba"
@@ -267,7 +303,9 @@ class TestOrganizeLibrary:
         assert (library / "saves" / "gba" / "Metroid.sav").exists()
         assert not save.exists()
 
-    def test_bios_file_moved_to_bios_folder(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_bios_file_moved_to_bios_folder(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         (library / "bios").mkdir()
         bios = library / "scph1001.bin"
         bios.write_bytes(b"\x00" * 512)
@@ -277,7 +315,9 @@ class TestOrganizeLibrary:
         assert (library / "bios" / "scph1001.bin").exists()
         assert not bios.exists()
 
-    def test_unknown_bin_not_touched(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_unknown_bin_not_touched(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         """A .bin file with an unknown name should NOT be moved."""
         (library / "bios").mkdir()
         unknown = library / "mystery.bin"
@@ -286,7 +326,9 @@ class TestOrganizeLibrary:
         _post("/api/organize-library", {"dry_run": False}, repo, config_root)
         assert unknown.exists()  # untouched
 
-    def test_conflict_detected_when_target_exists(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_conflict_detected_when_target_exists(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         (library / "gba").mkdir()
         rom = library / "game.gba"
         rom.write_bytes(b"\x00" * 32)
@@ -298,7 +340,9 @@ class TestOrganizeLibrary:
         assert len(data["errors"]) >= 1
         assert rom.exists()  # original still in place
 
-    def test_saturn_game_organized_correctly(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_saturn_game_organized_correctly(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         """Regression test for the 'Sega Saturn' vs 'Saturn' key mismatch bug."""
         (library / "saturn").mkdir()
         rom = library / "Virtua Fighter 2 (USA).chd"
@@ -311,7 +355,9 @@ class TestOrganizeLibrary:
             "check 'Sega Saturn' key in _ES_PLATFORM_FOLDERS"
         )
 
-    def test_game_without_platform_skipped(self, library: Path, config_root: Path, repo: LibraryRepository) -> None:
+    def test_game_without_platform_skipped(
+        self, library: Path, config_root: Path, repo: LibraryRepository
+    ) -> None:
         rom = library / "unknown.bin"
         rom.write_bytes(b"\x00" * 32)
         self._add_game(repo, rom, "")  # no platform

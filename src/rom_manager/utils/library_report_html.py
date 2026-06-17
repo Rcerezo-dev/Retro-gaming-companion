@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import html
-from pathlib import Path
 
 
 def _fmt_bytes(n: int) -> str:
     if n < 1024:
         return f"{n} B"
-    if n < 1024 ** 2:
+    if n < 1024**2:
         return f"{n / 1024:.1f} KB"
-    if n < 1024 ** 3:
-        return f"{n / 1024 ** 2:.1f} MB"
-    return f"{n / 1024 ** 3:.2f} GB"
+    if n < 1024**3:
+        return f"{n / 1024**2:.1f} MB"
+    return f"{n / 1024**3:.2f} GB"
 
 
 def _h(s: object) -> str:
@@ -19,6 +18,7 @@ def _h(s: object) -> str:
 
 
 # ── Per-section renderers ──────────────────────────────────────────────────────
+
 
 def _render_multidisc(rpt: dict) -> str:
     pl = rpt.get("playlists", {})
@@ -68,9 +68,11 @@ def _render_multidisc(rpt: dict) -> str:
         <table><thead><tr><th>Nombre base</th><th>Discos</th><th>Estado</th></tr></thead>
         <tbody>{"".join(rows_missing)}</tbody></table>"""
 
-    summary = (f"<p><strong>{pl.get('total_groups', 0)}</strong> sets multi-disco — "
-               f"<span style='color:#4ec9b0'>{pl.get('with_m3u', 0)} con M3U</span> / "
-               f"<span style='color:#f44747'>{pl.get('without_m3u', 0)} sin M3U</span></p>")
+    summary = (
+        f"<p><strong>{pl.get('total_groups', 0)}</strong> sets multi-disco — "
+        f"<span style='color:#4ec9b0'>{pl.get('with_m3u', 0)} con M3U</span> / "
+        f"<span style='color:#f44747'>{pl.get('without_m3u', 0)} sin M3U</span></p>"
+    )
 
     return summary + issues_html + table_missing + table_ok
 
@@ -97,15 +99,16 @@ def _render_orphans(rpt: dict) -> str:
 def _render_health(rpt: dict) -> str:
     hc = rpt.get("health_check", {})
     if not hc:
-        return ("<p style='color:#888'>No hay datos de Health Check. "
-                "Ejecuta <strong>Health Check</strong> en la pestaña Tools primero.</p>")
+        return (
+            "<p style='color:#888'>No hay datos de Health Check. "
+            "Ejecuta <strong>Health Check</strong> en la pestaña Tools primero.</p>"
+        )
 
     issues = [r for r in hc.get("results", []) if r.get("status") != "ok"]
     ok_count = hc.get("total", 0) - len(issues)
 
     if not issues:
-        return (f"<p style='color:#4ec9b0'>{hc.get('total', 0)} ROMs verificadas — "
-                "todas OK. ✓</p>")
+        return f"<p style='color:#4ec9b0'>{hc.get('total', 0)} ROMs verificadas — todas OK. ✓</p>"
 
     rows = "".join(
         f"<tr><td>{_h(r.get('filename', ''))}</td>"
@@ -130,26 +133,30 @@ def _render_ra_missing(rpt: dict) -> str:
     # The RA check job stores results under "alternatives" (not "results")
     alternatives = ra.get("alternatives") if ra else None
     if not ra or alternatives is None:
-        return ("<p style='color:#888'>No hay datos de RetroAchievements. "
-                "Ejecuta <strong>Comprobar RA</strong> en la pestaña Tools primero.</p>")
+        return (
+            "<p style='color:#888'>No hay datos de RetroAchievements. "
+            "Ejecuta <strong>Comprobar RA</strong> en la pestaña Tools primero.</p>"
+        )
 
     if not alternatives:
         total = ra.get("total", 0)
         supported = ra.get("supported", 0)
-        return (f"<p style='color:#4ec9b0'>No se encontraron versiones sin logros que tengan "
-                f"una alternativa en RA. ✓</p>"
-                f"<p style='color:#888;font-size:12px'>{total} juegos verificados — "
-                f"{supported} con soporte de logros.</p>")
+        return (
+            f"<p style='color:#4ec9b0'>No se encontraron versiones sin logros que tengan "
+            f"una alternativa en RA. ✓</p>"
+            f"<p style='color:#888;font-size:12px'>{total} juegos verificados — "
+            f"{supported} con soporte de logros.</p>"
+        )
 
     # Field "filename" in job result (not "original_filename")
     def _ra_row(r: dict) -> str:
-        ra_id  = _h(r.get("ra_id", ""))
-        title  = _h(r.get("ra_title", ""))
-        plat   = _h(r.get("platform", ""))
-        fname  = _h(r.get("filename") or r.get("original_filename", ""))
-        md5    = _h(r.get("our_md5", ""))
+        ra_id = _h(r.get("ra_id", ""))
+        title = _h(r.get("ra_title", ""))
+        plat = _h(r.get("platform", ""))
+        fname = _h(r.get("filename") or r.get("original_filename", ""))
+        md5 = _h(r.get("our_md5", ""))
         logros = _h(r.get("ra_achievements", ""))
-        link   = f"https://retroachievements.org/game/{ra_id}" if ra_id else "#"
+        link = f"https://retroachievements.org/game/{ra_id}" if ra_id else "#"
         return (
             f"<tr>"
             f"<td>{plat}</td>"
@@ -159,6 +166,7 @@ def _render_ra_missing(rpt: dict) -> str:
             f"<td style='color:#4ec9b0'>{logros}</td>"
             f"</tr>"
         )
+
     rows = "".join(_ra_row(r) for r in alternatives)
     total = ra.get("total", 0)
     no_alt = ra.get("no_support_alternative", len(alternatives))
@@ -181,8 +189,10 @@ def _render_chd(rpt: dict) -> str:
         zips = rpt.get("zips", {})
         disc_zips = [z for z in zips.get("files", []) if z.get("is_disc_set")]
         if not disc_zips:
-            return ("<p style='color:#888'>No hay datos de conversión CHD. "
-                    "Ejecuta <strong>Convertir a CHD</strong> en la pestaña Tools para ver el estado.</p>")
+            return (
+                "<p style='color:#888'>No hay datos de conversión CHD. "
+                "Ejecuta <strong>Convertir a CHD</strong> en la pestaña Tools para ver el estado.</p>"
+            )
         rows = "".join(
             f"<tr><td>{_h(z['name'])}</td><td>{_h(_fmt_bytes(z['size_bytes']))}</td></tr>"
             for z in disc_zips
@@ -201,25 +211,28 @@ def _render_chd(rpt: dict) -> str:
         f"<span style='color:#888'>{skipped} omitidos (ya existen)</span> / "
         f"<span style='color:#f44747'>{len(errors_list)} errores</span></p>"
         + (
-            "<h3 style='color:#f44747'>Errores</h3><ul>" +
-            "".join(f"<li>{_h(e)}</li>" for e in errors_list) + "</ul>"
-            if errors_list else ""
+            "<h3 style='color:#f44747'>Errores</h3><ul>"
+            + "".join(f"<li>{_h(e)}</li>" for e in errors_list)
+            + "</ul>"
+            if errors_list
+            else ""
         )
     )
 
 
 # ── Main HTML generator ────────────────────────────────────────────────────────
 
+
 def generate_html_report(rpt: dict) -> str:
     source_path = _h(rpt.get("source_path", ""))
     gen_time = rpt.get("generated_at", "")
 
     tabs = [
-        ("multidisc", "🎮 Multi-disco",       _render_multidisc(rpt)),
-        ("orphans",   "💾 Saves huérfanos",    _render_orphans(rpt)),
-        ("health",    "🔍 Health Check",       _render_health(rpt)),
-        ("ra",        "🏆 Logros (RA)",        _render_ra_missing(rpt)),
-        ("chd",       "💿 CHD pendientes",     _render_chd(rpt)),
+        ("multidisc", "🎮 Multi-disco", _render_multidisc(rpt)),
+        ("orphans", "💾 Saves huérfanos", _render_orphans(rpt)),
+        ("health", "🔍 Health Check", _render_health(rpt)),
+        ("ra", "🏆 Logros (RA)", _render_ra_missing(rpt)),
+        ("chd", "💿 CHD pendientes", _render_chd(rpt)),
     ]
 
     sidebar_items = "".join(
@@ -229,7 +242,7 @@ def generate_html_report(rpt: dict) -> str:
     tab_panels = "".join(
         f'<div class="tab-panel" id="panel-{tid}">'
         f'<h2 style="font-size:16px;font-weight:600;color:#c9bcf5;margin-bottom:20px">{_h(label)}</h2>'
-        f'{content}</div>'
+        f"{content}</div>"
         for tid, label, content in tabs
     )
 

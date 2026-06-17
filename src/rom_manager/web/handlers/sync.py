@@ -1,28 +1,31 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import types
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
-    from rom_manager.web.router import Router
     from rom_manager.web.jobs.manager import JobManager
-    import types
+    from rom_manager.web.router import Router
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+
 def register(
-    router: "Router",
+    router: Router,
     *,
-    config: "AppConfig",
-    repository: "LibraryRepository",
-    repo_android: "LibraryRepository",
-    start_ra_check_fn: "Callable[[str], bool]",
-    srv_mod: "types.ModuleType",
-    job_manager: "JobManager",
+    config: AppConfig,
+    repository: LibraryRepository,
+    repo_android: LibraryRepository,
+    start_ra_check_fn: Callable[[str], bool],
+    srv_mod: types.ModuleType,
+    job_manager: JobManager,
 ) -> None:
     """Register sync / cable-sync / rclone / ADB / auto-sync routes on *router*."""
 
@@ -31,30 +34,39 @@ def register(
     def get_adb_devices(ctx) -> None:
         try:
             from rom_manager.sync.adb_transport import list_devices
+
             devs = list_devices(config.adb)
-            ctx._send_json({
-                "devices": [
-                    {"serial": d.serial, "state": d.state,
-                     "model": d.model, "product": d.product,
-                     "ready": d.ready, "display": d.display}
-                    for d in devs
-                ],
-                "adb_path": config.adb,
-            })
+            ctx._send_json(
+                {
+                    "devices": [
+                        {
+                            "serial": d.serial,
+                            "state": d.state,
+                            "model": d.model,
+                            "product": d.product,
+                            "ready": d.ready,
+                            "display": d.display,
+                        }
+                        for d in devs
+                    ],
+                    "adb_path": config.adb,
+                }
+            )
         except RuntimeError as exc:
             ctx._send_json({"error": str(exc), "devices": []})
 
     # ── GET /api/test-adb-path ───────────────────────────────────────────────
     @router.get("/api/test-adb-path")
     def get_test_adb_path(ctx) -> None:
-        qs     = getattr(ctx, "_qs", {})
+        qs = getattr(ctx, "_qs", {})
         serial = qs.get("serial", [""])[0]
-        ap     = qs.get("path", ["/storage/emulated/0"])[0]
+        ap = qs.get("path", ["/storage/emulated/0"])[0]
         if not serial:
             ctx._send_json({"accessible": False, "error": "serial requerido"})
         else:
             try:
                 from rom_manager.sync.adb_transport import AdbTransport
+
                 t = AdbTransport(config.adb, serial)
                 ctx._send_json(t.test_path(ap))
             except Exception as exc:
@@ -64,12 +76,14 @@ def register(
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
         from rom_manager.web.response_builders import _build_sync_log
+
         ctx._send_json(_build_sync_log(repository))
 
     # ── GET /api/cable-sync-preview ──────────────────────────────────────────
     @router.get("/api/cable-sync-preview")
     def get_cable_sync_preview(ctx) -> None:
         from rom_manager.web.response_builders import _build_cable_sync_preview
+
         ctx._send_json(_build_cable_sync_preview(getattr(ctx, "_qs", {}), config))
 
     # ── GET /api/cable-sync-log ──────────────────────────────────────────────
@@ -77,7 +91,7 @@ def register(
     def get_cable_sync_log(ctx) -> None:
         log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
         if log_path.exists():
-            with open(log_path, "r", encoding="utf-8", errors="replace") as _lf:
+            with open(log_path, encoding="utf-8", errors="replace") as _lf:
                 lines = _lf.readlines()
             tail = "".join(lines[-500:])
             ctx._send_json({"log": tail, "lines": len(lines)})
@@ -88,7 +102,11 @@ def register(
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
         if config.web_host != "127.0.0.1" and not config.web_pin_hash:
-            ctx._send_json({"error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."})
+            ctx._send_json(
+                {
+                    "error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."
+                }
+            )
             return
         body, ct = _handle_rclone_export_config(config)
         ctx._send(200, ct, body)
@@ -112,15 +130,17 @@ def register(
     # ── GET /api/auto-sync-status ────────────────────────────────────────────
     @router.get("/api/auto-sync-status")
     def get_auto_sync_status(ctx) -> None:
-        ctx._send_json({
-            "enabled": srv_mod._auto_sync_enabled,
-            "status":  dict(srv_mod._auto_sync_status),
-            "config": {
-                "direction":      config.auto_sync_direction,
-                "conflict_policy": config.conflict_policy,
-                "android_path":   config.auto_sync_android_path,
-            },
-        })
+        ctx._send_json(
+            {
+                "enabled": srv_mod._auto_sync_enabled,
+                "status": dict(srv_mod._auto_sync_status),
+                "config": {
+                    "direction": config.auto_sync_direction,
+                    "conflict_policy": config.conflict_policy,
+                    "android_path": config.auto_sync_android_path,
+                },
+            }
+        )
 
     # ── GET /api/sd-sync-status ──────────────────────────────────────────────
     @router.get("/api/sd-sync-status")
@@ -141,6 +161,7 @@ def register(
     @router.post("/api/auto-sync-toggle")
     def post_auto_sync_toggle(ctx) -> None:
         import rom_manager.web.server as _srv
+
         _srv._auto_sync_enabled = not _srv._auto_sync_enabled
         config.auto_sync_enabled = _srv._auto_sync_enabled
         ctx._send_json({"enabled": _srv._auto_sync_enabled})
@@ -163,7 +184,7 @@ def register(
     # ── POST /api/ra-check ───────────────────────────────────────────────────
     @router.post("/api/ra-check")
     def post_ra_check(ctx) -> None:
-        data    = ctx._post_data
+        data = ctx._post_data
         api_key = data.get("api_key", "").strip() or config.ra_api_key
         if not api_key:
             ctx._send_json({"error": "RetroAchievements API key not configured"})
@@ -172,6 +193,7 @@ def register(
 
 
 # ── Module-level helpers ─────────────────────────────────────────────────────
+
 
 def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
     """Start RA check in background using JobManager. Returns start status dict."""
@@ -186,7 +208,9 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
             cache_dir = config.data_dir / "ra_cache"
 
             def _prog(current: int, total: int, filename: str) -> None:
-                job_manager.update_progress("ra_check", {"current": current, "total": total, "current_file": filename})
+                job_manager.update_progress(
+                    "ra_check", {"current": current, "total": total, "current_file": filename}
+                )
                 if _cancel.is_set():
                     raise InterruptedError("RA check cancelled")
 
@@ -194,54 +218,70 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                 summary = check_library(repository, api_key, cache_dir=cache_dir, progress_cb=_prog)
             except InterruptedError:
                 job_result = {
-                    "cancelled": True, "total": 0, "supported": 0,
-                    "no_support_alternative": 0, "no_support": 0,
-                    "no_md5": 0, "platform_unknown": 0,
-                    "alternatives_csv": "", "results": [], "alternatives": [],
+                    "cancelled": True,
+                    "total": 0,
+                    "supported": 0,
+                    "no_support_alternative": 0,
+                    "no_support": 0,
+                    "no_md5": 0,
+                    "platform_unknown": 0,
+                    "alternatives_csv": "",
+                    "results": [],
+                    "alternatives": [],
                     "result_ts": "",
                 }
                 return
 
             alternatives_csv = to_csv(summary) if summary.no_support_alternative > 0 else ""
             job_result = {
-                "total":                   summary.total,
-                "supported":               summary.supported,
-                "no_support_alternative":  summary.no_support_alternative,
-                "no_support":              summary.no_support,
-                "no_md5":                  summary.no_md5,
-                "platform_unknown":        summary.platform_unknown,
-                "cancelled":               _cancel.is_set(),
-                "alternatives_csv":        alternatives_csv,
+                "total": summary.total,
+                "supported": summary.supported,
+                "no_support_alternative": summary.no_support_alternative,
+                "no_support": summary.no_support,
+                "no_md5": summary.no_md5,
+                "platform_unknown": summary.platform_unknown,
+                "cancelled": _cancel.is_set(),
+                "alternatives_csv": alternatives_csv,
                 "results": [
                     {
-                        "status":            r.status,
+                        "status": r.status,
                         "original_filename": r.original_filename,
-                        "platform":          r.platform,
-                        "source_path":       r.source_path,
-                        **({"alternative": {
-                            "id":           r.alternative.id,
-                            "title":        r.alternative.title,
-                            "achievements": r.alternative.achievements,
-                            "points":       r.alternative.points,
-                        }} if r.alternative else {}),
+                        "platform": r.platform,
+                        "source_path": r.source_path,
+                        **(
+                            {
+                                "alternative": {
+                                    "id": r.alternative.id,
+                                    "title": r.alternative.title,
+                                    "achievements": r.alternative.achievements,
+                                    "points": r.alternative.points,
+                                }
+                            }
+                            if r.alternative
+                            else {}
+                        ),
                     }
                     for r in summary.results
                 ],
                 "alternatives": [
                     {
-                        "platform":      r.platform,
-                        "filename":      r.original_filename,
-                        "our_md5":       r.our_md5[:12],
-                        "ra_id":         r.alternative.id,
-                        "ra_title":      r.alternative.title,
+                        "platform": r.platform,
+                        "filename": r.original_filename,
+                        "our_md5": r.our_md5[:12],
+                        "ra_id": r.alternative.id,
+                        "ra_title": r.alternative.title,
                         "ra_achievements": r.alternative.achievements,
-                        "ra_points":     r.alternative.points,
+                        "ra_points": r.alternative.points,
                     }
                     for r in summary.results
                     if r.status == "no_support_alternative" and r.alternative
                 ],
                 "no_support_entries": [
-                    {"source_path": r.source_path, "filename": r.original_filename, "platform": r.platform}
+                    {
+                        "source_path": r.source_path,
+                        "filename": r.original_filename,
+                        "platform": r.platform,
+                    }
                     for r in summary.results
                     if r.status == "no_support"
                 ],
@@ -257,10 +297,11 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
 
 # ── rclone / ADB helpers (moved from server.py) ───────────────────────────────
 
-def _handle_rclone_export_config(config: "AppConfig") -> tuple[bytes, str]:
+
+def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
     """Return the local rclone config file contents as bytes, or an error message."""
-    import subprocess as _sp
     import shutil as _sh
+    import subprocess as _sp
 
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
@@ -276,10 +317,10 @@ def _handle_rclone_export_config(config: "AppConfig") -> tuple[bytes, str]:
         return f"# error reading rclone config: {exc}\n".encode(), "text/plain; charset=utf-8"
 
 
-def _handle_rclone_status(config: "AppConfig") -> dict:
+def _handle_rclone_status(config: AppConfig) -> dict:
     """Check if rclone is installed and list configured remotes."""
-    import subprocess as _sp
     import shutil as _sh
+    import subprocess as _sp
 
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
@@ -288,13 +329,24 @@ def _handle_rclone_status(config: "AppConfig") -> dict:
         r = _sp.run([rclone_bin, "version"], capture_output=True, text=True, timeout=8)
         version_line = r.stdout.strip().splitlines()[0] if r.stdout.strip() else "unknown"
         remotes_r = _sp.run([rclone_bin, "listremotes"], capture_output=True, text=True, timeout=8)
-        remotes = [l.rstrip(":") for l in remotes_r.stdout.strip().splitlines() if l.strip()]
-        return {"installed": True, "version": version_line, "remotes": remotes, "binary": rclone_bin}
+        remotes = [ln.rstrip(":") for ln in remotes_r.stdout.strip().splitlines() if ln.strip()]
+        return {
+            "installed": True,
+            "version": version_line,
+            "remotes": remotes,
+            "binary": rclone_bin,
+        }
     except Exception as exc:
-        return {"installed": False, "version": None, "remotes": [], "binary": rclone_bin, "error": str(exc)}
+        return {
+            "installed": False,
+            "version": None,
+            "remotes": [],
+            "binary": rclone_bin,
+            "error": str(exc),
+        }
 
 
-def _handle_rclone_open_config(config: "AppConfig") -> dict:
+def _handle_rclone_open_config(config: AppConfig) -> dict:
     """Open a terminal window running 'rclone config' so the user can add remotes."""
     import subprocess as _sp
     import sys as _sys
@@ -311,6 +363,7 @@ def _handle_rclone_open_config(config: "AppConfig") -> dict:
         else:
             for term in ("x-terminal-emulator", "xterm", "gnome-terminal", "konsole"):
                 import shutil as _sh
+
                 if _sh.which(term):
                     _sp.Popen([term, "-e", f"{rclone_bin} config"])
                     break
@@ -319,10 +372,10 @@ def _handle_rclone_open_config(config: "AppConfig") -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
+def _handle_rclone_test_remote(config: AppConfig, remote: str) -> dict:
     """Run 'rclone lsd <remote>:' to verify the connection is working."""
-    import subprocess as _sp
     import shutil as _sh
+    import subprocess as _sp
 
     if not remote:
         return {"ok": False, "error": "remote requerido"}
@@ -333,21 +386,30 @@ def _handle_rclone_test_remote(config: "AppConfig", remote: str) -> dict:
     try:
         r = _sp.run(
             [rclone_bin, "lsd", remote_arg, "--max-depth", "1"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if r.returncode == 0:
-            lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
+            lines = [ln.strip() for ln in r.stdout.strip().splitlines() if ln.strip()]
             return {"ok": True, "remote": remote, "entries": len(lines), "sample": lines[:5]}
         return {"ok": False, "remote": remote, "error": r.stderr.strip() or "error desconocido"}
     except _sp.TimeoutExpired:
-        return {"ok": False, "remote": remote, "error": "timeout — comprueba la conexión a internet"}
+        return {
+            "ok": False,
+            "remote": remote,
+            "error": "timeout — comprueba la conexión a internet",
+        }
     except Exception as exc:
         return {"ok": False, "remote": remote, "error": str(exc)}
 
 
 # ── Handler logic (moved from server.py) ─────────────────────────────────────
 
-def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", job_manager: "JobManager") -> None:
+
+def _do_sync(
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
+) -> None:
     from rom_manager.web.response_builders import _utc_now_str
 
     dry_run = data.get("dry_run", True)
@@ -355,24 +417,27 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
     def run() -> None:
         job_result = None
         import rom_manager.web.server as _srv13
+
         if _srv13._tray_instance:
             _srv13._tray_instance.set_status("Sincronizando…")
         try:
+            from pathlib import Path as _Path
+
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
-            from pathlib import Path as _Path
 
             sources = config.sync_sources
             if not sources:
                 job_result = {
                     "error": "No hay fuentes de sync configuradas. "
-                             "Añade [[sync.sources]] en config.toml."
+                    "Añade [[sync.sources]] en config.toml."
                 }
                 return
 
             if not dry_run and config.pre_sync_backup and config.library_root:
                 try:
                     from rom_manager.backup.save_backup import create_saves_zip
+
                     _zip_dest = config.data_dir / "saves-backup"
                     create_saves_zip(
                         saves_dirs=[_Path(str(config.library_root))],
@@ -381,35 +446,46 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                     )
                 except Exception as _bk_exc:
                     import logging
-                    logging.getLogger(__name__).warning("Pre-sync backup failed (non-fatal): %s", _bk_exc)
 
-            transport    = RcloneTransport(rclone=config.rclone_binary)
-            all_results  = []
+                    logging.getLogger(__name__).warning(
+                        "Pre-sync backup failed (non-fatal): %s", _bk_exc
+                    )
+
+            transport = RcloneTransport(rclone=config.rclone_binary)
+            all_results = []
             for source in sources:
                 saves_dir = _Path(source.local_dir)
                 if not saves_dir.exists():
-                    all_results.append({
-                        "name": source.name,
-                        "local_dir": source.local_dir,
-                        "remote": source.remote,
-                        "error": f"Directorio no encontrado: {source.local_dir}",
-                        "uploaded": 0, "downloaded": 0,
-                        "up_to_date": 0, "conflicts": 0, "errors": 0,
-                        "decisions": [],
-                    })
+                    all_results.append(
+                        {
+                            "name": source.name,
+                            "local_dir": source.local_dir,
+                            "remote": source.remote,
+                            "error": f"Directorio no encontrado: {source.local_dir}",
+                            "uploaded": 0,
+                            "downloaded": 0,
+                            "up_to_date": 0,
+                            "conflicts": 0,
+                            "errors": 0,
+                            "decisions": [],
+                        }
+                    )
                     continue
                 exts = tuple() if source.sync_all else config.save_extensions
                 try:
                     _bk_root = config.data_dir if config.backup_saves_enabled else None
                     from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
-                    _delta  = _DeltaCache(config.data_dir) if not dry_run else None
+
+                    _delta = _DeltaCache(config.data_dir) if not dry_run else None
                     result, decisions = sync_saves(
                         saves_dir,
                         saves_remote=source.remote,
                         transport=transport,
                         repository=repository,
                         save_extensions=exts,
-                        state_extensions=config.state_extensions if not source.sync_all else tuple(),
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
                         states_remote=None,
                         dry_run=dry_run,
                         backup_root=_bk_root,
@@ -417,59 +493,81 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                         delta_cache=_delta,
                         conflict_policy=config.conflict_policy,
                     )
-                    all_results.append({
-                        "name":          source.name,
-                        "local_dir":     source.local_dir,
-                        "remote":        source.remote,
-                        "uploaded":      result.uploaded,
-                        "downloaded":    result.downloaded,
-                        "up_to_date":    result.up_to_date,
-                        "conflicts":     result.conflicts,
-                        "errors":        result.errors,
-                        "delta_skipped": result.delta_skipped,
-                        "decisions": [
-                            {"action": d.action, "relative": d.relative}
-                            for d in decisions if d.action != "up_to_date"
-                        ],
-                    })
+                    all_results.append(
+                        {
+                            "name": source.name,
+                            "local_dir": source.local_dir,
+                            "remote": source.remote,
+                            "uploaded": result.uploaded,
+                            "downloaded": result.downloaded,
+                            "up_to_date": result.up_to_date,
+                            "conflicts": result.conflicts,
+                            "errors": result.errors,
+                            "delta_skipped": result.delta_skipped,
+                            "decisions": [
+                                {"action": d.action, "relative": d.relative}
+                                for d in decisions
+                                if d.action != "up_to_date"
+                            ],
+                        }
+                    )
                 except Exception as exc:
-                    all_results.append({
-                        "name": source.name, "local_dir": source.local_dir,
-                        "remote": source.remote, "error": str(exc),
-                        "uploaded": 0, "downloaded": 0,
-                        "up_to_date": 0, "conflicts": 0, "errors": 0,
-                        "decisions": [],
-                    })
+                    all_results.append(
+                        {
+                            "name": source.name,
+                            "local_dir": source.local_dir,
+                            "remote": source.remote,
+                            "error": str(exc),
+                            "uploaded": 0,
+                            "downloaded": 0,
+                            "up_to_date": 0,
+                            "conflicts": 0,
+                            "errors": 0,
+                            "decisions": [],
+                        }
+                    )
 
             # D2: implicit sync for saves/states remotes
             _bk_root = config.data_dir if config.backup_saves_enabled else None
             _implicit = []
             if config.saves_remote and config.library_root:
-                _implicit.append((
-                    _Path(config.library_root) / "saves",
-                    config.saves_remote,
-                    "Saves (permanentes)",
-                    config.save_extensions,
-                ))
+                _implicit.append(
+                    (
+                        _Path(config.library_root) / "saves",
+                        config.saves_remote,
+                        "Saves (permanentes)",
+                        config.save_extensions,
+                    )
+                )
             if config.states_remote and config.library_root:
-                _implicit.append((
-                    _Path(config.library_root) / "states",
-                    config.states_remote,
-                    "States",
-                    config.state_extensions,
-                ))
+                _implicit.append(
+                    (
+                        _Path(config.library_root) / "states",
+                        config.states_remote,
+                        "States",
+                        config.state_extensions,
+                    )
+                )
             for _dir, _remote, _name, _exts in _implicit:
                 if not _dir.exists():
-                    all_results.append({
-                        "name": _name, "local_dir": str(_dir), "remote": _remote,
-                        "error": f"Directorio no encontrado: {_dir}",
-                        "uploaded": 0, "downloaded": 0,
-                        "up_to_date": 0, "conflicts": 0, "errors": 0,
-                        "decisions": [],
-                    })
+                    all_results.append(
+                        {
+                            "name": _name,
+                            "local_dir": str(_dir),
+                            "remote": _remote,
+                            "error": f"Directorio no encontrado: {_dir}",
+                            "uploaded": 0,
+                            "downloaded": 0,
+                            "up_to_date": 0,
+                            "conflicts": 0,
+                            "errors": 0,
+                            "decisions": [],
+                        }
+                    )
                     continue
                 try:
                     from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
+
                     _delta = _DeltaCache(config.data_dir) if not dry_run else None
                     # D2: For implicit saves/states sync, determine routing based on what type we're syncing
                     _is_states = "States" in _name
@@ -489,65 +587,87 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
                         delta_cache=_delta,
                         conflict_policy=config.conflict_policy,
                     )
-                    all_results.append({
-                        "name":          _name,
-                        "local_dir":     str(_dir),
-                        "remote":        _remote,
-                        "uploaded":      result.uploaded,
-                        "downloaded":    result.downloaded,
-                        "up_to_date":    result.up_to_date,
-                        "conflicts":     result.conflicts,
-                        "errors":        result.errors,
-                        "delta_skipped": result.delta_skipped,
-                        "decisions": [
-                            {"action": d.action, "relative": d.relative}
-                            for d in decisions if d.action != "up_to_date"
-                        ],
-                    })
+                    all_results.append(
+                        {
+                            "name": _name,
+                            "local_dir": str(_dir),
+                            "remote": _remote,
+                            "uploaded": result.uploaded,
+                            "downloaded": result.downloaded,
+                            "up_to_date": result.up_to_date,
+                            "conflicts": result.conflicts,
+                            "errors": result.errors,
+                            "delta_skipped": result.delta_skipped,
+                            "decisions": [
+                                {"action": d.action, "relative": d.relative}
+                                for d in decisions
+                                if d.action != "up_to_date"
+                            ],
+                        }
+                    )
                 except Exception as exc:
-                    all_results.append({
-                        "name": _name, "local_dir": str(_dir), "remote": _remote,
-                        "error": str(exc),
-                        "uploaded": 0, "downloaded": 0,
-                        "up_to_date": 0, "conflicts": 0, "errors": 0,
-                        "decisions": [],
-                    })
+                    all_results.append(
+                        {
+                            "name": _name,
+                            "local_dir": str(_dir),
+                            "remote": _remote,
+                            "error": str(exc),
+                            "uploaded": 0,
+                            "downloaded": 0,
+                            "up_to_date": 0,
+                            "conflicts": 0,
+                            "errors": 0,
+                            "decisions": [],
+                        }
+                    )
 
-            _up   = sum(r.get("uploaded",   0) for r in all_results)
+            _up = sum(r.get("uploaded", 0) for r in all_results)
             _down = sum(r.get("downloaded", 0) for r in all_results)
-            _errs = sum(r.get("errors",     0) for r in all_results)
+            _errs = sum(r.get("errors", 0) for r in all_results)
             job_result = {
-                "dry_run":    dry_run,
-                "sources":    all_results,
-                "uploaded":   _up,
+                "dry_run": dry_run,
+                "sources": all_results,
+                "uploaded": _up,
                 "downloaded": _down,
                 "up_to_date": sum(r.get("up_to_date", 0) for r in all_results),
-                "conflicts":  sum(r.get("conflicts",  0) for r in all_results),
-                "errors":     _errs,
+                "conflicts": sum(r.get("conflicts", 0) for r in all_results),
+                "errors": _errs,
             }
             if not dry_run and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
+
                 _parts: list[str] = []
-                if _up:   _parts.append(f"{_up} subidos")
-                if _down: _parts.append(f"{_down} descargados")
-                if not _parts: _parts.append("Todo al día")
+                if _up:
+                    _parts.append(f"{_up} subidos")
+                if _down:
+                    _parts.append(f"{_down} descargados")
+                if not _parts:
+                    _parts.append("Todo al día")
                 _body = ", ".join(_parts)
-                if _errs: _body += f" ({_errs} errores)"
+                if _errs:
+                    _body += f" ({_errs} errores)"
                 notify("Retro Vault — Sync completado", _body)
             if not dry_run:
                 _total_conflicts = sum(r.get("conflicts", 0) for r in all_results)
                 if _errs:
-                    _srv13._tray_instance and _srv13._tray_instance.set_status(f"✗ Sync: {_errs} errores")
+                    _srv13._tray_instance and _srv13._tray_instance.set_status(
+                        f"✗ Sync: {_errs} errores"
+                    )
                 elif _total_conflicts:
-                    _srv13._tray_instance and _srv13._tray_instance.set_status(f"⚠ Conflictos: {_total_conflicts}")
+                    _srv13._tray_instance and _srv13._tray_instance.set_status(
+                        f"⚠ Conflictos: {_total_conflicts}"
+                    )
                 else:
                     _ts = _utc_now_str()[:16].replace("T", " ")
                     _srv13._tray_instance and _srv13._tray_instance.set_status(f"Sync OK {_ts}")
                 _srv13._auto_sync_status["last_sync_at"] = _utc_now_str()
-                _srv13._auto_sync_status["last_error"] = (f"{_errs} errores en cloud sync") if _errs else None
+                _srv13._auto_sync_status["last_error"] = (
+                    (f"{_errs} errores en cloud sync") if _errs else None
+                )
         except Exception as exc:
             job_result = {"error": str(exc)}
             import rom_manager.web.server as _srv13e
+
             _srv13e._tray_instance and _srv13e._tray_instance.set_status("✗ Error en sync")
         finally:
             job_manager.finish("sync", job_result)
@@ -556,22 +676,24 @@ def _do_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepositor
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 
-def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRepository", srv_mod) -> None:
+def _do_cable_sync(
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod
+) -> None:
     import os
     import shutil
 
-    pc_path_str       = data.get("pc_path", "").strip()
+    pc_path_str = data.get("pc_path", "").strip()
     anbernic_path_str = data.get("anbernic_path", "").strip()
-    what              = data.get("what", ["saves"])
-    direction         = data.get("direction", "pc_to_anbernic")
-    dry_run           = bool(data.get("dry_run", True))
-    skip_sha1_dups    = bool(data.get("skip_sha1_dups", False))
-    skip_existing     = bool(data.get("skip_existing", False))
-    safe_mode         = bool(data.get("safe_mode", True))
-    delete_extra      = bool(data.get("delete_extra", False))
-    use_adb           = bool(data.get("use_adb", False))
-    adb_serial        = data.get("adb_serial", "").strip()
-    android_path      = data.get("android_path", "/storage/emulated/0").strip()
+    what = data.get("what", ["saves"])
+    direction = data.get("direction", "pc_to_anbernic")
+    dry_run = bool(data.get("dry_run", True))
+    skip_sha1_dups = bool(data.get("skip_sha1_dups", False))
+    skip_existing = bool(data.get("skip_existing", False))
+    safe_mode = bool(data.get("safe_mode", True))
+    delete_extra = bool(data.get("delete_extra", False))
+    use_adb = bool(data.get("use_adb", False))
+    adb_serial = data.get("adb_serial", "").strip()
+    android_path = data.get("android_path", "/storage/emulated/0").strip()
 
     if not pc_path_str:
         ctx._send_json({"error": "pc_path is required"})
@@ -594,23 +716,26 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
         m._cable_cancel.clear()
         _log_file = None
         try:
+            import datetime as _dt
             import time as _time
             from pathlib import PurePosixPath
-            import datetime as _dt
-            pc_root   = Path(pc_path_str)
+
+            pc_root = Path(pc_path_str)
             save_exts = frozenset(config.save_extensions)
 
             log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             _log_file = open(log_path, "a", encoding="utf-8", buffering=1)
-            _ts0 = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _ts0 = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _log_file.write(
                 f"\n=== Cable Sync {_ts0} | direction={direction} dry_run={dry_run} safe_mode={safe_mode} ===\n"
             )
 
             def _log(tag: str, src: str, dst: str = "", note: str = "") -> None:
-                ts = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%H:%M:%S")
-                _log_file.write(f"[{ts}] [{tag:5s}] {src}{(' -> ' + dst) if dst else ''}{(' | ' + note) if note else ''}\n")
+                ts = _dt.datetime.now(tz=_dt.UTC).strftime("%H:%M:%S")
+                _log_file.write(
+                    f"[{ts}] [{tag:5s}] {src}{(' -> ' + dst) if dst else ''}{(' | ' + note) if note else ''}\n"
+                )
 
             def _cat_name(name: str) -> str:
                 suffix = Path(name).suffix.lower()
@@ -646,25 +771,27 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
             details: list[dict] = []
 
             _last_speed_update = _time.monotonic()
-            _last_speed_bytes  = 0
+            _last_speed_bytes = 0
 
             def _update_progress(file_name: str = "") -> None:
                 nonlocal _last_speed_update, _last_speed_bytes
                 now = _time.monotonic()
-                dt  = now - _last_speed_update
+                dt = now - _last_speed_update
                 speed = 0.0
                 if dt >= 0.5:
                     speed = (copied_bytes - _last_speed_bytes) / dt
                     _last_speed_update = now
-                    _last_speed_bytes  = copied_bytes
+                    _last_speed_bytes = copied_bytes
                 elif m._cable_progress.get("speed_bps") is not None:
                     speed = m._cable_progress.get("speed_bps", 0.0)
-                m._cable_progress.update({
-                    "copied": copied,
-                    "bytes_copied": copied_bytes,
-                    "speed_bps": speed,
-                    "current_file": file_name,
-                })
+                m._cable_progress.update(
+                    {
+                        "copied": copied,
+                        "bytes_copied": copied_bytes,
+                        "speed_bps": speed,
+                        "current_file": file_name,
+                    }
+                )
 
             def _copy(src: Path, dst: Path, arrow: str) -> None:
                 nonlocal copied, skipped, errors, copied_bytes, safe_mode_skipped
@@ -708,17 +835,20 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
             # ── ADB mode ──────────────────────────────────────────────────────
             if use_adb:
                 from rom_manager.sync.adb_transport import AdbTransport
+
                 transport = AdbTransport(config.adb, adb_serial)
 
                 def _adb_copy_to_pc(adb_info, rel_posix: str, arrow: str) -> None:
                     nonlocal copied, errors, copied_bytes
                     if m._cable_cancel.is_set():
                         return
-                    name      = PurePosixPath(adb_info.android_path).name
+                    name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
                     try:
                         size = transport.pull(adb_info.android_path, local_dst, dry_run=dry_run)
-                        _log("ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst))
+                        _log(
+                            "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
+                        )
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:
@@ -749,12 +879,30 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": local_src.name})
 
-                m._cable_progress.update({"copied": 0, "current_file": "Listando archivos en el dispositivo…"})
+                m._cable_progress.update(
+                    {"copied": 0, "current_file": "Listando archivos en el dispositivo…"}
+                )
                 ab_adb_files = transport.ls_recursive(android_path)
                 try:
-                    _pre_files = sum(1 for info in ab_adb_files if _wanted_name(PurePosixPath(info.android_path).name))
-                    _pre_total = sum(info.size for info in ab_adb_files if _wanted_name(PurePosixPath(info.android_path).name))
-                    m._cable_progress.update({"bytes_total": _pre_total, "total_files": _pre_files, "copied": 0, "bytes_copied": 0, "speed_bps": 0.0})
+                    _pre_files = sum(
+                        1
+                        for info in ab_adb_files
+                        if _wanted_name(PurePosixPath(info.android_path).name)
+                    )
+                    _pre_total = sum(
+                        info.size
+                        for info in ab_adb_files
+                        if _wanted_name(PurePosixPath(info.android_path).name)
+                    )
+                    m._cable_progress.update(
+                        {
+                            "bytes_total": _pre_total,
+                            "total_files": _pre_files,
+                            "copied": 0,
+                            "bytes_copied": 0,
+                            "speed_bps": 0.0,
+                        }
+                    )
                 except Exception:
                     pass
                 android_prefix = android_path.rstrip("/") + "/"
@@ -765,12 +913,16 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                             break
                         if not _wanted(src):
                             continue
-                        rel       = src.relative_to(pc_root)
+                        rel = src.relative_to(pc_root)
                         rel_posix = rel.as_posix()
                         _adb_copy_to_device(src, rel_posix, "→ ADB")
 
                     if delete_extra and not m._cable_cancel.is_set():
-                        _pc_rels = {f.relative_to(pc_root).as_posix() for f in _iter_files(pc_root) if _wanted(f)}
+                        _pc_rels = {
+                            f.relative_to(pc_root).as_posix()
+                            for f in _iter_files(pc_root)
+                            if _wanted(f)
+                        }
                         for _info in ab_adb_files:
                             _aname = PurePosixPath(_info.android_path).name
                             if not _wanted_name(_aname):
@@ -781,7 +933,12 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                                     try:
                                         transport._shell("rm", _info.android_path, timeout=30)
                                         deleted_extra += 1
-                                        _log("DEL", _info.android_path, "", "espejo: extra en dispositivo")
+                                        _log(
+                                            "DEL",
+                                            _info.android_path,
+                                            "",
+                                            "espejo: extra en dispositivo",
+                                        )
                                     except Exception as _exc:
                                         errors += 1
                                         _log("ERROR", _info.android_path, "", f"DEL: {_exc}")
@@ -801,11 +958,15 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         if use_sha1 and _cat_name(name) == "rom":
                             _update_progress(f"[SHA1] {name}")
                             import tempfile
-                            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(name).suffix) as tf:
+
+                            with tempfile.NamedTemporaryFile(
+                                delete=False, suffix=Path(name).suffix
+                            ) as tf:
                                 tmp_path = Path(tf.name)
                             try:
                                 transport.pull(info.android_path, tmp_path, dry_run=False)
                                 from rom_manager.hashing.hash_calculator import calculate_hashes
+
                                 h = calculate_hashes(tmp_path)
                                 if repository.sha1_exists(h.sha1):
                                     sha1_skipped += 1
@@ -871,7 +1032,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                     for rel_posix in all_rels:
                         if m._cable_cancel.is_set():
                             break
-                        pc_f   = pc_index.get(rel_posix)
+                        pc_f = pc_index.get(rel_posix)
                         ab_inf = ab_index.get(rel_posix)
                         if pc_f and ab_inf:
                             if pc_f.stat().st_mtime > ab_inf.mtime:
@@ -895,27 +1056,43 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                     if direction == "pc_to_anbernic":
                         for _f in _iter_files(pc_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                     elif direction == "anbernic_to_pc":
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                     elif direction == "newest":
                         for _f in _iter_files(pc_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
-                                try: _pre_total += _f.stat().st_size
-                                except OSError: pass
+                                try:
+                                    _pre_total += _f.stat().st_size
+                                except OSError:
+                                    pass
                                 _pre_files += 1
-                    m._cable_progress.update({"bytes_total": _pre_total, "total_files": _pre_files, "copied": 0, "bytes_copied": 0, "speed_bps": 0.0})
+                    m._cable_progress.update(
+                        {
+                            "bytes_total": _pre_total,
+                            "total_files": _pre_files,
+                            "copied": 0,
+                            "bytes_copied": 0,
+                            "speed_bps": 0.0,
+                        }
+                    )
                 except Exception:
                     pass
 
@@ -930,7 +1107,9 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         _copy(src, dst, "→ Anbernic")
 
                     if delete_extra and not m._cable_cancel.is_set():
-                        _pc_rels = {f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)}
+                        _pc_rels = {
+                            f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)
+                        }
                         for _f in _iter_files(ab_root):
                             if not _wanted(_f):
                                 continue
@@ -1038,7 +1217,7 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                         elif ab_f:
                             _copy(ab_f, pc_root / rel, "← PC (solo en Anbernic)")
 
-            _ts1 = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _ts1 = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _log_file.write(
                 f"=== Fin {_ts1} | copied={copied} skipped={skipped} safe_skipped={safe_mode_skipped} deleted_extra={deleted_extra} errors={errors} cancelled={m._cable_cancel.is_set()} ===\n"
             )
@@ -1059,26 +1238,28 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
                 except Exception:
                     pass
             m._job_results["cable_sync"] = {
-                "dry_run":                     dry_run,
-                "direction":                   direction,
-                "use_adb":                     use_adb,
-                "copied":                      copied,
-                "skipped":                     skipped,
-                "sha1_skipped":                sha1_skipped,
+                "dry_run": dry_run,
+                "direction": direction,
+                "use_adb": use_adb,
+                "copied": copied,
+                "skipped": skipped,
+                "sha1_skipped": sha1_skipped,
                 "safe_mode_skipped_overwrites": safe_mode_skipped,
-                "errors":                      errors,
-                "copied_bytes":                copied_bytes,
-                "cancelled":                   m._cable_cancel.is_set(),
-                "deleted_extra":               deleted_extra,
-                "details":                     details,
-                "pc_file_count":               _pc_file_count,
-                "ab_file_count":               _ab_file_count,
+                "errors": errors,
+                "copied_bytes": copied_bytes,
+                "cancelled": m._cable_cancel.is_set(),
+                "deleted_extra": deleted_extra,
+                "details": details,
+                "pc_file_count": _pc_file_count,
+                "ab_file_count": _ab_file_count,
             }
             if not dry_run and not m._cable_cancel.is_set() and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
-                _via  = "ADB" if use_adb else "SD"
+
+                _via = "ADB" if use_adb else "SD"
                 _body = f"{copied} archivos copiados vía {_via}"
-                if errors: _body += f" ({errors} errores)"
+                if errors:
+                    _body += f" ({errors} errores)"
                 notify("Retro Vault — Cable Sync completado", _body)
         except Exception as exc:
             m._job_results["cable_sync"] = {"error": str(exc)}
@@ -1096,20 +1277,27 @@ def _do_cable_sync(ctx, data: dict, config: "AppConfig", repository: "LibraryRep
     ctx._send_json({"status": "started", "dry_run": dry_run})
 
 
-def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager") -> None:
+def _do_tree_diff(ctx, data: dict, config: AppConfig, job_manager: JobManager) -> None:
     """Background job: compare the ROM file tree between PC and console."""
     from pathlib import Path as _Path
 
-    source       = data.get("source", "local")        # "local" | "adb"
-    serial       = data.get("serial", "").strip()
-    pc_path_str  = data.get("pc_path", "").strip()    or (str(config.library_root) if config.library_root else "")
-    and_path_str = data.get("android_path", "").strip() or config.anbernic_root or config.auto_sync_android_path
+    source = data.get("source", "local")  # "local" | "adb"
+    serial = data.get("serial", "").strip()
+    pc_path_str = data.get("pc_path", "").strip() or (
+        str(config.library_root) if config.library_root else ""
+    )
+    and_path_str = (
+        data.get("android_path", "").strip()
+        or config.anbernic_root
+        or config.auto_sync_android_path
+    )
 
     def run() -> None:
         import time as _time
+
         job_result = None
         try:
-            from rom_manager.utils.dir_diff import get_local_tree, get_adb_tree, diff_trees
+            from rom_manager.utils.dir_diff import diff_trees, get_adb_tree, get_local_tree
 
             if not pc_path_str:
                 job_result = {"error": "Ruta PC no configurada (library_root)"}
@@ -1130,6 +1318,7 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager
                     job_result = {"error": "Ruta Android no configurada"}
                     return
                 from rom_manager.sync.adb_transport import AdbTransport
+
                 transport = AdbTransport(config.adb, serial, timeout=60)
                 android_tree = get_adb_tree(transport, and_path_str, timeout=300)
             else:
@@ -1145,18 +1334,18 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager
             diff = diff_trees(pc_tree, android_tree)
             MAX = 500
             job_result = {
-                "ok":                True,
-                "pc_path":           pc_path_str,
-                "android_path":      and_path_str,
-                "source":            source,
-                "only_pc":           diff.only_a[:MAX],
-                "only_android":      diff.only_b[:MAX],
-                "only_pc_total":     len(diff.only_a),
+                "ok": True,
+                "pc_path": pc_path_str,
+                "android_path": and_path_str,
+                "source": source,
+                "only_pc": diff.only_a[:MAX],
+                "only_android": diff.only_b[:MAX],
+                "only_pc_total": len(diff.only_a),
                 "only_android_total": len(diff.only_b),
-                "in_both":           diff.in_both,
-                "total_pc":          diff.total_a,
-                "total_android":     diff.total_b,
-                "result_ts":         _time.time(),
+                "in_both": diff.in_both,
+                "total_pc": diff.total_a,
+                "total_android": diff.total_b,
+                "result_ts": _time.time(),
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
@@ -1166,10 +1355,10 @@ def _do_tree_diff(ctx, data: dict, config: "AppConfig", job_manager: "JobManager
     ctx._send_json(job_manager.start("tree_diff", run))
 
 
-def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
+def _do_auto_sync_save(ctx, data: dict, config: AppConfig, srv_mod) -> None:
     """Save auto-sync settings to config.toml and update in-memory config."""
-    from rom_manager.config import write_config_toml
     import rom_manager.web.server as _srv
+    from rom_manager.config import write_config_toml
 
     updates: dict = {}
     if "sync.auto_sync_direction" in data:
@@ -1193,11 +1382,15 @@ def _do_auto_sync_save(ctx, data: dict, config: "AppConfig", srv_mod) -> None:
     ctx._send_json({"saved": list(updates.keys()), "enabled": _srv._auto_sync_enabled})
 
 
-def _do_migrate_split_db(ctx, config: "AppConfig", repository: "LibraryRepository", repo_android: "LibraryRepository") -> None:
+def _do_migrate_split_db(
+    ctx, config: AppConfig, repository: LibraryRepository, repo_android: LibraryRepository
+) -> None:
     """One-time migration: move Android-path games from PC repo to Android repo."""
     lib_root = str(config.library_root or "").lower().rstrip("/\\")
     if not lib_root:
-        ctx._send_json({"error": "library_root not configured — cannot determine which paths are Android"})
+        ctx._send_json(
+            {"error": "library_root not configured — cannot determine which paths are Android"}
+        )
         return
 
     migrated = 0
@@ -1215,6 +1408,7 @@ def _do_migrate_split_db(ctx, config: "AppConfig", repository: "LibraryRepositor
         android_rows = [r for r in rows if not r["source_path"].lower().startswith(lib_root)]
 
         from rom_manager.scanner.rom_scanner import utc_now as _now
+
         ts = _now()
 
         with repo_android.batch() as _android_conn:
@@ -1251,7 +1445,9 @@ def _do_migrate_split_db(ctx, config: "AppConfig", repository: "LibraryRepositor
                 "FROM saves"
             ).fetchall()
 
-        android_saves = [r for r in save_rows if not r["original_path"].lower().startswith(lib_root)]
+        android_saves = [
+            r for r in save_rows if not r["original_path"].lower().startswith(lib_root)
+        ]
         if android_saves:
             with repo_android.batch() as _android_conn:
                 for row in android_saves:
@@ -1268,15 +1464,19 @@ def _do_migrate_split_db(ctx, config: "AppConfig", repository: "LibraryRepositor
                         errors.append(f"save:{row['original_path']}: {exc}")
             with repository.batch() as _pc_conn:
                 for row in android_saves:
-                    _pc_conn.execute("DELETE FROM saves WHERE original_path = ?", (row["original_path"],))
+                    _pc_conn.execute(
+                        "DELETE FROM saves WHERE original_path = ?", (row["original_path"],)
+                    )
 
     except Exception as exc:
         ctx._send_json({"error": str(exc)})
         return
 
-    ctx._send_json({
-        "migrated_games": migrated,
-        "errors":         errors[:20],
-        "pc_db":          str(config.database_path),
-        "android_db":     str(config.database_path_android),
-    })
+    ctx._send_json(
+        {
+            "migrated_games": migrated,
+            "errors": errors[:20],
+            "pc_db": str(config.database_path),
+            "android_db": str(config.database_path_android),
+        }
+    )

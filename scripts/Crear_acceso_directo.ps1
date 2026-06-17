@@ -5,20 +5,22 @@
 $desktop  = [Environment]::GetFolderPath("Desktop")
 $lnk      = "$desktop\ROM Manager.lnk"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Este script vive en scripts/; la raíz del proyecto es la carpeta padre.
+$projectRoot = Split-Path -Parent $scriptDir
 
 $wsh       = New-Object -ComObject WScript.Shell
 $shortcut  = $wsh.CreateShortcut($lnk)
 $shortcut.TargetPath      = "cmd.exe"
-$shortcut.Arguments       = "/c `"$scriptDir\scripts\rommgr.cmd`""
-$shortcut.WorkingDirectory = $scriptDir
+$shortcut.Arguments       = "/c `"$projectRoot\scripts\rommgr.cmd`""
+$shortcut.WorkingDirectory = $projectRoot
 $shortcut.WindowStyle     = 7          # 7 = minimized (la ventana CMD no molesta)
 $shortcut.Description     = "ROM Manager — Retro Gaming Library"
 
 # Intentar asignar un icono si existe en el proyecto
 $iconCandidates = @(
-    "$scriptDir\icon.ico",
-    "$scriptDir\scripts\icon.ico",
-    "$scriptDir\assets\icon.ico"
+    "$projectRoot\icon.ico",
+    "$projectRoot\scripts\icon.ico",
+    "$projectRoot\assets\icon.ico"
 )
 foreach ($ic in $iconCandidates) {
     if (Test-Path $ic) { $shortcut.IconLocation = $ic; break }

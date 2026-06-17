@@ -3,9 +3,9 @@ from __future__ import annotations
 import csv
 import io
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from rom_manager.retroachievements.ra_client import RAGame, fetch_hash_library
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
@@ -79,13 +79,15 @@ def check_library(
                 if progress_cb:
                     progress_cb(processed, summary.total, row["original_filename"])
                 summary.platform_unknown += 1
-                summary.results.append(RAGameResult(
-                    source_path=row["source_path"],
-                    original_filename=row["original_filename"],
-                    platform=plat,
-                    our_md5=row["md5"] or "",
-                    status="platform_unknown",
-                ))
+                summary.results.append(
+                    RAGameResult(
+                        source_path=row["source_path"],
+                        original_filename=row["original_filename"],
+                        platform=plat,
+                        our_md5=row["md5"] or "",
+                        status="platform_unknown",
+                    )
+                )
             continue
 
         # Fetch RA hash library for this console (cached)
@@ -111,25 +113,29 @@ def check_library(
             md5 = (row["md5"] or "").strip().lower()
             if not md5:
                 summary.no_md5 += 1
-                summary.results.append(RAGameResult(
-                    source_path=row["source_path"],
-                    original_filename=row["original_filename"],
-                    platform=plat,
-                    our_md5="",
-                    status="no_md5",
-                ))
+                summary.results.append(
+                    RAGameResult(
+                        source_path=row["source_path"],
+                        original_filename=row["original_filename"],
+                        platform=plat,
+                        our_md5="",
+                        status="no_md5",
+                    )
+                )
                 continue
 
             if md5 in hash_lib:
                 summary.supported += 1
-                summary.results.append(RAGameResult(
-                    source_path=row["source_path"],
-                    original_filename=row["original_filename"],
-                    platform=plat,
-                    our_md5=md5,
-                    status="supported",
-                    alternative=hash_lib[md5],
-                ))
+                summary.results.append(
+                    RAGameResult(
+                        source_path=row["source_path"],
+                        original_filename=row["original_filename"],
+                        platform=plat,
+                        our_md5=md5,
+                        status="supported",
+                        alternative=hash_lib[md5],
+                    )
+                )
             else:
                 alt = _find_alternative(
                     row["canonical_title"] or "",
@@ -138,23 +144,27 @@ def check_library(
                 )
                 if alt:
                     summary.no_support_alternative += 1
-                    summary.results.append(RAGameResult(
-                        source_path=row["source_path"],
-                        original_filename=row["original_filename"],
-                        platform=plat,
-                        our_md5=md5,
-                        status="no_support_alternative",
-                        alternative=alt,
-                    ))
+                    summary.results.append(
+                        RAGameResult(
+                            source_path=row["source_path"],
+                            original_filename=row["original_filename"],
+                            platform=plat,
+                            our_md5=md5,
+                            status="no_support_alternative",
+                            alternative=alt,
+                        )
+                    )
                 else:
                     summary.no_support += 1
-                    summary.results.append(RAGameResult(
-                        source_path=row["source_path"],
-                        original_filename=row["original_filename"],
-                        platform=plat,
-                        our_md5=md5,
-                        status="no_support",
-                    ))
+                    summary.results.append(
+                        RAGameResult(
+                            source_path=row["source_path"],
+                            original_filename=row["original_filename"],
+                            platform=plat,
+                            our_md5=md5,
+                            status="no_support",
+                        )
+                    )
 
     return summary
 
@@ -162,10 +172,10 @@ def check_library(
 def _normalize_title(title: str) -> str:
     """Normalize a title for fuzzy comparison (strips region/rev tags, punctuation)."""
     t = title.lower()
-    t = re.sub(r"\s*\([^)]*\)", "", t)   # remove (USA), (Rev 1), etc.
-    t = re.sub(r"\s*\[[^\]]*\]", "", t)   # remove [!], [b], etc.
-    t = re.sub(r"[^a-z0-9 ]", " ", t)    # replace punctuation/dashes with space
-    t = re.sub(r" +", " ", t).strip()    # collapse multiple spaces
+    t = re.sub(r"\s*\([^)]*\)", "", t)  # remove (USA), (Rev 1), etc.
+    t = re.sub(r"\s*\[[^\]]*\]", "", t)  # remove [!], [b], etc.
+    t = re.sub(r"[^a-z0-9 ]", " ", t)  # replace punctuation/dashes with space
+    t = re.sub(r" +", " ", t).strip()  # collapse multiple spaces
     return t
 
 
@@ -196,19 +206,28 @@ def to_csv(summary: RACheckSummary) -> str:
     """Export games with no RA support but an existing alternative to CSV."""
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow([
-        "platform", "original_filename", "our_md5",
-        "ra_game_id", "ra_title", "ra_achievements", "ra_points",
-    ])
+    writer.writerow(
+        [
+            "platform",
+            "original_filename",
+            "our_md5",
+            "ra_game_id",
+            "ra_title",
+            "ra_achievements",
+            "ra_points",
+        ]
+    )
     for r in summary.results:
         if r.status == "no_support_alternative" and r.alternative:
-            writer.writerow([
-                r.platform,
-                r.original_filename,
-                r.our_md5,
-                r.alternative.id,
-                r.alternative.title,
-                r.alternative.achievements,
-                r.alternative.points,
-            ])
+            writer.writerow(
+                [
+                    r.platform,
+                    r.original_filename,
+                    r.our_md5,
+                    r.alternative.id,
+                    r.alternative.title,
+                    r.alternative.achievements,
+                    r.alternative.points,
+                ]
+            )
     return buf.getvalue()

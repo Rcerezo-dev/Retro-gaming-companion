@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rom_manager.converters.chd_converter import (
     ConversionSummary,
     convert_directory,
@@ -17,7 +15,7 @@ def _write_cue(path: Path, bins: list[str]) -> None:
     for i, name in enumerate(bins, start=1):
         lines.append(f'FILE "{name}" BINARY')
         lines.append(f"  TRACK {i:02d} MODE2/2352")
-        lines.append(f"    INDEX 01 00:00:00")
+        lines.append("    INDEX 01 00:00:00")
     path.write_text("\n".join(lines), encoding="utf-8")
 
 

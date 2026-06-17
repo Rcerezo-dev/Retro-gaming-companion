@@ -4,7 +4,7 @@ import csv
 import io
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from rom_manager.database.repository import LibraryRepository
 
@@ -48,7 +48,7 @@ def build_report(repository: LibraryRepository) -> LibraryReport:
     wasted = sum(g.wasted_bytes for g in duplicate_groups)
 
     return LibraryReport(
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        generated_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S"),
         total_games=summary.total_games,
         total_saves=summary.total_saves,
         total_assets=summary.total_assets,

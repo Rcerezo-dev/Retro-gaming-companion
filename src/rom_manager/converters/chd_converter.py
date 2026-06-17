@@ -41,7 +41,9 @@ def verify_chd(chd_path: Path, *, chdman: str = "chdman") -> VerifyResult:
             return VerifyResult(chd_path=chd_path, ok=True)
         stderr = proc.stderr.decode(errors="replace").strip()
         stdout = proc.stdout.decode(errors="replace").strip()
-        return VerifyResult(chd_path=chd_path, ok=False, error=stderr or stdout or f"exit {proc.returncode}")
+        return VerifyResult(
+            chd_path=chd_path, ok=False, error=stderr or stdout or f"exit {proc.returncode}"
+        )
     except FileNotFoundError:
         return VerifyResult(chd_path=chd_path, ok=False, error=f"chdman no encontrado: {chdman!r}")
     except subprocess.TimeoutExpired:
@@ -66,6 +68,7 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
     Handles both quoted (FILE "name.bin" BINARY) and unquoted (FILE name.bin BINARY) forms.
     """
     import re
+
     cue_dir = cue_path.parent
     bins: list[Path] = []
     try:
@@ -82,7 +85,7 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
             bins.append(cue_dir / m.group(1))
             continue
         # Unquoted filename: FILE name.bin BINARY
-        m = re.match(r'FILE\s+(\S+)', stripped, re.IGNORECASE)
+        m = re.match(r"FILE\s+(\S+)", stripped, re.IGNORECASE)
         if m:
             bins.append(cue_dir / m.group(1))
     return bins

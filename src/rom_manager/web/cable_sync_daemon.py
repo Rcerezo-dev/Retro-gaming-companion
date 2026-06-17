@@ -3,6 +3,7 @@
 Extracted from server.py (Session 19). Global state in server.py is accessed
 via late imports inside each function to avoid circular imports at load time.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,16 +17,18 @@ _logger = logging.getLogger(__name__)
 
 def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
     """Daemon thread: polls ADB every 10 s, triggers Cable Sync when a device connects."""
-    import time as _time
     import datetime as _dt
+    import time as _time
+
     import rom_manager.web.server as _srv
+
     _job_lock = _srv._job_lock
     _jobs = _srv._jobs
     _cable_progress = _srv._cable_progress
     _job_results = _srv._job_results
 
-    _POLL_INTERVAL = 10        # seconds between ADB polls
-    _COOLDOWN      = 30        # seconds to wait after a sync before syncing again
+    _POLL_INTERVAL = 10  # seconds between ADB polls
+    _COOLDOWN = 30  # seconds to wait after a sync before syncing again
     _last_sync_ts: float = 0.0
 
     while True:
@@ -49,6 +52,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             # Poll ADB devices (always, even when auto-sync is disabled, for UI prompt)
             try:
                 from rom_manager.sync.adb_transport import list_devices
+
                 devices = list_devices(config.adb, timeout=8)
             except Exception:
                 # adb not found or timed out — silently skip
@@ -78,7 +82,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
             if not _srv._auto_sync_enabled:
                 # Auto-sync disabled: show prompt in UI, let user decide
-                _logger.info("Auto-sync: new device %s — auto-sync disabled, showing prompt", serial)
+                _logger.info(
+                    "Auto-sync: new device %s — auto-sync disabled, showing prompt", serial
+                )
                 _srv._auto_sync_status = {
                     "state": "device_prompt",
                     "last_device": serial,
@@ -89,7 +95,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
             _logger.info("Auto-sync: new device %s — starting sync", serial)
 
-            now_str = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            now_str = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _srv._auto_sync_status = {
                 "state": "syncing",
                 "last_device": serial,
@@ -107,44 +113,45 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             _last_sync_ts = _time.monotonic()
 
             def _run_auto_sync(serial: str = serial) -> None:
-                import os
-                import shutil
                 import datetime as _dt2
+                import os
                 from pathlib import PurePosixPath
 
                 _log_file = None
                 try:
                     from rom_manager.config import get_adb_sync_sources
-                    pc_root   = config.library_root
+
+                    pc_root = config.library_root
                     direction = config.auto_sync_direction
                     save_exts = frozenset(config.save_extensions)
                     state_exts = frozenset(config.state_extensions)
-                    what = ["saves"]
                     # Build per-emulator sync sources from mapped paths (SYNC-A3)
                     adb_sources = get_adb_sync_sources(config)
                     # Fallback: if no mapped sources, use old single-root behaviour
                     if not adb_sources:
-                        adb_sources = [{
-                            "name": "RetroArch (legacy)",
-                            "package": "com.retroarch.aarch64",
-                            "android_saves": config.auto_sync_android_path.rstrip("/"),
-                            "android_states": None,
-                            "local_saves": pc_root,
-                            "local_states": None,
-                            "save_extensions": None,
-                            "state_extensions": None,
-                        }]
+                        adb_sources = [
+                            {
+                                "name": "RetroArch (legacy)",
+                                "package": "com.retroarch.aarch64",
+                                "android_saves": config.auto_sync_android_path.rstrip("/"),
+                                "android_states": None,
+                                "local_saves": pc_root,
+                                "local_states": None,
+                                "save_extensions": None,
+                                "state_extensions": None,
+                            }
+                        ]
 
                     log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
                     log_path.parent.mkdir(parents=True, exist_ok=True)
                     _log_file = open(log_path, "a", encoding="utf-8", buffering=1)
-                    ts0 = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    ts0 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                     _log_file.write(
                         f"\n=== AUTO-SYNC {ts0} | device={serial} direction={direction} ===\n"
                     )
 
                     def _log(tag: str, src: str, dst: str = "", note: str = "") -> None:
-                        ts = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%H:%M:%S")
+                        ts = _dt2.datetime.now(tz=_dt2.UTC).strftime("%H:%M:%S")
                         arrow = (" -> " + dst) if dst else ""
                         note_part = (" | " + note) if note else ""
                         _log_file.write(f"[{ts}] [{tag:5s}] {src}{arrow}{note_part}\n")
@@ -153,14 +160,17 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     copied_bytes = 0
 
                     def _update_prog(fname: str = "") -> None:
-                        _cable_progress.update({
-                            "copied": copied,
-                            "bytes_copied": copied_bytes,
-                            "speed_bps": 0.0,
-                            "current_file": fname,
-                        })
+                        _cable_progress.update(
+                            {
+                                "copied": copied,
+                                "bytes_copied": copied_bytes,
+                                "speed_bps": 0.0,
+                                "current_file": fname,
+                            }
+                        )
 
                     from rom_manager.sync.adb_transport import AdbTransport
+
                     transport = AdbTransport(config.adb, serial, timeout=60)
 
                     def _adb_copy_to_pc(adb_info, local_root: Path, android_prefix: str) -> None:
@@ -178,7 +188,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
                             errors += 1
 
-                    def _adb_copy_to_device(local_src: Path, local_root: Path, android_root: str) -> None:
+                    def _adb_copy_to_device(
+                        local_src: Path, local_root: Path, android_root: str
+                    ) -> None:
                         nonlocal copied, errors, copied_bytes
                         rel = local_src.relative_to(local_root)
                         android_dst = android_root.rstrip("/") + "/" + rel.as_posix()
@@ -192,28 +204,36 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             _log("ERROR", str(local_src), android_dst, str(exc))
                             errors += 1
 
-                    _cable_progress.update({
-                        "copied": 0, "bytes_copied": 0, "speed_bps": 0.0,
-                        "current_file": "Auto-sync: listando saves en el dispositivo…",
-                    })
+                    _cable_progress.update(
+                        {
+                            "copied": 0,
+                            "bytes_copied": 0,
+                            "speed_bps": 0.0,
+                            "current_file": "Auto-sync: listando saves en el dispositivo…",
+                        }
+                    )
 
                     # Sync each emulator source — saves and states paths separately
                     for src_info in adb_sources:
                         for path_type in ("saves", "states"):
                             android_root = src_info[f"android_{path_type}"]
-                            local_root_p  = src_info[f"local_{path_type}"]
+                            local_root_p = src_info[f"local_{path_type}"]
                             if not android_root or not local_root_p:
                                 continue
                             # Extension filter: use emulator-specific if defined, else global
                             exts_for_type = src_info[
                                 "save_extensions" if path_type == "saves" else "state_extensions"
                             ]
-                            effective_exts = exts_for_type if exts_for_type is not None else (
-                                save_exts if path_type == "saves" else state_exts
+                            effective_exts = (
+                                exts_for_type
+                                if exts_for_type is not None
+                                else (save_exts if path_type == "saves" else state_exts)
                             )
 
                             def _wanted_src(name: str, _exts=effective_exts) -> bool:
-                                return not name.startswith(".") and Path(name).suffix.lower() in _exts
+                                return (
+                                    not name.startswith(".") and Path(name).suffix.lower() in _exts
+                                )
 
                             android_prefix = android_root.rstrip("/") + "/"
                             _log_file.write(
@@ -252,8 +272,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                         pc_idx[lf.relative_to(local_root_p).as_posix()] = lf
 
                                 for rel_posix in sorted(set(pc_idx) | set(ab_idx)):
-                                    pc_f  = pc_idx.get(rel_posix)
-                                    ab_f  = ab_idx.get(rel_posix)
+                                    pc_f = pc_idx.get(rel_posix)
+                                    ab_f = ab_idx.get(rel_posix)
                                     if pc_f and ab_f:
                                         if pc_f.stat().st_mtime > ab_f.mtime:
                                             _adb_copy_to_device(pc_f, local_root_p, android_root)
@@ -266,7 +286,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                     elif ab_f:
                                         _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
 
-                    ts1 = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    ts1 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                     _log_file.write(
                         f"=== Auto-sync fin {ts1} | copied={copied} skipped={skipped} errors={errors} ===\n"
                     )
@@ -288,7 +308,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         "auto_sync": True,
                     }
 
-                    finish_ts = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    finish_ts = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                     _srv._auto_sync_status = {
                         "state": "idle",
                         "last_device": serial,
@@ -328,12 +348,15 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
 # ── SD card auto-sync daemon ───────────────────────────────────────────────────
 
+
 def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
     """Run a filesystem Cable Sync triggered by SD card insertion."""
+    import datetime as _dt2
     import os
     import shutil
-    import datetime as _dt2
+
     import rom_manager.web.server as _srv
+
     _sd_sync_status = _srv._sd_sync_status
     _job_results = _srv._job_results
     _job_lock = _srv._job_lock
@@ -355,7 +378,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
         log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         _log_file = open(log_path, "a", encoding="utf-8", buffering=1)
-        ts0 = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ts0 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         _log_file.write(
             f"\n=== SD-AUTO-SYNC {ts0} | direction={direction} | ab={config.anbernic_root} ===\n"
         )
@@ -437,7 +460,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
                     errors += 1
                     _log_file.write(f"ERROR ab→pc {rel}: {e}\n")
 
-        finish_ts = _dt2.datetime.now(tz=_dt2.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        finish_ts = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         _log_file.write(
             f"=== DONE copied={copied} skipped={skipped} errors={errors} bytes={copied_bytes} ===\n"
         )
@@ -460,10 +483,12 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
             "source": "sd_card",
         }
 
-        _sd_sync_status.update({
-            "state": "idle",
-            "last_sync_at": finish_ts,
-        })
+        _sd_sync_status.update(
+            {
+                "state": "idle",
+                "last_sync_at": finish_ts,
+            }
+        )
 
     except Exception as exc:
         _logger.exception("SD auto-sync error: %s", exc)
@@ -483,7 +508,9 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
 def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
     """Daemon thread: polls for SD card drive letter, triggers Cable Sync when inserted."""
     import time as _time
+
     import rom_manager.web.server as _srv
+
     _sd_sync_status = _srv._sd_sync_status
     _job_lock = _srv._job_lock
     _jobs = _srv._jobs
@@ -528,9 +555,10 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
                 _sd_sync_status["state"] = "syncing"
                 import datetime as _dt_sd
-                _sd_sync_status["last_sync_at"] = _dt_sd.datetime.now(
-                    tz=_dt_sd.timezone.utc
-                ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                _sd_sync_status["last_sync_at"] = _dt_sd.datetime.now(tz=_dt_sd.UTC).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
                 _last_sync_at = now
 
                 threading.Thread(

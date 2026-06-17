@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import UTC, datetime, timedelta
 
 from rom_manager.sync.conflict_resolver import decide
 
 
 def _dt(offset_seconds: float = 0) -> datetime:
-    base = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    base = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
     return base + timedelta(seconds=offset_seconds)
 
 
 # ---------------------------------------------------------------------------
 # Basic direction decisions
 # ---------------------------------------------------------------------------
+
 
 def test_upload_when_local_newer() -> None:
     d = decide("game.sav", local_mtime=_dt(100), remote_mtime=_dt(0), last_sync_at=None)
@@ -41,6 +40,7 @@ def test_up_to_date_exactly_equal() -> None:
 # Missing sides
 # ---------------------------------------------------------------------------
 
+
 def test_upload_when_remote_missing() -> None:
     d = decide("game.sav", local_mtime=_dt(0), remote_mtime=None, last_sync_at=None)
     assert d.action == "upload"
@@ -59,6 +59,7 @@ def test_up_to_date_when_both_missing() -> None:
 # ---------------------------------------------------------------------------
 # Conflict detection
 # ---------------------------------------------------------------------------
+
 
 def test_conflict_when_both_changed_after_last_sync() -> None:
     last_sync = _dt(0)

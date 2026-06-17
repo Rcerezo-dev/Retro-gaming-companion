@@ -5,9 +5,11 @@ ready to be JSON-serialised. They do NOT access any global job state.
 
 Extracted from server.py (Session 18) to reduce the monolith size.
 """
+
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
 
 from rom_manager.config import AppConfig
@@ -15,10 +17,10 @@ from rom_manager.database.repository import LibraryRepository
 from rom_manager.planner import build_plan
 from rom_manager.planner.operation_planner import FormatOptions
 
-
 # ---------------------------------------------------------------------------
 # HTTP / path utilities
 # ---------------------------------------------------------------------------
+
 
 def _json_response(data: object) -> bytes:
     return json.dumps(data, ensure_ascii=False).encode()
@@ -36,15 +38,17 @@ def _test_path(path_str: str) -> dict:
 
     # Heuristic: detect Windows MTP paths (not a drive letter, not a UNC share)
     is_drive_letter = len(raw) >= 2 and raw[1] == ":" and raw[0].isalpha()
-    is_unc          = raw.startswith("\\\\") or raw.startswith("//")
-    looks_like_mtp  = not is_drive_letter and not is_unc
+    is_unc = raw.startswith("\\\\") or raw.startswith("//")
+    looks_like_mtp = not is_drive_letter and not is_unc
 
     try:
         p = Path(path_str).resolve()
         if not p.exists():
-            msg = ("Esta ruta no existe como carpeta del sistema de archivos. "
-                   "Si ves el dispositivo en 'Este equipo', está accediendo por MTP — "
-                   "eso no es compatible. Usa la SD card en un lector USB o Termux SFTP.")
+            msg = (
+                "Esta ruta no existe como carpeta del sistema de archivos. "
+                "Si ves el dispositivo en 'Este equipo', está accediendo por MTP — "
+                "eso no es compatible. Usa la SD card en un lector USB o Termux SFTP."
+            )
             return {"accessible": False, "error": msg, "looks_like_mtp": looks_like_mtp}
         if not p.is_dir():
             return {"accessible": False, "error": "La ruta existe pero no es una carpeta"}
@@ -64,19 +68,27 @@ def _test_path(path_str: str) -> dict:
 def _list_drives() -> dict:
     """Return all accessible drive letters on Windows (A–Z), with label and free space."""
     import platform
+
     drives: list[dict] = []
     if platform.system() == "Windows":
-        import string
         import ctypes
+        import string
+
         for letter in string.ascii_uppercase:
             root = Path(f"{letter}:\\")
             if root.exists():
                 try:
-                    label_buf   = ctypes.create_unicode_buffer(261)
-                    fs_buf      = ctypes.create_unicode_buffer(261)
+                    label_buf = ctypes.create_unicode_buffer(261)
+                    fs_buf = ctypes.create_unicode_buffer(261)
                     ctypes.windll.kernel32.GetVolumeInformationW(  # type: ignore[attr-defined]
-                        f"{letter}:\\", label_buf, 261,
-                        None, None, None, fs_buf, 261,
+                        f"{letter}:\\",
+                        label_buf,
+                        261,
+                        None,
+                        None,
+                        None,
+                        fs_buf,
+                        261,
                     )
                     label = label_buf.value or ""
                     usage = ctypes.c_ulonglong(0)
@@ -88,28 +100,40 @@ def _list_drives() -> dict:
                         ctypes.byref(total_c),
                         ctypes.byref(free_c),
                     )
-                    drives.append({
-                        "letter": f"{letter}:\\",
-                        "label": label,
-                        "total_bytes": total_c.value,
-                        "free_bytes": free_c.value,
-                    })
+                    drives.append(
+                        {
+                            "letter": f"{letter}:\\",
+                            "label": label,
+                            "total_bytes": total_c.value,
+                            "free_bytes": free_c.value,
+                        }
+                    )
                 except OSError:
-                    drives.append({"letter": f"{letter}:\\", "label": "", "total_bytes": 0, "free_bytes": 0})
+                    drives.append(
+                        {"letter": f"{letter}:\\", "label": "", "total_bytes": 0, "free_bytes": 0}
+                    )
     else:
         try:
             for line in Path("/proc/mounts").read_text().splitlines():
                 parts = line.split()
                 if len(parts) >= 2 and parts[1].startswith("/media"):
-                    drives.append({"letter": parts[1], "label": parts[1].split("/")[-1], "total_bytes": 0, "free_bytes": 0})
+                    drives.append(
+                        {
+                            "letter": parts[1],
+                            "label": parts[1].split("/")[-1],
+                            "total_bytes": 0,
+                            "free_bytes": 0,
+                        }
+                    )
         except OSError:
             pass
     return {"drives": drives}
 
 
 def _utc_now_str() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    from datetime import datetime
+
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _parse_format_opts(qs: dict) -> FormatOptions:
@@ -134,6 +158,7 @@ def _repo_for_path(
     backslash variants of the same Windows path match correctly.
     """
     import os as _os
+
     if not path_str:
         return repository
     lib_root_raw = str(config.library_root or "")
@@ -154,36 +179,120 @@ def _repo_for_path(
 # Response builders — library / games
 # ---------------------------------------------------------------------------
 
+
 def _build_junk_scan(folder_path: str) -> dict:
     """Scan a folder and classify non-gaming files as junk."""
     import os as _os
     from pathlib import Path as _Path
 
     _GAMING_EXTS = {
-        ".gba", ".gb", ".gbc", ".nes", ".sfc", ".smc", ".md", ".smd", ".gen",
-        ".n64", ".z64", ".v64", ".nds", ".3ds", ".iso", ".chd", ".cue", ".bin",
-        ".cdi", ".gdi", ".pbp", ".gcm", ".nsp", ".xci", ".pce", ".ws", ".wsc",
-        ".ngc", ".ngp", ".gg", ".lynx", ".a26", ".a52", ".a78", ".col", ".vb",
-        ".img", ".mdf", ".ecm", ".nrg", ".ccd", ".rom", ".bios",
-        ".sav", ".srm", ".state", ".sta", ".mcr", ".mc", ".mem", ".rtc",
-        ".xml", ".m3u", ".png", ".jpg", ".jpeg", ".mp4", ".webp",
+        ".gba",
+        ".gb",
+        ".gbc",
+        ".nes",
+        ".sfc",
+        ".smc",
+        ".md",
+        ".smd",
+        ".gen",
+        ".n64",
+        ".z64",
+        ".v64",
+        ".nds",
+        ".3ds",
+        ".iso",
+        ".chd",
+        ".cue",
+        ".bin",
+        ".cdi",
+        ".gdi",
+        ".pbp",
+        ".gcm",
+        ".nsp",
+        ".xci",
+        ".pce",
+        ".ws",
+        ".wsc",
+        ".ngc",
+        ".ngp",
+        ".gg",
+        ".lynx",
+        ".a26",
+        ".a52",
+        ".a78",
+        ".col",
+        ".vb",
+        ".img",
+        ".mdf",
+        ".ecm",
+        ".nrg",
+        ".ccd",
+        ".rom",
+        ".bios",
+        ".sav",
+        ".srm",
+        ".state",
+        ".sta",
+        ".mcr",
+        ".mc",
+        ".mem",
+        ".rtc",
+        ".xml",
+        ".m3u",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".mp4",
+        ".webp",
     }
     _CONFIG_EXTS = {
-        ".cfg", ".ini", ".toml", ".json", ".txt", ".sh", ".bat", ".conf",
-        ".opt", ".ovr", ".rmp",
+        ".cfg",
+        ".ini",
+        ".toml",
+        ".json",
+        ".txt",
+        ".sh",
+        ".bat",
+        ".conf",
+        ".opt",
+        ".ovr",
+        ".rmp",
     }
     _JUNK_CATEGORIES: dict[str, str] = {
-        ".ipynb": "Jupyter Notebooks", ".py": "Scripts Python",
-        ".js": "Scripts JavaScript", ".xlsx": "Excel", ".xls": "Excel",
-        ".docx": "Word", ".doc": "Word", ".pptx": "PowerPoint", ".ppt": "PowerPoint",
-        ".pdf": "PDFs", ".zip": "ZIPs no-ROM", ".rar": "RARs", ".7z": "7-Zips",
-        ".tar": "Tarballs", ".gz": "Tarballs", ".bz2": "Tarballs",
-        ".exe": "Ejecutables", ".dll": "Ejecutables", ".apk": "APKs Android",
-        ".mp3": "Audio", ".flac": "Audio", ".ogg": "Audio", ".wav": "Audio",
-        ".avi": "Vídeo (no-gaming)", ".mkv": "Vídeo (no-gaming)", ".mov": "Vídeo (no-gaming)",
-        ".psd": "Imágenes editables", ".ai": "Imágenes editables", ".svg": "SVGs",
-        ".html": "HTML/Web", ".css": "HTML/Web", ".log": "Logs",
-        ".db": "Bases de datos", ".sqlite": "Bases de datos",
+        ".ipynb": "Jupyter Notebooks",
+        ".py": "Scripts Python",
+        ".js": "Scripts JavaScript",
+        ".xlsx": "Excel",
+        ".xls": "Excel",
+        ".docx": "Word",
+        ".doc": "Word",
+        ".pptx": "PowerPoint",
+        ".ppt": "PowerPoint",
+        ".pdf": "PDFs",
+        ".zip": "ZIPs no-ROM",
+        ".rar": "RARs",
+        ".7z": "7-Zips",
+        ".tar": "Tarballs",
+        ".gz": "Tarballs",
+        ".bz2": "Tarballs",
+        ".exe": "Ejecutables",
+        ".dll": "Ejecutables",
+        ".apk": "APKs Android",
+        ".mp3": "Audio",
+        ".flac": "Audio",
+        ".ogg": "Audio",
+        ".wav": "Audio",
+        ".avi": "Vídeo (no-gaming)",
+        ".mkv": "Vídeo (no-gaming)",
+        ".mov": "Vídeo (no-gaming)",
+        ".psd": "Imágenes editables",
+        ".ai": "Imágenes editables",
+        ".svg": "SVGs",
+        ".html": "HTML/Web",
+        ".css": "HTML/Web",
+        ".log": "Logs",
+        ".db": "Bases de datos",
+        ".sqlite": "Bases de datos",
     }
 
     p = _Path(folder_path)
@@ -215,14 +324,18 @@ def _build_junk_scan(folder_path: str) -> dict:
             categories[cat].append({"path": rel, "full_path": str(fpath), "size_bytes": size})
 
     cat_list = []
-    for cat, files_list in sorted(categories.items(), key=lambda x: -sum(f["size_bytes"] for f in x[1])):
+    for cat, files_list in sorted(
+        categories.items(), key=lambda x: -sum(f["size_bytes"] for f in x[1])
+    ):
         total = sum(f["size_bytes"] for f in files_list)
-        cat_list.append({
-            "category": cat,
-            "count": len(files_list),
-            "total_bytes": total,
-            "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:50],
-        })
+        cat_list.append(
+            {
+                "category": cat,
+                "count": len(files_list),
+                "total_bytes": total,
+                "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:50],
+            }
+        )
 
     return {
         "folder": folder_path,
@@ -242,7 +355,9 @@ def _build_library_report(
     path_accessible = source.exists() and source.is_dir()
 
     # ── ZIPs ──────────────────────────────────────────────────────────────────
-    from rom_manager.converters.zip_extractor import find_zip_files, _DISC_RE as _ZIP_DISC_RE
+    from rom_manager.converters.zip_extractor import _DISC_RE as _ZIP_DISC_RE
+    from rom_manager.converters.zip_extractor import find_zip_files
+
     zip_list = []
     zip_files: list[Path] = []
     if path_accessible:
@@ -260,11 +375,14 @@ def _build_library_report(
             except OSError:
                 size = 0
             is_disc = bool(_ZIP_DISC_RE.match(zp.stem))
-            zip_list.append({"path": rel, "name": zp.name, "size_bytes": size, "is_disc_set": is_disc})
+            zip_list.append(
+                {"path": rel, "name": zp.name, "size_bytes": size, "is_disc_set": is_disc}
+            )
 
     # ── Playlists / Multi-disco ────────────────────────────────────────────────
     from rom_manager.utils.m3u_generator import find_disc_groups
     from rom_manager.utils.multidisc_verifier import verify_multidisc
+
     groups: list = []
     playlist_groups: list = []
     multidisc_data: dict = {"groups_ok": 0, "groups_with_issues": 0, "issues": []}
@@ -290,7 +408,12 @@ def _build_library_report(
                 "groups_ok": multidisc.groups_ok,
                 "groups_with_issues": multidisc.groups_with_issues,
                 "issues": [
-                    {"base_name": i.base_name, "issue_type": i.issue_type, "detail": i.detail, "platform": i.platform}
+                    {
+                        "base_name": i.base_name,
+                        "issue_type": i.issue_type,
+                        "detail": i.detail,
+                        "platform": i.platform,
+                    }
                     for i in multidisc.issues
                 ],
             }
@@ -299,6 +422,7 @@ def _build_library_report(
 
     # ── Orphaned saves ────────────────────────────────────────────────────────
     from rom_manager.utils.orphan_finder import find_orphaned_saves
+
     orphans = []
     if path_accessible:
         try:
@@ -309,16 +433,22 @@ def _build_library_report(
         "total": len(orphans),
         "total_bytes": sum(o.size_bytes for o in orphans),
         "saves": [
-            {"path": o.save_path, "stem": o.stem, "extension": o.extension, "size_bytes": o.size_bytes}
+            {
+                "path": o.save_path,
+                "stem": o.stem,
+                "extension": o.extension,
+                "size_bytes": o.size_bytes,
+            }
             for o in orphans
         ],
     }
 
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     return {
         "source_path": str(source),
         "path_accessible": path_accessible,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "zips": {"total": len(zip_files), "files": zip_list},
         "playlists": {
             "total_groups": len(groups),
@@ -338,18 +468,28 @@ def _build_status(
     repository_android: LibraryRepository | None = None,
     library_root: Path | None = None,
 ) -> dict:
-    from datetime import UTC, datetime as _dt_cls
+    from datetime import UTC
+    from datetime import datetime as _dt_cls
+
     # If source_root is an Android-style path (starts with /) and we have an Android
     # repository, query it instead of the PC repository so ADB-scanned stats show up.
-    _is_android_root = bool(source_root and source_root.startswith("/") and repository_android is not None and repository_android is not repository)
+    _is_android_root = bool(
+        source_root
+        and source_root.startswith("/")
+        and repository_android is not None
+        and repository_android is not repository
+    )
     active_repo = repository_android if _is_android_root else repository
     summary = active_repo.get_summary(source_root)
     dup_groups = repository.get_duplicate_groups()
     from rom_manager.reports.reporter import _get_all_games
+
     games = _get_all_games(active_repo)
     if source_root:
         prefix = source_root.rstrip("/\\")
-        matched = sum(1 for g in games if g.canonical_title is not None and g.source_path.startswith(prefix))
+        matched = sum(
+            1 for g in games if g.canonical_title is not None and g.source_path.startswith(prefix)
+        )
     else:
         matched = sum(1 for g in games if g.canonical_title is not None)
     wasted = sum(g.wasted_bytes for g in dup_groups)
@@ -389,13 +529,14 @@ def _build_status(
     last_report_mins_ago: int | None = None
     if project_root is not None:
         try:
-            import os as _os
             _rpt_cache = project_root / ".rommgr" / "last_report.json"
             if _rpt_cache.exists():
                 _mtime = _rpt_cache.stat().st_mtime
                 _now_ts = _dt_cls.now(UTC).timestamp()
                 _mins = int((_now_ts - _mtime) / 60)
-                last_report_at = _dt_cls.fromtimestamp(_mtime, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+                last_report_at = _dt_cls.fromtimestamp(_mtime, tz=UTC).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
                 last_report_mins_ago = _mins
         except Exception:
             pass
@@ -406,7 +547,9 @@ def _build_status(
     try:
         with repository.connect() as _sc:
             scan_count = _sc.execute("SELECT COUNT(*) FROM scan_runs").fetchone()[0]
-            _m = _sc.execute("SELECT COUNT(*) FROM games WHERE canonical_title IS NOT NULL").fetchone()
+            _m = _sc.execute(
+                "SELECT COUNT(*) FROM games WHERE canonical_title IS NOT NULL"
+            ).fetchone()
             matched_count = _m[0] if _m else 0
     except Exception:
         pass
@@ -423,8 +566,7 @@ def _build_status(
         ]:
             try:
                 catalogs_count += sum(
-                    1 for f in _dat_dir.iterdir()
-                    if f.suffix.lower() in {".dat", ".xml"}
+                    1 for f in _dat_dir.iterdir() if f.suffix.lower() in {".dat", ".xml"}
                 )
             except Exception:
                 pass
@@ -473,6 +615,7 @@ def _build_status(
     if project_root is not None:
         try:
             import json as _json
+
             _hp = project_root / ".rommgr" / "health_schedule.json"
             if _hp.exists():
                 health = _json.loads(_hp.read_text(encoding="utf-8"))
@@ -527,10 +670,20 @@ def _build_games(
     sort_by: str | None = None,
 ) -> dict:
     games, total = repository.get_games_paginated(
-        offset=offset, limit=limit, platform=platform, status=status,
-        source_root=source_root, file_type=file_type, search=search,
-        play_status=play_status, favorite=favorite, tag=tag,
-        genre=genre, year=year, region=region, sort_by=sort_by,
+        offset=offset,
+        limit=limit,
+        platform=platform,
+        status=status,
+        source_root=source_root,
+        file_type=file_type,
+        search=search,
+        play_status=play_status,
+        favorite=favorite,
+        tag=tag,
+        genre=genre,
+        year=year,
+        region=region,
+        sort_by=sort_by,
     )
     return {
         "games": games,
@@ -544,7 +697,8 @@ def _count_companion_saves(source: Path, save_extensions: frozenset[str]) -> int
     """Count save files alongside *source* that share its stem."""
     try:
         return sum(
-            1 for f in source.parent.iterdir()
+            1
+            for f in source.parent.iterdir()
             if f != source and f.stem == source.stem and f.suffix.lower() in save_extensions
         )
     except OSError:
@@ -574,9 +728,15 @@ def _build_plan(
     already_correct = plan.already_correct
     if source_root:
         root_lower = source_root.lower()
-        pending_ops = [op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)]
-        conflict_ops = [op for op in conflict_ops if str(op.source_path).lower().startswith(root_lower)]
-        already_correct = [op for op in already_correct if str(op.source_path).lower().startswith(root_lower)]
+        pending_ops = [
+            op for op in pending_ops if str(op.source_path).lower().startswith(root_lower)
+        ]
+        conflict_ops = [
+            op for op in conflict_ops if str(op.source_path).lower().startswith(root_lower)
+        ]
+        already_correct = [
+            op for op in already_correct if str(op.source_path).lower().startswith(root_lower)
+        ]
     _lib_root_lower = library_root.lower() if library_root else None
 
     pending_rows = []
@@ -589,23 +749,28 @@ def _build_plan(
             device_tag = "pc"
         else:
             device_tag = "android"
-        pending_rows.append({
-            "platform": op.game.platform,
-            "source": str(op.source_path),
-            "source_name": op.source_path.name,
-            "target": str(op.target_path),
-            "target_name": op.target_path.name,
-            "companion_saves": companions,
-            "device": device_tag,
-        })
+        pending_rows.append(
+            {
+                "platform": op.game.platform,
+                "source": str(op.source_path),
+                "source_name": op.source_path.name,
+                "target": str(op.target_path),
+                "target_name": op.target_path.name,
+                "companion_saves": companions,
+                "device": device_tag,
+            }
+        )
     unmatched_games = repository.get_unresolved_games()
     if source_root:
         root_lower = source_root.lower()
-        unmatched_games = [g for g in unmatched_games if g.source_path.lower().startswith(root_lower)]
+        unmatched_games = [
+            g for g in unmatched_games if g.source_path.lower().startswith(root_lower)
+        ]
 
     with repository.connect() as _conn:
         _matched_plats = {
-            row[0] for row in _conn.execute(
+            row[0]
+            for row in _conn.execute(
                 "SELECT DISTINCT platform FROM games WHERE match_confidence IS NOT NULL AND platform IS NOT NULL"
             ).fetchall()
         }
@@ -618,8 +783,11 @@ def _build_plan(
         return "hash_not_found"
 
     unmatched_rows = [
-        {"original_filename": g.original_filename, "platform": g.platform,
-         "unmatched_reason": _unmatched_reason(g)}
+        {
+            "original_filename": g.original_filename,
+            "platform": g.platform,
+            "unmatched_reason": _unmatched_reason(g),
+        }
         for g in unmatched_games
     ]
 
@@ -648,23 +816,24 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     from collections import defaultdict
     from pathlib import Path as _Path
 
-    base_row = lambda op: {
-        "game_id": op.game.id,
-        "source_name": op.source_path.name,
-        "target_name": op.target_path.name,
-        "source_path": str(op.source_path),
-        "reason": op.conflict_reason,
-        "ra_achievements": None,
-        "ra_target_achievements": None,
-        "ra_role": None,
-    }
+    def base_row(op):
+        return {
+            "game_id": op.game.id,
+            "source_name": op.source_path.name,
+            "target_name": op.target_path.name,
+            "source_path": str(op.source_path),
+            "reason": op.conflict_reason,
+            "ra_achievements": None,
+            "ra_target_achievements": None,
+            "ra_role": None,
+        }
 
     if config is None or not conflict_ops:
         return [base_row(op) for op in conflict_ops]
 
     try:
-        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
         from rom_manager.retroachievements.ra_client import _parse_game_list
+        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
     except Exception:
         return [base_row(op) for op in conflict_ops]
 
@@ -698,8 +867,8 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
                 ).fetchone()
             if not row:
                 return -1
-            md5  = (row["md5"]  or "").lower()
-            plat = (row["platform"] or "")
+            md5 = (row["md5"] or "").lower()
+            plat = row["platform"] or ""
         except Exception:
             return -1
         if not md5:
@@ -728,7 +897,9 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
         if op.conflict_reason == "collision":
             collision_groups[str(op.target_path)].append(op)
     for ops in collision_groups.values():
-        scored = [(op, ra_scores.get(str(op.source_path), -1)) for op in ops if op.source_path.exists()]
+        scored = [
+            (op, ra_scores.get(str(op.source_path), -1)) for op in ops if op.source_path.exists()
+        ]
         scored.sort(key=lambda x: x[1], reverse=True)
         if scored and scored[0][1] > 0:
             collision_winners.add(str(scored[0][0].source_path))
@@ -753,13 +924,12 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     return rows
 
 
-def _annotate_duplicates_with_ra(title_groups: list[dict], config: "AppConfig") -> list[dict]:
+def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) -> list[dict]:
     """B1-4: Annotate title_groups entries with RA achievements count if available."""
-    from collections import defaultdict
     import json as _json
-    from pathlib import Path as _Path
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
     from rom_manager.retroachievements.ra_client import _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
@@ -786,6 +956,7 @@ def _annotate_duplicates_with_ra(title_groups: list[dict], config: "AppConfig") 
     id_to_md5: dict[int, str] = {}
     try:
         from rom_manager.database.repository import LibraryRepository
+
         repo = LibraryRepository(config.project_root)
         with repo.connect() as conn:
             rows = conn.execute("SELECT id, md5 FROM games").fetchall()
@@ -818,6 +989,7 @@ def _build_duplicates(
     ab_root: str | None = None,
 ) -> dict:
     import os as _os
+
     from rom_manager.database.repository import DuplicateGroup
 
     def _norm(p: str) -> str:
@@ -828,7 +1000,9 @@ def _build_duplicates(
         root_norm = _norm(source_root)
         filtered = []
         for g in groups:
-            entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)]
+            entries = [
+                e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)
+            ]
             if len(entries) >= 2:
                 filtered.append(DuplicateGroup(sha1=g.sha1, entries=entries))
         groups = filtered
@@ -837,8 +1011,12 @@ def _build_duplicates(
         ab_norm = _norm(ab_root)
         filtered = []
         for g in groups:
-            pc_entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(pc_norm)]
-            ab_entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(ab_norm)]
+            pc_entries = [
+                e for e in g.entries if _os.path.normcase(e.source_path).startswith(pc_norm)
+            ]
+            ab_entries = [
+                e for e in g.entries if _os.path.normcase(e.source_path).startswith(ab_norm)
+            ]
             if len(pc_entries) >= 2 or len(ab_entries) >= 2:
                 filtered.append(g)
         groups = filtered
@@ -891,6 +1069,7 @@ def _build_library_diff(
     Args:
         platform: If provided, filter results to this platform only.
     """
+
     def _fetch_roms(repo: LibraryRepository) -> dict[str, dict]:
         result: dict[str, dict] = {}
         with repo.connect() as conn:
@@ -912,14 +1091,14 @@ def _build_library_diff(
             }
         return result
 
-    pc_roms  = _fetch_roms(repository)
+    pc_roms = _fetch_roms(repository)
     and_roms = _fetch_roms(repository_android)
-    pc_sha1s  = set(pc_roms)
+    pc_sha1s = set(pc_roms)
     and_sha1s = set(and_roms)
 
     # Build only_pc and only_and before conflict detection
-    only_pc_list = [pc_roms[s] for s in pc_sha1s - and_sha1s]
-    only_and_list = [and_roms[s] for s in and_sha1s - pc_sha1s]
+    [pc_roms[s] for s in pc_sha1s - and_sha1s]
+    [and_roms[s] for s in and_sha1s - pc_sha1s]
 
     # Detect conflicts: same (platform, canonical_title) but different SHA1
     pc_by_title = {}
@@ -959,11 +1138,19 @@ def _build_library_diff(
     conflicted_pc_sha1s = {e["sha1"] for k in conflict_keys for e in pc_by_title[k]}
     conflicted_and_sha1s = {e["sha1"] for k in conflict_keys for e in and_by_title[k]}
     only_pc = sorted(
-        [{"sha1": s, **pc_roms[s], "location": "pc"} for s in (pc_sha1s - and_sha1s) if s not in conflicted_pc_sha1s],
+        [
+            {"sha1": s, **pc_roms[s], "location": "pc"}
+            for s in (pc_sha1s - and_sha1s)
+            if s not in conflicted_pc_sha1s
+        ],
         key=lambda x: (x["platform"], x["title"]),
     )
     only_and = sorted(
-        [{"sha1": s, **and_roms[s], "location": "android"} for s in (and_sha1s - pc_sha1s) if s not in conflicted_and_sha1s],
+        [
+            {"sha1": s, **and_roms[s], "location": "android"}
+            for s in (and_sha1s - pc_sha1s)
+            if s not in conflicted_and_sha1s
+        ],
         key=lambda x: (x["platform"], x["title"]),
     )
 
@@ -982,11 +1169,11 @@ def _build_library_diff(
     )
 
     return {
-        "only_pc":      only_pc,
+        "only_pc": only_pc,
         "only_android": only_and,
-        "in_both":      in_both,
-        "conflicts":    conflicts,
-        "total_pc":     len(pc_roms),
+        "in_both": in_both,
+        "conflicts": conflicts,
+        "total_pc": len(pc_roms),
         "total_android": len(and_roms),
         "parity": len(only_pc) == 0 and len(only_and) == 0 and len(conflicts) == 0,
     }
@@ -1002,13 +1189,16 @@ def _build_duplicates_two_repos(
 ) -> dict:
     """Two-DB version of duplicate detection."""
     import os as _os
-    from rom_manager.database.repository import DuplicateGroup, DuplicateEntry
+
+    from rom_manager.database.repository import DuplicateGroup
 
     def _norm(p: str) -> str:
         return _os.path.normcase(_os.path.normpath(p)).rstrip(_os.sep) + _os.sep
 
     if repository_android is repository:
-        return _build_duplicates(repository, config, source_root=source_root, pc_root=pc_root, ab_root=ab_root)
+        return _build_duplicates(
+            repository, config, source_root=source_root, pc_root=pc_root, ab_root=ab_root
+        )
 
     pc_groups = repository.get_duplicate_groups()
     android_groups = repository_android.get_duplicate_groups()
@@ -1017,15 +1207,21 @@ def _build_duplicates_two_repos(
         root_norm = _norm(source_root)
         filtered_pc = []
         for g in pc_groups:
-            entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)]
+            entries = [
+                e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)
+            ]
             if len(entries) >= 2:
                 filtered_pc.append(DuplicateGroup(sha1=g.sha1, entries=entries))
         filtered_android = []
         for g in android_groups:
-            entries = [e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)]
+            entries = [
+                e for e in g.entries if _os.path.normcase(e.source_path).startswith(root_norm)
+            ]
             if len(entries) >= 2:
                 filtered_android.append(DuplicateGroup(sha1=g.sha1, entries=entries))
-        all_groups = sorted(filtered_pc + filtered_android, key=lambda g: g.wasted_bytes, reverse=True)
+        all_groups = sorted(
+            filtered_pc + filtered_android, key=lambda g: g.wasted_bytes, reverse=True
+        )
         total_files = sum(len(g.entries) for g in all_groups)
         total_wasted = sum(g.wasted_bytes for g in all_groups)
         return {
@@ -1097,31 +1293,61 @@ def _build_duplicates_two_repos(
 
 def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
     """Analyse a folder: count extensions, find broken PSX sets, flag conversion needs."""
-    from pathlib import Path as _Path
     from collections import Counter
+    from pathlib import Path as _Path
 
     _ROM_EXTS = {
-        ".gba", ".gb", ".gbc", ".nes", ".snes", ".sfc", ".md", ".smd", ".gen",
-        ".n64", ".z64", ".v64", ".nds", ".3ds", ".psx", ".ps1",
-        ".iso", ".chd", ".cue", ".bin",
-        ".cdi", ".gdi", ".pbp", ".elf",
-        ".gcm", ".nkit", ".rvz", ".wbfs",
-        ".nsp", ".xci",
+        ".gba",
+        ".gb",
+        ".gbc",
+        ".nes",
+        ".snes",
+        ".sfc",
+        ".md",
+        ".smd",
+        ".gen",
+        ".n64",
+        ".z64",
+        ".v64",
+        ".nds",
+        ".3ds",
+        ".psx",
+        ".ps1",
+        ".iso",
+        ".chd",
+        ".cue",
+        ".bin",
+        ".cdi",
+        ".gdi",
+        ".pbp",
+        ".elf",
+        ".gcm",
+        ".nkit",
+        ".rvz",
+        ".wbfs",
+        ".nsp",
+        ".xci",
     }
     _SAVE_EXTS = {".sav", ".srm", ".state", ".sta", ".mcr", ".mc"}
     _NEEDS_CONVERSION = {
-        ".img":  "imagen de disco — puede ser CD-ROM (.img/.ccd) o HDD; verificar si acompaña .ccd/.sub",
-        ".mdf":  "imagen Alcohol 120% — convertir a .chd o .cue/.bin con mdf2iso",
-        ".mds":  "descriptor Alcohol 120% — acompaña .mdf",
-        ".ccd":  "CloneCD descriptor — convertir a .chd con chdman",
-        ".sub":  "datos de subcódigo CloneCD — acompaña .ccd/.img",
-        ".nrg":  "imagen Nero — convertir a .iso o .chd",
-        ".ecm":  "Error Code Modeler — descomprimir con ecmtools antes de convertir a CHD",
+        ".img": "imagen de disco — puede ser CD-ROM (.img/.ccd) o HDD; verificar si acompaña .ccd/.sub",
+        ".mdf": "imagen Alcohol 120% — convertir a .chd o .cue/.bin con mdf2iso",
+        ".mds": "descriptor Alcohol 120% — acompaña .mdf",
+        ".ccd": "CloneCD descriptor — convertir a .chd con chdman",
+        ".sub": "datos de subcódigo CloneCD — acompaña .ccd/.img",
+        ".nrg": "imagen Nero — convertir a .iso o .chd",
+        ".ecm": "Error Code Modeler — descomprimir con ecmtools antes de convertir a CHD",
     }
 
     p = _Path(folder_path)
     if not p.is_dir():
-        return {"error": f"Carpeta no encontrada: {folder_path}", "extensions": [], "cue_missing_bin": [], "bin_orphan": [], "needs_conversion": []}
+        return {
+            "error": f"Carpeta no encontrada: {folder_path}",
+            "extensions": [],
+            "cue_missing_bin": [],
+            "bin_orphan": [],
+            "needs_conversion": [],
+        }
 
     ext_counter: Counter[str] = Counter()
     cue_files: list[_Path] = []
@@ -1152,6 +1378,7 @@ def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
         extensions.append({"ext": ext or "(sin extensión)", "count": count, "category": cat})
 
     import re as _re
+
     cue_missing_bin: list[str] = []
     for cue in cue_files:
         try:
@@ -1166,13 +1393,10 @@ def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
 
     cue_stems = {c.stem.lower() for c in cue_files}
     bin_orphan = [
-        f.name for f in p.rglob("*.bin")
-        if f.is_file() and f.stem.lower() not in cue_stems
+        f.name for f in p.rglob("*.bin") if f.is_file() and f.stem.lower() not in cue_stems
     ]
     needs_conversion = [
-        {"ext": ext, "note": note}
-        for ext, note in _NEEDS_CONVERSION.items()
-        if ext in ext_counter
+        {"ext": ext, "note": note} for ext, note in _NEEDS_CONVERSION.items() if ext in ext_counter
     ]
 
     return {
@@ -1190,12 +1414,13 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     Conserva automáticamente la versión con logros activos en RetroAchievements.
     Las versiones sin logros se marcan como candidatas a eliminar.
     """
-    from collections import defaultdict
     import json as _json
+    from collections import defaultdict
     from pathlib import Path as _Path
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-    from rom_manager.retroachievements.ra_client import _parse_game_list
+
     from rom_manager.retroachievements.ra_checker import _normalize_title
+    from rom_manager.retroachievements.ra_client import _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
@@ -1222,22 +1447,28 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
             continue
 
     if not platform_hash_map:
-        return {"groups": [], "total_groups": 0, "wasted_bytes": 0,
-                "note": "No hay caché de RetroAchievements. Ejecuta primero la comprobación RA en Tools."}
+        return {
+            "groups": [],
+            "total_groups": 0,
+            "wasted_bytes": 0,
+            "note": "No hay caché de RetroAchievements. Ejecuta primero la comprobación RA en Tools.",
+        }
 
     groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in rows:
         plat = row["platform"] or "unknown"
         title = row["canonical_title"] or _Path(row["original_filename"]).stem
         key = (plat, _normalize_title(title))
-        groups[key].append({
-            "id": row["id"],
-            "filename": row["original_filename"],
-            "source_path": row["source_path"],
-            "platform": row["platform"],
-            "md5": row["md5"],
-            "size_bytes": int(row["size_bytes"]),
-        })
+        groups[key].append(
+            {
+                "id": row["id"],
+                "filename": row["original_filename"],
+                "source_path": row["source_path"],
+                "platform": row["platform"],
+                "md5": row["md5"],
+                "size_bytes": int(row["size_bytes"]),
+            }
+        )
 
     result_groups = []
     for (plat, norm_title), entries in groups.items():
@@ -1251,7 +1482,9 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
         for e in entries:
             md5_lower = (e["md5"] or "").lower()
             achievements = hash_map.get(md5_lower, -1)
-            annotated.append({**e, "ra_achievements": achievements, "ra_supported": achievements > 0})
+            annotated.append(
+                {**e, "ra_achievements": achievements, "ra_supported": achievements > 0}
+            )
 
         has_supported = any(a["ra_supported"] for a in annotated)
         has_unsupported = any(not a["ra_supported"] for a in annotated)
@@ -1262,11 +1495,10 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
 
         def _is_spanish(filename: str) -> bool:
             import re as _re
+
             tags = _re.findall(r"\(([^)]+)\)", filename.lower())
             return any(
-                any(t.strip() == s for s in _SPANISH_TAGS)
-                for tag in tags
-                for t in tag.split(",")
+                any(t.strip() == s for s in _SPANISH_TAGS) for tag in tags for t in tag.split(",")
             )
 
         def _sort_key(entry: dict) -> tuple:
@@ -1276,12 +1508,14 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
 
         annotated.sort(key=_sort_key)
         wasted = sum(a["size_bytes"] for a in annotated if not a["ra_supported"])
-        result_groups.append({
-            "platform": plat,
-            "normalized_title": norm_title,
-            "entries": annotated,
-            "wasted_bytes": wasted,
-        })
+        result_groups.append(
+            {
+                "platform": plat,
+                "normalized_title": norm_title,
+                "entries": annotated,
+                "wasted_bytes": wasted,
+            }
+        )
 
     result_groups.sort(key=lambda g: g["wasted_bytes"], reverse=True)
     return {
@@ -1355,10 +1589,10 @@ def _build_cable_sync_preview(qs: dict, config: AppConfig) -> dict:
     """Count saves on PC and Android side for a quick pre-sync summary."""
     import os as _os
 
-    mode       = qs.get("mode",      ["sd"])[0]
-    direction  = qs.get("direction", ["pc_to_anbernic"])[0]
-    pc_path_s  = (qs.get("pc_path",  [None])[0] or "").strip() or str(config.library_root or "")
-    ab_path_s  = (qs.get("ab_path",  [None])[0] or "").strip()
+    mode = qs.get("mode", ["sd"])[0]
+    direction = qs.get("direction", ["pc_to_anbernic"])[0]
+    pc_path_s = (qs.get("pc_path", [None])[0] or "").strip() or str(config.library_root or "")
+    ab_path_s = (qs.get("ab_path", [None])[0] or "").strip()
 
     save_exts: frozenset[str] = frozenset(config.save_extensions)
 
@@ -1403,10 +1637,10 @@ def _build_cable_sync_preview(qs: dict, config: AppConfig) -> dict:
         to_copy = abs(pc_saves - android_saves)
 
     return {
-        "pc_saves":       pc_saves,
-        "android_saves":  android_saves,
+        "pc_saves": pc_saves,
+        "android_saves": android_saves,
         "android_message": android_message,
-        "to_copy":        to_copy,
-        "mode":           mode,
-        "direction":      direction,
+        "to_copy": to_copy,
+        "mode": mode,
+        "direction": direction,
     }

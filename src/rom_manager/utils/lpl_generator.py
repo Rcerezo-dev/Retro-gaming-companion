@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 # RetroArch playlist format reference:
 # https://docs.libretro.com/guides/roms-playlists-thumbnails/
 # Each platform gets a <Platform Name>.lpl file that RetroArch reads directly.
@@ -90,14 +89,16 @@ def generate_lpl_playlists(
         items = []
         for game in games:
             label = game["canonical_title"] or Path(game["original_filename"]).stem
-            items.append({
-                "path": game["source_path"],
-                "label": label,
-                "core_path": _DEFAULT_CORE,
-                "core_name": _DEFAULT_CORE,
-                "crc32": "",
-                "db_name": db_name,
-            })
+            items.append(
+                {
+                    "path": game["source_path"],
+                    "label": label,
+                    "core_path": _DEFAULT_CORE,
+                    "core_name": _DEFAULT_CORE,
+                    "crc32": "",
+                    "db_name": db_name,
+                }
+            )
 
         playlist = {
             "version": "1.4",

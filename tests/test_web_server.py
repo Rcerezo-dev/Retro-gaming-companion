@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 import io
-import csv
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -12,10 +11,10 @@ from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.web.server import make_handler
 
-
 # ---------------------------------------------------------------------------
 # Minimal fake HTTP infrastructure — no real socket needed.
 # ---------------------------------------------------------------------------
+
 
 class FakeSocket:
     def makefile(self, mode: str) -> io.BytesIO:
@@ -61,6 +60,7 @@ def _make_request(method: str, path: str, repository: LibraryRepository):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def repo(tmp_path: Path) -> LibraryRepository:

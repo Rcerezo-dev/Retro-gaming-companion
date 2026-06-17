@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.sync.rclone_transport import RemoteEntry, RcloneTransport
-from rom_manager.sync.save_syncer import LocalSave, list_local_saves, sync_saves
-
+from rom_manager.sync.rclone_transport import RcloneTransport, RemoteEntry
+from rom_manager.sync.save_syncer import list_local_saves, sync_saves
 
 _SAVE_EXTS = (".sav", ".state")
-_NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC)
 
 
 def _remote_entry(relative: str, offset_seconds: float = 0) -> RemoteEntry:
@@ -32,6 +29,7 @@ def _mock_transport(remote_entries: list[RemoteEntry]) -> MagicMock:
 # ---------------------------------------------------------------------------
 # list_local_saves
 # ---------------------------------------------------------------------------
+
 
 def test_list_local_saves_finds_saves(tmp_path: Path) -> None:
     (tmp_path / "gb").mkdir()
@@ -53,6 +51,7 @@ def test_list_local_saves_empty_dir(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # sync_saves — dry run
 # ---------------------------------------------------------------------------
+
 
 def test_dry_run_upload(tmp_path: Path) -> None:
     saves_dir = tmp_path / "saves"
@@ -105,6 +104,7 @@ def test_dry_run_up_to_date(tmp_path: Path) -> None:
     save_file.write_bytes(b"\x00" * 8)
     # Force mtime to match remote exactly.
     import os
+
     ts = _NOW.timestamp()
     os.utime(save_file, (ts, ts))
 

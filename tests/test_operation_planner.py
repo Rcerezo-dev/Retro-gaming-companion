@@ -3,10 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from rom_manager.database.repository import MatchedGame
-from rom_manager.planner.operation_planner import RenamePlan, RenameOperation, build_plan
+from rom_manager.planner.operation_planner import build_plan
 
 
 def _make_game(
@@ -98,9 +96,24 @@ def test_mixed_statuses(tmp_path: Path) -> None:
     (tmp_path / "Zelda (USA).gb").touch()
 
     games = [
-        _make_game(id=1, original_filename="mario.gb", source_path=str(g1_path), canonical_title="Super Mario Land (World)"),
-        _make_game(id=2, original_filename="Kirby (USA).gb", source_path=str(g2_path), canonical_title="Kirby (USA)"),
-        _make_game(id=3, original_filename="zelda_old.gb", source_path=str(g3_path), canonical_title="Zelda (USA)"),
+        _make_game(
+            id=1,
+            original_filename="mario.gb",
+            source_path=str(g1_path),
+            canonical_title="Super Mario Land (World)",
+        ),
+        _make_game(
+            id=2,
+            original_filename="Kirby (USA).gb",
+            source_path=str(g2_path),
+            canonical_title="Kirby (USA)",
+        ),
+        _make_game(
+            id=3,
+            original_filename="zelda_old.gb",
+            source_path=str(g3_path),
+            canonical_title="Zelda (USA)",
+        ),
     ]
     plan = build_plan(_repo_with(games))
 

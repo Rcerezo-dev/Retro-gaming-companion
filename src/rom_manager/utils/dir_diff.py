@@ -4,29 +4,34 @@ Works for local paths (PC, SD card mounted as drive letter) and for ADB devices
 (passing an AdbTransport instance).  All paths are normalised to lowercase
 forward-slash strings so Windows and Android file systems are compared correctly.
 """
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-
 # Dirs that are never ROMs — skip them on any platform
-_OS_SKIP: frozenset[str] = frozenset({
-    "System Volume Information",
-    ".Trashes", ".fseventsd", ".Spotlight-V100",
-    "$RECYCLE.BIN", "RECYCLER",
-    "LOST.DIR",
-})
+_OS_SKIP: frozenset[str] = frozenset(
+    {
+        "System Volume Information",
+        ".Trashes",
+        ".fseventsd",
+        ".Spotlight-V100",
+        "$RECYCLE.BIN",
+        "RECYCLER",
+        "LOST.DIR",
+    }
+)
 
 
 @dataclass(slots=True)
 class DiffResult:
-    only_a: list[str]   # relative paths present only in tree A
-    only_b: list[str]   # relative paths present only in tree B
-    in_both: int        # count of paths present in both trees
-    total_a: int        # total files in tree A
-    total_b: int        # total files in tree B
+    only_a: list[str]  # relative paths present only in tree A
+    only_b: list[str]  # relative paths present only in tree B
+    in_both: int  # count of paths present in both trees
+    total_a: int  # total files in tree A
+    total_b: int  # total files in tree B
 
 
 def get_local_tree(
@@ -42,10 +47,7 @@ def get_local_tree(
     skip = _OS_SKIP | skip_dirs
     result: set[str] = set()
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [
-            d for d in dirnames
-            if d not in skip and not d.startswith(".")
-        ]
+        dirnames[:] = [d for d in dirnames if d not in skip and not d.startswith(".")]
         rel_dir = Path(dirpath).relative_to(root)
         for fname in filenames:
             if fname.startswith("."):

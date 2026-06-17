@@ -1,0 +1,6 @@
+# Commits to ignore in `git blame` (mechanical, behavior-preserving changes).
+# Enable locally with:  git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub applies this automatically.
+
+# style: apply ruff format across src and tests
+9a94b9ecebdc7e217546dee13a8119f0c75ed318

@@ -225,7 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Actually transfer files. Default is dry-run.",
     )
     sync_parser.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Only print summary line (no per-file output).",
     )
@@ -240,7 +241,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Re-hash all ROMs and report corrupted/missing files. Exits 1 if issues found.",
     )
     health_parser.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Only print summary line (no per-ROM output).",
     )
@@ -281,6 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     import sys
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -347,9 +350,11 @@ def main(argv: list[str] | None = None) -> int:
             for op in plan.conflicts:
                 print(f"  [CONFLICT] {op.source_path.name}  →  {op.target_path.name}")
 
-        print(f"\nSummary:  {len(plan.pending)} to rename  |  "
-              f"{len(plan.conflicts)} conflicts  |  "
-              f"{len(plan.already_correct)} already correct")
+        print(
+            f"\nSummary:  {len(plan.pending)} to rename  |  "
+            f"{len(plan.conflicts)} conflicts  |  "
+            f"{len(plan.already_correct)} already correct"
+        )
         if plan.pending:
             print("Run 'rommgr apply' to execute the renames.")
         return 0
@@ -381,7 +386,9 @@ def main(argv: list[str] | None = None) -> int:
                 renamed += 1
                 saves_renamed += outcome.saves_renamed
                 if outcome.saves_renamed:
-                    print(f"  [OK]  {op.source_path.name}  →  {op.target_path.name}  (+{outcome.saves_renamed} save(s))")
+                    print(
+                        f"  [OK]  {op.source_path.name}  →  {op.target_path.name}  (+{outcome.saves_renamed} save(s))"
+                    )
                 else:
                     print(f"  [OK]  {op.source_path.name}  →  {op.target_path.name}")
             else:
@@ -420,10 +427,7 @@ def main(argv: list[str] | None = None) -> int:
 
         remote = args.remote or config.rclone_remote
         if not remote:
-            parser.error(
-                "Remote not specified. "
-                "Pass --remote or set [sync] remote in config.toml."
-            )
+            parser.error("Remote not specified. Pass --remote or set [sync] remote in config.toml.")
 
         dry_run = args.command == "sync-status" or not getattr(args, "apply", False)
         rclone_bin = args.rclone or config.rclone_binary
@@ -436,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             from rom_manager.sync.delta_cache import DeltaCache
+
             _delta = DeltaCache(config.data_dir) if not dry_run else None
             # Use dual remotes if configured, otherwise fall back to single remote
             saves_remote_to_use = config.saves_remote or remote
@@ -498,7 +503,6 @@ def main(argv: list[str] | None = None) -> int:
         for result in summary.results:
             bins = ", ".join(p.name for p in result.bin_paths)
             if result.success:
-                action = "would convert" if dry_run else "converted"
                 print(f"  [OK]  {result.cue_path.name}  →  {result.chd_path.name}")
                 if bins:
                     print(f"        bins: {bins}")
@@ -512,7 +516,9 @@ def main(argv: list[str] | None = None) -> int:
             if summary.converted:
                 print("Run with --apply to perform the conversion.")
         else:
-            print(f"Converted: {summary.converted}  |  Skipped: {summary.skipped}  |  Failed: {summary.failed}")
+            print(
+                f"Converted: {summary.converted}  |  Skipped: {summary.skipped}  |  Failed: {summary.failed}"
+            )
             if summary.converted:
                 print("Re-run 'rommgr scan' to update the library database.")
         return 0
@@ -560,8 +566,10 @@ def main(argv: list[str] | None = None) -> int:
                     unmatched += 1
 
         print(f"\nMatched (SHA1):   {matched_high}")
-        print(f"Matched (nombre): {matched_medium + matched_low}"
-              + (f"  ({matched_low} ambiguos)" if matched_low else ""))
+        print(
+            f"Matched (nombre): {matched_medium + matched_low}"
+            + (f"  ({matched_low} ambiguos)" if matched_low else "")
+        )
         print(f"Sin match:        {unmatched}")
         return 0
 
@@ -581,7 +589,9 @@ def main(argv: list[str] | None = None) -> int:
                 n /= 1024
             return f"{n:.1f} TB"
 
-        print(f"Duplicate groups: {len(groups)}  ({total_files} files, ~{_fmt_size(total_wasted)} wasted)\n")
+        print(
+            f"Duplicate groups: {len(groups)}  ({total_files} files, ~{_fmt_size(total_wasted)} wasted)\n"
+        )
         for group in groups:
             title = group.entries[0].canonical_title or "(unmatched)"
             platform = group.entries[0].platform or "Unknown"
@@ -602,13 +612,15 @@ def main(argv: list[str] | None = None) -> int:
             writer = csv.writer(buf)
             writer.writerow(["platform", "original_filename", "region", "sha1", "source_path"])
             for game in games:
-                writer.writerow([
-                    game.platform or "",
-                    game.original_filename,
-                    game.region or "",
-                    game.sha1,
-                    game.source_path,
-                ])
+                writer.writerow(
+                    [
+                        game.platform or "",
+                        game.original_filename,
+                        game.region or "",
+                        game.sha1,
+                        game.source_path,
+                    ]
+                )
             Path(args.export).write_text(buf.getvalue(), encoding="utf-8")
             print(f"Exported {len(games)} unresolved ROMs to {args.export}")
             return 0
@@ -662,7 +674,9 @@ def main(argv: list[str] | None = None) -> int:
             print("No asset data found. Run 'rommgr scan' first.")
             return 0
 
-        header = f"{'Platform':<20} {'ROMs':>6} {'Images':>8} {'Videos':>8} {'XML':>5} {'Orphans':>8}"
+        header = (
+            f"{'Platform':<20} {'ROMs':>6} {'Images':>8} {'Videos':>8} {'XML':>5} {'Orphans':>8}"
+        )
         print(header)
         print("-" * len(header))
         for s in stats:
@@ -674,15 +688,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "fix-platforms":
         from rom_manager.detection.platform_detector import detect_platform
+
         print("Detecting platforms from folder names…")
         updated = repository.backfill_platforms(detect_platform)
         print(f"Updated: {updated} games")
         return 0
 
     if args.command == "scrape":
-        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
-        from rom_manager.scraper.platform_ids import get_system_id
         from rom_manager.scanner.rom_scanner import utc_now
+        from rom_manager.scraper.platform_ids import get_system_id
+        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
         if not config.screenscraper_user or not config.screenscraper_pass:
             parser.error(
@@ -793,7 +808,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "sync":
         sources = config.sync_sources
         if not sources:
-            print("[ERROR] No hay fuentes de sync configuradas. Añade [[sync.sources]] en config.toml.")
+            print(
+                "[ERROR] No hay fuentes de sync configuradas. Añade [[sync.sources]] en config.toml."
+            )
             return 1
 
         dry_run = not args.apply
@@ -814,6 +831,7 @@ def main(argv: list[str] | None = None) -> int:
             exts = tuple() if source.sync_all else config.save_extensions
             try:
                 from rom_manager.sync.delta_cache import DeltaCache
+
                 _delta = DeltaCache(config.data_dir) if not dry_run else None
                 result, decisions = sync_saves(
                     saves_dir,
@@ -844,23 +862,29 @@ def main(argv: list[str] | None = None) -> int:
                 f"  {source.name}: {verb}↑{result.uploaded} ↓{result.downloaded} "
                 f"= {result.up_to_date} conf:{result.conflicts} err:{result.errors}{delta_note}"
             )
-            total_up  += result.uploaded
+            total_up += result.uploaded
             total_down += result.downloaded
-            total_ok  += result.up_to_date
+            total_ok += result.up_to_date
             total_err += result.errors
             if result.errors:
                 any_error = True
 
-        print(f"\nTotal: ↑{total_up} subidos  ↓{total_down} descargados  "
-              f"={total_ok} ya al día  err:{total_err}")
+        print(
+            f"\nTotal: ↑{total_up} subidos  ↓{total_down} descargados  "
+            f"={total_ok} ya al día  err:{total_err}"
+        )
 
         if args.notify:
             from rom_manager.utils.notifier import notify
+
             parts = []
-            if total_up:   parts.append(f"{total_up} subidos")
-            if total_down: parts.append(f"{total_down} descargados")
+            if total_up:
+                parts.append(f"{total_up} subidos")
+            if total_down:
+                parts.append(f"{total_down} descargados")
             body = ", ".join(parts) if parts else "Todo al día"
-            if total_err: body += f" ({total_err} errores)"
+            if total_err:
+                body += f" ({total_err} errores)"
             notify("Retro Vault — Sync completado", body)
 
         return 1 if any_error else 0
@@ -882,24 +906,32 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"          SHA1 actual:     {r.computed_sha1}…")
 
         issues = summary.corrupted + summary.missing
-        print(f"\nVerificados: {summary.ok}  |  Corruptos: {summary.corrupted}  |  Faltantes: {summary.missing}")
+        print(
+            f"\nVerificados: {summary.ok}  |  Corruptos: {summary.corrupted}  |  Faltantes: {summary.missing}"
+        )
 
         # Persist schedule so the daemon doesn't re-run immediately
         try:
             from rom_manager.web.server import _write_health_schedule
-            _write_health_schedule(config, ok=summary.ok,
-                                   corrupted=summary.corrupted, missing=summary.missing)
+
+            _write_health_schedule(
+                config, ok=summary.ok, corrupted=summary.corrupted, missing=summary.missing
+            )
         except Exception:
             pass
 
         if args.notify:
             from rom_manager.utils.notifier import notify
+
             if issues:
-                notify("Retro Vault — Health Check",
-                       f"⚠ {summary.corrupted} corruptos, {summary.missing} faltantes")
+                notify(
+                    "Retro Vault — Health Check",
+                    f"⚠ {summary.corrupted} corruptos, {summary.missing} faltantes",
+                )
             else:
-                notify("Retro Vault — Health Check",
-                       f"✓ {summary.ok} ROMs verificados, sin problemas")
+                notify(
+                    "Retro Vault — Health Check", f"✓ {summary.ok} ROMs verificados, sin problemas"
+                )
 
         return 1 if issues else 0
 
@@ -920,7 +952,14 @@ def main(argv: list[str] | None = None) -> int:
         port = args.port or config.web_port
         print(f"Retro Vault — http://{host}:{port}/")
         print("Press Ctrl+C to stop.")
-        serve(host=host, port=port, repository=repository, config=config, repository_android=repository_android, tray=getattr(args, "tray", False))
+        serve(
+            host=host,
+            port=port,
+            repository=repository,
+            config=config,
+            repository_android=repository_android,
+            tray=getattr(args, "tray", False),
+        )
         return 0
 
     parser.error(f"Unknown command: {args.command}")

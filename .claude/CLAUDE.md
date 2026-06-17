@@ -2,6 +2,7 @@
 
 Herramienta local Python + interfaz web (`http://127.0.0.1:7777`) para gestionar ROMs retro y sincronizar saves entre PC y consola Android.
 Backlog activo: `Tareas/backlog.md`. Estado de fases: memoria `phases.md`.
+CI/CD y GitHub Actions: `docs/ci-cd.md` (lint+format+pytest, branch protection, CodeRabbit, hooks pre-commit/pre-push, recetas y gotchas).
 
 ---
 

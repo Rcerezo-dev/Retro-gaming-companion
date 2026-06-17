@@ -1,0 +1,29 @@
+# Pre-commit hooks — run `pre-commit install` once to activate.
+# Mirrors the CI "Lint (ruff)" gate so formatting/lint issues are caught
+# locally before they reach GitHub Actions.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.17
+    hooks:
+      # Linter (auto-fixes what it safely can: imports, pyupgrade, etc.)
+      - id: ruff-check
+        args: [--fix]
+        files: ^(src|tests)/
+      # Formatter (the canonical-style gate)
+      - id: ruff-format
+        files: ^(src|tests)/
+
+  # Run the test suite before pushing (not on every commit — too slow).
+  # `conda run -n rom_manager` runs pytest inside the project env regardless of
+  # which shell/env is active, so the installed rom_manager package is always
+  # importable. Requires conda on PATH. Activate the hook once with:
+  #   pre-commit install --hook-type pre-push
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: conda run -n rom_manager --no-capture-output python -m pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
