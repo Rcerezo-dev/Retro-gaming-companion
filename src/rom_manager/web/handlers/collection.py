@@ -22,7 +22,8 @@ def register(
     """Register collection / library-data routes on *router*."""
     import sys
 
-    from rom_manager.web.response_builders import _build_assets, _build_library_diff
+    from rom_manager.web.builders.diff import _build_library_diff
+    from rom_manager.web.builders.misc import _build_assets
 
     print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
 

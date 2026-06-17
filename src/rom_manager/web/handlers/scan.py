@@ -84,7 +84,7 @@ def register(
     job_manager: JobManager,
 ) -> None:
     """Register scan / catalog / job-status routes on *router*."""
-    from rom_manager.web.response_builders import _build_scrape_summary
+    from rom_manager.web.builders.misc import _build_scrape_summary
 
     # ── GET /api/job-status ───────────────────────────────────────────────────
     @router.get("/api/job-status")
@@ -309,7 +309,7 @@ def _do_scan(
     start_ra_check_fn: Callable[[str], bool],
     job_manager: JobManager,
 ) -> None:
-    from rom_manager.web.response_builders import _build_library_report
+    from rom_manager.web.builders.library import _build_library_report
 
     raw_paths = data.get("source_paths") or []
     single = data.get("source_path", "").strip()

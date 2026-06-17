@@ -41,6 +41,21 @@ fichero van **siempre separados**.
 
 ---
 
+### SRP-1a — Desglose (rama `refactor/srp-1a-response-builders`)
+
+`web/response_builders.py` (1658 líneas) → paquete `web/builders/`, con `response_builders.py`
+como fachada de re-export. 7 sub-pasos (1 sesión c/u); detalle completo en `Tareas/Día26.md §SRP-1a`.
+
+- [ ] SRP-1a-0 — crear `web/builders/` + fachada de re-export (sin mover lógica)
+- [ ] SRP-1a-1 — `builders/common.py` (helpers: json/paths/drives/repo/format)
+- [ ] SRP-1a-2 — `builders/library.py` (report/status/games/plan)
+- [ ] SRP-1a-3 — `builders/duplicates.py` (duplicates + RA annotate)
+- [ ] SRP-1a-4 — `builders/diff.py` + `builders/folders.py`
+- [ ] SRP-1a-5 — `builders/misc.py` (assets/sync_log/config/scrape/cable)
+- [ ] SRP-1a-6 — migrar imports de callers; tests finales + ruff
+
+---
+
 ## Debug Playbook
 
 Checklist de puntos de entrada para diagnosticar cualquier problema en el app.

@@ -87,7 +87,7 @@ def register(
     # ── GET /api/games ───────────────────────────────────────────────────────
     @router.get("/api/games")
     def get_games(ctx) -> None:
-        from rom_manager.web.response_builders import _build_games
+        from rom_manager.web.builders.library import _build_games
 
         qs = getattr(ctx, "_qs", {})
         offset = int(qs.get("offset", ["0"])[0])

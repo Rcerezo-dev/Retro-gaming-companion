@@ -26,7 +26,8 @@ def register(
     job_manager: JobManager,
 ) -> None:
     """Register organize / plan / apply routes on *router*."""
-    from rom_manager.web.response_builders import _build_plan, _parse_format_opts
+    from rom_manager.web.builders.common import _parse_format_opts
+    from rom_manager.web.builders.library import _build_plan
 
     # ── GET /api/plan ─────────────────────────────────────────────────────────
     @router.get("/api/plan")
@@ -273,8 +274,8 @@ def _do_organize_library(
     """Move ROMs → platform folders, saves → saves/{platform}/, BIOS candidates → bios/."""
     import shutil
 
+    from rom_manager.web.builders.common import _utc_now_str
     from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
-    from rom_manager.web.response_builders import _utc_now_str
 
     es_folders = _ES_PLATFORM_FOLDERS
     dry_run = data.get("dry_run", True)

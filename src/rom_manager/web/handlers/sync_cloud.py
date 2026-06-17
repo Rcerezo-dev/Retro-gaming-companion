@@ -205,7 +205,7 @@ def _handle_rclone_test_remote(config: AppConfig, remote: str) -> dict:
 def _do_sync(
     ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
-    from rom_manager.web.response_builders import _utc_now_str
+    from rom_manager.web.builders.common import _utc_now_str
 
     dry_run = data.get("dry_run", True)
 

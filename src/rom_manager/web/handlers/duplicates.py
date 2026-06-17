@@ -29,7 +29,10 @@ def register(
     job_manager: JobManager,
 ) -> None:
     """Register duplicate-management routes on *router*."""
-    from rom_manager.web.response_builders import _build_duplicates_two_repos, _build_ra_duplicates
+    from rom_manager.web.builders.duplicates import (
+        _build_duplicates_two_repos,
+        _build_ra_duplicates,
+    )
 
     # ── GET /api/duplicates ───────────────────────────────────────────────────
     @router.get("/api/duplicates")
@@ -503,7 +506,7 @@ def _ra_duplicate_discard(ctx, data: dict, repository: LibraryRepository) -> Non
 
 def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryRepository) -> None:
     """Discard ALL entries without RA support from version-duplicate groups."""
-    from rom_manager.web.response_builders import _build_ra_duplicates
+    from rom_manager.web.builders.duplicates import _build_ra_duplicates
 
     ra_dups = _build_ra_duplicates(repository, config)
     if ra_dups.get("note"):

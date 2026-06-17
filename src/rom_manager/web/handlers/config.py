@@ -28,7 +28,7 @@ def register(
     Called once from ``make_handler()`` after the router is created.
     All handler closures capture *config* and *set_auto_sync_fn* by reference.
     """
-    from rom_manager.web.response_builders import _build_config
+    from rom_manager.web.builders.misc import _build_config
 
     @router.get("/api/config")
     def get_config(ctx) -> None:
