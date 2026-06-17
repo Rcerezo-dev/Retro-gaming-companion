@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 # Default Android emulator save/savestate path mappings.
 # Verified live on Anbernic RG556 (serial: RG556006101273).
@@ -246,7 +249,7 @@ class AppConfig:
                         if status.strip() == "device":  # online device
                             return True, f"ADB device: {device_id}"
             except Exception:
-                pass  # ADB check failed, continue to SD card check
+                _logger.debug("ADB device check failed, falling back to SD card", exc_info=True)
 
         # Check SD card mount
         if self.anbernic_root:

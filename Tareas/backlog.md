@@ -7,6 +7,40 @@
 
 ---
 
+## Agrupación en ramas (plan de branching)
+
+Regla: una rama por tarea → PR a `develop`. Las sub-tareas que comparten fichero o
+son la misma unidad de cambio se agrupan en una sola rama. Refactores grandes de un
+fichero van **siempre separados**.
+
+### Foco activo (Día26 — robustez/perf)
+
+| Orden | Rama | Tareas | Estado |
+|-------|------|--------|--------|
+| ✅ | `feature/obs-1c-lint-no-bare-except` | OBS-1c | en rama (S110/S112 + 10 swallows loggeados) |
+| **1** | `feature/perf-1-hashing` | PERF-1a + 1b + 1c | ⬜ ← **siguiente** |
+| 3 | `test/test-1-sync-daemons` | TEST-1a + 1b + 1c | ⬜ |
+| 4 | `chore/fix-build-conda` | FIX-1 + FIX-2 | ⬜ |
+| 5–7 | `refactor/srp-1{a,b,c}-*` | SRP-1a / 1b / 1c (una rama cada una) | ⬜ |
+| 8 | `chore/clean-1-late-imports` | CLEAN-1 | ⬜ |
+
+> Detalle y justificación de la prioridad en `Tareas/Día26.md`.
+
+### Clusters del backlog (al retomar esas líneas)
+
+| Rama | Tareas | Por qué juntas / bloqueo |
+|------|--------|--------------------------|
+| `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | Migración indivisible de `cable_sync` al JobManager; desbloquea ARC-JM-6 |
+| `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | Barrido de limpieza de globales. **Bloqueado por** `arc-jm-cable` |
+| `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | Extraer `device_detector.py` (primero del split) |
+| `refactor/arc-cfg-sync` | ARC-CFG-1a–1d | Dataclass `SyncConfig` atómica |
+| `refactor/arc-cfg-credentials` | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica |
+| `refactor/arc-cfg-inbox-backup` | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` |
+| `refactor/arc-svc-duplicates` | ARC-SVC-1a + 1b | Service + adelgazar handler. **Bloqueado por** ARC-JM-6 |
+| `feature/design-polish` | DESIGN-10 + 11 + 12 (+13, +14) | Cosmético sobre `app.css` / `index.html` |
+
+---
+
 ## Debug Playbook
 
 Checklist de puntos de entrada para diagnosticar cualquier problema en el app.

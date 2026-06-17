@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
 from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -70,6 +73,7 @@ class CatalogMatcher:
             try:
                 entries = load_nointro_dat(dat_file)
             except Exception:
+                _logger.warning("Failed to load DAT %s, skipping", dat_file, exc_info=True)
                 continue
             for sha1, entry in entries.items():
                 result[sha1] = (entry, dat_file.name)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import logging
 from pathlib import Path
 
 from rom_manager.catalog.matcher import CatalogMatcher
@@ -15,6 +16,8 @@ from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.scanner import scan_library
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
 from rom_manager.sync.save_syncer import sync_saves
+
+_logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -918,7 +921,7 @@ def main(argv: list[str] | None = None) -> int:
                 config, ok=summary.ok, corrupted=summary.corrupted, missing=summary.missing
             )
         except Exception:
-            pass
+            _logger.debug("Failed to persist health schedule", exc_info=True)
 
         if args.notify:
             from rom_manager.utils.notifier import notify

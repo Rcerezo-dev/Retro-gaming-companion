@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
+
+_logger = logging.getLogger(__name__)
 
 # Whitelist para ALTER TABLE — evita f-strings sin validación sobre nombres de columna/tipo.
 _COL_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
@@ -237,7 +240,7 @@ def _migrate_is_favorite_default(cursor: sqlite3.Cursor) -> None:
     try:
         cursor.execute("UPDATE games SET is_favorite = 0 WHERE is_favorite IS NULL")
     except Exception:
-        pass
+        _logger.debug("Could not backfill is_favorite default", exc_info=True)
 
 
 def _alter_table_add_column(

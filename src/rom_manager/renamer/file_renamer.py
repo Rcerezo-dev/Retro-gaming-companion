@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -66,7 +69,8 @@ def rename_rom_with_saves(
             for sav in companions:
                 backup_save(sav, backup_root, keep_n=backup_keep_n)
         except Exception:
-            pass  # backup failure must never block rename
+            # backup failure must never block rename
+            _logger.warning("Save backup failed before rename (continuing)", exc_info=True)
 
     # Step 1: rename the ROM
     try:
@@ -161,7 +165,8 @@ def move_disc_set_to_subfolder(
             for sav in companions:
                 backup_save(sav, backup_root, keep_n=backup_keep_n)
         except Exception:
-            pass
+            # backup failure must never block rename
+            _logger.warning("Save backup failed before rename (continuing)", exc_info=True)
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)

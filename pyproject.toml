@@ -31,7 +31,12 @@ src = ["src", "tests"]
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+# E722 (bare except) viene con "E". S110/S112 (flake8-bandit) prohíben tragar la
+# excepción en silencio: un `except: pass` / `except: continue` sin acción ni log
+# es un error de lint. Mínimo exigido: `logger.debug(..., exc_info=True)` (OBS-1c).
+# No activamos BLE001 (catch-Exception) a propósito: el patrón best-effort con
+# logging es deliberado y debe seguir permitido.
+select = ["E", "F", "I", "UP", "S110", "S112"]
 # Line length is owned by the formatter, not the lint gate (avoids ~400 manual reflows).
 ignore = ["E501"]
 
