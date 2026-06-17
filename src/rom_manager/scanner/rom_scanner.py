@@ -148,7 +148,9 @@ def scan_library(
                             (save_mtime_ts, stem_like, save_mtime_ts),
                         )
                     except Exception:
-                        pass
+                        logging.getLogger(__name__).debug(
+                            "Failed to update last_played_at for %s", path, exc_info=True
+                        )
                 elif category is FileCategory.FRONTEND_ASSET:
                     _store_asset(path, source_path, repository, timestamp, conn)
                     result.assets_detected += 1

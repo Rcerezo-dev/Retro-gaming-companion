@@ -6,8 +6,11 @@ On non-Windows or if PowerShell fails, does nothing (fire-and-forget).
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
+
+_logger = logging.getLogger(__name__)
 
 # PowerShell script template — two text lines (title + body)
 _PS_TEMPLATE = r"""
@@ -57,4 +60,5 @@ def notify(title: str, body: str) -> None:
             creationflags=0x08000000,  # CREATE_NO_WINDOW
         )
     except Exception:
-        pass  # Silently ignore — notifications are best-effort
+        # notifications are best-effort
+        _logger.debug("Toast notification failed (best-effort)", exc_info=True)
