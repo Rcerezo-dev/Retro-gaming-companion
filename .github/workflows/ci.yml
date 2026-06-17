@@ -21,6 +21,8 @@ jobs:
           python-version: "3.12"
       - name: Install ruff
         run: pip install ruff
+      - name: ruff format --check
+        run: ruff format --check src tests
       - name: ruff check
         run: ruff check src tests
 
