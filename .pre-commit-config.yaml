@@ -14,13 +14,15 @@ repos:
         files: ^(src|tests)/
 
   # Run the test suite before pushing (not on every commit — too slow).
-  # Uses the active environment's pytest so the installed rom_manager
-  # package is importable; activate with: pre-commit install --hook-type pre-push
+  # `conda run -n rom_manager` runs pytest inside the project env regardless of
+  # which shell/env is active, so the installed rom_manager package is always
+  # importable. Requires conda on PATH. Activate the hook once with:
+  #   pre-commit install --hook-type pre-push
   - repo: local
     hooks:
       - id: pytest
         name: pytest
-        entry: python -m pytest -q
+        entry: conda run -n rom_manager --no-capture-output python -m pytest -q
         language: system
         pass_filenames: false
         always_run: true
