@@ -1,0 +1,26 @@
+{
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://127.0.0.1:7777/*)",
+      "Bash(curl -s -o /dev/null *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/Ruben/anaconda3/envs/rom_manager/python.exe\" -c \"import sys,json,subprocess as sp; d=json.load(sys.stdin); fp=d.get('tool_input',{}).get('file_path',''); r=sp.run([sys.executable,'-m','py_compile',fp],capture_output=True,text=True) if fp.endswith('.py') else None; r and r.returncode and (print(r.stderr,file=sys.stderr,end='') or sys.exit(2))\"",
+            "timeout": 10,
+            "statusMessage": "Comprobando sintaxis Python..."
+          }
+        ]
+      }
+    ]
+  }
+}

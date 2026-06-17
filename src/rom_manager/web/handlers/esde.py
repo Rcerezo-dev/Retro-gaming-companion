@@ -6,6 +6,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rom_manager.web.state as _state
+
 if TYPE_CHECKING:
     import types
 
@@ -32,6 +34,13 @@ def register(
 
     from rom_manager.reports import build_report, to_csv
     from rom_manager.reports import to_json as _to_json
+    from rom_manager.web.handlers.system import (
+        _get_local_ip,
+        _handle_detect_cloud_folder,
+        _handle_library_doctor,
+        _handle_retroarch_check,
+        _handle_system_status,
+    )
     from rom_manager.web.response_builders import (
         _build_library_report,
         _build_status,
@@ -42,8 +51,6 @@ def register(
     # ── GET /api/local-url ────────────────────────────────────────────────────
     @router.get("/api/local-url")
     def get_local_url(ctx) -> None:
-        from rom_manager.web.server import _get_local_ip
-
         ctx._send_json({"ip": _get_local_ip(), "port": config.web_port})
 
     # ── GET /api/status ───────────────────────────────────────────────────────
@@ -917,29 +924,29 @@ def register(
         import threading as _threading
 
         _threading.Thread(
-            target=srv_mod._httpd_instance.shutdown,
+            target=_state._httpd_instance.shutdown,
             daemon=True,
         ).start()
 
     # ── GET /api/system-status ────────────────────────────────────────────────
     @router.get("/api/system-status")
     def get_system_status(ctx) -> None:
-        ctx._send_json(srv_mod._handle_system_status(config))
+        ctx._send_json(_handle_system_status(config))
 
     # ── GET /api/detect-cloud-folder ─────────────────────────────────────────
     @router.get("/api/detect-cloud-folder")
     def get_detect_cloud_folder(ctx) -> None:
-        ctx._send_json(srv_mod._handle_detect_cloud_folder())
+        ctx._send_json(_handle_detect_cloud_folder())
 
     # ── GET /api/library-doctor ───────────────────────────────────────────────
     @router.get("/api/library-doctor")
     def get_library_doctor(ctx) -> None:
-        ctx._send_json(srv_mod._handle_library_doctor(config, repository))
+        ctx._send_json(_handle_library_doctor(config, repository))
 
     # ── GET /api/retroarch-check ──────────────────────────────────────────────
     @router.get("/api/retroarch-check")
     def get_retroarch_check(ctx) -> None:
-        ctx._send_json(srv_mod._handle_retroarch_check(config))
+        ctx._send_json(_handle_retroarch_check(config))
 
     # ── GET /api/generate-es-systems ─────────────────────────────────────────
     @router.get("/api/generate-es-systems")

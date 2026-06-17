@@ -199,7 +199,9 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) ->
         ctx._send_json({"error": "library_root no configurado"})
         return
 
-    std_folders = srv_mod._STANDARD_PLATFORM_FOLDERS
+    from rom_manager.web.handlers.system import _STANDARD_PLATFORM_FOLDERS
+
+    std_folders = _STANDARD_PLATFORM_FOLDERS
     also_android = bool(data.get("also_android"))
     android_root_str = config.anbernic_root or None
 
@@ -271,9 +273,10 @@ def _do_organize_library(
     """Move ROMs → platform folders, saves → saves/{platform}/, BIOS candidates → bios/."""
     import shutil
 
+    from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
     from rom_manager.web.response_builders import _utc_now_str
 
-    es_folders = srv_mod._ES_PLATFORM_FOLDERS
+    es_folders = _ES_PLATFORM_FOLDERS
     dry_run = data.get("dry_run", True)
     if not config.library_root:
         ctx._send_json({"error": "library_root no configurado"})
