@@ -137,7 +137,7 @@
 ---
 
 **Version**: 1.0 (2026-03-21)
-**Ubicación**: `Retro-gaming-companion/SKILLS-QUICK-START.md`
+**Ubicación**: `Retro-gaming-companion/docs/SKILLS-QUICK-START.md`
 **Uso**: Consulta cuando uses skills en Claude Code
 
 Guía detallada en: `/proyectos/retro-vault/Skills-Guide.md` (Obsidian Vault)

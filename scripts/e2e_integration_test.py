@@ -14,8 +14,8 @@ import tempfile
 import traceback
 from pathlib import Path
 
-# Ensure src is on sys.path
-SRC = Path(__file__).parent / "src"
+# Ensure src is on sys.path (this script lives in scripts/, project root is its parent)
+SRC = Path(__file__).parent.parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
