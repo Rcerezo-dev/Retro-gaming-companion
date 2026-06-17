@@ -469,10 +469,9 @@ def _build_plan(
         for g in unmatched_games
     ]
 
-    # Late import to avoid a circular import with the response_builders façade.
-    # _annotate_conflicts_with_ra belongs to the duplicates domain (SRP-1a-3);
-    # importing it lazily keeps load-time decoupled and survives that later move.
-    from rom_manager.web.response_builders import _annotate_conflicts_with_ra
+    # Late import: avoids a load-time dependency cycle between the library and
+    # duplicates builder modules (the call graph crosses domains here).
+    from rom_manager.web.builders.duplicates import _annotate_conflicts_with_ra
 
     conflict_rows = _annotate_conflicts_with_ra(conflict_ops, repository, config)
 

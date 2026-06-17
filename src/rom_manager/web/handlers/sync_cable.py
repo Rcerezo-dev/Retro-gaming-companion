@@ -75,14 +75,14 @@ def register_cable(
     # ── GET /api/sync-log ────────────────────────────────────────────────────
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
-        from rom_manager.web.response_builders import _build_sync_log
+        from rom_manager.web.builders.misc import _build_sync_log
 
         ctx._send_json(_build_sync_log(repository))
 
     # ── GET /api/cable-sync-preview ──────────────────────────────────────────
     @router.get("/api/cable-sync-preview")
     def get_cable_sync_preview(ctx) -> None:
-        from rom_manager.web.response_builders import _build_cable_sync_preview
+        from rom_manager.web.builders.misc import _build_cable_sync_preview
 
         ctx._send_json(_build_cable_sync_preview(getattr(ctx, "_qs", {}), config))
 

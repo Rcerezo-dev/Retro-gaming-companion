@@ -38,18 +38,14 @@ def register(
 
     from rom_manager.reports import build_report, to_csv
     from rom_manager.reports import to_json as _to_json
+    from rom_manager.web.builders.common import _list_drives, _test_path
+    from rom_manager.web.builders.library import _build_library_report, _build_status
     from rom_manager.web.handlers.system import (
         _get_local_ip,
         _handle_detect_cloud_folder,
         _handle_library_doctor,
         _handle_retroarch_check,
         _handle_system_status,
-    )
-    from rom_manager.web.response_builders import (
-        _build_library_report,
-        _build_status,
-        _list_drives,
-        _test_path,
     )
 
     # ── GET /api/local-url ────────────────────────────────────────────────────
