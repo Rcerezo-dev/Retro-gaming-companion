@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +11,8 @@ from rom_manager.sync.conflict_resolver import SyncDecision, decide
 from rom_manager.sync.delta_cache import DeltaCache
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport, RemoteEntry
 from rom_manager.sync.sync_log import get_last_sync, log_sync_event
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -202,7 +205,10 @@ def sync_saves(
 
                             backup_save(local_path, backup_root, keep_n=backup_keep_n)
                         except Exception:
-                            pass  # backup failure must never block sync
+                            # backup failure must never block sync
+                            _logger.warning(
+                                "Save backup failed before download (continuing)", exc_info=True
+                            )
                     transport.download(
                         relative,
                         local_path,
@@ -249,7 +255,11 @@ def sync_saves(
 
                         backup_save(local_path, backup_root, keep_n=backup_keep_n)
                     except Exception:
-                        pass
+                        # backup failure must never block sync
+                        _logger.warning(
+                            "Save backup failed before conflict resolution (continuing)",
+                            exc_info=True,
+                        )
 
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
                 remote_path = f"<routed to saves/states remote>/{relative}"
