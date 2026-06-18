@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-import logging
-import shutil
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.services.duplicates_service import delete_all_duplicates, delete_duplicate
+from rom_manager.services.ra_duplicates_service import (
+    apply_ra_conflicts,
+    discard_all_ra_duplicates,
+    discard_no_support,
+    discard_ra_duplicate,
+    resolve_duplicate_ra,
+)
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -25,7 +29,11 @@ def register(
     repo_android: LibraryRepository,
     job_manager: JobManager,
 ) -> None:
-    """Register duplicate-management routes on *router*."""
+    """Register duplicate-management routes on *router*.
+
+    Routes are thin: they parse the request and delegate the business logic to
+    ``services.duplicates_service`` / ``services.ra_duplicates_service``.
+    """
     from rom_manager.web.builders.duplicates import (
         _build_duplicates_two_repos,
         _build_ra_duplicates,
@@ -84,466 +92,39 @@ def register(
     # ── POST /api/apply-ra-conflicts ──────────────────────────────────────────
     @router.post("/api/apply-ra-conflicts")
     def post_apply_ra_conflicts(ctx) -> None:
-        _apply_ra_conflicts(ctx, ctx._post_data, config, repository)
+        ctx._send_json(apply_ra_conflicts(repository, config))
 
     # ── POST /api/ra-duplicates/discard ───────────────────────────────────────
     @router.post("/api/ra-duplicates/discard")
     def post_ra_duplicate_discard(ctx) -> None:
-        _ra_duplicate_discard(ctx, ctx._post_data, repository)
+        source_path = ctx._post_data.get("path", "").strip()
+        if not source_path:
+            ctx._send_error(400, "path required")
+            return
+        ctx._send_json(discard_ra_duplicate(repository, source_path))
 
     # ── POST /api/ra-duplicates/discard-all ──────────────────────────────────
     @router.post("/api/ra-duplicates/discard-all")
     def post_ra_duplicate_discard_all(ctx) -> None:
-        _ra_duplicate_discard_all(ctx, config, repository)
+        ra_dups = _build_ra_duplicates(repository, config)
+        ctx._send_json(discard_all_ra_duplicates(repository, ra_dups))
 
     # ── POST /api/ra-check/discard-no-support ────────────────────────────────
     @router.post("/api/ra-check/discard-no-support")
     def post_ra_discard_no_support(ctx) -> None:
-        _ra_discard_no_support(ctx, repository, job_manager)
+        result = job_manager.get_status()["ra_check_result"]
+        if not result:
+            ctx._send_json({"error": "No RA check result available. Run RA check first."})
+            return
+        ctx._send_json(discard_no_support(repository, result.get("no_support_entries", [])))
 
     # ── POST /api/resolve-duplicate-ra ───────────────────────────────────────
     @router.post("/api/resolve-duplicate-ra")
     def post_resolve_duplicate_ra(ctx) -> None:
-        _resolve_duplicate_ra(ctx, ctx._post_data, repository)
-
-
-# ── Handler logic (moved from server.py) ──────────────────────────────────────
-
-_log = logging.getLogger(__name__)
-
-
-def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
-    """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/.
-
-    Handles both conflict types:
-    - "disk":      source wants target path already occupied by a different file.
-                   Compare source vs target RA; discard the loser, rename winner to target.
-    - "collision": two pending ops share the same target path (two ROMs → same canonical name).
-                   Group by target, compare all sources' RA; discard all but the winner.
-    """
-    import json as _json
-    from collections import defaultdict
-
-    from rom_manager.planner import build_plan
-    from rom_manager.planner.operation_planner import FormatOptions
-    from rom_manager.renamer.file_renamer import rename_rom_with_saves
-    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-
-    opts = FormatOptions()
-    plan = build_plan(repository, opts)
-
-    resolved = 0
-    skipped_no_ra = 0
-    errors: list[str] = []
-
-    cache_dir = config.project_root / ".rommgr" / "ra_cache"
-    cache_dir_exists = cache_dir.exists()
-    cache_files_exist = cache_dir_exists and any(cache_dir.iterdir()) if cache_dir_exists else False
-
-    # Build per-platform hash→achievements lookup (lazily cached)
-    _hash_lib_cache: dict[str, dict] = {}
-
-    def _hash_lib_for(plat: str) -> dict:
-        if plat in _hash_lib_cache:
-            return _hash_lib_cache[plat]
-        console_id = get_ra_console_id(plat)
-        if not console_id:
-            _hash_lib_cache[plat] = {}
-            return {}
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            _hash_lib_cache[plat] = {}
-            return {}
-        try:
-            lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
-        except Exception:
-            _log.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            lib = {}
-        _hash_lib_cache[plat] = lib
-        return lib
-
-    def _ra_for_path(path: Path, plat: str) -> int:
-        """Return achievement count for a file (-1 = unknown / no cache)."""
-        try:
-            with repository.connect() as _c:
-                row = _c.execute(
-                    "SELECT md5 FROM games WHERE source_path = ?", (str(path),)
-                ).fetchone()
-            if not row:
-                return -1
-            md5 = (row["md5"] or "").lower()
-        except Exception:
-            _log.debug("Consulta RA por ruta falló: %s", path, exc_info=True)
-            return -1
-        if not md5:
-            return -1
-        entry = _hash_lib_for(plat).get(md5)
-        return entry.achievements if entry else -1
-
-    def _discard(path: Path) -> None:
-        discard_dir = path.parent / "_descartados"
-        discard_dir.mkdir(parents=True, exist_ok=True)
-        dest = discard_dir / path.name
-        if not dest.exists():
-            shutil.move(str(path), dest)
-        else:
-            path.unlink()
-        with repository.connect() as _c:
-            _c.execute("DELETE FROM games WHERE source_path = ?", (str(path),))
-            _c.commit()
-
-    # ── Disk conflicts ────────────────────────────────────────────────────────
-    # source wants to rename to target_path but target_path already holds a different file.
-    for op in (o for o in plan.conflicts if o.conflict_reason == "disk"):
-        if not op.source_path.exists():
-            continue
-        plat = op.game.platform or ""
-        src_ra = _ra_for_path(op.source_path, plat)
-        tgt_ra = _ra_for_path(op.target_path, plat)
-
-        if src_ra <= 0 and tgt_ra <= 0:
-            skipped_no_ra += 1
-            continue
-
-        # Lower RA (or unknown) is the loser; equal → discard source (keep existing)
-        if tgt_ra < src_ra:
-            # Target is loser; discard it and rename source to target
-            loser_path = op.target_path
-            winner_path = op.source_path
-            winner_target = op.target_path
-        else:
-            # Source is loser; discard it (target stays in place)
-            loser_path = op.source_path
-            winner_path = None
-            winner_target = None
-
-        try:
-            _discard(loser_path)
-            if winner_path and winner_target and winner_path.exists():
-                # Rename winner to canonical target path
-                save_exts = (
-                    frozenset(config.save_extensions) if config.save_extensions else frozenset()
-                )
-                outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
-                if not outcome.success:
-                    errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
-                else:
-                    # Update DB with new path
-                    with repository.connect() as _c:
-                        _c.execute(
-                            "UPDATE games SET source_path = ? WHERE source_path = ?",
-                            (str(winner_target), str(winner_path)),
-                        )
-                        _c.commit()
-            resolved += 1
-        except Exception as exc:
-            errors.append(f"{loser_path.name}: {exc}")
-
-    # ── Collision conflicts ───────────────────────────────────────────────────
-    # Multiple source files all want to rename to the same canonical target.
-    # Group by target_path so we compare all contenders at once.
-    collision_groups: dict[str, list] = defaultdict(list)
-    for op in (o for o in plan.conflicts if o.conflict_reason == "collision"):
-        collision_groups[str(op.target_path)].append(op)
-
-    for _target_str, ops in collision_groups.items():
-        plat = ops[0].game.platform or ""
-        scored = [(op, _ra_for_path(op.source_path, plat)) for op in ops if op.source_path.exists()]
-        if not scored:
-            continue
-
-        any_has_ra = any(ra > 0 for _, ra in scored)
-        if not any_has_ra:
-            skipped_no_ra += 1
-            continue
-
-        # Highest RA wins; ties keep the first candidate (stable sort)
-        scored.sort(key=lambda x: x[1], reverse=True)
-        winner_op, winner_ra = scored[0]
-        if winner_ra <= 0:
-            skipped_no_ra += 1
-            continue
-
-        # Discard all non-winners and rename winner to canonical target
-        for loser_op, _ in scored[1:]:
-            try:
-                _discard(loser_op.source_path)
-                resolved += 1
-            except Exception as exc:
-                errors.append(f"{loser_op.source_path.name}: {exc}")
-
-        # Rename winner to canonical target path
-        if winner_op.source_path.exists() and winner_op.source_path != winner_op.target_path:
-            try:
-                save_exts = (
-                    frozenset(config.save_extensions) if config.save_extensions else frozenset()
-                )
-                outcome = rename_rom_with_saves(
-                    winner_op.source_path, winner_op.target_path, save_exts
-                )
-                if not outcome.success:
-                    errors.append(f"{winner_op.source_path.name}: rename failed — {outcome.error}")
-                else:
-                    # Update DB with new path
-                    with repository.connect() as _c:
-                        _c.execute(
-                            "UPDATE games SET source_path = ? WHERE source_path = ?",
-                            (str(winner_op.target_path), str(winner_op.source_path)),
-                        )
-                        _c.commit()
-            except Exception as exc:
-                errors.append(f"{winner_op.source_path.name}: rename error — {exc}")
-
-    # Diagnostic: sample MD5 lookups from the first few conflicts (helps diagnose H1/H2)
-    debug_samples: list[dict] = []
-    for op in (list(plan.conflicts) + list(plan.pending))[:3]:
-        try:
-            with repository.connect() as _c:
-                row = _c.execute(
-                    "SELECT md5, source_path FROM games WHERE source_path = ?",
-                    (str(op.source_path),),
-                ).fetchone()
-            debug_samples.append(dict(row) if row else {"not_found": str(op.source_path)})
-        except Exception as _e:
-            debug_samples.append({"error": str(_e)})
-
-    next_step = "Si hay errores de rename, verifica que los archivos de guardado existan y sean accesibles. Luego ejecuta 'rommgr scan' para actualizar la BD si es necesario."
-    ctx._send_json(
-        {
-            "resolved": resolved,
-            "skipped_no_ra": skipped_no_ra,
-            "errors": errors[:10],
-            "no_cache": not cache_files_exist,
-            "debug_samples": debug_samples,
-            "hint": "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
-            "next_step": next_step,
-        }
-    )
-
-
-def _ra_duplicate_discard(ctx, data: dict, repository: LibraryRepository) -> None:
-    source_path = data.get("path", "").strip()
-    if not source_path:
-        ctx._send_error(400, "path required")
-        return
-
-    p = Path(source_path)
-    if not p.exists():
-        with repository.connect() as _c:
-            _c.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
-            _c.commit()
-        ctx._send_json({"ok": True, "note": "file already missing; removed from DB"})
-        return
-
-    discard_dir = p.parent / "_descartados"
-    dest: Path | None = None
-    moved = False
-    permanently_deleted = False
-    try:
-        discard_dir.mkdir(parents=True, exist_ok=True)
-        dest = discard_dir / p.name
-        if dest.exists():
-            p.unlink()
-            dest = None
-            permanently_deleted = True
-        else:
-            shutil.move(str(p), dest)
-            moved = True
-        with repository.connect() as _c:
-            _c.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
-            _c.commit()
-    except Exception as exc:
-        if moved and dest is not None and dest.exists():
-            try:
-                shutil.move(str(dest), str(p))
-                _log.warning("RA discard rollback: restored %s after DB error", p.name)
-            except Exception as rb_exc:
-                _log.error("RA discard rollback FAILED for %s: %s", p.name, rb_exc)
-                ctx._send_json(
-                    {
-                        "error": f"DB error AND rollback failed — {p.name} may be lost: {exc} | rollback: {rb_exc}"
-                    }
-                )
-                return
-        elif permanently_deleted:
-            _log.error("File %s was permanently deleted but DB delete failed: %s", p.name, exc)
-            ctx._send_json(
-                {
-                    "error": f"File was deleted but DB update failed — stale entry will be removed on next scan: {exc}"
-                }
-            )
+        data = ctx._post_data
+        keep_path = data.get("keep_path", "").strip()
+        discard_paths = data.get("discard_paths", [])
+        if not keep_path or not discard_paths:
+            ctx._send_json({"error": "keep_path and discard_paths required"})
             return
-        ctx._send_json({"error": str(exc)})
-        return
-    ctx._send_json({"ok": True})
-
-
-def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryRepository) -> None:
-    """Discard ALL entries without RA support from version-duplicate groups."""
-    from rom_manager.web.builders.duplicates import _build_ra_duplicates
-
-    ra_dups = _build_ra_duplicates(repository, config)
-    if ra_dups.get("note"):
-        ctx._send_json({"discarded": 0, "failed": 0, "errors": [], "note": ra_dups["note"]})
-        return
-
-    discarded = 0
-    failed = 0
-    errors: list[str] = []
-
-    for group in ra_dups.get("groups", []):
-        for entry in group.get("entries", []):
-            if entry.get("ra_supported"):
-                continue
-            src_path_str = entry.get("source_path", "")
-            if not src_path_str:
-                continue
-            p = Path(src_path_str)
-            discard_dir = p.parent / "_descartados"
-            dest_file: Path | None = None
-            moved = False
-            permanently_deleted = False
-            try:
-                discard_dir.mkdir(parents=True, exist_ok=True)
-                if p.exists():
-                    dest_file = discard_dir / p.name
-                    if dest_file.exists():
-                        p.unlink()
-                        dest_file = None
-                        permanently_deleted = True
-                    else:
-                        shutil.move(str(p), dest_file)
-                        moved = True
-                with repository.connect() as _c:
-                    _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
-                    _c.commit()
-                discarded += 1
-            except Exception as exc:
-                failed += 1
-                if moved and dest_file is not None and dest_file.exists():
-                    try:
-                        shutil.move(str(dest_file), str(p))
-                        _log.warning("RA discard-all rollback: restored %s", p.name)
-                        errors.append(f"{p.name}: DB error (file restored) — {exc}")
-                    except Exception as rb_exc:
-                        _log.error("RA discard-all rollback FAILED for %s: %s", p.name, rb_exc)
-                        errors.append(
-                            f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}"
-                        )
-                elif permanently_deleted:
-                    errors.append(
-                        f"{p.name}: deleted but DB not updated (stale entry — will be removed on next scan)"
-                    )
-                else:
-                    errors.append(f"{p.name}: {exc}")
-
-    ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})
-
-
-def _ra_discard_no_support(ctx, repository: LibraryRepository, job_manager: JobManager) -> None:
-    """Bulk-discard all games with NO RA support at all (status='no_support')."""
-    result = job_manager.get_status()["ra_check_result"]
-    if not result:
-        ctx._send_json({"error": "No RA check result available. Run RA check first."})
-        return
-    entries = result.get("no_support_entries", [])
-    if not entries:
-        ctx._send_json({"discarded": 0, "failed": 0, "errors": [], "note": "No games to discard."})
-        return
-
-    discarded = 0
-    failed = 0
-    errors: list[str] = []
-
-    for entry in entries:
-        src_path_str = entry.get("source_path", "")
-        if not src_path_str:
-            continue
-        p = Path(src_path_str)
-        discard_dir = p.parent / "_descartados"
-        dest_file: Path | None = None
-        moved = False
-        permanently_deleted = False
-        try:
-            discard_dir.mkdir(parents=True, exist_ok=True)
-            if p.exists():
-                dest_file = discard_dir / p.name
-                if dest_file.exists():
-                    p.unlink()
-                    permanently_deleted = True
-                else:
-                    shutil.move(str(p), dest_file)
-                    moved = True
-            with repository.connect() as _c:
-                _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
-            discarded += 1
-        except Exception as exc:
-            failed += 1
-            if moved and dest_file is not None and dest_file.exists():
-                try:
-                    shutil.move(str(dest_file), str(p))
-                    _log.warning("RA discard-no-support rollback: restored %s", p.name)
-                    errors.append(f"{p.name}: DB error (file restored) — {exc}")
-                except Exception as rb_exc:
-                    _log.error("RA discard-no-support rollback FAILED for %s: %s", p.name, rb_exc)
-                    errors.append(
-                        f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}"
-                    )
-            elif permanently_deleted:
-                errors.append(f"{p.name}: deleted from disk but DB error — {exc}")
-            else:
-                errors.append(f"{p.name}: {exc}")
-
-    ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})
-
-
-def _resolve_duplicate_ra(ctx, data: dict, repository: LibraryRepository) -> None:
-    """B1-4: Resolve title-based duplicates by keeping the one with RA support."""
-    keep_path = data.get("keep_path", "").strip()
-    discard_paths = data.get("discard_paths", [])
-    if not keep_path or not discard_paths:
-        ctx._send_json({"error": "keep_path and discard_paths required"})
-        return
-
-    discarded = 0
-    failed = 0
-    errors: list[str] = []
-
-    for src_path_str in discard_paths:
-        p = Path(src_path_str)
-        if not p.exists():
-            try:
-                with repository.connect() as _c:
-                    _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
-                    _c.commit()
-                discarded += 1
-            except Exception as exc:
-                failed += 1
-                errors.append(f"{p.name}: {exc}")
-            continue
-
-        discard_dir = p.parent / "_descartados"
-        dest_file: Path | None = None
-        try:
-            discard_dir.mkdir(parents=True, exist_ok=True)
-            dest_file = discard_dir / p.name
-            if dest_file.exists():
-                p.unlink()
-            else:
-                shutil.move(str(p), str(dest_file))
-            with repository.connect() as _c:
-                _c.execute("DELETE FROM games WHERE source_path = ?", (src_path_str,))
-                _c.commit()
-            discarded += 1
-        except Exception as exc:
-            failed += 1
-            _log.error("Failed to discard duplicate %s: %s", p.name, exc)
-            if dest_file and dest_file.exists():
-                try:
-                    shutil.move(str(dest_file), str(p))
-                except Exception:
-                    _log.warning("Rollback de archivo descartado falló: %s", p.name, exc_info=True)
-            errors.append(f"{p.name}: {exc}")
-
-    ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})
+        ctx._send_json(resolve_duplicate_ra(repository, keep_path, discard_paths))
