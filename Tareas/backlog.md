@@ -21,7 +21,7 @@ fichero van **siempre separados**.
 | **1** | `feature/perf-1-hashing` | PERF-1a + 1b + 1c | ⬜ ← **siguiente** |
 | 3 | `test/test-1-sync-daemons` | TEST-1a + 1b + 1c | ⬜ |
 | 4 | `chore/fix-build-conda` | FIX-1 + FIX-2 | ⬜ |
-| 5–7 | `refactor/srp-1{a,b,c}-*` | SRP-1a / 1b / 1c (una rama cada una) | ⬜ |
+| 5–7 | `refactor/srp-1{a,b,c}-*` | SRP-1a (PR #17) / 1b (PR #18) / 1c (PR #19) | ✅ |
 | 8 | `chore/clean-1-late-imports` | CLEAN-1 | ⬜ |
 
 > Detalle y justificación de la prioridad en `Tareas/Día26.md`.
@@ -66,6 +66,20 @@ sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `T
 - [x] SRP-1b-4 — orphaned saves + doctor → `esde/doctor.py`
 - [x] SRP-1b-5 — ES-DE + sistema/misc + helpers `_handle_*` → `esde/system.py`
 - [x] SRP-1b-6 — `register()` como orquestador puro; tests + ruff
+
+### SRP-1c — Desglose (rama `refactor/srp-1c-repository`) ✅ COMPLETADO (PR #19)
+
+`database/repository.py` (1455 líneas; clase única de ~50 métodos) → paquete
+`database/repositories/` con un mixin por agregado; `LibraryRepository` los ensambla.
+API pública intacta (dataclasses re-exportadas desde `repository.py`). Detalle en `Tareas/Día26.md §SRP-1c`.
+
+- [x] SRP-1c-0 — `repositories/` + `models.py` (dataclasses) + `base.py` (`_RepositoryBase`: connect/batch/scan-run/get_summary)
+- [x] SRP-1c-1 — `GamesMixin` (`games.py`)
+- [x] SRP-1c-2 — `MetadataMixin` (`metadata.py`: tags/favoritos/notas/NLP/scraping)
+- [x] SRP-1c-3 — `SyncMixin` (`sync.py`: saves + sync log)
+- [x] SRP-1c-4 — `AssetsMixin` (`assets.py`)
+- [x] SRP-1c-5 — `DuplicatesMixin` (`duplicates.py`: duplicados + wishlist)
+- [x] SRP-1c-6 — `LibraryRepository` ensambla los mixins; tests + ruff
 
 ---
 
