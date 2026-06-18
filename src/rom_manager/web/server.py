@@ -421,7 +421,7 @@ def serve(
     repository_android: LibraryRepository | None = None,
     tray: bool = False,
 ) -> None:
-    _state._auto_sync_enabled = config.auto_sync_enabled
+    _state._auto_sync_enabled = config.sync.auto_sync_enabled
 
     if host != "127.0.0.1" and not config.web_pin_hash:
         _logger.warning(
@@ -449,7 +449,7 @@ def serve(
                 from rom_manager.utils.tray_icon import TrayIcon
 
                 def _on_sync_from_tray() -> None:
-                    sources = config.sync_sources
+                    sources = config.sync.sync_sources
                     if not sources:
                         return
                     from pathlib import Path as _Path
@@ -479,19 +479,19 @@ def serve(
                             )
                     # D2: implicit saves/states remotes
                     _implicit_tray = []
-                    if config.saves_remote and config.library_root:
+                    if config.sync.saves_remote and config.library_root:
                         _implicit_tray.append(
                             (
                                 _Path(config.library_root) / "saves",
-                                config.saves_remote,
+                                config.sync.saves_remote,
                                 config.save_extensions,
                             )
                         )
-                    if config.states_remote and config.library_root:
+                    if config.sync.states_remote and config.library_root:
                         _implicit_tray.append(
                             (
                                 _Path(config.library_root) / "states",
-                                config.states_remote,
+                                config.sync.states_remote,
                                 config.state_extensions,
                             )
                         )

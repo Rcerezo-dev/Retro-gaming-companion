@@ -220,7 +220,7 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
     ip = _get_local_ip()
     port = config.web_port
     base_url = f"http://{ip}:{port}"
-    rclone_remote = config.rclone_remote or "dropbox:/RetroSync/saves"
+    rclone_remote = config.sync.rclone_remote or "dropbox:/RetroSync/saves"
 
     cloud_info = _handle_detect_cloud_folder()
     has_cloud = bool(cloud_info.get("detected"))

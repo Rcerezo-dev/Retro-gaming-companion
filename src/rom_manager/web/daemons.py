@@ -219,7 +219,7 @@ def start_all(config: AppConfig, repository: LibraryRepository) -> None:
     """Arranca todos los daemons de background. Llamado desde serve()."""
     from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loop
 
-    if config.auto_sync_enabled:
+    if config.sync.auto_sync_enabled:
         t = threading.Thread(
             target=_auto_sync_loop,
             args=(config, lambda: repository),

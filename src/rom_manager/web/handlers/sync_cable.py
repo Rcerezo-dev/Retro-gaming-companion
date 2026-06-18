@@ -721,7 +721,7 @@ def _do_tree_diff(ctx, data: dict, config: AppConfig, job_manager: JobManager) -
     and_path_str = (
         data.get("android_path", "").strip()
         or config.anbernic_root
-        or config.auto_sync_android_path
+        or config.sync.auto_sync_android_path
     )
 
     def run() -> None:

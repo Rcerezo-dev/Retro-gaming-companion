@@ -33,7 +33,7 @@ def _make_config(tmp_path: Path, pc_root: Path, ab_root: Path, direction: str):
     cfg.project_root = tmp_path
     cfg.library_root = pc_root
     cfg.anbernic_root = str(ab_root)
-    cfg.auto_sync_direction = direction
+    cfg.sync.auto_sync_direction = direction
     cfg.save_extensions = (".sav",)
     return cfg
 

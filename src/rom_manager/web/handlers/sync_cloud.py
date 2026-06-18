@@ -58,9 +58,9 @@ def register_cloud(
                 "enabled": _state._auto_sync_enabled,
                 "status": dict(_state._auto_sync_status),
                 "config": {
-                    "direction": config.auto_sync_direction,
-                    "conflict_policy": config.conflict_policy,
-                    "android_path": config.auto_sync_android_path,
+                    "direction": config.sync.auto_sync_direction,
+                    "conflict_policy": config.sync.conflict_policy,
+                    "android_path": config.sync.auto_sync_android_path,
                 },
             }
         )
@@ -79,7 +79,7 @@ def register_cloud(
     @router.post("/api/auto-sync-toggle")
     def post_auto_sync_toggle(ctx) -> None:
         _state._auto_sync_enabled = not _state._auto_sync_enabled
-        config.auto_sync_enabled = _state._auto_sync_enabled
+        config.sync.auto_sync_enabled = _state._auto_sync_enabled
         ctx._send_json({"enabled": _state._auto_sync_enabled})
 
     # ── POST /api/auto-sync-save ─────────────────────────────────────────────
@@ -216,7 +216,7 @@ def _do_sync(
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
 
-            sources = config.sync_sources
+            sources = config.sync.sync_sources
             if not sources:
                 job_result = {
                     "error": "No hay fuentes de sync configuradas. "
@@ -281,7 +281,7 @@ def _do_sync(
                         backup_root=_bk_root,
                         backup_keep_n=config.backup_saves_keep_n,
                         delta_cache=_delta,
-                        conflict_policy=config.conflict_policy,
+                        conflict_policy=config.sync.conflict_policy,
                     )
                     all_results.append(
                         {
@@ -320,20 +320,20 @@ def _do_sync(
             # D2: implicit sync for saves/states remotes
             _bk_root = config.data_dir if config.backup_saves_enabled else None
             _implicit = []
-            if config.saves_remote and config.library_root:
+            if config.sync.saves_remote and config.library_root:
                 _implicit.append(
                     (
                         _Path(config.library_root) / "saves",
-                        config.saves_remote,
+                        config.sync.saves_remote,
                         "Saves (permanentes)",
                         config.save_extensions,
                     )
                 )
-            if config.states_remote and config.library_root:
+            if config.sync.states_remote and config.library_root:
                 _implicit.append(
                     (
                         _Path(config.library_root) / "states",
-                        config.states_remote,
+                        config.sync.states_remote,
                         "States",
                         config.state_extensions,
                     )
@@ -375,7 +375,7 @@ def _do_sync(
                         backup_root=_bk_root,
                         backup_keep_n=config.backup_saves_keep_n,
                         delta_cache=_delta,
-                        conflict_policy=config.conflict_policy,
+                        conflict_policy=config.sync.conflict_policy,
                     )
                     all_results.append(
                         {
@@ -471,17 +471,17 @@ def _do_auto_sync_save(ctx, data: dict, config: AppConfig) -> None:
     updates: dict = {}
     if "sync.auto_sync_direction" in data:
         updates["sync.auto_sync_direction"] = data["sync.auto_sync_direction"]
-        config.auto_sync_direction = data["sync.auto_sync_direction"]
+        config.sync.auto_sync_direction = data["sync.auto_sync_direction"]
     if "sync.auto_sync_android_path" in data:
         updates["sync.auto_sync_android_path"] = data["sync.auto_sync_android_path"]
-        config.auto_sync_android_path = data["sync.auto_sync_android_path"]
+        config.sync.auto_sync_android_path = data["sync.auto_sync_android_path"]
     if "sync.conflict_policy" in data:
         updates["sync.conflict_policy"] = data["sync.conflict_policy"]
-        config.conflict_policy = data["sync.conflict_policy"]
+        config.sync.conflict_policy = data["sync.conflict_policy"]
     if "sync.auto_sync_enabled" in data:
         val = bool(data["sync.auto_sync_enabled"])
         updates["sync.auto_sync_enabled"] = val
-        config.auto_sync_enabled = val
+        config.sync.auto_sync_enabled = val
         _state._auto_sync_enabled = val
 
     if updates:

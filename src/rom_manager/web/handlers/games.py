@@ -530,7 +530,7 @@ def register(
                 saves_dirs = []
                 if config.library_root and config.library_root.exists():
                     saves_dirs.append(config.library_root)
-                for src in config.sync_sources:
+                for src in config.sync.sync_sources:
                     p = Path(src.local_dir)
                     if p.exists() and p not in saves_dirs:
                         saves_dirs.append(p)
