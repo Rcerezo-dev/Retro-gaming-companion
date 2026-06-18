@@ -178,6 +178,26 @@ class SyncConfig:
 
 
 @dataclass(slots=True)
+class CredentialsConfig:
+    """Secrets: ScreenScraper + RetroAchievements credentials and the web PIN (ARC-CFG-2).
+
+    Extracted from the flat fields of ``AppConfig`` so all secrets live in one
+    unit. Secret-bearing fields use ``repr=False`` so they never leak into logs
+    or tracebacks; non-secret identifiers (usernames, dev_id) stay visible.
+    Mutable — handlers update these in place under ``_config_lock``.
+    """
+
+    screenscraper_user: str = ""
+    screenscraper_pass: str = field(default="", repr=False)
+    screenscraper_dev_id: str = ""
+    screenscraper_dev_pass: str = field(default="", repr=False)
+    ra_api_key: str = field(default="", repr=False)
+    ra_username: str = ""
+    web_pin_hash: str = field(default="", repr=False)  # SHA-256(pin+salt); empty = no auth
+    web_pin_salt: str = field(default="", repr=False)  # random hex salt for the PIN hash
+
+
+@dataclass(slots=True)
 class AppConfig:
     project_root: Path
     data_dir: Path
@@ -198,15 +218,9 @@ class AppConfig:
     adb: str
     web_host: str
     web_port: int
-    web_pin_hash: str  # SHA-256(pin+salt); empty = no auth
-    web_pin_salt: str  # random hex salt for the PIN hash
     web_session_ttl: int  # session cookie TTL in seconds (default 86400 = 24h)
-    screenscraper_user: str
-    screenscraper_pass: str
-    screenscraper_dev_id: str
-    screenscraper_dev_pass: str
-    ra_api_key: str
-    ra_username: str
+    # Secrets (ScreenScraper + RetroAchievements creds, web PIN) — see CredentialsConfig
+    credentials: CredentialsConfig
     # Save-sync settings (cloud remotes, auto-sync daemon, conflict policy) — see SyncConfig
     sync: SyncConfig
     anbernic_root: str  # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
@@ -370,15 +384,17 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         adb=tools.get("adb", "adb"),
         web_host=web.get("host", "127.0.0.1"),
         web_port=int(web.get("port", 7777)),
-        web_pin_hash=str(web.get("pin_hash", "")),
-        web_pin_salt=str(web.get("pin_salt", "")),
         web_session_ttl=int(web.get("session_ttl", 86400)),
-        screenscraper_user=ss.get("user", ""),
-        screenscraper_pass=ss.get("pass", ""),
-        screenscraper_dev_id=ss.get("dev_id", ""),
-        screenscraper_dev_pass=ss.get("dev_pass", ""),
-        ra_api_key=ra.get("api_key", ""),
-        ra_username=ra.get("username", ""),
+        credentials=CredentialsConfig(
+            screenscraper_user=ss.get("user", ""),
+            screenscraper_pass=ss.get("pass", ""),
+            screenscraper_dev_id=ss.get("dev_id", ""),
+            screenscraper_dev_pass=ss.get("dev_pass", ""),
+            ra_api_key=ra.get("api_key", ""),
+            ra_username=ra.get("username", ""),
+            web_pin_hash=str(web.get("pin_hash", "")),
+            web_pin_salt=str(web.get("pin_salt", "")),
+        ),
         sync=SyncConfig(
             rclone_remote=sync.get("remote", ""),
             auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
@@ -592,13 +608,13 @@ def validate(config: AppConfig) -> list[dict]:
         warn("web_port", f"Puerto inválido: {config.web_port}. Debe estar entre 1 y 65535.")
 
     # screenscraper — partial config
-    if config.screenscraper_user and not config.screenscraper_pass:
+    if config.credentials.screenscraper_user and not config.credentials.screenscraper_pass:
         warn("screenscraper_pass", "Usuario de ScreenScraper configurado pero contraseña vacía.")
-    if config.screenscraper_pass and not config.screenscraper_user:
+    if config.credentials.screenscraper_pass and not config.credentials.screenscraper_user:
         warn("screenscraper_user", "Contraseña de ScreenScraper configurada pero usuario vacío.")
 
     # retroachievements
-    if not config.ra_api_key:
+    if not config.credentials.ra_api_key:
         warn(
             "ra_api_key",
             "API key de RetroAchievements no configurada. Necesaria para el informe de logros.",

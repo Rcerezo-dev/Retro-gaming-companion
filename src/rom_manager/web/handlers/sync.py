@@ -45,7 +45,7 @@ def register(
     @router.post("/api/ra-check")
     def post_ra_check(ctx) -> None:
         data = ctx._post_data
-        api_key = data.get("api_key", "").strip() or config.ra_api_key
+        api_key = data.get("api_key", "").strip() or config.credentials.ra_api_key
         if not api_key:
             ctx._send_json({"error": "RetroAchievements API key not configured"})
             return

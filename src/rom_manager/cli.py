@@ -702,17 +702,17 @@ def main(argv: list[str] | None = None) -> int:
         from rom_manager.scraper.platform_ids import get_system_id
         from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
-        if not config.screenscraper_user or not config.screenscraper_pass:
+        if not config.credentials.screenscraper_user or not config.credentials.screenscraper_pass:
             parser.error(
                 "ScreenScraper credentials not set. "
                 "Add [screenscraper] user and pass to config.toml."
             )
 
         client = ScreenScraperClient(
-            user=config.screenscraper_user,
-            password=config.screenscraper_pass,
-            dev_id=config.screenscraper_dev_id,
-            dev_password=config.screenscraper_dev_pass,
+            user=config.credentials.screenscraper_user,
+            password=config.credentials.screenscraper_pass,
+            dev_id=config.credentials.screenscraper_dev_id,
+            dev_password=config.credentials.screenscraper_dev_pass,
         )
 
         games = repository.get_games_for_scraping(platform=args.platform)

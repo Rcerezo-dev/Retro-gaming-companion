@@ -58,7 +58,7 @@ def register(
 
     @router.get("/api/auth/status")
     def get_auth_status(ctx) -> None:
-        ctx._send_json({"pin_configured": bool(config.web_pin_hash)})
+        ctx._send_json({"pin_configured": bool(config.credentials.web_pin_hash)})
 
     @router.get("/api/health-schedule")
     def get_health_schedule(ctx) -> None:
@@ -283,14 +283,9 @@ def _save_config(
         config.anbernic_root = new_cfg.anbernic_root
         config.device_name = new_cfg.device_name
         config.sync = new_cfg.sync
-        config.screenscraper_user = new_cfg.screenscraper_user
-        config.screenscraper_pass = new_cfg.screenscraper_pass
-        config.screenscraper_dev_id = new_cfg.screenscraper_dev_id
-        config.screenscraper_dev_pass = new_cfg.screenscraper_dev_pass
+        config.credentials = new_cfg.credentials
         config.chdman = new_cfg.chdman
         config.adb = new_cfg.adb
-        config.ra_api_key = new_cfg.ra_api_key
-        config.ra_username = new_cfg.ra_username
         config.inbox_path = new_cfg.inbox_path
         config.inbox_target_root = new_cfg.inbox_target_root
         config.inbox_auto_process = new_cfg.inbox_auto_process

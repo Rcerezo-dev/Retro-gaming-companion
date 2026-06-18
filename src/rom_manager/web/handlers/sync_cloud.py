@@ -24,7 +24,7 @@ def register_cloud(
     # ── GET /api/rclone-export-config ────────────────────────────────────────
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
-        if config.web_host != "127.0.0.1" and not config.web_pin_hash:
+        if config.web_host != "127.0.0.1" and not config.credentials.web_pin_hash:
             ctx._send_json(
                 {
                     "error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."
