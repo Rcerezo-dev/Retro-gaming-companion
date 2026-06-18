@@ -338,7 +338,7 @@ export async function loadGames(offset) {
           empty.innerHTML = _emptyState('🔍', `Sin ROMs de ${_devName}`, `Ruta: <code>${_h(ab)}</code><br>Escanea la consola desde Inicio para ver sus juegos aquí.`, 'Ir a Inicio', () => showTab('overview'));
         }
       } else if (d.total === 0) {
-        empty.innerHTML = _emptyState('🎮', 'Sin juegos aún', 'Escanea tu biblioteca y ejecuta "Match catálogos" para ver tus juegos aquí.', 'Ir a Inicio', () => showTab('overview'));
+        empty.innerHTML = _emptyState('🎮', 'Sin juegos aún', 'Escanea tu biblioteca y ejecuta "Identificar (catálogos)" para ver tus juegos aquí.', 'Ir a Inicio', () => showTab('overview'));
       } else {
         empty.innerHTML = _emptyState('🔎', 'Sin resultados', 'Prueba con otros filtros o borra la búsqueda.');
       }

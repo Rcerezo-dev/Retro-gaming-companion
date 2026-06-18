@@ -177,7 +177,7 @@ async function doMatch() {
     window.startPolling();
   } catch(e) {
     btn.disabled = false;
-    btn.textContent = 'Match catálogos';
+    btn.textContent = 'Identificar (catálogos)';
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Error: ' + e.message;
   }

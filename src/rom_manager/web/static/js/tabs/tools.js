@@ -316,7 +316,7 @@ export async function doVerifyMultidisc() {
       html += '</div>';
     }
     if (unmatchedOnly.length) {
-      html += `<details style="font-size:12px;color:#555"><summary style="cursor:pointer;color:#888">Sin match en catálogo (${unmatchedOnly.length}) — haz Match catálogos para resolverlos</summary>`;
+      html += `<details style="font-size:12px;color:#555"><summary style="cursor:pointer;color:#888">Sin identificar en catálogo (${unmatchedOnly.length}) — pulsa Identificar (catálogos) para resolverlos</summary>`;
       html += '<div style="max-height:200px;overflow-y:auto;margin-top:6px">';
       html += unmatchedOnly.map(i => `<div style="padding:2px 0;color:#555">${i.base_name} — ${i.detail}</div>`).join('');
       html += '</div></details>';
