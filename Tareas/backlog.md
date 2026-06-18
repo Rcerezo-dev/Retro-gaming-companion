@@ -24,8 +24,10 @@ fichero van **siempre separados**.
 | ✅ | `refactor/srp-1{a,b,c}-*` | SRP-1a (PR #17) / 1b (PR #18) / 1c (PR #19) | ✅ |
 | ✅ | `chore/clean-1-late-imports` | CLEAN-1 | PR #20 (handlers hoisted en server.py; docstrings de daemons al día) |
 
-> **Día26 completado.** Plan de la sesión actual en `Tareas/diario/Día27.md`.
-> Detalle/justificación del Día26 en `Tareas/diario/archivo/Día26.md`.
+> **Día27 completado y archivado** (`Tareas/diario/archivo/Día27.md`): roadmap ARC
+> cerrado (JM + CFG + SVC, PRs #22–#29). Plan de la sesión actual en
+> `Tareas/diario/Día28.md` (UX Phase 4). Detalle del Día26 en
+> `Tareas/diario/archivo/Día26.md`.
 
 ### Foco activo (Día27 — completar la migración al JobManager)
 
@@ -159,11 +161,11 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE4-1 | Human-readable errors — capturar excepciones en handlers y devolver mensaje legible | ⬜ |
-| PHASE4-2 | Contextual help — tooltips y `?` icons por sección | ⬜ |
-| PHASE4-3 | Responsive UI — media queries para viewport 480px (Android browser) | ⬜ |
-| PHASE4-4 | Windows toast notifications en sync complete / inbox detected | ⬜ |
-| PHASE4-5 | Renombrar jargon: "DATs" → "Base de datos", "SHA1 match" → "Identificación automática" | ⬜ |
+| PHASE4-1 | Human-readable errors — `_readable_error()` central en `server.py` mapea excepciones a mensaje legible + log de traceback; router simplificado | ✅ (rama `feature/phase4-1-readable-errors`) |
+| PHASE4-2 | Contextual help — componente `.help-icon` (tooltip CSS-only) + hints en Overview/Settings | ✅ (rama `feature/phase4-2-contextual-help`) |
+| PHASE4-3 | Responsive UI — breakpoint `≤480px` (sidebar icon-rail, grid 1 col, touch 44px) | ✅ (rama `feature/phase4-3-responsive`) |
+| PHASE4-4 | Windows toast notifications en sync complete / inbox detected — **aplazado**: requiere spike de vía *stdlib-only* (sin `win10toast`/`plyer`); candidatos: PowerShell `Windows.UI.Notifications` o `ctypes`+Shell_NotifyIcon (tray ya existe) | ⬜ aplazado |
+| PHASE4-5 | Renombrar jargon (conservador término + glosa): Match→Identificar, SHA1→Huella (SHA1), DAT→base de datos de juegos | ✅ (rama `feature/phase4-5-rename-jargon`) |
 
 ### Phase 5 — Auth
 
@@ -358,6 +360,7 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 | ARC-CFG-4a | | ↳ Definir `InboxConfig`; mover campos `inbox_*` → `config.inbox.*` | `config.py` | ✅ |
 | ARC-CFG-4b | | ↳ Definir `BackupConfig`; mover `backup_*`/`pre_sync_backup` → `config.backup.*` | `config.py` | ✅ |
 | ARC-CFG-4c | | ↳ Actualizar callers (daemons, inbox, organize, sync_cloud, games, builders) | handlers | ✅ |
+
 
 > **Orden:** ARC-CFG-3 → ARC-CFG-1 → ARC-CFG-2 → ARC-CFG-4 — **todos ✅** (split de `AppConfig` completo).
 
