@@ -41,18 +41,31 @@ fichero van **siempre separados**.
 
 ---
 
-### SRP-1a — Desglose (rama `refactor/srp-1a-response-builders`)
+### SRP-1a — Desglose (rama `refactor/srp-1a-response-builders`) ✅ COMPLETADO (PR #17)
 
-`web/response_builders.py` (1658 líneas) → paquete `web/builders/`, con `response_builders.py`
-como fachada de re-export. 7 sub-pasos (1 sesión c/u); detalle completo en `Tareas/Día26.md §SRP-1a`.
+`web/response_builders.py` (1658 líneas) → paquete `web/builders/`; fachada eliminada
+y 15 callers migrados. Detalle en `Tareas/Día26.md §SRP-1a`.
 
-- [ ] SRP-1a-0 — crear `web/builders/` + fachada de re-export (sin mover lógica)
-- [ ] SRP-1a-1 — `builders/common.py` (helpers: json/paths/drives/repo/format)
-- [ ] SRP-1a-2 — `builders/library.py` (report/status/games/plan)
-- [ ] SRP-1a-3 — `builders/duplicates.py` (duplicates + RA annotate)
-- [ ] SRP-1a-4 — `builders/diff.py` + `builders/folders.py`
-- [ ] SRP-1a-5 — `builders/misc.py` (assets/sync_log/config/scrape/cable)
-- [ ] SRP-1a-6 — migrar imports de callers; tests finales + ruff
+- [x] SRP-1a-0 — crear `web/builders/` + fachada de re-export (sin mover lógica)
+- [x] SRP-1a-1 — `builders/common.py` (helpers: json/paths/drives/repo/format)
+- [x] SRP-1a-2 — `builders/library.py` (report/status/games/plan)
+- [x] SRP-1a-3 — `builders/duplicates.py` (duplicates + RA annotate)
+- [x] SRP-1a-4 — `builders/diff.py` + `builders/folders.py`
+- [x] SRP-1a-5 — `builders/misc.py` (assets/sync_log/config/scrape/cable)
+- [x] SRP-1a-6 — migrar imports de callers + eliminar fachada; tests + ruff
+
+### SRP-1b — Desglose (rama `refactor/srp-1b-esde`) ✅ COMPLETADO (PR #18)
+
+`web/handlers/esde.py` (1158 líneas; `register()` ≈965) → paquete `web/handlers/esde/` con
+sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `Tareas/Día26.md §SRP-1b`.
+
+- [x] SRP-1b-0 — paquete `esde/` + esqueleto de sub-registradores; `register()` delega
+- [x] SRP-1b-1 — conversiones (chd/cso/zip/m3u/n64/multidisc) → `esde/conversions.py`
+- [x] SRP-1b-2 — reports/export (report html/json/csv, export_lpl) → `esde/reports.py`
+- [x] SRP-1b-3 — health/cleanup/junk → `esde/maintenance.py`
+- [x] SRP-1b-4 — orphaned saves + doctor → `esde/doctor.py`
+- [x] SRP-1b-5 — ES-DE + sistema/misc + helpers `_handle_*` → `esde/system.py`
+- [x] SRP-1b-6 — `register()` como orquestador puro; tests + ruff
 
 ---
 
