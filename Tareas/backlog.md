@@ -13,7 +13,7 @@ Regla: una rama por tarea → PR a `develop`. Las sub-tareas que comparten fiche
 son la misma unidad de cambio se agrupan en una sola rama. Refactores grandes de un
 fichero van **siempre separados**.
 
-### Foco activo (Día26 — robustez/perf)
+### Día26 — completado ✅ (robustez/perf/SRP)
 
 | Orden | Rama | Tareas | Estado |
 |-------|------|--------|--------|
@@ -22,10 +22,19 @@ fichero van **siempre separados**.
 | ✅ | `test/test-1-sync-daemons` | TEST-1a + 1b + 1c | mergeada (#15) |
 | ✅ | `chore/fix-build-conda` | FIX-1 + FIX-2 | en rama |
 | ✅ | `refactor/srp-1{a,b,c}-*` | SRP-1a (PR #17) / 1b (PR #18) / 1c (PR #19) | ✅ |
-| ✅ | `chore/clean-1-late-imports` | CLEAN-1 | en rama (handlers hoisted en server.py; docstrings de daemons al día) |
+| ✅ | `chore/clean-1-late-imports` | CLEAN-1 | PR #20 (handlers hoisted en server.py; docstrings de daemons al día) |
 
-> **Día26 completado.** Siguiente foco: clusters del backlog abajo (empezar por `refactor/arc-jm-cable`).
-> Detalle y justificación de la prioridad en `Tareas/Día26.md`.
+> **Día26 completado.** Plan de la sesión actual en `Tareas/diario/Día27.md`.
+> Detalle/justificación del Día26 en `Tareas/diario/archivo/Día26.md`.
+
+### Foco activo (Día27 — completar la migración al JobManager)
+
+| Orden | Rama | Tareas | Estado |
+|-------|------|--------|--------|
+| **1** | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | ⬜ ← **siguiente** (desbloquea ARC-JM-6) |
+| 2 | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | ⬜ bloqueado por arc-jm-cable |
+
+> Detalle del plan en `Tareas/diario/Día27.md`. Resto de clusters abajo.
 
 ### Clusters del backlog (al retomar esas líneas)
 
@@ -45,7 +54,7 @@ fichero van **siempre separados**.
 ### SRP-1a — Desglose (rama `refactor/srp-1a-response-builders`) ✅ COMPLETADO (PR #17)
 
 `web/response_builders.py` (1658 líneas) → paquete `web/builders/`; fachada eliminada
-y 15 callers migrados. Detalle en `Tareas/Día26.md §SRP-1a`.
+y 15 callers migrados. Detalle en `Tareas/diario/archivo/Día26.md §SRP-1a`.
 
 - [x] SRP-1a-0 — crear `web/builders/` + fachada de re-export (sin mover lógica)
 - [x] SRP-1a-1 — `builders/common.py` (helpers: json/paths/drives/repo/format)
@@ -58,7 +67,7 @@ y 15 callers migrados. Detalle en `Tareas/Día26.md §SRP-1a`.
 ### SRP-1b — Desglose (rama `refactor/srp-1b-esde`) ✅ COMPLETADO (PR #18)
 
 `web/handlers/esde.py` (1158 líneas; `register()` ≈965) → paquete `web/handlers/esde/` con
-sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `Tareas/Día26.md §SRP-1b`.
+sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `Tareas/diario/archivo/Día26.md §SRP-1b`.
 
 - [x] SRP-1b-0 — paquete `esde/` + esqueleto de sub-registradores; `register()` delega
 - [x] SRP-1b-1 — conversiones (chd/cso/zip/m3u/n64/multidisc) → `esde/conversions.py`
@@ -72,7 +81,7 @@ sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `T
 
 `database/repository.py` (1455 líneas; clase única de ~50 métodos) → paquete
 `database/repositories/` con un mixin por agregado; `LibraryRepository` los ensambla.
-API pública intacta (dataclasses re-exportadas desde `repository.py`). Detalle en `Tareas/Día26.md §SRP-1c`.
+API pública intacta (dataclasses re-exportadas desde `repository.py`). Detalle en `Tareas/diario/archivo/Día26.md §SRP-1c`.
 
 - [x] SRP-1c-0 — `repositories/` + `models.py` (dataclasses) + `base.py` (`_RepositoryBase`: connect/batch/scan-run/get_summary)
 - [x] SRP-1c-1 — `GamesMixin` (`games.py`)
