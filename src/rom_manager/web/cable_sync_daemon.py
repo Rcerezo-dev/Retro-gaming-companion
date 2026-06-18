@@ -67,7 +67,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 continue
 
             # If known_devices filter is set, only react to those
-            known = config.auto_sync_known_devices
+            known = config.sync.auto_sync_known_devices
             if known:
                 new_serials = {s for s in new_serials if s in known}
             if not new_serials:
@@ -109,7 +109,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     from rom_manager.config import get_adb_sync_sources
 
                     pc_root = config.library_root
-                    direction = config.auto_sync_direction
+                    direction = config.sync.auto_sync_direction
                     save_exts = frozenset(config.save_extensions)
                     state_exts = frozenset(config.state_extensions)
                     # Build per-emulator sync sources from mapped paths (SYNC-A3)
@@ -120,7 +120,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             {
                                 "name": "RetroArch (legacy)",
                                 "package": "com.retroarch.aarch64",
-                                "android_saves": config.auto_sync_android_path.rstrip("/"),
+                                "android_saves": config.sync.auto_sync_android_path.rstrip("/"),
                                 "android_states": None,
                                 "local_saves": pc_root,
                                 "local_states": None,
@@ -358,7 +358,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
     try:
         pc_root = config.library_root
         ab_root = Path(config.anbernic_root)
-        direction = config.auto_sync_direction or "newest"
+        direction = config.sync.auto_sync_direction or "newest"
         save_exts = frozenset(config.save_extensions)
 
         log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
@@ -504,7 +504,11 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
     while True:
         try:
             _time.sleep(POLL_INTERVAL)
-            if not config.anbernic_root or not config.library_root or not config.auto_sync_enabled:
+            if (
+                not config.anbernic_root
+                or not config.library_root
+                or not config.sync.auto_sync_enabled
+            ):
                 _sd_sync_status["state"] = "disabled"
                 _last_available = False
                 continue

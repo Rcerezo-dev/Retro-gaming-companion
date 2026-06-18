@@ -428,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
         if not saves_dir.exists() or not saves_dir.is_dir():
             parser.error(f"Library directory does not exist: {saves_dir}")
 
-        remote = args.remote or config.rclone_remote
+        remote = args.remote or config.sync.rclone_remote
         if not remote:
             parser.error("Remote not specified. Pass --remote or set [sync] remote in config.toml.")
 
@@ -446,8 +446,8 @@ def main(argv: list[str] | None = None) -> int:
 
             _delta = DeltaCache(config.data_dir) if not dry_run else None
             # Use dual remotes if configured, otherwise fall back to single remote
-            saves_remote_to_use = config.saves_remote or remote
-            states_remote_to_use = config.states_remote or None
+            saves_remote_to_use = config.sync.saves_remote or remote
+            states_remote_to_use = config.sync.states_remote or None
             result, decisions = sync_saves(
                 saves_dir,
                 saves_remote=saves_remote_to_use,
@@ -809,7 +809,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "sync":
-        sources = config.sync_sources
+        sources = config.sync.sync_sources
         if not sources:
             print(
                 "[ERROR] No hay fuentes de sync configuradas. Añade [[sync.sources]] en config.toml."

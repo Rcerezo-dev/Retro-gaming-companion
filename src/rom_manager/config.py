@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 _logger = logging.getLogger(__name__)
@@ -155,6 +155,29 @@ class SyncSource:
 
 
 @dataclass(slots=True)
+class SyncConfig:
+    """Save-sync settings: cloud remotes, auto-sync daemon, conflict policy (ARC-CFG-1).
+
+    Extracted from the flat fields of ``AppConfig`` so sync concerns live in one
+    cohesive unit. Mutable — handlers update these fields in place under
+    ``_config_lock`` after a config save.
+    """
+
+    rclone_remote: str = ""  # legacy single-remote rclone path (e.g. "dropbox:/RetroSync/saves")
+    # Auto-sync daemon settings
+    auto_sync_enabled: bool = True
+    auto_sync_direction: str = "newest"  # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
+    auto_sync_android_path: str = "/storage/emulated/0/RetroArch"  # Android RetroArch root path
+    auto_sync_known_devices: list = field(default_factory=list)  # serials; empty = any device
+    conflict_policy: str = "newest"  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # Dual-remote cloud sync (D2)
+    saves_remote: str = ""  # rclone remote for permanent saves
+    states_remote: str = ""  # rclone remote for savestates
+    # Multi-source cloud sync — one entry per emulator, from [[sync.sources]] in config.toml
+    sync_sources: list[SyncSource] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class AppConfig:
     project_root: Path
     data_dir: Path
@@ -170,7 +193,6 @@ class AppConfig:
     state_extensions: tuple[str, ...]  # savestates (.state, .st0, …)
     # From config.toml (optional)
     library_root: Path | None  # root of the ROM+saves library on this PC
-    rclone_remote: str
     rclone_binary: str
     chdman: str
     adb: str
@@ -185,12 +207,8 @@ class AppConfig:
     screenscraper_dev_pass: str
     ra_api_key: str
     ra_username: str
-    # Auto-sync daemon settings
-    auto_sync_enabled: bool
-    auto_sync_direction: str  # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
-    auto_sync_android_path: str  # Android RetroArch root path
-    auto_sync_known_devices: list  # serial numbers; empty = any device
-    conflict_policy: str  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # Save-sync settings (cloud remotes, auto-sync daemon, conflict policy) — see SyncConfig
+    sync: SyncConfig
     anbernic_root: str  # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
     device_name: str  # display name for the Android device (e.g. "Consola Android", "Steam Deck")
     # Inbox (Pilar 2) settings
@@ -198,10 +216,6 @@ class AppConfig:
     inbox_target_root: str  # where to place organized files (defaults to library_root)
     inbox_auto_process: bool  # auto-process when files detected
     inbox_delete_source: bool  # delete original ZIP after organizing
-    # Multi-source cloud sync
-    sync_sources: list[
-        SyncSource
-    ]  # one entry per emulator; populated from [[sync.sources]] in config.toml
     # Launcher (S28)
     retroarch_path: str  # path to retroarch.exe
     launcher_cores: dict  # platform → libretro core path
@@ -211,9 +225,6 @@ class AppConfig:
     pre_sync_backup: bool  # True = crear ZIP de saves antes de cada sync (QoL-11)
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
-    # Dual-remote cloud sync (D2)
-    saves_remote: str  # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
-    states_remote: str  # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
     # Android emulator path mappings (SYNC-A2)
     # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
     emulator_paths: dict  # package_name → {name, saves_path, states_path, adb_required, ...}
@@ -354,7 +365,6 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_remote=sync.get("remote", ""),
         rclone_binary=sync.get("rclone", "rclone"),
         chdman=tools.get("chdman", "chdman"),
         adb=tools.get("adb", "adb"),
@@ -369,26 +379,29 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         screenscraper_dev_pass=ss.get("dev_pass", ""),
         ra_api_key=ra.get("api_key", ""),
         ra_username=ra.get("username", ""),
-        auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
-        auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
-        auto_sync_android_path=str(
-            sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")
+        sync=SyncConfig(
+            rclone_remote=sync.get("remote", ""),
+            auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
+            auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
+            auto_sync_android_path=str(
+                sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")
+            ),
+            auto_sync_known_devices=auto_sync_known_devices,
+            conflict_policy=str(sync.get("conflict_policy", "newest")),
+            saves_remote=str(sync.get("saves_remote", "")),
+            states_remote=str(sync.get("states_remote", "")),
+            sync_sources=sync_sources,
         ),
-        auto_sync_known_devices=auto_sync_known_devices,
-        conflict_policy=str(sync.get("conflict_policy", "newest")),
         inbox_path=str(inbox_cfg.get("path", "")),
         inbox_target_root=str(inbox_cfg.get("target_root", "")),
         inbox_auto_process=bool(inbox_cfg.get("auto_process", False)),
         inbox_delete_source=bool(inbox_cfg.get("delete_source", False)),
-        sync_sources=sync_sources,
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
         backup_saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
         backup_saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
         pre_sync_backup=bool(backup_cfg.get("pre_sync", True)),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
-        saves_remote=str(sync.get("saves_remote", "")),
-        states_remote=str(sync.get("states_remote", "")),
         emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501
             "Android",

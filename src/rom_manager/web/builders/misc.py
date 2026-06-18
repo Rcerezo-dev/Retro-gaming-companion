@@ -34,7 +34,7 @@ def _build_config(config: AppConfig) -> dict:
         "library_root": str(config.library_root) if config.library_root else None,
         "anbernic_root": config.anbernic_root or "",
         "device_name": config.device_name or "Consola Android",
-        "rclone_remote": config.rclone_remote or None,
+        "rclone_remote": config.sync.rclone_remote or None,
         "web_host": config.web_host,
         "web_port": config.web_port,
         "screenscraper_user": config.screenscraper_user or None,
@@ -55,15 +55,15 @@ def _build_config(config: AppConfig) -> dict:
         "inbox_delete_source": config.inbox_delete_source,
         "sync_sources": [
             {"name": s.name, "local_dir": s.local_dir, "remote": s.remote, "sync_all": s.sync_all}
-            for s in config.sync_sources
+            for s in config.sync.sync_sources
         ],
         "retroarch_path": config.retroarch_path or "",
         "launcher_cores": config.launcher_cores or {},
         "backup_saves_enabled": config.backup_saves_enabled,
         "backup_saves_keep_n": config.backup_saves_keep_n,
         "notify_desktop": config.notify_desktop,
-        "saves_remote": config.saves_remote or "",
-        "states_remote": config.states_remote or "",
+        "saves_remote": config.sync.saves_remote or "",
+        "states_remote": config.sync.states_remote or "",
     }
 
 
