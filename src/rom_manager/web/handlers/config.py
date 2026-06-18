@@ -37,7 +37,9 @@ def register(
     @router.get("/api/device-status")
     def get_device_status(ctx) -> None:
         """UX-1/2: Check if Android device (ADB or SD card) is connected."""
-        connected, reason = config.is_device_connected()
+        from rom_manager.sync.device_detector import is_device_connected
+
+        connected, reason = is_device_connected(config.adb, config.anbernic_root)
         ctx._send_json(
             {
                 "connected": connected,
