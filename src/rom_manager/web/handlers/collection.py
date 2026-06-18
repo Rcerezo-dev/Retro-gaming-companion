@@ -255,12 +255,14 @@ def register(
         import shutil
         from pathlib import Path
 
+        from rom_manager.sync.device_detector import is_device_connected
+
         items = (ctx._post_data or {}).get("items", [])
         if not items:
             ctx._send_json({"synced": 0, "errors": []})
             return
 
-        connected, reason = config.is_device_connected()
+        connected, reason = is_device_connected(config.adb, config.anbernic_root)
         if not connected:
             ctx._send_error(400, f"Dispositivo no conectado: {reason}")
             return
