@@ -31,8 +31,8 @@ fichero van **siempre separados**.
 
 | Orden | Rama | Tareas | Estado |
 |-------|------|--------|--------|
-| **1** | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | ⬜ ← **siguiente** (desbloquea ARC-JM-6) |
-| 2 | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | ⬜ bloqueado por arc-jm-cable |
+| ✅ | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | en rama (cable_sync → JobManager) |
+| **2** | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | ⬜ ← **siguiente** (ya desbloqueado) |
 
 > Detalle del plan en `Tareas/diario/Día27.md`. Resto de clusters abajo.
 
@@ -318,13 +318,13 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 |----|-----------|------|---------|--------|
 | ARC-JM-1 | 🟠 Alto | **Instanciar `JobManager` y exponerlo en `make_handler`** — Crear `_job_manager = JobManager()` a nivel de módulo en `server.py` y pasarlo a todos los handlers vía `register(router, ..., job_manager=_job_manager)`. | `web/server.py`, `web/jobs/manager.py` | ✅ Instanciado + cableado a los 8 handlers; `"tree_diff"` y `"verify_chd"` añadidos a `JOB_NAMES` |
 | ARC-JM-2 | 🟠 Alto | **Migrar handlers de scan y apply al JobManager** — Reemplazar accesos a `m._scan_progress`, `m._apply_progress`, `m._jobs["scan"]`, `m._job_results["scan"]` por llamadas a `job_manager`. | `web/handlers/scan.py` | ✅ `_do_scan`, `_do_adb_scan`, `_do_match`, `_do_apply` migrados; `get_job_status` híbrido hasta ARC-JM-6 |
-| ARC-JM-3 | 🟠 Alto | **Migrar handlers de sync y cable al JobManager** | `web/handlers/sync.py` | 🔶 `sync`/`tree_diff` migrados; `cable_sync` bloqueado |
-| ARC-JM-3a | | ↳ Añadir parámetro `on_progress(data)` a `run_cable_sync_loop()` y eliminar el late import de `server.py` | `sync/cable_sync_daemon.py` | ⬜ |
-| ARC-JM-3b | | ↳ En `server.py`, pasar `lambda data: job_manager.update("cable_sync", data)` al arrancar el daemon | `web/server.py` | ⬜ |
-| ARC-JM-3c | | ↳ Migrar handler `cable_sync` en `sync.py` — reemplazar refs a `m._cable_progress` / `m._cable_cancel` por `job_manager` | `web/handlers/sync.py` | ⬜ |
+| ARC-JM-3 | 🟠 Alto | **Migrar handlers de sync y cable al JobManager** | `web/handlers/sync.py`, `sync_cable.py` | ✅ `sync`/`tree_diff` + `cable_sync` migrados (rama `refactor/arc-jm-cable`) |
+| ARC-JM-3a | | ↳ Daemons de cable (`_auto_sync_loop`, `_run_sd_auto_sync`, `_sd_card_sync_loop`) usan `_state._job_manager` directamente (patrón inbox/health) | `web/cable_sync_daemon.py` | ✅ |
+| ARC-JM-3b | | ↳ *(replanteado)* sin `on_progress` ni cableado en `server.py`: el patrón establecido es `_state._job_manager` directo | `web/cable_sync_daemon.py` | ✅ |
+| ARC-JM-3c | | ↳ Handler `cable_sync` (en `sync_cable.py`, no `sync.py`) + hub `job-status`/`stop-job` en `scan.py` → `job_manager` | `web/handlers/sync_cable.py`, `scan.py` | ✅ |
 | ARC-JM-4 | 🟡 Medio | **Migrar handlers de CHD, CSO, ZIP, scraper, health, RA al JobManager** — 6 handlers con patrón idéntico. | `handlers/organize.py`, `handlers/scraper.py`, `handlers/games.py` | ✅ ZIP + health en `esde.py`; RA en `sync.py` + scheduler en `server.py`; scraper/CHD/CSO/verifyChd ya migrados. `scan.py` híbrido limpiado. |
 | ARC-JM-5 | 🟡 Medio | **Migrar handler de inbox y setup al JobManager** — Reemplazar `m._inbox_progress`, `m._setup_progress`. | `handlers/inbox.py`, `web/server.py` (setup) | ✅ `_run_inbox_pipeline` y `_run_setup_pipeline` usan `job_manager`; watcher migrado; `get_setup_status` e `inbox-status` limpios. |
-| ARC-JM-6 | 🟡 Medio | **Eliminar los 12 dicts globales y `srv_mod`** — Bloqueado por ARC-JM-3 | `web/server.py` | ⬜ |
+| ARC-JM-6 | 🟡 Medio | **Eliminar los 12 dicts globales y `srv_mod`** — Desbloqueado (ARC-JM-3 ✅). `_cable_progress`/`_cable_cancel` ya huérfanos. Revisar `duplicates.py` (`srv_mod._job_results.get("ra_check")`). | `web/server.py` | ⬜ ← siguiente |
 | ARC-JM-6a | | ↳ Verificar migración completa: grep por `_progress`, `_jobs`, `_job_results` en `server.py` | `web/server.py` | ⬜ |
 | ARC-JM-6b | | ↳ Eliminar los 12 dicts de progreso (`_chd_progress`, `_cso_progress`, `_cable_progress`, …) | `web/server.py` | ⬜ |
 | ARC-JM-6c | | ↳ Eliminar `_jobs` y `_job_results` | `web/server.py` | ⬜ |

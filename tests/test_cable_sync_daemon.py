@@ -39,9 +39,9 @@ def _make_config(tmp_path: Path, pc_root: Path, ab_root: Path, direction: str):
 
 
 def _run(cfg) -> dict:
-    _state._job_results.pop("cable_sync", None)
+    _state._job_manager.clear_result("cable_sync")
     _run_sd_auto_sync(cfg, lambda: None)
-    return _state._job_results["cable_sync"]
+    return _state._job_manager.get_status()["cable_sync_result"]
 
 
 def _write(root: Path, *parts: str, content: bytes) -> Path:

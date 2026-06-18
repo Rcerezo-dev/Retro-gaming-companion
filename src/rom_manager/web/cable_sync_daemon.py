@@ -8,7 +8,6 @@ per-function late imports of ``server`` are no longer needed.
 from __future__ import annotations
 
 import logging
-import threading
 from pathlib import Path
 
 import rom_manager.web.state as _state
@@ -22,10 +21,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
     import datetime as _dt
     import time as _time
 
-    _job_lock = _state._job_lock
-    _jobs = _state._jobs
-    _cable_progress = _state._cable_progress
-    _job_results = _state._job_results
+    _jm = _state._job_manager
 
     _POLL_INTERVAL = 10  # seconds between ADB polls
     _COOLDOWN = 30  # seconds to wait after a sync before syncing again
@@ -36,9 +32,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             _time.sleep(_POLL_INTERVAL)
 
             # Don't poll if a cable_sync job is already running
-            with _job_lock:
-                cable_running = _jobs.get("cable_sync", False)
-            if cable_running:
+            if _jm.get_status()["cable_sync_running"]:
                 continue
 
             # Cooldown: avoid re-triggering immediately after a sync
@@ -104,21 +98,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 "last_error": None,
             }
 
-            # Mark cable_sync job as running
-            with _job_lock:
-                if _jobs.get("cable_sync"):
-                    _state._auto_sync_status["state"] = "waiting"
-                    continue
-                _jobs["cable_sync"] = True
-
-            _last_sync_ts = _time.monotonic()
-
             def _run_auto_sync(serial: str = serial) -> None:
                 import datetime as _dt2
                 import os
                 from pathlib import PurePosixPath
 
                 _log_file = None
+                job_result: dict | None = None
                 try:
                     from rom_manager.config import get_adb_sync_sources
 
@@ -161,13 +147,14 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     copied_bytes = 0
 
                     def _update_prog(fname: str = "") -> None:
-                        _cable_progress.update(
+                        _jm.update_progress(
+                            "cable_sync",
                             {
                                 "copied": copied,
                                 "bytes_copied": copied_bytes,
                                 "speed_bps": 0.0,
                                 "current_file": fname,
-                            }
+                            },
                         )
 
                     from rom_manager.sync.adb_transport import AdbTransport
@@ -205,13 +192,14 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             _log("ERROR", str(local_src), android_dst, str(exc))
                             errors += 1
 
-                    _cable_progress.update(
+                    _jm.update_progress(
+                        "cable_sync",
                         {
                             "copied": 0,
                             "bytes_copied": 0,
                             "speed_bps": 0.0,
                             "current_file": "Auto-sync: listando saves en el dispositivo…",
-                        }
+                        },
                     )
 
                     # Sync each emulator source — saves and states paths separately
@@ -292,7 +280,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         f"=== Auto-sync fin {ts1} | copied={copied} skipped={skipped} errors={errors} ===\n"
                     )
 
-                    _job_results["cable_sync"] = {
+                    job_result = {
                         "dry_run": False,
                         "direction": direction,
                         "use_adb": True,
@@ -325,18 +313,19 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
                         "last_error": str(exc),
                     }
-                    _job_results["cable_sync"] = {"error": str(exc), "auto_sync": True}
+                    job_result = {"error": str(exc), "auto_sync": True}
                 finally:
                     if _log_file is not None:
                         try:
                             _log_file.close()
                         except Exception:
                             _logger.debug("No se pudo cerrar el log de auto-sync", exc_info=True)
-                    with _job_lock:
-                        _cable_progress.clear()
-                        _jobs["cable_sync"] = False
+                    _jm.finish("cable_sync", job_result)
 
-            threading.Thread(target=_run_auto_sync, daemon=True).start()
+            if _jm.start("cable_sync", _run_auto_sync).get("status") == "started":
+                _last_sync_ts = _time.monotonic()
+            else:
+                _state._auto_sync_status["state"] = "waiting"
 
         except Exception as exc:
             # Never crash the daemon
@@ -357,12 +346,10 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
     import shutil
 
     _sd_sync_status = _state._sd_sync_status
-    _job_results = _state._job_results
-    _job_lock = _state._job_lock
-    _jobs = _state._jobs
-    _cable_progress = _state._cable_progress
+    _jm = _state._job_manager
 
     _log_file = None
+    job_result: dict | None = None
     copied = 0
     skipped = 0
     errors = 0
@@ -464,7 +451,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
             f"=== DONE copied={copied} skipped={skipped} errors={errors} bytes={copied_bytes} ===\n"
         )
 
-        _job_results["cable_sync"] = {
+        job_result = {
             "dry_run": False,
             "direction": direction,
             "use_adb": False,
@@ -492,16 +479,14 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
     except Exception as exc:
         _logger.exception("SD auto-sync error: %s", exc)
         _sd_sync_status.update({"state": "idle"})
-        _job_results["cable_sync"] = {"error": str(exc), "auto_sync": True, "source": "sd_card"}
+        job_result = {"error": str(exc), "auto_sync": True, "source": "sd_card"}
     finally:
         if _log_file is not None:
             try:
                 _log_file.close()
             except Exception:
                 _logger.debug("No se pudo cerrar el log de cable-sync", exc_info=True)
-        with _job_lock:
-            _cable_progress.clear()
-            _jobs["cable_sync"] = False
+        _jm.finish("cable_sync", job_result)
 
 
 def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
@@ -509,8 +494,7 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
     import time as _time
 
     _sd_sync_status = _state._sd_sync_status
-    _job_lock = _state._job_lock
-    _jobs = _state._jobs
+    _jm = _state._job_manager
 
     _last_available = False
     _last_sync_at = 0.0
@@ -546,10 +530,9 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 now = _time.monotonic()
                 if now - _last_sync_at < COOLDOWN:
                     continue
-                with _job_lock:
-                    if _jobs.get("cable_sync"):
-                        continue
-                    _jobs["cable_sync"] = True
+                started = _jm.start("cable_sync", lambda: _run_sd_auto_sync(config, get_repo_fn))
+                if started.get("status") == "already_running":
+                    continue
 
                 _sd_sync_status["state"] = "syncing"
                 import datetime as _dt_sd
@@ -558,12 +541,6 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     "%Y-%m-%dT%H:%M:%SZ"
                 )
                 _last_sync_at = now
-
-                threading.Thread(
-                    target=_run_sd_auto_sync,
-                    args=(config, get_repo_fn),
-                    daemon=True,
-                ).start()
 
         except Exception as exc:
             _logger.debug("SD sync daemon exception: %s", exc)

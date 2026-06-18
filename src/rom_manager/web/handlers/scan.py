@@ -7,6 +7,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.web.jobs.manager import JOB_NAMES
+
 # ── DAT auto-download catalog (libretro-database, MIT license) ────────────────
 _LIBRETRO_DAT_CATALOG = [
     # Nintendo cartridge → nointro/
@@ -89,22 +91,9 @@ def register(
     # ── GET /api/job-status ───────────────────────────────────────────────────
     @router.get("/api/job-status")
     def get_job_status(ctx) -> None:
-        # scan, match, apply are now managed by job_manager.
-        # All other jobs still use the legacy srv_mod dicts (removed as each is migrated).
-        # scan, match, apply, sync, tree_diff managed by job_manager.
-        # Remaining legacy jobs still read from srv_mod (removed as each is migrated).
-        # job_manager handles all jobs except cable_sync (migrated in ARC-JM-5+ARC-JM-6).
+        # All background jobs (including cable_sync) are managed by job_manager.
         status = job_manager.get_status()
-        m = srv_mod
-        with m._job_lock:
-            status.update(
-                {
-                    "cable_sync_running": m._jobs["cable_sync"],
-                    "cable_sync_result": m._job_results.get("cable_sync"),
-                    "cable_progress": dict(m._cable_progress) if m._cable_progress else None,
-                }
-            )
-        status["inbox_pending_files"] = m._inbox_watcher_status.get("pending_files", 0)
+        status["inbox_pending_files"] = srv_mod._inbox_watcher_status.get("pending_files", 0)
         ctx._send_json(status)
 
     # ── GET /api/catalog-status ───────────────────────────────────────────────
@@ -164,35 +153,10 @@ def register(
     # ── POST /api/stop-job ────────────────────────────────────────────────────
     @router.post("/api/stop-job")
     def post_stop_job(ctx) -> None:
-        m = srv_mod
+        # All background jobs are managed by job_manager.
         job_name = ctx._post_data.get("job", "")
-        # cable_sync is the only remaining legacy job (ARC-JM-6 pending).
-        _migrated = {
-            "scan",
-            "match",
-            "apply",
-            "sync",
-            "tree_diff",
-            "backup_now",
-            "scrape",
-            "convert_chd",
-            "convert_cso",
-            "verify_chd",
-            "extract_zip",
-            "health_check",
-            "ra_check",
-            "inbox",
-            "setup",
-        }
-        if job_name in _migrated:
+        if job_name in JOB_NAMES:
             job_manager.cancel(job_name)
-        else:
-            # Legacy: cable_sync only
-            if job_name == "cable_sync":
-                m._cable_cancel.set()
-            with m._job_lock:
-                if job_name in m._jobs:
-                    m._jobs[job_name] = False
         ctx._send_json({"status": "stopped", "job": job_name})
 
     # ── POST /api/import-dats ─────────────────────────────────────────────────
