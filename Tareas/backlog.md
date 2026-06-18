@@ -54,18 +54,18 @@ y 15 callers migrados. Detalle en `Tareas/Día26.md §SRP-1a`.
 - [x] SRP-1a-5 — `builders/misc.py` (assets/sync_log/config/scrape/cable)
 - [x] SRP-1a-6 — migrar imports de callers + eliminar fachada; tests + ruff
 
-### SRP-1b — Desglose (rama `refactor/srp-1b-esde`)
+### SRP-1b — Desglose (rama `refactor/srp-1b-esde`) ✅ COMPLETADO (PR #18)
 
 `web/handlers/esde.py` (1158 líneas; `register()` ≈965) → paquete `web/handlers/esde/` con
 sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `Tareas/Día26.md §SRP-1b`.
 
-- [ ] SRP-1b-0 — paquete `esde/` + esqueleto de sub-registradores; `register()` delega
-- [ ] SRP-1b-1 — conversiones (chd/cso/zip/m3u/n64/multidisc)
-- [ ] SRP-1b-2 — reports/export (report html/json/csv, export_lpl)
-- [ ] SRP-1b-3 — health/cleanup/junk
-- [ ] SRP-1b-4 — orphaned saves + doctor
-- [ ] SRP-1b-5 — ES-DE + sistema/misc + helpers `_handle_*`
-- [ ] SRP-1b-6 — `register()` como orquestador puro; tests + ruff
+- [x] SRP-1b-0 — paquete `esde/` + esqueleto de sub-registradores; `register()` delega
+- [x] SRP-1b-1 — conversiones (chd/cso/zip/m3u/n64/multidisc) → `esde/conversions.py`
+- [x] SRP-1b-2 — reports/export (report html/json/csv, export_lpl) → `esde/reports.py`
+- [x] SRP-1b-3 — health/cleanup/junk → `esde/maintenance.py`
+- [x] SRP-1b-4 — orphaned saves + doctor → `esde/doctor.py`
+- [x] SRP-1b-5 — ES-DE + sistema/misc + helpers `_handle_*` → `esde/system.py`
+- [x] SRP-1b-6 — `register()` como orquestador puro; tests + ruff
 
 ---
 
