@@ -33,7 +33,9 @@ def register(
     # ── GET /api/ss-quota ────────────────────────────────────────────────────
     @router.get("/api/ss-quota")
     def get_ss_quota(ctx) -> None:
-        has_dev = bool(config.screenscraper_dev_id and config.screenscraper_dev_pass)
+        has_dev = bool(
+            config.credentials.screenscraper_dev_id and config.credentials.screenscraper_dev_pass
+        )
         ctx._send_json({**_state._ss_last_quota, "has_dev_account": has_dev})
 
     # ── POST /api/scrape ─────────────────────────────────────────────────────
@@ -108,15 +110,15 @@ def _do_scrape(
             from rom_manager.scraper.platform_ids import get_system_id
             from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
-            if not config.screenscraper_user:
+            if not config.credentials.screenscraper_user:
                 job_result = {"error": "screenscraper credentials not configured"}
                 return
 
             client = ScreenScraperClient(
-                user=config.screenscraper_user,
-                password=config.screenscraper_pass,
-                dev_id=config.screenscraper_dev_id,
-                dev_password=config.screenscraper_dev_pass,
+                user=config.credentials.screenscraper_user,
+                password=config.credentials.screenscraper_pass,
+                dev_id=config.credentials.screenscraper_dev_id,
+                dev_password=config.credentials.screenscraper_dev_pass,
             )
             games = repository.get_games_for_scraping(platform=platform)
             if limit:
@@ -349,7 +351,7 @@ def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRep
     if not game_id:
         ctx._send_json({"error": "game_id required"})
         return
-    if not config.screenscraper_user:
+    if not config.credentials.screenscraper_user:
         ctx._send_json({"error": "Credenciales de ScreenScraper no configuradas"})
         return
     try:
@@ -369,10 +371,10 @@ def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRep
             return
         _game = dict(_grow)
         _client = ScreenScraperClient(
-            user=config.screenscraper_user,
-            password=config.screenscraper_pass,
-            dev_id=config.screenscraper_dev_id,
-            dev_password=config.screenscraper_dev_pass,
+            user=config.credentials.screenscraper_user,
+            password=config.credentials.screenscraper_pass,
+            dev_id=config.credentials.screenscraper_dev_id,
+            dev_password=config.credentials.screenscraper_dev_pass,
         )
         _sys_id = get_system_id(_game["platform"])
         _result = _client.search(

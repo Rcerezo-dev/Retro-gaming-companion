@@ -333,8 +333,8 @@ def register(
             ctx._send_json({"error": "ra_game_id must be integer"})
             return
 
-        api_key = config.ra_api_key
-        username = config.ra_username
+        api_key = config.credentials.ra_api_key
+        username = config.credentials.ra_username
         if not api_key or not username:
             ctx._send_json(
                 {

@@ -341,8 +341,8 @@ def _do_scan(
             }
 
             if not _cancel.is_set():
-                if config.ra_api_key:
-                    start_ra_check_fn(config.ra_api_key)
+                if config.credentials.ra_api_key:
+                    start_ra_check_fn(config.credentials.ra_api_key)
                 for _rpt_path in raw_paths:
                     if not _rpt_path:
                         continue

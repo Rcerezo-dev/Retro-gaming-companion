@@ -453,7 +453,7 @@ def _handle_system_status(config: AppConfig) -> dict:
             "version": rclone_st.get("version", ""),
             "remotes": rclone_st.get("remotes", []),
         },
-        "ra_key": {"ok": bool(config.ra_api_key)},
+        "ra_key": {"ok": bool(config.credentials.ra_api_key)},
         "catalogs": {
             "ok": cat_total > 0,
             "total": cat_total,

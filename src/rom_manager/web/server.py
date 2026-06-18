@@ -170,7 +170,7 @@ def make_handler(
 
         def _auth_required(self) -> bool:
             """True when PIN protection is active (pin_hash is set in config)."""
-            return bool(config.web_pin_hash)
+            return bool(config.credentials.web_pin_hash)
 
         def _session_token(self) -> str | None:
             raw = self.headers.get("Cookie", "")
@@ -278,7 +278,7 @@ def make_handler(
                 if path == "/api/auth":
                     client_ip = self.client_address[0]
                     pin = str(data.get("pin", "")).strip()
-                    if not config.web_pin_hash:
+                    if not config.credentials.web_pin_hash:
                         self._send_json({"ok": True})  # no PIN set → open access
                         return
                     if _check_auth_rate_limit(client_ip):
@@ -296,8 +296,8 @@ def make_handler(
                     if not pin:
                         self._send_json({"ok": False, "error": "PIN requerido"})
                         return
-                    expected = _hash_pin(pin, config.web_pin_salt)
-                    if secrets.compare_digest(expected, config.web_pin_hash):
+                    expected = _hash_pin(pin, config.credentials.web_pin_salt)
+                    if secrets.compare_digest(expected, config.credentials.web_pin_hash):
                         _clear_auth_failures(client_ip)
                         token = _create_session(config.web_session_ttl)
                         self._send(
@@ -341,8 +341,8 @@ def make_handler(
                             "web.pin_salt": salt,
                         },
                     )
-                    config.web_pin_hash = pin_hash
-                    config.web_pin_salt = salt
+                    config.credentials.web_pin_hash = pin_hash
+                    config.credentials.web_pin_salt = salt
                     # Invalidate all existing sessions so new PIN takes effect
                     with _sessions_lock:
                         _sessions.clear()
@@ -361,8 +361,8 @@ def make_handler(
                             "web.pin_salt": "",
                         },
                     )
-                    config.web_pin_hash = ""
-                    config.web_pin_salt = ""
+                    config.credentials.web_pin_hash = ""
+                    config.credentials.web_pin_salt = ""
                     with _sessions_lock:
                         _sessions.clear()
                     self._send_json({"ok": True})
@@ -423,7 +423,7 @@ def serve(
 ) -> None:
     _state._auto_sync_enabled = config.sync.auto_sync_enabled
 
-    if host != "127.0.0.1" and not config.web_pin_hash:
+    if host != "127.0.0.1" and not config.credentials.web_pin_hash:
         _logger.warning(
             "AVISO DE SEGURIDAD: el servidor está expuesto en la red (%s:%d) sin PIN configurado. "
             "Cualquier usuario de tu red local puede acceder y modificar todos los datos. "
