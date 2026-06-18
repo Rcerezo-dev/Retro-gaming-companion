@@ -52,7 +52,7 @@ fichero van **siempre separados**.
 | ~~`refactor/arc-cfg-sync`~~ ✅ | ARC-CFG-1a–1d | Dataclass `SyncConfig` atómica (#25) |
 | ~~`refactor/arc-cfg-credentials`~~ ✅ | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica (#26) |
 | ~~`refactor/arc-cfg-inbox-backup`~~ ✅ | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` (en rama) |
-| `refactor/arc-svc-duplicates` | ARC-SVC-1a + 1b | Service + adelgazar handler. **Desbloqueado** (ARC-JM-6 mergeado) ← siguiente |
+| ~~`refactor/arc-svc-duplicates`~~ ✅ | ARC-SVC-1a + 1b | Service + adelgazar handler (en rama) |
 | `feature/design-polish` | DESIGN-10 + 11 + 12 (+13, +14) | Cosmético sobre `app.css` / `index.html` |
 
 ---
@@ -365,9 +365,9 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| ARC-SVC-1 | ⚪ Bajo | **Extraer lógica de negocio de `duplicates.py`** — Bloqueado por ARC-JM-6 | `web/handlers/duplicates.py` | ⬜ |
-| ARC-SVC-1a | | ↳ Crear `services/duplicates_service.py` con `delete_duplicate(repo, path)` y `delete_all_duplicates(repo, paths)` como funciones puras (sin `ctx`) | `services/` (nuevo) | ⬜ |
-| ARC-SVC-1b | | ↳ Slim down handler — delegar a las funciones del service | `web/handlers/duplicates.py` | ⬜ |
+| ARC-SVC-1 | ⚪ Bajo | **Extraer lógica de negocio de `duplicates.py`** | `web/handlers/duplicates.py` | ✅ (en rama) |
+| ARC-SVC-1a | | ↳ `services/duplicates_service.py` con `delete_duplicate` y `delete_all_duplicates` puras (sin `ctx`, devuelven dict serializable); `_force_remove` movido al service | `services/` (nuevo) | ✅ |
+| ARC-SVC-1b | | ↳ Handler delega: rutas `/api/duplicates/delete{,-all}` llaman al service y hacen `_send_json`; tests unitarios en `tests/test_duplicates_service.py` | `web/handlers/duplicates.py` | ✅ |
 
 ---
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-import os
 import shutil
-import stat
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from rom_manager.services.duplicates_service import delete_all_duplicates, delete_duplicate
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -57,12 +57,19 @@ def register(
     # ── POST /api/duplicates/delete ───────────────────────────────────────────
     @router.post("/api/duplicates/delete")
     def post_delete_duplicate(ctx) -> None:
-        _delete_duplicate(ctx, ctx._post_data, repository)
+        data = ctx._post_data
+        ctx._send_json(
+            delete_duplicate(
+                repository,
+                game_id=data.get("game_id"),
+                source_path=data.get("source_path", ""),
+            )
+        )
 
     # ── POST /api/duplicates/delete-all ──────────────────────────────────────
     @router.post("/api/duplicates/delete-all")
     def post_delete_all_duplicates(ctx) -> None:
-        _delete_all_duplicates(ctx, repository)
+        ctx._send_json(delete_all_duplicates(repository))
 
     # ── POST /api/duplicates/exclude ──────────────────────────────────────────
     @router.post("/api/duplicates/exclude")
@@ -103,135 +110,6 @@ def register(
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
 _log = logging.getLogger(__name__)
-
-
-def _force_remove(path: Path) -> None:
-    """Remove a file, clearing the read-only attribute first if needed (WinError 5)."""
-    try:
-        os.remove(str(path))
-    except PermissionError:
-        # Clear read-only flag and retry (common on drives formatted by consoles)
-        os.chmod(str(path), stat.S_IWRITE)
-        os.remove(str(path))
-
-
-def _delete_duplicate(ctx, data: dict, repository: LibraryRepository) -> None:
-    game_id = data.get("game_id")
-    if not game_id:
-        ctx._send_json({"error": "game_id es obligatorio"})
-        return
-    source_path = data.get("source_path", "").strip()
-    if not source_path:
-        # Derive from DB so callers don't need to pass it
-        try:
-            with repository.connect() as _c:
-                row = _c.execute(
-                    "SELECT source_path FROM games WHERE id = ?", (int(game_id),)
-                ).fetchone()
-            if not row or not row["source_path"]:
-                ctx._send_json({"error": f"Juego {game_id} no encontrado en la base de datos"})
-                return
-            source_path = row["source_path"]
-        except Exception as exc:
-            ctx._send_json({"error": f"Error consultando BD: {type(exc).__name__}: {exc}"})
-            return
-    p = Path(source_path)
-    if p.exists():
-        try:
-            _force_remove(p)
-        except Exception as exc:
-            ctx._send_json(
-                {"error": f"No se pudo eliminar el archivo: {type(exc).__name__}: {exc}"}
-            )
-            return
-    try:
-        repository.delete_game(int(game_id))
-    except Exception as exc:
-        ctx._send_json(
-            {"error": f"Archivo eliminado pero error en BD: {type(exc).__name__}: {exc}"}
-        )
-        return
-    ctx._send_json({"deleted": source_path})
-
-
-def _delete_all_duplicates(ctx, repository: LibraryRepository) -> None:
-    groups = repository.get_duplicate_groups()
-    deleted = 0
-    skipped = 0  # Files that don't exist (already deleted or moved)
-    failed = 0  # Files that exist but couldn't be deleted (perms, device unmounted, etc.)
-    freed_bytes = 0
-    errors: list[str] = []
-    diagnostics: list[dict] = []  # Detailed log of each attempt
-
-    for group in groups:
-        for entry in group.entries[1:]:
-            p = Path(entry.source_path)
-            diag = {
-                "path": str(p),
-                "exists": p.exists(),
-                "deleted_file": False,
-                "deleted_db": False,
-            }
-
-            if not p.exists():
-                _log.info(f"Skipping missing file (file gone, cleaning DB): {p}")
-                try:
-                    repository.delete_game(entry.id)
-                    skipped += 1  # Count as skipped (file already gone, just cleaned up DB)
-                    diag["deleted_db"] = True
-                except Exception as exc:
-                    failed += 1
-                    diag["db_error"] = str(exc)
-                    _log.warning("Could not remove DB entry for missing file %s: %s", p, exc)
-                    if len(errors) < 20:
-                        errors.append(f"{p.name}: DB error — {type(exc).__name__}: {exc}")
-                diagnostics.append(diag)
-                continue
-
-            try:
-                _log.info(f"Deleting file: {p}")
-                _force_remove(p)
-                diag["deleted_file"] = True
-                _log.info(f"File deleted successfully: {p}")
-            except Exception as exc:
-                failed += 1
-                diag["file_error"] = str(exc)
-                _log.warning("Could not delete duplicate file %s: %s", p, exc)
-                if len(errors) < 20:
-                    errors.append(
-                        f"{p.name}: no se pudo eliminar el archivo — {type(exc).__name__}: {exc}"
-                    )
-                diagnostics.append(diag)
-                continue
-
-            try:
-                repository.delete_game(entry.id)
-                deleted += 1
-                freed_bytes += entry.size_bytes
-                diag["deleted_db"] = True
-                _log.info(f"DB record deleted for: {p}")
-            except Exception as exc:
-                failed += 1
-                diag["db_error"] = str(exc)
-                _log.warning("File deleted but DB update failed for %s: %s", p, exc)
-                if len(errors) < 20:
-                    errors.append(
-                        f"{p.name}: archivo eliminado pero error en BD — {type(exc).__name__}: {exc}"
-                    )
-
-            diagnostics.append(diag)
-
-    ctx._send_json(
-        {
-            "deleted": deleted,
-            "skipped": skipped,
-            "failed": failed,
-            "freed_bytes": freed_bytes,
-            "errors": errors,
-            "summary": f"{deleted} eliminados, {skipped} omitidos (no existen), {failed} errores",
-            "diagnostics": diagnostics[:10],  # Return first 10 for debugging
-        }
-    )
 
 
 def _apply_ra_conflicts(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
