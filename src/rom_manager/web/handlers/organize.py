@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -22,7 +20,6 @@ def register(
     config: AppConfig,
     repository: LibraryRepository,
     get_repo_fn: Callable[[str], LibraryRepository],
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register organize / plan / apply routes on *router*."""
@@ -63,12 +60,12 @@ def register(
     # ── POST /api/create-library-structure ────────────────────────────────────
     @router.post("/api/create-library-structure")
     def post_create_library_structure(ctx) -> None:
-        _do_create_library_structure(ctx, ctx._post_data, config, srv_mod)
+        _do_create_library_structure(ctx, ctx._post_data, config)
 
     # ── POST /api/organize-library ────────────────────────────────────────────
     @router.post("/api/organize-library")
     def post_organize_library(ctx) -> None:
-        _do_organize_library(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_organize_library(ctx, ctx._post_data, config, repository)
 
     # ── POST /api/migrate-saves-structure ─────────────────────────────────────
     @router.post("/api/migrate-saves-structure")
@@ -195,7 +192,7 @@ def _do_apply(
     ctx._send_json(job_manager.start("apply", run))
 
 
-def _do_create_library_structure(ctx, data: dict, config: AppConfig, srv_mod) -> None:
+def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
     if not config.library_root:
         ctx._send_json({"error": "library_root no configurado"})
         return
@@ -269,7 +266,6 @@ def _do_organize_library(
     data: dict,
     config: AppConfig,
     repository: LibraryRepository,
-    srv_mod,
 ) -> None:
     """Move ROMs → platform folders, saves → saves/{platform}/, BIOS candidates → bios/."""
     import shutil

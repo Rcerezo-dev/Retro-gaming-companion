@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-import threading
-from collections.abc import Callable
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,9 +19,6 @@ import rom_manager.web.handlers.play_history as _h_play_history
 import rom_manager.web.handlers.scan as _h_scan
 import rom_manager.web.handlers.scraper as _h_scraper
 import rom_manager.web.handlers.sync as _h_sync
-
-# Legacy alias of web.state passed to handlers as `srv_mod=` (pending removal in ARC-JM-6).
-import rom_manager.web.state as _srv_mod
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
@@ -39,27 +34,7 @@ from rom_manager.web.handlers.system import (  # noqa: F401
     _STANDARD_PLATFORM_FOLDERS,
 )
 from rom_manager.web.router import Router
-from rom_manager.web.state import (
-    _job_lock,
-    _job_manager,
-    _jobs,
-)
-
-
-def _start_job(name: str, fn: Callable[[], None]) -> dict:
-    """Start a background job if not already running.
-
-    Returns ``{"status": "started"}`` or ``{"status": "already_running"}``.
-    *fn* is responsible for setting ``_job_results[name]`` and clearing
-    ``_jobs[name]`` in its own finally block.
-    """
-    with _job_lock:
-        if _jobs[name]:
-            return {"status": "already_running"}
-        _jobs[name] = True
-    threading.Thread(target=fn, daemon=True).start()
-    return {"status": "started"}
-
+from rom_manager.web.state import _job_manager
 
 # Tablas de plataformas y helpers de sistema — implementación en web/handlers/system.py
 
@@ -123,7 +98,6 @@ def make_handler(
         repo_android=_repo_android,
         get_repo_fn=_get_repo,
         start_ra_check_fn=_start_ra_check_bg,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -132,7 +106,6 @@ def make_handler(
         config=config,
         repository=repository,
         repo_android=_repo_android,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -141,7 +114,6 @@ def make_handler(
         config=config,
         repository=repository,
         get_repo_fn=_get_repo,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -151,7 +123,6 @@ def make_handler(
         repository=repository,
         repo_android=_repo_android,
         start_ra_check_fn=_start_ra_check_bg,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -159,7 +130,6 @@ def make_handler(
         _router,
         config=config,
         repository=repository,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -167,7 +137,6 @@ def make_handler(
         _router,
         config=config,
         repository=repository,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -176,7 +145,6 @@ def make_handler(
         config=config,
         repository=repository,
         get_repo_fn=_get_repo,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -191,7 +159,6 @@ def make_handler(
         repository=repository,
         repo_android=_repo_android,
         get_repo_fn=_get_repo,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 

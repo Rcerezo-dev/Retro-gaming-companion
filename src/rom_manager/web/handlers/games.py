@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -79,7 +77,6 @@ def register(
     config: AppConfig,
     repository: LibraryRepository,
     get_repo_fn,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register game library / backup / launch routes on *router*."""
