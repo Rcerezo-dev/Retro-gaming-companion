@@ -212,8 +212,8 @@ def register(
         ctx._send_json(
             {
                 "backups": all_entries,
-                "backup_enabled": config.backup_saves_enabled,
-                "keep_n": config.backup_saves_keep_n,
+                "backup_enabled": config.backup.saves_enabled,
+                "keep_n": config.backup.saves_keep_n,
             }
         )
 

@@ -130,7 +130,7 @@ def _do_apply(
                     )
                     continue
                 try:
-                    bk = config.data_dir if config.backup_saves_enabled else None
+                    bk = config.data_dir if config.backup.saves_enabled else None
                     op.target_path.parent.mkdir(parents=True, exist_ok=True)
                     if op.source_path.suffix.lower() in {".cue", ".gdi"}:
                         from rom_manager.renamer.file_renamer import move_disc_set_to_subfolder
@@ -140,7 +140,7 @@ def _do_apply(
                             op.target_path,
                             save_exts,
                             backup_root=bk,
-                            backup_keep_n=config.backup_saves_keep_n,
+                            backup_keep_n=config.backup.saves_keep_n,
                         )
                     else:
                         outcome = rename_rom_with_saves(
@@ -148,7 +148,7 @@ def _do_apply(
                             op.target_path,
                             save_exts,
                             backup_root=bk,
-                            backup_keep_n=config.backup_saves_keep_n,
+                            backup_keep_n=config.backup.saves_keep_n,
                         )
                 except Exception as exc:
                     skipped += 1

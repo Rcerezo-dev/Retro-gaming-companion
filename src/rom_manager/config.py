@@ -198,6 +198,25 @@ class CredentialsConfig:
 
 
 @dataclass(slots=True)
+class InboxConfig:
+    """Inbox watcher settings (Pilar 2) extracted from AppConfig (ARC-CFG-4)."""
+
+    path: str = ""  # folder to watch for new files
+    target_root: str = ""  # where to place organized files (defaults to library_root)
+    auto_process: bool = False  # auto-process when files detected
+    delete_source: bool = False  # delete original ZIP after organizing
+
+
+@dataclass(slots=True)
+class BackupConfig:
+    """Save-backup settings (S29 / QoL-11) extracted from AppConfig (ARC-CFG-4)."""
+
+    saves_enabled: bool = True  # True = auto-backup before sync/rename overwrites
+    saves_keep_n: int = 5  # max versions per save file
+    pre_sync: bool = True  # True = crear ZIP de saves antes de cada sync (QoL-11)
+
+
+@dataclass(slots=True)
 class AppConfig:
     project_root: Path
     data_dir: Path
@@ -225,18 +244,13 @@ class AppConfig:
     sync: SyncConfig
     anbernic_root: str  # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
     device_name: str  # display name for the Android device (e.g. "Consola Android", "Steam Deck")
-    # Inbox (Pilar 2) settings
-    inbox_path: str  # folder to watch for new files
-    inbox_target_root: str  # where to place organized files (defaults to library_root)
-    inbox_auto_process: bool  # auto-process when files detected
-    inbox_delete_source: bool  # delete original ZIP after organizing
+    # Inbox watcher settings (Pilar 2) — see InboxConfig
+    inbox: InboxConfig
     # Launcher (S28)
     retroarch_path: str  # path to retroarch.exe
     launcher_cores: dict  # platform → libretro core path
-    # Save backup (S29)
-    backup_saves_enabled: bool  # True = auto-backup before sync/rename overwrites
-    backup_saves_keep_n: int  # max versions per save file (default 5)
-    pre_sync_backup: bool  # True = crear ZIP de saves antes de cada sync (QoL-11)
+    # Save-backup settings (S29 / QoL-11) — see BackupConfig
+    backup: BackupConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
     # Android emulator path mappings (SYNC-A2)
@@ -408,15 +422,19 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             states_remote=str(sync.get("states_remote", "")),
             sync_sources=sync_sources,
         ),
-        inbox_path=str(inbox_cfg.get("path", "")),
-        inbox_target_root=str(inbox_cfg.get("target_root", "")),
-        inbox_auto_process=bool(inbox_cfg.get("auto_process", False)),
-        inbox_delete_source=bool(inbox_cfg.get("delete_source", False)),
+        inbox=InboxConfig(
+            path=str(inbox_cfg.get("path", "")),
+            target_root=str(inbox_cfg.get("target_root", "")),
+            auto_process=bool(inbox_cfg.get("auto_process", False)),
+            delete_source=bool(inbox_cfg.get("delete_source", False)),
+        ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
-        backup_saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
-        backup_saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
-        pre_sync_backup=bool(backup_cfg.get("pre_sync", True)),
+        backup=BackupConfig(
+            saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
+            saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
+            pre_sync=bool(backup_cfg.get("pre_sync", True)),
+        ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
         emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501

@@ -153,7 +153,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
     while True:
         try:
             _time.sleep(30)
-            if not config.inbox_path or not config.inbox_auto_process:
+            if not config.inbox.path or not config.inbox.auto_process:
                 _state._inbox_watcher_status.update(
                     {
                         "watching": False,
@@ -163,7 +163,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 )
                 continue
 
-            inbox = _Path(config.inbox_path).resolve()
+            inbox = _Path(config.inbox.path).resolve()
             if not inbox.exists():
                 _state._inbox_watcher_status.update(
                     {
@@ -192,15 +192,15 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                     "Inbox watcher: %d archivos detectados, lanzando pipeline", len(pending)
                 )
                 _state._inbox_watcher_status["trigger_ts"] = _time.time()
-                target_root_str = config.inbox_target_root or (
+                target_root_str = config.inbox.target_root or (
                     str(config.library_root) if config.library_root else ""
                 )
 
                 def _watcher_run(_tr=target_root_str) -> None:
                     _run_inbox_pipeline(
-                        config.inbox_path,
+                        config.inbox.path,
                         _tr,
-                        config.inbox_delete_source,
+                        config.inbox.delete_source,
                         repository,
                         config,
                         _state._job_manager,

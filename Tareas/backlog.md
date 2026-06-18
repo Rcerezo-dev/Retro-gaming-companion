@@ -32,12 +32,15 @@ fichero van **siempre separados**.
 | Orden | Rama | Tareas | Estado |
 |-------|------|--------|--------|
 | ✅ | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | mergeada (#22) — cable_sync → JobManager |
-| ✅ | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | en rama — globales legados eliminados |
-| **3** | `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | ⬜ ← **siguiente** (split de AppConfig) |
+| ✅ | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | mergeada (#23) — globales legados eliminados |
+| ✅ | `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | mergeada (#24) — `is_device_connected` → `sync/device_detector.py` |
+| ✅ | `refactor/arc-cfg-sync` | ARC-CFG-1a–1d | mergeada (#25) — dataclass `SyncConfig` |
+| ✅ | `refactor/arc-cfg-credentials` | ARC-CFG-2a–2c | mergeada (#26) — dataclass `CredentialsConfig` (secretos con `repr=False`) |
+| ✅ | `refactor/arc-cfg-inbox-backup` | ARC-CFG-4a–4c | en rama — `InboxConfig` + `BackupConfig` |
 
-> **Migración al JobManager (ARC-JM 1→6) completa.** `JobManager` es la única fuente
-> de verdad del estado de jobs. Siguiente bloque: split de `AppConfig` (ARC-CFG).
-> Detalle en `Tareas/diario/Día27.md`. Resto de clusters abajo.
+> **Migración al JobManager (ARC-JM 1→6) completa** y **split de `AppConfig` (ARC-CFG) completo**:
+> `device_detector` extraído + dataclasses `SyncConfig` / `CredentialsConfig` / `InboxConfig` /
+> `BackupConfig`. `AppConfig` ya no tiene campos planos de esos dominios. Resto de clusters abajo.
 
 ### Clusters del backlog (al retomar esas líneas)
 
@@ -45,11 +48,11 @@ fichero van **siempre separados**.
 |------|--------|--------------------------|
 | ~~`refactor/arc-jm-cable`~~ ✅ | ARC-JM-3a + 3b + 3c | Migración indivisible de `cable_sync` al JobManager (#22) |
 | ~~`refactor/arc-jm-cleanup`~~ ✅ | ARC-JM-6a + 6b + 6c + 6d | Barrido de limpieza de globales (en rama) |
-| `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | Extraer `device_detector.py` (primero del split) |
-| `refactor/arc-cfg-sync` | ARC-CFG-1a–1d | Dataclass `SyncConfig` atómica |
-| `refactor/arc-cfg-credentials` | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica |
-| `refactor/arc-cfg-inbox-backup` | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` |
-| `refactor/arc-svc-duplicates` | ARC-SVC-1a + 1b | Service + adelgazar handler. **Bloqueado por** ARC-JM-6 |
+| ~~`refactor/arc-cfg-device-detector`~~ ✅ | ARC-CFG-3a + 3b | Extraído `device_detector.py` (#24) |
+| ~~`refactor/arc-cfg-sync`~~ ✅ | ARC-CFG-1a–1d | Dataclass `SyncConfig` atómica (#25) |
+| ~~`refactor/arc-cfg-credentials`~~ ✅ | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica (#26) |
+| ~~`refactor/arc-cfg-inbox-backup`~~ ✅ | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` (en rama) |
+| `refactor/arc-svc-duplicates` | ARC-SVC-1a + 1b | Service + adelgazar handler. **Desbloqueado** (ARC-JM-6 mergeado) ← siguiente |
 | `feature/design-polish` | DESIGN-10 + 11 + 12 (+13, +14) | Cosmético sobre `app.css` / `index.html` |
 
 ---
@@ -339,24 +342,24 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| ARC-CFG-3 | 🟡 Medio | **Mover `is_device_connected()` fuera de `AppConfig`** | `config.py:215-268` | ⬜ |
-| ARC-CFG-3a | | ↳ Crear `sync/device_detector.py` con `is_device_connected(adb_path, android_root)` | `sync/device_detector.py` (nuevo) | ⬜ |
-| ARC-CFG-3b | | ↳ Eliminar método de `AppConfig`; actualizar todos los callers a importar de `device_detector` | `config.py`, callers | ⬜ |
-| ARC-CFG-1 | 🟡 Medio | **Extraer `SyncConfig`** — `rclone_remote`, `auto_sync_*`, `conflict_policy`, `saves_remote`, `states_remote`, `sync_sources` | `config.py` | ⬜ |
-| ARC-CFG-1a | | ↳ Definir dataclass `SyncConfig` con defaults en `config.py` | `config.py` | ⬜ |
-| ARC-CFG-1b | | ↳ Sustituir campos planos en `AppConfig` por `sync: SyncConfig` | `config.py` | ⬜ |
-| ARC-CFG-1c | | ↳ Actualizar `to_dict()` / `from_dict()` | `config.py` | ⬜ |
-| ARC-CFG-1d | | ↳ Actualizar callers en `handlers/sync.py` y `handlers/config.py` | handlers | ⬜ |
-| ARC-CFG-2 | 🟡 Medio | **Extraer `CredentialsConfig`** — `screenscraper_*`, `ra_api_key`, `ra_username`, `web_pin_*` | `config.py` | ⬜ |
-| ARC-CFG-2a | | ↳ Definir dataclass `CredentialsConfig` | `config.py` | ⬜ |
-| ARC-CFG-2b | | ↳ Mover campos + actualizar serialización (enmascarar en logs) | `config.py` | ⬜ |
-| ARC-CFG-2c | | ↳ Actualizar callers en scraper, RA y auth | handlers | ⬜ |
-| ARC-CFG-4 | ⚪ Bajo | **Extraer `InboxConfig` y `BackupConfig`** | `config.py` | ⬜ |
-| ARC-CFG-4a | | ↳ Definir `InboxConfig`; mover campos `inbox_*` | `config.py` | ⬜ |
-| ARC-CFG-4b | | ↳ Definir `BackupConfig`; mover campos `backup_*` | `config.py` | ⬜ |
-| ARC-CFG-4c | | ↳ Actualizar callers en `handlers/inbox.py` y server | handlers | ⬜ |
+| ARC-CFG-3 | 🟡 Medio | **Mover `is_device_connected()` fuera de `AppConfig`** | `sync/device_detector.py` | ✅ (#24) |
+| ARC-CFG-3a | | ↳ Crear `sync/device_detector.py` con `is_device_connected(adb_path, android_root)` | `sync/device_detector.py` | ✅ |
+| ARC-CFG-3b | | ↳ Eliminar método de `AppConfig`; actualizar callers a importar de `device_detector` | `config.py`, callers | ✅ |
+| ARC-CFG-1 | 🟡 Medio | **Extraer `SyncConfig`** — `rclone_remote`, `auto_sync_*`, `conflict_policy`, `saves_remote`, `states_remote`, `sync_sources` | `config.py` | ✅ (#25) |
+| ARC-CFG-1a | | ↳ Definir dataclass `SyncConfig` con defaults en `config.py` | `config.py` | ✅ |
+| ARC-CFG-1b | | ↳ Sustituir campos planos en `AppConfig` por `sync: SyncConfig` | `config.py` | ✅ |
+| ARC-CFG-1c | | ↳ Actualizar `load_config` (construcción anidada) | `config.py` | ✅ |
+| ARC-CFG-1d | | ↳ Actualizar ~40 callers a `config.sync.X` (cli, server, daemons, handlers, builders) | varios | ✅ |
+| ARC-CFG-2 | 🟡 Medio | **Extraer `CredentialsConfig`** — `screenscraper_*`, `ra_api_key`, `ra_username`, `web_pin_*` | `config.py` | ✅ (#26) |
+| ARC-CFG-2a | | ↳ Definir dataclass `CredentialsConfig` (secretos con `repr=False`) | `config.py` | ✅ |
+| ARC-CFG-2b | | ↳ Mover campos + `load_config` anidado; secretos no se filtran en logs/tracebacks | `config.py` | ✅ |
+| ARC-CFG-2c | | ↳ Actualizar callers en scraper, RA, auth y server | handlers | ✅ |
+| ARC-CFG-4 | ⚪ Bajo | **Extraer `InboxConfig` y `BackupConfig`** | `config.py` | ✅ (en rama) |
+| ARC-CFG-4a | | ↳ Definir `InboxConfig`; mover campos `inbox_*` → `config.inbox.*` | `config.py` | ✅ |
+| ARC-CFG-4b | | ↳ Definir `BackupConfig`; mover `backup_*`/`pre_sync_backup` → `config.backup.*` | `config.py` | ✅ |
+| ARC-CFG-4c | | ↳ Actualizar callers (daemons, inbox, organize, sync_cloud, games, builders) | handlers | ✅ |
 
-> **Orden:** ARC-CFG-3 → ARC-CFG-1 → ARC-CFG-2 → ARC-CFG-4
+> **Orden:** ARC-CFG-3 → ARC-CFG-1 → ARC-CFG-2 → ARC-CFG-4 — **todos ✅** (split de `AppConfig` completo).
 
 ### Pendientes — Capa de servicio (ARC-5)
 

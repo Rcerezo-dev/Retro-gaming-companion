@@ -27,7 +27,7 @@ def register(
     # ── GET /api/inbox-count ─────────────────────────────────────────────────
     @router.get("/api/inbox-count")
     def get_inbox_count(ctx) -> None:
-        inbox_p = config.inbox_path
+        inbox_p = config.inbox.path
         count = 0
         if inbox_p:
             _ib = Path(inbox_p)
@@ -41,7 +41,7 @@ def register(
         from rom_manager.web.inbox_pipeline import _build_inbox_scan
 
         qs = getattr(ctx, "_qs", {})
-        inbox_path_str = qs.get("path", [""])[0].strip() or config.inbox_path
+        inbox_path_str = qs.get("path", [""])[0].strip() or config.inbox.path
         if not inbox_path_str:
             ctx._send_json({"error": "path parameter required (or set inbox.path in config.toml)"})
         else:
@@ -86,7 +86,7 @@ def handle_inbox_upload(config: AppConfig, content_type: str, body: bytes, ctx) 
     if not bm:
         ctx._send_error(400, "Missing multipart boundary")
         return
-    inbox_path = config.inbox_path
+    inbox_path = config.inbox.path
     if not inbox_path:
         ctx._send_json({"error": "inbox_path not configured"})
         return
@@ -128,16 +128,16 @@ def _do_inbox_run(
 ) -> None:
     from rom_manager.web.inbox_pipeline import _run_inbox_pipeline
 
-    inbox_path_str = data.get("path", "").strip() or config.inbox_path
+    inbox_path_str = data.get("path", "").strip() or config.inbox.path
     if not inbox_path_str:
         ctx._send_json({"error": "path is required (or set inbox.path in config.toml)"})
         return
     target_root_str = (
         data.get("target_root", "").strip()
-        or config.inbox_target_root
+        or config.inbox.target_root
         or (str(config.library_root) if config.library_root else "")
     )
-    delete_source = bool(data.get("delete_source", config.inbox_delete_source))
+    delete_source = bool(data.get("delete_source", config.inbox.delete_source))
 
     def run() -> None:
         _run_inbox_pipeline(

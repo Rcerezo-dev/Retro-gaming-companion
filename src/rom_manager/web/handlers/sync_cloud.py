@@ -224,7 +224,7 @@ def _do_sync(
                 }
                 return
 
-            if not dry_run and config.pre_sync_backup and config.library_root:
+            if not dry_run and config.backup.pre_sync and config.library_root:
                 try:
                     from rom_manager.backup.save_backup import create_saves_zip
 
@@ -263,7 +263,7 @@ def _do_sync(
                     continue
                 exts = tuple() if source.sync_all else config.save_extensions
                 try:
-                    _bk_root = config.data_dir if config.backup_saves_enabled else None
+                    _bk_root = config.data_dir if config.backup.saves_enabled else None
                     from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
 
                     _delta = _DeltaCache(config.data_dir) if not dry_run else None
@@ -279,7 +279,7 @@ def _do_sync(
                         states_remote=None,
                         dry_run=dry_run,
                         backup_root=_bk_root,
-                        backup_keep_n=config.backup_saves_keep_n,
+                        backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
                     )
@@ -318,7 +318,7 @@ def _do_sync(
                     )
 
             # D2: implicit sync for saves/states remotes
-            _bk_root = config.data_dir if config.backup_saves_enabled else None
+            _bk_root = config.data_dir if config.backup.saves_enabled else None
             _implicit = []
             if config.sync.saves_remote and config.library_root:
                 _implicit.append(
@@ -373,7 +373,7 @@ def _do_sync(
                         states_remote=_states_remote,
                         dry_run=dry_run,
                         backup_root=_bk_root,
-                        backup_keep_n=config.backup_saves_keep_n,
+                        backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
                     )
