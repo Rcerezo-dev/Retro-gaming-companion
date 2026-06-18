@@ -33,5 +33,6 @@ config.toml
 #log personal de tareas (en git para poder trabajar desde otro PC)
 # Tareas/  ← ya no ignorado
 
-# External binaries (place chdman.exe here)
-tools/*.exe
+# External binaries (place chdman.exe / adb.exe + their DLLs here locally)
+tools/*
+!tools/.gitkeep
