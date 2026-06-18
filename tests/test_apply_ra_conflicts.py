@@ -17,10 +17,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.web.handlers.duplicates import _apply_ra_conflicts
+from rom_manager.services.ra_duplicates_service import apply_ra_conflicts
 
 # ---------------------------------------------------------------------------
 # RA console ID for "Game Boy" = 5  (key "gameboy")
@@ -33,16 +32,6 @@ _TS = "2024-01-01T00:00:00"
 # ---------------------------------------------------------------------------
 # Minimal stubs
 # ---------------------------------------------------------------------------
-
-
-class _FakeCtx:
-    """Captures the JSON response sent by _apply_ra_conflicts."""
-
-    def __init__(self) -> None:
-        self.response: dict[str, Any] = {}
-
-    def _send_json(self, data: dict) -> None:
-        self.response = data
 
 
 @dataclass
@@ -148,9 +137,8 @@ def test_disk_conflict_target_wins(tmp_path: Path) -> None:
         ],
     )
 
-    ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
-    _apply_ra_conflicts(ctx, {}, config, repo)
+    response = apply_ra_conflicts(repo, config)
 
     # loser must be in _descartados/
     assert (roms / "_descartados" / "tetris_old.gb").exists(), "loser not in _descartados"
@@ -166,8 +154,8 @@ def test_disk_conflict_target_wins(tmp_path: Path) -> None:
         ).fetchone()
     assert row is None, "loser still in DB"
 
-    assert ctx.response["resolved"] == 1
-    assert ctx.response["errors"] == []
+    assert response["resolved"] == 1
+    assert response["errors"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -211,9 +199,8 @@ def test_disk_conflict_source_wins(tmp_path: Path) -> None:
         ],
     )
 
-    ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
-    _apply_ra_conflicts(ctx, {}, config, repo)
+    response = apply_ra_conflicts(repo, config)
 
     canonical = roms / "Tetris (World).gb"
 
@@ -232,8 +219,8 @@ def test_disk_conflict_source_wins(tmp_path: Path) -> None:
         ).fetchone()
     assert row is not None, "winner path not updated in DB"
 
-    assert ctx.response["resolved"] == 1
-    assert ctx.response["errors"] == []
+    assert response["resolved"] == 1
+    assert response["errors"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -281,9 +268,8 @@ def test_collision_conflict(tmp_path: Path) -> None:
         ],
     )
 
-    ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
-    _apply_ra_conflicts(ctx, {}, config, repo)
+    response = apply_ra_conflicts(repo, config)
 
     canonical = roms / "Super Mario Land (World).gb"
 
@@ -294,7 +280,7 @@ def test_collision_conflict(tmp_path: Path) -> None:
     assert (roms / "_descartados" / "mario_v2.gb").exists(), "loser not in _descartados"
     assert not loser_src.exists(), "loser still at original path"
 
-    assert ctx.response["errors"] == []
+    assert response["errors"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -319,14 +305,13 @@ def test_no_ra_data_skips_conflict(tmp_path: Path) -> None:
     # Empty RA cache (no achievements for any hash)
     _write_ra_cache(tmp_path, [])
 
-    ctx = _FakeCtx()
     config = _FakeConfig(project_root=tmp_path)
-    _apply_ra_conflicts(ctx, {}, config, repo)
+    response = apply_ra_conflicts(repo, config)
 
     # Nothing moved
     assert file_a.exists(), "file_a was incorrectly moved despite no RA data"
     assert file_b.exists(), "file_b was incorrectly moved despite no RA data"
     assert not (roms / "_descartados").exists(), "_descartados created unexpectedly"
 
-    assert ctx.response["resolved"] == 0
-    assert ctx.response["skipped_no_ra"] == 1
+    assert response["resolved"] == 0
+    assert response["skipped_no_ra"] == 1
