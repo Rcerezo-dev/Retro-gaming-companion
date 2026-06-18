@@ -2,7 +2,7 @@
 
 > Single source of truth for pending work. Updated every session.
 > Last updated: 2026-04-27 (tareas del Roadmap y ARC pendientes subdivididas en sub-pasos)
-> Completed tasks → `Tareas/archivo.md`
+> Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
 ---

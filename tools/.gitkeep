@@ -1,0 +1,3 @@
+# Place external binaries here locally (not versioned):
+#   - chdman.exe   (CHD conversion)
+#   - adb.exe + AdbWinApi.dll + AdbWinUsbApi.dll  (Android Platform Tools)
