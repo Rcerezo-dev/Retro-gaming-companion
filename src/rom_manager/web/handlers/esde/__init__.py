@@ -36,11 +36,10 @@ def register(
 ) -> None:
     """Register ES-DE, export, report, utility and tool routes on *router*."""
 
-    from rom_manager.reports import build_report, to_csv
-    from rom_manager.reports import to_json as _to_json
     from rom_manager.web.builders.common import _list_drives, _test_path
-    from rom_manager.web.builders.library import _build_library_report, _build_status
+    from rom_manager.web.builders.library import _build_status
     from rom_manager.web.handlers.esde.conversions import register_conversions
+    from rom_manager.web.handlers.esde.reports import register_reports
     from rom_manager.web.handlers.system import (
         _get_local_ip,
         _handle_detect_cloud_folder,
@@ -108,89 +107,14 @@ def register(
     def get_disc_folders(ctx) -> None:
         ctx._send_json(_handle_disc_folders(config))
 
-    # ── GET /api/library-report ───────────────────────────────────────────────
-    @router.get("/api/library-report")
-    def get_library_report(ctx) -> None:
-        qs = ctx._qs
-        rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
-        if not rpt_path:
-            ctx._send_json({"error": "path parameter required (or set library_root in config)"})
-            return
-        _rpt_repo = get_repo_fn(rpt_path)
-        rpt = _build_library_report(rpt_path, _rpt_repo, config)
-        _st = job_manager.get_status()
-        rpt["retroachievements"] = _st.get("ra_check_result") or {
-            "note": "Ejecuta primero la comprobación de RetroAchievements en la pestaña Tools"
-        }
-        rpt["chd"] = _st.get("convert_chd_result") or {
-            "note": "Ejecuta primero la conversión CHD en la pestaña Tools"
-        }
-        ctx._send_json(rpt)
-
-    # ── GET /api/report/html ──────────────────────────────────────────────────
-    @router.get("/api/report/html")
-    def get_report_html(ctx) -> None:
-        qs = ctx._qs
-        rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
-        if not rpt_path:
-            ctx._send(
-                400,
-                "text/plain; charset=utf-8",
-                b"path parameter required (or set library_root in config)",
-            )
-            return
-        from rom_manager.utils.library_report_html import generate_html_report
-
-        _rpt_repo = get_repo_fn(rpt_path)
-        rpt = _build_library_report(rpt_path, _rpt_repo, config)
-        _st = job_manager.get_status()
-        rpt["retroachievements"] = _st.get("ra_check_result") or {}
-        rpt["chd"] = _st.get("convert_chd_result") or {}
-        html = generate_html_report(rpt)
-        ctx._send(200, "text/html; charset=utf-8", html.encode("utf-8"))
-
-    # ── GET /api/report.json ──────────────────────────────────────────────────
-    @router.get("/api/report.json")
-    def get_report_json(ctx) -> None:
-        report = build_report(repository)
-        body = _to_json(report).encode()
-        ctx._send(
-            200,
-            "application/json; charset=utf-8",
-            body,
-            extra_headers={"Content-Disposition": 'attachment; filename="report.json"'},
-        )
-
-    # ── GET /api/report.csv ───────────────────────────────────────────────────
-    @router.get("/api/report.csv")
-    def get_report_csv(ctx) -> None:
-        report = build_report(repository)
-        body = to_csv(report).encode()
-        ctx._send(
-            200,
-            "text/csv; charset=utf-8",
-            body,
-            extra_headers={"Content-Disposition": 'attachment; filename="report.csv"'},
-        )
-
-    # ── POST /api/export-lpl ──────────────────────────────────────────────────
-    @router.post("/api/export-lpl")
-    def post_export_lpl(ctx) -> None:
-        data = ctx._post_data
-        if not config.library_root:
-            ctx._send_json({"error": "library_root not configured"})
-            return
-        from rom_manager.utils.lpl_generator import generate_lpl_playlists
-
-        try:
-            result = generate_lpl_playlists(
-                Path(config.library_root),
-                repository,
-                output_dir=Path(data["output_dir"]) if data.get("output_dir") else None,
-            )
-            ctx._send_json(result)
-        except Exception as exc:
-            ctx._send_json({"error": str(exc)})
+    # ── Library report + export routes (html/json/csv/lpl) ───────────────────
+    register_reports(
+        router,
+        config=config,
+        repository=repository,
+        get_repo_fn=get_repo_fn,
+        job_manager=job_manager,
+    )
 
     # ── Conversion / extraction routes (CHD, CSO, N64, ZIP, m3u, multidisc) ───
     register_conversions(router, config=config, repository=repository, job_manager=job_manager)
