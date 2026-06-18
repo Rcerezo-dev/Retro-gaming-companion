@@ -286,16 +286,11 @@ def _save_config(
         config.credentials = new_cfg.credentials
         config.chdman = new_cfg.chdman
         config.adb = new_cfg.adb
-        config.inbox_path = new_cfg.inbox_path
-        config.inbox_target_root = new_cfg.inbox_target_root
-        config.inbox_auto_process = new_cfg.inbox_auto_process
-        config.inbox_delete_source = new_cfg.inbox_delete_source
+        config.inbox = new_cfg.inbox
         config.web_host = new_cfg.web_host
         config.retroarch_path = new_cfg.retroarch_path
         config.launcher_cores = new_cfg.launcher_cores
-        config.backup_saves_enabled = new_cfg.backup_saves_enabled
-        config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
-        config.pre_sync_backup = new_cfg.pre_sync_backup
+        config.backup = new_cfg.backup
         config.notify_desktop = new_cfg.notify_desktop
     set_auto_sync_fn(new_cfg.sync.auto_sync_enabled)
 
