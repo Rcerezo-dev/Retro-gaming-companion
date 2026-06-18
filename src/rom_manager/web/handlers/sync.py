@@ -4,8 +4,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -24,7 +22,6 @@ def register(
     repository: LibraryRepository,
     repo_android: LibraryRepository,
     start_ra_check_fn: Callable[[str], bool],
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register sync / cable-sync / rclone / ADB / auto-sync routes on *router*."""
@@ -33,7 +30,6 @@ def register(
         router,
         config=config,
         repository=repository,
-        srv_mod=srv_mod,
         job_manager=job_manager,
     )
 
@@ -42,7 +38,6 @@ def register(
         config=config,
         repository=repository,
         repo_android=repo_android,
-        srv_mod=srv_mod,
         job_manager=job_manager,
     )
 

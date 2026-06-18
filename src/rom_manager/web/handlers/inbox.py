@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import types
+import rom_manager.web.state as _state
 
+if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -20,7 +20,6 @@ def register(
     *,
     config: AppConfig,
     repository: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register inbox / setup routes on *router*."""
@@ -63,7 +62,7 @@ def register(
     # ── GET /api/inbox-watcher-status ────────────────────────────────────────
     @router.get("/api/inbox-watcher-status")
     def get_inbox_watcher_status(ctx) -> None:
-        ctx._send_json(dict(srv_mod._inbox_watcher_status))
+        ctx._send_json(dict(_state._inbox_watcher_status))
 
     # ── POST /api/inbox-run ──────────────────────────────────────────────────
     @router.post("/api/inbox-run")
@@ -73,7 +72,7 @@ def register(
     # ── POST /api/setup-run ──────────────────────────────────────────────────
     @router.post("/api/setup-run")
     def post_setup_run(ctx) -> None:
-        _do_setup_run(ctx, ctx._post_data, config, repository, srv_mod, job_manager)
+        _do_setup_run(ctx, ctx._post_data, config, repository, job_manager)
 
 
 # ── Multipart upload — called directly from do_POST (pre-router) ─────────────
@@ -149,7 +148,7 @@ def _do_inbox_run(
 
 
 def _do_setup_run(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod, job_manager
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager
 ) -> None:
     """Launch the first-time setup wizard pipeline as a background job."""
     from rom_manager.web.inbox_pipeline import _run_setup_pipeline

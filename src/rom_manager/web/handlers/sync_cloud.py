@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 import rom_manager.web.state as _state
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -19,7 +17,6 @@ def register_cloud(
     config: AppConfig,
     repository: LibraryRepository,
     repo_android: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register rclone / cloud-sync / auto-sync routes on *router*."""
@@ -58,8 +55,8 @@ def register_cloud(
     def get_auto_sync_status(ctx) -> None:
         ctx._send_json(
             {
-                "enabled": srv_mod._auto_sync_enabled,
-                "status": dict(srv_mod._auto_sync_status),
+                "enabled": _state._auto_sync_enabled,
+                "status": dict(_state._auto_sync_status),
                 "config": {
                     "direction": config.auto_sync_direction,
                     "conflict_policy": config.conflict_policy,
@@ -71,7 +68,7 @@ def register_cloud(
     # ── GET /api/sd-sync-status ──────────────────────────────────────────────
     @router.get("/api/sd-sync-status")
     def get_sd_sync_status(ctx) -> None:
-        ctx._send_json(dict(srv_mod._sd_sync_status))
+        ctx._send_json(dict(_state._sd_sync_status))
 
     # ── POST /api/sync ───────────────────────────────────────────────────────
     @router.post("/api/sync")
@@ -88,7 +85,7 @@ def register_cloud(
     # ── POST /api/auto-sync-save ─────────────────────────────────────────────
     @router.post("/api/auto-sync-save")
     def post_auto_sync_save(ctx) -> None:
-        _do_auto_sync_save(ctx, ctx._post_data, config, srv_mod)
+        _do_auto_sync_save(ctx, ctx._post_data, config)
 
     # ── POST /api/migrate-split-db ───────────────────────────────────────────
     @router.post("/api/migrate-split-db")
@@ -467,7 +464,7 @@ def _do_sync(
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 
-def _do_auto_sync_save(ctx, data: dict, config: AppConfig, srv_mod) -> None:
+def _do_auto_sync_save(ctx, data: dict, config: AppConfig) -> None:
     """Save auto-sync settings to config.toml and update in-memory config."""
     from rom_manager.config import write_config_toml
 

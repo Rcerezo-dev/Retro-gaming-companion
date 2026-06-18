@@ -31,17 +31,20 @@ fichero van **siempre separados**.
 
 | Orden | Rama | Tareas | Estado |
 |-------|------|--------|--------|
-| ✅ | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | en rama (cable_sync → JobManager) |
-| **2** | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | ⬜ ← **siguiente** (ya desbloqueado) |
+| ✅ | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | mergeada (#22) — cable_sync → JobManager |
+| ✅ | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | en rama — globales legados eliminados |
+| **3** | `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | ⬜ ← **siguiente** (split de AppConfig) |
 
-> Detalle del plan en `Tareas/diario/Día27.md`. Resto de clusters abajo.
+> **Migración al JobManager (ARC-JM 1→6) completa.** `JobManager` es la única fuente
+> de verdad del estado de jobs. Siguiente bloque: split de `AppConfig` (ARC-CFG).
+> Detalle en `Tareas/diario/Día27.md`. Resto de clusters abajo.
 
 ### Clusters del backlog (al retomar esas líneas)
 
 | Rama | Tareas | Por qué juntas / bloqueo |
 |------|--------|--------------------------|
-| `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | Migración indivisible de `cable_sync` al JobManager; desbloquea ARC-JM-6 |
-| `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | Barrido de limpieza de globales. **Bloqueado por** `arc-jm-cable` |
+| ~~`refactor/arc-jm-cable`~~ ✅ | ARC-JM-3a + 3b + 3c | Migración indivisible de `cable_sync` al JobManager (#22) |
+| ~~`refactor/arc-jm-cleanup`~~ ✅ | ARC-JM-6a + 6b + 6c + 6d | Barrido de limpieza de globales (en rama) |
 | `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | Extraer `device_detector.py` (primero del split) |
 | `refactor/arc-cfg-sync` | ARC-CFG-1a–1d | Dataclass `SyncConfig` atómica |
 | `refactor/arc-cfg-credentials` | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica |
@@ -324,13 +327,13 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 | ARC-JM-3c | | ↳ Handler `cable_sync` (en `sync_cable.py`, no `sync.py`) + hub `job-status`/`stop-job` en `scan.py` → `job_manager` | `web/handlers/sync_cable.py`, `scan.py` | ✅ |
 | ARC-JM-4 | 🟡 Medio | **Migrar handlers de CHD, CSO, ZIP, scraper, health, RA al JobManager** — 6 handlers con patrón idéntico. | `handlers/organize.py`, `handlers/scraper.py`, `handlers/games.py` | ✅ ZIP + health en `esde.py`; RA en `sync.py` + scheduler en `server.py`; scraper/CHD/CSO/verifyChd ya migrados. `scan.py` híbrido limpiado. |
 | ARC-JM-5 | 🟡 Medio | **Migrar handler de inbox y setup al JobManager** — Reemplazar `m._inbox_progress`, `m._setup_progress`. | `handlers/inbox.py`, `web/server.py` (setup) | ✅ `_run_inbox_pipeline` y `_run_setup_pipeline` usan `job_manager`; watcher migrado; `get_setup_status` e `inbox-status` limpios. |
-| ARC-JM-6 | 🟡 Medio | **Eliminar los 12 dicts globales y `srv_mod`** — Desbloqueado (ARC-JM-3 ✅). `_cable_progress`/`_cable_cancel` ya huérfanos. Revisar `duplicates.py` (`srv_mod._job_results.get("ra_check")`). | `web/server.py` | ⬜ ← siguiente |
-| ARC-JM-6a | | ↳ Verificar migración completa: grep por `_progress`, `_jobs`, `_job_results` en `server.py` | `web/server.py` | ⬜ |
-| ARC-JM-6b | | ↳ Eliminar los 12 dicts de progreso (`_chd_progress`, `_cso_progress`, `_cable_progress`, …) | `web/server.py` | ⬜ |
-| ARC-JM-6c | | ↳ Eliminar `_jobs` y `_job_results` | `web/server.py` | ⬜ |
-| ARC-JM-6d | | ↳ Eliminar parámetro `srv_mod` de `make_handler` y actualizar los 8 `register()` | `web/server.py`, handlers | ⬜ |
+| ARC-JM-6 | 🟡 Medio | **Eliminar los globales legados y `srv_mod`** | `web/state.py`, `server.py`, handlers | ✅ rama `refactor/arc-jm-cleanup` |
+| ARC-JM-6a | | ↳ Auditados todos los globales legados en `web/` (grep exhaustivo) | — | ✅ |
+| ARC-JM-6b | | ↳ Eliminados los 12 `_*_progress` + los 10 `_*_cancel` de `state.py` (muertos) | `web/state.py` | ✅ |
+| ARC-JM-6c | | ↳ Eliminados `_jobs`/`_job_results`/`_job_lock` + helper muerto `_start_job`; repuntado `duplicates.py` (`ra_check`) a `job_manager` (arregla bug latente) | `web/state.py`, `server.py`, `duplicates.py` | ✅ |
+| ARC-JM-6d | | ↳ Eliminado `srv_mod` de `make_handler` + 8 `register()` (+ alias `_srv_mod`); 7 accesos `srv_mod.X` → `_state.X` | `web/server.py`, handlers | ✅ |
 
-> **Orden:** ARC-JM-1 → ARC-JM-2 → ARC-JM-3 → ARC-JM-4 → ARC-JM-5 → ARC-JM-6
+> **Orden:** ARC-JM-1 → ARC-JM-2 → ARC-JM-3 → ARC-JM-4 → ARC-JM-5 → ARC-JM-6 — **todos ✅**
 
 ### Pendientes — Split de AppConfig (ARC-3)
 

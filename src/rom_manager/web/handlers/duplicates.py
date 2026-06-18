@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -25,7 +23,6 @@ def register(
     config: AppConfig,
     repository: LibraryRepository,
     repo_android: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register duplicate-management routes on *router*."""
@@ -95,7 +92,7 @@ def register(
     # ── POST /api/ra-check/discard-no-support ────────────────────────────────
     @router.post("/api/ra-check/discard-no-support")
     def post_ra_discard_no_support(ctx) -> None:
-        _ra_discard_no_support(ctx, repository, srv_mod)
+        _ra_discard_no_support(ctx, repository, job_manager)
 
     # ── POST /api/resolve-duplicate-ra ───────────────────────────────────────
     @router.post("/api/resolve-duplicate-ra")
@@ -566,9 +563,9 @@ def _ra_duplicate_discard_all(ctx, config: AppConfig, repository: LibraryReposit
     ctx._send_json({"discarded": discarded, "failed": failed, "errors": errors[:10]})
 
 
-def _ra_discard_no_support(ctx, repository: LibraryRepository, srv_mod) -> None:
+def _ra_discard_no_support(ctx, repository: LibraryRepository, job_manager: JobManager) -> None:
     """Bulk-discard all games with NO RA support at all (status='no_support')."""
-    result = srv_mod._job_results.get("ra_check")
+    result = job_manager.get_status()["ra_check_result"]
     if not result:
         ctx._send_json({"error": "No RA check result available. Run RA check first."})
         return

@@ -9,8 +9,6 @@ import rom_manager.web.state as _state
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -28,7 +26,6 @@ def register(
     *,
     config: AppConfig,
     repository: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register scraper / gamelist / ScreenScraper routes on *router*."""
@@ -37,7 +34,7 @@ def register(
     @router.get("/api/ss-quota")
     def get_ss_quota(ctx) -> None:
         has_dev = bool(config.screenscraper_dev_id and config.screenscraper_dev_pass)
-        ctx._send_json({**srv_mod._ss_last_quota, "has_dev_account": has_dev})
+        ctx._send_json({**_state._ss_last_quota, "has_dev_account": has_dev})
 
     # ── POST /api/scrape ─────────────────────────────────────────────────────
     @router.post("/api/scrape")
@@ -47,12 +44,12 @@ def register(
     # ── POST /api/scrape-single ──────────────────────────────────────────────
     @router.post("/api/scrape-single")
     def post_scrape_single(ctx) -> None:
-        _do_scrape_single(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_scrape_single(ctx, ctx._post_data, config, repository)
 
     # ── POST /api/export-gamelists ───────────────────────────────────────────
     @router.post("/api/export-gamelists")
     def post_export_gamelists(ctx) -> None:
-        _do_export_gamelists(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_export_gamelists(ctx, ctx._post_data, config, repository)
 
     # ── GET /api/export-metadata-nlp ────────────────────────────────────────
     @router.get("/api/export-metadata-nlp")
@@ -345,9 +342,7 @@ def _do_scrape(
     ctx._send_json(job_manager.start("scrape", run))
 
 
-def _do_scrape_single(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod
-) -> None:
+def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
     game_id = data.get("game_id")
     preview = bool(data.get("preview", False))
     download_images = bool(data.get("images", False))
@@ -392,7 +387,7 @@ def _do_scrape_single(
             _name_hint = _game.get("canonical_title") or _game["original_filename"]
             _result = _client.search_by_name(_name_hint, system_id=_sys_id)
         if _client.last_quota:
-            srv_mod._ss_last_quota.update(_client.last_quota)
+            _state._ss_last_quota.update(_client.last_quota)
         if _result is None:
             ctx._send_json({"found": False, "error": "No encontrado en ScreenScraper"})
             return
@@ -462,9 +457,7 @@ def _do_scrape_single(
         ctx._send_json({"error": str(_exc)})
 
 
-def _do_export_gamelists(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod
-) -> None:
+def _do_export_gamelists(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
     from rom_manager.scraper.gamelist_writer import write_gamelist
 
     output_root = (

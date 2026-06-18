@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rom_manager.web.state as _state
 from rom_manager.web.jobs.manager import JOB_NAMES
 
 # ── DAT auto-download catalog (libretro-database, MIT license) ────────────────
@@ -63,8 +64,6 @@ _dat_dl_lock = threading.Lock()
 _dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -82,7 +81,6 @@ def register(
     repo_android: LibraryRepository,
     get_repo_fn: Callable[[str], LibraryRepository],
     start_ra_check_fn: Callable[[str], bool],
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register scan / catalog / job-status routes on *router*."""
@@ -93,7 +91,7 @@ def register(
     def get_job_status(ctx) -> None:
         # All background jobs (including cable_sync) are managed by job_manager.
         status = job_manager.get_status()
-        status["inbox_pending_files"] = srv_mod._inbox_watcher_status.get("pending_files", 0)
+        status["inbox_pending_files"] = _state._inbox_watcher_status.get("pending_files", 0)
         ctx._send_json(status)
 
     # ── GET /api/catalog-status ───────────────────────────────────────────────

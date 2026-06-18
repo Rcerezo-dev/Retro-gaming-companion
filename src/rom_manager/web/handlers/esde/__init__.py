@@ -20,7 +20,6 @@ from rom_manager.web.handlers.esde.system import (
 )
 
 if TYPE_CHECKING:
-    import types
     from collections.abc import Callable
 
     from rom_manager.config import AppConfig
@@ -50,7 +49,6 @@ def register(
     repository: LibraryRepository,
     repo_android: LibraryRepository,
     get_repo_fn: Callable[[str], LibraryRepository],
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register ES-DE, export, report, utility and tool routes on *router*.
