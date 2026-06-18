@@ -1,7 +1,7 @@
 """Inbox (Pilar 2) and setup wizard pipeline functions.
 
-Extracted from server.py (Session 19). Global state in server.py is accessed
-via late imports inside each function to avoid circular imports at load time.
+Extracted from server.py (Session 19). Progress/state is reported through the
+``JobManager`` passed in by the caller; this module no longer imports ``server``.
 """
 
 from __future__ import annotations

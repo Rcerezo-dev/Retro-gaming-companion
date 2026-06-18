@@ -1,7 +1,8 @@
 """Auto-sync ADB daemon and SD card sync daemon threads.
 
-Extracted from server.py (Session 19). Global state in server.py is accessed
-via late imports inside each function to avoid circular imports at load time.
+Extracted from server.py (Session 19). Shared mutable state now lives in
+``rom_manager.web.state`` (imported at module top as ``_state``); the old
+per-function late imports of ``server`` are no longer needed.
 """
 
 from __future__ import annotations
