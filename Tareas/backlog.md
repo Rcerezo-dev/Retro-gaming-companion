@@ -17,13 +17,14 @@ fichero van **siempre separados**.
 
 | Orden | Rama | Tareas | Estado |
 |-------|------|--------|--------|
-| ✅ | `feature/obs-1c-lint-no-bare-except` | OBS-1c | en rama (S110/S112 + 10 swallows loggeados) |
-| **1** | `feature/perf-1-hashing` | PERF-1a + 1b + 1c | ⬜ ← **siguiente** |
-| 3 | `test/test-1-sync-daemons` | TEST-1a + 1b + 1c | ⬜ |
-| 4 | `chore/fix-build-conda` | FIX-1 + FIX-2 | ⬜ |
-| 5–7 | `refactor/srp-1{a,b,c}-*` | SRP-1a (PR #17) / 1b (PR #18) / 1c (PR #19) | ✅ |
-| 8 | `chore/clean-1-late-imports` | CLEAN-1 | ⬜ |
+| ✅ | `feature/obs-1c-lint-no-bare-except` | OBS-1c | mergeada (#13) |
+| ✅ | `feature/perf-1-hashing` | PERF-1a + 1b + 1c | mergeada (#14) |
+| ✅ | `test/test-1-sync-daemons` | TEST-1a + 1b + 1c | mergeada (#15) |
+| ✅ | `chore/fix-build-conda` | FIX-1 + FIX-2 | en rama |
+| ✅ | `refactor/srp-1{a,b,c}-*` | SRP-1a (PR #17) / 1b (PR #18) / 1c (PR #19) | ✅ |
+| ✅ | `chore/clean-1-late-imports` | CLEAN-1 | en rama (handlers hoisted en server.py; docstrings de daemons al día) |
 
+> **Día26 completado.** Siguiente foco: clusters del backlog abajo (empezar por `refactor/arc-jm-cable`).
 > Detalle y justificación de la prioridad en `Tareas/Día26.md`.
 
 ### Clusters del backlog (al retomar esas líneas)

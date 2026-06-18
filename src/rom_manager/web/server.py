@@ -10,6 +10,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import rom_manager.web.handlers.collection as _h_collection
+import rom_manager.web.handlers.config as _h_config
+import rom_manager.web.handlers.duplicates as _h_duplicates
+import rom_manager.web.handlers.esde as _h_esde
+import rom_manager.web.handlers.games as _h_games
+import rom_manager.web.handlers.inbox as _h_inbox
+import rom_manager.web.handlers.organize as _h_organize
+import rom_manager.web.handlers.play_history as _h_play_history
+import rom_manager.web.handlers.scan as _h_scan
+import rom_manager.web.handlers.scraper as _h_scraper
+import rom_manager.web.handlers.sync as _h_sync
+
+# Legacy alias of web.state passed to handlers as `srv_mod=` (pending removal in ARC-JM-6).
+import rom_manager.web.state as _srv_mod
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
@@ -24,6 +38,7 @@ from rom_manager.web.handlers.system import (  # noqa: F401
     _ES_PLATFORM_FOLDERS,
     _STANDARD_PLATFORM_FOLDERS,
 )
+from rom_manager.web.router import Router
 from rom_manager.web.state import (
     _job_lock,
     _job_manager,
@@ -75,15 +90,10 @@ def make_handler(
     )
 
     # ── Phase 1: Router (replaces if/elif ladder incrementally) ───────────────
-    import rom_manager.web.state as _srv_mod
-    from rom_manager.web.router import Router
-
     _router = Router()
 
     def _set_auto_sync_fn(val: bool) -> None:
         _state._auto_sync_enabled = val
-
-    import rom_manager.web.handlers.config as _h_config
 
     _h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
 
@@ -98,8 +108,6 @@ def make_handler(
 
         return _do_ra_check(api_key, config, repository, _job_manager).get("status") == "started"
 
-    import rom_manager.web.handlers.collection as _h_collection
-
     _h_collection.register(
         _router,
         config=config,
@@ -107,8 +115,6 @@ def make_handler(
         repo_android=_repo_android,
         get_repo_fn=_get_repo,
     )
-
-    import rom_manager.web.handlers.scan as _h_scan
 
     _h_scan.register(
         _router,
@@ -121,8 +127,6 @@ def make_handler(
         job_manager=_job_manager,
     )
 
-    import rom_manager.web.handlers.duplicates as _h_duplicates
-
     _h_duplicates.register(
         _router,
         config=config,
@@ -132,8 +136,6 @@ def make_handler(
         job_manager=_job_manager,
     )
 
-    import rom_manager.web.handlers.organize as _h_organize
-
     _h_organize.register(
         _router,
         config=config,
@@ -142,8 +144,6 @@ def make_handler(
         srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.sync as _h_sync
 
     _h_sync.register(
         _router,
@@ -155,8 +155,6 @@ def make_handler(
         job_manager=_job_manager,
     )
 
-    import rom_manager.web.handlers.inbox as _h_inbox
-
     _h_inbox.register(
         _router,
         config=config,
@@ -165,8 +163,6 @@ def make_handler(
         job_manager=_job_manager,
     )
 
-    import rom_manager.web.handlers.scraper as _h_scraper
-
     _h_scraper.register(
         _router,
         config=config,
@@ -174,8 +170,6 @@ def make_handler(
         srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.games as _h_games
 
     _h_games.register(
         _router,
@@ -186,14 +180,10 @@ def make_handler(
         job_manager=_job_manager,
     )
 
-    import rom_manager.web.handlers.play_history as _h_play_history
-
     _h_play_history.register(
         _router,
         repository=repository,
     )
-
-    import rom_manager.web.handlers.esde as _h_esde
 
     _h_esde.register(
         _router,
@@ -307,9 +297,7 @@ def make_handler(
             # Handle multipart file uploads before JSON parse
             _ct = self.headers.get("Content-Type", "")
             if _ct.startswith("multipart/form-data") and path == "/api/inbox-upload":
-                from rom_manager.web.handlers.inbox import handle_inbox_upload
-
-                handle_inbox_upload(config, _ct, raw, self)
+                _h_inbox.handle_inbox_upload(config, _ct, raw, self)
                 return
 
             try:
