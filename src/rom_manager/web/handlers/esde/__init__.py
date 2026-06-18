@@ -39,6 +39,7 @@ def register(
     from rom_manager.web.builders.common import _list_drives, _test_path
     from rom_manager.web.builders.library import _build_status
     from rom_manager.web.handlers.esde.conversions import register_conversions
+    from rom_manager.web.handlers.esde.maintenance import register_maintenance
     from rom_manager.web.handlers.esde.reports import register_reports
     from rom_manager.web.handlers.system import (
         _get_local_ip,
@@ -119,148 +120,8 @@ def register(
     # ── Conversion / extraction routes (CHD, CSO, N64, ZIP, m3u, multidisc) ───
     register_conversions(router, config=config, repository=repository, job_manager=job_manager)
 
-    @router.post("/api/health-check")
-    def post_health_check(ctx) -> None:
-        _cancel = job_manager.cancel_event("health_check")
-
-        def run() -> None:
-            job_result = None
-            try:
-                from rom_manager.scanner.rom_scanner import utc_now
-                from rom_manager.utils.health_checker import check_library_health
-
-                def progress_cb(current: int, total: int, filename: str) -> None:
-                    job_manager.update_progress(
-                        "health_check",
-                        {"current": current, "total": total, "current_file": filename},
-                    )
-
-                summary = check_library_health(
-                    repository, progress_cb=progress_cb, cancel_event=_cancel
-                )
-                job_result = {
-                    "ok": summary.ok,
-                    "corrupted": summary.corrupted,
-                    "missing": summary.missing,
-                    "cancelled": _cancel.is_set(),
-                    "issues": [
-                        {
-                            "source_path": r.source_path,
-                            "status": r.status,
-                            "stored_sha1": r.stored_sha1[:12],
-                            "computed_sha1": r.computed_sha1[:12] if r.computed_sha1 else "",
-                            "platform": r.platform,
-                            "canonical_title": r.canonical_title,
-                        }
-                        for r in summary.results
-                    ],
-                    "result_ts": utc_now(),
-                }
-                from rom_manager.web.server import _write_health_schedule
-
-                _write_health_schedule(
-                    config, ok=summary.ok, corrupted=summary.corrupted, missing=summary.missing
-                )
-                if not _cancel.is_set() and config.notify_desktop:
-                    from rom_manager.utils.notifier import notify
-
-                    if summary.corrupted or summary.missing:
-                        notify(
-                            "Retro Vault — Health Check",
-                            f"⚠ {summary.corrupted} corruptos, {summary.missing} desaparecidos — revisa la pestaña Tools",
-                        )
-                    else:
-                        notify(
-                            "Retro Vault — Health Check",
-                            f"✓ {summary.ok} ROMs verificados, sin problemas",
-                        )
-            except Exception as exc:
-                job_result = {"error": str(exc)}
-            finally:
-                job_manager.finish("health_check", job_result)
-
-        ctx._send_json(job_manager.start("health_check", run))
-
-    # ── POST /api/cleanup-zips ────────────────────────────────────────────────
-    @router.post("/api/cleanup-zips")
-    def post_cleanup_zips(ctx) -> None:
-        data = ctx._post_data
-        source_path_str = data.get("source_path", "").strip()
-        if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
-            return
-        source = Path(source_path_str).resolve()
-        deleted = failed = 0
-        freed_bytes = 0
-        for zp in source.rglob("*.zip"):
-            try:
-                freed_bytes += zp.stat().st_size
-                os.remove(zp)
-                deleted += 1
-            except OSError:
-                failed += 1
-        ctx._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
-
-    # ── POST /api/cleanup-cue-bin ─────────────────────────────────────────────
-    @router.post("/api/cleanup-cue-bin")
-    def post_cleanup_cue_bin(ctx) -> None:
-        data = ctx._post_data
-        source_path_str = data.get("source_path", "").strip()
-        if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
-            return
-        source = Path(source_path_str).resolve()
-        deleted = failed = skipped = 0
-        freed_bytes = 0
-        for cue in source.rglob("*.cue"):
-            chd = cue.with_suffix(".chd")
-            if not chd.exists():
-                skipped += 1
-                continue
-            from rom_manager.converters.chd_converter import parse_bins_from_cue
-
-            bins = parse_bins_from_cue(cue)
-            for f in [cue, *bins]:
-                try:
-                    freed_bytes += f.stat().st_size
-                    os.remove(f)
-                    deleted += 1
-                except OSError:
-                    failed += 1
-        ctx._send_json(
-            {"deleted": deleted, "failed": failed, "skipped": skipped, "freed_bytes": freed_bytes}
-        )
-
-    # ── POST /api/junk-delete ─────────────────────────────────────────────────
-    @router.post("/api/junk-delete")
-    def post_junk_delete(ctx) -> None:
-        data = ctx._post_data
-        paths_to_delete = data.get("paths", [])
-        dry_run = bool(data.get("dry_run", True))
-        deleted = failed = 0
-        freed_bytes = 0
-        errors: list[str] = []
-        for fp in paths_to_delete:
-            try:
-                p = Path(fp)
-                if p.is_file():
-                    sz = p.stat().st_size
-                    if not dry_run:
-                        p.unlink()
-                    deleted += 1
-                    freed_bytes += sz
-            except OSError as exc:
-                failed += 1
-                errors.append(str(exc))
-        ctx._send_json(
-            {
-                "deleted": deleted,
-                "failed": failed,
-                "freed_bytes": freed_bytes,
-                "dry_run": dry_run,
-                "errors": errors[:10],
-            }
-        )
+    # ── Maintenance routes (health check, zip/cue+bin cleanup, junk delete) ───
+    register_maintenance(router, config=config, repository=repository, job_manager=job_manager)
 
     @router.post("/api/orphaned-saves/delete")
     def post_orphaned_saves_delete(ctx) -> None:
