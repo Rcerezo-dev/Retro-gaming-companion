@@ -39,12 +39,12 @@ def register(
     from rom_manager.web.builders.common import _list_drives, _test_path
     from rom_manager.web.builders.library import _build_status
     from rom_manager.web.handlers.esde.conversions import register_conversions
+    from rom_manager.web.handlers.esde.doctor import register_doctor
     from rom_manager.web.handlers.esde.maintenance import register_maintenance
     from rom_manager.web.handlers.esde.reports import register_reports
     from rom_manager.web.handlers.system import (
         _get_local_ip,
         _handle_detect_cloud_folder,
-        _handle_library_doctor,
         _handle_retroarch_check,
         _handle_system_status,
     )
@@ -123,146 +123,8 @@ def register(
     # ── Maintenance routes (health check, zip/cue+bin cleanup, junk delete) ───
     register_maintenance(router, config=config, repository=repository, job_manager=job_manager)
 
-    @router.post("/api/orphaned-saves/delete")
-    def post_orphaned_saves_delete(ctx) -> None:
-        data = ctx._post_data
-        paths = data.get("paths", [])
-        if not paths:
-            ctx._send_json({"error": "paths list is required"})
-            return
-        deleted = failed = 0
-        freed_bytes = 0
-        for p in paths:
-            try:
-                size = Path(p).stat().st_size if Path(p).exists() else 0
-                os.remove(p)
-                deleted += 1
-                freed_bytes += size
-            except OSError:
-                failed += 1
-        ctx._send_json({"deleted": deleted, "failed": failed, "freed_bytes": freed_bytes})
-
-    # ── POST /api/orphaned-saves/move ─────────────────────────────────────────
-    @router.post("/api/orphaned-saves/move")
-    def post_orphaned_saves_move(ctx) -> None:
-        data = ctx._post_data
-        save_path = data.get("save_path", "").strip()
-        game_path = data.get("game_path", "").strip()
-        if not save_path or not game_path:
-            ctx._send_json({"error": "save_path and game_path are required"})
-            return
-        save_file = Path(save_path)
-        game_file = Path(game_path)
-        if not save_file.exists():
-            ctx._send_json({"error": f"Save file not found: {save_path}"})
-            return
-        if not game_file.parent.exists():
-            ctx._send_json({"error": f"Game directory not found: {game_file.parent}"})
-            return
-        target = game_file.parent / (game_file.stem + save_file.suffix)
-        if target.exists():
-            ctx._send_json({"error": f"Target already exists: {target.name}"})
-            return
-        try:
-            shutil.move(str(save_file), str(target))
-        except OSError as exc:
-            ctx._send_json({"error": str(exc)})
-            return
-        ctx._send_json({"moved": str(target), "from": save_path})
-
-    # ── POST /api/orphaned-saves/move-to-archive ──────────────────────────────
-    @router.post("/api/orphaned-saves/move-to-archive")
-    def post_orphaned_saves_archive(ctx) -> None:
-        data = ctx._post_data
-        paths = data.get("paths", [])
-        library_root = data.get("library_root", "").strip()
-        if not paths:
-            ctx._send_json({"error": "paths list is required"})
-            return
-        if not library_root:
-            ctx._send_json({"error": "library_root is required"})
-            return
-
-        archive_dir = Path(library_root) / "_huerfanos"
-        try:
-            archive_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            ctx._send_json({"error": f"Could not create _huerfanos folder: {exc}"})
-            return
-
-        moved = failed = 0
-        moved_bytes = 0
-        for p in paths:
-            try:
-                src = Path(p)
-                if not src.exists():
-                    failed += 1
-                    continue
-                size = src.stat().st_size
-                target = archive_dir / src.name
-                counter = 1
-                stem = target.stem
-                suffix = target.suffix
-                while target.exists():
-                    target = archive_dir / f"{stem}_{counter}{suffix}"
-                    counter += 1
-                shutil.move(str(src), str(target))
-                moved += 1
-                moved_bytes += size
-            except OSError:
-                failed += 1
-
-        ctx._send_json(
-            {
-                "moved": moved,
-                "failed": failed,
-                "moved_bytes": moved_bytes,
-                "archive_dir": str(archive_dir),
-            }
-        )
-
-    # ── POST /api/doctor-move-rom ─────────────────────────────────────────────
-    @router.post("/api/doctor-move-rom")
-    def post_doctor_move_rom(ctx) -> None:
-        data = ctx._post_data
-        _src = data.get("path", "")
-        _dst_dir = data.get("expected_dir", "")
-        if not _src or not _dst_dir:
-            ctx._send_json({"error": "path y expected_dir requeridos"})
-            return
-        _src_p = Path(_src)
-        _dst_p = Path(_dst_dir) / _src_p.name
-        if not _src_p.exists():
-            ctx._send_json({"error": "Archivo no encontrado"})
-        elif _dst_p.exists():
-            ctx._send_json({"error": f"Ya existe en destino: {_dst_p.name}"})
-        else:
-            try:
-                Path(_dst_dir).mkdir(parents=True, exist_ok=True)
-                shutil.move(str(_src_p), str(_dst_p))
-                ctx._send_json({"ok": True, "new_path": str(_dst_p)})
-            except Exception as _exc:
-                ctx._send_json({"error": str(_exc)})
-
-    # ── POST /api/doctor-delete-dir ───────────────────────────────────────────
-    @router.post("/api/doctor-delete-dir")
-    def post_doctor_delete_dir(ctx) -> None:
-        data = ctx._post_data
-        _dir = data.get("path", "")
-        if not _dir:
-            ctx._send_json({"error": "path requerido"})
-            return
-        _dir_p = Path(_dir)
-        if not _dir_p.exists():
-            ctx._send_json({"error": "Carpeta no encontrada"})
-        elif not _dir_p.is_dir():
-            ctx._send_json({"error": "No es una carpeta"})
-        else:
-            try:
-                _dir_p.rmdir()
-                ctx._send_json({"ok": True})
-            except Exception as _exc:
-                ctx._send_json({"error": str(_exc)})
+    # ── Library doctor routes (orphaned saves, move/delete fixes, doctor report) ─
+    register_doctor(router, config=config, repository=repository)
 
     # ── POST /api/shutdown ────────────────────────────────────────────────────
     @router.post("/api/shutdown")
@@ -284,11 +146,6 @@ def register(
     @router.get("/api/detect-cloud-folder")
     def get_detect_cloud_folder(ctx) -> None:
         ctx._send_json(_handle_detect_cloud_folder())
-
-    # ── GET /api/library-doctor ───────────────────────────────────────────────
-    @router.get("/api/library-doctor")
-    def get_library_doctor(ctx) -> None:
-        ctx._send_json(_handle_library_doctor(config, repository))
 
     # ── GET /api/retroarch-check ──────────────────────────────────────────────
     @router.get("/api/retroarch-check")
