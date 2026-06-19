@@ -192,6 +192,15 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                     "Inbox watcher: %d archivos detectados, lanzando pipeline", len(pending)
                 )
                 _state._inbox_watcher_status["trigger_ts"] = _time.time()
+                if config.notify_desktop:
+                    from rom_manager.utils.notifier import notify
+
+                    _n = len(pending)
+                    _plural = "archivo" if _n == 1 else "archivos"
+                    notify(
+                        "Retro Vault — Inbox",
+                        f"📥 {_n} {_plural} detectado{'' if _n == 1 else 's'}, procesando…",
+                    )
                 target_root_str = config.inbox.target_root or (
                     str(config.library_root) if config.library_root else ""
                 )

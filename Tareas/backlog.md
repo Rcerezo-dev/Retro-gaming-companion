@@ -164,7 +164,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | PHASE4-1 | Human-readable errors — `_readable_error()` central en `server.py` mapea excepciones a mensaje legible + log de traceback; router simplificado | ✅ (rama `feature/phase4-1-readable-errors`) |
 | PHASE4-2 | Contextual help — componente `.help-icon` (tooltip CSS-only) + hints en Overview/Settings | ✅ (rama `feature/phase4-2-contextual-help`) |
 | PHASE4-3 | Responsive UI — breakpoint `≤480px` (sidebar icon-rail, grid 1 col, touch 44px) | ✅ (rama `feature/phase4-3-responsive`) |
-| PHASE4-4 | Windows toast notifications en sync complete / inbox detected — **aplazado**: requiere spike de vía *stdlib-only* (sin `win10toast`/`plyer`); candidatos: PowerShell `Windows.UI.Notifications` o `ctypes`+Shell_NotifyIcon (tray ya existe) | ⬜ aplazado |
+| PHASE4-4 | Windows toast notifications en sync complete / inbox detected — `utils/notifier.py` (PowerShell `Windows.UI.Notifications`, stdlib-only, no-op off-Windows). Enganchado a sync (cloud+cable), CLI, health check e **inbox detectado** (`daemons.py`); gate `config.notify_desktop`. Tests: `tests/test_notifier.py` (escape + degradación) | ✅ (rama `feature/phase4-4-windows-toasts`) |
 | PHASE4-5 | Renombrar jargon (conservador término + glosa): Match→Identificar, SHA1→Huella (SHA1), DAT→base de datos de juegos | ✅ (rama `feature/phase4-5-rename-jargon`) |
 
 ### Phase 5 — Auth
