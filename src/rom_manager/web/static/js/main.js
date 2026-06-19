@@ -493,7 +493,7 @@ export function onGlobalSearch(val) {
         const gj = JSON.stringify(g).replace(/</g,'\\u003c');
         return `<div class="sr-item" onclick="document.getElementById('global-search').value='';document.getElementById('global-search-results').classList.add('hidden');openGamePanel(${gj})">
           <img src="/api/asset-image?game_id=${g.id}" width="28" height="28" style="border-radius:3px;object-fit:cover" onerror="this.classList.add('hidden')">
-          <div><div style="color:#d4d4d4">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
+          <div><div style="color:var(--c-text)">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
         </div>`;
       }).join('');
     } catch(e) { results.classList.add('hidden'); }

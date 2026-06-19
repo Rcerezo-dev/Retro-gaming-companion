@@ -140,7 +140,7 @@ export function toggleFavoritesFilter() {
   if (!btn) return;
   gamesState.favorite = !gamesState.favorite;
   _txtCls(btn, gamesState.favorite ? 'txt-fav' : 'txt-muted');
-  btn.style.borderColor = gamesState.favorite ? '#f9c74f' : '#444';
+  btn.style.borderColor = gamesState.favorite ? 'var(--c-amber)' : '#444';
   loadGames(0);
 }
 
@@ -217,10 +217,10 @@ export function _platBadge(plat) {
 }
 
 const _PLAT_HEX = {
-  gba: '#4ec9b0', snes: '#569cd6', nes: '#f44747', gb: '#dcdcaa',
-  gbc: '#d7ba7d', nds: '#c586c0', '3ds': '#9cdcfe', n64: '#4ec9b0',
-  psx: '#9cdcfe', ps2: '#569cd6', psp: '#79c0ff',
-  genesis: '#ce9178', md: '#ce9178', sms: '#6a9955', gg: '#4ec9b0',
+  gba: 'var(--c-teal)', snes: 'var(--c-blue)', nes: 'var(--c-red)', gb: 'var(--c-yellow)',
+  gbc: '#d7ba7d', nds: 'var(--c-purple)', '3ds': 'var(--c-lblue)', n64: 'var(--c-teal)',
+  psx: 'var(--c-lblue)', ps2: 'var(--c-blue)', psp: '#79c0ff',
+  genesis: 'var(--c-orange)', md: 'var(--c-orange)', sms: 'var(--c-green)', gg: 'var(--c-teal)',
 };
 
 export function _platHex(plat) {
@@ -260,7 +260,7 @@ export async function loadGames(offset) {
   if (rootBanner) {
     if (gamesState.root) {
       rootBanner.classList.remove('hidden');
-      rootBanner.innerHTML = `<span style="color:#888;font-size:12px">Filtrando por: <code style="color:#ce9178">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').classList.add('hidden');loadGames(0)">&#x2715; Quitar filtro</button>`;
+      rootBanner.innerHTML = `<span style="color:#888;font-size:12px">Filtrando por: <code style="color:var(--c-orange)">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').classList.add('hidden');loadGames(0)">&#x2715; Quitar filtro</button>`;
     } else {
       rootBanner.classList.add('hidden');
     }
@@ -318,7 +318,7 @@ export async function loadGames(offset) {
         _datBanner.innerHTML = `<span style="color:#e5c200">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:#7aadff;text-decoration:underline">→ Descargar catálogos</a>`;
         _datBanner.classList.remove('hidden');
       } else if (d.dat_count > 0 && _unmatched > 0) {
-        _datBanner.innerHTML = `<span style="color:#4ec9b0">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:#888">${_unmatched} sin identificar</span>`;
+        _datBanner.innerHTML = `<span style="color:var(--c-teal)">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:#888">${_unmatched} sin identificar</span>`;
         _datBanner.classList.remove('hidden');
       } else if (d.dat_count > 0) {
         _datBanner.classList.add('hidden');
@@ -349,7 +349,7 @@ export async function loadGames(offset) {
       tbody.innerHTML = rows.map(g => {
         const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:#0a0a0a" onerror="this.style.display=\'none\'">` : '';
         const statusVal = g.play_status || '';
-        const statusSel = `<select style="background:#1e1e2e;border:1px solid #333;color:#d4d4d4;padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
+        const statusSel = `<select style="background:var(--c-panel);border:1px solid #333;color:var(--c-text);padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
           <option value=""${statusVal === '' ? ' selected' : ''}>—</option>
           <option value="playing"${statusVal === 'playing' ? ' selected' : ''}>&#x1F3AE; Jugando</option>
           <option value="completed"${statusVal === 'completed' ? ' selected' : ''}>&#x2705; Completado</option>
@@ -363,7 +363,7 @@ export async function loadGames(offset) {
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
           <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
-          <td class="mono" title="${_h(g.original_filename)}" style="color:#9cdcfe;font-size:12px">${_h(g.original_filename)}</td>
+          <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}</td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
           <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
           <td>${matchBadge(g.match_confidence)}</td>
@@ -402,7 +402,7 @@ export function renderPagination() {
     <button class="btn" ${prevDisabled} onclick="loadGames(${Math.max(0, offset - limit)})">&#x2190; Anterior</button>
     <span>Página ${currentPage} de ${totalPages}</span>
     <button class="btn" ${nextDisabled} onclick="loadGames(${offset + limit})">Siguiente &#x2192;</button>
-    <select style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:13px" onchange="gamesState.limit=+this.value;loadGames(0)">
+    <select style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:4px 8px;border-radius:4px;font:inherit;font-size:13px" onchange="gamesState.limit=+this.value;loadGames(0)">
       ${[50, 100, 200, 500].map(n => `<option value="${n}"${n === limit ? ' selected' : ''}>${n} por página</option>`).join('')}
     </select>`;
 }
@@ -646,7 +646,7 @@ async function _gpLoadRaProgress(raGameId) {
     const pct = Math.round(d.unlocked / d.total * 100);
     const hc  = d.hardcore > 0 ? ` · ${d.hardcore} hardcore` : '';
     const pts = d.points_earned > 0 ? ` · ${d.points_earned}/${d.points_total} pts` : '';
-    const color = pct >= 100 ? '#ffcc00' : pct >= 50 ? '#4ec9b0' : '#888';
+    const color = pct >= 100 ? '#ffcc00' : pct >= 50 ? 'var(--c-teal)' : '#888';
     el.innerHTML = `<span style="color:${color};font-weight:600">${d.unlocked}/${d.total} logros (${pct}%)</span>${hc}${pts}`;
   } catch(_) {
     el.textContent = '';
@@ -752,10 +752,10 @@ export function loadSaveBackupsResult(saves, gameId) {
     const bkPath  = s.backup_path.replace(/\\/g, '/');
     const origSav = s.original_save.replace(/\\/g, '/');
     const ext     = s.extension || '';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #1e1e2e">
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--c-panel)">
       <span style="color:#888">${_h(s.timestamp)}<span style="color:#444;margin-left:4px">${_h(ext)}</span></span>
       <span style="color:#555">${sizeFmt}</span>
-      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid #4ec9b0;color:#4ec9b0;padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
+      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
     </div>`;
   }).join('');
 }
@@ -818,18 +818,18 @@ export async function gpScrapeSingle() {
   try {
     const r = await apiPost('/api/scrape-single', { game_id: _gpGameId, preview: true });
     if (!r.found) {
-      if (previewEl) previewEl.innerHTML = `<span style="color:#f44747">No encontrado: ${_h(r.error || 'sin resultados')}</span>`;
+      if (previewEl) previewEl.innerHTML = `<span style="color:var(--c-red)">No encontrado: ${_h(r.error || 'sin resultados')}</span>`;
       return;
     }
     const rows = [
       ['Título', r.title], ['Año', r.year], ['Género', r.genre],
       ['Publisher', r.publisher], ['Developer', r.developer], ['Nota', r.rating],
-    ].filter(([, v]) => v).map(([k, v]) => `<span style="color:#888">${k}:</span> <span style="color:#d4d4d4">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
+    ].filter(([, v]) => v).map(([k, v]) => `<span style="color:#888">${k}:</span> <span style="color:var(--c-text)">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
     if (previewEl) previewEl.innerHTML = `<div style="margin-bottom:8px;line-height:1.8">${rows}</div>
-      <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
+      <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
       <button onclick="document.getElementById('gp-scrape-preview').classList.add('hidden')" style="margin-left:6px;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
   } catch(e) {
-    if (previewEl) previewEl.innerHTML = `<span style="color:#f44747">Error: ${_h(e.message)}</span>`;
+    if (previewEl) previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${_h(e.message)}</span>`;
   }
 }
 
@@ -873,7 +873,7 @@ export async function loadGameSyncHistory(sourcePath) {
     if (!hist.length) return;
     wrap.classList.remove('hidden');
     list.innerHTML = hist.map(h => {
-      const clr = h.result === 'ok' ? '#4ec9b0' : '#e06c75';
+      const clr = h.result === 'ok' ? 'var(--c-teal)' : 'var(--c-softred)';
       const dir = h.direction === 'up' ? '&#x2191;' : h.direction === 'down' ? '&#x2193;' : '&#x21C4;';
       return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a">
         <span style="color:${clr};font-size:11px">${dir} ${_h(h.result || '')}</span>
@@ -983,7 +983,7 @@ export async function loadRecommendations() {
       const reason = it.reason ? `<div style="font-size:10px;color:#555;margin-top:2px">${_h(it.reason)}</div>` : '';
       const gameData = it.id ? ` onclick="apiFetch('/api/game?id=${it.id}').then(g=>{if(g.id)openGamePanel(g)}).catch(()=>{})"` : '';
       return `<div class="rec-card"${gameData}>
-        <div style="font-size:12px;font-weight:600;color:#d4d4d4">${title} ${score}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--c-text)">${title} ${score}</div>
         <div style="font-size:11px;color:#888">${plat}</div>
         ${reason}
       </div>`;

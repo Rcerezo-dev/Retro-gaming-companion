@@ -1,10 +1,10 @@
 <div id="tab-sync" class="tab">
   <!-- QoL-14: rclone offline banner -->
-  <div class="hidden" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;background:#1a0a0a;border:1px solid #4a1a1a;border-left:3px solid #f44747;border-radius:4px;font-size:12px;color:#f48771">
+  <div class="hidden" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;background:#1a0a0a;border:1px solid #4a1a1a;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> rclone no est&#xe1; disponible — la sincronizaci&#xf3;n cloud no funcionar&#xe1;.
     <span style="color:#555;margin-left:8px">Instala rclone o configura su ruta en Settings.</span>
   </div>
-  <div class="hidden" id="sync-context-bar" style="margin-bottom:12px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
+  <div class="hidden" id="sync-context-bar" style="margin-bottom:12px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Sincronización de saves</h3>
     <div class="actions-row">
@@ -98,7 +98,7 @@
         <button class="btn" id="btn-rclone-check" onclick="toggleRcloneSetup()" style="font-size:11px;padding:3px 12px">&#x2699; Verificar rclone</button>
       </div>
     </div>
-    <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:#0d1117;border:1px solid #2a3a2a;border-radius:4px;font-size:12px"></div>
+    <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:var(--c-deep);border:1px solid #2a3a2a;border-radius:4px;font-size:12px"></div>
     <p style="color:#555;font-size:12px;margin-bottom:0;margin-top:8px">Comprueba si tienes Dropbox/OneDrive instalado o si rclone est&#xe1; configurado.</p>
     <div class="hidden" id="rclone-setup-panel" style="margin-top:14px">
       <div id="rclone-status-info" style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.7">Comprobando&#x2026;</div>
@@ -110,7 +110,7 @@
       <details style="margin-bottom:12px;border:1px solid #2a2a3a;border-radius:6px;padding:8px 12px;background:#0f0f1a">
         <summary style="cursor:pointer;color:#888;font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Dropbox</summary>
         <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
-          <li>Pulsa <strong style="color:#d4d4d4">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
+          <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
           <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
           <li>Nombre: escribe <code>dropbox</code> y pulsa Enter.</li>
           <li>Tipo: escribe <code>13</code> (Dropbox) y pulsa Enter.</li>
@@ -118,14 +118,14 @@
           <li>Responde <code>n</code> a "Edit advanced config".</li>
           <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar.</li>
           <li>Tras autorizar, responde <code>y</code> para guardar y <code>q</code> para salir.</li>
-          <li>Pulsa <strong style="color:#d4d4d4">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
+          <li>Pulsa <strong style="color:var(--c-text)">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
         </ol>
       </details>
       <div class="hidden" id="rclone-remotes-panel">
         <div style="margin-bottom:10px">
           <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <select id="rclone-remote-select" style="flex:1;min-width:140px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
+            <select id="rclone-remote-select" style="flex:1;min-width:140px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
             <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync/saves">
             <button class="btn primary" onclick="applyRcloneRemote()" style="font-size:12px;padding:5px 14px;flex-shrink:0">Guardar</button>
             <button class="btn" onclick="testRcloneRemote()" style="font-size:12px;padding:5px 12px;flex-shrink:0">Verificar conexi&#xf3;n</button>

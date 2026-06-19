@@ -9,13 +9,13 @@
     <div class="actions-row" style="flex-wrap:wrap;gap:16px">
       <div>
         <label>Plataforma</label>
-        <select id="scrape-platform" style="width:220px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
+        <select id="scrape-platform" style="width:220px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
           <option value="">Todas las plataformas</option>
         </select>
       </div>
       <div>
         <label>Límite de ROMs (0 = todos)</label>
-        <input id="scrape-limit" type="number" value="0" min="0" style="width:80px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
+        <input id="scrape-limit" type="number" value="0" min="0" style="width:80px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px">
       </div>
       <label class="fmt-check" style="align-self:flex-end">
         <input type="checkbox" id="scrape-images"> Descargar portadas
@@ -32,11 +32,11 @@
     <div class="hidden" id="scrape-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
         <span id="scrape-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="scrape-progress-found" style="font-size:11px;color:#4ec9b0"></span>
+        <span id="scrape-progress-found" style="font-size:11px;color:var(--c-teal)"></span>
         <span id="scrape-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="scrape-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.4s"></div>
+      <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
+        <div id="scrape-progress-bar" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.4s"></div>
       </div>
     </div>
     <div id="job-result-scrape" class="job-result"></div>
@@ -83,7 +83,7 @@
       <span style="color:#555">Sin rutas ni hashes — listo para entrenar modelos o hacer análisis de texto.</span>
     </p>
     <div class="actions-row">
-      <a href="/api/export-metadata-nlp" class="btn" style="border-color:#4ec9b0;color:#4ec9b0">&#x2193; Descargar CSV (NLP)</a>
+      <a href="/api/export-metadata-nlp" class="btn" style="border-color:var(--c-teal);color:var(--c-teal)">&#x2193; Descargar CSV (NLP)</a>
     </div>
   </div>
 </div>

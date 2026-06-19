@@ -26,7 +26,7 @@ async function loadSync() {
     const syncBar = document.getElementById('sync-context-bar');
     if (syncBar) {
       if (sources.length) {
-        const names = sources.map(s => `<span style="color:#4ec9b0">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
+        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
         syncBar.innerHTML = `<span style="color:#f48771">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
@@ -73,12 +73,12 @@ async function loadAssets() {
       const _ad = getActiveDevice(), _dn = getDevName();
       let barHtml = '';
       if (_ad === 'pc') {
-        barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else if (_ad === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:#ce9178">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> (PC + ${_dn}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${_dn}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;
       assetsBar.classList.remove('hidden');
@@ -93,10 +93,10 @@ async function loadAssets() {
     html += stats.map(s => `<tr>
       <td>${s.platform}</td>
       <td style="text-align:right">${s.rom_count}</td>
-      <td style="text-align:right;color:${s.image_count ? '#4ec9b0' : '#555'}">${s.image_count}</td>
-      <td style="text-align:right;color:${s.video_count ? '#4ec9b0' : '#555'}">${s.video_count}</td>
-      <td style="text-align:right;color:${s.xml_count ? '#4ec9b0' : '#555'}">${s.xml_count}</td>
-      <td style="text-align:right;color:${s.orphan_assets ? '#f44747' : '#555'}">${s.orphan_assets || '—'}</td>
+      <td style="text-align:right;color:${s.image_count ? 'var(--c-teal)' : '#555'}">${s.image_count}</td>
+      <td style="text-align:right;color:${s.video_count ? 'var(--c-teal)' : '#555'}">${s.video_count}</td>
+      <td style="text-align:right;color:${s.xml_count ? 'var(--c-teal)' : '#555'}">${s.xml_count}</td>
+      <td style="text-align:right;color:${s.orphan_assets ? 'var(--c-red)' : '#555'}">${s.orphan_assets || '—'}</td>
     </tr>`).join('');
     html += '</tbody></table></div>';
     el.innerHTML = html;
@@ -112,7 +112,7 @@ async function loadSystemStatus() {
   try {
     const d = await apiFetch('/api/system-status');
     const row = (label, ok, detail) => {
-      const icon = ok ? '<span style="color:#4ec9b0">✓</span>' : '<span style="color:#f44747">✗</span>';
+      const icon = ok ? '<span style="color:var(--c-teal)">✓</span>' : '<span style="color:var(--c-red)">✗</span>';
       const det = detail ? `<span style="color:#555;margin-left:4px">${_h(detail)}</span>` : '';
       return `<div>${icon} <strong>${label}</strong>${det}</div>`;
     };
@@ -149,7 +149,7 @@ async function detectCloudFolder() {
     }
     res.innerHTML = d.detected.map(item => `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
-        <span style="color:#4ec9b0;min-width:90px"><strong>${_h(item.service)}</strong></span>
+        <span style="color:var(--c-teal);min-width:90px"><strong>${_h(item.service)}</strong></span>
         <span style="color:#888;font-size:11px;flex:1">${_h(item.local_folder)}</span>
         <button class="btn primary" style="font-size:11px;padding:3px 10px;flex-shrink:0"
           onclick="useCloudFolder(${JSON.stringify(item.suggested_remote)})">Usar esta carpeta</button>
@@ -183,7 +183,7 @@ async function loadAutostart() {
     if (!badge || !btn) return;
     if (d.enabled) {
       badge.textContent = 'ACTIVADO';
-      badge.style.color = '#6a9955';
+      badge.style.color = 'var(--c-green)';
       btn.textContent   = 'Desactivar inicio automatico';
       btn.classList.add('danger');
       if (note) note.classList.remove('hidden');
@@ -448,7 +448,7 @@ async function loadRcloneStatus() {
     const d = await apiFetch('/api/rclone-status');
     if (!d.installed) {
       if (info) info.innerHTML = '\u274C rclone no encontrado en <code>' + d.binary + '</code>.<br>'
-        + 'Desc\u00e1rgalo de <strong style="color:#d4d4d4">rclone.org/downloads</strong> y ponlo en PATH, '
+        + 'Desc\u00e1rgalo de <strong style="color:var(--c-text)">rclone.org/downloads</strong> y ponlo en PATH, '
         + 'o indica la ruta en <code>config.toml</code> bajo <code>[sync]</code> como <code>rclone = "C:/tools/rclone.exe"</code>.';
       return;
     }
@@ -456,7 +456,7 @@ async function loadRcloneStatus() {
     if (d.remotes.length === 0) {
       statusHtml += '<br>\u26A0 Sin remotes configurados. Ejecuta <code>rclone config</code> en un terminal para a\u00f1adir uno (Dropbox, Google Drive, OneDrive\u2026).';
     } else {
-      statusHtml += ` &middot; ${d.remotes.length} remote(s): <strong style="color:#d4d4d4">${d.remotes.join('  ')}</strong>`;
+      statusHtml += ` &middot; ${d.remotes.length} remote(s): <strong style="color:var(--c-text)">${d.remotes.join('  ')}</strong>`;
     }
     if (info) info.innerHTML = statusHtml;
     if (d.remotes.length) {
@@ -500,18 +500,18 @@ async function openRcloneConfig() {
 async function testRcloneRemote() {
   const remote = document.getElementById('rclone-remote-select')?.value || '';
   const res = document.getElementById('rclone-test-result');
-  if (!remote) { if (res) { res.textContent = 'Selecciona un remote.'; res.style.color = '#dcdcaa'; } return; }
+  if (!remote) { if (res) { res.textContent = 'Selecciona un remote.'; res.style.color = 'var(--c-yellow)'; } return; }
   if (res) { res.textContent = 'Verificando\u2026'; res.style.color = '#888'; }
   try {
     const d = await apiPost('/api/rclone-test-remote', { remote });
     if (d.ok) {
       const entries = d.entries > 0 ? ` · ${d.entries} carpeta(s) en ra\xedz` : ' · ra\xedz vac\xeda o sin permiso de lectura';
-      if (res) { res.innerHTML = '\u2705 Conexi\xf3n OK' + entries; res.style.color = '#4ec9b0'; }
+      if (res) { res.innerHTML = '\u2705 Conexi\xf3n OK' + entries; res.style.color = 'var(--c-teal)'; }
     } else {
-      if (res) { res.innerHTML = '\u274C ' + (d.error || 'error'); res.style.color = '#f44747'; }
+      if (res) { res.innerHTML = '\u274C ' + (d.error || 'error'); res.style.color = 'var(--c-red)'; }
     }
   } catch(e) {
-    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
+    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = 'var(--c-red)'; }
   }
 }
 
@@ -519,7 +519,7 @@ async function applyRcloneRemote() {
   const remote = document.getElementById('rclone-remote-select')?.value || '';
   const pathVal = (document.getElementById('rclone-path-input')?.value || '').trim().replace(/^\/+/, '');
   const res = document.getElementById('rclone-apply-result');
-  if (!remote) { if (res) { res.textContent = 'Selecciona un remote.'; res.style.color = '#dcdcaa'; } return; }
+  if (!remote) { if (res) { res.textContent = 'Selecciona un remote.'; res.style.color = 'var(--c-yellow)'; } return; }
   const fullRemote = remote + pathVal;
   try {
     await apiPost('/api/config', { 'sync.remote': fullRemote });
@@ -591,7 +591,7 @@ async function detectDrives() {
       const label = dr.label ? ` — ${dr.label}` : '';
       const size  = dr.total_bytes > 0 ? ` (${fmtSize(dr.free_bytes)} libres de ${fmtSize(dr.total_bytes)})` : '';
       return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0">
-        <code style="color:#ce9178;min-width:36px">${dr.letter}</code>
+        <code style="color:var(--c-orange);min-width:36px">${dr.letter}</code>
         <span style="color:#888">${label}${size}</span>
         <button class="btn" style="padding:1px 8px;font-size:11px;margin-left:auto" onclick="document.getElementById('cable-ab-path').value='${dr.letter.replace(/\\/g, '\\\\')}';testCablePath('ab');document.getElementById('cable-drives-list').classList.add('hidden')">Usar</button>
       </div>`;
@@ -708,7 +708,7 @@ async function loadCableSyncPreview() {
       `<span style="color:#444;margin-right:12px">·</span>` +
       `<span class="cp-stat">Se copiarán ≈ ${cpN} archivos</span>`;
   } catch(e) {
-    previewEl.innerHTML = `<span style="color:#f44747">Error: ${e.message}</span>`;
+    previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${e.message}</span>`;
   }
 }
 
@@ -819,13 +819,13 @@ function _renderCableSyncResult(r) {
     ? `  |  PC: ${pcCount} archivos  Consola: ${abCount} archivos`
     : '';
   const countDiff = pcCount && abCount && Math.abs(pcCount - abCount) > Math.max(pcCount, abCount) * 0.05;
-  const diffWarn = countDiff ? ' <span style="color:#dcdcaa;font-size:11px">&#x26A0; Los conteos difieren — puede haber archivos que no se sincronizaron</span>' : '';
+  const diffWarn = countDiff ? ' <span style="color:var(--c-yellow);font-size:11px">&#x26A0; Los conteos difieren — puede haber archivos que no se sincronizaron</span>' : '';
   resultEl.className = 'job-result visible success';
   if (!r.dry_run) _sendNotif('Cable Sync completado', r.copied + ' archivos copiados');
-  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:#f44747' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}${safeMsg}${mirrorMsg}${countMsg}${diffWarn}  —  ${dirStr}${dryTag}`
-    + (needsScan ? `<br><span style="color:#dcdcaa;font-size:11px">&#x26A0; Archivos copiados al PC — indexa la BD: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear ahora</button></span>` : '')
+  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:var(--c-red)' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}${safeMsg}${mirrorMsg}${countMsg}${diffWarn}  —  ${dirStr}${dryTag}`
+    + (needsScan ? `<br><span style="color:var(--c-yellow);font-size:11px">&#x26A0; Archivos copiados al PC — indexa la BD: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear ahora</button></span>` : '')
     + (!r.dry_run && r.copied > 0 && r.direction === 'newest'
-        ? '<br><span style="color:#569cd6;font-size:11px">Para actualizar conteos en Overview: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear PC</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="quickScanAndroid()">Escanear consola</button></span>'
+        ? '<br><span style="color:var(--c-blue);font-size:11px">Para actualizar conteos en Overview: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear PC</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="quickScanAndroid()">Escanear consola</button></span>'
         : '');
 
   if (r.details && r.details.length > 0) {
@@ -835,8 +835,8 @@ function _renderCableSyncResult(r) {
 
     let detailHtml = '';
     if (errEntries.length > 0) {
-      detailHtml += `<div style="background:#2a1010;border:1px solid #f44747;border-radius:4px;padding:8px 12px;margin-bottom:8px">`
-        + `<div style="color:#f44747;font-weight:bold;margin-bottom:6px;font-size:12px">&#x2717; ${errEntries.length} archivo(s) fallaron al copiarse:</div>`
+      detailHtml += `<div style="background:#2a1010;border:1px solid var(--c-red);border-radius:4px;padding:8px 12px;margin-bottom:8px">`
+        + `<div style="color:var(--c-red);font-weight:bold;margin-bottom:6px;font-size:12px">&#x2717; ${errEntries.length} archivo(s) fallaron al copiarse:</div>`
         + errEntries.map(d => `<div style="padding:1px 0;color:#f99;font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
         + `</div>`;
     }
@@ -844,7 +844,7 @@ function _renderCableSyncResult(r) {
       const isDup    = d.file === 'DUP';
       const isExists = d.file === 'EXISTS';
       const isSafe   = d.file === 'SAFE';
-      const tagColor = isDup ? '#569cd6' : isExists ? '#444' : isSafe ? '#f4c842' : '#4ec9b0';
+      const tagColor = isDup ? 'var(--c-blue)' : isExists ? '#444' : isSafe ? '#f4c842' : 'var(--c-teal)';
       return `<div style="padding:2px 0;color:#888"><span style="color:${tagColor};margin-right:8px">${_h(d.file)}</span>${_h(d.path)}</div>`;
     }).join('');
 
@@ -1008,7 +1008,7 @@ function _updateAutoSyncToggleUI(enabled) {
   const label = document.getElementById('auto-sync-toggle-label');
   if (!wrap) return;
   if (enabled) {
-    wrap.style.background = '#4ec9b0';
+    wrap.style.background = 'var(--c-teal)';
     if (knob) knob.style.left = '21px';
     if (label) { label.textContent = 'Activado'; _txtCls(label, 'txt-ok'); }
   } else {
@@ -1154,29 +1154,29 @@ function _renderTreeDiff(r) {
   </div>
   <div style="display:flex;gap:10px;margin-bottom:14px">
     <div style="flex:1;padding:10px 14px;background:#0e1e0e;border:1px solid #2a3a2a;border-radius:4px">
-      <div style="font-size:20px;color:#4ec9b0;font-weight:bold">${both.toLocaleString()}</div>
+      <div style="font-size:20px;color:var(--c-teal);font-weight:bold">${both.toLocaleString()}</div>
       <div style="font-size:11px;color:#4a8a4a">en ambos</div>
     </div>
     <div style="flex:1;padding:10px 14px;background:#0e1020;border:1px solid #2a2a40;border-radius:4px">
-      <div style="font-size:20px;color:#569cd6;font-weight:bold">${pcOnly.toLocaleString()}</div>
+      <div style="font-size:20px;color:var(--c-blue);font-weight:bold">${pcOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#556;margin-bottom:3px">solo en PC</div>
       <div style="font-size:11px;color:#888">(faltan en consola)</div>
     </div>
     <div style="flex:1;padding:10px 14px;background:#1e0e0a;border:1px solid #3a2a20;border-radius:4px">
-      <div style="font-size:20px;color:#ce9178;font-weight:bold">${androidOnly.toLocaleString()}</div>
+      <div style="font-size:20px;color:var(--c-orange);font-weight:bold">${androidOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#6a4a38;margin-bottom:3px">solo en consola</div>
       <div style="font-size:11px;color:#888">(faltan en PC)</div>
     </div>
   </div>`;
 
   if (!pcOnly && !androidOnly) {
-    html += `<p style="color:#4ec9b0">&#x2713; Las rutas son id\u00e9nticas. No hay diferencias.</p>`;
+    html += `<p style="color:var(--c-teal)">&#x2713; Las rutas son id\u00e9nticas. No hay diferencias.</p>`;
   }
 
   if (r.only_pc?.length) {
     const extra = pcOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_pc.length, MAX_SHOW)} de ${pcOnly.toLocaleString()})` : '';
     html += `<details style="margin-bottom:8px">
-      <summary style="cursor:pointer;color:#569cd6;font-size:13px;user-select:none">Solo en PC${extra}</summary>
+      <summary style="cursor:pointer;color:var(--c-blue);font-size:13px;user-select:none">Solo en PC${extra}</summary>
       <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#0a0a14;border-radius:4px;margin-top:6px">
         ${r.only_pc.slice(0, MAX_SHOW).map(p => `<div style="color:#888;padding:1px 0">${p}</div>`).join('')}
       </div>
@@ -1186,7 +1186,7 @@ function _renderTreeDiff(r) {
   if (r.only_android?.length) {
     const extra = androidOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_android.length, MAX_SHOW)} de ${androidOnly.toLocaleString()})` : '';
     html += `<details style="margin-bottom:8px">
-      <summary style="cursor:pointer;color:#ce9178;font-size:13px;user-select:none">Solo en consola${extra}</summary>
+      <summary style="cursor:pointer;color:var(--c-orange);font-size:13px;user-select:none">Solo en consola${extra}</summary>
       <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#140a00;border-radius:4px;margin-top:6px">
         ${r.only_android.slice(0, MAX_SHOW).map(p => `<div style="color:#888;padding:1px 0">${p}</div>`).join('')}
       </div>
@@ -1211,7 +1211,7 @@ async function loadSaveComparison() {
     const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:#444">—</span>';
     const _syncBadge = s => {
       if (!s.last_sync_at) return '<span style="color:#666;font-size:10px">Nunca</span>';
-      const cls = s.last_result === 'ok' ? '#4ec9b0' : '#e06c75';
+      const cls = s.last_result === 'ok' ? 'var(--c-teal)' : 'var(--c-softred)';
       return `<span style="color:${cls};font-size:10px">${_fmtDate(s.last_sync_at)}</span>`;
     };
     let html = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -1228,18 +1228,18 @@ async function loadSaveComparison() {
       const _h = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr style="${rowStyle};border-bottom:1px solid #1a1a2a">
         <td style="padding:4px 6px;color:#888">${_h(s.platform)}</td>
-        <td style="padding:4px 6px;color:#d4d4d4">${_h(s.title)}</td>
-        <td style="padding:4px 6px;color:${stale ? '#f9c74f' : '#888'}">${_fmtDate(s.local_mtime)}</td>
+        <td style="padding:4px 6px;color:var(--c-text)">${_h(s.title)}</td>
+        <td style="padding:4px 6px;color:${stale ? 'var(--c-amber)' : '#888'}">${_fmtDate(s.local_mtime)}</td>
         <td style="padding:4px 6px">${_syncBadge(s)}</td>
         <td style="padding:4px 6px;color:#555;font-size:10px">${_h(s.last_direction || '—')}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
     if (saves.some(s => s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at)) {
-      html = `<div style="font-size:11px;color:#f9c74f;margin-bottom:8px">⚠ Filas en amarillo: save modificado después del último sync.</div>` + html;
+      html = `<div style="font-size:11px;color:var(--c-amber);margin-bottom:8px">⚠ Filas en amarillo: save modificado después del último sync.</div>` + html;
     }
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`; }
+  } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`; }
 }
 
 async function doLibraryDiff() {
@@ -1256,7 +1256,7 @@ async function doLibraryDiff() {
         parityEl.innerHTML = '<span style="color:#a6e3a1">✓ Bibliotecas sincronizadas</span>';
       } else {
         const diff = only_pc.length + only_android.length;
-        parityEl.innerHTML = '<span style="color:#f38ba8">⚠ ' + diff + ' ROM' + (diff !== 1 ? 's' : '') + ' difieren</span>';
+        parityEl.innerHTML = '<span style="color:var(--c-pink)">⚠ ' + diff + ' ROM' + (diff !== 1 ? 's' : '') + ' difieren</span>';
       }
     }
 
@@ -1270,7 +1270,7 @@ async function doLibraryDiff() {
     };
 
     let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px">';
-    html += '<div><h4 style="margin:0 0 6px;color:#f38ba8">Solo en PC (' + only_pc.length + ' / ' + total_pc + ')</h4>' + makeTable(only_pc) + '</div>';
+    html += '<div><h4 style="margin:0 0 6px;color:var(--c-pink)">Solo en PC (' + only_pc.length + ' / ' + total_pc + ')</h4>' + makeTable(only_pc) + '</div>';
     html += '<div><h4 style="margin:0 0 6px;color:#89b4fa">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
     html += '</div>';
     html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#888;font-size:13px">En ambos (' + in_both.length + ')</summary>' + makeTable(in_both) + '</details>';
@@ -1278,7 +1278,7 @@ async function doLibraryDiff() {
     resultEl.innerHTML = html;
   } catch (e) {
     if (parityEl) parityEl.textContent = '';
-    if (resultEl) resultEl.innerHTML = '<p style="color:#f38ba8">Error: ' + String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+    if (resultEl) resultEl.innerHTML = '<p style="color:var(--c-pink)">Error: ' + String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
   }
 }
 

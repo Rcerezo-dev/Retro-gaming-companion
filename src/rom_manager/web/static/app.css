@@ -33,6 +33,27 @@
   --overlay-bg:  rgba(0,0,15,.65);
   --shadow:      rgba(0,229,255,.08);
   --header-grad: linear-gradient(135deg,#02020e 0%,#070718 50%,#02020e 100%);
+
+  /* DESIGN-12: semantic tokens for the legacy inline palette (VS Code Dark+).
+     Dark values are the exact originals so dark theme is unchanged; light
+     values below adapt them for the light theme. */
+  --c-teal:    #4ec9b0;  /* status/accent text, links, highlights */
+  --c-text:    #d4d4d4;  /* default body text on panels */
+  --c-red:     #f44747;  /* danger / error */
+  --c-orange:  #ce9178;  /* string / orange labels */
+  --c-blue:    #569cd6;  /* info blue */
+  --c-yellow:  #dcdcaa;  /* yellow labels */
+  --c-softred: #e06c75;  /* soft red / warning text */
+  --c-amber:   #f9c74f;  /* amber / warning highlight */
+  --c-purple:  #c586c0;  /* purple / magenta */
+  --c-lblue:   #9cdcfe;  /* light blue */
+  --c-pink:    #f38ba8;  /* pink */
+  --c-green:   #6a9955;  /* comment green */
+  --c-panel:   #1e1e2e;  /* mid panel / card background */
+  --c-bar:     #161626;  /* sub-bar / detail background */
+  --c-input:   #0f0f0f;  /* input / code background */
+  --c-deep:    #0d1117;  /* deep code background */
+  --c-border:  #2a2a2a;  /* neutral border */
 }
 
 [data-theme="light"] {
@@ -69,6 +90,25 @@
   --overlay-bg:  rgba(0,0,0,.25);
   --shadow:      rgba(0,0,0,.15);
   --header-grad: linear-gradient(135deg,#e8ecf8 0%,#f0f4ff 100%);
+
+  /* DESIGN-12: light-theme values for the legacy inline palette. */
+  --c-teal:    #0d9b78;
+  --c-text:    #1a1a2e;
+  --c-red:     #cc1111;
+  --c-orange:  #b5552a;
+  --c-blue:    #1a6ab8;
+  --c-yellow:  #8a7320;
+  --c-softred: #c0392b;
+  --c-amber:   #b8860b;
+  --c-purple:  #9030b8;
+  --c-lblue:   #1a5890;
+  --c-pink:    #c2185b;
+  --c-green:   #2e7d32;
+  --c-panel:   #ffffff;
+  --c-bar:     #e4e6f0;
+  --c-input:   #ffffff;
+  --c-deep:    #eeeef8;
+  --c-border:  #ced2e8;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -718,7 +758,7 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 
 /* Panel backgrounds — covers inline style="background:#1e1e2e" etc. */
 [data-theme="light"] .actions-panel { background: var(--bg-panel) !important; border-color: var(--border) !important; }
-[data-theme="light"] #device-selector { background: var(--bg-nav) !important; border-color: var(--border) !important; }
+/* #device-selector now uses var(--bg-nav)/var(--border) inline (DESIGN-10) — theme-aware, no override needed. */
 
 /* Inline colored text — make muted colors readable on light background */
 [data-theme="light"] .actions-panel > *,
@@ -1366,8 +1406,9 @@ input:focus, select:focus, textarea:focus {
   transform: translateY(-2px);
 }
 
-/* 16 — Light theme: disable grid and sweep (too much on light backgrounds) */
+/* 16 — Light theme: disable grid, sweep and scanlines (too much on light backgrounds) */
 [data-theme="light"] body::before,
+[data-theme="light"] body::after,
 [data-theme="light"] .content-area::before,
 [data-theme="light"] .sidebar::before {
   display: none;

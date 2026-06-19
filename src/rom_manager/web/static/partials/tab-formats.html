@@ -4,7 +4,7 @@
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Convertir a CHD</h3>
     <div style="background:#0f1520;border:1px solid #1a3050;border-radius:5px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:#6a8fb0;line-height:1.6">
-      <strong style="color:#569cd6">&#x2139; Sets multi-bin (PSX / Saturn):</strong>
+      <strong style="color:var(--c-blue)">&#x2139; Sets multi-bin (PSX / Saturn):</strong>
       El formato original usa un <code>.cue</code> + múltiples <code>.bin</code> (uno por pista de audio). Esto es <strong>completamente normal</strong> — algunos juegos tienen 20+ pistas.
       Convierte a <code>.chd</code> para tenerlo todo en un solo archivo, sin pérdida de calidad.
     </div>
@@ -28,8 +28,8 @@
         <span id="chd-progress-label" style="font-size:12px;color:#888"></span>
         <span id="chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="chd-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
+        <div id="chd-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width 0.3s"></div>
       </div>
     </div>
     <div id="job-result-convert-chd" class="job-result"></div>
@@ -40,7 +40,7 @@
       <span id="chd-results-count" style="font-size:11px;color:#555"></span>
     </div>
     <div id="chd-results" style="margin-top:4px;max-height:450px;overflow-y:auto"></div>
-    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
+    <div class="actions-row" style="margin-top:12px;border-top:1px solid var(--c-panel);padding-top:12px">
       <button class="btn danger" onclick="doCleanupCueBin()">Eliminar .cue/.bin originales</button>
       <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
     </div>
@@ -65,8 +65,8 @@
         <span id="verify-chd-progress-label" style="font-size:12px;color:#888"></span>
         <span id="verify-chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="verify-chd-progress-bar" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.3s"></div>
+      <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
+        <div id="verify-chd-progress-bar" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.3s"></div>
       </div>
     </div>
     <div id="verify-chd-result" class="job-result"></div>
@@ -99,8 +99,8 @@
         <span id="cso-progress-label" style="font-size:12px;color:#888"></span>
         <span id="cso-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="cso-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
+        <div id="cso-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width 0.3s"></div>
       </div>
     </div>
     <div id="job-result-convert-cso" class="job-result"></div>
@@ -127,13 +127,13 @@
         <span id="zip-progress-label" style="font-size:12px;color:#888"></span>
         <span id="zip-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
-      <div style="background:#161626;border-radius:4px;height:6px;overflow:hidden">
-        <div id="zip-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width 0.3s"></div>
+      <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
+        <div id="zip-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width 0.3s"></div>
       </div>
     </div>
     <div id="job-result-extract-zip" class="job-result"></div>
     <div id="zip-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
-    <div class="actions-row" style="margin-top:12px;border-top:1px solid #1e1e2e;padding-top:12px">
+    <div class="actions-row" style="margin-top:12px;border-top:1px solid var(--c-panel);padding-top:12px">
       <button class="btn danger" onclick="doCleanupZips()" title="Elimina los archivos .zip originales de esta carpeta. Úsalo solo si ya extrajiste los ROMs. No se puede deshacer.">Eliminar todos los .zip de esta carpeta</button>
       <span style="color:#555;font-size:12px">Para usar si ya extrajiste antes sin marcar "Eliminar .zip"</span>
     </div>
@@ -141,7 +141,7 @@
 
   <!-- ── Conversor N64 → .z64 ── -->
   <div class="actions-panel" style="margin-bottom:20px">
-    <h3>Conversor N64 &#x2192; .z64 <span id="n64-status" style="font-size:12px;font-weight:normal;color:#4ec9b0;margin-left:8px">&#x2713; Sin herramienta externa</span></h3>
+    <h3>Conversor N64 &#x2192; .z64 <span id="n64-status" style="font-size:12px;font-weight:normal;color:var(--c-teal);margin-left:8px">&#x2713; Sin herramienta externa</span></h3>
     <p style="color:#888;font-size:12px;margin-bottom:12px">Convierte ROMs de Nintendo 64 al formato nativo big-endian (.z64). Los formatos .v64 (Doctor V64) y .n64 (little-endian) son convertidos en Python, sin herramientas externas.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con ROMs N64</label><input id="n64-path" type="text" placeholder="C:/ROMs/n64" style="width:100%"></div>
@@ -207,10 +207,10 @@
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Verificar sets multi-disco</h3>
     <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba que todos los discos de cada juego est&#xe1;n presentes, tienen la misma extensi&#xf3;n, no hay huecos en la numeraci&#xf3;n y est&#xe1;n en el cat&#xe1;logo.</p>
-    <p class="hidden" id="multidisc-folder-hint" style="font-size:11px;color:#569cd6;margin-bottom:8px"></p>
+    <p class="hidden" id="multidisc-folder-hint" style="font-size:11px;color:var(--c-blue);margin-bottom:8px"></p>
     <div class="actions-row">
       <div style="flex:1"><label>Carpeta(s) de ROMs (una por l&#xed;nea)</label>
-        <textarea id="verify-multidisc-path" rows="3" placeholder="C:/ROMs/psx&#10;C:/ROMs/ps2" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
+        <textarea id="verify-multidisc-path" rows="3" placeholder="C:/ROMs/psx&#10;C:/ROMs/ps2" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical"></textarea>
       </div>
     </div>
     <div class="actions-row">

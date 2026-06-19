@@ -417,9 +417,9 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| DESIGN-10 | Update device selector bar styling | ⬜ | Use CSS variables instead of hardcoded `#161626` / `#2a2a2a` |
+| DESIGN-10 | Update device selector bar styling | ✅ | `#device-selector` usa `var(--bg-nav)`/`var(--border)`; override light redundante eliminado |
 | DESIGN-11 | Add description bar below device selector | ⬜ | Show current tab name + 1-sentence description (from `TABS` config) |
-| DESIGN-12 | Convert remaining hardcoded colors to variables | ⬜ | Game panel, footer, inline styles (~100+ places) — low priority, cosmetic |
+| DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ paleta núcleo | 17 tokens semánticos `--c-*` (valores dark exactos + variantes light) mapean la paleta VS Code; 742 instancias inline en partials+JS migradas (dark idéntico por construcción). Cola de tints one-off (<5×) y reglas de `app.css` quedan como follow-up. **Requiere QA visual del tema light antes de merge** |
 | DESIGN-13 | Test light theme with new fonts | ⬜ | Verify Inter + Exo 2 readable on light bg; no scanlines overlay ([data-theme="light"] already disabled it) |
 | DESIGN-14 | Performance audit | ⬜ | Google Fonts CDN + Lucide CDN impact; consider preload/prefetch hints |
 

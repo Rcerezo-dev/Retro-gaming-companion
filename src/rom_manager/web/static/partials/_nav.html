@@ -46,7 +46,7 @@
   </button>
   <button class="nav-item" id="nav-inbox" onclick="showTab('inbox')">
     <i data-lucide="inbox" class="nav-icon"></i>
-    <span class="nav-label">Inbox<span class="hidden" id="inbox-nav-badge" style="background:#f44747;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle">0</span></span>
+    <span class="nav-label">Inbox<span class="hidden" id="inbox-nav-badge" style="background:var(--c-red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle">0</span></span>
   </button>
 
   <div class="sidebar-spacer"></div>
@@ -61,8 +61,8 @@
 </nav>
 <div class="content-area">
 
-<div id="device-selector" style="display:flex;align-items:center;gap:0;padding:6px 20px;background:#161626;border-bottom:1px solid #2a2a2a">
-  <span style="color:#555;font-size:11px;margin-right:10px">Dispositivo activo:</span>
+<div id="device-selector" style="display:flex;align-items:center;gap:0;padding:6px 20px;background:var(--bg-nav);border-bottom:1px solid var(--border)">
+  <span style="color:var(--fg-3);font-size:11px;margin-right:10px">Dispositivo activo:</span>
   <button class="dev-btn active" id="dev-pc" onclick="setDevice('pc')">PC</button>
   <button class="dev-btn" id="dev-both" onclick="setDevice('both')">Sistema completo</button>
   <button class="dev-btn" id="dev-anbernic" onclick="setDevice('anbernic')" disabled>Consola Android</button>

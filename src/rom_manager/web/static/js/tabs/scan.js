@@ -195,17 +195,17 @@ async function loadCatalogStatus() {
     const arcE = (d.total_arcade_entries || 0).toLocaleString();
     let html = '';
     if (ni === 0 && rd === 0 && arc === 0) {
-      html = '<span style="color:#dcdcaa">\u26A0 No hay cat\u00e1logos DAT cargados.</span> El cruce de hashes no estar\u00e1 disponible hasta que importes archivos DAT.';
+      html = '<span style="color:var(--c-yellow)">\u26A0 No hay cat\u00e1logos DAT cargados.</span> El cruce de hashes no estar\u00e1 disponible hasta que importes archivos DAT.';
     } else {
       const parts = [];
-      if (ni > 0) parts.push(`<strong style="color:#4ec9b0">${ni}</strong> No-Intro (${niE} entradas)`);
-      if (rd > 0) parts.push(`<strong style="color:#4ec9b0">${rd}</strong> Redump (${rdE} entradas)`);
+      if (ni > 0) parts.push(`<strong style="color:var(--c-teal)">${ni}</strong> No-Intro (${niE} entradas)`);
+      if (rd > 0) parts.push(`<strong style="color:var(--c-teal)">${rd}</strong> Redump (${rdE} entradas)`);
       if (arc > 0) {
         const arcFiles = (d.arcade || []).map(f => {
           const lbl = f.name.toLowerCase().endsWith('.xml') ? 'MAME' : 'FBNeo';
           return `${lbl}: ${f.entries.toLocaleString()}`;
         }).join(', ');
-        parts.push(`<strong style="color:#4ec9b0">${arc}</strong> Arcade (${arcFiles})`);
+        parts.push(`<strong style="color:var(--c-teal)">${arc}</strong> Arcade (${arcFiles})`);
       }
       html = '\u2705 ' + parts.join(' &middot; ');
     }
@@ -218,7 +218,7 @@ async function loadCatalogStatus() {
       if (arc > 0) _p.push(arc + ' Arcade');
       ovEl.innerHTML = `\u2705 ${_p.join(' \u00b7 ')} <a href="#" onclick="showTab('settings');return false" style="color:#555;font-size:10px">gestionar \u2192</a>`;
     } else if (ovEl) {
-      ovEl.innerHTML = `<span style="color:#dcdcaa">\u26A0 Sin cat\u00e1logos DAT</span> \u2014 los ROMs no se pueden identificar. `
+      ovEl.innerHTML = `<span style="color:var(--c-yellow)">\u26A0 Sin cat\u00e1logos DAT</span> \u2014 los ROMs no se pueden identificar. `
         + `<a href="#" onclick="showTab('settings');setTimeout(function(){var s=document.getElementById('dat-catalog-list');if(s)s.scrollIntoView({behavior:'smooth'})},350);return false" style="color:#7aadff">Descargar cat\u00e1logos \u2192</a>`;
     }
   } catch(e) {
