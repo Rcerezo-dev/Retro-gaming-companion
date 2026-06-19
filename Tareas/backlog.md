@@ -138,7 +138,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | PHASE1-2 | Auto-detect cores from `cores/` folder; warn if missing | ✅ cores status inline en Settings + warnings en banner + key_cores ampliado (15 plataformas) |
 | PHASE1-3 | Generate `es_systems.cfg` from detected cores | ⬜ |
 | PHASE1-4 | Auto-detect Android device via ADB on USB connect | ✅ `cable_sync_daemon.py` (commit 2a3c579) |
-| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ⬜ |
+| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ✅ `GET /api/browse-folder` (tkinter `askdirectory`, stdlib) + botón "Examinar" en `library_root` y `anbernic_root`; `browseFolder()` en `config.js`. Tests: `tests/web/test_browse_folder.py` |
 
 ### Phase 2 — DATs without effort
 
