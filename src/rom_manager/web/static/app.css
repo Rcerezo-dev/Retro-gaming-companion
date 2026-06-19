@@ -607,6 +607,27 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
   .confirm-actions .btn { width: 100%; justify-content: center; }
 }
 
+/* PHASE4-3: phone portrait (≤480px, e.g. Android console browser).
+   Layers on top of the ≤640px rules above (those also apply here). */
+@media (max-width: 480px) {
+  main { padding: 10px; }
+
+  /* Sidebar becomes a fixed icon rail so it stops eating the narrow viewport.
+     Labels/group-labels collapse like the manual collapsed state; the toggle
+     is hidden since there is no room to expand. */
+  .sidebar, .sidebar.collapsed { width: 52px; }
+  .nav-label { opacity: 0; max-width: 0; }
+  .nav-group-label { opacity: 0; height: 0; padding: 0; }
+  .nav-item { justify-content: center; gap: 0; padding: 11px 0; min-height: 44px; }
+  .sidebar-toggle { display: none; }
+
+  /* One game card per row */
+  .games-grid { grid-template-columns: 1fr; }
+
+  /* Stat bar wraps instead of squashing each stat to nothing */
+  #ov-dashboard-bar { flex-wrap: wrap; }
+}
+
 /* ── S27: Visual redesign ─────────────────────────────────────────────────── */
 
 /* 27-6: Tab fade-in animation */
