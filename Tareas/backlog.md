@@ -171,7 +171,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE5-1 | Forzar PIN cuando `host != 127.0.0.1` (no solo advertir) | ⬜ prereq: SEC-3 ya avisa |
+| PHASE5-1 | Forzar PIN cuando `host != 127.0.0.1` (no solo advertir) | ✅ `serve()` lanza `InsecureExposureError` y aborta el arranque si se expone a la red sin PIN; escape hatch `--allow-insecure` (degrada al aviso). Tests: `tests/web/test_force_pin.py` |
 
 ### Phase 6 — Distribution
 
