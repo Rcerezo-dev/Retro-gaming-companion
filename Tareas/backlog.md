@@ -136,9 +136,9 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 |----|------|--------|
 | PHASE1-1 | Auto-detect RetroArch paths (common + Steam + RetroBat) | ✅ `GET /api/detect-retroarch` + botón en Settings |
 | PHASE1-2 | Auto-detect cores from `cores/` folder; warn if missing | ✅ cores status inline en Settings + warnings en banner + key_cores ampliado (15 plataformas) |
-| PHASE1-3 | Generate `es_systems.cfg` from detected cores | ⬜ |
+| PHASE1-3 | Generate `es_systems.cfg` from detected cores | ✅ `esde/systems_generator.py` (`generate_es_systems_xml`, formato moderno `custom_systems/es_systems.xml`) + `GET /api/generate-es-systems` + botón "Generar es_systems.xml" en Settings |
 | PHASE1-4 | Auto-detect Android device via ADB on USB connect | ✅ `cable_sync_daemon.py` (commit 2a3c579) |
-| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ⬜ |
+| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ✅ `GET /api/browse-folder` (tkinter `askdirectory`, stdlib) + botón "Examinar" en `library_root` y `anbernic_root`; `browseFolder()` en `config.js`. Tests: `tests/web/test_browse_folder.py` |
 
 ### Phase 2 — DATs without effort
 
@@ -177,7 +177,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ⬜ |
+| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
 | PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
 | PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ⬜ |
 | PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
