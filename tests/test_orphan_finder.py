@@ -95,3 +95,37 @@ class TestFindOrphanedSaves:
     def test_non_save_extension_ignored(self, tmp_path: Path) -> None:
         _save(tmp_path, "game.txt")
         assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+
+class TestExclusions:
+    """RPT-A2/A3: skip non-library folders and non-save data extensions."""
+
+    # Includes .dat/.fs (emulator data) and .nv (real arcade NVRAM).
+    EXTS = frozenset({".srm", ".nv", ".dat", ".fs"})
+
+    def _names(self, orphans) -> set[str]:
+        return {Path(o.save_path).name for o in orphans}
+
+    def test_bios_folder_excluded(self, tmp_path: Path) -> None:
+        _save(tmp_path, "BIOS/scummvm/theme/translations.dat")
+        _save(tmp_path, "BIOS/mame2003-plus/hiscore.dat")
+        assert find_orphaned_saves(tmp_path, self.EXTS) == []
+
+    def test_system_volume_information_excluded(self, tmp_path: Path) -> None:
+        _save(tmp_path, "System Volume Information/tracking.nv")
+        assert find_orphaned_saves(tmp_path, self.EXTS) == []
+
+    def test_hidden_and_discard_dirs_excluded(self, tmp_path: Path) -> None:
+        _save(tmp_path, "_descartados/old.srm")
+        _save(tmp_path, ".cache/tmp.srm")
+        assert find_orphaned_saves(tmp_path, self.EXTS) == []
+
+    def test_dat_and_fs_extensions_dropped(self, tmp_path: Path) -> None:
+        _save(tmp_path, "CPS3/fbneo/sfiii.fs")
+        _save(tmp_path, "saturn/theme.dat")
+        _save(tmp_path, "cps2/ssf2.nv")  # real NVRAM save — still reported
+        assert self._names(find_orphaned_saves(tmp_path, self.EXTS)) == {"ssf2.nv"}
+
+    def test_real_orphan_in_normal_folder_still_found(self, tmp_path: Path) -> None:
+        _save(tmp_path, "snes/Zelda.srm")
+        assert self._names(find_orphaned_saves(tmp_path, self.EXTS)) == {"Zelda.srm"}
