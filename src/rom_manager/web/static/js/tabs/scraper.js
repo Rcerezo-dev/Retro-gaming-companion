@@ -46,12 +46,12 @@ async function loadScraperSummary() {
     html += '<th>Plataforma</th><th>Total ROMs</th><th>Scrapeados</th><th>Pendientes</th></tr></thead><tbody>';
     html += d.platforms.map(p => {
       const pct   = p.total > 0 ? Math.round(p.scraped / p.total * 100) : 0;
-      const color = p.missing === 0 ? '#4ec9b0' : p.scraped > 0 ? '#ce9178' : '#555';
+      const color = p.missing === 0 ? 'var(--c-teal)' : p.scraped > 0 ? 'var(--c-orange)' : '#555';
       return `<tr>
         <td>${p.platform}</td>
         <td style="text-align:right">${p.total}</td>
         <td style="text-align:right;color:${color}">${p.scraped} (${pct}%)</td>
-        <td style="text-align:right;color:${p.missing > 0 ? '#f44747' : '#555'}">${p.missing || '—'}</td>
+        <td style="text-align:right;color:${p.missing > 0 ? 'var(--c-red)' : '#555'}">${p.missing || '—'}</td>
       </tr>`;
     }).join('');
     html += '</tbody></table></div>';
@@ -75,12 +75,12 @@ async function loadSsQuota() {
       label.textContent = hasDev
         ? 'Cuenta dev detectada (~3 req/s). Realiza un scraping para ver cuota.'
         : 'Realiza un scraping para ver la cuota.';
-      label.style.color = hasDev ? '#4ec9b0' : '#555';
+      label.style.color = hasDev ? 'var(--c-teal)' : '#555';
       if (bar) bar.classList.add('hidden');
       return;
     }
     const pct   = max > 0 ? Math.min(100, Math.round(today / max * 100)) : 0;
-    const color = pct > 90 ? '#f44747' : pct > 70 ? '#ce9178' : '#4ec9b0';
+    const color = pct > 90 ? 'var(--c-red)' : pct > 70 ? 'var(--c-orange)' : 'var(--c-teal)';
     label.textContent = `${today.toLocaleString()} / ${max.toLocaleString()} peticiones hoy (${pct}%)${hasDev ? ' · Cuenta dev ✓' : ''}`;
     label.style.color = color;
     if (bar)  bar.classList.remove('hidden');

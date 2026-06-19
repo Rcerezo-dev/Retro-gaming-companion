@@ -34,7 +34,7 @@
     <!-- PC column -->
     <div>
       <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        <span style="color:#4ec9b0">&#x25CF;</span> PC
+        <span style="color:var(--c-teal)">&#x25CF;</span> PC
         <span id="ov-pc-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px"></span>
         <span id="ov-pc-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos PC">library_pc.db</span>
       </div>
@@ -47,7 +47,7 @@
         <span id="ov-ab-path-label" style="color:#555;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"></span>
         <span id="ov-ab-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
         <!-- D8-1: stale warning badge -->
-        <span class="hidden" id="ov-ab-stale-badge" style="background:#3a3a1a;color:#dcdcaa;font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">&#x26A0; Datos sin confirmar</span>
+        <span class="hidden" id="ov-ab-stale-badge" style="background:#3a3a1a;color:var(--c-yellow);font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">&#x26A0; Datos sin confirmar</span>
         <!-- UX-1/2-4: device connectivity badge -->
         <span class="hidden" id="ov-ab-device-badge" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">● No conectado</span>
         <!-- D8-1: quick scan button -->
@@ -101,24 +101,24 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta del ordenador</label>
-        <input id="ov-pc-path" type="text" onblur="saveOvPaths()" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+        <input id="ov-pc-path" type="text" onblur="saveOvPaths()" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
       </div>
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px"><span id="ov-ab-path-label-text">Consola Android</span> — SD card o red local
           <span style="color:#555;font-weight:normal"> (no MTP directo)</span>
         </label>
-        <input id="ov-ab-path" type="text" onblur="saveOvPaths()" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
+        <input id="ov-ab-path" type="text" onblur="saveOvPaths()" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="F:/ o \\192.168.1.x\share">
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn" onclick="saveOvPaths()">Guardar rutas</button>
       <span id="ov-paths-result" class="job-result"></span>
     </div>
-    <div style="margin-top:10px;padding:8px 10px;background:#161616;border:1px solid #2a2a2a;border-radius:4px;font-size:11px;color:#555;line-height:1.7">
+    <div style="margin-top:10px;padding:8px 10px;background:#161616;border:1px solid var(--c-border);border-radius:4px;font-size:11px;color:#555;line-height:1.7">
       <strong style="color:#888">Opciones para acceder a la consola Android desde Windows:</strong><br>
-      <span style="color:#4ec9b0">A)</span> SD card en lector USB → letra de unidad (<code style="color:#ce9178">F:\</code>) — recomendado<br>
-      <span style="color:#4ec9b0">B)</span> Termux + SFTP en la consola → accesible por red (<code style="color:#ce9178">\\192.168.1.x\share</code>)<br>
-      <span style="color:#4ec9b0">C)</span> WinFsp + MTPDrive → monta el MTP como unidad (herramienta gratuita)<br>
+      <span style="color:var(--c-teal)">A)</span> SD card en lector USB → letra de unidad (<code style="color:var(--c-orange)">F:\</code>) — recomendado<br>
+      <span style="color:var(--c-teal)">B)</span> Termux + SFTP en la consola → accesible por red (<code style="color:var(--c-orange)">\\192.168.1.x\share</code>)<br>
+      <span style="color:var(--c-teal)">C)</span> WinFsp + MTPDrive → monta el MTP como unidad (herramienta gratuita)<br>
       <span style="color:#555">⚠ La ruta MTP de Windows <strong style="color:#888">no es compatible</strong> con acceso por ruta de carpeta.</span>
     </div>
   </div>
@@ -140,7 +140,7 @@
         </label>
         <label class="fmt-check" style="margin-top:4px" id="scan-adb-row" title="Escanea la consola Android por USB sin sacar la SD card — requiere ADB configurado en Settings">
           <input type="checkbox" id="scan-include-adb" onchange="_onScanAdbChange()">
-          <span style="color:#4ec9b0"><span id="scan-adb-device-name">Consola Android</span> por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
+          <span style="color:var(--c-teal)"><span id="scan-adb-device-name">Consola Android</span> por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
         </label>
       </div>
       <label class="fmt-check" style="margin-left:auto" title="No calcula huellas — mucho más rápido, pero Identificar y Sync no funcionarán hasta hacer un scan completo">
@@ -159,15 +159,15 @@
     </div>
 
     <!-- ADB scan options (inline, hidden by default) -->
-    <div class="hidden" id="scan-adb-options" style="margin-top:8px;padding:10px 12px;background:#161626;border:1px solid #2a3a4a;border-radius:4px;font-size:12px">
+    <div class="hidden" id="scan-adb-options" style="margin-top:8px;padding:10px 12px;background:var(--c-bar);border:1px solid #2a3a4a;border-radius:4px;font-size:12px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <label style="color:#888;font-size:11px">Dispositivo ADB:</label>
-        <select id="scan-adb-device" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;min-width:200px">
+        <select id="scan-adb-device" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;min-width:200px">
           <option value="">— Detectar primero —</option>
         </select>
         <button class="btn" style="padding:4px 10px;font-size:11px" onclick="detectAdbDevicesForScan()">Detectar</button>
         <label style="color:#888;font-size:11px;margin-left:8px">Ruta Android:</label>
-        <input id="scan-android-path" type="text" value="/storage/emulated/0" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;width:260px">
+        <input id="scan-android-path" type="text" value="/storage/emulated/0" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;width:260px">
         <span id="scan-adb-status" style="color:#555;font-size:11px"></span>
       </div>
     </div>
@@ -190,38 +190,38 @@
   <!-- Workflow guide (collapsible) -->
   <details id="ov-guide" style="margin-top:24px;max-width:760px">
     <summary style="cursor:pointer;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
-      <span id="ov-guide-arrow" style="color:#4ec9b0;font-size:10px">&#x25B6;</span>
+      <span id="ov-guide-arrow" style="color:var(--c-teal);font-size:10px">&#x25B6;</span>
       Cómo usar Retro Vault
     </summary>
 
     <div style="margin-top:10px">
     <!-- Primera vez -->
-    <div style="background:#161626;border:1px solid #2a2a4a;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#888;line-height:1.7">
-      <strong style="color:#569cd6">Primera vez:</strong>
-      configura las rutas en el panel de arriba y pulsa <strong style="color:#d4d4d4">Guardar rutas</strong>.
+    <div style="background:var(--c-bar);border:1px solid #2a2a4a;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#888;line-height:1.7">
+      <strong style="color:var(--c-blue)">Primera vez:</strong>
+      configura las rutas en el panel de arriba y pulsa <strong style="color:var(--c-text)">Guardar rutas</strong>.
       La <em>Carpeta del ordenador</em> es donde viven tus ROMs y saves en el PC.
       La <em>consola</em> solo es necesaria si quieres escanear o copiar archivos de la consola.
-      Si tienes una base de datos de juegos (DAT de No-Intro / Redump), colócala en <code style="color:#ce9178">catalogs/</code> para poder Identificar.
+      Si tienes una base de datos de juegos (DAT de No-Intro / Redump), colócala en <code style="color:var(--c-orange)">catalogs/</code> para poder Identificar.
     </div>
 
     <!-- Pasos -->
     <div style="display:flex;gap:0">
-      <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
-        <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:#d4d4d4">Scan</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:#555;font-size:11px">Usa Quick para solo actualizar el inventario sin calcular huellas.</span></div>
+      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+        <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:var(--c-text)">Scan</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:#555;font-size:11px">Usa Quick para solo actualizar el inventario sin calcular huellas.</span></div>
       </div>
-      <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
-        <div style="color:#569cd6;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Identificar</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Identificar (catálogos)</strong>. Cada ROM se compara contra la base de datos de juegos (DAT de No-Intro y Redump) para obtener su título canónico, región y revisión.</div>
+      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+        <div style="color:var(--c-blue);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Identificar</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Identificar (catálogos)</strong>. Cada ROM se compara contra la base de datos de juegos (DAT de No-Intro y Redump) para obtener su título canónico, región y revisión.</div>
         <div id="ov-catalog-status" style="margin-top:6px;font-size:11px"></div>
       </div>
-      <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
-        <div style="color:#ce9178;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Organizar</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Ve a <strong style="color:#d4d4d4">Organizar</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:#555;font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
+      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+        <div style="color:var(--c-orange);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Organizar</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Ve a <strong style="color:var(--c-text)">Organizar</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:#555;font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
       </div>
-      <div style="flex:1;background:#1e1e2e;border:1px solid #333;padding:14px 16px">
-        <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la consola.</span></div>
+      <div style="flex:1;background:var(--c-panel);border:1px solid #333;padding:14px 16px">
+        <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la consola.</span></div>
       </div>
     </div>
     </div>
@@ -229,7 +229,7 @@
 
   <!-- S36-2: Activity heatmap -->
   <div style="margin-top:28px;margin-bottom:20px">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#d4d4d4">Mapa de actividad (últimos 365 días)</h3>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Mapa de actividad (últimos 365 días)</h3>
     <div id="ov-heatmap-container" style="overflow-x:auto;padding-bottom:12px">
       <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid #333;border-radius:4px"></canvas>
     </div>
@@ -244,7 +244,7 @@
 
   <!-- S36-3: Monthly time analysis per platform -->
   <div style="margin-top:28px;margin-bottom:20px">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#d4d4d4">Análisis por plataforma (últimos 12 meses)</h3>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Análisis por plataforma (últimos 12 meses)</h3>
     <div style="overflow-x:auto;padding-bottom:12px">
       <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid #333;border-radius:4px;display:block"></canvas>
     </div>
@@ -253,12 +253,12 @@
 
   <!-- S36-4: Game of the day -->
   <div style="margin-top:28px;margin-bottom:20px">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#d4d4d4">Juego sugerido</h3>
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Juego sugerido</h3>
     <div id="ov-game-suggestion" style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:16px;display:flex;gap:12px;align-items:start">
       <img id="ov-game-suggestion-img" src="" alt="" style="width:80px;height:110px;object-fit:cover;border-radius:4px;flex-shrink:0">
       <div style="flex:1">
         <div style="color:#888;font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
-        <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:#d4d4d4;margin-bottom:6px"></div>
+        <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:var(--c-text);margin-bottom:6px"></div>
         <div id="ov-game-suggestion-meta" style="font-size:12px;color:#666;margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openGamePanel(window._currentGameSuggestion)">Abrir</button>

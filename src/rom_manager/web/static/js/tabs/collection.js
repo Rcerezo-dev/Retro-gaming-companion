@@ -37,11 +37,11 @@ async function loadCollectionStats() {
       el.innerHTML = '<p style="color:#888;font-size:13px">No hay catálogos DAT cargados. Importa archivos DAT en <strong>Herramientas → Catálogos DAT</strong>.</p>';
       return;
     }
-    let html = '<h4 style="color:#569cd6;margin-bottom:12px">Completitud por plataforma</h4>';
+    let html = '<h4 style="color:var(--c-blue);margin-bottom:12px">Completitud por plataforma</h4>';
     html += '<div style="max-height:320px;overflow-y:auto">';
     for (const p of d.platforms) {
       const pct = p.coverage_pct;
-      const barColor = pct >= 80 ? '#4ec9b0' : pct >= 40 ? '#dcdcaa' : '#f44747';
+      const barColor = pct >= 80 ? 'var(--c-teal)' : pct >= 40 ? 'var(--c-yellow)' : 'var(--c-red)';
       html += `<div style="margin-bottom:8px">`;
       html += `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">`;
       html += `<span style="color:#ccc">${window._h(p.platform)}</span>`;
@@ -105,7 +105,7 @@ function _renderMissingList(platformFilter) {
   if (countEl) countEl.textContent = `${totalMissing} ROMs faltantes`;
 
   if (totalMissing === 0) {
-    listEl.innerHTML = '<p style="color:#4ec9b0;font-size:13px">✓ Tienes todos los ROMs de los catálogos cargados.</p>';
+    listEl.innerHTML = '<p style="color:var(--c-teal);font-size:13px">✓ Tienes todos los ROMs de los catálogos cargados.</p>';
     return;
   }
 
@@ -134,7 +134,7 @@ function _renderMissingList(platformFilter) {
       html += `</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button onclick="navigator.clipboard.writeText('${iaUrlEsc}').then(()=>showToast('Link copiado — pégalo en JDownloader','ok'))" `;
-      html += `style="font-size:11px;padding:1px 6px;background:#1a2a1a;border:1px solid #2d4a2d;color:#4ec9b0;border-radius:3px;cursor:pointer" title="${window._h(iaUrl)}">&#x1F517; Link IA</button>`;
+      html += `style="font-size:11px;padding:1px 6px;background:#1a2a1a;border:1px solid #2d4a2d;color:var(--c-teal);border-radius:3px;cursor:pointer" title="${window._h(iaUrl)}">&#x1F517; Link IA</button>`;
       html += `</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button id="wlbtn_${window._h(entry.sha1)}" onclick="toggleWishlist('${window._h(entry.sha1)}','${entry.title.replace(/'/g,"\\'")}','${window._h(p.platform)}','searching')" `;
@@ -375,7 +375,7 @@ function _renderStatBars(containerId, rows, labelKey, total) {
       <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;margin-bottom:2px">
         <span>${window._h(label)}</span><span>${r.n}</span>
       </div>
-      <div style="background:#1e1e2e;border-radius:3px;height:6px">
+      <div style="background:var(--c-panel);border-radius:3px;height:6px">
         <div style="background:#7c3aed;width:${pct}%;height:100%;border-radius:3px;transition:width .4s"></div>
       </div>
     </div>`;
@@ -516,12 +516,12 @@ function _renderDiffConflicts(conflicts) {
     html += `<div style="border:1px solid #2a2a1a;border-radius:4px;margin-bottom:8px;padding:7px 10px">`;
     html += `<div style="color:#f9e2af;font-size:11px;margin-bottom:4px">${window._h(c.platform)} — ${window._h(c.title)}</div>`;
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:6px">`;
-    for (const e of c.pc)      html += `<div style="color:#f38ba8">PC: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
+    for (const e of c.pc)      html += `<div style="color:var(--c-pink)">PC: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
     for (const e of c.android) html += `<div style="color:#89b4fa">Android: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
     html += '</div>';
     if (pcSha1 && andSha1) {
       html += `<div style="display:flex;gap:6px">`;
-      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:#1a1215;border:1px solid #f38ba8;color:#f38ba8;border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
+      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:#1a1215;border:1px solid var(--c-pink);color:var(--c-pink);border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
       html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:#12151a;border:1px solid #89b4fa;color:#89b4fa;border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
       html += `</div>`;
     }
@@ -625,9 +625,9 @@ async function loadDiskUsage() {
       html += `<div style="margin-bottom:14px">`;
       html += `<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px">`;
       html += `<span>Disco: <b style="color:#ccc">${d.total_human}</b> total</span>`;
-      html += `<span><b style="color:#4ec9b0">${_fmtBytes(d.disk_free)}</b> libre</span>`;
+      html += `<span><b style="color:var(--c-teal)">${_fmtBytes(d.disk_free)}</b> libre</span>`;
       html += `</div>`;
-      html += `<div style="background:#1e1e2e;border-radius:4px;height:8px;width:100%;overflow:hidden">`;
+      html += `<div style="background:var(--c-panel);border-radius:4px;height:8px;width:100%;overflow:hidden">`;
       html += `<div style="background:#7c3aed;width:${usedPct}%;height:100%;border-radius:4px"></div>`;
       html += `</div>`;
       html += `<div style="font-size:10px;color:#555;margin-top:2px">${usedPct}% usado · ${freePct}% libre</div>`;
@@ -638,13 +638,13 @@ async function loadDiskUsage() {
     html += `<div style="font-size:11px;color:#888;margin-bottom:6px">ROMs: <b style="color:#ccc">${d.total_human}</b> total</div>`;
     for (const p of platforms) {
       const pct = total > 0 ? Math.round(p.size_bytes / total * 100) : 0;
-      const missing = p.missing ? ` <span style="color:#f38ba8">(${p.missing} no encontrados)</span>` : '';
+      const missing = p.missing ? ` <span style="color:var(--c-pink)">(${p.missing} no encontrados)</span>` : '';
       html += `<div style="margin-bottom:7px">`;
       html += `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">`;
       html += `<span style="color:#ccc">${window._h(p.platform)}</span>`;
-      html += `<span style="color:#888">${p.rom_count} ROMs &nbsp;<b style="color:#d4d4d4">${p.size_human}</b> &nbsp;<span style="color:#555">${pct}%</span>${missing}</span>`;
+      html += `<span style="color:#888">${p.rom_count} ROMs &nbsp;<b style="color:var(--c-text)">${p.size_human}</b> &nbsp;<span style="color:#555">${pct}%</span>${missing}</span>`;
       html += `</div>`;
-      html += `<div style="background:#1e1e2e;border-radius:3px;height:5px;width:100%">`;
+      html += `<div style="background:var(--c-panel);border-radius:3px;height:5px;width:100%">`;
       html += `<div style="background:#7aa2f7;width:${pct}%;height:100%;border-radius:3px"></div>`;
       html += `</div></div>`;
     }

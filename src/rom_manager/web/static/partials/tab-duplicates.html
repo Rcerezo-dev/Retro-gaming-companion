@@ -2,13 +2,13 @@
   <div class="toolbar" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div style="display:flex;align-items:center;gap:10px">
       <span style="color:#888;font-size:12px">Se conserva la primera copia de cada grupo; se eliminan las demás.</span>
-      <select id="dup-platform-filter" onchange="filterDuplicatesByPlatform()" style="font-size:12px;background:#1e1e2e;color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
+      <select id="dup-platform-filter" onchange="filterDuplicatesByPlatform()" style="font-size:12px;background:var(--c-panel);color:#ccc;border:1px solid #333;padding:3px 8px;border-radius:4px">
         <option value="">Todas las plataformas</option>
       </select>
     </div>
     <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()" title="Elimina del disco todas las copias redundantes. Se conserva una copia de cada grupo. Esta acción no se puede deshacer.">Eliminar todos los duplicados</button>
   </div>
-  <div class="hidden" id="dup-context-bar" style="margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
+  <div class="hidden" id="dup-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div id="dup-content"><p class="loading">Cargando…</p></div>
 
   <!-- ── RA-based duplicates (same title, different version, one lacks RA support) ── -->

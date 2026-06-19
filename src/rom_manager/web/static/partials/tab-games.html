@@ -1,6 +1,6 @@
 <div id="tab-games" class="tab">
   <div class="hidden" id="games-dat-banner" style="margin-bottom:8px;padding:6px 12px;background:#1a1a0d;border:1px solid #3a3a1a;border-radius:4px;font-size:12px;color:#ccc;line-height:1.6"></div>
-  <div class="hidden" id="games-root-banner" style="margin-bottom:8px;padding:6px 10px;background:#1e1e2e;border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
+  <div class="hidden" id="games-root-banner" style="margin-bottom:8px;padding:6px 10px;background:var(--c-panel);border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
     <input id="games-search" type="text" placeholder="Buscar título o archivo…" oninput="onGamesSearchChange()">
     <select id="games-platform" onchange="onGamesFilterChange()"><option value="">Todas las plataformas</option></select>
@@ -9,30 +9,30 @@
       <option value="matched">Con match</option>
       <option value="unmatched">Sin match</option>
     </select>
-    <select id="games-filetype" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+    <select id="games-filetype" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="rom">Solo ROMs</option>
       <option value="">ROMs + saves</option>
       <option value="save">Solo saves</option>
       <option value="all">Todo</option>
     </select>
-    <select id="games-play-status" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+    <select id="games-play-status" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">Todos los estados</option>
       <option value="playing">&#x1F3AE; Jugando</option>
       <option value="completed">&#x2705; Completado</option>
       <option value="100pct">&#x1F4AF; Al 100%</option>
       <option value="abandoned">&#x23F8; Abandonado</option>
     </select>
-    <button id="btn-filter-favorites" title="Solo favoritos" onclick="toggleFavoritesFilter()" style="background:#1e1e2e;border:1px solid #444;color:#888;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2605; Favoritos</button>
-    <select id="games-tag-filter" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+    <button id="btn-filter-favorites" title="Solo favoritos" onclick="toggleFavoritesFilter()" style="background:var(--c-panel);border:1px solid #444;color:#888;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2605; Favoritos</button>
+    <select id="games-tag-filter" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">Todos los tags</option>
     </select>
-    <select id="games-genre" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+    <select id="games-genre" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">G&#xe9;nero</option>
     </select>
-    <select id="games-year" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+    <select id="games-year" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">A&#xf1;o</option>
     </select>
-    <select id="games-sort-by" onchange="onGamesFilterChange()" style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
+    <select id="games-sort-by" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">Orden: T&#xed;tulo</option>
       <option value="platform">Orden: Plataforma</option>
       <option value="year">Orden: A&#xf1;o</option>
@@ -50,7 +50,7 @@
   <div class="hidden" id="rec-panel" style="margin-bottom:14px;padding:10px 14px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:6px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <span style="font-size:15px">&#x2728;</span>
-      <span style="font-size:13px;font-weight:600;color:#4ec9b0">Recomendados para ti</span>
+      <span style="font-size:13px;font-weight:600;color:var(--c-teal)">Recomendados para ti</span>
       <span id="rec-updated-at" style="font-size:11px;color:#555;margin-left:4px"></span>
       <button onclick="dismissRecommendations()" title="Ocultar" style="margin-left:auto;background:none;border:none;color:#555;font-size:16px;cursor:pointer;padding:0;line-height:1">&times;</button>
     </div>

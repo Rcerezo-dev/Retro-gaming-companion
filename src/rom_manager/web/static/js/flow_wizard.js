@@ -147,9 +147,9 @@ function _pollScan() {
               <div style="font-size:30px;margin-bottom:8px">✅</div>
               <div style="color:#ccc;font-size:14px;font-weight:600">Escaneo completado</div>
               <div style="color:#888;font-size:12px;margin-top:8px">
-                <strong style="color:#4ec9b0">${r.roms_detected ?? 0}</strong> ROMs detectados
+                <strong style="color:var(--c-teal)">${r.roms_detected ?? 0}</strong> ROMs detectados
                 &nbsp;·&nbsp; ${r.files_seen ?? 0} archivos vistos
-                ${r.errors ? ` &nbsp;·&nbsp; <span style="color:#f38ba8">${r.errors} errores</span>` : ''}
+                ${r.errors ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.errors} errores</span>` : ''}
               </div>
             </div>
           `);
@@ -187,7 +187,7 @@ async function _renderOrganize() {
       const src = op.source_name ?? op.source_path?.split(/[\\/]/).pop() ?? '';
       const tgt = op.target_name ?? op.target_path?.split(/[\\/]/).pop() ?? '';
       return `<div style="font-size:11px;color:#666;padding:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-        ✏️ ${_h(src)} <span style="color:#444">→</span> <span style="color:#9cdcfe">${_h(tgt)}</span>
+        ✏️ ${_h(src)} <span style="color:#444">→</span> <span style="color:var(--c-lblue)">${_h(tgt)}</span>
       </div>`;
     }).join('');
     const more = count > 6 ? `<div style="color:#444;font-size:11px;margin-top:4px">…y ${count - 6} más</div>` : '';
@@ -239,8 +239,8 @@ function _pollApply() {
               <div style="font-size:30px;margin-bottom:8px">✅</div>
               <div style="color:#ccc;font-size:14px;font-weight:600">Renombres aplicados</div>
               <div style="color:#888;font-size:12px;margin-top:8px">
-                <strong style="color:#4ec9b0">${r.renamed ?? 0}</strong> renombrados
-                ${r.failed ? ` &nbsp;·&nbsp; <span style="color:#f38ba8">${r.failed} fallidos</span>` : ''}
+                <strong style="color:var(--c-teal)">${r.renamed ?? 0}</strong> renombrados
+                ${r.failed ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.failed} fallidos</span>` : ''}
               </div>
             </div>
           `);
@@ -278,7 +278,7 @@ async function _renderDupes() {
 
     _setBody(`
       <div style="color:#ccc;font-size:13px;margin-bottom:10px">
-        <strong style="color:#f38ba8">${count}</strong> grupo${count !== 1 ? 's' : ''} de duplicados
+        <strong style="color:var(--c-pink)">${count}</strong> grupo${count !== 1 ? 's' : ''} de duplicados
         ${freed > 0 ? `&nbsp;·&nbsp; <span style="color:#888">${_fmtBytes(freed)} recuperables</span>` : ''}
       </div>
       <p style="color:#666;font-size:12px;margin:0">
@@ -304,7 +304,7 @@ async function _deleteDupes() {
         <div style="font-size:30px;margin-bottom:8px">✅</div>
         <div style="color:#ccc;font-size:14px;font-weight:600">Duplicados eliminados</div>
         <div style="color:#888;font-size:12px;margin-top:8px">
-          <strong style="color:#4ec9b0">${r.deleted ?? 0}</strong> archivos eliminados
+          <strong style="color:var(--c-teal)">${r.deleted ?? 0}</strong> archivos eliminados
           ${r.freed_bytes > 0 ? ` &nbsp;·&nbsp; ${_fmtBytes(r.freed_bytes)} liberados` : ''}
         </div>
       </div>
@@ -362,7 +362,7 @@ function _pollSync(isDryRun) {
               <div style="color:#ccc;font-size:13px;margin-bottom:12px">Vista previa de sync:</div>
               <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
                 <span>⬆️ <strong style="color:#7aa2f7">${up}</strong> para subir</span>
-                <span>⬇️ <strong style="color:#4ec9b0">${down}</strong> para bajar</span>
+                <span>⬇️ <strong style="color:var(--c-teal)">${down}</strong> para bajar</span>
                 ${conf ? `<span>⚠️ <strong style="color:#e5c200">${conf}</strong> conflictos</span>` : ''}
               </div>
               ${r.error ? `<p class="error-msg" style="margin-top:10px">${_h(r.error)}</p>` : ''}
@@ -378,8 +378,8 @@ function _pollSync(isDryRun) {
               <div style="color:#888;font-size:12px;margin-top:8px">
                 ⬆️ <strong style="color:#7aa2f7">${r.uploaded ?? 0}</strong> subidos
                 &nbsp;·&nbsp;
-                ⬇️ <strong style="color:#4ec9b0">${r.downloaded ?? 0}</strong> descargados
-                ${r.errors ? ` &nbsp;·&nbsp; <span style="color:#f38ba8">${r.errors} errores</span>` : ''}
+                ⬇️ <strong style="color:var(--c-teal)">${r.downloaded ?? 0}</strong> descargados
+                ${r.errors ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.errors} errores</span>` : ''}
               </div>
             </div>
           `);

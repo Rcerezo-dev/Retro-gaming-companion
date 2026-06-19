@@ -38,15 +38,15 @@ async function loadDuplicates() {
     if (dupBar) {
       let barHtml = '';
       if (window._activeDevice === 'pc') {
-        barHtml = `Viendo: <span style="color:#4ec9b0">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
       } else if (window._activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:#ce9178">${window._devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
       } else {
-        const parts = [`PC: <span style="color:#4ec9b0">${cfg.library_root || '(no configurado)'}</span>`];
+        const parts = [`PC: <span style="color:var(--c-teal)">${cfg.library_root || '(no configurado)'}</span>`];
         const ab = localStorage.getItem('anbernic_path');
-        if (ab) parts.push(`${window._devName}: <span style="color:#ce9178">${ab}</span>`);
-        barHtml = `Viendo: <span style="color:#569cd6">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${window._devName} se excluyen</span>`;
+        if (ab) parts.push(`${window._devName}: <span style="color:var(--c-orange)">${ab}</span>`);
+        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${window._devName} se excluyen</span>`;
       }
       dupBar.innerHTML = barHtml;
       dupBar.classList.remove('hidden');
@@ -82,7 +82,7 @@ async function deleteAllDuplicates() {
   if (count === 0) { showToast('No hay duplicados para eliminar.', false); return; }
   _showConfirm(
     'Eliminar todos los duplicados',
-    `Se eliminarán <strong>${count} archivo${count !== 1 ? 's' : ''}</strong> del disco.<br>Se conservará una copia de cada juego.<br><br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    `Se eliminarán <strong>${count} archivo${count !== 1 ? 's' : ''}</strong> del disco.<br>Se conservará una copia de cada juego.<br><br><span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
     'Eliminar todos',
     async () => {
       const btn = document.getElementById('btn-delete-all-dups');
@@ -129,7 +129,7 @@ async function deleteDuplicate(btn) {
   const filename = sourcePath.split(/[\\/]/).pop();
   _showConfirm(
     'Eliminar archivo duplicado',
-    `¿Eliminar <strong>${window._h(filename)}</strong> del disco?<br><br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    `¿Eliminar <strong>${window._h(filename)}</strong> del disco?<br><br><span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
     'Eliminar',
     async () => {
       btn.disabled = true;
@@ -157,7 +157,7 @@ async function resolveDuplicateRA(btn, keepPath, discardPathsStr) {
   const filename = keepPath.split(/[\\/]/).pop();
   _showConfirm(
     'Resolver: mantener versión con logros RA',
-    `Se eliminará${discardPaths.length > 1 ? 'n' : ''} <strong>${discardPaths.length}</strong> versión${discardPaths.length > 1 ? 'es' : ''} sin logros RA.<br>Se conservará: <strong>${window._h(filename)}</strong><br><br><span style="color:#f44747">Esta operación no se puede deshacer.</span>`,
+    `Se eliminará${discardPaths.length > 1 ? 'n' : ''} <strong>${discardPaths.length}</strong> versión${discardPaths.length > 1 ? 'es' : ''} sin logros RA.<br>Se conservará: <strong>${window._h(filename)}</strong><br><br><span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
     'Resolver',
     async () => {
       btn.disabled = true;
@@ -213,13 +213,13 @@ async function loadRaDuplicates() {
       return;
     }
     if (d.total_groups === 0) {
-      el.innerHTML = '<p style="color:#4ec9b0;font-size:13px">No se encontraron versiones candidatas a eliminar. ✓</p>';
+      el.innerHTML = '<p style="color:var(--c-teal);font-size:13px">No se encontraron versiones candidatas a eliminar. ✓</p>';
       return;
     }
     if (batchBtn) batchBtn.classList.remove('hidden');
     let html = `<p style="color:#888;font-size:12px;margin-bottom:12px">
       <strong style="color:#e0e0e0">${d.total_groups}</strong> grupos encontrados —
-      <strong style="color:#f44747">${window.fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
+      <strong style="color:var(--c-red)">${window.fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
     </p>`;
     for (const g of d.groups) {
       html += `<div style="border:1px solid #2a2a3e;border-radius:4px;margin-bottom:10px;overflow:hidden">
@@ -238,11 +238,11 @@ async function loadRaDuplicates() {
           <tbody>`;
       for (const e of g.entries) {
         const raLabel = e.ra_supported
-          ? `<span style="color:#4ec9b0">✓ ${e.ra_achievements} logros</span>`
-          : `<span style="color:#f44747">✗ Sin logros</span>`;
+          ? `<span style="color:var(--c-teal)">✓ ${e.ra_achievements} logros</span>`
+          : `<span style="color:var(--c-red)">✗ Sin logros</span>`;
         const rec = e.ra_supported
-          ? '<span style="color:#4ec9b0">Conservar</span>'
-          : '<span style="color:#f44747">Candidata a eliminar</span>';
+          ? '<span style="color:var(--c-teal)">Conservar</span>'
+          : '<span style="color:var(--c-red)">Candidata a eliminar</span>';
         const rowBg = e.ra_supported ? '' : 'style="background:#1a1015"';
         const delBtn = e.ra_supported ? '' :
           `<button class="btn danger" style="font-size:11px;padding:2px 8px"
@@ -434,14 +434,14 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
     ? titleGroups.filter(g => (g.platform || '') === platformFilter)
     : titleGroups;
   if (filteredTg.length > 0) {
-    html += `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #2a2a2a">
-      <p style="color:#dcdcaa;font-size:12px;margin-bottom:12px">⚠ ${filteredTg.length} posible${filteredTg.length !== 1?'s':''} duplicado${filteredTg.length !== 1?'s':''} semántico${filteredTg.length !== 1?'s':''} — mismo título canónico, SHA1 distinto</p>`;
+    html += `<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--c-border)">
+      <p style="color:var(--c-yellow);font-size:12px;margin-bottom:12px">⚠ ${filteredTg.length} posible${filteredTg.length !== 1?'s':''} duplicado${filteredTg.length !== 1?'s':''} semántico${filteredTg.length !== 1?'s':''} — mismo título canónico, SHA1 distinto</p>`;
     html += filteredTg.map(g => {
       const hasRaSupport = g.entries.some(e => (e.ra_achievements || 0) > 0);
       const raEntry = g.entries.find(e => (e.ra_achievements || 0) > 0);
       return `
       <div class="dup-group" style="border-color:#3a3a1a">
-        <div class="title" style="color:#dcdcaa">${window._h(g.canonical_title)}
+        <div class="title" style="color:var(--c-yellow)">${window._h(g.canonical_title)}
           <span style="color:#555;font-size:11px;margin-left:8px">${window._h(g.platform)}</span>
         </div>
         ${g.entries.map((e, i) => {
@@ -453,7 +453,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
             <span class="badge ok" style="min-width:44px;text-align:center">keep</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
             <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
-            <button class="btn" style="padding:2px 8px;font-size:10px;color:#4ec9b0;border-color:#4ec9b0" data-keep="${e.id}" data-discard="${g.entries.map(x => x.id).filter(id => id !== e.id).join(',')}" onclick="resolveDuplicateRA(this, '${e.source_path.replace(/'/g, "\\'")}', '${g.entries.filter(x => x.id !== e.id).map(x => x.source_path.replace(/'/g, "\\'")).join('|')}')">Resolver: mantener éste</button>
+            <button class="btn" style="padding:2px 8px;font-size:10px;color:var(--c-teal);border-color:var(--c-teal)" data-keep="${e.id}" data-discard="${g.entries.map(x => x.id).filter(id => id !== e.id).join(',')}" onclick="resolveDuplicateRA(this, '${e.source_path.replace(/'/g, "\\'")}', '${g.entries.filter(x => x.id !== e.id).map(x => x.source_path.replace(/'/g, "\\'")).join('|')}')">Resolver: mantener éste</button>
           </div>`;
           } else if (hasRaSupport && !isRaEntry) {
             return `

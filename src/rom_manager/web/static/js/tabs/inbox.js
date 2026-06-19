@@ -44,7 +44,7 @@ function _initInboxBadge() {
 function inboxDragOver(e) {
   e.preventDefault();
   const zone = document.getElementById('inbox-dropzone');
-  if (zone) { zone.style.borderColor = '#569cd6'; zone.style.color = '#569cd6'; }
+  if (zone) { zone.style.borderColor = 'var(--c-blue)'; zone.style.color = 'var(--c-blue)'; }
 }
 
 function inboxDragLeave(e) {
@@ -75,9 +75,9 @@ async function inboxDrop(e) {
   }
   if (resultEl) {
     if (errors.length) {
-      resultEl.innerHTML = `<span style="color:#f44747">✗ ${errors.join('; ')}</span>`;
+      resultEl.innerHTML = `<span style="color:var(--c-red)">✗ ${errors.join('; ')}</span>`;
     } else {
-      resultEl.innerHTML = `<span style="color:#4ec9b0">✓ ${saved} archivo(s) copiado(s) al Inbox</span>`;
+      resultEl.innerHTML = `<span style="color:var(--c-teal)">✓ ${saved} archivo(s) copiado(s) al Inbox</span>`;
     }
   }
   updateInboxBadge();
@@ -123,8 +123,8 @@ async function scanInbox() {
     if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
     const platStr = Object.entries(d.by_platform || {}).map(([k,v]) => k + ' x' + v).join(' · ');
     if (summaryText) summaryText.innerHTML =
-      '<strong style="color:#d4d4d4">' + d.total + ' archivos</strong>' +
-      (d.zips > 0 ? ' · <span style="color:#dcdcaa">' + d.zips + ' ZIPs</span>' : '') +
+      '<strong style="color:var(--c-text)">' + d.total + ' archivos</strong>' +
+      (d.zips > 0 ? ' · <span style="color:var(--c-yellow)">' + d.zips + ' ZIPs</span>' : '') +
       (d.unrecognized > 0 ? ' · <span style="color:#f14c4c">' + d.unrecognized + ' no reconocidos</span>' : '') +
       (platStr ? ' &nbsp;|&nbsp; ' + platStr : '');
     if (summaryEl) summaryEl.classList.remove('hidden');
@@ -136,10 +136,10 @@ async function scanInbox() {
         return a.name.localeCompare(b.name);
       });
       tbody.innerHTML = sortedFiles.map(f => {
-        const typeColor = f.type === 'zip' ? '#dcdcaa' : f.type === 'disc_image' ? '#4ec9b0' : f.type === 'rom' ? '#9cdcfe' : '#555';
+        const typeColor = f.type === 'zip' ? 'var(--c-yellow)' : f.type === 'disc_image' ? 'var(--c-teal)' : f.type === 'rom' ? 'var(--c-lblue)' : '#555';
         const platBadge = f.platform_guess ? '<span class="badge">' + f.platform_guess + '</span>' : '<span style="color:#555">—</span>';
-        const extract   = f.needs_extraction ? '<span style="color:#dcdcaa">extraer ZIP</span>' : '';
-        return '<tr style="border-bottom:1px solid #1e1e2e">' +
+        const extract   = f.needs_extraction ? '<span style="color:var(--c-yellow)">extraer ZIP</span>' : '';
+        return '<tr style="border-bottom:1px solid var(--c-panel)">' +
           '<td style="padding:4px 8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + window._h(f.name) + '">' + window._h(f.name) + '</td>' +
           '<td style="padding:4px 8px;color:' + typeColor + '">' + f.type + '</td>' +
           '<td style="padding:4px 8px">' + platBadge + '</td>' +
@@ -234,7 +234,7 @@ function _renderInboxResult(r) {
     return;
   }
   el.className = 'job-result visible';
-  let html = '<strong style="color:#4ec9b0">Pipeline completado</strong><br>';
+  let html = '<strong style="color:var(--c-teal)">Pipeline completado</strong><br>';
   const archived = r.zips_archived || 0;
   const zipNote  = archived > 0 ? ` <span style="color:#888;font-size:11px">(${archived} movidos a _processed/)</span>` : '';
   html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
@@ -244,12 +244,12 @@ function _renderInboxResult(r) {
   html += 'Organizados: <strong>' + (r.organized || 0) + '</strong>';
   if (r.target_root) html += '<br><span style="color:#555;font-size:11px">Destino: ' + r.target_root + '</span>';
   if ((r.rename_errors || []).length > 0) {
-    html += '<details style="margin-top:8px"><summary style="color:#dcdcaa;cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
+    html += '<details style="margin-top:8px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
     r.rename_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
   if ((r.organize_errors || []).length > 0) {
-    html += '<details style="margin-top:4px"><summary style="color:#dcdcaa;cursor:pointer">' + r.organize_errors.length + ' errores al organizar</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
+    html += '<details style="margin-top:4px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.organize_errors.length + ' errores al organizar</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
     r.organize_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
@@ -286,7 +286,7 @@ async function _pollInboxWatcher() {
       const pending   = d.pending_files || 0;
       const lastCheck = d.last_check ? d.last_check.replace('T', ' ').slice(0, 16) : '—';
       txt.innerHTML = 'Daemon activo · Ultimo chequeo: ' + lastCheck +
-        (pending > 0 ? ' · <span style="color:#dcdcaa">' + pending + ' archivos pendientes</span>' : ' · sin archivos pendientes');
+        (pending > 0 ? ' · <span style="color:var(--c-yellow)">' + pending + ' archivos pendientes</span>' : ' · sin archivos pendientes');
     } else {
       el.classList.add('hidden');
     }
