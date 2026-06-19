@@ -14,7 +14,7 @@
     <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta las herramientas seleccionadas en secuencia sobre el directorio del contexto activo (PC o Android). Cada herramienta espera a que la anterior termine.</p>
     <div class="actions-row" style="gap:20px;align-items:center;flex-wrap:wrap">
       <label class="fmt-check"><input type="checkbox" id="batch-scan" checked> Escanear</label>
-      <label class="fmt-check"><input type="checkbox" id="batch-match" checked> Identificar (DAT)</label>
+      <label class="fmt-check"><input type="checkbox" id="batch-match" checked> Identificar (catálogos)</label>
       <label class="fmt-check"><input type="checkbox" id="batch-zip"> Descomprimir ZIPs</label>
       <label class="fmt-check"><input type="checkbox" id="batch-chd"> Convertir a CHD</label>
       <label class="fmt-check"><input type="checkbox" id="batch-health"> Health Check</label>
@@ -54,7 +54,7 @@
   <!-- ── Health check ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Health Check — Verificar integridad</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Re-hashea cada ROM y compara con el SHA1 almacenado. Detecta archivos corruptos o eliminados. <strong style="color:#ce9178">Operaci&#xf3;n lenta</strong> (lee todos los archivos).</p>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Recalcula la huella (SHA1) de cada ROM y la compara con la almacenada. Detecta archivos corruptos o eliminados. <strong style="color:#ce9178">Operaci&#xf3;n lenta</strong> (lee todos los archivos).</p>
     <div id="health-schedule-info" style="font-size:11px;color:#555;margin-bottom:10px">Cargando programaci&#xf3;n&#x2026;</div>
     <div class="actions-row">
       <button id="btn-health-check" class="btn primary" onclick="doHealthCheck()">Iniciar Health Check</button>
@@ -74,7 +74,7 @@
   <!-- ── ROMs no identificadas (QoL-15) ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>ROMs no identificadas — ¿Qué catálogos me faltan?</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Detecta qué ROMs de tu biblioteca no tienen coincidencia en ningún catálogo DAT. Agrupa los resultados por plataforma para que sepas qué DATs descargar e importar.</p>
+    <p style="color:#888;font-size:12px;margin-bottom:12px">Detecta qué ROMs de tu biblioteca no aparecen en ninguna base de datos de juegos (DAT). Agrupa los resultados por plataforma para que sepas qué bases de datos (DAT) descargar e importar.</p>
     <div class="actions-row">
       <button class="btn primary" onclick="loadUnmatchedDiagnosis()">&#x1F50D; ¿Qué catálogos me faltan?</button>
     </div>

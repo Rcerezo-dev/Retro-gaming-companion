@@ -60,7 +60,7 @@ function _applyJobStatus(s) {
       btnMatch.classList.add('danger');
     } else {
       btnMatch.disabled = false;
-      btnMatch.textContent = 'Match catálogos';
+      btnMatch.textContent = 'Identificar (catálogos)';
       btnMatch.onclick = window.doMatch;
       btnMatch.classList.remove('danger');
     }
@@ -485,7 +485,7 @@ function _showJobResult(type, result) {
     showToast(`Scan completado — ${result.roms_detected} ROMs${result.errors ? ', ' + result.errors + ' errores' : ''}`, result.errors ? 'err' : 'ok');
   } else if (type === 'match') {
     el.className = 'job-result visible success';
-    el.textContent = `Match completado — SHA1: ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin match: ${result.unmatched}  (de ${result.total} ROMs)`;
+    el.textContent = `Identificación completada — Huella (SHA1): ${result.matched_high}  |  Nombre: ${result.matched_low}  |  Sin identificar: ${result.unmatched}  (de ${result.total} ROMs)`;
   } else if (type === 'convert-chd') {
     el.className = 'job-result visible success';
     const verb = result.dry_run ? 'Convertiría' : 'Convertidos';
