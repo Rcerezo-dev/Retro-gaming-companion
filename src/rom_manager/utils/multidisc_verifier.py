@@ -5,6 +5,11 @@ from pathlib import Path
 
 from rom_manager.utils.m3u_generator import find_disc_groups
 
+# Companion/descriptor files that legitimately accompany a disc image — not images
+# themselves. A PSX set is `.bin` + `.cue` by design, so these must not be counted as
+# "mixed extensions", nor double-count a disc number in the gap check.
+_SIDECAR_EXTS = frozenset({".cue", ".m3u", ".ccd", ".sub", ".sbi"})
+
 
 @dataclass(slots=True)
 class DiscIssue:
@@ -54,36 +59,38 @@ def verify_multidisc(
                     )
                 )
 
-        # Check extension homogeneity
-        extensions = {d.suffix.lower() for d in group.discs}
-        if len(extensions) > 1:
+        # Check extension homogeneity — ignore sidecar/descriptor files (.cue, .m3u…),
+        # which legitimately accompany the disc image. Only real image extensions count.
+        image_exts = {
+            d.suffix.lower() for d in group.discs if d.suffix.lower() not in _SIDECAR_EXTS
+        }
+        if len(image_exts) > 1:
             group_issues.append(
                 DiscIssue(
                     base_name=group.base_name,
                     issue_type="mixed_ext",
-                    detail=f"Extensiones mezcladas: {', '.join(sorted(extensions))}",
+                    detail=f"Extensiones mezcladas: {', '.join(sorted(image_exts))}",
                     platform=plat,
                 )
             )
 
-        # Check consecutive disc numbers
-        disc_numbers = []
-        for disc in group.discs:
-            m = _DISC_RE.match(disc.stem)
-            if m:
-                disc_numbers.append(int(m.group(2)))
-        disc_numbers.sort()
-        expected = list(range(disc_numbers[0], disc_numbers[0] + len(disc_numbers)))
-        if disc_numbers != expected:
-            missing_nums = sorted(set(expected) - set(disc_numbers))
-            group_issues.append(
-                DiscIssue(
-                    base_name=group.base_name,
-                    issue_type="gap",
-                    detail=f"Discos faltantes: {missing_nums}",
-                    platform=plat,
+        # Check consecutive disc numbers. Dedupe: a `.bin` + `.cue` pair shares one disc
+        # number, so counting files (instead of distinct numbers) would falsely report gaps.
+        disc_numbers = sorted(
+            {int(m.group(2)) for disc in group.discs if (m := _DISC_RE.match(disc.stem))}
+        )
+        if disc_numbers:
+            expected = list(range(disc_numbers[0], disc_numbers[0] + len(disc_numbers)))
+            if disc_numbers != expected:
+                missing_nums = sorted(set(expected) - set(disc_numbers))
+                group_issues.append(
+                    DiscIssue(
+                        base_name=group.base_name,
+                        issue_type="gap",
+                        detail=f"Discos faltantes: {missing_nums}",
+                        platform=plat,
+                    )
                 )
-            )
 
         # Check catalog match
         if repository is not None:

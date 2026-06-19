@@ -384,7 +384,7 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| RPT-A1 | 🟡 Medio | **`.bin`+`.cue` marcado como "extensiones mezcladas"** — `verify_disc_groups` marca `mixed_ext` ante cualquier grupo con >1 extensión, pero un set PSX es `.bin`+`.cue` por diseño (11 falsos positivos). Tratar `.cue`/`.m3u`/`.ccd`/`.sbi` como *sidecars*; solo marcar `mixed_ext` con 2+ extensiones de **imagen** (`.bin`/`.iso`/`.img`/`.chd`). Tests. | `utils/multidisc_verifier.py:57-67` | ⬜ |
+| RPT-A1 | 🟡 Medio | **`.bin`+`.cue` marcado como "extensiones mezcladas"** — `verify_multidisc` marcaba `mixed_ext` ante cualquier grupo con >1 extensión, y `gap` doble-contaba la pareja `.bin`/`.cue` (set de 2 discos → falsos "discos faltantes [3,4]"). Fix: `_SIDECAR_EXTS` (`.cue`/`.m3u`/`.ccd`/`.sub`/`.sbi`) — `mixed_ext` solo con 2+ extensiones de imagen; disc-numbers dedup por número. Tests: `tests/test_multidisc_verifier.py` | `utils/multidisc_verifier.py` | ✅ |
 | RPT-A2 | 🟡 Medio | **Orphan-finder recorre `BIOS\`, `System Volume Information\` y carpetas de datos de emulador** — `rglob("*")` sin exclusión de directorios; viola la regla "BIOS nunca se trata como ROM". Excluir dirs (BIOS, `System Volume Information`, ES-DE/assets, ocultos, `_descartados`). Quita ~12 de 35. Tests. | `utils/orphan_finder.py:27` | ⬜ |
 | RPT-A3 | ⚪ Bajo | **Ficheros de datos de emulador (`.dat`, `.fs`) contados como "saves"** — p.ej. `scummvm\theme\*.dat`, `fbneo\*.fs`. Estrechar el set de extensiones de save del orphan-finder a saves reales (`.srm`/`.sav`/`.nv`/`.hi`/`.state`…), excluir `.dat`/`.fs`. Deja solo NVRAM arcade real. | `utils/orphan_finder.py` | ⬜ |
 
@@ -393,7 +393,7 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
 | RPT-B1 | 🟡 Medio | **11 juegos multidisco sin `.m3u`** (Driver 2, Grandia, Koudelka [8 discos], Parasite Eve I/II, Oddworld…) — RetroArch necesita `.m3u` para cambiar de disco. Exponer acción "Generar .m3u (N)" desde el informe / tab Formatos (el generador ya existe en `m3u_generator`). | `web/handlers/esde/conversions.py`, partial del informe | ⬜ |
-| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. Reverificar gap tras RPT-A1 (el doble conteo `.bin`/`.cue` interfiere). | `utils/multidisc_verifier.py`, partial del informe | ⬜ |
+| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — ⚠️ el doble conteo `.bin`/`.cue` del `gap` ya está **corregido en RPT-A1** (la mayoría de los gap×11 eran falsos). Queda: separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. | `utils/multidisc_verifier.py`, partial del informe | ⬜ |
 
 ### C — Auto-descarga de catálogos DAT faltantes (PHASE2 / RPT-B2)
 
