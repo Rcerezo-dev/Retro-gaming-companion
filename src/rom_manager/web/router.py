@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+
+_log = logging.getLogger(__name__)
 
 
 class Router:
@@ -70,62 +73,25 @@ class Router:
 
         Returns:
             ``True`` if a handler was found and called, ``False`` otherwise.
+
+        Exceptions raised by a handler propagate to the caller (``do_GET`` /
+        ``do_POST`` in ``server.py``), which logs the traceback and returns a
+        readable error response — a single, central error point.
         """
         # 1. Exact match
-        key = (method, path)
-        handler = self._exact.get(key)
+        handler = self._exact.get((method, path))
         if handler is not None:
-            try:
-                handler(ctx)
-                return True
-            except Exception as e:
-                import sys
-
-                print(
-                    f"[DISPATCH-ERROR] {method} {path} | Handler raised: {e}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                raise
+            handler(ctx)
+            return True
 
         # 2. Prefix match (first registered wins)
         for m, prefix, handler in self._prefix:
             if m == method and path.startswith(prefix):
-                try:
-                    handler(ctx)
-                    return True
-                except Exception as e:
-                    import sys
+                handler(ctx)
+                return True
 
-                    print(
-                        f"[DISPATCH-PREFIX-ERROR] {method} {path} | Handler raised: {e}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    raise
-
-        # DEBUG: Log failed dispatch for /api/ routes
         if path.startswith("/api/"):
-            import sys
-
-            exact_keys = list(self._exact.keys())
-            matching_method_keys = [k for k in exact_keys if k[0] == method]
-            matching_path_keys = [k for k in exact_keys if k[1] == path]
-            print(f"[DISPATCH-FAIL] {method} {path}", file=sys.stderr, flush=True)
-            print(f"  Exact match key not found: {key}", file=sys.stderr, flush=True)
-            print(f"  Total exact routes: {len(exact_keys)}", file=sys.stderr, flush=True)
-            print(
-                f"  Routes with method {method}: {len(matching_method_keys)}",
-                file=sys.stderr,
-                flush=True,
-            )
-            if matching_method_keys:
-                print(f"    {matching_method_keys}", file=sys.stderr, flush=True)
-            print(
-                f"  Routes with path {path}: {len(matching_path_keys)}", file=sys.stderr, flush=True
-            )
-            if matching_path_keys:
-                print(f"    {matching_path_keys}", file=sys.stderr, flush=True)
+            _log.debug("Ruta no registrada: %s %s", method, path)
 
         return False
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -9,7 +10,7 @@ import pytest
 
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.web.server import make_handler
+from rom_manager.web.server import _readable_error, make_handler
 
 # ---------------------------------------------------------------------------
 # Minimal fake HTTP infrastructure — no real socket needed.
@@ -144,3 +145,47 @@ def test_api_config_returns_expected_keys(repo: LibraryRepository) -> None:
     assert "rclone_remote" in data
     assert "web_host" in data
     assert "web_port" in data
+
+
+# ---------------------------------------------------------------------------
+# PHASE4-1 — readable errors for unhandled handler exceptions
+# ---------------------------------------------------------------------------
+
+
+def test_readable_error_maps_known_exceptions() -> None:
+    assert _readable_error(FileNotFoundError())[0] == 404
+    assert _readable_error(PermissionError())[0] == 403
+    assert _readable_error(IsADirectoryError())[0] == 400
+    assert _readable_error(TimeoutError())[0] == 504
+    assert _readable_error(sqlite3.OperationalError("locked"))[0] == 503
+    assert _readable_error(sqlite3.IntegrityError("dup"))[0] == 409
+    assert _readable_error(sqlite3.Error("x"))[0] == 500
+    assert _readable_error(ValueError("x"))[0] == 400
+    assert _readable_error(KeyError("x"))[0] == 400
+
+
+def test_readable_error_generic_never_leaks_detail() -> None:
+    code, message = _readable_error(RuntimeError("boom secret /home/user/x"))
+    assert code == 500
+    # The raw exception text (paths, secrets, internals) must not reach the user.
+    assert "boom" not in message
+    assert "secret" not in message
+
+
+def test_unhandled_handler_exception_returns_readable_json(
+    repo: LibraryRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _boom(*_a: object, **_k: object) -> object:
+        raise sqlite3.OperationalError("database is locked: C:/secret/lib.sqlite")
+
+    monkeypatch.setattr(repo, "get_summary", _boom)
+    code, ct, body = _make_request("GET", "/api/status", repo)
+
+    assert code == 503
+    assert "application/json" in ct
+    data = json.loads(body)
+    assert "base de datos" in data["error"].lower()
+    # Neither the raw detail nor a traceback is exposed to the client.
+    decoded = body.decode()
+    assert "secret" not in decoded
+    assert "Traceback" not in decoded

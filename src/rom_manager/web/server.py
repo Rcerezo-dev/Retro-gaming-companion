@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
+import sqlite3
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -52,6 +53,39 @@ _validate_session = _auth.validate_session
 _LOGIN_HTML = _auth.LOGIN_HTML
 
 _logger = logging.getLogger(__name__)
+
+_GENERIC_ERROR_MSG = "Ha ocurrido un error inesperado. Revisa los registros para más detalle."
+
+
+def _readable_error(exc: BaseException) -> tuple[int, str]:
+    """Map an unhandled handler exception to (HTTP status, user-facing message).
+
+    The full traceback is logged separately by the caller; the message returned
+    here is shown to the user, so it stays in plain Spanish and never leaks
+    internal paths, SQL or secrets — just a clear, actionable hint.
+    """
+    if isinstance(exc, FileNotFoundError):
+        return 404, "No se encontró el archivo o la carpeta solicitada."
+    if isinstance(exc, PermissionError):
+        return 403, "Sin permisos para acceder al archivo (¿está en uso o es de solo lectura?)."
+    if isinstance(exc, IsADirectoryError):
+        return 400, "Se esperaba un archivo, pero la ruta apunta a una carpeta."
+    if isinstance(exc, NotADirectoryError):
+        return 400, "Se esperaba una carpeta, pero la ruta apunta a un archivo."
+    if isinstance(exc, TimeoutError):
+        return 504, "La operación tardó demasiado y se canceló. Inténtalo de nuevo."
+    if isinstance(exc, sqlite3.IntegrityError):
+        return 409, "La operación entra en conflicto con datos que ya existen en la base de datos."
+    if isinstance(exc, sqlite3.OperationalError):
+        return (
+            503,
+            "La base de datos está ocupada o bloqueada. Inténtalo de nuevo en unos segundos.",
+        )
+    if isinstance(exc, sqlite3.Error):
+        return 500, "Error en la base de datos. Revisa los registros para más detalle."
+    if isinstance(exc, (ValueError, KeyError)):
+        return 400, "La petición contiene datos inválidos o incompletos."
+    return 500, _GENERIC_ERROR_MSG
 
 
 def make_handler(
@@ -249,8 +283,11 @@ def make_handler(
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
-                body = json.dumps({"error": str(exc)}).encode()
-                self._send(500, "application/json", body)
+                code, message = _readable_error(exc)
+                _logger.error("Error no controlado en GET %s", path, exc_info=True)
+                self._send(
+                    code, "application/json; charset=utf-8", _json_response({"error": message})
+                )
 
         # ── POST ─────────────────────────────────────────────────────────────
 
@@ -381,8 +418,11 @@ def make_handler(
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
-                body = json.dumps({"error": str(exc)}).encode()
-                self._send(500, "application/json", body)
+                code, message = _readable_error(exc)
+                _logger.error("Error no controlado en POST %s", path, exc_info=True)
+                self._send(
+                    code, "application/json; charset=utf-8", _json_response({"error": message})
+                )
 
         # ── Helpers ──────────────────────────────────────────────────────────
 
