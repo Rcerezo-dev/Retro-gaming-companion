@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import logging
 from pathlib import Path
 
 from rom_manager.catalog.matcher import CatalogMatcher
@@ -15,6 +16,8 @@ from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.scanner import scan_library
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
 from rom_manager.sync.save_syncer import sync_saves
+
+_logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -425,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
         if not saves_dir.exists() or not saves_dir.is_dir():
             parser.error(f"Library directory does not exist: {saves_dir}")
 
-        remote = args.remote or config.rclone_remote
+        remote = args.remote or config.sync.rclone_remote
         if not remote:
             parser.error("Remote not specified. Pass --remote or set [sync] remote in config.toml.")
 
@@ -443,8 +446,8 @@ def main(argv: list[str] | None = None) -> int:
 
             _delta = DeltaCache(config.data_dir) if not dry_run else None
             # Use dual remotes if configured, otherwise fall back to single remote
-            saves_remote_to_use = config.saves_remote or remote
-            states_remote_to_use = config.states_remote or None
+            saves_remote_to_use = config.sync.saves_remote or remote
+            states_remote_to_use = config.sync.states_remote or None
             result, decisions = sync_saves(
                 saves_dir,
                 saves_remote=saves_remote_to_use,
@@ -699,17 +702,17 @@ def main(argv: list[str] | None = None) -> int:
         from rom_manager.scraper.platform_ids import get_system_id
         from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
-        if not config.screenscraper_user or not config.screenscraper_pass:
+        if not config.credentials.screenscraper_user or not config.credentials.screenscraper_pass:
             parser.error(
                 "ScreenScraper credentials not set. "
                 "Add [screenscraper] user and pass to config.toml."
             )
 
         client = ScreenScraperClient(
-            user=config.screenscraper_user,
-            password=config.screenscraper_pass,
-            dev_id=config.screenscraper_dev_id,
-            dev_password=config.screenscraper_dev_pass,
+            user=config.credentials.screenscraper_user,
+            password=config.credentials.screenscraper_pass,
+            dev_id=config.credentials.screenscraper_dev_id,
+            dev_password=config.credentials.screenscraper_dev_pass,
         )
 
         games = repository.get_games_for_scraping(platform=args.platform)
@@ -806,7 +809,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "sync":
-        sources = config.sync_sources
+        sources = config.sync.sync_sources
         if not sources:
             print(
                 "[ERROR] No hay fuentes de sync configuradas. Añade [[sync.sources]] en config.toml."
@@ -918,7 +921,7 @@ def main(argv: list[str] | None = None) -> int:
                 config, ok=summary.ok, corrupted=summary.corrupted, missing=summary.missing
             )
         except Exception:
-            pass
+            _logger.debug("Failed to persist health schedule", exc_info=True)
 
         if args.notify:
             from rom_manager.utils.notifier import notify

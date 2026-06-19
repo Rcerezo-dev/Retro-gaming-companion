@@ -15,10 +15,13 @@ from rom_manager.detection import FileCategory, classify_path, detect_platform
 from rom_manager.detection.cue_validator import validate_cue
 from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.set_detector import detect_set_type
-from rom_manager.hashing import calculate_hashes
+from rom_manager.hashing import calculate_hashes_batch
 from rom_manager.scanner.asset_scanner import inspect_asset
 
 _PROGRESS_INTERVAL = 10
+# ROMs are hashed in parallel batches of this size (hashlib releases the GIL).
+# DB writes stay single-threaded; only the hashing fans out across threads.
+_HASH_FLUSH_BATCH = 64
 
 
 @dataclass(slots=True)
@@ -61,6 +64,37 @@ def scan_library(
     seen_paths: set[str] = set()
 
     with repository.batch() as conn:
+        # ROMs are not hashed inline; they are accumulated here and hashed in
+        # parallel batches so multi-core machines aren't bottlenecked on serial
+        # hashing. Saves/assets (no hashing needed) are still written inline.
+        pending_hash: list[tuple[Path, os.stat_result]] = []
+
+        def _flush_hash_batch() -> None:
+            if not pending_hash:
+                return
+            hashes = calculate_hashes_batch([p for p, _ in pending_hash], stop_event=stop_event)
+            cancelled = bool(stop_event and stop_event.is_set())
+            for rom_path, rom_stat in pending_hash:
+                file_hashes = hashes.get(rom_path)
+                if file_hashes is None:
+                    # Absent without cancellation means the read failed (OSError).
+                    if not cancelled:
+                        result.errors += 1
+                        logger.error("Failed to hash %s", rom_path)
+                    continue
+                _upsert_rom(
+                    rom_path,
+                    rom_stat,
+                    source_path,
+                    repository,
+                    timestamp,
+                    conn,
+                    file_hashes.sha1,
+                    file_hashes.md5,
+                    file_hashes.crc32,
+                )
+            pending_hash.clear()
+
         for path in source_path.rglob("*"):
             if stop_event and stop_event.is_set():
                 logger.info("Scan cancelled by user after %d files.", result.files_seen)
@@ -88,7 +122,15 @@ def scan_library(
                         result.roms_skipped += 1
                         result.roms_detected += 1
                         continue
-                    _store_rom(path, stat, source_path, repository, timestamp, conn, quick=quick)
+                    if quick:
+                        # Quick scan stores no hashes — nothing to parallelise.
+                        _upsert_rom(
+                            path, stat, source_path, repository, timestamp, conn, "", "", ""
+                        )
+                    else:
+                        pending_hash.append((path, stat))
+                        if len(pending_hash) >= _HASH_FLUSH_BATCH:
+                            _flush_hash_batch()
                     result.roms_detected += 1
                 elif category is FileCategory.SAVE:
                     _store_save(path, source_path, repository, timestamp, conn)
@@ -106,7 +148,9 @@ def scan_library(
                             (save_mtime_ts, stem_like, save_mtime_ts),
                         )
                     except Exception:
-                        pass
+                        logging.getLogger(__name__).debug(
+                            "Failed to update last_played_at for %s", path, exc_info=True
+                        )
                 elif category is FileCategory.FRONTEND_ASSET:
                     _store_asset(path, source_path, repository, timestamp, conn)
                     result.assets_detected += 1
@@ -117,6 +161,9 @@ def scan_library(
             except OSError as error:
                 result.errors += 1
                 logger.error("Failed to process %s: %s", path, error)
+
+        # Hash and persist any ROMs collected after the last full batch.
+        _flush_hash_batch()
 
     result.pruned = repository.prune_stale_entries(str(source_path.resolve()), seen_paths)
     if result.pruned:
@@ -142,21 +189,19 @@ def scan_library(
     return result
 
 
-def _store_rom(
+def _upsert_rom(
     path: Path,
     stat: os.stat_result,
     source_root: Path,
     repository: LibraryRepository,
     timestamp: str,
     connection: sqlite3.Connection,
-    *,
-    quick: bool = False,
+    sha1: str,
+    md5: str,
+    crc32: str,
 ) -> None:
-    if quick:
-        sha1 = md5 = crc32 = ""
-    else:
-        hashes = calculate_hashes(path)
-        sha1, md5, crc32 = hashes.sha1, hashes.md5, hashes.crc32
+    """Persist a single ROM row. Hashing happens upstream (in parallel batches);
+    pass empty strings for *sha1*/*md5*/*crc32* in quick-scan mode."""
     repository.upsert_game(
         original_filename=path.name,
         source_path=str(path.resolve()),

@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 import rom_manager.web.state as _state
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -19,7 +17,6 @@ def register_cloud(
     config: AppConfig,
     repository: LibraryRepository,
     repo_android: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register rclone / cloud-sync / auto-sync routes on *router*."""
@@ -27,7 +24,7 @@ def register_cloud(
     # ── GET /api/rclone-export-config ────────────────────────────────────────
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
-        if config.web_host != "127.0.0.1" and not config.web_pin_hash:
+        if config.web_host != "127.0.0.1" and not config.credentials.web_pin_hash:
             ctx._send_json(
                 {
                     "error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."
@@ -58,12 +55,12 @@ def register_cloud(
     def get_auto_sync_status(ctx) -> None:
         ctx._send_json(
             {
-                "enabled": srv_mod._auto_sync_enabled,
-                "status": dict(srv_mod._auto_sync_status),
+                "enabled": _state._auto_sync_enabled,
+                "status": dict(_state._auto_sync_status),
                 "config": {
-                    "direction": config.auto_sync_direction,
-                    "conflict_policy": config.conflict_policy,
-                    "android_path": config.auto_sync_android_path,
+                    "direction": config.sync.auto_sync_direction,
+                    "conflict_policy": config.sync.conflict_policy,
+                    "android_path": config.sync.auto_sync_android_path,
                 },
             }
         )
@@ -71,7 +68,7 @@ def register_cloud(
     # ── GET /api/sd-sync-status ──────────────────────────────────────────────
     @router.get("/api/sd-sync-status")
     def get_sd_sync_status(ctx) -> None:
-        ctx._send_json(dict(srv_mod._sd_sync_status))
+        ctx._send_json(dict(_state._sd_sync_status))
 
     # ── POST /api/sync ───────────────────────────────────────────────────────
     @router.post("/api/sync")
@@ -82,13 +79,13 @@ def register_cloud(
     @router.post("/api/auto-sync-toggle")
     def post_auto_sync_toggle(ctx) -> None:
         _state._auto_sync_enabled = not _state._auto_sync_enabled
-        config.auto_sync_enabled = _state._auto_sync_enabled
+        config.sync.auto_sync_enabled = _state._auto_sync_enabled
         ctx._send_json({"enabled": _state._auto_sync_enabled})
 
     # ── POST /api/auto-sync-save ─────────────────────────────────────────────
     @router.post("/api/auto-sync-save")
     def post_auto_sync_save(ctx) -> None:
-        _do_auto_sync_save(ctx, ctx._post_data, config, srv_mod)
+        _do_auto_sync_save(ctx, ctx._post_data, config)
 
     # ── POST /api/migrate-split-db ───────────────────────────────────────────
     @router.post("/api/migrate-split-db")
@@ -205,7 +202,7 @@ def _handle_rclone_test_remote(config: AppConfig, remote: str) -> dict:
 def _do_sync(
     ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
-    from rom_manager.web.response_builders import _utc_now_str
+    from rom_manager.web.builders.common import _utc_now_str
 
     dry_run = data.get("dry_run", True)
 
@@ -219,7 +216,7 @@ def _do_sync(
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
 
-            sources = config.sync_sources
+            sources = config.sync.sync_sources
             if not sources:
                 job_result = {
                     "error": "No hay fuentes de sync configuradas. "
@@ -227,7 +224,7 @@ def _do_sync(
                 }
                 return
 
-            if not dry_run and config.pre_sync_backup and config.library_root:
+            if not dry_run and config.backup.pre_sync and config.library_root:
                 try:
                     from rom_manager.backup.save_backup import create_saves_zip
 
@@ -266,7 +263,7 @@ def _do_sync(
                     continue
                 exts = tuple() if source.sync_all else config.save_extensions
                 try:
-                    _bk_root = config.data_dir if config.backup_saves_enabled else None
+                    _bk_root = config.data_dir if config.backup.saves_enabled else None
                     from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
 
                     _delta = _DeltaCache(config.data_dir) if not dry_run else None
@@ -282,9 +279,9 @@ def _do_sync(
                         states_remote=None,
                         dry_run=dry_run,
                         backup_root=_bk_root,
-                        backup_keep_n=config.backup_saves_keep_n,
+                        backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
-                        conflict_policy=config.conflict_policy,
+                        conflict_policy=config.sync.conflict_policy,
                     )
                     all_results.append(
                         {
@@ -321,22 +318,22 @@ def _do_sync(
                     )
 
             # D2: implicit sync for saves/states remotes
-            _bk_root = config.data_dir if config.backup_saves_enabled else None
+            _bk_root = config.data_dir if config.backup.saves_enabled else None
             _implicit = []
-            if config.saves_remote and config.library_root:
+            if config.sync.saves_remote and config.library_root:
                 _implicit.append(
                     (
                         _Path(config.library_root) / "saves",
-                        config.saves_remote,
+                        config.sync.saves_remote,
                         "Saves (permanentes)",
                         config.save_extensions,
                     )
                 )
-            if config.states_remote and config.library_root:
+            if config.sync.states_remote and config.library_root:
                 _implicit.append(
                     (
                         _Path(config.library_root) / "states",
-                        config.states_remote,
+                        config.sync.states_remote,
                         "States",
                         config.state_extensions,
                     )
@@ -376,9 +373,9 @@ def _do_sync(
                         states_remote=_states_remote,
                         dry_run=dry_run,
                         backup_root=_bk_root,
-                        backup_keep_n=config.backup_saves_keep_n,
+                        backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
-                        conflict_policy=config.conflict_policy,
+                        conflict_policy=config.sync.conflict_policy,
                     )
                     all_results.append(
                         {
@@ -467,24 +464,24 @@ def _do_sync(
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 
-def _do_auto_sync_save(ctx, data: dict, config: AppConfig, srv_mod) -> None:
+def _do_auto_sync_save(ctx, data: dict, config: AppConfig) -> None:
     """Save auto-sync settings to config.toml and update in-memory config."""
     from rom_manager.config import write_config_toml
 
     updates: dict = {}
     if "sync.auto_sync_direction" in data:
         updates["sync.auto_sync_direction"] = data["sync.auto_sync_direction"]
-        config.auto_sync_direction = data["sync.auto_sync_direction"]
+        config.sync.auto_sync_direction = data["sync.auto_sync_direction"]
     if "sync.auto_sync_android_path" in data:
         updates["sync.auto_sync_android_path"] = data["sync.auto_sync_android_path"]
-        config.auto_sync_android_path = data["sync.auto_sync_android_path"]
+        config.sync.auto_sync_android_path = data["sync.auto_sync_android_path"]
     if "sync.conflict_policy" in data:
         updates["sync.conflict_policy"] = data["sync.conflict_policy"]
-        config.conflict_policy = data["sync.conflict_policy"]
+        config.sync.conflict_policy = data["sync.conflict_policy"]
     if "sync.auto_sync_enabled" in data:
         val = bool(data["sync.auto_sync_enabled"])
         updates["sync.auto_sync_enabled"] = val
-        config.auto_sync_enabled = val
+        config.sync.auto_sync_enabled = val
         _state._auto_sync_enabled = val
 
     if updates:

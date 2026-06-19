@@ -7,6 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import rom_manager.web.state as _state
+from rom_manager.web.jobs.manager import JOB_NAMES
+
 # ── DAT auto-download catalog (libretro-database, MIT license) ────────────────
 _LIBRETRO_DAT_CATALOG = [
     # Nintendo cartridge → nointro/
@@ -61,8 +64,6 @@ _dat_dl_lock = threading.Lock()
 _dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -80,31 +81,17 @@ def register(
     repo_android: LibraryRepository,
     get_repo_fn: Callable[[str], LibraryRepository],
     start_ra_check_fn: Callable[[str], bool],
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register scan / catalog / job-status routes on *router*."""
-    from rom_manager.web.response_builders import _build_scrape_summary
+    from rom_manager.web.builders.misc import _build_scrape_summary
 
     # ── GET /api/job-status ───────────────────────────────────────────────────
     @router.get("/api/job-status")
     def get_job_status(ctx) -> None:
-        # scan, match, apply are now managed by job_manager.
-        # All other jobs still use the legacy srv_mod dicts (removed as each is migrated).
-        # scan, match, apply, sync, tree_diff managed by job_manager.
-        # Remaining legacy jobs still read from srv_mod (removed as each is migrated).
-        # job_manager handles all jobs except cable_sync (migrated in ARC-JM-5+ARC-JM-6).
+        # All background jobs (including cable_sync) are managed by job_manager.
         status = job_manager.get_status()
-        m = srv_mod
-        with m._job_lock:
-            status.update(
-                {
-                    "cable_sync_running": m._jobs["cable_sync"],
-                    "cable_sync_result": m._job_results.get("cable_sync"),
-                    "cable_progress": dict(m._cable_progress) if m._cable_progress else None,
-                }
-            )
-        status["inbox_pending_files"] = m._inbox_watcher_status.get("pending_files", 0)
+        status["inbox_pending_files"] = _state._inbox_watcher_status.get("pending_files", 0)
         ctx._send_json(status)
 
     # ── GET /api/catalog-status ───────────────────────────────────────────────
@@ -164,35 +151,10 @@ def register(
     # ── POST /api/stop-job ────────────────────────────────────────────────────
     @router.post("/api/stop-job")
     def post_stop_job(ctx) -> None:
-        m = srv_mod
+        # All background jobs are managed by job_manager.
         job_name = ctx._post_data.get("job", "")
-        # cable_sync is the only remaining legacy job (ARC-JM-6 pending).
-        _migrated = {
-            "scan",
-            "match",
-            "apply",
-            "sync",
-            "tree_diff",
-            "backup_now",
-            "scrape",
-            "convert_chd",
-            "convert_cso",
-            "verify_chd",
-            "extract_zip",
-            "health_check",
-            "ra_check",
-            "inbox",
-            "setup",
-        }
-        if job_name in _migrated:
+        if job_name in JOB_NAMES:
             job_manager.cancel(job_name)
-        else:
-            # Legacy: cable_sync only
-            if job_name == "cable_sync":
-                m._cable_cancel.set()
-            with m._job_lock:
-                if job_name in m._jobs:
-                    m._jobs[job_name] = False
         ctx._send_json({"status": "stopped", "job": job_name})
 
     # ── POST /api/import-dats ─────────────────────────────────────────────────
@@ -309,7 +271,7 @@ def _do_scan(
     start_ra_check_fn: Callable[[str], bool],
     job_manager: JobManager,
 ) -> None:
-    from rom_manager.web.response_builders import _build_library_report
+    from rom_manager.web.builders.library import _build_library_report
 
     raw_paths = data.get("source_paths") or []
     single = data.get("source_path", "").strip()
@@ -379,8 +341,8 @@ def _do_scan(
             }
 
             if not _cancel.is_set():
-                if config.ra_api_key:
-                    start_ra_check_fn(config.ra_api_key)
+                if config.credentials.ra_api_key:
+                    start_ra_check_fn(config.credentials.ra_api_key)
                 for _rpt_path in raw_paths:
                     if not _rpt_path:
                         continue
@@ -394,7 +356,9 @@ def _do_scan(
                                 json.dumps(_rpt_data, ensure_ascii=False), encoding="utf-8"
                             )
                         except Exception:
-                            pass
+                            logger.debug(
+                                "No se pudo cachear last_report.json tras el scan", exc_info=True
+                            )
 
                     threading.Thread(target=_cache_report, daemon=True).start()
         except Exception as exc:

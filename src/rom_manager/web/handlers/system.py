@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import socket
 from pathlib import Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+
+_logger = logging.getLogger(__name__)
 
 # ── Tablas de plataformas ─────────────────────────────────────────────────────
 # Canonical ES-DE platform folder names (platform detector name → ES folder)
@@ -124,6 +127,7 @@ def _get_local_ip() -> str:
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
     except Exception:
+        _logger.debug("No se pudo determinar la IP local de la LAN", exc_info=True)
         return "127.0.0.1"
 
 
@@ -152,7 +156,7 @@ def _handle_detect_cloud_folder() -> dict:
                     )
                     break
     except Exception:
-        pass
+        _logger.debug("Detección de carpeta Dropbox falló", exc_info=True)
 
     # OneDrive — env var set by the client
     for env_var in ("OneDriveConsumer", "OneDrive"):
@@ -181,7 +185,7 @@ def _handle_detect_cloud_folder() -> dict:
                 }
             )
     except Exception:
-        pass
+        _logger.debug("Detección de Google Drive falló", exc_info=True)
 
     return {"detected": detected}
 
@@ -216,7 +220,7 @@ def _build_anbernic_setup_sh(config: AppConfig) -> str:
     ip = _get_local_ip()
     port = config.web_port
     base_url = f"http://{ip}:{port}"
-    rclone_remote = config.rclone_remote or "dropbox:/RetroSync/saves"
+    rclone_remote = config.sync.rclone_remote or "dropbox:/RetroSync/saves"
 
     cloud_info = _handle_detect_cloud_folder()
     has_cloud = bool(cloud_info.get("detected"))
@@ -395,7 +399,7 @@ def _handle_rclone_status(config: AppConfig) -> dict:
             )
             remotes = [r.strip() for r in rem_proc.stdout.strip().split("\n") if r.strip()]
         except Exception:
-            pass
+            _logger.warning("rclone listremotes falló", exc_info=True)
 
     return {
         "installed": installed,
@@ -424,6 +428,7 @@ def _handle_system_status(config: AppConfig) -> dict:
             ver = (r.stdout or r.stderr or "").strip().splitlines()[0][:60]
             return True, ver
         except Exception:
+            _logger.debug("No se pudo leer la versión de %s", p, exc_info=True)
             return True, ""
 
     chdman_ok, chdman_ver = _test_binary(str(config.chdman) if config.chdman else "")
@@ -448,7 +453,7 @@ def _handle_system_status(config: AppConfig) -> dict:
             "version": rclone_st.get("version", ""),
             "remotes": rclone_st.get("remotes", []),
         },
-        "ra_key": {"ok": bool(config.ra_api_key)},
+        "ra_key": {"ok": bool(config.credentials.ra_api_key)},
         "catalogs": {
             "ok": cat_total > 0,
             "total": cat_total,
@@ -494,7 +499,7 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
                     }
                 )
     except Exception:
-        pass
+        _logger.warning("Escaneo de ROMs mal ubicadas falló en %s", root, exc_info=True)
 
     # (b) Incomplete CUE sets — .cue file references .bin files that don't exist
     _cue_bin_re = _re.compile(r'^\s*FILE\s+"?([^"]+)"?\s+BINARY', _re.IGNORECASE | _re.MULTILINE)
@@ -516,7 +521,7 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
                     }
                 )
         except Exception:
-            pass
+            _logger.debug("No se pudo analizar el .cue en el escaneo de salud", exc_info=True)
 
     # (c) Empty platform directories
     for _d in root.iterdir():
@@ -542,7 +547,7 @@ def _handle_library_doctor(config: AppConfig, repository: LibraryRepository) -> 
                         }
                     )
             except Exception:
-                pass
+                _logger.debug("No se pudo inspeccionar el directorio %s", _d, exc_info=True)
 
     by_type: dict[str, int] = {}
     for iss in issues:

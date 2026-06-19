@@ -25,6 +25,7 @@ def _read_health_schedule(config: AppConfig) -> dict:
     try:
         return _json.loads(_health_schedule_path(config).read_text(encoding="utf-8"))
     except Exception:
+        _logger.debug("No se pudo leer health_schedule.json", exc_info=True)
         return {}
 
 
@@ -65,7 +66,7 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                     elapsed = (_dt.datetime.now(tz=_dt.UTC) - last_run).days
                     overdue = elapsed >= _HEALTH_CHECK_INTERVAL_DAYS
                 except Exception:
-                    pass
+                    _logger.debug("No se pudo parsear last_run del health schedule", exc_info=True)
 
             if overdue and not _state._job_manager.get_status()["health_check_running"]:
                 repository = get_repo_fn()
@@ -152,7 +153,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
     while True:
         try:
             _time.sleep(30)
-            if not config.inbox_path or not config.inbox_auto_process:
+            if not config.inbox.path or not config.inbox.auto_process:
                 _state._inbox_watcher_status.update(
                     {
                         "watching": False,
@@ -162,7 +163,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 )
                 continue
 
-            inbox = _Path(config.inbox_path).resolve()
+            inbox = _Path(config.inbox.path).resolve()
             if not inbox.exists():
                 _state._inbox_watcher_status.update(
                     {
@@ -191,15 +192,24 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                     "Inbox watcher: %d archivos detectados, lanzando pipeline", len(pending)
                 )
                 _state._inbox_watcher_status["trigger_ts"] = _time.time()
-                target_root_str = config.inbox_target_root or (
+                if config.notify_desktop:
+                    from rom_manager.utils.notifier import notify
+
+                    _n = len(pending)
+                    _plural = "archivo" if _n == 1 else "archivos"
+                    notify(
+                        "Retro Vault — Inbox",
+                        f"📥 {_n} {_plural} detectado{'' if _n == 1 else 's'}, procesando…",
+                    )
+                target_root_str = config.inbox.target_root or (
                     str(config.library_root) if config.library_root else ""
                 )
 
                 def _watcher_run(_tr=target_root_str) -> None:
                     _run_inbox_pipeline(
-                        config.inbox_path,
+                        config.inbox.path,
                         _tr,
-                        config.inbox_delete_source,
+                        config.inbox.delete_source,
                         repository,
                         config,
                         _state._job_manager,
@@ -218,7 +228,7 @@ def start_all(config: AppConfig, repository: LibraryRepository) -> None:
     """Arranca todos los daemons de background. Llamado desde serve()."""
     from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loop
 
-    if config.auto_sync_enabled:
+    if config.sync.auto_sync_enabled:
         t = threading.Thread(
             target=_auto_sync_loop,
             args=(config, lambda: repository),

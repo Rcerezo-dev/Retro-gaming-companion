@@ -1,3 +1,13 @@
-from rom_manager.hashing.hash_calculator import FileHashes, calculate_hashes
+from rom_manager.hashing.hash_calculator import (
+    FileHashes,
+    HashingCancelled,
+    calculate_hashes,
+    calculate_hashes_batch,
+)
 
-__all__ = ["FileHashes", "calculate_hashes"]
+__all__ = [
+    "FileHashes",
+    "HashingCancelled",
+    "calculate_hashes",
+    "calculate_hashes_batch",
+]

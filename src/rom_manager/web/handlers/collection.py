@@ -22,7 +22,8 @@ def register(
     """Register collection / library-data routes on *router*."""
     import sys
 
-    from rom_manager.web.response_builders import _build_assets, _build_library_diff
+    from rom_manager.web.builders.diff import _build_library_diff
+    from rom_manager.web.builders.misc import _build_assets
 
     print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
 
@@ -254,12 +255,14 @@ def register(
         import shutil
         from pathlib import Path
 
+        from rom_manager.sync.device_detector import is_device_connected
+
         items = (ctx._post_data or {}).get("items", [])
         if not items:
             ctx._send_json({"synced": 0, "errors": []})
             return
 
-        connected, reason = config.is_device_connected()
+        connected, reason = is_device_connected(config.adb, config.anbernic_root)
         if not connected:
             ctx._send_error(400, f"Dispositivo no conectado: {reason}")
             return

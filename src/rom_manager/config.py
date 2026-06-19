@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 # Default Android emulator save/savestate path mappings.
 # Verified live on Anbernic RG556 (serial: RG556006101273).
@@ -152,6 +155,68 @@ class SyncSource:
 
 
 @dataclass(slots=True)
+class SyncConfig:
+    """Save-sync settings: cloud remotes, auto-sync daemon, conflict policy (ARC-CFG-1).
+
+    Extracted from the flat fields of ``AppConfig`` so sync concerns live in one
+    cohesive unit. Mutable — handlers update these fields in place under
+    ``_config_lock`` after a config save.
+    """
+
+    rclone_remote: str = ""  # legacy single-remote rclone path (e.g. "dropbox:/RetroSync/saves")
+    # Auto-sync daemon settings
+    auto_sync_enabled: bool = True
+    auto_sync_direction: str = "newest"  # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
+    auto_sync_android_path: str = "/storage/emulated/0/RetroArch"  # Android RetroArch root path
+    auto_sync_known_devices: list = field(default_factory=list)  # serials; empty = any device
+    conflict_policy: str = "newest"  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # Dual-remote cloud sync (D2)
+    saves_remote: str = ""  # rclone remote for permanent saves
+    states_remote: str = ""  # rclone remote for savestates
+    # Multi-source cloud sync — one entry per emulator, from [[sync.sources]] in config.toml
+    sync_sources: list[SyncSource] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class CredentialsConfig:
+    """Secrets: ScreenScraper + RetroAchievements credentials and the web PIN (ARC-CFG-2).
+
+    Extracted from the flat fields of ``AppConfig`` so all secrets live in one
+    unit. Secret-bearing fields use ``repr=False`` so they never leak into logs
+    or tracebacks; non-secret identifiers (usernames, dev_id) stay visible.
+    Mutable — handlers update these in place under ``_config_lock``.
+    """
+
+    screenscraper_user: str = ""
+    screenscraper_pass: str = field(default="", repr=False)
+    screenscraper_dev_id: str = ""
+    screenscraper_dev_pass: str = field(default="", repr=False)
+    ra_api_key: str = field(default="", repr=False)
+    ra_username: str = ""
+    web_pin_hash: str = field(default="", repr=False)  # SHA-256(pin+salt); empty = no auth
+    web_pin_salt: str = field(default="", repr=False)  # random hex salt for the PIN hash
+
+
+@dataclass(slots=True)
+class InboxConfig:
+    """Inbox watcher settings (Pilar 2) extracted from AppConfig (ARC-CFG-4)."""
+
+    path: str = ""  # folder to watch for new files
+    target_root: str = ""  # where to place organized files (defaults to library_root)
+    auto_process: bool = False  # auto-process when files detected
+    delete_source: bool = False  # delete original ZIP after organizing
+
+
+@dataclass(slots=True)
+class BackupConfig:
+    """Save-backup settings (S29 / QoL-11) extracted from AppConfig (ARC-CFG-4)."""
+
+    saves_enabled: bool = True  # True = auto-backup before sync/rename overwrites
+    saves_keep_n: int = 5  # max versions per save file
+    pre_sync: bool = True  # True = crear ZIP de saves antes de cada sync (QoL-11)
+
+
+@dataclass(slots=True)
 class AppConfig:
     project_root: Path
     data_dir: Path
@@ -167,109 +232,33 @@ class AppConfig:
     state_extensions: tuple[str, ...]  # savestates (.state, .st0, …)
     # From config.toml (optional)
     library_root: Path | None  # root of the ROM+saves library on this PC
-    rclone_remote: str
     rclone_binary: str
     chdman: str
     adb: str
     web_host: str
     web_port: int
-    web_pin_hash: str  # SHA-256(pin+salt); empty = no auth
-    web_pin_salt: str  # random hex salt for the PIN hash
     web_session_ttl: int  # session cookie TTL in seconds (default 86400 = 24h)
-    screenscraper_user: str
-    screenscraper_pass: str
-    screenscraper_dev_id: str
-    screenscraper_dev_pass: str
-    ra_api_key: str
-    ra_username: str
-    # Auto-sync daemon settings
-    auto_sync_enabled: bool
-    auto_sync_direction: str  # "newest" | "pc_to_anbernic" | "anbernic_to_pc"
-    auto_sync_android_path: str  # Android RetroArch root path
-    auto_sync_known_devices: list  # serial numbers; empty = any device
-    conflict_policy: str  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # Secrets (ScreenScraper + RetroAchievements creds, web PIN) — see CredentialsConfig
+    credentials: CredentialsConfig
+    # Save-sync settings (cloud remotes, auto-sync daemon, conflict policy) — see SyncConfig
+    sync: SyncConfig
     anbernic_root: str  # SD card / Android console filesystem path (e.g. E:\Carpetas anbernic)
     device_name: str  # display name for the Android device (e.g. "Consola Android", "Steam Deck")
-    # Inbox (Pilar 2) settings
-    inbox_path: str  # folder to watch for new files
-    inbox_target_root: str  # where to place organized files (defaults to library_root)
-    inbox_auto_process: bool  # auto-process when files detected
-    inbox_delete_source: bool  # delete original ZIP after organizing
-    # Multi-source cloud sync
-    sync_sources: list[
-        SyncSource
-    ]  # one entry per emulator; populated from [[sync.sources]] in config.toml
+    # Inbox watcher settings (Pilar 2) — see InboxConfig
+    inbox: InboxConfig
     # Launcher (S28)
     retroarch_path: str  # path to retroarch.exe
     launcher_cores: dict  # platform → libretro core path
-    # Save backup (S29)
-    backup_saves_enabled: bool  # True = auto-backup before sync/rename overwrites
-    backup_saves_keep_n: int  # max versions per save file (default 5)
-    pre_sync_backup: bool  # True = crear ZIP de saves antes de cada sync (QoL-11)
+    # Save-backup settings (S29 / QoL-11) — see BackupConfig
+    backup: BackupConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
-    # Dual-remote cloud sync (D2)
-    saves_remote: str  # rclone remote for permanent saves (e.g. "dropbox:/RetroSync/saves")
-    states_remote: str  # rclone remote for savestates (e.g. "dropbox:/RetroSync/states")
     # Android emulator path mappings (SYNC-A2)
     # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
     emulator_paths: dict  # package_name → {name, saves_path, states_path, adb_required, ...}
 
-    # ── Device connectivity check (UX-1/2) ────────────────────────────────────
-    def is_device_connected(self) -> tuple[bool, str]:
-        """Check if Android device is connected.
 
-        Returns (connected: bool, reason: str) where reason explains the status.
-        Device is connected if EITHER:
-        - ADB device is available (Android device plugged in via USB), OR
-        - SD card is mounted at anbernic_root path
-
-        Checks in order: ADB first (more reliable), then SD card.
-        """
-        import subprocess
-        from pathlib import Path
-
-        # Check ADB device
-        if self.adb:
-            try:
-                result = subprocess.run(
-                    [self.adb, "devices"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2,
-                )
-                # Parse output for connected devices (exclude "daemon started" and headers)
-                lines = result.stdout.strip().split("\n")[1:]  # skip "List of attached devices"
-                for line in lines:
-                    if "\t" in line:
-                        device_id, status = line.split("\t", 1)
-                        if status.strip() == "device":  # online device
-                            return True, f"ADB device: {device_id}"
-            except Exception:
-                pass  # ADB check failed, continue to SD card check
-
-        # Check SD card mount
-        if self.anbernic_root:
-            try:
-                root_path = Path(self.anbernic_root).expanduser().resolve()
-                if root_path.exists() and root_path.is_dir():
-                    # Check if path is accessible (can list it)
-                    list(root_path.iterdir())
-                    return True, f"SD card mounted: {self.anbernic_root}"
-            except (OSError, PermissionError):
-                pass  # SD card path not accessible
-
-        # Not connected
-        if self.adb and self.anbernic_root:
-            reason = "Device not found (not plugged in via ADB, SD card not mounted)"
-        elif self.adb:
-            reason = "Android device not connected via ADB"
-        elif self.anbernic_root:
-            reason = f"SD card not mounted at {self.anbernic_root}"
-        else:
-            reason = "No device configured (anbernic_root or adb not set)"
-
-        return False, reason
+# Device connectivity check (UX-1/2) extracted to sync/device_detector.py (ARC-CFG-3).
 
 
 _CONFIG_TOML_TEMPLATE = """\
@@ -404,41 +393,49 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_remote=sync.get("remote", ""),
         rclone_binary=sync.get("rclone", "rclone"),
         chdman=tools.get("chdman", "chdman"),
         adb=tools.get("adb", "adb"),
         web_host=web.get("host", "127.0.0.1"),
         web_port=int(web.get("port", 7777)),
-        web_pin_hash=str(web.get("pin_hash", "")),
-        web_pin_salt=str(web.get("pin_salt", "")),
         web_session_ttl=int(web.get("session_ttl", 86400)),
-        screenscraper_user=ss.get("user", ""),
-        screenscraper_pass=ss.get("pass", ""),
-        screenscraper_dev_id=ss.get("dev_id", ""),
-        screenscraper_dev_pass=ss.get("dev_pass", ""),
-        ra_api_key=ra.get("api_key", ""),
-        ra_username=ra.get("username", ""),
-        auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
-        auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
-        auto_sync_android_path=str(
-            sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")
+        credentials=CredentialsConfig(
+            screenscraper_user=ss.get("user", ""),
+            screenscraper_pass=ss.get("pass", ""),
+            screenscraper_dev_id=ss.get("dev_id", ""),
+            screenscraper_dev_pass=ss.get("dev_pass", ""),
+            ra_api_key=ra.get("api_key", ""),
+            ra_username=ra.get("username", ""),
+            web_pin_hash=str(web.get("pin_hash", "")),
+            web_pin_salt=str(web.get("pin_salt", "")),
         ),
-        auto_sync_known_devices=auto_sync_known_devices,
-        conflict_policy=str(sync.get("conflict_policy", "newest")),
-        inbox_path=str(inbox_cfg.get("path", "")),
-        inbox_target_root=str(inbox_cfg.get("target_root", "")),
-        inbox_auto_process=bool(inbox_cfg.get("auto_process", False)),
-        inbox_delete_source=bool(inbox_cfg.get("delete_source", False)),
-        sync_sources=sync_sources,
+        sync=SyncConfig(
+            rclone_remote=sync.get("remote", ""),
+            auto_sync_enabled=bool(sync.get("auto_sync_enabled", True)),
+            auto_sync_direction=str(sync.get("auto_sync_direction", "newest")),
+            auto_sync_android_path=str(
+                sync.get("auto_sync_android_path", "/storage/emulated/0/RetroArch")
+            ),
+            auto_sync_known_devices=auto_sync_known_devices,
+            conflict_policy=str(sync.get("conflict_policy", "newest")),
+            saves_remote=str(sync.get("saves_remote", "")),
+            states_remote=str(sync.get("states_remote", "")),
+            sync_sources=sync_sources,
+        ),
+        inbox=InboxConfig(
+            path=str(inbox_cfg.get("path", "")),
+            target_root=str(inbox_cfg.get("target_root", "")),
+            auto_process=bool(inbox_cfg.get("auto_process", False)),
+            delete_source=bool(inbox_cfg.get("delete_source", False)),
+        ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
-        backup_saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
-        backup_saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
-        pre_sync_backup=bool(backup_cfg.get("pre_sync", True)),
+        backup=BackupConfig(
+            saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
+            saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
+            pre_sync=bool(backup_cfg.get("pre_sync", True)),
+        ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
-        saves_remote=str(sync.get("saves_remote", "")),
-        states_remote=str(sync.get("states_remote", "")),
         emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501
             "Android",
@@ -629,13 +626,13 @@ def validate(config: AppConfig) -> list[dict]:
         warn("web_port", f"Puerto inválido: {config.web_port}. Debe estar entre 1 y 65535.")
 
     # screenscraper — partial config
-    if config.screenscraper_user and not config.screenscraper_pass:
+    if config.credentials.screenscraper_user and not config.credentials.screenscraper_pass:
         warn("screenscraper_pass", "Usuario de ScreenScraper configurado pero contraseña vacía.")
-    if config.screenscraper_pass and not config.screenscraper_user:
+    if config.credentials.screenscraper_pass and not config.credentials.screenscraper_user:
         warn("screenscraper_user", "Contraseña de ScreenScraper configurada pero usuario vacío.")
 
     # retroachievements
-    if not config.ra_api_key:
+    if not config.credentials.ra_api_key:
         warn(
             "ra_api_key",
             "API key de RetroAchievements no configurada. Necesaria para el informe de logros.",

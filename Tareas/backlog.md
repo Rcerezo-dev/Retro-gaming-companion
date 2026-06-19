@@ -2,8 +2,102 @@
 
 > Single source of truth for pending work. Updated every session.
 > Last updated: 2026-04-27 (tareas del Roadmap y ARC pendientes subdivididas en sub-pasos)
-> Completed tasks → `Tareas/archivo.md`
+> Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
+
+---
+
+## Agrupación en ramas (plan de branching)
+
+Regla: una rama por tarea → PR a `develop`. Las sub-tareas que comparten fichero o
+son la misma unidad de cambio se agrupan en una sola rama. Refactores grandes de un
+fichero van **siempre separados**.
+
+### Día26 — completado ✅ (robustez/perf/SRP)
+
+| Orden | Rama | Tareas | Estado |
+|-------|------|--------|--------|
+| ✅ | `feature/obs-1c-lint-no-bare-except` | OBS-1c | mergeada (#13) |
+| ✅ | `feature/perf-1-hashing` | PERF-1a + 1b + 1c | mergeada (#14) |
+| ✅ | `test/test-1-sync-daemons` | TEST-1a + 1b + 1c | mergeada (#15) |
+| ✅ | `chore/fix-build-conda` | FIX-1 + FIX-2 | en rama |
+| ✅ | `refactor/srp-1{a,b,c}-*` | SRP-1a (PR #17) / 1b (PR #18) / 1c (PR #19) | ✅ |
+| ✅ | `chore/clean-1-late-imports` | CLEAN-1 | PR #20 (handlers hoisted en server.py; docstrings de daemons al día) |
+
+> **Día27 completado y archivado** (`Tareas/diario/archivo/Día27.md`): roadmap ARC
+> cerrado (JM + CFG + SVC, PRs #22–#29). Plan de la sesión actual en
+> `Tareas/diario/Día28.md` (UX Phase 4). Detalle del Día26 en
+> `Tareas/diario/archivo/Día26.md`.
+
+### Foco activo (Día27 — completar la migración al JobManager)
+
+| Orden | Rama | Tareas | Estado |
+|-------|------|--------|--------|
+| ✅ | `refactor/arc-jm-cable` | ARC-JM-3a + 3b + 3c | mergeada (#22) — cable_sync → JobManager |
+| ✅ | `refactor/arc-jm-cleanup` | ARC-JM-6a + 6b + 6c + 6d | mergeada (#23) — globales legados eliminados |
+| ✅ | `refactor/arc-cfg-device-detector` | ARC-CFG-3a + 3b | mergeada (#24) — `is_device_connected` → `sync/device_detector.py` |
+| ✅ | `refactor/arc-cfg-sync` | ARC-CFG-1a–1d | mergeada (#25) — dataclass `SyncConfig` |
+| ✅ | `refactor/arc-cfg-credentials` | ARC-CFG-2a–2c | mergeada (#26) — dataclass `CredentialsConfig` (secretos con `repr=False`) |
+| ✅ | `refactor/arc-cfg-inbox-backup` | ARC-CFG-4a–4c | en rama — `InboxConfig` + `BackupConfig` |
+
+> **Migración al JobManager (ARC-JM 1→6) completa** y **split de `AppConfig` (ARC-CFG) completo**:
+> `device_detector` extraído + dataclasses `SyncConfig` / `CredentialsConfig` / `InboxConfig` /
+> `BackupConfig`. `AppConfig` ya no tiene campos planos de esos dominios. Resto de clusters abajo.
+
+### Clusters del backlog (al retomar esas líneas)
+
+| Rama | Tareas | Por qué juntas / bloqueo |
+|------|--------|--------------------------|
+| ~~`refactor/arc-jm-cable`~~ ✅ | ARC-JM-3a + 3b + 3c | Migración indivisible de `cable_sync` al JobManager (#22) |
+| ~~`refactor/arc-jm-cleanup`~~ ✅ | ARC-JM-6a + 6b + 6c + 6d | Barrido de limpieza de globales (en rama) |
+| ~~`refactor/arc-cfg-device-detector`~~ ✅ | ARC-CFG-3a + 3b | Extraído `device_detector.py` (#24) |
+| ~~`refactor/arc-cfg-sync`~~ ✅ | ARC-CFG-1a–1d | Dataclass `SyncConfig` atómica (#25) |
+| ~~`refactor/arc-cfg-credentials`~~ ✅ | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica (#26) |
+| ~~`refactor/arc-cfg-inbox-backup`~~ ✅ | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` (en rama) |
+| ~~`refactor/arc-svc-duplicates`~~ ✅ | ARC-SVC-1a + 1b | Service + adelgazar handler (en rama) |
+| `feature/design-polish` | DESIGN-10 + 11 + 12 (+13, +14) | Cosmético sobre `app.css` / `index.html` |
+
+---
+
+### SRP-1a — Desglose (rama `refactor/srp-1a-response-builders`) ✅ COMPLETADO (PR #17)
+
+`web/response_builders.py` (1658 líneas) → paquete `web/builders/`; fachada eliminada
+y 15 callers migrados. Detalle en `Tareas/diario/archivo/Día26.md §SRP-1a`.
+
+- [x] SRP-1a-0 — crear `web/builders/` + fachada de re-export (sin mover lógica)
+- [x] SRP-1a-1 — `builders/common.py` (helpers: json/paths/drives/repo/format)
+- [x] SRP-1a-2 — `builders/library.py` (report/status/games/plan)
+- [x] SRP-1a-3 — `builders/duplicates.py` (duplicates + RA annotate)
+- [x] SRP-1a-4 — `builders/diff.py` + `builders/folders.py`
+- [x] SRP-1a-5 — `builders/misc.py` (assets/sync_log/config/scrape/cable)
+- [x] SRP-1a-6 — migrar imports de callers + eliminar fachada; tests + ruff
+
+### SRP-1b — Desglose (rama `refactor/srp-1b-esde`) ✅ COMPLETADO (PR #18)
+
+`web/handlers/esde.py` (1158 líneas; `register()` ≈965) → paquete `web/handlers/esde/` con
+sub-registradores por dominio; `register()` orquesta. 7 sub-pasos; detalle en `Tareas/diario/archivo/Día26.md §SRP-1b`.
+
+- [x] SRP-1b-0 — paquete `esde/` + esqueleto de sub-registradores; `register()` delega
+- [x] SRP-1b-1 — conversiones (chd/cso/zip/m3u/n64/multidisc) → `esde/conversions.py`
+- [x] SRP-1b-2 — reports/export (report html/json/csv, export_lpl) → `esde/reports.py`
+- [x] SRP-1b-3 — health/cleanup/junk → `esde/maintenance.py`
+- [x] SRP-1b-4 — orphaned saves + doctor → `esde/doctor.py`
+- [x] SRP-1b-5 — ES-DE + sistema/misc + helpers `_handle_*` → `esde/system.py`
+- [x] SRP-1b-6 — `register()` como orquestador puro; tests + ruff
+
+### SRP-1c — Desglose (rama `refactor/srp-1c-repository`) ✅ COMPLETADO (PR #19)
+
+`database/repository.py` (1455 líneas; clase única de ~50 métodos) → paquete
+`database/repositories/` con un mixin por agregado; `LibraryRepository` los ensambla.
+API pública intacta (dataclasses re-exportadas desde `repository.py`). Detalle en `Tareas/diario/archivo/Día26.md §SRP-1c`.
+
+- [x] SRP-1c-0 — `repositories/` + `models.py` (dataclasses) + `base.py` (`_RepositoryBase`: connect/batch/scan-run/get_summary)
+- [x] SRP-1c-1 — `GamesMixin` (`games.py`)
+- [x] SRP-1c-2 — `MetadataMixin` (`metadata.py`: tags/favoritos/notas/NLP/scraping)
+- [x] SRP-1c-3 — `SyncMixin` (`sync.py`: saves + sync log)
+- [x] SRP-1c-4 — `AssetsMixin` (`assets.py`)
+- [x] SRP-1c-5 — `DuplicatesMixin` (`duplicates.py`: duplicados + wishlist)
+- [x] SRP-1c-6 — `LibraryRepository` ensambla los mixins; tests + ruff
 
 ---
 
@@ -67,11 +161,11 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE4-1 | Human-readable errors — capturar excepciones en handlers y devolver mensaje legible | ⬜ |
-| PHASE4-2 | Contextual help — tooltips y `?` icons por sección | ⬜ |
-| PHASE4-3 | Responsive UI — media queries para viewport 480px (Android browser) | ⬜ |
-| PHASE4-4 | Windows toast notifications en sync complete / inbox detected | ⬜ |
-| PHASE4-5 | Renombrar jargon: "DATs" → "Base de datos", "SHA1 match" → "Identificación automática" | ⬜ |
+| PHASE4-1 | Human-readable errors — `_readable_error()` central en `server.py` mapea excepciones a mensaje legible + log de traceback; router simplificado | ✅ (rama `feature/phase4-1-readable-errors`) |
+| PHASE4-2 | Contextual help — componente `.help-icon` (tooltip CSS-only) + hints en Overview/Settings | ✅ (rama `feature/phase4-2-contextual-help`) |
+| PHASE4-3 | Responsive UI — breakpoint `≤480px` (sidebar icon-rail, grid 1 col, touch 44px) | ✅ (rama `feature/phase4-3-responsive`) |
+| PHASE4-4 | Windows toast notifications en sync complete / inbox detected — `utils/notifier.py` (PowerShell `Windows.UI.Notifications`, stdlib-only, no-op off-Windows). Enganchado a sync (cloud+cable), CLI, health check e **inbox detectado** (`daemons.py`); gate `config.notify_desktop`. Tests: `tests/test_notifier.py` (escape + degradación) | ✅ (rama `feature/phase4-4-windows-toasts`) |
+| PHASE4-5 | Renombrar jargon (conservador término + glosa): Match→Identificar, SHA1→Huella (SHA1), DAT→base de datos de juegos | ✅ (rama `feature/phase4-5-rename-jargon`) |
 
 ### Phase 5 — Auth
 
@@ -232,50 +326,52 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 |----|-----------|------|---------|--------|
 | ARC-JM-1 | 🟠 Alto | **Instanciar `JobManager` y exponerlo en `make_handler`** — Crear `_job_manager = JobManager()` a nivel de módulo en `server.py` y pasarlo a todos los handlers vía `register(router, ..., job_manager=_job_manager)`. | `web/server.py`, `web/jobs/manager.py` | ✅ Instanciado + cableado a los 8 handlers; `"tree_diff"` y `"verify_chd"` añadidos a `JOB_NAMES` |
 | ARC-JM-2 | 🟠 Alto | **Migrar handlers de scan y apply al JobManager** — Reemplazar accesos a `m._scan_progress`, `m._apply_progress`, `m._jobs["scan"]`, `m._job_results["scan"]` por llamadas a `job_manager`. | `web/handlers/scan.py` | ✅ `_do_scan`, `_do_adb_scan`, `_do_match`, `_do_apply` migrados; `get_job_status` híbrido hasta ARC-JM-6 |
-| ARC-JM-3 | 🟠 Alto | **Migrar handlers de sync y cable al JobManager** | `web/handlers/sync.py` | 🔶 `sync`/`tree_diff` migrados; `cable_sync` bloqueado |
-| ARC-JM-3a | | ↳ Añadir parámetro `on_progress(data)` a `run_cable_sync_loop()` y eliminar el late import de `server.py` | `sync/cable_sync_daemon.py` | ⬜ |
-| ARC-JM-3b | | ↳ En `server.py`, pasar `lambda data: job_manager.update("cable_sync", data)` al arrancar el daemon | `web/server.py` | ⬜ |
-| ARC-JM-3c | | ↳ Migrar handler `cable_sync` en `sync.py` — reemplazar refs a `m._cable_progress` / `m._cable_cancel` por `job_manager` | `web/handlers/sync.py` | ⬜ |
+| ARC-JM-3 | 🟠 Alto | **Migrar handlers de sync y cable al JobManager** | `web/handlers/sync.py`, `sync_cable.py` | ✅ `sync`/`tree_diff` + `cable_sync` migrados (rama `refactor/arc-jm-cable`) |
+| ARC-JM-3a | | ↳ Daemons de cable (`_auto_sync_loop`, `_run_sd_auto_sync`, `_sd_card_sync_loop`) usan `_state._job_manager` directamente (patrón inbox/health) | `web/cable_sync_daemon.py` | ✅ |
+| ARC-JM-3b | | ↳ *(replanteado)* sin `on_progress` ni cableado en `server.py`: el patrón establecido es `_state._job_manager` directo | `web/cable_sync_daemon.py` | ✅ |
+| ARC-JM-3c | | ↳ Handler `cable_sync` (en `sync_cable.py`, no `sync.py`) + hub `job-status`/`stop-job` en `scan.py` → `job_manager` | `web/handlers/sync_cable.py`, `scan.py` | ✅ |
 | ARC-JM-4 | 🟡 Medio | **Migrar handlers de CHD, CSO, ZIP, scraper, health, RA al JobManager** — 6 handlers con patrón idéntico. | `handlers/organize.py`, `handlers/scraper.py`, `handlers/games.py` | ✅ ZIP + health en `esde.py`; RA en `sync.py` + scheduler en `server.py`; scraper/CHD/CSO/verifyChd ya migrados. `scan.py` híbrido limpiado. |
 | ARC-JM-5 | 🟡 Medio | **Migrar handler de inbox y setup al JobManager** — Reemplazar `m._inbox_progress`, `m._setup_progress`. | `handlers/inbox.py`, `web/server.py` (setup) | ✅ `_run_inbox_pipeline` y `_run_setup_pipeline` usan `job_manager`; watcher migrado; `get_setup_status` e `inbox-status` limpios. |
-| ARC-JM-6 | 🟡 Medio | **Eliminar los 12 dicts globales y `srv_mod`** — Bloqueado por ARC-JM-3 | `web/server.py` | ⬜ |
-| ARC-JM-6a | | ↳ Verificar migración completa: grep por `_progress`, `_jobs`, `_job_results` en `server.py` | `web/server.py` | ⬜ |
-| ARC-JM-6b | | ↳ Eliminar los 12 dicts de progreso (`_chd_progress`, `_cso_progress`, `_cable_progress`, …) | `web/server.py` | ⬜ |
-| ARC-JM-6c | | ↳ Eliminar `_jobs` y `_job_results` | `web/server.py` | ⬜ |
-| ARC-JM-6d | | ↳ Eliminar parámetro `srv_mod` de `make_handler` y actualizar los 8 `register()` | `web/server.py`, handlers | ⬜ |
+| ARC-JM-6 | 🟡 Medio | **Eliminar los globales legados y `srv_mod`** | `web/state.py`, `server.py`, handlers | ✅ rama `refactor/arc-jm-cleanup` |
+| ARC-JM-6a | | ↳ Auditados todos los globales legados en `web/` (grep exhaustivo) | — | ✅ |
+| ARC-JM-6b | | ↳ Eliminados los 12 `_*_progress` + los 10 `_*_cancel` de `state.py` (muertos) | `web/state.py` | ✅ |
+| ARC-JM-6c | | ↳ Eliminados `_jobs`/`_job_results`/`_job_lock` + helper muerto `_start_job`; repuntado `duplicates.py` (`ra_check`) a `job_manager` (arregla bug latente) | `web/state.py`, `server.py`, `duplicates.py` | ✅ |
+| ARC-JM-6d | | ↳ Eliminado `srv_mod` de `make_handler` + 8 `register()` (+ alias `_srv_mod`); 7 accesos `srv_mod.X` → `_state.X` | `web/server.py`, handlers | ✅ |
 
-> **Orden:** ARC-JM-1 → ARC-JM-2 → ARC-JM-3 → ARC-JM-4 → ARC-JM-5 → ARC-JM-6
+> **Orden:** ARC-JM-1 → ARC-JM-2 → ARC-JM-3 → ARC-JM-4 → ARC-JM-5 → ARC-JM-6 — **todos ✅**
 
 ### Pendientes — Split de AppConfig (ARC-3)
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| ARC-CFG-3 | 🟡 Medio | **Mover `is_device_connected()` fuera de `AppConfig`** | `config.py:215-268` | ⬜ |
-| ARC-CFG-3a | | ↳ Crear `sync/device_detector.py` con `is_device_connected(adb_path, android_root)` | `sync/device_detector.py` (nuevo) | ⬜ |
-| ARC-CFG-3b | | ↳ Eliminar método de `AppConfig`; actualizar todos los callers a importar de `device_detector` | `config.py`, callers | ⬜ |
-| ARC-CFG-1 | 🟡 Medio | **Extraer `SyncConfig`** — `rclone_remote`, `auto_sync_*`, `conflict_policy`, `saves_remote`, `states_remote`, `sync_sources` | `config.py` | ⬜ |
-| ARC-CFG-1a | | ↳ Definir dataclass `SyncConfig` con defaults en `config.py` | `config.py` | ⬜ |
-| ARC-CFG-1b | | ↳ Sustituir campos planos en `AppConfig` por `sync: SyncConfig` | `config.py` | ⬜ |
-| ARC-CFG-1c | | ↳ Actualizar `to_dict()` / `from_dict()` | `config.py` | ⬜ |
-| ARC-CFG-1d | | ↳ Actualizar callers en `handlers/sync.py` y `handlers/config.py` | handlers | ⬜ |
-| ARC-CFG-2 | 🟡 Medio | **Extraer `CredentialsConfig`** — `screenscraper_*`, `ra_api_key`, `ra_username`, `web_pin_*` | `config.py` | ⬜ |
-| ARC-CFG-2a | | ↳ Definir dataclass `CredentialsConfig` | `config.py` | ⬜ |
-| ARC-CFG-2b | | ↳ Mover campos + actualizar serialización (enmascarar en logs) | `config.py` | ⬜ |
-| ARC-CFG-2c | | ↳ Actualizar callers en scraper, RA y auth | handlers | ⬜ |
-| ARC-CFG-4 | ⚪ Bajo | **Extraer `InboxConfig` y `BackupConfig`** | `config.py` | ⬜ |
-| ARC-CFG-4a | | ↳ Definir `InboxConfig`; mover campos `inbox_*` | `config.py` | ⬜ |
-| ARC-CFG-4b | | ↳ Definir `BackupConfig`; mover campos `backup_*` | `config.py` | ⬜ |
-| ARC-CFG-4c | | ↳ Actualizar callers en `handlers/inbox.py` y server | handlers | ⬜ |
+| ARC-CFG-3 | 🟡 Medio | **Mover `is_device_connected()` fuera de `AppConfig`** | `sync/device_detector.py` | ✅ (#24) |
+| ARC-CFG-3a | | ↳ Crear `sync/device_detector.py` con `is_device_connected(adb_path, android_root)` | `sync/device_detector.py` | ✅ |
+| ARC-CFG-3b | | ↳ Eliminar método de `AppConfig`; actualizar callers a importar de `device_detector` | `config.py`, callers | ✅ |
+| ARC-CFG-1 | 🟡 Medio | **Extraer `SyncConfig`** — `rclone_remote`, `auto_sync_*`, `conflict_policy`, `saves_remote`, `states_remote`, `sync_sources` | `config.py` | ✅ (#25) |
+| ARC-CFG-1a | | ↳ Definir dataclass `SyncConfig` con defaults en `config.py` | `config.py` | ✅ |
+| ARC-CFG-1b | | ↳ Sustituir campos planos en `AppConfig` por `sync: SyncConfig` | `config.py` | ✅ |
+| ARC-CFG-1c | | ↳ Actualizar `load_config` (construcción anidada) | `config.py` | ✅ |
+| ARC-CFG-1d | | ↳ Actualizar ~40 callers a `config.sync.X` (cli, server, daemons, handlers, builders) | varios | ✅ |
+| ARC-CFG-2 | 🟡 Medio | **Extraer `CredentialsConfig`** — `screenscraper_*`, `ra_api_key`, `ra_username`, `web_pin_*` | `config.py` | ✅ (#26) |
+| ARC-CFG-2a | | ↳ Definir dataclass `CredentialsConfig` (secretos con `repr=False`) | `config.py` | ✅ |
+| ARC-CFG-2b | | ↳ Mover campos + `load_config` anidado; secretos no se filtran en logs/tracebacks | `config.py` | ✅ |
+| ARC-CFG-2c | | ↳ Actualizar callers en scraper, RA, auth y server | handlers | ✅ |
+| ARC-CFG-4 | ⚪ Bajo | **Extraer `InboxConfig` y `BackupConfig`** | `config.py` | ✅ (en rama) |
+| ARC-CFG-4a | | ↳ Definir `InboxConfig`; mover campos `inbox_*` → `config.inbox.*` | `config.py` | ✅ |
+| ARC-CFG-4b | | ↳ Definir `BackupConfig`; mover `backup_*`/`pre_sync_backup` → `config.backup.*` | `config.py` | ✅ |
+| ARC-CFG-4c | | ↳ Actualizar callers (daemons, inbox, organize, sync_cloud, games, builders) | handlers | ✅ |
 
-> **Orden:** ARC-CFG-3 → ARC-CFG-1 → ARC-CFG-2 → ARC-CFG-4
+
+> **Orden:** ARC-CFG-3 → ARC-CFG-1 → ARC-CFG-2 → ARC-CFG-4 — **todos ✅** (split de `AppConfig` completo).
 
 ### Pendientes — Capa de servicio (ARC-5)
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| ARC-SVC-1 | ⚪ Bajo | **Extraer lógica de negocio de `duplicates.py`** — Bloqueado por ARC-JM-6 | `web/handlers/duplicates.py` | ⬜ |
-| ARC-SVC-1a | | ↳ Crear `services/duplicates_service.py` con `delete_duplicate(repo, path)` y `delete_all_duplicates(repo, paths)` como funciones puras (sin `ctx`) | `services/` (nuevo) | ⬜ |
-| ARC-SVC-1b | | ↳ Slim down handler — delegar a las funciones del service | `web/handlers/duplicates.py` | ⬜ |
+| ARC-SVC-1 | ⚪ Bajo | **Extraer lógica de negocio de `duplicates.py`** | `web/handlers/duplicates.py` | ✅ (en rama) |
+| ARC-SVC-1a | | ↳ `services/duplicates_service.py` con `delete_duplicate` y `delete_all_duplicates` puras (sin `ctx`, devuelven dict serializable); `_force_remove` movido al service | `services/` (nuevo) | ✅ |
+| ARC-SVC-1b | | ↳ Handler delega: rutas `/api/duplicates/delete{,-all}` llaman al service y hacen `_send_json`; tests unitarios en `tests/test_duplicates_service.py` | `web/handlers/duplicates.py` | ✅ |
+| ARC-SVC-1c | | ↳ `services/ra_duplicates_service.py`: `apply_ra_conflicts`, `discard_ra_duplicate`, `discard_all_ra_duplicates`, `discard_no_support`, `resolve_duplicate_ra` (puras). Helper `_discard_file` unifica las 4 variantes de descarte a `_descartados/` y **corrige el commit ausente** de discard-no-support (fila no se borraba). Handler queda como router fino (~145 líneas, era 550). Tests: `tests/test_ra_duplicates_service.py` + `test_apply_ra_conflicts.py` migrado al service | `services/`, `web/handlers/duplicates.py` | ✅ |
 
 ---
 

@@ -20,7 +20,7 @@
     <div class="dash-sep"></div>
     <div class="dash-stat" style="flex:1.5">
       <div class="ds-num" id="ds-health">—</div>
-      <div class="ds-lbl">salud biblioteca</div>
+      <div class="ds-lbl">salud biblioteca <span class="help-icon" tabindex="0" data-tip="Porcentaje de ROMs sin problemas: identificadas en catálogo, sin duplicados y sin archivos corruptos o ausentes.">?</span></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-left:1px solid var(--border);flex-shrink:0">
       <button class="btn" onclick="showTab(\'sync\')" style="font-size:12px;padding:5px 14px;white-space:nowrap">&#x21D5; Sync</button>
@@ -97,7 +97,7 @@
 
   <!-- Rutas principales -->
   <div class="actions-panel" style="margin-bottom:16px">
-    <h3>Rutas</h3>
+    <h3>Rutas <span class="help-icon" tabindex="0" data-tip="«Carpeta del ordenador»: donde viven tus ROMs y saves en el PC. «Consola Android»: solo hace falta para escanear o copiar archivos a la consola (SD o red local, no MTP directo).">?</span></h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpeta del ordenador</label>
@@ -143,7 +143,7 @@
           <span style="color:#4ec9b0"><span id="scan-adb-device-name">Consola Android</span> por ADB</span> <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
         </label>
       </div>
-      <label class="fmt-check" style="margin-left:auto" title="No calcula hashes — mucho más rápido, pero Match y Sync no funcionarán hasta hacer un scan completo">
+      <label class="fmt-check" style="margin-left:auto" title="No calcula huellas — mucho más rápido, pero Identificar y Sync no funcionarán hasta hacer un scan completo">
         <input type="checkbox" id="scan-quick"> Rápido (sin hash)
       </label>
       <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
@@ -173,7 +173,7 @@
     </div>
 
     <div class="actions-row">
-      <button id="btn-match" class="btn primary" onclick="doMatch()">Match catálogos</button>
+      <button id="btn-match" class="btn primary" onclick="doMatch()">Identificar (catálogos)</button>
       <span style="color:#555;font-size:12px">Asocia los ROMs escaneados a No-Intro / Redump</span>
     </div>
 
@@ -201,18 +201,18 @@
       configura las rutas en el panel de arriba y pulsa <strong style="color:#d4d4d4">Guardar rutas</strong>.
       La <em>Carpeta del ordenador</em> es donde viven tus ROMs y saves en el PC.
       La <em>consola</em> solo es necesaria si quieres escanear o copiar archivos de la consola.
-      Si tienes catálogos DAT (No-Intro / Redump), colócalos en <code style="color:#ce9178">catalogs/</code> para poder hacer Match.
+      Si tienes una base de datos de juegos (DAT de No-Intro / Redump), colócala en <code style="color:#ce9178">catalogs/</code> para poder Identificar.
     </div>
 
     <!-- Pasos -->
     <div style="display:flex;gap:0">
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
         <div style="color:#4ec9b0;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:#d4d4d4">Scan</strong>. Se calcula el hash SHA1/MD5 de cada ROM y se indexa en la base de datos local.<br><span style="color:#555;font-size:11px">Usa Quick para solo actualizar el inventario sin hashear.</span></div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:#d4d4d4">Scan</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:#555;font-size:11px">Usa Quick para solo actualizar el inventario sin calcular huellas.</span></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">
-        <div style="color:#569cd6;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Match</div>
-        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Match catálogos</strong>. Cada ROM se compara contra los DAT de No-Intro y Redump para obtener su título canónico, región y revisión.</div>
+        <div style="color:#569cd6;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Identificar</div>
+        <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:#d4d4d4">Identificar (catálogos)</strong>. Cada ROM se compara contra la base de datos de juegos (DAT de No-Intro y Redump) para obtener su título canónico, región y revisión.</div>
         <div id="ov-catalog-status" style="margin-top:6px;font-size:11px"></div>
       </div>
       <div style="flex:1;background:#1e1e2e;border:1px solid #333;border-right:none;padding:14px 16px">

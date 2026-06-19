@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
-import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+_logger = logging.getLogger(__name__)
 
 
 def register_cable(
@@ -20,7 +21,6 @@ def register_cable(
     *,
     config: AppConfig,
     repository: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register ADB / cable-sync routes on *router*."""
@@ -71,14 +71,14 @@ def register_cable(
     # ── GET /api/sync-log ────────────────────────────────────────────────────
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
-        from rom_manager.web.response_builders import _build_sync_log
+        from rom_manager.web.builders.misc import _build_sync_log
 
         ctx._send_json(_build_sync_log(repository))
 
     # ── GET /api/cable-sync-preview ──────────────────────────────────────────
     @router.get("/api/cable-sync-preview")
     def get_cable_sync_preview(ctx) -> None:
-        from rom_manager.web.response_builders import _build_cable_sync_preview
+        from rom_manager.web.builders.misc import _build_cable_sync_preview
 
         ctx._send_json(_build_cable_sync_preview(getattr(ctx, "_qs", {}), config))
 
@@ -97,7 +97,7 @@ def register_cable(
     # ── POST /api/cable-sync ─────────────────────────────────────────────────
     @router.post("/api/cable-sync")
     def post_cable_sync(ctx) -> None:
-        _do_cable_sync(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_cable_sync(ctx, ctx._post_data, config, repository, job_manager)
 
     # ── POST /api/rom-tree-diff ──────────────────────────────────────────────
     @router.post("/api/rom-tree-diff")
@@ -106,7 +106,7 @@ def register_cable(
 
 
 def _do_cable_sync(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
     pc_path_str = data.get("pc_path", "").strip()
     anbernic_path_str = data.get("anbernic_path", "").strip()
@@ -131,16 +131,10 @@ def _do_cable_sync(
         ctx._send_json({"error": "anbernic_path is required"})
         return
 
-    m = srv_mod
-    with m._job_lock:
-        if m._jobs["cable_sync"]:
-            ctx._send_json({"status": "already_running"})
-            return
-        m._jobs["cable_sync"] = True
-
     def run() -> None:
-        m._cable_cancel.clear()
+        cancel_event = job_manager.cancel_event("cable_sync")
         _log_file = None
+        job_result: dict | None = None
         try:
             import datetime as _dt
             import time as _time
@@ -198,30 +192,29 @@ def _do_cable_sync(
 
             _last_speed_update = _time.monotonic()
             _last_speed_bytes = 0
+            _last_speed = 0.0
 
             def _update_progress(file_name: str = "") -> None:
-                nonlocal _last_speed_update, _last_speed_bytes
+                nonlocal _last_speed_update, _last_speed_bytes, _last_speed
                 now = _time.monotonic()
                 dt = now - _last_speed_update
-                speed = 0.0
                 if dt >= 0.5:
-                    speed = (copied_bytes - _last_speed_bytes) / dt
+                    _last_speed = (copied_bytes - _last_speed_bytes) / dt
                     _last_speed_update = now
                     _last_speed_bytes = copied_bytes
-                elif m._cable_progress.get("speed_bps") is not None:
-                    speed = m._cable_progress.get("speed_bps", 0.0)
-                m._cable_progress.update(
+                job_manager.update_progress(
+                    "cable_sync",
                     {
                         "copied": copied,
                         "bytes_copied": copied_bytes,
-                        "speed_bps": speed,
+                        "speed_bps": _last_speed,
                         "current_file": file_name,
-                    }
+                    },
                 )
 
             def _copy(src: Path, dst: Path, arrow: str) -> None:
                 nonlocal copied, skipped, errors, copied_bytes, safe_mode_skipped
-                if m._cable_cancel.is_set():
+                if cancel_event.is_set():
                     return
                 try:
                     src_stat = src.stat()
@@ -266,7 +259,7 @@ def _do_cable_sync(
 
                 def _adb_copy_to_pc(adb_info, rel_posix: str, arrow: str) -> None:
                     nonlocal copied, errors, copied_bytes
-                    if m._cable_cancel.is_set():
+                    if cancel_event.is_set():
                         return
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
@@ -288,7 +281,7 @@ def _do_cable_sync(
 
                 def _adb_copy_to_device(local_src: Path, rel_posix: str, arrow: str) -> None:
                     nonlocal copied, errors, copied_bytes
-                    if m._cable_cancel.is_set():
+                    if cancel_event.is_set():
                         return
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
                     try:
@@ -305,8 +298,9 @@ def _do_cable_sync(
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": local_src.name})
 
-                m._cable_progress.update(
-                    {"copied": 0, "current_file": "Listando archivos en el dispositivo…"}
+                job_manager.update_progress(
+                    "cable_sync",
+                    {"copied": 0, "current_file": "Listando archivos en el dispositivo…"},
                 )
                 ab_adb_files = transport.ls_recursive(android_path)
                 try:
@@ -320,22 +314,25 @@ def _do_cable_sync(
                         for info in ab_adb_files
                         if _wanted_name(PurePosixPath(info.android_path).name)
                     )
-                    m._cable_progress.update(
+                    job_manager.update_progress(
+                        "cable_sync",
                         {
                             "bytes_total": _pre_total,
                             "total_files": _pre_files,
                             "copied": 0,
                             "bytes_copied": 0,
                             "speed_bps": 0.0,
-                        }
+                        },
                     )
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "No se pudo actualizar el progreso de cable-sync (ADB)", exc_info=True
+                    )
                 android_prefix = android_path.rstrip("/") + "/"
 
                 if direction == "pc_to_anbernic":
                     for src in _iter_files(pc_root):
-                        if m._cable_cancel.is_set():
+                        if cancel_event.is_set():
                             break
                         if not _wanted(src):
                             continue
@@ -343,7 +340,7 @@ def _do_cable_sync(
                         rel_posix = rel.as_posix()
                         _adb_copy_to_device(src, rel_posix, "→ ADB")
 
-                    if delete_extra and not m._cable_cancel.is_set():
+                    if delete_extra and not cancel_event.is_set():
                         _pc_rels = {
                             f.relative_to(pc_root).as_posix()
                             for f in _iter_files(pc_root)
@@ -375,7 +372,7 @@ def _do_cable_sync(
                 elif direction == "anbernic_to_pc":
                     use_sha1 = skip_sha1_dups and "roms" in what
                     for info in ab_adb_files:
-                        if m._cable_cancel.is_set():
+                        if cancel_event.is_set():
                             break
                         name = PurePosixPath(info.android_path).name
                         if not _wanted_name(name):
@@ -420,7 +417,7 @@ def _do_cable_sync(
                         else:
                             _adb_copy_to_pc(info, rel_posix, "← ADB")
 
-                    if delete_extra and not m._cable_cancel.is_set():
+                    if delete_extra and not cancel_event.is_set():
                         _ab_rels = {
                             _i.android_path.removeprefix(android_prefix)
                             for _i in ab_adb_files
@@ -456,7 +453,7 @@ def _do_cable_sync(
 
                     all_rels = sorted(set(pc_index) | set(ab_index))
                     for rel_posix in all_rels:
-                        if m._cable_cancel.is_set():
+                        if cancel_event.is_set():
                             break
                         pc_f = pc_index.get(rel_posix)
                         ab_inf = ab_index.get(rel_posix)
@@ -510,21 +507,24 @@ def _do_cable_sync(
                                 except OSError:
                                     pass
                                 _pre_files += 1
-                    m._cable_progress.update(
+                    job_manager.update_progress(
+                        "cable_sync",
                         {
                             "bytes_total": _pre_total,
                             "total_files": _pre_files,
                             "copied": 0,
                             "bytes_copied": 0,
                             "speed_bps": 0.0,
-                        }
+                        },
                     )
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "No se pudo actualizar el progreso de cable-sync (SD)", exc_info=True
+                    )
 
                 if direction == "pc_to_anbernic":
                     for src in _iter_files(pc_root):
-                        if m._cable_cancel.is_set():
+                        if cancel_event.is_set():
                             break
                         if not _wanted(src):
                             continue
@@ -532,7 +532,7 @@ def _do_cable_sync(
                         dst = ab_root / rel
                         _copy(src, dst, "→ Anbernic")
 
-                    if delete_extra and not m._cable_cancel.is_set():
+                    if delete_extra and not cancel_event.is_set():
                         _pc_rels = {
                             f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)
                         }
@@ -561,7 +561,7 @@ def _do_cable_sync(
                     if use_sha1:
                         from rom_manager.hashing.hash_calculator import calculate_hashes
                     for src in _iter_files(ab_root):
-                        if m._cable_cancel.is_set():
+                        if cancel_event.is_set():
                             break
                         if not _wanted(src):
                             continue
@@ -584,7 +584,7 @@ def _do_cable_sync(
                         dst = pc_root / rel
                         _copy(src, dst, "← PC")
 
-                    if delete_extra and not m._cable_cancel.is_set():
+                    if delete_extra and not cancel_event.is_set():
                         _ab_rels: set[Path] = set()
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
@@ -625,7 +625,7 @@ def _do_cable_sync(
 
                     all_rels_fs = sorted(set(pc_files) | set(ab_files), key=lambda p: str(p))
                     for rel in all_rels_fs:
-                        if m._cable_cancel.is_set():
+                        if cancel_event.is_set():
                             break
                         pc_f = pc_files.get(rel)
                         ab_f = ab_files.get(rel)
@@ -647,7 +647,7 @@ def _do_cable_sync(
 
             _ts1 = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _log_file.write(
-                f"=== Fin {_ts1} | copied={copied} skipped={skipped} safe_skipped={safe_mode_skipped} deleted_extra={deleted_extra} errors={errors} cancelled={m._cable_cancel.is_set()} ===\n"
+                f"=== Fin {_ts1} | copied={copied} skipped={skipped} safe_skipped={safe_mode_skipped} deleted_extra={deleted_extra} errors={errors} cancelled={cancel_event.is_set()} ===\n"
             )
             _pc_file_count = 0
             _ab_file_count = 0
@@ -658,14 +658,18 @@ def _do_cable_sync(
                         if _wanted(_ff):
                             _pc_file_count += 1
                 except Exception:
-                    pass
+                    _logger.debug(
+                        "Conteo de archivos en PC para preview de sync falló", exc_info=True
+                    )
                 try:
                     for _ff in _iter_files(_ab_r):
                         if _wanted(_ff):
                             _ab_file_count += 1
                 except Exception:
-                    pass
-            m._job_results["cable_sync"] = {
+                    _logger.debug(
+                        "Conteo de archivos en Android para preview de sync falló", exc_info=True
+                    )
+            job_result = {
                 "dry_run": dry_run,
                 "direction": direction,
                 "use_adb": use_adb,
@@ -675,13 +679,13 @@ def _do_cable_sync(
                 "safe_mode_skipped_overwrites": safe_mode_skipped,
                 "errors": errors,
                 "copied_bytes": copied_bytes,
-                "cancelled": m._cable_cancel.is_set(),
+                "cancelled": cancel_event.is_set(),
                 "deleted_extra": deleted_extra,
                 "details": details,
                 "pc_file_count": _pc_file_count,
                 "ab_file_count": _ab_file_count,
             }
-            if not dry_run and not m._cable_cancel.is_set() and config.notify_desktop:
+            if not dry_run and not cancel_event.is_set() and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
 
                 _via = "ADB" if use_adb else "SD"
@@ -690,19 +694,19 @@ def _do_cable_sync(
                     _body += f" ({errors} errores)"
                 notify("Retro Vault — Cable Sync completado", _body)
         except Exception as exc:
-            m._job_results["cable_sync"] = {"error": str(exc)}
+            job_result = {"error": str(exc)}
         finally:
             if _log_file is not None:
                 try:
                     _log_file.close()
                 except Exception:
-                    pass
-            with m._job_lock:
-                m._cable_progress.clear()
-                m._jobs["cable_sync"] = False
+                    _logger.debug("No se pudo cerrar el log de cable-sync", exc_info=True)
+            job_manager.finish("cable_sync", job_result)
 
-    threading.Thread(target=run, daemon=True).start()
-    ctx._send_json({"status": "started", "dry_run": dry_run})
+    result = job_manager.start("cable_sync", run)
+    if result.get("status") == "started":
+        result = {**result, "dry_run": dry_run}
+    ctx._send_json(result)
 
 
 def _do_tree_diff(ctx, data: dict, config: AppConfig, job_manager: JobManager) -> None:
@@ -717,7 +721,7 @@ def _do_tree_diff(ctx, data: dict, config: AppConfig, job_manager: JobManager) -
     and_path_str = (
         data.get("android_path", "").strip()
         or config.anbernic_root
-        or config.auto_sync_android_path
+        or config.sync.auto_sync_android_path
     )
 
     def run() -> None:

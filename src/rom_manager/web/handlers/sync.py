@@ -4,8 +4,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -24,7 +22,6 @@ def register(
     repository: LibraryRepository,
     repo_android: LibraryRepository,
     start_ra_check_fn: Callable[[str], bool],
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register sync / cable-sync / rclone / ADB / auto-sync routes on *router*."""
@@ -33,7 +30,6 @@ def register(
         router,
         config=config,
         repository=repository,
-        srv_mod=srv_mod,
         job_manager=job_manager,
     )
 
@@ -42,7 +38,6 @@ def register(
         config=config,
         repository=repository,
         repo_android=repo_android,
-        srv_mod=srv_mod,
         job_manager=job_manager,
     )
 
@@ -50,7 +45,7 @@ def register(
     @router.post("/api/ra-check")
     def post_ra_check(ctx) -> None:
         data = ctx._post_data
-        api_key = data.get("api_key", "").strip() or config.ra_api_key
+        api_key = data.get("api_key", "").strip() or config.credentials.ra_api_key
         if not api_key:
             ctx._send_json({"error": "RetroAchievements API key not configured"})
             return

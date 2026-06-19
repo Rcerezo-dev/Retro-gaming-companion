@@ -8,9 +8,9 @@ CI/CD y GitHub Actions: `docs/ci-cd.md` (lint+format+pytest, branch protection, 
 
 ## Entorno de ejecución
 
-- Conda: `C:\Users\rammu\anaconda3\envs\rom_manager` (Python 3.12)
+- Conda: `C:\Users\Ruben\anaconda3\envs\rom_manager` (Python 3.12)
 - Lanzador: `scripts\rommgr.cmd`
-- Directo: `C:\Users\rammu\anaconda3\envs\rom_manager\python.exe -m rom_manager <cmd>`
+- Directo: `C:\Users\Ruben\anaconda3\envs\rom_manager\python.exe -m rom_manager <cmd>`
 - `chdman` en `tools/chdman.exe` — NO en PATH
 - `adb` en `tools/adb.exe`
 
@@ -71,13 +71,17 @@ with repository.connect() as conn:  # lecturas
 # repository.batch() para escrituras en bulk
 ```
 
-### Late imports (evitar circular imports)
+### Estado compartido vía web/state.py (CLEAN-1)
 ```python
-# cable_sync_daemon.py e inbox_pipeline.py importan server.py dentro de la función:
+# El estado mutable global vive en rom_manager.web.state, importado a nivel
+# de módulo (NO late import). server.py importa los handlers también a nivel
+# de módulo (ninguno importa server → sin ciclo).
+import rom_manager.web.state as _state
+
 def _auto_sync_loop(config, get_repo_fn):
-    import rom_manager.web.server as _srv
-    _srv._auto_sync_status = {"state": "syncing"}  # reasignación → siempre via _srv.xxx
-    _cable_progress = _srv._cable_progress          # mutación → binding local válido
+    _state._auto_sync_status = {"state": "syncing"}  # reasignación → siempre via _state.xxx
+    _cable_progress = _state._cable_progress          # mutación → binding local válido
+# srv_mod= que reciben los handlers es un alias legado de web.state (se elimina en ARC-JM-6).
 ```
 
 ### Static files

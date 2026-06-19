@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+import logging
 import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
 
+
+_logger = logging.getLogger(__name__)
 
 _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ...}
 _ra_hash_cache: dict = {}  # (cid, mtime) → (hash_map, title_index)
@@ -49,6 +50,7 @@ def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
                         try:
                             hl = _parse_game_list(_json.loads(cf.read_text("utf-8")))
                         except Exception:
+                            _logger.warning("Caché RA corrupta o ilegible: %s", cf, exc_info=True)
                             hl = {}
                         _ra_hash_cache[key] = hl
                     hl = _ra_hash_cache[key]
@@ -62,6 +64,7 @@ def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
                 g["ra_game_id"] = rg.id
                 g["ra_achievements"] = rg.achievements
         except Exception:
+            _logger.debug("Anotación RA de un juego falló; se omite", exc_info=True)
             continue
 
 
@@ -74,7 +77,6 @@ def register(
     config: AppConfig,
     repository: LibraryRepository,
     get_repo_fn,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register game library / backup / launch routes on *router*."""
@@ -82,7 +84,7 @@ def register(
     # ── GET /api/games ───────────────────────────────────────────────────────
     @router.get("/api/games")
     def get_games(ctx) -> None:
-        from rom_manager.web.response_builders import _build_games
+        from rom_manager.web.builders.library import _build_games
 
         qs = getattr(ctx, "_qs", {})
         offset = int(qs.get("offset", ["0"])[0])
@@ -210,8 +212,8 @@ def register(
         ctx._send_json(
             {
                 "backups": all_entries,
-                "backup_enabled": config.backup_saves_enabled,
-                "keep_n": config.backup_saves_keep_n,
+                "backup_enabled": config.backup.saves_enabled,
+                "keep_n": config.backup.saves_keep_n,
             }
         )
 
@@ -286,6 +288,9 @@ def register(
                             try:
                                 _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
                             except Exception:
+                                _logger.warning(
+                                    "Caché RA corrupta o ilegible: %s", _cf, exc_info=True
+                                )
                                 _hl = {}
                             _ra_hash_cache[_key] = _hl
                         _rg = _ra_hash_cache[_key].get(_md5.lower())
@@ -295,7 +300,7 @@ def register(
                             result["ra_achievements"] = _rg.achievements
                             result["ra_points"] = _rg.points
         except Exception:
-            pass
+            _logger.debug("Anotación RA en detalle de juego falló", exc_info=True)
         # saves count by stem matching
         try:
             import os as _os2
@@ -310,6 +315,7 @@ def register(
                     ).fetchone()
                     result["saves_count"] = _row2[0] if _row2 else 0
         except Exception:
+            _logger.warning("Conteo de saves por stem falló", exc_info=True)
             result["saves_count"] = 0
         ctx._send_json(result)
 
@@ -327,8 +333,8 @@ def register(
             ctx._send_json({"error": "ra_game_id must be integer"})
             return
 
-        api_key = config.ra_api_key
-        username = config.ra_username
+        api_key = config.credentials.ra_api_key
+        username = config.credentials.ra_username
         if not api_key or not username:
             ctx._send_json(
                 {
@@ -524,7 +530,7 @@ def register(
                 saves_dirs = []
                 if config.library_root and config.library_root.exists():
                     saves_dirs.append(config.library_root)
-                for src in config.sync_sources:
+                for src in config.sync.sync_sources:
                     p = Path(src.local_dir)
                     if p.exists() and p not in saves_dirs:
                         saves_dirs.append(p)

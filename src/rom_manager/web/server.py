@@ -3,17 +3,28 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-import threading
-from collections.abc import Callable
+import sqlite3
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import rom_manager.web.handlers.collection as _h_collection
+import rom_manager.web.handlers.config as _h_config
+import rom_manager.web.handlers.duplicates as _h_duplicates
+import rom_manager.web.handlers.esde as _h_esde
+import rom_manager.web.handlers.games as _h_games
+import rom_manager.web.handlers.inbox as _h_inbox
+import rom_manager.web.handlers.organize as _h_organize
+import rom_manager.web.handlers.play_history as _h_play_history
+import rom_manager.web.handlers.scan as _h_scan
+import rom_manager.web.handlers.scraper as _h_scraper
+import rom_manager.web.handlers.sync as _h_sync
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.web import auth as _auth
+from rom_manager.web.builders.common import _json_response, _repo_for_path, _utc_now_str
 from rom_manager.web.daemons import start_all as _start_all_daemons
 from rom_manager.web.frontend import HTML
 
@@ -23,28 +34,8 @@ from rom_manager.web.handlers.system import (  # noqa: F401
     _ES_PLATFORM_FOLDERS,
     _STANDARD_PLATFORM_FOLDERS,
 )
-from rom_manager.web.response_builders import _json_response, _repo_for_path, _utc_now_str
-from rom_manager.web.state import (
-    _job_lock,
-    _job_manager,
-    _jobs,
-)
-
-
-def _start_job(name: str, fn: Callable[[], None]) -> dict:
-    """Start a background job if not already running.
-
-    Returns ``{"status": "started"}`` or ``{"status": "already_running"}``.
-    *fn* is responsible for setting ``_job_results[name]`` and clearing
-    ``_jobs[name]`` in its own finally block.
-    """
-    with _job_lock:
-        if _jobs[name]:
-            return {"status": "already_running"}
-        _jobs[name] = True
-    threading.Thread(target=fn, daemon=True).start()
-    return {"status": "started"}
-
+from rom_manager.web.router import Router
+from rom_manager.web.state import _job_manager
 
 # Tablas de plataformas y helpers de sistema — implementación en web/handlers/system.py
 
@@ -63,6 +54,39 @@ _LOGIN_HTML = _auth.LOGIN_HTML
 
 _logger = logging.getLogger(__name__)
 
+_GENERIC_ERROR_MSG = "Ha ocurrido un error inesperado. Revisa los registros para más detalle."
+
+
+def _readable_error(exc: BaseException) -> tuple[int, str]:
+    """Map an unhandled handler exception to (HTTP status, user-facing message).
+
+    The full traceback is logged separately by the caller; the message returned
+    here is shown to the user, so it stays in plain Spanish and never leaks
+    internal paths, SQL or secrets — just a clear, actionable hint.
+    """
+    if isinstance(exc, FileNotFoundError):
+        return 404, "No se encontró el archivo o la carpeta solicitada."
+    if isinstance(exc, PermissionError):
+        return 403, "Sin permisos para acceder al archivo (¿está en uso o es de solo lectura?)."
+    if isinstance(exc, IsADirectoryError):
+        return 400, "Se esperaba un archivo, pero la ruta apunta a una carpeta."
+    if isinstance(exc, NotADirectoryError):
+        return 400, "Se esperaba una carpeta, pero la ruta apunta a un archivo."
+    if isinstance(exc, TimeoutError):
+        return 504, "La operación tardó demasiado y se canceló. Inténtalo de nuevo."
+    if isinstance(exc, sqlite3.IntegrityError):
+        return 409, "La operación entra en conflicto con datos que ya existen en la base de datos."
+    if isinstance(exc, sqlite3.OperationalError):
+        return (
+            503,
+            "La base de datos está ocupada o bloqueada. Inténtalo de nuevo en unos segundos.",
+        )
+    if isinstance(exc, sqlite3.Error):
+        return 500, "Error en la base de datos. Revisa los registros para más detalle."
+    if isinstance(exc, (ValueError, KeyError)):
+        return 400, "La petición contiene datos inválidos o incompletos."
+    return 500, _GENERIC_ERROR_MSG
+
 
 def make_handler(
     repository: LibraryRepository,
@@ -75,15 +99,10 @@ def make_handler(
     )
 
     # ── Phase 1: Router (replaces if/elif ladder incrementally) ───────────────
-    import rom_manager.web.state as _srv_mod
-    from rom_manager.web.router import Router
-
     _router = Router()
 
     def _set_auto_sync_fn(val: bool) -> None:
         _state._auto_sync_enabled = val
-
-    import rom_manager.web.handlers.config as _h_config
 
     _h_config.register(_router, config=config, set_auto_sync_fn=_set_auto_sync_fn)
 
@@ -98,8 +117,6 @@ def make_handler(
 
         return _do_ra_check(api_key, config, repository, _job_manager).get("status") == "started"
 
-    import rom_manager.web.handlers.collection as _h_collection
-
     _h_collection.register(
         _router,
         config=config,
@@ -108,8 +125,6 @@ def make_handler(
         get_repo_fn=_get_repo,
     )
 
-    import rom_manager.web.handlers.scan as _h_scan
-
     _h_scan.register(
         _router,
         config=config,
@@ -117,33 +132,24 @@ def make_handler(
         repo_android=_repo_android,
         get_repo_fn=_get_repo,
         start_ra_check_fn=_start_ra_check_bg,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.duplicates as _h_duplicates
 
     _h_duplicates.register(
         _router,
         config=config,
         repository=repository,
         repo_android=_repo_android,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.organize as _h_organize
 
     _h_organize.register(
         _router,
         config=config,
         repository=repository,
         get_repo_fn=_get_repo,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.sync as _h_sync
 
     _h_sync.register(
         _router,
@@ -151,49 +157,35 @@ def make_handler(
         repository=repository,
         repo_android=_repo_android,
         start_ra_check_fn=_start_ra_check_bg,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.inbox as _h_inbox
 
     _h_inbox.register(
         _router,
         config=config,
         repository=repository,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.scraper as _h_scraper
 
     _h_scraper.register(
         _router,
         config=config,
         repository=repository,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.games as _h_games
 
     _h_games.register(
         _router,
         config=config,
         repository=repository,
         get_repo_fn=_get_repo,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
-
-    import rom_manager.web.handlers.play_history as _h_play_history
 
     _h_play_history.register(
         _router,
         repository=repository,
     )
-
-    import rom_manager.web.handlers.esde as _h_esde
 
     _h_esde.register(
         _router,
@@ -201,7 +193,6 @@ def make_handler(
         repository=repository,
         repo_android=_repo_android,
         get_repo_fn=_get_repo,
-        srv_mod=_srv_mod,
         job_manager=_job_manager,
     )
 
@@ -213,7 +204,7 @@ def make_handler(
 
         def _auth_required(self) -> bool:
             """True when PIN protection is active (pin_hash is set in config)."""
-            return bool(config.web_pin_hash)
+            return bool(config.credentials.web_pin_hash)
 
         def _session_token(self) -> str | None:
             raw = self.headers.get("Cookie", "")
@@ -292,8 +283,11 @@ def make_handler(
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
-                body = json.dumps({"error": str(exc)}).encode()
-                self._send(500, "application/json", body)
+                code, message = _readable_error(exc)
+                _logger.error("Error no controlado en GET %s", path, exc_info=True)
+                self._send(
+                    code, "application/json; charset=utf-8", _json_response({"error": message})
+                )
 
         # ── POST ─────────────────────────────────────────────────────────────
 
@@ -307,14 +301,13 @@ def make_handler(
             # Handle multipart file uploads before JSON parse
             _ct = self.headers.get("Content-Type", "")
             if _ct.startswith("multipart/form-data") and path == "/api/inbox-upload":
-                from rom_manager.web.handlers.inbox import handle_inbox_upload
-
-                handle_inbox_upload(config, _ct, raw, self)
+                _h_inbox.handle_inbox_upload(config, _ct, raw, self)
                 return
 
             try:
                 data: dict = json.loads(raw) if raw else {}
             except Exception:
+                _logger.debug("Cuerpo de petición no era JSON válido; usando {}", exc_info=True)
                 data = {}
 
             try:
@@ -322,7 +315,7 @@ def make_handler(
                 if path == "/api/auth":
                     client_ip = self.client_address[0]
                     pin = str(data.get("pin", "")).strip()
-                    if not config.web_pin_hash:
+                    if not config.credentials.web_pin_hash:
                         self._send_json({"ok": True})  # no PIN set → open access
                         return
                     if _check_auth_rate_limit(client_ip):
@@ -340,8 +333,8 @@ def make_handler(
                     if not pin:
                         self._send_json({"ok": False, "error": "PIN requerido"})
                         return
-                    expected = _hash_pin(pin, config.web_pin_salt)
-                    if secrets.compare_digest(expected, config.web_pin_hash):
+                    expected = _hash_pin(pin, config.credentials.web_pin_salt)
+                    if secrets.compare_digest(expected, config.credentials.web_pin_hash):
                         _clear_auth_failures(client_ip)
                         token = _create_session(config.web_session_ttl)
                         self._send(
@@ -385,8 +378,8 @@ def make_handler(
                             "web.pin_salt": salt,
                         },
                     )
-                    config.web_pin_hash = pin_hash
-                    config.web_pin_salt = salt
+                    config.credentials.web_pin_hash = pin_hash
+                    config.credentials.web_pin_salt = salt
                     # Invalidate all existing sessions so new PIN takes effect
                     with _sessions_lock:
                         _sessions.clear()
@@ -405,8 +398,8 @@ def make_handler(
                             "web.pin_salt": "",
                         },
                     )
-                    config.web_pin_hash = ""
-                    config.web_pin_salt = ""
+                    config.credentials.web_pin_hash = ""
+                    config.credentials.web_pin_salt = ""
                     with _sessions_lock:
                         _sessions.clear()
                     self._send_json({"ok": True})
@@ -425,8 +418,11 @@ def make_handler(
                 else:
                     self._send(404, "text/plain", b"Not found")
             except Exception as exc:
-                body = json.dumps({"error": str(exc)}).encode()
-                self._send(500, "application/json", body)
+                code, message = _readable_error(exc)
+                _logger.error("Error no controlado en POST %s", path, exc_info=True)
+                self._send(
+                    code, "application/json; charset=utf-8", _json_response({"error": message})
+                )
 
         # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -465,9 +461,9 @@ def serve(
     repository_android: LibraryRepository | None = None,
     tray: bool = False,
 ) -> None:
-    _state._auto_sync_enabled = config.auto_sync_enabled
+    _state._auto_sync_enabled = config.sync.auto_sync_enabled
 
-    if host != "127.0.0.1" and not config.web_pin_hash:
+    if host != "127.0.0.1" and not config.credentials.web_pin_hash:
         _logger.warning(
             "AVISO DE SEGURIDAD: el servidor está expuesto en la red (%s:%d) sin PIN configurado. "
             "Cualquier usuario de tu red local puede acceder y modificar todos los datos. "
@@ -493,7 +489,7 @@ def serve(
                 from rom_manager.utils.tray_icon import TrayIcon
 
                 def _on_sync_from_tray() -> None:
-                    sources = config.sync_sources
+                    sources = config.sync.sync_sources
                     if not sources:
                         return
                     from pathlib import Path as _Path
@@ -518,22 +514,24 @@ def serve(
                                 dry_run=False,
                             )
                         except Exception:
-                            pass
+                            _logger.warning(
+                                "Sync automático tras setup (saves) falló", exc_info=True
+                            )
                     # D2: implicit saves/states remotes
                     _implicit_tray = []
-                    if config.saves_remote and config.library_root:
+                    if config.sync.saves_remote and config.library_root:
                         _implicit_tray.append(
                             (
                                 _Path(config.library_root) / "saves",
-                                config.saves_remote,
+                                config.sync.saves_remote,
                                 config.save_extensions,
                             )
                         )
-                    if config.states_remote and config.library_root:
+                    if config.sync.states_remote and config.library_root:
                         _implicit_tray.append(
                             (
                                 _Path(config.library_root) / "states",
-                                config.states_remote,
+                                config.sync.states_remote,
                                 config.state_extensions,
                             )
                         )
@@ -554,7 +552,10 @@ def serve(
                                 dry_run=False,
                             )
                         except Exception:
-                            pass
+                            _logger.warning(
+                                "Sync automático tras setup (remote configurado) falló",
+                                exc_info=True,
+                            )
                     if _state._tray_instance:
                         _state._tray_instance.set_status(f"Sync OK {_utc_now_str()[:16]}")
                         _state._tray_instance.show_balloon("Retro Vault", "Sync completado.")
@@ -585,4 +586,4 @@ def serve(
         try:
             _state._tray_instance.stop()
         except Exception:
-            pass
+            _logger.debug("No se pudo detener el icono de la bandeja al salir", exc_info=True)

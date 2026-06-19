@@ -1,7 +1,7 @@
 """Inbox (Pilar 2) and setup wizard pipeline functions.
 
-Extracted from server.py (Session 19). Global state in server.py is accessed
-via late imports inside each function to avoid circular imports at load time.
+Extracted from server.py (Session 19). Progress/state is reported through the
+``JobManager`` passed in by the caller; this module no longer imports ``server``.
 """
 
 from __future__ import annotations
@@ -171,6 +171,9 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
                     if not platform_guess:
                         platform_guess = _detect_platform(entry)
             except Exception:
+                _logger.debug(
+                    "Inspección de ZIP para detectar plataforma falló: %s", entry, exc_info=True
+                )
                 platform_guess = _detect_platform(entry)
             needs_extraction = True
         elif ext in _DISC_EXTENSIONS_INBOX:
@@ -225,7 +228,7 @@ def _run_setup_pipeline(
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.scanner import scan_library
-    from rom_manager.web.response_builders import _build_junk_scan
+    from rom_manager.web.builders.folders import _build_junk_scan
 
     logger = _logger
     source = Path(library_root).resolve()
@@ -585,7 +588,7 @@ def _run_inbox_pipeline(
                     else:
                         _shutil.move(str(zp), dest_zp)
             except Exception:
-                pass
+                _logger.warning("No se pudo archivar el ZIP procesado: %s", zp, exc_info=True)
 
         # Remove _extracted temp folder if empty
         extracted_dir = inbox / "_extracted"
@@ -593,7 +596,7 @@ def _run_inbox_pipeline(
             try:
                 extracted_dir.rmdir()
             except Exception:
-                pass
+                _logger.debug("No se pudo eliminar la carpeta temporal _extracted", exc_info=True)
 
         job_result = {
             "result_ts": utc_now(),

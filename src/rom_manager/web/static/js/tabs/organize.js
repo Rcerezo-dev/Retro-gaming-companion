@@ -135,7 +135,7 @@ async function loadPlan() {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
         el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:#888;font-size:12px">Ruta ${window._devName}: <code>${ab}</code><br>Escanea la consola primero (Overview → Escanear → consola Android por ADB).</span></p>`;
       } else {
-        el.innerHTML = '<p class="empty">Sin juegos con match. Ejecuta <strong>Match catálogos</strong> primero desde la pestaña Inicio.</p>';
+        el.innerHTML = '<p class="empty">Sin juegos identificados. Ejecuta <strong>Identificar (catálogos)</strong> primero desde la pestaña Inicio.</p>';
       }
       return;
     }
@@ -284,7 +284,7 @@ async function loadPlan() {
       html += `</summary>`;
       const _reasonLabels = {
         'no_sha1':       { text: 'sin hashear', color: '#888',    tip: 'Ejecuta un scan completo (sin Quick mode) para calcular el hash' },
-        'no_dat':        { text: 'sin catálogo DAT', color: '#dcdcaa', tip: 'No se ha cargado ningún DAT para esta plataforma — haz Match catálogos primero' },
+        'no_dat':        { text: 'sin catálogo DAT', color: '#dcdcaa', tip: 'No se ha cargado ninguna base de datos (DAT) para esta plataforma — pulsa Identificar (catálogos) primero' },
         'hash_not_found':{ text: 'hash no en DAT', color: '#ce9178', tip: 'El hash del archivo no está en ningún DAT cargado — puede ser una versión no reconocida' },
       };
       html += `<div style="margin-top:10px;overflow-x:auto"><table><thead><tr><th>Platform</th><th>Filename</th><th>Razón</th></tr></thead><tbody>`;

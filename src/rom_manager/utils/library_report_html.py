@@ -183,7 +183,7 @@ def _render_ra_missing(rpt: dict) -> str:
 
 def _render_chd(rpt: dict) -> str:
     chd_data = rpt.get("chd", {})
-    # chd_data comes from _job_results["convert_chd"] — may be empty if not run
+    # chd_data comes from the convert_chd job result — may be empty if not run
     if not chd_data or not chd_data.get("converted") and not chd_data.get("skipped"):
         # Fall back to scanning for .cue files manually using ZIPs data
         zips = rpt.get("zips", {})

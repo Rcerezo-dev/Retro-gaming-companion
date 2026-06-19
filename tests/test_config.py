@@ -8,7 +8,7 @@ from rom_manager.config import load_config
 def test_defaults_without_toml(tmp_path: Path) -> None:
     cfg = load_config(tmp_path)
     assert cfg.library_root is None
-    assert cfg.rclone_remote == ""
+    assert cfg.sync.rclone_remote == ""
     assert cfg.rclone_binary == "rclone"
     assert cfg.chdman == "chdman"
     assert cfg.web_host == "127.0.0.1"
@@ -27,7 +27,7 @@ def test_reads_sync_section(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     cfg = load_config(tmp_path)
-    assert cfg.rclone_remote == "dropbox:/RetroArch/saves"
+    assert cfg.sync.rclone_remote == "dropbox:/RetroArch/saves"
     assert cfg.rclone_binary == "/usr/bin/rclone"
 
 

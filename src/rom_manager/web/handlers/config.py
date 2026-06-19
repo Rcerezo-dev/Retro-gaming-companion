@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 _config_lock = threading.Lock()
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -26,7 +28,7 @@ def register(
     Called once from ``make_handler()`` after the router is created.
     All handler closures capture *config* and *set_auto_sync_fn* by reference.
     """
-    from rom_manager.web.response_builders import _build_config
+    from rom_manager.web.builders.misc import _build_config
 
     @router.get("/api/config")
     def get_config(ctx) -> None:
@@ -35,7 +37,9 @@ def register(
     @router.get("/api/device-status")
     def get_device_status(ctx) -> None:
         """UX-1/2: Check if Android device (ADB or SD card) is connected."""
-        connected, reason = config.is_device_connected()
+        from rom_manager.sync.device_detector import is_device_connected
+
+        connected, reason = is_device_connected(config.adb, config.anbernic_root)
         ctx._send_json(
             {
                 "connected": connected,
@@ -54,7 +58,7 @@ def register(
 
     @router.get("/api/auth/status")
     def get_auth_status(ctx) -> None:
-        ctx._send_json({"pin_configured": bool(config.web_pin_hash)})
+        ctx._send_json({"pin_configured": bool(config.credentials.web_pin_hash)})
 
     @router.get("/api/health-schedule")
     def get_health_schedule(ctx) -> None:
@@ -215,7 +219,7 @@ def _detect_wizard(config: AppConfig) -> dict:
             device_display = dev.display or dev.serial
             android_suggestion = config.anbernic_root or "/storage/emulated/0/RetroArch/roms"
     except Exception:
-        pass
+        _logger.debug("Detección de dispositivos ADB falló", exc_info=True)
 
     return {
         "library_root_suggestion": library_root_suggestion,
@@ -278,34 +282,17 @@ def _save_config(
         config.library_root = new_cfg.library_root
         config.anbernic_root = new_cfg.anbernic_root
         config.device_name = new_cfg.device_name
-        config.rclone_remote = new_cfg.rclone_remote
-        config.screenscraper_user = new_cfg.screenscraper_user
-        config.screenscraper_pass = new_cfg.screenscraper_pass
-        config.screenscraper_dev_id = new_cfg.screenscraper_dev_id
-        config.screenscraper_dev_pass = new_cfg.screenscraper_dev_pass
+        config.sync = new_cfg.sync
+        config.credentials = new_cfg.credentials
         config.chdman = new_cfg.chdman
         config.adb = new_cfg.adb
-        config.ra_api_key = new_cfg.ra_api_key
-        config.ra_username = new_cfg.ra_username
-        config.auto_sync_enabled = new_cfg.auto_sync_enabled
-        config.auto_sync_direction = new_cfg.auto_sync_direction
-        config.auto_sync_android_path = new_cfg.auto_sync_android_path
-        config.conflict_policy = new_cfg.conflict_policy
-        config.inbox_path = new_cfg.inbox_path
-        config.inbox_target_root = new_cfg.inbox_target_root
-        config.inbox_auto_process = new_cfg.inbox_auto_process
-        config.inbox_delete_source = new_cfg.inbox_delete_source
-        config.sync_sources = new_cfg.sync_sources
+        config.inbox = new_cfg.inbox
         config.web_host = new_cfg.web_host
         config.retroarch_path = new_cfg.retroarch_path
         config.launcher_cores = new_cfg.launcher_cores
-        config.backup_saves_enabled = new_cfg.backup_saves_enabled
-        config.backup_saves_keep_n = new_cfg.backup_saves_keep_n
-        config.pre_sync_backup = new_cfg.pre_sync_backup
+        config.backup = new_cfg.backup
         config.notify_desktop = new_cfg.notify_desktop
-        config.saves_remote = new_cfg.saves_remote
-        config.states_remote = new_cfg.states_remote
-    set_auto_sync_fn(new_cfg.auto_sync_enabled)
+    set_auto_sync_fn(new_cfg.sync.auto_sync_enabled)
 
     ctx._send_json({"saved": list(updates.keys())})
 
@@ -320,6 +307,7 @@ def _read_health_schedule(config: AppConfig) -> dict:
     try:
         data = _json.loads(p.read_text(encoding="utf-8"))
     except Exception:
+        _logger.debug("No se pudo leer health_schedule.json", exc_info=True)
         data = {}
 
     last_run_at = data.get("last_run_at")
@@ -332,7 +320,7 @@ def _read_health_schedule(config: AppConfig) -> dict:
             next_run_at = nxt.strftime("%Y-%m-%dT%H:%M:%SZ")
             overdue = _dt.datetime.now(tz=_dt.UTC) >= nxt
         except Exception:
-            pass
+            _logger.debug("No se pudo calcular next_run del health schedule", exc_info=True)
 
     return {
         "last_run_at": last_run_at,
@@ -360,6 +348,7 @@ def _test_binary_status(path_str: str) -> dict:
         ver = (r.stdout or r.stderr or "").strip().splitlines()[0][:60]
         return {"ok": True, "version": ver, "path": str(p)}
     except Exception:
+        _logger.debug("No se pudo leer la versión del binario %s", p, exc_info=True)
         return {"ok": True, "version": "", "path": str(p)}
 
 

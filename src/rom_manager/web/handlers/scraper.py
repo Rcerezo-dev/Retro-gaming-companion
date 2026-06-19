@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -8,12 +9,13 @@ import rom_manager.web.state as _state
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 if TYPE_CHECKING:
-    import types
-
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+_logger = logging.getLogger(__name__)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -24,7 +26,6 @@ def register(
     *,
     config: AppConfig,
     repository: LibraryRepository,
-    srv_mod: types.ModuleType,
     job_manager: JobManager,
 ) -> None:
     """Register scraper / gamelist / ScreenScraper routes on *router*."""
@@ -32,8 +33,10 @@ def register(
     # ── GET /api/ss-quota ────────────────────────────────────────────────────
     @router.get("/api/ss-quota")
     def get_ss_quota(ctx) -> None:
-        has_dev = bool(config.screenscraper_dev_id and config.screenscraper_dev_pass)
-        ctx._send_json({**srv_mod._ss_last_quota, "has_dev_account": has_dev})
+        has_dev = bool(
+            config.credentials.screenscraper_dev_id and config.credentials.screenscraper_dev_pass
+        )
+        ctx._send_json({**_state._ss_last_quota, "has_dev_account": has_dev})
 
     # ── POST /api/scrape ─────────────────────────────────────────────────────
     @router.post("/api/scrape")
@@ -43,12 +46,12 @@ def register(
     # ── POST /api/scrape-single ──────────────────────────────────────────────
     @router.post("/api/scrape-single")
     def post_scrape_single(ctx) -> None:
-        _do_scrape_single(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_scrape_single(ctx, ctx._post_data, config, repository)
 
     # ── POST /api/export-gamelists ───────────────────────────────────────────
     @router.post("/api/export-gamelists")
     def post_export_gamelists(ctx) -> None:
-        _do_export_gamelists(ctx, ctx._post_data, config, repository, srv_mod)
+        _do_export_gamelists(ctx, ctx._post_data, config, repository)
 
     # ── GET /api/export-metadata-nlp ────────────────────────────────────────
     @router.get("/api/export-metadata-nlp")
@@ -107,15 +110,15 @@ def _do_scrape(
             from rom_manager.scraper.platform_ids import get_system_id
             from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
-            if not config.screenscraper_user:
+            if not config.credentials.screenscraper_user:
                 job_result = {"error": "screenscraper credentials not configured"}
                 return
 
             client = ScreenScraperClient(
-                user=config.screenscraper_user,
-                password=config.screenscraper_pass,
-                dev_id=config.screenscraper_dev_id,
-                dev_password=config.screenscraper_dev_pass,
+                user=config.credentials.screenscraper_user,
+                password=config.credentials.screenscraper_pass,
+                dev_id=config.credentials.screenscraper_dev_id,
+                dev_password=config.credentials.screenscraper_dev_pass,
             )
             games = repository.get_games_for_scraping(platform=platform)
             if limit:
@@ -194,7 +197,11 @@ def _do_scrape(
                                 try:
                                     download_image(result.box_art_url, _dest)
                                 except Exception:
-                                    pass
+                                    _logger.warning(
+                                        "Descarga de carátula falló: %s",
+                                        result.box_art_url,
+                                        exc_info=True,
+                                    )
                             if _dest.exists():
                                 box_art_path = str(_dest)
                         if result.screenshot_url:
@@ -204,7 +211,11 @@ def _do_scrape(
                                 try:
                                     download_image(result.screenshot_url, _dest)
                                 except Exception:
-                                    pass
+                                    _logger.warning(
+                                        "Descarga de captura falló: %s",
+                                        result.screenshot_url,
+                                        exc_info=True,
+                                    )
                             if _dest.exists():
                                 screenshot_path = str(_dest)
                         if result.wheel_url:
@@ -214,7 +225,11 @@ def _do_scrape(
                                 try:
                                     download_image(result.wheel_url, _dest)
                                 except Exception:
-                                    pass
+                                    _logger.warning(
+                                        "Descarga de wheel falló: %s",
+                                        result.wheel_url,
+                                        exc_info=True,
+                                    )
                             if _dest.exists():
                                 wheel_path = str(_dest)
                     repository.upsert_metadata(
@@ -267,7 +282,11 @@ def _do_scrape(
                             try:
                                 download_image(img_game["box_art_url"], _dest)
                             except Exception:
-                                pass
+                                _logger.warning(
+                                    "Descarga de portada (2ª pasada) falló: %s",
+                                    img_game["box_art_url"],
+                                    exc_info=True,
+                                )
                         if _dest.exists():
                             repository.update_image_paths(
                                 game_id=img_game["id"],
@@ -304,7 +323,7 @@ def _do_scrape(
                         write_gamelist(_pdir, _entries)
                         _gamelist_written.append(_plat["platform"])
             except Exception:
-                pass
+                _logger.warning("Auto-exportación de gamelists tras scrape falló", exc_info=True)
 
             job_result = {
                 "total": total,
@@ -325,16 +344,14 @@ def _do_scrape(
     ctx._send_json(job_manager.start("scrape", run))
 
 
-def _do_scrape_single(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod
-) -> None:
+def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
     game_id = data.get("game_id")
     preview = bool(data.get("preview", False))
     download_images = bool(data.get("images", False))
     if not game_id:
         ctx._send_json({"error": "game_id required"})
         return
-    if not config.screenscraper_user:
+    if not config.credentials.screenscraper_user:
         ctx._send_json({"error": "Credenciales de ScreenScraper no configuradas"})
         return
     try:
@@ -354,10 +371,10 @@ def _do_scrape_single(
             return
         _game = dict(_grow)
         _client = ScreenScraperClient(
-            user=config.screenscraper_user,
-            password=config.screenscraper_pass,
-            dev_id=config.screenscraper_dev_id,
-            dev_password=config.screenscraper_dev_pass,
+            user=config.credentials.screenscraper_user,
+            password=config.credentials.screenscraper_pass,
+            dev_id=config.credentials.screenscraper_dev_id,
+            dev_password=config.credentials.screenscraper_dev_pass,
         )
         _sys_id = get_system_id(_game["platform"])
         _result = _client.search(
@@ -372,7 +389,7 @@ def _do_scrape_single(
             _name_hint = _game.get("canonical_title") or _game["original_filename"]
             _result = _client.search_by_name(_name_hint, system_id=_sys_id)
         if _client.last_quota:
-            srv_mod._ss_last_quota.update(_client.last_quota)
+            _state._ss_last_quota.update(_client.last_quota)
         if _result is None:
             ctx._send_json({"found": False, "error": "No encontrado en ScreenScraper"})
             return
@@ -407,7 +424,9 @@ def _do_scrape_single(
                     download_image(_result.screenshot_url, _dest)
                     _screenshot_path = str(_dest)
                 except Exception:
-                    pass
+                    _logger.warning(
+                        "Descarga de captura falló: %s", _result.screenshot_url, exc_info=True
+                    )
             if _result.wheel_url:
                 _ext = ".png" if ".png" in _result.wheel_url.lower() else ".jpg"
                 _dest = _src_parent / "media" / "wheels" / f"{_stem}{_ext}"
@@ -415,7 +434,7 @@ def _do_scrape_single(
                     download_image(_result.wheel_url, _dest)
                     _wheel_path = str(_dest)
                 except Exception:
-                    pass
+                    _logger.warning("Descarga de wheel falló: %s", _result.wheel_url, exc_info=True)
         with repository.batch() as _bconn:
             repository.upsert_metadata(
                 game_id=int(game_id),
@@ -440,9 +459,7 @@ def _do_scrape_single(
         ctx._send_json({"error": str(_exc)})
 
 
-def _do_export_gamelists(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, srv_mod
-) -> None:
+def _do_export_gamelists(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
     from rom_manager.scraper.gamelist_writer import write_gamelist
 
     output_root = (

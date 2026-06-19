@@ -345,6 +345,38 @@ main { padding: 24px; flex: 1; }
 .toolbar input, .toolbar select { background: var(--bg-panel); border: 1px solid var(--border-i); color: var(--fg); padding: 6px 10px; border-radius: 4px; font: inherit; font-size: 13px; }
 .toolbar input:focus, .toolbar select:focus { outline: none; border-color: var(--accent); }
 
+/* PHASE4-2: contextual help — reusable "?" badge with a hover/focus tooltip.
+   Usage:  <span class="help-icon" tabindex="0" data-tip="Explicación…">?</span>  */
+.help-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--border-i); color: var(--fg-2);
+  font-size: 10px; font-weight: 700; line-height: 1;
+  margin-left: 6px; vertical-align: middle; cursor: help;
+  position: relative; user-select: none; flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.help-icon:hover, .help-icon:focus { background: var(--accent); color: #000; outline: none; }
+.help-icon::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 9px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 260px;
+  background: var(--bg-surface); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 11px; font-size: 11px; font-weight: 400; line-height: 1.55;
+  text-align: left; white-space: normal; text-transform: none; letter-spacing: 0;
+  box-shadow: 0 6px 20px rgba(0,0,0,.45);
+  opacity: 0; visibility: hidden; transition: opacity .15s; pointer-events: none; z-index: 9000;
+}
+/* little arrow under the bubble */
+.help-icon::before {
+  content: ""; position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--border);
+  opacity: 0; visibility: hidden; transition: opacity .15s; z-index: 9000;
+}
+.help-icon:hover::after, .help-icon:focus::after,
+.help-icon:hover::before, .help-icon:focus::before { opacity: 1; visibility: visible; }
+
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn { background: var(--bg-panel); border: 1px solid var(--accent); color: var(--accent); padding: 6px 14px; border-radius: 5px; cursor: pointer; font: inherit; font-size: 13px; transition: background .15s, color .15s, box-shadow .15s; }
 .btn:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 8px rgba(78,201,176,.25); }
@@ -573,6 +605,27 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
   #header-last-sync { margin-left: 0; width: 100%; }
   .confirm-actions { flex-direction: column-reverse; }
   .confirm-actions .btn { width: 100%; justify-content: center; }
+}
+
+/* PHASE4-3: phone portrait (≤480px, e.g. Android console browser).
+   Layers on top of the ≤640px rules above (those also apply here). */
+@media (max-width: 480px) {
+  main { padding: 10px; }
+
+  /* Sidebar becomes a fixed icon rail so it stops eating the narrow viewport.
+     Labels/group-labels collapse like the manual collapsed state; the toggle
+     is hidden since there is no room to expand. */
+  .sidebar, .sidebar.collapsed { width: 52px; }
+  .nav-label { opacity: 0; max-width: 0; }
+  .nav-group-label { opacity: 0; height: 0; padding: 0; }
+  .nav-item { justify-content: center; gap: 0; padding: 11px 0; min-height: 44px; }
+  .sidebar-toggle { display: none; }
+
+  /* One game card per row */
+  .games-grid { grid-template-columns: 1fr; }
+
+  /* Stat bar wraps instead of squashing each stat to nothing */
+  #ov-dashboard-bar { flex-wrap: wrap; }
 }
 
 /* ── S27: Visual redesign ─────────────────────────────────────────────────── */
