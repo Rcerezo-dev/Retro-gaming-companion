@@ -280,6 +280,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show a system tray icon (Windows only). The server starts minimised in the background.",
     )
+    serve_parser.add_argument(
+        "--allow-insecure",
+        action="store_true",
+        help=(
+            "Allow binding to a non-localhost host without a PIN configured. "
+            "By default the server refuses to start in that case (anyone on the "
+            "network could access your library). Use only on a trusted network."
+        ),
+    )
 
     return parser
 
@@ -949,20 +958,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "serve":
-        from rom_manager.web.server import serve
+        from rom_manager.web.server import InsecureExposureError, serve
 
         host = args.host or config.web_host
         port = args.port or config.web_port
         print(f"Retro Vault — http://{host}:{port}/")
         print("Press Ctrl+C to stop.")
-        serve(
-            host=host,
-            port=port,
-            repository=repository,
-            config=config,
-            repository_android=repository_android,
-            tray=getattr(args, "tray", False),
-        )
+        try:
+            serve(
+                host=host,
+                port=port,
+                repository=repository,
+                config=config,
+                repository_android=repository_android,
+                tray=getattr(args, "tray", False),
+                allow_insecure=getattr(args, "allow_insecure", False),
+            )
+        except InsecureExposureError as exc:
+            print(f"\n{exc}")
+            return 2
         return 0
 
     parser.error(f"Unknown command: {args.command}")
