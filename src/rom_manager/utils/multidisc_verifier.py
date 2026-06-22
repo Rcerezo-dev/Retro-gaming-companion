@@ -73,9 +73,11 @@ def verify_multidisc(
                 )
             )
 
-        # Check consecutive disc numbers
+        # Check consecutive disc numbers — skip sidecars (.cue/.m3u/.ccd/.sbi)
         disc_numbers = []
         for disc in group.discs:
+            if disc.suffix.lower() in _SIDECAR_EXTS:
+                continue
             m = _DISC_RE.match(disc.stem)
             if m:
                 disc_numbers.append(int(m.group(2)))

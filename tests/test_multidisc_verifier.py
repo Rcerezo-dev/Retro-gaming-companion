@@ -69,6 +69,30 @@ class TestMixedExtFalsePositives:
         assert mixed == []
 
 
+class TestGapFalsePositives:
+    """RPT-B2: sidecar files (.cue/.m3u) must not inflate disc_numbers and cause false gaps."""
+
+    def test_bin_cue_two_discs_no_false_gap(self, tmp_path: Path) -> None:
+        for disc in [1, 2]:
+            _touch(tmp_path / f"Driver 2 (Disc {disc}).bin")
+            _touch(tmp_path / f"Driver 2 (Disc {disc}).cue")
+
+        result = verify_multidisc(tmp_path)
+
+        gaps = [i for i in result.issues if i.issue_type == "gap"]
+        assert gaps == [], "bin+cue per disc should not cause a false gap"
+
+    def test_real_gap_still_detected(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "Koudelka (Disc 1).bin")
+        _touch(tmp_path / "Koudelka (Disc 3).bin")  # disc 2 missing
+
+        result = verify_multidisc(tmp_path)
+
+        gaps = [i for i in result.issues if i.issue_type == "gap"]
+        assert len(gaps) == 1
+        assert "2" in gaps[0].detail
+
+
 class TestMissingM3U:
     """RPT-B1: groups without an .m3u file must be flagged as missing_m3u."""
 

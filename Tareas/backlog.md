@@ -393,7 +393,7 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
 | RPT-B1 | 🟡 Medio | **11 juegos multidisco sin `.m3u`** (Driver 2, Grandia, Koudelka [8 discos], Parasite Eve I/II, Oddworld…) — RetroArch necesita `.m3u` para cambiar de disco. Exponer acción "Generar .m3u (N)" desde el informe / tab Formatos (el generador ya existe en `m3u_generator`). | `web/handlers/esde/conversions.py`, partial del informe | ✅ `missing_m3u` issue type en `verify_multidisc`; botón "Generar .m3u (N)" en resultado de verificación; `generateM3uFromVerify()` en `tools.js`. 3 tests nuevos. |
-| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. Reverificar gap tras RPT-A1 (el doble conteo `.bin`/`.cue` interfiere). | `utils/multidisc_verifier.py`, partial del informe | ⬜ |
+| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. Reverificar gap tras RPT-A1 (el doble conteo `.bin`/`.cue` interfiere). | `utils/multidisc_verifier.py`, partial del informe | ✅ Gap check filtra sidecars (fix falso positivo); UI separa gaps / otros / unmatched con acciones claras. 2 tests nuevos. |
 
 ### C — Auto-descarga de catálogos DAT faltantes (PHASE2 / RPT-B2)
 
