@@ -46,17 +46,21 @@ def lan_urls(port: int) -> list[str]:
     return urls
 
 
+_FIREWALL_RULE_NAME = "Retro Vault (LAN)"
+
+
 def _check_firewall(port: int) -> bool:
-    """Return True if an inbound firewall rule for this port already exists (Windows only).
+    """Return True if the Retro Vault inbound firewall rule exists (Windows only).
     Returns True on non-Windows (no firewall to worry about)."""
     if sys.platform != "win32":
         return True
     try:
         result = subprocess.run(
             ["netsh", "advfirewall", "firewall", "show", "rule",
-             "dir=in", f"localport={port}", "protocol=TCP"],
+             f"name={_FIREWALL_RULE_NAME}", "dir=in"],
             capture_output=True, text=True, timeout=5,
         )
-        return "Allow" in result.stdout
+        out = result.stdout
+        return ("Permitir" in out or "Allow" in out) and result.returncode == 0
     except Exception:
         return True  # can't check → don't warn
