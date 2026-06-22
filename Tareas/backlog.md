@@ -181,7 +181,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
 | PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ⬜ |
 | PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
-| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ⬜ |
+| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ✅ `update_checker.py` + `GET /api/version` + banner en UI. 13 tests. PR #52. |
 | PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ⬜ |
 | PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ⬜ |
 
