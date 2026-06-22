@@ -370,10 +370,10 @@ export async function doVerifyMultidisc() {
       html += `<div style="padding:8px 10px;background:var(--bg-nav);border:1px solid var(--border);border-radius:4px;margin-top:4px">`;
       html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <span style="font-size:12px;color:#888">&#x1F50D; ${unmatchedOnly.length} discos sin identificar en catálogo</span>
-        <button class="btn" style="flex-shrink:0;font-size:11px;padding:2px 10px" onclick="showTab('settings')">Ajustes → Catálogos DAT</button>
+        <button class="btn" style="flex-shrink:0;font-size:11px;padding:2px 10px" onclick="showTab('settings');setTimeout(()=>{const el=document.getElementById('dat-catalog-list');if(el)el.scrollIntoView({behavior:'smooth'})},350)">Ajustes → Catálogos DAT</button>
       </div>`;
       html += `<p style="font-size:11px;color:#555;margin:0 0 6px">Si ya tienes un DAT, ve a la pestaña <strong>Organizar</strong> y pulsa Identificar. Si no, carga un catálogo DAT en Ajustes.</p>`;
-      html += '<details style="font-size:11px;color:#555"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>';
+      html += `<details style="font-size:11px;color:#555"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>`;
       html += '<div style="max-height:160px;overflow-y:auto;margin-top:4px">';
       html += unmatchedOnly.map(i => `<div style="padding:2px 0">${_h(i.base_name)} — ${_h(i.detail)}</div>`).join('');
       html += '</div></details></div>';

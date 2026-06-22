@@ -294,8 +294,8 @@ async function loadDatCatalogList() {
     for (const [label, systems] of Object.entries(byType)) {
       html += `<div class="dat-catalog-group"><strong>${label}</strong><div class="dat-catalog-items">`;
       for (const sys of systems) {
-        const chk = sys.present ? 'checked' : '';
-        const cls = sys.present ? 'dat-item-present' : '';
+        const chk = sys.downloaded ? 'checked' : '';
+        const cls = sys.downloaded ? 'dat-item-present' : '';
         html += `<label class="dat-item ${cls}">
           <input type="checkbox" name="dat-sys" value="${sys.name}" ${chk}> ${sys.short}
         </label>`;

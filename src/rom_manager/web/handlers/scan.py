@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import threading
-import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -58,7 +57,10 @@ _LIBRETRO_DAT_CATALOG = [
     {"name": "Microsoft - Xbox", "short": "Xbox", "catalog": "redump"},
 ]
 
-_LIBRETRO_DB_BASE = "https://raw.githubusercontent.com/libretro/libretro-database/master/dat/"
+_LIBRETRO_METADAT_BASE = (
+    "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
+)
+_CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump"}
 
 _dat_dl_lock = threading.Lock()
 _dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
@@ -597,7 +599,11 @@ def _import_dats(data: dict, config: AppConfig) -> dict:
 
 def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
     """Download DAT files from libretro-database and save to the catalog dirs."""
+    import urllib.error
+    import urllib.parse
     import urllib.request as _urlreq
+
+    from rom_manager.catalog.catalog_loader import _load_dat_file
 
     downloaded: list[str] = []
     skipped: list[str] = []
@@ -625,16 +631,24 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
             skipped.append(name)
             continue
 
-        url = _LIBRETRO_DB_BASE + urllib.parse.quote(filename)
+        source = _CATALOG_TO_SOURCE.get(catalog, "no-intro")
+        url = f"{_LIBRETRO_METADAT_BASE}/{source}/{urllib.parse.quote(filename)}"
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
             with _urlreq.urlopen(url, timeout=30) as resp:  # noqa: S310 — URL is a hardcoded constant
                 data = resp.read()
-            if b"<game" not in data and b"<machine" not in data:
-                errors.append({"name": name, "error": "Respuesta inesperada del servidor"})
-                continue
             dest_file.write_bytes(data)
+            try:
+                entries = _load_dat_file(dest_file)
+            except Exception:
+                entries = {}
+            if not entries:
+                dest_file.unlink(missing_ok=True)
+                errors.append({"name": name, "error": "DAT sin entradas válidas"})
+                continue
             downloaded.append(name)
+        except urllib.error.URLError as exc:
+            errors.append({"name": name, "error": str(exc.reason)})
         except Exception as exc:
             errors.append({"name": name, "error": str(exc)})
 
