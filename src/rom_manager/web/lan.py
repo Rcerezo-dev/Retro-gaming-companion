@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import socket
+import subprocess
+import sys
 
 
 def get_lan_ip() -> str | None:
@@ -42,3 +44,19 @@ def lan_urls(port: int) -> list[str]:
     if ip:
         urls.append(f"http://{ip}:{port}/")
     return urls
+
+
+def _check_firewall(port: int) -> bool:
+    """Return True if an inbound firewall rule for this port already exists (Windows only).
+    Returns True on non-Windows (no firewall to worry about)."""
+    if sys.platform != "win32":
+        return True
+    try:
+        result = subprocess.run(
+            ["netsh", "advfirewall", "firewall", "show", "rule",
+             "dir=in", f"localport={port}", "protocol=TCP"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return "Allow" in result.stdout
+    except Exception:
+        return True  # can't check → don't warn

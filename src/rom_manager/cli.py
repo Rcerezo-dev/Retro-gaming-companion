@@ -963,12 +963,19 @@ def main(argv: list[str] | None = None) -> int:
         host = args.host or config.web_host
         port = args.port or config.web_port
         allow_insecure = config.web_allow_lan or getattr(args, "allow_insecure", False)
-        local_url = f"http://127.0.0.1:{port}/" if host in ("0.0.0.0", "") else f"http://{host}:{port}/"
+        lan_mode = host in ("0.0.0.0", "")
+        local_url = f"http://127.0.0.1:{port}/" if lan_mode else f"http://{host}:{port}/"
         print(f"Retro Vault — {local_url}")
-        if host in ("0.0.0.0", ""):
-            from rom_manager.web.lan import lan_urls
+        if lan_mode:
+            from rom_manager.web.lan import lan_urls, _check_firewall
             for url in lan_urls(port):
                 print(f"           LAN — {url}")
+            if not _check_firewall(port):
+                print(
+                    f"\n  AVISO: el puerto {port} puede estar bloqueado por el Firewall de Windows.\n"
+                    f"  Si la Anbernic no conecta, ejecuta como Administrador:\n"
+                    f"    .\\scripts\\open-firewall-port.ps1\n"
+                )
         print("Press Ctrl+C to stop.")
         try:
             serve(
