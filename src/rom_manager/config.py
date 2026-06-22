@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 
 # Default Android emulator save/savestate path mappings.
 # Verified live on Anbernic RG556 (serial: RG556006101273).
-# Source: docs/android-save-paths-RG556.md
+# Source: docs/sync/android-save-paths-RG556.md
 # Keys are Android package names. Users can override entries via [[emulator_paths]] in config.toml.
 EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
     "com.retroarch.aarch64": {
@@ -127,10 +127,11 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
     },
     "me.magnum.melonds": {
         "name": "melonDS (Nintendo DS)",
-        "saves_path": "/storage/emulated/0/Android/data/me.magnum.melonds/files",
+        "saves_path": "/storage/emulated/0/Android/data/me.magnum.melonds/files/saves",
         "states_path": None,
         "adb_required": True,
-        "notes": "Save location may vary; may be alongside ROMs",
+        "save_extensions": [".sav"],
+        "notes": "Confirmed on device 2026-06-22; saves at files/saves/, not files/ root",
     },
     "org.mupen64plusae.v3.fzurita.pro": {
         "name": "Mupen64Plus FZ (N64)",
@@ -138,6 +139,14 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "states_path": None,
         "adb_required": True,
         "notes": "Save location unknown — may be alongside ROMs or user-configured sdcard path",
+    },
+    "com.explusalpha.NeoEmu": {
+        "name": "NEO.emu (Neo Geo)",
+        "saves_path": None,
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+        "notes": "EmuEx saves dir not yet created — will be .../files/EmuEx/<SystemFolder>/saves/ after first in-game save",
     },
 }
 

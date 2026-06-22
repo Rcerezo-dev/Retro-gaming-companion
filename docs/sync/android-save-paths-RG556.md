@@ -122,9 +122,13 @@ Installed but no save data found yet. Expected paths (by analogy with Citra):
 
 ## melonDS — Nintendo DS (`me.magnum.melonds`)
 
-Installed but no save data found. Files dir:
-`/storage/emulated/0/Android/data/me.magnum.melonds/files/`
-melonDS typically stores `.sav` files next to ROMs or in a configurable directory.
+Scoped storage — requires ADB.
+
+| Type | Path | Extensions |
+|------|------|-----------|
+| Save files | `/storage/emulated/0/Android/data/me.magnum.melonds/files/saves/` | `.sav` |
+
+Confirmed on device 2026-06-22: `Castlevania - Dawn of Sorrow (En,Fr,De,Es,It).sav` found at `files/saves/`. The save is stored in the `files/saves/` subfolder, **not** at the `files/` root.
 
 ---
 
@@ -193,13 +197,37 @@ All scoped storage — requires ADB.
 | Citra | Scoped storage | ✅ Yes |
 | Redream | Scoped storage | ✅ Yes |
 | Yaba Sanshiro 2 | Scoped storage | ✅ Yes |
-| EX+ (Snes9x EX+) | Scoped storage | ✅ Yes |
+| EX+ (Snes9x EX+, NEO.emu…) | Scoped storage | ✅ Yes |
 | Dolphin / MMJ | Scoped storage + **permission denied** | ⚠️ Root/special grant needed |
 | Flycast | Scoped storage (empty) | ✅ Yes |
-| melonDS | Scoped storage (empty) | ✅ Yes |
+| melonDS | Scoped storage (`files/saves/`) | ✅ Yes |
 | Mupen64Plus FZ | Unknown / alongside ROMs | TBD |
 | Lime3DS | Scoped storage (empty) | ✅ Yes |
 
 ---
 
-*Verified: 2026-04-05 · Device: Anbernic RG556 · ADB serial: RG556006101273*
+## Known contamination / caveats (verified 2026-06-22)
+
+### `/sdcard/ra-saves/` and `/sdcard/ra-states/` — external pollution
+
+These two directories on the device **are not used by this project** (zero references in the codebase). They were created by a third-party bidirectional sync setup (Syncthing, `com.github.catfriend1.syncthingandroid`) that mirrored PC-side folders to the device. As a result:
+
+- **`/sdcard/ra-saves/`** contains personal documents (university work, `.docx`, `.pdf`, `catalogs.rar`, datasets…) alongside a `memcards psx/` subfolder that **does hold real PS1 memory-card files** (`.mcd`, `.mcr`, `.srm`). Do not blanket-delete this folder — `memcards psx/` must be preserved.
+- **`/sdcard/ra-states/`** contains one real save state (`0775 - Kirby - Nightmare in Dreamland (U)(Mode7).state`) alongside a `steam_autocloud.vdf` marker. Again, do not `rm -rf` this folder.
+- **`steam_autocloud.vdf`** — a 51-byte Steam Cloud account marker (`accountid 56426668`) that Steam writes next to cloud-synced folders. It spread across multiple subfolders inside `RetroArch/saves/` and `ra-states/` when Syncthing mirrored the PC save directories to the device. It is harmless junk but should be cleaned up to avoid confusion.
+
+**This project's sync is not the cause.** The extension lists (`config.py:473-523`) do not include `.vdf`, so `get_adb_sync_sources()` never pulls these markers to the PC.
+
+Use `scripts/cleanup-ra-contamination.sh` (interactive, prompts before each step) to safely remove the pollution while preserving the Kirby state and the `memcards psx/` saves.
+
+### Loose saves at `RetroArch/saves/` root
+
+A few `.srm` files live directly at `/sdcard/RetroArch/saves/` (not inside a per-core subfolder):
+- `0775 - Kirby - Nightmare in Dreamland (U)(Mode7).srm`
+- `Earthbound (1).srm`
+
+These predate the per-core folder convention. They are valid saves and will be synced normally (the ADB transport scans recursively), but they won't appear under a named core in any per-core listing.
+
+---
+
+*Verified: 2026-06-22 · Device: Anbernic RG556 · ADB serial: RG556006101273*
