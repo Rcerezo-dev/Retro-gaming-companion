@@ -501,6 +501,12 @@ def serve(
 
     _start_all_daemons(config, repository)
 
+    # PHASE6-3a: check GitHub for a newer release in the background
+    from rom_manager import __version__
+    from rom_manager.utils.update_checker import start_background_check
+
+    start_background_check(__version__)
+
     # S39-3: system tray icon (Windows only)
     if tray:
         import sys as _sys

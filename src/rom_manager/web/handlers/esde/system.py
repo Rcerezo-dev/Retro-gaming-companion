@@ -57,6 +57,14 @@ def register_system(
     def get_local_url(ctx) -> None:
         ctx._send_json({"ip": _get_local_ip(), "port": config.web_port})
 
+    # ── GET /api/version ──────────────────────────────────────────────────────
+    @router.get("/api/version")
+    def get_version(ctx) -> None:
+        from rom_manager import __version__
+        from rom_manager.utils.update_checker import get_result
+
+        ctx._send_json({"current": __version__, **get_result()})
+
     # ── GET /api/status ───────────────────────────────────────────────────────
     @router.get("/api/status")
     def get_status(ctx) -> None:

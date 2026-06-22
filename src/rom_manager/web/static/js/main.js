@@ -617,6 +617,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize inbox badge + polling
   _initInboxBadge();
 
+  // PHASE6-3a: check for app update (non-blocking, GitHub may not respond yet)
+  setTimeout(async () => {
+    try {
+      const v = await apiFetch('/api/version');
+      if (v.update_available) {
+        const banner = document.getElementById('update-banner');
+        const text   = document.getElementById('update-banner-text');
+        const link   = document.getElementById('update-banner-link');
+        if (text) text.textContent = `⬆ Nueva versión disponible: ${v.latest} (actual: ${v.current})`;
+        if (link && v.release_url) link.href = v.release_url;
+        if (banner) banner.classList.remove('hidden');
+      }
+    } catch (_) { /* sin red o servidor sin versión — ignorar silenciosamente */ }
+  }, 3000);
+
   // Guide toggle setup
   const guide = document.getElementById('ov-guide');
   if (guide) {

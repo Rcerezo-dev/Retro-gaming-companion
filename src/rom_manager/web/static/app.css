@@ -1205,6 +1205,11 @@ input:focus, select:focus, textarea:focus {
   background: rgba(0,0,0,.82);
   align-items: center; justify-content: center;
 }
+#update-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 20px; font-size: 12px;
+  background: #1a1a2e; border-bottom: 1px solid #3a3a5c; color: #c9bcf5;
+}
 #auto-sync-banner {
   display: flex;
   padding: 8px 24px;
