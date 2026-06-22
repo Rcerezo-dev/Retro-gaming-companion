@@ -61,6 +61,7 @@ _LIBRETRO_METADAT_BASE = (
     "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
 )
 _CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump"}
+_DAT_TTL_DAYS = 7  # re-download if the local DAT is older than this
 
 _dat_dl_lock = threading.Lock()
 _dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
@@ -172,22 +173,8 @@ def register(
     # ── GET /api/dat-catalog-list ─────────────────────────────────────────────
     @router.get("/api/dat-catalog-list")
     def get_dat_catalog_list(ctx) -> None:
-        """Return the downloadable DAT catalog with downloaded status per entry."""
-        existing_nointro = (
-            {f.stem for f in config.catalogs_nointro_dir.iterdir() if f.suffix.lower() == ".dat"}
-            if config.catalogs_nointro_dir.exists()
-            else set()
-        )
-        existing_redump = (
-            {f.stem for f in config.catalogs_redump_dir.iterdir() if f.suffix.lower() == ".dat"}
-            if config.catalogs_redump_dir.exists()
-            else set()
-        )
-        result = []
-        for entry in _LIBRETRO_DAT_CATALOG:
-            existing = existing_nointro if entry["catalog"] == "nointro" else existing_redump
-            result.append({**entry, "downloaded": entry["name"] in existing})
-        ctx._send_json({"systems": result})
+        """Return the downloadable DAT catalog with download status and age per entry."""
+        ctx._send_json(_build_dat_catalog_list(config))
 
     # ── GET /api/download-dats-status ─────────────────────────────────────────
     @router.get("/api/download-dats-status")
@@ -627,7 +614,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
             _dat_dl_state["current"] = name
             _dat_dl_state["done"] = i
 
-        if dest_file.exists():
+        if dest_file.exists() and _is_dat_fresh(dest_file):
             skipped.append(name)
             continue
 
@@ -661,6 +648,51 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
                 "result": {"downloaded": downloaded, "skipped": skipped, "errors": errors},
             }
         )
+
+
+def _is_dat_fresh(path: Path) -> bool:
+    """Return True if *path* was modified within _DAT_TTL_DAYS."""
+    import time
+
+    return (time.time() - path.stat().st_mtime) < (_DAT_TTL_DAYS * 86_400)
+
+
+def _build_dat_catalog_list(config: AppConfig) -> dict:
+    """Return catalog list with downloaded status, mtime, age and stale flag per entry."""
+    import datetime as _dt
+
+    def _index_dir(directory: Path) -> dict[str, Path]:
+        if not directory.exists():
+            return {}
+        return {f.stem: f for f in directory.iterdir() if f.suffix.lower() == ".dat"}
+
+    nointro_files = _index_dir(config.catalogs_nointro_dir)
+    redump_files = _index_dir(config.catalogs_redump_dir)
+
+    now = _dt.datetime.now(_dt.UTC)
+    result = []
+    for entry in _LIBRETRO_DAT_CATALOG:
+        files = nointro_files if entry["catalog"] == "nointro" else redump_files
+        dat_path = files.get(entry["name"])
+        if dat_path is None:
+            result.append({
+                **entry,
+                "downloaded": False,
+                "mtime_iso": None,
+                "age_days": None,
+                "stale": False,
+            })
+        else:
+            mtime = _dt.datetime.fromtimestamp(dat_path.stat().st_mtime, tz=_dt.UTC)
+            age_days = (now - mtime).days
+            result.append({
+                **entry,
+                "downloaded": True,
+                "mtime_iso": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "age_days": age_days,
+                "stale": age_days >= _DAT_TTL_DAYS,
+            })
+    return {"systems": result}
 
 
 def _import_arcade_catalog(data: dict, config: AppConfig) -> dict:
