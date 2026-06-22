@@ -11,8 +11,9 @@ def test_defaults_without_toml(tmp_path: Path) -> None:
     assert cfg.sync.rclone_remote == ""
     assert cfg.rclone_binary == "rclone"
     assert cfg.chdman == "chdman"
-    assert cfg.web_host == "127.0.0.1"
+    assert cfg.web_host == "0.0.0.0"
     assert cfg.web_port == 7777
+    assert cfg.web_allow_lan is True
 
 
 def test_reads_library_root(tmp_path: Path) -> None:
