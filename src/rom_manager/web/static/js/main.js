@@ -412,7 +412,33 @@ export function _deviceRoot() {
   return null; // 'both' = sin filtro
 }
 
+const _TAB_DESC = {
+  overview:   ['Inicio',        'Estado general de tu biblioteca y acciones rápidas'],
+  games:      ['Juegos',        'Explora, filtra y valora los juegos de tu biblioteca'],
+  plan:       ['Organizar',     'Revisa y aplica renombres pendientes'],
+  duplicates: ['Duplicados',    'Detecta y gestiona ROMs duplicadas'],
+  assets:     ['Assets',        'Gestiona carátulas, vídeos y otros recursos'],
+  collection: ['Colección',     'Galería personal con historial de juego y logros'],
+  sync:       ['Cloud Sync',    'Sincroniza saves con la nube via rclone'],
+  cable:      ['Cable Sync',    'Sync de saves por USB con la consola Android'],
+  anbernic:   ['Anbernic',      'Estado y configuración de tu consola Android'],
+  tools:      ['Herramientas',  'Convierte, verifica y repara ROMs'],
+  formats:    ['Formatos',      'Convierte formatos de disco: CHD, CSO, ZIP y m3u'],
+  scraper:    ['Scraper',       'Descarga metadatos y carátulas de ScreenScraper'],
+  inbox:      ['Inbox',         'Procesa automáticamente ROMs recién añadidas'],
+  settings:   ['Ajustes',       'Configura rutas, catálogos DAT, sync y servidor'],
+};
+
+function _updateTabDesc(name) {
+  const [label, desc] = _TAB_DESC[name] || [name, ''];
+  const nameEl = document.getElementById('tab-desc-name');
+  const descEl = document.getElementById('tab-desc-text');
+  if (nameEl) nameEl.textContent = label;
+  if (descEl) descEl.textContent = desc ? ` — ${desc}` : '';
+}
+
 export function showTab(name) {
+  _updateTabDesc(name);
   // Always close game panel on tab switch (prevents overlay covering the sidebar)
   closeGamePanel();
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -603,6 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('guide_closed') === '1') guide.removeAttribute('open');
     updateArrow();
   }
+
+  // Seed description bar for the default active tab
+  _updateTabDesc('overview');
 
   // Load auth status and config on startup
   loadAuthStatus();

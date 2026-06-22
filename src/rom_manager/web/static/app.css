@@ -760,6 +760,21 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 [data-theme="light"] .actions-panel { background: var(--bg-panel) !important; border-color: var(--border) !important; }
 /* #device-selector now uses var(--bg-nav)/var(--border) inline (DESIGN-10) — theme-aware, no override needed. */
 
+/* DESIGN-11: tab description bar */
+#tab-desc-bar {
+  display: flex;
+  align-items: center;
+  padding: 3px 20px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  min-height: 22px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+#tab-desc-name { font-weight: 600; color: var(--fg-2); flex-shrink: 0; }
+#tab-desc-text { color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; }
+
 /* Inline colored text — make muted colors readable on light background */
 [data-theme="light"] .actions-panel > *,
 [data-theme="light"] .actions-row > * { color: inherit; }
