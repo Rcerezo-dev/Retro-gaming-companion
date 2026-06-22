@@ -179,9 +179,9 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 |----|------|--------|
 | PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
 | PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
-| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ⬜ |
+| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ✅ `installer/RetroVault.iss` — instala desde `dist\RetroVault\`, shortcut Start Menu + Desktop opcional, Add/Remove Programs, uninstall silencioso, upgrade detection. `build.ps1` llama a `iscc` automáticamente si está en PATH. |
 | PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
-| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ⬜ |
+| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ✅ `update_checker.py` + `GET /api/version` + banner en UI. 13 tests. PR #52. |
 | PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ⬜ |
 | PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ⬜ |
 
@@ -384,16 +384,16 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| RPT-A1 | 🟡 Medio | **`.bin`+`.cue` marcado como "extensiones mezcladas"** — `verify_disc_groups` marca `mixed_ext` ante cualquier grupo con >1 extensión, pero un set PSX es `.bin`+`.cue` por diseño (11 falsos positivos). Tratar `.cue`/`.m3u`/`.ccd`/`.sbi` como *sidecars*; solo marcar `mixed_ext` con 2+ extensiones de **imagen** (`.bin`/`.iso`/`.img`/`.chd`). Tests. | `utils/multidisc_verifier.py:57-67` | ⬜ |
-| RPT-A2 | 🟡 Medio | **Orphan-finder recorre `BIOS\`, `System Volume Information\` y carpetas de datos de emulador** — `rglob("*")` sin exclusión de directorios; viola la regla "BIOS nunca se trata como ROM". Excluir dirs (BIOS, `System Volume Information`, ES-DE/assets, ocultos, `_descartados`). Quita ~12 de 35. Tests. | `utils/orphan_finder.py:27` | ⬜ |
-| RPT-A3 | ⚪ Bajo | **Ficheros de datos de emulador (`.dat`, `.fs`) contados como "saves"** — p.ej. `scummvm\theme\*.dat`, `fbneo\*.fs`. Estrechar el set de extensiones de save del orphan-finder a saves reales (`.srm`/`.sav`/`.nv`/`.hi`/`.state`…), excluir `.dat`/`.fs`. Deja solo NVRAM arcade real. | `utils/orphan_finder.py` | ⬜ |
+| RPT-A1 | 🟡 Medio | **`.bin`+`.cue` marcado como "extensiones mezcladas"** — `verify_disc_groups` marca `mixed_ext` ante cualquier grupo con >1 extensión, pero un set PSX es `.bin`+`.cue` por diseño (11 falsos positivos). Tratar `.cue`/`.m3u`/`.ccd`/`.sbi` como *sidecars*; solo marcar `mixed_ext` con 2+ extensiones de **imagen** (`.bin`/`.iso`/`.img`/`.chd`). Tests. | `utils/multidisc_verifier.py:57-67` | ✅ `_SIDECAR_EXTS` + `image_exts` filter; tests en `test_multidisc_verifier.py` |
+| RPT-A2 | 🟡 Medio | **Orphan-finder recorre `BIOS\`, `System Volume Information\` y carpetas de datos de emulador** — `rglob("*")` sin exclusión de directorios; viola la regla "BIOS nunca se trata como ROM". Excluir dirs (BIOS, `System Volume Information`, ES-DE/assets, ocultos, `_descartados`). Quita ~12 de 35. Tests. | `utils/orphan_finder.py:27` | ✅ `_iter_files()` con `_EXCLUDED_DIR_NAMES` + skip de dirs ocultos; tests en `test_orphan_finder.py` |
+| RPT-A3 | ⚪ Bajo | **Ficheros de datos de emulador (`.dat`, `.fs`) contados como "saves"** — p.ej. `scummvm\theme\*.dat`, `fbneo\*.fs`. Estrechar el set de extensiones de save del orphan-finder a saves reales (`.srm`/`.sav`/`.nv`/`.hi`/`.state`…), excluir `.dat`/`.fs`. Deja solo NVRAM arcade real. | `utils/orphan_finder.py` | ✅ `.dat` y `.fs` eliminados de `save_extensions` en `config.py`; tests en `test_orphan_finder.py` |
 
 ### B — Problemas reales de biblioteca (añadir acción de arreglo in-app)
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| RPT-B1 | 🟡 Medio | **11 juegos multidisco sin `.m3u`** (Driver 2, Grandia, Koudelka [8 discos], Parasite Eve I/II, Oddworld…) — RetroArch necesita `.m3u` para cambiar de disco. Exponer acción "Generar .m3u (N)" desde el informe / tab Formatos (el generador ya existe en `m3u_generator`). | `web/handlers/esde/conversions.py`, partial del informe | ⬜ |
-| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. Reverificar gap tras RPT-A1 (el doble conteo `.bin`/`.cue` interfiere). | `utils/multidisc_verifier.py`, partial del informe | ⬜ |
+| RPT-B1 | 🟡 Medio | **11 juegos multidisco sin `.m3u`** (Driver 2, Grandia, Koudelka [8 discos], Parasite Eve I/II, Oddworld…) — RetroArch necesita `.m3u` para cambiar de disco. Exponer acción "Generar .m3u (N)" desde el informe / tab Formatos (el generador ya existe en `m3u_generator`). | `web/handlers/esde/conversions.py`, partial del informe | ✅ `missing_m3u` issue type en `verify_multidisc`; botón "Generar .m3u (N)" en resultado de verificación; `generateM3uFromVerify()` en `tools.js`. 3 tests nuevos. |
+| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. Reverificar gap tras RPT-A1 (el doble conteo `.bin`/`.cue` interfiere). | `utils/multidisc_verifier.py`, partial del informe | ✅ Gap check filtra sidecars (fix falso positivo); UI separa gaps / otros / unmatched con acciones claras. 2 tests nuevos. |
 
 ### C — Auto-descarga de catálogos DAT faltantes (PHASE2 / RPT-B2)
 
@@ -410,11 +410,11 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
-| DAT-DL-0 | 🟡 Medio | **Parser clrmamepro** — `load_clrmamepro_dat(path)` (tokeniza `game (...)`/`rom (...)`) + sniffer en `load_dat_directory` que elige XML vs clrmamepro por contenido. Tests con un DAT de muestra de cada formato. **Prerrequisito de toda la auto-descarga.** | `catalog/catalog_loader.py` | ⬜ |
-| DAT-DL-1 | 🟡 Medio | **Mapa plataforma → fichero DAT en libretro-database** — tabla `platform → metadat/{no-intro,redump}/<archivo>.dat` (raw.githubusercontent.com). Apoyarse en `platforms.toml`/detección existente. | `catalog/dat_downloader.py` (nuevo) | ⬜ |
-| DAT-DL-2 | 🟡 Medio | **`download_dat(platform)` con `urllib`** — descarga a `.rommgr/catalogs/{nointro,redump}/`, valida que parsea (via DAT-DL-0), degradación con gracia si falla la red. | `catalog/dat_downloader.py` | ⬜ |
-| DAT-DL-3 | 🟡 Medio | **Endpoint + UI** — `POST /api/download-dat` (por plataforma o "todas las que faltan"); botón en Settings → Catálogos DAT y en el aviso "sin match" del informe (cierra el loop con RPT-B2). Job en background. | `web/handlers/`, partials | ⬜ |
-| DAT-DL-4 | ⚪ Bajo | **Caché/edad de DATs** — no re-descargar si el DAT local es reciente (TTL configurable); mostrar fecha de última actualización por plataforma. | `catalog/dat_downloader.py` | ⬜ |
+| DAT-DL-0 | 🟡 Medio | **Parser clrmamepro** — `load_clrmamepro_dat(path)` (tokeniza `game (...)`/`rom (...)`) + sniffer en `load_dat_directory` que elige XML vs clrmamepro por contenido. Tests con un DAT de muestra de cada formato. **Prerrequisito de toda la auto-descarga.** | `catalog/catalog_loader.py` | ✅ `load_clrmamepro_dat` + `_detect_dat_format` + `_top_level_text`; sniffer integrado en `load_dat_directory` y `load_dat_files_by_platform`. 10 tests nuevos. |
+| DAT-DL-1 | 🟡 Medio | **Mapa plataforma → fichero DAT en libretro-database** — tabla `platform → metadat/{no-intro,redump}/<archivo>.dat` (raw.githubusercontent.com). Apoyarse en `platforms.toml`/detección existente. | `catalog/dat_downloader.py` (nuevo) | ✅ `_PLATFORM_DAT_MAP` 46 plataformas + `dat_url()` + `known_platforms()`. PR #49. |
+| DAT-DL-2 | 🟡 Medio | **`download_dat(platform)` con `urllib`** — descarga a `.rommgr/catalogs/{nointro,redump}/`, valida que parsea (via DAT-DL-0), degradación con gracia si falla la red. | `catalog/dat_downloader.py` | ✅ `download_dat()` → `DatDownloadResult`; captura URLError + parse vacío. 17 tests. PR #49. |
+| DAT-DL-3 | 🟡 Medio | **Endpoint + UI** — `POST /api/download-dat` (por plataforma o "todas las que faltan"); botón en Settings → Catálogos DAT y en el aviso "sin match" del informe (cierra el loop con RPT-B2). Job en background. | `web/handlers/`, partials | ✅ URL corregida a `/metadat/{no-intro\|redump}/`; validación via `_load_dat_file`; fix `sys.present→downloaded` en scan.js; fix template literal en tools.js; botón unmatched scroll a `#dat-catalog-list`. PR #50. |
+| DAT-DL-4 | ⚪ Bajo | **Caché/edad de DATs** — no re-descargar si el DAT local es reciente (TTL configurable); mostrar fecha de última actualización por plataforma. | `catalog/dat_downloader.py` | ✅ TTL 7d, `_is_dat_fresh`, `_build_dat_catalog_list` con `mtime_iso`/`age_days`/`stale`; UI ambar para obsoletos; 12 tests. PR #51. |
 
 > **Orden sugerido:** RPT-A1 → RPT-A2 → RPT-A3 (precisión del informe, backend + tests,
 > bajo riesgo) → RPT-B1 (acción m3u) → DAT-DL-0 (parser clrmamepro, prerreq) →

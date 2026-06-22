@@ -95,3 +95,55 @@ class TestFindOrphanedSaves:
     def test_non_save_extension_ignored(self, tmp_path: Path) -> None:
         _save(tmp_path, "game.txt")
         assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+
+class TestExcludedDirectories:
+    """RPT-A2: BIOS/, hidden dirs and _descartados/ must be skipped."""
+
+    def test_bios_dir_skipped(self, tmp_path: Path) -> None:
+        _save(tmp_path, "BIOS/SCPH1001.sav")
+        assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+    def test_bios_dir_case_insensitive(self, tmp_path: Path) -> None:
+        _save(tmp_path, "bios/some.srm")
+        assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+    def test_system_volume_information_skipped(self, tmp_path: Path) -> None:
+        _save(tmp_path, "System Volume Information/tracking.sav")
+        assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+    def test_descartados_skipped(self, tmp_path: Path) -> None:
+        _save(tmp_path, "_descartados/old_game.srm")
+        assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+    def test_hidden_dir_skipped(self, tmp_path: Path) -> None:
+        _save(tmp_path, ".retroarch/game.sav")
+        assert find_orphaned_saves(tmp_path, SAVE_EXTS) == []
+
+    def test_normal_subdir_still_scanned(self, tmp_path: Path) -> None:
+        """Non-excluded subdirectories must still be traversed."""
+        _save(tmp_path, "psx/game.sav")
+        orphans = find_orphaned_saves(tmp_path, SAVE_EXTS)
+        assert len(orphans) == 1
+
+    def test_save_outside_excluded_dir_detected(self, tmp_path: Path) -> None:
+        """A save alongside ROMs must still be found even if sibling BIOS/ exists."""
+        _save(tmp_path, "BIOS/bios.sav")
+        _save(tmp_path, "psx/orphan.sav")
+        orphans = find_orphaned_saves(tmp_path, SAVE_EXTS)
+        assert len(orphans) == 1
+        assert "orphan" in orphans[0].stem
+
+
+class TestDefaultSaveExtensions:
+    """RPT-A3: .dat and .fs must not be in the default save_extensions."""
+
+    def test_dat_not_in_default_extensions(self, tmp_path: Path) -> None:
+        from rom_manager.config import load_config
+        cfg = load_config(tmp_path)
+        assert ".dat" not in cfg.save_extensions
+
+    def test_fs_not_in_default_extensions(self, tmp_path: Path) -> None:
+        from rom_manager.config import load_config
+        cfg = load_config(tmp_path)
+        assert ".fs" not in cfg.save_extensions

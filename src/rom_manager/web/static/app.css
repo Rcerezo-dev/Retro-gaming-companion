@@ -854,6 +854,7 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .dat-item { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fg-1); background: var(--bg-nav); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; cursor: pointer; user-select: none; }
 .dat-item input[type="checkbox"] { width: auto; margin: 0; cursor: pointer; }
 .dat-item-present { border-color: #4a7a4a; color: #7ec87e; }
+.dat-item-stale  { border-color: #7a6a2a; color: #c8a83e; }
 
 [data-theme="light"] .col-tile { background: var(--bg-panel); border-color: var(--border); }
 [data-theme="light"] .col-cover { background: var(--bg-cover); }
@@ -1203,6 +1204,11 @@ input:focus, select:focus, textarea:focus {
   position: fixed; inset: 0; z-index: 9000;
   background: rgba(0,0,0,.82);
   align-items: center; justify-content: center;
+}
+#update-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 20px; font-size: 12px;
+  background: #1a1a2e; border-bottom: 1px solid #3a3a5c; color: #c9bcf5;
 }
 #auto-sync-banner {
   display: flex;

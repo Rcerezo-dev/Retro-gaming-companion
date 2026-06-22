@@ -107,7 +107,26 @@ if (-not (Test-Path $ConfigDest)) {
     }
 }
 
-# ── 6. Report ─────────────────────────────────────────────────────────────────
+# ── 6. (Optional) Build Inno Setup installer ─────────────────────────────────
+$Iscc = Get-Command iscc -ErrorAction SilentlyContinue
+if ($Iscc) {
+    Write-Host "Running Inno Setup..." -ForegroundColor Cyan
+    $IssScript = Join-Path $Root "installer\RetroVault.iss"
+    & iscc $IssScript
+    if ($LASTEXITCODE -eq 0) {
+        $SetupExe = Join-Path $Root "installer\Output\RetroVaultSetup-0.1.0.exe"
+        if (Test-Path $SetupExe) {
+            $SizeMB = [math]::Round((Get-Item $SetupExe).Length / 1MB, 1)
+            Write-Host "  Installer: $SetupExe  ($SizeMB MB)" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "Inno Setup failed (exit $LASTEXITCODE) — continuing." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "iscc not found — skipping installer build (install Inno Setup 6 and add to PATH)." -ForegroundColor Gray
+}
+
+# ── 7. Report ─────────────────────────────────────────────────────────────────
 $ExePath = Join-Path $DistDir "RetroVault.exe"
 if (Test-Path $ExePath) {
     $Size = [math]::Round((Get-Item $ExePath).Length / 1MB, 1)
