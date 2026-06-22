@@ -94,8 +94,8 @@ async function loadSettings() {
       const fmtSize = (n) => n == null ? '?' : n < 1024*1024 ? (n/1024).toFixed(0)+'KB' : (n/1024/1024).toFixed(1)+'MB';
       dbInfo.innerHTML =
         '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center">' +
-        '<span style="color:#4ec9b0">&#x25CF;</span><span style="font-family:monospace;color:#d4d4d4">library_pc.db</span><span style="color:#888">' + fmtSize(cfg.pc_db_size) + '</span>' +
-        '<span style="color:#ce9178">&#x25CF;</span><span style="font-family:monospace;color:#d4d4d4">library_android.db</span><span style="color:#888">' + fmtSize(cfg.android_db_size) + '</span>' +
+        '<span style="color:var(--c-teal)">&#x25CF;</span><span style="font-family:monospace;color:var(--c-text)">library_pc.db</span><span style="color:#888">' + fmtSize(cfg.pc_db_size) + '</span>' +
+        '<span style="color:var(--c-orange)">&#x25CF;</span><span style="font-family:monospace;color:var(--c-text)">library_android.db</span><span style="color:#888">' + fmtSize(cfg.android_db_size) + '</span>' +
         '</div>';
     }
   } catch(e) { /* silent */ }
@@ -281,7 +281,7 @@ async function loadTools() {
         raStatus.textContent = '✓ API key configurada';
       } else {
         _txtCls(raStatus, 'txt-err');
-        raStatus.innerHTML = '✗ API key no configurada — <a href="#" onclick="showTab(\'settings\');return false" style="color:#569cd6">ir a Settings</a>';
+        raStatus.innerHTML = '✗ API key no configurada — <a href="#" onclick="showTab(\'settings\');return false" style="color:var(--c-blue)">ir a Settings</a>';
       }
     }
     // Restore persisted tool paths (Fix E)
@@ -358,9 +358,9 @@ async function doBatchRun() {
     try {
       const d = await job.start();
       if (d.status === 'already_running') {
-        statusEl.innerHTML = `<span style="color:#dcdcaa">⚠ ${window._h(job.name)} ya está en curso — esperando…</span>`;
+        statusEl.innerHTML = `<span style="color:var(--c-yellow)">⚠ ${window._h(job.name)} ya está en curso — esperando…</span>`;
       } else if (d.error) {
-        statusEl.innerHTML = `<span style="color:#f44747">Error en ${window._h(job.name)}: ${window._h(d.error)}</span>`;
+        statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${window._h(job.name)}: ${window._h(d.error)}</span>`;
         allOk = false; break;
       }
       // Poll until job finishes
@@ -372,17 +372,17 @@ async function doBatchRun() {
           } catch(e) { clearInterval(t); reject(e); }
         }, 2000);
       });
-      statusEl.innerHTML = `<span style="color:#4ec9b0">✓ ${window._h(job.name)} completado.</span>`;
+      statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ ${window._h(job.name)} completado.</span>`;
       window.startPolling();
     } catch(e) {
-      statusEl.innerHTML = `<span style="color:#f44747">Error en ${window._h(job.name)}: ${window._h(e.message)}</span>`;
+      statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${window._h(job.name)}: ${window._h(e.message)}</span>`;
       allOk = false; break;
     }
   }
 
   btn.disabled = false;
   if (allOk) {
-    statusEl.innerHTML = `<span style="color:#4ec9b0">✓ Todas las operaciones completadas sobre ${window._h(root)}.</span>`;
+    statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ Todas las operaciones completadas sobre ${window._h(root)}.</span>`;
     window.loadOverview();
   }
 }
@@ -413,7 +413,7 @@ async function loadAuthStatus() {
     const d = await apiFetch('/api/auth/status');
     if (statusEl) {
       if (d.pin_configured) {
-        statusEl.innerHTML = '<span style="color:#4ec9b0">&#x2713; PIN activado</span> — se pedirá al abrir la app desde otra IP.';
+        statusEl.innerHTML = '<span style="color:var(--c-teal)">&#x2713; PIN activado</span> — se pedirá al abrir la app desde otra IP.';
         if (clearBtn) clearBtn.classList.remove('hidden');
         if (logoutBtn) logoutBtn.classList.remove('hidden');
       } else {
@@ -715,7 +715,7 @@ async function doMigrateSavesStructure(dryRun) {
   try {
     const d = await apiPost('/api/migrate-saves-structure', { dry_run: dryRun });
     if (d.error) {
-      if (res) { res.textContent = '\u274C ' + d.error; res.style.color = '#f44747'; }
+      if (res) { res.textContent = '\u274C ' + d.error; res.style.color = 'var(--c-red)'; }
       return;
     }
     const action = dryRun ? 'Mover\xeda' : 'Movidos';
@@ -724,9 +724,9 @@ async function doMigrateSavesStructure(dryRun) {
     if (dryRun && d.preview?.length) {
       msg += '<br><small style="color:#555">' + d.preview.slice(0, 5).map(p => p.source.split(/[\\/]/).pop()).join(', ') + (d.preview.length > 5 ? '\u2026' : '') + '</small>';
     }
-    if (res) { res.innerHTML = (dryRun ? '\u2139\uFE0F ' : '\u2705 ') + msg; res.style.color = dryRun ? '#dcdcaa' : '#4ec9b0'; }
+    if (res) { res.innerHTML = (dryRun ? '\u2139\uFE0F ' : '\u2705 ') + msg; res.style.color = dryRun ? 'var(--c-yellow)' : 'var(--c-teal)'; }
   } catch(e) {
-    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = '#f44747'; }
+    if (res) { res.textContent = '\u274C ' + e.message; res.style.color = 'var(--c-red)'; }
   } finally {
     if (dryBtn)   dryBtn.disabled = false;
     if (applyBtn) applyBtn.disabled = false;
@@ -747,13 +747,13 @@ async function _loadCoresStatus() {
     const d = await apiFetch('/api/retroarch-check');
     if (!d.exe_configured || !d.exe_exists) { el.innerHTML = ''; return; }
     if (!d.cores_dir_exists) {
-      el.innerHTML = '<span style="color:#f9c74f">⚠ Carpeta cores/ no encontrada — instala cores desde RetroArch → Online Updater</span>';
+      el.innerHTML = '<span style="color:var(--c-amber)">⚠ Carpeta cores/ no encontrada — instala cores desde RetroArch → Online Updater</span>';
       return;
     }
     const missing = Object.entries(d.key_cores || {}).filter(([, ok]) => !ok).map(([lbl]) => lbl);
-    let html = `<span style="color:#4ec9b0">✓ ${d.cores_count} cores instalados</span>`;
+    let html = `<span style="color:var(--c-teal)">✓ ${d.cores_count} cores instalados</span>`;
     if (missing.length) {
-      html += `&nbsp;·&nbsp;<span style="color:#f9c74f">Sin instalar: ${missing.map(l => window._h(l)).join(', ')}</span>`;
+      html += `&nbsp;·&nbsp;<span style="color:var(--c-amber)">Sin instalar: ${missing.map(l => window._h(l)).join(', ')}</span>`;
     }
     el.innerHTML = html;
   } catch(_) { el.innerHTML = ''; }
@@ -777,12 +777,12 @@ async function detectRetroArch() {
           msg += '  ·  Biblioteca: ' + d.library_root;
         }
       }
-      if (resultEl) { resultEl.textContent = msg; resultEl.style.color = '#4ec9b0'; }
+      if (resultEl) { resultEl.textContent = msg; resultEl.style.color = 'var(--c-teal)'; }
     } else {
-      if (resultEl) { resultEl.textContent = '✗ No encontrado — introduce la ruta manualmente.'; resultEl.style.color = '#f44747'; }
+      if (resultEl) { resultEl.textContent = '✗ No encontrado — introduce la ruta manualmente.'; resultEl.style.color = 'var(--c-red)'; }
     }
   } catch (e) {
-    if (resultEl) { resultEl.textContent = '✗ Error: ' + e.message; resultEl.style.color = '#f44747'; }
+    if (resultEl) { resultEl.textContent = '✗ Error: ' + e.message; resultEl.style.color = 'var(--c-red)'; }
   } finally {
     if (btn) btn.disabled = false;
   }

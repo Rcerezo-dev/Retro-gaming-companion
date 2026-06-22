@@ -17,7 +17,7 @@
     <label class="fmt-check hidden" id="sha-length-label">
       <span style="color:#888;font-size:11px;margin-right:4px">Dígitos:</span>
       <select id="fmt-sha-length" onchange="loadPlan()"
-        style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:2px 6px;border-radius:4px;font:inherit;font-size:12px">
+        style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:4px;font:inherit;font-size:12px">
         <option value="8" selected>8</option>
         <option value="12">12</option>
         <option value="16">16</option>
@@ -27,7 +27,7 @@
     <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
       <!-- D8-2: device filter for plan -->
       <select id="plan-device-filter" onchange="loadPlan()" title="Filtrar operaciones por dispositivo"
-        style="background:#1e1e2e;border:1px solid #444;color:#d4d4d4;padding:5px 9px;border-radius:4px;font:inherit;font-size:12px">
+        style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:12px">
         <option value="">Todos los dispositivos</option>
         <option value="pc">Solo PC</option>
         <option value="android">Solo Consola Android</option>
@@ -35,33 +35,33 @@
       <button id="btn-apply" class="btn primary" onclick="doApply()" disabled>Renombrar</button>
       <button id="btn-resolve-conflicts" class="btn hidden" onclick="applyKeepBoth()">Resolver conflictos</button>
       <!-- D8-3: RA conflict resolver button -->
-      <button id="btn-resolve-ra-conflicts" class="btn hidden" onclick="doResolveRaConflicts()" style="border-color:#c586c0;color:#c586c0">Resolver con RA</button>
+      <button id="btn-resolve-ra-conflicts" class="btn hidden" onclick="doResolveRaConflicts()" style="border-color:var(--c-purple);color:var(--c-purple)">Resolver con RA</button>
     </div>
   </div>
   <!-- Barra de progreso del apply -->
   <div class="hidden" id="apply-progress-wrap" style="margin-bottom:10px;padding:8px 12px;background:#1a1a2e;border:1px solid #3a3a6a;border-radius:4px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span id="apply-progress-label" style="font-size:12px;color:#9cdcfe">Renombrando…</span>
+      <span id="apply-progress-label" style="font-size:12px;color:var(--c-lblue)">Renombrando…</span>
       <span id="apply-progress-pct" style="font-size:12px;color:#888">0%</span>
     </div>
     <div style="background:#0f0f1a;border-radius:3px;height:6px;overflow:hidden">
-      <div id="apply-progress-bar" style="height:100%;background:#569cd6;width:0%;transition:width .2s"></div>
+      <div id="apply-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width .2s"></div>
     </div>
   </div>
   <!-- D8-2: apply error details panel -->
   <div class="hidden" id="apply-error-details" style="margin-bottom:10px;padding:10px 14px;background:#1f0d0d;border:1px solid #4a1a1a;border-radius:4px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-      <span style="color:#f44747;font-size:12px;font-weight:600" id="apply-error-count"></span>
+      <span style="color:var(--c-red);font-size:12px;font-weight:600" id="apply-error-count"></span>
       <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="document.getElementById('apply-error-details').style.display='none'">Cerrar</button>
     </div>
     <div id="apply-error-list" style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;color:#f99"></div>
   </div>
-  <div class="hidden" id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:#161626;border:1px solid #2a2a3a;border-radius:4px">
-    <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:#4ec9b0"></span>
+  <div class="hidden" id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:var(--c-bar);border:1px solid #2a2a3a;border-radius:4px">
+    <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:var(--c-teal)"></span>
   </div>
   <!-- Resumen C2: X listos · Y conflictos · Z sin match -->
-  <div class="hidden" id="plan-summary-bar" style="margin-bottom:10px;padding:8px 14px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
-  <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:#1e1e2e;border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
+  <div class="hidden" id="plan-summary-bar" style="margin-bottom:10px;padding:8px 14px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
+  <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
   <div id="plan-content"><p class="loading">Cargando…</p></div>
 </div>
 

@@ -54,6 +54,15 @@ _LOGIN_HTML = _auth.LOGIN_HTML
 
 _logger = logging.getLogger(__name__)
 
+
+class InsecureExposureError(RuntimeError):
+    """Raised when the server is asked to bind to a non-localhost host without a PIN.
+
+    PHASE5-1: exposing the unauthenticated UI to the network is refused by default;
+    the user must set a PIN first or opt in explicitly with ``--allow-insecure``.
+    """
+
+
 _GENERIC_ERROR_MSG = "Ha ocurrido un error inesperado. Revisa los registros para más detalle."
 
 
@@ -460,14 +469,26 @@ def serve(
     config: AppConfig,
     repository_android: LibraryRepository | None = None,
     tray: bool = False,
+    allow_insecure: bool = False,
 ) -> None:
     _state._auto_sync_enabled = config.sync.auto_sync_enabled
 
     if host != "127.0.0.1" and not config.credentials.web_pin_hash:
+        if not allow_insecure:
+            raise InsecureExposureError(
+                f"El servidor está configurado para escuchar en la red ({host}:{port}) "
+                "sin PIN. Cualquier usuario de tu red local podría acceder y modificar "
+                "todos tus datos, así que el arranque se ha detenido.\n\n"
+                "Para continuar, elige una opción:\n"
+                "  1. Arranca primero en local (host 127.0.0.1, por defecto), entra en "
+                "Settings → Seguridad y configura un PIN. Luego reinicia expuesto a la red.\n"
+                "  2. Si confías en tu red y aceptas el riesgo, vuelve a lanzar con "
+                "--allow-insecure."
+            )
         _logger.warning(
             "AVISO DE SEGURIDAD: el servidor está expuesto en la red (%s:%d) sin PIN configurado. "
             "Cualquier usuario de tu red local puede acceder y modificar todos los datos. "
-            "Activa un PIN en Settings → Seguridad.",
+            "Activa un PIN en Settings → Seguridad. (Arranque permitido por --allow-insecure.)",
             host,
             port,
         )

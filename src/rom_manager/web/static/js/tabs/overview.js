@@ -163,7 +163,7 @@ export async function _renderActivityHeatmap() {
 }
 
 function _getHeatmapColor(intensity) {
-  if (intensity === 0)    return '#0d1117';
+  if (intensity === 0)    return 'var(--c-deep)';
   if (intensity < 0.25)   return '#0d3922';
   if (intensity < 0.5)    return '#0d5c2c';
   if (intensity < 0.75)   return '#1a7938';
@@ -267,7 +267,7 @@ export async function _renderMonthlyChart() {
       return;
     }
 
-    const colors     = ['#569cd6', '#4ec9b0', '#dcdcaa', '#ce9178', '#9cdcfe', '#c586c0', '#a7ec21', '#f44747'];
+    const colors     = ['var(--c-blue)', 'var(--c-teal)', 'var(--c-yellow)', 'var(--c-orange)', 'var(--c-lblue)', 'var(--c-purple)', '#a7ec21', 'var(--c-red)'];
     const platArray  = Array.from(platforms).sort();
     const barWidth   = 8;
     const groupGap   = 16;
@@ -319,7 +319,7 @@ export async function _renderMonthlyChart() {
     platArray.forEach((plat, idx) => {
       ctx.fillStyle = colors[idx % colors.length];
       ctx.fillRect(legX, legY, 10, 10);
-      ctx.fillStyle = '#d4d4d4';
+      ctx.fillStyle = '#d4d4d4';  // canvas can't resolve CSS vars; chart bg is always dark
       ctx.fillText(plat, legX + 15, legY + 9);
       legX += 120;
       if (legX > canvas.width - 100) { legX = padding; legY += 14; }
@@ -344,10 +344,10 @@ function fmtSize(n) {
 }
 
 const _PLAT_HEX = {
-  gba: '#4ec9b0', snes: '#569cd6', nes: '#f44747', gb: '#dcdcaa',
-  gbc: '#d7ba7d', nds: '#c586c0', '3ds': '#9cdcfe', n64: '#4ec9b0',
-  psx: '#9cdcfe', ps2: '#569cd6', psp: '#79c0ff',
-  genesis: '#ce9178', md: '#ce9178', sms: '#6a9955', gg: '#4ec9b0',
+  gba: 'var(--c-teal)', snes: 'var(--c-blue)', nes: 'var(--c-red)', gb: 'var(--c-yellow)',
+  gbc: '#d7ba7d', nds: 'var(--c-purple)', '3ds': 'var(--c-lblue)', n64: 'var(--c-teal)',
+  psx: 'var(--c-lblue)', ps2: 'var(--c-blue)', psp: '#79c0ff',
+  genesis: 'var(--c-orange)', md: 'var(--c-orange)', sms: 'var(--c-green)', gg: 'var(--c-teal)',
 };
 function _platHex(plat) {
   const cls = _PLAT_CLASS[(plat||'').toLowerCase()] || 'other';
@@ -366,7 +366,7 @@ function _updateDeviceConnectivityBadge() {
     badge.classList.add('hidden');
   } else {
     badge.classList.remove('hidden');
-    badge.style.color = '#f44747';
+    badge.style.color = 'var(--c-red)';
     badge.style.borderColor = '#4a2a2a';
     badge.style.backgroundColor = '#2a1a1a';
     badge.textContent = '● No conectado';
@@ -481,8 +481,8 @@ export async function loadOverview() {
           setupBanner.classList.remove('hidden');
           const cl = d.setup_checklist || {};
           const chk = (ok, label, hint) =>
-            '<div>' + (ok ? '<span style="color:#4ec9b0">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
-            ' <span style="color:' + (ok ? '#d4d4d4' : '#888') + '">' + label + '</span>' +
+            '<div>' + (ok ? '<span style="color:var(--c-teal)">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
+            ' <span style="color:' + (ok ? 'var(--c-text)' : '#888') + '">' + label + '</span>' +
             (hint && !ok ? ' <span style="color:#555;font-size:11px">— ' + hint + '</span>' : '') + '</div>';
           const clEl = document.getElementById('ov-setup-checklist');
           if (clEl) clEl.innerHTML =
@@ -517,7 +517,7 @@ export async function loadOverview() {
         const lastScans = ab.last_scans_by_root || {};
         const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
         if (ab.total_games === 0) {
-          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:#dcdcaa;font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de <em>${_devName}</em> en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
+          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:var(--c-yellow);font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de <em>${_devName}</em> en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
         } else {
           const lastScanStr = abLastScan ? abLastScan.replace('T',' ').slice(0,16) : 'nunca';
           const daysAgo = ab.scan_days_ago !== null && ab.scan_days_ago !== undefined ? ab.scan_days_ago : null;
@@ -578,8 +578,8 @@ export async function loadOverview() {
         }
         if (recentEl) recentEl.innerHTML = games.map(g => {
           const title = g.canonical_title || g.original_filename;
-          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #1e1e2e;font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
-            <span>${_platBadge(g.platform)} <span style="color:#d4d4d4">${_h(title)}</span></span>
+          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--c-panel);font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
+            <span>${_platBadge(g.platform)} <span style="color:var(--c-text)">${_h(title)}</span></span>
             <span style="color:#555">${_relTime(g.last_played_at)}</span>
           </div>`;
         }).join('');
@@ -605,10 +605,10 @@ export async function loadOverview() {
             const pct = Math.round(p.count / maxCount * 100);
             return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px">
               <span style="width:110px;color:#888;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(p.platform)}">${_h(p.platform)}</span>
-              <div style="flex:1;background:#1e1e2e;border-radius:2px;height:14px">
-                <div style="width:${pct}%;background:#569cd6;height:14px;border-radius:2px;transition:width 0.3s"></div>
+              <div style="flex:1;background:var(--c-panel);border-radius:2px;height:14px">
+                <div style="width:${pct}%;background:var(--c-blue);height:14px;border-radius:2px;transition:width 0.3s"></div>
               </div>
-              <span style="width:40px;color:#d4d4d4;font-size:11px">${p.count}</span>
+              <span style="width:40px;color:var(--c-text);font-size:11px">${p.count}</span>
             </div>`;
           }).join('');
         } else {
@@ -626,7 +626,7 @@ export async function loadOverview() {
           const mins = pcStatusForReport.last_report_mins_ago;
           const timeStr = mins < 60 ? ('hace ' + mins + ' min') : ('hace ' + Math.round(mins/60) + 'h');
           reportNoticeEl.classList.remove('hidden');
-          reportNoticeEl.innerHTML = '<span style="color:#dcdcaa;font-size:12px">&#x1F4CA; Informe disponible — generado ' + timeStr + '</span> '
+          reportNoticeEl.innerHTML = '<span style="color:var(--c-yellow);font-size:12px">&#x1F4CA; Informe disponible — generado ' + timeStr + '</span> '
             + '<a href="/api/report/html' + (pcPath ? '?path=' + encodeURIComponent(pcPath) : '') + '" target="_blank" class="btn" style="padding:2px 8px;font-size:11px;margin-left:8px">Ver informe</a>';
         } else {
           reportNoticeEl.classList.add('hidden');
@@ -673,11 +673,11 @@ export async function _renderPlatformGrid(pcPath) {
       const size = Math.max(40, Math.round(p.count / maxCount * 100));
       const platName = _h(p.platform || '?');
       return `<div class="platform-tile" data-idx="${idx}"
-        style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px;background:#1e1e2e;border:1px solid #2a2a3a;border-radius:6px;cursor:pointer;transition:all 0.2s;text-align:center"
+        style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px;background:var(--c-panel);border:1px solid #2a2a3a;border-radius:6px;cursor:pointer;transition:all 0.2s;text-align:center"
         onmouseover="this.style.background='#252535';this.style.borderColor='#3a3a5c'"
-        onmouseout="this.style.background='#1e1e2e';this.style.borderColor='#2a2a3a'">
+        onmouseout="this.style.background='var(--c-panel)';this.style.borderColor='#2a2a3a'">
         <div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">${logo}</div>
-        <div style="font-size:11px;font-weight:600;color:#d4d4d4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%" title="${platName}">${platName}</div>
+        <div style="font-size:11px;font-weight:600;color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%" title="${platName}">${platName}</div>
         <div style="font-size:10px;color:#888">${p.count} game${p.count !== 1 ? 's' : ''}</div>
       </div>`;
     }).join('');
@@ -800,7 +800,7 @@ export function _renderWizSteps(progress) {
   stepsEl.innerHTML = steps.map((s, i) => {
     const n = i + 1;
     let icon, color;
-    if (n < current) { icon = '&#x2705;'; color = '#4ec9b0'; }
+    if (n < current) { icon = '&#x2705;'; color = 'var(--c-teal)'; }
     else if (n === current) { icon = '&#x23F3;'; color = '#c9bcf5'; }
     else { icon = '&nbsp;&nbsp;&nbsp;'; color = '#444'; }
     return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:#777;font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
@@ -828,7 +828,7 @@ export function _showSetupResult(r) {
   const el = document.getElementById('wiz-result-stats');
   if (!el) return;
   if (r.error) {
-    el.innerHTML = '<span style="color:#f44747">Error: ' + _h(r.error) + '</span><span style="color:#888;font-size:12px;margin-left:8px">— Recarga la página o comprueba que hay ROMs escaneados.</span>';
+    el.innerHTML = '<span style="color:var(--c-red)">Error: ' + _h(r.error) + '</span><span style="color:#888;font-size:12px;margin-left:8px">— Recarga la página o comprueba que hay ROMs escaneados.</span>';
     return;
   }
   const fmtB = (b) => b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : b >= 1024 ? (b/1024).toFixed(0) + ' KB' : b + ' B';

@@ -90,7 +90,7 @@ export function applyChdFilter() {
   if (countEl) countEl.textContent = `${visible.length} / ${_chdResults.length} entradas`;
   if (!visible.length) {
     resultsDiv.innerHTML = errorsOnly
-      ? '<p style="color:#4ec9b0;font-size:12px;margin:4px 0">Sin errores.</p>'
+      ? '<p style="color:var(--c-teal);font-size:12px;margin:4px 0">Sin errores.</p>'
       : '';
     return;
   }
@@ -99,11 +99,11 @@ export function applyChdFilter() {
     if (r.success) {
       const tag = isDry ? 'PREVIEW' : 'OK';
       const bins = r.bin_count > 0 ? ` <span style="color:#555;font-size:10px">(${r.bin_count} bin)</span>` : '';
-      return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[${tag}] ${_h(r.cue)} → ${_h(r.chd)}${bins}</div>`;
+      return `<div style="font-size:12px;color:var(--c-teal);padding:2px 0">[${tag}] ${_h(r.cue)} → ${_h(r.chd)}${bins}</div>`;
     } else {
       const bins = r.bin_count > 0 ? ` <span style="color:#555;font-size:10px">(${r.bin_count} bin)</span>` : '';
-      const errMsg = r.error ? `<div style="color:#f44747;font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
-      return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:#f44747"><strong>[FAIL]</strong> ${_h(r.cue)}${bins}</span>${errMsg}</div>`;
+      const errMsg = r.error ? `<div style="color:var(--c-red);font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
+      return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:var(--c-red)"><strong>[FAIL]</strong> ${_h(r.cue)}${bins}</span>${errMsg}</div>`;
     }
   }).join('');
 }
@@ -153,10 +153,10 @@ export function _renderCsoResult(result) {
     if (resultsDiv && result.results) {
       resultsDiv.innerHTML = result.results.map(r => {
         if (r.success) {
-          return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[OK] ${_h(r.file)}</div>`;
+          return `<div style="font-size:12px;color:var(--c-teal);padding:2px 0">[OK] ${_h(r.file)}</div>`;
         } else {
-          const errMsg = r.error ? `<div style="color:#f44747;font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
-          return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:#f44747"><strong>[FAIL]</strong> ${_h(r.file)}</span>${errMsg}</div>`;
+          const errMsg = r.error ? `<div style="color:var(--c-red);font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
+          return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:var(--c-red)"><strong>[FAIL]</strong> ${_h(r.file)}</span>${errMsg}</div>`;
         }
       }).join('');
     }
@@ -224,11 +224,11 @@ export async function doGenerateM3U() {
     const d = await apiPost('/api/generate-m3u', { source_path: pathVal, dry_run: dryRun });
     if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
     const verb = dryRun ? 'Crearía' : 'Creados';
-    let html = `<p style="color:#4ec9b0;margin-bottom:12px">${verb}: <strong>${d.created}</strong>  |  Ya existían: <strong>${d.skipped}</strong></p>`;
+    let html = `<p style="color:var(--c-teal);margin-bottom:12px">${verb}: <strong>${d.created}</strong>  |  Ya existían: <strong>${d.skipped}</strong></p>`;
     if (d.groups.length) {
       html += '<div style="max-height:300px;overflow-y:auto">';
       html += d.groups.map(g => {
-        const color = g.discs.length >= 2 ? '#4ec9b0' : '#888';
+        const color = g.discs.length >= 2 ? 'var(--c-teal)' : '#888';
         return `<div style="font-size:12px;color:${color};padding:2px 0"><strong>${g.m3u}</strong> → ${g.discs.join(', ')}</div>`;
       }).join('');
       html += '</div>';
@@ -297,20 +297,20 @@ export async function doVerifyMultidisc() {
     const total = d.groups_ok + d.groups_with_issues;
 
     let html = `<p style="margin-bottom:8px">`;
-    html += `<span style="color:#4ec9b0">✓ ${d.groups_ok + (d.groups_with_issues - structurallyBad)} grupos OK estructuralmente</span>`;
-    if (structurallyBad > 0) html += `  <span style="color:#f44747">✗ ${structurallyBad} con problemas reales</span>`;
+    html += `<span style="color:var(--c-teal)">✓ ${d.groups_ok + (d.groups_with_issues - structurallyBad)} grupos OK estructuralmente</span>`;
+    if (structurallyBad > 0) html += `  <span style="color:var(--c-red)">✗ ${structurallyBad} con problemas reales</span>`;
     if (unmatchedOnly.length > 0) html += `  <span style="color:#888">⚠ ${unmatchedOnly.length} sin match en catálogo (normal si no has hecho Match aún)</span>`;
     html += `  <span style="color:#555">(${total} grupos)</span></p>`;
 
     const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo' };
     if (realIssues.length) {
-      html += `<p style="color:#f44747;font-size:12px;margin:10px 0 6px">Problemas que requieren atención:</p>`;
+      html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 6px">Problemas que requieren atención:</p>`;
       html += '<div style="max-height:300px;overflow-y:auto;margin-bottom:12px">';
-      html += realIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #1e1e2e">
-        <span style="color:#f44747">${issueLabels[i.issue_type] || i.issue_type}</span>
+      html += realIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
+        <span style="color:var(--c-red)">${issueLabels[i.issue_type] || i.issue_type}</span>
         <span style="color:#888;margin:0 6px">·</span>
-        ${i.platform ? `<span style="color:#569cd6;font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
-        <span style="color:#d4d4d4">${_h(i.base_name)}</span>
+        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        <span style="color:var(--c-text)">${_h(i.base_name)}</span>
         <span style="color:#555;margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
       html += '</div>';
@@ -335,12 +335,12 @@ export async function doExportLpl() {
   try {
     const d = await apiPost('/api/export-lpl', outputDir ? { output_dir: outputDir } : {});
     if (d.error) {
-      if (el) el.innerHTML = `<span style="color:#f44747">✗ ${_h(d.error)}</span>`;
+      if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(d.error)}</span>`;
     } else {
-      if (el) el.innerHTML = `<span style="color:#4ec9b0">✓ ${d.platforms} plataformas · ${d.games} juegos → <code style="font-size:11px">${_h(d.output_dir)}</code></span>`;
+      if (el) el.innerHTML = `<span style="color:var(--c-teal)">✓ ${d.platforms} plataformas · ${d.games} juegos → <code style="font-size:11px">${_h(d.output_dir)}</code></span>`;
     }
   } catch (e) {
-    if (el) el.innerHTML = `<span style="color:#f44747">✗ ${e.message}</span>`;
+    if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${e.message}</span>`;
   }
 }
 
@@ -359,16 +359,16 @@ export async function doN64Scan() {
     if (needConv.length) {
       html += `<div style="max-height:200px;overflow-y:auto">`;
       html += needConv.map(r => `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a;font-size:12px">
-        <span style="color:#f9c74f;width:36px;flex-shrink:0">${_h(r.format.toUpperCase())}</span>
-        <span style="color:#d4d4d4;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_h(r.filename)}</span>
+        <span style="color:var(--c-amber);width:36px;flex-shrink:0">${_h(r.format.toUpperCase())}</span>
+        <span style="color:var(--c-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_h(r.filename)}</span>
         <button class="btn" style="padding:1px 8px;font-size:11px;flex-shrink:0" onclick="doN64Convert(${JSON.stringify(r.path)})">Convertir</button>
       </div>`).join('');
       html += `</div>`;
     } else {
-      html += `<p style="color:#4ec9b0;font-size:12px">&#x2713; Todos los ROMs ya están en formato .z64</p>`;
+      html += `<p style="color:var(--c-teal);font-size:12px">&#x2713; Todos los ROMs ya están en formato .z64</p>`;
     }
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+  } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`; }
 }
 
 export async function doN64Convert(sourcePath) {
@@ -398,7 +398,7 @@ function _faCollapsibleList(items, renderItem, limit = 10) {
   }
   html += '</ul></div>';
   if (hidden.length > 0) {
-    html += `<button onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');if(r.classList.contains('hidden')){r.classList.remove('hidden');b.textContent='▲ Mostrar menos';}else{r.classList.add('hidden');b.textContent='▼ Ver todos (${items.length})';}})()" id="${uid}_btn" style="background:none;border:none;color:#569cd6;font-size:11px;cursor:pointer;padding:2px 0">▼ Ver todos (${items.length})</button>`;
+    html += `<button onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');if(r.classList.contains('hidden')){r.classList.remove('hidden');b.textContent='▲ Mostrar menos';}else{r.classList.add('hidden');b.textContent='▼ Ver todos (${items.length})';}})()" id="${uid}_btn" style="background:none;border:none;color:var(--c-blue);font-size:11px;cursor:pointer;padding:2px 0">▼ Ver todos (${items.length})</button>`;
   }
   return html;
 }
@@ -423,9 +423,9 @@ export async function createLibraryStructure() {
     if (d.skipped.length > 0) resultEl.innerHTML += `<br><span style="font-size:11px;color:#555">${d.skipped.length} ya existían</span>`;
     if (d.android && d.android.root) {
       if (d.android.error) {
-        resultEl.innerHTML += `<br><span style="color:#dcdcaa;font-size:11px">⚠ Android: ${d.android.error}</span>`;
+        resultEl.innerHTML += `<br><span style="color:var(--c-yellow);font-size:11px">⚠ Android: ${d.android.error}</span>`;
       } else {
-        resultEl.innerHTML += `<br><span style="color:#4ec9b0;font-size:11px">✓ Android: ${d.android.created.length} carpetas creadas en <code>${d.android.root}</code></span>`;
+        resultEl.innerHTML += `<br><span style="color:var(--c-teal);font-size:11px">✓ Android: ${d.android.created.length} carpetas creadas en <code>${d.android.root}</code></span>`;
       }
     }
   } catch(e) {
@@ -453,7 +453,7 @@ export async function organizeLibrary(dryRun) {
     resultEl.innerHTML = `${verb}: <strong>${total}</strong> archivos total` +
       `<span style="color:#555;font-size:11px;margin-left:10px">ROMs: ${d.moves_roms || 0} · Saves: ${d.moves_saves || 0} · BIOS: ${d.moves_bios || 0}</span>`;
     if (d.errors && d.errors.length > 0) {
-      resultEl.innerHTML += `<br><span style="color:#dcdcaa;font-size:11px">⚠ ${d.errors.length} errores (ver logs)</span>`;
+      resultEl.innerHTML += `<br><span style="color:var(--c-yellow);font-size:11px">⚠ ${d.errors.length} errores (ver logs)</span>`;
     }
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
@@ -501,7 +501,7 @@ export function _renderVerifyChdResult(result) {
     const cls = result.failed > 0 ? 'error-r' : 'success';
     resultEl.className = 'job-result visible ' + cls;
     resultEl.innerHTML = `${result.ok} / ${result.total} CHDs correctos` +
-      (result.failed > 0 ? ` &nbsp;·&nbsp; <span style="color:#f44747">${result.failed} corruptos</span>` : '') +
+      (result.failed > 0 ? ` &nbsp;·&nbsp; <span style="color:var(--c-red)">${result.failed} corruptos</span>` : '') +
       `<span style="color:#555;font-size:11px;margin-left:8px">${cancelled}</span>`;
     _verifyChdResults = result.results || [];
     if (listEl && _verifyChdResults.length) {
@@ -524,15 +524,15 @@ function _renderVerifyChdList(listEl, errorsOnly) {
   if (countEl) countEl.textContent = `${visible.length} / ${_verifyChdResults.length}`;
   if (!visible.length) {
     listEl.innerHTML = errorsOnly
-      ? '<p style="color:#4ec9b0;font-size:12px;padding:4px 0">Todos los CHDs son correctos.</p>'
+      ? '<p style="color:var(--c-teal);font-size:12px;padding:4px 0">Todos los CHDs son correctos.</p>'
       : '<p style="color:#555;font-size:12px;padding:4px 0">Sin resultados.</p>';
     return;
   }
   listEl.innerHTML = visible.map(r => {
     if (r.ok) {
-      return `<div style="font-size:12px;color:#4ec9b0;padding:2px 0">[OK] ${_h(r.file)}</div>`;
+      return `<div style="font-size:12px;color:var(--c-teal);padding:2px 0">[OK] ${_h(r.file)}</div>`;
     }
-    const errMsg = r.error ? `<div style="color:#f44747;font-size:11px;padding-left:8px;margin-top:1px">${_h(r.error)}</div>` : '';
-    return `<div style="padding:3px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:#f44747">[CORRUPT] ${_h(r.file)}</span>${errMsg}</div>`;
+    const errMsg = r.error ? `<div style="color:var(--c-red);font-size:11px;padding-left:8px;margin-top:1px">${_h(r.error)}</div>` : '';
+    return `<div style="padding:3px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:var(--c-red)">[CORRUPT] ${_h(r.file)}</span>${errMsg}</div>`;
   }).join('');
 }

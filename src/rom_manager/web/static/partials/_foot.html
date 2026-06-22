@@ -1,7 +1,7 @@
 </div><!-- /.content-area -->
 </div><!-- /.app-body -->
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.21.0/dist/umd/lucide.min.js"></script>
 <script>lucide.createIcons();</script>
 <script type="module" src="/static/js/main.js"></script>
 <div id="toast-container"></div>
@@ -23,7 +23,7 @@
     <div class="gp-meta" id="gp-meta"></div>
     <div class="gp-status-row">
       <label>Estado</label>
-      <select id="gp-status-sel" style="background:#1e1e2e;border:1px solid #333;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer" onchange="gpSetStatus(this.value)">
+      <select id="gp-status-sel" style="background:var(--c-panel);border:1px solid #333;color:var(--c-text);padding:4px 8px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer" onchange="gpSetStatus(this.value)">
         <option value="">—</option>
         <option value="playing">&#127918; Jugando</option>
         <option value="completed">&#9989; Completado</option>
@@ -35,7 +35,7 @@
         &#x1F4C2; Carpeta
       </button>
       <button class="hidden" onclick="gpLaunch()" id="gp-launch-btn"
-        style="background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:4px 12px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">
+        style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 12px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">
         &#x25B6; Abrir en RetroArch
       </button>
     </div>
@@ -59,9 +59,9 @@
       <div id="gp-tags-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
       <div style="display:flex;gap:6px">
         <input id="gp-tag-input" type="text" placeholder="Nuevo tag…" maxlength="30"
-          style="flex:1;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:4px 8px;border-radius:4px;font:inherit;font-size:12px"
+          style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:4px 8px;border-radius:4px;font:inherit;font-size:12px"
           onkeydown="if(event.key==='Enter')gpAddTag()">
-        <button onclick="gpAddTag()" style="background:#1e1e2e;border:1px solid #444;color:#4ec9b0;padding:4px 10px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">+</button>
+        <button onclick="gpAddTag()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-teal);padding:4px 10px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">+</button>
       </div>
     </div>
     <!-- S30: Notas personales -->
@@ -70,8 +70,8 @@
       <textarea id="gp-notes" placeholder="Trucos, claves, config de controller, d&#xf3;nde lo dej&#xe9;&#x2026;"
         style="width:100%;min-height:56px;background:#0a0a0a;border:1px solid #222;color:#555;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
         oninput="gpNotesInput()"
-        onfocus="this.style.borderColor='#444';this.style.color='#d4d4d4'"
-        onblur="this.style.borderColor='#222';this.style.color=this.value?'#d4d4d4':'#555'"></textarea>
+        onfocus="this.style.borderColor='#444';this.style.color='var(--c-text)'"
+        onblur="this.style.borderColor='#222';this.style.color=this.value?'var(--c-text)':'#555'"></textarea>
     </div>
     <!-- S30: Metadata editor collapsible -->
     <div style="margin-top:10px">
@@ -108,10 +108,10 @@
         </div>
         <div style="margin-bottom:8px">
           <div style="color:#555;font-size:10px;margin-bottom:3px">Descripci&#xf3;n</div>
-          <textarea id="gme-description" style="width:100%;min-height:52px;background:#111;border:1px solid #333;color:#d4d4d4;padding:5px 7px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box" placeholder="Descripci&#xf3;n del juego&#x2026;"></textarea>
+          <textarea id="gme-description" style="width:100%;min-height:52px;background:#111;border:1px solid #333;color:var(--c-text);padding:5px 7px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box" placeholder="Descripci&#xf3;n del juego&#x2026;"></textarea>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button onclick="gpSaveMetaFields()" style="background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:4px 14px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Guardar</button>
+          <button onclick="gpSaveMetaFields()" style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 14px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Guardar</button>
           <span id="gme-result" style="font-size:11px;color:#555"></span>
           <button onclick="gpScrapeSingle()" style="margin-left:auto;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">&#x1F50D; Re-scrapear</button>
         </div>
@@ -123,10 +123,10 @@
     <div class="hidden" id="gp-ra-section" style="margin-top:12px;padding:8px 12px;background:#0d0d1a;border:1px solid #1a1a3a;border-left:3px solid #ffcc00;border-radius:4px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:14px">&#x1F3C6;</span>
-        <span id="gp-ra-count" style="font-size:13px;font-weight:600;color:#d4d4d4"></span>
+        <span id="gp-ra-count" style="font-size:13px;font-weight:600;color:var(--c-text)"></span>
         <span id="gp-ra-points" style="font-size:11px;color:#888;margin-left:4px"></span>
         <a id="gp-ra-link" href="#" target="_blank" rel="noopener"
-          style="margin-left:auto;font-size:11px;color:#569cd6;text-decoration:none;flex-shrink:0">Ver en RA &#x2197;</a>
+          style="margin-left:auto;font-size:11px;color:var(--c-blue);text-decoration:none;flex-shrink:0">Ver en RA &#x2197;</a>
       </div>
       <!-- COL-REVIEW-2c: user progress -->
       <div id="gp-ra-user-progress" style="margin-top:6px;font-size:11px;color:#888"></div>
@@ -152,14 +152,14 @@
     <!-- S36-5: Playtime tracking -->
     <div class="hidden" id="gp-playtime-wrap" style="margin-top:14px">
       <div style="color:#555;font-size:11px;margin-bottom:6px">⏱ Tiempo jugado</div>
-      <div id="gp-playtime-info" style="font-size:12px;color:#d4d4d4;margin-bottom:8px"></div>
+      <div id="gp-playtime-info" style="font-size:12px;color:var(--c-text);margin-bottom:8px"></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px">
         <span style="color:#666">Última sesión:</span>
-        <input id="gp-playtime-hours" type="number" placeholder="0" min="0" max="999" style="width:40px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:2px 6px;border-radius:3px;font:inherit">
+        <input id="gp-playtime-hours" type="number" placeholder="0" min="0" max="999" style="width:40px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:3px;font:inherit">
         <span style="color:#666">h</span>
-        <input id="gp-playtime-mins" type="number" placeholder="0" min="0" max="59" style="width:40px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:2px 6px;border-radius:3px;font:inherit">
+        <input id="gp-playtime-mins" type="number" placeholder="0" min="0" max="59" style="width:40px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:3px;font:inherit">
         <span style="color:#666">m</span>
-        <button onclick="gpLogPlaytime()" style="margin-left:auto;background:#1a3a2a;border:1px solid #4ec9b0;color:#4ec9b0;padding:2px 10px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer">Registrar</button>
+        <button onclick="gpLogPlaytime()" style="margin-left:auto;background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:2px 10px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer">Registrar</button>
       </div>
     </div>
     <div class="gp-desc hidden" id="gp-desc"></div>

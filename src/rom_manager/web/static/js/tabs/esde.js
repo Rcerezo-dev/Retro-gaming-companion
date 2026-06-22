@@ -15,19 +15,19 @@ export async function loadEsdeStatus() {
   try {
     const d = await apiFetch('/api/esde-status');
     if (!d.installed) {
-      el.innerHTML = `<p style="color:#e06c75;font-size:12px">&#x2717; ES-DE no detectado en las rutas conocidas.</p>
-        <p style="color:#555;font-size:11px">Instala ES-DE desde <a href="https://es-de.org" target="_blank" style="color:#4ec9b0">es-de.org</a> o configura la ruta manualmente.</p>`;
+      el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">&#x2717; ES-DE no detectado en las rutas conocidas.</p>
+        <p style="color:#555;font-size:11px">Instala ES-DE desde <a href="https://es-de.org" target="_blank" style="color:var(--c-teal)">es-de.org</a> o configura la ruta manualmente.</p>`;
       return;
     }
     el.innerHTML = `
-      <div style="font-size:12px;color:#4ec9b0;margin-bottom:8px">&#x2713; ES-DE detectado</div>
+      <div style="font-size:12px;color:var(--c-teal);margin-bottom:8px">&#x2713; ES-DE detectado</div>
       <table style="font-size:12px;border-collapse:collapse;width:100%">
-        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Carpeta</td><td><code style="color:#ce9178">${_h(d.install_dir)}</code></td></tr>
-        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">ROMs</td><td><code style="color:#ce9178">${_h(d.roms_path || '—')}</code></td></tr>
-        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Gamelists</td><td><code style="color:#ce9178">${_h(d.gamelists_dir || '—')}</code></td></tr>
+        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Carpeta</td><td><code style="color:var(--c-orange)">${_h(d.install_dir)}</code></td></tr>
+        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">ROMs</td><td><code style="color:var(--c-orange)">${_h(d.roms_path || '—')}</code></td></tr>
+        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Gamelists</td><td><code style="color:var(--c-orange)">${_h(d.gamelists_dir || '—')}</code></td></tr>
       </table>
       ${d.gamelists_dir ? `<div style="margin-top:10px"><button class="btn primary" onclick="doExportGamelistsAll(${JSON.stringify(d.gamelists_dir)})" style="font-size:12px">&#x2193; Exportar todas las gamelists a ES-DE</button></div>` : ''}`;
-  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+  } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`; }
 }
 
 // ── BIOS Checker ──────────────────────────────────────────────────────────────
@@ -44,23 +44,23 @@ export async function loadBiosStatus() {
     let html = '';
     Object.entries(byPlat).sort(([a],[b]) => a.localeCompare(b)).forEach(([plat, entries]) => {
       const total = entries.length, found = entries.filter(e => e.found).length;
-      const clr = found === total ? '#4ec9b0' : (found > 0 ? '#f9c74f' : '#e06c75');
+      const clr = found === total ? 'var(--c-teal)' : (found > 0 ? 'var(--c-amber)' : 'var(--c-softred)');
       html += `<div style="margin-bottom:12px">
         <div style="font-size:12px;font-weight:600;color:${clr};margin-bottom:4px">${_h(plat)} <span style="font-weight:400;color:#555">(${found}/${total})</span></div>`;
       entries.forEach(b => {
         const icon = b.found ? (b.md5_match === false ? '&#x26A0;' : '&#x2713;') : (b.required ? '&#x2717;' : '&#x25A1;');
-        const clrIcon = b.found ? (b.md5_match === false ? '#f9c74f' : '#4ec9b0') : (b.required ? '#e06c75' : '#555');
-        const md5note = b.found && b.md5_match === false ? ' <span style="color:#f9c74f;font-size:10px">MD5 no coincide</span>' : '';
+        const clrIcon = b.found ? (b.md5_match === false ? 'var(--c-amber)' : 'var(--c-teal)') : (b.required ? 'var(--c-softred)' : '#555');
+        const md5note = b.found && b.md5_match === false ? ' <span style="color:var(--c-amber);font-size:10px">MD5 no coincide</span>' : '';
         html += `<div style="display:flex;gap:6px;align-items:center;padding:2px 0;font-size:11px">
           <span style="color:${clrIcon};width:14px;flex-shrink:0">${icon}</span>
-          <code style="color:#ce9178;flex:1">${_h(b.filename)}</code>
+          <code style="color:var(--c-orange);flex:1">${_h(b.filename)}</code>
           <span style="color:#555">${_h(b.notes)}</span>${md5note}
         </div>`;
       });
       html += `</div>`;
     });
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`; }
+  } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`; }
 }
 
 // ── RetroArch Diagnostic ──────────────────────────────────────────────────────
@@ -79,16 +79,16 @@ export async function loadRetroArchCheck() {
     const d = await apiFetch('/api/retroarch-check');
     if (spinner) spinner.classList.add('hidden');
 
-    const okColor = d.ok ? '#4ec9b0' : '#e06c75';
+    const okColor = d.ok ? 'var(--c-teal)' : 'var(--c-softred)';
     const okIcon  = d.ok ? '&#x2713; Todo correcto' : '&#x26A0; Hay problemas';
     status.innerHTML = `<span style="color:${okColor}">${okIcon}</span>`;
 
     const cell = (txt, mono) => mono
-      ? `<td style="padding:2px 0 2px 8px"><code style="color:#ce9178;font-size:11px">${_h(txt)}</code></td>`
-      : `<td style="padding:2px 0 2px 8px;color:#d4d4d4;font-size:11px">${_h(txt)}</td>`;
+      ? `<td style="padding:2px 0 2px 8px"><code style="color:var(--c-orange);font-size:11px">${_h(txt)}</code></td>`
+      : `<td style="padding:2px 0 2px 8px;color:var(--c-text);font-size:11px">${_h(txt)}</td>`;
     const icon = ok => ok
-      ? `<td style="color:#4ec9b0;font-size:11px;width:14px">&#x2713;</td>`
-      : `<td style="color:#e06c75;font-size:11px;width:14px">&#x2717;</td>`;
+      ? `<td style="color:var(--c-teal);font-size:11px;width:14px">&#x2713;</td>`
+      : `<td style="color:var(--c-softred);font-size:11px;width:14px">&#x2717;</td>`;
 
     let html = '';
     html += `<tr>${icon(d.exe_configured)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Ruta configurada</td>${cell(d.exe_path || '\u2014', true)}</tr>`;
@@ -100,7 +100,7 @@ export async function loadRetroArchCheck() {
       if (d.savestate_dir) html += `<tr><td></td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">States dir</td>${cell(d.savestate_dir, true)}</tr>`;
       if (d.esde_ra_path) {
         const matchIcon  = d.esde_ra_match === true ? '&#x2713;' : (d.esde_ra_match === false ? '&#x26A0;' : '?');
-        const matchColor = d.esde_ra_match === true ? '#4ec9b0' : '#f9c74f';
+        const matchColor = d.esde_ra_match === true ? 'var(--c-teal)' : 'var(--c-amber)';
         html += `<tr><td style="color:${matchColor};font-size:11px">${matchIcon}</td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">ES-DE apunta a</td>${cell(d.esde_ra_path, true)}</tr>`;
       }
     }
@@ -108,7 +108,7 @@ export async function loadRetroArchCheck() {
 
     if (d.issues && d.issues.length) {
       issues.innerHTML = d.issues.map(i =>
-        `<div style="font-size:11px;color:#f9c74f;margin-bottom:3px">&#x26A0; ${_h(i)}</div>`
+        `<div style="font-size:11px;color:var(--c-amber);margin-bottom:3px">&#x26A0; ${_h(i)}</div>`
       ).join('');
     } else {
       issues.innerHTML = '';
@@ -118,7 +118,7 @@ export async function loadRetroArchCheck() {
       coresWrap.classList.remove('hidden');
       coresList.innerHTML = Object.entries(d.key_cores).map(([lbl, found]) => {
         const bg = found ? '#1e3a2f' : '#2a1a1a';
-        const fg = found ? '#4ec9b0' : '#666';
+        const fg = found ? 'var(--c-teal)' : '#666';
         const ic = found ? '&#x2713;' : '&#x2717;';
         return `<span style="background:${bg};color:${fg};font-size:10px;padding:2px 6px;border-radius:3px">${ic} ${_h(lbl)}</span>`;
       }).join('');
@@ -130,7 +130,7 @@ export async function loadRetroArchCheck() {
   } catch(e) {
     if (spinner) spinner.classList.add('hidden');
     result.classList.remove('hidden');
-    status.innerHTML = `<span style="color:#e06c75">Error: ${_h(e.message)}</span>`;
+    status.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
     rows.innerHTML = '';
     issues.innerHTML = '';
     coresWrap.classList.add('hidden');
@@ -169,7 +169,7 @@ export async function doRaCheck() {
       window.startPolling();
     }
   } catch(e) {
-    resultEl.innerHTML = `<p style="color:#f44747">Error: ${_h(e.message)}</p>`;
+    resultEl.innerHTML = `<p style="color:var(--c-red)">Error: ${_h(e.message)}</p>`;
     btn.disabled = false;
     btn.textContent = 'Comprobar compatibilidad RA';
     progressWrap.classList.add('hidden');
@@ -195,7 +195,7 @@ export function _renderRaResult(result) {
   if (!resultEl) return;
 
   if (result.error) {
-    resultEl.innerHTML = `<p style="color:#f44747">Error: ${_h(result.error)}</p>`;
+    resultEl.innerHTML = `<p style="color:var(--c-red)">Error: ${_h(result.error)}</p>`;
   } else {
     _raResults = result.results || [];
     // Sort: supported first, then alternatives, then unsupported
@@ -274,9 +274,9 @@ function _renderRaPage() {
 
   let html = `<div style="margin-bottom:12px;font-size:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <div style="flex:1;min-width:300px">
-      <span style="color:#4ec9b0">✓ ${supported} compatibles</span>
-      <span style="color:#f9c74f;margin-left:8px">⚠ ${alternative} con alternativa</span>
-      <span style="color:#e06c75;margin-left:8px">✗ ${noSupport} sin soporte</span>
+      <span style="color:var(--c-teal)">✓ ${supported} compatibles</span>
+      <span style="color:var(--c-amber);margin-left:8px">⚠ ${alternative} con alternativa</span>
+      <span style="color:var(--c-softred);margin-left:8px">✗ ${noSupport} sin soporte</span>
       ${noMd5 > 0 ? `<span style="color:#888;margin-left:8px">? ${noMd5} sin MD5</span>` : ''}
     </div>
     <div style="display:flex;gap:6px">
@@ -333,8 +333,8 @@ function _renderRaPage() {
 
       let row = `<div style="display:grid;grid-template-columns:20px 1fr 1fr 60px 1fr;gap:6px;padding:6px;align-items:center;border-bottom:1px solid #333;font-size:11px">
         <div style="color:${statusColor};text-align:center">${statusIcon}</div>
-        <div style="color:#ce9178;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(r.original_filename || '')}">${_h(filename)}</div>
-        <div style="color:#d4d4d4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_h(raTitle)}</div>
+        <div style="color:var(--c-orange);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(r.original_filename || '')}">${_h(filename)}</div>
+        <div style="color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_h(raTitle)}</div>
         <div style="text-align:center;color:#888">${achievements}</div>
         <div style="display:flex;gap:3px;justify-content:flex-end">
           <button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._copyText('${filenameNoExt.replace(/'/g, "\\'")}', 'nombre')" title="Copiar nombre del juego">📋</button>
@@ -378,9 +378,9 @@ function _raStatusIcon(status) {
 
 function _raStatusColor(status) {
   const colors = {
-    'supported': '#4ec9b0',
-    'no_support_alternative': '#f9c74f',
-    'no_support': '#e06c75',
+    'supported': 'var(--c-teal)',
+    'no_support_alternative': 'var(--c-amber)',
+    'no_support': 'var(--c-softred)',
     'no_md5': '#888',
     'platform_unknown': '#555'
   };
@@ -544,9 +544,9 @@ function _renderHealthPage() {
 
   let html = `<div style="margin-bottom:12px;font-size:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <div style="flex:1;min-width:300px">
-      <span style="color:#4ec9b0">✓ ${ok} correctos</span>
-      <span style="color:#e06c75;margin-left:8px">⚠ ${corrupted} corruptos</span>
-      <span style="color:#e06c75;margin-left:8px">✗ ${missing} perdidos</span>
+      <span style="color:var(--c-teal)">✓ ${ok} correctos</span>
+      <span style="color:var(--c-softred);margin-left:8px">⚠ ${corrupted} corruptos</span>
+      <span style="color:var(--c-softred);margin-left:8px">✗ ${missing} perdidos</span>
     </div>
     <div style="display:flex;gap:6px">
       ${filterVal !== 'all' ? `<button class="btn" style="padding:3px 8px;font-size:11px" onclick="window._clearHealthFilter()">✕ Limpiar filtro</button>` : ''}
@@ -558,7 +558,7 @@ function _renderHealthPage() {
   </p>`;
 
   if (filtered.length === 0) {
-    html += '<p style="color:#4ec9b0;font-size:12px">✓ No se encontraron problemas</p>';
+    html += '<p style="color:var(--c-teal);font-size:12px">✓ No se encontraron problemas</p>';
     resultEl.innerHTML = html;
     return;
   }
@@ -598,14 +598,14 @@ export function _healthIssueRow(result) {
   const titleStr = result.canonical_title || filename;
 
   let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:6px;align-items:center;border-bottom:1px solid #333;font-size:11px">
-    <div style="color:#ce9178;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(result.source_path || '')}">${_h(filename)}</div>
+    <div style="color:var(--c-orange);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(result.source_path || '')}">${_h(filename)}</div>
     <div style="color:#888">${_h(platformStr)}</div>
-    <div style="color:#d4d4d4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(titleStr)}">${_h(titleStr)}</div>`;
+    <div style="color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(titleStr)}">${_h(titleStr)}</div>`;
 
   if (result.status === 'corrupted') {
     html += `<div style="grid-column:1/-1;font-size:10px;color:#888">
-      <div>Esperado: <code style="color:#ce9178;font-size:9px">${_h(result.stored_sha1)}</code></div>
-      <div>Actual: <code style="color:#e06c75;font-size:9px">${_h(result.computed_sha1 || '—')}</code></div>
+      <div>Esperado: <code style="color:var(--c-orange);font-size:9px">${_h(result.stored_sha1)}</code></div>
+      <div>Actual: <code style="color:var(--c-softred);font-size:9px">${_h(result.computed_sha1 || '—')}</code></div>
     </div>`;
   }
 
@@ -631,10 +631,10 @@ export async function togglePlatformHealth(platform) {
   try {
     const d = await apiFetch(`/api/platform-health?platform=${encodeURIComponent(platform)}`);
     // Render platform-specific health data
-    let html = `<h4 style="margin-bottom:8px;color:#4ec9b0">${_h(platform)}</h4>`;
+    let html = `<h4 style="margin-bottom:8px;color:var(--c-teal)">${_h(platform)}</h4>`;
     html += `<p style="color:#888;font-size:12px">ROM correctos: ${d.ok || 0}</p>`;
-    html += `<p style="color:#e06c75;font-size:12px">Corruptos: ${d.corrupted || 0}</p>`;
-    html += `<p style="color:#e06c75;font-size:12px">Perdidos: ${d.missing || 0}</p>`;
+    html += `<p style="color:var(--c-softred);font-size:12px">Corruptos: ${d.corrupted || 0}</p>`;
+    html += `<p style="color:var(--c-softred);font-size:12px">Perdidos: ${d.missing || 0}</p>`;
     el.innerHTML = html;
   } catch(e) {
     const el = document.getElementById('platform-health-content');
@@ -651,7 +651,7 @@ export async function loadPlatformHealth() {
     // TODO: Implement when /api/platform-health endpoint is available
     el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: Salud por plataforma</p>`;
   } catch(e) {
-    el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
 }
 
@@ -668,7 +668,7 @@ export async function loadOperationsTimeline() {
       d.operations.forEach(op => {
         const ts = new Date(op.timestamp).toLocaleString();
         html += `<li style="padding:6px;border-bottom:1px solid #222">
-          <div style="color:#4ec9b0">${_h(op.action)}</div>
+          <div style="color:var(--c-teal)">${_h(op.action)}</div>
           <div style="font-size:11px;color:#666">${ts}</div>
           ${op.details ? `<div style="font-size:11px;color:#888">${_h(op.details)}</div>` : ''}
         </li>`;
@@ -737,7 +737,7 @@ export async function doFindOrphans() {
     // TODO: Implement when /api/orphaned-saves/find endpoint is available
     el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: búsqueda de saves huérfanos</p>`;
   } catch(e) {
-    el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
 }
 
@@ -755,7 +755,7 @@ export async function doDeleteOrphans() {
     _orphanedSaves = [];
     // Refresh list
     const el = document.getElementById('orphans-result-content');
-    if (el) el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Eliminados</p>';
+    if (el) el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Eliminados</p>';
   } catch(e) {
     showToast('Error al eliminar: ' + e.message, 'err');
   }
@@ -782,7 +782,7 @@ export async function doMoveOrphansToArchive() {
     showToast(`✓ Archivados: ${d.moved || 0}, Errores: ${d.failed || 0}`, 'ok');
     _orphanedSaves = [];
     const el = document.getElementById('orphans-result-content');
-    if (el) el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Movidos a _huerfanos</p>';
+    if (el) el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Movidos a _huerfanos</p>';
   } catch(e) {
     showToast('Error al archivar: ' + e.message, 'err');
   }
@@ -819,11 +819,11 @@ export async function doLibraryDoctor() {
     const d = await apiFetch('/api/library-doctor');
     if (d.error) { el.innerHTML = `<p class="error-msg">${_h(d.error)}</p>`; return; }
     if (d.total === 0) {
-      el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Biblioteca sana — no se encontraron problemas.</p>';
+      el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Biblioteca sana — no se encontraron problemas.</p>';
       return;
     }
 
-    const sev = { error: '#f44747', warning: '#ce9178', info: '#555' };
+    const sev = { error: 'var(--c-red)', warning: 'var(--c-orange)', info: '#555' };
     const icon = { misplaced_rom: '📁', incomplete_cue: '✗', empty_dir: '📂' };
     const label = { misplaced_rom: 'ROM mal ubicado', incomplete_cue: 'Set CUE incompleto', empty_dir: 'Carpeta vacía' };
 
@@ -853,7 +853,7 @@ export async function doLibraryDoctor() {
       }
       html += `<tr id="doctor-row-${i}" style="border-bottom:1px solid #1a1a1a">`;
       html += `<td style="padding:3px 6px;color:${c};white-space:nowrap">${icon[iss.type]||''} ${label[iss.type]||iss.type}</td>`;
-      html += `<td style="padding:3px 6px;color:#ce9178;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(iss.path)}">${_h(iss.file)}</td>`;
+      html += `<td style="padding:3px 6px;color:var(--c-orange);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(iss.path)}">${_h(iss.file)}</td>`;
       html += `<td style="padding:3px 6px;color:#555">${_h(iss.action||'')}${iss.missing_bins ? ' (' + iss.missing_bins.map(_h).join(', ') + ')' : ''}</td>`;
       html += `<td style="padding:3px 6px">${actionBtn}</td>`;
       html += `</tr>`;
@@ -866,7 +866,7 @@ export async function doLibraryDoctor() {
     const resolveBtn = document.getElementById('btn-doctor-resolve-all');
     if (resolveBtn) { resolveBtn.style.display = hasActionable ? 'inline-block' : 'none'; }
   } catch(e) {
-    el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
 }
 
@@ -954,7 +954,7 @@ export async function doFolderAnalysis() {
     // TODO: Implement when /api/folder-analysis endpoint is available
     el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: análisis de carpetas</p>`;
   } catch(e) {
-    el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
 }
 
@@ -970,23 +970,23 @@ export async function loadUnmatchedDiagnosis() {
     const platforms = d.platforms || [];
 
     if (total === 0) {
-      el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Todos los juegos están identificados. No es necesario descargar catálogos.</p>';
+      el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Todos los juegos están identificados. No es necesario descargar catálogos.</p>';
       return;
     }
 
-    let html = `<div style="margin-bottom:10px;font-size:12px;color:#e06c75">⚠ ${total} juego(s) sin identificar en ${platforms.length} plataforma(s)</div>`;
+    let html = `<div style="margin-bottom:10px;font-size:12px;color:var(--c-softred)">⚠ ${total} juego(s) sin identificar en ${platforms.length} plataforma(s)</div>`;
     html += '<div style="max-height:180px;overflow-y:auto;border:1px solid #222;border-radius:4px;margin-bottom:12px">';
     platforms.forEach(plat => {
       const examples = (plat.examples || []).slice(0, 3);
       html += `<div style="background:#1a1a1a;padding:6px 10px;border-bottom:1px solid #222">
-        <span style="font-weight:600;color:#f9c74f">${_h(plat.platform)}</span>
+        <span style="font-weight:600;color:var(--c-amber)">${_h(plat.platform)}</span>
         <span style="color:#888;font-size:11px;margin-left:6px">(${plat.count})</span>
         <div style="font-size:11px;color:#666;margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
       </div>`;
     });
     html += '</div>';
     html += `<div id="unmatched-dl-info" style="font-size:12px;color:#888">Iniciando descarga de todos los catálogos…</div>
-    <div style="background:#2a2a2a;border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
+    <div style="background:var(--c-border);border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
       <div id="unmatched-dl-bar" style="height:100%;width:0%;background:#4a9eff;transition:width 0.3s"></div>
     </div>`;
     el.innerHTML = html;
@@ -1015,16 +1015,16 @@ export async function loadUnmatchedDiagnosis() {
         const skip = (res.skipped   || []).length;
         const err  = (res.errors    || []).length;
         info.innerHTML = `✅ ${ok} catálogos descargados, ${skip} ya existían` + (err ? `, ❌ ${err} errores` : '');
-        info.style.color = '#4ec9b0';
+        info.style.color = 'var(--c-teal)';
       } catch(e) {
         clearInterval(_poll);
         const info = infoEl();
-        if (info) { info.textContent = '❌ ' + e.message; info.style.color = '#e06c75'; }
+        if (info) { info.textContent = '❌ ' + e.message; info.style.color = 'var(--c-softred)'; }
       }
     }, 1000);
 
   } catch(e) {
-    el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
 }
 
@@ -1042,7 +1042,7 @@ export async function generateReport() {
     _reportData = d;
     showReportTab('overview');
   } catch(e) {
-    el.innerHTML = `<p style="color:#e06c75;font-size:12px">Error: ${_h(e.message)}</p>`;
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
 }
 
@@ -1064,20 +1064,20 @@ export function _renderReportOverview() {
 
   const d = _reportData;
   let html = `<div style="margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
-    <div style="padding:8px;background:#1a2a1a;border-radius:4px;border-left:3px solid #4ec9b0">
-      <div style="color:#4ec9b0;font-weight:600">${d.total_games || 0}</div>
+    <div style="padding:8px;background:#1a2a1a;border-radius:4px;border-left:3px solid var(--c-teal)">
+      <div style="color:var(--c-teal);font-weight:600">${d.total_games || 0}</div>
       <div style="color:#888;font-size:11px">Juegos identificados</div>
     </div>
-    <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid #f9c74f">
-      <div style="color:#f9c74f;font-weight:600">${d.missing_count || 0}</div>
+    <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid var(--c-amber)">
+      <div style="color:var(--c-amber);font-weight:600">${d.missing_count || 0}</div>
       <div style="color:#888;font-size:11px">Juegos sin identificar</div>
     </div>
-    <div style="padding:8px;background:#1a1a2a;border-radius:4px;border-left:3px solid #4ec9b0">
-      <div style="color:#4ec9b0;font-weight:600">${d.total_platforms || 0}</div>
+    <div style="padding:8px;background:#1a1a2a;border-radius:4px;border-left:3px solid var(--c-teal)">
+      <div style="color:var(--c-teal);font-weight:600">${d.total_platforms || 0}</div>
       <div style="color:#888;font-size:11px">Plataformas</div>
     </div>
-    <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid #e06c75">
-      <div style="color:#e06c75;font-weight:600">${(d.orphans?.total || 0)}</div>
+    <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid var(--c-softred)">
+      <div style="color:var(--c-softred);font-weight:600">${(d.orphans?.total || 0)}</div>
       <div style="color:#888;font-size:11px">Saves huérfanos</div>
     </div>
   </div>`;
@@ -1106,8 +1106,8 @@ export function _renderReportByPlatform() {
   byPlat.forEach(p => {
     const pct = total > 0 ? ((p.count / total) * 100).toFixed(1) : 0;
     html += `<tr style="border-bottom:1px solid #222">
-      <td style="padding:6px;color:#ce9178">${_h(p.platform)}</td>
-      <td style="padding:6px;text-align:right;color:#d4d4d4">${p.count}</td>
+      <td style="padding:6px;color:var(--c-orange)">${_h(p.platform)}</td>
+      <td style="padding:6px;text-align:right;color:var(--c-text)">${p.count}</td>
       <td style="padding:6px;text-align:right;color:#888">${pct}%</td>
     </tr>`;
   });
@@ -1123,17 +1123,17 @@ export function _renderReportMissing() {
   const missing = d.missing_games || [];
 
   if (!missing.length) {
-    el.innerHTML = '<p style="color:#4ec9b0;font-size:12px">✓ Todos los juegos están identificados</p>';
+    el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Todos los juegos están identificados</p>';
     return;
   }
 
-  let html = `<div style="margin-bottom:12px;font-size:12px;color:#f9c74f">⚠ ${missing.length} juegos sin identificar</div>`;
+  let html = `<div style="margin-bottom:12px;font-size:12px;color:var(--c-amber)">⚠ ${missing.length} juegos sin identificar</div>`;
   html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
 
   missing.slice(0, 100).forEach(m => {
     const filename = (m.original_filename || m.path || '?').split(/[\\/]/).pop();
     html += `<div style="padding:4px;border-bottom:1px solid #222;color:#888">
-      <div style="color:#ce9178">${_h(filename)}</div>
+      <div style="color:var(--c-orange)">${_h(filename)}</div>
       <div style="font-size:10px;color:#666">${_h(m.platform || '—')}</div>
     </div>`;
   });
@@ -1154,7 +1154,7 @@ export function _renderReportOrphans() {
   const o = d.orphans || { total: 0, total_bytes: 0, saves: [] };
 
   let html = `<div style="margin-bottom:12px;font-size:12px">
-    ${o.total ? `<div style="color:#e06c75">⚠ ${o.total} saves huérfanos</div>` : `<div style="color:#4ec9b0">✓ Sin saves huérfanos</div>`}
+    ${o.total ? `<div style="color:var(--c-softred)">⚠ ${o.total} saves huérfanos</div>` : `<div style="color:var(--c-teal)">✓ Sin saves huérfanos</div>`}
     ${o.total ? `<div style="color:#888;font-size:11px">${_fmtSize(o.total_bytes)} recuperables</div>` : ''}
   </div>`;
 
@@ -1197,10 +1197,10 @@ export function exportReportHtml() {
   const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const lines = [
     `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Informe Biblioteca — ${ts}</title>`,
-    `<style>body{font-family:monospace;background:#0f0f0f;color:#d4d4d4;padding:20px;font-size:13px}`,
-    `h1{color:#4ec9b0}h2{color:#888;border-bottom:1px solid #333;padding-bottom:4px;margin-top:20px}`,
+    `<style>body{font-family:monospace;background:var(--c-input);color:var(--c-text);padding:20px;font-size:13px}`,
+    `h1{color:var(--c-teal)}h2{color:#888;border-bottom:1px solid #333;padding-bottom:4px;margin-top:20px}`,
     `table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;border-bottom:1px solid #222}`,
-    `.ok{color:#4ec9b0}.warn{color:#ce9178}.bad{color:#f44747}.dim{color:#555}</style></head><body>`,
+    `.ok{color:var(--c-teal)}.warn{color:var(--c-orange)}.bad{color:var(--c-red)}.dim{color:#555}</style></head><body>`,
     `<h1>Informe de Biblioteca Retro Vault</h1>`,
     `<p class="dim">Generado: ${ts}</p>`,
     `<h2>Resumen</h2>`,
@@ -1258,7 +1258,7 @@ export async function generateEsSystems() {
     res.classList.remove('hidden');
 
     if (d.error && !d.written) {
-      res.innerHTML = `<p style="color:#f38ba8">&#x2717; ${_h(d.error)}</p>`;
+      res.innerHTML = `<p style="color:var(--c-pink)">&#x2717; ${_h(d.error)}</p>`;
       return;
     }
 
@@ -1267,17 +1267,17 @@ export async function generateEsSystems() {
 
     let html = '';
     if (d.written) {
-      html += `<p style="color:#4ec9b0;margin:0 0 8px">&#x2713; Archivo generado en <code style="font-size:10px">${_h(d.output_path)}</code></p>`;
+      html += `<p style="color:var(--c-teal);margin:0 0 8px">&#x2713; Archivo generado en <code style="font-size:10px">${_h(d.output_path)}</code></p>`;
     }
     if (d.error) {
-      html += `<p style="color:#f9c74f;margin:0 0 8px">&#x26A0; ${_h(d.error)}</p>`;
+      html += `<p style="color:var(--c-amber);margin:0 0 8px">&#x26A0; ${_h(d.error)}</p>`;
     }
 
     if (gen.length) {
       html += `<div style="color:#888;font-size:11px;margin-bottom:4px">${gen.length} sistema${gen.length !== 1 ? 's' : ''} incluido${gen.length !== 1 ? 's' : ''}:</div>`;
       html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">`;
       gen.forEach(s => {
-        html += `<span style="background:#1a2a1a;border:1px solid #2a4a2a;color:#4ec9b0;padding:2px 7px;border-radius:10px;font-size:10px" title="${_h(s.core_dll)}">${_h(s.fullname)}</span>`;
+        html += `<span style="background:#1a2a1a;border:1px solid #2a4a2a;color:var(--c-teal);padding:2px 7px;border-radius:10px;font-size:10px" title="${_h(s.core_dll)}">${_h(s.fullname)}</span>`;
       });
       html += `</div>`;
     }
@@ -1288,7 +1288,7 @@ export async function generateEsSystems() {
 
     res.innerHTML = html;
   } catch(e) {
-    if (res) { res.classList.remove('hidden'); res.innerHTML = `<p style="color:#f38ba8">Error: ${_h(e.message)}</p>`; }
+    if (res) { res.classList.remove('hidden'); res.innerHTML = `<p style="color:var(--c-pink)">Error: ${_h(e.message)}</p>`; }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '⚙ Generar'; }
   }

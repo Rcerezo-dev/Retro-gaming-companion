@@ -285,7 +285,7 @@ function _applyJobStatus(s) {
       if (div && r.results?.length) {
         div.innerHTML = r.results.map(x => {
           const isDisc = x.is_disc_set;
-          const color = x.success ? '#4ec9b0' : (isDisc ? '#569cd6' : (x.skipped_reason ? '#888' : '#f44747'));
+          const color = x.success ? 'var(--c-teal)' : (isDisc ? 'var(--c-blue)' : (x.skipped_reason ? '#888' : 'var(--c-red)'));
           const tag   = x.success ? (r.dry_run ? 'PREVIEW' : 'OK') : (isDisc ? 'DISC' : (x.skipped_reason ? 'SKIP' : 'FAIL'));
           const msg   = x.skipped_reason || x.error || (x.extracted.length ? '→ ' + x.extracted.join(', ') : '');
           return `<div style="font-size:12px;color:${color};padding:2px 0">[${tag}] ${x.zip}${msg ? ' — ' + msg : ''}</div>`;

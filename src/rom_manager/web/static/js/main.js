@@ -412,7 +412,33 @@ export function _deviceRoot() {
   return null; // 'both' = sin filtro
 }
 
+const _TAB_DESC = {
+  overview:   ['Inicio',        'Estado general de tu biblioteca y acciones rápidas'],
+  games:      ['Juegos',        'Explora, filtra y valora los juegos de tu biblioteca'],
+  plan:       ['Organizar',     'Revisa y aplica renombres pendientes'],
+  duplicates: ['Duplicados',    'Detecta y gestiona ROMs duplicadas'],
+  assets:     ['Assets',        'Gestiona carátulas, vídeos y otros recursos'],
+  collection: ['Colección',     'Galería personal con historial de juego y logros'],
+  sync:       ['Cloud Sync',    'Sincroniza saves con la nube via rclone'],
+  cable:      ['Cable Sync',    'Sync de saves por USB con la consola Android'],
+  anbernic:   ['Anbernic',      'Estado y configuración de tu consola Android'],
+  tools:      ['Herramientas',  'Convierte, verifica y repara ROMs'],
+  formats:    ['Formatos',      'Convierte formatos de disco: CHD, CSO, ZIP y m3u'],
+  scraper:    ['Scraper',       'Descarga metadatos y carátulas de ScreenScraper'],
+  inbox:      ['Inbox',         'Procesa automáticamente ROMs recién añadidas'],
+  settings:   ['Ajustes',       'Configura rutas, catálogos DAT, sync y servidor'],
+};
+
+function _updateTabDesc(name) {
+  const [label, desc] = _TAB_DESC[name] || [name, ''];
+  const nameEl = document.getElementById('tab-desc-name');
+  const descEl = document.getElementById('tab-desc-text');
+  if (nameEl) nameEl.textContent = label;
+  if (descEl) descEl.textContent = desc ? ` — ${desc}` : '';
+}
+
 export function showTab(name) {
+  _updateTabDesc(name);
   // Always close game panel on tab switch (prevents overlay covering the sidebar)
   closeGamePanel();
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -493,7 +519,7 @@ export function onGlobalSearch(val) {
         const gj = JSON.stringify(g).replace(/</g,'\\u003c');
         return `<div class="sr-item" onclick="document.getElementById('global-search').value='';document.getElementById('global-search-results').classList.add('hidden');openGamePanel(${gj})">
           <img src="/api/asset-image?game_id=${g.id}" width="28" height="28" style="border-radius:3px;object-fit:cover" onerror="this.classList.add('hidden')">
-          <div><div style="color:#d4d4d4">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
+          <div><div style="color:var(--c-text)">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
         </div>`;
       }).join('');
     } catch(e) { results.classList.add('hidden'); }
@@ -603,6 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('guide_closed') === '1') guide.removeAttribute('open');
     updateArrow();
   }
+
+  // Seed description bar for the default active tab
+  _updateTabDesc('overview');
 
   // Load auth status and config on startup
   loadAuthStatus();

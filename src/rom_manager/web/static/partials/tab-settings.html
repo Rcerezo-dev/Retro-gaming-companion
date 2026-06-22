@@ -2,16 +2,16 @@
   <div class="hidden" id="cfg-warnings-banner" style="margin-bottom:14px;padding:10px 14px;background:#1e1e10;border:1px solid #665500;border-radius:5px"></div>
 
   <!-- BUG-D: System status panel -->
-  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#4ec9b0">
-    <h3 style="color:#4ec9b0">Estado del sistema</h3>
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-teal)">
+    <h3 style="color:var(--c-teal)">Estado del sistema</h3>
     <div id="system-status-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;line-height:1.8">
       Comprobando&#x2026;
     </div>
   </div>
 
   <!-- S40: Configurar consola Android -->
-  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#c586c0">
-    <h3 style="color:#c586c0">Configurar consola Android</h3>
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-purple)">
+    <h3 style="color:var(--c-purple)">Configurar consola Android</h3>
     <p style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.6">
       Escanea el QR desde Termux en tu consola Android para instalar el script de auto-sync de saves.<br>
       El script configura rclone <em>y</em> detecta si tienes Dropbox/OneDrive instalado.
@@ -22,31 +22,31 @@
         <p id="android-setup-url" style="font-size:10px;color:#555;margin-top:4px;word-break:break-all;max-width:140px">Cargando&#x2026;</p>
       </div>
       <div style="flex:1;min-width:200px">
-        <p style="font-size:12px;color:#d4d4d4;margin-bottom:8px"><strong>Pasos:</strong></p>
+        <p style="font-size:12px;color:var(--c-text);margin-bottom:8px"><strong>Pasos:</strong></p>
         <ol style="font-size:12px;color:#888;line-height:2;padding-left:18px;margin:0">
           <li>Instala <strong>Termux</strong> desde F-Droid (no Play Store)</li>
           <li>Abre Termux y ejecuta:<br>
-            <code style="background:#0d1117;padding:2px 6px;border-radius:3px;font-size:11px">curl -s &lt;URL&gt; | bash</code>
+            <code style="background:var(--c-deep);padding:2px 6px;border-radius:3px;font-size:11px">curl -s &lt;URL&gt; | bash</code>
           </li>
           <li>Sigue las instrucciones en pantalla</li>
           <li>Instala <strong>Termux:Boot</strong> desde F-Droid para auto-sync al arrancar</li>
         </ol>
-        <div class="hidden" id="android-setup-curl" style="margin-top:10px;background:#0d1117;padding:8px 10px;border-radius:4px;font-size:11px;color:#4ec9b0;word-break:break-all"></div>
-        <button onclick="copyAndroidSetupUrl()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:4px;cursor:pointer">Copiar URL</button>
-        <button onclick="downloadAndroidSetupSh()" style="margin-top:8px;margin-left:6px;padding:4px 12px;font-size:11px;background:#2d2d2d;border:1px solid #3d3d3d;color:#d4d4d4;border-radius:4px;cursor:pointer">Descargar .sh</button>
+        <div class="hidden" id="android-setup-curl" style="margin-top:10px;background:var(--c-deep);padding:8px 10px;border-radius:4px;font-size:11px;color:var(--c-teal);word-break:break-all"></div>
+        <button onclick="copyAndroidSetupUrl()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:#2d2d2d;border:1px solid #3d3d3d;color:var(--c-text);border-radius:4px;cursor:pointer">Copiar URL</button>
+        <button onclick="downloadAndroidSetupSh()" style="margin-top:8px;margin-left:6px;padding:4px 12px;font-size:11px;background:#2d2d2d;border:1px solid #3d3d3d;color:var(--c-text);border-radius:4px;cursor:pointer">Descargar .sh</button>
       </div>
     </div>
   </div>
 
   <!-- S35-1: Theme toggle -->
-  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:#569cd6">
-    <h3 style="color:#569cd6">Apariencia</h3>
+  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-blue)">
+    <h3 style="color:var(--c-blue)">Apariencia</h3>
     <div class="actions-row" style="align-items:center;gap:12px">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#d4d4d4">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--c-text)">
         <input type="radio" id="theme-dark" name="theme" value="dark" onchange="setTheme('dark')" style="cursor:pointer">
         🌙 Oscuro (predeterminado)
       </label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#d4d4d4">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--c-text)">
         <input type="radio" id="theme-light" name="theme" value="light" onchange="setTheme('light')" style="cursor:pointer">
         ☀️ Claro
       </label>
@@ -70,7 +70,7 @@
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Nombre del dispositivo Android</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <select id="cfg-device-preset" onchange="_onDevicePresetChange()" style="background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
+          <select id="cfg-device-preset" onchange="_onDevicePresetChange()" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
             <option value="Consola Android">Consola Android</option>
             <option value="Steam Deck">Steam Deck</option>
             <option value="custom">Personalizado...</option>
@@ -105,7 +105,7 @@
       </div>
       <!-- D1: Migración estructura saves/states -->
       <div style="width:100%;padding:10px 14px;background:#12120a;border:1px solid #3a3a1a;border-radius:6px">
-        <div style="color:#dcdcaa;font-size:12px;font-weight:600;margin-bottom:6px">&#x1F4C2; Migrar estructura saves/states</div>
+        <div style="color:var(--c-yellow);font-size:12px;font-weight:600;margin-bottom:6px">&#x1F4C2; Migrar estructura saves/states</div>
         <div style="color:#888;font-size:11px;margin-bottom:10px;line-height:1.6">
           Mueve los saves (<code>.sav</code>, <code>.srm</code>…) a <code>&lt;plataforma&gt;/saves/</code>
           y los savestates (<code>.state</code>, <code>.st0</code>…) a <code>&lt;plataforma&gt;/states/</code>.<br>
@@ -113,13 +113,13 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="btn" id="btn-migrate-saves-dry" onclick="doMigrateSavesStructure(true)" style="font-size:12px;padding:4px 12px">Previsualizar</button>
-          <button class="btn" id="btn-migrate-saves-apply" onclick="doMigrateSavesStructure(false)" style="font-size:12px;padding:4px 12px;color:#f44747;border-color:#f44747">Migrar ahora</button>
+          <button class="btn" id="btn-migrate-saves-apply" onclick="doMigrateSavesStructure(false)" style="font-size:12px;padding:4px 12px;color:var(--c-red);border-color:var(--c-red)">Migrar ahora</button>
         </div>
         <div id="migrate-saves-result" style="font-size:12px;min-height:16px;margin-top:8px"></div>
       </div>
       <div style="width:100%">
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Acceso a la interfaz web</label>
-        <select id="cfg-web-host" style="width:100%;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
+        <select id="cfg-web-host" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:13px">
           <option value="127.0.0.1">127.0.0.1 — solo este PC (recomendado)</option>
           <option value="0.0.0.0">0.0.0.0 — toda la red local (acceso desde la consola)</option>
         </select>
@@ -150,8 +150,8 @@
           <label style="color:#888;font-size:11px">Cuota ScreenScraper (última sesión de scraping)</label>
           <button class="btn" style="font-size:11px;padding:3px 10px" onclick="loadSsQuota()">&#x21BB; Actualizar</button>
         </div>
-        <div class="hidden" id="ss-quota-bar" style="background:#161626;border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px">
-          <div id="ss-quota-fill" style="height:100%;background:#4ec9b0;width:0%;transition:width 0.5s"></div>
+        <div class="hidden" id="ss-quota-bar" style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px">
+          <div id="ss-quota-fill" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.5s"></div>
         </div>
         <div id="ss-quota-label" style="font-size:11px;color:#555">Realiza un scraping para ver la cuota.</div>
       </div>
@@ -174,7 +174,7 @@
         <div id="adb-test-result" style="font-size:11px;margin-top:4px;color:#555"></div>
       </div>
       <div style="width:100%">
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">RetroAchievements API key — <a href="https://retroachievements.org/settings" target="_blank" style="color:#4ec9b0">obtener en RA Settings → Web API Key</a></label>
+        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">RetroAchievements API key — <a href="https://retroachievements.org/settings" target="_blank" style="color:var(--c-teal)">obtener en RA Settings → Web API Key</a></label>
         <input id="cfg-ra-api-key" type="text" style="width:100%" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
         <span class="cfg-saved" id="cfg-check-ra-api-key">&#x2713; Guardado</span>
       </div>
@@ -196,13 +196,13 @@
     <h3>Acceso remoto — PIN y URL</h3>
     <p style="color:#888;font-size:12px;margin-bottom:16px">
       El PIN protege la interfaz cuando el servidor está expuesto en la red local (<code>host = 0.0.0.0</code> en Settings).
-      Sin PIN configurado no hay protección. <strong style="color:#4ec9b0">Solo actívalo si usas <code>0.0.0.0</code>.</strong>
+      Sin PIN configurado no hay protección. <strong style="color:var(--c-teal)">Solo actívalo si usas <code>0.0.0.0</code>.</strong>
     </p>
 
     <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">PIN de acceso (4–10 dígitos)</label>
-        <input id="pin-input" type="password" placeholder="••••" maxlength="10" style="width:160px;background:#0f0f0f;border:1px solid #444;color:#d4d4d4;padding:7px 12px;border-radius:4px;font:inherit;font-size:18px;letter-spacing:6px;text-align:center">
+        <input id="pin-input" type="password" placeholder="••••" maxlength="10" style="width:160px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:7px 12px;border-radius:4px;font:inherit;font-size:18px;letter-spacing:6px;text-align:center">
       </div>
       <button class="btn primary" onclick="setPin()">Activar PIN</button>
       <button class="btn danger hidden" id="btn-clear-pin" onclick="clearPin()">Desactivar PIN</button>
@@ -212,7 +212,7 @@
     <div style="border-top:1px solid #2a2a3a;padding-top:16px">
       <label style="color:#888;font-size:11px;display:block;margin-bottom:8px">URL de acceso desde la red local</label>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <code id="local-url-display" style="color:#4ec9b0;font-size:14px;background:#0a0a0a;padding:6px 12px;border-radius:4px">cargando…</code>
+        <code id="local-url-display" style="color:var(--c-teal);font-size:14px;background:#0a0a0a;padding:6px 12px;border-radius:4px">cargando…</code>
         <button class="btn" onclick="copyLocalUrl()" style="font-size:12px">Copiar</button>
         <button class="btn" onclick="loadLocalUrl()" style="font-size:12px">&#x21BB;</button>
       </div>
@@ -262,10 +262,10 @@
       ES-DE es un frontend de juegos retro disponible para Windows, macOS y Linux.
       Con tu biblioteca ya organizada, el setup es de 5 minutos.
     </p>
-    <ol style="color:#d4d4d4;font-size:12px;line-height:2;padding-left:18px;margin:0 0 12px 0">
+    <ol style="color:var(--c-text);font-size:12px;line-height:2;padding-left:18px;margin:0 0 12px 0">
       <li>Descarga ES-DE desde <code>es-de.org</code> e inst&#xe1;lalo en el PC.</li>
       <li>Al arrancar ES-DE por primera vez, apunta a tu <strong>library_root</strong>:<br>
-          <span id="esde-library-root-hint" style="color:#569cd6;font-family:monospace;font-size:11px">cargando…</span>
+          <span id="esde-library-root-hint" style="color:var(--c-blue);font-family:monospace;font-size:11px">cargando…</span>
       </li>
       <li>Pulsa <strong>"Exportar gamelist.xml"</strong> en la pesta&#xf1;a <em>Scraper</em> para que ES-DE vea las car&#xe1;tulas.</li>
       <li>Abre ES-DE &#x2192; men&#xfa; &#x2192; <em>Scan for games</em> &#x2014; detectar&#xe1; todos tus ROMs autom&#xe1;ticamente.</li>
@@ -312,7 +312,7 @@
     </div>
     <div id="import-dats-result" class="job-result"></div>
 
-    <div style="margin-top:16px;border-top:1px solid #2a2a2a;padding-top:14px">
+    <div style="margin-top:16px;border-top:1px solid var(--c-border);padding-top:14px">
       <p style="color:#aaa;font-size:12px;margin-bottom:10px">
         <strong>Descarga autom&#xe1;tica</strong> &#x2014; DATs libres desde
         <a href="https://github.com/libretro/libretro-database" target="_blank" style="color:#7aadff">libretro-database</a>
@@ -323,7 +323,7 @@
         <button class="btn" onclick="downloadDats(true)">&#x2B07; Descargar todos</button>
         <button class="btn btn-secondary" onclick="downloadDats(false)">&#x2B07; Descargar seleccionados</button>
       </div>
-      <div id="dat-dl-bar" class="hidden" style="background:#2a2a2a;border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
+      <div id="dat-dl-bar" class="hidden" style="background:var(--c-border);border-radius:4px;height:8px;margin-bottom:6px;overflow:hidden">
         <div id="dat-dl-bar-fill" style="height:100%;width:0%;background:#4a9eff;transition:width 0.3s"></div>
       </div>
       <div id="dat-dl-status" class="job-result"></div>
@@ -336,8 +336,8 @@
       Las ROMs de arcade usan el nombre del set como identificador (no SHA1). Importa un cat&#xe1;logo para que la app reconozca los t&#xed;tulos y asigne la plataforma correcta (MAME o FBNeo).
     </p>
     <div style="margin-bottom:10px;font-size:11px;color:#555;line-height:1.8">
-      <strong style="color:#888">MAME listxml</strong> &#x2014; genera con: <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">mame -listxml &gt; mame.xml</code><br>
-      <strong style="color:#888">FBNeo DAT</strong> &#x2014; descarga de <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">github.com/libretro/FBNeo</code> carpeta <code style="background:#2a2a2a;padding:2px 6px;border-radius:3px">dats/</code><br>
+      <strong style="color:#888">MAME listxml</strong> &#x2014; genera con: <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">mame -listxml &gt; mame.xml</code><br>
+      <strong style="color:#888">FBNeo DAT</strong> &#x2014; descarga de <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">github.com/libretro/FBNeo</code> carpeta <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">dats/</code><br>
       Puedes indicar una <strong style="color:#888">carpeta</strong> con varios archivos o un <strong style="color:#888">archivo</strong> individual.
     </div>
     <div class="actions-row" style="margin-bottom:6px">
@@ -369,7 +369,7 @@
       <span style="color:#555;font-size:12px">Descarga library_pc.db — guárdala antes de operaciones destructivas</span>
     </div>
     <div class="actions-row" style="margin-top:8px">
-      <button class="btn" style="border-color:#dcdcaa;color:#dcdcaa" onclick="migrateSplitDb()" title="Mueve los registros con rutas no-PC de la BD del PC a la BD de la consola Android (operación segura e idempotente)">Migrar BD a dos DBs</button>
+      <button class="btn" style="border-color:var(--c-yellow);color:var(--c-yellow)" onclick="migrateSplitDb()" title="Mueve los registros con rutas no-PC de la BD del PC a la BD de la consola Android (operación segura e idempotente)">Migrar BD a dos DBs</button>
       <span style="color:#555;font-size:12px">Necesario solo si la BD estaba mezclada. Mueve ROMs de Android a library_android.db.</span>
     </div>
     <div id="migrate-db-result" class="job-result"></div>
@@ -385,12 +385,12 @@
       <span id="autostart-badge" style="font-size:13px;color:#888">Cargando...</span>
       <button id="autostart-btn" class="btn" onclick="toggleAutostart()" style="min-width:160px">—</button>
     </div>
-    <div class="hidden" id="autostart-note" style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:4px;padding:8px 12px;font-size:12px;color:#6a9955">
+    <div class="hidden" id="autostart-note" style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:4px;padding:8px 12px;font-size:12px;color:var(--c-green)">
       Retro Vault arrancara automaticamente la proxima vez que inicies Windows.<br>
       Usa <strong>rommgr serve --tray</strong> para iniciarlo ahora con el icono en la bandeja.
     </div>
-    <div class="hidden" id="autostart-tray-note" style="background:#161626;border:1px solid #2a2a4a;border-radius:4px;padding:8px 12px;font-size:12px;color:#888;margin-top:8px">
-      <strong style="color:#569cd6">Icono en bandeja activo.</strong>
+    <div class="hidden" id="autostart-tray-note" style="background:var(--c-bar);border:1px solid #2a2a4a;border-radius:4px;padding:8px 12px;font-size:12px;color:#888;margin-top:8px">
+      <strong style="color:var(--c-blue)">Icono en bandeja activo.</strong>
       Haz clic derecho en el icono para sincronizar o cerrar el servidor.
     </div>
   </div>

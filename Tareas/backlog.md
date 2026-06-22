@@ -136,9 +136,9 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 |----|------|--------|
 | PHASE1-1 | Auto-detect RetroArch paths (common + Steam + RetroBat) | ✅ `GET /api/detect-retroarch` + botón en Settings |
 | PHASE1-2 | Auto-detect cores from `cores/` folder; warn if missing | ✅ cores status inline en Settings + warnings en banner + key_cores ampliado (15 plataformas) |
-| PHASE1-3 | Generate `es_systems.cfg` from detected cores | ⬜ |
+| PHASE1-3 | Generate `es_systems.cfg` from detected cores | ✅ `esde/systems_generator.py` (`generate_es_systems_xml`, formato moderno `custom_systems/es_systems.xml`) + `GET /api/generate-es-systems` + botón "Generar es_systems.xml" en Settings |
 | PHASE1-4 | Auto-detect Android device via ADB on USB connect | ✅ `cable_sync_daemon.py` (commit 2a3c579) |
-| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ⬜ |
+| PHASE1-5 | Folder picker with "Browse" button in Settings fields | ✅ `GET /api/browse-folder` (tkinter `askdirectory`, stdlib) + botón "Examinar" en `library_root` y `anbernic_root`; `browseFolder()` en `config.js`. Tests: `tests/web/test_browse_folder.py` |
 
 ### Phase 2 — DATs without effort
 
@@ -171,13 +171,13 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE5-1 | Forzar PIN cuando `host != 127.0.0.1` (no solo advertir) | ⬜ prereq: SEC-3 ya avisa |
+| PHASE5-1 | Forzar PIN cuando `host != 127.0.0.1` (no solo advertir) | ✅ `serve()` lanza `InsecureExposureError` y aborta el arranque si se expone a la red sin PIN; escape hatch `--allow-insecure` (degrada al aviso). Tests: `tests/web/test_force_pin.py` |
 
 ### Phase 6 — Distribution
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ⬜ |
+| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
 | PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
 | PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ⬜ |
 | PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
@@ -375,6 +375,53 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 
 ---
 
+## REPORT-FIX — Precisión del audit de biblioteca + acciones (detectados 2026-06-19)
+
+Origen: revisión del informe `.rommgr/last_report.json` sobre `F:\Juegos Retro`.
+El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
+
+### A — Falsos positivos del audit (bugs a corregir)
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| RPT-A1 | 🟡 Medio | **`.bin`+`.cue` marcado como "extensiones mezcladas"** — `verify_disc_groups` marca `mixed_ext` ante cualquier grupo con >1 extensión, pero un set PSX es `.bin`+`.cue` por diseño (11 falsos positivos). Tratar `.cue`/`.m3u`/`.ccd`/`.sbi` como *sidecars*; solo marcar `mixed_ext` con 2+ extensiones de **imagen** (`.bin`/`.iso`/`.img`/`.chd`). Tests. | `utils/multidisc_verifier.py:57-67` | ⬜ |
+| RPT-A2 | 🟡 Medio | **Orphan-finder recorre `BIOS\`, `System Volume Information\` y carpetas de datos de emulador** — `rglob("*")` sin exclusión de directorios; viola la regla "BIOS nunca se trata como ROM". Excluir dirs (BIOS, `System Volume Information`, ES-DE/assets, ocultos, `_descartados`). Quita ~12 de 35. Tests. | `utils/orphan_finder.py:27` | ⬜ |
+| RPT-A3 | ⚪ Bajo | **Ficheros de datos de emulador (`.dat`, `.fs`) contados como "saves"** — p.ej. `scummvm\theme\*.dat`, `fbneo\*.fs`. Estrechar el set de extensiones de save del orphan-finder a saves reales (`.srm`/`.sav`/`.nv`/`.hi`/`.state`…), excluir `.dat`/`.fs`. Deja solo NVRAM arcade real. | `utils/orphan_finder.py` | ⬜ |
+
+### B — Problemas reales de biblioteca (añadir acción de arreglo in-app)
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| RPT-B1 | 🟡 Medio | **11 juegos multidisco sin `.m3u`** (Driver 2, Grandia, Koudelka [8 discos], Parasite Eve I/II, Oddworld…) — RetroArch necesita `.m3u` para cambiar de disco. Exponer acción "Generar .m3u (N)" desde el informe / tab Formatos (el generador ya existe en `m3u_generator`). | `web/handlers/esde/conversions.py`, partial del informe | ⬜ |
+| RPT-B2 | ⚪ Bajo | **"Discos faltantes" + "sin match en catálogo"** (gap ×11, unmatched ×4) — separar en el informe "set incompleto → adquirir" de "sin DAT → cargar DAT e Identificar"; enlazar el segundo al flujo de catálogos. Reverificar gap tras RPT-A1 (el doble conteo `.bin`/`.cue` interfiere). | `utils/multidisc_verifier.py`, partial del informe | ⬜ |
+
+### C — Auto-descarga de catálogos DAT faltantes (PHASE2 / RPT-B2)
+
+> **Viable, stdlib-only.** Fuente: **`libretro/libretro-database`** en GitHub (espejo
+> libre de No-Intro/Redump/MAME, mantenido — Redump PS1 confirmado en v2026.05.02 con
+> sha1). `mame_loader.py` ya descarga DATs de libretro. No-Intro/Redump oficiales
+> (DAT-o-MATIC) requieren descarga manual (CAPTCHA) → por eso PHASE2-1 fue "guiada";
+> libretro-database elimina ese bloqueo.
+>
+> ⚠️ **Caveat de formato:** los DATs de `metadat/redump|no-intro` están en **texto
+> clrmamepro** (`game ( name "..." rom ( ... ) )`), **no Logiqx XML**. `catalog_loader.py`
+> solo hace `ET.parse()` (XML) → hay que **añadir un parser clrmamepro** (o un sniffer de
+> formato) antes de poder ingerir lo descargado. ~30-40 líneas, sin deps.
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| DAT-DL-0 | 🟡 Medio | **Parser clrmamepro** — `load_clrmamepro_dat(path)` (tokeniza `game (...)`/`rom (...)`) + sniffer en `load_dat_directory` que elige XML vs clrmamepro por contenido. Tests con un DAT de muestra de cada formato. **Prerrequisito de toda la auto-descarga.** | `catalog/catalog_loader.py` | ⬜ |
+| DAT-DL-1 | 🟡 Medio | **Mapa plataforma → fichero DAT en libretro-database** — tabla `platform → metadat/{no-intro,redump}/<archivo>.dat` (raw.githubusercontent.com). Apoyarse en `platforms.toml`/detección existente. | `catalog/dat_downloader.py` (nuevo) | ⬜ |
+| DAT-DL-2 | 🟡 Medio | **`download_dat(platform)` con `urllib`** — descarga a `.rommgr/catalogs/{nointro,redump}/`, valida que parsea (via DAT-DL-0), degradación con gracia si falla la red. | `catalog/dat_downloader.py` | ⬜ |
+| DAT-DL-3 | 🟡 Medio | **Endpoint + UI** — `POST /api/download-dat` (por plataforma o "todas las que faltan"); botón en Settings → Catálogos DAT y en el aviso "sin match" del informe (cierra el loop con RPT-B2). Job en background. | `web/handlers/`, partials | ⬜ |
+| DAT-DL-4 | ⚪ Bajo | **Caché/edad de DATs** — no re-descargar si el DAT local es reciente (TTL configurable); mostrar fecha de última actualización por plataforma. | `catalog/dat_downloader.py` | ⬜ |
+
+> **Orden sugerido:** RPT-A1 → RPT-A2 → RPT-A3 (precisión del informe, backend + tests,
+> bajo riesgo) → RPT-B1 (acción m3u) → DAT-DL-0 (parser clrmamepro, prerreq) →
+> DAT-DL-1…3 (auto-descarga) → RPT-B2/DAT-DL-4.
+
+---
+
 ## Hardware validation (requires console or SD card)
 
 | ID | Task |
@@ -417,11 +464,11 @@ Origen: revisión de los 9 archivos cambiados en la rama `main` (420 ins / 230 d
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| DESIGN-10 | Update device selector bar styling | ⬜ | Use CSS variables instead of hardcoded `#161626` / `#2a2a2a` |
-| DESIGN-11 | Add description bar below device selector | ⬜ | Show current tab name + 1-sentence description (from `TABS` config) |
-| DESIGN-12 | Convert remaining hardcoded colors to variables | ⬜ | Game panel, footer, inline styles (~100+ places) — low priority, cosmetic |
+| DESIGN-10 | Update device selector bar styling | ✅ | `#device-selector` usa `var(--bg-nav)`/`var(--border)`; override light redundante eliminado |
+| DESIGN-11 | Add description bar below device selector | ✅ | `#tab-desc-bar` bajo el device selector; `_TAB_DESC` + `_updateTabDesc()` en `main.js`; CSS en `app.css` (PR #43) |
+| DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ paleta núcleo | 17 tokens semánticos `--c-*` (valores dark exactos + variantes light) mapean la paleta VS Code; 742 instancias inline en partials+JS migradas (dark idéntico por construcción). Cola de tints one-off (<5×) y reglas de `app.css` quedan como follow-up. **Requiere QA visual del tema light antes de merge** |
 | DESIGN-13 | Test light theme with new fonts | ⬜ | Verify Inter + Exo 2 readable on light bg; no scanlines overlay ([data-theme="light"] already disabled it) |
-| DESIGN-14 | Performance audit | ⬜ | Google Fonts CDN + Lucide CDN impact; consider preload/prefetch hints |
+| DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` para unpkg en `<head>`; Google Fonts ya era óptimo (PR #43) |
 
 ### Files to modify
 
