@@ -109,6 +109,17 @@ def verify_multidisc(
                     )
                 )
 
+        # Check .m3u companion file exists
+        if not group.m3u_path.exists():
+            group_issues.append(
+                DiscIssue(
+                    base_name=group.base_name,
+                    issue_type="missing_m3u",
+                    detail=f"Falta {group.m3u_path.name}",
+                    platform=plat,
+                )
+            )
+
         if group_issues:
             summary.groups_with_issues += 1
             summary.issues.extend(group_issues)

@@ -67,3 +67,36 @@ class TestMixedExtFalsePositives:
 
         mixed = [i for i in result.issues if i.issue_type == "mixed_ext"]
         assert mixed == []
+
+
+class TestMissingM3U:
+    """RPT-B1: groups without an .m3u file must be flagged as missing_m3u."""
+
+    def test_missing_m3u_flagged(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "Parasite Eve (Disc 1).bin")
+        _touch(tmp_path / "Parasite Eve (Disc 2).bin")
+
+        result = verify_multidisc(tmp_path)
+
+        m3u_issues = [i for i in result.issues if i.issue_type == "missing_m3u"]
+        assert len(m3u_issues) == 1
+        assert m3u_issues[0].base_name == "Parasite Eve"
+
+    def test_existing_m3u_not_flagged(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "Grandia (Disc 1).bin")
+        _touch(tmp_path / "Grandia (Disc 2).bin")
+        _touch(tmp_path / "Grandia.m3u")
+
+        result = verify_multidisc(tmp_path)
+
+        m3u_issues = [i for i in result.issues if i.issue_type == "missing_m3u"]
+        assert m3u_issues == []
+
+    def test_missing_m3u_detail_contains_filename(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "Driver 2 (Disc 1).bin")
+        _touch(tmp_path / "Driver 2 (Disc 2).bin")
+
+        result = verify_multidisc(tmp_path)
+
+        m3u_issues = [i for i in result.issues if i.issue_type == "missing_m3u"]
+        assert any("Driver 2.m3u" in i.detail for i in m3u_issues)

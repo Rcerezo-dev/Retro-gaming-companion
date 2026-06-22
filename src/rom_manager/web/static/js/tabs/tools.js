@@ -270,10 +270,33 @@ export async function autodetectM3UFolders() {
 }
 
 // ── Multi-disc Verifier ────────────────────────────────────────────────────────
+let _lastVerifiedPaths = [];
+
+export async function generateM3uFromVerify() {
+  const resultEl = document.getElementById('multidisc-result');
+  const statusEl = document.createElement('p');
+  statusEl.style.cssText = 'margin-top:8px;font-size:12px;color:#888';
+  statusEl.textContent = 'Generando .m3u…';
+  resultEl.appendChild(statusEl);
+  let created = 0;
+  try {
+    for (const p of _lastVerifiedPaths) {
+      const d = await apiPost('/api/generate-m3u', { source_path: p, dry_run: false });
+      if (!d.error) created += d.created;
+    }
+    statusEl.style.color = 'var(--c-teal)';
+    statusEl.textContent = `✓ ${created} archivo(s) .m3u creados. Vuelve a verificar para confirmar.`;
+  } catch(e) {
+    statusEl.style.color = 'var(--c-red)';
+    statusEl.textContent = `Error: ${e.message}`;
+  }
+}
+
 export async function doVerifyMultidisc() {
   const rawVal = document.getElementById('verify-multidisc-path').value.trim();
   if (!rawVal) { alert('Introduce al menos una carpeta de ROMs'); return; }
   const paths = rawVal.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  _lastVerifiedPaths = paths;
   const resultEl = document.getElementById('multidisc-result');
   resultEl.innerHTML = '<p style="color:#888;font-size:12px">Verificando…</p>';
   // Aggregate results across all paths
@@ -302,7 +325,14 @@ export async function doVerifyMultidisc() {
     if (unmatchedOnly.length > 0) html += `  <span style="color:#888">⚠ ${unmatchedOnly.length} sin match en catálogo (normal si no has hecho Match aún)</span>`;
     html += `  <span style="color:#555">(${total} grupos)</span></p>`;
 
-    const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo' };
+    const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo', missing_m3u: 'Sin .m3u' };
+    const missingM3u = d.issues.filter(i => i.issue_type === 'missing_m3u');
+    if (missingM3u.length) {
+      html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg-nav);border:1px solid var(--border);border-radius:4px;margin-bottom:12px">
+        <span style="font-size:12px;color:#888">&#x26A0; ${missingM3u.length} juego(s) multidisco sin .m3u — RetroArch no podrá cambiar de disco</span>
+        <button class="btn primary" style="flex-shrink:0;font-size:12px;padding:3px 12px" onclick="generateM3uFromVerify()">Generar .m3u (${missingM3u.length})</button>
+      </div>`;
+    }
     if (realIssues.length) {
       html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 6px">Problemas que requieren atención:</p>`;
       html += '<div style="max-height:300px;overflow-y:auto;margin-bottom:12px">';
