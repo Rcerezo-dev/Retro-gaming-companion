@@ -179,7 +179,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 |----|------|--------|
 | PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
 | PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
-| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ⬜ |
+| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ✅ `installer/RetroVault.iss` — instala desde `dist\RetroVault\`, shortcut Start Menu + Desktop opcional, Add/Remove Programs, uninstall silencioso, upgrade detection. `build.ps1` llama a `iscc` automáticamente si está en PATH. |
 | PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
 | PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ✅ `update_checker.py` + `GET /api/version` + banner en UI. 13 tests. PR #52. |
 | PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ⬜ |
