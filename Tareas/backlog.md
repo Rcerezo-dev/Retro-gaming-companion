@@ -465,10 +465,10 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
 | DESIGN-10 | Update device selector bar styling | ✅ | `#device-selector` usa `var(--bg-nav)`/`var(--border)`; override light redundante eliminado |
-| DESIGN-11 | Add description bar below device selector | ⬜ | Show current tab name + 1-sentence description (from `TABS` config) |
+| DESIGN-11 | Add description bar below device selector | ✅ | `#tab-desc-bar` bajo el device selector; `_TAB_DESC` + `_updateTabDesc()` en `main.js`; CSS en `app.css` (PR #43) |
 | DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ paleta núcleo | 17 tokens semánticos `--c-*` (valores dark exactos + variantes light) mapean la paleta VS Code; 742 instancias inline en partials+JS migradas (dark idéntico por construcción). Cola de tints one-off (<5×) y reglas de `app.css` quedan como follow-up. **Requiere QA visual del tema light antes de merge** |
 | DESIGN-13 | Test light theme with new fonts | ⬜ | Verify Inter + Exo 2 readable on light bg; no scanlines overlay ([data-theme="light"] already disabled it) |
-| DESIGN-14 | Performance audit | ⬜ | Google Fonts CDN + Lucide CDN impact; consider preload/prefetch hints |
+| DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` para unpkg en `<head>`; Google Fonts ya era óptimo (PR #43) |
 
 ### Files to modify
 
