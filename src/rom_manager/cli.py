@@ -962,7 +962,13 @@ def main(argv: list[str] | None = None) -> int:
 
         host = args.host or config.web_host
         port = args.port or config.web_port
-        print(f"Retro Vault — http://{host}:{port}/")
+        allow_insecure = config.web_allow_lan or getattr(args, "allow_insecure", False)
+        local_url = f"http://127.0.0.1:{port}/" if host in ("0.0.0.0", "") else f"http://{host}:{port}/"
+        print(f"Retro Vault — {local_url}")
+        if host in ("0.0.0.0", ""):
+            from rom_manager.web.lan import lan_urls
+            for url in lan_urls(port):
+                print(f"           LAN — {url}")
         print("Press Ctrl+C to stop.")
         try:
             serve(
@@ -972,7 +978,7 @@ def main(argv: list[str] | None = None) -> int:
                 config=config,
                 repository_android=repository_android,
                 tray=getattr(args, "tray", False),
-                allow_insecure=getattr(args, "allow_insecure", False),
+                allow_insecure=allow_insecure,
             )
         except InsecureExposureError as exc:
             print(f"\n{exc}")

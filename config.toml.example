@@ -17,8 +17,12 @@ chdman = "tools\\chdman.exe"
 adb = "tools/adb.exe"
 
 [web]
-host = "127.0.0.1"
+# Bind to all interfaces so any device on your LAN can reach the UI.
+# Change to "127.0.0.1" to restrict to this PC only.
+host = "0.0.0.0"
 port = 7777
+# Allow LAN access without requiring a PIN (safe on a trusted home network).
+allow_lan = true
 
 [screenscraper]
 user = "TU_USUARIO_SCREENSCRAPER"
