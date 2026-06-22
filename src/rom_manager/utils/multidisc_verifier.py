@@ -5,6 +5,9 @@ from pathlib import Path
 
 from rom_manager.utils.m3u_generator import find_disc_groups
 
+# Companion files that always accompany disc images — not disc images themselves.
+_SIDECAR_EXTS = frozenset({".cue", ".m3u", ".ccd", ".sbi"})
+
 
 @dataclass(slots=True)
 class DiscIssue:
@@ -54,14 +57,18 @@ def verify_multidisc(
                     )
                 )
 
-        # Check extension homogeneity
-        extensions = {d.suffix.lower() for d in group.discs}
-        if len(extensions) > 1:
+        # Check extension homogeneity — sidecars (.cue/.m3u/.ccd/.sbi) are
+        # valid companions for disc images; only flag 2+ image extensions.
+        image_exts = {
+            d.suffix.lower() for d in group.discs
+            if d.suffix.lower() not in _SIDECAR_EXTS
+        }
+        if len(image_exts) > 1:
             group_issues.append(
                 DiscIssue(
                     base_name=group.base_name,
                     issue_type="mixed_ext",
-                    detail=f"Extensiones mezcladas: {', '.join(sorted(extensions))}",
+                    detail=f"Extensiones mezcladas: {', '.join(sorted(image_exts))}",
                     platform=plat,
                 )
             )

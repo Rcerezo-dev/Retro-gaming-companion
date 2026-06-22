@@ -2,6 +2,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
+
+# Directory names (case-insensitive) that are never ROM folders.
+_EXCLUDED_DIR_NAMES = frozenset({
+    "bios",
+    "system volume information",
+    "_descartados",
+})
+
+
+def _iter_files(root: Path) -> Iterator[Path]:
+    """Yield files under *root*, skipping excluded and hidden directories."""
+    try:
+        entries = list(root.iterdir())
+    except PermissionError:
+        return
+    for item in entries:
+        if item.is_dir():
+            if item.name.startswith(".") or item.name.lower() in _EXCLUDED_DIR_NAMES:
+                continue
+            yield from _iter_files(item)
+        elif item.is_file():
+            yield item
 
 
 @dataclass(slots=True)
@@ -24,7 +47,7 @@ def find_orphaned_saves(
     exts = frozenset(e.lower() for e in save_extensions)
     orphans: list[OrphanedSave] = []
 
-    for save_file in directory.rglob("*"):
+    for save_file in _iter_files(directory):
         if not save_file.is_file():
             continue
         if save_file.suffix.lower() not in exts:
