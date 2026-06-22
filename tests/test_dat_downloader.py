@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from rom_manager.catalog.dat_downloader import (
     _PLATFORM_DAT_MAP,
