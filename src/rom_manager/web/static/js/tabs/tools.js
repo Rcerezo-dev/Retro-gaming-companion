@@ -325,7 +325,9 @@ export async function doVerifyMultidisc() {
     if (unmatchedOnly.length > 0) html += `  <span style="color:#888">⚠ ${unmatchedOnly.length} sin match en catálogo (normal si no has hecho Match aún)</span>`;
     html += `  <span style="color:#555">(${total} grupos)</span></p>`;
 
-    const issueLabels = { gap: 'Disco faltante', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo', missing_m3u: 'Sin .m3u' };
+    const issueLabels = { gap: 'Set incompleto', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo', missing_m3u: 'Sin .m3u' };
+
+    // ── Missing .m3u banner + action ─────────────────────────────────────────
     const missingM3u = d.issues.filter(i => i.issue_type === 'missing_m3u');
     if (missingM3u.length) {
       html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg-nav);border:1px solid var(--border);border-radius:4px;margin-bottom:12px">
@@ -333,10 +335,27 @@ export async function doVerifyMultidisc() {
         <button class="btn primary" style="flex-shrink:0;font-size:12px;padding:3px 12px" onclick="generateM3uFromVerify()">Generar .m3u (${missingM3u.length})</button>
       </div>`;
     }
-    if (realIssues.length) {
-      html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 6px">Problemas que requieren atención:</p>`;
-      html += '<div style="max-height:300px;overflow-y:auto;margin-bottom:12px">';
-      html += realIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
+
+    // ── Structural issues (gap, mixed_ext, missing_file) ─────────────────────
+    const structuralIssues = realIssues.filter(i => i.issue_type !== 'missing_m3u');
+    const gapIssues  = structuralIssues.filter(i => i.issue_type === 'gap');
+    const otherIssues = structuralIssues.filter(i => i.issue_type !== 'gap');
+
+    if (gapIssues.length) {
+      html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 4px">Sets incompletos — falta al menos un disco (${gapIssues.length}):</p>`;
+      html += `<p style="color:#666;font-size:11px;margin:0 0 6px">Si tienes todos los archivos, revisa que los nombres incluyan "(Disc N)" sin variaciones.</p>`;
+      html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:12px">';
+      html += gapIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
+        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        <span style="color:var(--c-text)">${_h(i.base_name)}</span>
+        <span style="color:#555;margin-left:8px">${_h(i.detail)}</span>
+      </div>`).join('');
+      html += '</div>';
+    }
+    if (otherIssues.length) {
+      html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 6px">Otros problemas estructurales (${otherIssues.length}):</p>`;
+      html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:12px">';
+      html += otherIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
         <span style="color:var(--c-red)">${issueLabels[i.issue_type] || i.issue_type}</span>
         <span style="color:#888;margin:0 6px">·</span>
         ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
@@ -345,11 +364,19 @@ export async function doVerifyMultidisc() {
       </div>`).join('');
       html += '</div>';
     }
+
+    // ── Unmatched: catalog action ─────────────────────────────────────────────
     if (unmatchedOnly.length) {
-      html += `<details style="font-size:12px;color:#555"><summary style="cursor:pointer;color:#888">Sin identificar en catálogo (${unmatchedOnly.length}) — pulsa Identificar (catálogos) para resolverlos</summary>`;
-      html += '<div style="max-height:200px;overflow-y:auto;margin-top:6px">';
-      html += unmatchedOnly.map(i => `<div style="padding:2px 0;color:#555">${i.base_name} — ${i.detail}</div>`).join('');
-      html += '</div></details>';
+      html += `<div style="padding:8px 10px;background:var(--bg-nav);border:1px solid var(--border);border-radius:4px;margin-top:4px">`;
+      html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:12px;color:#888">&#x1F50D; ${unmatchedOnly.length} discos sin identificar en catálogo</span>
+        <button class="btn" style="flex-shrink:0;font-size:11px;padding:2px 10px" onclick="showTab('settings')">Ajustes → Catálogos DAT</button>
+      </div>`;
+      html += `<p style="font-size:11px;color:#555;margin:0 0 6px">Si ya tienes un DAT, ve a la pestaña <strong>Organizar</strong> y pulsa Identificar. Si no, carga un catálogo DAT en Ajustes.</p>`;
+      html += '<details style="font-size:11px;color:#555"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>';
+      html += '<div style="max-height:160px;overflow-y:auto;margin-top:4px">';
+      html += unmatchedOnly.map(i => `<div style="padding:2px 0">${_h(i.base_name)} — ${_h(i.detail)}</div>`).join('');
+      html += '</div></details></div>';
     }
     resultEl.innerHTML = html;
   } catch(e) {
