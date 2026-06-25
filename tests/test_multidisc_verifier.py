@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rom_manager.utils.multidisc_verifier import verify_multidisc
 
 

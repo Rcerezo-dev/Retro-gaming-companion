@@ -20,6 +20,7 @@ import rom_manager.web.handlers.play_history as _h_play_history
 import rom_manager.web.handlers.scan as _h_scan
 import rom_manager.web.handlers.scraper as _h_scraper
 import rom_manager.web.handlers.sync as _h_sync
+import rom_manager.web.handlers.update as _h_update
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
@@ -204,6 +205,8 @@ def make_handler(
         get_repo_fn=_get_repo,
         job_manager=_job_manager,
     )
+
+    _h_update.register(_router, config=config)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:

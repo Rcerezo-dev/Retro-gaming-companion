@@ -1,5 +1,5 @@
 <div id="tab-games" class="tab">
-  <div class="hidden" id="games-dat-banner" style="margin-bottom:8px;padding:6px 12px;background:#1a1a0d;border:1px solid #3a3a1a;border-radius:4px;font-size:12px;color:#ccc;line-height:1.6"></div>
+  <div class="hidden rv-tint-warn" id="games-dat-banner" style="margin-bottom:8px;padding:6px 12px;border-radius:4px;font-size:12px;color:#ccc;line-height:1.6"></div>
   <div class="hidden" id="games-root-banner" style="margin-bottom:8px;padding:6px 10px;background:var(--c-panel);border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
     <input id="games-search" type="text" placeholder="Buscar título o archivo…" oninput="onGamesSearchChange()">
@@ -47,7 +47,7 @@
     <a href="/api/export-library?format=json" class="btn" title="Exportar biblioteca completa con metadatos a JSON">&#x2193; JSON</a>
   </div>
   <!-- NLP-REC: recommendations panel (hidden until model pushes data) -->
-  <div class="hidden" id="rec-panel" style="margin-bottom:14px;padding:10px 14px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:6px">
+  <div class="hidden rv-tint-ok" id="rec-panel" style="margin-bottom:14px;padding:10px 14px;border-radius:6px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <span style="font-size:15px">&#x2728;</span>
       <span style="font-size:13px;font-weight:600;color:var(--c-teal)">Recomendados para ti</span>
@@ -66,7 +66,7 @@
           <th>Estado</th>
           <th id="gcol-region">Región</th><th id="gcol-match">Identificación</th><th id="gcol-size">Tamaño</th><th id="gcol-sha1">Huella (SHA1)
             <button title="Configurar columnas" onclick="toggleColPicker(event)" style="background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle">&#x2699;</button>
-            <div class="hidden" id="col-picker" style="position:absolute;background:#252535;border:1px solid #444;border-radius:6px;padding:10px 14px;z-index:100;min-width:160px;font-size:13px;font-weight:normal">
+            <div class="hidden" id="col-picker" style="position:absolute;background:var(--c-panel);border:1px solid #444;border-radius:6px;padding:10px 14px;z-index:100;min-width:160px;font-size:13px;font-weight:normal">
               <div style="color:#888;font-size:11px;margin-bottom:8px">Mostrar columnas</div>
               <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-region" onchange="applyColVisibility()"> Región</label>
               <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-match" onchange="applyColVisibility()"> Identificación</label>

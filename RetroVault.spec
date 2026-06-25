@@ -8,16 +8,22 @@ from pathlib import Path
 
 ROOT = Path(SPECPATH)
 
+_tools = [
+    "adb.exe",
+    # Required only by legacy adb.exe builds (~pre-2015); modern platform-tools
+    # statically link USB support and ship without them.
+    "AdbWinApi.dll",
+    "AdbWinUsbApi.dll",
+    "chdman.exe",
+]
+
 a = Analysis(
     [str(ROOT / "src" / "rom_manager" / "__main__.py")],
     pathex=[str(ROOT / "src")],
     binaries=[
-        # ADB and its required DLLs
-        (str(ROOT / "tools" / "adb.exe"),          "tools"),
-        (str(ROOT / "tools" / "AdbWinApi.dll"),     "tools"),
-        (str(ROOT / "tools" / "AdbWinUsbApi.dll"),  "tools"),
-        # chdman
-        (str(ROOT / "tools" / "chdman.exe"),        "tools"),
+        (str(ROOT / "tools" / name), "tools")
+        for name in _tools
+        if (ROOT / "tools" / name).is_file()
     ],
     datas=[
         # Static web assets (CSS + JS)
@@ -32,8 +38,7 @@ a = Analysis(
         "ctypes.wintypes",
         # All rom_manager subpackages (dynamic imports via late-import pattern)
         "rom_manager.web.inbox_pipeline",
-        "rom_manager.web.response_builders",
-        "rom_manager.sync.cable_sync_daemon",
+        "rom_manager.web.cable_sync_daemon",
         "rom_manager.sync.delta_cache",
         "rom_manager.utils.tray_icon",
         "rom_manager.utils.notifier",

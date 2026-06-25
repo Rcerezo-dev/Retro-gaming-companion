@@ -8,9 +8,7 @@ from typing import Any
 
 _logger = logging.getLogger(__name__)
 
-_GITHUB_API = (
-    "https://api.github.com/repos/Rcerezo-dev/Retro-gaming-companion/releases/latest"
-)
+_GITHUB_API = "https://api.github.com/repos/Rcerezo-dev/Retro-gaming-companion/releases/latest"
 _TIMEOUT = 10  # seconds
 
 _lock = threading.Lock()
@@ -70,6 +68,14 @@ def _do_check(current_version: str) -> None:
         tag = data.get("tag_name", "")
         url = data.get("html_url", "")
         name = data.get("name", tag)
+        assets = [
+            {
+                "name": asset.get("name", ""),
+                "url": asset.get("browser_download_url", ""),
+                "size": asset.get("size", 0),
+            }
+            for asset in data.get("assets", [])
+        ]
 
         if not tag:
             raise ValueError("Respuesta de GitHub sin tag_name")
@@ -85,6 +91,7 @@ def _do_check(current_version: str) -> None:
                     "latest_tag": tag,
                     "release_name": name,
                     "release_url": url,
+                    "assets": assets,
                     "update_available": update_available,
                     "checked": True,
                     "error": None,

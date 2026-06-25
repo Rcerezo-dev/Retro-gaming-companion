@@ -25,7 +25,7 @@
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleCompleteness()" id="btn-completeness">📋 Completitud</button>
   </div>
   <!-- Completeness panel (P5) -->
-  <div class="hidden" id="col-completeness-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+  <div class="hidden rv-tint-neutral" id="col-completeness-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <span style="color:var(--c-orange);font-size:13px;font-weight:600">Completitud de colección (vs. base de datos de juegos · DAT)</span>
       <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadCollectionStats()">&#x27F3; Actualizar</button>
@@ -33,7 +33,7 @@
     <div id="collection-stats"></div>
   </div>
   <!-- Disk usage panel (P3) -->
-  <div class="hidden" id="col-disk-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+  <div class="hidden rv-tint-neutral" id="col-disk-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <span style="color:#7aa2f7;font-size:13px;font-weight:600">Uso de disco por plataforma</span>
       <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadDiskUsage()">&#x27F3; Actualizar</button>
@@ -41,7 +41,7 @@
     <div id="col-disk-content"></div>
   </div>
   <!-- Stats panel -->
-  <div class="hidden" id="col-stats-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+  <div class="hidden rv-tint-neutral" id="col-stats-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
     <div style="display:flex;gap:24px;flex-wrap:wrap">
       <div id="col-stat-total"></div>
       <div style="flex:1;min-width:200px">
@@ -77,31 +77,31 @@
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start">
       <div>
         <div style="color:var(--c-pink);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
-          Solo PC <span id="diff-pc-count" class="badge" style="background:#2a1a1a;color:var(--c-pink)"></span>
+          Solo PC <span id="diff-pc-count" class="badge" style="background:var(--rv-tint-warn-bg);color:var(--c-pink)"></span>
         </div>
         <div id="diff-pc-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
       </div>
       <div>
         <div style="color:#89b4fa;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
-          Solo Android <span id="diff-and-count" class="badge" style="background:#1a1a2a;color:#89b4fa"></span>
+          Solo Android <span id="diff-and-count" class="badge" style="background:var(--rv-tint-info-bg);color:#89b4fa"></span>
         </div>
         <div id="diff-and-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
       </div>
       <div>
         <div style="color:#f9e2af;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
-          Conflictos <span id="diff-conf-count" class="badge" style="background:#2a2a1a;color:#f9e2af"></span>
+          Conflictos <span id="diff-conf-count" class="badge" style="background:var(--rv-tint-warn-bg);color:#f9e2af"></span>
         </div>
         <div id="diff-conf-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
       </div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid #222;padding-top:10px">
-      <button class="btn" onclick="syncSelected()" style="background:#12221a;border-color:var(--c-teal);color:var(--c-teal);font-size:12px">&#x2195; Sincronizar seleccionados</button>
+      <button class="btn" onclick="syncSelected()" style="background:var(--rv-tint-ok-bg);border-color:var(--c-teal);color:var(--c-teal);font-size:12px">&#x2195; Sincronizar seleccionados</button>
       <span id="diff-sync-status" style="font-size:12px;color:#888"></span>
     </div>
   </div>
 
   <!-- QoL-4: Platform health dashboard -->
-  <div class="hidden" id="platform-health-panel" style="background:#12121c;border:1px solid #2a2a3a;border-radius:8px;padding:16px;margin-bottom:16px">
+  <div class="hidden rv-tint-neutral" id="platform-health-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
       <span style="color:#888;font-size:11px">Última actualización:</span>
       <span id="ph-last-scan" style="color:#555;font-size:11px">—</span>

@@ -56,7 +56,11 @@ class TestParseVersion:
 
 class TestDoCheck:
     def test_update_available(self) -> None:
-        payload = {"tag_name": "v0.2.0", "html_url": "https://github.com/x/y/releases/tag/v0.2.0", "name": "v0.2.0"}
+        payload = {
+            "tag_name": "v0.2.0",
+            "html_url": "https://github.com/x/y/releases/tag/v0.2.0",
+            "name": "v0.2.0",
+        }
         with patch("urllib.request.urlopen", return_value=_fake_urlopen(payload)):
             _uc._do_check("0.1.0")
 
@@ -107,6 +111,27 @@ class TestDoCheck:
             _uc._do_check("0.1.0")
 
         assert _uc.get_result()["update_available"] is True
+
+    def test_assets_are_captured(self) -> None:
+        payload = {
+            "tag_name": "v0.2.0",
+            "html_url": "https://example.com",
+            "name": "v0.2.0",
+            "assets": [
+                {
+                    "name": "RetroVault-Setup.exe",
+                    "browser_download_url": "https://x/Setup.exe",
+                    "size": 123,
+                },
+            ],
+        }
+        with patch("urllib.request.urlopen", return_value=_fake_urlopen(payload)):
+            _uc._do_check("0.1.0")
+
+        assets = _uc.get_result()["assets"]
+        assert assets == [
+            {"name": "RetroVault-Setup.exe", "url": "https://x/Setup.exe", "size": 123}
+        ]
 
 
 # ── get_result / start_background_check ──────────────────────────────────────
