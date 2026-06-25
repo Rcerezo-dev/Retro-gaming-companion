@@ -8,7 +8,7 @@
   </p>
 
   <!-- === PASO 0: URL para escribir en la Anbernic === -->
-  <div style="background:#12122a;border:2px solid var(--c-purple);border-radius:10px;padding:20px 22px;margin-bottom:16px">
+  <div class="rv-tint-info" style="border:2px solid var(--c-purple);border-radius:10px;padding:20px 22px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <span style="width:28px;height:28px;border-radius:50%;background:var(--c-purple);color:var(--c-deep);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
       <div style="font-size:15px;font-weight:700;color:var(--c-text)">Abre el navegador en la Anbernic y escribe esta direcci&#xf3;n</div>
@@ -24,7 +24,7 @@
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button onclick="copyAnbernicUrl()" style="padding:8px 16px;background:var(--c-teal);border:none;color:var(--c-deep);font-weight:700;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap">&#x1F4CB; Copiar URL</button>
-        <button onclick="loadAnbernicTab()" style="padding:6px 16px;background:#2d2d2d;border:1px solid #3d3d3d;color:#888;border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
+        <button onclick="loadAnbernicTab()" style="padding:6px 16px;background:var(--c-bar);border:1px solid var(--c-border);color:#888;border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
       </div>
     </div>
     <p style="font-size:11px;color:#555;margin-top:10px">
@@ -57,7 +57,7 @@
           &#x2B07; Descargar F-Droid.apk
         </a>
         <a href="https://f-droid.org/en/packages/org.fdroid.fdroid/" target="_blank"
-           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
           &#x2139; M&#xe1;s info
         </a>
       </div>
@@ -84,7 +84,7 @@
           &#x2B07; Descargar Termux APK
         </a>
         <a href="https://f-droid.org/packages/com.termux/" target="_blank"
-           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
           &#x2139; En F-Droid
         </a>
       </div>
@@ -110,7 +110,7 @@
           &#x2B07; Descargar Termux:Boot APK
         </a>
         <a href="https://f-droid.org/packages/com.termux.boot/" target="_blank"
-           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
+           style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
           &#x2139; En F-Droid
         </a>
       </div>
@@ -138,11 +138,11 @@
           &#x1F4CB; Copiar comando
         </button>
         <a id="anb-script-download" href="#" download="retrovault-setup.sh"
-           style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#2d2d2d;border:1px solid #3d3d3d;color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:6px;font-size:12px;text-decoration:none">
           &#x2B07; Descargar .sh
         </a>
       </div>
-      <div style="background:#1a1400;border:1px solid #3a3000;border-radius:6px;padding:10px 14px;font-size:11px;color:#888;line-height:1.8">
+      <div class="rv-tint-warn" style="border-radius:6px;padding:10px 14px;font-size:11px;color:#888;line-height:1.8">
         <strong style="color:#f4a623">Consejo teclado Anbernic:</strong> en Termux, mant&#xe9;n pulsado en la pantalla &#x2192; aparece un men&#xfa; &#x2192; <em>Pegar</em>.<br>
         Si hab&#xed;as copiado la URL desde el PC mediante ADB, el portapapeles ya est&#xe1; listo.
       </div>
@@ -150,7 +150,7 @@
   </div>
 
   <!-- RESULTADO -->
-  <div style="margin-top:8px;background:#0a1a0a;border:1px solid #2a4a2a;border-radius:8px;padding:18px 20px">
+  <div class="rv-tint-ok" style="margin-top:8px;border-radius:8px;padding:18px 20px">
     <p style="font-size:14px;color:var(--c-teal);font-weight:600;margin-bottom:10px">&#x2705; Despu&#xe9;s del setup</p>
     <ul style="font-size:12px;color:#888;line-height:2.1;padding-left:18px;margin:0">
       <li>El script crea <code style="color:var(--c-text)">~/retrovault-sync.sh</code> — ej&#xe9;cutalo cuando quieras sincronizar manualmente</li>
