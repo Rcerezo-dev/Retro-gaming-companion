@@ -19,6 +19,7 @@ def _touch(path: Path, age_days: float = 0.0) -> Path:
     if age_days:
         mtime = time.time() - age_days * 86_400
         import os
+
         os.utime(path, (mtime, mtime))
     return path
 
@@ -26,7 +27,7 @@ def _touch(path: Path, age_days: float = 0.0) -> Path:
 def _make_config(tmp_path: Path):
     cfg = MagicMock()
     cfg.catalogs_nointro_dir = tmp_path / "nointro"
-    cfg.catalogs_redump_dir  = tmp_path / "redump"
+    cfg.catalogs_redump_dir = tmp_path / "redump"
     return cfg
 
 
@@ -140,7 +141,7 @@ class TestRunDatDownloadTtl:
     def _make_config(self, tmp_path: Path):
         cfg = MagicMock()
         cfg.catalogs_nointro_dir = tmp_path / "nointro"
-        cfg.catalogs_redump_dir  = tmp_path / "redump"
+        cfg.catalogs_redump_dir = tmp_path / "redump"
         return cfg
 
     def test_fresh_existing_dat_is_skipped(self, tmp_path: Path) -> None:
@@ -156,6 +157,7 @@ class TestRunDatDownloadTtl:
             mock_open.assert_not_called()
 
         from rom_manager.web.handlers.scan import _dat_dl_state
+
         assert entry["name"] in _dat_dl_state["result"]["skipped"]
 
     def test_stale_existing_dat_is_redownloaded(self, tmp_path: Path) -> None:
@@ -170,4 +172,5 @@ class TestRunDatDownloadTtl:
             _run_dat_download([entry], cfg)
 
         from rom_manager.web.handlers.scan import _dat_dl_state
+
         assert entry["name"] in _dat_dl_state["result"]["downloaded"]

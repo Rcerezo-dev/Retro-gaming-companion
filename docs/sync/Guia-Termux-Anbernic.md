@@ -3,6 +3,9 @@
 Esta guía configura la Anbernic para que sincronice automáticamente los saves con Dropbox
 usando Termux y rclone — el mismo binario que usa la herramienta en el PC.
 
+> ¿Solo sincronizas en casa, en la misma red WiFi que el PC? Considera
+> `docs/sync/sync-wifi-sftp.md` — sync directo por LAN sin depender de Dropbox/internet.
+
 ---
 
 ## Requisitos previos

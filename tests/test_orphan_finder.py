@@ -140,10 +140,12 @@ class TestDefaultSaveExtensions:
 
     def test_dat_not_in_default_extensions(self, tmp_path: Path) -> None:
         from rom_manager.config import load_config
+
         cfg = load_config(tmp_path)
         assert ".dat" not in cfg.save_extensions
 
     def test_fs_not_in_default_extensions(self, tmp_path: Path) -> None:
         from rom_manager.config import load_config
+
         cfg = load_config(tmp_path)
         assert ".fs" not in cfg.save_extensions

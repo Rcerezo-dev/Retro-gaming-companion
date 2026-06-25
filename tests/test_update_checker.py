@@ -56,7 +56,11 @@ class TestParseVersion:
 
 class TestDoCheck:
     def test_update_available(self) -> None:
-        payload = {"tag_name": "v0.2.0", "html_url": "https://github.com/x/y/releases/tag/v0.2.0", "name": "v0.2.0"}
+        payload = {
+            "tag_name": "v0.2.0",
+            "html_url": "https://github.com/x/y/releases/tag/v0.2.0",
+            "name": "v0.2.0",
+        }
         with patch("urllib.request.urlopen", return_value=_fake_urlopen(payload)):
             _uc._do_check("0.1.0")
 

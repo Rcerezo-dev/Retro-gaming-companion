@@ -8,9 +8,7 @@ from typing import Any
 
 _logger = logging.getLogger(__name__)
 
-_GITHUB_API = (
-    "https://api.github.com/repos/Rcerezo-dev/Retro-gaming-companion/releases/latest"
-)
+_GITHUB_API = "https://api.github.com/repos/Rcerezo-dev/Retro-gaming-companion/releases/latest"
 _TIMEOUT = 10  # seconds
 
 _lock = threading.Lock()

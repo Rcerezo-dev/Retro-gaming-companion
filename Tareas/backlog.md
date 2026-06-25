@@ -151,9 +151,9 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE3-1a | Research SFTP server options on Termux (dropbear vs openssh) | ⬜ prereq: V5 |
-| PHASE3-1b | Implement `sftp_transport.py` (upload/download/list) | ⬜ |
-| PHASE3-1c | UI: WiFi sync toggle + status en Settings | ⬜ |
+| PHASE3-1a | Research SFTP server options on Termux (dropbear vs openssh) | ✅ openssh recomendado (sftp-server integrado, puerto 8022); doc `docs/sync/sync-wifi-sftp.md` |
+| PHASE3-1b | ~~Implement `sftp_transport.py`~~ — **descartado**: rclone ya soporta remotes `sftp` nativamente; el pipeline existente (`sync_saves` + `RcloneTransport`) reutiliza el remote sin código nuevo (regla stdlib-only). Ver `docs/sync/sync-wifi-sftp.md` | ❌ superseded |
+| PHASE3-1c | ~~UI: WiFi sync toggle~~ → replanteado: mejoras UX del sync cloud existente (decisión: SFTP directo exige ambos dispositivos encendidos a la vez; el usuario prefiere async vía Dropbox/GDrive, que ya existe) — instrucciones Google Drive guiadas + botón "Usar para saves+states" (escribe `sync.saves_remote`/`states_remote` en un clic) + línea de estado con el remote activo. `tab-sync.html` + `sync.js`, sin cambios de backend | ✅ |
 | PHASE3-2 | Auto-sync on connect — detect via ADB, prompt "Sync now?" | ✅ (commit 2a3c579) |
 | PHASE3-3 | Sync status always visible in header | ✅ (commit 7eba736) |
 

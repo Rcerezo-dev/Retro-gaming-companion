@@ -9,71 +9,68 @@ from pathlib import Path
 
 from rom_manager.catalog.catalog_loader import _load_dat_file
 
-_BASE = (
-    "https://raw.githubusercontent.com/libretro/libretro-database"
-    "/master/metadat"
-)
+_BASE = "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
 
 # (source_dir, filename_stem)  —  source_dir is "no-intro" or "redump"
 # Local cache lives at: dest_dir / {"nointro","redump"} / f"{stem}.dat"
 _PLATFORM_DAT_MAP: dict[str, tuple[str, str]] = {
     # ── Nintendo cartridge (No-Intro) ──────────────────────────────────────
-    "NES":                  ("no-intro", "Nintendo - Nintendo Entertainment System"),
-    "Famicom Disk System":  ("no-intro", "Nintendo - Family Computer Disk System"),
-    "SNES":                 ("no-intro", "Nintendo - Super Nintendo Entertainment System"),
-    "Nintendo 64":          ("no-intro", "Nintendo - Nintendo 64"),
-    "Game Boy":             ("no-intro", "Nintendo - Game Boy"),
-    "Game Boy Color":       ("no-intro", "Nintendo - Game Boy Color"),
-    "Game Boy Advance":     ("no-intro", "Nintendo - Game Boy Advance"),
-    "Nintendo DS":          ("no-intro", "Nintendo - Nintendo DS"),
-    "Nintendo 3DS":         ("no-intro", "Nintendo - Nintendo 3DS"),
-    "Virtual Boy":          ("no-intro", "Nintendo - Virtual Boy"),
-    "Pokemon Mini":         ("no-intro", "Nintendo - Pokemon Mini"),
+    "NES": ("no-intro", "Nintendo - Nintendo Entertainment System"),
+    "Famicom Disk System": ("no-intro", "Nintendo - Family Computer Disk System"),
+    "SNES": ("no-intro", "Nintendo - Super Nintendo Entertainment System"),
+    "Nintendo 64": ("no-intro", "Nintendo - Nintendo 64"),
+    "Game Boy": ("no-intro", "Nintendo - Game Boy"),
+    "Game Boy Color": ("no-intro", "Nintendo - Game Boy Color"),
+    "Game Boy Advance": ("no-intro", "Nintendo - Game Boy Advance"),
+    "Nintendo DS": ("no-intro", "Nintendo - Nintendo DS"),
+    "Nintendo 3DS": ("no-intro", "Nintendo - Nintendo 3DS"),
+    "Virtual Boy": ("no-intro", "Nintendo - Virtual Boy"),
+    "Pokemon Mini": ("no-intro", "Nintendo - Pokemon Mini"),
     # ── Nintendo disc (Redump) ──────────────────────────────────────────────
-    "GameCube":             ("redump",   "Nintendo - GameCube"),
-    "Wii":                  ("redump",   "Nintendo - Wii"),
-    "Wii U":                ("redump",   "Nintendo - Wii U"),
+    "GameCube": ("redump", "Nintendo - GameCube"),
+    "Wii": ("redump", "Nintendo - Wii"),
+    "Wii U": ("redump", "Nintendo - Wii U"),
     # ── Sega cartridge (No-Intro) ───────────────────────────────────────────
-    "Master System":        ("no-intro", "Sega - Master System - Mark III"),
-    "Sega Mega Drive":      ("no-intro", "Sega - Mega Drive - Genesis"),
-    "Sega 32X":             ("no-intro", "Sega - 32X"),
-    "Game Gear":            ("no-intro", "Sega - Game Gear"),
+    "Master System": ("no-intro", "Sega - Master System - Mark III"),
+    "Sega Mega Drive": ("no-intro", "Sega - Mega Drive - Genesis"),
+    "Sega 32X": ("no-intro", "Sega - 32X"),
+    "Game Gear": ("no-intro", "Sega - Game Gear"),
     # ── Sega disc (Redump) ─────────────────────────────────────────────────
-    "Sega CD":              ("redump",   "Sega - Mega CD & Sega CD"),
-    "Sega Saturn":          ("redump",   "Sega - Saturn"),
-    "Dreamcast":            ("redump",   "Sega - Dreamcast"),
+    "Sega CD": ("redump", "Sega - Mega CD & Sega CD"),
+    "Sega Saturn": ("redump", "Sega - Saturn"),
+    "Dreamcast": ("redump", "Sega - Dreamcast"),
     # ── Sony (Redump) ──────────────────────────────────────────────────────
-    "PlayStation":          ("redump",   "Sony - PlayStation"),
-    "PlayStation 2":        ("redump",   "Sony - PlayStation 2"),
-    "PlayStation 3":        ("redump",   "Sony - PlayStation 3"),
-    "PSP":                  ("redump",   "Sony - PlayStation Portable"),
-    "PS Vita":              ("redump",   "Sony - PlayStation Vita"),
+    "PlayStation": ("redump", "Sony - PlayStation"),
+    "PlayStation 2": ("redump", "Sony - PlayStation 2"),
+    "PlayStation 3": ("redump", "Sony - PlayStation 3"),
+    "PSP": ("redump", "Sony - PlayStation Portable"),
+    "PS Vita": ("redump", "Sony - PlayStation Vita"),
     # ── NEC ────────────────────────────────────────────────────────────────
-    "PC Engine":            ("no-intro", "NEC - PC Engine - TurboGrafx 16"),
-    "SuperGrafx":           ("no-intro", "NEC - PC Engine SuperGrafx"),
-    "PC-FX":                ("redump",   "NEC - PC-FX & PC-FXGA"),
+    "PC Engine": ("no-intro", "NEC - PC Engine - TurboGrafx 16"),
+    "SuperGrafx": ("no-intro", "NEC - PC Engine SuperGrafx"),
+    "PC-FX": ("redump", "NEC - PC-FX & PC-FXGA"),
     # ── SNK ────────────────────────────────────────────────────────────────
-    "Neo Geo Pocket":       ("no-intro", "SNK - Neo Geo Pocket"),
+    "Neo Geo Pocket": ("no-intro", "SNK - Neo Geo Pocket"),
     "Neo Geo Pocket Color": ("no-intro", "SNK - Neo Geo Pocket Color"),
     # ── Atari ──────────────────────────────────────────────────────────────
-    "Atari 2600":           ("no-intro", "Atari - 2600"),
-    "Atari 5200":           ("no-intro", "Atari - 5200"),
-    "Atari 7800":           ("no-intro", "Atari - 7800"),
-    "Atari Lynx":           ("no-intro", "Atari - Lynx"),
-    "Atari Jaguar":         ("no-intro", "Atari - Jaguar"),
+    "Atari 2600": ("no-intro", "Atari - 2600"),
+    "Atari 5200": ("no-intro", "Atari - 5200"),
+    "Atari 7800": ("no-intro", "Atari - 7800"),
+    "Atari Lynx": ("no-intro", "Atari - Lynx"),
+    "Atari Jaguar": ("no-intro", "Atari - Jaguar"),
     # ── Bandai ─────────────────────────────────────────────────────────────
-    "WonderSwan":           ("no-intro", "Bandai - WonderSwan"),
-    "WonderSwan Color":     ("no-intro", "Bandai - WonderSwan Color"),
+    "WonderSwan": ("no-intro", "Bandai - WonderSwan"),
+    "WonderSwan Color": ("no-intro", "Bandai - WonderSwan Color"),
     # ── Other handhelds / micro-consoles ───────────────────────────────────
-    "Game & Watch":         ("no-intro", "Nintendo - Game and Watch"),
-    "Watara Supervision":   ("no-intro", "Watara - Supervision"),
+    "Game & Watch": ("no-intro", "Nintendo - Game and Watch"),
+    "Watara Supervision": ("no-intro", "Watara - Supervision"),
     # ── Home computers ─────────────────────────────────────────────────────
-    "Intellivision":        ("no-intro", "Mattel - Intellivision"),
-    "ColecoVision":         ("no-intro", "Coleco - ColecoVision"),
-    "MSX":                  ("no-intro", "Microsoft - MSX"),
-    "MSX 2":                ("no-intro", "Microsoft - MSX 2"),
-    "Commodore 64":         ("no-intro", "Commodore - 64"),
-    "Amiga":                ("no-intro", "Commodore - Amiga"),
+    "Intellivision": ("no-intro", "Mattel - Intellivision"),
+    "ColecoVision": ("no-intro", "Coleco - ColecoVision"),
+    "MSX": ("no-intro", "Microsoft - MSX"),
+    "MSX 2": ("no-intro", "Microsoft - MSX 2"),
+    "Commodore 64": ("no-intro", "Commodore - 64"),
+    "Amiga": ("no-intro", "Commodore - Amiga"),
 }
 
 # Reverse cache-subdir name: "no-intro" → "nointro", "redump" → "redump"

@@ -60,8 +60,7 @@ def verify_multidisc(
         # Check extension homogeneity — sidecars (.cue/.m3u/.ccd/.sbi) are
         # valid companions for disc images; only flag 2+ image extensions.
         image_exts = {
-            d.suffix.lower() for d in group.discs
-            if d.suffix.lower() not in _SIDECAR_EXTS
+            d.suffix.lower() for d in group.discs if d.suffix.lower() not in _SIDECAR_EXTS
         }
         if len(image_exts) > 1:
             group_issues.append(

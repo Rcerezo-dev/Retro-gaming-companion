@@ -439,6 +439,20 @@ function toggleRcloneSetup() {
   if (!showing) loadRcloneStatus();
 }
 
+function _rcloneActiveTargetHtml() {
+  const saves  = document.getElementById('cfg-saves-remote')?.value.trim()  || '';
+  const states = document.getElementById('cfg-states-remote')?.value.trim() || '';
+  const legacy = document.getElementById('cfg-rclone-remote')?.value.trim() || '';
+  if (saves || states) {
+    return 'Sync actual &rarr; saves: <code>' + (saves || '&mdash;') + '</code>'
+      + ' &middot; states: <code>' + (states || '&mdash;') + '</code>';
+  }
+  if (legacy) {
+    return 'Sync actual &rarr; remote &uacute;nico (legado): <code>' + legacy + '</code>';
+  }
+  return '<span style="color:var(--c-yellow)">Sin remote de sync configurado &mdash; elige uno abajo.</span>';
+}
+
 async function loadRcloneStatus() {
   const info = document.getElementById('rclone-status-info');
   const remPanel = document.getElementById('rclone-remotes-panel');
@@ -458,6 +472,7 @@ async function loadRcloneStatus() {
     } else {
       statusHtml += ` &middot; ${d.remotes.length} remote(s): <strong style="color:var(--c-text)">${d.remotes.join('  ')}</strong>`;
     }
+    statusHtml += '<br>' + _rcloneActiveTargetHtml();
     if (info) info.innerHTML = statusHtml;
     if (d.remotes.length) {
       const sel = document.getElementById('rclone-remote-select');
@@ -526,6 +541,36 @@ async function applyRcloneRemote() {
     if (res) { res.innerHTML = '\u2705 Guardado: <code>' + fullRemote + '</code>'; _txtCls(res, 'txt-ok'); }
     const cfgInp = document.getElementById('cfg-rclone-remote');
     if (cfgInp) cfgInp.value = fullRemote;
+    const info = document.getElementById('rclone-status-info');
+    if (info) info.innerHTML = info.innerHTML.replace(/Sync actual.*$|Sin remote de sync.*$/s, _rcloneActiveTargetHtml());
+  } catch(e) {
+    if (res) { res.textContent = '\u274C ' + e.message; _txtCls(res, 'txt-err'); }
+  }
+}
+
+async function applyRcloneSavesStates() {
+  const remote = document.getElementById('rclone-remote-select')?.value || '';
+  const baseVal = (document.getElementById('rclone-path-input')?.value || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+  const res = document.getElementById('rclone-apply-result');
+  if (!remote) { if (res) { res.textContent = 'Selecciona un remote.'; res.style.color = 'var(--c-yellow)'; } return; }
+  const base = baseVal || 'RetroSync';
+  const savesRemote = `${remote}${base}/saves`;
+  const statesRemote = `${remote}${base}/states`;
+  try {
+    await apiPost('/api/config', {
+      'sync.saves_remote': savesRemote,
+      'sync.states_remote': statesRemote,
+    });
+    if (res) {
+      res.innerHTML = '\u2705 Guardado &#x2014; saves: <code>' + savesRemote + '</code> &middot; states: <code>' + statesRemote + '</code>';
+      _txtCls(res, 'txt-ok');
+    }
+    const savesInp = document.getElementById('cfg-saves-remote');
+    const statesInp = document.getElementById('cfg-states-remote');
+    if (savesInp) savesInp.value = savesRemote;
+    if (statesInp) statesInp.value = statesRemote;
+    const info = document.getElementById('rclone-status-info');
+    if (info) info.innerHTML = info.innerHTML.replace(/Sync actual.*$|Sin remote de sync.*$/s, _rcloneActiveTargetHtml());
   } catch(e) {
     if (res) { res.textContent = '\u274C ' + e.message; _txtCls(res, 'txt-err'); }
   }
