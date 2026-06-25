@@ -50,7 +50,7 @@
 
 <!-- D8-P1: SETUP WIZARD MODAL -->
 <div id="wizard-modal" class="hidden" aria-modal="true" role="dialog">
-  <div style="background:#1a1a2e;border:1px solid #3a3a5c;border-radius:10px;width:100%;max-width:680px;box-shadow:0 8px 40px rgba(0,0,0,0.7);position:relative;overflow:hidden">
+  <div style="background:var(--bg-panel);border:1px solid #3a3a5c;border-radius:10px;width:100%;max-width:680px;box-shadow:0 8px 40px rgba(0,0,0,0.7);position:relative;overflow:hidden">
     <!-- Close button -->
     <button onclick="closeWizard()" title="Cerrar" style="position:absolute;top:14px;right:16px;background:none;border:none;color:#666;font-size:20px;cursor:pointer;line-height:1">&times;</button>
 
@@ -62,11 +62,11 @@
 
         <!-- Auto-detect -->
         <div style="margin-bottom:16px;display:flex;justify-content:flex-end">
-          <button id="wiz-detect-btn" class="btn" onclick="wizardAutoDetect()" style="font-size:12px;padding:5px 12px;background:#1e1e3a">
+          <button id="wiz-detect-btn" class="btn" onclick="wizardAutoDetect()" style="font-size:12px;padding:5px 12px;background:var(--c-bar)">
             &#x1F50D; Detectar autom&#xe1;ticamente
           </button>
         </div>
-        <div class="hidden" id="wiz-detect-msg" style="font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px;border:1px solid #2a2a3c;background:#0d0d1a;color:#888"></div>
+        <div class="hidden rv-tint-neutral" id="wiz-detect-msg" style="font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px;color:#888"></div>
 
         <!-- Carpeta PC (obligatoria) -->
         <div style="margin-bottom:16px">
@@ -74,7 +74,7 @@
             Carpeta de biblioteca (PC) <span style="color:var(--c-softred)">*</span>
           </label>
           <input id="wiz-library-root" type="text"
-            style="width:100%;box-sizing:border-box;background:#0d0d1a;border:1px solid #3a3a5c;color:var(--c-text);padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
+            style="width:100%;box-sizing:border-box;background:var(--c-input);border:1px solid #3a3a5c;color:var(--c-text);padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
             placeholder="Ej: E:\\ROMs">
           <div style="font-size:11px;color:#555;margin-top:4px">Raiz donde est&#xe1;n todas las carpetas de tus ROMs en el PC.</div>
         </div>
@@ -85,7 +85,7 @@
             Carpeta de biblioteca (consola Android) <span style="color:#555;font-weight:400">— opcional</span>
           </label>
           <input id="wiz-android-root" type="text"
-            style="width:100%;box-sizing:border-box;background:#0d0d1a;border:1px solid #3a3a5c;color:var(--c-text);padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
+            style="width:100%;box-sizing:border-box;background:var(--c-input);border:1px solid #3a3a5c;color:var(--c-text);padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
             placeholder="Ej: /storage/emulated/0/RetroArch/roms">
           <div style="font-size:11px;color:#555;margin-top:4px">Solo si usas una consola Android. Se puede configurar despu&#xe9;s en Settings.</div>
         </div>
@@ -106,7 +106,7 @@
           </label>
         </div>
 
-        <div id="wiz-dats-info" style="padding:10px 14px;background:#0d0d1a;border:1px solid #2a2a3c;border-radius:6px;font-size:12px;color:#666;line-height:1.7;margin-bottom:8px">
+        <div id="wiz-dats-info" class="rv-tint-info" style="padding:10px 14px;border-radius:6px;font-size:12px;color:#666;line-height:1.7;margin-bottom:8px">
           <span style="color:#c9bcf5">i</span> Para cruzar con la base de datos de juegos, pon los DAT de No-Intro/Redump en:<br>
           <code id="wiz-dats-hint" style="color:#888">.rommgr/catalogs/nointro/  &amp;  .rommgr/catalogs/redump/</code><br>
           <span style="color:#555">(opcional &#x2014; puedes hacerlo despu&#xe9;s desde Settings)</span>
@@ -125,7 +125,7 @@
         <!-- Steps rendered by JS -->
       </div>
       <div style="margin-bottom:8px">
-        <div style="background:#0d0d1a;border-radius:6px;height:10px;overflow:hidden">
+        <div style="background:var(--bg-track);border-radius:6px;height:10px;overflow:hidden">
           <div id="wiz-prog-bar" style="background:#5a4dab;height:100%;width:0%;transition:width 0.4s"></div>
         </div>
       </div>
@@ -139,7 +139,7 @@
     <div class="hidden" id="wizard-page-3" style="padding:32px 36px 28px">
       <div style="font-size:20px;font-weight:700;color:var(--c-teal);margin-bottom:20px">&#x2705; Biblioteca analizada</div>
       <div id="wiz-result-stats" style="margin-bottom:24px;line-height:2;font-size:14px;color:var(--c-text)"></div>
-      <div style="font-size:13px;color:#888;margin-bottom:20px;padding:12px 16px;background:#0d0d1a;border-radius:6px;border:1px solid #2a2a3c">
+      <div class="rv-tint-neutral" style="font-size:13px;color:#888;margin-bottom:20px;padding:12px 16px;border-radius:6px">
         <strong style="color:#c9bcf5">Siguiente paso:</strong> revisa el plan de renombrado y aprueba los cambios.
       </div>
       <div style="display:flex;justify-content:flex-end;gap:10px">

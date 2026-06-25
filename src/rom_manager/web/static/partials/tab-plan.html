@@ -39,17 +39,17 @@
     </div>
   </div>
   <!-- Barra de progreso del apply -->
-  <div class="hidden" id="apply-progress-wrap" style="margin-bottom:10px;padding:8px 12px;background:#1a1a2e;border:1px solid #3a3a6a;border-radius:4px">
+  <div class="hidden rv-tint-info" id="apply-progress-wrap" style="margin-bottom:10px;padding:8px 12px;border-radius:4px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <span id="apply-progress-label" style="font-size:12px;color:var(--c-lblue)">Renombrando…</span>
       <span id="apply-progress-pct" style="font-size:12px;color:#888">0%</span>
     </div>
-    <div style="background:#0f0f1a;border-radius:3px;height:6px;overflow:hidden">
+    <div style="background:var(--bg-track);border-radius:3px;height:6px;overflow:hidden">
       <div id="apply-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width .2s"></div>
     </div>
   </div>
   <!-- D8-2: apply error details panel -->
-  <div class="hidden" id="apply-error-details" style="margin-bottom:10px;padding:10px 14px;background:#1f0d0d;border:1px solid #4a1a1a;border-radius:4px">
+  <div class="hidden rv-tint-warn" id="apply-error-details" style="margin-bottom:10px;padding:10px 14px;border-radius:4px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <span style="color:var(--c-red);font-size:12px;font-weight:600" id="apply-error-count"></span>
       <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="document.getElementById('apply-error-details').style.display='none'">Cerrar</button>

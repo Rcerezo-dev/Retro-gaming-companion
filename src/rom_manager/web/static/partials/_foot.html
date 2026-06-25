@@ -35,7 +35,7 @@
         &#x1F4C2; Carpeta
       </button>
       <button class="hidden" onclick="gpLaunch()" id="gp-launch-btn"
-        style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 12px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">
+        style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 12px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">
         &#x25B6; Abrir en RetroArch
       </button>
     </div>
@@ -68,7 +68,7 @@
     <div style="margin-top:12px">
       <div style="color:#555;font-size:11px;margin-bottom:4px">&#x1F4DD; Notas personales</div>
       <textarea id="gp-notes" placeholder="Trucos, claves, config de controller, d&#xf3;nde lo dej&#xe9;&#x2026;"
-        style="width:100%;min-height:56px;background:#0a0a0a;border:1px solid #222;color:#555;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
+        style="width:100%;min-height:56px;background:var(--c-input);border:1px solid #222;color:#555;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
         oninput="gpNotesInput()"
         onfocus="this.style.borderColor='#444';this.style.color='var(--c-text)'"
         onblur="this.style.borderColor='#222';this.style.color=this.value?'var(--c-text)':'#555'"></textarea>
@@ -79,7 +79,7 @@
         style="background:none;border:none;color:#444;font-size:11px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px">
         &#x270F; Editar metadatos
       </button>
-      <div class="hidden" id="gp-meta-edit-wrap" style="margin-top:10px;padding:10px;background:#0a0a0a;border:1px solid #222;border-radius:4px">
+      <div class="hidden" id="gp-meta-edit-wrap" style="margin-top:10px;padding:10px;background:var(--c-bar);border:1px solid #222;border-radius:4px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <div>
             <div style="color:#555;font-size:10px;margin-bottom:3px">T&#xed;tulo can&#xf3;nico</div>
@@ -108,19 +108,19 @@
         </div>
         <div style="margin-bottom:8px">
           <div style="color:#555;font-size:10px;margin-bottom:3px">Descripci&#xf3;n</div>
-          <textarea id="gme-description" style="width:100%;min-height:52px;background:#111;border:1px solid #333;color:var(--c-text);padding:5px 7px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box" placeholder="Descripci&#xf3;n del juego&#x2026;"></textarea>
+          <textarea id="gme-description" style="width:100%;min-height:52px;background:var(--c-input);border:1px solid #333;color:var(--c-text);padding:5px 7px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box" placeholder="Descripci&#xf3;n del juego&#x2026;"></textarea>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button onclick="gpSaveMetaFields()" style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 14px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Guardar</button>
+          <button onclick="gpSaveMetaFields()" style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 14px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Guardar</button>
           <span id="gme-result" style="font-size:11px;color:#555"></span>
           <button onclick="gpScrapeSingle()" style="margin-left:auto;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">&#x1F50D; Re-scrapear</button>
         </div>
         <!-- S30-4: preview de scraping -->
-        <div class="hidden" id="gp-scrape-preview" style="margin-top:10px;padding:8px;background:#111;border:1px solid #333;border-radius:4px;font-size:11px"></div>
+        <div class="hidden" id="gp-scrape-preview" style="margin-top:10px;padding:8px;background:var(--c-bar);border:1px solid #333;border-radius:4px;font-size:11px"></div>
       </div>
     </div>
     <!-- UI-4: RetroAchievements section -->
-    <div class="hidden" id="gp-ra-section" style="margin-top:12px;padding:8px 12px;background:#0d0d1a;border:1px solid #1a1a3a;border-left:3px solid #ffcc00;border-radius:4px">
+    <div class="hidden rv-tint-info" id="gp-ra-section" style="margin-top:12px;padding:8px 12px;border-left:3px solid #ffcc00;border-radius:4px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:14px">&#x1F3C6;</span>
         <span id="gp-ra-count" style="font-size:13px;font-weight:600;color:var(--c-text)"></span>
@@ -159,7 +159,7 @@
         <span style="color:#666">h</span>
         <input id="gp-playtime-mins" type="number" placeholder="0" min="0" max="59" style="width:40px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:3px;font:inherit">
         <span style="color:#666">m</span>
-        <button onclick="gpLogPlaytime()" style="margin-left:auto;background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:2px 10px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer">Registrar</button>
+        <button onclick="gpLogPlaytime()" style="margin-left:auto;background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:2px 10px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer">Registrar</button>
       </div>
     </div>
     <div class="gp-desc hidden" id="gp-desc"></div>
