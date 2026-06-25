@@ -967,7 +967,8 @@ def main(argv: list[str] | None = None) -> int:
         local_url = f"http://127.0.0.1:{port}/" if lan_mode else f"http://{host}:{port}/"
         print(f"Retro Vault — {local_url}")
         if lan_mode:
-            from rom_manager.web.lan import lan_urls, _check_firewall
+            from rom_manager.web.lan import _check_firewall, lan_urls
+
             for url in lan_urls(port):
                 print(f"           LAN — {url}")
             if not _check_firewall(port):

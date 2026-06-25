@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 # Directory names (case-insensitive) that are never ROM folders.
-_EXCLUDED_DIR_NAMES = frozenset({
-    "bios",
-    "system volume information",
-    "_descartados",
-})
+_EXCLUDED_DIR_NAMES = frozenset(
+    {
+        "bios",
+        "system volume information",
+        "_descartados",
+    }
+)
 
 
 def _iter_files(root: Path) -> Iterator[Path]:

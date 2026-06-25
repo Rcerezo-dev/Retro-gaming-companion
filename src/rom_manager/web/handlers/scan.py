@@ -675,23 +675,27 @@ def _build_dat_catalog_list(config: AppConfig) -> dict:
         files = nointro_files if entry["catalog"] == "nointro" else redump_files
         dat_path = files.get(entry["name"])
         if dat_path is None:
-            result.append({
-                **entry,
-                "downloaded": False,
-                "mtime_iso": None,
-                "age_days": None,
-                "stale": False,
-            })
+            result.append(
+                {
+                    **entry,
+                    "downloaded": False,
+                    "mtime_iso": None,
+                    "age_days": None,
+                    "stale": False,
+                }
+            )
         else:
             mtime = _dt.datetime.fromtimestamp(dat_path.stat().st_mtime, tz=_dt.UTC)
             age_days = (now - mtime).days
-            result.append({
-                **entry,
-                "downloaded": True,
-                "mtime_iso": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "age_days": age_days,
-                "stale": age_days >= _DAT_TTL_DAYS,
-            })
+            result.append(
+                {
+                    **entry,
+                    "downloaded": True,
+                    "mtime_iso": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "age_days": age_days,
+                    "stale": age_days >= _DAT_TTL_DAYS,
+                }
+            )
     return {"systems": result}
 
 

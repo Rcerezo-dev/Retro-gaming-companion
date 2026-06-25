@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 
 @dataclass(slots=True)
@@ -45,7 +45,7 @@ def _iter_clrmamepro_blocks(text: str) -> Iterator[tuple[str, str]]:
             elif c == ")":
                 depth -= 1
             i += 1
-        yield keyword, text[m.end(): i - 1]
+        yield keyword, text[m.end() : i - 1]
         pos = i
 
 
@@ -53,8 +53,10 @@ _ATTR_RE = re.compile(r'(\w+)\s+(?:"([^"]*)"|([\w.\-]+))')
 
 
 def _parse_clrmamepro_attrs(body: str) -> dict[str, str]:
-    return {m.group(1).lower(): (m.group(2) if m.group(2) is not None else m.group(3))
-            for m in _ATTR_RE.finditer(body)}
+    return {
+        m.group(1).lower(): (m.group(2) if m.group(2) is not None else m.group(3))
+        for m in _ATTR_RE.finditer(body)
+    }
 
 
 def _top_level_text(body: str) -> str:

@@ -44,6 +44,7 @@ def register_cloud(
             curl -s http://<PC-IP>:7777/s | bash
         """
         from rom_manager.web.lan import get_lan_ip
+
         server_ip = get_lan_ip() or "192.168.1.160"
         server_url = f"http://{server_ip}:{config.web_port}"
         script = _build_bootstrap_script(server_url)

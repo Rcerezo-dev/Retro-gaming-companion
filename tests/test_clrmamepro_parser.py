@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rom_manager.catalog.catalog_loader import (
     _detect_dat_format,
     load_clrmamepro_dat,
