@@ -3,6 +3,9 @@
 <div id="update-banner" class="hidden">
   <span id="update-banner-text"></span>
   <a id="update-banner-link" href="#" target="_blank" rel="noopener" style="margin-left:10px;font-size:11px;color:#a0c4ff;text-decoration:underline">Ver release &rarr;</a>
+  <button id="update-banner-download-btn" class="hidden" onclick="downloadAppUpdate()" style="margin-left:10px;font-size:11px;padding:3px 10px;background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;border-radius:4px;cursor:pointer">&#x2B07; Descargar e instalar</button>
+  <span id="update-banner-progress" class="hidden" style="margin-left:10px;font-size:11px;color:#a0c4ff"></span>
+  <button id="update-banner-apply-btn" class="hidden" onclick="applyAppUpdate()" style="margin-left:10px;font-size:11px;padding:3px 10px;background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;border-radius:4px;cursor:pointer">&#x21BB; Instalar y reiniciar</button>
   <button onclick="document.getElementById('update-banner').classList.add('hidden')" style="margin-left:auto;background:none;border:none;color:#888;cursor:pointer;font-size:15px;line-height:1;padding:0 4px" title="Cerrar">&times;</button>
 </div>
 

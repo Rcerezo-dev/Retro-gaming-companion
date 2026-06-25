@@ -36,3 +36,8 @@ config.toml
 # External binaries (place chdman.exe / adb.exe + their DLLs here locally)
 tools/*
 !tools/.gitkeep
+
+# PyInstaller / Inno Setup build output (PHASE6-1a/2a) — generated, not versioned
+build/
+dist/
+installer/output/
