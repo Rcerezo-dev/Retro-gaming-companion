@@ -118,14 +118,20 @@ class TestDoCheck:
             "html_url": "https://example.com",
             "name": "v0.2.0",
             "assets": [
-                {"name": "RetroVault-Setup.exe", "browser_download_url": "https://x/Setup.exe", "size": 123},
+                {
+                    "name": "RetroVault-Setup.exe",
+                    "browser_download_url": "https://x/Setup.exe",
+                    "size": 123,
+                },
             ],
         }
         with patch("urllib.request.urlopen", return_value=_fake_urlopen(payload)):
             _uc._do_check("0.1.0")
 
         assets = _uc.get_result()["assets"]
-        assert assets == [{"name": "RetroVault-Setup.exe", "url": "https://x/Setup.exe", "size": 123}]
+        assert assets == [
+            {"name": "RetroVault-Setup.exe", "url": "https://x/Setup.exe", "size": 123}
+        ]
 
 
 # ── get_result / start_background_check ──────────────────────────────────────

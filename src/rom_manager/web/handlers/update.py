@@ -59,7 +59,10 @@ def register(router: Router, *, config: AppConfig) -> None:
         asset = find_update_asset(get_result().get("assets", []))
         if asset is None:
             ctx._send_json(
-                {"status": "error", "error": "El último release no tiene un instalador (.exe) adjunto."}
+                {
+                    "status": "error",
+                    "error": "El último release no tiene un instalador (.exe) adjunto.",
+                }
             )
             return
 
