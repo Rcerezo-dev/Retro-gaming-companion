@@ -24,12 +24,16 @@ class _RepositoryBase:
         with self.connect() as connection:
             initialize_database(connection)
 
-    @contextmanager
-    def connect(self) -> Iterator[sqlite3.Connection]:
+    def _open_conn(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database_path, timeout=30)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=30000")
+        return connection
+
+    @contextmanager
+    def connect(self) -> Iterator[sqlite3.Connection]:
+        connection = self._open_conn()
         try:
             yield connection
         finally:
@@ -38,10 +42,7 @@ class _RepositoryBase:
     @contextmanager
     def batch(self) -> Iterator[sqlite3.Connection]:
         """Single open connection for bulk writes. Commits once on exit, rolls back on error."""
-        connection = sqlite3.connect(self.database_path, timeout=30)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA busy_timeout=30000")
+        connection = self._open_conn()
         try:
             yield connection
             connection.commit()
