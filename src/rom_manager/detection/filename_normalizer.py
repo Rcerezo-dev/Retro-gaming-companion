@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 INVALID_WINDOWS_CHARS = '<>:"/\\|?*'
 
@@ -36,6 +37,8 @@ def normalize_for_match(name: str) -> str:
         ``"Tetris (World)"``          →  ``"tetris"``
         ``"tetris_world.gb"``         →  ``"tetris world"``
     """
+    # 0. NFKD + strip combining marks so é==e, ü==u, etc.
+    name = "".join(c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c))
     # 1. Strip extension
     name = _EXTENSION_RE.sub("", name)
     # 2. Remove annotations

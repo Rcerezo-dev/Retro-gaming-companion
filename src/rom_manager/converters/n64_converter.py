@@ -10,6 +10,7 @@ Converting to .z64 is done entirely in Python — no external tools needed.
 
 from __future__ import annotations
 
+import array
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -97,16 +98,9 @@ def convert_to_z64(source: Path, target: Path | None = None) -> N64ConvertResult
                 elif fmt == "n64":
                     if len(chunk) % 4:
                         chunk += b"\x00" * (4 - len(chunk) % 4)
-                    # Reverse each 4-byte word
-                    arr = bytearray(chunk)
-                    for i in range(0, len(arr), 4):
-                        arr[i], arr[i + 1], arr[i + 2], arr[i + 3] = (
-                            arr[i + 3],
-                            arr[i + 2],
-                            arr[i + 1],
-                            arr[i],
-                        )
-                    fout.write(bytes(arr))
+                    a = array.array("I", chunk)
+                    a.byteswap()
+                    fout.write(a.tobytes())
                 else:  # z64 → just copy
                     fout.write(chunk)
         result.success = True

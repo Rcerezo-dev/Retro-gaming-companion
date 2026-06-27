@@ -7,7 +7,7 @@ Mixed into :class:`~rom_manager.database.repository.LibraryRepository`; relies o
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -94,8 +94,6 @@ class SyncMixin:
 
     def get_save_comparison(self) -> list[dict]:
         """Return save files with their last sync event, for the comparator UI."""
-        from datetime import datetime
-
         with self.connect() as conn:
             rows = conn.execute(
                 "SELECT id, canonical_title, original_filename, platform, source_path, updated_at "

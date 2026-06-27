@@ -66,6 +66,9 @@ def test_sanitize_filename(value: str, expected: str) -> None:
         ("  Tetris   (World) .gb", "tetris"),
         # Mixed underscores and parens
         ("tetris_(world)_[!].gb", "tetris"),
+        # Accented characters → stripped combining marks (NFKD)
+        ("Pokémon Red (World).gb", "pokemon red"),
+        ("Donkey Kong Español.sfc", "donkey kong espanol"),
     ],
 )
 def test_normalize_for_match(name: str, expected: str) -> None:

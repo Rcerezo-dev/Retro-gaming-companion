@@ -17,6 +17,7 @@ save path and can restore back there.
 from __future__ import annotations
 
 import shutil
+import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -152,8 +153,6 @@ def create_saves_zip(
 
     Returns the path of the created ZIP.
     """
-    import zipfile
-
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = _ts()
     zip_path = output_dir / f"backup-{ts}.zip"

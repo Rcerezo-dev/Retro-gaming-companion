@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -67,8 +68,6 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
 
     Handles both quoted (FILE "name.bin" BINARY) and unquoted (FILE name.bin BINARY) forms.
     """
-    import re
-
     cue_dir = cue_path.parent
     bins: list[Path] = []
     try:

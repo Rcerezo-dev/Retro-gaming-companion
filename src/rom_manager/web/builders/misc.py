@@ -5,6 +5,7 @@ Pure functions: typed params → JSON-ready dicts. No global job state.
 
 from __future__ import annotations
 
+import os as _os
 from pathlib import Path
 
 from rom_manager.config import AppConfig
@@ -73,8 +74,6 @@ def _build_scrape_summary(repository: LibraryRepository) -> dict:
 
 def _build_cable_sync_preview(qs: dict, config: AppConfig) -> dict:
     """Count saves on PC and Android side for a quick pre-sync summary."""
-    import os as _os
-
     mode = qs.get("mode", ["sd"])[0]
     direction = qs.get("direction", ["pc_to_anbernic"])[0]
     pc_path_s = (qs.get("pc_path", [None])[0] or "").strip() or str(config.library_root or "")

@@ -6,7 +6,7 @@ Mixed into :class:`~rom_manager.database.repository.LibraryRepository`; relies o
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime
 
 from rom_manager.database.repositories.models import DuplicateEntry, DuplicateGroup
 
@@ -89,8 +89,6 @@ class DuplicatesMixin:
 
     def exclude_duplicate_sha1(self, sha1: str, reason: str = "intentional_copy") -> None:
         """Mark a SHA1 group as an intentional copy — it will no longer appear as a duplicate."""
-        from datetime import datetime
-
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             conn.execute(
@@ -121,8 +119,6 @@ class DuplicatesMixin:
         year: str = "",
         dat_source: str = "",
     ) -> None:
-        from datetime import datetime
-
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             conn.execute(

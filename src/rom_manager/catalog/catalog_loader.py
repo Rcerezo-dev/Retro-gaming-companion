@@ -161,8 +161,6 @@ def load_nointro_dat_with_header(path: Path) -> tuple[str, dict[str, CatalogEntr
     platform_label is extracted from <header><name>, with the "No-Intro: " or "Redump - "
     prefix stripped.  Falls back to the file stem if the header element is absent.
     """
-    import re as _re
-
     tree = ET.parse(path)
     root = tree.getroot()
 
@@ -173,8 +171,8 @@ def load_nointro_dat_with_header(path: Path) -> tuple[str, dict[str, CatalogEntr
         if name_el is not None and name_el.text:
             platform_label = name_el.text.strip()
             # Strip "No-Intro: " / "Redump - " prefix
-            platform_label = _re.sub(
-                r"^(No-Intro|Redump)[:\s\-]+", "", platform_label, flags=_re.IGNORECASE
+            platform_label = re.sub(
+                r"^(No-Intro|Redump)[:\s\-]+", "", platform_label, flags=re.IGNORECASE
             ).strip()
 
     entries: dict[str, CatalogEntry] = {}

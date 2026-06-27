@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from rom_manager.database.play_history import record_play_session
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.sync.conflict_resolver import SyncDecision, decide
 from rom_manager.sync.delta_cache import DeltaCache
@@ -180,7 +179,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "upload")
-                    record_play_session(conn, local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp)
                     result.uploaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -231,7 +230,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "download")
-                    record_play_session(conn, local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp)
                     result.downloaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -337,7 +336,7 @@ def sync_saves(
                         message=msg,
                         created_at=timestamp,
                     )
-                    record_play_session(conn, local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp)
                     result.conflicts += 1
                 except RcloneError as exc:
                     if delta_cache is not None:
