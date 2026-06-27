@@ -17,14 +17,44 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from rom_manager.catalog.dat_downloader import download_dat  # noqa: E402
 
 _BUNDLE_PLATFORMS = [
-    "Game Boy Advance",
-    "SNES",
-    "Sega Mega Drive",
+    # ── No-Intro (cartuchos) — ficheros pequeños, todos incluidos ─────────────
     "NES",
-    "Game Boy Color",
-    "Game Boy",
+    "Famicom Disk System",
+    "SNES",
     "Nintendo 64",
+    "Game Boy",
+    "Game Boy Color",
+    "Game Boy Advance",
+    "Nintendo DS",
+    "Nintendo 3DS",
+    "Virtual Boy",
+    "Pokemon Mini",
+    "Master System",
+    "Sega Mega Drive",
+    "Sega 32X",
+    "Game Gear",
+    "PC Engine",
+    "SuperGrafx",
+    "Neo Geo Pocket",
+    "Neo Geo Pocket Color",
+    "Atari 2600",
+    "Atari 5200",
+    "Atari 7800",
+    "Atari Lynx",
+    "Atari Jaguar",
+    "WonderSwan",
+    "WonderSwan Color",
+    "Watara Supervision",
+    "Intellivision",
+    "ColecoVision",
+    "MSX",
+    "Commodore 64",
+    # ── Redump (óptico) — solo los más pequeños/populares ────────────────────
+    # PS2, GC, Wii, PSP, PS Vita: demasiado grandes para bundlear
+    # Game & Watch, MSX 2, Sega CD, PC-FX: 404 en libretro-database
     "PlayStation",
+    "Sega Saturn",
+    "Dreamcast",
 ]
 
 _DEST = Path(__file__).parent / "bundled_dats"
