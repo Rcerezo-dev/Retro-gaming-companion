@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,7 +93,7 @@ def dat_url(platform: str) -> str | None:
     if not entry:
         return None
     source, stem = entry
-    return f"{_BASE}/{source}/{stem}.dat"
+    return f"{_BASE}/{source}/{urllib.parse.quote(stem)}.dat"
 
 
 def known_platforms() -> list[str]:
