@@ -8,8 +8,10 @@ mistaken removal can be recovered. No web ``ctx`` here: callers pass plain input
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import shutil
+from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -184,9 +186,6 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
     - "collision": two pending ops share the same target path (two ROMs → same canonical name).
                    Group by target, compare all sources' RA; discard all but the winner.
     """
-    import json as _json
-    from collections import defaultdict
-
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves

@@ -6,6 +6,10 @@ Pure functions: typed params → JSON-ready dicts. No global job state.
 from __future__ import annotations
 
 import logging
+import os as _os
+import re as _re
+from collections import Counter
+from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
 
@@ -14,9 +18,6 @@ _logger = logging.getLogger(__name__)
 
 def _build_junk_scan(folder_path: str) -> dict:
     """Scan a folder and classify non-gaming files as junk."""
-    import os as _os
-    from pathlib import Path as _Path
-
     _GAMING_EXTS = {
         ".gba",
         ".gb",
@@ -179,9 +180,6 @@ def _build_junk_scan(folder_path: str) -> dict:
 
 def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
     """Analyse a folder: count extensions, find broken PSX sets, flag conversion needs."""
-    from collections import Counter
-    from pathlib import Path as _Path
-
     _ROM_EXTS = {
         ".gba",
         ".gb",
@@ -262,8 +260,6 @@ def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
         else:
             cat = "unknown"
         extensions.append({"ext": ext or "(sin extensión)", "count": count, "category": cat})
-
-    import re as _re
 
     cue_missing_bin: list[str] = []
     for cue in cue_files:

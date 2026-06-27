@@ -7,7 +7,7 @@ Mixed into :class:`~rom_manager.database.repository.LibraryRepository`; relies o
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC
+from datetime import UTC, datetime
 
 
 class MetadataMixin:
@@ -75,8 +75,6 @@ class MetadataMixin:
 
     def toggle_favorite(self, game_id: int) -> bool:
         """Toggle is_favorite for a game. Returns the new value."""
-        from datetime import datetime
-
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
         with self.connect() as conn:
             current = conn.execute(

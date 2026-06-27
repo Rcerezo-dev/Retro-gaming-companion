@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
+import urllib.error
+import urllib.request
 from typing import Any
 
 _logger = logging.getLogger(__name__)
@@ -53,10 +56,6 @@ def _parse_version(tag: str) -> tuple[int, ...]:
 
 
 def _do_check(current_version: str) -> None:
-    import json
-    import urllib.error
-    import urllib.request
-
     try:
         req = urllib.request.Request(
             _GITHUB_API,

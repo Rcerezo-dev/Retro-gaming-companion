@@ -6,7 +6,7 @@ Pure functions: typed params → JSON-ready dicts. No global job state.
 from __future__ import annotations
 
 import logging
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rom_manager.config import AppConfig
@@ -116,8 +116,6 @@ def _build_library_report(
         ],
     }
 
-    from datetime import datetime
-
     return {
         "source_path": str(source),
         "path_accessible": path_accessible,
@@ -141,9 +139,7 @@ def _build_status(
     repository_android: LibraryRepository | None = None,
     library_root: Path | None = None,
 ) -> dict:
-    from datetime import UTC
-    from datetime import datetime as _dt_cls
-
+    _dt_cls = datetime
     # If source_root is an Android-style path (starts with /) and we have an Android
     # repository, query it instead of the PC repository so ADB-scanned stats show up.
     _is_android_root = bool(
