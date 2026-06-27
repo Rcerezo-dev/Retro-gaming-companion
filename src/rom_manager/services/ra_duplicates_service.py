@@ -243,18 +243,6 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
         entry = _hash_lib_for(plat).get(md5)
         return entry.achievements if entry else -1
 
-    def _discard(path: Path) -> None:
-        discard_dir = path.parent / "_descartados"
-        discard_dir.mkdir(parents=True, exist_ok=True)
-        dest = discard_dir / path.name
-        if not dest.exists():
-            shutil.move(str(path), dest)
-        else:
-            path.unlink()
-        with repository.connect() as _c:
-            _c.execute("DELETE FROM games WHERE source_path = ?", (str(path),))
-            _c.commit()
-
     # ── Disk conflicts ────────────────────────────────────────────────────────
     # source wants to rename to target_path but target_path already holds a different file.
     for op in (o for o in plan.conflicts if o.conflict_reason == "disk"):
@@ -280,27 +268,25 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
             winner_path = None
             winner_target = None
 
-        try:
-            _discard(loser_path)
-            if winner_path and winner_target and winner_path.exists():
-                # Rename winner to canonical target path
-                save_exts = (
-                    frozenset(config.save_extensions) if config.save_extensions else frozenset()
-                )
-                outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
-                if not outcome.success:
-                    errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
-                else:
-                    # Update DB with new path
-                    with repository.connect() as _c:
-                        _c.execute(
-                            "UPDATE games SET source_path = ? WHERE source_path = ?",
-                            (str(winner_target), str(winner_path)),
-                        )
-                        _c.commit()
-            resolved += 1
-        except Exception as exc:
-            errors.append(f"{loser_path.name}: {exc}")
+        ok, err = _discard_file(repository, str(loser_path))
+        if not ok:
+            errors.append(err or f"{loser_path.name}: discard failed")
+            continue
+        if winner_path and winner_target and winner_path.exists():
+            save_exts = (
+                frozenset(config.save_extensions) if config.save_extensions else frozenset()
+            )
+            outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
+            if not outcome.success:
+                errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
+            else:
+                with repository.connect() as _c:
+                    _c.execute(
+                        "UPDATE games SET source_path = ? WHERE source_path = ?",
+                        (str(winner_target), str(winner_path)),
+                    )
+                    _c.commit()
+        resolved += 1
 
     # ── Collision conflicts ───────────────────────────────────────────────────
     # Multiple source files all want to rename to the same canonical target.
@@ -329,11 +315,11 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
 
         # Discard all non-winners and rename winner to canonical target
         for loser_op, _ in scored[1:]:
-            try:
-                _discard(loser_op.source_path)
+            ok, err = _discard_file(repository, str(loser_op.source_path))
+            if ok:
                 resolved += 1
-            except Exception as exc:
-                errors.append(f"{loser_op.source_path.name}: {exc}")
+            else:
+                errors.append(err or loser_op.source_path.name)
 
         # Rename winner to canonical target path
         if winner_op.source_path.exists() and winner_op.source_path != winner_op.target_path:
