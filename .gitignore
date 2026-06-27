@@ -41,3 +41,4 @@ tools/*
 build/
 dist/
 installer/output/
+installer/bundled_dats/

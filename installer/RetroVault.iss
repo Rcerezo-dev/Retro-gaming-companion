@@ -1,7 +1,9 @@
 ; PHASE6-2a: Inno Setup script for Retro Vault.
-; Build the app first:  pyinstaller RetroVault.spec
-; Then compile:          ISCC installer\RetroVault.iss
-; Output:                installer\output\RetroVault-Setup.exe
+; Build order:
+;   1. python installer\download_dats.py   (once; downloads bundled DATs)
+;   2. pyinstaller RetroVault.spec
+;   3. ISCC installer\RetroVault.iss
+; Output: installer\output\RetroVault-Setup.exe
 
 #define MyAppName "Retro Vault"
 #define MyAppVersion "0.1.0"
@@ -37,6 +39,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "..\dist\RetroVault\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Bundled DATs: only installed if the file doesn't already exist (respects user-updated versions)
+Source: "..\installer\bundled_dats\nointro\*"; DestDir: "{app}\.rommgr\catalogs\nointro"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
+Source: "..\installer\bundled_dats\redump\*"; DestDir: "{app}\.rommgr\catalogs\redump"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "serve"
