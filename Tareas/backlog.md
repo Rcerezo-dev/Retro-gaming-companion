@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-27 (tareas del Roadmap y ARC pendientes subdivididas en sub-pasos)
+> Last updated: 2026-06-27 (sección PONT añadida — reducción de código tras audit ponytail)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -483,6 +483,26 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 - `docs/design/preview/` — 16 reference HTML files (component showcase)
 - `docs/design/colors_and_type.css` — Source of truth for tokens + animations
 - `.claude/plugins/retrovault-design/` — Design system skill (Claude)
+
+---
+
+## PONT — Reducción de código (Ponytail Audit 2026-06-27)
+
+Resultado del audit ponytail sobre los 125 archivos `.py`. Ordenadas por líneas eliminadas.
+Una rama por tarea → PR a `develop`. Sin cambios de API pública. CI verde obligatorio.
+
+| ID | Tarea | Archivo(s) | Impacto | Estado |
+|----|-------|-----------|---------|--------|
+| PONT-1 | `openapi_spec.py` → `static/openapi.json` estático; servidor lee con `Path.read_text()` | `web/openapi_spec.py` → `web/static/openapi.json` | -~580 líneas, -1 archivo Python | ✅ |
+| PONT-2 | Hoisting de 117 late imports stdlib (`json`, `datetime`, `time`, `threading`, `pathlib`) en `web/handlers/*` y `web/daemons.py` — mover a nivel de módulo | handlers, daemons, cable_sync_daemon | -117 speed-bumps de lectura | ✅ |
+| PONT-3 | `_RepositoryBase`: extraer `_open_conn()` que centraliza las 4 líneas PRAGMA duplicadas entre `connect()` y `batch()` | `database/repositories/base.py:29-51` | -4 líneas duplicadas | ✅ |
+| PONT-4 | `apply_ra_conflicts`: inner `_discard()` duplica `_discard_file()` — eliminar inner function y llamar a `_discard_file(repository, str(path))` directamente | `services/ra_duplicates_service.py:247-257` | -15 líneas | ✅ |
+| PONT-5 | N64 word-swap loop manual (7 líneas) → `array.array('I', chunk).byteswap().tobytes()` (stdlib `array`) | `converters/n64_converter.py:101-108` | -7 líneas, usa stdlib | ✅ |
+| PONT-6 | `database/play_history.py` (un solo `record_play_session`) → `PlayHistoryMixin` en `database/repositories/`; ensamblar en `LibraryRepository` | `database/play_history.py`, `database/repositories/` | -1 archivo suelto | ✅ |
+| PONT-7 | Renombrar `planner/conflict_resolver.py` → `planner/collision_resolver.py` para eliminar colisión de nombre con `sync/conflict_resolver.py` | `planner/conflict_resolver.py` | -0 líneas, +claridad | ✅ |
+| PONT-8 | `filename_normalizer.py`: regex de limpieza de caracteres → `unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()` (stdlib `unicodedata`) | `detection/filename_normalizer.py` | reemplaza regex hand-rolled | ✅ |
+
+> Orden sugerido: PONT-1 → PONT-3 → PONT-4 → PONT-5 → PONT-6 → PONT-7 → PONT-2 → PONT-8
 
 ---
 
