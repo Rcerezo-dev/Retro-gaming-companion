@@ -39,7 +39,7 @@ def _repo_with(games: list[MatchedGame]) -> MagicMock:
 
 
 def test_no_collision_unchanged(tmp_path: Path) -> None:
-    from rom_manager.planner.conflict_resolver import resolve
+    from rom_manager.planner.collision_resolver import resolve
 
     g1 = tmp_path / "mario_hack.snes"
     g1.touch()
@@ -61,7 +61,7 @@ def test_no_collision_unchanged(tmp_path: Path) -> None:
 
 
 def test_collision_marks_both_conflict(tmp_path: Path) -> None:
-    from rom_manager.planner.conflict_resolver import resolve
+    from rom_manager.planner.collision_resolver import resolve
 
     g1 = tmp_path / "tetris_a.snes"
     g1.touch()
@@ -84,7 +84,7 @@ def test_collision_marks_both_conflict(tmp_path: Path) -> None:
 
 
 def test_keep_both_generates_unique_suffixes(tmp_path: Path) -> None:
-    from rom_manager.planner.conflict_resolver import resolve
+    from rom_manager.planner.collision_resolver import resolve
 
     g1 = tmp_path / "tetris_a.snes"
     g1.touch()
@@ -107,7 +107,7 @@ def test_keep_both_generates_unique_suffixes(tmp_path: Path) -> None:
 
 
 def test_three_way_collision_keep_both(tmp_path: Path) -> None:
-    from rom_manager.planner.conflict_resolver import resolve
+    from rom_manager.planner.collision_resolver import resolve
 
     same_target = tmp_path / "Sonic.smd"
     ops = [

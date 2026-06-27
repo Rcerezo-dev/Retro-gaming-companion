@@ -118,7 +118,7 @@ def build_plan(
     With *keep_both=True* plan-level collisions are resolved by appending numeric
     suffixes (``_1``, ``_2``, …) instead of marking them as conflicts.
     """
-    from rom_manager.planner.conflict_resolver import resolve
+    from rom_manager.planner.collision_resolver import resolve
 
     plan = RenamePlan()
 
