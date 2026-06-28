@@ -24,7 +24,8 @@ def register_cloud(
     # ── GET /api/rclone-export-config ────────────────────────────────────────
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
-        if config.web_host != "127.0.0.1" and not config.credentials.web_pin_hash:
+        lan_exposed = config.web_host not in ("127.0.0.1", "localhost")
+        if lan_exposed and not config.credentials.web_pin_hash and not config.web_allow_lan:
             ctx._send_json(
                 {
                     "error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."
@@ -33,6 +34,20 @@ def register_cloud(
             return
         body, ct = _handle_rclone_export_config(config)
         ctx._send(200, ct, body)
+
+    # ── GET /s ── bootstrap script para Termux/Anbernic ──────────────────────
+    @router.get("/s")
+    def get_bootstrap_script(ctx) -> None:
+        """Serve a one-liner bootstrap shell script for Termux on the Anbernic.
+
+        Usage on the Anbernic (Termux):
+            curl -s http://<PC-IP>:7777/s | bash
+        """
+        from rom_manager.web.lan import get_lan_ip
+        server_ip = get_lan_ip() or "192.168.1.160"
+        server_url = f"http://{server_ip}:{config.web_port}"
+        script = _build_bootstrap_script(server_url)
+        ctx._send(200, "text/plain; charset=utf-8", script.encode())
 
     # ── GET /api/rclone-status ───────────────────────────────────────────────
     @router.get("/api/rclone-status")
@@ -588,3 +603,75 @@ def _do_migrate_split_db(
             "android_db": str(config.database_path_android),
         }
     )
+
+
+def _build_bootstrap_script(server_url: str) -> str:
+    """Return the Termux bootstrap shell script with the server URL embedded."""
+    return f"""\
+#!/data/data/com.termux/files/usr/bin/bash
+# Retro Vault — bootstrap para Termux en Anbernic
+# Generado automáticamente por el servidor en {server_url}
+set -e
+
+SERVER="{server_url}"
+
+echo ""
+echo "=== Retro Vault — Configuración Anbernic ==="
+echo ""
+
+# 1. Instalar paquetes necesarios
+echo "[1/4] Instalando paquetes (rclone, curl)..."
+pkg update -y -o Dpkg::Options::="--force-confold" 2>/dev/null || pkg update -y
+pkg install -y rclone curl
+
+# 2. Permisos de almacenamiento
+echo ""
+echo "[2/4] Solicitando acceso al almacenamiento..."
+echo "      (acepta el permiso en el diálogo de Android)"
+termux-setup-storage
+echo "      Esperando 3 segundos..."
+sleep 3
+
+# 3. Descargar config de rclone desde el PC
+echo ""
+echo "[3/4] Descargando configuración de rclone desde $SERVER..."
+mkdir -p ~/.config/rclone
+curl -sf "$SERVER/api/rclone-export-config" -o ~/.config/rclone/rclone.conf
+if grep -q "\\[" ~/.config/rclone/rclone.conf 2>/dev/null; then
+    echo "      rclone.conf instalado correctamente."
+    rclone listremotes
+else
+    echo "      AVISO: el archivo descargado parece vacío o inválido."
+    echo "      Revisa que el PC tiene rclone configurado (rclone config file)."
+fi
+
+# 4. Crear script de sync
+echo ""
+echo "[4/4] Creando ~/sync-saves.sh..."
+cat > ~/sync-saves.sh << 'SCRIPT'
+#!/data/data/com.termux/files/usr/bin/bash
+LIBRARY="$HOME/storage/shared"
+REMOTE="dropbox:/RetroSync/saves"
+FILTERS=(
+  --include "*.sav" --include "*.srm" --include "*.state"
+  --include "*.state1" --include "*.state2" --include "*.sgm"
+  --include "*.brm" --include "*.brmc" --include "*.nv"
+  --include "*.hi" --include "*.fs" --include "*.ml1"
+  --exclude "*"
+)
+echo "=== Sync saves Anbernic <-> Dropbox ==="
+rclone bisync "$LIBRARY" "$REMOTE" "${{FILTERS[@]}}" --progress --log-level INFO "$@"
+echo "=== Hecho ==="
+SCRIPT
+chmod +x ~/sync-saves.sh
+
+echo ""
+echo "=== Listo ==="
+echo ""
+echo "Para sincronizar saves:"
+echo "  ~/sync-saves.sh"
+echo ""
+echo "Primera vez, añade --resync:"
+echo "  ~/sync-saves.sh --resync"
+echo ""
+"""

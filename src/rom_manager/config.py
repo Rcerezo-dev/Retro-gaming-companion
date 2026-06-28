@@ -237,6 +237,7 @@ class AppConfig:
     adb: str
     web_host: str
     web_port: int
+    web_allow_lan: bool  # True = skip PIN guard when binding to a non-loopback address
     web_session_ttl: int  # session cookie TTL in seconds (default 86400 = 24h)
     # Secrets (ScreenScraper + RetroAchievements creds, web PIN) — see CredentialsConfig
     credentials: CredentialsConfig
@@ -292,8 +293,13 @@ chdman = "chdman"
 # adb = "tools/adb.exe"
 
 [web]
-host = "127.0.0.1"
+# Bind to all network interfaces so any device on your LAN can reach the UI.
+# Change to "127.0.0.1" to allow only this PC.
+host = "0.0.0.0"
 port = 7777
+# Allow LAN access without a PIN (safe on a trusted home network).
+# Set to false and configure a PIN in Settings → Seguridad for public networks.
+allow_lan = true
 
 # Android emulator path overrides — one entry per emulator you want to customise.
 # Defaults for all known emulators are built-in (see EMULATOR_SAVE_PATHS_DEFAULT in config.py).
@@ -396,8 +402,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         rclone_binary=sync.get("rclone", "rclone"),
         chdman=tools.get("chdman", "chdman"),
         adb=tools.get("adb", "adb"),
-        web_host=web.get("host", "127.0.0.1"),
+        web_host=web.get("host", "0.0.0.0"),
         web_port=int(web.get("port", 7777)),
+        web_allow_lan=bool(web.get("allow_lan", True)),
         web_session_ttl=int(web.get("session_ttl", 86400)),
         credentials=CredentialsConfig(
             screenscraper_user=ss.get("user", ""),
