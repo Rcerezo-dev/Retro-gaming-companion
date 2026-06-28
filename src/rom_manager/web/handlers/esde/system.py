@@ -62,8 +62,9 @@ def register_system(
     def get_version(ctx) -> None:
         from rom_manager import __version__
         from rom_manager.utils.update_checker import get_result
+        from rom_manager.utils.update_installer import is_frozen
 
-        ctx._send_json({"current": __version__, **get_result()})
+        ctx._send_json({"current": __version__, "frozen": is_frozen(), **get_result()})
 
     # ── GET /api/status ───────────────────────────────────────────────────────
     @router.get("/api/status")

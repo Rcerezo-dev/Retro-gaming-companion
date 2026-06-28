@@ -351,6 +351,9 @@ Object.assign(window, {
   doSync,
   _renderSyncResult,
   promptSyncNow,
+  // PHASE6-3b: app update download/apply
+  downloadAppUpdate,
+  applyAppUpdate,
 });
 
 // Initialize tools.js with main.js functions (late imports to avoid circular deps)
@@ -604,6 +607,58 @@ export function _copyToClipboardFallback(text) {
   document.body.removeChild(ta);
 }
 
+// ── PHASE6-3b: download + apply app update ─────────────────────────────────────
+
+let _updatePollTimer = null;
+
+export async function downloadAppUpdate() {
+  const dlBtn = document.getElementById('update-banner-download-btn');
+  const prog  = document.getElementById('update-banner-progress');
+  try {
+    const r = await apiPost('/api/update/download', {});
+    if (r.status === 'error') { showToast(r.error, 'error'); return; }
+    if (dlBtn) dlBtn.classList.add('hidden');
+    if (prog) { prog.classList.remove('hidden'); prog.textContent = 'Descargando…'; }
+    _updatePollTimer = setInterval(_pollUpdateStatus, 1000);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function _pollUpdateStatus() {
+  const prog    = document.getElementById('update-banner-progress');
+  const applyBtn = document.getElementById('update-banner-apply-btn');
+  try {
+    const s = await apiFetch('/api/update/status');
+    if (s.running && prog) {
+      const mb = (n) => (n / (1024 * 1024)).toFixed(1);
+      prog.textContent = s.bytes_total
+        ? `Descargando… ${mb(s.bytes_done)}/${mb(s.bytes_total)} MB`
+        : `Descargando… ${mb(s.bytes_done)} MB`;
+    }
+    if (s.done) {
+      clearInterval(_updatePollTimer);
+      _updatePollTimer = null;
+      if (s.error) {
+        if (prog) prog.classList.add('hidden');
+        showToast('Error al descargar la actualización: ' + s.error, 'error');
+      } else {
+        if (prog) prog.textContent = 'Descarga completa';
+        if (applyBtn) applyBtn.classList.remove('hidden');
+      }
+    }
+  } catch (_) { /* red caída momentáneamente — el siguiente tick reintenta */ }
+}
+
+export async function applyAppUpdate() {
+  if (!confirm('Retro Vault se cerrará y se abrirá el instalador. ¿Continuar?')) return;
+  try {
+    const r = await apiPost('/api/update/apply', {});
+    if (r.status === 'error') { showToast(r.error, 'error'); return; }
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:#555;font-size:14px">Abriendo el instalador… cierra esta pestaña.</div>';
+  } catch (_) { /* conexión cortada por el shutdown — es lo esperado */ }
+}
+
 // ── Application initialization ────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -625,8 +680,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const banner = document.getElementById('update-banner');
         const text   = document.getElementById('update-banner-text');
         const link   = document.getElementById('update-banner-link');
+        const dlBtn  = document.getElementById('update-banner-download-btn');
         if (text) text.textContent = `⬆ Nueva versión disponible: ${v.latest} (actual: ${v.current})`;
         if (link && v.release_url) link.href = v.release_url;
+        // PHASE6-3b: only the packaged .exe can apply an update automatically
+        if (dlBtn) dlBtn.classList.toggle('hidden', !v.frozen);
         if (banner) banner.classList.remove('hidden');
       }
     } catch (_) { /* sin red o servidor sin versión — ignorar silenciosamente */ }

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import datetime as _dt
+import json as _json
 import logging
 import threading
+import time as _time
 from pathlib import Path
 
 import rom_manager.web.state as _state
@@ -20,8 +23,6 @@ def _health_schedule_path(config: AppConfig) -> Path:
 
 
 def _read_health_schedule(config: AppConfig) -> dict:
-    import json as _json
-
     try:
         return _json.loads(_health_schedule_path(config).read_text(encoding="utf-8"))
     except Exception:
@@ -30,9 +31,6 @@ def _read_health_schedule(config: AppConfig) -> dict:
 
 
 def _write_health_schedule(config: AppConfig, *, ok: int, corrupted: int, missing: int) -> None:
-    import datetime as _dt
-    import json as _json
-
     data = {
         "last_run_at": _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "last_ok": ok,
@@ -49,9 +47,6 @@ def _write_health_schedule(config: AppConfig, *, ok: int, corrupted: int, missin
 
 def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ignore[type-arg]
     """Daemon: lanza un health check automático una vez a la semana."""
-    import datetime as _dt
-    import time as _time
-
     _time.sleep(60)  # esperar a que el servidor termine de arrancar
 
     while True:
@@ -145,9 +140,6 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
 
 def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> None:
     """Daemon: vigila la carpeta inbox y lanza el pipeline cuando hay archivos."""
-    import time as _time
-    from pathlib import Path as _Path
-
     from rom_manager.web.inbox_pipeline import _run_inbox_pipeline, _watcher_now
 
     while True:
@@ -163,7 +155,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 )
                 continue
 
-            inbox = _Path(config.inbox.path).resolve()
+            inbox = Path(config.inbox.path).resolve()
             if not inbox.exists():
                 _state._inbox_watcher_status.update(
                     {

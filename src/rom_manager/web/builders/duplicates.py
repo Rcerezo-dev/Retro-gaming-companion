@@ -5,7 +5,11 @@ Pure functions: typed params → JSON-ready dicts. No global job state.
 
 from __future__ import annotations
 
+import json as _json
 import logging
+import os as _os
+from collections import defaultdict
+from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
@@ -21,10 +25,6 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     - ra_target_achievements: int | null — (disk only) achievements for the blocker file
     - ra_role: "winner" | "loser" | null — predicted outcome if "Resolver con RA" is applied
     """
-    import json as _json
-    from collections import defaultdict
-    from pathlib import Path as _Path
-
     def base_row(op):
         return {
             "game_id": op.game.id,
@@ -140,8 +140,6 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
 
 def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) -> list[dict]:
     """B1-4: Annotate title_groups entries with RA achievements count if available."""
-    import json as _json
-
     from rom_manager.retroachievements.ra_client import _parse_game_list
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
@@ -203,8 +201,6 @@ def _build_duplicates(
     pc_root: str | None = None,
     ab_root: str | None = None,
 ) -> dict:
-    import os as _os
-
     from rom_manager.database.repository import DuplicateGroup
 
     def _norm(p: str) -> str:
@@ -282,8 +278,6 @@ def _build_duplicates_two_repos(
     ab_root: str | None = None,
 ) -> dict:
     """Two-DB version of duplicate detection."""
-    import os as _os
-
     from rom_manager.database.repository import DuplicateGroup
 
     def _norm(p: str) -> str:
@@ -391,10 +385,6 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     Conserva automáticamente la versión con logros activos en RetroAchievements.
     Las versiones sin logros se marcan como candidatas a eliminar.
     """
-    import json as _json
-    from collections import defaultdict
-    from pathlib import Path as _Path
-
     from rom_manager.retroachievements.ra_checker import _normalize_title
     from rom_manager.retroachievements.ra_client import _parse_game_list
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id

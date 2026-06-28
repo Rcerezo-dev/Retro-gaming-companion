@@ -287,7 +287,9 @@ async function loadDatCatalogList() {
     if (data.error) { container.textContent = '❌ ' + data.error; return; }
     const byType = {};
     for (const sys of data.systems) {
-      const k = sys.catalog === 'redump' ? 'Redump (óptico)' : 'No-Intro (cartuchos)';
+      const k = sys.catalog === 'redump' ? 'Redump (óptico)'
+              : (sys.catalog === 'fbneo' || sys.catalog === 'mame') ? 'Arcade'
+              : 'No-Intro (cartuchos)';
       (byType[k] = byType[k] || []).push(sys);
     }
     let html = '';

@@ -20,6 +20,7 @@ from rom_manager.database.repositories.models import (
     ScanSummary,
     UnresolvedGame,
 )
+from rom_manager.database.repositories.play_history import PlayHistoryMixin
 from rom_manager.database.repositories.sync import SyncMixin
 
 __all__ = [
@@ -38,6 +39,7 @@ class LibraryRepository(
     SyncMixin,
     AssetsMixin,
     DuplicatesMixin,
+    PlayHistoryMixin,
     _RepositoryBase,
 ):
     """Assemble the per-aggregate mixins into the public repository class."""

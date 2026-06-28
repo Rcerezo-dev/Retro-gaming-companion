@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 
 @dataclass(slots=True)
@@ -45,7 +45,7 @@ def _iter_clrmamepro_blocks(text: str) -> Iterator[tuple[str, str]]:
             elif c == ")":
                 depth -= 1
             i += 1
-        yield keyword, text[m.end(): i - 1]
+        yield keyword, text[m.end() : i - 1]
         pos = i
 
 
@@ -53,8 +53,10 @@ _ATTR_RE = re.compile(r'(\w+)\s+(?:"([^"]*)"|([\w.\-]+))')
 
 
 def _parse_clrmamepro_attrs(body: str) -> dict[str, str]:
-    return {m.group(1).lower(): (m.group(2) if m.group(2) is not None else m.group(3))
-            for m in _ATTR_RE.finditer(body)}
+    return {
+        m.group(1).lower(): (m.group(2) if m.group(2) is not None else m.group(3))
+        for m in _ATTR_RE.finditer(body)
+    }
 
 
 def _top_level_text(body: str) -> str:
@@ -159,8 +161,6 @@ def load_nointro_dat_with_header(path: Path) -> tuple[str, dict[str, CatalogEntr
     platform_label is extracted from <header><name>, with the "No-Intro: " or "Redump - "
     prefix stripped.  Falls back to the file stem if the header element is absent.
     """
-    import re as _re
-
     tree = ET.parse(path)
     root = tree.getroot()
 
@@ -171,8 +171,8 @@ def load_nointro_dat_with_header(path: Path) -> tuple[str, dict[str, CatalogEntr
         if name_el is not None and name_el.text:
             platform_label = name_el.text.strip()
             # Strip "No-Intro: " / "Redump - " prefix
-            platform_label = _re.sub(
-                r"^(No-Intro|Redump)[:\s\-]+", "", platform_label, flags=_re.IGNORECASE
+            platform_label = re.sub(
+                r"^(No-Intro|Redump)[:\s\-]+", "", platform_label, flags=re.IGNORECASE
             ).strip()
 
     entries: dict[str, CatalogEntry] = {}

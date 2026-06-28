@@ -2,6 +2,7 @@ import os
 import shutil
 import zipfile
 
+
 def main():
     downloads_dir = r"C:\Users\rammu\Downloads"
     target_e = r"E:\Carpetas anbernic\psx"

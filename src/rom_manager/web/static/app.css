@@ -54,6 +54,17 @@
   --c-input:   #0f0f0f;  /* input / code background */
   --c-deep:    #0d1117;  /* deep code background */
   --c-border:  #2a2a2a;  /* neutral border */
+
+  /* DESIGN-13: semantic tint backgrounds — replace one-off hardcoded
+     dark hex backgrounds in partials so the light theme adapts them. */
+  --rv-tint-neutral-bg:     #161626;
+  --rv-tint-neutral-border: #2a2a40;
+  --rv-tint-warn-bg:        #2a1a1a;
+  --rv-tint-warn-border:    #4a2a2a;
+  --rv-tint-ok-bg:          #0f2a18;
+  --rv-tint-ok-border:      #1a4a2a;
+  --rv-tint-info-bg:        #12122a;
+  --rv-tint-info-border:    #2a2a4a;
 }
 
 [data-theme="light"] {
@@ -109,7 +120,24 @@
   --c-input:   #ffffff;
   --c-deep:    #eeeef8;
   --c-border:  #ced2e8;
+
+  /* DESIGN-13: light-theme values for the semantic tint backgrounds. */
+  --rv-tint-neutral-bg:     #eceef8;
+  --rv-tint-neutral-border: #ced2e8;
+  --rv-tint-warn-bg:        #fbe4e0;
+  --rv-tint-warn-border:    #e8b8ac;
+  --rv-tint-ok-bg:          #e0f2e4;
+  --rv-tint-ok-border:      #a8d8b4;
+  --rv-tint-info-bg:        #e4e8fb;
+  --rv-tint-info-border:    #b8c0e8;
 }
+
+/* DESIGN-13: semantic tint background classes (theme-aware, replace
+   one-off hardcoded dark hex backgrounds in partials). */
+.rv-tint-neutral { background: var(--rv-tint-neutral-bg); border: 1px solid var(--rv-tint-neutral-border); }
+.rv-tint-warn    { background: var(--rv-tint-warn-bg);    border: 1px solid var(--rv-tint-warn-border); }
+.rv-tint-ok      { background: var(--rv-tint-ok-bg);      border: 1px solid var(--rv-tint-ok-border); }
+.rv-tint-info    { background: var(--rv-tint-info-bg);    border: 1px solid var(--rv-tint-info-border); }
 
 /* ═══════════════════════════════════════════════════════════════════
    RETROVAULT DESIGN SYSTEM TOKENS

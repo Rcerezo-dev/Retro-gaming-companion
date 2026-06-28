@@ -62,16 +62,29 @@ def _fake_urlopen(payload: bytes):
 class TestPlatformDatMap:
     def test_well_known_platforms_present(self) -> None:
         must_have = [
-            "NES", "SNES", "Game Boy", "Game Boy Color", "Game Boy Advance",
-            "Nintendo DS", "Nintendo 64", "Sega Mega Drive", "Master System",
-            "Game Gear", "Sega Saturn", "Dreamcast", "PlayStation",
-            "PlayStation 2", "PSP", "PC Engine", "Atari 2600",
+            "NES",
+            "SNES",
+            "Game Boy",
+            "Game Boy Color",
+            "Game Boy Advance",
+            "Nintendo DS",
+            "Nintendo 64",
+            "Sega Mega Drive",
+            "Master System",
+            "Game Gear",
+            "Sega Saturn",
+            "Dreamcast",
+            "PlayStation",
+            "PlayStation 2",
+            "PSP",
+            "PC Engine",
+            "Atari 2600",
         ]
         for plat in must_have:
             assert plat in _PLATFORM_DAT_MAP, f"Missing mapping for '{plat}'"
 
     def test_sources_are_valid(self) -> None:
-        valid = {"no-intro", "redump"}
+        valid = {"no-intro", "redump", "fbneo", "mame"}
         for plat, (source, _) in _PLATFORM_DAT_MAP.items():
             assert source in valid, f"Unknown source '{source}' for '{plat}'"
 

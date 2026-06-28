@@ -1,6 +1,6 @@
 <div id="tab-sync" class="tab">
   <!-- QoL-14: rclone offline banner -->
-  <div class="hidden" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;background:#1a0a0a;border:1px solid #4a1a1a;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
+  <div class="hidden rv-tint-warn" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> rclone no est&#xe1; disponible — la sincronizaci&#xf3;n cloud no funcionar&#xe1;.
     <span style="color:#555;margin-left:8px">Instala rclone o configura su ruta en Settings.</span>
   </div>
@@ -107,7 +107,7 @@
         <span style="color:#555;font-size:11px;margin-left:8px">Abre un terminal con <code>rclone config</code> para a&#xf1;adir Dropbox, Google Drive, etc.</span>
       </div>
       <!-- Instrucciones paso a paso Dropbox -->
-      <details style="margin-bottom:12px;border:1px solid #2a2a3a;border-radius:6px;padding:8px 12px;background:#0f0f1a">
+      <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;color:#888;font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Dropbox</summary>
         <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
           <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
@@ -121,16 +121,41 @@
           <li>Pulsa <strong style="color:var(--c-text)">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
         </ol>
       </details>
+      <!-- Instrucciones paso a paso Google Drive -->
+      <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
+        <summary style="cursor:pointer;color:#888;font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Google Drive</summary>
+        <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
+          <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
+          <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
+          <li>Nombre: escribe <code>gdrive</code> y pulsa Enter.</li>
+          <li>Tipo: busca <code>drive</code> en la lista (Google Drive) y escribe su n&#xfa;mero.</li>
+          <li>En las preguntas de Client ID y Client Secret pulsa Enter (dejar en blanco = usar app p&#xfa;blica de rclone).</li>
+          <li>Scope: escribe <code>1</code> (acceso completo a Google Drive).</li>
+          <li>En "root_folder_id" y "service_account_file" pulsa Enter para dejar en blanco.</li>
+          <li>Responde <code>n</code> a "Edit advanced config".</li>
+          <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar con tu cuenta de Google.</li>
+          <li>Tras autorizar, responde <code>n</code> a "Configure this as a Shared Drive" (salvo que uses una Shared Drive).</li>
+          <li>Responde <code>y</code> para guardar y <code>q</code> para salir.</li>
+          <li>Pulsa <strong style="color:var(--c-text)">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
+        </ol>
+      </details>
       <div class="hidden" id="rclone-remotes-panel">
         <div style="margin-bottom:10px">
           <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <select id="rclone-remote-select" style="flex:1;min-width:140px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
-            <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync/saves">
-            <button class="btn primary" onclick="applyRcloneRemote()" style="font-size:12px;padding:5px 14px;flex-shrink:0">Guardar</button>
+            <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync">
             <button class="btn" onclick="testRcloneRemote()" style="font-size:12px;padding:5px 12px;flex-shrink:0">Verificar conexi&#xf3;n</button>
           </div>
-          <div style="font-size:11px;color:#555;margin-top:4px">El valor se guardar&#xe1; en <code>config.toml</code> como <code>sync.remote</code>.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <button class="btn primary" onclick="applyRcloneSavesStates()" style="font-size:12px;padding:5px 14px;flex-shrink:0">Usar para saves + states (recomendado)</button>
+            <button class="btn" onclick="applyRcloneRemote()" style="font-size:12px;padding:5px 14px;flex-shrink:0">Guardar como remote &#xfa;nico (legado)</button>
+          </div>
+          <div style="font-size:11px;color:#555;margin-top:4px">
+            <strong style="color:var(--c-text)">Saves + states</strong> guarda <code>sync.saves_remote = &lt;remote&gt;&lt;ruta&gt;/saves</code> y
+            <code>sync.states_remote = &lt;remote&gt;&lt;ruta&gt;/states</code> — la opci&#xf3;n recomendada.
+            <strong style="color:var(--c-text)">Remote &#xfa;nico</strong> guarda solo <code>sync.remote = &lt;remote&gt;&lt;ruta&gt;</code> (modo legado, sin separar states).
+          </div>
         </div>
         <div id="rclone-test-result" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
         <div id="rclone-apply-result" style="font-size:12px;min-height:16px"></div>

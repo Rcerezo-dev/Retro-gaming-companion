@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-04-27 (tareas del Roadmap y ARC pendientes subdivididas en sub-pasos)
+> Last updated: 2026-06-27 (sección PONT añadida — reducción de código tras audit ponytail)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -151,9 +151,9 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 | ID | Task | Estado |
 |----|------|--------|
-| PHASE3-1a | Research SFTP server options on Termux (dropbear vs openssh) | ⬜ prereq: V5 |
-| PHASE3-1b | Implement `sftp_transport.py` (upload/download/list) | ⬜ |
-| PHASE3-1c | UI: WiFi sync toggle + status en Settings | ⬜ |
+| PHASE3-1a | Research SFTP server options on Termux (dropbear vs openssh) | ✅ openssh recomendado (sftp-server integrado, puerto 8022); doc `docs/sync/sync-wifi-sftp.md` |
+| PHASE3-1b | ~~Implement `sftp_transport.py`~~ — **descartado**: rclone ya soporta remotes `sftp` nativamente; el pipeline existente (`sync_saves` + `RcloneTransport`) reutiliza el remote sin código nuevo (regla stdlib-only). Ver `docs/sync/sync-wifi-sftp.md` | ❌ superseded |
+| PHASE3-1c | ~~UI: WiFi sync toggle~~ → replanteado: mejoras UX del sync cloud existente (decisión: SFTP directo exige ambos dispositivos encendidos a la vez; el usuario prefiere async vía Dropbox/GDrive, que ya existe) — instrucciones Google Drive guiadas + botón "Usar para saves+states" (escribe `sync.saves_remote`/`states_remote` en un clic) + línea de estado con el remote activo. `tab-sync.html` + `sync.js`, sin cambios de backend | ✅ |
 | PHASE3-2 | Auto-sync on connect — detect via ADB, prompt "Sync now?" | ✅ (commit 2a3c579) |
 | PHASE3-3 | Sync status always visible in header | ✅ (commit 7eba736) |
 
@@ -178,12 +178,12 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | ID | Task | Estado |
 |----|------|--------|
 | PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
-| PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | ⬜ |
-| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ✅ `installer/RetroVault.iss` — instala desde `dist\RetroVault\`, shortcut Start Menu + Desktop opcional, Add/Remove Programs, uninstall silencioso, upgrade detection. `build.ps1` llama a `iscc` automáticamente si está en PATH. |
-| PHASE6-2b | Bundlear DATs mínimos en el installer | ⬜ |
+| PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | 🟡 Validado en este equipo (build, smoke test de `serve`, instalación/desinstalación silenciosa); falta una prueba en una máquina realmente sin Python instalado. Corregidos hiddenimports obsoletos de `RetroVault.spec` (`response_builders`→`builders/`, `cable_sync_daemon` movido a `web/`) y las DLLs de ADB ahora son opcionales (adb.exe moderno no las necesita) |
+| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ✅ `installer/RetroVault.iss` — instalador por usuario (`PrivilegesRequired=lowest`), shortcuts en menú + escritorio, desinstalador limpio. Compilado y probado con Inno Setup 6.7.3 → `RetroVault-Setup.exe` (~15 MB) |
+| PHASE6-2b | Bundlear DATs mínimos en el installer | ✅ (34 plataformas — `b4d2107`) |
 | PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ✅ `update_checker.py` + `GET /api/version` + banner en UI. 13 tests. PR #52. |
-| PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ⬜ |
-| PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ⬜ |
+| PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ✅ `utils/update_installer.py` (`find_update_asset`, `download_update` con progreso, `launch_installer`); `web/handlers/update.py` (`/api/update/{status,download,apply}`); banner con botones "Descargar e instalar" / "Instalar y reiniciar" en `main.js`. Solo aplica a builds frozen (PyInstaller); en modo fuente solo enlaza al release. Aún sin probar contra un release real (ningún release publicado todavía — depende de 6-1b/6-2a). 30 tests nuevos. |
+| PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ✅ (Retro Vault confirmado — no-op, Día31) |
 
 ---
 
@@ -233,7 +233,7 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 
 | ID | Task | Notes |
 |----|------|-------|
-| EMULATOR-COMPAT-1 | Create compatibility matrix — PC emulator, Android emulator, save format, save path per platform | `docs/emulator-compat.md` |
+| EMULATOR-COMPAT-1 | Create compatibility matrix — PC emulator, Android emulator, save format, save path per platform | `docs/emulator-compat.md` ✅ |
 | EMULATOR-COMPAT-2 | Test PS1 round-trip: DuckStation PC → sync → DuckStation Android → load | Hardware test with RG556 |
 | EMULATOR-COMPAT-3 | Test PS2 round-trip: PCSX2 PC → sync → AetherSX2/NetherSX2 Android → load | Hardware test |
 | EMULATOR-COMPAT-4 | Test remaining platforms (GBA, SNES, GBC, NDS…) and document any format mismatches | Update matrix per result |
@@ -258,7 +258,7 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 |----|------|-------|
 | ARCADE-SETUP-1 | Research MAME vs FBNeo ROM set version compatible with Anbernic RG556 RetroArch | Check RG556 community guides |
 | ARCADE-SETUP-2 | Identify target arcade systems and map each to the correct RetroArch core | e.g. CPS1/2/3, Neo-Geo, MAME 2003 Plus |
-| ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` |
+| ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` ✅ + DAT downloader wired (scan.js/dat_downloader.py/scan.py) |
 | ARCADE-SETUP-4 | Test a sample ROM end-to-end: scan → rename → launch on device | Hardware test |
 
 ---
@@ -467,7 +467,7 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 | DESIGN-10 | Update device selector bar styling | ✅ | `#device-selector` usa `var(--bg-nav)`/`var(--border)`; override light redundante eliminado |
 | DESIGN-11 | Add description bar below device selector | ✅ | `#tab-desc-bar` bajo el device selector; `_TAB_DESC` + `_updateTabDesc()` en `main.js`; CSS en `app.css` (PR #43) |
 | DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ paleta núcleo | 17 tokens semánticos `--c-*` (valores dark exactos + variantes light) mapean la paleta VS Code; 742 instancias inline en partials+JS migradas (dark idéntico por construcción). Cola de tints one-off (<5×) y reglas de `app.css` quedan como follow-up. **Requiere QA visual del tema light antes de merge** |
-| DESIGN-13 | Test light theme with new fonts | ⬜ | Verify Inter + Exo 2 readable on light bg; no scanlines overlay ([data-theme="light"] already disabled it) |
+| DESIGN-13 | Test light theme with new fonts | ✅ | Verificado con Playwright: 71 backgrounds oscuros hardcodeados rompían el tema light (no cubiertos por el parche de DESIGN-12). Sustituidos por 4 clases `.rv-tint-{neutral,warn,ok,info}` (theme-aware) en `app.css` + ~50 inline styles migrados en 9 partials. Inter + Exo 2 legibles, sin scanlines. |
 | DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` para unpkg en `<head>`; Google Fonts ya era óptimo (PR #43) |
 
 ### Files to modify
@@ -483,6 +483,36 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 - `docs/design/preview/` — 16 reference HTML files (component showcase)
 - `docs/design/colors_and_type.css` — Source of truth for tokens + animations
 - `.claude/plugins/retrovault-design/` — Design system skill (Claude)
+
+---
+
+## UX — Fixes post-audit (2026-06-29)
+
+| ID | Task | Archivo | Estado |
+|----|------|---------|--------|
+| UX-FIX-1 | Eliminar sección "Apariencia" duplicada en Settings (radio buttons vs botones) | `tab-settings.html` | ✅ |
+| UX-FIX-2 | Tildes en Autostart (×5) + "④ Apply"→"④ Aplicar" + typo "Ambernic"→"Anbernic" | `tab-settings.html`, `tab-overview.html`, `tab-cable.html` | ✅ |
+| UX-FIX-3 | Error de sync con enlace accionable a Settings → rclone | `sync.js` | ✅ |
+
+---
+
+## PONT — Reducción de código (Ponytail Audit 2026-06-27)
+
+Resultado del audit ponytail sobre los 125 archivos `.py`. Ordenadas por líneas eliminadas.
+Una rama por tarea → PR a `develop`. Sin cambios de API pública. CI verde obligatorio.
+
+| ID | Tarea | Archivo(s) | Impacto | Estado |
+|----|-------|-----------|---------|--------|
+| PONT-1 | `openapi_spec.py` → `static/openapi.json` estático; servidor lee con `Path.read_text()` | `web/openapi_spec.py` → `web/static/openapi.json` | -~580 líneas, -1 archivo Python | ✅ |
+| PONT-2 | Hoisting de 117 late imports stdlib (`json`, `datetime`, `time`, `threading`, `pathlib`) en `web/handlers/*` y `web/daemons.py` — mover a nivel de módulo | handlers, daemons, cable_sync_daemon | -117 speed-bumps de lectura | ✅ |
+| PONT-3 | `_RepositoryBase`: extraer `_open_conn()` que centraliza las 4 líneas PRAGMA duplicadas entre `connect()` y `batch()` | `database/repositories/base.py:29-51` | -4 líneas duplicadas | ✅ |
+| PONT-4 | `apply_ra_conflicts`: inner `_discard()` duplica `_discard_file()` — eliminar inner function y llamar a `_discard_file(repository, str(path))` directamente | `services/ra_duplicates_service.py:247-257` | -15 líneas | ✅ |
+| PONT-5 | N64 word-swap loop manual (7 líneas) → `array.array('I', chunk).byteswap().tobytes()` (stdlib `array`) | `converters/n64_converter.py:101-108` | -7 líneas, usa stdlib | ✅ |
+| PONT-6 | `database/play_history.py` (un solo `record_play_session`) → `PlayHistoryMixin` en `database/repositories/`; ensamblar en `LibraryRepository` | `database/play_history.py`, `database/repositories/` | -1 archivo suelto | ✅ |
+| PONT-7 | Renombrar `planner/conflict_resolver.py` → `planner/collision_resolver.py` para eliminar colisión de nombre con `sync/conflict_resolver.py` | `planner/conflict_resolver.py` | -0 líneas, +claridad | ✅ |
+| PONT-8 | `filename_normalizer.py`: regex de limpieza de caracteres → `unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()` (stdlib `unicodedata`) | `detection/filename_normalizer.py` | reemplaza regex hand-rolled | ✅ |
+
+> Orden sugerido: PONT-1 → PONT-3 → PONT-4 → PONT-5 → PONT-6 → PONT-7 → PONT-2 → PONT-8
 
 ---
 

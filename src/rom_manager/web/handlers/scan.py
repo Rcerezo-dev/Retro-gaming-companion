@@ -55,12 +55,15 @@ _LIBRETRO_DAT_CATALOG = [
     {"name": "Nintendo - Wii", "short": "Wii", "catalog": "redump"},
     # Microsoft → redump/
     {"name": "Microsoft - Xbox", "short": "Xbox", "catalog": "redump"},
+    # Arcade → arcade/
+    {"name": "FBNeo - Arcade Games", "short": "FBNeo Arcade", "catalog": "fbneo"},
+    {"name": "MAME 2003-Plus", "short": "MAME 2003+", "catalog": "mame"},
 ]
 
 _LIBRETRO_METADAT_BASE = (
     "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
 )
-_CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump"}
+_CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
 _DAT_TTL_DAYS = 7  # re-download if the local DAT is older than this
 
 _dat_dl_lock = threading.Lock()
@@ -605,9 +608,11 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
         name = entry["name"]
         catalog = entry["catalog"]
         filename = name + ".dat"
-        dest_dir = (
-            config.catalogs_redump_dir if catalog == "redump" else config.catalogs_nointro_dir
-        )
+        dest_dir = {
+            "redump": config.catalogs_redump_dir,
+            "fbneo": config.catalogs_arcade_dir,
+            "mame": config.catalogs_arcade_dir,
+        }.get(catalog, config.catalogs_nointro_dir)
         dest_file = dest_dir / filename
 
         with _dat_dl_lock:
@@ -668,30 +673,37 @@ def _build_dat_catalog_list(config: AppConfig) -> dict:
 
     nointro_files = _index_dir(config.catalogs_nointro_dir)
     redump_files = _index_dir(config.catalogs_redump_dir)
+    arcade_files = _index_dir(config.catalogs_arcade_dir)
+
+    _catalog_dir = {"nointro": nointro_files, "redump": redump_files}
 
     now = _dt.datetime.now(_dt.UTC)
     result = []
     for entry in _LIBRETRO_DAT_CATALOG:
-        files = nointro_files if entry["catalog"] == "nointro" else redump_files
+        files = _catalog_dir.get(entry["catalog"], arcade_files)
         dat_path = files.get(entry["name"])
         if dat_path is None:
-            result.append({
-                **entry,
-                "downloaded": False,
-                "mtime_iso": None,
-                "age_days": None,
-                "stale": False,
-            })
+            result.append(
+                {
+                    **entry,
+                    "downloaded": False,
+                    "mtime_iso": None,
+                    "age_days": None,
+                    "stale": False,
+                }
+            )
         else:
             mtime = _dt.datetime.fromtimestamp(dat_path.stat().st_mtime, tz=_dt.UTC)
             age_days = (now - mtime).days
-            result.append({
-                **entry,
-                "downloaded": True,
-                "mtime_iso": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "age_days": age_days,
-                "stale": age_days >= _DAT_TTL_DAYS,
-            })
+            result.append(
+                {
+                    **entry,
+                    "downloaded": True,
+                    "mtime_iso": mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "age_days": age_days,
+                    "stale": age_days >= _DAT_TTL_DAYS,
+                }
+            )
     return {"systems": result}
 
 

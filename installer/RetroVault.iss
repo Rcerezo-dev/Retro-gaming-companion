@@ -1,94 +1,60 @@
-; Retro Vault — Inno Setup installer script (PHASE6-2a)
-; Requires Inno Setup 6.x  https://jrsoftware.org/isinfo.php
-;
-; Build: run after `build.ps1` so dist\RetroVault\ is populated.
-;   iscc installer\RetroVault.iss
-;
-; Output: installer\Output\RetroVaultSetup-0.1.0.exe
+; PHASE6-2a: Inno Setup script for Retro Vault.
+; Build order:
+;   1. python installer\download_dats.py   (once; downloads bundled DATs)
+;   2. pyinstaller RetroVault.spec
+;   3. ISCC installer\RetroVault.iss
+; Output: installer\output\RetroVault-Setup.exe
 
-#define AppName      "Retro Vault"
-#define AppVersion   "0.1.0"
-#define AppPublisher "Rcerezo-dev"
-#define AppExeName   "RetroVault.exe"
-#define AppURL       "https://github.com/Rcerezo-dev/Retro-gaming-companion"
-#define SrcDir       "..\dist\RetroVault"
+#define MyAppName "Retro Vault"
+#define MyAppVersion "0.1.0"
+#define MyAppPublisher "Rcerezo-dev"
+#define MyAppURL "https://github.com/Rcerezo-dev/Retro-gaming-companion"
+#define MyAppExeName "RetroVault.exe"
 
 [Setup]
-AppId={{A7E2B3D1-9F4C-4A1E-8B3F-6D2C0E1A5F7B}
-AppName={#AppName}
-AppVersion={#AppVersion}
-AppVerName={#AppName} {#AppVersion}
-AppPublisher={#AppPublisher}
-AppPublisherURL={#AppURL}
-AppSupportURL={#AppURL}/issues
-AppUpdatesURL={#AppURL}/releases
-DefaultDirName={autopf}\{#AppName}
-DefaultGroupName={#AppName}
-AllowNoIcons=yes
-; Single output installer executable
-OutputDir=Output
-OutputBaseFilename=RetroVaultSetup-{#AppVersion}
-Compression=lzma2/ultra64
+AppId={{B6F1B6C0-6B0F-4E7B-9A6B-0E6E6E6E6E6E}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
+DisableProgramGroupPage=yes
+OutputDir=output
+OutputBaseFilename=RetroVault-Setup
+Compression=lzma2
 SolidCompression=yes
-; Require UAC elevation for Program Files
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
-; Windows 10 minimum (needed for our Python 3.12 exe)
-MinVersion=10.0
-; Uninstaller metadata shown in Add/Remove Programs
-UninstallDisplayName={#AppName}
-UninstallDisplayIcon={app}\{#AppExeName}
-; Sign the installer when a cert is available (uncomment and set path)
-;SignTool=signtool sign /tr http://timestamp.digicert.com /td sha256 /fd sha256 /a $f
 WizardStyle=modern
-SetupIconFile=
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+; The app keeps its own console-visible server log; no admin rights needed
+; since everything lives under the user-chosen install dir + %APPDATA%.
+PrivilegesRequired=lowest
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; Copy the entire PyInstaller COLLECT output directory
-Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Copy example config only if the user has no existing config (first install)
-Source: "{#SrcDir}\config.toml"; DestDir: "{userappdata}\RetroVault"; DestName: "config.toml"; Flags: onlyifdoesntexist uninsneveruninstall
+Source: "..\dist\RetroVault\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Bundled DATs: only installed if the file doesn't already exist (respects user-updated versions)
+Source: "..\installer\bundled_dats\nointro\*"; DestDir: "{app}\.rommgr\catalogs\nointro"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
+Source: "..\installer\bundled_dats\redump\*"; DestDir: "{app}\.rommgr\catalogs\redump"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 
 [Icons]
-; Start Menu shortcut — launches tray mode
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "serve --tray"; WorkingDir: "{app}"; Comment: "Retro Vault ROM Manager"
-Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-; Optional desktop shortcut (only if task selected)
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "serve --tray"; WorkingDir: "{app}"; Tasks: desktopicon; Comment: "Retro Vault ROM Manager"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "serve"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "serve"; Tasks: desktopicon
+Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Run]
-; Offer to launch the app at the end of install (non-admin token so tray works normally)
-Filename: "{app}\{#AppExeName}"; Parameters: "serve --tray"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+; Closes a running instance before files are overwritten (PHASE6-3b handoff:
+; the app launches this installer and exits itself, but cover the manual-run case too).
+Filename: "{app}\{#MyAppExeName}"; Parameters: "serve"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
-[UninstallRun]
-; Kill any running instance before uninstall
-Filename: "taskkill.exe"; Parameters: "/f /im {#AppExeName}"; Flags: runhidden; RunOnceId: "KillRetroVault"
-
-[Code]
-// ── Upgrade detection ──────────────────────────────────────────────────────
-// If an older version is already installed, offer to remove it first.
-function InitializeSetup(): Boolean;
-var
-  UninstPath, UninstExe: String;
-  ResultCode: Integer;
-begin
-  Result := True;
-  if RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A7E2B3D1-9F4C-4A1E-8B3F-6D2C0E1A5F7B}_is1',
-    'UninstallString', UninstExe) then
-  begin
-    if MsgBox('An older version of Retro Vault is already installed.'#13#10 +
-              'It is recommended to uninstall it first.'#13#10#13#10 +
-              'Would you like to uninstall the previous version now?',
-              mbConfirmation, MB_YESNO) = IDYES then
-    begin
-      Exec(RemoveQuotes(UninstExe), '/SILENT', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
-    end;
-  end;
-end;
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"

@@ -37,7 +37,8 @@ config.toml
 tools/*
 !tools/.gitkeep
 
-# PyInstaller + Inno Setup build output
-dist/
+# PyInstaller / Inno Setup build output (PHASE6-1a/2a) — generated, not versioned
 build/
-installer/Output/
+dist/
+installer/output/
+installer/bundled_dats/

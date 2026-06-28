@@ -1,12 +1,12 @@
 <div id="tab-cable" class="tab">
   <!-- QoL-14: ADB offline banner -->
-  <div class="hidden" id="cable-offline-banner" style="margin-bottom:12px;padding:8px 14px;background:#1a0a0a;border:1px solid #4a1a1a;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
+  <div class="hidden rv-tint-warn" id="cable-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> ADB no est&#xe1; disponible — el modo ADB no funcionar&#xe1;.
     <span style="color:#555;margin-left:8px">Usa modo SD card o instala ADB.</span>
   </div>
 
   <!-- AUTO-SYNC CARD -->
-  <div id="auto-sync-card" style="max-width:780px;margin-bottom:20px;background:#12122a;border:1px solid #2a2a4a;border-radius:8px;border-left:4px solid var(--c-teal);padding:18px 20px">
+  <div id="auto-sync-card" class="rv-tint-info" style="max-width:780px;margin-bottom:20px;border-radius:8px;border-left:4px solid var(--c-teal);padding:18px 20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;color:var(--c-teal);letter-spacing:0.5px">Sync automático al conectar</div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-left:auto">
@@ -24,7 +24,7 @@
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Dirección</label>
         <select id="auto-sync-direction" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
-          <option value="newest">Mas reciente gana</option>
+          <option value="newest">Más reciente gana</option>
           <option value="pc_to_anbernic">PC a consola</option>
           <option value="anbernic_to_pc">Consola a PC</option>
         </select>
@@ -32,7 +32,7 @@
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
         <select id="auto-sync-conflict" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
-          <option value="newest">Mas reciente gana</option>
+          <option value="newest">Más reciente gana</option>
           <option value="keep_pc">Conservar PC</option>
           <option value="keep_android">Conservar consola</option>
         </select>
@@ -44,7 +44,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <button class="btn primary" onclick="saveAutoSyncSettings()" style="font-size:12px;padding:5px 14px">Guardar ajustes</button>
-      <span id="auto-sync-status-text" style="font-size:12px;color:#888">Esperando conexion...</span>
+      <span id="auto-sync-status-text" style="font-size:12px;color:#888">Esperando conexión…</span>
       <div class="hidden" id="auto-sync-save-result" style="font-size:11px;color:var(--c-teal)"></div>
     </div>
   </div>
@@ -54,8 +54,8 @@
     <h3 style="color:var(--c-teal);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la consola Android desde el PC</h3>
 
     <!-- MTP warning -->
-    <div style="padding:9px 12px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
-      <strong style="color:var(--c-red)">⚠ La ruta "Este equipo\RG556\Ambernic" NO es compatible.</strong>
+    <div class="rv-tint-warn" style="padding:9px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
+      <strong style="color:var(--c-red)">⚠ La ruta "Este equipo\RG556\Anbernic" NO es compatible.</strong>
       <span style="color:#888;margin-left:6px">Windows MTP expone el dispositivo como objeto shell, no como ruta del sistema de archivos. Python no puede acceder a ella directamente.</span>
     </div>
 
@@ -66,7 +66,7 @@
       <details open style="background:var(--c-bar);border:1px solid #2a4a2a;border-radius:4px;padding:0">
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-teal);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
           <span style="font-weight:bold">A)</span> SD card en lector USB
-          <span style="background:#1a3a2a;color:var(--c-teal);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">RECOMENDADO</span>
+          <span style="background:var(--rv-tint-ok-bg);color:var(--c-teal);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">RECOMENDADO</span>
           <span style="color:#555;font-size:11px;margin-left:auto">Sin configuración extra</span>
         </summary>
         <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
@@ -112,7 +112,7 @@
       <details style="background:var(--c-bar);border:1px solid #2a3a4a;border-radius:4px;padding:0">
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
           <span style="font-weight:bold;color:var(--c-teal)">D)</span> ADB (Android Debug Bridge)
-          <span style="background:#1a2a3a;color:var(--c-teal);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">SIN SACAR LA SD</span>
+          <span style="background:var(--rv-tint-info-bg);color:var(--c-teal);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">SIN SACAR LA SD</span>
           <span style="color:#555;font-size:11px;margin-left:auto">Herramienta gratuita de Google</span>
         </summary>
         <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
@@ -295,7 +295,7 @@
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
     </div>
-    <div class="hidden" id="cable-dry-run-warning" style="margin-top:6px;padding:6px 12px;background:#1a1f1a;border:1px solid #2a4a2a;border-left:3px solid var(--c-teal);border-radius:4px;font-size:12px;color:var(--c-teal)">
+    <div class="hidden rv-tint-ok" id="cable-dry-run-warning" style="margin-top:6px;padding:6px 12px;border-left:3px solid var(--c-teal);border-radius:4px;font-size:12px;color:var(--c-teal)">
       Dry run desactivado — los archivos se <strong>copiarán realmente</strong>. Asegúrate de que las rutas son correctas antes de continuar.
     </div>
 
@@ -326,7 +326,7 @@
         <span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px">Log persistente (.rommgr/cable_sync_ops.log)</span>
         <button class="btn" onclick="loadCableSyncLog()" style="font-size:11px;padding:2px 8px">Actualizar</button>
       </div>
-      <pre id="cable-log-content" style="max-height:350px;overflow-y:auto;font-size:11px;font-family:monospace;background:#0d0d1a;border:1px solid #2a2a4a;border-radius:6px;padding:10px 14px;color:#aaa;white-space:pre-wrap;word-break:break-all"></pre>
+      <pre id="cable-log-content" style="max-height:350px;overflow-y:auto;font-size:11px;font-family:monospace;background:var(--c-deep);border:1px solid var(--c-border);border-radius:6px;padding:10px 14px;color:#aaa;white-space:pre-wrap;word-break:break-all"></pre>
     </div>
   </div>
 

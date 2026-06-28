@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -140,8 +141,6 @@ class ScreenScraperClient:
         Strips region/revision tags from *name* before sending to ScreenScraper.
         Uses jeuInfos.php with romnom only; slower than hash search.
         """
-        import re
-
         clean = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", name)  # strip (USA), [Rev A], etc.
         clean = clean.strip().removesuffix(Path(clean).suffix)  # remove extension
         if not clean:

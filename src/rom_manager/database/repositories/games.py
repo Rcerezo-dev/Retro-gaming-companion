@@ -6,6 +6,7 @@ Mixed into :class:`~rom_manager.database.repository.LibraryRepository`; relies o
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -265,8 +266,6 @@ class GamesMixin:
         DB-2: Also cleans up orphaned metadata, tags, and operation logs when games are deleted.
         Returns the total number of records deleted across all tables.
         """
-        import os
-
         root_prefix = source_root + os.sep
 
         def _under_root(p: str) -> bool:

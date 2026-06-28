@@ -60,8 +60,8 @@
   </div>
 
   <!-- D8-P1: First-time setup banner -->
-  <div class="hidden" id="ov-setup-banner" style="margin-bottom:20px;padding:16px 20px;background:#1a1a2e;border:1px solid #3a3a5c;border-left:4px solid #c9bcf5;border-radius:6px">
-    <div style="font-size:14px;color:#c9bcf5;font-weight:600;margin-bottom:6px">&#x1F3AE; Primera configuracion</div>
+  <div class="hidden rv-tint-info" id="ov-setup-banner" style="margin-bottom:20px;padding:16px 20px;border-left:4px solid #c9bcf5;border-radius:6px">
+    <div style="font-size:14px;color:#c9bcf5;font-weight:600;margin-bottom:6px">&#x1F3AE; Primera configuración</div>
     <div style="font-size:12px;color:#888;margin-bottom:14px">Organiza y limpia tu biblioteca por primera vez con el asistente guiado.</div>
     <div id="ov-setup-checklist" style="margin-bottom:14px;font-size:12px;line-height:2"></div>
     <button class="btn primary" onclick="showWizard()" style="background:#5a4dab;border-color:#7a6dcb;font-size:13px">Iniciar asistente de configuracion</button>
@@ -93,7 +93,7 @@
   <!-- Config summary -->
   <div id="ov-config-summary" style="margin-bottom:12px"></div>
   <!-- D8-7: report notice -->
-  <div class="hidden" id="ov-report-notice" style="margin-bottom:16px;padding:7px 12px;background:#2a2a1a;border:1px solid #4a4a1a;border-radius:4px"></div>
+  <div class="hidden rv-tint-warn" id="ov-report-notice" style="margin-bottom:16px;padding:7px 12px;border-radius:4px"></div>
 
   <!-- Rutas principales -->
   <div class="actions-panel" style="margin-bottom:16px">
@@ -114,7 +114,7 @@
       <button class="btn" onclick="saveOvPaths()">Guardar rutas</button>
       <span id="ov-paths-result" class="job-result"></span>
     </div>
-    <div style="margin-top:10px;padding:8px 10px;background:#161616;border:1px solid var(--c-border);border-radius:4px;font-size:11px;color:#555;line-height:1.7">
+    <div class="rv-tint-neutral" style="margin-top:10px;padding:8px 10px;border-radius:4px;font-size:11px;color:#555;line-height:1.7">
       <strong style="color:#888">Opciones para acceder a la consola Android desde Windows:</strong><br>
       <span style="color:var(--c-teal)">A)</span> SD card en lector USB → letra de unidad (<code style="color:var(--c-orange)">F:\</code>) — recomendado<br>
       <span style="color:var(--c-teal)">B)</span> Termux + SFTP en la consola → accesible por red (<code style="color:var(--c-orange)">\\192.168.1.x\share</code>)<br>
@@ -220,7 +220,7 @@
         <div style="color:#888;font-size:12px;line-height:1.6">Ve a <strong style="color:var(--c-text)">Organizar</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:#555;font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
       </div>
       <div style="flex:1;background:var(--c-panel);border:1px solid #333;padding:14px 16px">
-        <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Apply</div>
+        <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Aplicar</div>
         <div style="color:#888;font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:#555;font-size:11px">Después, usa Cable Sync para volcar los cambios a la consola.</span></div>
       </div>
     </div>
@@ -254,7 +254,7 @@
   <!-- S36-4: Game of the day -->
   <div style="margin-top:28px;margin-bottom:20px">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Juego sugerido</h3>
-    <div id="ov-game-suggestion" style="background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:16px;display:flex;gap:12px;align-items:start">
+    <div id="ov-game-suggestion" class="rv-tint-info" style="border-radius:8px;padding:16px;display:flex;gap:12px;align-items:start">
       <img id="ov-game-suggestion-img" src="" alt="" style="width:80px;height:110px;object-fit:cover;border-radius:4px;flex-shrink:0">
       <div style="flex:1">
         <div style="color:#888;font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
