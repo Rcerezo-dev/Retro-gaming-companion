@@ -56,7 +56,7 @@
 
   <div class="actions-panel" style="max-width:640px">
     <h3>Configuración</h3>
-    <p style="color:#555;font-size:11px;margin-bottom:16px">Los cambios se guardan en <code>config.toml</code>. Reinicia el servidor para que surtan efecto en el sync.</p>
+    <p style="color:#555;font-size:11px;margin-bottom:16px">Los cambios se guardan en <code>config.toml</code>. Reinicia el servidor para que surtan efecto en el sync — usa <a href="#" onclick="document.querySelector('#tab-settings .actions-panel:last-of-type').scrollIntoView({behavior:'smooth'});return false" style="color:var(--c-teal)">Cerrar Retro Vault</a> al final de esta página y vuelve a lanzarlo.</p>
 
     <div class="actions-row" style="flex-direction:column;align-items:flex-start;gap:12px">
       <div style="width:100%">
@@ -316,7 +316,7 @@
       <p style="color:#aaa;font-size:12px;margin-bottom:10px">
         <strong>Descarga autom&#xe1;tica</strong> &#x2014; DATs libres desde
         <a href="https://github.com/libretro/libretro-database" target="_blank" style="color:#7aadff">libretro-database</a>
-        (MIT), compatibles con No-Intro y Redump.
+        (MIT), compatibles con No-Intro, Redump y Arcade (FBNeo / MAME).
       </p>
       <div id="dat-catalog-list" style="margin-bottom:10px;font-size:12px"></div>
       <div class="actions-row" style="gap:8px;margin-bottom:6px">
@@ -335,9 +335,11 @@
     <p style="color:#888;font-size:12px;margin-bottom:8px">
       Las ROMs de arcade usan el nombre del set como identificador (no SHA1). Importa un cat&#xe1;logo para que la app reconozca los t&#xed;tulos y asigne la plataforma correcta (MAME o FBNeo).
     </p>
+    <div class="rv-tint-ok" style="padding:7px 12px;border-radius:4px;font-size:12px;margin-bottom:10px">
+      &#x2B06; <strong>FBNeo y MAME 2003+</strong> se pueden descargar autom&#xe1;ticamente desde el bloque <strong>Cat&#xe1;logos DAT</strong> de arriba &#x2014; sin pasos manuales.
+    </div>
     <div style="margin-bottom:10px;font-size:11px;color:#555;line-height:1.8">
-      <strong style="color:#888">MAME listxml</strong> &#x2014; genera con: <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">mame -listxml &gt; mame.xml</code><br>
-      <strong style="color:#888">FBNeo DAT</strong> &#x2014; descarga de <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">github.com/libretro/FBNeo</code> carpeta <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">dats/</code><br>
+      <strong style="color:#888">MAME listxml</strong> &#x2014; genera con: <code style="background:var(--c-border);padding:2px 6px;border-radius:3px">mame -listxml &gt; mame.xml</code> (necesario solo si quieres la lista completa de ROMs de MAME con metadatos)<br>
       Puedes indicar una <strong style="color:#888">carpeta</strong> con varios archivos o un <strong style="color:#888">archivo</strong> individual.
     </div>
     <div class="actions-row" style="margin-bottom:6px">
@@ -346,21 +348,6 @@
     </div>
     <div id="arcade-catalog-result" class="job-result"></div>
   </div>
-  <!-- S35-1: Apariencia -->
-  <div class="actions-panel" style="margin-top:20px;max-width:640px">
-    <h3>Apariencia</h3>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <div>
-        <div style="color:var(--fg-2);font-size:12px;margin-bottom:10px">Tema de color de la interfaz</div>
-        <div style="display:flex;gap:8px">
-          <button id="theme-btn-dark" class="btn" style="font-size:12px;padding:5px 16px" onclick="setTheme('dark')">&#x263D; Oscuro</button>
-          <button id="theme-btn-light" class="btn" style="font-size:12px;padding:5px 16px" onclick="setTheme('light')">&#x2600; Claro</button>
-        </div>
-        <div style="color:var(--fg-4);font-size:11px;margin-top:8px">La preferencia se guarda localmente en el navegador.</div>
-      </div>
-    </div>
-  </div>
-
   <div class="actions-panel" style="margin-top:20px">
     <h3>Base de datos <span class="help-icon" tabindex="0" data-tip="Retro Vault usa dos bases de datos: library_pc.db (ROMs del PC) y library_android.db (consola Android). Así los recuentos de cada dispositivo no se mezclan.">?</span></h3>
     <div id="settings-db-info" style="margin-bottom:12px;font-size:11px;color:#888"></div>
@@ -376,17 +363,17 @@
   </div>
   <!-- S39-3: Autostart toggle -->
   <div class="actions-panel" style="margin-top:20px;max-width:640px">
-    <h3>Inicio automatico con Windows</h3>
+    <h3>Inicio automático con Windows</h3>
     <p style="color:#555;font-size:12px;line-height:1.7;margin-bottom:12px">
-      Cuando esta activado, Retro Vault arranca automaticamente con Windows
-      (icono en la bandeja del sistema) y el sync siempre esta listo.
+      Cuando está activado, Retro Vault arranca automáticamente con Windows
+      (icono en la bandeja del sistema) y el sync siempre está listo.
     </p>
     <div id="autostart-panel" style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
-      <span id="autostart-badge" style="font-size:13px;color:#888">Cargando...</span>
+      <span id="autostart-badge" style="font-size:13px;color:#888">Cargando…</span>
       <button id="autostart-btn" class="btn" onclick="toggleAutostart()" style="min-width:160px">—</button>
     </div>
     <div class="hidden rv-tint-ok" id="autostart-note" style="border-radius:4px;padding:8px 12px;font-size:12px;color:var(--c-green)">
-      Retro Vault arrancara automaticamente la proxima vez que inicies Windows.<br>
+      Retro Vault arrancará automáticamente la próxima vez que inicies Windows.<br>
       Usa <strong>rommgr serve --tray</strong> para iniciarlo ahora con el icono en la bandeja.
     </div>
     <div class="hidden" id="autostart-tray-note" style="background:var(--c-bar);border:1px solid #2a2a4a;border-radius:4px;padding:8px 12px;font-size:12px;color:#888;margin-top:8px">
@@ -397,7 +384,7 @@
   <div class="actions-panel" style="margin-top:20px;max-width:640px">
     <h3>Herramientas</h3>
     <div class="actions-row">
-      <button class="btn" onclick="localStorage.removeItem('wizard_dismissed'); showWizard('', ''); showToast('Asistente relanzado', 'ok')">Relanzar asistente de configuracion</button>
+      <button class="btn" onclick="localStorage.removeItem('wizard_dismissed'); showWizard('', ''); showToast('Asistente relanzado', 'ok')">Relanzar asistente de configuración</button>
       <span style="color:#555;font-size:12px">Vuelve a mostrar el asistente de primeros pasos.</span>
     </div>
     <div class="actions-row" style="margin-top:10px">

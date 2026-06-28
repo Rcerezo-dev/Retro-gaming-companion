@@ -72,10 +72,14 @@ _PLATFORM_DAT_MAP: dict[str, tuple[str, str]] = {
     "MSX 2": ("no-intro", "Microsoft - MSX 2"),
     "Commodore 64": ("no-intro", "Commodore - 64"),
     "Amiga": ("no-intro", "Commodore - Amiga"),
+    # ── Arcade ─────────────────────────────────────────────────────────────────
+    "FBNeo Arcade": ("fbneo", "FBNeo - Arcade Games"),
+    "MAME 2003 Plus": ("mame", "MAME 2003-Plus"),
+    "MAME 2010": ("mame", "MAME 2010"),
 }
 
 # Reverse cache-subdir name: "no-intro" → "nointro", "redump" → "redump"
-_SUBDIR: dict[str, str] = {"no-intro": "nointro", "redump": "redump"}
+_SUBDIR: dict[str, str] = {"no-intro": "nointro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
 
 
 @dataclass

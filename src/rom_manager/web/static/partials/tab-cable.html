@@ -24,7 +24,7 @@
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Dirección</label>
         <select id="auto-sync-direction" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
-          <option value="newest">Mas reciente gana</option>
+          <option value="newest">Más reciente gana</option>
           <option value="pc_to_anbernic">PC a consola</option>
           <option value="anbernic_to_pc">Consola a PC</option>
         </select>
@@ -32,7 +32,7 @@
       <div>
         <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
         <select id="auto-sync-conflict" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
-          <option value="newest">Mas reciente gana</option>
+          <option value="newest">Más reciente gana</option>
           <option value="keep_pc">Conservar PC</option>
           <option value="keep_android">Conservar consola</option>
         </select>
@@ -44,7 +44,7 @@
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <button class="btn primary" onclick="saveAutoSyncSettings()" style="font-size:12px;padding:5px 14px">Guardar ajustes</button>
-      <span id="auto-sync-status-text" style="font-size:12px;color:#888">Esperando conexion...</span>
+      <span id="auto-sync-status-text" style="font-size:12px;color:#888">Esperando conexión…</span>
       <div class="hidden" id="auto-sync-save-result" style="font-size:11px;color:var(--c-teal)"></div>
     </div>
   </div>
@@ -55,7 +55,7 @@
 
     <!-- MTP warning -->
     <div class="rv-tint-warn" style="padding:9px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
-      <strong style="color:var(--c-red)">⚠ La ruta "Este equipo\RG556\Ambernic" NO es compatible.</strong>
+      <strong style="color:var(--c-red)">⚠ La ruta "Este equipo\RG556\Anbernic" NO es compatible.</strong>
       <span style="color:#888;margin-left:6px">Windows MTP expone el dispositivo como objeto shell, no como ruta del sistema de archivos. Python no puede acceder a ella directamente.</span>
     </div>
 

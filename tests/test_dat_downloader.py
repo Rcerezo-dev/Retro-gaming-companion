@@ -84,7 +84,7 @@ class TestPlatformDatMap:
             assert plat in _PLATFORM_DAT_MAP, f"Missing mapping for '{plat}'"
 
     def test_sources_are_valid(self) -> None:
-        valid = {"no-intro", "redump"}
+        valid = {"no-intro", "redump", "fbneo", "mame"}
         for plat, (source, _) in _PLATFORM_DAT_MAP.items():
             assert source in valid, f"Unknown source '{source}' for '{plat}'"
 

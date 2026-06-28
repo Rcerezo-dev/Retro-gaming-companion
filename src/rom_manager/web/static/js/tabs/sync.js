@@ -55,7 +55,7 @@ async function loadSync() {
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba que rclone está instalado y configurado en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Settings → Configuración de rclone</a>.</p>`;
   }
 }
 
