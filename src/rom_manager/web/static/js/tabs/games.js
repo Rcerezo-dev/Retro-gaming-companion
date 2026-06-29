@@ -315,7 +315,7 @@ export async function loadGames(offset) {
     if (_datBanner) {
       const _unmatched = d.games.filter(g => !g.match_confidence).length;
       if (d.dat_count === 0 && d.total > 0) {
-        _datBanner.innerHTML = `<span style="color:#e5c200">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:#7aadff;text-decoration:underline">→ Descargar catálogos</a>`;
+        _datBanner.innerHTML = `<span style="color:var(--c-yellow)">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:var(--c-lblue);text-decoration:underline">→ Descargar catálogos</a>`;
         _datBanner.classList.remove('hidden');
       } else if (d.dat_count > 0 && _unmatched > 0) {
         _datBanner.innerHTML = `<span style="color:var(--c-teal)">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:var(--c-muted)">${_unmatched} sin identificar</span>`;
@@ -755,7 +755,7 @@ export function loadSaveBackupsResult(saves, gameId) {
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--c-panel)">
       <span style="color:var(--c-muted)">${_h(s.timestamp)}<span style="color:var(--c-ghost);margin-left:4px">${_h(ext)}</span></span>
       <span style="color:var(--c-dim)">${sizeFmt}</span>
-      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
+      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
     </div>`;
   }).join('');
 }

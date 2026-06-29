@@ -218,13 +218,13 @@ async function loadRaDuplicates() {
     }
     if (batchBtn) batchBtn.classList.remove('hidden');
     let html = `<p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">
-      <strong style="color:#e0e0e0">${d.total_groups}</strong> grupos encontrados —
+      <strong style="color:var(--c-strong)">${d.total_groups}</strong> grupos encontrados —
       <strong style="color:var(--c-red)">${window.fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
     </p>`;
     for (const g of d.groups) {
       html += `<div style="border:1px solid #2a2a3e;border-radius:4px;margin-bottom:10px;overflow:hidden">
         <div style="background:#252537;padding:7px 12px;display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:13px;font-weight:600;color:#c9bcf5">${window._h(g.normalized_title)}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--c-purple)">${window._h(g.normalized_title)}</span>
           <span style="font-size:11px;color:var(--c-muted)">${window._h(g.platform)} — ${window.fmtSize(g.wasted_bytes)} recuperables</span>
         </div>
         <table style="width:100%;font-size:12px">
@@ -446,7 +446,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
         </div>
         ${g.entries.map((e, i) => {
           const isRaEntry = hasRaSupport && raEntry && raEntry.id === e.id;
-          const raBadge = (e.ra_achievements || 0) > 0 ? `<span style="color:#ffd700;font-size:10px;margin-left:4px">🏆 ${e.ra_achievements} logros</span>` : '';
+          const raBadge = (e.ra_achievements || 0) > 0 ? `<span style="color:var(--c-amber);font-size:10px;margin-left:4px">🏆 ${e.ra_achievements} logros</span>` : '';
           if (hasRaSupport && isRaEntry) {
             return `
           <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">

@@ -130,15 +130,15 @@ function _renderMissingList(platformFilter) {
       html += `<td style="padding:3px 6px;color:var(--c-strong)">${window._h(entry.title)}</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Copiado','ok'))" `;
-      html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:var(--c-strong);border-radius:3px;cursor:pointer" title="${qh}">Copiar</button>`;
+      html += `style="font-size:11px;padding:1px 6px;background:var(--c-panel);border:1px solid #444;color:var(--c-strong);border-radius:3px;cursor:pointer" title="${qh}">Copiar</button>`;
       html += `</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button onclick="navigator.clipboard.writeText('${iaUrlEsc}').then(()=>showToast('Link copiado — pégalo en JDownloader','ok'))" `;
-      html += `style="font-size:11px;padding:1px 6px;background:#1a2a1a;border:1px solid #2d4a2d;color:var(--c-teal);border-radius:3px;cursor:pointer" title="${window._h(iaUrl)}">&#x1F517; Link IA</button>`;
+      html += `style="font-size:11px;padding:1px 6px;background:var(--rv-tint-ok-bg);border:1px solid #2d4a2d;color:var(--c-teal);border-radius:3px;cursor:pointer" title="${window._h(iaUrl)}">&#x1F517; Link IA</button>`;
       html += `</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button id="wlbtn_${window._h(entry.sha1)}" onclick="toggleWishlist('${window._h(entry.sha1)}','${entry.title.replace(/'/g,"\\'")}','${window._h(p.platform)}','searching')" `;
-      html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:var(--c-muted);border-radius:3px;cursor:pointer">+ Wishlist</button>`;
+      html += `style="font-size:11px;padding:1px 6px;background:var(--c-panel);border:1px solid #444;color:var(--c-muted);border-radius:3px;cursor:pointer">+ Wishlist</button>`;
       html += `</td></tr>`;
     }
   }
@@ -514,15 +514,15 @@ function _renderDiffConflicts(conflicts) {
     const pcSha1  = c.pc[0]?.sha1  || '';
     const andSha1 = c.android[0]?.sha1 || '';
     html += `<div style="border:1px solid #2a2a1a;border-radius:4px;margin-bottom:8px;padding:7px 10px">`;
-    html += `<div style="color:#f9e2af;font-size:11px;margin-bottom:4px">${window._h(c.platform)} — ${window._h(c.title)}</div>`;
+    html += `<div style="color:var(--c-amber);font-size:11px;margin-bottom:4px">${window._h(c.platform)} — ${window._h(c.title)}</div>`;
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:6px">`;
     for (const e of c.pc)      html += `<div style="color:var(--c-pink)">PC: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
-    for (const e of c.android) html += `<div style="color:#89b4fa">Android: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
+    for (const e of c.android) html += `<div style="color:var(--c-lblue)">Android: ${window._h(e.source_path.split(/[\\/]/).pop())}</div>`;
     html += '</div>';
     if (pcSha1 && andSha1) {
       html += `<div style="display:flex;gap:6px">`;
       html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:#1a1215;border:1px solid var(--c-pink);color:var(--c-pink);border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
-      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:#12151a;border:1px solid #89b4fa;color:#89b4fa;border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
+      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:#12151a;border:1px solid #89b4fa;color:var(--c-lblue);border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
       html += `</div>`;
     }
     html += '</div>';

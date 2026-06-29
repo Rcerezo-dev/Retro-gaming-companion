@@ -803,7 +803,7 @@ export function _renderWizSteps(progress) {
     if (n < current) { icon = '&#x2705;'; color = 'var(--c-teal)'; }
     else if (n === current) { icon = '&#x23F3;'; color = '#c9bcf5'; }
     else { icon = '&nbsp;&nbsp;&nbsp;'; color = '#444'; }
-    return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:#777;font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
+    return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:var(--c-muted);font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
   }).join('');
   const bar = document.getElementById('wiz-prog-bar');
   if (bar) bar.style.width = pct + '%';

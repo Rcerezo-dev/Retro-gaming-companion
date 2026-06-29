@@ -1,6 +1,6 @@
 <div id="tab-cable" class="tab">
   <!-- QoL-14: ADB offline banner -->
-  <div class="hidden rv-tint-warn" id="cable-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
+  <div class="hidden rv-tint-warn" id="cable-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:var(--c-softred)">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> ADB no est&#xe1; disponible — el modo ADB no funcionar&#xe1;.
     <span style="color:var(--c-dim);margin-left:8px">Usa modo SD card o instala ADB.</span>
   </div>
@@ -286,11 +286,11 @@
         <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(mismo tamaño)</span>
       </label>
       <label class="fmt-check" title="En modo seguro nunca se sobreescribe un archivo que ya existe en el destino. Recomendado para evitar pérdida de datos.">
-        <input type="checkbox" id="cable-safe-mode" checked> <span style="color:#f4c842">Modo seguro</span>
+        <input type="checkbox" id="cable-safe-mode" checked> <span style="color:var(--c-amber)">Modo seguro</span>
         <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(no sobreescribir)</span>
       </label>
       <label class="fmt-check hidden" id="cable-mirror-label" title="Elimina del destino los archivos que no existen en el origen. Solo para modos PC→Consola y Consola→PC. Usa Dry run primero para previsualizar qué se borraría.">
-        <input type="checkbox" id="cable-mirror"> <span style="color:#f48771">Espejo completo</span>
+        <input type="checkbox" id="cable-mirror"> <span style="color:var(--c-softred)">Espejo completo</span>
         <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(eliminar extra en destino)</span>
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>

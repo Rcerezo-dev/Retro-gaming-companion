@@ -29,7 +29,7 @@ async function loadSync() {
         const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
-        syncBar.innerHTML = `<span style="color:#f48771">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
+        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
       }
       syncBar.classList.remove('hidden');
     }
@@ -852,9 +852,9 @@ function _renderCableSyncResult(r) {
   const existsCount = r.details ? r.details.filter(d => d.file === 'EXISTS').length : 0;
   const existsMsg   = existsCount > 0 ? `  |  Ya existen: ${existsCount}` : '';
   const safeMsg     = r.safe_mode_skipped_overwrites > 0
-    ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:#f4c842">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
+    ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:var(--c-amber)">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
   const mirrorMsg   = r.deleted_extra > 0
-    ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:#f48771">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
+    ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   // D8-6: file count display
@@ -1316,7 +1316,7 @@ async function doLibraryDiff() {
 
     let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px">';
     html += '<div><h4 style="margin:0 0 6px;color:var(--c-pink)">Solo en PC (' + only_pc.length + ' / ' + total_pc + ')</h4>' + makeTable(only_pc) + '</div>';
-    html += '<div><h4 style="margin:0 0 6px;color:#89b4fa">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
+    html += '<div><h4 style="margin:0 0 6px;color:var(--c-lblue)">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
     html += '</div>';
     html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--c-muted);font-size:13px">En ambos (' + in_both.length + ')</summary>' + makeTable(in_both) + '</details>';
 

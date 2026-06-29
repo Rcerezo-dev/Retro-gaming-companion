@@ -346,7 +346,7 @@ export async function doVerifyMultidisc() {
       html += `<p style="color:var(--c-hint);font-size:11px;margin:0 0 6px">Si tienes todos los archivos, revisa que los nombres incluyan "(Disc N)" sin variaciones.</p>`;
       html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:12px">';
       html += gapIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
-        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:var(--c-bar);padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
         <span style="color:var(--c-text)">${_h(i.base_name)}</span>
         <span style="color:var(--c-dim);margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
@@ -358,7 +358,7 @@ export async function doVerifyMultidisc() {
       html += otherIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
         <span style="color:var(--c-red)">${issueLabels[i.issue_type] || i.issue_type}</span>
         <span style="color:var(--c-muted);margin:0 6px">·</span>
-        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:var(--c-bar);padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
         <span style="color:var(--c-text)">${_h(i.base_name)}</span>
         <span style="color:var(--c-dim);margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');

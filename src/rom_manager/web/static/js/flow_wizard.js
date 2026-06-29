@@ -194,7 +194,7 @@ async function _renderOrganize() {
 
     _setBody(`
       <div style="color:var(--c-strong);font-size:13px;margin-bottom:10px">
-        <strong style="color:#7aa2f7">${count}</strong> renombre${count !== 1 ? 's' : ''} pendiente${count !== 1 ? 's' : ''}
+        <strong style="color:var(--c-blue)">${count}</strong> renombre${count !== 1 ? 's' : ''} pendiente${count !== 1 ? 's' : ''}
       </div>
       <div style="background:var(--bg-panel);border:1px solid var(--border-s);border-radius:6px;padding:10px;max-height:150px;overflow-y:auto">
         ${preview}${more}
@@ -361,9 +361,9 @@ function _pollSync(isDryRun) {
             _setBody(`
               <div style="color:var(--c-strong);font-size:13px;margin-bottom:12px">Vista previa de sync:</div>
               <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
-                <span>⬆️ <strong style="color:#7aa2f7">${up}</strong> para subir</span>
+                <span>⬆️ <strong style="color:var(--c-blue)">${up}</strong> para subir</span>
                 <span>⬇️ <strong style="color:var(--c-teal)">${down}</strong> para bajar</span>
-                ${conf ? `<span>⚠️ <strong style="color:#e5c200">${conf}</strong> conflictos</span>` : ''}
+                ${conf ? `<span>⚠️ <strong style="color:var(--c-yellow)">${conf}</strong> conflictos</span>` : ''}
               </div>
               ${r.error ? `<p class="error-msg" style="margin-top:10px">${_h(r.error)}</p>` : ''}
             `);
@@ -376,7 +376,7 @@ function _pollSync(isDryRun) {
               <div style="font-size:30px;margin-bottom:8px">✅</div>
               <div style="color:var(--c-strong);font-size:14px;font-weight:600">Sync completado</div>
               <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
-                ⬆️ <strong style="color:#7aa2f7">${r.uploaded ?? 0}</strong> subidos
+                ⬆️ <strong style="color:var(--c-blue)">${r.uploaded ?? 0}</strong> subidos
                 &nbsp;·&nbsp;
                 ⬇️ <strong style="color:var(--c-teal)">${r.downloaded ?? 0}</strong> descargados
                 ${r.errors ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.errors} errores</span>` : ''}
