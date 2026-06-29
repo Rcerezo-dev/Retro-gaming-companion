@@ -1,12 +1,12 @@
-<div id="tab-assets" class="tab">
-  <div class="hidden" id="assets-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
+﻿<div id="tab-assets" class="tab">
+  <div class="hidden" id="assets-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div class="toolbar" style="flex-direction:column;align-items:flex-start;gap:10px">
     <select id="assets-filter" onchange="loadAssets()">
       <option value="all">Todas las plataformas</option>
       <option value="orphans">Solo huérfanos (assets sin ROMs)</option>
       <option value="missing">Solo sin assets</option>
     </select>
-    <details style="font-size:12px;color:#888;max-width:700px">
+    <details style="font-size:12px;color:var(--c-muted);max-width:700px">
       <summary style="cursor:pointer;color:var(--c-blue)">¿Qué son los archivos "Unknown"?</summary>
       <p style="margin:8px 0 0 0;line-height:1.6">
         Son archivos que el escáner no pudo clasificar como ROM, save, ni asset.

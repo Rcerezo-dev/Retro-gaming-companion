@@ -1,4 +1,4 @@
-</div><!-- /.content-area -->
+﻿</div><!-- /.content-area -->
 </div><!-- /.app-body -->
 
 <script src="https://unpkg.com/lucide@1.21.0/dist/umd/lucide.min.js"></script>
@@ -17,7 +17,7 @@
     <div style="display:flex;align-items:flex-start;gap:8px">
       <h2 class="gp-title" id="gp-title" style="flex:1">—</h2>
       <button id="gp-fav-btn" title="Marcar como favorito" onclick="gpToggleFavorite()"
-        style="background:none;border:none;font-size:22px;cursor:pointer;padding:0;line-height:1;color:#555;flex-shrink:0">&#x2605;</button>
+        style="background:none;border:none;font-size:22px;cursor:pointer;padding:0;line-height:1;color:var(--c-dim);flex-shrink:0">&#x2605;</button>
     </div>
     <div class="gp-filename" id="gp-filename"></div>
     <div class="gp-meta" id="gp-meta"></div>
@@ -31,7 +31,7 @@
         <option value="abandoned">&#9208; Abandonado</option>
       </select>
       <button onclick="gpOpenFolder()" id="gp-folder-btn" title="Abrir carpeta del juego en el explorador"
-        style="margin-left:auto;background:#111;border:1px solid #333;color:#888;padding:4px 10px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">
+        style="margin-left:auto;background:#111;border:1px solid #333;color:var(--c-muted);padding:4px 10px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">
         &#x1F4C2; Carpeta
       </button>
       <button class="hidden" onclick="gpLaunch()" id="gp-launch-btn"
@@ -48,14 +48,14 @@
         <span class="gp-star" data-v="4" onclick="gpSetRating(4)" title="4 estrellas">&#x2606;</span>
         <span class="gp-star" data-v="5" onclick="gpSetRating(5)" title="5 estrellas">&#x2606;</span>
       </div>
-      <span id="gp-play-count" style="font-size:11px;color:#555"></span>
+      <span id="gp-play-count" style="font-size:11px;color:var(--c-dim)"></span>
     </div>
     <div class="hidden" id="gp-stateshot-wrap" style="margin-top:10px">
-      <div style="color:#555;font-size:11px;margin-bottom:4px">&#x1F4BE; Save-state</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:4px">&#x1F4BE; Save-state</div>
       <img id="gp-stateshot" src="" alt="save-state screenshot" style="width:100%;border-radius:4px;border:1px solid #333">
     </div>
     <div id="gp-tags-wrap" style="margin-top:12px">
-      <div style="color:#555;font-size:11px;margin-bottom:6px">Tags</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">Tags</div>
       <div id="gp-tags-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
       <div style="display:flex;gap:6px">
         <input id="gp-tag-input" type="text" placeholder="Nuevo tag…" maxlength="30"
@@ -66,9 +66,9 @@
     </div>
     <!-- S30: Notas personales -->
     <div style="margin-top:12px">
-      <div style="color:#555;font-size:11px;margin-bottom:4px">&#x1F4DD; Notas personales</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:4px">&#x1F4DD; Notas personales</div>
       <textarea id="gp-notes" placeholder="Trucos, claves, config de controller, d&#xf3;nde lo dej&#xe9;&#x2026;"
-        style="width:100%;min-height:56px;background:var(--c-input);border:1px solid #222;color:#555;padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
+        style="width:100%;min-height:56px;background:var(--c-input);border:1px solid #222;color:var(--c-dim);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
         oninput="gpNotesInput()"
         onfocus="this.style.borderColor='#444';this.style.color='var(--c-text)'"
         onblur="this.style.borderColor='#222';this.style.color=this.value?'var(--c-text)':'#555'"></textarea>
@@ -82,38 +82,38 @@
       <div class="hidden" id="gp-meta-edit-wrap" style="margin-top:10px;padding:10px;background:var(--c-bar);border:1px solid #222;border-radius:4px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <div>
-            <div style="color:#555;font-size:10px;margin-bottom:3px">T&#xed;tulo can&#xf3;nico</div>
+            <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">T&#xed;tulo can&#xf3;nico</div>
             <input id="gme-title" type="text" style="width:100%;box-sizing:border-box" placeholder="T&#xed;tulo">
           </div>
           <div>
-            <div style="color:#555;font-size:10px;margin-bottom:3px">A&#xf1;o</div>
+            <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">A&#xf1;o</div>
             <input id="gme-year" type="text" style="width:100%;box-sizing:border-box" placeholder="1996" maxlength="4">
           </div>
           <div>
-            <div style="color:#555;font-size:10px;margin-bottom:3px">G&#xe9;nero</div>
+            <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">G&#xe9;nero</div>
             <input id="gme-genre" type="text" style="width:100%;box-sizing:border-box" placeholder="Platform">
           </div>
           <div>
-            <div style="color:#555;font-size:10px;margin-bottom:3px">Publisher</div>
+            <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">Publisher</div>
             <input id="gme-publisher" type="text" style="width:100%;box-sizing:border-box" placeholder="Nintendo">
           </div>
           <div>
-            <div style="color:#555;font-size:10px;margin-bottom:3px">Developer</div>
+            <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">Developer</div>
             <input id="gme-developer" type="text" style="width:100%;box-sizing:border-box" placeholder="Nintendo R&amp;D1">
           </div>
           <div>
-            <div style="color:#555;font-size:10px;margin-bottom:3px">Nota / Rating</div>
+            <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">Nota / Rating</div>
             <input id="gme-rating" type="text" style="width:100%;box-sizing:border-box" placeholder="9/10">
           </div>
         </div>
         <div style="margin-bottom:8px">
-          <div style="color:#555;font-size:10px;margin-bottom:3px">Descripci&#xf3;n</div>
+          <div style="color:var(--c-dim);font-size:10px;margin-bottom:3px">Descripci&#xf3;n</div>
           <textarea id="gme-description" style="width:100%;min-height:52px;background:var(--c-input);border:1px solid #333;color:var(--c-text);padding:5px 7px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box" placeholder="Descripci&#xf3;n del juego&#x2026;"></textarea>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button onclick="gpSaveMetaFields()" style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:4px 14px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer">Guardar</button>
-          <span id="gme-result" style="font-size:11px;color:#555"></span>
-          <button onclick="gpScrapeSingle()" style="margin-left:auto;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">&#x1F50D; Re-scrapear</button>
+          <span id="gme-result" style="font-size:11px;color:var(--c-dim)"></span>
+          <button onclick="gpScrapeSingle()" style="margin-left:auto;background:none;border:1px solid #444;color:var(--c-muted);padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">&#x1F50D; Re-scrapear</button>
         </div>
         <!-- S30-4: preview de scraping -->
         <div class="hidden" id="gp-scrape-preview" style="margin-top:10px;padding:8px;background:var(--c-bar);border:1px solid #333;border-radius:4px;font-size:11px"></div>
@@ -124,34 +124,34 @@
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:14px">&#x1F3C6;</span>
         <span id="gp-ra-count" style="font-size:13px;font-weight:600;color:var(--c-text)"></span>
-        <span id="gp-ra-points" style="font-size:11px;color:#888;margin-left:4px"></span>
+        <span id="gp-ra-points" style="font-size:11px;color:var(--c-muted);margin-left:4px"></span>
         <a id="gp-ra-link" href="#" target="_blank" rel="noopener"
           style="margin-left:auto;font-size:11px;color:var(--c-blue);text-decoration:none;flex-shrink:0">Ver en RA &#x2197;</a>
       </div>
       <!-- COL-REVIEW-2c: user progress -->
-      <div id="gp-ra-user-progress" style="margin-top:6px;font-size:11px;color:#888"></div>
+      <div id="gp-ra-user-progress" style="margin-top:6px;font-size:11px;color:var(--c-muted)"></div>
     </div>
     <!-- UI-4: saves summary badge -->
     <div class="hidden" id="gp-saves-info" style="margin-top:8px">
-      <span id="gp-saves-badge" style="font-size:11px;color:#888"></span>
+      <span id="gp-saves-badge" style="font-size:11px;color:var(--c-muted)"></span>
     </div>
     <div class="hidden" id="gp-backups-wrap" style="margin-top:14px">
-      <div style="color:#555;font-size:11px;margin-bottom:6px">&#x1F9F2; Historial de saves</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">&#x1F9F2; Historial de saves</div>
       <div id="gp-backups-list" style="max-height:150px;overflow-y:auto;font-size:11px"></div>
     </div>
     <!-- S33-4: Sync history per game -->
     <div class="hidden" id="gp-sync-history-wrap" style="margin-top:14px">
-      <div style="color:#555;font-size:11px;margin-bottom:6px">&#x21C4; Historial de sync</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">&#x21C4; Historial de sync</div>
       <div id="gp-sync-history-list" style="max-height:130px;overflow-y:auto;font-size:11px"></div>
     </div>
     <!-- 34b-4: Asset path info -->
     <div class="hidden" id="gp-asset-info" style="margin-top:10px">
-      <div style="color:#555;font-size:11px;margin-bottom:3px">&#x1F5BC; Portada</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:3px">&#x1F5BC; Portada</div>
       <div id="gp-asset-path" style="font-size:10px;color:#444;font-family:Consolas,monospace;word-break:break-all;margin-bottom:4px"></div>
     </div>
     <!-- S36-5: Playtime tracking -->
     <div class="hidden" id="gp-playtime-wrap" style="margin-top:14px">
-      <div style="color:#555;font-size:11px;margin-bottom:6px">⏱ Tiempo jugado</div>
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">⏱ Tiempo jugado</div>
       <div id="gp-playtime-info" style="font-size:12px;color:var(--c-text);margin-bottom:8px"></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px">
         <span style="color:#666">Última sesión:</span>

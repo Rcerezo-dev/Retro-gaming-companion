@@ -1,4 +1,4 @@
-// js/tabs/duplicates.js — Duplicados + RA Duplicados + Filtro plataforma
+﻿// js/tabs/duplicates.js — Duplicados + RA Duplicados + Filtro plataforma
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -38,15 +38,15 @@ async function loadDuplicates() {
     if (dupBar) {
       let barHtml = '';
       if (window._activeDevice === 'pc') {
-        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicado = mismo SHA1 exacto</span>`;
       } else if (window._activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Duplicado = mismo SHA1 exacto</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicado = mismo SHA1 exacto</span>`;
       } else {
         const parts = [`PC: <span style="color:var(--c-teal)">${cfg.library_root || '(no configurado)'}</span>`];
         const ab = localStorage.getItem('anbernic_path');
         if (ab) parts.push(`${window._devName}: <span style="color:var(--c-orange)">${ab}</span>`);
-        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:#555">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${window._devName} se excluyen</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${window._devName} se excluyen</span>`;
       }
       dupBar.innerHTML = barHtml;
       dupBar.classList.remove('hidden');
@@ -203,13 +203,13 @@ async function loadRaDuplicates() {
   const el = document.getElementById('ra-dup-content');
   const btn = document.getElementById('btn-ra-dups');
   const batchBtn = document.getElementById('btn-ra-dups-discard-all');
-  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
   if (btn) btn.disabled = true;
   if (batchBtn) batchBtn.classList.add('hidden');
   try {
     const d = await apiFetch('/api/ra-duplicates');
     if (d.note) {
-      el.innerHTML = `<p style="color:#888;font-size:12px">${d.note}</p>`;
+      el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">${d.note}</p>`;
       return;
     }
     if (d.total_groups === 0) {
@@ -217,7 +217,7 @@ async function loadRaDuplicates() {
       return;
     }
     if (batchBtn) batchBtn.classList.remove('hidden');
-    let html = `<p style="color:#888;font-size:12px;margin-bottom:12px">
+    let html = `<p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">
       <strong style="color:#e0e0e0">${d.total_groups}</strong> grupos encontrados —
       <strong style="color:var(--c-red)">${window.fmtSize(d.wasted_bytes)}</strong> recuperables eliminando versiones sin logros.
     </p>`;
@@ -225,15 +225,15 @@ async function loadRaDuplicates() {
       html += `<div style="border:1px solid #2a2a3e;border-radius:4px;margin-bottom:10px;overflow:hidden">
         <div style="background:#252537;padding:7px 12px;display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:13px;font-weight:600;color:#c9bcf5">${window._h(g.normalized_title)}</span>
-          <span style="font-size:11px;color:#888">${window._h(g.platform)} — ${window.fmtSize(g.wasted_bytes)} recuperables</span>
+          <span style="font-size:11px;color:var(--c-muted)">${window._h(g.platform)} — ${window.fmtSize(g.wasted_bytes)} recuperables</span>
         </div>
         <table style="width:100%;font-size:12px">
           <thead><tr>
-            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Archivo</th>
-            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Tamaño</th>
-            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Logros RA</th>
-            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Recomendación</th>
-            <th style="padding:5px 10px;text-align:left;color:#555;font-size:11px">Acción</th>
+            <th style="padding:5px 10px;text-align:left;color:var(--c-dim);font-size:11px">Archivo</th>
+            <th style="padding:5px 10px;text-align:left;color:var(--c-dim);font-size:11px">Tamaño</th>
+            <th style="padding:5px 10px;text-align:left;color:var(--c-dim);font-size:11px">Logros RA</th>
+            <th style="padding:5px 10px;text-align:left;color:var(--c-dim);font-size:11px">Recomendación</th>
+            <th style="padding:5px 10px;text-align:left;color:var(--c-dim);font-size:11px">Acción</th>
           </tr></thead>
           <tbody>`;
       for (const e of g.entries) {
@@ -402,7 +402,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
 
   if (filtered.length === 0) {
     if (platformFilter) {
-      el.innerHTML = `<p style="color:#888">Sin duplicados en <strong>${window._h(platformFilter)}</strong>.</p>`;
+      el.innerHTML = `<p style="color:var(--c-muted)">Sin duplicados en <strong>${window._h(platformFilter)}</strong>.</p>`;
     } else {
       el.innerHTML = window._emptyState('✅', 'Sin duplicados', 'Los duplicados son ROMs con el mismo contenido exacto (SHA1 idéntico).<br>Si acabas de añadir juegos, ejecuta un Scan y luego un Match.', 'Ir a Inicio', () => window.showTab('overview'));
     }
@@ -411,14 +411,14 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
 
   const totalFiles = filtered.reduce((s, g) => s + g.entries.length, 0);
   const wastedBytes = filtered.reduce((s, g) => s + (g.entries[0]?.size_bytes || 0) * (g.entries.length - 1), 0);
-  let html = `<p style="color:#888;margin-bottom:16px">${filtered.length} grupo${filtered.length !== 1 ? 's' : ''} — ${totalFiles} archivos — ~${window.fmtSize(wastedBytes)} ocupados de más</p>`;
+  let html = `<p style="color:var(--c-muted);margin-bottom:16px">${filtered.length} grupo${filtered.length !== 1 ? 's' : ''} — ${totalFiles} archivos — ~${window.fmtSize(wastedBytes)} ocupados de más</p>`;
   html += filtered.map(g => `
     <div class="dup-group" id="dup-${g.sha1}">
       <div class="title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>${g.canonical_title || '(unmatched)'}
-          <span style="color:#555;font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
         </span>
-        <button class="btn" style="padding:2px 10px;font-size:11px;color:#888;border-color:#444" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
+        <button class="btn" style="padding:2px 10px;font-size:11px;color:var(--c-muted);border-color:#444" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
       </div>
       ${g.entries.map((e, i) => `
         <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
@@ -426,7 +426,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
             ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
             : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.source_path}">${e.source_path}</span>
-          <span style="color:#555;flex-shrink:0">${window.fmtSize(e.size_bytes)}</span>
+          <span style="color:var(--c-dim);flex-shrink:0">${window.fmtSize(e.size_bytes)}</span>
         </div>`).join('')}
     </div>`).join('');
 
@@ -442,7 +442,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
       return `
       <div class="dup-group" style="border-color:#3a3a1a">
         <div class="title" style="color:var(--c-yellow)">${window._h(g.canonical_title)}
-          <span style="color:#555;font-size:11px;margin-left:8px">${window._h(g.platform)}</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${window._h(g.platform)}</span>
         </div>
         ${g.entries.map((e, i) => {
           const isRaEntry = hasRaSupport && raEntry && raEntry.id === e.id;
@@ -452,7 +452,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
           <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
             <span class="badge ok" style="min-width:44px;text-align:center">keep</span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
-            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
+            <span style="color:var(--c-dim);flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
             <button class="btn" style="padding:2px 8px;font-size:10px;color:var(--c-teal);border-color:var(--c-teal)" data-keep="${e.id}" data-discard="${g.entries.map(x => x.id).filter(id => id !== e.id).join(',')}" onclick="resolveDuplicateRA(this, '${e.source_path.replace(/'/g, "\\'")}', '${g.entries.filter(x => x.id !== e.id).map(x => x.source_path.replace(/'/g, "\\'")).join('|')}')">Resolver: mantener éste</button>
           </div>`;
           } else if (hasRaSupport && !isRaEntry) {
@@ -460,7 +460,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
           <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">
             <button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
-            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
+            <span style="color:var(--c-dim);flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
           </div>`;
           } else {
             return `
@@ -469,7 +469,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
               ? '<span class="badge ok" style="min-width:44px;text-align:center">keep</span>'
               : `<button class="btn danger" style="padding:2px 10px;font-size:11px" data-id="${e.id}" data-path="${e.source_path.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onclick="deleteDuplicate(this)">Eliminar</button>`}
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${e.source_path}">${e.source_path}</span>
-            <span style="color:#555;flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
+            <span style="color:var(--c-dim);flex-shrink:0;font-size:11px">${e.sha1.slice(0,10)}… · ${window.fmtSize(e.size_bytes)}${raBadge}</span>
           </div>`;
           }
         }).join('')}

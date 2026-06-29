@@ -1,4 +1,4 @@
-// js/tabs/games.js — Games tab: list, filters, pagination, game panel, TV mode
+﻿// js/tabs/games.js — Games tab: list, filters, pagination, game panel, TV mode
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -260,7 +260,7 @@ export async function loadGames(offset) {
   if (rootBanner) {
     if (gamesState.root) {
       rootBanner.classList.remove('hidden');
-      rootBanner.innerHTML = `<span style="color:#888;font-size:12px">Filtrando por: <code style="color:var(--c-orange)">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').classList.add('hidden');loadGames(0)">&#x2715; Quitar filtro</button>`;
+      rootBanner.innerHTML = `<span style="color:var(--c-muted);font-size:12px">Filtrando por: <code style="color:var(--c-orange)">${gamesState.root}</code></span> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="gamesState.root=null;document.getElementById('games-root-banner').classList.add('hidden');loadGames(0)">&#x2715; Quitar filtro</button>`;
     } else {
       rootBanner.classList.add('hidden');
     }
@@ -318,7 +318,7 @@ export async function loadGames(offset) {
         _datBanner.innerHTML = `<span style="color:#e5c200">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:#7aadff;text-decoration:underline">→ Descargar catálogos</a>`;
         _datBanner.classList.remove('hidden');
       } else if (d.dat_count > 0 && _unmatched > 0) {
-        _datBanner.innerHTML = `<span style="color:var(--c-teal)">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:#888">${_unmatched} sin identificar</span>`;
+        _datBanner.innerHTML = `<span style="color:var(--c-teal)">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:var(--c-muted)">${_unmatched} sin identificar</span>`;
         _datBanner.classList.remove('hidden');
       } else if (d.dat_count > 0) {
         _datBanner.classList.add('hidden');
@@ -365,7 +365,7 @@ export async function loadGames(offset) {
           <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
           <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}</td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
-          <td><span style="font-size:11px;color:#888">${_h(g.region || '')}</span></td>
+          <td><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
           <td>${matchBadge(g.match_confidence)}</td>
           <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
           <td class="mono" style="color:#444;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
@@ -551,7 +551,7 @@ export function openGamePanel(g) {
   _gpSetFavStar(g.is_favorite);
   // Tags — load async
   const tagsList = document.getElementById('gp-tags-list');
-  tagsList.innerHTML = '<span style="color:#555;font-size:11px">cargando…</span>';
+  tagsList.innerHTML = '<span style="color:var(--c-dim);font-size:11px">cargando…</span>';
   apiFetch('/api/game-tags?id=' + g.id).then(r => _gpRenderTags(r.tags || [])).catch(() => { tagsList.innerHTML = ''; });
   // Stateshot — load async
   document.getElementById('gp-stateshot-wrap').classList.add('hidden');
@@ -753,8 +753,8 @@ export function loadSaveBackupsResult(saves, gameId) {
     const origSav = s.original_save.replace(/\\/g, '/');
     const ext     = s.extension || '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--c-panel)">
-      <span style="color:#888">${_h(s.timestamp)}<span style="color:#444;margin-left:4px">${_h(ext)}</span></span>
-      <span style="color:#555">${sizeFmt}</span>
+      <span style="color:var(--c-muted)">${_h(s.timestamp)}<span style="color:#444;margin-left:4px">${_h(ext)}</span></span>
+      <span style="color:var(--c-dim)">${sizeFmt}</span>
       <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
     </div>`;
   }).join('');
@@ -814,7 +814,7 @@ export async function gpScrapeSingle() {
   if (!_gpGameId) return;
   const previewEl = document.getElementById('gp-scrape-preview');
   const res = document.getElementById('gme-result');
-  if (previewEl) { previewEl.classList.remove('hidden'); previewEl.innerHTML = '<span style="color:#555">Consultando ScreenScraper…</span>'; }
+  if (previewEl) { previewEl.classList.remove('hidden'); previewEl.innerHTML = '<span style="color:var(--c-dim)">Consultando ScreenScraper…</span>'; }
   try {
     const r = await apiPost('/api/scrape-single', { game_id: _gpGameId, preview: true });
     if (!r.found) {
@@ -824,10 +824,10 @@ export async function gpScrapeSingle() {
     const rows = [
       ['Título', r.title], ['Año', r.year], ['Género', r.genre],
       ['Publisher', r.publisher], ['Developer', r.developer], ['Nota', r.rating],
-    ].filter(([, v]) => v).map(([k, v]) => `<span style="color:#888">${k}:</span> <span style="color:var(--c-text)">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
+    ].filter(([, v]) => v).map(([k, v]) => `<span style="color:var(--c-muted)">${k}:</span> <span style="color:var(--c-text)">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
     if (previewEl) previewEl.innerHTML = `<div style="margin-bottom:8px;line-height:1.8">${rows}</div>
       <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
-      <button onclick="document.getElementById('gp-scrape-preview').classList.add('hidden')" style="margin-left:6px;background:none;border:1px solid #444;color:#888;padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
+      <button onclick="document.getElementById('gp-scrape-preview').classList.add('hidden')" style="margin-left:6px;background:none;border:1px solid #444;color:var(--c-muted);padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
   } catch(e) {
     if (previewEl) previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${_h(e.message)}</span>`;
   }
@@ -877,7 +877,7 @@ export async function loadGameSyncHistory(sourcePath) {
       const dir = h.direction === 'up' ? '&#x2191;' : h.direction === 'down' ? '&#x2193;' : '&#x21C4;';
       return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a">
         <span style="color:${clr};font-size:11px">${dir} ${_h(h.result || '')}</span>
-        <span style="color:#555;font-size:10px;flex:1">${_h(h.created_at?.substring(0, 16) || '')}</span>
+        <span style="color:var(--c-dim);font-size:10px;flex:1">${_h(h.created_at?.substring(0, 16) || '')}</span>
         ${h.message ? `<span style="color:#666;font-size:10px">${_h(h.message.substring(0, 40))}</span>` : ''}
       </div>`;
     }).join('');
@@ -979,12 +979,12 @@ export async function loadRecommendations() {
     list.innerHTML = r.items.map(it => {
       const title = _h(it.title || '—');
       const plat  = _h(it.platform || '');
-      const score = it.score != null ? `<span style="color:#555;font-size:10px">${Math.round(it.score * 100)}%</span>` : '';
-      const reason = it.reason ? `<div style="font-size:10px;color:#555;margin-top:2px">${_h(it.reason)}</div>` : '';
+      const score = it.score != null ? `<span style="color:var(--c-dim);font-size:10px">${Math.round(it.score * 100)}%</span>` : '';
+      const reason = it.reason ? `<div style="font-size:10px;color:var(--c-dim);margin-top:2px">${_h(it.reason)}</div>` : '';
       const gameData = it.id ? ` onclick="apiFetch('/api/game?id=${it.id}').then(g=>{if(g.id)openGamePanel(g)}).catch(()=>{})"` : '';
       return `<div class="rec-card"${gameData}>
         <div style="font-size:12px;font-weight:600;color:var(--c-text)">${title} ${score}</div>
-        <div style="font-size:11px;color:#888">${plat}</div>
+        <div style="font-size:11px;color:var(--c-muted)">${plat}</div>
         ${reason}
       </div>`;
     }).join('');

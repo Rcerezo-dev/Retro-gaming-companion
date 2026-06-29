@@ -1,8 +1,8 @@
-<div id="tab-anbernic" class="tab">
+﻿<div id="tab-anbernic" class="tab">
 <div style="max-width:680px">
 
   <h2 style="color:var(--c-purple);font-size:20px;font-weight:700;margin-bottom:4px">&#x1F4F1; Configurar Anbernic</h2>
-  <p style="color:#888;font-size:13px;line-height:1.6;margin-bottom:20px">
+  <p style="color:var(--c-muted);font-size:13px;line-height:1.6;margin-bottom:20px">
     Sigue estos pasos para que los saves se sincronicen solos entre tu PC y la Anbernic.
     Solo necesitas escribir <strong style="color:var(--c-text)">una URL</strong> en el navegador de la consola &mdash; el resto son botones.
   </p>
@@ -13,7 +13,7 @@
       <span style="width:28px;height:28px;border-radius:50%;background:var(--c-purple);color:var(--c-deep);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
       <div style="font-size:15px;font-weight:700;color:var(--c-text)">Abre el navegador en la Anbernic y escribe esta direcci&#xf3;n</div>
     </div>
-    <p style="font-size:12px;color:#888;margin-bottom:14px;line-height:1.6">
+    <p style="font-size:12px;color:var(--c-muted);margin-bottom:14px;line-height:1.6">
       La Anbernic y el PC deben estar en la <strong style="color:var(--c-text)">misma red WiFi</strong>.
       Escribe exactamente esta direcci&#xf3;n en el navegador de la consola:
     </p>
@@ -24,16 +24,16 @@
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <button onclick="copyAnbernicUrl()" style="padding:8px 16px;background:var(--c-teal);border:none;color:var(--c-deep);font-weight:700;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap">&#x1F4CB; Copiar URL</button>
-        <button onclick="loadAnbernicTab()" style="padding:6px 16px;background:var(--c-bar);border:1px solid var(--c-border);color:#888;border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
+        <button onclick="loadAnbernicTab()" style="padding:6px 16px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-muted);border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
       </div>
     </div>
-    <p style="font-size:11px;color:#555;margin-top:10px">
+    <p style="font-size:11px;color:var(--c-dim);margin-top:10px">
       Al abrir esta URL en la Anbernic aparecer&#xe1; autom&#xe1;ticamente una gu&#xed;a de instalaci&#xf3;n con todos los botones de descarga.
     </p>
   </div>
 
   <!-- === DESDE EL PC: guía de referencia === -->
-  <p style="font-size:12px;color:#555;margin-bottom:10px;text-align:center">
+  <p style="font-size:12px;color:var(--c-dim);margin-bottom:10px;text-align:center">
     &#x2500;&#x2500; O descarga desde este PC y pasa los APKs a la Anbernic por cable o tarjeta SD &#x2500;&#x2500;
   </p>
 
@@ -47,7 +47,7 @@
       </div>
     </div>
     <div class="anbernic-step-body">
-      <p style="font-size:12px;color:#888;line-height:1.7;margin-bottom:12px">
+      <p style="font-size:12px;color:var(--c-muted);line-height:1.7;margin-bottom:12px">
         Descarga el APK y c&#xf3;pialo a la Anbernic (cable USB o tarjeta SD).<br>
         En la Anbernic: abre el APK &#x2192; permite instalar de fuentes desconocidas &#x2192; instala.
       </p>
@@ -74,7 +74,7 @@
       </div>
     </div>
     <div class="anbernic-step-body">
-      <p style="font-size:12px;color:#888;line-height:1.7;margin-bottom:12px">
+      <p style="font-size:12px;color:var(--c-muted);line-height:1.7;margin-bottom:12px">
         Con F-Droid ya instalado: abre F-Droid &#x2192; busca <strong style="color:var(--c-text)">Termux</strong> &#x2192; instala.<br>
         O descarga el APK directamente desde GitHub:
       </p>
@@ -96,12 +96,12 @@
     <div class="anbernic-step-header">
       <span class="anbernic-step-num">4</span>
       <div>
-        <div class="anbernic-step-title">Instalar Termux:Boot <span style="font-size:11px;color:#555;font-weight:400">(recomendado)</span></div>
+        <div class="anbernic-step-title">Instalar Termux:Boot <span style="font-size:11px;color:var(--c-dim);font-weight:400">(recomendado)</span></div>
         <div class="anbernic-step-desc">Hace que el sync se ejecute autom&#xe1;ticamente cada vez que enciendes la Anbernic.</div>
       </div>
     </div>
     <div class="anbernic-step-body">
-      <p style="font-size:12px;color:#888;line-height:1.7;margin-bottom:12px">
+      <p style="font-size:12px;color:var(--c-muted);line-height:1.7;margin-bottom:12px">
         Instala igual que Termux. Despu&#xe9;s: <strong style="color:var(--c-text)">&#xe1;brelo una vez</strong> para activarlo.
       </p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -127,7 +127,7 @@
       </div>
     </div>
     <div class="anbernic-step-body">
-      <p style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.7">
+      <p style="font-size:12px;color:var(--c-muted);margin-bottom:10px;line-height:1.7">
         Abre Termux &#x2192; toca la pantalla para que aparezca el teclado virtual &#x2192; escribe o pega:
       </p>
       <div id="anb-cmd-full" style="background:var(--c-deep);border:1px solid var(--c-border);border-radius:6px;padding:10px 14px;font-size:14px;font-weight:700;color:var(--c-teal);font-family:monospace;word-break:break-all;margin-bottom:12px;letter-spacing:0.02em">
@@ -142,7 +142,7 @@
           &#x2B07; Descargar .sh
         </a>
       </div>
-      <div class="rv-tint-warn" style="border-radius:6px;padding:10px 14px;font-size:11px;color:#888;line-height:1.8">
+      <div class="rv-tint-warn" style="border-radius:6px;padding:10px 14px;font-size:11px;color:var(--c-muted);line-height:1.8">
         <strong style="color:#f4a623">Consejo teclado Anbernic:</strong> en Termux, mant&#xe9;n pulsado en la pantalla &#x2192; aparece un men&#xfa; &#x2192; <em>Pegar</em>.<br>
         Si hab&#xed;as copiado la URL desde el PC mediante ADB, el portapapeles ya est&#xe1; listo.
       </div>
@@ -152,7 +152,7 @@
   <!-- RESULTADO -->
   <div class="rv-tint-ok" style="margin-top:8px;border-radius:8px;padding:18px 20px">
     <p style="font-size:14px;color:var(--c-teal);font-weight:600;margin-bottom:10px">&#x2705; Despu&#xe9;s del setup</p>
-    <ul style="font-size:12px;color:#888;line-height:2.1;padding-left:18px;margin:0">
+    <ul style="font-size:12px;color:var(--c-muted);line-height:2.1;padding-left:18px;margin:0">
       <li>El script crea <code style="color:var(--c-text)">~/retrovault-sync.sh</code> — ej&#xe9;cutalo cuando quieras sincronizar manualmente</li>
       <li>Con Termux:Boot, el sync corre <strong style="color:var(--c-text)">autom&#xe1;ticamente al encender la consola</strong></li>
       <li>Los saves van al cloud (rclone) o a la carpeta de Dropbox/OneDrive del dispositivo</li>

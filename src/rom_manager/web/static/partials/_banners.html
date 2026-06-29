@@ -1,4 +1,4 @@
-
+﻿
 <!-- PHASE6-3a: UPDATE AVAILABLE BANNER -->
 <div id="update-banner" class="hidden">
   <span id="update-banner-text"></span>
@@ -6,7 +6,7 @@
   <button id="update-banner-download-btn" class="hidden" onclick="downloadAppUpdate()" style="margin-left:10px;font-size:11px;padding:3px 10px;background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;border-radius:4px;cursor:pointer">&#x2B07; Descargar e instalar</button>
   <span id="update-banner-progress" class="hidden" style="margin-left:10px;font-size:11px;color:#a0c4ff"></span>
   <button id="update-banner-apply-btn" class="hidden" onclick="applyAppUpdate()" style="margin-left:10px;font-size:11px;padding:3px 10px;background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;border-radius:4px;cursor:pointer">&#x21BB; Instalar y reiniciar</button>
-  <button onclick="document.getElementById('update-banner').classList.add('hidden')" style="margin-left:auto;background:none;border:none;color:#888;cursor:pointer;font-size:15px;line-height:1;padding:0 4px" title="Cerrar">&times;</button>
+  <button onclick="document.getElementById('update-banner').classList.add('hidden')" style="margin-left:auto;background:none;border:none;color:var(--c-muted);cursor:pointer;font-size:15px;line-height:1;padding:0 4px" title="Cerrar">&times;</button>
 </div>
 
 <!-- AUTO-SYNC BANNER -->
@@ -14,7 +14,7 @@
   <span id="auto-sync-banner-icon"></span>
   <span id="auto-sync-banner-text"></span>
   <button id="auto-sync-prompt-btn" class="btn hidden" onclick="promptSyncNow()" style="margin-left:8px;font-size:11px;padding:3px 10px;background:var(--accent);color:#000;border-color:var(--accent);font-weight:700">&#x25B6; Sync ahora</button>
-  <a href="#" onclick="showTab('cable');return false;" style="margin-left:auto;font-size:11px;color:#888;text-decoration:underline">Ver Cable Sync</a>
+  <a href="#" onclick="showTab('cable');return false;" style="margin-left:auto;font-size:11px;color:var(--c-muted);text-decoration:underline">Ver Cable Sync</a>
 </div>
 
 <!-- S40 / ANBERNIC-TV: Touch-friendly guided sync UI (shown when User-Agent is Android) -->
@@ -61,7 +61,7 @@
     <div id="wizard-page-1">
       <div style="padding:32px 36px 0">
         <div style="font-size:26px;font-weight:700;color:#c9bcf5;margin-bottom:6px">&#x1F3AE; Bienvenido a Retro Vault</div>
-        <div style="font-size:14px;color:#888;margin-bottom:24px">Vamos a organizar tu biblioteca en unos minutos.</div>
+        <div style="font-size:14px;color:var(--c-muted);margin-bottom:24px">Vamos a organizar tu biblioteca en unos minutos.</div>
 
         <!-- Auto-detect -->
         <div style="margin-bottom:16px;display:flex;justify-content:flex-end">
@@ -69,7 +69,7 @@
             &#x1F50D; Detectar autom&#xe1;ticamente
           </button>
         </div>
-        <div class="hidden rv-tint-neutral" id="wiz-detect-msg" style="font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px;color:#888"></div>
+        <div class="hidden rv-tint-neutral" id="wiz-detect-msg" style="font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px;color:var(--c-muted)"></div>
 
         <!-- Carpeta PC (obligatoria) -->
         <div style="margin-bottom:16px">
@@ -79,18 +79,18 @@
           <input id="wiz-library-root" type="text"
             style="width:100%;box-sizing:border-box;background:var(--c-input);border:1px solid #3a3a5c;color:var(--c-text);padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
             placeholder="Ej: E:\\ROMs">
-          <div style="font-size:11px;color:#555;margin-top:4px">Raiz donde est&#xe1;n todas las carpetas de tus ROMs en el PC.</div>
+          <div style="font-size:11px;color:var(--c-dim);margin-top:4px">Raiz donde est&#xe1;n todas las carpetas de tus ROMs en el PC.</div>
         </div>
 
         <!-- Carpeta consola Android (opcional) -->
         <div style="margin-bottom:20px">
           <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">
-            Carpeta de biblioteca (consola Android) <span style="color:#555;font-weight:400">— opcional</span>
+            Carpeta de biblioteca (consola Android) <span style="color:var(--c-dim);font-weight:400">— opcional</span>
           </label>
           <input id="wiz-android-root" type="text"
             style="width:100%;box-sizing:border-box;background:var(--c-input);border:1px solid #3a3a5c;color:var(--c-text);padding:8px 12px;border-radius:6px;font:inherit;font-size:13px"
             placeholder="Ej: /storage/emulated/0/RetroArch/roms">
-          <div style="font-size:11px;color:#555;margin-top:4px">Solo si usas una consola Android. Se puede configurar despu&#xe9;s en Settings.</div>
+          <div style="font-size:11px;color:var(--c-dim);margin-top:4px">Solo si usas una consola Android. Se puede configurar despu&#xe9;s en Settings.</div>
         </div>
 
         <div style="margin-bottom:18px">
@@ -111,8 +111,8 @@
 
         <div id="wiz-dats-info" class="rv-tint-info" style="padding:10px 14px;border-radius:6px;font-size:12px;color:#666;line-height:1.7;margin-bottom:8px">
           <span style="color:#c9bcf5">i</span> Para cruzar con la base de datos de juegos, pon los DAT de No-Intro/Redump en:<br>
-          <code id="wiz-dats-hint" style="color:#888">.rommgr/catalogs/nointro/  &amp;  .rommgr/catalogs/redump/</code><br>
-          <span style="color:#555">(opcional &#x2014; puedes hacerlo despu&#xe9;s desde Settings)</span>
+          <code id="wiz-dats-hint" style="color:var(--c-muted)">.rommgr/catalogs/nointro/  &amp;  .rommgr/catalogs/redump/</code><br>
+          <span style="color:var(--c-dim)">(opcional &#x2014; puedes hacerlo despu&#xe9;s desde Settings)</span>
         </div>
       </div>
       <div style="padding:16px 36px 28px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #2a2a3c;margin-top:4px">
@@ -132,7 +132,7 @@
           <div id="wiz-prog-bar" style="background:#5a4dab;height:100%;width:0%;transition:width 0.4s"></div>
         </div>
       </div>
-      <div id="wiz-prog-file" style="font-size:11px;color:#555;min-height:16px;margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+      <div id="wiz-prog-file" style="font-size:11px;color:var(--c-dim);min-height:16px;margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
       <div style="text-align:right">
         <button class="btn" onclick="closeWizard()" style="background:var(--c-border);font-size:12px">Cancelar</button>
       </div>
@@ -142,7 +142,7 @@
     <div class="hidden" id="wizard-page-3" style="padding:32px 36px 28px">
       <div style="font-size:20px;font-weight:700;color:var(--c-teal);margin-bottom:20px">&#x2705; Biblioteca analizada</div>
       <div id="wiz-result-stats" style="margin-bottom:24px;line-height:2;font-size:14px;color:var(--c-text)"></div>
-      <div class="rv-tint-neutral" style="font-size:13px;color:#888;margin-bottom:20px;padding:12px 16px;border-radius:6px">
+      <div class="rv-tint-neutral" style="font-size:13px;color:var(--c-muted);margin-bottom:20px;padding:12px 16px;border-radius:6px">
         <strong style="color:#c9bcf5">Siguiente paso:</strong> revisa el plan de renombrado y aprueba los cambios.
       </div>
       <div style="display:flex;justify-content:flex-end;gap:10px">

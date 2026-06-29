@@ -1,4 +1,4 @@
-// js/tabs/overview.js — Overview tab: stats cards, heatmap, charts, wizard
+﻿// js/tabs/overview.js — Overview tab: stats cards, heatmap, charts, wizard
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -483,7 +483,7 @@ export async function loadOverview() {
           const chk = (ok, label, hint) =>
             '<div>' + (ok ? '<span style="color:var(--c-teal)">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
             ' <span style="color:' + (ok ? 'var(--c-text)' : '#888') + '">' + label + '</span>' +
-            (hint && !ok ? ' <span style="color:#555;font-size:11px">— ' + hint + '</span>' : '') + '</div>';
+            (hint && !ok ? ' <span style="color:var(--c-dim);font-size:11px">— ' + hint + '</span>' : '') + '</div>';
           const clEl = document.getElementById('ov-setup-checklist');
           if (clEl) clEl.innerHTML =
             chk(cl.library_root_set, 'Carpeta configurada', 'Configura en Settings') +
@@ -534,7 +534,7 @@ export async function loadOverview() {
         if (abCardsEl) abCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
       }
     } else if (!abPath && abCardsEl) {
-      abCardsEl.innerHTML = '<p style="color:#555;font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
+      abCardsEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
       if (abStaleBadge) abStaleBadge.classList.add('hidden');
       if (abScanBtn)    abScanBtn.classList.add('hidden');
     }
@@ -580,18 +580,18 @@ export async function loadOverview() {
           const title = g.canonical_title || g.original_filename;
           return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--c-panel);font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
             <span>${_platBadge(g.platform)} <span style="color:var(--c-text)">${_h(title)}</span></span>
-            <span style="color:#555">${_relTime(g.last_played_at)}</span>
+            <span style="color:var(--c-dim)">${_relTime(g.last_played_at)}</span>
           </div>`;
         }).join('');
       } else {
         if (heroEl) heroEl.classList.add('hidden');
         if (contSection) contSection.classList.add('hidden');
-        if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">Juega un rato y vuelve aquí.</p>';
+        if (recentEl) recentEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Juega un rato y vuelve aquí.</p>';
       }
     } catch(_) {
       if (heroEl) heroEl.classList.add('hidden');
       if (contSection) contSection.classList.add('hidden');
-      if (recentEl) recentEl.innerHTML = '<p style="color:#555;font-size:12px">—</p>';
+      if (recentEl) recentEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px">—</p>';
     }
 
     // Platform breakdown chart
@@ -604,7 +604,7 @@ export async function loadOverview() {
           chartEl.innerHTML = ps.platforms.slice(0, 15).map(p => {
             const pct = Math.round(p.count / maxCount * 100);
             return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px">
-              <span style="width:110px;color:#888;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(p.platform)}">${_h(p.platform)}</span>
+              <span style="width:110px;color:var(--c-muted);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(p.platform)}">${_h(p.platform)}</span>
               <div style="flex:1;background:var(--c-panel);border-radius:2px;height:14px">
                 <div style="width:${pct}%;background:var(--c-blue);height:14px;border-radius:2px;transition:width 0.3s"></div>
               </div>
@@ -612,7 +612,7 @@ export async function loadOverview() {
             </div>`;
           }).join('');
         } else {
-          chartEl.innerHTML = '<p style="color:#555;font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
+          chartEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
         }
       } catch(_) { /* silent */ }
     }
@@ -662,7 +662,7 @@ export async function _renderPlatformGrid(pcPath) {
   try {
     const ps = await apiFetch('/api/platform-stats?root=' + encodeURIComponent(pcPath));
     if (!ps.platforms || ps.platforms.length === 0) {
-      gridEl.innerHTML = '<p style="color:#555;font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
+      gridEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Sin datos. Escanea la biblioteca primero.</p>';
       return;
     }
 
@@ -678,7 +678,7 @@ export async function _renderPlatformGrid(pcPath) {
         onmouseout="this.style.background='var(--c-panel)';this.style.borderColor='#2a2a3a'">
         <div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">${logo}</div>
         <div style="font-size:11px;font-weight:600;color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%" title="${platName}">${platName}</div>
-        <div style="font-size:10px;color:#888">${p.count} game${p.count !== 1 ? 's' : ''}</div>
+        <div style="font-size:10px;color:var(--c-muted)">${p.count} game${p.count !== 1 ? 's' : ''}</div>
       </div>`;
     }).join('');
 
@@ -695,7 +695,7 @@ export async function _renderPlatformGrid(pcPath) {
       }
     });
   } catch(_) {
-    gridEl.innerHTML = '<p style="color:#555;font-size:12px">Error al cargar plataformas.</p>';
+    gridEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Error al cargar plataformas.</p>';
   }
 }
 
@@ -828,7 +828,7 @@ export function _showSetupResult(r) {
   const el = document.getElementById('wiz-result-stats');
   if (!el) return;
   if (r.error) {
-    el.innerHTML = '<span style="color:var(--c-red)">Error: ' + _h(r.error) + '</span><span style="color:#888;font-size:12px;margin-left:8px">— Recarga la página o comprueba que hay ROMs escaneados.</span>';
+    el.innerHTML = '<span style="color:var(--c-red)">Error: ' + _h(r.error) + '</span><span style="color:var(--c-muted);font-size:12px;margin-left:8px">— Recarga la página o comprueba que hay ROMs escaneados.</span>';
     return;
   }
   const fmtB = (b) => b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : b >= 1024 ? (b/1024).toFixed(0) + ' KB' : b + ' B';

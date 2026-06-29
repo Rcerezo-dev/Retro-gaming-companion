@@ -1,4 +1,4 @@
-// js/tabs/esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility
+﻿// js/tabs/esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility
 // Extracted from app.js during Phase 2 migration; RA check functions added in Phase 2g.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -11,20 +11,20 @@ const _h = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/
 export async function loadEsdeStatus() {
   const el = document.getElementById('esde-status-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Detectando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Detectando…</p>';
   try {
     const d = await apiFetch('/api/esde-status');
     if (!d.installed) {
       el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">&#x2717; ES-DE no detectado en las rutas conocidas.</p>
-        <p style="color:#555;font-size:11px">Instala ES-DE desde <a href="https://es-de.org" target="_blank" style="color:var(--c-teal)">es-de.org</a> o configura la ruta manualmente.</p>`;
+        <p style="color:var(--c-dim);font-size:11px">Instala ES-DE desde <a href="https://es-de.org" target="_blank" style="color:var(--c-teal)">es-de.org</a> o configura la ruta manualmente.</p>`;
       return;
     }
     el.innerHTML = `
       <div style="font-size:12px;color:var(--c-teal);margin-bottom:8px">&#x2713; ES-DE detectado</div>
       <table style="font-size:12px;border-collapse:collapse;width:100%">
-        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Carpeta</td><td><code style="color:var(--c-orange)">${_h(d.install_dir)}</code></td></tr>
-        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">ROMs</td><td><code style="color:var(--c-orange)">${_h(d.roms_path || '—')}</code></td></tr>
-        <tr><td style="color:#555;padding:2px 6px 2px 0;white-space:nowrap">Gamelists</td><td><code style="color:var(--c-orange)">${_h(d.gamelists_dir || '—')}</code></td></tr>
+        <tr><td style="color:var(--c-dim);padding:2px 6px 2px 0;white-space:nowrap">Carpeta</td><td><code style="color:var(--c-orange)">${_h(d.install_dir)}</code></td></tr>
+        <tr><td style="color:var(--c-dim);padding:2px 6px 2px 0;white-space:nowrap">ROMs</td><td><code style="color:var(--c-orange)">${_h(d.roms_path || '—')}</code></td></tr>
+        <tr><td style="color:var(--c-dim);padding:2px 6px 2px 0;white-space:nowrap">Gamelists</td><td><code style="color:var(--c-orange)">${_h(d.gamelists_dir || '—')}</code></td></tr>
       </table>
       ${d.gamelists_dir ? `<div style="margin-top:10px"><button class="btn primary" onclick="doExportGamelistsAll(${JSON.stringify(d.gamelists_dir)})" style="font-size:12px">&#x2193; Exportar todas las gamelists a ES-DE</button></div>` : ''}`;
   } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`; }
@@ -34,11 +34,11 @@ export async function loadEsdeStatus() {
 export async function loadBiosStatus() {
   const el = document.getElementById('bios-status-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Buscando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Buscando…</p>';
   try {
     const d = await apiFetch('/api/bios-status');
     const bios = d.bios || [];
-    if (!bios.length) { el.innerHTML = '<p style="color:#555;font-size:12px">No hay definiciones de BIOS.</p>'; return; }
+    if (!bios.length) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No hay definiciones de BIOS.</p>'; return; }
     const byPlat = {};
     bios.forEach(b => { (byPlat[b.platform] = byPlat[b.platform] || []).push(b); });
     let html = '';
@@ -46,7 +46,7 @@ export async function loadBiosStatus() {
       const total = entries.length, found = entries.filter(e => e.found).length;
       const clr = found === total ? 'var(--c-teal)' : (found > 0 ? 'var(--c-amber)' : 'var(--c-softred)');
       html += `<div style="margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;color:${clr};margin-bottom:4px">${_h(plat)} <span style="font-weight:400;color:#555">(${found}/${total})</span></div>`;
+        <div style="font-size:12px;font-weight:600;color:${clr};margin-bottom:4px">${_h(plat)} <span style="font-weight:400;color:var(--c-dim)">(${found}/${total})</span></div>`;
       entries.forEach(b => {
         const icon = b.found ? (b.md5_match === false ? '&#x26A0;' : '&#x2713;') : (b.required ? '&#x2717;' : '&#x25A1;');
         const clrIcon = b.found ? (b.md5_match === false ? 'var(--c-amber)' : 'var(--c-teal)') : (b.required ? 'var(--c-softred)' : '#555');
@@ -54,7 +54,7 @@ export async function loadBiosStatus() {
         html += `<div style="display:flex;gap:6px;align-items:center;padding:2px 0;font-size:11px">
           <span style="color:${clrIcon};width:14px;flex-shrink:0">${icon}</span>
           <code style="color:var(--c-orange);flex:1">${_h(b.filename)}</code>
-          <span style="color:#555">${_h(b.notes)}</span>${md5note}
+          <span style="color:var(--c-dim)">${_h(b.notes)}</span>${md5note}
         </div>`;
       });
       html += `</div>`;
@@ -91,17 +91,17 @@ export async function loadRetroArchCheck() {
       : `<td style="color:var(--c-softred);font-size:11px;width:14px">&#x2717;</td>`;
 
     let html = '';
-    html += `<tr>${icon(d.exe_configured)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Ruta configurada</td>${cell(d.exe_path || '\u2014', true)}</tr>`;
+    html += `<tr>${icon(d.exe_configured)}<td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">Ruta configurada</td>${cell(d.exe_path || '\u2014', true)}</tr>`;
     if (d.exe_configured) {
-      html += `<tr>${icon(d.exe_exists)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Ejecutable existe</td>${cell(d.exe_exists ? 'S\xed' : 'No', false)}</tr>`;
-      html += `<tr>${icon(d.cfg_exists)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">retroarch.cfg</td>${cell(d.cfg_exists ? 'Encontrado' : 'No encontrado', false)}</tr>`;
-      html += `<tr>${icon(d.cores_dir_exists)}<td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Cores</td>${cell(d.cores_dir_exists ? d.cores_count + ' cores' : 'No encontrado', false)}</tr>`;
-      if (d.savefile_dir)  html += `<tr><td></td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">Saves dir</td>${cell(d.savefile_dir, true)}</tr>`;
-      if (d.savestate_dir) html += `<tr><td></td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">States dir</td>${cell(d.savestate_dir, true)}</tr>`;
+      html += `<tr>${icon(d.exe_exists)}<td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">Ejecutable existe</td>${cell(d.exe_exists ? 'S\xed' : 'No', false)}</tr>`;
+      html += `<tr>${icon(d.cfg_exists)}<td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">retroarch.cfg</td>${cell(d.cfg_exists ? 'Encontrado' : 'No encontrado', false)}</tr>`;
+      html += `<tr>${icon(d.cores_dir_exists)}<td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">Cores</td>${cell(d.cores_dir_exists ? d.cores_count + ' cores' : 'No encontrado', false)}</tr>`;
+      if (d.savefile_dir)  html += `<tr><td></td><td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">Saves dir</td>${cell(d.savefile_dir, true)}</tr>`;
+      if (d.savestate_dir) html += `<tr><td></td><td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">States dir</td>${cell(d.savestate_dir, true)}</tr>`;
       if (d.esde_ra_path) {
         const matchIcon  = d.esde_ra_match === true ? '&#x2713;' : (d.esde_ra_match === false ? '&#x26A0;' : '?');
         const matchColor = d.esde_ra_match === true ? 'var(--c-teal)' : 'var(--c-amber)';
-        html += `<tr><td style="color:${matchColor};font-size:11px">${matchIcon}</td><td style="color:#888;font-size:11px;white-space:nowrap;padding:2px 4px">ES-DE apunta a</td>${cell(d.esde_ra_path, true)}</tr>`;
+        html += `<tr><td style="color:${matchColor};font-size:11px">${matchIcon}</td><td style="color:var(--c-muted);font-size:11px;white-space:nowrap;padding:2px 4px">ES-DE apunta a</td>${cell(d.esde_ra_path, true)}</tr>`;
       }
     }
     rows.innerHTML = html;
@@ -262,7 +262,7 @@ function _renderRaPage() {
     : _raResults;
 
   if (!filtered.length) {
-    resultEl.innerHTML = '<p style="color:#888;font-size:12px">Sin resultados para esta plataforma.</p>';
+    resultEl.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Sin resultados para esta plataforma.</p>';
     return;
   }
 
@@ -277,7 +277,7 @@ function _renderRaPage() {
       <span style="color:var(--c-teal)">✓ ${supported} compatibles</span>
       <span style="color:var(--c-amber);margin-left:8px">⚠ ${alternative} con alternativa</span>
       <span style="color:var(--c-softred);margin-left:8px">✗ ${noSupport} sin soporte</span>
-      ${noMd5 > 0 ? `<span style="color:#888;margin-left:8px">? ${noMd5} sin MD5</span>` : ''}
+      ${noMd5 > 0 ? `<span style="color:var(--c-muted);margin-left:8px">? ${noMd5} sin MD5</span>` : ''}
     </div>
     <div style="display:flex;gap:6px">
       ${noSupport > 0 ? `<button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="window.discardRaNoSupport()" title="Mover ${noSupport} juegos sin soporte a _descartados/">Descartar sin soporte</button>` : ''}
@@ -293,7 +293,7 @@ function _renderRaPage() {
 
   const totalShown = filtered.length;
   const allResults = _raResults.length;
-  html += `<p style="color:#888;font-size:11px;margin-bottom:8px">
+  html += `<p style="color:var(--c-muted);font-size:11px;margin-bottom:8px">
     Mostrando ${Math.min((start + 1), totalShown)}–${Math.min(end, totalShown)} de ${totalShown}
     ${platformFilter ? `(${allResults} total)` : ''}
     — Página ${_raPage + 1}/${totalPages}
@@ -320,7 +320,7 @@ function _renderRaPage() {
     const groupResults = groupedPage[group.key] || [];
     if (!groupResults.length) return;
 
-    html += `<div style="background:${group.color};padding:4px 6px;font-size:11px;color:#888;border-top:1px solid #333;font-weight:600">${group.label}</div>`;
+    html += `<div style="background:${group.color};padding:4px 6px;font-size:11px;color:var(--c-muted);border-top:1px solid #333;font-weight:600">${group.label}</div>`;
 
     groupResults.forEach(r => {
       const statusIcon = _raStatusIcon(r.status);
@@ -335,7 +335,7 @@ function _renderRaPage() {
         <div style="color:${statusColor};text-align:center">${statusIcon}</div>
         <div style="color:var(--c-orange);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(r.original_filename || '')}">${_h(filename)}</div>
         <div style="color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_h(raTitle)}</div>
-        <div style="text-align:center;color:#888">${achievements}</div>
+        <div style="text-align:center;color:var(--c-muted)">${achievements}</div>
         <div style="display:flex;gap:3px;justify-content:flex-end">
           <button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._copyText('${filenameNoExt.replace(/'/g, "\\'")}', 'nombre')" title="Copiar nombre del juego">📋</button>
           <button class="btn" style="padding:1px 4px;font-size:9px" onclick="window._googleQuery('${filenameNoExt.replace(/'/g, "\\'")} ROM')" title="Google búsqueda">🔍</button>
@@ -493,7 +493,7 @@ export async function doHealthCheck() {
   const btn = document.querySelector('[onclick="doHealthCheck()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Comprobando…'; }
   const el = document.getElementById('health-result-content');
-  if (el) { el.innerHTML = '<p style="color:#555;font-size:12px">Comprobando…</p>'; }
+  if (el) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Comprobando…</p>'; }
 
   try {
     const res = await apiPost('/api/health-check', {});
@@ -517,7 +517,7 @@ export function _renderHealthResult(summary) {
   if (btn) { btn.disabled = false; btn.textContent = 'Comprobar biblioteca'; btn.onclick = window.doHealthCheck; }
 
   if (!summary || !summary.results) {
-    el.innerHTML = '<p style="color:#555;font-size:12px">Sin resultados.</p>';
+    el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Sin resultados.</p>';
     return;
   }
 
@@ -532,7 +532,7 @@ function _renderHealthPage() {
   const filtered = _filterHealthIssues(_healthResults.results, filterVal);
 
   if (!filtered.length && filterVal !== 'all') {
-    resultEl.innerHTML = '<p style="color:#888;font-size:12px">Sin problemas encontrados en este filtro.</p>';
+    resultEl.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Sin problemas encontrados en este filtro.</p>';
     return;
   }
 
@@ -553,7 +553,7 @@ function _renderHealthPage() {
     </div>
   </div>`;
 
-  html += `<p style="color:#888;font-size:11px;margin-bottom:8px">
+  html += `<p style="color:var(--c-muted);font-size:11px;margin-bottom:8px">
     ${filtered.length > 0 ? `${filtered.length} problemas encontrados de ${total}` : 'Biblioteca en buen estado'}
   </p>`;
 
@@ -581,7 +581,7 @@ function _renderHealthPage() {
     const groupResults = groupedIssues[group.key] || [];
     if (!groupResults.length) return;
 
-    html += `<div style="background:${group.color};padding:4px 6px;font-size:11px;color:#888;border-top:1px solid #333;font-weight:600">${group.label}</div>`;
+    html += `<div style="background:${group.color};padding:4px 6px;font-size:11px;color:var(--c-muted);border-top:1px solid #333;font-weight:600">${group.label}</div>`;
 
     groupResults.forEach(r => {
       html += _healthIssueRow(r);
@@ -599,11 +599,11 @@ export function _healthIssueRow(result) {
 
   let html = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:6px;align-items:center;border-bottom:1px solid #333;font-size:11px">
     <div style="color:var(--c-orange);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(result.source_path || '')}">${_h(filename)}</div>
-    <div style="color:#888">${_h(platformStr)}</div>
+    <div style="color:var(--c-muted)">${_h(platformStr)}</div>
     <div style="color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(titleStr)}">${_h(titleStr)}</div>`;
 
   if (result.status === 'corrupted') {
-    html += `<div style="grid-column:1/-1;font-size:10px;color:#888">
+    html += `<div style="grid-column:1/-1;font-size:10px;color:var(--c-muted)">
       <div>Esperado: <code style="color:var(--c-orange);font-size:9px">${_h(result.stored_sha1)}</code></div>
       <div>Actual: <code style="color:var(--c-softred);font-size:9px">${_h(result.computed_sha1 || '—')}</code></div>
     </div>`;
@@ -632,24 +632,24 @@ export async function togglePlatformHealth(platform) {
     const d = await apiFetch(`/api/platform-health?platform=${encodeURIComponent(platform)}`);
     // Render platform-specific health data
     let html = `<h4 style="margin-bottom:8px;color:var(--c-teal)">${_h(platform)}</h4>`;
-    html += `<p style="color:#888;font-size:12px">ROM correctos: ${d.ok || 0}</p>`;
+    html += `<p style="color:var(--c-muted);font-size:12px">ROM correctos: ${d.ok || 0}</p>`;
     html += `<p style="color:var(--c-softred);font-size:12px">Corruptos: ${d.corrupted || 0}</p>`;
     html += `<p style="color:var(--c-softred);font-size:12px">Perdidos: ${d.missing || 0}</p>`;
     el.innerHTML = html;
   } catch(e) {
     const el = document.getElementById('platform-health-content');
-    if (el) el.innerHTML = `<p style="color:#888;font-size:12px">Esperando disponibilidad de /api/platform-health</p>`;
+    if (el) el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Esperando disponibilidad de /api/platform-health</p>`;
   }
 }
 
 export async function loadPlatformHealth() {
   const el = document.getElementById('platform-health-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
 
   try {
     // TODO: Implement when /api/platform-health endpoint is available
-    el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: Salud por plataforma</p>`;
+    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: Salud por plataforma</p>`;
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
@@ -658,19 +658,19 @@ export async function loadPlatformHealth() {
 export async function loadOperationsTimeline() {
   const el = document.getElementById('operations-timeline-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
 
   try {
     // TODO: Implement when /api/operations-timeline endpoint is available
     const d = await apiFetch('/api/operations-timeline');
-    let html = '<ul style="font-size:12px;color:#888;list-style:none;padding:0">';
+    let html = '<ul style="font-size:12px;color:var(--c-muted);list-style:none;padding:0">';
     if (d.operations && d.operations.length) {
       d.operations.forEach(op => {
         const ts = new Date(op.timestamp).toLocaleString();
         html += `<li style="padding:6px;border-bottom:1px solid #222">
           <div style="color:var(--c-teal)">${_h(op.action)}</div>
           <div style="font-size:11px;color:#666">${ts}</div>
-          ${op.details ? `<div style="font-size:11px;color:#888">${_h(op.details)}</div>` : ''}
+          ${op.details ? `<div style="font-size:11px;color:var(--c-muted)">${_h(op.details)}</div>` : ''}
         </li>`;
       });
     } else {
@@ -679,7 +679,7 @@ export async function loadOperationsTimeline() {
     html += '</ul>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: Línea de tiempo de operaciones</p>`;
+    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: Línea de tiempo de operaciones</p>`;
   }
 }
 
@@ -691,7 +691,7 @@ export async function doJunkScan() {
   const btn = document.querySelector('[onclick="doJunkScan()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Buscando…'; }
   const el = document.getElementById('junk-result-content');
-  if (el) { el.innerHTML = '<p style="color:#555;font-size:12px">Buscando archivos innecesarios…</p>'; }
+  if (el) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Buscando archivos innecesarios…</p>'; }
 
   try {
     const res = await apiPost('/api/junk-scan', {});
@@ -731,11 +731,11 @@ let _orphanedSaves = [];
 export async function doFindOrphans() {
   const el = document.getElementById('orphans-result-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Buscando saves huérfanos…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Buscando saves huérfanos…</p>';
 
   try {
     // TODO: Implement when /api/orphaned-saves/find endpoint is available
-    el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: búsqueda de saves huérfanos</p>`;
+    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: búsqueda de saves huérfanos</p>`;
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
@@ -813,7 +813,7 @@ let _doctorIssues = [];
 export async function doLibraryDoctor() {
   const el = document.getElementById('library-doctor-result');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Analizando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Analizando…</p>';
 
   try {
     const d = await apiFetch('/api/library-doctor');
@@ -835,9 +835,9 @@ export async function doLibraryDoctor() {
     html += `</div>`;
     html += '<div style="max-height:420px;overflow-y:auto">';
     html += '<table style="font-size:11px;width:100%;border-collapse:collapse"><thead><tr>';
-    html += '<th style="text-align:left;padding:3px 6px;color:#555;border-bottom:1px solid #222">Tipo</th>';
-    html += '<th style="text-align:left;padding:3px 6px;color:#555;border-bottom:1px solid #222">Archivo</th>';
-    html += '<th style="text-align:left;padding:3px 6px;color:#555;border-bottom:1px solid #222">Acción sugerida</th>';
+    html += '<th style="text-align:left;padding:3px 6px;color:var(--c-dim);border-bottom:1px solid #222">Tipo</th>';
+    html += '<th style="text-align:left;padding:3px 6px;color:var(--c-dim);border-bottom:1px solid #222">Archivo</th>';
+    html += '<th style="text-align:left;padding:3px 6px;color:var(--c-dim);border-bottom:1px solid #222">Acción sugerida</th>';
     html += '<th style="padding:3px 6px;border-bottom:1px solid #222"></th>';
     html += '</tr></thead><tbody>';
 
@@ -854,12 +854,12 @@ export async function doLibraryDoctor() {
       html += `<tr id="doctor-row-${i}" style="border-bottom:1px solid #1a1a1a">`;
       html += `<td style="padding:3px 6px;color:${c};white-space:nowrap">${icon[iss.type]||''} ${label[iss.type]||iss.type}</td>`;
       html += `<td style="padding:3px 6px;color:var(--c-orange);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(iss.path)}">${_h(iss.file)}</td>`;
-      html += `<td style="padding:3px 6px;color:#555">${_h(iss.action||'')}${iss.missing_bins ? ' (' + iss.missing_bins.map(_h).join(', ') + ')' : ''}</td>`;
+      html += `<td style="padding:3px 6px;color:var(--c-dim)">${_h(iss.action||'')}${iss.missing_bins ? ' (' + iss.missing_bins.map(_h).join(', ') + ')' : ''}</td>`;
       html += `<td style="padding:3px 6px">${actionBtn}</td>`;
       html += `</tr>`;
     }
     html += '</tbody></table></div>';
-    if (d.total > 200) html += `<p style="color:#555;font-size:11px;margin-top:6px">… y ${d.total - 200} más</p>`;
+    if (d.total > 200) html += `<p style="color:var(--c-dim);font-size:11px;margin-top:6px">… y ${d.total - 200} más</p>`;
     el.innerHTML = html;
 
     const hasActionable = d.issues.some(iss => iss.type === 'misplaced_rom' || iss.type === 'empty_dir');
@@ -948,11 +948,11 @@ export async function doctorResolveAll() {
 export async function doFolderAnalysis() {
   const el = document.getElementById('folder-analysis-result');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Analizando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Analizando…</p>';
 
   try {
     // TODO: Implement when /api/folder-analysis endpoint is available
-    el.innerHTML = `<p style="color:#888;font-size:12px">Funcionalidad pendiente: análisis de carpetas</p>`;
+    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: análisis de carpetas</p>`;
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
@@ -962,7 +962,7 @@ export async function doFolderAnalysis() {
 export async function loadUnmatchedDiagnosis() {
   const el = document.getElementById('unmatched-result');
   if (!el) return;
-  el.innerHTML = '<span style="color:#555;font-size:12px">Analizando biblioteca…</span>';
+  el.innerHTML = '<span style="color:var(--c-dim);font-size:12px">Analizando biblioteca…</span>';
 
   try {
     const d = await apiFetch('/api/unmatched-by-platform');
@@ -980,12 +980,12 @@ export async function loadUnmatchedDiagnosis() {
       const examples = (plat.examples || []).slice(0, 3);
       html += `<div style="background:#1a1a1a;padding:6px 10px;border-bottom:1px solid #222">
         <span style="font-weight:600;color:var(--c-amber)">${_h(plat.platform)}</span>
-        <span style="color:#888;font-size:11px;margin-left:6px">(${plat.count})</span>
+        <span style="color:var(--c-muted);font-size:11px;margin-left:6px">(${plat.count})</span>
         <div style="font-size:11px;color:#666;margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
       </div>`;
     });
     html += '</div>';
-    html += `<div id="unmatched-dl-info" style="font-size:12px;color:#888">Iniciando descarga de todos los catálogos…</div>
+    html += `<div id="unmatched-dl-info" style="font-size:12px;color:var(--c-muted)">Iniciando descarga de todos los catálogos…</div>
     <div style="background:var(--c-border);border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
       <div id="unmatched-dl-bar" style="height:100%;width:0%;background:#4a9eff;transition:width 0.3s"></div>
     </div>`;
@@ -1035,7 +1035,7 @@ let _reportTab = 'overview';
 export async function generateReport() {
   const el = document.getElementById('library-report-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Generando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Generando…</p>';
 
   try {
     const d = await apiFetch('/api/library-report');
@@ -1066,23 +1066,23 @@ export function _renderReportOverview() {
   let html = `<div style="margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
     <div style="padding:8px;background:#1a2a1a;border-radius:4px;border-left:3px solid var(--c-teal)">
       <div style="color:var(--c-teal);font-weight:600">${d.total_games || 0}</div>
-      <div style="color:#888;font-size:11px">Juegos identificados</div>
+      <div style="color:var(--c-muted);font-size:11px">Juegos identificados</div>
     </div>
     <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid var(--c-amber)">
       <div style="color:var(--c-amber);font-weight:600">${d.missing_count || 0}</div>
-      <div style="color:#888;font-size:11px">Juegos sin identificar</div>
+      <div style="color:var(--c-muted);font-size:11px">Juegos sin identificar</div>
     </div>
     <div style="padding:8px;background:#1a1a2a;border-radius:4px;border-left:3px solid var(--c-teal)">
       <div style="color:var(--c-teal);font-weight:600">${d.total_platforms || 0}</div>
-      <div style="color:#888;font-size:11px">Plataformas</div>
+      <div style="color:var(--c-muted);font-size:11px">Plataformas</div>
     </div>
     <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid var(--c-softred)">
       <div style="color:var(--c-softred);font-weight:600">${(d.orphans?.total || 0)}</div>
-      <div style="color:#888;font-size:11px">Saves huérfanos</div>
+      <div style="color:var(--c-muted);font-size:11px">Saves huérfanos</div>
     </div>
   </div>`;
 
-  html += '<p style="color:#888;font-size:11px;margin-top:8px">Última generación: ' + (d.generated_at ? new Date(d.generated_at).toLocaleString() : '—') + '</p>';
+  html += '<p style="color:var(--c-muted);font-size:11px;margin-top:8px">Última generación: ' + (d.generated_at ? new Date(d.generated_at).toLocaleString() : '—') + '</p>';
   el.innerHTML = html;
 }
 
@@ -1094,7 +1094,7 @@ export function _renderReportByPlatform() {
   const byPlat = d.by_platform || [];
 
   if (!byPlat.length) {
-    el.innerHTML = '<p style="color:#888;font-size:12px">Sin datos por plataforma</p>';
+    el.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Sin datos por plataforma</p>';
     return;
   }
 
@@ -1108,7 +1108,7 @@ export function _renderReportByPlatform() {
     html += `<tr style="border-bottom:1px solid #222">
       <td style="padding:6px;color:var(--c-orange)">${_h(p.platform)}</td>
       <td style="padding:6px;text-align:right;color:var(--c-text)">${p.count}</td>
-      <td style="padding:6px;text-align:right;color:#888">${pct}%</td>
+      <td style="padding:6px;text-align:right;color:var(--c-muted)">${pct}%</td>
     </tr>`;
   });
   html += '</tbody></table></div>';
@@ -1132,7 +1132,7 @@ export function _renderReportMissing() {
 
   missing.slice(0, 100).forEach(m => {
     const filename = (m.original_filename || m.path || '?').split(/[\\/]/).pop();
-    html += `<div style="padding:4px;border-bottom:1px solid #222;color:#888">
+    html += `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
       <div style="color:var(--c-orange)">${_h(filename)}</div>
       <div style="font-size:10px;color:#666">${_h(m.platform || '—')}</div>
     </div>`;
@@ -1155,19 +1155,19 @@ export function _renderReportOrphans() {
 
   let html = `<div style="margin-bottom:12px;font-size:12px">
     ${o.total ? `<div style="color:var(--c-softred)">⚠ ${o.total} saves huérfanos</div>` : `<div style="color:var(--c-teal)">✓ Sin saves huérfanos</div>`}
-    ${o.total ? `<div style="color:#888;font-size:11px">${_fmtSize(o.total_bytes)} recuperables</div>` : ''}
+    ${o.total ? `<div style="color:var(--c-muted);font-size:11px">${_fmtSize(o.total_bytes)} recuperables</div>` : ''}
   </div>`;
 
   if (!o.saves || !o.saves.length) {
-    el.innerHTML = html + '<p style="color:#888;font-size:12px">No hay saves huérfanos.</p>';
+    el.innerHTML = html + '<p style="color:var(--c-muted);font-size:12px">No hay saves huérfanos.</p>';
     return;
   }
 
   html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
   html += o.saves.map(s => {
     const name = (s.path || '?').split(/[\\/]/).pop();
-    return `<div style="padding:4px;border-bottom:1px solid #222;color:#888">
-      ${_h(name)} <span style="color:#555">(${_fmtSize(s.size_bytes)})</span>
+    return `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
+      ${_h(name)} <span style="color:var(--c-dim)">(${_fmtSize(s.size_bytes)})</span>
       <div style="font-size:10px;color:#666">${_h(s.path)}</div>
     </div>`;
   }).join('');
@@ -1198,9 +1198,9 @@ export function exportReportHtml() {
   const lines = [
     `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Informe Biblioteca — ${ts}</title>`,
     `<style>body{font-family:monospace;background:var(--c-input);color:var(--c-text);padding:20px;font-size:13px}`,
-    `h1{color:var(--c-teal)}h2{color:#888;border-bottom:1px solid #333;padding-bottom:4px;margin-top:20px}`,
+    `h1{color:var(--c-teal)}h2{color:var(--c-muted);border-bottom:1px solid #333;padding-bottom:4px;margin-top:20px}`,
     `table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;border-bottom:1px solid #222}`,
-    `.ok{color:var(--c-teal)}.warn{color:var(--c-orange)}.bad{color:var(--c-red)}.dim{color:#555}</style></head><body>`,
+    `.ok{color:var(--c-teal)}.warn{color:var(--c-orange)}.bad{color:var(--c-red)}.dim{color:var(--c-dim)}</style></head><body>`,
     `<h1>Informe de Biblioteca Retro Vault</h1>`,
     `<p class="dim">Generado: ${ts}</p>`,
     `<h2>Resumen</h2>`,
@@ -1274,7 +1274,7 @@ export async function generateEsSystems() {
     }
 
     if (gen.length) {
-      html += `<div style="color:#888;font-size:11px;margin-bottom:4px">${gen.length} sistema${gen.length !== 1 ? 's' : ''} incluido${gen.length !== 1 ? 's' : ''}:</div>`;
+      html += `<div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">${gen.length} sistema${gen.length !== 1 ? 's' : ''} incluido${gen.length !== 1 ? 's' : ''}:</div>`;
       html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">`;
       gen.forEach(s => {
         html += `<span style="background:#1a2a1a;border:1px solid #2a4a2a;color:var(--c-teal);padding:2px 7px;border-radius:10px;font-size:10px" title="${_h(s.core_dll)}">${_h(s.fullname)}</span>`;
@@ -1283,7 +1283,7 @@ export async function generateEsSystems() {
     }
 
     if (miss.length) {
-      html += `<div style="color:#555;font-size:11px">Sin core: ${miss.map(m => _h(m)).join(', ')}</div>`;
+      html += `<div style="color:var(--c-dim);font-size:11px">Sin core: ${miss.map(m => _h(m)).join(', ')}</div>`;
     }
 
     res.innerHTML = html;

@@ -1,8 +1,8 @@
-<div id="tab-cable" class="tab">
+﻿<div id="tab-cable" class="tab">
   <!-- QoL-14: ADB offline banner -->
   <div class="hidden rv-tint-warn" id="cable-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> ADB no est&#xe1; disponible — el modo ADB no funcionar&#xe1;.
-    <span style="color:#555;margin-left:8px">Usa modo SD card o instala ADB.</span>
+    <span style="color:var(--c-dim);margin-left:8px">Usa modo SD card o instala ADB.</span>
   </div>
 
   <!-- AUTO-SYNC CARD -->
@@ -10,19 +10,19 @@
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;color:var(--c-teal);letter-spacing:0.5px">Sync automático al conectar</div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-left:auto">
-        <span style="color:#888;font-size:12px" id="auto-sync-toggle-label">Activado</span>
+        <span style="color:var(--c-muted);font-size:12px" id="auto-sync-toggle-label">Activado</span>
         <div id="auto-sync-toggle-wrap" onclick="toggleAutoSync()" style="width:40px;height:22px;border-radius:11px;background:var(--c-teal);cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0">
           <div id="auto-sync-toggle-knob" style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:21px;transition:left 0.2s"></div>
         </div>
       </label>
     </div>
-    <p style="color:#888;font-size:12px;line-height:1.6;margin-bottom:14px">
+    <p style="color:var(--c-muted);font-size:12px;line-height:1.6;margin-bottom:14px">
       Cuando conectes la consola Android por USB con Depuración ADB activa, los saves se sincronizan
       automáticamente sin tener que abrir esta página.
     </p>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Dirección</label>
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Dirección</label>
         <select id="auto-sync-direction" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
           <option value="newest">Más reciente gana</option>
           <option value="pc_to_anbernic">PC a consola</option>
@@ -30,7 +30,7 @@
         </select>
       </div>
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
         <select id="auto-sync-conflict" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
           <option value="newest">Más reciente gana</option>
           <option value="keep_pc">Conservar PC</option>
@@ -38,13 +38,13 @@
         </select>
       </div>
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta Android (RetroArch)</label>
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta Android (RetroArch)</label>
         <input id="auto-sync-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px" value="/storage/emulated/0/RetroArch">
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <button class="btn primary" onclick="saveAutoSyncSettings()" style="font-size:12px;padding:5px 14px">Guardar ajustes</button>
-      <span id="auto-sync-status-text" style="font-size:12px;color:#888">Esperando conexión…</span>
+      <span id="auto-sync-status-text" style="font-size:12px;color:var(--c-muted)">Esperando conexión…</span>
       <div class="hidden" id="auto-sync-save-result" style="font-size:11px;color:var(--c-teal)"></div>
     </div>
   </div>
@@ -56,7 +56,7 @@
     <!-- MTP warning -->
     <div class="rv-tint-warn" style="padding:9px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
       <strong style="color:var(--c-red)">⚠ La ruta "Este equipo\RG556\Anbernic" NO es compatible.</strong>
-      <span style="color:#888;margin-left:6px">Windows MTP expone el dispositivo como objeto shell, no como ruta del sistema de archivos. Python no puede acceder a ella directamente.</span>
+      <span style="color:var(--c-muted);margin-left:6px">Windows MTP expone el dispositivo como objeto shell, no como ruta del sistema de archivos. Python no puede acceder a ella directamente.</span>
     </div>
 
     <!-- Three options -->
@@ -67,9 +67,9 @@
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-teal);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
           <span style="font-weight:bold">A)</span> SD card en lector USB
           <span style="background:var(--rv-tint-ok-bg);color:var(--c-teal);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">RECOMENDADO</span>
-          <span style="color:#555;font-size:11px;margin-left:auto">Sin configuración extra</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:auto">Sin configuración extra</span>
         </summary>
-        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+        <div style="padding:0 14px 12px;font-size:12px;color:var(--c-muted);line-height:1.8">
           <span style="color:var(--c-text)">①</span> Apaga la consola o ve a Ajustes → Apagar.<br>
           <span style="color:var(--c-text)">②</span> Extrae la tarjeta SD de la consola.<br>
           <span style="color:var(--c-text)">③</span> Insértala en un lector de tarjetas USB conectado al PC.<br>
@@ -81,9 +81,9 @@
       <!-- Opción B -->
       <details style="background:var(--c-bar);border:1px solid #333;border-radius:4px;padding:0">
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
-          <span style="font-weight:bold;color:var(--c-blue)">B)</span> Termux + SFTP <span style="color:#555;font-size:11px;margin-left:6px">(vía red Wi-Fi local, sin sacar la SD)</span>
+          <span style="font-weight:bold;color:var(--c-blue)">B)</span> Termux + SFTP <span style="color:var(--c-dim);font-size:11px;margin-left:6px">(vía red Wi-Fi local, sin sacar la SD)</span>
         </summary>
-        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+        <div style="padding:0 14px 12px;font-size:12px;color:var(--c-muted);line-height:1.8">
           Requiere <strong style="color:var(--c-text)">Termux instalado</strong> en la consola Android. Consulta la guía completa en <code style="color:var(--c-orange)">Tareas/Guia-Termux-Anbernic.md</code>.<br><br>
           <span style="color:var(--c-text)">①</span> Instala openssh en Termux: <code style="color:var(--c-orange)">pkg install openssh</code><br>
           <span style="color:var(--c-text)">②</span> Arranca el servidor SSH: <code style="color:var(--c-orange)">sshd</code><br>
@@ -97,9 +97,9 @@
       <!-- Opción C -->
       <details style="background:var(--c-bar);border:1px solid #333;border-radius:4px;padding:0">
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
-          <span style="font-weight:bold;color:var(--c-blue)">C)</span> WinFsp + MTPDrive <span style="color:#555;font-size:11px;margin-left:6px">(mantiene el cable USB, herramienta de terceros)</span>
+          <span style="font-weight:bold;color:var(--c-blue)">C)</span> WinFsp + MTPDrive <span style="color:var(--c-dim);font-size:11px;margin-left:6px">(mantiene el cable USB, herramienta de terceros)</span>
         </summary>
-        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+        <div style="padding:0 14px 12px;font-size:12px;color:var(--c-muted);line-height:1.8">
           <span style="color:var(--c-text)">①</span> Descarga e instala <strong style="color:var(--c-text)">WinFsp</strong> (winfsp.dev) y <strong style="color:var(--c-text)">MTPDrive</strong> (mtpdrive.com).<br>
           <span style="color:var(--c-text)">②</span> Conecta la consola en modo MTP (Transferencia de archivos).<br>
           <span style="color:var(--c-text)">③</span> MTPDrive monta el dispositivo como letra de unidad (ej. <code style="color:var(--c-orange)">M:\</code>).<br>
@@ -113,9 +113,9 @@
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
           <span style="font-weight:bold;color:var(--c-teal)">D)</span> ADB (Android Debug Bridge)
           <span style="background:var(--rv-tint-info-bg);color:var(--c-teal);font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px">SIN SACAR LA SD</span>
-          <span style="color:#555;font-size:11px;margin-left:auto">Herramienta gratuita de Google</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:auto">Herramienta gratuita de Google</span>
         </summary>
-        <div style="padding:0 14px 12px;font-size:12px;color:#888;line-height:1.8">
+        <div style="padding:0 14px 12px;font-size:12px;color:var(--c-muted);line-height:1.8">
           ADB se comunica con Android directamente por USB. No necesita montar como unidad, no necesita Wi-Fi.<br><br>
           <strong style="color:var(--c-text)">① Activar depuración USB en la consola Android:</strong><br>
           <span style="margin-left:16px;display:block">Ajustes → Información del teléfono → pulsa <em>Número de compilación</em> 7 veces</span>
@@ -141,36 +141,36 @@
 
     <!-- Qué sincronizar -->
     <div style="margin-bottom:16px">
-      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">¿Qué sincronizar?</div>
+      <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">¿Qué sincronizar?</div>
       <div style="display:flex;gap:20px">
         <label class="fmt-check">
           <input type="checkbox" id="cable-what-saves" checked> Saves y states
-          <span style="color:#555;font-size:11px;margin-left:4px">(.sav, .srm, .state…)</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(.sav, .srm, .state…)</span>
         </label>
         <label class="fmt-check">
           <input type="checkbox" id="cable-what-roms"> ROMs
-          <span style="color:#555;font-size:11px;margin-left:4px">(todo lo dem&#xe1;s)</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(todo lo dem&#xe1;s)</span>
         </label>
         <label class="fmt-check">
           <input type="checkbox" id="cable-what-assets"> Assets (im&#xe1;genes)
-          <span style="color:#555;font-size:11px;margin-left:4px">(carpetas media/)</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(carpetas media/)</span>
         </label>
         <label class="fmt-check">
           <input type="checkbox" id="cable-what-gamelists"> Gamelists
-          <span style="color:#555;font-size:11px;margin-left:4px">(gamelist.xml)</span>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(gamelist.xml)</span>
         </label>
       </div>
     </div>
 
     <!-- Dirección -->
     <div style="margin-bottom:16px">
-      <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dirección</div>
+      <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dirección</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
           <input type="radio" name="cable-direction" value="pc_to_anbernic" checked style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
           <span>
             <strong id="cable-dir-to-dev" style="color:var(--c-text)">PC → Consola Android</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la consola.</span><br>
+            <span style="color:var(--c-dim);font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la consola.</span><br>
             <span style="color:var(--c-blue);font-size:11px">✓ Recomendado después de renombrar archivos en el PC</span>
           </span>
         </label>
@@ -178,7 +178,7 @@
           <input type="radio" name="cable-direction" value="anbernic_to_pc" style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
           <span>
             <strong id="cable-dir-from-dev" style="color:var(--c-text)">Consola Android → PC</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Copia todo de la consola al PC. Archivos solo en la consola pasan al PC.</span><br>
+            <span style="color:var(--c-dim);font-size:12px;margin-left:6px">Copia todo de la consola al PC. Archivos solo en la consola pasan al PC.</span><br>
             <span style="color:var(--c-blue);font-size:11px">✓ Útil para importar juegos nuevos de la SD card al PC. Luego haz Scan para indexarlos.</span>
           </span>
         </label>
@@ -186,7 +186,7 @@
           <input type="radio" name="cable-direction" value="newest" style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
           <span>
             <strong style="color:var(--c-teal)">&#x21C4; Igualar ambos dispositivos</strong>
-            <span style="color:#555;font-size:12px;margin-left:6px">Compara mtime y copia en la dirección correcta. Archivos exclusivos de un lado se copian al otro.</span><br>
+            <span style="color:var(--c-dim);font-size:12px;margin-left:6px">Compara mtime y copia en la dirección correcta. Archivos exclusivos de un lado se copian al otro.</span><br>
             <span style="color:var(--c-teal);font-size:11px">✓ Al terminar, PC y consola tienen exactamente los mismos archivos</span><br>
             <span style="color:var(--c-orange);font-size:11px">⚠ Tras renombrar en el PC, las fechas cambian — usa "PC → consola" en ese caso para no perder cambios</span>
           </span>
@@ -196,23 +196,23 @@
 
     <!-- Modo Anbernic toggle -->
     <div style="margin-bottom:14px;display:flex;align-items:center;gap:12px">
-      <span style="color:#888;font-size:12px">Modo <span id="cable-mode-label">Consola Android</span>:</span>
+      <span style="color:var(--c-muted);font-size:12px">Modo <span id="cable-mode-label">Consola Android</span>:</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
         <input type="radio" name="cable-ab-mode" value="fs" checked style="accent-color:var(--c-teal)" onchange="_onCableModeChange()">
         <span style="color:var(--c-text)">SD card / Red</span>
-        <span style="color:#555;font-size:11px">(letra de unidad o ruta de red)</span>
+        <span style="color:var(--c-dim);font-size:11px">(letra de unidad o ruta de red)</span>
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
         <input type="radio" name="cable-ab-mode" value="adb" style="accent-color:var(--c-teal)" onchange="_onCableModeChange()">
         <span style="color:var(--c-teal)">ADB</span>
-        <span style="color:#555;font-size:11px">(cable USB, sin montar como unidad)</span>
+        <span style="color:var(--c-dim);font-size:11px">(cable USB, sin montar como unidad)</span>
       </label>
     </div>
 
     <!-- Rutas: modo FS -->
     <div id="cable-fs-section" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
         <div style="display:flex;gap:6px">
           <input id="cable-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
           <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('pc')" title="Verificar que la ruta existe y es accesible">Probar</button>
@@ -220,7 +220,7 @@
         <div id="cable-pc-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
       </div>
       <div>
-        <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">
           Tarjeta SD / Carpeta en el PC (ruta montada de la consola Android)
           <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
         </label>
@@ -237,23 +237,23 @@
     <div class="hidden" id="cable-adb-section" style="margin-bottom:16px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
         <div>
-          <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
+          <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
           <div style="display:flex;gap:6px">
             <input id="cable-adb-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
           </div>
         </div>
         <div>
-          <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Ruta en Android</label>
+          <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta en Android</label>
           <input id="cable-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px;box-sizing:border-box" value="/storage/emulated/0/RetroArch">
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <label style="color:#888;font-size:11px">Dispositivo ADB:</label>
+        <label style="color:var(--c-muted);font-size:11px">Dispositivo ADB:</label>
         <select id="cable-adb-device" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 8px;border-radius:4px;font:inherit;font-size:13px;min-width:220px">
           <option value="">— Detectar primero —</option>
         </select>
         <button class="btn" style="padding:5px 12px;font-size:12px" onclick="detectAdbDevices()">Detectar dispositivos</button>
-        <span id="cable-adb-status" style="font-size:11px;color:#888;min-height:16px"></span>
+        <span id="cable-adb-status" style="font-size:11px;color:var(--c-muted);min-height:16px"></span>
       </div>
       <div id="cable-adb-path-status" style="font-size:11px;margin-top:6px;min-height:16px"></div>
     </div>
@@ -262,9 +262,9 @@
     <div class="hidden" id="cable-sha1-row" style="margin-bottom:12px;padding:10px 12px;background:var(--c-bar);border:1px solid #2a2a4a;border-radius:4px">
       <label class="fmt-check" title="Requiere que la SD card haya sido escaneada previamente desde Overview">
         <input type="checkbox" id="cable-skip-sha1">
-        <span>Omitir ROMs duplicados <span style="color:#555;font-size:11px">(comprueba la huella SHA1 en BD — requiere scan previo de la consola Android)</span></span>
+        <span>Omitir ROMs duplicados <span style="color:var(--c-dim);font-size:11px">(comprueba la huella SHA1 en BD — requiere scan previo de la consola Android)</span></span>
       </label>
-      <div style="color:#555;font-size:11px;margin-top:6px;margin-left:20px">
+      <div style="color:var(--c-dim);font-size:11px;margin-top:6px;margin-left:20px">
         Antes de copiar cada ROM, se calcula su huella (SHA1) y se compara con la biblioteca del PC.
         Si ya existe (aunque tenga otro nombre), se omite. Los saves no se filtran.
       </div>
@@ -279,19 +279,19 @@
     <!-- Dry run + opciones + botón -->
     <div class="actions-row" style="flex-wrap:wrap;gap:16px">
       <label class="fmt-check" title="Muestra qué se copiaría sin mover ningún archivo. Desmarca para copiar de verdad.">
-        <input type="checkbox" id="cable-dry-run" onchange="_onCableDryRunChange()"> <span id="cable-dry-run-label">Solo previsualizar <span style="color:#555;font-size:11px">(no copia archivos)</span></span>
+        <input type="checkbox" id="cable-dry-run" onchange="_onCableDryRunChange()"> <span id="cable-dry-run-label">Solo previsualizar <span style="color:var(--c-dim);font-size:11px">(no copia archivos)</span></span>
       </label>
       <label class="fmt-check" title="Salta archivos que ya existen en destino con el mismo tamaño — evita re-copiar lo que ya está sincronizado">
         <input type="checkbox" id="cable-skip-existing" checked> Omitir si ya existe
-        <span style="color:#555;font-size:11px;margin-left:4px">(mismo tamaño)</span>
+        <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(mismo tamaño)</span>
       </label>
       <label class="fmt-check" title="En modo seguro nunca se sobreescribe un archivo que ya existe en el destino. Recomendado para evitar pérdida de datos.">
         <input type="checkbox" id="cable-safe-mode" checked> <span style="color:#f4c842">Modo seguro</span>
-        <span style="color:#555;font-size:11px;margin-left:4px">(no sobreescribir)</span>
+        <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(no sobreescribir)</span>
       </label>
       <label class="fmt-check hidden" id="cable-mirror-label" title="Elimina del destino los archivos que no existen en el origen. Solo para modos PC→Consola y Consola→PC. Usa Dry run primero para previsualizar qué se borraría.">
         <input type="checkbox" id="cable-mirror"> <span style="color:#f48771">Espejo completo</span>
-        <span style="color:#555;font-size:11px;margin-left:4px">(eliminar extra en destino)</span>
+        <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(eliminar extra en destino)</span>
       </label>
       <button id="btn-cable-sync" class="btn primary" onclick="doCableSync()" style="margin-left:auto">Iniciar sincronización</button>
     </div>
@@ -302,8 +302,8 @@
     <!-- Progreso -->
     <div class="hidden" id="cable-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="cable-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="cable-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="cable-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="cable-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="cable-progress-bar" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.3s"></div>
@@ -314,7 +314,7 @@
 
   <!-- Tabla de resultados -->
   <div class="hidden" id="cable-details-wrap" style="margin-top:16px;max-width:780px">
-    <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Archivos procesados</div>
+    <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Archivos procesados</div>
     <div id="cable-details-list" style="max-height:400px;overflow-y:auto;font-size:12px;background:var(--c-panel);border:1px solid #333;border-radius:6px;padding:10px 12px"></div>
   </div>
 
@@ -323,7 +323,7 @@
     <button class="btn" onclick="toggleCableSyncLog()" style="font-size:12px;padding:4px 10px">📋 Ver log de operaciones</button>
     <div class="hidden" id="cable-log-wrap" style="margin-top:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px">Log persistente (.rommgr/cable_sync_ops.log)</span>
+        <span style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px">Log persistente (.rommgr/cable_sync_ops.log)</span>
         <button class="btn" onclick="loadCableSyncLog()" style="font-size:11px;padding:2px 8px">Actualizar</button>
       </div>
       <pre id="cable-log-content" style="max-height:350px;overflow-y:auto;font-size:11px;font-family:monospace;background:var(--c-deep);border:1px solid var(--c-border);border-radius:6px;padding:10px 14px;color:#aaa;white-space:pre-wrap;word-break:break-all"></pre>

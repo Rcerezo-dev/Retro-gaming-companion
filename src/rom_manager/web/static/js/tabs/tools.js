@@ -1,4 +1,4 @@
-// js/tabs/tools.js — Tool conversions: CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure
+﻿// js/tabs/tools.js — Tool conversions: CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -98,10 +98,10 @@ export function applyChdFilter() {
   resultsDiv.innerHTML = visible.map(r => {
     if (r.success) {
       const tag = isDry ? 'PREVIEW' : 'OK';
-      const bins = r.bin_count > 0 ? ` <span style="color:#555;font-size:10px">(${r.bin_count} bin)</span>` : '';
+      const bins = r.bin_count > 0 ? ` <span style="color:var(--c-dim);font-size:10px">(${r.bin_count} bin)</span>` : '';
       return `<div style="font-size:12px;color:var(--c-teal);padding:2px 0">[${tag}] ${_h(r.cue)} → ${_h(r.chd)}${bins}</div>`;
     } else {
-      const bins = r.bin_count > 0 ? ` <span style="color:#555;font-size:10px">(${r.bin_count} bin)</span>` : '';
+      const bins = r.bin_count > 0 ? ` <span style="color:var(--c-dim);font-size:10px">(${r.bin_count} bin)</span>` : '';
       const errMsg = r.error ? `<div style="color:var(--c-red);font-size:11px;margin-top:2px;padding-left:8px">${_h(r.error)}</div>` : '';
       return `<div style="padding:4px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:var(--c-red)"><strong>[FAIL]</strong> ${_h(r.cue)}${bins}</span>${errMsg}</div>`;
     }
@@ -219,7 +219,7 @@ export async function doGenerateM3U() {
   const dryRun  = document.getElementById('m3u-dry-run').checked;
   if (!pathVal) { alert('Introduce la ruta de la carpeta de ROMs'); return; }
   const resultEl = document.getElementById('m3u-result');
-  resultEl.innerHTML = '<p style="color:#888;font-size:12px">Buscando grupos multi-disco…</p>';
+  resultEl.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Buscando grupos multi-disco…</p>';
   try {
     const d = await apiPost('/api/generate-m3u', { source_path: pathVal, dry_run: dryRun });
     if (d.error) { resultEl.innerHTML = `<p class="error-msg">${d.error}</p>`; return; }
@@ -233,7 +233,7 @@ export async function doGenerateM3U() {
       }).join('');
       html += '</div>';
     } else {
-      html += '<p style="color:#555;font-size:12px">No se encontraron grupos multi-disco.</p>';
+      html += '<p style="color:var(--c-dim);font-size:12px">No se encontraron grupos multi-disco.</p>';
     }
     resultEl.innerHTML = html;
   } catch(e) {
@@ -275,7 +275,7 @@ let _lastVerifiedPaths = [];
 export async function generateM3uFromVerify() {
   const resultEl = document.getElementById('multidisc-result');
   const statusEl = document.createElement('p');
-  statusEl.style.cssText = 'margin-top:8px;font-size:12px;color:#888';
+  statusEl.style.cssText = 'margin-top:8px;font-size:12px;color:var(--c-muted)';
   statusEl.textContent = 'Generando .m3u…';
   resultEl.appendChild(statusEl);
   let created = 0;
@@ -298,7 +298,7 @@ export async function doVerifyMultidisc() {
   const paths = rawVal.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
   _lastVerifiedPaths = paths;
   const resultEl = document.getElementById('multidisc-result');
-  resultEl.innerHTML = '<p style="color:#888;font-size:12px">Verificando…</p>';
+  resultEl.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Verificando…</p>';
   // Aggregate results across all paths
   let totalOk = 0, totalIssues = 0;
   const allIssues = [];
@@ -322,8 +322,8 @@ export async function doVerifyMultidisc() {
     let html = `<p style="margin-bottom:8px">`;
     html += `<span style="color:var(--c-teal)">✓ ${d.groups_ok + (d.groups_with_issues - structurallyBad)} grupos OK estructuralmente</span>`;
     if (structurallyBad > 0) html += `  <span style="color:var(--c-red)">✗ ${structurallyBad} con problemas reales</span>`;
-    if (unmatchedOnly.length > 0) html += `  <span style="color:#888">⚠ ${unmatchedOnly.length} sin match en catálogo (normal si no has hecho Match aún)</span>`;
-    html += `  <span style="color:#555">(${total} grupos)</span></p>`;
+    if (unmatchedOnly.length > 0) html += `  <span style="color:var(--c-muted)">⚠ ${unmatchedOnly.length} sin match en catálogo (normal si no has hecho Match aún)</span>`;
+    html += `  <span style="color:var(--c-dim)">(${total} grupos)</span></p>`;
 
     const issueLabels = { gap: 'Set incompleto', mixed_ext: 'Extensiones mezcladas', missing_file: 'Archivo no encontrado', unmatched: 'Sin match en catálogo', missing_m3u: 'Sin .m3u' };
 
@@ -331,7 +331,7 @@ export async function doVerifyMultidisc() {
     const missingM3u = d.issues.filter(i => i.issue_type === 'missing_m3u');
     if (missingM3u.length) {
       html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg-nav);border:1px solid var(--border);border-radius:4px;margin-bottom:12px">
-        <span style="font-size:12px;color:#888">&#x26A0; ${missingM3u.length} juego(s) multidisco sin .m3u — RetroArch no podrá cambiar de disco</span>
+        <span style="font-size:12px;color:var(--c-muted)">&#x26A0; ${missingM3u.length} juego(s) multidisco sin .m3u — RetroArch no podrá cambiar de disco</span>
         <button class="btn primary" style="flex-shrink:0;font-size:12px;padding:3px 12px" onclick="generateM3uFromVerify()">Generar .m3u (${missingM3u.length})</button>
       </div>`;
     }
@@ -348,7 +348,7 @@ export async function doVerifyMultidisc() {
       html += gapIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
         ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
         <span style="color:var(--c-text)">${_h(i.base_name)}</span>
-        <span style="color:#555;margin-left:8px">${_h(i.detail)}</span>
+        <span style="color:var(--c-dim);margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
       html += '</div>';
     }
@@ -357,10 +357,10 @@ export async function doVerifyMultidisc() {
       html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:12px">';
       html += otherIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
         <span style="color:var(--c-red)">${issueLabels[i.issue_type] || i.issue_type}</span>
-        <span style="color:#888;margin:0 6px">·</span>
+        <span style="color:var(--c-muted);margin:0 6px">·</span>
         ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
         <span style="color:var(--c-text)">${_h(i.base_name)}</span>
-        <span style="color:#555;margin-left:8px">${_h(i.detail)}</span>
+        <span style="color:var(--c-dim);margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
       html += '</div>';
     }
@@ -369,11 +369,11 @@ export async function doVerifyMultidisc() {
     if (unmatchedOnly.length) {
       html += `<div style="padding:8px 10px;background:var(--bg-nav);border:1px solid var(--border);border-radius:4px;margin-top:4px">`;
       html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <span style="font-size:12px;color:#888">&#x1F50D; ${unmatchedOnly.length} discos sin identificar en catálogo</span>
+        <span style="font-size:12px;color:var(--c-muted)">&#x1F50D; ${unmatchedOnly.length} discos sin identificar en catálogo</span>
         <button class="btn" style="flex-shrink:0;font-size:11px;padding:2px 10px" onclick="showTab('settings');setTimeout(()=>{const el=document.getElementById('dat-catalog-list');if(el)el.scrollIntoView({behavior:'smooth'})},350)">Ajustes → Catálogos DAT</button>
       </div>`;
-      html += `<p style="font-size:11px;color:#555;margin:0 0 6px">Si ya tienes un DAT, ve a la pestaña <strong>Organizar</strong> y pulsa Identificar. Si no, carga un catálogo DAT en Ajustes.</p>`;
-      html += `<details style="font-size:11px;color:#555"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>`;
+      html += `<p style="font-size:11px;color:var(--c-dim);margin:0 0 6px">Si ya tienes un DAT, ve a la pestaña <strong>Organizar</strong> y pulsa Identificar. Si no, carga un catálogo DAT en Ajustes.</p>`;
+      html += `<details style="font-size:11px;color:var(--c-dim)"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>`;
       html += '<div style="max-height:160px;overflow-y:auto;margin-top:4px">';
       html += unmatchedOnly.map(i => `<div style="padding:2px 0">${_h(i.base_name)} — ${_h(i.detail)}</div>`).join('');
       html += '</div></details></div>';
@@ -410,9 +410,9 @@ export async function doN64Scan() {
   try {
     const d = await apiFetch('/api/n64-scan?path=' + encodeURIComponent(path));
     const roms = d.roms || [];
-    if (!roms.length) { el.innerHTML = '<p style="color:#555;font-size:12px">No se encontraron ROMs de N64 en esa carpeta.</p>'; return; }
+    if (!roms.length) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No se encontraron ROMs de N64 en esa carpeta.</p>'; return; }
     const needConv = roms.filter(r => r.needs_conversion);
-    let html = `<p style="font-size:12px;color:#888;margin-bottom:8px">${roms.length} ROMs encontrados — ${needConv.length} necesitan conversión a .z64</p>`;
+    let html = `<p style="font-size:12px;color:var(--c-muted);margin-bottom:8px">${roms.length} ROMs encontrados — ${needConv.length} necesitan conversión a .z64</p>`;
     if (needConv.length) {
       html += `<div style="max-height:200px;overflow-y:auto">`;
       html += needConv.map(r => `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a;font-size:12px">
@@ -477,7 +477,7 @@ export async function createLibraryStructure() {
     }
     resultEl.className = 'job-result visible success';
     resultEl.innerHTML = `✓ PC: ${d.created.length} carpeta${d.created.length !== 1 ? 's' : ''} creada${d.created.length !== 1 ? 's' : ''} en <code>${d.root}</code>`;
-    if (d.skipped.length > 0) resultEl.innerHTML += `<br><span style="font-size:11px;color:#555">${d.skipped.length} ya existían</span>`;
+    if (d.skipped.length > 0) resultEl.innerHTML += `<br><span style="font-size:11px;color:var(--c-dim)">${d.skipped.length} ya existían</span>`;
     if (d.android && d.android.root) {
       if (d.android.error) {
         resultEl.innerHTML += `<br><span style="color:var(--c-yellow);font-size:11px">⚠ Android: ${d.android.error}</span>`;
@@ -508,7 +508,7 @@ export async function organizeLibrary(dryRun) {
     const total = (d.moves_roms || 0) + (d.moves_saves || 0) + (d.moves_bios || 0);
     resultEl.className = 'job-result visible ' + (d.errors?.length ? 'error-r' : 'success');
     resultEl.innerHTML = `${verb}: <strong>${total}</strong> archivos total` +
-      `<span style="color:#555;font-size:11px;margin-left:10px">ROMs: ${d.moves_roms || 0} · Saves: ${d.moves_saves || 0} · BIOS: ${d.moves_bios || 0}</span>`;
+      `<span style="color:var(--c-dim);font-size:11px;margin-left:10px">ROMs: ${d.moves_roms || 0} · Saves: ${d.moves_saves || 0} · BIOS: ${d.moves_bios || 0}</span>`;
     if (d.errors && d.errors.length > 0) {
       resultEl.innerHTML += `<br><span style="color:var(--c-yellow);font-size:11px">⚠ ${d.errors.length} errores (ver logs)</span>`;
     }
@@ -559,7 +559,7 @@ export function _renderVerifyChdResult(result) {
     resultEl.className = 'job-result visible ' + cls;
     resultEl.innerHTML = `${result.ok} / ${result.total} CHDs correctos` +
       (result.failed > 0 ? ` &nbsp;·&nbsp; <span style="color:var(--c-red)">${result.failed} corruptos</span>` : '') +
-      `<span style="color:#555;font-size:11px;margin-left:8px">${cancelled}</span>`;
+      `<span style="color:var(--c-dim);font-size:11px;margin-left:8px">${cancelled}</span>`;
     _verifyChdResults = result.results || [];
     if (listEl && _verifyChdResults.length) {
       const errorsOnly = document.getElementById('verify-chd-filter-errors')?.checked ?? true;
@@ -582,7 +582,7 @@ function _renderVerifyChdList(listEl, errorsOnly) {
   if (!visible.length) {
     listEl.innerHTML = errorsOnly
       ? '<p style="color:var(--c-teal);font-size:12px;padding:4px 0">Todos los CHDs son correctos.</p>'
-      : '<p style="color:#555;font-size:12px;padding:4px 0">Sin resultados.</p>';
+      : '<p style="color:var(--c-dim);font-size:12px;padding:4px 0">Sin resultados.</p>';
     return;
   }
   listEl.innerHTML = visible.map(r => {

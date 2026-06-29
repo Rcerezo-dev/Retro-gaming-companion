@@ -1,4 +1,4 @@
-// js/tabs/organize.js — Plan (rename) + Apply
+﻿// js/tabs/organize.js — Plan (rename) + Apply
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -60,12 +60,12 @@ async function loadPlan() {
       let barHtml = '';
       if (window._activeDevice === 'pc') {
         const r = cfg.library_root || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       } else if (window._activeDevice === 'anbernic') {
         const r = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${r}</span> &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${window._devName}) &nbsp;·&nbsp; <span style="color:#555">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${window._devName}) &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       }
       planBar.innerHTML = barHtml;
       planBar.classList.remove('hidden');
@@ -90,10 +90,10 @@ async function loadPlan() {
       const unmatchedN = d.unmatched_count || 0;
       const correctN   = d.already_correct || 0;
       const parts = [];
-      if (pendingN > 0)   parts.push(`<span style="color:var(--c-teal);font-weight:600">${pendingN}</span> <span style="color:#888">listos para renombrar</span>`);
-      if (correctN > 0)   parts.push(`<span style="color:#555">${correctN} ya correctos</span>`);
-      if (conflictsN > 0) parts.push(`<span style="color:var(--c-red);font-weight:600">${conflictsN}</span> <span style="color:#888">conflictos</span>`);
-      if (unmatchedN > 0) parts.push(`<span style="color:#888">${unmatchedN} sin match en catálogo</span>`);
+      if (pendingN > 0)   parts.push(`<span style="color:var(--c-teal);font-weight:600">${pendingN}</span> <span style="color:var(--c-muted)">listos para renombrar</span>`);
+      if (correctN > 0)   parts.push(`<span style="color:var(--c-dim)">${correctN} ya correctos</span>`);
+      if (conflictsN > 0) parts.push(`<span style="color:var(--c-red);font-weight:600">${conflictsN}</span> <span style="color:var(--c-muted)">conflictos</span>`);
+      if (unmatchedN > 0) parts.push(`<span style="color:var(--c-muted)">${unmatchedN} sin match en catálogo</span>`);
       summaryBar.innerHTML = parts.join('<span style="color:#333;margin:0 4px">·</span>');
       summaryBar.classList.toggle('hidden', !(parts.length));
     }
@@ -133,7 +133,7 @@ async function loadPlan() {
     if (d.total === 0) {
       if (window._activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
-        el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:#888;font-size:12px">Ruta ${window._devName}: <code>${ab}</code><br>Escanea la consola primero (Overview → Escanear → consola Android por ADB).</span></p>`;
+        el.innerHTML = `<p class="empty">No hay ROMs de esta ruta en la base de datos.<br><span style="color:var(--c-muted);font-size:12px">Ruta ${window._devName}: <code>${ab}</code><br>Escanea la consola primero (Overview → Escanear → consola Android por ADB).</span></p>`;
       } else {
         el.innerHTML = '<p class="empty">Sin juegos identificados. Ejecuta <strong>Identificar (catálogos)</strong> primero desde la pestaña Inicio.</p>';
       }
@@ -143,7 +143,7 @@ async function loadPlan() {
     let html = '';
     if (pendingFiltered.length) {
       const savesNote = d.total_saves_affected > 0 ? ` <span style="color:var(--c-yellow);font-size:11px">· ${d.total_saves_affected} save(s) se renombrarán también</span>` : '';
-      const filterNote = _planDeviceFilter ? ` <span style="color:#888;font-size:11px">[filtro: ${_planDeviceFilter === 'pc' ? 'PC' : 'Consola Android'}]</span>` : '';
+      const filterNote = _planDeviceFilter ? ` <span style="color:var(--c-muted);font-size:11px">[filtro: ${_planDeviceFilter === 'pc' ? 'PC' : 'Consola Android'}]</span>` : '';
       html += `<h3 style="color:var(--c-blue);margin-bottom:12px">Listos para renombrar — ${pendingFiltered.length}${savesNote}${filterNote}</h3>`;
       html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>Dispositivo</th><th>From</th><th>To</th><th style="text-align:center">Saves</th></tr></thead><tbody>';
       html += pendingFiltered.map(op => {
@@ -151,7 +151,7 @@ async function loadPlan() {
           ? '<span style="color:var(--c-teal);font-size:10px">PC</span>'
           : '<span style="color:var(--c-orange);font-size:10px">Android</span>';
         return `<tr>
-          <td>${op.platform||'<span style="color:#555">Unknown</span>'}</td>
+          <td>${op.platform||'<span style="color:var(--c-dim)">Unknown</span>'}</td>
           <td>${devLabel}</td>
           <td title="${window._h(op.source)}">${window._h(op.source_name)}</td>
           <td style="color:var(--c-teal)" title="${window._h(op.target)}">${window._h(op.target_name)}</td>
@@ -173,7 +173,7 @@ async function loadPlan() {
         html += `<div style="color:var(--c-orange);font-size:12px;font-weight:600;margin-bottom:6px">`;
         html += `&#x26A0; Colisión de plan (${collisions.length}) — dos ROMs quieren el mismo nombre canónico`;
         html += `</div>`;
-        html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
+        html += `<div style="color:var(--c-muted);font-size:11px;margin-bottom:10px">`;
         html += `Causa habitual: tienes múltiples versiones del mismo juego (regional, revisión) y la opción <strong>Región</strong> o <strong>Revisión</strong> está desactivada en el formato. Actívalas para que cada versión obtenga un nombre único.<br>`;
         html += `Opciones: <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Renombrar (añadir sufijo _1 _2)</button>`;
         html += ` o <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px;border-color:var(--c-red);color:var(--c-red)" onclick="deleteCollisionDuplicates()">Eliminar duplicados</button><br>`;
@@ -186,12 +186,12 @@ async function loadPlan() {
             const safeName   = op.source_name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
             const raCell = op.ra_achievements != null
               ? `<span style="color:var(--c-yellow)">${op.ra_achievements}</span>`
-              : '<span style="color:#555">—</span>';
+              : '<span style="color:var(--c-dim)">—</span>';
             let roleCell = '';
             if (op.ra_role === 'winner') {
               roleCell = `<span style="color:var(--c-teal);font-weight:600">&#x2713; Ganador RA</span>`;
             } else if (op.ra_role === 'loser') {
-              roleCell = `<span style="color:#888">&#x2192; _descartados/</span>`;
+              roleCell = `<span style="color:var(--c-muted)">&#x2192; _descartados/</span>`;
             } else {
               roleCell = `<button class="btn" style="padding:1px 8px;font-size:11px;color:var(--c-orange);border-color:var(--c-orange)" onclick="_discardCollisionEntry(${op.game_id},'${safeSource}','${safeName}')">Descartar</button>`;
             }
@@ -224,7 +224,7 @@ async function loadPlan() {
         html += `<div style="color:var(--c-red);font-size:12px;font-weight:600;margin-bottom:6px">`;
         html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — el nombre de destino ya está ocupado por un archivo diferente`;
         html += `</div>`;
-        html += `<div style="color:#888;font-size:11px;margin-bottom:10px">`;
+        html += `<div style="color:var(--c-muted);font-size:11px;margin-bottom:10px">`;
         html += `<strong style="color:var(--c-text)">¿Por qué no aparecen en la pestaña Duplicados?</strong><br>`;
         html += `La pestaña <em>Duplicados</em> solo muestra archivos con el <strong>mismo contenido exacto</strong> (mismo hash SHA1). `;
         html += `Estos conflictos son distintos: el archivo que quieres renombrar y el que ya ocupa el nombre de destino son ROMs <em>diferentes</em> (distinto contenido), `;
@@ -235,16 +235,16 @@ async function loadPlan() {
         html += `</div>`;
         html += `<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">`;
         html += `<button class="btn" style="font-size:12px;padding:4px 12px" title="Activa Región y Revisión en las opciones de formato y recalcula el plan para que cada versión obtenga un nombre único" onclick="document.getElementById('fmt-region').checked=true;document.getElementById('fmt-revision').checked=true;loadPlan()">&#x21BB; Recalcular con Región + Revisión</button>`;
-        html += `<span style="color:#555;font-size:11px">Resuelve la mayoría de conflictos de disco añadiendo la región o versión al nombre</span>`;
+        html += `<span style="color:var(--c-dim);font-size:11px">Resuelve la mayoría de conflictos de disco añadiendo la región o versión al nombre</span>`;
         html += `</div>`;
         if (hasRaData) {
           html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM (pendiente)</th><th style="text-align:center">Logros RA</th><th>Destino bloqueado</th><th style="text-align:center">Logros RA</th><th>Resultado previsto</th></tr></thead><tbody>';
           html += diskConflicts.map(op => {
-            const srcRa = op.ra_achievements != null ? `<span style="color:var(--c-yellow)">${op.ra_achievements}</span>` : '<span style="color:#555">—</span>';
-            const tgtRa = op.ra_target_achievements != null ? `<span style="color:var(--c-yellow)">${op.ra_target_achievements}</span>` : '<span style="color:#555">—</span>';
+            const srcRa = op.ra_achievements != null ? `<span style="color:var(--c-yellow)">${op.ra_achievements}</span>` : '<span style="color:var(--c-dim)">—</span>';
+            const tgtRa = op.ra_target_achievements != null ? `<span style="color:var(--c-yellow)">${op.ra_target_achievements}</span>` : '<span style="color:var(--c-dim)">—</span>';
             let roleCell = '';
             if (op.ra_role === 'winner') roleCell = `<span style="color:var(--c-teal);font-weight:600">&#x2713; Ganador RA — se renombrará</span>`;
-            else if (op.ra_role === 'loser') roleCell = `<span style="color:#888">&#x2192; _descartados/ (menos logros)</span>`;
+            else if (op.ra_role === 'loser') roleCell = `<span style="color:var(--c-muted)">&#x2192; _descartados/ (menos logros)</span>`;
             return `<tr>
               <td class="mono" style="color:var(--c-lblue)">${window._h(op.source_name)}</td>
               <td style="text-align:center">${srcRa}</td>
@@ -274,11 +274,11 @@ async function loadPlan() {
       }
     }
     if (d.already_correct > 0) {
-      html += `<p style="color:#555;margin-top:16px">${d.already_correct} archivo(s) ya tienen el nombre correcto.</p>`;
+      html += `<p style="color:var(--c-dim);margin-top:16px">${d.already_correct} archivo(s) ya tienen el nombre correcto.</p>`;
     }
     if (d.unmatched_count > 0) {
       html += `<details style="margin-top:20px;border:1px solid #333;border-radius:6px;padding:10px 14px;background:#161620">`;
-      html += `<summary style="cursor:pointer;color:#888;font-size:13px;user-select:none">`;
+      html += `<summary style="cursor:pointer;color:var(--c-muted);font-size:13px;user-select:none">`;
       html += `${d.unmatched_count} ROM${d.unmatched_count !== 1 ? 's' : ''} sin match en catálogo (no se renombrarán) `;
       html += `— <a href="#" style="color:var(--c-blue);font-size:12px" onclick="event.preventDefault();goToGames(null,'unmatched')">Ver en Games →</a>`;
       html += `</summary>`;

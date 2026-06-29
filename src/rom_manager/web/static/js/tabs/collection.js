@@ -1,4 +1,4 @@
-// js/tabs/collection.js — Colección: Missing, Gallery, Export, Stats
+﻿// js/tabs/collection.js — Colección: Missing, Gallery, Export, Stats
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -34,7 +34,7 @@ async function loadCollectionStats() {
   try {
     const d = await apiFetch('/api/collection-stats');
     if (!d.platforms || d.platforms.length === 0) {
-      el.innerHTML = '<p style="color:#888;font-size:13px">No hay catálogos DAT cargados. Importa archivos DAT en <strong>Herramientas → Catálogos DAT</strong>.</p>';
+      el.innerHTML = '<p style="color:var(--c-muted);font-size:13px">No hay catálogos DAT cargados. Importa archivos DAT en <strong>Herramientas → Catálogos DAT</strong>.</p>';
       return;
     }
     let html = '<h4 style="color:var(--c-blue);margin-bottom:12px">Completitud por plataforma</h4>';
@@ -45,7 +45,7 @@ async function loadCollectionStats() {
       html += `<div style="margin-bottom:8px">`;
       html += `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">`;
       html += `<span style="color:#ccc">${window._h(p.platform)}</span>`;
-      html += `<span style="color:#888">${p.in_library} / ${p.total} &nbsp;<strong style="color:${barColor}">${pct}%</strong></span>`;
+      html += `<span style="color:var(--c-muted)">${p.in_library} / ${p.total} &nbsp;<strong style="color:${barColor}">${pct}%</strong></span>`;
       html += `</div>`;
       html += `<div style="background:#222;border-radius:3px;height:6px;width:100%">`;
       html += `<div style="background:${barColor};border-radius:3px;height:6px;width:${pct}%"></div>`;
@@ -110,7 +110,7 @@ function _renderMissingList(platformFilter) {
   }
 
   let html = '<table style="font-size:12px;width:100%;border-collapse:collapse">';
-  html += '<thead><tr style="color:#888;border-bottom:1px solid #333">';
+  html += '<thead><tr style="color:var(--c-muted);border-bottom:1px solid #333">';
   html += '<th style="text-align:left;padding:4px 6px">Plataforma</th>';
   html += '<th style="text-align:left;padding:4px 6px">Título</th>';
   html += '<th style="text-align:left;padding:4px 6px">Búsqueda</th>';
@@ -126,7 +126,7 @@ function _renderMissingList(platformFilter) {
       const iaUrlEsc = iaUrl.replace(/'/g, "\\'");
       const wlKey = `wl_${entry.sha1}`;
       html += `<tr style="border-bottom:1px solid #1e1e1e" id="${window._h(wlKey)}">`;
-      html += `<td style="padding:3px 6px;color:#888;white-space:nowrap">${window._h(p.platform)}</td>`;
+      html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(p.platform)}</td>`;
       html += `<td style="padding:3px 6px;color:#ccc">${window._h(entry.title)}</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Copiado','ok'))" `;
@@ -138,7 +138,7 @@ function _renderMissingList(platformFilter) {
       html += `</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button id="wlbtn_${window._h(entry.sha1)}" onclick="toggleWishlist('${window._h(entry.sha1)}','${entry.title.replace(/'/g,"\\'")}','${window._h(p.platform)}','searching')" `;
-      html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:#888;border-radius:3px;cursor:pointer">+ Wishlist</button>`;
+      html += `style="font-size:11px;padding:1px 6px;background:#2d2d2d;border:1px solid #444;color:var(--c-muted);border-radius:3px;cursor:pointer">+ Wishlist</button>`;
       html += `</td></tr>`;
     }
   }
@@ -356,7 +356,7 @@ async function loadCollectionStatsV2() {
     const d = await apiFetch(`/api/collection-stats-v2?root=${encodeURIComponent(root)}`);
     document.getElementById('col-stat-total').innerHTML =
       `<div style="font-size:2em;font-weight:700">${d.total}</div>
-       <div style="color:#888;font-size:11px">juegos  ★${d.favorites} favs</div>`;
+       <div style="color:var(--c-muted);font-size:11px">juegos  ★${d.favorites} favs</div>`;
     _renderStatBars('col-bar-status', d.by_status, 'status_label', d.total);
     _renderStatBars('col-bar-region', d.by_region, 'region_label', d.total);
     _renderPie('col-pie', d.by_platform.slice(0, 8));
@@ -457,24 +457,24 @@ async function loadLibraryDiff() {
 }
 
 function _renderDiffTable(entries, side) {
-  if (!entries.length) return '<p style="color:#555;font-size:11px;padding:4px">Sin diferencias.</p>';
+  if (!entries.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin diferencias.</p>';
   const selectAllId = `diff-sel-all-${side}`;
   const dirLabel = side === 'pc' ? 'PC &#x2192; Android' : 'Android &#x2192; PC';
   let html = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">`;
-  html += `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555;cursor:pointer">`;
+  html += `<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--c-dim);cursor:pointer">`;
   html += `<input type="checkbox" id="${selectAllId}" style="accent-color:var(--accent)" onchange="_diffToggleAll('${side}',this.checked)"> Todo`;
   html += `</label>`;
   html += `<button class="btn" style="padding:1px 10px;font-size:11px" onclick="_syncAllSide('${side}')" title="Copiar todos los ROMs de este lado al otro">Sincronizar ${dirLabel}</button>`;
   html += `</div>`;
   html += '<table style="width:100%;border-collapse:collapse">';
-  html += '<thead><tr style="color:#555;font-size:11px;border-bottom:1px solid #222">'
+  html += '<thead><tr style="color:var(--c-dim);font-size:11px;border-bottom:1px solid #222">'
     + '<th style="padding:3px 6px;text-align:left">Plataforma</th>'
     + '<th style="padding:3px 6px;text-align:left">Título</th>'
     + '<th style="padding:3px 6px;text-align:center"></th>'
     + '</tr></thead><tbody>';
   for (const e of entries) {
     html += `<tr style="border-bottom:1px solid #1a1a1a" title="${window._h(e.source_path)}">`;
-    html += `<td style="padding:3px 6px;color:#888;white-space:nowrap">${window._h(e.platform)}</td>`;
+    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e.platform)}</td>`;
     html += `<td style="padding:3px 6px;color:#ccc;word-break:break-word">${window._h(e.title)}</td>`;
     html += `<td style="padding:3px 6px;text-align:center"><input type="checkbox" class="diff-sel" data-sha1="${window._h(e.sha1)}" data-side="${side}" style="accent-color:var(--accent)"></td>`;
     html += '</tr>';
@@ -508,7 +508,7 @@ async function _syncAllSide(side) {
 }
 
 function _renderDiffConflicts(conflicts) {
-  if (!conflicts.length) return '<p style="color:#555;font-size:11px;padding:4px">Sin conflictos.</p>';
+  if (!conflicts.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin conflictos.</p>';
   let html = '';
   for (const c of conflicts) {
     const pcSha1  = c.pc[0]?.sha1  || '';
@@ -623,32 +623,32 @@ async function loadDiskUsage() {
       const usedPct = Math.round(d.disk_used / d.disk_total * 100);
       const freePct = 100 - usedPct;
       html += `<div style="margin-bottom:14px">`;
-      html += `<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px">`;
+      html += `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--c-muted);margin-bottom:4px">`;
       html += `<span>Disco: <b style="color:#ccc">${d.total_human}</b> total</span>`;
       html += `<span><b style="color:var(--c-teal)">${_fmtBytes(d.disk_free)}</b> libre</span>`;
       html += `</div>`;
       html += `<div style="background:var(--c-panel);border-radius:4px;height:8px;width:100%;overflow:hidden">`;
       html += `<div style="background:#7c3aed;width:${usedPct}%;height:100%;border-radius:4px"></div>`;
       html += `</div>`;
-      html += `<div style="font-size:10px;color:#555;margin-top:2px">${usedPct}% usado · ${freePct}% libre</div>`;
+      html += `<div style="font-size:10px;color:var(--c-dim);margin-top:2px">${usedPct}% usado · ${freePct}% libre</div>`;
       html += `</div>`;
     }
 
     // Per-platform bars
-    html += `<div style="font-size:11px;color:#888;margin-bottom:6px">ROMs: <b style="color:#ccc">${d.total_human}</b> total</div>`;
+    html += `<div style="font-size:11px;color:var(--c-muted);margin-bottom:6px">ROMs: <b style="color:#ccc">${d.total_human}</b> total</div>`;
     for (const p of platforms) {
       const pct = total > 0 ? Math.round(p.size_bytes / total * 100) : 0;
       const missing = p.missing ? ` <span style="color:var(--c-pink)">(${p.missing} no encontrados)</span>` : '';
       html += `<div style="margin-bottom:7px">`;
       html += `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">`;
       html += `<span style="color:#ccc">${window._h(p.platform)}</span>`;
-      html += `<span style="color:#888">${p.rom_count} ROMs &nbsp;<b style="color:var(--c-text)">${p.size_human}</b> &nbsp;<span style="color:#555">${pct}%</span>${missing}</span>`;
+      html += `<span style="color:var(--c-muted)">${p.rom_count} ROMs &nbsp;<b style="color:var(--c-text)">${p.size_human}</b> &nbsp;<span style="color:var(--c-dim)">${pct}%</span>${missing}</span>`;
       html += `</div>`;
       html += `<div style="background:var(--c-panel);border-radius:3px;height:5px;width:100%">`;
       html += `<div style="background:#7aa2f7;width:${pct}%;height:100%;border-radius:3px"></div>`;
       html += `</div></div>`;
     }
-    if (!platforms.length) html = '<p style="color:#555;font-size:12px">Sin datos. Escanea tu biblioteca primero.</p>';
+    if (!platforms.length) html = '<p style="color:var(--c-dim);font-size:12px">Sin datos. Escanea tu biblioteca primero.</p>';
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = `<p class="error-msg">${window._h(e.message)}</p>`;

@@ -1,4 +1,4 @@
-// js/tabs/inbox.js — Inbox pipeline, badge, drag & drop, watcher
+﻿// js/tabs/inbox.js — Inbox pipeline, badge, drag & drop, watcher
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -137,13 +137,13 @@ async function scanInbox() {
       });
       tbody.innerHTML = sortedFiles.map(f => {
         const typeColor = f.type === 'zip' ? 'var(--c-yellow)' : f.type === 'disc_image' ? 'var(--c-teal)' : f.type === 'rom' ? 'var(--c-lblue)' : '#555';
-        const platBadge = f.platform_guess ? '<span class="badge">' + f.platform_guess + '</span>' : '<span style="color:#555">—</span>';
+        const platBadge = f.platform_guess ? '<span class="badge">' + f.platform_guess + '</span>' : '<span style="color:var(--c-dim)">—</span>';
         const extract   = f.needs_extraction ? '<span style="color:var(--c-yellow)">extraer ZIP</span>' : '';
         return '<tr style="border-bottom:1px solid var(--c-panel)">' +
           '<td style="padding:4px 8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + window._h(f.name) + '">' + window._h(f.name) + '</td>' +
           '<td style="padding:4px 8px;color:' + typeColor + '">' + f.type + '</td>' +
           '<td style="padding:4px 8px">' + platBadge + '</td>' +
-          '<td style="padding:4px 8px;text-align:right;color:#888">' + window.fmtSize(f.size_bytes) + '</td>' +
+          '<td style="padding:4px 8px;text-align:right;color:var(--c-muted)">' + window.fmtSize(f.size_bytes) + '</td>' +
           '<td style="padding:4px 8px">' + extract + '</td>' +
           '</tr>';
       }).join('');
@@ -236,20 +236,20 @@ function _renderInboxResult(r) {
   el.className = 'job-result visible';
   let html = '<strong style="color:var(--c-teal)">Pipeline completado</strong><br>';
   const archived = r.zips_archived || 0;
-  const zipNote  = archived > 0 ? ` <span style="color:#888;font-size:11px">(${archived} movidos a _processed/)</span>` : '';
+  const zipNote  = archived > 0 ? ` <span style="color:var(--c-muted);font-size:11px">(${archived} movidos a _processed/)</span>` : '';
   html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';
   html += 'Organizados: <strong>' + (r.organized || 0) + '</strong>';
-  if (r.target_root) html += '<br><span style="color:#555;font-size:11px">Destino: ' + r.target_root + '</span>';
+  if (r.target_root) html += '<br><span style="color:var(--c-dim);font-size:11px">Destino: ' + r.target_root + '</span>';
   if ((r.rename_errors || []).length > 0) {
-    html += '<details style="margin-top:8px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
+    html += '<details style="margin-top:8px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
     r.rename_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
   if ((r.organize_errors || []).length > 0) {
-    html += '<details style="margin-top:4px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.organize_errors.length + ' errores al organizar</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:#888">';
+    html += '<details style="margin-top:4px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.organize_errors.length + ' errores al organizar</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
     r.organize_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
