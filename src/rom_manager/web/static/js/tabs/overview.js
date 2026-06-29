@@ -1,4 +1,4 @@
-﻿// js/tabs/overview.js — Overview tab: stats cards, heatmap, charts, wizard
+// js/tabs/overview.js — Overview tab: stats cards, heatmap, charts, wizard
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -204,7 +204,7 @@ export async function _loadNewGameSuggestion() {
 
     if (staleGames.length === 0) {
       const container = document.getElementById('ov-game-suggestion');
-      if (container) container.innerHTML = '<div style="padding:20px;color:#666;text-align:center;width:100%">¡Excelente! No tienes juegos olvidados. ¡Sigue jugando!</div>';
+      if (container) container.innerHTML = '<div style="padding:20px;color:var(--c-hint);text-align:center;width:100%">¡Excelente! No tienes juegos olvidados. ¡Sigue jugando!</div>';
       return;
     }
 
@@ -481,7 +481,7 @@ export async function loadOverview() {
           setupBanner.classList.remove('hidden');
           const cl = d.setup_checklist || {};
           const chk = (ok, label, hint) =>
-            '<div>' + (ok ? '<span style="color:var(--c-teal)">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
+            '<div>' + (ok ? '<span style="color:var(--c-teal)">&#x2611;</span>' : '<span style="color:var(--c-hint)">&#x2610;</span>') +
             ' <span style="color:' + (ok ? 'var(--c-text)' : '#888') + '">' + label + '</span>' +
             (hint && !ok ? ' <span style="color:var(--c-dim);font-size:11px">— ' + hint + '</span>' : '') + '</div>';
           const clEl = document.getElementById('ov-setup-checklist');

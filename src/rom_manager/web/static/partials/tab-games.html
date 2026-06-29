@@ -1,5 +1,5 @@
-﻿<div id="tab-games" class="tab">
-  <div class="hidden rv-tint-warn" id="games-dat-banner" style="margin-bottom:8px;padding:6px 12px;border-radius:4px;font-size:12px;color:#ccc;line-height:1.6"></div>
+<div id="tab-games" class="tab">
+  <div class="hidden rv-tint-warn" id="games-dat-banner" style="margin-bottom:8px;padding:6px 12px;border-radius:4px;font-size:12px;color:var(--c-strong);line-height:1.6"></div>
   <div class="hidden" id="games-root-banner" style="margin-bottom:8px;padding:6px 10px;background:var(--c-panel);border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
     <input id="games-search" type="text" placeholder="Buscar título o archivo…" oninput="onGamesSearchChange()">
@@ -38,7 +38,7 @@
       <option value="year">Orden: A&#xf1;o</option>
       <option value="last_played">Orden: &#xda;ltima partida</option>
     </select>
-    <span id="games-count" style="color:#666;margin-left:8px;"></span>
+    <span id="games-count" style="color:var(--c-hint);margin-left:8px;"></span>
     <div class="view-toggle" style="margin-left:auto" title="Cambiar vista">
       <button id="btn-view-list" class="active" onclick="setGamesView('list')" title="Vista lista">&#x2630;</button>
       <button id="btn-view-grid" onclick="setGamesView('grid')" title="Vista cuadrícula">&#x229E;</button>

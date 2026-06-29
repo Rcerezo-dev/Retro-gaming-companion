@@ -1,4 +1,4 @@
-﻿</div><!-- /.content-area -->
+</div><!-- /.content-area -->
 </div><!-- /.app-body -->
 
 <script src="https://unpkg.com/lucide@1.21.0/dist/umd/lucide.min.js"></script>
@@ -76,7 +76,7 @@
     <!-- S30: Metadata editor collapsible -->
     <div style="margin-top:10px">
       <button id="gp-meta-edit-toggle" onclick="gpToggleMetaEdit()"
-        style="background:none;border:none;color:#444;font-size:11px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px">
+        style="background:none;border:none;color:var(--c-ghost);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px">
         &#x270F; Editar metadatos
       </button>
       <div class="hidden" id="gp-meta-edit-wrap" style="margin-top:10px;padding:10px;background:var(--c-bar);border:1px solid #222;border-radius:4px">
@@ -147,18 +147,18 @@
     <!-- 34b-4: Asset path info -->
     <div class="hidden" id="gp-asset-info" style="margin-top:10px">
       <div style="color:var(--c-dim);font-size:11px;margin-bottom:3px">&#x1F5BC; Portada</div>
-      <div id="gp-asset-path" style="font-size:10px;color:#444;font-family:Consolas,monospace;word-break:break-all;margin-bottom:4px"></div>
+      <div id="gp-asset-path" style="font-size:10px;color:var(--c-ghost);font-family:Consolas,monospace;word-break:break-all;margin-bottom:4px"></div>
     </div>
     <!-- S36-5: Playtime tracking -->
     <div class="hidden" id="gp-playtime-wrap" style="margin-top:14px">
       <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">⏱ Tiempo jugado</div>
       <div id="gp-playtime-info" style="font-size:12px;color:var(--c-text);margin-bottom:8px"></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px">
-        <span style="color:#666">Última sesión:</span>
+        <span style="color:var(--c-hint)">Última sesión:</span>
         <input id="gp-playtime-hours" type="number" placeholder="0" min="0" max="999" style="width:40px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:3px;font:inherit">
-        <span style="color:#666">h</span>
+        <span style="color:var(--c-hint)">h</span>
         <input id="gp-playtime-mins" type="number" placeholder="0" min="0" max="59" style="width:40px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:3px;font:inherit">
-        <span style="color:#666">m</span>
+        <span style="color:var(--c-hint)">m</span>
         <button onclick="gpLogPlaytime()" style="margin-left:auto;background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:2px 10px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer">Registrar</button>
       </div>
     </div>

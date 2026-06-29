@@ -1,4 +1,4 @@
-﻿<!-- OVERVIEW -->
+<!-- OVERVIEW -->
 <div id="tab-overview" class="tab active">
 
   <!-- UI-2: Dashboard bar — stats + quick actions + health -->
@@ -36,7 +36,7 @@
       <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <span style="color:var(--c-teal)">&#x25CF;</span> PC
         <span id="ov-pc-path-label" style="color:var(--c-dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px"></span>
-        <span id="ov-pc-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos PC">library_pc.db</span>
+        <span id="ov-pc-db-label" style="color:var(--c-ghost);font-size:10px;font-family:monospace" title="Base de datos PC">library_pc.db</span>
       </div>
       <div id="ov-pc-cards" class="cards" style="margin-bottom:0"><p class="loading" style="font-size:12px">Cargando…</p></div>
     </div>
@@ -45,7 +45,7 @@
       <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="ov-ab-dot" style="color:var(--c-dim)">&#x25CF;</span> <span id="ov-ab-column-title">Consola Android</span>
         <span id="ov-ab-path-label" style="color:var(--c-dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"></span>
-        <span id="ov-ab-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
+        <span id="ov-ab-db-label" style="color:var(--c-ghost);font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
         <!-- D8-1: stale warning badge -->
         <span class="hidden" id="ov-ab-stale-badge" style="background:#3a3a1a;color:var(--c-yellow);font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">&#x26A0; Datos sin confirmar</span>
         <!-- UX-1/2-4: device connectivity badge -->
@@ -233,7 +233,7 @@
     <div id="ov-heatmap-container" style="overflow-x:auto;padding-bottom:12px">
       <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid #333;border-radius:4px"></canvas>
     </div>
-    <div style="font-size:11px;color:#666;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
+    <div style="font-size:11px;color:var(--c-hint);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
       <span><span style="display:inline-block;width:12px;height:12px;background:#0d3922;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Menos</span>
       <span><span style="display:inline-block;width:12px;height:12px;background:#0d5c2c;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
       <span><span style="display:inline-block;width:12px;height:12px;background:#1a7938;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
@@ -248,7 +248,7 @@
     <div style="overflow-x:auto;padding-bottom:12px">
       <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid #333;border-radius:4px;display:block"></canvas>
     </div>
-    <div style="font-size:11px;color:#666;margin-top:8px">Cuenta de juegos distintos jugados por plataforma y mes</div>
+    <div style="font-size:11px;color:var(--c-hint);margin-top:8px">Cuenta de juegos distintos jugados por plataforma y mes</div>
   </div>
 
   <!-- S36-4: Game of the day -->
@@ -259,7 +259,7 @@
       <div style="flex:1">
         <div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
         <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:var(--c-text);margin-bottom:6px"></div>
-        <div id="ov-game-suggestion-meta" style="font-size:12px;color:#666;margin-bottom:10px"></div>
+        <div id="ov-game-suggestion-meta" style="font-size:12px;color:var(--c-hint);margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openGamePanel(window._currentGameSuggestion)">Abrir</button>
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="_loadNewGameSuggestion()">Otra sugerencia</button>

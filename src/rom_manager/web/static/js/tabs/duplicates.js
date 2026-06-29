@@ -1,4 +1,4 @@
-﻿// js/tabs/duplicates.js — Duplicados + RA Duplicados + Filtro plataforma
+// js/tabs/duplicates.js — Duplicados + RA Duplicados + Filtro plataforma
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -418,7 +418,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
         <span>${g.canonical_title || '(unmatched)'}
           <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${g.platform||'Unknown'} · SHA1: ${g.sha1.slice(0,12)}…</span>
         </span>
-        <button class="btn" style="padding:2px 10px;font-size:11px;color:var(--c-muted);border-color:#444" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
+        <button class="btn" style="padding:2px 10px;font-size:11px;color:var(--c-muted);border-color:var(--c-ghost)" onclick="markAsIntentionalCopy('${g.sha1}')">Copia intencional ✓</button>
       </div>
       ${g.entries.map((e, i) => `
         <div class="entry" style="display:flex;align-items:center;gap:10px;padding:4px 0" id="dup-entry-${e.id}">

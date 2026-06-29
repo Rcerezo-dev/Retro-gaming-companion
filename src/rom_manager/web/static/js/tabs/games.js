@@ -1,4 +1,4 @@
-﻿// js/tabs/games.js — Games tab: list, filters, pagination, game panel, TV mode
+// js/tabs/games.js — Games tab: list, filters, pagination, game panel, TV mode
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -362,13 +362,13 @@ export async function loadGames(offset) {
           <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
-          <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
+          <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:var(--c-ghost)">—</span>'}</td>
           <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}</td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
           <td><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
           <td>${matchBadge(g.match_confidence)}</td>
-          <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
-          <td class="mono" style="color:#444;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
+          <td style="color:var(--c-hint);font-size:12px">${fmtSize(g.size_bytes)}</td>
+          <td class="mono" style="color:var(--c-ghost);font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
         </tr>`;
       }).join('');
       applyColVisibility();
@@ -458,15 +458,15 @@ function _gpFillMeta(g) {
   document.getElementById('gp-filename').textContent = g.original_filename || '';
   const rows = [
     ['Plataforma', _platBadge(g.platform)],
-    ['Región',    g.region    ? _h(g.region)    : '<span style="color:#444">—</span>'],
-    ['Año',       g.year      ? _h(g.year)      : '<span style="color:#444">—</span>'],
-    ['Género',    g.genre     ? _h(g.genre)     : '<span style="color:#444">—</span>'],
-    ['Jugadores', g.players   ? _h(g.players)   : '<span style="color:#444">—</span>'],
-    ['Publisher', g.publisher ? _h(g.publisher) : '<span style="color:#444">—</span>'],
+    ['Región',    g.region    ? _h(g.region)    : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Año',       g.year      ? _h(g.year)      : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Género',    g.genre     ? _h(g.genre)     : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Jugadores', g.players   ? _h(g.players)   : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Publisher', g.publisher ? _h(g.publisher) : '<span style="color:var(--c-ghost)">—</span>'],
     ['Developer', g.developer ? _h(g.developer) : null],
-    ['Nota',      g.rating    ? _h(g.rating)    : '<span style="color:#444">—</span>'],
+    ['Nota',      g.rating    ? _h(g.rating)    : '<span style="color:var(--c-ghost)">—</span>'],
     ['Tamaño',    fmtSize(g.size_bytes)],
-    ['SHA1',      `<span style="color:#444;font-family:Consolas,monospace;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</span>`],
+    ['SHA1',      `<span style="color:var(--c-ghost);font-family:Consolas,monospace;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</span>`],
   ];
   document.getElementById('gp-meta').innerHTML = rows.filter(([, v]) => v).map(([k, v]) => `<span class="gk">${k}</span><span class="gv">${v}</span>`).join('');
   const desc = document.getElementById('gp-desc');
@@ -753,7 +753,7 @@ export function loadSaveBackupsResult(saves, gameId) {
     const origSav = s.original_save.replace(/\\/g, '/');
     const ext     = s.extension || '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--c-panel)">
-      <span style="color:var(--c-muted)">${_h(s.timestamp)}<span style="color:#444;margin-left:4px">${_h(ext)}</span></span>
+      <span style="color:var(--c-muted)">${_h(s.timestamp)}<span style="color:var(--c-ghost);margin-left:4px">${_h(ext)}</span></span>
       <span style="color:var(--c-dim)">${sizeFmt}</span>
       <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
     </div>`;
@@ -878,7 +878,7 @@ export async function loadGameSyncHistory(sourcePath) {
       return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a">
         <span style="color:${clr};font-size:11px">${dir} ${_h(h.result || '')}</span>
         <span style="color:var(--c-dim);font-size:10px;flex:1">${_h(h.created_at?.substring(0, 16) || '')}</span>
-        ${h.message ? `<span style="color:#666;font-size:10px">${_h(h.message.substring(0, 40))}</span>` : ''}
+        ${h.message ? `<span style="color:var(--c-hint);font-size:10px">${_h(h.message.substring(0, 40))}</span>` : ''}
       </div>`;
     }).join('');
   } catch(_) {}

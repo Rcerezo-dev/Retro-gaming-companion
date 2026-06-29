@@ -1,4 +1,4 @@
-﻿<div id="tab-sync" class="tab">
+<div id="tab-sync" class="tab">
   <!-- QoL-14: rclone offline banner -->
   <div class="hidden rv-tint-warn" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> rclone no est&#xe1; disponible — la sincronizaci&#xf3;n cloud no funcionar&#xe1;.
@@ -109,7 +109,7 @@
       <!-- Instrucciones paso a paso Dropbox -->
       <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Dropbox</summary>
-        <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
+        <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
           <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
           <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
           <li>Nombre: escribe <code>dropbox</code> y pulsa Enter.</li>
@@ -124,7 +124,7 @@
       <!-- Instrucciones paso a paso Google Drive -->
       <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Google Drive</summary>
-        <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
+        <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
           <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
           <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
           <li>Nombre: escribe <code>gdrive</code> y pulsa Enter.</li>
@@ -141,7 +141,7 @@
       </details>
       <div class="hidden" id="rclone-remotes-panel">
         <div style="margin-bottom:10px">
-          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
+          <label style="font-size:12px;color:var(--c-soft);display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <select id="rclone-remote-select" style="flex:1;min-width:140px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
             <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync">

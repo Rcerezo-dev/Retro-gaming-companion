@@ -1,4 +1,4 @@
-﻿// js/tabs/esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility
+// js/tabs/esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility
 // Extracted from app.js during Phase 2 migration; RA check functions added in Phase 2g.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -669,12 +669,12 @@ export async function loadOperationsTimeline() {
         const ts = new Date(op.timestamp).toLocaleString();
         html += `<li style="padding:6px;border-bottom:1px solid #222">
           <div style="color:var(--c-teal)">${_h(op.action)}</div>
-          <div style="font-size:11px;color:#666">${ts}</div>
+          <div style="font-size:11px;color:var(--c-hint)">${ts}</div>
           ${op.details ? `<div style="font-size:11px;color:var(--c-muted)">${_h(op.details)}</div>` : ''}
         </li>`;
       });
     } else {
-      html += '<li style="padding:6px;color:#666">Sin operaciones registradas</li>';
+      html += '<li style="padding:6px;color:var(--c-hint)">Sin operaciones registradas</li>';
     }
     html += '</ul>';
     el.innerHTML = html;
@@ -981,7 +981,7 @@ export async function loadUnmatchedDiagnosis() {
       html += `<div style="background:#1a1a1a;padding:6px 10px;border-bottom:1px solid #222">
         <span style="font-weight:600;color:var(--c-amber)">${_h(plat.platform)}</span>
         <span style="color:var(--c-muted);font-size:11px;margin-left:6px">(${plat.count})</span>
-        <div style="font-size:11px;color:#666;margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
+        <div style="font-size:11px;color:var(--c-hint);margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
       </div>`;
     });
     html += '</div>';
@@ -1134,12 +1134,12 @@ export function _renderReportMissing() {
     const filename = (m.original_filename || m.path || '?').split(/[\\/]/).pop();
     html += `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
       <div style="color:var(--c-orange)">${_h(filename)}</div>
-      <div style="font-size:10px;color:#666">${_h(m.platform || '—')}</div>
+      <div style="font-size:10px;color:var(--c-hint)">${_h(m.platform || '—')}</div>
     </div>`;
   });
 
   if (missing.length > 100) {
-    html += `<div style="padding:4px;color:#666">… y ${missing.length - 100} más</div>`;
+    html += `<div style="padding:4px;color:var(--c-hint)">… y ${missing.length - 100} más</div>`;
   }
 
   html += '</div>';
@@ -1168,7 +1168,7 @@ export function _renderReportOrphans() {
     const name = (s.path || '?').split(/[\\/]/).pop();
     return `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
       ${_h(name)} <span style="color:var(--c-dim)">(${_fmtSize(s.size_bytes)})</span>
-      <div style="font-size:10px;color:#666">${_h(s.path)}</div>
+      <div style="font-size:10px;color:var(--c-hint)">${_h(s.path)}</div>
     </div>`;
   }).join('');
   html += '</div>';

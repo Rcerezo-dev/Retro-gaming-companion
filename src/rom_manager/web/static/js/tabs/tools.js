@@ -1,4 +1,4 @@
-﻿// js/tabs/tools.js — Tool conversions: CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure
+// js/tabs/tools.js — Tool conversions: CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -343,7 +343,7 @@ export async function doVerifyMultidisc() {
 
     if (gapIssues.length) {
       html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 4px">Sets incompletos — falta al menos un disco (${gapIssues.length}):</p>`;
-      html += `<p style="color:#666;font-size:11px;margin:0 0 6px">Si tienes todos los archivos, revisa que los nombres incluyan "(Disc N)" sin variaciones.</p>`;
+      html += `<p style="color:var(--c-hint);font-size:11px;margin:0 0 6px">Si tienes todos los archivos, revisa que los nombres incluyan "(Disc N)" sin variaciones.</p>`;
       html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:12px">';
       html += gapIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
         ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
@@ -373,7 +373,7 @@ export async function doVerifyMultidisc() {
         <button class="btn" style="flex-shrink:0;font-size:11px;padding:2px 10px" onclick="showTab('settings');setTimeout(()=>{const el=document.getElementById('dat-catalog-list');if(el)el.scrollIntoView({behavior:'smooth'})},350)">Ajustes → Catálogos DAT</button>
       </div>`;
       html += `<p style="font-size:11px;color:var(--c-dim);margin:0 0 6px">Si ya tienes un DAT, ve a la pestaña <strong>Organizar</strong> y pulsa Identificar. Si no, carga un catálogo DAT en Ajustes.</p>`;
-      html += `<details style="font-size:11px;color:var(--c-dim)"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>`;
+      html += `<details style="font-size:11px;color:var(--c-dim)"><summary style="cursor:pointer;color:var(--c-hint)">Ver lista (${unmatchedOnly.length})</summary>`;
       html += '<div style="max-height:160px;overflow-y:auto;margin-top:4px">';
       html += unmatchedOnly.map(i => `<div style="padding:2px 0">${_h(i.base_name)} — ${_h(i.detail)}</div>`).join('');
       html += '</div></details></div>';

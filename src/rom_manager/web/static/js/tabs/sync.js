@@ -1,4 +1,4 @@
-﻿// js/tabs/sync.js — Cloud Sync, Cable Sync, Auto-sync, Rclone, Android setup
+// js/tabs/sync.js — Cloud Sync, Cable Sync, Auto-sync, Rclone, Android setup
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -41,7 +41,7 @@ async function loadSync() {
       el.innerHTML = html;
       return;
     }
-    html += `<p style="color:#666;margin-bottom:12px">${sl.entries.length} evento${sl.entries.length !== 1 ? 's' : ''}</p>`;
+    html += `<p style="color:var(--c-hint);margin-bottom:12px">${sl.entries.length} evento${sl.entries.length !== 1 ? 's' : ''}</p>`;
     html += '<div style="overflow-x:auto"><table><thead><tr>';
     html += '<th>Fecha</th><th>Dirección</th><th>Resultado</th><th>Ruta local</th><th>Ruta remota</th><th>Mensaje</th>';
     html += '</tr></thead><tbody>';
@@ -748,9 +748,9 @@ async function loadCableSyncPreview() {
     const cpN  = d.to_copy !== null && d.to_copy !== undefined ? `<span class="cp-num">${d.to_copy}</span>` : `<span class="cp-null">—</span>`;
     previewEl.innerHTML =
       `<span class="cp-stat">PC: ${pcN} saves</span>` +
-      `<span style="color:#444;margin-right:12px">·</span>` +
+      `<span style="color:var(--c-ghost);margin-right:12px">·</span>` +
       `<span class="cp-stat">Consola: ${abN} saves</span>` +
-      `<span style="color:#444;margin-right:12px">·</span>` +
+      `<span style="color:var(--c-ghost);margin-right:12px">·</span>` +
       `<span class="cp-stat">Se copiarán ≈ ${cpN} archivos</span>`;
   } catch(e) {
     previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${e.message}</span>`;
@@ -1253,9 +1253,9 @@ async function loadSaveComparison() {
       el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No hay saves en la biblioteca.</p>';
       return;
     }
-    const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:#444">—</span>';
+    const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:var(--c-ghost)">—</span>';
     const _syncBadge = s => {
-      if (!s.last_sync_at) return '<span style="color:#666;font-size:10px">Nunca</span>';
+      if (!s.last_sync_at) return '<span style="color:var(--c-hint);font-size:10px">Nunca</span>';
       const cls = s.last_result === 'ok' ? 'var(--c-teal)' : 'var(--c-softred)';
       return `<span style="color:${cls};font-size:10px">${_fmtDate(s.last_sync_at)}</span>`;
     };

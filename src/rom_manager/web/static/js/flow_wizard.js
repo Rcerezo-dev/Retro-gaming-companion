@@ -1,4 +1,4 @@
-﻿// flow_wizard.js — FLOW-WIZARD: scan → organize → duplicates → sync, step by step.
+// flow_wizard.js — FLOW-WIZARD: scan → organize → duplicates → sync, step by step.
 
 import { apiFetch, apiPost } from './api.js';
 
@@ -84,7 +84,7 @@ function _renderIntro() {
   _setBody(`
     <p style="color:var(--c-muted);margin:0 0 16px;line-height:1.7;font-size:13px">
       Este asistente ejecuta los pasos principales en orden.<br>
-      Puedes <strong style="color:#ccc">omitir</strong> cualquier paso que no necesites ahora.
+      Puedes <strong style="color:var(--c-strong)">omitir</strong> cualquier paso que no necesites ahora.
     </p>
     <div style="display:flex;flex-direction:column;gap:7px">
       ${_introRow('🔍', 'Escanear', 'Detecta ROMs nuevos o movidos')}
@@ -101,7 +101,7 @@ function _introRow(icon, label, desc) {
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-panel);border:1px solid var(--border-s);border-radius:6px">
       <span style="font-size:17px;min-width:22px;text-align:center">${icon}</span>
       <div>
-        <div style="color:#ccc;font-size:13px;font-weight:600">${label}</div>
+        <div style="color:var(--c-strong);font-size:13px;font-weight:600">${label}</div>
         <div style="color:var(--c-dim);font-size:11px">${desc}</div>
       </div>
     </div>`;
@@ -132,7 +132,7 @@ function _pollScan() {
       const s = await apiFetch('/api/job-status');
       if (s.scan_running && s.scan_progress) {
         const p = s.scan_progress;
-        _setBody(`<p style="color:var(--c-muted);font-size:13px">Escaneando… <strong style="color:#ccc">${p.scanned ?? p.files_seen ?? 0}</strong> archivos hasta ahora</p>`);
+        _setBody(`<p style="color:var(--c-muted);font-size:13px">Escaneando… <strong style="color:var(--c-strong)">${p.scanned ?? p.files_seen ?? 0}</strong> archivos hasta ahora</p>`);
         return;
       }
       const r = s.scan_result;
@@ -145,7 +145,7 @@ function _pollScan() {
           _setBody(`
             <div style="text-align:center;padding:20px 0">
               <div style="font-size:30px;margin-bottom:8px">✅</div>
-              <div style="color:#ccc;font-size:14px;font-weight:600">Escaneo completado</div>
+              <div style="color:var(--c-strong);font-size:14px;font-weight:600">Escaneo completado</div>
               <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
                 <strong style="color:var(--c-teal)">${r.roms_detected ?? 0}</strong> ROMs detectados
                 &nbsp;·&nbsp; ${r.files_seen ?? 0} archivos vistos
@@ -186,14 +186,14 @@ async function _renderOrganize() {
     const preview = ops.slice(0, 6).map(op => {
       const src = op.source_name ?? op.source_path?.split(/[\\/]/).pop() ?? '';
       const tgt = op.target_name ?? op.target_path?.split(/[\\/]/).pop() ?? '';
-      return `<div style="font-size:11px;color:#666;padding:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-        ✏️ ${_h(src)} <span style="color:#444">→</span> <span style="color:var(--c-lblue)">${_h(tgt)}</span>
+      return `<div style="font-size:11px;color:var(--c-hint);padding:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        ✏️ ${_h(src)} <span style="color:var(--c-ghost)">→</span> <span style="color:var(--c-lblue)">${_h(tgt)}</span>
       </div>`;
     }).join('');
-    const more = count > 6 ? `<div style="color:#444;font-size:11px;margin-top:4px">…y ${count - 6} más</div>` : '';
+    const more = count > 6 ? `<div style="color:var(--c-ghost);font-size:11px;margin-top:4px">…y ${count - 6} más</div>` : '';
 
     _setBody(`
-      <div style="color:#ccc;font-size:13px;margin-bottom:10px">
+      <div style="color:var(--c-strong);font-size:13px;margin-bottom:10px">
         <strong style="color:#7aa2f7">${count}</strong> renombre${count !== 1 ? 's' : ''} pendiente${count !== 1 ? 's' : ''}
       </div>
       <div style="background:var(--bg-panel);border:1px solid var(--border-s);border-radius:6px;padding:10px;max-height:150px;overflow-y:auto">
@@ -237,7 +237,7 @@ function _pollApply() {
           _setBody(`
             <div style="text-align:center;padding:20px 0">
               <div style="font-size:30px;margin-bottom:8px">✅</div>
-              <div style="color:#ccc;font-size:14px;font-weight:600">Renombres aplicados</div>
+              <div style="color:var(--c-strong);font-size:14px;font-weight:600">Renombres aplicados</div>
               <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
                 <strong style="color:var(--c-teal)">${r.renamed ?? 0}</strong> renombrados
                 ${r.failed ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.failed} fallidos</span>` : ''}
@@ -277,11 +277,11 @@ async function _renderDupes() {
     const freed = groups.reduce((acc, g) => acc + (g.entries?.slice(1).reduce((s, e) => s + (e.size_bytes ?? 0), 0) ?? 0), 0);
 
     _setBody(`
-      <div style="color:#ccc;font-size:13px;margin-bottom:10px">
+      <div style="color:var(--c-strong);font-size:13px;margin-bottom:10px">
         <strong style="color:var(--c-pink)">${count}</strong> grupo${count !== 1 ? 's' : ''} de duplicados
         ${freed > 0 ? `&nbsp;·&nbsp; <span style="color:var(--c-muted)">${_fmtBytes(freed)} recuperables</span>` : ''}
       </div>
-      <p style="color:#666;font-size:12px;margin:0">
+      <p style="color:var(--c-hint);font-size:12px;margin:0">
         En cada grupo se conserva la mejor versión; las demás se eliminan.
       </p>
     `);
@@ -302,7 +302,7 @@ async function _deleteDupes() {
     _setBody(`
       <div style="text-align:center;padding:20px 0">
         <div style="font-size:30px;margin-bottom:8px">✅</div>
-        <div style="color:#ccc;font-size:14px;font-weight:600">Duplicados eliminados</div>
+        <div style="color:var(--c-strong);font-size:14px;font-weight:600">Duplicados eliminados</div>
         <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
           <strong style="color:var(--c-teal)">${r.deleted ?? 0}</strong> archivos eliminados
           ${r.freed_bytes > 0 ? ` &nbsp;·&nbsp; ${_fmtBytes(r.freed_bytes)} liberados` : ''}
@@ -359,7 +359,7 @@ function _pollSync(isDryRun) {
             _setActions('Siguiente', () => { _step = 4; _render(); }, null, null);
           } else {
             _setBody(`
-              <div style="color:#ccc;font-size:13px;margin-bottom:12px">Vista previa de sync:</div>
+              <div style="color:var(--c-strong);font-size:13px;margin-bottom:12px">Vista previa de sync:</div>
               <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
                 <span>⬆️ <strong style="color:#7aa2f7">${up}</strong> para subir</span>
                 <span>⬇️ <strong style="color:var(--c-teal)">${down}</strong> para bajar</span>
@@ -374,7 +374,7 @@ function _pollSync(isDryRun) {
           _setBody(`
             <div style="text-align:center;padding:20px 0">
               <div style="font-size:30px;margin-bottom:8px">✅</div>
-              <div style="color:#ccc;font-size:14px;font-weight:600">Sync completado</div>
+              <div style="color:var(--c-strong);font-size:14px;font-weight:600">Sync completado</div>
               <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
                 ⬆️ <strong style="color:#7aa2f7">${r.uploaded ?? 0}</strong> subidos
                 &nbsp;·&nbsp;
@@ -456,7 +456,7 @@ function _renderSummary() {
 function _summaryRow(icon, label, value) {
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-panel);border:1px solid var(--border-s);border-radius:6px">
-      <span style="color:#ccc;font-size:13px">${icon} ${label}</span>
+      <span style="color:var(--c-strong);font-size:13px">${icon} ${label}</span>
       <span style="color:var(--c-muted);font-size:12px">${value}</span>
     </div>`;
 }

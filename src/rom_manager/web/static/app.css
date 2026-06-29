@@ -49,8 +49,12 @@
   --c-lblue:   #9cdcfe;  /* light blue */
   --c-pink:    #f38ba8;  /* pink */
   --c-green:   #6a9955;  /* comment green */
+  --c-strong:  #ccc;     /* prominent secondary text (near-body) */
+  --c-soft:    #aaa;     /* soft-muted text */
   --c-muted:   #888;     /* secondary / muted text */
+  --c-hint:    #666;     /* mid-dim hint text */
   --c-dim:     #555;     /* tertiary / dim hint text */
+  --c-ghost:   #444;     /* barely-visible ghost labels */
   --c-panel:   #1e1e2e;  /* mid panel / card background */
   --c-bar:     #161626;  /* sub-bar / detail background */
   --c-input:   #0f0f0f;  /* input / code background */
@@ -117,8 +121,12 @@
   --c-lblue:   #1a5890;
   --c-pink:    #c2185b;
   --c-green:   #2e7d32;
+  --c-strong:  #3a3a5e;
+  --c-soft:    #666;
   --c-muted:   #777;
+  --c-hint:    #888;
   --c-dim:     #999;
+  --c-ghost:   #bbb;
   --c-panel:   #ffffff;
   --c-bar:     #e4e6f0;
   --c-input:   #ffffff;
