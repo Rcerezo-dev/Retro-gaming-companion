@@ -25,6 +25,7 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     - ra_target_achievements: int | null — (disk only) achievements for the blocker file
     - ra_role: "winner" | "loser" | null — predicted outcome if "Resolver con RA" is applied
     """
+
     def base_row(op):
         return {
             "game_id": op.game.id,

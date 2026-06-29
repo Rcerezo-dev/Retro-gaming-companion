@@ -79,7 +79,12 @@ _PLATFORM_DAT_MAP: dict[str, tuple[str, str]] = {
 }
 
 # Reverse cache-subdir name: "no-intro" → "nointro", "redump" → "redump"
-_SUBDIR: dict[str, str] = {"no-intro": "nointro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
+_SUBDIR: dict[str, str] = {
+    "no-intro": "nointro",
+    "redump": "redump",
+    "fbneo": "fbneo",
+    "mame": "mame",
+}
 
 
 @dataclass

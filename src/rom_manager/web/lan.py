@@ -56,9 +56,18 @@ def _check_firewall(port: int) -> bool:
         return True
     try:
         result = subprocess.run(
-            ["netsh", "advfirewall", "firewall", "show", "rule",
-             f"name={_FIREWALL_RULE_NAME}", "dir=in"],
-            capture_output=True, text=True, timeout=5,
+            [
+                "netsh",
+                "advfirewall",
+                "firewall",
+                "show",
+                "rule",
+                f"name={_FIREWALL_RULE_NAME}",
+                "dir=in",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         out = result.stdout
         return ("Permitir" in out or "Allow" in out) and result.returncode == 0
