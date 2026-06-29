@@ -1,4 +1,4 @@
-// js/tabs/scan.js — Scan, Match, Fix-platforms, DAT catalog
+﻿// js/tabs/scan.js — Scan, Match, Fix-platforms, DAT catalog
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -209,14 +209,14 @@ async function loadCatalogStatus() {
       }
       html = '\u2705 ' + parts.join(' &middot; ');
     }
-    html += `<br><span style="color:#555;font-size:10px">No-Intro: <code>${d.nointro_dir}</code> &middot; Redump: <code>${d.redump_dir}</code> &middot; Arcade: <code>${d.arcade_dir}</code></span>`;
+    html += `<br><span style="color:var(--c-dim);font-size:10px">No-Intro: <code>${d.nointro_dir}</code> &middot; Redump: <code>${d.redump_dir}</code> &middot; Arcade: <code>${d.arcade_dir}</code></span>`;
     if (el) el.innerHTML = html;
     if (ovEl && (ni > 0 || rd > 0 || arc > 0)) {
       const _p = [];
       if (ni > 0) _p.push(ni + ' No-Intro');
       if (rd > 0) _p.push(rd + ' Redump');
       if (arc > 0) _p.push(arc + ' Arcade');
-      ovEl.innerHTML = `\u2705 ${_p.join(' \u00b7 ')} <a href="#" onclick="showTab('settings');return false" style="color:#555;font-size:10px">gestionar \u2192</a>`;
+      ovEl.innerHTML = `\u2705 ${_p.join(' \u00b7 ')} <a href="#" onclick="showTab('settings');return false" style="color:var(--c-dim);font-size:10px">gestionar \u2192</a>`;
     } else if (ovEl) {
       ovEl.innerHTML = `<span style="color:var(--c-yellow)">\u26A0 Sin cat\u00e1logos DAT</span> \u2014 los ROMs no se pueden identificar. `
         + `<a href="#" onclick="showTab('settings');setTimeout(function(){var s=document.getElementById('dat-catalog-list');if(s)s.scrollIntoView({behavior:'smooth'})},350);return false" style="color:#7aadff">Descargar cat\u00e1logos \u2192</a>`;
@@ -243,7 +243,7 @@ async function importArcadeCatalog() {
     }).join('<br>');
     const errTxt = d.errors.length ? ` &mdash; ${d.errors.length} error(es)` : '';
     if (res) {
-      res.innerHTML = `\u2705 ${d.total_files} archivo(s), ${d.total_entries.toLocaleString()} entradas importadas${errTxt}<br><span style="color:#555;font-size:11px">${lines}</span>`;
+      res.innerHTML = `\u2705 ${d.total_files} archivo(s), ${d.total_entries.toLocaleString()} entradas importadas${errTxt}<br><span style="color:var(--c-dim);font-size:11px">${lines}</span>`;
       _txtCls(res, 'txt-ok');
     }
     loadCatalogStatus();

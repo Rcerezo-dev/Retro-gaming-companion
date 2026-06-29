@@ -1,4 +1,4 @@
-<div id="tab-formats" class="tab">
+﻿<div id="tab-formats" class="tab">
 
   <!-- ── Convertir a CHD ── -->
   <div class="actions-panel" style="margin-bottom:20px">
@@ -21,12 +21,12 @@
     </div>
     <div class="actions-row">
       <button id="btn-convert-chd" class="btn primary" onclick="doConvertChd()">Convertir a CHD</button>
-      <span id="chdman-status" style="font-size:12px;color:#555">Verificando chdman&#x2026;</span>
+      <span id="chdman-status" style="font-size:12px;color:var(--c-dim)">Verificando chdman&#x2026;</span>
     </div>
     <div class="hidden" id="chd-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="chd-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="chd-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="chd-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="chd-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width 0.3s"></div>
@@ -34,22 +34,22 @@
     </div>
     <div id="job-result-convert-chd" class="job-result"></div>
     <div class="hidden" id="chd-results-header" style="margin-top:16px;margin-bottom:6px;align-items:center;gap:10px">
-      <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer">
+      <label style="font-size:11px;color:var(--c-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
         <input type="checkbox" id="chd-filter-errors" onchange="applyChdFilter()"> Solo errores
       </label>
-      <span id="chd-results-count" style="font-size:11px;color:#555"></span>
+      <span id="chd-results-count" style="font-size:11px;color:var(--c-dim)"></span>
     </div>
     <div id="chd-results" style="margin-top:4px;max-height:450px;overflow-y:auto"></div>
     <div class="actions-row" style="margin-top:12px;border-top:1px solid var(--c-panel);padding-top:12px">
       <button class="btn danger" onclick="doCleanupCueBin()">Eliminar .cue/.bin originales</button>
-      <span style="color:#555;font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
+      <span style="color:var(--c-dim);font-size:12px">Solo elimina los que ya tienen su .chd correspondiente</span>
     </div>
   </div>
 
   <!-- ── Verificar integridad CHD (P6) ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Verificar integridad CHD</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta <code>chdman verify</code> sobre cada <code>.chd</code> encontrado en la carpeta. Detecta archivos corruptos o truncados sin modificarlos.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Ejecuta <code>chdman verify</code> sobre cada <code>.chd</code> encontrado en la carpeta. Detecta archivos corruptos o truncados sin modificarlos.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1">
         <label for="verify-chd-path">Carpeta con archivos .chd</label>
@@ -62,8 +62,8 @@
     </div>
     <div class="hidden" id="verify-chd-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="verify-chd-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="verify-chd-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="verify-chd-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="verify-chd-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="verify-chd-progress-bar" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.3s"></div>
@@ -71,10 +71,10 @@
     </div>
     <div id="verify-chd-result" class="job-result"></div>
     <div style="margin-top:12px;margin-bottom:4px;display:flex;align-items:center;gap:10px">
-      <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:5px;cursor:pointer">
+      <label style="font-size:11px;color:var(--c-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
         <input type="checkbox" id="verify-chd-filter-errors" checked onchange="applyVerifyChdFilter()"> Solo corruptos
       </label>
-      <span id="verify-chd-count" style="font-size:11px;color:#555"></span>
+      <span id="verify-chd-count" style="font-size:11px;color:var(--c-dim)"></span>
     </div>
     <div id="verify-chd-list" style="margin-top:4px;max-height:400px;overflow-y:auto"></div>
   </div>
@@ -82,7 +82,7 @@
   <!-- ── Convertir CSO/ZSO → ISO (PSP) ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>CSO / ZSO &#x2192; ISO (PSP)</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Descomprime archivos .cso y .zso a formato ISO usando <code>maxcso.exe</code>. Necesario si tu emulador no lee CSO nativamente. <strong>Nota:</strong> no procesa archivos dentro de carpetas arcade (MAME, FBNeo).</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Descomprime archivos .cso y .zso a formato ISO usando <code>maxcso.exe</code>. Necesario si tu emulador no lee CSO nativamente. <strong>Nota:</strong> no procesa archivos dentro de carpetas arcade (MAME, FBNeo).</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con .cso/.zso</label><input id="cso-path" type="text" placeholder="C:/ROMs/psp" style="width:100%"></div>
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('cso-path')">library_root</button>
@@ -92,12 +92,12 @@
     </div>
     <div class="actions-row">
       <button id="btn-convert-cso" class="btn primary" onclick="doConvertCso()">Convertir a ISO</button>
-      <span id="maxcso-status" style="font-size:12px;color:#555">Verificando maxcso&#x2026;</span>
+      <span id="maxcso-status" style="font-size:12px;color:var(--c-dim)">Verificando maxcso&#x2026;</span>
     </div>
     <div class="hidden" id="cso-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="cso-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="cso-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="cso-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="cso-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="cso-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width 0.3s"></div>
@@ -110,7 +110,7 @@
   <!-- ── Descomprimir ZIPs ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Descomprimir ZIPs</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip directamente en la misma carpeta. RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip directamente en la misma carpeta. RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba" style="width:100%"></div>
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('zip-path')">library_root</button>
@@ -124,8 +124,8 @@
     </div>
     <div class="hidden" id="zip-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="zip-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="zip-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="zip-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="zip-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="zip-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width 0.3s"></div>
@@ -135,14 +135,14 @@
     <div id="zip-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
     <div class="actions-row" style="margin-top:12px;border-top:1px solid var(--c-panel);padding-top:12px">
       <button class="btn danger" onclick="doCleanupZips()" title="Elimina los archivos .zip originales de esta carpeta. Úsalo solo si ya extrajiste los ROMs. No se puede deshacer.">Eliminar todos los .zip de esta carpeta</button>
-      <span style="color:#555;font-size:12px">Para usar si ya extrajiste antes sin marcar "Eliminar .zip"</span>
+      <span style="color:var(--c-dim);font-size:12px">Para usar si ya extrajiste antes sin marcar "Eliminar .zip"</span>
     </div>
   </div>
 
   <!-- ── Conversor N64 → .z64 ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Conversor N64 &#x2192; .z64 <span id="n64-status" style="font-size:12px;font-weight:normal;color:var(--c-teal);margin-left:8px">&#x2713; Sin herramienta externa</span></h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Convierte ROMs de Nintendo 64 al formato nativo big-endian (.z64). Los formatos .v64 (Doctor V64) y .n64 (little-endian) son convertidos en Python, sin herramientas externas.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Convierte ROMs de Nintendo 64 al formato nativo big-endian (.z64). Los formatos .v64 (Doctor V64) y .n64 (little-endian) son convertidos en Python, sin herramientas externas.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con ROMs N64</label><input id="n64-path" type="text" placeholder="C:/ROMs/n64" style="width:100%"></div>
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('n64-path')">library_root</button>
@@ -154,7 +154,7 @@
   <!-- ── Generar playlists M3U ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Generar playlists M3U (multi-disco)</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Busca juegos con "(Disc 1)", "(Disc 2)"&#x2026; y crea un archivo .m3u por cada grupo. Necesario para cambiar de disco en RetroArch sin salir del juego.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Busca juegos con "(Disc 1)", "(Disc 2)"&#x2026; y crea un archivo .m3u por cada grupo. Necesario para cambiar de disco en RetroArch sin salir del juego.</p>
     <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
       <div style="flex:1;min-width:200px">
         <label>Carpeta de ROMs</label>
@@ -163,7 +163,7 @@
       <button class="btn" onclick="autodetectM3UFolders()" id="btn-m3u-autodetect" title="Detecta automáticamente las carpetas de plataformas de disco">Autodetectar carpetas</button>
     </div>
     <div class="hidden" id="m3u-folder-select-wrap" style="margin-top:8px">
-      <label style="color:#888;font-size:11px;display:block;margin-bottom:4px">Carpetas detectadas — haz clic para seleccionar:</label>
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Carpetas detectadas — haz clic para seleccionar:</label>
       <div id="m3u-folder-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center;margin-top:10px">
@@ -178,7 +178,7 @@
   <!-- ── Generar playlists RetroArch .lpl ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Generar playlists RetroArch (.lpl)</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Genera un archivo <code>.lpl</code> por plataforma en formato nativo de RetroArch. Los juegos aparecen directamente en el men&#xfa; de RetroArch sin configuraci&#xf3;n adicional.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Genera un archivo <code>.lpl</code> por plataforma en formato nativo de RetroArch. Los juegos aparecen directamente en el men&#xfa; de RetroArch sin configuraci&#xf3;n adicional.</p>
     <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
       <div style="flex:1;min-width:200px">
         <label>Carpeta destino (vac&#xed;o = .rommgr/playlists/)</label>
@@ -192,7 +192,7 @@
   <!-- ── Análisis de carpeta ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>An&#xe1;lisis de carpeta</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversi&#xf3;n.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversi&#xf3;n.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx" style="width:100%"></div>
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('folder-analysis-path')">library_root</button>
@@ -206,7 +206,7 @@
   <!-- ── Verificar multi-disco ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Verificar sets multi-disco</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba que todos los discos de cada juego est&#xe1;n presentes, tienen la misma extensi&#xf3;n, no hay huecos en la numeraci&#xf3;n y est&#xe1;n en el cat&#xe1;logo.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:8px">Comprueba que todos los discos de cada juego est&#xe1;n presentes, tienen la misma extensi&#xf3;n, no hay huecos en la numeraci&#xf3;n y est&#xe1;n en el cat&#xe1;logo.</p>
     <p class="hidden" id="multidisc-folder-hint" style="font-size:11px;color:var(--c-blue);margin-bottom:8px"></p>
     <div class="actions-row">
       <div style="flex:1"><label>Carpeta(s) de ROMs (una por l&#xed;nea)</label>

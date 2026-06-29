@@ -1,4 +1,4 @@
-// js/tabs/config.js — Settings tab
+﻿// js/tabs/config.js — Settings tab
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -94,8 +94,8 @@ async function loadSettings() {
       const fmtSize = (n) => n == null ? '?' : n < 1024*1024 ? (n/1024).toFixed(0)+'KB' : (n/1024/1024).toFixed(1)+'MB';
       dbInfo.innerHTML =
         '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center">' +
-        '<span style="color:var(--c-teal)">&#x25CF;</span><span style="font-family:monospace;color:var(--c-text)">library_pc.db</span><span style="color:#888">' + fmtSize(cfg.pc_db_size) + '</span>' +
-        '<span style="color:var(--c-orange)">&#x25CF;</span><span style="font-family:monospace;color:var(--c-text)">library_android.db</span><span style="color:#888">' + fmtSize(cfg.android_db_size) + '</span>' +
+        '<span style="color:var(--c-teal)">&#x25CF;</span><span style="font-family:monospace;color:var(--c-text)">library_pc.db</span><span style="color:var(--c-muted)">' + fmtSize(cfg.pc_db_size) + '</span>' +
+        '<span style="color:var(--c-orange)">&#x25CF;</span><span style="font-family:monospace;color:var(--c-text)">library_android.db</span><span style="color:var(--c-muted)">' + fmtSize(cfg.android_db_size) + '</span>' +
         '</div>';
     }
   } catch(e) { /* silent */ }
@@ -354,7 +354,7 @@ async function doBatchRun() {
   let allOk = true;
 
   for (const job of jobs) {
-    statusEl.innerHTML = `<span style="color:#888">⟳ ${window._h(job.name)}…</span>`;
+    statusEl.innerHTML = `<span style="color:var(--c-muted)">⟳ ${window._h(job.name)}…</span>`;
     try {
       const d = await job.start();
       if (d.status === 'already_running') {
@@ -722,7 +722,7 @@ async function doMigrateSavesStructure(dryRun) {
     let msg = `${action}: ${d.moves_saves} saves + ${d.moves_states} savestates`;
     if (d.errors?.length) msg += ` \u2014 ${d.errors.length} error(es)`;
     if (dryRun && d.preview?.length) {
-      msg += '<br><small style="color:#555">' + d.preview.slice(0, 5).map(p => p.source.split(/[\\/]/).pop()).join(', ') + (d.preview.length > 5 ? '\u2026' : '') + '</small>';
+      msg += '<br><small style="color:var(--c-dim)">' + d.preview.slice(0, 5).map(p => p.source.split(/[\\/]/).pop()).join(', ') + (d.preview.length > 5 ? '\u2026' : '') + '</small>';
     }
     if (res) { res.innerHTML = (dryRun ? '\u2139\uFE0F ' : '\u2705 ') + msg; res.style.color = dryRun ? 'var(--c-yellow)' : 'var(--c-teal)'; }
   } catch(e) {

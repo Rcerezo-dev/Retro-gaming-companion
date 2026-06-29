@@ -1,4 +1,4 @@
-<div id="tab-games" class="tab">
+﻿<div id="tab-games" class="tab">
   <div class="hidden rv-tint-warn" id="games-dat-banner" style="margin-bottom:8px;padding:6px 12px;border-radius:4px;font-size:12px;color:#ccc;line-height:1.6"></div>
   <div class="hidden" id="games-root-banner" style="margin-bottom:8px;padding:6px 10px;background:var(--c-panel);border:1px solid #333;border-radius:4px;align-items:center;gap:10px"></div>
   <div class="toolbar">
@@ -22,7 +22,7 @@
       <option value="100pct">&#x1F4AF; Al 100%</option>
       <option value="abandoned">&#x23F8; Abandonado</option>
     </select>
-    <button id="btn-filter-favorites" title="Solo favoritos" onclick="toggleFavoritesFilter()" style="background:var(--c-panel);border:1px solid #444;color:#888;padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2605; Favoritos</button>
+    <button id="btn-filter-favorites" title="Solo favoritos" onclick="toggleFavoritesFilter()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2605; Favoritos</button>
     <select id="games-tag-filter" onchange="onGamesFilterChange()" style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px">
       <option value="">Todos los tags</option>
     </select>
@@ -51,8 +51,8 @@
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <span style="font-size:15px">&#x2728;</span>
       <span style="font-size:13px;font-weight:600;color:var(--c-teal)">Recomendados para ti</span>
-      <span id="rec-updated-at" style="font-size:11px;color:#555;margin-left:4px"></span>
-      <button onclick="dismissRecommendations()" title="Ocultar" style="margin-left:auto;background:none;border:none;color:#555;font-size:16px;cursor:pointer;padding:0;line-height:1">&times;</button>
+      <span id="rec-updated-at" style="font-size:11px;color:var(--c-dim);margin-left:4px"></span>
+      <button onclick="dismissRecommendations()" title="Ocultar" style="margin-left:auto;background:none;border:none;color:var(--c-dim);font-size:16px;cursor:pointer;padding:0;line-height:1">&times;</button>
     </div>
     <div id="rec-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
   </div>
@@ -65,9 +65,9 @@
           <th>Plataforma</th><th>Título canónico</th><th>Archivo original</th>
           <th>Estado</th>
           <th id="gcol-region">Región</th><th id="gcol-match">Identificación</th><th id="gcol-size">Tamaño</th><th id="gcol-sha1">Huella (SHA1)
-            <button title="Configurar columnas" onclick="toggleColPicker(event)" style="background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle">&#x2699;</button>
+            <button title="Configurar columnas" onclick="toggleColPicker(event)" style="background:none;border:none;color:var(--c-muted);cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle">&#x2699;</button>
             <div class="hidden" id="col-picker" style="position:absolute;background:var(--c-panel);border:1px solid #444;border-radius:6px;padding:10px 14px;z-index:100;min-width:160px;font-size:13px;font-weight:normal">
-              <div style="color:#888;font-size:11px;margin-bottom:8px">Mostrar columnas</div>
+              <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Mostrar columnas</div>
               <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-region" onchange="applyColVisibility()"> Región</label>
               <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-match" onchange="applyColVisibility()"> Identificación</label>
               <label style="display:block;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="gcol-check-size" onchange="applyColVisibility()"> Tamaño</label>
@@ -83,6 +83,6 @@
     </div>
   </div>
   <p id="games-empty" class="empty hidden">Sin resultados. Prueba con otros filtros o ejecuta un Scan primero.</p>
-  <div id="games-pagination" style="display:flex;gap:8px;align-items:center;margin-top:12px;color:#888;font-size:13px"></div>
+  <div id="games-pagination" style="display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--c-muted);font-size:13px"></div>
 </div>
 

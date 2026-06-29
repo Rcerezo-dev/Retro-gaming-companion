@@ -1,4 +1,4 @@
-// js/main.js — Retro Vault module entry point
+﻿// js/main.js — Retro Vault module entry point
 // Loaded as type="module" (deferred) before app.js.
 // Sets up window globals so inline onclick handlers and app.js can call these functions.
 
@@ -522,7 +522,7 @@ export function onGlobalSearch(val) {
         const gj = JSON.stringify(g).replace(/</g,'\\u003c');
         return `<div class="sr-item" onclick="document.getElementById('global-search').value='';document.getElementById('global-search-results').classList.add('hidden');openGamePanel(${gj})">
           <img src="/api/asset-image?game_id=${g.id}" width="28" height="28" style="border-radius:3px;object-fit:cover" onerror="this.classList.add('hidden')">
-          <div><div style="color:var(--c-text)">${title}</div><div style="font-size:11px;color:#555">${_h(g.platform||'')}</div></div>
+          <div><div style="color:var(--c-text)">${title}</div><div style="font-size:11px;color:var(--c-dim)">${_h(g.platform||'')}</div></div>
         </div>`;
       }).join('');
     } catch(e) { results.classList.add('hidden'); }
@@ -655,7 +655,7 @@ export async function applyAppUpdate() {
   try {
     const r = await apiPost('/api/update/apply', {});
     if (r.status === 'error') { showToast(r.error, 'error'); return; }
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:#555;font-size:14px">Abriendo el instalador… cierra esta pestaña.</div>';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:var(--c-dim);font-size:14px">Abriendo el instalador… cierra esta pestaña.</div>';
   } catch (_) { /* conexión cortada por el shutdown — es lo esperado */ }
 }
 

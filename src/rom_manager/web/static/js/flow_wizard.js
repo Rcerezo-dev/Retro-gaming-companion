@@ -1,4 +1,4 @@
-// flow_wizard.js — FLOW-WIZARD: scan → organize → duplicates → sync, step by step.
+﻿// flow_wizard.js — FLOW-WIZARD: scan → organize → duplicates → sync, step by step.
 
 import { apiFetch, apiPost } from './api.js';
 
@@ -82,7 +82,7 @@ function _stopPoll() {
 
 function _renderIntro() {
   _setBody(`
-    <p style="color:#888;margin:0 0 16px;line-height:1.7;font-size:13px">
+    <p style="color:var(--c-muted);margin:0 0 16px;line-height:1.7;font-size:13px">
       Este asistente ejecuta los pasos principales en orden.<br>
       Puedes <strong style="color:#ccc">omitir</strong> cualquier paso que no necesites ahora.
     </p>
@@ -102,7 +102,7 @@ function _introRow(icon, label, desc) {
       <span style="font-size:17px;min-width:22px;text-align:center">${icon}</span>
       <div>
         <div style="color:#ccc;font-size:13px;font-weight:600">${label}</div>
-        <div style="color:#555;font-size:11px">${desc}</div>
+        <div style="color:var(--c-dim);font-size:11px">${desc}</div>
       </div>
     </div>`;
 }
@@ -110,14 +110,14 @@ function _introRow(icon, label, desc) {
 // ── Step 0: Scan ──────────────────────────────────────────────────────────────
 
 async function _renderScan() {
-  _setBody('<p style="color:#888;font-size:13px">Iniciando escaneo…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Iniciando escaneo…</p>');
   _setActions('Siguiente', null, 'Omitir', () => { _skipped.scan = true; _step = 1; _render(); });
 
   try {
     const status = await apiFetch('/api/job-status');
     _prevResultTs.scan = status.scan_result?.result_ts ?? '';
     await apiPost('/api/scan', {});
-    _setBody('<p style="color:#888;font-size:13px">Escaneando biblioteca…</p>');
+    _setBody('<p style="color:var(--c-muted);font-size:13px">Escaneando biblioteca…</p>');
     _pollScan();
   } catch (e) {
     _setBody(`<p class="error-msg">Error al iniciar escaneo: ${_h(e.message)}</p>`);
@@ -132,7 +132,7 @@ function _pollScan() {
       const s = await apiFetch('/api/job-status');
       if (s.scan_running && s.scan_progress) {
         const p = s.scan_progress;
-        _setBody(`<p style="color:#888;font-size:13px">Escaneando… <strong style="color:#ccc">${p.scanned ?? p.files_seen ?? 0}</strong> archivos hasta ahora</p>`);
+        _setBody(`<p style="color:var(--c-muted);font-size:13px">Escaneando… <strong style="color:#ccc">${p.scanned ?? p.files_seen ?? 0}</strong> archivos hasta ahora</p>`);
         return;
       }
       const r = s.scan_result;
@@ -146,7 +146,7 @@ function _pollScan() {
             <div style="text-align:center;padding:20px 0">
               <div style="font-size:30px;margin-bottom:8px">✅</div>
               <div style="color:#ccc;font-size:14px;font-weight:600">Escaneo completado</div>
-              <div style="color:#888;font-size:12px;margin-top:8px">
+              <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
                 <strong style="color:var(--c-teal)">${r.roms_detected ?? 0}</strong> ROMs detectados
                 &nbsp;·&nbsp; ${r.files_seen ?? 0} archivos vistos
                 ${r.errors ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.errors} errores</span>` : ''}
@@ -163,7 +163,7 @@ function _pollScan() {
 // ── Step 1: Organize ──────────────────────────────────────────────────────────
 
 async function _renderOrganize() {
-  _setBody('<p style="color:#888;font-size:13px">Calculando renombres pendientes…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Calculando renombres pendientes…</p>');
   _setActions('Aplicar', null, 'Omitir', () => { _skipped.organize = true; _step = 2; _render(); });
 
   try {
@@ -176,7 +176,7 @@ async function _renderOrganize() {
       _setBody(`
         <div style="text-align:center;padding:20px 0">
           <div style="font-size:28px;margin-bottom:8px">✅</div>
-          <div style="color:#888;font-size:13px">Nada que organizar — todo al día</div>
+          <div style="color:var(--c-muted);font-size:13px">Nada que organizar — todo al día</div>
         </div>
       `);
       _setActions('Siguiente', () => { _step = 2; _render(); }, null, null);
@@ -208,7 +208,7 @@ async function _renderOrganize() {
 }
 
 async function _applyOrganize() {
-  _setBody('<p style="color:#888;font-size:13px">Aplicando renombres…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Aplicando renombres…</p>');
   _setActions('Siguiente', null, null, null);
 
   try {
@@ -238,7 +238,7 @@ function _pollApply() {
             <div style="text-align:center;padding:20px 0">
               <div style="font-size:30px;margin-bottom:8px">✅</div>
               <div style="color:#ccc;font-size:14px;font-weight:600">Renombres aplicados</div>
-              <div style="color:#888;font-size:12px;margin-top:8px">
+              <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
                 <strong style="color:var(--c-teal)">${r.renamed ?? 0}</strong> renombrados
                 ${r.failed ? ` &nbsp;·&nbsp; <span style="color:var(--c-pink)">${r.failed} fallidos</span>` : ''}
               </div>
@@ -254,7 +254,7 @@ function _pollApply() {
 // ── Step 2: Duplicates ────────────────────────────────────────────────────────
 
 async function _renderDupes() {
-  _setBody('<p style="color:#888;font-size:13px">Buscando duplicados…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Buscando duplicados…</p>');
   _setActions('Eliminar duplicados', null, 'Omitir', () => { _skipped.dupes = true; _step = 3; _render(); });
 
   try {
@@ -267,7 +267,7 @@ async function _renderDupes() {
       _setBody(`
         <div style="text-align:center;padding:20px 0">
           <div style="font-size:28px;margin-bottom:8px">✅</div>
-          <div style="color:#888;font-size:13px">Sin duplicados</div>
+          <div style="color:var(--c-muted);font-size:13px">Sin duplicados</div>
         </div>
       `);
       _setActions('Siguiente', () => { _step = 3; _render(); }, null, null);
@@ -279,7 +279,7 @@ async function _renderDupes() {
     _setBody(`
       <div style="color:#ccc;font-size:13px;margin-bottom:10px">
         <strong style="color:var(--c-pink)">${count}</strong> grupo${count !== 1 ? 's' : ''} de duplicados
-        ${freed > 0 ? `&nbsp;·&nbsp; <span style="color:#888">${_fmtBytes(freed)} recuperables</span>` : ''}
+        ${freed > 0 ? `&nbsp;·&nbsp; <span style="color:var(--c-muted)">${_fmtBytes(freed)} recuperables</span>` : ''}
       </div>
       <p style="color:#666;font-size:12px;margin:0">
         En cada grupo se conserva la mejor versión; las demás se eliminan.
@@ -293,7 +293,7 @@ async function _renderDupes() {
 }
 
 async function _deleteDupes() {
-  _setBody('<p style="color:#888;font-size:13px">Eliminando duplicados…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Eliminando duplicados…</p>');
   _setActions('Siguiente', null, null, null);
 
   try {
@@ -303,7 +303,7 @@ async function _deleteDupes() {
       <div style="text-align:center;padding:20px 0">
         <div style="font-size:30px;margin-bottom:8px">✅</div>
         <div style="color:#ccc;font-size:14px;font-weight:600">Duplicados eliminados</div>
-        <div style="color:#888;font-size:12px;margin-top:8px">
+        <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
           <strong style="color:var(--c-teal)">${r.deleted ?? 0}</strong> archivos eliminados
           ${r.freed_bytes > 0 ? ` &nbsp;·&nbsp; ${_fmtBytes(r.freed_bytes)} liberados` : ''}
         </div>
@@ -319,7 +319,7 @@ async function _deleteDupes() {
 // ── Step 3: Sync ──────────────────────────────────────────────────────────────
 
 async function _renderSync() {
-  _setBody('<p style="color:#888;font-size:13px">Calculando cambios de sync…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Calculando cambios de sync…</p>');
   _setActions('Sincronizar', null, 'Omitir', () => { _skipped.sync = true; _step = 4; _render(); });
 
   try {
@@ -353,7 +353,7 @@ function _pollSync(isDryRun) {
             _setBody(`
               <div style="text-align:center;padding:20px 0">
                 <div style="font-size:28px;margin-bottom:8px">✅</div>
-                <div style="color:#888;font-size:13px">Saves al día — nada que sincronizar</div>
+                <div style="color:var(--c-muted);font-size:13px">Saves al día — nada que sincronizar</div>
               </div>
             `);
             _setActions('Siguiente', () => { _step = 4; _render(); }, null, null);
@@ -375,7 +375,7 @@ function _pollSync(isDryRun) {
             <div style="text-align:center;padding:20px 0">
               <div style="font-size:30px;margin-bottom:8px">✅</div>
               <div style="color:#ccc;font-size:14px;font-weight:600">Sync completado</div>
-              <div style="color:#888;font-size:12px;margin-top:8px">
+              <div style="color:var(--c-muted);font-size:12px;margin-top:8px">
                 ⬆️ <strong style="color:#7aa2f7">${r.uploaded ?? 0}</strong> subidos
                 &nbsp;·&nbsp;
                 ⬇️ <strong style="color:var(--c-teal)">${r.downloaded ?? 0}</strong> descargados
@@ -391,7 +391,7 @@ function _pollSync(isDryRun) {
 }
 
 async function _runSync() {
-  _setBody('<p style="color:#888;font-size:13px">Sincronizando…</p>');
+  _setBody('<p style="color:var(--c-muted);font-size:13px">Sincronizando…</p>');
   _setActions('Siguiente', null, null, null);
 
   try {
@@ -447,7 +447,7 @@ function _renderSummary() {
   }
 
   _setBody(`
-    <div style="color:#888;font-size:12px;margin-bottom:12px">Todas las operaciones completadas.</div>
+    <div style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Todas las operaciones completadas.</div>
     <div style="display:flex;flex-direction:column;gap:6px">${rows.join('')}</div>
   `);
   _setActions('Cerrar', closeFlowWizard, null, null);
@@ -457,7 +457,7 @@ function _summaryRow(icon, label, value) {
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-panel);border:1px solid var(--border-s);border-radius:6px">
       <span style="color:#ccc;font-size:13px">${icon} ${label}</span>
-      <span style="color:#888;font-size:12px">${value}</span>
+      <span style="color:var(--c-muted);font-size:12px">${value}</span>
     </div>`;
 }
 

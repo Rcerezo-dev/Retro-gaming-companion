@@ -1,9 +1,9 @@
-<div id="tab-collection" class="tab">
+﻿<div id="tab-collection" class="tab">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <h3 style="margin:0">Colección</h3>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select onchange="colSort(this.value)"
-        style="background:var(--c-input);border:1px solid #444;color:#888;padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
+        style="background:var(--c-input);border:1px solid #444;color:var(--c-muted);padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
         <option value="">Ordenar: plataforma</option>
         <option value="last_played">Jugados recientemente</option>
         <option value="title">Título</option>
@@ -45,11 +45,11 @@
     <div style="display:flex;gap:24px;flex-wrap:wrap">
       <div id="col-stat-total"></div>
       <div style="flex:1;min-width:200px">
-        <div style="color:#888;font-size:11px;margin-bottom:8px">Estado de juego</div>
+        <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Estado de juego</div>
         <div id="col-bar-status"></div>
       </div>
       <div style="flex:1;min-width:160px">
-        <div style="color:#888;font-size:11px;margin-bottom:8px">Región</div>
+        <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Región</div>
         <div id="col-bar-region"></div>
       </div>
       <div><canvas id="col-pie" width="120" height="120"></canvas></div>
@@ -73,7 +73,7 @@
       </select>
       <button class="btn" onclick="loadLibraryDiff()" style="font-size:12px;padding:4px 10px">Comparar</button>
     </div>
-    <div id="diff-summary" style="font-size:12px;color:#888;margin-bottom:14px"></div>
+    <div id="diff-summary" style="font-size:12px;color:var(--c-muted);margin-bottom:14px"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start">
       <div>
         <div style="color:var(--c-pink);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
@@ -96,15 +96,15 @@
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid #222;padding-top:10px">
       <button class="btn" onclick="syncSelected()" style="background:var(--rv-tint-ok-bg);border-color:var(--c-teal);color:var(--c-teal);font-size:12px">&#x2195; Sincronizar seleccionados</button>
-      <span id="diff-sync-status" style="font-size:12px;color:#888"></span>
+      <span id="diff-sync-status" style="font-size:12px;color:var(--c-muted)"></span>
     </div>
   </div>
 
   <!-- QoL-4: Platform health dashboard -->
   <div class="hidden rv-tint-neutral" id="platform-health-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-      <span style="color:#888;font-size:11px">Última actualización:</span>
-      <span id="ph-last-scan" style="color:#555;font-size:11px">—</span>
+      <span style="color:var(--c-muted);font-size:11px">Última actualización:</span>
+      <span id="ph-last-scan" style="color:var(--c-dim);font-size:11px">—</span>
       <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:auto" onclick="loadPlatformHealth()">&#x27F3; Actualizar</button>
     </div>
     <div id="ph-table" style="overflow-x:auto"></div>

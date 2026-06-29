@@ -273,9 +273,7 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
             errors.append(err or f"{loser_path.name}: discard failed")
             continue
         if winner_path and winner_target and winner_path.exists():
-            save_exts = (
-                frozenset(config.save_extensions) if config.save_extensions else frozenset()
-            )
+            save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
             outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
             if not outcome.success:
                 errors.append(f"{winner_path.name}: rename failed — {outcome.error}")

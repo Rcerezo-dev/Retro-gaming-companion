@@ -1,17 +1,17 @@
-<div id="tab-tools" class="tab">
+﻿<div id="tab-tools" class="tab">
 
   <!-- D8-5: Context selector PC / Consola Android -->
   <div style="display:flex;align-items:center;gap:0;margin-bottom:20px;background:var(--c-panel);border:1px solid #2a2a3a;border-radius:6px;padding:10px 16px">
-    <span style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-right:12px">Contexto:</span>
+    <span style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-right:12px">Contexto:</span>
     <button id="tools-ctx-pc" class="dev-btn active" onclick="setToolsContext('pc')">PC</button>
     <button id="tools-ctx-android" class="dev-btn" onclick="setToolsContext('android')">Consola Android</button>
-    <span id="tools-ctx-path-label" style="color:#555;font-size:11px;margin-left:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px"></span>
+    <span id="tools-ctx-path-label" style="color:var(--c-dim);font-size:11px;margin-left:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px"></span>
   </div>
 
   <!-- ── Aplicar todo ── -->
   <div class="actions-panel" style="margin-bottom:24px;border-left-color:var(--c-purple)">
     <h3 style="color:var(--c-purple)">Aplicar todo — Limpieza en un clic</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Ejecuta las herramientas seleccionadas en secuencia sobre el directorio del contexto activo (PC o Android). Cada herramienta espera a que la anterior termine.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Ejecuta las herramientas seleccionadas en secuencia sobre el directorio del contexto activo (PC o Android). Cada herramienta espera a que la anterior termine.</p>
     <div class="actions-row" style="gap:20px;align-items:center;flex-wrap:wrap">
       <label class="fmt-check"><input type="checkbox" id="batch-scan" checked> Escanear</label>
       <label class="fmt-check"><input type="checkbox" id="batch-match" checked> Identificar (catálogos)</label>
@@ -19,18 +19,18 @@
       <label class="fmt-check"><input type="checkbox" id="batch-chd"> Convertir a CHD</label>
       <label class="fmt-check"><input type="checkbox" id="batch-health"> Health Check</label>
       <label class="fmt-check"><input type="checkbox" id="batch-ra"> RetroAchievements</label>
-      <label class="fmt-check" title="Requiere usuario y contraseña de ScreenScraper en Settings"><input type="checkbox" id="batch-scraper"> Scraper <span style="color:#555;font-size:10px">(SS)</span></label>
+      <label class="fmt-check" title="Requiere usuario y contraseña de ScreenScraper en Settings"><input type="checkbox" id="batch-scraper"> Scraper <span style="color:var(--c-dim);font-size:10px">(SS)</span></label>
     </div>
     <div class="actions-row" style="margin-top:10px">
       <button id="btn-batch-run" class="btn" style="border-color:var(--c-purple);color:var(--c-purple)" onclick="doBatchRun()">Ejecutar selección</button>
     </div>
-    <div id="batch-status" style="margin-top:10px;font-size:12px;color:#888"></div>
+    <div id="batch-status" style="margin-top:10px;font-size:12px;color:var(--c-muted)"></div>
   </div>
 
   <!-- ── Library Doctor ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Library Doctor</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets CUE+BIN incompletos y carpetas vacías.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Analiza tu biblioteca y detecta: ROMs fuera de su carpeta de plataforma, sets CUE+BIN incompletos y carpetas vacías.</p>
     <div class="actions-row">
       <button class="btn primary" onclick="doLibraryDoctor()">&#x1F489; Analizar biblioteca</button>
       <button class="btn hidden" id="btn-doctor-resolve-all"
@@ -42,7 +42,7 @@
   <!-- ── Saves huérfanos ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Saves huérfanos</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Archivos de save sin ROM asociada (la ROM fue eliminada o renombrada sin su save compañero).</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Archivos de save sin ROM asociada (la ROM fue eliminada o renombrada sin su save compañero).</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta de la biblioteca</label><input id="orphan-path" type="text" placeholder="E:/Carpetas anbernic" style="width:100%"></div>
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('orphan-path')">library_root</button>
@@ -54,15 +54,15 @@
   <!-- ── Health check ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Health Check — Verificar integridad</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Recalcula la huella (SHA1) de cada ROM y la compara con la almacenada. Detecta archivos corruptos o eliminados. <strong style="color:var(--c-orange)">Operaci&#xf3;n lenta</strong> (lee todos los archivos).</p>
-    <div id="health-schedule-info" style="font-size:11px;color:#555;margin-bottom:10px">Cargando programaci&#xf3;n&#x2026;</div>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Recalcula la huella (SHA1) de cada ROM y la compara con la almacenada. Detecta archivos corruptos o eliminados. <strong style="color:var(--c-orange)">Operaci&#xf3;n lenta</strong> (lee todos los archivos).</p>
+    <div id="health-schedule-info" style="font-size:11px;color:var(--c-dim);margin-bottom:10px">Cargando programaci&#xf3;n&#x2026;</div>
     <div class="actions-row">
       <button id="btn-health-check" class="btn primary" onclick="doHealthCheck()">Iniciar Health Check</button>
     </div>
     <div class="hidden" id="health-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="health-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="health-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="health-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="health-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="health-progress-bar" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.3s"></div>
@@ -74,7 +74,7 @@
   <!-- ── ROMs no identificadas (QoL-15) ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>ROMs no identificadas — ¿Qué catálogos me faltan?</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Detecta qué ROMs de tu biblioteca no aparecen en ninguna base de datos de juegos (DAT). Agrupa los resultados por plataforma para que sepas qué bases de datos (DAT) descargar e importar.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Detecta qué ROMs de tu biblioteca no aparecen en ninguna base de datos de juegos (DAT). Agrupa los resultados por plataforma para que sepas qué bases de datos (DAT) descargar e importar.</p>
     <div class="actions-row">
       <button class="btn primary" onclick="loadUnmatchedDiagnosis()">&#x1F50D; ¿Qué catálogos me faltan?</button>
     </div>
@@ -84,23 +84,23 @@
   <!-- ── RetroAchievements ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>RetroAchievements — Compatibilidad de logros</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:8px">Comprueba qué ROMs de tu biblioteca son compatibles con RetroAchievements. Si tienes una versión sin logros pero existe una alternativa compatible, te lo indica.</p>
-    <p style="color:#555;font-size:11px;margin-bottom:12px">Necesita API key de <a href="https://retroachievements.org/settings" target="_blank" style="color:var(--c-teal)">retroachievements.org → Settings → API</a>. Configúrala en la pestaña <strong style="color:var(--c-text)">Settings</strong>.</p>
-    <div id="ra-api-key-status" style="margin-bottom:12px;font-size:12px;color:#555">Verificando API key…</div>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:8px">Comprueba qué ROMs de tu biblioteca son compatibles con RetroAchievements. Si tienes una versión sin logros pero existe una alternativa compatible, te lo indica.</p>
+    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">Necesita API key de <a href="https://retroachievements.org/settings" target="_blank" style="color:var(--c-teal)">retroachievements.org → Settings → API</a>. Configúrala en la pestaña <strong style="color:var(--c-text)">Settings</strong>.</p>
+    <div id="ra-api-key-status" style="margin-bottom:12px;font-size:12px;color:var(--c-dim)">Verificando API key…</div>
     <div class="actions-row">
       <button id="btn-ra-check" class="btn primary" onclick="doRaCheck()">Comprobar compatibilidad RA</button>
     </div>
     <div class="hidden" id="ra-progress-wrap" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span id="ra-progress-label" style="font-size:12px;color:#888"></span>
-        <span id="ra-progress-file" style="font-size:11px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+        <span id="ra-progress-label" style="font-size:12px;color:var(--c-muted)"></span>
+        <span id="ra-progress-file" style="font-size:11px;color:var(--c-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
       </div>
       <div style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden">
         <div id="ra-progress-bar" style="height:100%;background:var(--c-orange);width:0%;transition:width 0.3s"></div>
       </div>
     </div>
     <div class="hidden" id="ra-filter-row" style="margin-top:12px;margin-bottom:4px">
-      <label style="color:#888;font-size:12px">Filtrar por plataforma:&nbsp;</label>
+      <label style="color:var(--c-muted);font-size:12px">Filtrar por plataforma:&nbsp;</label>
       <select id="ra-platform-filter" onchange="filterRaByPlatform()" style="background:var(--c-panel);color:var(--c-text);border:1px solid #3a3a4a;padding:3px 8px;border-radius:4px;font-size:12px">
         <option value="">Todas las plataformas</option>
       </select>
@@ -120,9 +120,9 @@
       <button class="btn" id="btn-open-html-report" onclick="openHtmlReport()" title="Abre el informe en una nueva pestaña con navegación lateral">&#x2197; Ver informe HTML (PC)</button>
       <button class="btn" onclick="openHtmlReportAndroid()" title="Informe para la ruta de la consola Android configurada en Overview" style="border-color:var(--c-orange);color:var(--c-orange)">&#x2197; Ver informe (Consola Android)</button>
     </div>
-    <p style="color:#555;font-size:11px;margin-top:8px">Recopila el estado de ZIPs, playlists, sets multi-disco, saves huérfanos, RetroAchievements y conversiones CHD. El informe HTML se abre con navegación lateral permanente.</p>
+    <p style="color:var(--c-dim);font-size:11px;margin-top:8px">Recopila el estado de ZIPs, playlists, sets multi-disco, saves huérfanos, RetroAchievements y conversiones CHD. El informe HTML se abre con navegación lateral permanente.</p>
 
-    <div class="hidden" id="report-loading" style="color:#555;font-size:12px;padding:12px 0">Generando informe…</div>
+    <div class="hidden" id="report-loading" style="color:var(--c-dim);font-size:12px;padding:12px 0">Generando informe…</div>
     <div class="hidden" id="report-not-accessible" style="margin-top:10px;padding:10px 14px;background:#3a2a1a;border:1px solid #6a4a1a;border-radius:6px;font-size:12px;color:var(--c-orange)"></div>
 
     <div class="hidden" id="report-content" style="margin-top:16px">
@@ -148,7 +148,7 @@
   <!-- ── Exportar Pegasus Metadata ── -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>Exportar Pegasus Metadata</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Genera <code>metadata.pegasus.txt</code> por plataforma — compatible con Pegasus Frontend.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Genera <code>metadata.pegasus.txt</code> por plataforma — compatible con Pegasus Frontend.</p>
     <div class="actions-row" style="margin-top:8px">
       <button class="btn" onclick="exportPegasus()" style="border-color:var(--c-purple);color:var(--c-purple)">Exportar Pegasus Metadata</button>
     </div>
@@ -158,7 +158,7 @@
   <!-- ── Limpieza de archivos basura ── -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>Limpieza de archivos no relacionados con gaming</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:12px">Detecta archivos que no son ROMs, saves, assets ni configuración (p.ej. Office, PDFs, scripts, comprimidos, ejecutables) y permite eliminarlos.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Detecta archivos que no son ROMs, saves, assets ni configuración (p.ej. Office, PDFs, scripts, comprimidos, ejecutables) y permite eliminarlos.</p>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <input id="junk-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="Ruta a escanear…">
       <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('junk-path')">library_root</button>
@@ -170,25 +170,25 @@
   <!-- ── Estructura de biblioteca ── -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>Estructura de biblioteca</h3>
-    <p style="color:#888;font-size:12px;margin-bottom:4px">Crea la estructura de carpetas estándar (ES-DE/EmulationStation) y organiza los ROMs en sus carpetas de plataforma.</p>
-    <p style="color:#555;font-size:11px;margin-bottom:12px">&#x26A0; También detecta <strong style="color:var(--c-orange)">ROMs mal ubicados</strong> (ej: juegos de PSX en la raíz en vez de en <code>psx/</code>) y propone moverlos. Usa "Previsualizar" primero.</p>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:4px">Crea la estructura de carpetas estándar (ES-DE/EmulationStation) y organiza los ROMs en sus carpetas de plataforma.</p>
+    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">&#x26A0; También detecta <strong style="color:var(--c-orange)">ROMs mal ubicados</strong> (ej: juegos de PSX en la raíz en vez de en <code>psx/</code>) y propone moverlos. Usa "Previsualizar" primero.</p>
     <div class="actions-row" style="align-items:flex-start;flex-wrap:wrap;gap:10px">
       <button class="btn" onclick="createLibraryStructure()">Crear carpetas</button>
       <div>
-        <span style="color:#555;font-size:12px">Crea todas las carpetas de plataforma + saves/ + bios/ + inbox/ con subcarpetas media/</span><br>
+        <span style="color:var(--c-dim);font-size:12px">Crea todas las carpetas de plataforma + saves/ + bios/ + inbox/ con subcarpetas media/</span><br>
         <label class="fmt-check" style="margin-top:6px" title="Crea la misma estructura en la ruta del dispositivo Android configurada en Ajustes (anbernic_root en config.toml)">
           <input type="checkbox" id="struct-also-android">
-          <span style="font-size:12px">También en consola Android <span style="color:#555">(requiere SD montada o ruta anbernic_root configurada)</span></span>
+          <span style="font-size:12px">También en consola Android <span style="color:var(--c-dim)">(requiere SD montada o ruta anbernic_root configurada)</span></span>
         </label>
       </div>
     </div>
     <div class="actions-row">
       <button class="btn" onclick="organizeLibrary(true)">&#x1F50D; Previsualizar organización</button>
-      <span style="color:#555;font-size:12px">Muestra adónde iría cada ROM, save y BIOS sin mover nada</span>
+      <span style="color:var(--c-dim);font-size:12px">Muestra adónde iría cada ROM, save y BIOS sin mover nada</span>
     </div>
     <div class="actions-row">
       <button class="btn primary" onclick="organizeLibrary(false)" title="Mueve los ROMs a sus carpetas de plataforma, los saves a saves/ y las BIOS conocidas a bios/. Actualiza las rutas en la base de datos.">Organizar biblioteca</button>
-      <span style="color:#555;font-size:12px">Mueve ROMs mal ubicados a su carpeta de plataforma, saves a saves/, BIOS a bios/</span>
+      <span style="color:var(--c-dim);font-size:12px">Mueve ROMs mal ubicados a su carpeta de plataforma, saves a saves/, BIOS a bios/</span>
     </div>
     <div id="job-result-structure" class="job-result" style="margin-top:10px"></div>
   </div>

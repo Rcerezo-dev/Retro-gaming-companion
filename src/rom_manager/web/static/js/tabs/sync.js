@@ -1,4 +1,4 @@
-// js/tabs/sync.js — Cloud Sync, Cable Sync, Auto-sync, Rclone, Android setup
+﻿// js/tabs/sync.js — Cloud Sync, Cable Sync, Auto-sync, Rclone, Android setup
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -48,7 +48,7 @@ async function loadSync() {
     html += sl.entries.map(e => {
       const dirBadge = badge(e.direction, e.direction);
       const resBadge = badge(e.result, e.result);
-      const msg  = e.message ? `<span style="color:#888">${e.message}</span>` : '';
+      const msg  = e.message ? `<span style="color:var(--c-muted)">${e.message}</span>` : '';
       const date = e.created_at ? e.created_at.replace('T', ' ') : '';
       return `<tr><td>${date}</td><td>${dirBadge}</td><td>${resBadge}</td><td title="${e.local_path}">${e.local_path.split(/[\\/]/).pop()}</td><td title="${e.remote_path}">${e.remote_path}</td><td>${msg}</td></tr>`;
     }).join('');
@@ -73,12 +73,12 @@ async function loadAssets() {
       const _ad = getActiveDevice(), _dn = getDevName();
       let barHtml = '';
       if (_ad === 'pc') {
-        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else if (_ad === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-orange)">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${_dn}) &nbsp;·&nbsp; <span style="color:#555">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${_dn}) &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;
       assetsBar.classList.remove('hidden');
@@ -113,7 +113,7 @@ async function loadSystemStatus() {
     const d = await apiFetch('/api/system-status');
     const row = (label, ok, detail) => {
       const icon = ok ? '<span style="color:var(--c-teal)">✓</span>' : '<span style="color:var(--c-red)">✗</span>';
-      const det = detail ? `<span style="color:#555;margin-left:4px">${_h(detail)}</span>` : '';
+      const det = detail ? `<span style="color:var(--c-dim);margin-left:4px">${_h(detail)}</span>` : '';
       return `<div>${icon} <strong>${label}</strong>${det}</div>`;
     };
     const rcloneDetail = d.rclone.ok
@@ -144,17 +144,17 @@ async function detectCloudFolder() {
     const d = await apiFetch('/api/detect-cloud-folder');
     if (!d.detected.length) {
       res.innerHTML = '⚠ No se detectó ningún cliente de nube instalado (Dropbox, OneDrive, Google Drive).<br>'
-        + '<span style="color:#555">Para sincronizar sin cliente local, configura rclone manualmente.</span>';
+        + '<span style="color:var(--c-dim)">Para sincronizar sin cliente local, configura rclone manualmente.</span>';
       return;
     }
     res.innerHTML = d.detected.map(item => `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
         <span style="color:var(--c-teal);min-width:90px"><strong>${_h(item.service)}</strong></span>
-        <span style="color:#888;font-size:11px;flex:1">${_h(item.local_folder)}</span>
+        <span style="color:var(--c-muted);font-size:11px;flex:1">${_h(item.local_folder)}</span>
         <button class="btn primary" style="font-size:11px;padding:3px 10px;flex-shrink:0"
           onclick="useCloudFolder(${JSON.stringify(item.suggested_remote)})">Usar esta carpeta</button>
       </div>`).join('') +
-      '<div style="color:#555;margin-top:6px;font-size:11px">La app copiará los saves a esta carpeta. ' +
+      '<div style="color:var(--c-dim);margin-top:6px;font-size:11px">La app copiará los saves a esta carpeta. ' +
       'El cliente de nube se encarga de subirlos. En la consola Android instala la app de nube correspondiente.</div>';
   } catch(e) {
     res.textContent = 'Error: ' + e.message;
@@ -224,7 +224,7 @@ async function shutdownServer() {
   try {
     await apiFetch('/api/shutdown', { method: 'POST' });
   } catch (_) { /* conexión cortada — es lo esperado */ }
-  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:#555;font-size:14px">Retro Vault cerrado. Puedes cerrar esta pestaña.</div>';
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:var(--c-dim);font-size:14px">Retro Vault cerrado. Puedes cerrar esta pestaña.</div>';
 }
 
 // ── Android setup panel ──────────────────────────────────────────────────────
@@ -637,7 +637,7 @@ async function detectDrives() {
       const size  = dr.total_bytes > 0 ? ` (${fmtSize(dr.free_bytes)} libres de ${fmtSize(dr.total_bytes)})` : '';
       return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0">
         <code style="color:var(--c-orange);min-width:36px">${dr.letter}</code>
-        <span style="color:#888">${label}${size}</span>
+        <span style="color:var(--c-muted)">${label}${size}</span>
         <button class="btn" style="padding:1px 8px;font-size:11px;margin-left:auto" onclick="document.getElementById('cable-ab-path').value='${dr.letter.replace(/\\/g, '\\\\')}';testCablePath('ab');document.getElementById('cable-drives-list').classList.add('hidden')">Usar</button>
       </div>`;
     }).join('');
@@ -737,7 +737,7 @@ async function loadCableSyncPreview() {
   const previewEl = document.getElementById('cable-preview-result');
   if (!previewEl) return;
   previewEl.className = 'cable-preview visible';
-  previewEl.innerHTML = '<span style="color:#555">Calculando…</span>';
+  previewEl.innerHTML = '<span style="color:var(--c-dim)">Calculando…</span>';
   try {
     const params = new URLSearchParams({ mode, direction });
     if (pcPath)  params.set('pc_path',  pcPath);
@@ -890,7 +890,7 @@ function _renderCableSyncResult(r) {
       const isExists = d.file === 'EXISTS';
       const isSafe   = d.file === 'SAFE';
       const tagColor = isDup ? 'var(--c-blue)' : isExists ? '#444' : isSafe ? '#f4c842' : 'var(--c-teal)';
-      return `<div style="padding:2px 0;color:#888"><span style="color:${tagColor};margin-right:8px">${_h(d.file)}</span>${_h(d.path)}</div>`;
+      return `<div style="padding:2px 0;color:var(--c-muted)"><span style="color:${tagColor};margin-right:8px">${_h(d.file)}</span>${_h(d.path)}</div>`;
     }).join('');
 
     detailsList.innerHTML = detailHtml;
@@ -1193,7 +1193,7 @@ function _renderTreeDiff(r) {
   const totalAnd    = r.total_android     || 0;
   const MAX_SHOW    = 200;
 
-  let html = `<div style="font-size:11px;color:#555;margin-bottom:10px">
+  let html = `<div style="font-size:11px;color:var(--c-dim);margin-bottom:10px">
     PC: <strong>${totalPc.toLocaleString()}</strong> archivos &nbsp;·&nbsp;
     Consola: <strong>${totalAnd.toLocaleString()}</strong> archivos
   </div>
@@ -1205,12 +1205,12 @@ function _renderTreeDiff(r) {
     <div style="flex:1;padding:10px 14px;background:#0e1020;border:1px solid #2a2a40;border-radius:4px">
       <div style="font-size:20px;color:var(--c-blue);font-weight:bold">${pcOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#556;margin-bottom:3px">solo en PC</div>
-      <div style="font-size:11px;color:#888">(faltan en consola)</div>
+      <div style="font-size:11px;color:var(--c-muted)">(faltan en consola)</div>
     </div>
     <div style="flex:1;padding:10px 14px;background:#1e0e0a;border:1px solid #3a2a20;border-radius:4px">
       <div style="font-size:20px;color:var(--c-orange);font-weight:bold">${androidOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#6a4a38;margin-bottom:3px">solo en consola</div>
-      <div style="font-size:11px;color:#888">(faltan en PC)</div>
+      <div style="font-size:11px;color:var(--c-muted)">(faltan en PC)</div>
     </div>
   </div>`;
 
@@ -1223,7 +1223,7 @@ function _renderTreeDiff(r) {
     html += `<details style="margin-bottom:8px">
       <summary style="cursor:pointer;color:var(--c-blue);font-size:13px;user-select:none">Solo en PC${extra}</summary>
       <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#0a0a14;border-radius:4px;margin-top:6px">
-        ${r.only_pc.slice(0, MAX_SHOW).map(p => `<div style="color:#888;padding:1px 0">${p}</div>`).join('')}
+        ${r.only_pc.slice(0, MAX_SHOW).map(p => `<div style="color:var(--c-muted);padding:1px 0">${p}</div>`).join('')}
       </div>
     </details>`;
   }
@@ -1233,7 +1233,7 @@ function _renderTreeDiff(r) {
     html += `<details style="margin-bottom:8px">
       <summary style="cursor:pointer;color:var(--c-orange);font-size:13px;user-select:none">Solo en consola${extra}</summary>
       <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#140a00;border-radius:4px;margin-top:6px">
-        ${r.only_android.slice(0, MAX_SHOW).map(p => `<div style="color:#888;padding:1px 0">${p}</div>`).join('')}
+        ${r.only_android.slice(0, MAX_SHOW).map(p => `<div style="color:var(--c-muted);padding:1px 0">${p}</div>`).join('')}
       </div>
     </details>`;
   }
@@ -1245,12 +1245,12 @@ function _renderTreeDiff(r) {
 async function loadSaveComparison() {
   const el = document.getElementById('save-comparison-content');
   if (!el) return;
-  el.innerHTML = '<p style="color:#555;font-size:12px">Cargando…</p>';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
   try {
     const d = await apiFetch('/api/save-comparison');
     const saves = d.saves || [];
     if (!saves.length) {
-      el.innerHTML = '<p style="color:#555;font-size:12px">No hay saves en la biblioteca.</p>';
+      el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No hay saves en la biblioteca.</p>';
       return;
     }
     const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:#444">—</span>';
@@ -1260,7 +1260,7 @@ async function loadSaveComparison() {
       return `<span style="color:${cls};font-size:10px">${_fmtDate(s.last_sync_at)}</span>`;
     };
     let html = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="color:#555;border-bottom:1px solid #2a2a3a">
+      <thead><tr style="color:var(--c-dim);border-bottom:1px solid #2a2a3a">
         <th style="text-align:left;padding:4px 6px">Plataforma</th>
         <th style="text-align:left;padding:4px 6px">Título</th>
         <th style="text-align:left;padding:4px 6px">Mod. local</th>
@@ -1272,11 +1272,11 @@ async function loadSaveComparison() {
       const rowStyle = stale ? 'background:#1a1a0a' : '';
       const _h = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr style="${rowStyle};border-bottom:1px solid #1a1a2a">
-        <td style="padding:4px 6px;color:#888">${_h(s.platform)}</td>
+        <td style="padding:4px 6px;color:var(--c-muted)">${_h(s.platform)}</td>
         <td style="padding:4px 6px;color:var(--c-text)">${_h(s.title)}</td>
         <td style="padding:4px 6px;color:${stale ? 'var(--c-amber)' : '#888'}">${_fmtDate(s.local_mtime)}</td>
         <td style="padding:4px 6px">${_syncBadge(s)}</td>
-        <td style="padding:4px 6px;color:#555;font-size:10px">${_h(s.last_direction || '—')}</td>
+        <td style="padding:4px 6px;color:var(--c-dim);font-size:10px">${_h(s.last_direction || '—')}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
@@ -1308,7 +1308,7 @@ async function doLibraryDiff() {
     if (!resultEl) return;
     const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const makeTable = (rows, loc) => {
-      if (!rows.length) return '<p style="color:#888;font-size:13px;margin:6px 0 0">Ninguno.</p>';
+      if (!rows.length) return '<p style="color:var(--c-muted);font-size:13px;margin:6px 0 0">Ninguno.</p>';
       let t = '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px">Plataforma</th><th style="text-align:left;padding:4px">Título</th></tr></thead><tbody>';
       for (const r of rows) t += '<tr style="border-bottom:1px solid #1a1a2a"><td style="padding:4px">' + esc(r.platform) + '</td><td>' + esc(r.title) + '</td></tr>';
       return t + '</tbody></table>';
@@ -1318,7 +1318,7 @@ async function doLibraryDiff() {
     html += '<div><h4 style="margin:0 0 6px;color:var(--c-pink)">Solo en PC (' + only_pc.length + ' / ' + total_pc + ')</h4>' + makeTable(only_pc) + '</div>';
     html += '<div><h4 style="margin:0 0 6px;color:#89b4fa">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
     html += '</div>';
-    html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:#888;font-size:13px">En ambos (' + in_both.length + ')</summary>' + makeTable(in_both) + '</details>';
+    html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--c-muted);font-size:13px">En ambos (' + in_both.length + ')</summary>' + makeTable(in_both) + '</details>';
 
     resultEl.innerHTML = html;
   } catch (e) {

@@ -1,4 +1,4 @@
-<div id="tab-plan" class="tab">
+﻿<div id="tab-plan" class="tab">
   <!-- Format options -->
   <div class="fmt-options">
     <span>Incluir en el nombre:</span>
@@ -15,7 +15,7 @@
       <input type="checkbox" id="fmt-sha" onchange="loadPlan(); toggleShaLength()"> SHA
     </label>
     <label class="fmt-check hidden" id="sha-length-label">
-      <span style="color:#888;font-size:11px;margin-right:4px">Dígitos:</span>
+      <span style="color:var(--c-muted);font-size:11px;margin-right:4px">Dígitos:</span>
       <select id="fmt-sha-length" onchange="loadPlan()"
         style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:2px 6px;border-radius:4px;font:inherit;font-size:12px">
         <option value="8" selected>8</option>
@@ -42,7 +42,7 @@
   <div class="hidden rv-tint-info" id="apply-progress-wrap" style="margin-bottom:10px;padding:8px 12px;border-radius:4px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <span id="apply-progress-label" style="font-size:12px;color:var(--c-lblue)">Renombrando…</span>
-      <span id="apply-progress-pct" style="font-size:12px;color:#888">0%</span>
+      <span id="apply-progress-pct" style="font-size:12px;color:var(--c-muted)">0%</span>
     </div>
     <div style="background:var(--bg-track);border-radius:3px;height:6px;overflow:hidden">
       <div id="apply-progress-bar" style="height:100%;background:var(--c-blue);width:0%;transition:width .2s"></div>
@@ -56,12 +56,12 @@
     </div>
     <div id="apply-error-list" style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;color:#f99"></div>
   </div>
-  <div class="hidden" id="fmt-preview" style="font-size:12px;color:#888;margin-bottom:12px;padding:6px 10px;background:var(--c-bar);border:1px solid #2a2a3a;border-radius:4px">
-    <span style="color:#555">Ejemplo: </span><span id="fmt-preview-text" style="color:var(--c-teal)"></span>
+  <div class="hidden" id="fmt-preview" style="font-size:12px;color:var(--c-muted);margin-bottom:12px;padding:6px 10px;background:var(--c-bar);border:1px solid #2a2a3a;border-radius:4px">
+    <span style="color:var(--c-dim)">Ejemplo: </span><span id="fmt-preview-text" style="color:var(--c-teal)"></span>
   </div>
   <!-- Resumen C2: X listos · Y conflictos · Z sin match -->
   <div class="hidden" id="plan-summary-bar" style="margin-bottom:10px;padding:8px 14px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
-  <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:#888"></div>
+  <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div id="plan-content"><p class="loading">Cargando…</p></div>
 </div>
 
