@@ -223,7 +223,7 @@ async function loadRaDuplicates() {
     </p>`;
     for (const g of d.groups) {
       html += `<div style="border:1px solid #2a2a3e;border-radius:4px;margin-bottom:10px;overflow:hidden">
-        <div style="background:#252537;padding:7px 12px;display:flex;justify-content:space-between;align-items:center">
+        <div style="background:var(--c-bar);padding:7px 12px;display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:13px;font-weight:600;color:var(--c-purple)">${window._h(g.normalized_title)}</span>
           <span style="font-size:11px;color:var(--c-muted)">${window._h(g.platform)} — ${window.fmtSize(g.wasted_bytes)} recuperables</span>
         </div>

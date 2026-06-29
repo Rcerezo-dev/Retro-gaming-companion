@@ -1,4 +1,4 @@
-﻿// js/tabs/organize.js — Plan (rename) + Apply
+// js/tabs/organize.js — Plan (rename) + Apply
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -94,7 +94,7 @@ async function loadPlan() {
       if (correctN > 0)   parts.push(`<span style="color:var(--c-dim)">${correctN} ya correctos</span>`);
       if (conflictsN > 0) parts.push(`<span style="color:var(--c-red);font-weight:600">${conflictsN}</span> <span style="color:var(--c-muted)">conflictos</span>`);
       if (unmatchedN > 0) parts.push(`<span style="color:var(--c-muted)">${unmatchedN} sin match en catálogo</span>`);
-      summaryBar.innerHTML = parts.join('<span style="color:#333;margin:0 4px">·</span>');
+      summaryBar.innerHTML = parts.join('<span style="color:var(--c-ghost);margin:0 4px">·</span>');
       summaryBar.classList.toggle('hidden', !(parts.length));
     }
 

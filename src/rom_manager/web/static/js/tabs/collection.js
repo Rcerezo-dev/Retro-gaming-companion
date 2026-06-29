@@ -47,7 +47,7 @@ async function loadCollectionStats() {
       html += `<span style="color:var(--c-strong)">${window._h(p.platform)}</span>`;
       html += `<span style="color:var(--c-muted)">${p.in_library} / ${p.total} &nbsp;<strong style="color:${barColor}">${pct}%</strong></span>`;
       html += `</div>`;
-      html += `<div style="background:#222;border-radius:3px;height:6px;width:100%">`;
+      html += `<div style="background:var(--c-input);border-radius:3px;height:6px;width:100%">`;
       html += `<div style="background:${barColor};border-radius:3px;height:6px;width:${pct}%"></div>`;
       html += `</div></div>`;
     }
@@ -522,7 +522,7 @@ function _renderDiffConflicts(conflicts) {
     if (pcSha1 && andSha1) {
       html += `<div style="display:flex;gap:6px">`;
       html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:#1a1215;border:1px solid var(--c-pink);color:var(--c-pink);border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
-      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:#12151a;border:1px solid #89b4fa;color:var(--c-lblue);border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
+      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:var(--c-panel);border:1px solid #89b4fa;color:var(--c-lblue);border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
       html += `</div>`;
     }
     html += '</div>';
@@ -645,7 +645,7 @@ async function loadDiskUsage() {
       html += `<span style="color:var(--c-muted)">${p.rom_count} ROMs &nbsp;<b style="color:var(--c-text)">${p.size_human}</b> &nbsp;<span style="color:var(--c-dim)">${pct}%</span>${missing}</span>`;
       html += `</div>`;
       html += `<div style="background:var(--c-panel);border-radius:3px;height:5px;width:100%">`;
-      html += `<div style="background:#7aa2f7;width:${pct}%;height:100%;border-radius:3px"></div>`;
+      html += `<div style="background:var(--c-blue);width:${pct}%;height:100%;border-radius:3px"></div>`;
       html += `</div></div>`;
     }
     if (!platforms.length) html = '<p style="color:var(--c-dim);font-size:12px">Sin datos. Escanea tu biblioteca primero.</p>';

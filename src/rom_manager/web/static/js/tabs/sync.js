@@ -882,7 +882,7 @@ function _renderCableSyncResult(r) {
     if (errEntries.length > 0) {
       detailHtml += `<div style="background:#2a1010;border:1px solid var(--c-red);border-radius:4px;padding:8px 12px;margin-bottom:8px">`
         + `<div style="color:var(--c-red);font-weight:bold;margin-bottom:6px;font-size:12px">&#x2717; ${errEntries.length} archivo(s) fallaron al copiarse:</div>`
-        + errEntries.map(d => `<div style="padding:1px 0;color:#f99;font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
+        + errEntries.map(d => `<div style="padding:1px 0;color:var(--c-softred);font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
         + `</div>`;
     }
     detailHtml += okEntries.map(d => {

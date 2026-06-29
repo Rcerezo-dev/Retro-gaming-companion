@@ -978,7 +978,7 @@ export async function loadUnmatchedDiagnosis() {
     html += '<div style="max-height:180px;overflow-y:auto;border:1px solid #222;border-radius:4px;margin-bottom:12px">';
     platforms.forEach(plat => {
       const examples = (plat.examples || []).slice(0, 3);
-      html += `<div style="background:#1a1a1a;padding:6px 10px;border-bottom:1px solid #222">
+      html += `<div style="background:var(--c-panel);padding:6px 10px;border-bottom:1px solid #222">
         <span style="font-weight:600;color:var(--c-amber)">${_h(plat.platform)}</span>
         <span style="color:var(--c-muted);font-size:11px;margin-left:6px">(${plat.count})</span>
         <div style="font-size:11px;color:var(--c-hint);margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
