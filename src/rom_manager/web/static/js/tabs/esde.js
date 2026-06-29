@@ -1072,7 +1072,7 @@ export function _renderReportOverview() {
       <div style="color:var(--c-amber);font-weight:600">${d.missing_count || 0}</div>
       <div style="color:var(--c-muted);font-size:11px">Juegos sin identificar</div>
     </div>
-    <div style="padding:8px;background:#1a1a2a;border-radius:4px;border-left:3px solid var(--c-teal)">
+    <div style="padding:8px;background:var(--rv-tint-info-bg);border-radius:4px;border-left:3px solid var(--c-teal)">
       <div style="color:var(--c-teal);font-weight:600">${d.total_platforms || 0}</div>
       <div style="color:var(--c-muted);font-size:11px">Plataformas</div>
     </div>

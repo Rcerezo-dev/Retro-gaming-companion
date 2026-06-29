@@ -47,9 +47,9 @@
         <span id="ov-ab-path-label" style="color:var(--c-dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"></span>
         <span id="ov-ab-db-label" style="color:var(--c-ghost);font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
         <!-- D8-1: stale warning badge -->
-        <span class="hidden" id="ov-ab-stale-badge" style="background:#3a3a1a;color:var(--c-yellow);font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">&#x26A0; Datos sin confirmar</span>
+        <span class="hidden" id="ov-ab-stale-badge" style="background:var(--rv-tint-amber-bg);color:var(--c-yellow);font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid var(--rv-tint-amber-border)">&#x26A0; Datos sin confirmar</span>
         <!-- UX-1/2-4: device connectivity badge -->
-        <span class="hidden" id="ov-ab-device-badge" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">● No conectado</span>
+        <span class="hidden" id="ov-ab-device-badge" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid var(--rv-tint-amber-border)">● No conectado</span>
         <!-- D8-1: quick scan button -->
         <button id="ov-ab-scan-btn" class="btn hidden" style="padding:2px 8px;font-size:10px" onclick="quickScanAndroid()">Escanear ahora</button>
       </div>
@@ -206,20 +206,20 @@
 
     <!-- Pasos -->
     <div style="display:flex;gap:0">
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:var(--c-text)">Scan</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:var(--c-dim);font-size:11px">Usa Quick para solo actualizar el inventario sin calcular huellas.</span></div>
       </div>
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-blue);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Identificar</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Identificar (catálogos)</strong>. Cada ROM se compara contra la base de datos de juegos (DAT de No-Intro y Redump) para obtener su título canónico, región y revisión.</div>
         <div id="ov-catalog-status" style="margin-top:6px;font-size:11px"></div>
       </div>
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-orange);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Organizar</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Ve a <strong style="color:var(--c-text)">Organizar</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:var(--c-dim);font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
       </div>
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);padding:14px 16px">
         <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Aplicar</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:var(--c-dim);font-size:11px">Después, usa Cable Sync para volcar los cambios a la consola.</span></div>
       </div>
@@ -231,7 +231,7 @@
   <div style="margin-top:28px;margin-bottom:20px">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Mapa de actividad (últimos 365 días)</h3>
     <div id="ov-heatmap-container" style="overflow-x:auto;padding-bottom:12px">
-      <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid #333;border-radius:4px"></canvas>
+      <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid var(--c-border);border-radius:4px"></canvas>
     </div>
     <div style="font-size:11px;color:var(--c-hint);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
       <span><span style="display:inline-block;width:12px;height:12px;background:#0d3922;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Menos</span>
@@ -246,7 +246,7 @@
   <div style="margin-top:28px;margin-bottom:20px">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Análisis por plataforma (últimos 12 meses)</h3>
     <div style="overflow-x:auto;padding-bottom:12px">
-      <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid #333;border-radius:4px;display:block"></canvas>
+      <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid var(--c-border);border-radius:4px;display:block"></canvas>
     </div>
     <div style="font-size:11px;color:var(--c-hint);margin-top:8px">Cuenta de juegos distintos jugados por plataforma y mes</div>
   </div>

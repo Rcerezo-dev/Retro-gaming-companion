@@ -880,7 +880,7 @@ function _renderCableSyncResult(r) {
 
     let detailHtml = '';
     if (errEntries.length > 0) {
-      detailHtml += `<div style="background:#2a1010;border:1px solid var(--c-red);border-radius:4px;padding:8px 12px;margin-bottom:8px">`
+      detailHtml += `<div style="background:var(--rv-tint-warn-bg);border:1px solid var(--c-red);border-radius:4px;padding:8px 12px;margin-bottom:8px">`
         + `<div style="color:var(--c-red);font-weight:bold;margin-bottom:6px;font-size:12px">&#x2717; ${errEntries.length} archivo(s) fallaron al copiarse:</div>`
         + errEntries.map(d => `<div style="padding:1px 0;color:var(--c-softred);font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
         + `</div>`;
@@ -982,7 +982,7 @@ function _updateAutoSyncBanner(data, sdStatus) {
   if (!enabled) {
     banner.classList.remove('hidden');
     banner.style.background = '#2a2a12';
-    banner.style.borderBottomColor = '#4a4a1a';
+    banner.style.borderBottomColor = 'var(--rv-tint-amber-border)';
     icon.textContent = 'Sync automatico desactivado';
     _txtCls(icon, 'txt-warn');
     text.textContent = 'Activa el sync automatico en la pestana Cable Sync.';
@@ -1198,16 +1198,16 @@ function _renderTreeDiff(r) {
     Consola: <strong>${totalAnd.toLocaleString()}</strong> archivos
   </div>
   <div style="display:flex;gap:10px;margin-bottom:14px">
-    <div style="flex:1;padding:10px 14px;background:#0e1e0e;border:1px solid #2a3a2a;border-radius:4px">
+    <div style="flex:1;padding:10px 14px;background:var(--rv-tint-ok-bg);border:1px solid var(--rv-tint-ok-border);border-radius:4px">
       <div style="font-size:20px;color:var(--c-teal);font-weight:bold">${both.toLocaleString()}</div>
       <div style="font-size:11px;color:#4a8a4a">en ambos</div>
     </div>
-    <div style="flex:1;padding:10px 14px;background:#0e1020;border:1px solid #2a2a40;border-radius:4px">
+    <div style="flex:1;padding:10px 14px;background:var(--rv-tint-info-bg);border:1px solid var(--rv-tint-info-border);border-radius:4px">
       <div style="font-size:20px;color:var(--c-blue);font-weight:bold">${pcOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#556;margin-bottom:3px">solo en PC</div>
       <div style="font-size:11px;color:var(--c-muted)">(faltan en consola)</div>
     </div>
-    <div style="flex:1;padding:10px 14px;background:#1e0e0a;border:1px solid #3a2a20;border-radius:4px">
+    <div style="flex:1;padding:10px 14px;background:var(--rv-tint-amber-bg);border:1px solid var(--rv-tint-amber-border);border-radius:4px">
       <div style="font-size:20px;color:var(--c-orange);font-weight:bold">${androidOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#6a4a38;margin-bottom:3px">solo en consola</div>
       <div style="font-size:11px;color:var(--c-muted)">(faltan en PC)</div>
@@ -1222,7 +1222,7 @@ function _renderTreeDiff(r) {
     const extra = pcOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_pc.length, MAX_SHOW)} de ${pcOnly.toLocaleString()})` : '';
     html += `<details style="margin-bottom:8px">
       <summary style="cursor:pointer;color:var(--c-blue);font-size:13px;user-select:none">Solo en PC${extra}</summary>
-      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#0a0a14;border-radius:4px;margin-top:6px">
+      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:var(--rv-tint-info-bg);border-radius:4px;margin-top:6px">
         ${r.only_pc.slice(0, MAX_SHOW).map(p => `<div style="color:var(--c-muted);padding:1px 0">${p}</div>`).join('')}
       </div>
     </details>`;
@@ -1232,7 +1232,7 @@ function _renderTreeDiff(r) {
     const extra = androidOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_android.length, MAX_SHOW)} de ${androidOnly.toLocaleString()})` : '';
     html += `<details style="margin-bottom:8px">
       <summary style="cursor:pointer;color:var(--c-orange);font-size:13px;user-select:none">Solo en consola${extra}</summary>
-      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#140a00;border-radius:4px;margin-top:6px">
+      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:var(--rv-tint-amber-bg);border-radius:4px;margin-top:6px">
         ${r.only_android.slice(0, MAX_SHOW).map(p => `<div style="color:var(--c-muted);padding:1px 0">${p}</div>`).join('')}
       </div>
     </details>`;
@@ -1269,7 +1269,7 @@ async function loadSaveComparison() {
       </tr></thead><tbody>`;
     saves.forEach(s => {
       const stale = s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at;
-      const rowStyle = stale ? 'background:#1a1a0a' : '';
+      const rowStyle = stale ? 'background:var(--rv-tint-amber-bg)' : '';
       const _h = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr style="${rowStyle};border-bottom:1px solid #1a1a2a">
         <td style="padding:4px 6px;color:var(--c-muted)">${_h(s.platform)}</td>

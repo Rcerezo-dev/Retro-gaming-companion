@@ -243,7 +243,7 @@ async function loadRaDuplicates() {
         const rec = e.ra_supported
           ? '<span style="color:var(--c-teal)">Conservar</span>'
           : '<span style="color:var(--c-red)">Candidata a eliminar</span>';
-        const rowBg = e.ra_supported ? '' : 'style="background:#1a1015"';
+        const rowBg = e.ra_supported ? '' : 'style="background:var(--rv-tint-warn-bg)"';
         const delBtn = e.ra_supported ? '' :
           `<button class="btn danger" style="font-size:11px;padding:2px 8px"
             onclick="deleteRaDuplicate(${e.id}, ${JSON.stringify(e.source_path)}, this)">Eliminar</button>`;
@@ -440,7 +440,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
       const hasRaSupport = g.entries.some(e => (e.ra_achievements || 0) > 0);
       const raEntry = g.entries.find(e => (e.ra_achievements || 0) > 0);
       return `
-      <div class="dup-group" style="border-color:#3a3a1a">
+      <div class="dup-group" style="border-color:var(--rv-tint-amber-border)">
         <div class="title" style="color:var(--c-yellow)">${window._h(g.canonical_title)}
           <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${window._h(g.platform)}</span>
         </div>

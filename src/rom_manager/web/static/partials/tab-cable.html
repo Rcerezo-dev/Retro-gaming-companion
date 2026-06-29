@@ -50,7 +50,7 @@
   </div>
 
   <!-- Instrucciones de conexión -->
-  <div style="max-width:780px;margin-bottom:20px;background:var(--c-panel);border:1px solid #333;border-radius:6px;padding:16px 20px">
+  <div style="max-width:780px;margin-bottom:20px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px;padding:16px 20px">
     <h3 style="color:var(--c-teal);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la consola Android desde el PC</h3>
 
     <!-- MTP warning -->
@@ -79,7 +79,7 @@
       </details>
 
       <!-- Opción B -->
-      <details style="background:var(--c-bar);border:1px solid #333;border-radius:4px;padding:0">
+      <details style="background:var(--c-bar);border:1px solid var(--c-border);border-radius:4px;padding:0">
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
           <span style="font-weight:bold;color:var(--c-blue)">B)</span> Termux + SFTP <span style="color:var(--c-dim);font-size:11px;margin-left:6px">(vía red Wi-Fi local, sin sacar la SD)</span>
         </summary>
@@ -95,7 +95,7 @@
       </details>
 
       <!-- Opción C -->
-      <details style="background:var(--c-bar);border:1px solid #333;border-radius:4px;padding:0">
+      <details style="background:var(--c-bar);border:1px solid var(--c-border);border-radius:4px;padding:0">
         <summary style="cursor:pointer;padding:10px 14px;font-size:13px;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
           <span style="font-weight:bold;color:var(--c-blue)">C)</span> WinFsp + MTPDrive <span style="color:var(--c-dim);font-size:11px;margin-left:6px">(mantiene el cable USB, herramienta de terceros)</span>
         </summary>
@@ -229,7 +229,7 @@
           <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
         </div>
         <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
-        <div class="hidden" id="cable-drives-list" style="margin-top:6px;background:var(--c-input);border:1px solid #333;border-radius:4px;padding:6px 8px;font-size:12px"></div>
+        <div class="hidden" id="cable-drives-list" style="margin-top:6px;background:var(--c-input);border:1px solid var(--c-border);border-radius:4px;padding:6px 8px;font-size:12px"></div>
       </div>
     </div>
 
@@ -315,7 +315,7 @@
   <!-- Tabla de resultados -->
   <div class="hidden" id="cable-details-wrap" style="margin-top:16px;max-width:780px">
     <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Archivos procesados</div>
-    <div id="cable-details-list" style="max-height:400px;overflow-y:auto;font-size:12px;background:var(--c-panel);border:1px solid #333;border-radius:6px;padding:10px 12px"></div>
+    <div id="cable-details-list" style="max-height:400px;overflow-y:auto;font-size:12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px;padding:10px 12px"></div>
   </div>
 
   <!-- Log de operaciones persistente -->

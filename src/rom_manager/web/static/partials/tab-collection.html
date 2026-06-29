@@ -68,7 +68,7 @@
     <h3 style="color:var(--c-blue)">Comparar bibliotecas — PC vs Android</h3>
     <div class="toolbar" style="margin-bottom:14px">
       <select id="diff-platform-filter" onchange="loadLibraryDiff()"
-        style="font-size:12px;background:var(--c-panel);color:var(--c-strong);border:1px solid #333;padding:3px 8px;border-radius:4px">
+        style="font-size:12px;background:var(--c-panel);color:var(--c-strong);border:1px solid var(--c-border);padding:3px 8px;border-radius:4px">
         <option value="">Todas las plataformas</option>
       </select>
       <button class="btn" onclick="loadLibraryDiff()" style="font-size:12px;padding:4px 10px">Comparar</button>
@@ -114,7 +114,7 @@
   <div class="hidden" id="missing-section">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
       <h4 style="margin:0;color:var(--c-orange)">ROMs faltantes</h4>
-      <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:var(--c-panel);color:var(--c-strong);border:1px solid #333;padding:3px 8px;border-radius:4px">
+      <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:var(--c-panel);color:var(--c-strong);border:1px solid var(--c-border);padding:3px 8px;border-radius:4px">
         <option value="">Todas las plataformas</option>
         </select>
         <span id="missing-count" style="color:var(--c-hint);font-size:12px"></span>

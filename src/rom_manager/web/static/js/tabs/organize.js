@@ -169,7 +169,7 @@ async function loadPlan() {
 
       if (collisions.length) {
         const hasRaData = collisions.some(c => c.ra_achievements != null);
-        html += `<div style="background:#1a1218;border:1px solid #3a2030;border-left:3px solid var(--c-orange);border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
+        html += `<div style="background:var(--rv-tint-amber-bg);border:1px solid var(--rv-tint-amber-border);border-left:3px solid var(--c-orange);border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
         html += `<div style="color:var(--c-orange);font-size:12px;font-weight:600;margin-bottom:6px">`;
         html += `&#x26A0; Colisión de plan (${collisions.length}) — dos ROMs quieren el mismo nombre canónico`;
         html += `</div>`;
@@ -195,7 +195,7 @@ async function loadPlan() {
             } else {
               roleCell = `<button class="btn" style="padding:1px 8px;font-size:11px;color:var(--c-orange);border-color:var(--c-orange)" onclick="_discardCollisionEntry(${op.game_id},'${safeSource}','${safeName}')">Descartar</button>`;
             }
-            return `<tr style="${op.ra_role === 'winner' ? 'background:#0d1f17' : op.ra_role === 'loser' ? 'opacity:0.6' : ''}">
+            return `<tr style="${op.ra_role === 'winner' ? 'background:var(--rv-tint-ok-bg)' : op.ra_role === 'loser' ? 'opacity:0.6' : ''}">
               <td class="mono" style="color:var(--c-lblue)" data-game-id="${op.game_id}" data-path="${safeSource}" data-target="${window._h(op.target_name)}">${window._h(op.source_name)}</td>
               <td style="text-align:center">${raCell}</td>
               <td class="mono" style="color:var(--c-orange)">${window._h(op.target_name)}</td>
@@ -220,7 +220,7 @@ async function loadPlan() {
 
       if (diskConflicts.length) {
         const hasRaData = diskConflicts.some(c => c.ra_achievements != null || c.ra_target_achievements != null);
-        html += `<div style="background:#1a1212;border:1px solid #3a2020;border-left:3px solid var(--c-red);border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
+        html += `<div style="background:var(--rv-tint-warn-bg);border:1px solid var(--rv-tint-warn-border);border-left:3px solid var(--c-red);border-radius:6px;padding:12px 16px;margin-bottom:12px">`;
         html += `<div style="color:var(--c-red);font-size:12px;font-weight:600;margin-bottom:6px">`;
         html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — el nombre de destino ya está ocupado por un archivo diferente`;
         html += `</div>`;
@@ -277,7 +277,7 @@ async function loadPlan() {
       html += `<p style="color:var(--c-dim);margin-top:16px">${d.already_correct} archivo(s) ya tienen el nombre correcto.</p>`;
     }
     if (d.unmatched_count > 0) {
-      html += `<details style="margin-top:20px;border:1px solid #333;border-radius:6px;padding:10px 14px;background:#161620">`;
+      html += `<details style="margin-top:20px;border:1px solid var(--c-border);border-radius:6px;padding:10px 14px;background:var(--rv-tint-neutral-bg)">`;
       html += `<summary style="cursor:pointer;color:var(--c-muted);font-size:13px;user-select:none">`;
       html += `${d.unmatched_count} ROM${d.unmatched_count !== 1 ? 's' : ''} sin match en catálogo (no se renombrarán) `;
       html += `— <a href="#" style="color:var(--c-blue);font-size:12px" onclick="event.preventDefault();goToGames(null,'unmatched')">Ver en Games →</a>`;

@@ -71,6 +71,8 @@
   --rv-tint-ok-border:      #1a4a2a;
   --rv-tint-info-bg:        #12122a;
   --rv-tint-info-border:    #2a2a4a;
+  --rv-tint-amber-bg:       #1e1a0a;
+  --rv-tint-amber-border:   #3a3a1a;
 }
 
 [data-theme="light"] {
@@ -142,6 +144,8 @@
   --rv-tint-ok-border:      #a8d8b4;
   --rv-tint-info-bg:        #e4e8fb;
   --rv-tint-info-border:    #b8c0e8;
+  --rv-tint-amber-bg:       #fef8e7;
+  --rv-tint-amber-border:   #e8d48a;
 }
 
 /* DESIGN-13: semantic tint background classes (theme-aware, replace
@@ -150,6 +154,7 @@
 .rv-tint-warn    { background: var(--rv-tint-warn-bg);    border: 1px solid var(--rv-tint-warn-border); }
 .rv-tint-ok      { background: var(--rv-tint-ok-bg);      border: 1px solid var(--rv-tint-ok-border); }
 .rv-tint-info    { background: var(--rv-tint-info-bg);    border: 1px solid var(--rv-tint-info-border); }
+.rv-tint-amber   { background: var(--rv-tint-amber-bg);   border: 1px solid var(--rv-tint-amber-border); }
 
 /* ═══════════════════════════════════════════════════════════════════
    RETROVAULT DESIGN SYSTEM TOKENS

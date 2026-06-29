@@ -347,9 +347,9 @@ export async function loadGames(offset) {
       empty.classList.add('hidden');
       const _srcPath = gamesState.root || _deviceRoot() || '';
       tbody.innerHTML = rows.map(g => {
-        const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:#0a0a0a" onerror="this.style.display=\'none\'">` : '';
+        const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:var(--c-input)" onerror="this.style.display=\'none\'">` : '';
         const statusVal = g.play_status || '';
-        const statusSel = `<select style="background:var(--c-panel);border:1px solid #333;color:var(--c-text);padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
+        const statusSel = `<select style="background:var(--c-panel);border:1px solid var(--c-border);color:var(--c-text);padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
           <option value=""${statusVal === '' ? ' selected' : ''}>—</option>
           <option value="playing"${statusVal === 'playing' ? ' selected' : ''}>&#x1F3AE; Jugando</option>
           <option value="completed"${statusVal === 'completed' ? ' selected' : ''}>&#x2705; Completado</option>
@@ -826,7 +826,7 @@ export async function gpScrapeSingle() {
       ['Publisher', r.publisher], ['Developer', r.developer], ['Nota', r.rating],
     ].filter(([, v]) => v).map(([k, v]) => `<span style="color:var(--c-muted)">${k}:</span> <span style="color:var(--c-text)">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
     if (previewEl) previewEl.innerHTML = `<div style="margin-bottom:8px;line-height:1.8">${rows}</div>
-      <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
+      <button onclick="gpApplyScrape()" style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
       <button onclick="document.getElementById('gp-scrape-preview').classList.add('hidden')" style="margin-left:6px;background:none;border:1px solid #444;color:var(--c-muted);padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
   } catch(e) {
     if (previewEl) previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${_h(e.message)}</span>`;

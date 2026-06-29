@@ -521,7 +521,7 @@ function _renderDiffConflicts(conflicts) {
     html += '</div>';
     if (pcSha1 && andSha1) {
       html += `<div style="display:flex;gap:6px">`;
-      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:#1a1215;border:1px solid var(--c-pink);color:var(--c-pink);border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
+      html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','pc')" style="font-size:11px;padding:2px 8px;background:var(--rv-tint-warn-bg);border:1px solid var(--c-pink);color:var(--c-pink);border-radius:3px;cursor:pointer" title="Copiar versión PC a Android, sobreescribiendo la Android">Usar PC &#x2192;</button>`;
       html += `<button onclick="syncConflict('${pcSha1}','${andSha1}','android')" style="font-size:11px;padding:2px 8px;background:var(--c-panel);border:1px solid #89b4fa;color:var(--c-lblue);border-radius:3px;cursor:pointer" title="Copiar versión Android a PC, sobreescribiendo la PC">&#x2190; Usar Android</button>`;
       html += `</div>`;
     }
