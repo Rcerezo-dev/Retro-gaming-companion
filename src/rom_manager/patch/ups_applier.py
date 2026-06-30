@@ -1,4 +1,4 @@
-"""UPS patch applier (stdlib only)."""
+"""UPS patch applier — Universal Patching System (stdlib only)."""
 
 from __future__ import annotations
 
