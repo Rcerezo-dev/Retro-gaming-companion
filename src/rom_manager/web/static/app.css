@@ -383,6 +383,10 @@ main { padding: 24px; flex: 1; }
   transition: color .15s; flex-shrink: 0;
 }
 .sidebar-toggle:hover { color: var(--accent); }
+.nav-search-wrap { padding: 6px 10px; }
+.global-search { width: 100%; box-sizing: border-box; background: var(--c-input); border: 1px solid var(--c-border); color: var(--c-text); padding: 5px 8px; border-radius: 4px; font: inherit; font-size: 12px; }
+.global-search:focus { outline: none; border-color: var(--c-teal); }
+.sidebar.collapsed .nav-search-wrap { display: none; }
 
 .nav-item {
   display: flex; align-items: center; gap: 10px;
