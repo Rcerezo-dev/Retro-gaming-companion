@@ -177,6 +177,10 @@ import {
   doSync,
   _renderSyncResult,
   promptSyncNow,
+  loadCloudAuthStatus,
+  startCloudAuth,
+  cancelCloudAuth,
+  disconnectCloud,
 } from './tabs/sync.js';
 import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
@@ -351,6 +355,11 @@ Object.assign(window, {
   doSync,
   _renderSyncResult,
   promptSyncNow,
+  // SYNC-SETUP: Cloud auth wizard
+  loadCloudAuthStatus,
+  startCloudAuth,
+  cancelCloudAuth,
+  disconnectCloud,
   // PHASE6-3b: app update download/apply
   downloadAppUpdate,
   applyAppUpdate,
@@ -457,7 +466,7 @@ export function showTab(name) {
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
-  if (name === 'sync')       { loadSync(); loadManualBackups?.(); }
+  if (name === 'sync')       { loadSync(); loadManualBackups?.(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }

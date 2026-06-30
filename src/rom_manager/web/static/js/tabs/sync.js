@@ -1384,6 +1384,116 @@ function _renderSyncResult(result) {
   }
 }
 
+// ── SYNC-SETUP: Cloud auth wizard ────────────────────────────────────────────
+
+let _cloudAuthPolling = null;
+
+async function loadCloudAuthStatus() {
+  const el = document.getElementById('cloud-auth-status');
+  if (!el) return;
+  try {
+    const data = await apiFetch('/api/cloud-auth/status');
+    if (data.error) {
+      el.innerHTML = `<span style="color:var(--c-softred)">${data.error}</span>`;
+      return;
+    }
+    el.innerHTML = data.providers.map(p => {
+      const label = p.label;
+      const configured = p.configured;
+      const badge = configured
+        ? `<span style="color:var(--c-green);font-weight:600">&#x2713; Conectado</span>`
+        : `<span style="color:var(--c-dim)">No configurado</span>`;
+      const connectBtn = configured ? '' :
+        `<button class="btn" onclick="startCloudAuth('${p.id}')" style="font-size:11px;padding:3px 10px;margin-left:10px">Conectar</button>`;
+      const disconnectBtn = configured
+        ? `<button class="btn" onclick="disconnectCloud('${p.remote_name}')" style="font-size:11px;padding:3px 10px;margin-left:10px;color:var(--c-softred)">Desconectar</button>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px">
+        <span style="min-width:100px;font-weight:500">${label}</span>
+        ${badge}${connectBtn}${disconnectBtn}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-softred)">Error al comprobar estado: ${e.message}</span>`;
+  }
+}
+
+async function startCloudAuth(providerId) {
+  const progressEl = document.getElementById('cloud-auth-progress');
+  const errorEl = document.getElementById('cloud-auth-error');
+  if (progressEl) progressEl.classList.remove('hidden');
+  if (errorEl) errorEl.classList.add('hidden');
+
+  try {
+    await apiPost('/api/cloud-auth/start', { provider: providerId });
+    _cloudAuthPolling = setInterval(_pollCloudAuth, 2000);
+  } catch (e) {
+    if (progressEl) progressEl.classList.add('hidden');
+    _showCloudAuthError(e.message);
+  }
+}
+
+async function _pollCloudAuth() {
+  try {
+    const data = await apiFetch('/api/cloud-auth/poll');
+    if (!data.done) return;
+    clearInterval(_cloudAuthPolling);
+    _cloudAuthPolling = null;
+    const progressEl = document.getElementById('cloud-auth-progress');
+    if (progressEl) progressEl.classList.add('hidden');
+
+    if (data.error) {
+      _showCloudAuthError(data.error);
+      return;
+    }
+    // Auto-finalize with the captured token
+    if (data.token) {
+      const statusData = await apiFetch('/api/cloud-auth/status');
+      // Find which provider just ran (the one that isn't configured yet)
+      const pending = (statusData.providers || []).find(p => !p.configured);
+      if (pending) {
+        const res = await apiPost('/api/cloud-auth/finalize', {
+          provider: pending.id,
+          remote_name: pending.remote_name,
+          token: data.token,
+        });
+        if (res.error) { _showCloudAuthError(res.error); return; }
+      }
+    }
+    showToast('Conexión cloud configurada correctamente', 'success');
+    loadCloudAuthStatus();
+  } catch (e) {
+    clearInterval(_cloudAuthPolling);
+    _cloudAuthPolling = null;
+    _showCloudAuthError(e.message);
+  }
+}
+
+function cancelCloudAuth() {
+  if (_cloudAuthPolling) { clearInterval(_cloudAuthPolling); _cloudAuthPolling = null; }
+  const progressEl = document.getElementById('cloud-auth-progress');
+  if (progressEl) progressEl.classList.add('hidden');
+}
+
+async function disconnectCloud(remoteName) {
+  if (!confirm(`¿Eliminar la conexión "${remoteName}" de rclone?`)) return;
+  try {
+    const res = await apiPost('/api/cloud-auth/disconnect', { remote_name: remoteName });
+    if (res.error) { _showCloudAuthError(res.error); return; }
+    showToast(`Remote "${remoteName}" eliminado`, 'success');
+    loadCloudAuthStatus();
+  } catch (e) {
+    _showCloudAuthError(e.message);
+  }
+}
+
+function _showCloudAuthError(msg) {
+  const el = document.getElementById('cloud-auth-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
 export {
   // Save comparison & library diff
   loadSaveComparison,
@@ -1410,6 +1520,11 @@ export {
   copyAnbernicCmd,
   // ANBERNIC-TV: touch-friendly sync flow
   tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  // Cloud auth wizard (SYNC-SETUP)
+  loadCloudAuthStatus,
+  startCloudAuth,
+  cancelCloudAuth,
+  disconnectCloud,
   // Rclone
   toggleRcloneSetup,
   loadRcloneStatus,
