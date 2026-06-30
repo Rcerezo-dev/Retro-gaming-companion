@@ -653,9 +653,36 @@ export async function applySelectedPatch() {
     } else {
       resultEl.innerHTML = `<span style="color:var(--c-teal)">&#x2713; Patch aplicado — ${_h(res.output_name)} (${res.records} registros)</span>`;
       showToast('Patch aplicado: ' + res.output_name, 'success');
+      loadPatchLog();
     }
   } catch (e) {
     resultEl.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
+  }
+}
+
+export async function loadPatchLog() {
+  const el = document.getElementById('patch-log-content');
+  if (!el) return;
+  try {
+    const data = await apiFetch('/api/patch-log');
+    if (!data.log?.length) {
+      el.textContent = 'Sin historial aún.';
+      return;
+    }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="color:var(--c-muted);text-align:left">
+        <th style="padding:3px 6px;border-bottom:1px solid var(--c-border)">ROM</th>
+        <th style="padding:3px 6px;border-bottom:1px solid var(--c-border)">Patch / resultado</th>
+        <th style="padding:3px 6px;border-bottom:1px solid var(--c-border);white-space:nowrap">Fecha</th>
+      </tr></thead>
+      <tbody>${data.log.map(r => `<tr>
+        <td style="padding:3px 6px;color:var(--c-text)">${_h(r.rom)}</td>
+        <td style="padding:3px 6px;color:var(--c-dim)">${_h(r.message || r.output)}</td>
+        <td style="padding:3px 6px;color:var(--c-ghost);white-space:nowrap">${r.created_at ? r.created_at.slice(0,16).replace('T',' ') : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
   }
 }
 }

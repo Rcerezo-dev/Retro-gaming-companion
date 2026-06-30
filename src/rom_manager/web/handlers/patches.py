@@ -126,3 +126,33 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
                 "output_name": output_path.name,
             }
         )
+
+    # ── GET /api/patch-log ───────────────────────────────────────────────────
+    @router.get("/api/patch-log")
+    def get_patch_log(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        limit = min(int((qs.get("limit", ["20"])[0]) or 20), 100)
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT source_path, target_path, message, created_at
+                FROM file_operations
+                WHERE operation_type = 'patch_apply'
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        ctx._send_json(
+            {
+                "log": [
+                    {
+                        "rom": Path(r["source_path"]).name,
+                        "output": Path(r["target_path"]).name,
+                        "message": r["message"],
+                        "created_at": r["created_at"],
+                    }
+                    for r in rows
+                ]
+            }
+        )
