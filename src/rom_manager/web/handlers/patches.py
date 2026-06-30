@@ -57,9 +57,10 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
 
     @router.post("/api/patches/apply")
     def post_apply(ctx) -> None:
-        """Apply an IPS/IPS32/BPS patch to a ROM file."""
+        """Apply an IPS/IPS32/BPS/UPS patch to a ROM file."""
         from rom_manager.patch.bps_applier import apply_bps
         from rom_manager.patch.ips_applier import PatchError, apply_ips
+        from rom_manager.patch.ups_applier import apply_ups
 
         data = ctx._post_data
         patch_path_s = (data.get("patch_path") or "").strip()
@@ -80,16 +81,18 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
             return
 
         ext = patch_path.suffix.lower()
-        if ext not in {".ips", ".ips32", ".bps"}:
-            ctx._send_json({"error": f"Formato no soportado: {ext} (IPS, IPS32, BPS)"})
+        if ext not in {".ips", ".ips32", ".bps", ".ups"}:
+            ctx._send_json({"error": f"Formato no soportado: {ext} (IPS, IPS32, BPS, UPS)"})
             return
 
         output_path = rom_path.parent / (rom_path.stem + "_patched" + rom_path.suffix)
-        fmt = "BPS" if ext == ".bps" else "IPS"
+        fmt = "BPS" if ext == ".bps" else ("UPS" if ext == ".ups" else "IPS")
 
         try:
             if ext == ".bps":
                 records = apply_bps(rom_path, patch_path, output_path)
+            elif ext == ".ups":
+                records = apply_ups(rom_path, patch_path, output_path)
             else:
                 records = apply_ips(rom_path, patch_path, output_path)
         except PatchError as exc:
