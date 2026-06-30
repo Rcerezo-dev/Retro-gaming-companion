@@ -59,6 +59,8 @@ async function loadSettings() {
     const raPathEl = document.getElementById('cfg-retroarch-path');
     if (raPathEl) raPathEl.value = cfg.retroarch_path || '';
     if (cfg.retroarch_path) _loadCoresStatus();
+    const esdePathEl = document.getElementById('cfg-esde-path');
+    if (esdePathEl) esdePathEl.value = cfg.esde_path || '';
     const esdeHint = document.getElementById('esde-library-root-hint');
     if (esdeHint) esdeHint.textContent = cfg.library_root || '(configura library_root primero)';
     const bkEnabledEl = document.getElementById('cfg-backup-enabled');
@@ -607,6 +609,8 @@ async function saveSettings() {
   if (raUser) updates['retroachievements.username'] = raUser;
   const raPath = document.getElementById('cfg-retroarch-path')?.value.trim();
   if (raPath) updates['launchers.retroarch'] = raPath;
+  const esdePath = document.getElementById('cfg-esde-path')?.value.trim();
+  if (esdePath !== undefined) updates['launchers.esde'] = esdePath;
   const bkEnabledEl = document.getElementById('cfg-backup-enabled');
   const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
   if (bkEnabledEl) updates['backup.saves_enabled'] = bkEnabledEl.checked;

@@ -255,6 +255,22 @@
     </div>
   </div>
 
+  <!-- ES-DE path -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F3AE; Lanzador — ES-DE</h3>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Ruta a la carpeta de instalaci&#xf3;n de ES-DE. Si se deja vac&#xed;a, Retro Vault intenta detectarla autom&#xe1;ticamente.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:var(--c-muted);font-size:11px;min-width:100px">ES-DE carpeta</label>
+      <input id="cfg-esde-path" type="text" style="flex:1" placeholder="C:/Users/rammu/AppData/Roaming/ES-DE">
+      <button onclick="browseFolder('cfg-esde-path')" style="font-size:11px;padding:4px 10px;margin-left:6px">&#x1F4C2; Examinar</button>
+    </div>
+    <div style="font-size:11px;color:var(--c-dim);margin-bottom:10px">Se guarda en <code>[launchers] esde = "ruta"</code> en <code>config.toml</code>.</div>
+    <div class="actions-row" style="margin-top:4px">
+      <button onclick="loadEsdeStatus()" style="font-size:11px;padding:4px 12px">&#x1F50D; Detectar ES-DE</button>
+    </div>
+    <div id="esde-detect-result" style="margin-top:8px;font-size:11px;color:var(--c-muted)"></div>
+  </div>
+
   <!-- ES-DE PC setup guide -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>&#x1F5A5; Configurar ES-DE en PC</h3>

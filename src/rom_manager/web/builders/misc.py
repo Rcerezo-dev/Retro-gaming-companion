@@ -59,6 +59,7 @@ def _build_config(config: AppConfig) -> dict:
             for s in config.sync.sync_sources
         ],
         "retroarch_path": config.retroarch_path or "",
+        "esde_path": config.esde_path or "",
         "launcher_cores": config.launcher_cores or {},
         "backup_saves_enabled": config.backup.saves_enabled,
         "backup_saves_keep_n": config.backup.saves_keep_n,

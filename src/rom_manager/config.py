@@ -249,6 +249,7 @@ class AppConfig:
     inbox: InboxConfig
     # Launcher (S28)
     retroarch_path: str  # path to retroarch.exe
+    esde_path: str  # path to ES-DE install dir or exe (overrides auto-detect)
     launcher_cores: dict  # platform → libretro core path
     # Save-backup settings (S29 / QoL-11) — see BackupConfig
     backup: BackupConfig
@@ -436,7 +437,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             delete_source=bool(inbox_cfg.get("delete_source", False)),
         ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
-        launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
+        esde_path=str(launchers_cfg.get("esde", "")),
+        launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k not in ("retroarch", "esde")},
         backup=BackupConfig(
             saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
             saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),

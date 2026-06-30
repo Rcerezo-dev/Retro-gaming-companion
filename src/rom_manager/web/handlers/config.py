@@ -289,6 +289,7 @@ def _save_config(
         config.inbox = new_cfg.inbox
         config.web_host = new_cfg.web_host
         config.retroarch_path = new_cfg.retroarch_path
+        config.esde_path = new_cfg.esde_path
         config.launcher_cores = new_cfg.launcher_cores
         config.backup = new_cfg.backup
         config.notify_desktop = new_cfg.notify_desktop
