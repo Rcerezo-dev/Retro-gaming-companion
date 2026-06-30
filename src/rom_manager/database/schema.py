@@ -90,7 +90,8 @@ SCHEMA_STATEMENTS = (
         extension TEXT NOT NULL,
         size_bytes INTEGER NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        game_id INTEGER REFERENCES games (id) ON DELETE SET NULL
     )
     """,
     """
@@ -217,6 +218,10 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = ()
 
+_SAVES_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("game_id", "INTEGER"),  # DB-FIX-4: FK → games.id (declarative; enforced at app layer)
+)
+
 _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("screenshot_path", "TEXT"),  # B6-7: local path to downloaded screenshot
     ("wheel_path", "TEXT"),  # B6-7: local path to downloaded wheel/logo
@@ -236,6 +241,7 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     for statement in SCHEMA_STATEMENTS:
         cursor.execute(statement)
     _migrate_games_columns(cursor)
+    _migrate_saves_columns(cursor)
     _migrate_assets_columns(cursor)
     _migrate_metadata_columns(cursor)
     _migrate_is_favorite_default(cursor)
@@ -279,6 +285,14 @@ def _migrate_games_columns(cursor: sqlite3.Cursor) -> None:
     for col_name, col_type in _GAMES_MIGRATIONS:
         if col_name not in existing:
             _alter_table_add_column(cursor, "games", col_name, col_type)
+
+
+def _migrate_saves_columns(cursor: sqlite3.Cursor) -> None:
+    """Add any missing columns to the saves table without touching existing data."""
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(saves)")}
+    for col_name, col_type in _SAVES_MIGRATIONS:
+        if col_name not in existing:
+            _alter_table_add_column(cursor, "saves", col_name, col_type)
 
 
 def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:

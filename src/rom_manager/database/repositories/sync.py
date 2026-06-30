@@ -20,6 +20,7 @@ class SyncMixin:
         extension: str,
         size_bytes: int,
         timestamp: str,
+        game_id: int | None = None,
         connection: sqlite3.Connection | None = None,
     ) -> None:
         sql = """
@@ -29,14 +30,16 @@ class SyncMixin:
                 extension,
                 size_bytes,
                 created_at,
-                updated_at
+                updated_at,
+                game_id
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(original_path) DO UPDATE SET
                 relative_parent = excluded.relative_parent,
                 extension = excluded.extension,
                 size_bytes = excluded.size_bytes,
-                updated_at = excluded.updated_at
+                updated_at = excluded.updated_at,
+                game_id = COALESCE(excluded.game_id, saves.game_id)
             """
         params = (
             original_path,
@@ -45,6 +48,7 @@ class SyncMixin:
             size_bytes,
             timestamp,
             timestamp,
+            game_id,
         )
         if connection is not None:
             connection.execute(sql, params)
