@@ -56,11 +56,15 @@ SCHEMA_STATEMENTS = (
         notes TEXT,
         user_rating INTEGER,
         first_played_at TEXT,
-        play_count INTEGER NOT NULL DEFAULT 0
+        play_count INTEGER NOT NULL DEFAULT 0,
+        metadata_scraped INTEGER DEFAULT 0
     )
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_games_sha1 ON games (sha1)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_md5 ON games (md5)
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_games_platform ON games (platform)
