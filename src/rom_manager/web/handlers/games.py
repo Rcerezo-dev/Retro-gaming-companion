@@ -19,6 +19,22 @@ _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ..
 _ra_hash_cache: dict = {}  # (cid, mtime) → (hash_map, title_index)
 
 
+def _state_search_dirs(rom_path: Path, config) -> list[Path]:
+    """Build the list of directories to search for save-state files."""
+    dirs: list[Path] = [rom_path.parent]
+    ra = getattr(config, "retroarch_path", None)
+    if ra:
+        states_dir = Path(ra).parent / "states"
+        if states_dir not in dirs:
+            dirs.append(states_dir)
+    lib = getattr(config, "library_root", None)
+    if lib:
+        lib_path = Path(lib)
+        if lib_path not in dirs:
+            dirs.append(lib_path)
+    return dirs
+
+
 def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
     """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
 
@@ -151,6 +167,9 @@ def register(
     # ── GET /api/stateshot ───────────────────────────────────────────────────
     @router.get("/api/stateshot")
     def get_stateshot(ctx) -> None:
+        import base64
+        from rom_manager.utils.state_reader import find_state_thumbnails
+
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
@@ -164,17 +183,42 @@ def register(
             ctx._send_json({"found": False})
             return
         rom_path = Path(row["source_path"])
-        candidates = list(rom_path.parent.glob(rom_path.stem + ".state*.png"))
-        if not candidates and config.library_root:
-            candidates = list(Path(config.library_root).rglob(rom_path.stem + ".state*.png"))
-        if candidates:
-            import base64
-
-            png = sorted(candidates)[-1]
-            img_b64 = base64.b64encode(png.read_bytes()).decode()
-            ctx._send_json({"found": True, "data": img_b64, "filename": png.name})
+        search_dirs = _state_search_dirs(rom_path, config)
+        results = find_state_thumbnails(rom_path.stem, search_dirs, max_results=1)
+        if results:
+            _, png = results[0]
+            ctx._send_json({"found": True, "data": base64.b64encode(png).decode()})
         else:
             ctx._send_json({"found": False})
+
+    # ── GET /api/stateshots ──────────────────────────────────────────────────
+    @router.get("/api/stateshots")
+    def get_stateshots(ctx) -> None:
+        """Return all save-state thumbnails for a game (for the grid view)."""
+        import base64
+        from rom_manager.utils.state_reader import find_state_thumbnails
+
+        qs = getattr(ctx, "_qs", {})
+        game_id = qs.get("id", [None])[0]
+        if not game_id:
+            ctx._send_json({"error": "id required"})
+            return
+        with repository.connect() as conn:
+            row = conn.execute(
+                "SELECT source_path FROM games WHERE id = ?", (int(game_id),)
+            ).fetchone()
+        if not row:
+            ctx._send_json({"slots": []})
+            return
+        rom_path = Path(row["source_path"])
+        search_dirs = _state_search_dirs(rom_path, config)
+        results = find_state_thumbnails(rom_path.stem, search_dirs, max_results=8)
+        ctx._send_json({
+            "slots": [
+                {"slot": slot, "data": base64.b64encode(png).decode()}
+                for slot, png in results
+            ]
+        })
 
     # ── GET /api/save-backups ────────────────────────────────────────────────
     @router.get("/api/save-backups")

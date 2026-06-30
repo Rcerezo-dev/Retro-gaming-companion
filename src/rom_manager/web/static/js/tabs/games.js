@@ -555,15 +555,8 @@ export function openGamePanel(g) {
   apiFetch('/api/game-tags?id=' + g.id).then(r => _gpRenderTags(r.tags || [])).catch(() => { tagsList.innerHTML = ''; });
   // Screenshots — load async (NEW-2)
   loadGameScreenshots(g.original_filename);
-  // Stateshot — load async
-  document.getElementById('gp-stateshot-wrap').classList.add('hidden');
-  apiFetch('/api/stateshot?id=' + g.id).then(r => {
-    if (r.found && r.data) {
-      const img = document.getElementById('gp-stateshot');
-      img.src = 'data:image/png;base64,' + r.data;
-      document.getElementById('gp-stateshot-wrap').classList.remove('hidden');
-    }
-  }).catch(() => {});
+  // Stateshot grid — load async (NEW-4)
+  loadGameStatshots(g.id);
   // Reset RA section + saves info
   const _raSection = document.getElementById('gp-ra-section');
   if (_raSection) _raSection.classList.add('hidden');
@@ -998,6 +991,28 @@ export function dismissRecommendations() {
 }
 
 // ── NEW-2: Screenshot gallery ─────────────────────────────────────────────────
+
+export async function loadGameStatshots(gameId) {
+  const wrap = document.getElementById('gp-stateshot-wrap');
+  const grid = document.getElementById('gp-stateshot-grid');
+  if (!wrap || !grid) return;
+  wrap.classList.add('hidden');
+  grid.innerHTML = '';
+  if (!gameId) return;
+  try {
+    const data = await apiFetch('/api/stateshots?id=' + gameId);
+    if (!data.slots?.length) return;
+    grid.innerHTML = data.slots.map(s => {
+      const src = 'data:image/png;base64,' + s.data;
+      return `<div style="position:relative">
+        <img src="${src}" alt="slot ${s.slot}"
+          style="width:100%;border-radius:4px;border:1px solid var(--c-border);display:block;aspect-ratio:4/3;object-fit:cover">
+        <span style="position:absolute;bottom:3px;right:5px;font-size:10px;color:#fff;text-shadow:0 1px 2px #000">&#x1F4BE;${s.slot}</span>
+      </div>`;
+    }).join('');
+    if (grid.children.length) wrap.classList.remove('hidden');
+  } catch (_) {}
+}
 
 export async function loadGameScreenshots(originalFilename) {
   const wrap = document.getElementById('gp-screenshots-wrap');
