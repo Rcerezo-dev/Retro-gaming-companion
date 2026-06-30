@@ -558,6 +558,19 @@ Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, 
 
 ---
 
+## DÍA35 — Features UX / Patches / Overview (2026-06-30)
+
+| ID | Task | Rama | Estado |
+|----|------|------|--------|
+| D35-F | **Notas auto-save indicator** — debounce ya existía; añadir `…` / `✓ guardado` / `⚠ error` junto al label | `feature/notes-autosave` | ✅ Día35 |
+| D35-B | **Historial de patches** — `GET /api/patch-log` desde `file_operations`; tabla ROM/mensaje/fecha en tab-tools | `feature/patch-log` | ✅ Día35 |
+| D35-A | **Soporte UPS patches** — `patch/ups_applier.py` stdlib puro + 6 tests; `.ups` en handler + UI badge teal | `feature/patch-ups` | ✅ Día35 |
+| D35-E | **Comparador PC vs Android en Sync** — panel reutiliza `doLibraryDiff()` y `/api/library-diff` ya existentes | `feature/library-diff` | ✅ Día35 |
+| D35-D | **Heatmap actividad 52 semanas** — `GET /api/activity-heatmap` + grid 364 celdas 3 niveles teal en Overview | `feature/activity-heatmap` | ✅ Día35 |
+| D35-C | **Búsqueda global sidebar** — `#global-search` en sidebar + debounce 300ms + Ctrl+K → filtra tab Juegos | `feature/global-search` | ✅ Día35 |
+
+---
+
 ## User actions (no code needed)
 
 | ID | Task |
