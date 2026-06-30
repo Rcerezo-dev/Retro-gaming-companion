@@ -123,7 +123,7 @@ import {
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
   doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
-  loadPatchList, selectPatch, clearPatchSelection, applySelectedPatch,
+  loadPatchList, selectPatch, clearPatchSelection, applySelectedPatch, loadPatchLog,
   _initToolsImports,
 } from './tabs/tools.js';
 import {
@@ -237,6 +237,7 @@ Object.assign(window, {
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
   doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
+  loadPatchList, selectPatch, clearPatchSelection, applySelectedPatch, loadPatchLog,
   // state.js — shared device context
   AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
   getDeviceConnected, getDeviceConnectReason,
@@ -474,7 +475,7 @@ export function showTab(name) {
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
-  if (name === 'tools')      { loadTools(); _initToolsContext(); }
+  if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); }
   if (name === 'inbox')      loadInbox();
   if (name === 'tv')         { /* enterTvMode() handles TV tab load */ }
 }
