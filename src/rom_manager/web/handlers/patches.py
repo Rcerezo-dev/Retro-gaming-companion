@@ -54,8 +54,9 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
 
     @router.post("/api/patches/apply")
     def post_apply(ctx) -> None:
-        """Apply an IPS/IPS32 patch to a ROM file."""
+        """Apply an IPS/IPS32/BPS patch to a ROM file."""
         from rom_manager.patch.ips_applier import PatchError, apply_ips
+        from rom_manager.patch.bps_applier import apply_bps
 
         data = ctx._post_data
         patch_path_s = (data.get("patch_path") or "").strip()
@@ -74,14 +75,20 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
         if not rom_path.exists():
             ctx._send_json({"error": f"ROM no encontrada: {rom_path.name}"})
             return
-        if patch_path.suffix.lower() not in {".ips", ".ips32"}:
-            ctx._send_json({"error": f"Formato no soportado aún: {patch_path.suffix} (solo IPS/IPS32)"})
+
+        ext = patch_path.suffix.lower()
+        if ext not in {".ips", ".ips32", ".bps"}:
+            ctx._send_json({"error": f"Formato no soportado: {ext} (IPS, IPS32, BPS)"})
             return
 
         output_path = rom_path.parent / (rom_path.stem + "_patched" + rom_path.suffix)
+        fmt = "BPS" if ext == ".bps" else "IPS"
 
         try:
-            records = apply_ips(rom_path, patch_path, output_path)
+            if ext == ".bps":
+                records = apply_bps(rom_path, patch_path, output_path)
+            else:
+                records = apply_ips(rom_path, patch_path, output_path)
         except PatchError as exc:
             ctx._send_json({"error": str(exc)})
             return
@@ -97,7 +104,7 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
                     "INSERT INTO file_operations "
                     "(game_id, operation_type, source_path, target_path, result, message, created_at) "
                     "VALUES (NULL, 'patch_apply', ?, ?, 'ok', ?, ?)",
-                    (str(rom_path), str(output_path), f"IPS: {patch_path.name} → {records} registros", ts),
+                    (str(rom_path), str(output_path), f"{fmt}: {patch_path.name} → {records} registros", ts),
                 )
                 conn.commit()
         except Exception:
