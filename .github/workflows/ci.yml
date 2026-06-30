@@ -6,11 +6,6 @@ on:
   push:
     branches: [develop, main]
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch or SHA to run CI on"
-        required: false
-        default: ""
 
 concurrency:
   group: ci-${{ github.ref }}
