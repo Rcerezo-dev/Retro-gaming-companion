@@ -123,6 +123,7 @@ import {
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
   doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
+  loadPatchList, selectPatch, clearPatchSelection, applySelectedPatch,
   _initToolsImports,
 } from './tabs/tools.js';
 import {

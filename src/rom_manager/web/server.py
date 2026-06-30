@@ -16,6 +16,7 @@ import rom_manager.web.handlers.esde as _h_esde
 import rom_manager.web.handlers.games as _h_games
 import rom_manager.web.handlers.inbox as _h_inbox
 import rom_manager.web.handlers.organize as _h_organize
+import rom_manager.web.handlers.patches as _h_patches
 import rom_manager.web.handlers.play_history as _h_play_history
 import rom_manager.web.handlers.scan as _h_scan
 import rom_manager.web.handlers.scraper as _h_scraper
@@ -160,6 +161,8 @@ def make_handler(
         get_repo_fn=_get_repo,
         job_manager=_job_manager,
     )
+
+    _h_patches.register(_router, config=config, repository=repository)
 
     _h_sync.register(
         _router,

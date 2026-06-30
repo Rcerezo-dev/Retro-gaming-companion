@@ -192,5 +192,30 @@
     </div>
     <div id="job-result-structure" class="job-result" style="margin-top:10px"></div>
   </div>
+
+  <!-- NEW-1: Patch manager -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <h3 style="margin:0">&#x1F9EC; Aplicar patches (IPS/IPS32)</h3>
+      <button class="btn" onclick="loadPatchList()" style="font-size:11px;padding:3px 10px">&#x21BB; Escanear</button>
+    </div>
+    <p style="color:var(--c-muted);font-size:12px;margin:0 0 12px">
+      Busca archivos <code>.ips</code> en la carpeta Inbox y en <code>RetroArch/patches/</code>.
+      Selecciona el patch y la ROM para aplicarlo.
+    </p>
+    <div id="patch-list-content" style="font-size:12px;color:var(--c-dim)">Pulsa Escanear para buscar patches.</div>
+    <div id="patch-apply-form" class="hidden" style="margin-top:12px;padding:10px;background:var(--c-bar);border:1px solid var(--c-border);border-radius:6px">
+      <div style="font-size:12px;margin-bottom:8px">
+        <strong id="patch-selected-name" style="color:var(--c-text)"></strong>
+        <button onclick="clearPatchSelection()" style="float:right;background:none;border:none;color:var(--c-dim);cursor:pointer;font-size:11px">&#x2715; Cancelar</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <input id="patch-rom-path" type="text" placeholder="Ruta de la ROM a parchear&#x2026;" style="flex:1;font-size:11px">
+        <button onclick="browseFolder('patch-rom-path')" style="font-size:11px;padding:4px 10px">&#x1F4C2;</button>
+      </div>
+      <button class="btn primary" onclick="applySelectedPatch()" style="font-size:12px">&#x25B6; Aplicar patch</button>
+      <div id="patch-apply-result" style="margin-top:8px;font-size:12px"></div>
+    </div>
+  </div>
 </div>
 

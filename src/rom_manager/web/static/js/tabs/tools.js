@@ -593,3 +593,69 @@ function _renderVerifyChdList(listEl, errorsOnly) {
     return `<div style="padding:3px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:var(--c-red)">[CORRUPT] ${_h(r.file)}</span>${errMsg}</div>`;
   }).join('');
 }
+
+// ── NEW-1: Patch manager ──────────────────────────────────────────────────────
+
+let _selectedPatchPath = null;
+
+export async function loadPatchList() {
+  const el = document.getElementById('patch-list-content');
+  if (!el) return;
+  el.textContent = 'Escaneando…';
+  try {
+    const data = await apiFetch('/api/patches/list');
+    if (!data.patches?.length) {
+      el.textContent = 'No se encontraron patches (.ips) en Inbox ni en RetroArch/patches/.';
+      return;
+    }
+    el.innerHTML = data.patches.map(p => {
+      const kb = (p.size_bytes / 1024).toFixed(1);
+      const extBadge = p.ext === '.ips' || p.ext === '.ips32'
+        ? `<span style="color:var(--c-teal);font-size:10px">${p.ext.toUpperCase()}</span>`
+        : `<span style="color:var(--c-amber);font-size:10px">${p.ext.toUpperCase()} (no soportado aún)</span>`;
+      const canApply = p.ext === '.ips' || p.ext === '.ips32';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
+        ${extBadge}
+        <span style="flex:1;color:var(--c-text)">${_h(p.filename)}</span>
+        <span style="color:var(--c-dim);font-size:10px">${kb} KB</span>
+        ${canApply ? `<button class="btn" onclick="selectPatch(${JSON.stringify(p.path)},${JSON.stringify(p.filename)})" style="font-size:11px;padding:2px 10px">Aplicar</button>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
+export function selectPatch(path, name) {
+  _selectedPatchPath = path;
+  document.getElementById('patch-selected-name').textContent = name;
+  document.getElementById('patch-apply-form')?.classList.remove('hidden');
+  document.getElementById('patch-apply-result').textContent = '';
+}
+
+export function clearPatchSelection() {
+  _selectedPatchPath = null;
+  document.getElementById('patch-apply-form')?.classList.add('hidden');
+}
+
+export async function applySelectedPatch() {
+  const romPath = document.getElementById('patch-rom-path')?.value.trim();
+  const resultEl = document.getElementById('patch-apply-result');
+  if (!_selectedPatchPath || !romPath) {
+    if (resultEl) resultEl.innerHTML = '<span style="color:var(--c-softred)">Selecciona un patch y una ROM.</span>';
+    return;
+  }
+  if (resultEl) resultEl.textContent = 'Aplicando…';
+  try {
+    const res = await apiPost('/api/patches/apply', { patch_path: _selectedPatchPath, rom_path: romPath });
+    if (res.error) {
+      resultEl.innerHTML = `<span style="color:var(--c-softred)">&#x274C; ${_h(res.error)}</span>`;
+    } else {
+      resultEl.innerHTML = `<span style="color:var(--c-teal)">&#x2713; Patch aplicado — ${_h(res.output_name)} (${res.records} registros)</span>`;
+      showToast('Patch aplicado: ' + res.output_name, 'success');
+    }
+  } catch (e) {
+    resultEl.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
+  }
+}
+}
