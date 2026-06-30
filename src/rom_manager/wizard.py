@@ -66,6 +66,8 @@ def _ask_yn(prompt: str, default: bool = False) -> bool:
 
 
 def _ask_secret(prompt: str) -> str:
+    if not sys.stdin.isatty():
+        return _ask(prompt, "")
     try:
         return getpass.getpass(f"{prompt} (Enter para omitir): ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -106,10 +108,10 @@ def run_wizard(project_root: Path) -> int:
 
     _no_chdman = "no encontrado (ejecuta scripts\\download-tools.ps1)"
     _no_adb = "no encontrado (solo necesario para Cable Sync por USB)"
-    print(f"   chdman  → {chdman or _no_chdman}")
-    print(f"   adb     → {adb or _no_adb}")
+    print(f"   chdman  -> {chdman or _no_chdman}")
+    print(f"   adb     -> {adb or _no_adb}")
     if rclone:
-        print(f"   rclone  → {rclone}")
+        print(f"   rclone  -> {rclone}")
     else:
         rclone = _ask("   rclone no encontrado. Ruta al binario (Enter para omitir cloud sync)", "")
     print()
@@ -121,7 +123,7 @@ def run_wizard(project_root: Path) -> int:
     print()
 
     # ── 4. RetroAchievements ──────────────────────────────────────────────────
-    print("4. RetroAchievements — API key en retroachievements.org → Settings → Web API Key")
+    print("4. RetroAchievements — API key en retroachievements.org -> Settings -> Web API Key")
     ra_key = _ask_secret("   API key")
     ra_user = _ask("   Usuario RA", "") if ra_key else ""
     print()
@@ -150,7 +152,7 @@ def run_wizard(project_root: Path) -> int:
         print()
     else:
         print("5. Cloud Sync — ningún emulador detectado en rutas estándar.")
-        print("   Añade fuentes de sync más tarde en Ajustes → Sync.\n")
+        print("   Añade fuentes de sync más tarde en Ajustes -> Sync.\n")
 
     # ── Guardar ───────────────────────────────────────────────────────────────
     _write_toml(
@@ -166,9 +168,9 @@ def run_wizard(project_root: Path) -> int:
         sync_sources,
     )
 
-    print(f"✓ Guardado en {toml_path}\n")
+    print(f"Guardado en {toml_path}\n")
     print("Siguiente paso:")
-    print("  rommgr serve   →  abre http://127.0.0.1:7777")
+    print("  rommgr serve   ->  abre http://127.0.0.1:7777")
     return 0
 
 
