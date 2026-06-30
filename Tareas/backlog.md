@@ -521,10 +521,10 @@ Una rama por tarea → PR a `develop`. Sin cambios de API pública. CI verde obl
 
 | ID | Task | Estado |
 |----|------|--------|
-| NEW-1 | **Gestor de patches (IPS/BPS/UPS)** — Inbox acepta `.ips`/`.bps`/`.ups`, los vincula al ROM base y aplica el patch. Nueva tabla `patches`; aplicador Python puro (stdlib). | ⬜ |
-| NEW-2 | **Galería de screenshots** — endpoint `GET /api/screenshots` lista capturas de RetroArch (`screenshots/` de RetroArch); visor en panel de detalle del juego o en tab Colección. Requiere DB-FIX-4 (hecho). | ⬜ |
+| NEW-1 | **Gestor de patches (IPS/BPS/UPS)** — Inbox acepta `.ips`/`.bps`/`.ups`, los vincula al ROM base y aplica el patch. Nueva tabla `patches`; aplicador Python puro (stdlib). | ✅ IPS/IPS32/BPS (Día34) |
+| NEW-2 | **Galería de screenshots** — endpoint `GET /api/screenshots` lista capturas de RetroArch (`screenshots/` de RetroArch); visor en panel de detalle del juego o en tab Colección. Requiere DB-FIX-4 (hecho). | ✅ Día34 |
 | NEW-3 | **Game status tracker** — selector "Jugando / Completado / Abandonado / Pendiente" por juego en el panel de detalle. | ✅ `gp-status-sel` en `_foot.html`, `gpSetStatus()` en `games.js`, `POST /api/set-play-status` |
-| NEW-4 | **Visor de save states** — extrae thumbnail PNG embebido en archivos `.state` de RetroArch (stdlib `struct`+`zlib`); grid "dónde lo dejé" por juego. | ⬜ |
+| NEW-4 | **Visor de save states** — extrae thumbnail PNG embebido en archivos `.state` de RetroArch (stdlib `struct`+`zlib`); grid "dónde lo dejé" por juego. | ✅ Día34 |
 | NEW-5 | **Completitud de colección por plataforma** — `total_in_dat / owned`; widget en tab Overview. | ✅ `GET /api/collection-completeness` + barras en Overview (Día33) |
 | NEW-6 | **Validador de BIOS** — tabla estática de hashes, escanea dir BIOS, panel en Herramientas. | ✅ `detection/bios_checker.py` + endpoint + UI en tab-settings.html (Día33) |
 | NEW-7 | **Progreso de logros RA por juego** — barra progreso en panel detalle. | ✅ `GET /api/ra-user-progress` + `gp-ra-user-progress` en panel (Día33) |
