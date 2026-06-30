@@ -201,6 +201,7 @@ def register(
     @router.get("/api/stateshot")
     def get_stateshot(ctx) -> None:
         import base64
+
         from rom_manager.utils.state_reader import find_state_thumbnails
 
         qs = getattr(ctx, "_qs", {})
@@ -229,6 +230,7 @@ def register(
     def get_stateshots(ctx) -> None:
         """Return all save-state thumbnails for a game (for the grid view)."""
         import base64
+
         from rom_manager.utils.state_reader import find_state_thumbnails
 
         qs = getattr(ctx, "_qs", {})
@@ -246,12 +248,13 @@ def register(
         rom_path = Path(row["source_path"])
         search_dirs = _state_search_dirs(rom_path, config)
         results = find_state_thumbnails(rom_path.stem, search_dirs, max_results=8)
-        ctx._send_json({
-            "slots": [
-                {"slot": slot, "data": base64.b64encode(png).decode()}
-                for slot, png in results
-            ]
-        })
+        ctx._send_json(
+            {
+                "slots": [
+                    {"slot": slot, "data": base64.b64encode(png).decode()} for slot, png in results
+                ]
+            }
+        )
 
     # ── GET /api/save-backups ────────────────────────────────────────────────
     @router.get("/api/save-backups")
@@ -711,7 +714,11 @@ def register(
         owned_by_source = {r["catalog_source"]: r["owned"] for r in rows}
 
         dat_totals: dict[str, int] = {}
-        for dat_dir in (config.catalogs_nointro_dir, config.catalogs_redump_dir, config.catalogs_arcade_dir):
+        for dat_dir in (
+            config.catalogs_nointro_dir,
+            config.catalogs_redump_dir,
+            config.catalogs_arcade_dir,
+        ):
             if not dat_dir or not dat_dir.exists():
                 continue
             for dat_file in dat_dir.glob("*.dat"):
@@ -722,31 +729,35 @@ def register(
                     else:
                         label, entries = load_nointro_dat_with_header(dat_file)
                     dat_totals[dat_file.name] = len(entries)
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
         results = []
         seen = set()
         for source, owned in owned_by_source.items():
             total = dat_totals.get(source)
-            results.append({
-                "label": Path(source).stem,
-                "source": source,
-                "owned": owned,
-                "total": total,
-                "pct": round(owned / total * 100, 1) if total else None,
-            })
+            results.append(
+                {
+                    "label": Path(source).stem,
+                    "source": source,
+                    "owned": owned,
+                    "total": total,
+                    "pct": round(owned / total * 100, 1) if total else None,
+                }
+            )
             seen.add(source)
 
         for dat_name, total in dat_totals.items():
             if dat_name not in seen:
-                results.append({
-                    "label": Path(dat_name).stem,
-                    "source": dat_name,
-                    "owned": 0,
-                    "total": total,
-                    "pct": 0.0,
-                })
+                results.append(
+                    {
+                        "label": Path(dat_name).stem,
+                        "source": dat_name,
+                        "owned": 0,
+                        "total": total,
+                        "pct": 0.0,
+                    }
+                )
 
         results.sort(key=lambda r: (r["owned"] == 0, -(r["owned"] or 0)))
         ctx._send_json({"platforms": results})

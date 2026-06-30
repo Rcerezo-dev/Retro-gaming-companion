@@ -9,6 +9,7 @@ IPS format:
 IPS32 (for ROMs > 16 MiB): offsets are 4 bytes instead of 3.
 Detection: header b'IPS32' instead of b'PATCH'; EOF marker b'EEOF'.
 """
+
 from __future__ import annotations
 
 import struct

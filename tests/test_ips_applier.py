@@ -1,4 +1,5 @@
 """Tests for the IPS patch applier."""
+
 import struct
 import tempfile
 from pathlib import Path
@@ -20,7 +21,7 @@ def _make_ips(records: list[tuple[int, bytes | tuple[int, int]]]) -> bytes:
         out += ob
         if isinstance(payload, tuple):
             run_len, fill = payload
-            out += struct.pack(">H", 0)   # size=0 → RLE
+            out += struct.pack(">H", 0)  # size=0 → RLE
             out += struct.pack(">H", run_len)
             out += bytes([fill])
         else:
@@ -44,9 +45,9 @@ def _apply(rom: bytes, patch: bytes) -> bytes:
 
 def test_normal_record_overwrites_bytes():
     rom = b"\x00" * 16
-    patch = _make_ips([(4, b"\xDE\xAD\xBE\xEF")])
+    patch = _make_ips([(4, b"\xde\xad\xbe\xef")])
     result = _apply(rom, patch)
-    assert result[4:8] == b"\xDE\xAD\xBE\xEF"
+    assert result[4:8] == b"\xde\xad\xbe\xef"
     assert result[:4] == b"\x00\x00\x00\x00"
 
 
@@ -54,16 +55,16 @@ def test_rle_record_fills_range():
     rom = b"\x00" * 16
     patch = _make_ips([(2, (5, 0xFF))])
     result = _apply(rom, patch)
-    assert result[2:7] == b"\xFF\xFF\xFF\xFF\xFF"
+    assert result[2:7] == b"\xff\xff\xff\xff\xff"
     assert result[0:2] == b"\x00\x00"
 
 
 def test_patch_extends_rom():
     rom = b"\x00" * 4
-    patch = _make_ips([(8, b"\xAA\xBB")])
+    patch = _make_ips([(8, b"\xaa\xbb")])
     result = _apply(rom, patch)
     assert len(result) == 10
-    assert result[8:10] == b"\xAA\xBB"
+    assert result[8:10] == b"\xaa\xbb"
 
 
 def test_multiple_records():

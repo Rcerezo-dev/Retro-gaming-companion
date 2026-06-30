@@ -1,4 +1,5 @@
 """Tests for the BPS patch applier."""
+
 import struct
 import tempfile
 from pathlib import Path
@@ -26,13 +27,7 @@ def _vlq(value: int) -> bytes:
 def _make_bps(source: bytes, target: bytes, actions: list[bytes]) -> bytes:
     """Build a minimal BPS patch (no CRC validation — applier trusts the data)."""
     meta = b""
-    header = (
-        b"BPS1"
-        + _vlq(len(source))
-        + _vlq(len(target))
-        + _vlq(len(meta))
-        + meta
-    )
+    header = b"BPS1" + _vlq(len(source)) + _vlq(len(target)) + _vlq(len(meta)) + meta
     body = b"".join(actions)
     # Footer: 3 × fake CRC32 (not verified by applier)
     footer = struct.pack("<III", 0, 0, 0)
@@ -86,10 +81,14 @@ def test_mixed_actions():
     source = b"AAAA" + b"\x00" * 4
     # Keep first 4 bytes (SourceRead), replace last 4 with literal
     target = b"AAAA" + b"BBBB"
-    patch = _make_bps(source, target, [
-        _source_read(4),
-        _target_read(b"BBBB"),
-    ])
+    patch = _make_bps(
+        source,
+        target,
+        [
+            _source_read(4),
+            _target_read(b"BBBB"),
+        ],
+    )
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
         (d / "rom.bin").write_bytes(source)
@@ -103,11 +102,15 @@ def test_source_copy():
     # SourceCopy: jump to offset 0, copy 2 bytes → "XY", then jump to 1, copy 2 → "YX" wait
     # Simpler: copy "XY" from offset 0, then copy "XY" again from offset 0 (delta = -2)
     target = b"XYXY" + b"\x00" * 4
-    patch = _make_bps(source, target, [
-        _source_copy(2, 0),   # src_rel starts 0 → reads source[0:2]="XY"; src_rel=2
-        _source_copy(2, -2),  # src_rel += -2 → src_rel=0 again → "XY"
-        _source_read(4),      # copy remaining zeros
-    ])
+    patch = _make_bps(
+        source,
+        target,
+        [
+            _source_copy(2, 0),  # src_rel starts 0 → reads source[0:2]="XY"; src_rel=2
+            _source_copy(2, -2),  # src_rel += -2 → src_rel=0 again → "XY"
+            _source_read(4),  # copy remaining zeros
+        ],
+    )
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
         (d / "rom.bin").write_bytes(source)
@@ -127,7 +130,6 @@ def test_invalid_header():
 
 def test_source_size_mismatch():
     source = b"ABC"
-    target = b"ABC"
     # Claim source_size=10 but actual source is 3
     patch = b"BPS1" + _vlq(10) + _vlq(3) + _vlq(0) + _source_read(3) + struct.pack("<III", 0, 0, 0)
     with tempfile.TemporaryDirectory() as tmp:

@@ -176,8 +176,8 @@ class SyncConfig:
     # Multi-source cloud sync — one entry per emulator, from [[sync.sources]] in config.toml
     sync_sources: list[SyncSource] = field(default_factory=list)
     # RetroArch core config sync (.opt files)
-    ra_config_dir: str = ""    # path to RetroArch/config/ folder
-    ra_config_remote: str = "" # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
+    ra_config_dir: str = ""  # path to RetroArch/config/ folder
+    ra_config_remote: str = ""  # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
 
 
 @dataclass(slots=True)
@@ -443,7 +443,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         esde_path=str(launchers_cfg.get("esde", "")),
-        launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k not in ("retroarch", "esde")},
+        launcher_cores={
+            k: str(v) for k, v in launchers_cfg.items() if k not in ("retroarch", "esde")
+        },
         backup=BackupConfig(
             saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
             saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),

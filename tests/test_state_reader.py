@@ -1,4 +1,5 @@
 """Tests for the save-state PNG extractor."""
+
 import struct
 import tempfile
 import zlib
@@ -46,7 +47,7 @@ def test_multiple_slots_sorted():
 def test_embedded_png_in_raw_state():
     png = _make_png(0xAB)
     # .state file = some junk bytes + PNG blob
-    state_data = b"\x00" * 16 + png + b"\xFF" * 8
+    state_data = b"\x00" * 16 + png + b"\xff" * 8
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
         (d / "Game.state1").write_bytes(state_data)

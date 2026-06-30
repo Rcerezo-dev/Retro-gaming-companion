@@ -7,6 +7,7 @@ Routes:
   POST /api/cloud-auth/finalize      — write remote to rclone config
   POST /api/cloud-auth/disconnect    — delete remote from rclone config
 """
+
 from __future__ import annotations
 
 import re
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
 # rclone provider display names → (rclone_type, suggested_remote_name)
 _PROVIDERS: dict[str, tuple[str, str]] = {
     "dropbox": ("dropbox", "dropbox"),
-    "gdrive":  ("drive",   "gdrive"),
+    "gdrive": ("drive", "gdrive"),
 }
 
 # Module-level auth state (one flow at a time)
@@ -61,7 +62,9 @@ def _run_authorize(rclone_bin: str, provider: str, remote_name: str) -> None:
                 _auth_done = True
         else:
             with _auth_lock:
-                _auth_error = proc.stderr.strip() or "No se recibió token — ¿autorizaste en el navegador?"
+                _auth_error = (
+                    proc.stderr.strip() or "No se recibió token — ¿autorizaste en el navegador?"
+                )
                 _auth_done = True
     except subprocess.TimeoutExpired:
         with _auth_lock:
@@ -81,7 +84,9 @@ def register(router: Router, *, config: AppConfig) -> None:
         try:
             proc = subprocess.run(  # noqa: S603
                 [rclone_bin, "listremotes"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             existing = {r.rstrip(":") for r in proc.stdout.splitlines() if r.strip()}
             providers = [
@@ -95,7 +100,9 @@ def register(router: Router, *, config: AppConfig) -> None:
             ]
             ctx._send_json({"providers": providers, "all_remotes": sorted(existing)})
         except FileNotFoundError:
-            ctx._send_json({"error": "rclone no encontrado — instálalo o configura su ruta en Settings"})
+            ctx._send_json(
+                {"error": "rclone no encontrado — instálalo o configura su ruta en Settings"}
+            )
         except Exception as exc:
             ctx._send_json({"error": str(exc)})
 
@@ -146,7 +153,9 @@ def register(router: Router, *, config: AppConfig) -> None:
         try:
             proc = subprocess.run(  # noqa: S603
                 [rclone_bin, "config", "create", remote_name, rclone_type, "token", token],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if proc.returncode != 0:
                 ctx._send_json({"error": proc.stderr.strip() or "Error al crear el remote"})
@@ -166,7 +175,9 @@ def register(router: Router, *, config: AppConfig) -> None:
         try:
             proc = subprocess.run(  # noqa: S603
                 [rclone_bin, "config", "delete", remote_name],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             if proc.returncode != 0:
                 ctx._send_json({"error": proc.stderr.strip() or "Error al eliminar el remote"})

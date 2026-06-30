@@ -230,9 +230,9 @@ _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
 # Columns that existed in old schema but are now removed (DB-FIX-3).
 # Dropped on first run if still present — safe for SQLite 3.35+ (Python 3.12 ships 3.39+).
 _DEPRECATED_COLUMNS: tuple[tuple[str, str], ...] = (
-    ("games", "status"),        # NOT NULL DEFAULT 'scanned', never read/written
+    ("games", "status"),  # NOT NULL DEFAULT 'scanned', never read/written
     ("games", "library_path"),  # never used
-    ("assets", "game_id"),      # never written by upsert_asset()
+    ("assets", "game_id"),  # never written by upsert_asset()
 )
 
 

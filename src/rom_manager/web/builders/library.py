@@ -289,7 +289,9 @@ def _build_status(
     status_counts: dict[str, int] = {}
     try:
         with active_repo.connect() as _kc:
-            _sz = _kc.execute("SELECT COALESCE(SUM(size_bytes),0) FROM games WHERE file_type='rom'").fetchone()
+            _sz = _kc.execute(
+                "SELECT COALESCE(SUM(size_bytes),0) FROM games WHERE file_type='rom'"
+            ).fetchone()
             total_size_bytes = int(_sz[0]) if _sz else 0
             for _row in _kc.execute(
                 "SELECT COALESCE(play_status,'none') AS s, COUNT(*) AS n FROM games WHERE file_type='rom' GROUP BY s"

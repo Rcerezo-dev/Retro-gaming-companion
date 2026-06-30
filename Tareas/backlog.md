@@ -522,13 +522,13 @@ Una rama por tarea → PR a `develop`. Sin cambios de API pública. CI verde obl
 | ID | Task | Estado |
 |----|------|--------|
 | NEW-1 | **Gestor de patches (IPS/BPS/UPS)** — Inbox acepta `.ips`/`.bps`/`.ups`, los vincula al ROM base y aplica el patch. Nueva tabla `patches`; aplicador Python puro (stdlib). | ⬜ |
-| NEW-2 | **Galería de screenshots** — endpoint `GET /api/screenshots` lista capturas de RetroArch (`screenshots/` de RetroArch); nueva tabla `game_screenshots` (game_id, path, taken_at); tab o panel en UI. Requiere DB-FIX-4 (game_id en saves) como patrón. | ⬜ |
-| NEW-3 | **Game status tracker** — selector "Jugando / Completado / Abandonado / Pendiente" por juego en el panel de detalle. Reutiliza `games.play_status` (ya en schema + índice). Solo UI + endpoint PATCH. | ✅ Ya implementado — `gp-status-sel` en `_foot.html`, `gpSetStatus()` en `games.js`, `POST /api/set-play-status` en `handlers/games.py` |
-| NEW-4 | **Visor de save states** — extrae thumbnail PNG embebido en archivos `.state` de RetroArch (stdlib `struct`+`zlib`); grid "dónde lo dejé" por juego en tab Sync o Colección. | ⬜ |
-| NEW-5 | **Completitud de colección por plataforma** — `total_in_dat / owned`; widget en tab Overview o Juegos. Sin cambios de schema: query sobre `games` + `len()` del DAT cacheado. | ⬜ |
-| NEW-6 | **Validador de BIOS** — tabla estática de hashes conocidos (MD5/SHA1) para PS1, PS2, Saturn, GBA, NDS, etc.; escanea el directorio de BIOS configurado y muestra qué archivos faltan o no coinciden. Reutiliza la infra de hashing existente. Panel en tab Herramientas o Settings. | ⬜ |
-| NEW-7 | **Progreso de logros RA por juego** — `GET /api/user/progress` de RA devuelve `NumAwardedToUser / NumAchievements`; mostrar barra de progreso en el panel de detalle del juego junto al badge 🏆. Extiende el enrichment existente en `handlers/games.py`. | ⬜ |
-| NEW-8 | **Backup de configs de core RetroArch** — incluir archivos `.opt` (opciones de core por juego) en el pipeline de sync existente; solo añadir el glob `**/*.opt` a los `sync_sources`. Sin cambios de schema ni nuevos endpoints. | ⬜ |
+| NEW-2 | **Galería de screenshots** — endpoint `GET /api/screenshots` lista capturas de RetroArch (`screenshots/` de RetroArch); visor en panel de detalle del juego o en tab Colección. Requiere DB-FIX-4 (hecho). | ⬜ |
+| NEW-3 | **Game status tracker** — selector "Jugando / Completado / Abandonado / Pendiente" por juego en el panel de detalle. | ✅ `gp-status-sel` en `_foot.html`, `gpSetStatus()` en `games.js`, `POST /api/set-play-status` |
+| NEW-4 | **Visor de save states** — extrae thumbnail PNG embebido en archivos `.state` de RetroArch (stdlib `struct`+`zlib`); grid "dónde lo dejé" por juego. | ⬜ |
+| NEW-5 | **Completitud de colección por plataforma** — `total_in_dat / owned`; widget en tab Overview. | ✅ `GET /api/collection-completeness` + barras en Overview (Día33) |
+| NEW-6 | **Validador de BIOS** — tabla estática de hashes, escanea dir BIOS, panel en Herramientas. | ✅ `detection/bios_checker.py` + endpoint + UI en tab-settings.html (Día33) |
+| NEW-7 | **Progreso de logros RA por juego** — barra progreso en panel detalle. | ✅ `GET /api/ra-user-progress` + `gp-ra-user-progress` en panel (Día33) |
+| NEW-8 | **Backup de configs de core RetroArch** — sync de `.opt` vía `SyncSource(sync_all=True)`. | ✅ `SyncConfig.ra_config_dir/remote` + inyección en `sync_cloud.py` (Día33) |
 
 ---
 
@@ -538,10 +538,10 @@ Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, 
 
 | ID | Task | Archivo | Estado |
 |----|------|---------|--------|
-| SYNC-SETUP-1 | **Bundlear `rclone.exe` en `tools/`** — descargar el binario Windows de rclone y añadirlo a `tools/`; actualizar `RetroVault.spec` para incluirlo en el build; actualizar `config.py` default para apuntar a `tools/rclone.exe` si `rclone` no está en PATH | `tools/`, `RetroVault.spec`, `config.py` | ⬜ |
-| SYNC-SETUP-2 | **Backend: `GET /api/cloud-auth/start?provider=dropbox`** — lanza `rclone authorize dropbox` como subprocess, captura el token de stdout y escribe el bloque `[dropbox]` en `rclone.conf`; devuelve `{status: "ok"}` o error legible | `web/handlers/sync.py` (o nuevo `handlers/cloud_auth.py`) | ⬜ |
-| SYNC-SETUP-3 | **Frontend: botón "Conectar Dropbox" en tab Sync** — abre el navegador (el propio `rclone authorize` lo hace), muestra spinner mientras espera, toast de éxito/error al terminar; reemplaza el texto actual "configura rclone manualmente" | `web/static/partials/tab-sync.html`, `sync.js` | ⬜ |
-| SYNC-SETUP-4 | **Detectar si ya hay remote configurado** — `GET /api/cloud-auth/status` devuelve qué providers están activos (leyendo `rclone.conf`); el botón cambia a "Desconectar" si ya hay token válido | `web/handlers/sync.py` | ⬜ |
+| SYNC-SETUP-1 | **Bundlear `rclone.exe` en `tools/`** — descargar el binario Windows de rclone y añadirlo a `tools/`; actualizar `RetroVault.spec` para incluirlo en el build; actualizar `config.py` default para apuntar a `tools/rclone.exe` si `rclone` no está en PATH | `tools/`, `RetroVault.spec`, `config.py` | ⬜ (tarea manual) |
+| SYNC-SETUP-2 | **Backend wizard** — `cloud_auth.py` con 5 rutas: status/start/poll/finalize/disconnect; `rclone authorize <provider>` en thread; polling cada 2s | `web/handlers/cloud_auth.py` | ✅ Día34 |
+| SYNC-SETUP-3 | **Frontend: panel "Conexión cloud"** — tarjetas Dropbox/Google Drive con badges Conectado/No configurado + botones Conectar/Desconectar + polling | `tab-sync.html`, `sync.js` | ✅ Día34 |
+| SYNC-SETUP-4 | **Detectar remotes configurados** — `GET /api/cloud-auth/status` → `rclone listremotes` | `cloud_auth.py` | ✅ Día34 |
 
 > **Orden:** SYNC-SETUP-1 → SYNC-SETUP-2 → SYNC-SETUP-4 → SYNC-SETUP-3
 
@@ -551,10 +551,10 @@ Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, 
 
 | ID | Task | Archivo | Estado |
 |----|------|---------|--------|
-| DB-FIX-1 | **Añadir `idx_games_md5`** — RA busca por MD5 en cada `/api/games` pero solo hay índice SHA1. Una biblioteca grande (>1K ROMs) nota el scan completo. `CREATE INDEX IF NOT EXISTS idx_games_md5 ON games (md5)` en `SCHEMA_STATEMENTS`. | `database/schema.py` | ⬜ |
-| DB-FIX-2 | **`metadata_scraped` solo en migrations, no en CREATE TABLE** — nuevas DBs lo reciben vía migration pero queda fuera del schema declarativo. Añadir la columna al `CREATE TABLE games`. | `database/schema.py` | ⬜ |
-| DB-FIX-3 | **Columnas DEPRECATED muertas** — `games.status` (NOT NULL, nunca leído), `games.library_path` (nunca usado), `assets.game_id` (nunca escrito por `upsert_asset`). SQLite 3.35+ permite `DROP COLUMN`; añadir migration que las elimine si existen. | `database/schema.py` | ⬜ |
-| DB-FIX-4 | **`saves` sin FK a `games`** — el vínculo save↔juego es por nombre de archivo, frágil al renombrar. Añadir `game_id INTEGER REFERENCES games(id) ON DELETE SET NULL` + migration; `rename_rom_with_saves` actualiza el campo. Prerequisito para NEW-2 y NEW-4. | `database/schema.py`, `database/repositories/sync.py`, `renamer/file_renamer.py` | ⬜ |
+| DB-FIX-1 | **Añadir `idx_games_md5`** | `database/schema.py` | ✅ Día33 |
+| DB-FIX-2 | **`metadata_scraped` en CREATE TABLE** | `database/schema.py` | ✅ Día33 |
+| DB-FIX-3 | **Columnas DEPRECATED muertas** — `games.status`, `games.library_path`, `assets.game_id` borradas del schema + `_drop_deprecated_columns()` migration (SQLite 3.35+) | `database/schema.py` | ✅ Día34 |
+| DB-FIX-4 | **`saves.game_id FK → games.id`** — migration + `upsert_save(game_id=None)` con COALESCE | `database/schema.py`, `database/repositories/sync.py` | ✅ Día34 |
 
 ---
 

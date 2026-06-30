@@ -229,10 +229,9 @@ def _do_sync(
         try:
             from pathlib import Path as _Path
 
+            from rom_manager.config import SyncSource as _SyncSource
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
-
-            from rom_manager.config import SyncSource as _SyncSource
 
             sources = list(config.sync.sync_sources)
             if config.sync.ra_config_dir and config.sync.ra_config_remote:

@@ -4,6 +4,7 @@ Routes:
   GET  /api/patches/list    — patches in inbox_path + retroarch_path parent
   POST /api/patches/apply   — apply IPS patch to a ROM
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime  # noqa: TC003
@@ -44,30 +45,32 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
                     stat = f.stat()
                 except OSError:
                     continue
-                patches.append({
-                    "filename": f.name,
-                    "path": str(f),
-                    "ext": f.suffix.lower(),
-                    "size_bytes": stat.st_size,
-                })
+                patches.append(
+                    {
+                        "filename": f.name,
+                        "path": str(f),
+                        "ext": f.suffix.lower(),
+                        "size_bytes": stat.st_size,
+                    }
+                )
         ctx._send_json({"patches": patches})
 
     @router.post("/api/patches/apply")
     def post_apply(ctx) -> None:
         """Apply an IPS/IPS32/BPS patch to a ROM file."""
-        from rom_manager.patch.ips_applier import PatchError, apply_ips
         from rom_manager.patch.bps_applier import apply_bps
+        from rom_manager.patch.ips_applier import PatchError, apply_ips
 
         data = ctx._post_data
         patch_path_s = (data.get("patch_path") or "").strip()
-        rom_path_s   = (data.get("rom_path")   or "").strip()
+        rom_path_s = (data.get("rom_path") or "").strip()
 
         if not patch_path_s or not rom_path_s:
             ctx._send_json({"error": "Faltan patch_path y/o rom_path"})
             return
 
         patch_path = Path(patch_path_s)
-        rom_path   = Path(rom_path_s)
+        rom_path = Path(rom_path_s)
 
         if not patch_path.exists():
             ctx._send_json({"error": f"Patch no encontrado: {patch_path.name}"})
@@ -104,15 +107,22 @@ def register(router: Router, *, config: AppConfig, repository: LibraryRepository
                     "INSERT INTO file_operations "
                     "(game_id, operation_type, source_path, target_path, result, message, created_at) "
                     "VALUES (NULL, 'patch_apply', ?, ?, 'ok', ?, ?)",
-                    (str(rom_path), str(output_path), f"{fmt}: {patch_path.name} → {records} registros", ts),
+                    (
+                        str(rom_path),
+                        str(output_path),
+                        f"{fmt}: {patch_path.name} → {records} registros",
+                        ts,
+                    ),
                 )
                 conn.commit()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
-        ctx._send_json({
-            "ok": True,
-            "output": str(output_path),
-            "records": records,
-            "output_name": output_path.name,
-        })
+        ctx._send_json(
+            {
+                "ok": True,
+                "output": str(output_path),
+                "records": records,
+                "output_name": output_path.name,
+            }
+        )

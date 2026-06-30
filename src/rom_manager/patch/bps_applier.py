@@ -11,9 +11,9 @@ Format spec: https://www.romhacking.net/documents/746/
     3 = TargetCopy  — copy N+1 bytes from output at relative offset
   Footer: source_crc32 (4 LE), target_crc32 (4 LE), patch_crc32 (4 LE)
 """
+
 from __future__ import annotations
 
-import struct
 from pathlib import Path
 
 from rom_manager.patch.ips_applier import PatchError
@@ -57,9 +57,7 @@ def apply_bps(rom_path: Path, patch_path: Path, output_path: Path) -> int:
 
     source = bytearray(rom_path.read_bytes())
     if len(source) != source_size:
-        raise PatchError(
-            f"Source size mismatch: patch expects {source_size}, got {len(source)}"
-        )
+        raise PatchError(f"Source size mismatch: patch expects {source_size}, got {len(source)}")
 
     target = bytearray(target_size)
     out_pos = 0

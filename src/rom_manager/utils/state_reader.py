@@ -11,6 +11,7 @@ Usage:
     shots = find_state_thumbnails(rom_stem, search_dirs)
     # shots: list of (state_index: int, png_bytes: bytes)
 """
+
 from __future__ import annotations
 
 import struct
