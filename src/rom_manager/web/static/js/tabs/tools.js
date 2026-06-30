@@ -610,7 +610,7 @@ export async function loadPatchList() {
     }
     el.innerHTML = data.patches.map(p => {
       const kb = (p.size_bytes / 1024).toFixed(1);
-      const canApply = p.ext === '.ips' || p.ext === '.ips32' || p.ext === '.bps';
+      const canApply = p.ext === '.ips' || p.ext === '.ips32' || p.ext === '.bps' || p.ext === '.ups';
       const extBadge = canApply
         ? `<span style="color:var(--c-teal);font-size:10px">${p.ext.toUpperCase()}</span>`
         : `<span style="color:var(--c-amber);font-size:10px">${p.ext.toUpperCase()} (no soportado aún)</span>`;
