@@ -66,6 +66,8 @@ def _build_config(config: AppConfig) -> dict:
         "notify_desktop": config.notify_desktop,
         "saves_remote": config.sync.saves_remote or "",
         "states_remote": config.sync.states_remote or "",
+        "ra_config_dir": config.sync.ra_config_dir or "",
+        "ra_config_remote": config.sync.ra_config_remote or "",
     }
 
 

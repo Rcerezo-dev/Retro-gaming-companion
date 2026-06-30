@@ -245,6 +245,8 @@ def _save_config(
         "sync.remote",
         "sync.saves_remote",
         "sync.states_remote",
+        "sync.ra_config_dir",
+        "sync.ra_config_remote",
         "screenscraper.user",
         "screenscraper.pass",
         "screenscraper.dev_id",

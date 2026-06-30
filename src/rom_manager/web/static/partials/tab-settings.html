@@ -103,6 +103,18 @@
         <input id="cfg-states-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/states">
         <span class="cfg-saved" id="cfg-check-states-remote">&#x2713; Guardado</span>
       </div>
+      <div style="width:100%">
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Carpeta config RetroArch <span style="color:var(--c-dim)">(para sincronizar archivos .opt de opciones de core)</span></label>
+        <div style="display:flex;gap:6px">
+          <input id="cfg-ra-config-dir" type="text" style="flex:1" placeholder="C:/RetroArch/config">
+          <button onclick="browseFolder('cfg-ra-config-dir')" style="font-size:11px;padding:4px 10px">&#x1F4C2; Examinar</button>
+        </div>
+      </div>
+      <div style="width:100%">
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">rclone remote para config RetroArch <span style="color:var(--c-dim)">(ej: dropbox:/RetroSync/ra-config)</span></label>
+        <input id="cfg-ra-config-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/ra-config">
+        <span class="cfg-saved" id="cfg-check-ra-config-remote">&#x2713; Guardado</span>
+      </div>
       <!-- D1: Migración estructura saves/states -->
       <div class="rv-tint-warn" style="width:100%;padding:10px 14px;border-radius:6px">
         <div style="color:var(--c-yellow);font-size:12px;font-weight:600;margin-bottom:6px">&#x1F4C2; Migrar estructura saves/states</div>

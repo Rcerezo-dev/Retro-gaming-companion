@@ -175,6 +175,9 @@ class SyncConfig:
     states_remote: str = ""  # rclone remote for savestates
     # Multi-source cloud sync — one entry per emulator, from [[sync.sources]] in config.toml
     sync_sources: list[SyncSource] = field(default_factory=list)
+    # RetroArch core config sync (.opt files)
+    ra_config_dir: str = ""    # path to RetroArch/config/ folder
+    ra_config_remote: str = "" # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
 
 
 @dataclass(slots=True)
@@ -428,6 +431,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             conflict_policy=str(sync.get("conflict_policy", "newest")),
             saves_remote=str(sync.get("saves_remote", "")),
             states_remote=str(sync.get("states_remote", "")),
+            ra_config_dir=str(sync.get("ra_config_dir", "")),
+            ra_config_remote=str(sync.get("ra_config_remote", "")),
             sync_sources=sync_sources,
         ),
         inbox=InboxConfig(
