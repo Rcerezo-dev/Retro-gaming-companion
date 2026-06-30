@@ -888,3 +888,28 @@ export function wizardGoToOrganize() {
   closeWizard();
   showTab('plan');
 }
+
+export async function loadActivityHeatmap() {
+  const grid = document.getElementById('ov-heatmap-grid');
+  if (!grid) return;
+  try {
+    const data = await apiFetch('/api/activity-heatmap');
+    const byDate = {};
+    (data.days || []).forEach(d => { byDate[d.date] = d.count; });
+    // Build 52-week grid (364 days), oldest first
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const cells = [];
+    for (let i = 363; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const cnt = byDate[key] || 0;
+      const lvl = cnt === 0 ? '' : cnt === 1 ? 'l1' : cnt <= 3 ? 'l2' : 'l3';
+      cells.push(`<div class="hm-cell ${lvl}" title="${cnt ? cnt + ' juego' + (cnt !== 1 ? 's' : '') + ' — ' + key : key}"></div>`);
+    }
+    grid.innerHTML = cells.join('');
+  } catch (_) {
+    if (grid) grid.textContent = '';
+  }
+}

@@ -111,7 +111,7 @@ import {
   _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
-  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
+  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
 } from './tabs/overview.js';
 import {
   doConvertChd, applyChdFilter, _renderChdResult,
@@ -226,7 +226,7 @@ Object.assign(window, {
   _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
-  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
+  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
   // tools.js — tool conversions
   doConvertChd, applyChdFilter, _renderChdResult,
   doConvertCso, _renderCsoResult,
@@ -463,7 +463,7 @@ export function showTab(name) {
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
-  if (name === 'overview')   { loadOverview(); loadCatalogStatus(); }
+  if (name === 'overview')   { loadOverview(); loadCatalogStatus(); loadActivityHeatmap(); }
   if (name === 'games')      { loadFilterOptions(); loadGames(0); _refreshTagFilter(); loadRecommendations(); }
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();

@@ -815,3 +815,20 @@ def register(
             ctx._send(200, mime or "image/png", body)
         except OSError as exc:
             ctx._send_error(500, str(exc))
+
+    # ── GET /api/activity-heatmap ────────────────────────────────────────────
+    @router.get("/api/activity-heatmap")
+    def get_activity_heatmap(ctx) -> None:
+        """Return daily game counts for the last 52 weeks for a GitHub-style heatmap."""
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT DATE(last_played_at) AS day, COUNT(DISTINCT id) AS cnt
+                FROM games
+                WHERE last_played_at IS NOT NULL
+                  AND last_played_at >= DATE('now', '-364 days')
+                GROUP BY day
+                ORDER BY day
+                """
+            ).fetchall()
+        ctx._send_json({"days": [{"date": r["day"], "count": r["cnt"]} for r in rows]})
