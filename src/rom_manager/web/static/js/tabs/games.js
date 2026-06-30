@@ -774,11 +774,22 @@ export async function restoreBackup(backupPath, originalSave) {
 
 let _gpNotesTimer = null;
 export function gpNotesInput() {
+  const statusEl = document.getElementById('gp-notes-status');
+  if (statusEl) statusEl.textContent = '…';
   clearTimeout(_gpNotesTimer);
   _gpNotesTimer = setTimeout(async () => {
     if (!_gpGameId) return;
     const val = document.getElementById('gp-notes')?.value ?? '';
-    try { await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val }); } catch(_) {}
+    try {
+      await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val });
+      if (statusEl) {
+        statusEl.textContent = '✓ guardado';
+        statusEl.style.color = 'var(--c-teal)';
+        setTimeout(() => { if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--c-ghost)'; } }, 1500);
+      }
+    } catch (_) {
+      if (statusEl) { statusEl.textContent = '⚠ error'; statusEl.style.color = 'var(--c-softred)'; }
+    }
   }, 800);
 }
 

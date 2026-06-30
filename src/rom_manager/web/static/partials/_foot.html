@@ -69,7 +69,10 @@
     </div>
     <!-- S30: Notas personales -->
     <div style="margin-top:12px">
-      <div style="color:var(--c-dim);font-size:11px;margin-bottom:4px">&#x1F4DD; Notas personales</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="color:var(--c-dim);font-size:11px">&#x1F4DD; Notas personales</span>
+        <span id="gp-notes-status" style="font-size:10px;color:var(--c-ghost);transition:opacity .3s"></span>
+      </div>
       <textarea id="gp-notes" placeholder="Trucos, claves, config de controller, d&#xf3;nde lo dej&#xe9;&#x2026;"
         style="width:100%;min-height:56px;background:var(--c-input);border:1px solid #222;color:var(--c-dim);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px;resize:vertical;box-sizing:border-box;transition:border-color .15s,color .15s"
         oninput="gpNotesInput()"
