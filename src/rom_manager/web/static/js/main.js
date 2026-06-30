@@ -109,7 +109,7 @@ import {
 import {
   _relTime, _emptyState, card, _getPlatformLogo,
   _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
-  loadOverview, _renderPlatformGrid,
+  loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
 } from './tabs/overview.js';
@@ -219,7 +219,7 @@ Object.assign(window, {
   // overview.js — overview tab, heatmap, charts, wizard
   _relTime, _emptyState, card, _getPlatformLogo,
   _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
-  loadOverview, _renderPlatformGrid,
+  loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
   // tools.js — tool conversions

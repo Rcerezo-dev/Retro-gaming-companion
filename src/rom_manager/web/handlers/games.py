@@ -606,3 +606,70 @@ def register(
                 "platforms": platforms,
             }
         )
+
+    # ── GET /api/collection-completeness ─────────────────────────────────────
+    @router.get("/api/collection-completeness")
+    def get_collection_completeness(ctx) -> None:
+        from rom_manager.catalog.catalog_loader import (
+            _detect_dat_format,
+            load_clrmamepro_dat,
+            load_nointro_dat_with_header,
+        )
+
+        qs = getattr(ctx, "_qs", {})
+        root = qs.get("root", [None])[0] or ""
+        _repo = get_repo_fn(root)
+
+        with _repo.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT catalog_source, COUNT(*) AS owned
+                FROM games
+                WHERE file_type = 'rom' AND catalog_source IS NOT NULL
+                GROUP BY catalog_source
+                ORDER BY owned DESC
+                """
+            ).fetchall()
+
+        owned_by_source = {r["catalog_source"]: r["owned"] for r in rows}
+
+        dat_totals: dict[str, int] = {}
+        for dat_dir in (config.catalogs_nointro_dir, config.catalogs_redump_dir, config.catalogs_arcade_dir):
+            if not dat_dir or not dat_dir.exists():
+                continue
+            for dat_file in dat_dir.glob("*.dat"):
+                try:
+                    if _detect_dat_format(dat_file) == "clrmamepro":
+                        entries = load_clrmamepro_dat(dat_file)
+                        label = dat_file.stem
+                    else:
+                        label, entries = load_nointro_dat_with_header(dat_file)
+                    dat_totals[dat_file.name] = len(entries)
+                except Exception:
+                    pass
+
+        results = []
+        seen = set()
+        for source, owned in owned_by_source.items():
+            total = dat_totals.get(source)
+            results.append({
+                "label": Path(source).stem,
+                "source": source,
+                "owned": owned,
+                "total": total,
+                "pct": round(owned / total * 100, 1) if total else None,
+            })
+            seen.add(source)
+
+        for dat_name, total in dat_totals.items():
+            if dat_name not in seen:
+                results.append({
+                    "label": Path(dat_name).stem,
+                    "source": dat_name,
+                    "owned": 0,
+                    "total": total,
+                    "pct": 0.0,
+                })
+
+        results.sort(key=lambda r: (r["owned"] == 0, -(r["owned"] or 0)))
+        ctx._send_json({"platforms": results})

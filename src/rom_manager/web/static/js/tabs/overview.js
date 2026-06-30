@@ -645,6 +645,9 @@ export async function loadOverview() {
     // Render monthly analysis chart
     try { _renderMonthlyChart(); } catch(e) { console.error('Monthly chart error:', e); }
 
+    // Load collection completeness
+    try { loadCollectionCompleteness(pcPath); } catch(e) { console.error('Completeness error:', e); }
+
     // Load game suggestion
     try { _loadNewGameSuggestion(); } catch(e) { console.error('Game suggestion error:', e); }
 
@@ -652,6 +655,33 @@ export async function loadOverview() {
     const pcCardsEl = document.getElementById('ov-pc-cards');
     if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
+}
+
+// ── Collection completeness ───────────────────────────────────────────────────
+export async function loadCollectionCompleteness(root) {
+  const el = document.getElementById('ov-completeness');
+  if (!el) return;
+  try {
+    const params = root ? `?root=${encodeURIComponent(root)}` : '';
+    const d = await apiFetch('/api/collection-completeness' + params);
+    const platforms = d.platforms || [];
+    if (!platforms.length) { el.innerHTML = '<span style="color:var(--c-dim)">Sin catálogos cargados. Descarga DATs en Ajustes → Catálogos.</span>'; return; }
+    const rows = platforms.map(p => {
+      const pct = p.pct ?? null;
+      const barW = pct !== null ? Math.min(pct, 100) : 0;
+      const clr = pct === null ? 'var(--c-dim)' : pct >= 80 ? 'var(--c-teal)' : pct >= 30 ? 'var(--c-amber)' : 'var(--c-softred)';
+      const totalTxt = p.total !== null ? `${p.owned} / ${p.total}` : `${p.owned}`;
+      const pctTxt = pct !== null ? ` (${pct}%)` : '';
+      return `<div style="display:grid;grid-template-columns:1fr 90px 120px;align-items:center;gap:8px;padding:3px 0;font-size:12px">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-text)">${p.label}</div>
+        <div style="color:${clr};text-align:right;white-space:nowrap">${totalTxt}${pctTxt}</div>
+        <div style="background:var(--c-panel);border-radius:3px;height:6px;overflow:hidden">
+          <div style="background:${clr};height:100%;width:${barW}%;transition:width .4s"></div>
+        </div>
+      </div>`;
+    });
+    el.innerHTML = rows.join('');
+  } catch(e) { el.innerHTML = `<span style="color:var(--c-softred);font-size:12px">Error: ${e.message}</span>`; }
 }
 
 // ── Platform grid ─────────────────────────────────────────────────────────────
