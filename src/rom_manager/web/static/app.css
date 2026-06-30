@@ -726,6 +726,9 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .dash-stat .ds-num { font-size: 22px; font-weight: 700; color: var(--accent); font-family: 'Consolas', monospace; line-height: 1.1; }
 .dash-stat .ds-lbl { font-size: 10px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
 .dash-sep { width: 1px; background: var(--border); margin: 10px 0; flex-shrink: 0; }
+.ov-kpi-card { flex: 1; min-width: 100px; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; text-align: center; }
+.ov-kpi-num { font-size: 20px; font-weight: 700; color: var(--accent); font-family: 'Consolas', monospace; line-height: 1.1; }
+.ov-kpi-lbl { font-size: 10px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
 
 .hero-game { display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, var(--bg-deep) 0%, var(--bg-panel) 100%); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; border-left: 3px solid var(--accent); }
 .hero-game img { width: 72px; height: 72px; object-fit: contain; border-radius: 6px; background: var(--bg-cover); flex-shrink: 0; }

@@ -343,6 +343,16 @@ function fmtSize(n) {
   return n.toFixed(1) + ' ' + units[i];
 }
 
+function _updateKpis(d) {
+  const sc = d.status_counts || {};
+  const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  _set('kpi-size-val',      d.total_size_bytes != null ? fmtSize(d.total_size_bytes) : '—');
+  _set('kpi-completed-val', (sc['completed'] || 0).toLocaleString());
+  _set('kpi-playing-val',   (sc['playing']   || 0).toLocaleString());
+  _set('kpi-pending-val',   (sc['pending']   || 0).toLocaleString());
+  _set('kpi-abandoned-val', (sc['abandoned'] || 0).toLocaleString());
+}
+
 const _PLAT_HEX = {
   gba: 'var(--c-teal)', snes: 'var(--c-blue)', nes: 'var(--c-red)', gb: 'var(--c-yellow)',
   gbc: '#d7ba7d', nds: 'var(--c-purple)', '3ds': 'var(--c-lblue)', n64: 'var(--c-teal)',
@@ -467,6 +477,8 @@ export async function loadOverview() {
           dsHealth.innerHTML = '<span style="color:var(--fg-4)">sin datos</span>';
         }
       }
+      // Bloque 7: KPI row
+      _updateKpis(d);
       // Auto-collapse guide when library already has data
       const guide = document.getElementById('ov-guide');
       if (guide && d.total_games > 0 && localStorage.getItem('guide_closed') !== '0') {
