@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-06-27 (sección PONT añadida — reducción de código tras audit ponytail)
+> Last updated: 2026-06-29 (DESIGN-15 completado — tokenización inline completa; CI ruff verde)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -55,7 +55,7 @@ fichero van **siempre separados**.
 | ~~`refactor/arc-cfg-credentials`~~ ✅ | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica (#26) |
 | ~~`refactor/arc-cfg-inbox-backup`~~ ✅ | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` (en rama) |
 | ~~`refactor/arc-svc-duplicates`~~ ✅ | ARC-SVC-1a + 1b | Service + adelgazar handler (en rama) |
-| `feature/design-polish` | DESIGN-10 + 11 + 12 (+13, +14) | Cosmético sobre `app.css` / `index.html` |
+| ~~`feature/design-polish`~~ ✅ | DESIGN-10 + 11 + 12 (+13, +14, +15) | PRs #40 #43 #58 — tokenización completa |
 
 ---
 
@@ -466,9 +466,10 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 |----|------|--------|-------|
 | DESIGN-10 | Update device selector bar styling | ✅ | `#device-selector` usa `var(--bg-nav)`/`var(--border)`; override light redundante eliminado |
 | DESIGN-11 | Add description bar below device selector | ✅ | `#tab-desc-bar` bajo el device selector; `_TAB_DESC` + `_updateTabDesc()` en `main.js`; CSS en `app.css` (PR #43) |
-| DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ paleta núcleo | 17 tokens semánticos `--c-*` (valores dark exactos + variantes light) mapean la paleta VS Code; 742 instancias inline en partials+JS migradas (dark idéntico por construcción). Cola de tints one-off (<5×) y reglas de `app.css` quedan como follow-up. **Requiere QA visual del tema light antes de merge** |
-| DESIGN-13 | Test light theme with new fonts | ✅ | Verificado con Playwright: 71 backgrounds oscuros hardcodeados rompían el tema light (no cubiertos por el parche de DESIGN-12). Sustituidos por 4 clases `.rv-tint-{neutral,warn,ok,info}` (theme-aware) en `app.css` + ~50 inline styles migrados en 9 partials. Inter + Exo 2 legibles, sin scanlines. |
-| DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` para unpkg en `<head>`; Google Fonts ya era óptimo (PR #43) |
+| DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ | 17 tokens semánticos `--c-*` mapean la paleta VS Code; 742 instancias inline migradas. |
+| DESIGN-13 | Test light theme with new fonts | ✅ | 71 backgrounds oscuros → 4 clases `.rv-tint-{neutral,warn,ok,info}` (theme-aware). Inter + Exo 2 legibles. |
+| DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` (PR #43) |
+| DESIGN-15 | Tokenización completa de colores inline (follow-up DESIGN-12/13) | ✅ | Día33: 8 nuevos tokens `--c-{strong,soft,muted,hint,dim,ghost}` + `--rv-tint-amber-*`; ~640 instancias hardcodeadas en 44 archivos JS/HTML migradas a variables. Solo quedan: colores de marca (wizard purple), blanco/negro sobre fondo coloreado, y heatmap de actividad. CI ruff corregido (7 archivos). PRs #58 + commits en develop. |
 
 ### Files to modify
 
@@ -513,6 +514,47 @@ Una rama por tarea → PR a `develop`. Sin cambios de API pública. CI verde obl
 | PONT-8 | `filename_normalizer.py`: regex de limpieza de caracteres → `unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()` (stdlib `unicodedata`) | `detection/filename_normalizer.py` | reemplaza regex hand-rolled | ✅ |
 
 > Orden sugerido: PONT-1 → PONT-3 → PONT-4 → PONT-5 → PONT-6 → PONT-7 → PONT-2 → PONT-8
+
+---
+
+## NEW-FEAT — Nuevas funciones (2026-06-30)
+
+| ID | Task | Estado |
+|----|------|--------|
+| NEW-1 | **Gestor de patches (IPS/BPS/UPS)** — Inbox acepta `.ips`/`.bps`/`.ups`, los vincula al ROM base y aplica el patch. Nueva tabla `patches`; aplicador Python puro (stdlib). | ⬜ |
+| NEW-2 | **Galería de screenshots** — endpoint `GET /api/screenshots` lista capturas de RetroArch (`screenshots/` de RetroArch); nueva tabla `game_screenshots` (game_id, path, taken_at); tab o panel en UI. Requiere DB-FIX-4 (game_id en saves) como patrón. | ⬜ |
+| NEW-3 | **Game status tracker** — selector "Jugando / Completado / Abandonado / Pendiente" por juego en el panel de detalle. Reutiliza `games.play_status` (ya en schema + índice). Solo UI + endpoint PATCH. | ⬜ |
+| NEW-4 | **Visor de save states** — extrae thumbnail PNG embebido en archivos `.state` de RetroArch (stdlib `struct`+`zlib`); grid "dónde lo dejé" por juego en tab Sync o Colección. | ⬜ |
+| NEW-5 | **Completitud de colección por plataforma** — `total_in_dat / owned`; widget en tab Overview o Juegos. Sin cambios de schema: query sobre `games` + `len()` del DAT cacheado. | ⬜ |
+| NEW-6 | **Validador de BIOS** — tabla estática de hashes conocidos (MD5/SHA1) para PS1, PS2, Saturn, GBA, NDS, etc.; escanea el directorio de BIOS configurado y muestra qué archivos faltan o no coinciden. Reutiliza la infra de hashing existente. Panel en tab Herramientas o Settings. | ⬜ |
+| NEW-7 | **Progreso de logros RA por juego** — `GET /api/user/progress` de RA devuelve `NumAwardedToUser / NumAchievements`; mostrar barra de progreso en el panel de detalle del juego junto al badge 🏆. Extiende el enrichment existente en `handlers/games.py`. | ⬜ |
+| NEW-8 | **Backup de configs de core RetroArch** — incluir archivos `.opt` (opciones de core por juego) en el pipeline de sync existente; solo añadir el glob `**/*.opt` a los `sync_sources`. Sin cambios de schema ni nuevos endpoints. | ⬜ |
+
+---
+
+## SYNC-SETUP — Wizard de conexión cloud sin setup manual (2026-06-30)
+
+Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, y el sync funciona. Sin terminal, sin `rclone config`, sin instalar nada. `rclone.exe` va bundleado en `tools/` igual que `adb.exe`.
+
+| ID | Task | Archivo | Estado |
+|----|------|---------|--------|
+| SYNC-SETUP-1 | **Bundlear `rclone.exe` en `tools/`** — descargar el binario Windows de rclone y añadirlo a `tools/`; actualizar `RetroVault.spec` para incluirlo en el build; actualizar `config.py` default para apuntar a `tools/rclone.exe` si `rclone` no está en PATH | `tools/`, `RetroVault.spec`, `config.py` | ⬜ |
+| SYNC-SETUP-2 | **Backend: `GET /api/cloud-auth/start?provider=dropbox`** — lanza `rclone authorize dropbox` como subprocess, captura el token de stdout y escribe el bloque `[dropbox]` en `rclone.conf`; devuelve `{status: "ok"}` o error legible | `web/handlers/sync.py` (o nuevo `handlers/cloud_auth.py`) | ⬜ |
+| SYNC-SETUP-3 | **Frontend: botón "Conectar Dropbox" en tab Sync** — abre el navegador (el propio `rclone authorize` lo hace), muestra spinner mientras espera, toast de éxito/error al terminar; reemplaza el texto actual "configura rclone manualmente" | `web/static/partials/tab-sync.html`, `sync.js` | ⬜ |
+| SYNC-SETUP-4 | **Detectar si ya hay remote configurado** — `GET /api/cloud-auth/status` devuelve qué providers están activos (leyendo `rclone.conf`); el botón cambia a "Desconectar" si ya hay token válido | `web/handlers/sync.py` | ⬜ |
+
+> **Orden:** SYNC-SETUP-1 → SYNC-SETUP-2 → SYNC-SETUP-4 → SYNC-SETUP-3
+
+---
+
+## DB-FIX — Limpieza de schema (audit 2026-06-30)
+
+| ID | Task | Archivo | Estado |
+|----|------|---------|--------|
+| DB-FIX-1 | **Añadir `idx_games_md5`** — RA busca por MD5 en cada `/api/games` pero solo hay índice SHA1. Una biblioteca grande (>1K ROMs) nota el scan completo. `CREATE INDEX IF NOT EXISTS idx_games_md5 ON games (md5)` en `SCHEMA_STATEMENTS`. | `database/schema.py` | ⬜ |
+| DB-FIX-2 | **`metadata_scraped` solo en migrations, no en CREATE TABLE** — nuevas DBs lo reciben vía migration pero queda fuera del schema declarativo. Añadir la columna al `CREATE TABLE games`. | `database/schema.py` | ⬜ |
+| DB-FIX-3 | **Columnas DEPRECATED muertas** — `games.status` (NOT NULL, nunca leído), `games.library_path` (nunca usado), `assets.game_id` (nunca escrito por `upsert_asset`). SQLite 3.35+ permite `DROP COLUMN`; añadir migration que las elimine si existen. | `database/schema.py` | ⬜ |
+| DB-FIX-4 | **`saves` sin FK a `games`** — el vínculo save↔juego es por nombre de archivo, frágil al renombrar. Añadir `game_id INTEGER REFERENCES games(id) ON DELETE SET NULL` + migration; `rename_rom_with_saves` actualiza el campo. Prerequisito para NEW-2 y NEW-4. | `database/schema.py`, `database/repositories/sync.py`, `renamer/file_renamer.py` | ⬜ |
 
 ---
 
