@@ -175,6 +175,9 @@ class SyncConfig:
     states_remote: str = ""  # rclone remote for savestates
     # Multi-source cloud sync — one entry per emulator, from [[sync.sources]] in config.toml
     sync_sources: list[SyncSource] = field(default_factory=list)
+    # RetroArch core config sync (.opt files)
+    ra_config_dir: str = ""  # path to RetroArch/config/ folder
+    ra_config_remote: str = ""  # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
 
 
 @dataclass(slots=True)
@@ -249,6 +252,7 @@ class AppConfig:
     inbox: InboxConfig
     # Launcher (S28)
     retroarch_path: str  # path to retroarch.exe
+    esde_path: str  # path to ES-DE install dir or exe (overrides auto-detect)
     launcher_cores: dict  # platform → libretro core path
     # Save-backup settings (S29 / QoL-11) — see BackupConfig
     backup: BackupConfig
@@ -427,6 +431,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             conflict_policy=str(sync.get("conflict_policy", "newest")),
             saves_remote=str(sync.get("saves_remote", "")),
             states_remote=str(sync.get("states_remote", "")),
+            ra_config_dir=str(sync.get("ra_config_dir", "")),
+            ra_config_remote=str(sync.get("ra_config_remote", "")),
             sync_sources=sync_sources,
         ),
         inbox=InboxConfig(
@@ -436,7 +442,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             delete_source=bool(inbox_cfg.get("delete_source", False)),
         ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
-        launcher_cores={k: str(v) for k, v in launchers_cfg.items() if k != "retroarch"},
+        esde_path=str(launchers_cfg.get("esde", "")),
+        launcher_cores={
+            k: str(v) for k, v in launchers_cfg.items() if k not in ("retroarch", "esde")
+        },
         backup=BackupConfig(
             saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
             saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),

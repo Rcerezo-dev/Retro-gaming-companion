@@ -1,4 +1,4 @@
-﻿// js/tabs/scan.js — Scan, Match, Fix-platforms, DAT catalog
+// js/tabs/scan.js — Scan, Match, Fix-platforms, DAT catalog
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -219,7 +219,7 @@ async function loadCatalogStatus() {
       ovEl.innerHTML = `\u2705 ${_p.join(' \u00b7 ')} <a href="#" onclick="showTab('settings');return false" style="color:var(--c-dim);font-size:10px">gestionar \u2192</a>`;
     } else if (ovEl) {
       ovEl.innerHTML = `<span style="color:var(--c-yellow)">\u26A0 Sin cat\u00e1logos DAT</span> \u2014 los ROMs no se pueden identificar. `
-        + `<a href="#" onclick="showTab('settings');setTimeout(function(){var s=document.getElementById('dat-catalog-list');if(s)s.scrollIntoView({behavior:'smooth'})},350);return false" style="color:#7aadff">Descargar cat\u00e1logos \u2192</a>`;
+        + `<a href="#" onclick="showTab('settings');setTimeout(function(){var s=document.getElementById('dat-catalog-list');if(s)s.scrollIntoView({behavior:'smooth'})},350);return false" style="color:var(--c-lblue)">Descargar cat\u00e1logos \u2192</a>`;
     }
   } catch(e) {
     if (el) el.textContent = 'Error al cargar estado de cat\u00e1logos.';

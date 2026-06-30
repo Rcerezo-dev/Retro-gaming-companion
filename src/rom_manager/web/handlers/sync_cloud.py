@@ -229,10 +229,20 @@ def _do_sync(
         try:
             from pathlib import Path as _Path
 
+            from rom_manager.config import SyncSource as _SyncSource
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
 
-            sources = config.sync.sync_sources
+            sources = list(config.sync.sync_sources)
+            if config.sync.ra_config_dir and config.sync.ra_config_remote:
+                sources.append(
+                    _SyncSource(
+                        name="RetroArch Config (.opt)",
+                        local_dir=config.sync.ra_config_dir,
+                        remote=config.sync.ra_config_remote,
+                        sync_all=True,
+                    )
+                )
             if not sources:
                 job_result = {
                     "error": "No hay fuentes de sync configuradas. "

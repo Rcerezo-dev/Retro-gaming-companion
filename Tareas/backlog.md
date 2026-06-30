@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-06-27 (sección PONT añadida — reducción de código tras audit ponytail)
+> Last updated: 2026-06-29 (DESIGN-15 completado — tokenización inline completa; CI ruff verde)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -55,7 +55,7 @@ fichero van **siempre separados**.
 | ~~`refactor/arc-cfg-credentials`~~ ✅ | ARC-CFG-2a–2c | Dataclass `CredentialsConfig` atómica (#26) |
 | ~~`refactor/arc-cfg-inbox-backup`~~ ✅ | ARC-CFG-4a–4c | `InboxConfig` + `BackupConfig` (en rama) |
 | ~~`refactor/arc-svc-duplicates`~~ ✅ | ARC-SVC-1a + 1b | Service + adelgazar handler (en rama) |
-| `feature/design-polish` | DESIGN-10 + 11 + 12 (+13, +14) | Cosmético sobre `app.css` / `index.html` |
+| ~~`feature/design-polish`~~ ✅ | DESIGN-10 + 11 + 12 (+13, +14, +15) | PRs #40 #43 #58 — tokenización completa |
 
 ---
 
@@ -466,9 +466,10 @@ El audit mezcla problemas reales con **falsos positivos de su propia lógica**.
 |----|------|--------|-------|
 | DESIGN-10 | Update device selector bar styling | ✅ | `#device-selector` usa `var(--bg-nav)`/`var(--border)`; override light redundante eliminado |
 | DESIGN-11 | Add description bar below device selector | ✅ | `#tab-desc-bar` bajo el device selector; `_TAB_DESC` + `_updateTabDesc()` en `main.js`; CSS en `app.css` (PR #43) |
-| DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ paleta núcleo | 17 tokens semánticos `--c-*` (valores dark exactos + variantes light) mapean la paleta VS Code; 742 instancias inline en partials+JS migradas (dark idéntico por construcción). Cola de tints one-off (<5×) y reglas de `app.css` quedan como follow-up. **Requiere QA visual del tema light antes de merge** |
-| DESIGN-13 | Test light theme with new fonts | ✅ | Verificado con Playwright: 71 backgrounds oscuros hardcodeados rompían el tema light (no cubiertos por el parche de DESIGN-12). Sustituidos por 4 clases `.rv-tint-{neutral,warn,ok,info}` (theme-aware) en `app.css` + ~50 inline styles migrados en 9 partials. Inter + Exo 2 legibles, sin scanlines. |
-| DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` para unpkg en `<head>`; Google Fonts ya era óptimo (PR #43) |
+| DESIGN-12 | Convert remaining hardcoded colors to variables | ✅ | 17 tokens semánticos `--c-*` mapean la paleta VS Code; 742 instancias inline migradas. |
+| DESIGN-13 | Test light theme with new fonts | ✅ | 71 backgrounds oscuros → 4 clases `.rv-tint-{neutral,warn,ok,info}` (theme-aware). Inter + Exo 2 legibles. |
+| DESIGN-14 | Performance audit | ✅ | Lucide `@latest` → `@1.21.0`; `preconnect` + `dns-prefetch` + `preload` (PR #43) |
+| DESIGN-15 | Tokenización completa de colores inline (follow-up DESIGN-12/13) | ✅ | Día33: 8 nuevos tokens `--c-{strong,soft,muted,hint,dim,ghost}` + `--rv-tint-amber-*`; ~640 instancias hardcodeadas en 44 archivos JS/HTML migradas a variables. Solo quedan: colores de marca (wizard purple), blanco/negro sobre fondo coloreado, y heatmap de actividad. CI ruff corregido (7 archivos). PRs #58 + commits en develop. |
 
 ### Files to modify
 
@@ -513,6 +514,60 @@ Una rama por tarea → PR a `develop`. Sin cambios de API pública. CI verde obl
 | PONT-8 | `filename_normalizer.py`: regex de limpieza de caracteres → `unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()` (stdlib `unicodedata`) | `detection/filename_normalizer.py` | reemplaza regex hand-rolled | ✅ |
 
 > Orden sugerido: PONT-1 → PONT-3 → PONT-4 → PONT-5 → PONT-6 → PONT-7 → PONT-2 → PONT-8
+
+---
+
+## NEW-FEAT — Nuevas funciones (2026-06-30)
+
+| ID | Task | Estado |
+|----|------|--------|
+| NEW-1 | **Gestor de patches (IPS/BPS/UPS)** — Inbox acepta `.ips`/`.bps`/`.ups`, los vincula al ROM base y aplica el patch. Nueva tabla `patches`; aplicador Python puro (stdlib). | ✅ IPS/IPS32/BPS (Día34) |
+| NEW-2 | **Galería de screenshots** — endpoint `GET /api/screenshots` lista capturas de RetroArch (`screenshots/` de RetroArch); visor en panel de detalle del juego o en tab Colección. Requiere DB-FIX-4 (hecho). | ✅ Día34 |
+| NEW-3 | **Game status tracker** — selector "Jugando / Completado / Abandonado / Pendiente" por juego en el panel de detalle. | ✅ `gp-status-sel` en `_foot.html`, `gpSetStatus()` en `games.js`, `POST /api/set-play-status` |
+| NEW-4 | **Visor de save states** — extrae thumbnail PNG embebido en archivos `.state` de RetroArch (stdlib `struct`+`zlib`); grid "dónde lo dejé" por juego. | ✅ Día34 |
+| NEW-5 | **Completitud de colección por plataforma** — `total_in_dat / owned`; widget en tab Overview. | ✅ `GET /api/collection-completeness` + barras en Overview (Día33) |
+| NEW-6 | **Validador de BIOS** — tabla estática de hashes, escanea dir BIOS, panel en Herramientas. | ✅ `detection/bios_checker.py` + endpoint + UI en tab-settings.html (Día33) |
+| NEW-7 | **Progreso de logros RA por juego** — barra progreso en panel detalle. | ✅ `GET /api/ra-user-progress` + `gp-ra-user-progress` en panel (Día33) |
+| NEW-8 | **Backup de configs de core RetroArch** — sync de `.opt` vía `SyncSource(sync_all=True)`. | ✅ `SyncConfig.ra_config_dir/remote` + inyección en `sync_cloud.py` (Día33) |
+
+---
+
+## SYNC-SETUP — Wizard de conexión cloud sin setup manual (2026-06-30)
+
+Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, y el sync funciona. Sin terminal, sin `rclone config`, sin instalar nada. `rclone.exe` va bundleado en `tools/` igual que `adb.exe`.
+
+| ID | Task | Archivo | Estado |
+|----|------|---------|--------|
+| SYNC-SETUP-1 | **Bundlear `rclone.exe` en `tools/`** — descargar el binario Windows de rclone y añadirlo a `tools/`; actualizar `RetroVault.spec` para incluirlo en el build; actualizar `config.py` default para apuntar a `tools/rclone.exe` si `rclone` no está en PATH | `tools/`, `RetroVault.spec`, `config.py` | ⬜ (tarea manual) |
+| SYNC-SETUP-2 | **Backend wizard** — `cloud_auth.py` con 5 rutas: status/start/poll/finalize/disconnect; `rclone authorize <provider>` en thread; polling cada 2s | `web/handlers/cloud_auth.py` | ✅ Día34 |
+| SYNC-SETUP-3 | **Frontend: panel "Conexión cloud"** — tarjetas Dropbox/Google Drive con badges Conectado/No configurado + botones Conectar/Desconectar + polling | `tab-sync.html`, `sync.js` | ✅ Día34 |
+| SYNC-SETUP-4 | **Detectar remotes configurados** — `GET /api/cloud-auth/status` → `rclone listremotes` | `cloud_auth.py` | ✅ Día34 |
+
+> **Orden:** SYNC-SETUP-1 → SYNC-SETUP-2 → SYNC-SETUP-4 → SYNC-SETUP-3
+
+---
+
+## DB-FIX — Limpieza de schema (audit 2026-06-30)
+
+| ID | Task | Archivo | Estado |
+|----|------|---------|--------|
+| DB-FIX-1 | **Añadir `idx_games_md5`** | `database/schema.py` | ✅ Día33 |
+| DB-FIX-2 | **`metadata_scraped` en CREATE TABLE** | `database/schema.py` | ✅ Día33 |
+| DB-FIX-3 | **Columnas DEPRECATED muertas** — `games.status`, `games.library_path`, `assets.game_id` borradas del schema + `_drop_deprecated_columns()` migration (SQLite 3.35+) | `database/schema.py` | ✅ Día34 |
+| DB-FIX-4 | **`saves.game_id FK → games.id`** — migration + `upsert_save(game_id=None)` con COALESCE | `database/schema.py`, `database/repositories/sync.py` | ✅ Día34 |
+
+---
+
+## DÍA35 — Features UX / Patches / Overview (2026-06-30)
+
+| ID | Task | Rama | Estado |
+|----|------|------|--------|
+| D35-F | **Notas auto-save indicator** — debounce ya existía; añadir `…` / `✓ guardado` / `⚠ error` junto al label | `feature/notes-autosave` | ✅ Día35 |
+| D35-B | **Historial de patches** — `GET /api/patch-log` desde `file_operations`; tabla ROM/mensaje/fecha en tab-tools | `feature/patch-log` | ✅ Día35 |
+| D35-A | **Soporte UPS patches** — `patch/ups_applier.py` stdlib puro + 6 tests; `.ups` en handler + UI badge teal | `feature/patch-ups` | ✅ Día35 |
+| D35-E | **Comparador PC vs Android en Sync** — panel reutiliza `doLibraryDiff()` y `/api/library-diff` ya existentes | `feature/library-diff` | ✅ Día35 |
+| D35-D | **Heatmap actividad 52 semanas** — `GET /api/activity-heatmap` + grid 364 celdas 3 niveles teal en Overview | `feature/activity-heatmap` | ✅ Día35 |
+| D35-C | **Búsqueda global sidebar** — `#global-search` en sidebar + debounce 300ms + Ctrl+K → filtra tab Juegos | `feature/global-search` | ✅ Día35 |
 
 ---
 

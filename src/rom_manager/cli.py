@@ -948,14 +948,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if issues else 0
 
     if args.command == "init-config":
-        toml_path = Path.cwd() / "config.toml"
-        if toml_path.exists():
-            print(f"config.toml already exists at {toml_path} — not overwriting.")
-            return 1
-        toml_path.write_text(_CONFIG_TOML_TEMPLATE, encoding="utf-8")
-        print(f"Created {toml_path}")
-        print("Edit it to set your saves_dir, remote, and tool paths.")
-        return 0
+        from rom_manager.wizard import run_wizard
+
+        return run_wizard(Path.cwd())
 
     if args.command == "serve":
         from rom_manager.web.server import InsecureExposureError, serve

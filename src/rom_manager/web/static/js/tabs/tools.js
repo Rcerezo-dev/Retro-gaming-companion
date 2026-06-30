@@ -1,4 +1,4 @@
-﻿// js/tabs/tools.js — Tool conversions: CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure
+// js/tabs/tools.js — Tool conversions: CHD, CSO, ZIP, M3U, multidisc, N64, LPL, library structure
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -343,10 +343,10 @@ export async function doVerifyMultidisc() {
 
     if (gapIssues.length) {
       html += `<p style="color:var(--c-red);font-size:12px;margin:10px 0 4px">Sets incompletos — falta al menos un disco (${gapIssues.length}):</p>`;
-      html += `<p style="color:#666;font-size:11px;margin:0 0 6px">Si tienes todos los archivos, revisa que los nombres incluyan "(Disc N)" sin variaciones.</p>`;
+      html += `<p style="color:var(--c-hint);font-size:11px;margin:0 0 6px">Si tienes todos los archivos, revisa que los nombres incluyan "(Disc N)" sin variaciones.</p>`;
       html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:12px">';
       html += gapIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
-        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:var(--c-bar);padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
         <span style="color:var(--c-text)">${_h(i.base_name)}</span>
         <span style="color:var(--c-dim);margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
@@ -358,7 +358,7 @@ export async function doVerifyMultidisc() {
       html += otherIssues.map(i => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
         <span style="color:var(--c-red)">${issueLabels[i.issue_type] || i.issue_type}</span>
         <span style="color:var(--c-muted);margin:0 6px">·</span>
-        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:#1a2233;padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+        ${i.platform ? `<span style="color:var(--c-blue);font-size:11px;background:var(--c-bar);padding:1px 5px;border-radius:3px;margin-right:6px">${_h(i.platform)}</span>` : ''}
         <span style="color:var(--c-text)">${_h(i.base_name)}</span>
         <span style="color:var(--c-dim);margin-left:8px">${_h(i.detail)}</span>
       </div>`).join('');
@@ -373,7 +373,7 @@ export async function doVerifyMultidisc() {
         <button class="btn" style="flex-shrink:0;font-size:11px;padding:2px 10px" onclick="showTab('settings');setTimeout(()=>{const el=document.getElementById('dat-catalog-list');if(el)el.scrollIntoView({behavior:'smooth'})},350)">Ajustes → Catálogos DAT</button>
       </div>`;
       html += `<p style="font-size:11px;color:var(--c-dim);margin:0 0 6px">Si ya tienes un DAT, ve a la pestaña <strong>Organizar</strong> y pulsa Identificar. Si no, carga un catálogo DAT en Ajustes.</p>`;
-      html += `<details style="font-size:11px;color:var(--c-dim)"><summary style="cursor:pointer;color:#666">Ver lista (${unmatchedOnly.length})</summary>`;
+      html += `<details style="font-size:11px;color:var(--c-dim)"><summary style="cursor:pointer;color:var(--c-hint)">Ver lista (${unmatchedOnly.length})</summary>`;
       html += '<div style="max-height:160px;overflow-y:auto;margin-top:4px">';
       html += unmatchedOnly.map(i => `<div style="padding:2px 0">${_h(i.base_name)} — ${_h(i.detail)}</div>`).join('');
       html += '</div></details></div>';
@@ -592,4 +592,97 @@ function _renderVerifyChdList(listEl, errorsOnly) {
     const errMsg = r.error ? `<div style="color:var(--c-red);font-size:11px;padding-left:8px;margin-top:1px">${_h(r.error)}</div>` : '';
     return `<div style="padding:3px 0;border-bottom:1px solid #2a1a1a"><span style="font-size:12px;color:var(--c-red)">[CORRUPT] ${_h(r.file)}</span>${errMsg}</div>`;
   }).join('');
+}
+
+// ── NEW-1: Patch manager ──────────────────────────────────────────────────────
+
+let _selectedPatchPath = null;
+
+export async function loadPatchList() {
+  const el = document.getElementById('patch-list-content');
+  if (!el) return;
+  el.textContent = 'Escaneando…';
+  try {
+    const data = await apiFetch('/api/patches/list');
+    if (!data.patches?.length) {
+      el.textContent = 'No se encontraron patches (.ips) en Inbox ni en RetroArch/patches/.';
+      return;
+    }
+    el.innerHTML = data.patches.map(p => {
+      const kb = (p.size_bytes / 1024).toFixed(1);
+      const canApply = p.ext === '.ips' || p.ext === '.ips32' || p.ext === '.bps' || p.ext === '.ups';
+      const extBadge = canApply
+        ? `<span style="color:var(--c-teal);font-size:10px">${p.ext.toUpperCase()}</span>`
+        : `<span style="color:var(--c-amber);font-size:10px">${p.ext.toUpperCase()} (no soportado aún)</span>`;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border)">
+        ${extBadge}
+        <span style="flex:1;color:var(--c-text)">${_h(p.filename)}</span>
+        <span style="color:var(--c-dim);font-size:10px">${kb} KB</span>
+        ${canApply ? `<button class="btn" onclick="selectPatch(${JSON.stringify(p.path)},${JSON.stringify(p.filename)})" style="font-size:11px;padding:2px 10px">Aplicar</button>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
+export function selectPatch(path, name) {
+  _selectedPatchPath = path;
+  document.getElementById('patch-selected-name').textContent = name;
+  document.getElementById('patch-apply-form')?.classList.remove('hidden');
+  document.getElementById('patch-apply-result').textContent = '';
+}
+
+export function clearPatchSelection() {
+  _selectedPatchPath = null;
+  document.getElementById('patch-apply-form')?.classList.add('hidden');
+}
+
+export async function applySelectedPatch() {
+  const romPath = document.getElementById('patch-rom-path')?.value.trim();
+  const resultEl = document.getElementById('patch-apply-result');
+  if (!_selectedPatchPath || !romPath) {
+    if (resultEl) resultEl.innerHTML = '<span style="color:var(--c-softred)">Selecciona un patch y una ROM.</span>';
+    return;
+  }
+  if (resultEl) resultEl.textContent = 'Aplicando…';
+  try {
+    const res = await apiPost('/api/patches/apply', { patch_path: _selectedPatchPath, rom_path: romPath });
+    if (res.error) {
+      resultEl.innerHTML = `<span style="color:var(--c-softred)">&#x274C; ${_h(res.error)}</span>`;
+    } else {
+      resultEl.innerHTML = `<span style="color:var(--c-teal)">&#x2713; Patch aplicado — ${_h(res.output_name)} (${res.records} registros)</span>`;
+      showToast('Patch aplicado: ' + res.output_name, 'success');
+      loadPatchLog();
+    }
+  } catch (e) {
+    resultEl.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
+  }
+}
+
+export async function loadPatchLog() {
+  const el = document.getElementById('patch-log-content');
+  if (!el) return;
+  try {
+    const data = await apiFetch('/api/patch-log');
+    if (!data.log?.length) {
+      el.textContent = 'Sin historial aún.';
+      return;
+    }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="color:var(--c-muted);text-align:left">
+        <th style="padding:3px 6px;border-bottom:1px solid var(--c-border)">ROM</th>
+        <th style="padding:3px 6px;border-bottom:1px solid var(--c-border)">Patch / resultado</th>
+        <th style="padding:3px 6px;border-bottom:1px solid var(--c-border);white-space:nowrap">Fecha</th>
+      </tr></thead>
+      <tbody>${data.log.map(r => `<tr>
+        <td style="padding:3px 6px;color:var(--c-text)">${_h(r.rom)}</td>
+        <td style="padding:3px 6px;color:var(--c-dim)">${_h(r.message || r.output)}</td>
+        <td style="padding:3px 6px;color:var(--c-ghost);white-space:nowrap">${r.created_at ? r.created_at.slice(0,16).replace('T',' ') : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
 }

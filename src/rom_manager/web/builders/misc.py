@@ -59,12 +59,15 @@ def _build_config(config: AppConfig) -> dict:
             for s in config.sync.sync_sources
         ],
         "retroarch_path": config.retroarch_path or "",
+        "esde_path": config.esde_path or "",
         "launcher_cores": config.launcher_cores or {},
         "backup_saves_enabled": config.backup.saves_enabled,
         "backup_saves_keep_n": config.backup.saves_keep_n,
         "notify_desktop": config.notify_desktop,
         "saves_remote": config.sync.saves_remote or "",
         "states_remote": config.sync.states_remote or "",
+        "ra_config_dir": config.sync.ra_config_dir or "",
+        "ra_config_remote": config.sync.ra_config_remote or "",
     }
 
 

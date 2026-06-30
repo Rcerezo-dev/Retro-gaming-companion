@@ -1,4 +1,4 @@
-﻿// js/tabs/games.js — Games tab: list, filters, pagination, game panel, TV mode
+// js/tabs/games.js — Games tab: list, filters, pagination, game panel, TV mode
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -315,7 +315,7 @@ export async function loadGames(offset) {
     if (_datBanner) {
       const _unmatched = d.games.filter(g => !g.match_confidence).length;
       if (d.dat_count === 0 && d.total > 0) {
-        _datBanner.innerHTML = `<span style="color:#e5c200">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:#7aadff;text-decoration:underline">→ Descargar catálogos</a>`;
+        _datBanner.innerHTML = `<span style="color:var(--c-yellow)">⚠</span> Sin catálogos DAT — identificación por SHA1 no disponible. Los juegos sin catálogo no pueden renombrarse de forma fiable. <a href="#" onclick="showTab('settings');return false;" style="color:var(--c-lblue);text-decoration:underline">→ Descargar catálogos</a>`;
         _datBanner.classList.remove('hidden');
       } else if (d.dat_count > 0 && _unmatched > 0) {
         _datBanner.innerHTML = `<span style="color:var(--c-teal)">✓</span> ${d.dat_count} catálogo${d.dat_count !== 1 ? 's' : ''} DAT cargado${d.dat_count !== 1 ? 's' : ''} · <span style="color:var(--c-muted)">${_unmatched} sin identificar</span>`;
@@ -347,9 +347,9 @@ export async function loadGames(offset) {
       empty.classList.add('hidden');
       const _srcPath = gamesState.root || _deviceRoot() || '';
       tbody.innerHTML = rows.map(g => {
-        const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:#0a0a0a" onerror="this.style.display=\'none\'">` : '';
+        const thumb = g.id ? `<img src="/api/asset-image?game_id=${g.id}" style="width:32px;height:32px;object-fit:contain;border-radius:2px;background:var(--c-input)" onerror="this.style.display=\'none\'">` : '';
         const statusVal = g.play_status || '';
-        const statusSel = `<select style="background:var(--c-panel);border:1px solid #333;color:var(--c-text);padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
+        const statusSel = `<select style="background:var(--c-panel);border:1px solid var(--c-border);color:var(--c-text);padding:2px 5px;border-radius:3px;font:inherit;font-size:11px;cursor:pointer" onchange="setPlayStatus(${g.id}, '${_srcPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', this.value)">
           <option value=""${statusVal === '' ? ' selected' : ''}>—</option>
           <option value="playing"${statusVal === 'playing' ? ' selected' : ''}>&#x1F3AE; Jugando</option>
           <option value="completed"${statusVal === 'completed' ? ' selected' : ''}>&#x2705; Completado</option>
@@ -362,13 +362,13 @@ export async function loadGames(offset) {
           <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
-          <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:#444">—</span>'}</td>
+          <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:var(--c-ghost)">—</span>'}</td>
           <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}</td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
           <td><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
           <td>${matchBadge(g.match_confidence)}</td>
-          <td style="color:#666;font-size:12px">${fmtSize(g.size_bytes)}</td>
-          <td class="mono" style="color:#444;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
+          <td style="color:var(--c-hint);font-size:12px">${fmtSize(g.size_bytes)}</td>
+          <td class="mono" style="color:var(--c-ghost);font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
         </tr>`;
       }).join('');
       applyColVisibility();
@@ -458,15 +458,15 @@ function _gpFillMeta(g) {
   document.getElementById('gp-filename').textContent = g.original_filename || '';
   const rows = [
     ['Plataforma', _platBadge(g.platform)],
-    ['Región',    g.region    ? _h(g.region)    : '<span style="color:#444">—</span>'],
-    ['Año',       g.year      ? _h(g.year)      : '<span style="color:#444">—</span>'],
-    ['Género',    g.genre     ? _h(g.genre)     : '<span style="color:#444">—</span>'],
-    ['Jugadores', g.players   ? _h(g.players)   : '<span style="color:#444">—</span>'],
-    ['Publisher', g.publisher ? _h(g.publisher) : '<span style="color:#444">—</span>'],
+    ['Región',    g.region    ? _h(g.region)    : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Año',       g.year      ? _h(g.year)      : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Género',    g.genre     ? _h(g.genre)     : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Jugadores', g.players   ? _h(g.players)   : '<span style="color:var(--c-ghost)">—</span>'],
+    ['Publisher', g.publisher ? _h(g.publisher) : '<span style="color:var(--c-ghost)">—</span>'],
     ['Developer', g.developer ? _h(g.developer) : null],
-    ['Nota',      g.rating    ? _h(g.rating)    : '<span style="color:#444">—</span>'],
+    ['Nota',      g.rating    ? _h(g.rating)    : '<span style="color:var(--c-ghost)">—</span>'],
     ['Tamaño',    fmtSize(g.size_bytes)],
-    ['SHA1',      `<span style="color:#444;font-family:Consolas,monospace;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</span>`],
+    ['SHA1',      `<span style="color:var(--c-ghost);font-family:Consolas,monospace;font-size:11px">${(g.sha1 || '').slice(0, 10)}…</span>`],
   ];
   document.getElementById('gp-meta').innerHTML = rows.filter(([, v]) => v).map(([k, v]) => `<span class="gk">${k}</span><span class="gv">${v}</span>`).join('');
   const desc = document.getElementById('gp-desc');
@@ -553,15 +553,10 @@ export function openGamePanel(g) {
   const tagsList = document.getElementById('gp-tags-list');
   tagsList.innerHTML = '<span style="color:var(--c-dim);font-size:11px">cargando…</span>';
   apiFetch('/api/game-tags?id=' + g.id).then(r => _gpRenderTags(r.tags || [])).catch(() => { tagsList.innerHTML = ''; });
-  // Stateshot — load async
-  document.getElementById('gp-stateshot-wrap').classList.add('hidden');
-  apiFetch('/api/stateshot?id=' + g.id).then(r => {
-    if (r.found && r.data) {
-      const img = document.getElementById('gp-stateshot');
-      img.src = 'data:image/png;base64,' + r.data;
-      document.getElementById('gp-stateshot-wrap').classList.remove('hidden');
-    }
-  }).catch(() => {});
+  // Screenshots — load async (NEW-2)
+  loadGameScreenshots(g.original_filename);
+  // Stateshot grid — load async (NEW-4)
+  loadGameStatshots(g.id);
   // Reset RA section + saves info
   const _raSection = document.getElementById('gp-ra-section');
   if (_raSection) _raSection.classList.add('hidden');
@@ -701,6 +696,14 @@ function _gpRenderTags(tags) {
   el.innerHTML = tags.map(t =>
     `<span class="tag-chip">${_h(t)}<span class="tag-remove" onclick="gpRemoveTag('${_h(t)}')" title="Eliminar tag">&times;</span></span>`
   ).join('');
+  // Bloque 9: M3U download links per tag
+  const m3uEl = document.getElementById('gp-tags-m3u-links');
+  if (m3uEl) {
+    m3uEl.innerHTML = tags.map(t =>
+      `<a href="/api/export-m3u?tag=${encodeURIComponent(t)}" download title="Descargar playlist RetroArch para tag '${_h(t)}'"
+         style="font-size:10px;color:var(--c-teal);text-decoration:none;border:1px solid var(--c-teal);padding:1px 6px;border-radius:10px;opacity:.75" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">.m3u</a>`
+    ).join('');
+  }
 }
 
 export async function gpAddTag() {
@@ -753,9 +756,9 @@ export function loadSaveBackupsResult(saves, gameId) {
     const origSav = s.original_save.replace(/\\/g, '/');
     const ext     = s.extension || '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--c-panel)">
-      <span style="color:var(--c-muted)">${_h(s.timestamp)}<span style="color:#444;margin-left:4px">${_h(ext)}</span></span>
+      <span style="color:var(--c-muted)">${_h(s.timestamp)}<span style="color:var(--c-ghost);margin-left:4px">${_h(ext)}</span></span>
       <span style="color:var(--c-dim)">${sizeFmt}</span>
-      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:#1a2a1a;border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
+      <button onclick="restoreBackup(${JSON.stringify(bkPath)},${JSON.stringify(origSav)})" style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:1px 8px;border-radius:3px;font-size:11px;cursor:pointer">Restaurar</button>
     </div>`;
   }).join('');
 }
@@ -771,11 +774,22 @@ export async function restoreBackup(backupPath, originalSave) {
 
 let _gpNotesTimer = null;
 export function gpNotesInput() {
+  const statusEl = document.getElementById('gp-notes-status');
+  if (statusEl) statusEl.textContent = '…';
   clearTimeout(_gpNotesTimer);
   _gpNotesTimer = setTimeout(async () => {
     if (!_gpGameId) return;
     const val = document.getElementById('gp-notes')?.value ?? '';
-    try { await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val }); } catch(_) {}
+    try {
+      await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val });
+      if (statusEl) {
+        statusEl.textContent = '✓ guardado';
+        statusEl.style.color = 'var(--c-teal)';
+        setTimeout(() => { if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--c-ghost)'; } }, 1500);
+      }
+    } catch (_) {
+      if (statusEl) { statusEl.textContent = '⚠ error'; statusEl.style.color = 'var(--c-softred)'; }
+    }
   }, 800);
 }
 
@@ -826,7 +840,7 @@ export async function gpScrapeSingle() {
       ['Publisher', r.publisher], ['Developer', r.developer], ['Nota', r.rating],
     ].filter(([, v]) => v).map(([k, v]) => `<span style="color:var(--c-muted)">${k}:</span> <span style="color:var(--c-text)">${_h(v)}</span>`).join(' &nbsp;·&nbsp; ');
     if (previewEl) previewEl.innerHTML = `<div style="margin-bottom:8px;line-height:1.8">${rows}</div>
-      <button onclick="gpApplyScrape()" style="background:#1a3a2a;border:1px solid var(--c-teal);color:var(--c-teal);padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
+      <button onclick="gpApplyScrape()" style="background:var(--rv-tint-ok-bg);border:1px solid var(--c-teal);color:var(--c-teal);padding:3px 12px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Aplicar</button>
       <button onclick="document.getElementById('gp-scrape-preview').classList.add('hidden')" style="margin-left:6px;background:none;border:1px solid #444;color:var(--c-muted);padding:3px 10px;border-radius:4px;font:inherit;font-size:11px;cursor:pointer">Cancelar</button>`;
   } catch(e) {
     if (previewEl) previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${_h(e.message)}</span>`;
@@ -878,7 +892,7 @@ export async function loadGameSyncHistory(sourcePath) {
       return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1a2a">
         <span style="color:${clr};font-size:11px">${dir} ${_h(h.result || '')}</span>
         <span style="color:var(--c-dim);font-size:10px;flex:1">${_h(h.created_at?.substring(0, 16) || '')}</span>
-        ${h.message ? `<span style="color:#666;font-size:10px">${_h(h.message.substring(0, 40))}</span>` : ''}
+        ${h.message ? `<span style="color:var(--c-hint);font-size:10px">${_h(h.message.substring(0, 40))}</span>` : ''}
       </div>`;
     }).join('');
   } catch(_) {}
@@ -993,4 +1007,52 @@ export async function loadRecommendations() {
 
 export function dismissRecommendations() {
   document.getElementById('rec-panel')?.classList.add('hidden');
+}
+
+// ── NEW-2: Screenshot gallery ─────────────────────────────────────────────────
+
+export async function loadGameStatshots(gameId) {
+  const wrap = document.getElementById('gp-stateshot-wrap');
+  const grid = document.getElementById('gp-stateshot-grid');
+  if (!wrap || !grid) return;
+  wrap.classList.add('hidden');
+  grid.innerHTML = '';
+  if (!gameId) return;
+  try {
+    const data = await apiFetch('/api/stateshots?id=' + gameId);
+    if (!data.slots?.length) return;
+    grid.innerHTML = data.slots.map(s => {
+      const src = 'data:image/png;base64,' + s.data;
+      return `<div style="position:relative">
+        <img src="${src}" alt="slot ${s.slot}"
+          style="width:100%;border-radius:4px;border:1px solid var(--c-border);display:block;aspect-ratio:4/3;object-fit:cover">
+        <span style="position:absolute;bottom:3px;right:5px;font-size:10px;color:#fff;text-shadow:0 1px 2px #000">&#x1F4BE;${s.slot}</span>
+      </div>`;
+    }).join('');
+    if (grid.children.length) wrap.classList.remove('hidden');
+  } catch (_) {}
+}
+
+export async function loadGameScreenshots(originalFilename) {
+  const wrap = document.getElementById('gp-screenshots-wrap');
+  const grid = document.getElementById('gp-screenshots-grid');
+  if (!wrap || !grid) return;
+  wrap.classList.add('hidden');
+  grid.innerHTML = '';
+  if (!originalFilename) return;
+  const stem = originalFilename.replace(/\.[^.]+$/, ''); // strip extension
+  try {
+    const data = await apiFetch('/api/screenshots?stem=' + encodeURIComponent(stem));
+    if (!data.screenshots?.length) return;
+    grid.innerHTML = data.screenshots.slice(0, 6).map(s => {
+      const url = '/api/screenshot-file?name=' + encodeURIComponent(s.filename);
+      const date = s.taken_at ? new Date(s.taken_at * 1000).toLocaleDateString() : '';
+      return `<a href="${url}" target="_blank" rel="noopener" title="${s.filename}&#10;${date}">
+        <img src="${url}" loading="lazy" alt="${s.filename}"
+          style="width:100%;border-radius:4px;border:1px solid var(--c-border);display:block;aspect-ratio:16/9;object-fit:cover"
+          onerror="this.closest('a').remove()">
+      </a>`;
+    }).join('');
+    if (grid.children.length) wrap.classList.remove('hidden');
+  } catch (_) {}
 }

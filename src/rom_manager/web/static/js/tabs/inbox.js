@@ -1,4 +1,4 @@
-﻿// js/tabs/inbox.js — Inbox pipeline, badge, drag & drop, watcher
+// js/tabs/inbox.js — Inbox pipeline, badge, drag & drop, watcher
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -125,7 +125,7 @@ async function scanInbox() {
     if (summaryText) summaryText.innerHTML =
       '<strong style="color:var(--c-text)">' + d.total + ' archivos</strong>' +
       (d.zips > 0 ? ' · <span style="color:var(--c-yellow)">' + d.zips + ' ZIPs</span>' : '') +
-      (d.unrecognized > 0 ? ' · <span style="color:#f14c4c">' + d.unrecognized + ' no reconocidos</span>' : '') +
+      (d.unrecognized > 0 ? ' · <span style="color:var(--c-red)">' + d.unrecognized + ' no reconocidos</span>' : '') +
       (platStr ? ' &nbsp;|&nbsp; ' + platStr : '');
     if (summaryEl) summaryEl.classList.remove('hidden');
     if (tbody) {

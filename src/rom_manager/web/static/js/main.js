@@ -93,7 +93,7 @@ import {
   loadGameSyncHistory,
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
   _tvActive, _tvFocusIdx, _tvCols, _tvGames,
-  loadRecommendations, dismissRecommendations,
+  loadRecommendations, dismissRecommendations, loadGameScreenshots, loadGameStatshots,
 } from './tabs/games.js';
 import {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
@@ -109,9 +109,9 @@ import {
 import {
   _relTime, _emptyState, card, _getPlatformLogo,
   _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
-  loadOverview, _renderPlatformGrid,
+  loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
-  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
+  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
 } from './tabs/overview.js';
 import {
   doConvertChd, applyChdFilter, _renderChdResult,
@@ -123,6 +123,7 @@ import {
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
   doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
+  loadPatchList, selectPatch, clearPatchSelection, applySelectedPatch, loadPatchLog,
   _initToolsImports,
 } from './tabs/tools.js';
 import {
@@ -177,6 +178,10 @@ import {
   doSync,
   _renderSyncResult,
   promptSyncNow,
+  loadCloudAuthStatus,
+  startCloudAuth,
+  cancelCloudAuth,
+  disconnectCloud,
 } from './tabs/sync.js';
 import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
@@ -205,7 +210,7 @@ Object.assign(window, {
   gpScrapeSingle, gpApplyScrape, gpCopyAssetToEsde,
   loadGameSyncHistory,
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
-  loadRecommendations, dismissRecommendations,
+  loadRecommendations, dismissRecommendations, loadGameScreenshots, loadGameStatshots,
   // esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility, health check, junk/orphans/doctor
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
@@ -219,9 +224,9 @@ Object.assign(window, {
   // overview.js — overview tab, heatmap, charts, wizard
   _relTime, _emptyState, card, _getPlatformLogo,
   _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
-  loadOverview, _renderPlatformGrid,
+  loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
-  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize,
+  _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
   // tools.js — tool conversions
   doConvertChd, applyChdFilter, _renderChdResult,
   doConvertCso, _renderCsoResult,
@@ -232,6 +237,7 @@ Object.assign(window, {
   doN64Scan, doN64Convert,
   createLibraryStructure, organizeLibrary,
   doVerifyChd, _renderVerifyChdResult, applyVerifyChdFilter,
+  loadPatchList, selectPatch, clearPatchSelection, applySelectedPatch, loadPatchLog,
   // state.js — shared device context
   AppState, getActiveDevice, getDevName, setActiveDevice, setDevName,
   getDeviceConnected, getDeviceConnectReason,
@@ -351,6 +357,11 @@ Object.assign(window, {
   doSync,
   _renderSyncResult,
   promptSyncNow,
+  // SYNC-SETUP: Cloud auth wizard
+  loadCloudAuthStatus,
+  startCloudAuth,
+  cancelCloudAuth,
+  disconnectCloud,
   // PHASE6-3b: app update download/apply
   downloadAppUpdate,
   applyAppUpdate,
@@ -452,19 +463,19 @@ export function showTab(name) {
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
-  if (name === 'overview')   { loadOverview(); loadCatalogStatus(); }
+  if (name === 'overview')   { loadOverview(); loadCatalogStatus(); loadActivityHeatmap(); }
   if (name === 'games')      { loadFilterOptions(); loadGames(0); _refreshTagFilter(); loadRecommendations(); }
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
-  if (name === 'sync')       { loadSync(); loadManualBackups?.(); }
+  if (name === 'sync')       { loadSync(); loadManualBackups?.(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
-  if (name === 'tools')      { loadTools(); _initToolsContext(); }
+  if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); }
   if (name === 'inbox')      loadInbox();
   if (name === 'tv')         { /* enterTvMode() handles TV tab load */ }
 }
@@ -743,6 +754,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Escape')     { e.preventDefault(); exitTvMode(); return; }
     }
 
+    // Ctrl+K / Cmd+K — focus global search
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('global-search')?.focus();
+      return;
+    }
+
     // Global shortcuts
     const k = e.key.toLowerCase();
     if (k === 't') { e.preventDefault(); enterTvMode(); return; }
@@ -754,4 +772,24 @@ document.addEventListener('DOMContentLoaded', () => {
       if (t) showTab(t);
     }
   });
+
+  // Global search — debounce 300ms → jump to Games tab
+  let _globalSearchTimer = null;
+  const _globalSearchEl = document.getElementById('global-search');
+  if (_globalSearchEl) {
+    _globalSearchEl.addEventListener('input', () => {
+      clearTimeout(_globalSearchTimer);
+      _globalSearchTimer = setTimeout(() => {
+        const val = _globalSearchEl.value.trim();
+        gamesState.search = val;
+        const searchEl = document.getElementById('games-search');
+        if (searchEl) searchEl.value = val;
+        showTab('games');
+        loadGames(0);
+      }, 300);
+    });
+    _globalSearchEl.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { _globalSearchEl.value = ''; _globalSearchEl.blur(); }
+    });
+  }
 });

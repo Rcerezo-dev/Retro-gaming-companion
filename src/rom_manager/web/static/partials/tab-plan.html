@@ -1,4 +1,4 @@
-﻿<div id="tab-plan" class="tab">
+<div id="tab-plan" class="tab">
   <!-- Format options -->
   <div class="fmt-options">
     <span>Incluir en el nombre:</span>
@@ -54,14 +54,14 @@
       <span style="color:var(--c-red);font-size:12px;font-weight:600" id="apply-error-count"></span>
       <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="document.getElementById('apply-error-details').style.display='none'">Cerrar</button>
     </div>
-    <div id="apply-error-list" style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;color:#f99"></div>
+    <div id="apply-error-list" style="max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;color:var(--c-softred)"></div>
   </div>
   <div class="hidden" id="fmt-preview" style="font-size:12px;color:var(--c-muted);margin-bottom:12px;padding:6px 10px;background:var(--c-bar);border:1px solid #2a2a3a;border-radius:4px">
     <span style="color:var(--c-dim)">Ejemplo: </span><span id="fmt-preview-text" style="color:var(--c-teal)"></span>
   </div>
   <!-- Resumen C2: X listos · Y conflictos · Z sin match -->
-  <div class="hidden" id="plan-summary-bar" style="margin-bottom:10px;padding:8px 14px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
-  <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
+  <div class="hidden" id="plan-summary-bar" style="margin-bottom:10px;padding:8px 14px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
+  <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div id="plan-content"><p class="loading">Cargando…</p></div>
 </div>
 

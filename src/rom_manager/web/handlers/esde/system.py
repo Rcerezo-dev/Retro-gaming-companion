@@ -191,6 +191,9 @@ def _handle_esde_status(config: AppConfig) -> dict:
     home = os.environ.get("USERPROFILE", os.path.expanduser("~"))
 
     candidates: list[Path] = []
+    if config.esde_path:
+        p = Path(config.esde_path)
+        candidates.append(p if p.is_dir() else p.parent)
     if appdata:
         candidates.append(Path(appdata) / "ES-DE")
     if localappdata:

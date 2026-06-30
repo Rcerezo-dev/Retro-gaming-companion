@@ -1,4 +1,4 @@
-﻿// js/tabs/sync.js — Cloud Sync, Cable Sync, Auto-sync, Rclone, Android setup
+// js/tabs/sync.js — Cloud Sync, Cable Sync, Auto-sync, Rclone, Android setup
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -29,7 +29,7 @@ async function loadSync() {
         const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
-        syncBar.innerHTML = `<span style="color:#f48771">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
+        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
       }
       syncBar.classList.remove('hidden');
     }
@@ -41,7 +41,7 @@ async function loadSync() {
       el.innerHTML = html;
       return;
     }
-    html += `<p style="color:#666;margin-bottom:12px">${sl.entries.length} evento${sl.entries.length !== 1 ? 's' : ''}</p>`;
+    html += `<p style="color:var(--c-hint);margin-bottom:12px">${sl.entries.length} evento${sl.entries.length !== 1 ? 's' : ''}</p>`;
     html += '<div style="overflow-x:auto"><table><thead><tr>';
     html += '<th>Fecha</th><th>Dirección</th><th>Resultado</th><th>Ruta local</th><th>Ruta remota</th><th>Mensaje</th>';
     html += '</tr></thead><tbody>';
@@ -748,9 +748,9 @@ async function loadCableSyncPreview() {
     const cpN  = d.to_copy !== null && d.to_copy !== undefined ? `<span class="cp-num">${d.to_copy}</span>` : `<span class="cp-null">—</span>`;
     previewEl.innerHTML =
       `<span class="cp-stat">PC: ${pcN} saves</span>` +
-      `<span style="color:#444;margin-right:12px">·</span>` +
+      `<span style="color:var(--c-ghost);margin-right:12px">·</span>` +
       `<span class="cp-stat">Consola: ${abN} saves</span>` +
-      `<span style="color:#444;margin-right:12px">·</span>` +
+      `<span style="color:var(--c-ghost);margin-right:12px">·</span>` +
       `<span class="cp-stat">Se copiarán ≈ ${cpN} archivos</span>`;
   } catch(e) {
     previewEl.innerHTML = `<span style="color:var(--c-red)">Error: ${e.message}</span>`;
@@ -852,9 +852,9 @@ function _renderCableSyncResult(r) {
   const existsCount = r.details ? r.details.filter(d => d.file === 'EXISTS').length : 0;
   const existsMsg   = existsCount > 0 ? `  |  Ya existen: ${existsCount}` : '';
   const safeMsg     = r.safe_mode_skipped_overwrites > 0
-    ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:#f4c842">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
+    ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:var(--c-amber)">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
   const mirrorMsg   = r.deleted_extra > 0
-    ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:#f48771">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
+    ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   // D8-6: file count display
@@ -880,9 +880,9 @@ function _renderCableSyncResult(r) {
 
     let detailHtml = '';
     if (errEntries.length > 0) {
-      detailHtml += `<div style="background:#2a1010;border:1px solid var(--c-red);border-radius:4px;padding:8px 12px;margin-bottom:8px">`
+      detailHtml += `<div style="background:var(--rv-tint-warn-bg);border:1px solid var(--c-red);border-radius:4px;padding:8px 12px;margin-bottom:8px">`
         + `<div style="color:var(--c-red);font-weight:bold;margin-bottom:6px;font-size:12px">&#x2717; ${errEntries.length} archivo(s) fallaron al copiarse:</div>`
-        + errEntries.map(d => `<div style="padding:1px 0;color:#f99;font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
+        + errEntries.map(d => `<div style="padding:1px 0;color:var(--c-softred);font-size:11px">&#x25B8; ${_h(d.path)}</div>`).join('')
         + `</div>`;
     }
     detailHtml += okEntries.map(d => {
@@ -982,7 +982,7 @@ function _updateAutoSyncBanner(data, sdStatus) {
   if (!enabled) {
     banner.classList.remove('hidden');
     banner.style.background = '#2a2a12';
-    banner.style.borderBottomColor = '#4a4a1a';
+    banner.style.borderBottomColor = 'var(--rv-tint-amber-border)';
     icon.textContent = 'Sync automatico desactivado';
     _txtCls(icon, 'txt-warn');
     text.textContent = 'Activa el sync automatico en la pestana Cable Sync.';
@@ -1198,16 +1198,16 @@ function _renderTreeDiff(r) {
     Consola: <strong>${totalAnd.toLocaleString()}</strong> archivos
   </div>
   <div style="display:flex;gap:10px;margin-bottom:14px">
-    <div style="flex:1;padding:10px 14px;background:#0e1e0e;border:1px solid #2a3a2a;border-radius:4px">
+    <div style="flex:1;padding:10px 14px;background:var(--rv-tint-ok-bg);border:1px solid var(--rv-tint-ok-border);border-radius:4px">
       <div style="font-size:20px;color:var(--c-teal);font-weight:bold">${both.toLocaleString()}</div>
       <div style="font-size:11px;color:#4a8a4a">en ambos</div>
     </div>
-    <div style="flex:1;padding:10px 14px;background:#0e1020;border:1px solid #2a2a40;border-radius:4px">
+    <div style="flex:1;padding:10px 14px;background:var(--rv-tint-info-bg);border:1px solid var(--rv-tint-info-border);border-radius:4px">
       <div style="font-size:20px;color:var(--c-blue);font-weight:bold">${pcOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#556;margin-bottom:3px">solo en PC</div>
       <div style="font-size:11px;color:var(--c-muted)">(faltan en consola)</div>
     </div>
-    <div style="flex:1;padding:10px 14px;background:#1e0e0a;border:1px solid #3a2a20;border-radius:4px">
+    <div style="flex:1;padding:10px 14px;background:var(--rv-tint-amber-bg);border:1px solid var(--rv-tint-amber-border);border-radius:4px">
       <div style="font-size:20px;color:var(--c-orange);font-weight:bold">${androidOnly.toLocaleString()}</div>
       <div style="font-size:11px;color:#6a4a38;margin-bottom:3px">solo en consola</div>
       <div style="font-size:11px;color:var(--c-muted)">(faltan en PC)</div>
@@ -1222,7 +1222,7 @@ function _renderTreeDiff(r) {
     const extra = pcOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_pc.length, MAX_SHOW)} de ${pcOnly.toLocaleString()})` : '';
     html += `<details style="margin-bottom:8px">
       <summary style="cursor:pointer;color:var(--c-blue);font-size:13px;user-select:none">Solo en PC${extra}</summary>
-      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#0a0a14;border-radius:4px;margin-top:6px">
+      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:var(--rv-tint-info-bg);border-radius:4px;margin-top:6px">
         ${r.only_pc.slice(0, MAX_SHOW).map(p => `<div style="color:var(--c-muted);padding:1px 0">${p}</div>`).join('')}
       </div>
     </details>`;
@@ -1232,7 +1232,7 @@ function _renderTreeDiff(r) {
     const extra = androidOnly > MAX_SHOW ? ` (mostrando ${Math.min(r.only_android.length, MAX_SHOW)} de ${androidOnly.toLocaleString()})` : '';
     html += `<details style="margin-bottom:8px">
       <summary style="cursor:pointer;color:var(--c-orange);font-size:13px;user-select:none">Solo en consola${extra}</summary>
-      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:#140a00;border-radius:4px;margin-top:6px">
+      <div style="max-height:280px;overflow-y:auto;font-size:11px;font-family:monospace;padding:8px;background:var(--rv-tint-amber-bg);border-radius:4px;margin-top:6px">
         ${r.only_android.slice(0, MAX_SHOW).map(p => `<div style="color:var(--c-muted);padding:1px 0">${p}</div>`).join('')}
       </div>
     </details>`;
@@ -1253,9 +1253,9 @@ async function loadSaveComparison() {
       el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No hay saves en la biblioteca.</p>';
       return;
     }
-    const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:#444">—</span>';
+    const _fmtDate = s => s ? s.replace('T', ' ').substring(0, 16) : '<span style="color:var(--c-ghost)">—</span>';
     const _syncBadge = s => {
-      if (!s.last_sync_at) return '<span style="color:#666;font-size:10px">Nunca</span>';
+      if (!s.last_sync_at) return '<span style="color:var(--c-hint);font-size:10px">Nunca</span>';
       const cls = s.last_result === 'ok' ? 'var(--c-teal)' : 'var(--c-softred)';
       return `<span style="color:${cls};font-size:10px">${_fmtDate(s.last_sync_at)}</span>`;
     };
@@ -1269,7 +1269,7 @@ async function loadSaveComparison() {
       </tr></thead><tbody>`;
     saves.forEach(s => {
       const stale = s.local_mtime && s.last_sync_at && s.local_mtime > s.last_sync_at;
-      const rowStyle = stale ? 'background:#1a1a0a' : '';
+      const rowStyle = stale ? 'background:var(--rv-tint-amber-bg)' : '';
       const _h = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr style="${rowStyle};border-bottom:1px solid #1a1a2a">
         <td style="padding:4px 6px;color:var(--c-muted)">${_h(s.platform)}</td>
@@ -1316,7 +1316,7 @@ async function doLibraryDiff() {
 
     let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px">';
     html += '<div><h4 style="margin:0 0 6px;color:var(--c-pink)">Solo en PC (' + only_pc.length + ' / ' + total_pc + ')</h4>' + makeTable(only_pc) + '</div>';
-    html += '<div><h4 style="margin:0 0 6px;color:#89b4fa">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
+    html += '<div><h4 style="margin:0 0 6px;color:var(--c-lblue)">Solo en Android (' + only_android.length + ' / ' + total_android + ')</h4>' + makeTable(only_android) + '</div>';
     html += '</div>';
     html += '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--c-muted);font-size:13px">En ambos (' + in_both.length + ')</summary>' + makeTable(in_both) + '</details>';
 
@@ -1384,6 +1384,116 @@ function _renderSyncResult(result) {
   }
 }
 
+// ── SYNC-SETUP: Cloud auth wizard ────────────────────────────────────────────
+
+let _cloudAuthPolling = null;
+
+async function loadCloudAuthStatus() {
+  const el = document.getElementById('cloud-auth-status');
+  if (!el) return;
+  try {
+    const data = await apiFetch('/api/cloud-auth/status');
+    if (data.error) {
+      el.innerHTML = `<span style="color:var(--c-softred)">${data.error}</span>`;
+      return;
+    }
+    el.innerHTML = data.providers.map(p => {
+      const label = p.label;
+      const configured = p.configured;
+      const badge = configured
+        ? `<span style="color:var(--c-green);font-weight:600">&#x2713; Conectado</span>`
+        : `<span style="color:var(--c-dim)">No configurado</span>`;
+      const connectBtn = configured ? '' :
+        `<button class="btn" onclick="startCloudAuth('${p.id}')" style="font-size:11px;padding:3px 10px;margin-left:10px">Conectar</button>`;
+      const disconnectBtn = configured
+        ? `<button class="btn" onclick="disconnectCloud('${p.remote_name}')" style="font-size:11px;padding:3px 10px;margin-left:10px;color:var(--c-softred)">Desconectar</button>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:4px;margin-bottom:6px">
+        <span style="min-width:100px;font-weight:500">${label}</span>
+        ${badge}${connectBtn}${disconnectBtn}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-softred)">Error al comprobar estado: ${e.message}</span>`;
+  }
+}
+
+async function startCloudAuth(providerId) {
+  const progressEl = document.getElementById('cloud-auth-progress');
+  const errorEl = document.getElementById('cloud-auth-error');
+  if (progressEl) progressEl.classList.remove('hidden');
+  if (errorEl) errorEl.classList.add('hidden');
+
+  try {
+    await apiPost('/api/cloud-auth/start', { provider: providerId });
+    _cloudAuthPolling = setInterval(_pollCloudAuth, 2000);
+  } catch (e) {
+    if (progressEl) progressEl.classList.add('hidden');
+    _showCloudAuthError(e.message);
+  }
+}
+
+async function _pollCloudAuth() {
+  try {
+    const data = await apiFetch('/api/cloud-auth/poll');
+    if (!data.done) return;
+    clearInterval(_cloudAuthPolling);
+    _cloudAuthPolling = null;
+    const progressEl = document.getElementById('cloud-auth-progress');
+    if (progressEl) progressEl.classList.add('hidden');
+
+    if (data.error) {
+      _showCloudAuthError(data.error);
+      return;
+    }
+    // Auto-finalize with the captured token
+    if (data.token) {
+      const statusData = await apiFetch('/api/cloud-auth/status');
+      // Find which provider just ran (the one that isn't configured yet)
+      const pending = (statusData.providers || []).find(p => !p.configured);
+      if (pending) {
+        const res = await apiPost('/api/cloud-auth/finalize', {
+          provider: pending.id,
+          remote_name: pending.remote_name,
+          token: data.token,
+        });
+        if (res.error) { _showCloudAuthError(res.error); return; }
+      }
+    }
+    showToast('Conexión cloud configurada correctamente', 'success');
+    loadCloudAuthStatus();
+  } catch (e) {
+    clearInterval(_cloudAuthPolling);
+    _cloudAuthPolling = null;
+    _showCloudAuthError(e.message);
+  }
+}
+
+function cancelCloudAuth() {
+  if (_cloudAuthPolling) { clearInterval(_cloudAuthPolling); _cloudAuthPolling = null; }
+  const progressEl = document.getElementById('cloud-auth-progress');
+  if (progressEl) progressEl.classList.add('hidden');
+}
+
+async function disconnectCloud(remoteName) {
+  if (!confirm(`¿Eliminar la conexión "${remoteName}" de rclone?`)) return;
+  try {
+    const res = await apiPost('/api/cloud-auth/disconnect', { remote_name: remoteName });
+    if (res.error) { _showCloudAuthError(res.error); return; }
+    showToast(`Remote "${remoteName}" eliminado`, 'success');
+    loadCloudAuthStatus();
+  } catch (e) {
+    _showCloudAuthError(e.message);
+  }
+}
+
+function _showCloudAuthError(msg) {
+  const el = document.getElementById('cloud-auth-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
 export {
   // Save comparison & library diff
   loadSaveComparison,
@@ -1410,6 +1520,11 @@ export {
   copyAnbernicCmd,
   // ANBERNIC-TV: touch-friendly sync flow
   tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  // Cloud auth wizard (SYNC-SETUP)
+  loadCloudAuthStatus,
+  startCloudAuth,
+  cancelCloudAuth,
+  disconnectCloud,
   // Rclone
   toggleRcloneSetup,
   loadRcloneStatus,

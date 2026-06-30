@@ -4,6 +4,12 @@
 
 ---
 
+## Guías de uso
+
+| Documento | Contenido |
+|-----------|-----------|
+| [guia-pruebas.md](guia-pruebas.md) | Instalación desde cero y verificación de cada función — para probar en un PC nuevo |
+
 ## Arquitectura
 
 | Documento | Contenido |

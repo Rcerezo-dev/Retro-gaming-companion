@@ -1,10 +1,24 @@
-﻿<div id="tab-sync" class="tab">
+<div id="tab-sync" class="tab">
+  <!-- SYNC-SETUP: Wizard conexión cloud -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <h3 style="margin:0">&#x2601; Conexión cloud</h3>
+      <button class="btn" onclick="loadCloudAuthStatus()" style="font-size:11px;padding:3px 10px">&#x21BB; Actualizar</button>
+    </div>
+    <div id="cloud-auth-status" style="color:var(--c-dim);font-size:12px">Comprobando…</div>
+    <div id="cloud-auth-progress" class="hidden" style="margin-top:10px;font-size:12px;color:var(--c-amber)">
+      &#x23F3; Esperando autorización en el navegador…
+      <button class="btn" onclick="cancelCloudAuth()" style="margin-left:10px;font-size:11px">Cancelar</button>
+    </div>
+    <div id="cloud-auth-error" class="hidden rv-tint-warn" style="margin-top:8px;font-size:12px;padding:6px 10px;border-radius:4px;color:var(--c-softred)"></div>
+  </div>
+
   <!-- QoL-14: rclone offline banner -->
-  <div class="hidden rv-tint-warn" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:#f48771">
+  <div class="hidden rv-tint-warn" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:var(--c-softred)">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> rclone no est&#xe1; disponible — la sincronizaci&#xf3;n cloud no funcionar&#xe1;.
     <span style="color:var(--c-dim);margin-left:8px">Instala rclone o configura su ruta en Settings.</span>
   </div>
-  <div class="hidden" id="sync-context-bar" style="margin-bottom:12px;padding:7px 12px;background:var(--c-panel);border:1px solid #333;border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
+  <div class="hidden" id="sync-context-bar" style="margin-bottom:12px;padding:7px 12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>Sincronización de saves</h3>
     <div class="actions-row">
@@ -98,7 +112,7 @@
         <button class="btn" id="btn-rclone-check" onclick="toggleRcloneSetup()" style="font-size:11px;padding:3px 12px">&#x2699; Verificar rclone</button>
       </div>
     </div>
-    <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:var(--c-deep);border:1px solid #2a3a2a;border-radius:4px;font-size:12px"></div>
+    <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:var(--c-deep);border:1px solid var(--rv-tint-ok-border);border-radius:4px;font-size:12px"></div>
     <p style="color:var(--c-dim);font-size:12px;margin-bottom:0;margin-top:8px">Comprueba si tienes Dropbox/OneDrive instalado o si rclone est&#xe1; configurado.</p>
     <div class="hidden" id="rclone-setup-panel" style="margin-top:14px">
       <div id="rclone-status-info" style="font-size:12px;color:var(--c-muted);margin-bottom:10px;line-height:1.7">Comprobando&#x2026;</div>
@@ -109,7 +123,7 @@
       <!-- Instrucciones paso a paso Dropbox -->
       <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Dropbox</summary>
-        <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
+        <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
           <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
           <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
           <li>Nombre: escribe <code>dropbox</code> y pulsa Enter.</li>
@@ -124,7 +138,7 @@
       <!-- Instrucciones paso a paso Google Drive -->
       <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
         <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Google Drive</summary>
-        <ol style="font-size:12px;color:#aaa;line-height:2;margin:10px 0 4px 16px;padding:0">
+        <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
           <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
           <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
           <li>Nombre: escribe <code>gdrive</code> y pulsa Enter.</li>
@@ -141,7 +155,7 @@
       </details>
       <div class="hidden" id="rclone-remotes-panel">
         <div style="margin-bottom:10px">
-          <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
+          <label style="font-size:12px;color:var(--c-soft);display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <select id="rclone-remote-select" style="flex:1;min-width:140px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
             <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync">
@@ -163,4 +177,3 @@
     </div>
   </div>
 </div>
-

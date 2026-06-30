@@ -43,11 +43,9 @@ SCHEMA_STATEMENTS = (
         crc32 TEXT NOT NULL,
         set_type TEXT,
         mtime INTEGER,
-        status TEXT NOT NULL DEFAULT 'scanned',  -- DEPRECATED: never read/written; reserved for future scan_status
         canonical_title TEXT,
         match_confidence TEXT,
         catalog_source TEXT,
-        library_path TEXT,  -- DEPRECATED: declared but never used
         play_status TEXT,
         last_played_at TEXT,
         created_at TEXT NOT NULL,
@@ -56,11 +54,15 @@ SCHEMA_STATEMENTS = (
         notes TEXT,
         user_rating INTEGER,
         first_played_at TEXT,
-        play_count INTEGER NOT NULL DEFAULT 0
+        play_count INTEGER NOT NULL DEFAULT 0,
+        metadata_scraped INTEGER DEFAULT 0
     )
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_games_sha1 ON games (sha1)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_games_md5 ON games (md5)
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_games_platform ON games (platform)
@@ -88,7 +90,8 @@ SCHEMA_STATEMENTS = (
         extension TEXT NOT NULL,
         size_bytes INTEGER NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        game_id INTEGER REFERENCES games (id) ON DELETE SET NULL
     )
     """,
     """
@@ -202,7 +205,6 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("canonical_title", "TEXT"),
     ("match_confidence", "TEXT"),
     ("catalog_source", "TEXT"),
-    ("library_path", "TEXT"),
     ("mtime", "INTEGER"),
     ("play_status", "TEXT"),
     ("last_played_at", "TEXT"),
@@ -214,13 +216,23 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("play_count", "INTEGER"),  # NLP-REC: número de sesiones detectadas vía saves
 )
 
-_ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = (
-    ("game_id", "INTEGER"),  # DEPRECATED: added to schema but never written by upsert_asset()
+_ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = ()
+
+_SAVES_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("game_id", "INTEGER"),  # DB-FIX-4: FK → games.id (declarative; enforced at app layer)
 )
 
 _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("screenshot_path", "TEXT"),  # B6-7: local path to downloaded screenshot
     ("wheel_path", "TEXT"),  # B6-7: local path to downloaded wheel/logo
+)
+
+# Columns that existed in old schema but are now removed (DB-FIX-3).
+# Dropped on first run if still present — safe for SQLite 3.35+ (Python 3.12 ships 3.39+).
+_DEPRECATED_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("games", "status"),  # NOT NULL DEFAULT 'scanned', never read/written
+    ("games", "library_path"),  # never used
+    ("assets", "game_id"),  # never written by upsert_asset()
 )
 
 
@@ -229,9 +241,11 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     for statement in SCHEMA_STATEMENTS:
         cursor.execute(statement)
     _migrate_games_columns(cursor)
+    _migrate_saves_columns(cursor)
     _migrate_assets_columns(cursor)
     _migrate_metadata_columns(cursor)
     _migrate_is_favorite_default(cursor)
+    _drop_deprecated_columns(cursor)
     connection.commit()
 
 
@@ -254,12 +268,31 @@ def _alter_table_add_column(
     cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")  # noqa: S608 — identifiers validated above
 
 
+def _drop_deprecated_columns(cursor: sqlite3.Cursor) -> None:
+    """Drop columns that were declared in old schema but never used (DB-FIX-3)."""
+    for table, col in _DEPRECATED_COLUMNS:
+        existing = {row[1] for row in cursor.execute(f"PRAGMA table_info({table})")}  # noqa: S608 — table is hardcoded
+        if col in existing:
+            try:
+                cursor.execute(f"ALTER TABLE {table} DROP COLUMN {col}")  # noqa: S608 — identifiers hardcoded
+            except Exception:
+                _logger.debug("Could not drop %s.%s", table, col, exc_info=True)
+
+
 def _migrate_games_columns(cursor: sqlite3.Cursor) -> None:
     """Add any missing columns to the games table without touching existing data."""
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(games)")}
     for col_name, col_type in _GAMES_MIGRATIONS:
         if col_name not in existing:
             _alter_table_add_column(cursor, "games", col_name, col_type)
+
+
+def _migrate_saves_columns(cursor: sqlite3.Cursor) -> None:
+    """Add any missing columns to the saves table without touching existing data."""
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(saves)")}
+    for col_name, col_type in _SAVES_MIGRATIONS:
+        if col_name not in existing:
+            _alter_table_add_column(cursor, "saves", col_name, col_type)
 
 
 def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:

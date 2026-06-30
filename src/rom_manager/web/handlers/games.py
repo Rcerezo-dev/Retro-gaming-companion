@@ -19,6 +19,22 @@ _ra_progress_cache: dict = {}  # (ra_game_id, username) → {unlocked, total, ..
 _ra_hash_cache: dict = {}  # (cid, mtime) → (hash_map, title_index)
 
 
+def _state_search_dirs(rom_path: Path, config) -> list[Path]:
+    """Build the list of directories to search for save-state files."""
+    dirs: list[Path] = [rom_path.parent]
+    ra = getattr(config, "retroarch_path", None)
+    if ra:
+        states_dir = Path(ra).parent / "states"
+        if states_dir not in dirs:
+            dirs.append(states_dir)
+    lib = getattr(config, "library_root", None)
+    if lib:
+        lib_path = Path(lib)
+        if lib_path not in dirs:
+            dirs.append(lib_path)
+    return dirs
+
+
 def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
     """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
 
@@ -148,9 +164,46 @@ def register(
         else:
             ctx._send_json({"tags": repository.get_tags(int(game_id))})
 
+    # ── GET /api/export-m3u ──────────────────────────────────────────────────
+    @router.get("/api/export-m3u")
+    def get_export_m3u(ctx) -> None:
+        """Return a RetroArch-compatible .m3u playlist for all ROMs with a given tag."""
+        qs = getattr(ctx, "_qs", {})
+        tag = qs.get("tag", [None])[0]
+        if not tag:
+            ctx._send_json({"error": "tag required"})
+            return
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT g.source_path, g.title
+                FROM games g
+                JOIN game_tags gt ON gt.game_id = g.id
+                WHERE gt.tag = ? AND g.file_type = 'rom'
+                ORDER BY g.title COLLATE NOCASE
+                """,
+                (tag,),
+            ).fetchall()
+        lines = ["#EXTM3U"]
+        for r in rows:
+            lines.append(f"#EXTINF:-1,{r['title'] or Path(r['source_path']).stem}")
+            lines.append(r["source_path"])
+        body = "\n".join(lines).encode("utf-8")
+        safe_tag = tag.replace("/", "_").replace("\\", "_")
+        ctx._send(
+            200,
+            "audio/x-mpegurl",
+            body,
+            extra_headers={"Content-Disposition": f'attachment; filename="{safe_tag}.m3u"'},
+        )
+
     # ── GET /api/stateshot ───────────────────────────────────────────────────
     @router.get("/api/stateshot")
     def get_stateshot(ctx) -> None:
+        import base64
+
+        from rom_manager.utils.state_reader import find_state_thumbnails
+
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
@@ -164,17 +217,44 @@ def register(
             ctx._send_json({"found": False})
             return
         rom_path = Path(row["source_path"])
-        candidates = list(rom_path.parent.glob(rom_path.stem + ".state*.png"))
-        if not candidates and config.library_root:
-            candidates = list(Path(config.library_root).rglob(rom_path.stem + ".state*.png"))
-        if candidates:
-            import base64
-
-            png = sorted(candidates)[-1]
-            img_b64 = base64.b64encode(png.read_bytes()).decode()
-            ctx._send_json({"found": True, "data": img_b64, "filename": png.name})
+        search_dirs = _state_search_dirs(rom_path, config)
+        results = find_state_thumbnails(rom_path.stem, search_dirs, max_results=1)
+        if results:
+            _, png = results[0]
+            ctx._send_json({"found": True, "data": base64.b64encode(png).decode()})
         else:
             ctx._send_json({"found": False})
+
+    # ── GET /api/stateshots ──────────────────────────────────────────────────
+    @router.get("/api/stateshots")
+    def get_stateshots(ctx) -> None:
+        """Return all save-state thumbnails for a game (for the grid view)."""
+        import base64
+
+        from rom_manager.utils.state_reader import find_state_thumbnails
+
+        qs = getattr(ctx, "_qs", {})
+        game_id = qs.get("id", [None])[0]
+        if not game_id:
+            ctx._send_json({"error": "id required"})
+            return
+        with repository.connect() as conn:
+            row = conn.execute(
+                "SELECT source_path FROM games WHERE id = ?", (int(game_id),)
+            ).fetchone()
+        if not row:
+            ctx._send_json({"slots": []})
+            return
+        rom_path = Path(row["source_path"])
+        search_dirs = _state_search_dirs(rom_path, config)
+        results = find_state_thumbnails(rom_path.stem, search_dirs, max_results=8)
+        ctx._send_json(
+            {
+                "slots": [
+                    {"slot": slot, "data": base64.b64encode(png).decode()} for slot, png in results
+                ]
+            }
+        )
 
     # ── GET /api/save-backups ────────────────────────────────────────────────
     @router.get("/api/save-backups")
@@ -606,3 +686,149 @@ def register(
                 "platforms": platforms,
             }
         )
+
+    # ── GET /api/collection-completeness ─────────────────────────────────────
+    @router.get("/api/collection-completeness")
+    def get_collection_completeness(ctx) -> None:
+        from rom_manager.catalog.catalog_loader import (
+            _detect_dat_format,
+            load_clrmamepro_dat,
+            load_nointro_dat_with_header,
+        )
+
+        qs = getattr(ctx, "_qs", {})
+        root = qs.get("root", [None])[0] or ""
+        _repo = get_repo_fn(root)
+
+        with _repo.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT catalog_source, COUNT(*) AS owned
+                FROM games
+                WHERE file_type = 'rom' AND catalog_source IS NOT NULL
+                GROUP BY catalog_source
+                ORDER BY owned DESC
+                """
+            ).fetchall()
+
+        owned_by_source = {r["catalog_source"]: r["owned"] for r in rows}
+
+        dat_totals: dict[str, int] = {}
+        for dat_dir in (
+            config.catalogs_nointro_dir,
+            config.catalogs_redump_dir,
+            config.catalogs_arcade_dir,
+        ):
+            if not dat_dir or not dat_dir.exists():
+                continue
+            for dat_file in dat_dir.glob("*.dat"):
+                try:
+                    if _detect_dat_format(dat_file) == "clrmamepro":
+                        entries = load_clrmamepro_dat(dat_file)
+                        label = dat_file.stem
+                    else:
+                        label, entries = load_nointro_dat_with_header(dat_file)
+                    dat_totals[dat_file.name] = len(entries)
+                except Exception:  # noqa: S110
+                    pass
+
+        results = []
+        seen = set()
+        for source, owned in owned_by_source.items():
+            total = dat_totals.get(source)
+            results.append(
+                {
+                    "label": Path(source).stem,
+                    "source": source,
+                    "owned": owned,
+                    "total": total,
+                    "pct": round(owned / total * 100, 1) if total else None,
+                }
+            )
+            seen.add(source)
+
+        for dat_name, total in dat_totals.items():
+            if dat_name not in seen:
+                results.append(
+                    {
+                        "label": Path(dat_name).stem,
+                        "source": dat_name,
+                        "owned": 0,
+                        "total": total,
+                        "pct": 0.0,
+                    }
+                )
+
+        results.sort(key=lambda r: (r["owned"] == 0, -(r["owned"] or 0)))
+        ctx._send_json({"platforms": results})
+
+    # ── GET /api/screenshots ─────────────────────────────────────────────────────
+    @router.get("/api/screenshots")
+    def get_screenshots(ctx) -> None:
+        """List RetroArch screenshots matching a ROM stem."""
+        stem = (ctx._qs.get("stem", [None])[0] or "").strip()
+        if not config.retroarch_path:
+            ctx._send_json({"screenshots": [], "error": "retroarch_path no configurado"})
+            return
+        shots_dir = Path(config.retroarch_path).parent / "screenshots"
+        if not shots_dir.is_dir():
+            ctx._send_json({"screenshots": []})
+            return
+        files = []
+        for f in shots_dir.iterdir():
+            if f.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+                continue
+            if stem and not f.stem.startswith(stem):
+                continue
+            try:
+                mtime = f.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            files.append({"filename": f.name, "taken_at": int(mtime)})
+        files.sort(key=lambda x: x["taken_at"], reverse=True)
+        ctx._send_json({"screenshots": files})
+
+    # ── GET /api/screenshot-file ──────────────────────────────────────────────────
+    @router.get("/api/screenshot-file")
+    def get_screenshot_file(ctx) -> None:
+        """Serve a single RetroArch screenshot PNG by filename (no path traversal)."""
+        import mimetypes
+
+        name = (ctx._qs.get("name", [None])[0] or "").strip()
+        if not name or "/" in name or "\\" in name or name.startswith("."):
+            ctx._send_error(400, "Nombre de archivo inválido")
+            return
+        if not config.retroarch_path:
+            ctx._send_error(404, "retroarch_path no configurado")
+            return
+        shots_dir = Path(config.retroarch_path).parent / "screenshots"
+        img_path = (shots_dir / name).resolve()
+        if not str(img_path).startswith(str(shots_dir.resolve())):
+            ctx._send_error(403, "Ruta fuera del directorio de screenshots")
+            return
+        if not img_path.exists():
+            ctx._send_error(404, "Screenshot no encontrado")
+            return
+        try:
+            body = img_path.read_bytes()
+            mime, _ = mimetypes.guess_type(str(img_path))
+            ctx._send(200, mime or "image/png", body)
+        except OSError as exc:
+            ctx._send_error(500, str(exc))
+
+    # ── GET /api/activity-heatmap ────────────────────────────────────────────
+    @router.get("/api/activity-heatmap")
+    def get_activity_heatmap(ctx) -> None:
+        """Return daily game counts for the last 52 weeks for a GitHub-style heatmap."""
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT DATE(last_played_at) AS day, COUNT(DISTINCT id) AS cnt
+                FROM games
+                WHERE last_played_at IS NOT NULL
+                  AND last_played_at >= DATE('now', '-364 days')
+                GROUP BY day
+                ORDER BY day
+                """
+            ).fetchall()
+        ctx._send_json({"days": [{"date": r["day"], "count": r["cnt"]} for r in rows]})

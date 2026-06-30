@@ -284,6 +284,22 @@ def _build_status(
     except Exception:
         _logger.debug("No se pudo leer el último sync_log", exc_info=True)
 
+    # Bloque 7: extra KPIs (size, play status counts)
+    total_size_bytes = 0
+    status_counts: dict[str, int] = {}
+    try:
+        with active_repo.connect() as _kc:
+            _sz = _kc.execute(
+                "SELECT COALESCE(SUM(size_bytes),0) FROM games WHERE file_type='rom'"
+            ).fetchone()
+            total_size_bytes = int(_sz[0]) if _sz else 0
+            for _row in _kc.execute(
+                "SELECT COALESCE(play_status,'none') AS s, COUNT(*) AS n FROM games WHERE file_type='rom' GROUP BY s"
+            ).fetchall():
+                status_counts[_row["s"]] = _row["n"]
+    except Exception:
+        _logger.debug("Extra KPIs query failed", exc_info=True)
+
     # UI-2: health summary from health_schedule.json
     health: dict = {}
     if project_root is not None:
@@ -322,6 +338,8 @@ def _build_status(
         "total_platforms": total_platforms,
         "last_sync_at": last_sync_at,
         "health": health,
+        "total_size_bytes": total_size_bytes,
+        "status_counts": status_counts,
     }
 
 

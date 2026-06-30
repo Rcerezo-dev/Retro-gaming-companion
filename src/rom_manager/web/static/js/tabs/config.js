@@ -45,6 +45,10 @@ async function loadSettings() {
     const statesRemEl = document.getElementById('cfg-states-remote');
     if (savesRemEl)  savesRemEl.value  = cfg.saves_remote  || '';
     if (statesRemEl) statesRemEl.value = cfg.states_remote || '';
+    const raConfigDirEl    = document.getElementById('cfg-ra-config-dir');
+    const raConfigRemoteEl = document.getElementById('cfg-ra-config-remote');
+    if (raConfigDirEl)    raConfigDirEl.value    = cfg.ra_config_dir    || '';
+    if (raConfigRemoteEl) raConfigRemoteEl.value = cfg.ra_config_remote || '';
     const whEl = document.getElementById('cfg-web-host');
     if (whEl) whEl.value = cfg.web_host || '127.0.0.1';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
@@ -59,6 +63,8 @@ async function loadSettings() {
     const raPathEl = document.getElementById('cfg-retroarch-path');
     if (raPathEl) raPathEl.value = cfg.retroarch_path || '';
     if (cfg.retroarch_path) _loadCoresStatus();
+    const esdePathEl = document.getElementById('cfg-esde-path');
+    if (esdePathEl) esdePathEl.value = cfg.esde_path || '';
     const esdeHint = document.getElementById('esde-library-root-hint');
     if (esdeHint) esdeHint.textContent = cfg.library_root || '(configura library_root primero)';
     const bkEnabledEl = document.getElementById('cfg-backup-enabled');
@@ -593,6 +599,10 @@ async function saveSettings() {
   const statesR = document.getElementById('cfg-states-remote')?.value.trim() || '';
   if (savesR)  updates['sync.saves_remote']  = savesR;
   if (statesR) updates['sync.states_remote'] = statesR;
+  const raConfigDir    = document.getElementById('cfg-ra-config-dir')?.value.trim()    ?? '';
+  const raConfigRemote = document.getElementById('cfg-ra-config-remote')?.value.trim() ?? '';
+  updates['sync.ra_config_dir']    = raConfigDir;
+  updates['sync.ra_config_remote'] = raConfigRemote;
   updates['web.host'] = document.getElementById('cfg-web-host')?.value || '127.0.0.1';
   const sd = document.getElementById('cfg-ss-devid')?.value.trim()   || '';
   const sdp = document.getElementById('cfg-ss-devpass')?.value        || '';
@@ -607,6 +617,8 @@ async function saveSettings() {
   if (raUser) updates['retroachievements.username'] = raUser;
   const raPath = document.getElementById('cfg-retroarch-path')?.value.trim();
   if (raPath) updates['launchers.retroarch'] = raPath;
+  const esdePath = document.getElementById('cfg-esde-path')?.value.trim();
+  if (esdePath !== undefined) updates['launchers.esde'] = esdePath;
   const bkEnabledEl = document.getElementById('cfg-backup-enabled');
   const bkKeepNEl   = document.getElementById('cfg-backup-keep-n');
   if (bkEnabledEl) updates['backup.saves_enabled'] = bkEnabledEl.checked;

@@ -1,4 +1,4 @@
-﻿// js/tabs/overview.js — Overview tab: stats cards, heatmap, charts, wizard
+// js/tabs/overview.js — Overview tab: stats cards, heatmap, charts, wizard
 // Extracted from app.js during Phase 2 migration.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -204,7 +204,7 @@ export async function _loadNewGameSuggestion() {
 
     if (staleGames.length === 0) {
       const container = document.getElementById('ov-game-suggestion');
-      if (container) container.innerHTML = '<div style="padding:20px;color:#666;text-align:center;width:100%">¡Excelente! No tienes juegos olvidados. ¡Sigue jugando!</div>';
+      if (container) container.innerHTML = '<div style="padding:20px;color:var(--c-hint);text-align:center;width:100%">¡Excelente! No tienes juegos olvidados. ¡Sigue jugando!</div>';
       return;
     }
 
@@ -343,6 +343,16 @@ function fmtSize(n) {
   return n.toFixed(1) + ' ' + units[i];
 }
 
+function _updateKpis(d) {
+  const sc = d.status_counts || {};
+  const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  _set('kpi-size-val',      d.total_size_bytes != null ? fmtSize(d.total_size_bytes) : '—');
+  _set('kpi-completed-val', (sc['completed'] || 0).toLocaleString());
+  _set('kpi-playing-val',   (sc['playing']   || 0).toLocaleString());
+  _set('kpi-pending-val',   (sc['pending']   || 0).toLocaleString());
+  _set('kpi-abandoned-val', (sc['abandoned'] || 0).toLocaleString());
+}
+
 const _PLAT_HEX = {
   gba: 'var(--c-teal)', snes: 'var(--c-blue)', nes: 'var(--c-red)', gb: 'var(--c-yellow)',
   gbc: '#d7ba7d', nds: 'var(--c-purple)', '3ds': 'var(--c-lblue)', n64: 'var(--c-teal)',
@@ -467,6 +477,8 @@ export async function loadOverview() {
           dsHealth.innerHTML = '<span style="color:var(--fg-4)">sin datos</span>';
         }
       }
+      // Bloque 7: KPI row
+      _updateKpis(d);
       // Auto-collapse guide when library already has data
       const guide = document.getElementById('ov-guide');
       if (guide && d.total_games > 0 && localStorage.getItem('guide_closed') !== '0') {
@@ -481,7 +493,7 @@ export async function loadOverview() {
           setupBanner.classList.remove('hidden');
           const cl = d.setup_checklist || {};
           const chk = (ok, label, hint) =>
-            '<div>' + (ok ? '<span style="color:var(--c-teal)">&#x2611;</span>' : '<span style="color:#666">&#x2610;</span>') +
+            '<div>' + (ok ? '<span style="color:var(--c-teal)">&#x2611;</span>' : '<span style="color:var(--c-hint)">&#x2610;</span>') +
             ' <span style="color:' + (ok ? 'var(--c-text)' : '#888') + '">' + label + '</span>' +
             (hint && !ok ? ' <span style="color:var(--c-dim);font-size:11px">— ' + hint + '</span>' : '') + '</div>';
           const clEl = document.getElementById('ov-setup-checklist');
@@ -645,6 +657,9 @@ export async function loadOverview() {
     // Render monthly analysis chart
     try { _renderMonthlyChart(); } catch(e) { console.error('Monthly chart error:', e); }
 
+    // Load collection completeness
+    try { loadCollectionCompleteness(pcPath); } catch(e) { console.error('Completeness error:', e); }
+
     // Load game suggestion
     try { _loadNewGameSuggestion(); } catch(e) { console.error('Game suggestion error:', e); }
 
@@ -652,6 +667,33 @@ export async function loadOverview() {
     const pcCardsEl = document.getElementById('ov-pc-cards');
     if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
+}
+
+// ── Collection completeness ───────────────────────────────────────────────────
+export async function loadCollectionCompleteness(root) {
+  const el = document.getElementById('ov-completeness');
+  if (!el) return;
+  try {
+    const params = root ? `?root=${encodeURIComponent(root)}` : '';
+    const d = await apiFetch('/api/collection-completeness' + params);
+    const platforms = d.platforms || [];
+    if (!platforms.length) { el.innerHTML = '<span style="color:var(--c-dim)">Sin catálogos cargados. Descarga DATs en Ajustes → Catálogos.</span>'; return; }
+    const rows = platforms.map(p => {
+      const pct = p.pct ?? null;
+      const barW = pct !== null ? Math.min(pct, 100) : 0;
+      const clr = pct === null ? 'var(--c-dim)' : pct >= 80 ? 'var(--c-teal)' : pct >= 30 ? 'var(--c-amber)' : 'var(--c-softred)';
+      const totalTxt = p.total !== null ? `${p.owned} / ${p.total}` : `${p.owned}`;
+      const pctTxt = pct !== null ? ` (${pct}%)` : '';
+      return `<div style="display:grid;grid-template-columns:1fr 90px 120px;align-items:center;gap:8px;padding:3px 0;font-size:12px">
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-text)">${p.label}</div>
+        <div style="color:${clr};text-align:right;white-space:nowrap">${totalTxt}${pctTxt}</div>
+        <div style="background:var(--c-panel);border-radius:3px;height:6px;overflow:hidden">
+          <div style="background:${clr};height:100%;width:${barW}%;transition:width .4s"></div>
+        </div>
+      </div>`;
+    });
+    el.innerHTML = rows.join('');
+  } catch(e) { el.innerHTML = `<span style="color:var(--c-softred);font-size:12px">Error: ${e.message}</span>`; }
 }
 
 // ── Platform grid ─────────────────────────────────────────────────────────────
@@ -803,7 +845,7 @@ export function _renderWizSteps(progress) {
     if (n < current) { icon = '&#x2705;'; color = 'var(--c-teal)'; }
     else if (n === current) { icon = '&#x23F3;'; color = '#c9bcf5'; }
     else { icon = '&nbsp;&nbsp;&nbsp;'; color = '#444'; }
-    return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:#777;font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
+    return '<div style="font-size:13px;color:' + color + ';margin-bottom:6px">' + icon + ' <span style="color:var(--c-muted);font-size:11px">Paso ' + n + '/5</span>  ' + s + '</div>';
   }).join('');
   const bar = document.getElementById('wiz-prog-bar');
   if (bar) bar.style.width = pct + '%';
@@ -845,4 +887,29 @@ export function _showSetupResult(r) {
 export function wizardGoToOrganize() {
   closeWizard();
   showTab('plan');
+}
+
+export async function loadActivityHeatmap() {
+  const grid = document.getElementById('ov-heatmap-grid');
+  if (!grid) return;
+  try {
+    const data = await apiFetch('/api/activity-heatmap');
+    const byDate = {};
+    (data.days || []).forEach(d => { byDate[d.date] = d.count; });
+    // Build 52-week grid (364 days), oldest first
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const cells = [];
+    for (let i = 363; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const cnt = byDate[key] || 0;
+      const lvl = cnt === 0 ? '' : cnt === 1 ? 'l1' : cnt <= 3 ? 'l2' : 'l3';
+      cells.push(`<div class="hm-cell ${lvl}" title="${cnt ? cnt + ' juego' + (cnt !== 1 ? 's' : '') + ' — ' + key : key}"></div>`);
+    }
+    grid.innerHTML = cells.join('');
+  } catch (_) {
+    if (grid) grid.textContent = '';
+  }
 }

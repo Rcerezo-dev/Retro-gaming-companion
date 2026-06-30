@@ -1,4 +1,4 @@
-﻿// js/tabs/esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility
+// js/tabs/esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility
 // Extracted from app.js during Phase 2 migration; RA check functions added in Phase 2g.
 
 import { apiFetch, apiPost } from '../api.js';
@@ -669,12 +669,12 @@ export async function loadOperationsTimeline() {
         const ts = new Date(op.timestamp).toLocaleString();
         html += `<li style="padding:6px;border-bottom:1px solid #222">
           <div style="color:var(--c-teal)">${_h(op.action)}</div>
-          <div style="font-size:11px;color:#666">${ts}</div>
+          <div style="font-size:11px;color:var(--c-hint)">${ts}</div>
           ${op.details ? `<div style="font-size:11px;color:var(--c-muted)">${_h(op.details)}</div>` : ''}
         </li>`;
       });
     } else {
-      html += '<li style="padding:6px;color:#666">Sin operaciones registradas</li>';
+      html += '<li style="padding:6px;color:var(--c-hint)">Sin operaciones registradas</li>';
     }
     html += '</ul>';
     el.innerHTML = html;
@@ -978,16 +978,16 @@ export async function loadUnmatchedDiagnosis() {
     html += '<div style="max-height:180px;overflow-y:auto;border:1px solid #222;border-radius:4px;margin-bottom:12px">';
     platforms.forEach(plat => {
       const examples = (plat.examples || []).slice(0, 3);
-      html += `<div style="background:#1a1a1a;padding:6px 10px;border-bottom:1px solid #222">
+      html += `<div style="background:var(--c-panel);padding:6px 10px;border-bottom:1px solid #222">
         <span style="font-weight:600;color:var(--c-amber)">${_h(plat.platform)}</span>
         <span style="color:var(--c-muted);font-size:11px;margin-left:6px">(${plat.count})</span>
-        <div style="font-size:11px;color:#666;margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
+        <div style="font-size:11px;color:var(--c-hint);margin-top:2px">${examples.map(f => '• ' + _h(f)).join('<br>')}</div>
       </div>`;
     });
     html += '</div>';
     html += `<div id="unmatched-dl-info" style="font-size:12px;color:var(--c-muted)">Iniciando descarga de todos los catálogos…</div>
     <div style="background:var(--c-border);border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
-      <div id="unmatched-dl-bar" style="height:100%;width:0%;background:#4a9eff;transition:width 0.3s"></div>
+      <div id="unmatched-dl-bar" style="height:100%;width:0%;background:var(--accent-blue);transition:width 0.3s"></div>
     </div>`;
     el.innerHTML = html;
 
@@ -1064,19 +1064,19 @@ export function _renderReportOverview() {
 
   const d = _reportData;
   let html = `<div style="margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
-    <div style="padding:8px;background:#1a2a1a;border-radius:4px;border-left:3px solid var(--c-teal)">
+    <div style="padding:8px;background:var(--rv-tint-ok-bg);border-radius:4px;border-left:3px solid var(--c-teal)">
       <div style="color:var(--c-teal);font-weight:600">${d.total_games || 0}</div>
       <div style="color:var(--c-muted);font-size:11px">Juegos identificados</div>
     </div>
-    <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid var(--c-amber)">
+    <div style="padding:8px;background:var(--rv-tint-warn-bg);border-radius:4px;border-left:3px solid var(--c-amber)">
       <div style="color:var(--c-amber);font-weight:600">${d.missing_count || 0}</div>
       <div style="color:var(--c-muted);font-size:11px">Juegos sin identificar</div>
     </div>
-    <div style="padding:8px;background:#1a1a2a;border-radius:4px;border-left:3px solid var(--c-teal)">
+    <div style="padding:8px;background:var(--rv-tint-info-bg);border-radius:4px;border-left:3px solid var(--c-teal)">
       <div style="color:var(--c-teal);font-weight:600">${d.total_platforms || 0}</div>
       <div style="color:var(--c-muted);font-size:11px">Plataformas</div>
     </div>
-    <div style="padding:8px;background:#2a1a1a;border-radius:4px;border-left:3px solid var(--c-softred)">
+    <div style="padding:8px;background:var(--rv-tint-warn-bg);border-radius:4px;border-left:3px solid var(--c-softred)">
       <div style="color:var(--c-softred);font-weight:600">${(d.orphans?.total || 0)}</div>
       <div style="color:var(--c-muted);font-size:11px">Saves huérfanos</div>
     </div>
@@ -1134,12 +1134,12 @@ export function _renderReportMissing() {
     const filename = (m.original_filename || m.path || '?').split(/[\\/]/).pop();
     html += `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
       <div style="color:var(--c-orange)">${_h(filename)}</div>
-      <div style="font-size:10px;color:#666">${_h(m.platform || '—')}</div>
+      <div style="font-size:10px;color:var(--c-hint)">${_h(m.platform || '—')}</div>
     </div>`;
   });
 
   if (missing.length > 100) {
-    html += `<div style="padding:4px;color:#666">… y ${missing.length - 100} más</div>`;
+    html += `<div style="padding:4px;color:var(--c-hint)">… y ${missing.length - 100} más</div>`;
   }
 
   html += '</div>';
@@ -1168,7 +1168,7 @@ export function _renderReportOrphans() {
     const name = (s.path || '?').split(/[\\/]/).pop();
     return `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
       ${_h(name)} <span style="color:var(--c-dim)">(${_fmtSize(s.size_bytes)})</span>
-      <div style="font-size:10px;color:#666">${_h(s.path)}</div>
+      <div style="font-size:10px;color:var(--c-hint)">${_h(s.path)}</div>
     </div>`;
   }).join('');
   html += '</div>';
@@ -1277,7 +1277,7 @@ export async function generateEsSystems() {
       html += `<div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">${gen.length} sistema${gen.length !== 1 ? 's' : ''} incluido${gen.length !== 1 ? 's' : ''}:</div>`;
       html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">`;
       gen.forEach(s => {
-        html += `<span style="background:#1a2a1a;border:1px solid #2a4a2a;color:var(--c-teal);padding:2px 7px;border-radius:10px;font-size:10px" title="${_h(s.core_dll)}">${_h(s.fullname)}</span>`;
+        html += `<span style="background:var(--rv-tint-ok-bg);border:1px solid #2a4a2a;color:var(--c-teal);padding:2px 7px;border-radius:10px;font-size:10px" title="${_h(s.core_dll)}">${_h(s.fullname)}</span>`;
       });
       html += `</div>`;
     }

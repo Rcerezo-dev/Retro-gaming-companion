@@ -1,4 +1,4 @@
-﻿<!-- OVERVIEW -->
+<!-- OVERVIEW -->
 <div id="tab-overview" class="tab active">
 
   <!-- UI-2: Dashboard bar — stats + quick actions + health -->
@@ -29,6 +29,30 @@
     </div>
   </div>
 
+  <!-- Bloque 7: KPI row — size + play status breakdown -->
+  <div id="ov-kpi-row" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="ov-kpi-card" id="kpi-size">
+      <div class="ov-kpi-num" id="kpi-size-val">—</div>
+      <div class="ov-kpi-lbl">tamaño biblioteca</div>
+    </div>
+    <div class="ov-kpi-card" id="kpi-completed">
+      <div class="ov-kpi-num" id="kpi-completed-val">—</div>
+      <div class="ov-kpi-lbl">completados</div>
+    </div>
+    <div class="ov-kpi-card" id="kpi-playing">
+      <div class="ov-kpi-num" id="kpi-playing-val">—</div>
+      <div class="ov-kpi-lbl">jugando</div>
+    </div>
+    <div class="ov-kpi-card" id="kpi-pending">
+      <div class="ov-kpi-num" id="kpi-pending-val">—</div>
+      <div class="ov-kpi-lbl">pendientes</div>
+    </div>
+    <div class="ov-kpi-card" id="kpi-abandoned">
+      <div class="ov-kpi-num" id="kpi-abandoned-val">—</div>
+      <div class="ov-kpi-lbl">abandonados</div>
+    </div>
+  </div>
+
   <!-- Stats: dual column PC / Anbernic -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
     <!-- PC column -->
@@ -36,7 +60,7 @@
       <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
         <span style="color:var(--c-teal)">&#x25CF;</span> PC
         <span id="ov-pc-path-label" style="color:var(--c-dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px"></span>
-        <span id="ov-pc-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos PC">library_pc.db</span>
+        <span id="ov-pc-db-label" style="color:var(--c-ghost);font-size:10px;font-family:monospace" title="Base de datos PC">library_pc.db</span>
       </div>
       <div id="ov-pc-cards" class="cards" style="margin-bottom:0"><p class="loading" style="font-size:12px">Cargando…</p></div>
     </div>
@@ -45,11 +69,11 @@
       <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="ov-ab-dot" style="color:var(--c-dim)">&#x25CF;</span> <span id="ov-ab-column-title">Consola Android</span>
         <span id="ov-ab-path-label" style="color:var(--c-dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"></span>
-        <span id="ov-ab-db-label" style="color:#444;font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
+        <span id="ov-ab-db-label" style="color:var(--c-ghost);font-size:10px;font-family:monospace" title="Base de datos consola Android">library_android.db</span>
         <!-- D8-1: stale warning badge -->
-        <span class="hidden" id="ov-ab-stale-badge" style="background:#3a3a1a;color:var(--c-yellow);font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">&#x26A0; Datos sin confirmar</span>
+        <span class="hidden" id="ov-ab-stale-badge" style="background:var(--rv-tint-amber-bg);color:var(--c-yellow);font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid var(--rv-tint-amber-border)">&#x26A0; Datos sin confirmar</span>
         <!-- UX-1/2-4: device connectivity badge -->
-        <span class="hidden" id="ov-ab-device-badge" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid #4a4a1a">● No conectado</span>
+        <span class="hidden" id="ov-ab-device-badge" style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid var(--rv-tint-amber-border)">● No conectado</span>
         <!-- D8-1: quick scan button -->
         <button id="ov-ab-scan-btn" class="btn hidden" style="padding:2px 8px;font-size:10px" onclick="quickScanAndroid()">Escanear ahora</button>
       </div>
@@ -61,7 +85,7 @@
 
   <!-- D8-P1: First-time setup banner -->
   <div class="hidden rv-tint-info" id="ov-setup-banner" style="margin-bottom:20px;padding:16px 20px;border-left:4px solid #c9bcf5;border-radius:6px">
-    <div style="font-size:14px;color:#c9bcf5;font-weight:600;margin-bottom:6px">&#x1F3AE; Primera configuración</div>
+    <div style="font-size:14px;color:var(--c-purple);font-weight:600;margin-bottom:6px">&#x1F3AE; Primera configuración</div>
     <div style="font-size:12px;color:var(--c-muted);margin-bottom:14px">Organiza y limpia tu biblioteca por primera vez con el asistente guiado.</div>
     <div id="ov-setup-checklist" style="margin-bottom:14px;font-size:12px;line-height:2"></div>
     <button class="btn primary" onclick="showWizard()" style="background:#5a4dab;border-color:#7a6dcb;font-size:13px">Iniciar asistente de configuracion</button>
@@ -206,20 +230,20 @@
 
     <!-- Pasos -->
     <div style="display:flex;gap:0">
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:var(--c-text)">Scan</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:var(--c-dim);font-size:11px">Usa Quick para solo actualizar el inventario sin calcular huellas.</span></div>
       </div>
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-blue);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Identificar</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Identificar (catálogos)</strong>. Cada ROM se compara contra la base de datos de juegos (DAT de No-Intro y Redump) para obtener su título canónico, región y revisión.</div>
         <div id="ov-catalog-status" style="margin-top:6px;font-size:11px"></div>
       </div>
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;border-right:none;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-orange);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">③ Organizar</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Ve a <strong style="color:var(--c-text)">Organizar</strong> para previsualizar los renombrados. Elige qué incluir en el nombre (región, revisión…) y revisa antes de tocar ningún archivo.<br><span style="color:var(--c-dim);font-size:11px">Los saves se renombran junto al ROM automáticamente.</span></div>
       </div>
-      <div style="flex:1;background:var(--c-panel);border:1px solid #333;padding:14px 16px">
+      <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);padding:14px 16px">
         <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">④ Aplicar</div>
         <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Pulsa <strong style="color:var(--c-text)">Aplicar renombrado</strong> cuando estés conforme. El rename es atómico: si algo falla a mitad, todo vuelve al estado anterior.<br><span style="color:var(--c-dim);font-size:11px">Después, usa Cable Sync para volcar los cambios a la consola.</span></div>
       </div>
@@ -231,9 +255,9 @@
   <div style="margin-top:28px;margin-bottom:20px">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Mapa de actividad (últimos 365 días)</h3>
     <div id="ov-heatmap-container" style="overflow-x:auto;padding-bottom:12px">
-      <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid #333;border-radius:4px"></canvas>
+      <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid var(--c-border);border-radius:4px"></canvas>
     </div>
-    <div style="font-size:11px;color:#666;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
+    <div style="font-size:11px;color:var(--c-hint);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
       <span><span style="display:inline-block;width:12px;height:12px;background:#0d3922;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Menos</span>
       <span><span style="display:inline-block;width:12px;height:12px;background:#0d5c2c;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
       <span><span style="display:inline-block;width:12px;height:12px;background:#1a7938;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
@@ -242,13 +266,19 @@
     </div>
   </div>
 
+  <!-- NEW-5: Collection completeness per platform -->
+  <div style="margin-top:28px;margin-bottom:20px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Completitud de colecci&#xf3;n</h3>
+    <div id="ov-completeness" style="font-size:12px;color:var(--c-dim)">Cargando&#x2026;</div>
+  </div>
+
   <!-- S36-3: Monthly time analysis per platform -->
   <div style="margin-top:28px;margin-bottom:20px">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Análisis por plataforma (últimos 12 meses)</h3>
     <div style="overflow-x:auto;padding-bottom:12px">
-      <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid #333;border-radius:4px;display:block"></canvas>
+      <canvas id="ov-monthly-chart" width="1000" height="250" style="border:1px solid var(--c-border);border-radius:4px;display:block"></canvas>
     </div>
-    <div style="font-size:11px;color:#666;margin-top:8px">Cuenta de juegos distintos jugados por plataforma y mes</div>
+    <div style="font-size:11px;color:var(--c-hint);margin-top:8px">Cuenta de juegos distintos jugados por plataforma y mes</div>
   </div>
 
   <!-- S36-4: Game of the day -->
@@ -259,13 +289,19 @@
       <div style="flex:1">
         <div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
         <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:var(--c-text);margin-bottom:6px"></div>
-        <div id="ov-game-suggestion-meta" style="font-size:12px;color:#666;margin-bottom:10px"></div>
+        <div id="ov-game-suggestion-meta" style="font-size:12px;color:var(--c-hint);margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openGamePanel(window._currentGameSuggestion)">Abrir</button>
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="_loadNewGameSuggestion()">Otra sugerencia</button>
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- D: Heatmap de actividad -->
+  <div id="ov-heatmap-wrap" style="margin-top:20px;padding:14px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px">
+    <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Actividad — últimas 52 semanas</div>
+    <div id="ov-heatmap-grid" class="heatmap-grid"></div>
   </div>
 </div>
 

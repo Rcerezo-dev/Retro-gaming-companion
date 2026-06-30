@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
 
+from rom_manager.web.handlers.cloud_auth import register as register_cloud_auth
 from rom_manager.web.handlers.sync_cable import register_cable
 from rom_manager.web.handlers.sync_cloud import register_cloud
 
@@ -25,6 +26,8 @@ def register(
     job_manager: JobManager,
 ) -> None:
     """Register sync / cable-sync / rclone / ADB / auto-sync routes on *router*."""
+
+    register_cloud_auth(router, config=config)
 
     register_cable(
         router,

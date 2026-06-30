@@ -49,8 +49,12 @@
   --c-lblue:   #9cdcfe;  /* light blue */
   --c-pink:    #f38ba8;  /* pink */
   --c-green:   #6a9955;  /* comment green */
+  --c-strong:  #ccc;     /* prominent secondary text (near-body) */
+  --c-soft:    #aaa;     /* soft-muted text */
   --c-muted:   #888;     /* secondary / muted text */
+  --c-hint:    #666;     /* mid-dim hint text */
   --c-dim:     #555;     /* tertiary / dim hint text */
+  --c-ghost:   #444;     /* barely-visible ghost labels */
   --c-panel:   #1e1e2e;  /* mid panel / card background */
   --c-bar:     #161626;  /* sub-bar / detail background */
   --c-input:   #0f0f0f;  /* input / code background */
@@ -67,6 +71,8 @@
   --rv-tint-ok-border:      #1a4a2a;
   --rv-tint-info-bg:        #12122a;
   --rv-tint-info-border:    #2a2a4a;
+  --rv-tint-amber-bg:       #1e1a0a;
+  --rv-tint-amber-border:   #3a3a1a;
 }
 
 [data-theme="light"] {
@@ -117,8 +123,12 @@
   --c-lblue:   #1a5890;
   --c-pink:    #c2185b;
   --c-green:   #2e7d32;
+  --c-strong:  #3a3a5e;
+  --c-soft:    #666;
   --c-muted:   #777;
+  --c-hint:    #888;
   --c-dim:     #999;
+  --c-ghost:   #bbb;
   --c-panel:   #ffffff;
   --c-bar:     #e4e6f0;
   --c-input:   #ffffff;
@@ -134,6 +144,8 @@
   --rv-tint-ok-border:      #a8d8b4;
   --rv-tint-info-bg:        #e4e8fb;
   --rv-tint-info-border:    #b8c0e8;
+  --rv-tint-amber-bg:       #fef8e7;
+  --rv-tint-amber-border:   #e8d48a;
 }
 
 /* DESIGN-13: semantic tint background classes (theme-aware, replace
@@ -142,6 +154,7 @@
 .rv-tint-warn    { background: var(--rv-tint-warn-bg);    border: 1px solid var(--rv-tint-warn-border); }
 .rv-tint-ok      { background: var(--rv-tint-ok-bg);      border: 1px solid var(--rv-tint-ok-border); }
 .rv-tint-info    { background: var(--rv-tint-info-bg);    border: 1px solid var(--rv-tint-info-border); }
+.rv-tint-amber   { background: var(--rv-tint-amber-bg);   border: 1px solid var(--rv-tint-amber-border); }
 
 /* ═══════════════════════════════════════════════════════════════════
    RETROVAULT DESIGN SYSTEM TOKENS
@@ -370,6 +383,10 @@ main { padding: 24px; flex: 1; }
   transition: color .15s; flex-shrink: 0;
 }
 .sidebar-toggle:hover { color: var(--accent); }
+.nav-search-wrap { padding: 6px 10px; }
+.global-search { width: 100%; box-sizing: border-box; background: var(--c-input); border: 1px solid var(--c-border); color: var(--c-text); padding: 5px 8px; border-radius: 4px; font: inherit; font-size: 12px; }
+.global-search:focus { outline: none; border-color: var(--c-teal); }
+.sidebar.collapsed .nav-search-wrap { display: none; }
 
 .nav-item {
   display: flex; align-items: center; gap: 10px;
@@ -713,6 +730,14 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .dash-stat .ds-num { font-size: 22px; font-weight: 700; color: var(--accent); font-family: 'Consolas', monospace; line-height: 1.1; }
 .dash-stat .ds-lbl { font-size: 10px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
 .dash-sep { width: 1px; background: var(--border); margin: 10px 0; flex-shrink: 0; }
+.ov-kpi-card { flex: 1; min-width: 100px; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; text-align: center; }
+.ov-kpi-num { font-size: 20px; font-weight: 700; color: var(--accent); font-family: 'Consolas', monospace; line-height: 1.1; }
+.ov-kpi-lbl { font-size: 10px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+.heatmap-grid { display: grid; grid-template-columns: repeat(53, 1fr); gap: 2px; margin-top: 6px; }
+.hm-cell { aspect-ratio: 1; border-radius: 2px; background: var(--c-ghost); min-width: 0; }
+.hm-cell.l1 { background: color-mix(in srgb, var(--c-teal) 25%, var(--c-ghost)); }
+.hm-cell.l2 { background: color-mix(in srgb, var(--c-teal) 55%, var(--c-ghost)); }
+.hm-cell.l3 { background: var(--c-teal); }
 
 .hero-game { display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, var(--bg-deep) 0%, var(--bg-panel) 100%); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; border-left: 3px solid var(--accent); }
 .hero-game img { width: 72px; height: 72px; object-fit: contain; border-radius: 6px; background: var(--bg-cover); flex-shrink: 0; }
