@@ -164,6 +164,39 @@ def register(
         else:
             ctx._send_json({"tags": repository.get_tags(int(game_id))})
 
+    # ── GET /api/export-m3u ──────────────────────────────────────────────────
+    @router.get("/api/export-m3u")
+    def get_export_m3u(ctx) -> None:
+        """Return a RetroArch-compatible .m3u playlist for all ROMs with a given tag."""
+        qs = getattr(ctx, "_qs", {})
+        tag = qs.get("tag", [None])[0]
+        if not tag:
+            ctx._send_json({"error": "tag required"})
+            return
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT g.source_path, g.title
+                FROM games g
+                JOIN game_tags gt ON gt.game_id = g.id
+                WHERE gt.tag = ? AND g.file_type = 'rom'
+                ORDER BY g.title COLLATE NOCASE
+                """,
+                (tag,),
+            ).fetchall()
+        lines = ["#EXTM3U"]
+        for r in rows:
+            lines.append(f"#EXTINF:-1,{r['title'] or Path(r['source_path']).stem}")
+            lines.append(r["source_path"])
+        body = "\n".join(lines).encode("utf-8")
+        safe_tag = tag.replace("/", "_").replace("\\", "_")
+        ctx._send(
+            200,
+            "audio/x-mpegurl",
+            body,
+            extra_headers={"Content-Disposition": f'attachment; filename="{safe_tag}.m3u"'},
+        )
+
     # ── GET /api/stateshot ───────────────────────────────────────────────────
     @router.get("/api/stateshot")
     def get_stateshot(ctx) -> None:

@@ -696,6 +696,14 @@ function _gpRenderTags(tags) {
   el.innerHTML = tags.map(t =>
     `<span class="tag-chip">${_h(t)}<span class="tag-remove" onclick="gpRemoveTag('${_h(t)}')" title="Eliminar tag">&times;</span></span>`
   ).join('');
+  // Bloque 9: M3U download links per tag
+  const m3uEl = document.getElementById('gp-tags-m3u-links');
+  if (m3uEl) {
+    m3uEl.innerHTML = tags.map(t =>
+      `<a href="/api/export-m3u?tag=${encodeURIComponent(t)}" download title="Descargar playlist RetroArch para tag '${_h(t)}'"
+         style="font-size:10px;color:var(--c-teal);text-decoration:none;border:1px solid var(--c-teal);padding:1px 6px;border-radius:10px;opacity:.75" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">.m3u</a>`
+    ).join('');
+  }
 }
 
 export async function gpAddTag() {
