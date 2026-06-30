@@ -673,3 +673,57 @@ def register(
 
         results.sort(key=lambda r: (r["owned"] == 0, -(r["owned"] or 0)))
         ctx._send_json({"platforms": results})
+
+    # ── GET /api/screenshots ─────────────────────────────────────────────────────
+    @router.get("/api/screenshots")
+    def get_screenshots(ctx) -> None:
+        """List RetroArch screenshots matching a ROM stem."""
+        stem = (ctx._qs.get("stem", [None])[0] or "").strip()
+        if not config.retroarch_path:
+            ctx._send_json({"screenshots": [], "error": "retroarch_path no configurado"})
+            return
+        shots_dir = Path(config.retroarch_path).parent / "screenshots"
+        if not shots_dir.is_dir():
+            ctx._send_json({"screenshots": []})
+            return
+        files = []
+        for f in shots_dir.iterdir():
+            if f.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+                continue
+            if stem and not f.stem.startswith(stem):
+                continue
+            try:
+                mtime = f.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            files.append({"filename": f.name, "taken_at": int(mtime)})
+        files.sort(key=lambda x: x["taken_at"], reverse=True)
+        ctx._send_json({"screenshots": files})
+
+    # ── GET /api/screenshot-file ──────────────────────────────────────────────────
+    @router.get("/api/screenshot-file")
+    def get_screenshot_file(ctx) -> None:
+        """Serve a single RetroArch screenshot PNG by filename (no path traversal)."""
+        import mimetypes
+
+        name = (ctx._qs.get("name", [None])[0] or "").strip()
+        if not name or "/" in name or "\\" in name or name.startswith("."):
+            ctx._send_error(400, "Nombre de archivo inválido")
+            return
+        if not config.retroarch_path:
+            ctx._send_error(404, "retroarch_path no configurado")
+            return
+        shots_dir = Path(config.retroarch_path).parent / "screenshots"
+        img_path = (shots_dir / name).resolve()
+        if not str(img_path).startswith(str(shots_dir.resolve())):
+            ctx._send_error(403, "Ruta fuera del directorio de screenshots")
+            return
+        if not img_path.exists():
+            ctx._send_error(404, "Screenshot no encontrado")
+            return
+        try:
+            body = img_path.read_bytes()
+            mime, _ = mimetypes.guess_type(str(img_path))
+            ctx._send(200, mime or "image/png", body)
+        except OSError as exc:
+            ctx._send_error(500, str(exc))

@@ -93,7 +93,7 @@ import {
   loadGameSyncHistory,
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
   _tvActive, _tvFocusIdx, _tvCols, _tvGames,
-  loadRecommendations, dismissRecommendations,
+  loadRecommendations, dismissRecommendations, loadGameScreenshots,
 } from './tabs/games.js';
 import {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
@@ -209,7 +209,7 @@ Object.assign(window, {
   gpScrapeSingle, gpApplyScrape, gpCopyAssetToEsde,
   loadGameSyncHistory,
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
-  loadRecommendations, dismissRecommendations,
+  loadRecommendations, dismissRecommendations, loadGameScreenshots,
   // esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility, health check, junk/orphans/doctor
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,

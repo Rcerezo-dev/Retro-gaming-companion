@@ -553,6 +553,8 @@ export function openGamePanel(g) {
   const tagsList = document.getElementById('gp-tags-list');
   tagsList.innerHTML = '<span style="color:var(--c-dim);font-size:11px">cargando…</span>';
   apiFetch('/api/game-tags?id=' + g.id).then(r => _gpRenderTags(r.tags || [])).catch(() => { tagsList.innerHTML = ''; });
+  // Screenshots — load async (NEW-2)
+  loadGameScreenshots(g.original_filename);
   // Stateshot — load async
   document.getElementById('gp-stateshot-wrap').classList.add('hidden');
   apiFetch('/api/stateshot?id=' + g.id).then(r => {
@@ -993,4 +995,30 @@ export async function loadRecommendations() {
 
 export function dismissRecommendations() {
   document.getElementById('rec-panel')?.classList.add('hidden');
+}
+
+// ── NEW-2: Screenshot gallery ─────────────────────────────────────────────────
+
+export async function loadGameScreenshots(originalFilename) {
+  const wrap = document.getElementById('gp-screenshots-wrap');
+  const grid = document.getElementById('gp-screenshots-grid');
+  if (!wrap || !grid) return;
+  wrap.classList.add('hidden');
+  grid.innerHTML = '';
+  if (!originalFilename) return;
+  const stem = originalFilename.replace(/\.[^.]+$/, ''); // strip extension
+  try {
+    const data = await apiFetch('/api/screenshots?stem=' + encodeURIComponent(stem));
+    if (!data.screenshots?.length) return;
+    grid.innerHTML = data.screenshots.slice(0, 6).map(s => {
+      const url = '/api/screenshot-file?name=' + encodeURIComponent(s.filename);
+      const date = s.taken_at ? new Date(s.taken_at * 1000).toLocaleDateString() : '';
+      return `<a href="${url}" target="_blank" rel="noopener" title="${s.filename}&#10;${date}">
+        <img src="${url}" loading="lazy" alt="${s.filename}"
+          style="width:100%;border-radius:4px;border:1px solid var(--c-border);display:block;aspect-ratio:16/9;object-fit:cover"
+          onerror="this.closest('a').remove()">
+      </a>`;
+    }).join('');
+    if (grid.children.length) wrap.classList.remove('hidden');
+  } catch (_) {}
 }
