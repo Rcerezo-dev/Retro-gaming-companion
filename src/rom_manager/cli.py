@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 from rom_manager.catalog.matcher import CatalogMatcher
-from rom_manager.config import _CONFIG_TOML_TEMPLATE, load_config
+from rom_manager.config import load_config
 from rom_manager.converters.chd_converter import convert_directory
 from rom_manager.database import LibraryRepository
 from rom_manager.logging_utils import configure_logging
