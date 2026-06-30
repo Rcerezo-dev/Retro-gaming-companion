@@ -1,4 +1,5 @@
 """Interactive setup wizard — rommgr init-config."""
+
 from __future__ import annotations
 
 import getpass
@@ -100,11 +101,13 @@ def run_wizard(project_root: Path) -> int:
     # ── 2. Herramientas ───────────────────────────────────────────────────────
     print("2. Herramientas externas")
     chdman = _detect_tool("chdman", project_root)
-    adb    = _detect_tool("adb",    project_root)
+    adb = _detect_tool("adb", project_root)
     rclone = _detect_tool("rclone", project_root)
 
-    print(f"   chdman  → {chdman or 'no encontrado (ejecuta scripts\\download-tools.ps1)'}")
-    print(f"   adb     → {adb    or 'no encontrado (solo necesario para Cable Sync por USB)'}")
+    _no_chdman = "no encontrado (ejecuta scripts\\download-tools.ps1)"
+    _no_adb = "no encontrado (solo necesario para Cable Sync por USB)"
+    print(f"   chdman  → {chdman or _no_chdman}")
+    print(f"   adb     → {adb or _no_adb}")
     if rclone:
         print(f"   rclone  → {rclone}")
     else:
@@ -119,7 +122,7 @@ def run_wizard(project_root: Path) -> int:
 
     # ── 4. RetroAchievements ──────────────────────────────────────────────────
     print("4. RetroAchievements — API key en retroachievements.org → Settings → Web API Key")
-    ra_key  = _ask_secret("   API key")
+    ra_key = _ask_secret("   API key")
     ra_user = _ask("   Usuario RA", "") if ra_key else ""
     print()
 
@@ -130,12 +133,12 @@ def run_wizard(project_root: Path) -> int:
         print("5. Cloud Sync — emuladores detectados en este PC")
         base_remote = ""
         for preset in detected:
-            if not _ask_yn(f"   ¿Añadir sync para {preset['name']}? ({preset['local']})", default=True):
+            if not _ask_yn(
+                f"   ¿Añadir sync para {preset['name']}? ({preset['local']})", default=True
+            ):
                 continue
             if not base_remote:
-                base_remote = _ask(
-                    "   Remote rclone base (p. ej. dropbox:/RetroSync/saves)", ""
-                )
+                base_remote = _ask("   Remote rclone base (p. ej. dropbox:/RetroSync/saves)", "")
             source: dict = {
                 "name": preset["name"],
                 "local_dir": str(preset["local"]),
@@ -150,8 +153,18 @@ def run_wizard(project_root: Path) -> int:
         print("   Añade fuentes de sync más tarde en Ajustes → Sync.\n")
 
     # ── Guardar ───────────────────────────────────────────────────────────────
-    _write_toml(toml_path, library_root, chdman, adb, rclone or "rclone",
-                ss_user, ss_pass, ra_key, ra_user, sync_sources)
+    _write_toml(
+        toml_path,
+        library_root,
+        chdman,
+        adb,
+        rclone or "rclone",
+        ss_user,
+        ss_pass,
+        ra_key,
+        ra_user,
+        sync_sources,
+    )
 
     print(f"✓ Guardado en {toml_path}\n")
     print("Siguiente paso:")
@@ -175,22 +188,22 @@ def _write_toml(
         return '"{}"'.format(s.replace("\\", "\\\\").replace('"', '\\"'))
 
     def kv(k: str, v: str) -> str:
-        return f"{k} = {q(v)}\n" if v else f"# {k} = \"\"\n"
+        return f"{k} = {q(v)}\n" if v else f'# {k} = ""\n'
 
     lines = ["# Retro Vault — configuración generada por init-config\n"]
-    lines += ["\n[library]\n",    kv("library_root", library_root)]
-    lines += ["\n[tools]\n",      kv("chdman", chdman), kv("adb", adb)]
-    lines += ["\n[sync]\n",       kv("rclone", rclone)]
+    lines += ["\n[library]\n", kv("library_root", library_root)]
+    lines += ["\n[tools]\n", kv("chdman", chdman), kv("adb", adb)]
+    lines += ["\n[sync]\n", kv("rclone", rclone)]
 
     for src in sync_sources:
         lines.append("\n[[sync.sources]]\n")
-        lines.append(f'name      = {q(src["name"])}\n')
-        lines.append(f'local_dir = {q(src["local_dir"])}\n')
-        lines.append(f'remote    = {q(src["remote"])}\n')
+        lines.append(f"name      = {q(src['name'])}\n")
+        lines.append(f"local_dir = {q(src['local_dir'])}\n")
+        lines.append(f"remote    = {q(src['remote'])}\n")
         if src.get("sync_all"):
             lines.append("sync_all  = true\n")
 
-    lines += ["\n[screenscraper]\n",     kv("user", ss_user), kv("pass", ss_pass)]
+    lines += ["\n[screenscraper]\n", kv("user", ss_user), kv("pass", ss_pass)]
     lines += ["\n[retroachievements]\n", kv("api_key", ra_key), kv("username", ra_user)]
     lines += ["\n[web]\n", 'host = "0.0.0.0"\n', "port = 7777\n", "allow_lan = true\n"]
 
