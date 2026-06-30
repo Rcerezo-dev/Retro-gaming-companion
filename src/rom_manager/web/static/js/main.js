@@ -754,6 +754,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Escape')     { e.preventDefault(); exitTvMode(); return; }
     }
 
+    // Ctrl+K / Cmd+K — focus global search
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('global-search')?.focus();
+      return;
+    }
+
     // Global shortcuts
     const k = e.key.toLowerCase();
     if (k === 't') { e.preventDefault(); enterTvMode(); return; }
@@ -765,4 +772,24 @@ document.addEventListener('DOMContentLoaded', () => {
       if (t) showTab(t);
     }
   });
+
+  // Global search — debounce 300ms → jump to Games tab
+  let _globalSearchTimer = null;
+  const _globalSearchEl = document.getElementById('global-search');
+  if (_globalSearchEl) {
+    _globalSearchEl.addEventListener('input', () => {
+      clearTimeout(_globalSearchTimer);
+      _globalSearchTimer = setTimeout(() => {
+        const val = _globalSearchEl.value.trim();
+        gamesState.search = val;
+        const searchEl = document.getElementById('games-search');
+        if (searchEl) searchEl.value = val;
+        showTab('games');
+        loadGames(0);
+      }, 300);
+    });
+    _globalSearchEl.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { _globalSearchEl.value = ''; _globalSearchEl.blur(); }
+    });
+  }
 });
