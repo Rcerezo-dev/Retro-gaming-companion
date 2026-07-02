@@ -16,12 +16,22 @@ def test_defaults_without_toml(tmp_path: Path) -> None:
     assert cfg.web_allow_lan is True
 
 
-def test_default_rclone_uses_bundled_binary(tmp_path: Path) -> None:
+def test_default_tools_use_bundled_binaries(tmp_path: Path) -> None:
     (tmp_path / "tools").mkdir()
-    bundled = tmp_path / "tools" / "rclone.exe"
-    bundled.write_bytes(b"")
+    for exe in ("rclone.exe", "adb.exe", "chdman.exe"):
+        (tmp_path / "tools" / exe).write_bytes(b"")
     cfg = load_config(tmp_path)
-    assert cfg.rclone_binary == str(bundled)
+    assert cfg.rclone_binary == str(tmp_path / "tools" / "rclone.exe")
+    assert cfg.adb == str(tmp_path / "tools" / "adb.exe")
+    assert cfg.chdman == str(tmp_path / "tools" / "chdman.exe")
+
+
+def test_config_toml_overrides_bundled_tools(tmp_path: Path) -> None:
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "adb.exe").write_bytes(b"")
+    (tmp_path / "config.toml").write_text('[tools]\nadb = "C:/otro/adb.exe"\n', encoding="utf-8")
+    cfg = load_config(tmp_path)
+    assert cfg.adb == "C:/otro/adb.exe"
 
 
 def test_reads_library_root(tmp_path: Path) -> None:

@@ -587,8 +587,9 @@ listo para validar PHASE6-1b en una máquina sin Python. Cierra también SYNC-SE
 | D37-7 | **Publicar GitHub Release** (opcional pero recomendado) — subir el Setup.exe como release; permite probar en el PC limpio el auto-update completo (PHASE6-3a/3b, nunca probado contra release real) | GitHub | ✅ `RetroVault-Setup.exe` (36.1 MB) subido como asset al release `v1.0.0` existente |
 | D37-8 | **Prueba en PC limpio** — hardware test: instalar en máquina sin Python siguiendo la sección 0 de la guía; ejecutar checklist funcional (§5); valida PHASE6-1b | otro PC | ⬜ |
 | D37-9 | **Tests + CI** — test unitario de `_default_rclone` (con/sin binario presente); ruff + pytest verdes; commit + PR a develop | `tests/test_config.py` | ✅ PR #68 (`feature/d37-rclone-bundle`) |
+| D37-10 | **Gap frozen de adb/chdman** — generalizar `_default_rclone` a `_default_tool(root, exe, fallback)` y aplicarlo a los defaults de `rclone`, `adb` y `chdman` (resuelve `_MEIPASS/tools` → `root/tools` → PATH). Los literales de `handlers/system.py:448-450` y `handlers/config.py:73` quedan como ramas muertas (config.X ya nunca está vacío); `wizard.py` no se toca (en frozen los defaults cubren). Regenerar build + instalador + asset del release | `config.py`, `tests/test_config.py` | 🟡 en curso |
 
-> **Orden:** D37-1 → D37-2 → D37-3 → D37-4 (✅ hechos) → D37-9 → D37-5 → D37-6 → D37-7 → D37-8
+> **Orden:** D37-1 → D37-2 → D37-3 → D37-4 (✅ hechos) → D37-9 → D37-5 → D37-6 → D37-7 → D37-10 → D37-8
 
 ---
 
