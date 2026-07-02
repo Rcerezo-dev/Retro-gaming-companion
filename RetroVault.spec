@@ -15,6 +15,7 @@ _tools = [
     "AdbWinApi.dll",
     "AdbWinUsbApi.dll",
     "chdman.exe",
+    "rclone.exe",
 ]
 
 a = Analysis(

@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-06-29 (DESIGN-15 completado — tokenización inline completa; CI ruff verde)
+> Last updated: 2026-07-02 (Día37: rclone bundleado + guía PC limpio; nuevas secciones DÍA37 y MEJORAS)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -538,7 +538,7 @@ Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, 
 
 | ID | Task | Archivo | Estado |
 |----|------|---------|--------|
-| SYNC-SETUP-1 | **Bundlear `rclone.exe` en `tools/`** — descargar el binario Windows de rclone y añadirlo a `tools/`; actualizar `RetroVault.spec` para incluirlo en el build; actualizar `config.py` default para apuntar a `tools/rclone.exe` si `rclone` no está en PATH | `tools/`, `RetroVault.spec`, `config.py` | ⬜ (tarea manual) |
+| SYNC-SETUP-1 | **Bundlear `rclone.exe` en `tools/`** — descargar el binario Windows de rclone y añadirlo a `tools/`; actualizar `RetroVault.spec` para incluirlo en el build; actualizar `config.py` default para apuntar a `tools/rclone.exe` si `rclone` no está en PATH | `tools/`, `RetroVault.spec`, `config.py` | ✅ Día37 (ver D37-1/2/3) |
 | SYNC-SETUP-2 | **Backend wizard** — `cloud_auth.py` con 5 rutas: status/start/poll/finalize/disconnect; `rclone authorize <provider>` en thread; polling cada 2s | `web/handlers/cloud_auth.py` | ✅ Día34 |
 | SYNC-SETUP-3 | **Frontend: panel "Conexión cloud"** — tarjetas Dropbox/Google Drive con badges Conectado/No configurado + botones Conectar/Desconectar + polling | `tab-sync.html`, `sync.js` | ✅ Día34 |
 | SYNC-SETUP-4 | **Detectar remotes configurados** — `GET /api/cloud-auth/status` → `rclone listremotes` | `cloud_auth.py` | ✅ Día34 |
@@ -568,6 +568,41 @@ Objetivo: el usuario hace clic en "Conectar Dropbox", autoriza en el navegador, 
 | D35-E | **Comparador PC vs Android en Sync** — panel reutiliza `doLibraryDiff()` y `/api/library-diff` ya existentes | `feature/library-diff` | ✅ Día35 |
 | D35-D | **Heatmap actividad 52 semanas** — `GET /api/activity-heatmap` + grid 364 celdas 3 niveles teal en Overview | `feature/activity-heatmap` | ✅ Día35 |
 | D35-C | **Búsqueda global sidebar** — `#global-search` en sidebar + debounce 300ms + Ctrl+K → filtra tab Juegos | `feature/global-search` | ✅ Día35 |
+
+---
+
+## DÍA37 — Distribuible completo + prueba en PC limpio (2026-07-02)
+
+Objetivo: generar `RetroVault-Setup.exe` autocontenido (con rclone incluido) y dejar todo
+listo para validar PHASE6-1b en una máquina sin Python. Cierra también SYNC-SETUP-1.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| D37-1 | **Descargar `rclone.exe` a `tools/`** — via `scripts/download-tools.ps1` | `tools/rclone.exe` | ✅ |
+| D37-2 | **Incluir rclone en el build** — añadir `rclone.exe` a `_tools` del spec | `RetroVault.spec` | ✅ |
+| D37-3 | **Default de config a rclone bundleado** — `_default_rclone(root)`: usa `tools/rclone.exe` si existe y no hay entrada `[sync] rclone` | `config.py` | ✅ |
+| D37-4 | **Guía para PC limpio** — sección 0 "Ruta A" en la guía de pruebas: instalación desde Setup.exe sin Python/Git, tabla de qué secciones aplican, desinstalación | `docs/guia-pruebas.md` | ✅ |
+| D37-5 | **Build PyInstaller** — `pyinstaller RetroVault.spec` + smoke test: `dist/RetroVault/RetroVault.exe serve` arranca y sirve la UI; verificar que `tools/rclone.exe` está en el bundle | `dist/` | ⬜ |
+| D37-6 | **Compilar instalador** — Inno Setup sobre `installer/RetroVault.iss` → `RetroVault-Setup.exe`; instalar/desinstalar en este equipo como smoke test | `installer/` | ⬜ |
+| D37-7 | **Publicar GitHub Release** (opcional pero recomendado) — subir el Setup.exe como release; permite probar en el PC limpio el auto-update completo (PHASE6-3a/3b, nunca probado contra release real) | GitHub | ⬜ |
+| D37-8 | **Prueba en PC limpio** — hardware test: instalar en máquina sin Python siguiendo la sección 0 de la guía; ejecutar checklist funcional (§5); valida PHASE6-1b | otro PC | ⬜ |
+| D37-9 | **Tests + CI** — test unitario de `_default_rclone` (con/sin binario presente); ruff + pytest verdes; commit + PR a develop | `tests/test_config.py` | 🟡 test añadido + ruff/pytest verdes en local; falta commit + PR |
+
+> **Orden:** D37-1 → D37-2 → D37-3 → D37-4 (✅ hechos) → D37-9 → D37-5 → D37-6 → D37-7 → D37-8
+
+---
+
+## MEJORAS — Propuestas 2026-07-02 (ordenadas por valor/esfuerzo)
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas. Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ⬜ |
+| MEJ-2 | **Deshacer último apply** — endpoint que invierte los renames de la última operación usando `file_operations` (ya registrado en SQLite); reutiliza `rename_rom_with_saves` en dirección inversa. | `planner/`, `web/handlers/` | ⬜ |
+| MEJ-3 | **Backup automático de la DB antes de apply/migraciones** — `sqlite3.Connection.backup()` (stdlib, ~5 líneas) antes de cada apply. | `planner/operation_planner.py` o `database/repository.py` | ⬜ |
+| MEJ-4 | **Sync de cheats (`.cht`)** — un `SyncSource` más apuntando al dir `cheats/` de RetroArch, mismo patrón que NEW-8 (`.opt`). ~10 líneas. | `config.py`, `sync/sync_cloud.py` | ⬜ |
+| MEJ-5 | **"¿A qué juego hoy?"** — botón en Overview: `random.choices` ponderado por status Pendiente + rating + no jugado recientemente. Recomendador v0 mientras no exista el modelo NLP. | `web/handlers/`, `tab-overview.html` | ⬜ |
+
+> **Orden sugerido:** MEJ-1 → MEJ-2 → MEJ-3 → MEJ-4 → MEJ-5
 
 ---
 

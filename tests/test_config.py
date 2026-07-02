@@ -16,6 +16,14 @@ def test_defaults_without_toml(tmp_path: Path) -> None:
     assert cfg.web_allow_lan is True
 
 
+def test_default_rclone_uses_bundled_binary(tmp_path: Path) -> None:
+    (tmp_path / "tools").mkdir()
+    bundled = tmp_path / "tools" / "rclone.exe"
+    bundled.write_bytes(b"")
+    cfg = load_config(tmp_path)
+    assert cfg.rclone_binary == str(bundled)
+
+
 def test_reads_library_root(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text('[library]\nlibrary_root = "/roms"\n', encoding="utf-8")
     cfg = load_config(tmp_path)

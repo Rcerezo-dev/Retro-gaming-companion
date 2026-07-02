@@ -316,6 +316,12 @@ allow_lan = true
 """
 
 
+def _default_rclone(root: Path) -> str:
+    """Fall back to the bundled tools/rclone.exe when the user has no [sync] rclone entry."""
+    bundled = root / "tools" / "rclone.exe"
+    return str(bundled) if bundled.is_file() else "rclone"
+
+
 def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
@@ -403,7 +409,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_binary=sync.get("rclone", "rclone"),
+        rclone_binary=sync.get("rclone", _default_rclone(root)),
         chdman=tools.get("chdman", "chdman"),
         adb=tools.get("adb", "adb"),
         web_host=web.get("host", "0.0.0.0"),
