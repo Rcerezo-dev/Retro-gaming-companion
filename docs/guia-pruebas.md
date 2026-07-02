@@ -2,6 +2,36 @@
 
 Esta guía cubre la instalación desde cero y la verificación de cada función principal. Sigue los pasos en orden: cada sección depende de la anterior.
 
+Hay dos rutas de instalación:
+
+- **Ruta A — PC limpio (sin nada instalado):** usa el instalador `RetroVault-Setup.exe`. No requiere Python, Git ni descargar herramientas. Ve a la sección 0 y luego salta directamente a la sección 3.
+- **Ruta B — PC de desarrollo:** instala desde el código fuente con Conda/venv. Secciones 1 y 2.
+
+---
+
+## 0. Ruta A — Instalación en un PC limpio (sin Python)
+
+El instalador incluye todo lo necesario: la aplicación, `adb`, `chdman`, `rclone` y los catálogos DAT mínimos de 34 plataformas. No hace falta instalar nada más.
+
+1. Copia `RetroVault-Setup.exe` al PC (USB o descarga desde GitHub Releases).
+2. Ejecútalo. Se instala por usuario (no pide permisos de administrador) y crea accesos directos en el menú Inicio y el escritorio.
+3. Abre **Retro Vault** desde el acceso directo. Se arranca el servidor y se abre la interfaz en `http://127.0.0.1:7777`.
+4. Configura desde la propia interfaz: **Settings → Biblioteca** (botón "Examinar" para elegir la carpeta de ROMs). No hace falta editar `config.toml` a mano.
+
+Con esto puedes continuar en la **sección 5 (Pruebas funcionales)**. Diferencias respecto a la ruta B:
+
+| Sección | ¿Aplica en PC limpio? |
+|---|---|
+| 1–2 (requisitos, instalación fuente) | ❌ No — todo va en el instalador |
+| 3 (config.toml) | ⚠️ Opcional — usa Settings en la UI |
+| 4 (arrancar) | ❌ No — usa el acceso directo |
+| 5 (pruebas funcionales) | ✅ Sí — checklist completa |
+| 6 (base de datos) | ✅ Sí (con DB Browser u otro cliente) |
+| 7 (pytest) | ❌ No — requiere entorno de desarrollo |
+| 9 (probar sin ROMs) | ✅ Sí — crea los archivos con PowerShell |
+
+> **Desinstalar:** Configuración de Windows → Aplicaciones → Retro Vault. Verifica que tras desinstalar no quedan accesos directos ni entrada en "Agregar o quitar programas".
+
 ---
 
 ## 1. Requisitos previos

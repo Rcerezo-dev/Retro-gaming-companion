@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -316,6 +317,19 @@ allow_lan = true
 """
 
 
+def _default_rclone(root: Path) -> str:
+    """Fall back to the bundled tools/rclone.exe when the user has no [sync] rclone entry.
+
+    In frozen builds (PyInstaller 6.x) the bundled tools live under _internal/
+    (sys._MEIPASS), not next to the exe.
+    """
+    for base in (Path(getattr(sys, "_MEIPASS", root)), root):
+        bundled = base / "tools" / "rclone.exe"
+        if bundled.is_file():
+            return str(bundled)
+    return "rclone"
+
+
 def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
@@ -403,7 +417,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_binary=sync.get("rclone", "rclone"),
+        rclone_binary=sync.get("rclone", _default_rclone(root)),
         chdman=tools.get("chdman", "chdman"),
         adb=tools.get("adb", "adb"),
         web_host=web.get("host", "0.0.0.0"),
