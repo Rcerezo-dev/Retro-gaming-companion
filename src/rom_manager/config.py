@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -317,9 +318,16 @@ allow_lan = true
 
 
 def _default_rclone(root: Path) -> str:
-    """Fall back to the bundled tools/rclone.exe when the user has no [sync] rclone entry."""
-    bundled = root / "tools" / "rclone.exe"
-    return str(bundled) if bundled.is_file() else "rclone"
+    """Fall back to the bundled tools/rclone.exe when the user has no [sync] rclone entry.
+
+    In frozen builds (PyInstaller 6.x) the bundled tools live under _internal/
+    (sys._MEIPASS), not next to the exe.
+    """
+    for base in (Path(getattr(sys, "_MEIPASS", root)), root):
+        bundled = base / "tools" / "rclone.exe"
+        if bundled.is_file():
+            return str(bundled)
+    return "rclone"
 
 
 def load_config(project_root: Path | None = None) -> AppConfig:
