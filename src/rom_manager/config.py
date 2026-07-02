@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -316,6 +317,19 @@ allow_lan = true
 """
 
 
+def _default_tool(root: Path, exe: str, fallback: str) -> str:
+    """Fall back to the bundled tools/<exe> when config.toml has no explicit entry.
+
+    In frozen builds (PyInstaller 6.x) the bundled tools live under _internal/
+    (sys._MEIPASS), not next to the exe. Last resort: the bare name (PATH lookup).
+    """
+    for base in (Path(getattr(sys, "_MEIPASS", root)), root):
+        bundled = base / "tools" / exe
+        if bundled.is_file():
+            return str(bundled)
+    return fallback
+
+
 def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
@@ -403,9 +417,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_binary=sync.get("rclone", "rclone"),
-        chdman=tools.get("chdman", "chdman"),
-        adb=tools.get("adb", "adb"),
+        rclone_binary=sync.get("rclone", _default_tool(root, "rclone.exe", "rclone")),
+        chdman=tools.get("chdman", _default_tool(root, "chdman.exe", "chdman")),
+        adb=tools.get("adb", _default_tool(root, "adb.exe", "adb")),
         web_host=web.get("host", "0.0.0.0"),
         web_port=int(web.get("port", 7777)),
         web_allow_lan=bool(web.get("allow_lan", True)),
