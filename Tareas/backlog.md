@@ -582,11 +582,11 @@ listo para validar PHASE6-1b en una máquina sin Python. Cierra también SYNC-SE
 | D37-2 | **Incluir rclone en el build** — añadir `rclone.exe` a `_tools` del spec | `RetroVault.spec` | ✅ |
 | D37-3 | **Default de config a rclone bundleado** — `_default_rclone(root)`: usa `tools/rclone.exe` si existe y no hay entrada `[sync] rclone` | `config.py` | ✅ |
 | D37-4 | **Guía para PC limpio** — sección 0 "Ruta A" en la guía de pruebas: instalación desde Setup.exe sin Python/Git, tabla de qué secciones aplican, desinstalación | `docs/guia-pruebas.md` | ✅ |
-| D37-5 | **Build PyInstaller** — `pyinstaller RetroVault.spec` + smoke test: `dist/RetroVault/RetroVault.exe serve` arranca y sirve la UI; verificar que `tools/rclone.exe` está en el bundle | `dist/` | ⬜ |
-| D37-6 | **Compilar instalador** — Inno Setup sobre `installer/RetroVault.iss` → `RetroVault-Setup.exe`; instalar/desinstalar en este equipo como smoke test | `installer/` | ⬜ |
+| D37-5 | **Build PyInstaller** — `pyinstaller RetroVault.spec` + smoke test: `dist/RetroVault/RetroVault.exe serve` arranca y sirve la UI; verificar que `tools/rclone.exe` está en el bundle | `dist/` | ✅ UI 200 + `/api/version` frozen:true; rclone en `_internal/tools/`. Fix extra: `_default_rclone` resuelve via `sys._MEIPASS` en frozen |
+| D37-6 | **Compilar instalador** — Inno Setup sobre `installer/RetroVault.iss` → `RetroVault-Setup.exe`; instalar/desinstalar en este equipo como smoke test | `installer/` | ✅ 36.1 MB en `installer/output/`; install silencioso → UI 200 → uninstall limpio |
 | D37-7 | **Publicar GitHub Release** (opcional pero recomendado) — subir el Setup.exe como release; permite probar en el PC limpio el auto-update completo (PHASE6-3a/3b, nunca probado contra release real) | GitHub | ⬜ |
 | D37-8 | **Prueba en PC limpio** — hardware test: instalar en máquina sin Python siguiendo la sección 0 de la guía; ejecutar checklist funcional (§5); valida PHASE6-1b | otro PC | ⬜ |
-| D37-9 | **Tests + CI** — test unitario de `_default_rclone` (con/sin binario presente); ruff + pytest verdes; commit + PR a develop | `tests/test_config.py` | 🟡 test añadido + ruff/pytest verdes en local; falta commit + PR |
+| D37-9 | **Tests + CI** — test unitario de `_default_rclone` (con/sin binario presente); ruff + pytest verdes; commit + PR a develop | `tests/test_config.py` | ✅ PR #68 (`feature/d37-rclone-bundle`) |
 
 > **Orden:** D37-1 → D37-2 → D37-3 → D37-4 (✅ hechos) → D37-9 → D37-5 → D37-6 → D37-7 → D37-8
 
