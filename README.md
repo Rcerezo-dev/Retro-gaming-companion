@@ -391,6 +391,13 @@ Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 ---
 
+## Documentación
+
+Toda la documentación técnica (arquitectura, configuración, guías de sync,
+CI/CD y desarrollo) está indexada en [`docs/README.md`](docs/README.md).
+
+---
+
 ## Licencia
 
-MIT
+[MIT](LICENSE)

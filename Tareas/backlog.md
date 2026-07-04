@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-07-02 (Día37: rclone bundleado + guía PC limpio; nuevas secciones DÍA37 y MEJORAS)
+> Last updated: 2026-07-04 (nueva sección ONB — onboarding / developer experience; ONB-1 y ONB-7 completadas)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Architecture reference: `docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
@@ -604,6 +604,29 @@ listo para validar PHASE6-1b en una máquina sin Python. Cierra también SYNC-SE
 | MEJ-5 | **"¿A qué juego hoy?"** — botón en Overview: `random.choices` ponderado por status Pendiente + rating + no jugado recientemente. Recomendador v0 mientras no exista el modelo NLP. | `web/handlers/`, `tab-overview.html` | ⬜ |
 
 > **Orden sugerido:** MEJ-1 → MEJ-2 → MEJ-3 → MEJ-4 → MEJ-5
+
+---
+
+## ONB — Onboarding / Developer Experience (audit 2026-07-04)
+
+Origen: auditoría del proyecto desde la perspectiva de un desarrollador nuevo que no
+conoce el proyecto ni el dominio retro-gaming. Roadmap detallado con orden y
+estimaciones: `Tareas/Roadmap-Onboarding.md`.
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| ONB-1 | 🔴 Alto | **Falta el archivo `LICENSE`** — el README declara "MIT" pero no existía `LICENSE` en la raíz. Sin él, legalmente el código NO es open source y GitHub no muestra la licencia. | `LICENSE` | ✅ texto MIT estándar (rama `chore/onb-phase1-license-docs-index`) |
+| ONB-2 | 🔴 Alto | **No hay `CONTRIBUTING.md`** — un dev nuevo no sabe que los PRs van a `develop` (no a `main`), ni los check names de CI, ni que hay pre-commit hooks. Esa info existe pero está en `docs/ci-cd.md` redactada "para Claude". Fix: `CONTRIBUTING.md` con: setup (`pip install -e ".[dev]"` + `pre-commit install`), estrategia de ramas, flujo de PR, cómo correr tests/ruff, convenciones (stdlib-only, SOLID, español en UI). Enlazarlo desde el README. | `CONTRIBUTING.md` (nuevo) | ⬜ |
+| ONB-3 | 🟠 Medio | **`docs/architecture/architecture.md` desactualizado** — describe `web/response_builders.py` (hoy `web/builders/`), `database/repository.py` monolítico (hoy `database/repositories/` con mixins), `app.js ~4400 líneas` (hoy `static/js/` + `partials/`), BD `library.db` (hoy `library_pc.db` + android) y rutas de usuario hardcodeadas (`C:\Users\rammu`). Faltan módulos enteros: `services/`, `esde/`, `backup/`, `reports/`, `patch/`, `web/jobs/`, `router.py`, `auth.py`, `daemons.py`, `state.py`, `lan.py`, `wizard.py`. Fix: regenerar el árbol de módulos desde el código actual y quitar rutas personales. | `docs/architecture/architecture.md` | ⬜ |
+| ONB-4 | 🟠 Medio | **`config.toml.example` incompleto** — faltan secciones que `config.py` ya soporta: `retroachievements.username`, `[inbox]`, backup, `auto_sync_*`, PIN web, `notify_desktop`, `retroarch_path`/`launcher_cores`, `web_session_ttl`. Además difiere del ejemplo embebido en el README (dos fuentes de verdad). Fix: regenerar el example desde `config.py` y hacer que el README enlace al example en vez de duplicarlo. | `config.toml.example`, `README.md` | ⬜ |
+| ONB-5 | 🟡 Medio | **No hay guía de orientación para devs nuevos** — un recién llegado no sabe por dónde empezar a leer (`cli.py` → `web/server.py` → `router.py` → `handlers/` → `services/`), ni que puede levantar el app con datos sintéticos (`scripts/e2e_integration_test.py`, skill `/test-pipeline`). Fix: `docs/onboarding.md` — "primeros 30 minutos": mapa de lectura del código, e2e sintético, enlace al Debug Playbook. | `docs/onboarding.md` (nuevo) | ⬜ |
+| ONB-6 | 🟡 Medio | **Glosario de dominio inexistente** — el proyecto asume jerga retro que un dev nuevo no domina: DAT, Logiqx, clrmamepro, No-Intro vs Redump, CHD, `.cue`/`.bin`, `.m3u`, saves vs savestates, cores, BIOS, ES-DE, IPS/BPS/UPS. Fix: `docs/glossary.md` con 1-2 líneas por término + por qué importa en este código; enlazar desde README y onboarding. | `docs/glossary.md` (nuevo) | ⬜ |
+| ONB-7 | ⚪ Bajo | **Índice `docs/README.md` incompleto** — no listaba `ci-cd.md`, `SKILLS-QUICK-START.md`, `arcade-setup.md`, `emulator-compat.md` ni `sync-wifi-sftp.md`; el README raíz tampoco enlazaba al índice de docs. | `docs/README.md`, `README.md` | ✅ sección "Desarrollo" + docs faltantes en índice; sección "Documentación" + licencia enlazada en README (rama `chore/onb-phase1-license-docs-index`) |
+| ONB-8 | ⚪ Bajo | **Backlog difícil de escanear para alguien nuevo** — mezcla secciones enteras ya completadas ✅ (SRP, ARC-JM, ARC-CFG, SEC, UR…) con lo pendiente. Fix: mover lo completado a `Tareas/diario/archivo/archivo.md` y dejar en `backlog.md` solo pendientes + Debug Playbook. | `Tareas/backlog.md` | ⬜ |
+| ONB-9 | ⚪ Bajo | **Decisión de idioma/audiencia del README** — todo en español; si el repo también sirve de portfolio internacional, añadir un TL;DR en inglés al inicio (qué es, stack, screenshot) sin traducir el resto. Decisión del usuario. | `README.md` | ⬜ |
+
+> **Orden recomendado:** ~~ONB-1~~ → ONB-2 → ONB-4 → ONB-3 → ONB-5+ONB-6 (se escriben
+> juntos) → ~~ONB-7~~ → ONB-8 → ONB-9. Detalle: `Tareas/Roadmap-Onboarding.md`.
 
 ---
 
