@@ -56,12 +56,12 @@ proyecto** (o para Claude). El *desarrollador* nuevo se encuentra con:
 
 **Resultado:** el repo es legalmente usable y toda la documentación es descubrible.
 
-### Fase 2 — Contribuir sin preguntar (≈ 1-2 h)
+### Fase 2 — Contribuir sin preguntar ✅ COMPLETADA (2026-07-04, rama `chore/onb-phase2-contributing-config`)
 
-| Tarea | Qué se hace | Esfuerzo |
-|-------|-------------|----------|
-| ONB-2 | `CONTRIBUTING.md`: setup dev (`conda` o venv + `pip install -e ".[dev]"` + `pre-commit install`), estrategia de ramas (feature → PR a `develop`; `main` = estable), check names exactos de CI, cómo correr `pytest` y `ruff`, convenciones del proyecto (stdlib-only en runtime, SOLID, PSX por sets, plan antes de apply, UI en español) | 1-1.5 h |
-| ONB-4 | Regenerar `config.toml.example` con TODAS las secciones actuales de `config.py` (inbox, backup, auto_sync, PIN, notify_desktop, launcher_cores, ra_username, session TTL…) con comentario por clave; el README deja de duplicar el TOML y enlaza al example | 45 min |
+| Tarea | Qué se hace | Estado |
+|-------|-------------|--------|
+| ONB-2 | `CONTRIBUTING.md`: setup dev (conda/venv + `pip install -e ".[dev]"` + pre-commit hooks), estrategia de ramas, check names exactos de CI, verificación local, convenciones (stdlib-only, SOLID, reglas de seguridad de datos, UI en español), checklist de PR. Enlazado desde el README | ✅ |
+| ONB-4 | `config.toml.example` regenerado desde `load_config()` con TODAS las secciones (sync/auto_sync, inbox, backup, launchers, notifications, session_ttl, emulator_paths…) comentadas; el README deja de duplicar el TOML (tenía el default de `host` obsoleto) y enlaza al example con un snippet mínimo | ✅ |
 
 **Resultado:** un dev clona, configura y abre su primer PR correcto sin ayuda.
 

@@ -163,58 +163,20 @@ tools/
 
 ## Configuración
 
-Crea `config.toml` en la raíz del proyecto (o ejecuta `rommgr init-config`):
+Copia [`config.toml.example`](config.toml.example) a `config.toml` en la raíz
+del proyecto y ajusta las rutas — el example documenta **todas** las claves
+soportadas con sus defaults. La pestaña **Ajustes** de la interfaz web edita
+el archivo por ti, así que lo mínimo para arrancar es:
 
 ```toml
 [library]
-library_root = "E:\\ROMs"           # Raíz de la biblioteca
+library_root = "E:\\ROMs"    # Raíz de la biblioteca
 
-[sync]
-rclone = "rclone"                   # Binario rclone (o ruta completa)
-
-# ── Una entrada por emulador ──────────────────────────────────────────────────
+# Una entrada por emulador cuyos saves quieras sincronizar con la nube
 [[sync.sources]]
 name      = "RetroArch"
 local_dir = "E:\\ROMs\\saves"
 remote    = "dropbox:/RetroSync/saves/retroarch"
-
-[[sync.sources]]
-name      = "DuckStation (PSX)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\DuckStation\\memcards"
-remote    = "dropbox:/RetroSync/saves/duckstation"
-
-[[sync.sources]]
-name      = "PCSX2 (PS2)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PCSX2\\memcards"
-remote    = "dropbox:/RetroSync/saves/pcsx2"
-
-[[sync.sources]]
-name      = "PPSSPP (PSP)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PPSSPP\\PSP\\SAVEDATA"
-remote    = "dropbox:/RetroSync/saves/ppsspp"
-sync_all  = true
-
-[[sync.sources]]
-name      = "Dolphin (GC/Wii)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\Dolphin Emulator"
-remote    = "dropbox:/RetroSync/saves/dolphin"
-sync_all  = true
-
-[tools]
-chdman = "tools\\chdman.exe"
-adb    = "tools\\adb.exe"
-
-[web]
-host = "127.0.0.1"
-port = 7777
-
-[screenscraper]
-user = ""
-pass = ""
-
-[retroachievements]
-api_key  = ""   # retroachievements.org → Settings → Web API Key
-username = ""   # tu nombre de usuario en retroachievements.org (para ver tu progreso personal)
 ```
 
 ---
@@ -395,6 +357,7 @@ Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 Toda la documentación técnica (arquitectura, configuración, guías de sync,
 CI/CD y desarrollo) está indexada en [`docs/README.md`](docs/README.md).
+¿Quieres contribuir? Empieza por [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
