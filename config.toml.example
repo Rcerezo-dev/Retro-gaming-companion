@@ -1,43 +1,46 @@
-# ROM Manager Local — Configuración de ejemplo
+# Retro Vault — Configuración de ejemplo (todas las claves soportadas)
 # Copia este archivo a config.toml y ajusta los valores a tu entorno.
 # config.toml está en .gitignore — nunca se sube a GitHub.
+#
+# Todas las claves son OPCIONALES: si se omiten se usan los defaults indicados.
+# La pestaña Ajustes de la interfaz web edita este archivo por ti; solo
+# necesitas editarlo a mano para las opciones que no están expuestas en la UI.
 
+# ──────────────────────────────────────────────────────────────────────────────
 [library]
 # Raíz de tu biblioteca de ROMs (donde están las carpetas por plataforma)
 library_root = "E:\\Carpetas anbernic"
-# Raíz de la consola cuando está conectada por USB (opcional)
+# Raíz de la consola cuando está montada como unidad (SD en lector, SFTP…)
 anbernic_root = "H:\\"
 
+# ──────────────────────────────────────────────────────────────────────────────
 [sync]
-# Ejecutable de rclone (puede ser nombre si está en PATH, o ruta absoluta)
+# Ejecutable de rclone (nombre si está en PATH, ruta absoluta, o el bundled en tools/)
 rclone = "rclone"
 
-[tools]
-chdman = "tools\\chdman.exe"
-adb = "tools/adb.exe"
+# Auto-sync al detectar la consola por USB (daemon ADB)
+auto_sync_enabled = true
+# Dirección del auto-sync: "newest" | "pc_to_anbernic" | "anbernic_to_pc"
+auto_sync_direction = "newest"
+# Raíz de RetroArch en el dispositivo Android
+auto_sync_android_path = "/storage/emulated/0/RetroArch"
+# Seriales ADB permitidos (lista o string separado por comas); vacío = cualquiera
+auto_sync_known_devices = []
 
-[web]
-# Bind to all interfaces so any device on your LAN can reach the UI.
-# Change to "127.0.0.1" to restrict to this PC only.
-host = "0.0.0.0"
-port = 7777
-# Allow LAN access without requiring a PIN (safe on a trusted home network).
-allow_lan = true
+# Política de conflictos: "newest" | "keep_pc" | "keep_android" | "ask"
+conflict_policy = "newest"
 
-[screenscraper]
-user = "TU_USUARIO_SCREENSCRAPER"
-pass = "TU_CONTRASEÑA_SCREENSCRAPER"
-dev_id = ""
-dev_pass = ""
+# Remotos rclone para el cloud sync por tipo de archivo (opcional)
+saves_remote = ""    # p.ej. "dropbox:/RetroSync/saves"
+states_remote = ""   # p.ej. "dropbox:/RetroSync/states"
 
-[retroachievements]
-api_key = ""   # Obtener en retroachievements.org → Settings → Web API Key
+# Sync de la configuración de RetroArch (opcional)
+ra_config_dir = ""     # carpeta local de config de RetroArch
+ra_config_remote = ""  # remoto rclone para esa config
 
-[android]
-device_name = "Consola Android"   # Nombre que aparece en la UI
-
-# Fuentes de sync (una por emulador/carpeta)
-# Puedes tener tantas como quieras
+# ── Fuentes de sync: una entrada por emulador/carpeta ─────────────────────────
+# Puedes tener tantas como quieras. sync_all=true sincroniza TODO el árbol
+# (no solo extensiones de save) — necesario para PPSSPP/Dolphin.
 
 [[sync.sources]]
 name = "RetroArch"
@@ -70,3 +73,71 @@ name = "Dolphin (GC/Wii)"
 local_dir = "C:\\Users\\TU_USUARIO\\Documents\\Dolphin Emulator"
 remote = "dropbox:/RetroSync/saves/dolphin"
 sync_all = true
+
+# ──────────────────────────────────────────────────────────────────────────────
+[tools]
+# Binarios externos. Si se omiten se usan los bundled en tools/ (o el PATH).
+chdman = "tools\\chdman.exe"   # mamedev.org/tools — conversión a CHD
+adb = "tools\\adb.exe"         # Android Platform Tools — Cable Sync por USB
+
+# ──────────────────────────────────────────────────────────────────────────────
+[web]
+# "0.0.0.0" expone la UI a toda tu LAN; "127.0.0.1" = solo este PC.
+host = "0.0.0.0"
+port = 7777
+# Permitir acceso LAN sin PIN (seguro en una red doméstica de confianza).
+# Ponlo a false y configura un PIN en Ajustes → Seguridad para redes públicas.
+allow_lan = true
+# Duración de la sesión (cookie) en segundos. Default: 86400 (24 h).
+session_ttl = 86400
+# pin_hash / pin_salt: gestionados desde Ajustes → Seguridad — NO editar a mano.
+
+# ──────────────────────────────────────────────────────────────────────────────
+[screenscraper]
+# Cuenta de ScreenScraper.fr (registro gratuito) — para el scraper de carátulas
+user = ""
+pass = ""
+dev_id = ""     # solo si tienes credenciales de developer
+dev_pass = ""
+
+[retroachievements]
+api_key = ""    # retroachievements.org → Settings → Web API Key
+username = ""   # tu usuario de RA (para ver tu progreso personal de logros)
+
+# ──────────────────────────────────────────────────────────────────────────────
+[inbox]
+# Carpeta vigilada para ROMs/ZIPs nuevos (Pilar 2)
+path = ""              # p.ej. "E:\\Carpetas anbernic\\inbox"
+target_root = ""       # destino de lo organizado (default: library_root)
+auto_process = false   # true = procesar automáticamente al detectar archivos
+delete_source = false  # true = borrar el ZIP original tras organizar
+
+# ──────────────────────────────────────────────────────────────────────────────
+[android]
+device_name = "Consola Android"   # Nombre que aparece en la UI
+
+# ──────────────────────────────────────────────────────────────────────────────
+[launchers]
+# Lanzar juegos desde la UI (botón ▶). Rutas a los ejecutables.
+# retroarch = "C:\\RetroArch-Win64\\retroarch.exe"
+# esde = "C:\\ES-DE\\ES-DE.exe"
+# Cualquier otra clave = plataforma → ruta del core libretro:
+# psx = "C:\\RetroArch-Win64\\cores\\swanstation_libretro.dll"
+# gba = "C:\\RetroArch-Win64\\cores\\mgba_libretro.dll"
+
+# ──────────────────────────────────────────────────────────────────────────────
+[backup]
+saves_enabled = true   # backup automático antes de que sync/rename sobreescriba un save
+saves_keep_n = 5       # nº máximo de versiones conservadas por save
+pre_sync = true        # crear ZIP de saves antes de cada sync
+
+[notifications]
+desktop = true         # toasts de Windows al terminar sync / health / inbox
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Overrides de rutas de emuladores Android — solo si difieren de los defaults
+# integrados (ver EMULATOR_SAVE_PATHS_DEFAULT en src/rom_manager/config.py).
+# [[emulator_paths]]
+# package = "com.github.stenzek.duckstation"
+# saves_path = "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/memcards"
+# states_path = "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/savestates"
