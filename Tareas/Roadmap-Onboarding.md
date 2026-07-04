@@ -74,12 +74,12 @@ proyecto** (o para Claude). El *desarrollador* nuevo se encuentra con:
 
 **Resultado:** lo que un dev nuevo lee coincide con lo que ve en el código.
 
-### Fase 4 — Orientación de dominio y de código (≈ 2 h)
+### Fase 4 — Orientación de dominio y de código ✅ COMPLETADA (2026-07-04, rama `chore/onb-phase4-onboarding-glossary`)
 
-| Tarea | Qué se hace | Esfuerzo |
-|-------|-------------|----------|
-| ONB-5 | `docs/onboarding.md` — "primeros 30 minutos": (1) mapa de lectura del código con el flujo request→handler→service→repository, (2) levantar el app con datos sintéticos (`scripts/e2e_integration_test.py`, `/test-pipeline`), (3) enlace al Debug Playbook, (4) dónde viven los tests y cómo se organizan | 1 h |
-| ONB-6 | `docs/glossary.md` — jerga retro en 1-2 líneas por término, con el "por qué importa aquí" (ej.: *DAT — catálogo XML de hashes canónicos; el matcher casa tu ROM contra él por SHA1*). Términos: DAT, Logiqx, clrmamepro, No-Intro, Redump, CHD, cue/bin, m3u, save vs savestate, core, BIOS, ES-DE, RetroAchievements, scraping | 45 min |
+| Tarea | Qué se hace | Estado |
+|-------|-------------|--------|
+| ONB-5 | `docs/onboarding.md` — "primeros 30 minutos": pipeline central en 6 líneas, mapa de lectura del código en 6 pasos, flujo request→handler→service→repository, e2e sintético (`scripts/e2e_integration_test.py`, `/test-pipeline`), Debug Playbook, tests como documentación, guía del primer cambio | ✅ |
+| ONB-6 | `docs/glossary.md` — ~30 términos en 4 bloques (identificación de ROMs, formatos de disco/multidisco, saves y emulación, infraestructura), cada uno con el "por qué importa en este código". Enlazado desde README, `docs/README.md` y onboarding | ✅ |
 
 **Resultado:** un dev sin background retro entiende *qué* hace el pipeline y *por qué*.
 

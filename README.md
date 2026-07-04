@@ -357,7 +357,9 @@ Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 Toda la documentación técnica (arquitectura, configuración, guías de sync,
 CI/CD y desarrollo) está indexada en [`docs/README.md`](docs/README.md).
-¿Quieres contribuir? Empieza por [`CONTRIBUTING.md`](CONTRIBUTING.md).
+¿Quieres contribuir? Empieza por [`CONTRIBUTING.md`](CONTRIBUTING.md), sigue con
+[`docs/onboarding.md`](docs/onboarding.md) (tus primeros 30 minutos en el código)
+y ten a mano [`docs/glossary.md`](docs/glossary.md) para la jerga retro.
 
 ---
 
