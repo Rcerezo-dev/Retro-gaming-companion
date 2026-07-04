@@ -65,12 +65,12 @@ proyecto** (o para Claude). El *desarrollador* nuevo se encuentra con:
 
 **Resultado:** un dev clona, configura y abre su primer PR correcto sin ayuda.
 
-### Fase 3 — Documentación que no miente (≈ 2 h)
+### Fase 3 — Documentación que no miente ✅ COMPLETADA (2026-07-04, rama `chore/onb-phase3-arch-backlog`)
 
-| Tarea | Qué se hace | Esfuerzo |
-|-------|-------------|----------|
-| ONB-3 | Regenerar `docs/architecture/architecture.md` desde el código actual: árbol de módulos real (`web/builders/`, `database/repositories/`, `services/`, `esde/`, `patch/`, `web/jobs/`, `router.py`, `auth.py`, `daemons.py`, `state.py`, `lan.py`, `wizard.py`, `static/js/` + `partials/`), nombres de BD reales (`library_pc.db` / android), sin rutas personales | 1.5 h |
-| ONB-8 | Podar `backlog.md`: secciones 100% completadas (SRP, ARC-JM, ARC-CFG, SEC, UR-0421, COL-REVIEW, FLOW-WIZARD, CLOUD-RESEARCH, NLP-REC, ANBERNIC-TV) → `Tareas/diario/archivo/archivo.md` | 30 min |
+| Tarea | Qué se hace | Estado |
+|-------|-------------|--------|
+| ONB-3 | `docs/architecture/architecture.md` regenerado desde el código: árbol de módulos real (builders, repositories con mixins, services, esde, patch, jobs, router/auth/state/lan/wizard, static/js + partials), 2 BDs (`library_pc.db`/`library_android.db`) con las 10 tablas, patrones actuales (JobManager, `web/state.py`, seguridad SEC), API → `openapi.json`, config → enlace único a `config.toml.example`, historial de refactors hasta Día37 | ✅ |
+| ONB-8 | `backlog.md` podado: ~440 líneas de secciones 100% completadas (branching Día26/27, SRP, App Universal Ph1–5, COL-REVIEW, FLOW-WIZARD, CLOUD-RESEARCH, ANBERNIC-TV, NLP-REC, UR-0421, SEC, ARC, REPORT-FIX/DAT-DL, DESIGN, UX-FIX, PONT, NEW-FEAT, SYNC-SETUP, DB-FIX, DÍA35) → `Tareas/diario/archivo/archivo.md`; quedan solo pendientes + Debug Playbook | ✅ |
 
 **Resultado:** lo que un dev nuevo lee coincide con lo que ve en el código.
 
