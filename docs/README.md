@@ -16,6 +16,8 @@
 
 | Documento | Contenido |
 |-----------|-----------|
+| [onboarding.md](onboarding.md) | Primeros 30 minutos para devs nuevos: mapa de lectura del código, e2e sintético, debug |
+| [glossary.md](glossary.md) | Glosario de jerga retro (DAT, CHD, cue/bin, saves vs states…) y por qué importa en el código |
 | [ci-cd.md](ci-cd.md) | Pipeline CI/CD: GitHub Actions, branch protection, ramas, pre-commit, gotchas |
 | [SKILLS-QUICK-START.md](SKILLS-QUICK-START.md) | Skills y agents de Claude Code disponibles en el proyecto |
 
