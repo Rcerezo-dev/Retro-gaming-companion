@@ -1,4 +1,8 @@
 # Retro Vault
+
+> **TL;DR (English):** Local Python tool with a web UI that turns a messy ROM folder into an organized retro game library — automatic identification against No-Intro/Redump catalogs, metadata and cover art scraping, and cloud/USB **save-game sync** between PC and Android handhelds (like Steam Cloud, but for emulators).
+> **Stack:** Python 3.12 (stdlib only, zero runtime dependencies), SQLite, vanilla JS web UI, GitHub Actions CI. Docs are in Spanish.
+
 ## ¿Por qué existe esto?
 
 Soy aficionado a los videojuegos retro y tengo una consola portátil Android (Anbernic) además del PC. El problema era siempre el mismo: terminar una partida en el PC y no poder continuarla en la consola, o tener cientos de ROMs sin organizar, con nombres crípticos, duplicados y sin carátulas.
