@@ -13,6 +13,15 @@ _API_BASE = "https://www.screenscraper.fr/api2"
 _SOFT_NAME = "rommgr"
 
 
+def _loads_lenient(text: str) -> dict:
+    """Parse the first JSON document, tolerating trailing garbage.
+
+    ScreenScraper a veces añade texto extra tras el JSON válido; json.loads
+    lanza 'Extra data' y la llamada se contaba como error de red."""
+    obj, _ = json.JSONDecoder().raw_decode(text.lstrip())
+    return obj
+
+
 @dataclass(slots=True)
 class ScraperResult:
     ss_game_id: str
@@ -91,7 +100,7 @@ class ScreenScraperClient:
         req = urllib.request.Request(url, headers={"User-Agent": f"{_SOFT_NAME}/1.0"})
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                data = _loads_lenient(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
             if exc.code in (400, 404, 426):
                 # 400 = bad request (missing parameters instead of crashing), 404 = not found
@@ -169,7 +178,7 @@ class ScreenScraperClient:
         req = urllib.request.Request(url, headers={"User-Agent": f"{_SOFT_NAME}/1.0"})
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                data = _loads_lenient(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
             if exc.code in (400, 404, 426, 430):
                 return None
