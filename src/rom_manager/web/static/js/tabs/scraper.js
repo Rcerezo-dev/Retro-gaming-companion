@@ -55,6 +55,13 @@ async function loadScraperSummary() {
       </tr>`;
     }).join('');
     html += '</tbody></table></div>';
+    const dc = d.description_coverage;
+    if (dc && dc.total > 0) {
+      const dcColor = dc.pct >= 90 ? 'var(--c-teal)' : 'var(--c-orange)';
+      html += `<p style="font-size:12px;color:var(--c-muted);margin-top:8px">
+        Descripciones: <span style="color:${dcColor}">${dc.with_description} / ${dc.total} (${dc.pct}%)</span>
+        — objetivo Sage: &gt;90%</p>`;
+    }
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
@@ -119,6 +126,7 @@ async function doScrape() {
       platform: document.getElementById('scrape-platform').value || null,
       limit:    parseInt(document.getElementById('scrape-limit').value) || 0,
       images:   document.getElementById('scrape-images').checked,
+      missing_descriptions: document.getElementById('scrape-missing-desc').checked,
     });
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
