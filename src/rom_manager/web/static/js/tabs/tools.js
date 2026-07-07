@@ -685,4 +685,3 @@ export async function loadPatchLog() {
     el.textContent = 'Error: ' + e.message;
   }
 }
-}
