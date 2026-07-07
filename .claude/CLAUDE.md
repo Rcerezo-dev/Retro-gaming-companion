@@ -8,9 +8,9 @@ CI/CD y GitHub Actions: `docs/ci-cd.md` (lint+format+pytest, branch protection, 
 
 ## Entorno de ejecución
 
-- Conda: `C:\Users\Ruben\anaconda3\envs\rom_manager` (Python 3.12)
+- Conda: `C:\Users\rammu\anaconda3\envs\rom_manager` (Python 3.12)
 - Lanzador: `scripts\rommgr.cmd`
-- Directo: `C:\Users\Ruben\anaconda3\envs\rom_manager\python.exe -m rom_manager <cmd>`
+- Directo: `C:\Users\rammu\anaconda3\envs\rom_manager\python.exe -m rom_manager <cmd>`
 - `chdman` en `tools/chdman.exe` — NO en PATH
 - `adb` en `tools/adb.exe`
 
