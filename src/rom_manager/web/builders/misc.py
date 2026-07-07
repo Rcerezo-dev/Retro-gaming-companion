@@ -72,7 +72,10 @@ def _build_config(config: AppConfig) -> dict:
 
 
 def _build_scrape_summary(repository: LibraryRepository) -> dict:
-    return {"platforms": repository.get_scraped_platform_summary()}
+    return {
+        "platforms": repository.get_scraped_platform_summary(),
+        "description_coverage": repository.get_description_coverage(),  # SAGE-1
+    }
 
 
 def _build_cable_sync_preview(qs: dict, config: AppConfig) -> dict:
