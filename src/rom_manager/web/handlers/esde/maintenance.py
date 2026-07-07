@@ -143,6 +143,20 @@ def register_maintenance(
             {"deleted": deleted, "failed": failed, "skipped": skipped, "freed_bytes": freed_bytes}
         )
 
+    # ── POST /api/junk-scan ───────────────────────────────────────────────────
+    @router.post("/api/junk-scan")
+    def post_junk_scan(ctx) -> None:
+        # ponytail: síncrono como el original pre-refactor; es un walk local rápido
+        folder = ctx._post_data.get("path", "").strip() or (
+            str(config.library_root) if config.library_root else ""
+        )
+        if not folder:
+            ctx._send_json({"error": "path required"})
+            return
+        from rom_manager.web.builders.folders import _build_junk_scan
+
+        ctx._send_json(_build_junk_scan(folder))
+
     # ── POST /api/junk-delete ─────────────────────────────────────────────────
     @router.post("/api/junk-delete")
     def post_junk_delete(ctx) -> None:
