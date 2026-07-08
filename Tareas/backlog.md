@@ -136,6 +136,26 @@ fase 2 (embeddings). Contexto adicional: `docs/ideas/propuestas-recomendador-nlp
 
 ---
 
+## INBOX-FIX — Bugs del pipeline de extracción/organización (hallados en JUNK-REVIEW-1, 2026-07-08)
+
+Origen: al categorizar los 5.774 ZIPs de `Unknown\` para JUNK-REVIEW-1 se detectaron
+tres fallos de raíz en el pipeline de Inbox/setup. INBOX-FIX-1/2/3 → PRs #85/#87/#88
+(pendientes de merge). Aplicados manualmente sobre la biblioteca real 2026-07-08 con
+el código de esas 3 ramas: 20 BIOS movidas a `bios/<slug>/` (+20 filas basura
+eliminadas de `games`), 1.606 juegos con `platform` recuperado por backfill desde
+`catalog_source`, 4.515 archivos organizados a su carpeta de plataforma (22
+duplicados eliminados), 139 re-matches (solo 2 genuinamente nuevos, ambos
+correctos — el resto eran re-confirmaciones de matches ya existentes). `Unknown\`
+pasa de ~6.021 a 1.437 filas en BD (mayoría categoría 5: componentes MAME +
+las 15 colecciones de categoría 2, aún pendientes de tu decisión).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-FIX-4 | **`_run_setup_pipeline` construye el plan de renombrado pero nunca lo aplica** — a diferencia de `_run_inbox_pipeline` (extract→scan→match→plan→**rename→organize**→cleanup, todo automático), el asistente de primera configuración se para en "build plan" (Step 5) y deja el resto para una acción manual aparte. Es la razón de fondo por la que `Unknown\` quedó con miles de archivos sin categorizar tras el primer scan de la biblioteca real — nadie ejecutó nunca el equivalente de los Steps 5-6 del pipeline de Inbox sobre ella, así que hubo que aplicar los fixes con scripts manuales en vez de con la app. Objetivo: que el wizard también renombre+organice automáticamente (o, si se prefiere mantener el review manual por seguridad, que la UI dirija explícitamente al usuario a "aplicar el plan" en vez de dejarlo ahí sin más pasos). Decisión de diseño: ¿auto-aplicar sin revisión rompe la regla `rommgr plan siempre antes de apply`? | `web/inbox_pipeline.py` (`_run_setup_pipeline`) | ⬜ |
+| MATCH-FIX-1 | **`CatalogMatcher.match()` — Pass 2 (nombre) da falsos positivos en ficheros arcade sin tag de región** — nombres cortos estilo MAME (`flicky.zip`, `frogger.zip`, `dw.zip`…) sin `(Region)` colisionan por coincidencia de título normalizado contra catálogos No-Intro/Redump de plataformas completamente ajenas (`flicky.zip` → "Fujitsu - FM-7", `frogger.zip` → "APF - Imagination Machine") con confianza `low`, en vez de matchear contra el catálogo arcade correcto (Pass 3, que nunca llega a probarse porque Pass 2 ya "acertó"). Detectado 2026-07-08 al re-lanzar el match sobre `Unknown\` — son matches **preexistentes**, no introducidos hoy. Fix: para nombres sin región/paréntesis, probar primero el catálogo arcade (Pass 3) antes que el name-fallback No-Intro/Redump (Pass 2), o exigir una señal más fuerte que la sola coincidencia de título normalizado. | `catalog/matcher.py` | ⬜ |
+
+---
+
 ## ONB — Onboarding / Developer Experience (audit 2026-07-04)
 
 Origen: auditoría del proyecto desde la perspectiva de un desarrollador nuevo que no
