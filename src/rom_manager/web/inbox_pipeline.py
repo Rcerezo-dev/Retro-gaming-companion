@@ -148,23 +148,6 @@ _KNOWN_BIOS_MAP: dict[str, str] = {
 }
 
 
-def _same_content(a: Path, b: Path) -> bool:
-    """True only if *a* and *b* are byte-identical (size check first, then SHA1).
-
-    A shared filename is NOT evidence of duplicate content — two different ROM
-    dumps/revisions can legitimately share a name. Never delete on a filename
-    match alone (INBOX-FIX-5).
-    """
-    from rom_manager.hashing.hash_calculator import calculate_hashes
-
-    try:
-        if a.stat().st_size != b.stat().st_size:
-            return False
-        return calculate_hashes(a).sha1 == calculate_hashes(b).sha1
-    except OSError:
-        return False
-
-
 def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger) -> int:
     """Move known BIOS files out of *inbox* into ``target_root/bios/<slug>/``.
 
