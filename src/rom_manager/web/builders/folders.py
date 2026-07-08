@@ -12,8 +12,24 @@ from collections import Counter
 from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
+from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
+
+# JUNK-FIX-4: container/arcade extensions that are legitimate ROMs only in the
+# right folder context — a .zip loose in Unknown\ is still unprocessed, but a
+# .zip inside snes\/arcade\/etc. *is* the ROM (RetroArch loads zips directly;
+# arcade cores require the archive itself, see zip_extractor._ARCADE_FOLDER_NAMES).
+_CONTEXT_GAMING_EXTS = {".zip", ".rar", ".7z", ".fs"}
+
+# Union of both folder-name sources: PLATFORM_BY_FOLDER (synonyms used for
+# ambiguous-extension detection, e.g. "jaguar") and _ES_PLATFORM_FOLDERS values
+# (the actual slugs the app organizes into, e.g. "atarijaguar") — the two don't
+# fully agree, and a real ROM can legitimately sit under either spelling.
+_RECOGNIZED_PLATFORM_FOLDERS = set(PLATFORM_BY_FOLDER) | {
+    v.lower() for v in _ES_PLATFORM_FOLDERS.values()
+}
 
 
 def _build_junk_scan(folder_path: str) -> dict:
@@ -152,15 +168,21 @@ def _build_junk_scan(folder_path: str) -> dict:
     _numbered_state = _re.compile(r"\.state\d+$")
 
     # saves/ lo gestiona el sync; BIOS/ y Android/ nunca se tratan como ROMs
-    # (regla del proyecto) — ninguno es objetivo de la limpieza de basura
-    _excluded_dirs = {"saves", "bios", "android"}
+    # (regla del proyecto) — ninguno es objetivo de la limpieza de basura.
+    # "System Volume Information" es una carpeta de sistema de Windows —
+    # tocarla puede dar "acceso denegado" y nunca es contenido del usuario.
+    _excluded_dirs = {"saves", "bios", "android", "system volume information"}
 
     for dirpath, dirs, files in _os.walk(p):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in _excluded_dirs]
+        rel_parts = _Path(dirpath).relative_to(p).parts
+        in_platform_folder = any(part.lower() in _RECOGNIZED_PLATFORM_FOLDERS for part in rel_parts)
         for fname in files:
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
             if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
+                continue
+            if ext in _CONTEXT_GAMING_EXTS and in_platform_folder:
                 continue
             cat = _JUNK_CATEGORIES.get(ext, f"Otros ({ext or 'sin extensión'})")
             try:
