@@ -684,45 +684,137 @@ export async function loadOperationsTimeline() {
 }
 
 // ── Junk Scan ─────────────────────────────────────────────────────────────────
-let _junkResults = null;
-let _junkSelected = {};  // Track selected junk items for deletion
+let _junkResults = null;          // último resultado de /api/junk-scan
+let _junkSelected = new Set();    // índices de categorías seleccionadas
 
 export async function doJunkScan() {
-  const btn = document.querySelector('[onclick="doJunkScan()"]');
+  const btn = document.getElementById('btn-junk-scan');
+  const el = document.getElementById('junk-result');
+  if (!el) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Buscando…'; }
-  const el = document.getElementById('junk-result-content');
-  if (el) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Buscando archivos innecesarios…</p>'; }
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Buscando archivos innecesarios…</p>';
 
   try {
-    const res = await apiPost('/api/junk-scan', {});
-    if (res.job_id) {
-      window.startPolling();
-    }
+    const path = document.getElementById('junk-path')?.value.trim() || '';
+    const res = await apiPost('/api/junk-scan', { path });
+    _renderJunkResult(res);
   } catch(e) {
-    showToast('Error al iniciar búsqueda de basura: ' + e.message, 'err');
-    if (btn) { btn.disabled = false; btn.textContent = 'Buscar archivos innecesarios'; btn.onclick = window.doJunkScan; }
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
+    showToast('Error en búsqueda de basura: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Escanear archivos basura'; }
   }
 }
 
 export function _renderJunkResult(result) {
-  // TODO: Implement in 2i-1 - render junk scan results
-  console.log('Junk scan result:', result);
+  const el = document.getElementById('junk-result');
+  if (!el) return;
+
+  if (result.error) {
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">${_h(result.error)}</p>`;
+    return;
+  }
+
+  _junkResults = result;
+  _junkSelected = new Set();
+
+  const cats = result.categories || [];
+  if (!cats.length) {
+    el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ No se encontraron archivos basura.</p>';
+    return;
+  }
+
+  let html = `<div style="margin-bottom:10px;font-size:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <span style="color:var(--c-softred)">⚠ ${result.total_junk_files} archivos basura</span>
+      <span style="color:var(--c-muted);margin-left:8px">${_fmtSize(result.total_junk_bytes)} recuperables</span>
+      <span style="color:var(--c-hint);font-size:11px;margin-left:8px">en <code style="color:var(--c-orange)">${_h(result.folder)}</code></span>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn" style="padding:3px 8px;font-size:11px" onclick="window.junkSelectAll()">Seleccionar todo</button>
+      <button id="btn-junk-delete" class="btn danger" style="padding:3px 8px;font-size:11px" disabled onclick="window.junkDelete()">Eliminar seleccionados</button>
+    </div>
+  </div>`;
+
+  html += '<div style="max-height:420px;overflow-y:auto;border:1px solid #222;border-radius:4px">';
+  cats.forEach((c, i) => {
+    const shown = c.files || [];
+    html += `<div style="border-bottom:1px solid #222">
+      <div style="display:flex;gap:8px;align-items:center;padding:6px;background:var(--c-panel)">
+        <input type="checkbox" id="junk-cat-cb-${i}" onchange="window.junkToggleCat(${i})">
+        <label for="junk-cat-cb-${i}" style="flex:1;font-size:12px;font-weight:600;color:var(--c-amber);cursor:pointer">${_h(c.category)}</label>
+        <span style="font-size:11px;color:var(--c-muted)">${c.count} archivos · ${_fmtSize(c.total_bytes)}</span>
+      </div>
+      <details style="padding:0 6px 4px 26px">
+        <summary style="font-size:11px;color:var(--c-hint);cursor:pointer">Ver archivos${c.count > shown.length ? ` (${shown.length} mayores de ${c.count})` : ''}</summary>
+        ${shown.map(f => `<div style="font-size:11px;padding:2px 0;display:flex;gap:8px">
+          <code style="color:var(--c-orange);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(f.full_path)}">${_h(f.path)}</code>
+          <span style="color:var(--c-dim);flex-shrink:0">${_fmtSize(f.size_bytes)}</span>
+        </div>`).join('')}
+      </details>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
 }
 
-export function junkToggleCat(category) {
-  // TODO: Implement in 2i-1 - toggle category selection
+function _updateJunkDeleteBtn() {
+  const btn = document.getElementById('btn-junk-delete');
+  if (!btn || !_junkResults) return;
+  const cats = _junkResults.categories || [];
+  let files = 0, bytes = 0;
+  _junkSelected.forEach(i => {
+    const c = cats[i];
+    if (c) { files += c.count; bytes += c.total_bytes; }
+  });
+  btn.disabled = files === 0;
+  btn.textContent = files ? `Eliminar seleccionados (${files} · ${_fmtSize(bytes)})` : 'Eliminar seleccionados';
+}
+
+export function junkToggleCat(idx) {
+  if (_junkSelected.has(idx)) _junkSelected.delete(idx);
+  else _junkSelected.add(idx);
+  _updateJunkDeleteBtn();
 }
 
 export function junkSelectAll() {
-  // TODO: Implement in 2i-1 - select all junk items
+  const cats = _junkResults?.categories || [];
+  const allSelected = _junkSelected.size === cats.length;
+  _junkSelected = allSelected ? new Set() : new Set(cats.map((_, i) => i));
+  cats.forEach((_, i) => {
+    const cb = document.getElementById(`junk-cat-cb-${i}`);
+    if (cb) cb.checked = !allSelected;
+  });
+  _updateJunkDeleteBtn();
 }
 
-export function junkCatCheck(category) {
-  // TODO: Implement in 2i-1 - check if category is selected
+export function junkCatCheck(idx) {
+  return _junkSelected.has(idx);
 }
 
 export async function junkDelete() {
-  // TODO: Implement in 2i-1 - delete selected junk
+  const cats = _junkResults?.categories || [];
+  const paths = [];
+  _junkSelected.forEach(i => { if (cats[i]) paths.push(...(cats[i].paths || [])); });
+  if (!paths.length) {
+    showToast('No hay categorías seleccionadas', 'warn');
+    return;
+  }
+
+  if (!confirm(`¿Eliminar ${paths.length} archivos de ${_junkSelected.size} categoría(s)?\n\nEsta acción no se puede deshacer.`)) return;
+
+  const btn = document.getElementById('btn-junk-delete');
+  if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
+
+  try {
+    const d = await apiPost('/api/junk-delete', { paths, dry_run: false });
+    showToast(`✓ ${d.deleted} eliminados · ${_fmtSize(d.freed_bytes)} liberados` + (d.failed ? ` (${d.failed} fallos)` : ''), d.failed ? 'warn' : 'ok');
+    if (d.errors && d.errors.length) console.warn('junk-delete errors:', d.errors);
+    doJunkScan();  // re-escanear para refrescar la lista
+  } catch(e) {
+    showToast('Error al eliminar: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; _updateJunkDeleteBtn(); }
+  }
 }
 
 // ── Orphaned Saves ────────────────────────────────────────────────────────────

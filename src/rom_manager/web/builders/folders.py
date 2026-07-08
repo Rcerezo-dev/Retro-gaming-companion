@@ -167,6 +167,9 @@ def _build_junk_scan(folder_path: str) -> dict:
                 "count": len(files_list),
                 "total_bytes": total,
                 "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:50],
+                # Todas las rutas de la categoría (files se corta a 50 solo para mostrar);
+                # /api/junk-delete necesita la lista completa
+                "paths": [f["full_path"] for f in files_list],
             }
         )
 
