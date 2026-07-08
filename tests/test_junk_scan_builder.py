@@ -60,6 +60,21 @@ def test_junk_scan_gaming_false_positives(tmp_path: Path) -> None:
     assert result["total_junk_files"] == 0
 
 
+def test_junk_scan_gaming_false_positives_2(tmp_path: Path) -> None:
+    """JUNK-FIX-3: savestates VBA, NVRAM arcade, saves Sega CD, FDS, C64, shaders, hiscores."""
+    (tmp_path / "pokemon.sgm").write_bytes(b"x")
+    (tmp_path / "pacman.nv").write_bytes(b"x")
+    (tmp_path / "lunar.brm").write_bytes(b"x")
+    (tmp_path / "lunar.brmc").write_bytes(b"x")
+    (tmp_path / "zelda.fds").write_bytes(b"x")
+    (tmp_path / "commando.crt").write_bytes(b"x")
+    (tmp_path / "commando.prg").write_bytes(b"x")
+    (tmp_path / "crt-royale.fx").write_bytes(b"x")
+    (tmp_path / "pacman.hi").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 0
+
+
 def test_junk_scan_skips_saves_bios_android_trees(tmp_path: Path) -> None:
     """JUNK-FIX-1/2: saves/, BIOS/ y Android/ no se escanean (a cualquier nivel)."""
     (tmp_path / "saves" / "nds").mkdir(parents=True)
