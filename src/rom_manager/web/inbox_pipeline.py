@@ -370,7 +370,7 @@ def _run_setup_pipeline(
                     rel = zp.name
                 pct = 20 + int((idx / max(total_zips, 1)) * 15)
                 _upd("Extrayendo ZIPs", 2, pct, rel)
-                r = extract_zip(zp, dry_run=False, delete_source=False)
+                r = extract_zip(zp, dry_run=False, delete_source=options.get("delete_zips", False))
                 if r.success:
                     extracted += 1
             result["zips_extracted"] = extracted
@@ -417,6 +417,7 @@ def _run_setup_pipeline(
                             canonical_title=m.title,
                             match_confidence=m.confidence,
                             catalog_source=m.catalog_source,
+                            platform=m.platform,
                             connection=conn,
                         )
                         matched += 1
@@ -541,6 +542,7 @@ def _run_inbox_pipeline(
                         canonical_title=match_result.title,
                         match_confidence=match_result.confidence,
                         catalog_source=match_result.catalog_source,
+                        platform=match_result.platform,
                         connection=conn,
                     )
                     matched += 1

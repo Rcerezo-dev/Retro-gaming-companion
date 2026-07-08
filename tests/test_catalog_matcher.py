@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from rom_manager.catalog.matcher import CatalogMatcher, MatchResult
+from rom_manager.catalog.matcher import CatalogMatcher, MatchResult, _platform_from_dat_name
 
 
 def _write_dat(path: Path, games: list[tuple[str, str, str, str, int]]) -> None:
@@ -52,6 +52,7 @@ def test_match_nointro(catalog_dirs: tuple[Path, Path]) -> None:
     assert result.title == "Tetris (World)"
     assert result.confidence == "high"
     assert "Game Boy" in result.catalog_source
+    assert result.platform == "Game Boy"  # INBOX-FIX-2: derived from the DAT filename
 
 
 def test_match_redump(catalog_dirs: tuple[Path, Path]) -> None:
@@ -61,6 +62,7 @@ def test_match_redump(catalog_dirs: tuple[Path, Path]) -> None:
     assert isinstance(result, MatchResult)
     assert result.title == "Metal Gear Solid (USA)"
     assert "PlayStation" in result.catalog_source
+    assert result.platform == "PlayStation"
 
 
 def test_no_match_returns_none(catalog_dirs: tuple[Path, Path]) -> None:
@@ -174,3 +176,49 @@ def test_no_filename_returns_none_on_sha1_miss(catalog_dirs: tuple[Path, Path]) 
     matcher = CatalogMatcher(nointro, redump)
     result = matcher.match("0" * 40)
     assert result is None
+
+
+def test_name_fallback_also_sets_platform(catalog_dirs: tuple[Path, Path]) -> None:
+    """INBOX-FIX-2: platform is derived on the name-fallback path too, not just SHA1."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "tetris (world).gb")
+    assert result is not None
+    assert result.platform == "Game Boy"
+
+
+# ---------------------------------------------------------------------------
+# INBOX-FIX-2: DAT filename → platform keyword matching
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("dat_name", "expected"),
+    [
+        ("Nintendo - Super Nintendo Entertainment System (2026).dat", "SNES"),
+        ("Nintendo - Nintendo Entertainment System (Headered) (2026).dat", "NES"),
+        ("Nintendo - Game Boy Advance (2026).dat", "Game Boy Advance"),
+        ("Nintendo - Game Boy Color (2026).dat", "Game Boy Color"),
+        ("Nintendo - Game Boy (2026).dat", "Game Boy"),
+        ("Nintendo - Nintendo 3DS (Digital) (CDN).dat", "Nintendo 3DS"),
+        ("Nintendo - New Nintendo 3DS (Deprecated).dat", "Nintendo 3DS"),
+        ("Nintendo - Nintendo DS (Decrypted).dat", "Nintendo DS"),
+        ("Sony - PlayStation 2 - Datfile.dat", "PlayStation 2"),
+        ("Sony - PlayStation Portable (PSN).dat", "PSP"),
+        ("Sony - PlayStation - Datfile.dat", "PlayStation"),
+        ("Sega - Mega Drive - Genesis.dat", "Sega Mega Drive"),
+        ("NEC - PC Engine - TurboGrafx-16.dat", "PC Engine"),
+        ("Bandai - WonderSwan Color.dat", "WonderSwan Color"),
+        ("Bandai - WonderSwan.dat", "WonderSwan"),
+        ("SNK - Neo Geo Pocket Color.dat", "Neo Geo Pocket Color"),
+    ],
+)
+def test_platform_from_dat_name_keyword_priority(dat_name: str, expected: str) -> None:
+    """Longer/more-specific keywords (e.g. SNES) must win over substrings they contain (NES)."""
+    assert _platform_from_dat_name(dat_name) == expected
+
+
+def test_platform_from_dat_name_unmapped_platform_returns_none() -> None:
+    """Obscure DATs this project doesn't route to a folder stay unmapped, not guessed."""
+    assert _platform_from_dat_name("Apple - IIGS (A2R) (2022).dat") is None
+    assert _platform_from_dat_name("Microsoft - Xbox 360 (Digital).dat") is None

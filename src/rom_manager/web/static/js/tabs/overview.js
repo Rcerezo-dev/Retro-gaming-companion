@@ -803,6 +803,7 @@ export async function startSetup() {
   if (!libRoot) { alert('Introduce la carpeta de biblioteca (PC) primero.'); return; }
   const cleanJunk   = document.getElementById('wiz-clean-junk')?.checked || false;
   const extractZips = document.getElementById('wiz-extract-zips')?.checked !== false;
+  const deleteZips  = document.getElementById('wiz-delete-zips')?.checked || false;
   const doMatch     = document.getElementById('wiz-match')?.checked !== false;
 
   document.getElementById('wizard-page-1').classList.add('hidden');
@@ -815,6 +816,7 @@ export async function startSetup() {
       android_root:  androidRoot,
       clean_junk:    cleanJunk,
       extract_zips:  extractZips,
+      delete_zips:   deleteZips,
       scan:          true,
       match:         doMatch,
     });
