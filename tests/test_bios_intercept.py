@@ -50,17 +50,35 @@ def test_intercept_moves_known_bios_and_leaves_unknown_files(tmp_path: Path) -> 
     assert (inbox / "Sonic (USA).zip").exists()
 
 
-def test_intercept_duplicate_in_dest_deletes_source(tmp_path: Path) -> None:
+def test_intercept_exact_duplicate_in_dest_deletes_source(tmp_path: Path) -> None:
+    """Same name AND same content (SHA1 match) -> genuinely a duplicate, safe to delete."""
     inbox = tmp_path / "inbox"
     dest_dir = inbox / "bios" / "naomi"
     dest_dir.mkdir(parents=True)
-    (dest_dir / "naomi.zip").write_bytes(b"already there")
-    (inbox / "naomi.zip").write_bytes(b"duplicate")
+    (dest_dir / "naomi.zip").write_bytes(b"identical bios bytes")
+    (inbox / "naomi.zip").write_bytes(b"identical bios bytes")
 
     moved = _intercept_bios_files(inbox, inbox, _logger)
 
     assert moved == 1
     assert not (inbox / "naomi.zip").exists()
+    assert (dest_dir / "naomi.zip").read_bytes() == b"identical bios bytes"  # untouched
+
+
+def test_intercept_same_name_different_content_touches_neither(tmp_path: Path) -> None:
+    """INBOX-FIX-5: same filename but different bytes must NOT be deleted as a duplicate."""
+    inbox = tmp_path / "inbox"
+    dest_dir = inbox / "bios" / "naomi"
+    dest_dir.mkdir(parents=True)
+    (dest_dir / "naomi.zip").write_bytes(b"already there")
+    (inbox / "naomi.zip").write_bytes(b"different bios revision")
+
+    moved = _intercept_bios_files(inbox, inbox, _logger)
+
+    assert moved == 0
+    assert (
+        inbox / "naomi.zip"
+    ).read_bytes() == b"different bios revision"  # untouched, not deleted
     assert (dest_dir / "naomi.zip").read_bytes() == b"already there"  # untouched
 
 

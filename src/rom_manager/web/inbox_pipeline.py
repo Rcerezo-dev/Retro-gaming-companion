@@ -131,6 +131,23 @@ _KNOWN_BIOS_MAP: dict[str, str] = {
 }
 
 
+def _same_content(a: Path, b: Path) -> bool:
+    """True only if *a* and *b* are byte-identical (size check first, then SHA1).
+
+    A shared filename is NOT evidence of duplicate content — two different ROM
+    dumps/revisions can legitimately share a name. Never delete on a filename
+    match alone (INBOX-FIX-5).
+    """
+    from rom_manager.hashing.hash_calculator import calculate_hashes
+
+    try:
+        if a.stat().st_size != b.stat().st_size:
+            return False
+        return calculate_hashes(a).sha1 == calculate_hashes(b).sha1
+    except OSError:
+        return False
+
+
 def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger) -> int:
     """Move known BIOS files out of *inbox* into ``target_root/bios/<slug>/``.
 
@@ -152,12 +169,22 @@ def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger
             dst = target_root / "bios" / plat / ext_file.name
             if ext_file.resolve() == dst.resolve():
                 continue  # already in place (e.g. setup wizard re-scanning target_root == inbox)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            # handle duplicate bios in dest
             if dst.exists():
-                ext_file.unlink()
-            else:
-                _shutil.move(str(ext_file), dst)
+                # INBOX-FIX-5: same filename is not proof of duplicate content —
+                # only delete the source if it's byte-identical to what's there.
+                if _same_content(ext_file, dst):
+                    ext_file.unlink()
+                    bios_moved += 1
+                    logger.info("BIOS duplicada (mismo contenido): %s eliminada", ext_file.name)
+                else:
+                    logger.warning(
+                        "BIOS %s ya existe en bios/%s con contenido distinto — no se toca, revisar a mano",
+                        ext_file.name,
+                        plat,
+                    )
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            _shutil.move(str(ext_file), dst)
             bios_moved += 1
             logger.info("BIOS interceptada: %s -> bios/%s", ext_file.name, plat)
     return bios_moved
