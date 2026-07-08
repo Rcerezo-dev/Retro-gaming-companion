@@ -27,6 +27,7 @@ def _build_junk_scan(folder_path: str) -> dict:
         ".smc",
         ".md",
         ".smd",
+        ".sms",
         ".gen",
         ".n64",
         ".z64",
@@ -141,10 +142,12 @@ def _build_junk_scan(folder_path: str) -> dict:
     # en la whitelist y los slots extra salían como falsos positivos
     _numbered_state = _re.compile(r"\.state\d+$")
 
+    # saves/ lo gestiona el sync; BIOS/ y Android/ nunca se tratan como ROMs
+    # (regla del proyecto) — ninguno es objetivo de la limpieza de basura
+    _excluded_dirs = {"saves", "bios", "android"}
+
     for dirpath, dirs, files in _os.walk(p):
-        # Los árboles saves/ los gestiona el sync, no la limpieza de basura:
-        # contienen formatos por-emulador imposibles de whitelistar
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() != "saves"]
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in _excluded_dirs]
         for fname in files:
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
