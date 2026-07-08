@@ -4,6 +4,14 @@ Herramienta local Python + interfaz web (`http://127.0.0.1:7777`) para gestionar
 Backlog activo: `Tareas/backlog.md`. Estado de fases: memoria `phases.md`.
 CI/CD y GitHub Actions: `docs/ci-cd.md` (lint+format+pytest, branch protection, CodeRabbit, hooks pre-commit/pre-push, recetas y gotchas).
 
+## Los 3 pilares (en orden de prioridad real)
+
+1. **Primera vez** — limpiar y organizar una biblioteca caótica (basura fuera, ZIPs descomprimidos, ROMs renombrados con nombre canónico No-Intro/Redump, en su carpeta de plataforma).
+2. **Día a día** — Inbox: soltar un juego sin organizar y que la herramienta detecte plataforma, descomprima, empareje con catálogo y lo mueva solo, sin intervención manual.
+3. **Uso cotidiano — sync de saves** (**valor diferencial real**): jugar en Anbernic o PC, que la partida aparezca sola en el otro lado, sin miedo a sobreescribir. Cualquier bug aquí es prioridad absoluta (pérdida de progreso).
+
+Todo lo demás (RA checker, scraper, health check, duplicados, informes) es secundario. No es un launcher/front-end de emuladores — no reemplaza RetroArch/EmulationStation. Detalle: memoria `vision_core.md`.
+
 ---
 
 ## Entorno de ejecución
@@ -33,6 +41,16 @@ CI/CD y GitHub Actions: `docs/ci-cd.md` (lint+format+pytest, branch protection, 
         El Principio de segregación de interfaz (Interface Segregation Principle)
         El Principio de inversión de dependencia (Dependency Inversion Principle) 
 - **No vuelvas a leer archivos ya leídos en esta sesión a menos que te lo pida. Minimiza las llamadas a herramientas y trabaja con lo que ya tienes en contexto.**
+
+### Investigar antes de arreglar
+
+Cuando aparece un síntoma (archivos que no deberían estar donde están, un
+número que no cuadra, un flujo que se queda a medias): verifica primero contra
+la biblioteca real o la BD, no contra suposiciones — y sigue la cadena hasta la
+causa raíz en el código, no solo el síntoma. No implementes el fix en la misma
+sesión salvo que el usuario lo pida explícitamente: documenta el hallazgo con
+archivo:línea exactos y añádelo al backlog (`Tareas/backlog.md`) para que se
+implemente en su propia rama. Patrón ya usado en JUNK-FIX-*/INBOX-FIX-* (Día39).
 
 ---
 

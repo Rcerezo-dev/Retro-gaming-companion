@@ -179,6 +179,7 @@ def _do_setup_run(
     options = {
         "clean_junk": bool(data.get("clean_junk", False)),
         "extract_zips": bool(data.get("extract_zips", True)),
+        "delete_zips": bool(data.get("delete_zips", False)),
         "scan": bool(data.get("scan", True)),
         "match": bool(data.get("match", True)),
     }
