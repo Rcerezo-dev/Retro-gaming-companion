@@ -18,6 +18,7 @@ class ExtractionResult:
     skipped_reason: str = ""
     error: str = ""
     is_disc_set: bool = False
+    skipped_existing: list[Path] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -62,11 +63,17 @@ def extract_zip(
     delete_source: bool = False,
     dry_run: bool = True,
 ) -> ExtractionResult:
-    """Extract the contents of *zip_path* to the same directory.
+    """Extract the contents of *zip_path* to the same directory, member by member.
 
-    Skips if:
-    - The archive contains .cue/.bin/.iso files (use CHD converter instead)
-    - Any target file already exists on disk
+    Skips the whole archive if:
+    - The filename matches a multi-disc set pattern (e.g. "Game (Disc 1).zip")
+    - It sits under an arcade/MAME folder (the ZIP itself is the ROM)
+    - It contains .cue/.bin/.iso files (use the CHD converter instead)
+
+    Members whose target already exists on disk are left alone — a single
+    collision no longer aborts the rest of the archive (INBOX-FIX-1). The
+    source ZIP is only eligible for deletion once every member is confirmed
+    on disk (freshly extracted or pre-existing) with no per-member errors.
     """
     # Skip ZIPs whose filename matches the disc-set pattern (e.g. "Game (Disc 1).zip")
     if _DISC_RE.match(zip_path.stem):
@@ -90,7 +97,7 @@ def extract_zip(
 
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
-            names = zf.namelist()
+            names = [n for n in zf.namelist() if not n.endswith("/")]
             # Skip disc-based archives (contents check)
             if any(Path(n).suffix.lower() in _DISC_EXTENSIONS for n in names):
                 return ExtractionResult(
@@ -101,26 +108,31 @@ def extract_zip(
                 )
 
             dest_dir = zip_path.parent
-            targets = [dest_dir / name for name in names if not name.endswith("/")]
-
-            # Skip if any target already exists
-            existing = [t for t in targets if t.exists()]
-            if existing:
-                return ExtractionResult(
-                    zip_path=zip_path,
-                    extracted_files=[],
-                    success=False,
-                    skipped_reason=f"Ya existe en destino: {existing[0].name}",
-                )
+            to_extract: list[str] = []
+            skipped_existing: list[Path] = []
+            for name in names:
+                target = dest_dir / name
+                if target.exists():
+                    skipped_existing.append(target)
+                else:
+                    to_extract.append(name)
 
             if dry_run:
                 return ExtractionResult(
                     zip_path=zip_path,
-                    extracted_files=targets,
+                    extracted_files=[dest_dir / n for n in to_extract],
                     success=True,
+                    skipped_existing=skipped_existing,
                 )
 
-            zf.extractall(dest_dir)
+            extracted_files: list[Path] = []
+            errors: list[str] = []
+            for name in to_extract:
+                try:
+                    zf.extract(name, dest_dir)
+                    extracted_files.append(dest_dir / name)
+                except OSError as exc:
+                    errors.append(f"{name}: {exc}")
 
     except zipfile.BadZipFile as exc:
         return ExtractionResult(
@@ -137,6 +149,17 @@ def extract_zip(
             error=str(exc),
         )
 
+    if errors:
+        return ExtractionResult(
+            zip_path=zip_path,
+            extracted_files=extracted_files,
+            success=False,
+            error="; ".join(errors),
+            skipped_existing=skipped_existing,
+        )
+
+    # Every member is now present on disk (freshly extracted or pre-existing) —
+    # safe to drop the now-redundant source archive.
     if delete_source:
         try:
             zip_path.unlink()
@@ -145,8 +168,9 @@ def extract_zip(
 
     return ExtractionResult(
         zip_path=zip_path,
-        extracted_files=targets,
+        extracted_files=extracted_files,
         success=True,
+        skipped_existing=skipped_existing,
     )
 
 

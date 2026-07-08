@@ -291,7 +291,7 @@ def _run_setup_pipeline(
                     rel = zp.name
                 pct = 20 + int((idx / max(total_zips, 1)) * 15)
                 _upd("Extrayendo ZIPs", 2, pct, rel)
-                r = extract_zip(zp, dry_run=False, delete_source=False)
+                r = extract_zip(zp, dry_run=False, delete_source=options.get("delete_zips", False))
                 if r.success:
                     extracted += 1
             result["zips_extracted"] = extracted
