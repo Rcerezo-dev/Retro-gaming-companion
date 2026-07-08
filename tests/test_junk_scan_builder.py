@@ -47,3 +47,25 @@ def test_junk_scan_paths_beyond_display_cap(tmp_path: Path) -> None:
 def test_junk_scan_missing_folder(tmp_path: Path) -> None:
     result = _build_junk_scan(str(tmp_path / "no-existe"))
     assert "error" in result
+
+
+def test_junk_scan_gaming_false_positives(tmp_path: Path) -> None:
+    """JUNK-FIX-1: .rvz, .ml1 y savestates numerados no son basura."""
+    (tmp_path / "juego.rvz").write_bytes(b"x")
+    (tmp_path / "save.ml1").write_bytes(b"x")
+    (tmp_path / "doa2.state1").write_bytes(b"x")
+    (tmp_path / "doa2.state23").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 0
+
+
+def test_junk_scan_skips_saves_tree(tmp_path: Path) -> None:
+    """JUNK-FIX-1: los árboles saves/ (a cualquier nivel) no se escanean."""
+    (tmp_path / "saves" / "nds").mkdir(parents=True)
+    (tmp_path / "saves" / "nds" / "raro.dsv").write_bytes(b"x")
+    (tmp_path / "gba" / "Saves").mkdir(parents=True)
+    (tmp_path / "gba" / "Saves" / "otro.xyz").write_bytes(b"x")
+    (tmp_path / "gba" / "doc.pdf").write_bytes(b"x")  # fuera de saves → sí es basura
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 1
+    assert result["categories"][0]["category"] == "PDFs"
