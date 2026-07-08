@@ -109,7 +109,85 @@ _KNOWN_BIOS_MAP: dict[str, str] = {
     "grom.bin": "intellivision",
     "awbios.zip": "naomi",
     "naomi_boot.bin": "naomi",
+    # Arcade system BIOS (INBOX-FIX-3 — hallados sueltos en Unknown\ en JUNK-REVIEW-1;
+    # slug = nombre del propio ZIP, ya que cada uno es un sistema arcade distinto)
+    "naomi.zip": "naomi",
+    "chihiro.zip": "chihiro",
+    "triforce.zip": "triforce",
+    "hikaru.zip": "hikaru",
+    "aristmk5.zip": "aristmk5",
+    "aristmk6.zip": "aristmk6",
+    "hod2bios.zip": "hod2bios",
+    "lindbios.zip": "lindbios",
+    "f355bios.zip": "f355bios",
+    "galgbios.zip": "galgbios",
+    "airlbios.zip": "airlbios",
+    "ar_bios.zip": "ar_bios",
+    "cdibios.zip": "cdibios",
+    "macsbios.zip": "macsbios",
+    "alg_bios.zip": "alg_bios",
+    "crysbios.zip": "crysbios",
+    "v4bios.zip": "v4bios",
 }
+
+
+def _same_content(a: Path, b: Path) -> bool:
+    """True only if *a* and *b* are byte-identical (size check first, then SHA1).
+
+    A shared filename is NOT evidence of duplicate content — two different ROM
+    dumps/revisions can legitimately share a name. Never delete on a filename
+    match alone (INBOX-FIX-5).
+    """
+    from rom_manager.hashing.hash_calculator import calculate_hashes
+
+    try:
+        if a.stat().st_size != b.stat().st_size:
+            return False
+        return calculate_hashes(a).sha1 == calculate_hashes(b).sha1
+    except OSError:
+        return False
+
+
+def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger) -> int:
+    """Move known BIOS files out of *inbox* into ``target_root/bios/<slug>/``.
+
+    Shared by both the Inbox pipeline and the first-time setup wizard so BIOS
+    routing doesn't depend on which pipeline happened to touch the library
+    (INBOX-FIX-3 — the setup wizard never ran this step before).
+    """
+    import shutil as _shutil
+
+    bios_moved = 0
+    for ext_file in list(inbox.rglob("*")):
+        if not ext_file.is_file():
+            continue
+        if any(part.startswith("_") for part in ext_file.relative_to(inbox).parts[:-1]):
+            continue
+        name_lower = ext_file.name.lower()
+        if name_lower in _KNOWN_BIOS_MAP:
+            plat = _KNOWN_BIOS_MAP[name_lower]
+            dst = target_root / "bios" / plat / ext_file.name
+            if ext_file.resolve() == dst.resolve():
+                continue  # already in place (e.g. setup wizard re-scanning target_root == inbox)
+            if dst.exists():
+                # INBOX-FIX-5: same filename is not proof of duplicate content —
+                # only delete the source if it's byte-identical to what's there.
+                if _same_content(ext_file, dst):
+                    ext_file.unlink()
+                    bios_moved += 1
+                    logger.info("BIOS duplicada (mismo contenido): %s eliminada", ext_file.name)
+                else:
+                    logger.warning(
+                        "BIOS %s ya existe en bios/%s con contenido distinto — no se toca, revisar a mano",
+                        ext_file.name,
+                        plat,
+                    )
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            _shutil.move(str(ext_file), dst)
+            bios_moved += 1
+            logger.info("BIOS interceptada: %s -> bios/%s", ext_file.name, plat)
+    return bios_moved
 
 
 def _build_inbox_scan(inbox_path_str: str) -> dict:
@@ -250,6 +328,7 @@ def _run_setup_pipeline(
         "junk_deleted": 0,
         "junk_freed_bytes": 0,
         "zips_extracted": 0,
+        "bios_moved": 0,
         "games_found": 0,
         "games_matched": 0,
         "plan_pending": 0,
@@ -295,6 +374,10 @@ def _run_setup_pipeline(
                 if r.success:
                     extracted += 1
             result["zips_extracted"] = extracted
+
+        # ── Step 2.5: Intercept BIOS files (INBOX-FIX-3) ─────────────────────
+        _upd("Moviendo BIOS conocidas", 2, 35)
+        result["bios_moved"] = _intercept_bios_files(source, source, logger)
 
         # ── Step 3: Scan library ─────────────────────────────────────────────
         _upd("Escaneando biblioteca", 3, 35)
@@ -423,24 +506,7 @@ def _run_inbox_pipeline(
 
         # ── Step 1.5: Intercept BIOS files ───────────────────────────────────
         _upd("intercepting bios", 1)
-        bios_moved = 0
-        for ext_file in list(inbox.rglob("*")):
-            if not ext_file.is_file():
-                continue
-            if any(part.startswith("_") for part in ext_file.relative_to(inbox).parts[:-1]):
-                continue
-            name_lower = ext_file.name.lower()
-            if name_lower in _KNOWN_BIOS_MAP:
-                plat = _KNOWN_BIOS_MAP[name_lower]
-                dst = target_root / "bios" / plat / ext_file.name
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                # handle duplicate bios in dest
-                if dst.exists():
-                    ext_file.unlink()
-                else:
-                    _shutil.move(str(ext_file), dst)
-                bios_moved += 1
-                logger.info("Inbox: routed BIOS %s to bios/%s", ext_file.name, plat)
+        bios_moved = _intercept_bios_files(inbox, target_root, logger)
 
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
@@ -604,6 +670,7 @@ def _run_inbox_pipeline(
             "result_ts": utc_now(),
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
+            "bios_moved": bios_moved,
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,
