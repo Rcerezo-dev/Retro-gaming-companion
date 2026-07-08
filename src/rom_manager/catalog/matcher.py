@@ -10,6 +10,70 @@ from rom_manager.detection.filename_normalizer import normalize_for_match
 
 _logger = logging.getLogger(__name__)
 
+# INBOX-FIX-2: No-Intro/Redump DAT filenames ("Nintendo - Super Nintendo
+# Entertainment System (...).dat") don't match RetroArch folder-name tokens
+# (platforms.toml's [folders] table), so a match never used to populate
+# games.platform. Ordered most-specific-first so e.g. "game boy advance" is
+# tried before the "game boy" substring it contains. Values are canonical
+# names from web/handlers/system.py::_ES_PLATFORM_FOLDERS — only platforms
+# this project actually routes to a folder are worth mapping here.
+_DAT_PLATFORM_KEYWORDS: tuple[tuple[str, str], ...] = (
+    ("super nintendo entertainment system", "SNES"),
+    ("nintendo entertainment system", "NES"),
+    ("game boy advance", "Game Boy Advance"),
+    ("game boy color", "Game Boy Color"),
+    ("game boy", "Game Boy"),
+    ("new nintendo 3ds", "Nintendo 3DS"),
+    ("nintendo 3ds", "Nintendo 3DS"),
+    ("nintendo 64", "Nintendo 64"),
+    ("nintendo ds", "Nintendo DS"),
+    ("family computer disk system", "Famicom Disk System"),
+    ("gamecube", "GameCube"),
+    ("nintendo - wii", "Wii"),
+    ("playstation 2", "PlayStation 2"),
+    ("playstation 3", "PlayStation 3"),
+    ("playstation portable", "PSP"),
+    ("playstation vita", "PS Vita"),
+    ("playstation", "PlayStation"),
+    ("mega drive", "Sega Mega Drive"),
+    ("genesis", "Sega Mega Drive"),
+    ("master system", "Master System"),
+    ("game gear", "Game Gear"),
+    ("32x", "Sega 32X"),
+    ("dreamcast", "Dreamcast"),
+    ("saturn", "Sega Saturn"),
+    ("mega-cd", "Sega CD"),
+    ("mega cd", "Sega CD"),
+    ("sega cd", "Sega CD"),
+    ("pc engine", "PC Engine"),
+    ("turbografx", "PC Engine"),
+    ("neo geo pocket", "Neo Geo Pocket Color"),
+    ("neo geo", "Neo Geo"),
+    ("wonderswan color", "WonderSwan Color"),
+    ("wonderswan", "WonderSwan"),
+    ("atari 2600", "Atari 2600"),
+    ("atari 5200", "Atari 5200"),
+    ("atari 7800", "Atari 7800"),
+    ("atari lynx", "Atari Lynx"),
+    ("atari jaguar", "Atari Jaguar"),
+    ("atari st", "Atari ST"),
+    ("amiga", "Amiga"),
+    ("commodore 64", "Commodore 64"),
+    ("zx spectrum", "ZX Spectrum"),
+    ("msx", "MSX"),
+    ("colecovision", "ColecoVision"),
+    ("intellivision", "Intellivision"),
+)
+
+
+def _platform_from_dat_name(dat_filename: str) -> str | None:
+    """Derive a canonical platform name from a No-Intro/Redump DAT filename."""
+    lowered = dat_filename.lower()
+    for keyword, platform in _DAT_PLATFORM_KEYWORDS:
+        if keyword in lowered:
+            return platform
+    return None
+
 
 @dataclass(slots=True)
 class MatchResult:
@@ -117,6 +181,7 @@ class CatalogMatcher:
                     title=entry.title,
                     confidence="high",
                     catalog_source=source,
+                    platform=_platform_from_dat_name(source),
                 )
 
         if filename is None:
@@ -133,12 +198,14 @@ class CatalogMatcher:
                         title=entry.title,
                         confidence="medium",
                         catalog_source=source,
+                        platform=_platform_from_dat_name(source),
                     )
                 return MatchResult(
                     title=entry.title,
                     confidence="low",
                     catalog_source=source,
                     ambiguous=True,
+                    platform=_platform_from_dat_name(source),
                 )
 
         # Pass 3 — Arcade stem lookup (MAME / FBNeo)

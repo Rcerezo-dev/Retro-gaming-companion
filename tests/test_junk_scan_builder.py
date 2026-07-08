@@ -60,6 +60,56 @@ def test_junk_scan_gaming_false_positives(tmp_path: Path) -> None:
     assert result["total_junk_files"] == 0
 
 
+def test_junk_scan_gaming_false_positives_2(tmp_path: Path) -> None:
+    """JUNK-FIX-3: savestates VBA, NVRAM arcade, saves Sega CD, FDS, C64, shaders, hiscores."""
+    (tmp_path / "pokemon.sgm").write_bytes(b"x")
+    (tmp_path / "pacman.nv").write_bytes(b"x")
+    (tmp_path / "lunar.brm").write_bytes(b"x")
+    (tmp_path / "lunar.brmc").write_bytes(b"x")
+    (tmp_path / "zelda.fds").write_bytes(b"x")
+    (tmp_path / "commando.crt").write_bytes(b"x")
+    (tmp_path / "commando.prg").write_bytes(b"x")
+    (tmp_path / "crt-royale.fx").write_bytes(b"x")
+    (tmp_path / "pacman.hi").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 0
+
+
+def test_junk_scan_zip_in_platform_folder_is_not_junk(tmp_path: Path) -> None:
+    """JUNK-FIX-4: a .zip inside a recognized platform folder IS the ROM, not junk.
+
+    Found on the real library: 2.982 legitimate arcade romsets in arcade\\ plus
+    thousands more across snes\\/gba\\/etc. were all flagged as "ZIPs no-ROM" —
+    deleting that category would have wiped the arcade collection.
+    """
+    (tmp_path / "snes" / "Chrono Trigger (USA).zip").parent.mkdir(parents=True)
+    (tmp_path / "snes" / "Chrono Trigger (USA).zip").write_bytes(b"x")
+    (tmp_path / "arcade" / "pacman.zip").parent.mkdir(parents=True)
+    (tmp_path / "arcade" / "pacman.zip").write_bytes(b"x")
+    (tmp_path / "cps3" / "fbneo" / "jojoba.fs").parent.mkdir(parents=True)
+    (tmp_path / "cps3" / "fbneo" / "jojoba.fs").write_bytes(b"x")
+    (tmp_path / "ps2" / "Some Game.part1.rar").parent.mkdir(parents=True)
+    (tmp_path / "ps2" / "Some Game.part1.rar").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 0
+
+
+def test_junk_scan_zip_outside_platform_folder_still_junk(tmp_path: Path) -> None:
+    """A .zip loose in an unrecognized folder (e.g. Unknown\\) still needs review."""
+    (tmp_path / "Unknown" / "Nintendo - SNES.zip").parent.mkdir(parents=True)
+    (tmp_path / "Unknown" / "Nintendo - SNES.zip").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 1
+    assert result["categories"][0]["category"] == "ZIPs no-ROM"
+
+
+def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:
+    (tmp_path / "System Volume Information").mkdir()
+    (tmp_path / "System Volume Information" / "WPSettings.dat").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 0
+
+
 def test_junk_scan_skips_saves_bios_android_trees(tmp_path: Path) -> None:
     """JUNK-FIX-1/2: saves/, BIOS/ y Android/ no se escanean (a cualquier nivel)."""
     (tmp_path / "saves" / "nds").mkdir(parents=True)
