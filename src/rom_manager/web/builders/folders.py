@@ -80,6 +80,15 @@ def _build_junk_scan(folder_path: str) -> dict:
         ".jpeg",
         ".mp4",
         ".webp",
+        ".sgm",
+        ".nv",
+        ".brm",
+        ".brmc",
+        ".fds",
+        ".crt",
+        ".prg",
+        ".fx",
+        ".hi",
     }
     _CONFIG_EXTS = {
         ".cfg",
