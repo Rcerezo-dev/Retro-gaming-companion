@@ -334,6 +334,7 @@ def _run_setup_pipeline(
                             canonical_title=m.title,
                             match_confidence=m.confidence,
                             catalog_source=m.catalog_source,
+                            platform=m.platform,
                             connection=conn,
                         )
                         matched += 1
@@ -475,6 +476,7 @@ def _run_inbox_pipeline(
                         canonical_title=match_result.title,
                         match_confidence=match_result.confidence,
                         catalog_source=match_result.catalog_source,
+                        platform=match_result.platform,
                         connection=conn,
                     )
                     matched += 1
