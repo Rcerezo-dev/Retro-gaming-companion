@@ -41,6 +41,7 @@ def _build_junk_scan(folder_path: str) -> dict:
         ".gdi",
         ".pbp",
         ".gcm",
+        ".rvz",
         ".nsp",
         ".xci",
         ".pce",
@@ -66,6 +67,7 @@ def _build_junk_scan(folder_path: str) -> dict:
         ".srm",
         ".state",
         ".sta",
+        ".ml1",
         ".mcr",
         ".mc",
         ".mem",
@@ -135,12 +137,18 @@ def _build_junk_scan(folder_path: str) -> dict:
     categories: dict[str, list[dict]] = {}
     total_junk_bytes = 0
 
+    # Savestates numerados de RetroArch (.state1, .state23…) — solo .state está
+    # en la whitelist y los slots extra salían como falsos positivos
+    _numbered_state = _re.compile(r"\.state\d+$")
+
     for dirpath, dirs, files in _os.walk(p):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        # Los árboles saves/ los gestiona el sync, no la limpieza de basura:
+        # contienen formatos por-emulador imposibles de whitelistar
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() != "saves"]
         for fname in files:
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
-            if ext in _GAMING_EXTS or ext in _CONFIG_EXTS:
+            if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
                 continue
             cat = _JUNK_CATEGORIES.get(ext, f"Otros ({ext or 'sin extensión'})")
             try:
