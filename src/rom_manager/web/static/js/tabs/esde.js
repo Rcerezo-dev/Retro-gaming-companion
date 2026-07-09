@@ -739,13 +739,27 @@ export function _renderJunkResult(result) {
   html += '<div style="max-height:420px;overflow-y:auto;border:1px solid #222;border-radius:4px">';
   cats.forEach((c, i) => {
     const shown = c.files || [];
+    // JUNK-SMART-3: solo safe_delete es seleccionable de entrada; review exige
+    // expandir "Ver archivos" antes; misplaced (mover, no borrar) nunca
+    const conf = c.confidence || 'safe_delete';
+    const badge = conf === 'review'
+      ? '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--c-amber);color:#000">revisar</span>'
+      : conf === 'misplaced'
+        ? '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--c-teal);color:#000">no borrar — mover</span>'
+        : '';
+    const cbAttrs = conf === 'misplaced'
+      ? 'disabled title="No es basura: hay que mover/organizar estos archivos"'
+      : conf === 'review'
+        ? 'disabled data-review="1" title="Abre \'Ver archivos\' para poder seleccionar"'
+        : '';
     html += `<div style="border-bottom:1px solid #222">
       <div style="display:flex;gap:8px;align-items:center;padding:6px;background:var(--c-panel)">
-        <input type="checkbox" id="junk-cat-cb-${i}" onchange="window.junkToggleCat(${i})">
+        <input type="checkbox" id="junk-cat-cb-${i}" ${cbAttrs} onchange="window.junkToggleCat(${i})">
         <label for="junk-cat-cb-${i}" style="flex:1;font-size:12px;font-weight:600;color:var(--c-amber);cursor:pointer">${_h(c.category)}</label>
+        ${badge}
         <span style="font-size:11px;color:var(--c-muted)">${c.count} archivos · ${_fmtSize(c.total_bytes)}</span>
       </div>
-      <details style="padding:0 6px 4px 26px">
+      <details style="padding:0 6px 4px 26px" ${conf === 'review' ? `ontoggle="window.junkRevealCat(${i})"` : ''}>
         <summary style="font-size:11px;color:var(--c-hint);cursor:pointer">Ver archivos${c.count > shown.length ? ` (${shown.length} mayores de ${c.count})` : ''}</summary>
         ${shown.map(f => `<div style="font-size:11px;padding:2px 0;display:flex;gap:8px">
           <code style="color:var(--c-orange);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(f.full_path)}">${_h(f.path)}</code>
@@ -778,14 +792,29 @@ export function junkToggleCat(idx) {
 }
 
 export function junkSelectAll() {
+  // JUNK-SMART-3: "Seleccionar todo" solo toca las categorías habilitadas
+  // (safe_delete + las review ya reveladas); misplaced queda siempre fuera
   const cats = _junkResults?.categories || [];
-  const allSelected = _junkSelected.size === cats.length;
-  _junkSelected = allSelected ? new Set() : new Set(cats.map((_, i) => i));
-  cats.forEach((_, i) => {
+  const selectable = cats.map((_, i) => i).filter(i => {
+    const cb = document.getElementById(`junk-cat-cb-${i}`);
+    return cb && !cb.disabled;
+  });
+  const allSelected = selectable.length > 0 && selectable.every(i => _junkSelected.has(i));
+  _junkSelected = allSelected ? new Set() : new Set(selectable);
+  selectable.forEach(i => {
     const cb = document.getElementById(`junk-cat-cb-${i}`);
     if (cb) cb.checked = !allSelected;
   });
   _updateJunkDeleteBtn();
+}
+
+export function junkRevealCat(idx) {
+  // El usuario ha abierto "Ver archivos" de una categoría review → ya puede seleccionarla
+  const cb = document.getElementById(`junk-cat-cb-${idx}`);
+  if (cb && cb.disabled && cb.dataset.review) {
+    cb.disabled = false;
+    cb.title = '';
+  }
 }
 
 export function junkCatCheck(idx) {
@@ -801,7 +830,11 @@ export async function junkDelete() {
     return;
   }
 
-  if (!confirm(`¿Eliminar ${paths.length} archivos de ${_junkSelected.size} categoría(s)?\n\nEsta acción no se puede deshacer.`)) return;
+  const reviewCats = [..._junkSelected].filter(i => (cats[i]?.confidence) === 'review');
+  const reviewWarn = reviewCats.length
+    ? `\n\n⚠ Incluye ${reviewCats.length} categoría(s) marcadas "revisar" — comprueba la lista antes.`
+    : '';
+  if (!confirm(`¿Eliminar ${paths.length} archivos de ${_junkSelected.size} categoría(s)?${reviewWarn}\n\nEsta acción no se puede deshacer.`)) return;
 
   const btn = document.getElementById('btn-junk-delete');
   if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }

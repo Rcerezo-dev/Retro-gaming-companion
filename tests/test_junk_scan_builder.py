@@ -190,6 +190,26 @@ def test_junk_scan_zip_in_platform_folder_ignored_even_with_tier(tmp_path: Path)
     assert result["total_junk_files"] == 0
 
 
+def test_junk_scan_confidence_labels(tmp_path: Path) -> None:
+    """JUNK-SMART-3: safe_delete por extensión; review con evidencia; misplaced = mover."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    (unknown / "doc.pdf").write_bytes(b"x")
+    (unknown / "u082.bin").write_bytes(b"x")
+    (unknown / "naomi.zip").write_bytes(b"x")
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files={"naomi.zip"},
+    )
+    conf = {c["category"]: c["confidence"] for c in result["categories"]}
+    assert conf["PDFs"] == "safe_delete"
+    assert conf["Chips sueltos (sin match en catálogo)"] == "review"
+    assert conf["BIOS conocidas (mover a bios/, no borrar)"] == "misplaced"
+
+
 def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:
     (tmp_path / "System Volume Information").mkdir()
     (tmp_path / "System Volume Information" / "WPSettings.dat").write_bytes(b"x")

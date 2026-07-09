@@ -54,6 +54,20 @@ _ZIP_CAT_COLLECTION = "Colecciones fuente (revisar)"
 # si falla con nombres raros, JUNK-SMART-3 la deja en `review`, nunca auto-borrado
 _COLLECTION_MIN_BYTES = 1024**3
 
+# JUNK-SMART-3: confianza por categoría. safe_delete = basura por extensión
+# (tier 0, borrable en masa); review = probable basura pero mirar antes
+# (lección de INBOX-FIX-5); misplaced = NO es basura, hay que mover/organizar.
+_CATEGORY_CONFIDENCE = {
+    _CHIP_CATEGORY: "review",
+    _ZIP_CAT_INFRA: "review",
+    _ZIP_CAT_COLLECTION: "review",
+    "ZIPs no-ROM": "review",
+    "RARs": "review",
+    "7-Zips": "review",
+    _ZIP_CAT_BIOS: "misplaced",
+    _ZIP_CAT_ARCADE: "misplaced",
+}
+
 
 def _build_junk_scan(
     folder_path: str,
@@ -282,6 +296,7 @@ def _build_junk_scan(
         cat_list.append(
             {
                 "category": cat,
+                "confidence": _CATEGORY_CONFIDENCE.get(cat, "safe_delete"),
                 "count": len(files_list),
                 "total_bytes": total,
                 "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:50],
