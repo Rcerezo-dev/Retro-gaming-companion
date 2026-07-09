@@ -43,8 +43,25 @@ _CHIP_MAX_BYTES = 8 * 1024 * 1024  # every chip found in JUNK-CLEAN-1 was ≤8 M
 _CHIP_STEM = _re.compile(r"^[a-z0-9]{0,4}[-_.]?\d{1,5}[a-z]{0,2}$", _re.IGNORECASE)
 _CHIP_CATEGORY = "Chips sueltos (sin match en catálogo)"
 
+# JUNK-SMART-2: subcategorías de ZIPs sueltos fuera de carpeta de plataforma,
+# clasificados con lo que la app ya sabe (catálogo arcade, XML de MAME,
+# _KNOWN_BIOS_MAP). Sin evidencia siguen en "ZIPs no-ROM".
+_ZIP_CAT_BIOS = "BIOS conocidas (mover a bios/, no borrar)"
+_ZIP_CAT_INFRA = "Infraestructura MAME (bios/devices, no jugable)"
+_ZIP_CAT_ARCADE = "ROMs arcade sin organizar (no borrar)"
+_ZIP_CAT_COLLECTION = "Colecciones fuente (revisar)"
+# ponytail: heurística de colección = "Vendor - Plataforma" en el nombre o >1 GB;
+# si falla con nombres raros, JUNK-SMART-3 la deja en `review`, nunca auto-borrado
+_COLLECTION_MIN_BYTES = 1024**3
 
-def _build_junk_scan(folder_path: str, matched_paths: set[str] | None = None) -> dict:
+
+def _build_junk_scan(
+    folder_path: str,
+    matched_paths: set[str] | None = None,
+    arcade_names: set[str] | None = None,
+    mame_infra_names: set[str] | None = None,
+    known_bios_files: set[str] | None = None,
+) -> dict:
     """Scan a folder and classify non-gaming files as junk.
 
     *matched_paths* (JUNK-SMART-1) enables the evidence tier: normalized
@@ -52,6 +69,12 @@ def _build_junk_scan(folder_path: str, matched_paths: set[str] | None = None) ->
     .bin/.rom files that look like loose romset chips get their own category;
     without it (``None``) those extensions are skipped as before — the setup
     pipeline deletes everything this returns, so the tier stays off there.
+
+    *arcade_names* (JUNK-SMART-2) enables loose-ZIP classification (empty sets
+    are fine — ``None`` keeps everything in "ZIPs no-ROM" as before):
+    lowercase stems of playable arcade sets; *mame_infra_names* are the
+    BIOS/device/non-runnable stems from the MAME XML; *known_bios_files* are
+    lowercase filenames from ``_KNOWN_BIOS_MAP``.
     """
     _GAMING_EXTS = {
         ".gba",
@@ -209,6 +232,19 @@ def _build_junk_scan(folder_path: str, matched_paths: set[str] | None = None) ->
                 if dir_has_cue or not _CHIP_STEM.match(fpath.stem):
                     continue
                 cat = _CHIP_CATEGORY
+            elif ext == ".zip" and not in_platform_folder and arcade_names is not None:
+                # JUNK-SMART-2: un ZIP suelto se clasifica por lo que ya sabemos de él
+                stem = fpath.stem.lower()
+                if known_bios_files and fname.lower() in known_bios_files:
+                    cat = _ZIP_CAT_BIOS
+                elif mame_infra_names and stem in mame_infra_names:
+                    cat = _ZIP_CAT_INFRA
+                elif stem in arcade_names:
+                    cat = _ZIP_CAT_ARCADE
+                elif " - " in fpath.stem:
+                    cat = _ZIP_CAT_COLLECTION
+                else:
+                    cat = _JUNK_CATEGORIES[".zip"]
             else:
                 if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
                     continue
@@ -221,6 +257,14 @@ def _build_junk_scan(folder_path: str, matched_paths: set[str] | None = None) ->
                 size = 0
             if cat == _CHIP_CATEGORY and size > _CHIP_MAX_BYTES:
                 continue
+            # JUNK-SMART-2: un ZIP sin nombre reconocible pero enorme es colección
+            if (
+                cat == _JUNK_CATEGORIES[".zip"]
+                and ext == ".zip"
+                and arcade_names is not None
+                and size >= _COLLECTION_MIN_BYTES
+            ):
+                cat = _ZIP_CAT_COLLECTION
             total_junk_bytes += size
             if cat not in categories:
                 categories[cat] = []

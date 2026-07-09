@@ -72,6 +72,37 @@ def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
     return result
 
 
+def load_arcade_infra_names(directory: Path) -> set[str]:
+    """Set names that ``load_mame_xml`` skips: BIOS, devices, non-runnable.
+
+    These are the loose ZIPs in an unorganized library that will never match
+    the playable catalog (JUNK-SMART-2) — c1541.zip, kb_pcat101.zip, sb16.zip…
+    Only MAME XML carries the flags; FBNeo DATs are ignored.
+    """
+    names: set[str] = set()
+    if not directory.exists():
+        return names
+    for f in sorted(directory.iterdir()):
+        if f.suffix.lower() != ".xml":
+            continue
+        try:
+            tree = ET.parse(f)
+            root = tree.getroot()
+            machines = root.iter("machine") if root.tag != "datafile" else root.iter("game")
+            for machine in machines:
+                if (
+                    machine.get("isbios") == "yes"
+                    or machine.get("isdevice") == "yes"
+                    or machine.get("runnable") == "no"
+                ):
+                    name = machine.get("name", "").strip().lower()
+                    if name:
+                        names.add(name)
+        except (ET.ParseError, OSError):
+            pass
+    return names
+
+
 def load_arcade_dir(directory: Path) -> dict[str, tuple[str, str, str, str]]:
     """Load all arcade catalog files from *directory*.
 

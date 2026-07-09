@@ -153,7 +153,9 @@ def register_maintenance(
         if not folder:
             ctx._send_json({"error": "path required"})
             return
+        from rom_manager.catalog.mame_loader import load_arcade_dir, load_arcade_infra_names
         from rom_manager.web.builders.folders import _build_junk_scan
+        from rom_manager.web.inbox_pipeline import _KNOWN_BIOS_MAP
 
         # JUNK-SMART-1: rutas con match de catálogo — evidencia de "no es basura"
         with repository.connect() as conn:
@@ -161,7 +163,21 @@ def register_maintenance(
                 "SELECT source_path FROM games WHERE canonical_title IS NOT NULL"
             ).fetchall()
         matched = {os.path.normpath(r[0]).lower() for r in rows}
-        ctx._send_json(_build_junk_scan(folder, matched_paths=matched))
+        # JUNK-SMART-2: conocimiento arcade para clasificar ZIPs sueltos
+        # ponytail: se parsea el catálogo en cada scan; cachear si algún día duele
+        arcade_dir = config.catalogs_arcade_dir
+        arcade_names = set(load_arcade_dir(arcade_dir)) if arcade_dir else set()
+        infra_names = load_arcade_infra_names(arcade_dir) if arcade_dir else set()
+        known_bios = {k for k in _KNOWN_BIOS_MAP if k.endswith(".zip")}
+        ctx._send_json(
+            _build_junk_scan(
+                folder,
+                matched_paths=matched,
+                arcade_names=arcade_names,
+                mame_infra_names=infra_names,
+                known_bios_files=known_bios,
+            )
+        )
 
     # ── POST /api/junk-delete ─────────────────────────────────────────────────
     @router.post("/api/junk-delete")
