@@ -198,10 +198,26 @@ conocimiento para decidir sola; hoy no lo usa.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | JUNK-SMART-1 | **Tier de evidencia sobre la whitelist** — mantener la whitelist actual como filtro barato (tier 0: `.pdf`, `.exe`… siguen siendo basura obvia); añadir tier 1 para extensiones ambiguas (`.bin`, `.rom`, `.zip` fuera de carpeta de plataforma): join por ruta contra `games` → con match = skip; sin match + patrón de nombre de chip + sin `.cue` en el árbol → categoría nueva "Chips sueltos (sin match en catálogo)". `_build_junk_scan` recibe `repository` como parámetro (sigue siendo función pura, el handler se lo pasa). | `web/builders/folders.py`, `web/handlers/` (call-site) | ✅ rama `feature/junk-smart-1-evidence-tier` — el builder recibe `matched_paths` (set de rutas con `canonical_title` en BD, lo consulta el handler; con `None` el tier queda apagado → el setup pipeline, que borra lo devuelto, no cambia). Señales: sin match + stem de chip + sin `.cue` en la carpeta + ≤8 MB. Verificado contra biblioteca real: 93 chips `.rom` en `arcade\` detectados (antes invisibles), 0 falsos positivos. 3 tests nuevos (625 pass) |
-| JUNK-SMART-2 | **Clasificar ZIPs sueltos por nombre de set MAME** — `load_mame_xml` devuelve además el set de nombres bios/device excluidos (o loader hermano); el junk-scan clasifica `.zip` de `Unknown\`: stem en catálogo arcade jugable → "ROM arcade sin organizar (no borrar)"; stem en set bios/device → "Infraestructura MAME"; stem en `_KNOWN_BIOS_MAP` → "BIOS (mover)"; patrón `Vendor - Plataforma.zip` o >1 GB → "Colección fuente (revisar)". Resuelve de raíz la categoría más grande del scan actual ("ZIPs no-ROM", 5.852 falsos en Día38). | `catalog/mame_loader.py`, `web/builders/folders.py` | ⬜ |
+| JUNK-SMART-2 | **Clasificar ZIPs sueltos por nombre de set MAME** — `load_mame_xml` devuelve además el set de nombres bios/device excluidos (o loader hermano); el junk-scan clasifica `.zip` de `Unknown\`: stem en catálogo arcade jugable → "ROM arcade sin organizar (no borrar)"; stem en set bios/device → "Infraestructura MAME"; stem en `_KNOWN_BIOS_MAP` → "BIOS (mover)"; patrón `Vendor - Plataforma.zip` o >1 GB → "Colección fuente (revisar)". Resuelve de raíz la categoría más grande del scan actual ("ZIPs no-ROM", 5.852 falsos en Día38). | `catalog/mame_loader.py`, `web/builders/folders.py` | ✅ rama `feature/junk-smart-2-mame-zip-classes` (apilada sobre JUNK-SMART-1) — loader nuevo `load_arcade_infra_names()` (los nombres que `load_mame_xml` descarta); el builder recibe `arcade_names`/`mame_infra_names`/`known_bios_files` (los construye el handler; con `None` no cambia nada). Verificado contra biblioteca real: los 1.305 "ZIPs no-ROM" se separan en 1.036 infraestructura MAME + 56 colecciones (27 GB) + 5 arcade + 208 genuinamente sin identificar. 5 tests nuevos (630 pass) |
 | JUNK-SMART-3 | **Confianza por categoría en la UI** — cada categoría lleva etiqueta `safe_delete` / `review` / `misplaced` (esto es "no borrar, organizar/mover"); el botón de borrado masivo solo se habilita para `safe_delete`, el resto exige expandir y confirmar. Evita repetir el susto de INBOX-FIX-5. | `web/builders/folders.py`, `web/static/js/tabs/esde.js` | ⬜ |
 
 > Orden: 1 → 2 → 3 (cada una es útil sola; 3 depende de que 1-2 emitan la etiqueta).
+
+---
+
+## TEST-CLEAN — Tests que prueban código muerto (auditoría 2026-07-09)
+
+Origen: auditoría de la suite (625 tests / 463 funciones; el resto es
+parametrización de funciones puras — sano). Cero skips, todo pasa en ~12 s.
+El único problema real: 3 módulos de `src/` sin **ningún** call-site en `src/`
+(solo los referencian sus tests), es decir, 29 tests en verde validando código
+que la app nunca ejecuta.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| TEST-CLEAN-1 | **Borrar `catalog/dat_downloader.py` + sus 17 tests** — la descarga de DATs vive reimplementada en `web/handlers/scan.py` (`_run_dat_download`, `scan.py:590`, catálogo en `scan.py:12`), que es lo que la UI usa y ya cubre `test_dat_catalog_age.py` (12 tests). El módulo del catálogo es una implementación paralela sin imports. Actualizar la nota de ARCADE-SETUP-3 ("DAT downloader wired") que apunta al módulo equivocado. | `catalog/dat_downloader.py`, `tests/test_dat_downloader.py` | ⬜ |
+| TEST-CLEAN-2 | **Borrar `renamer/cue_rewriter.py` + sus 6 tests, y corregir la doc** — la estrategia PSX actual es `move_disc_set_to_subfolder` (`renamer/file_renamer.py:126`): mueve cue+bins a subcarpeta **conservando los nombres de los bins**, así que nunca reescribe el `.cue`. `rewrite_cue` es la estrategia antigua, sin call-sites. Ojo: el Debug Playbook (este archivo) y `CLAUDE.md` aún dicen "Renombrado PSX roto → `cue_rewriter.py`" — actualizar ambos o un futuro debug seguirá una pista falsa. | `renamer/cue_rewriter.py`, `tests/test_cue_rewriter.py`, `CLAUDE.md`, backlog | ⬜ |
+| TEST-CLEAN-3 | **Borrar `scanner/save_scanner.py`** — sin referencias en `src/` ni tests; los saves los gestiona `sync/`. Código muerto sin más. | `scanner/save_scanner.py` | ⬜ |
 
 ---
 

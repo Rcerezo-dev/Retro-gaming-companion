@@ -148,6 +148,48 @@ def test_junk_scan_chip_tier_respects_evidence(tmp_path: Path) -> None:
     assert result["total_junk_files"] == 0
 
 
+def test_junk_scan_zip_classification_by_arcade_knowledge(tmp_path: Path) -> None:
+    """JUNK-SMART-2: los ZIPs sueltos se separan por catálogo arcade / MAME / BIOS."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    (unknown / "sf2.zip").write_bytes(b"x")  # set arcade jugable
+    (unknown / "kb_pcat101.zip").write_bytes(b"x")  # device MAME
+    (unknown / "naomi.zip").write_bytes(b"x")  # BIOS conocida
+    (unknown / "Nintendo - SNES.zip").write_bytes(b"x")  # colección fuente
+    (unknown / "misterio.zip").write_bytes(b"x")  # sin evidencia
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names={"sf2"},
+        mame_infra_names={"kb_pcat101"},
+        known_bios_files={"naomi.zip"},
+    )
+    by_cat = {c["category"]: [f["path"] for f in c["files"]] for c in result["categories"]}
+    assert by_cat["ROMs arcade sin organizar (no borrar)"] == [str(Path("Unknown/sf2.zip"))]
+    assert by_cat["Infraestructura MAME (bios/devices, no jugable)"] == [
+        str(Path("Unknown/kb_pcat101.zip"))
+    ]
+    assert by_cat["BIOS conocidas (mover a bios/, no borrar)"] == [str(Path("Unknown/naomi.zip"))]
+    assert by_cat["Colecciones fuente (revisar)"] == [str(Path("Unknown/Nintendo - SNES.zip"))]
+    assert by_cat["ZIPs no-ROM"] == [str(Path("Unknown/misterio.zip"))]
+
+
+def test_junk_scan_zip_tier_off_without_arcade_names(tmp_path: Path) -> None:
+    """JUNK-SMART-2: sin arcade_names (setup pipeline) todo ZIP suelto sigue en 'ZIPs no-ROM'."""
+    (tmp_path / "sf2.zip").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path), matched_paths=set())
+    assert result["categories"][0]["category"] == "ZIPs no-ROM"
+
+
+def test_junk_scan_zip_in_platform_folder_ignored_even_with_tier(tmp_path: Path) -> None:
+    """JUNK-SMART-2: un ZIP dentro de carpeta de plataforma sigue sin ser basura."""
+    (tmp_path / "arcade").mkdir()
+    (tmp_path / "arcade" / "sf2.zip").write_bytes(b"x")
+    result = _build_junk_scan(str(tmp_path), matched_paths=set(), arcade_names={"sf2"})
+    assert result["total_junk_files"] == 0
+
+
 def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:
     (tmp_path / "System Volume Information").mkdir()
     (tmp_path / "System Volume Information" / "WPSettings.dat").write_bytes(b"x")
