@@ -31,9 +31,28 @@ _RECOGNIZED_PLATFORM_FOLDERS = set(PLATFORM_BY_FOLDER) | {
     v.lower() for v in _ES_PLATFORM_FOLDERS.values()
 }
 
+# JUNK-SMART-1: .bin/.rom are gaming extensions but also the classic disguise of
+# loose arcade-romset chips (Día39: 3.309 chips u082.bin-style passed the
+# whitelist clean). They only get flagged when the evidence agrees: no catalog
+# match in the DB, chip-style name, no .cue sibling, and small file.
+_CHIP_CANDIDATE_EXTS = {".bin", ".rom"}
+_CHIP_MAX_BYTES = 8 * 1024 * 1024  # every chip found in JUNK-CLEAN-1 was ≤8 MB
+# ponytail: naive stem heuristic (u082, ic12, mpr-12345a…); it also matches
+# bare numeric titles like "1942" — acceptable because the category is
+# review-only, never auto-delete (JUNK-SMART-3 tags it `review`)
+_CHIP_STEM = _re.compile(r"^[a-z0-9]{0,4}[-_.]?\d{1,5}[a-z]{0,2}$", _re.IGNORECASE)
+_CHIP_CATEGORY = "Chips sueltos (sin match en catálogo)"
 
-def _build_junk_scan(folder_path: str) -> dict:
-    """Scan a folder and classify non-gaming files as junk."""
+
+def _build_junk_scan(folder_path: str, matched_paths: set[str] | None = None) -> dict:
+    """Scan a folder and classify non-gaming files as junk.
+
+    *matched_paths* (JUNK-SMART-1) enables the evidence tier: normalized
+    lowercase paths of files with a catalog match in the DB. With it, unmatched
+    .bin/.rom files that look like loose romset chips get their own category;
+    without it (``None``) those extensions are skipped as before — the setup
+    pipeline deletes everything this returns, so the tier stays off there.
+    """
     _GAMING_EXTS = {
         ".gba",
         ".gb",
@@ -53,7 +72,7 @@ def _build_junk_scan(folder_path: str) -> dict:
         ".iso",
         ".chd",
         ".cue",
-        ".bin",
+        # .bin/.rom viven en _CHIP_CANDIDATE_EXTS (tier de evidencia), no aquí
         ".cdi",
         ".gdi",
         ".pbp",
@@ -78,7 +97,6 @@ def _build_junk_scan(folder_path: str) -> dict:
         ".ecm",
         ".nrg",
         ".ccd",
-        ".rom",
         ".bios",
         ".sav",
         ".srm",
@@ -177,18 +195,32 @@ def _build_junk_scan(folder_path: str) -> dict:
         dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in _excluded_dirs]
         rel_parts = _Path(dirpath).relative_to(p).parts
         in_platform_folder = any(part.lower() in _RECOGNIZED_PLATFORM_FOLDERS for part in rel_parts)
+        dir_has_cue = any(f.lower().endswith(".cue") for f in files)
         for fname in files:
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
-            if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
-                continue
-            if ext in _CONTEXT_GAMING_EXTS and in_platform_folder:
-                continue
-            cat = _JUNK_CATEGORIES.get(ext, f"Otros ({ext or 'sin extensión'})")
+            if ext in _CHIP_CANDIDATE_EXTS:
+                # Tier de evidencia (JUNK-SMART-1): extensión gaming, pero si la BD
+                # no lo reconoce y todo apunta a chip suelto, va a categoría propia
+                if matched_paths is None:
+                    continue
+                if _os.path.normpath(str(fpath)).lower() in matched_paths:
+                    continue
+                if dir_has_cue or not _CHIP_STEM.match(fpath.stem):
+                    continue
+                cat = _CHIP_CATEGORY
+            else:
+                if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
+                    continue
+                if ext in _CONTEXT_GAMING_EXTS and in_platform_folder:
+                    continue
+                cat = _JUNK_CATEGORIES.get(ext, f"Otros ({ext or 'sin extensión'})")
             try:
                 size = fpath.stat().st_size
             except OSError:
                 size = 0
+            if cat == _CHIP_CATEGORY and size > _CHIP_MAX_BYTES:
+                continue
             total_junk_bytes += size
             if cat not in categories:
                 categories[cat] = []

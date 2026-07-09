@@ -103,6 +103,51 @@ def test_junk_scan_zip_outside_platform_folder_still_junk(tmp_path: Path) -> Non
     assert result["categories"][0]["category"] == "ZIPs no-ROM"
 
 
+def test_junk_scan_chip_tier_off_without_matched_paths(tmp_path: Path) -> None:
+    """JUNK-SMART-1: sin matched_paths (setup pipeline) los .bin/.rom nunca se marcan."""
+    (tmp_path / "u082.bin").write_bytes(b"x" * 10)
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 0
+
+
+def test_junk_scan_chip_tier_flags_unmatched_chips(tmp_path: Path) -> None:
+    """JUNK-SMART-1: chip suelto = sin match en BD + nombre de chip + sin .cue + ≤8 MB."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    (unknown / "u082.bin").write_bytes(b"x" * 10)
+    (unknown / "mpr-12345a.rom").write_bytes(b"x" * 10)
+    (unknown / "ic12.bin").write_bytes(b"x" * 10)
+    result = _build_junk_scan(str(tmp_path), matched_paths=set())
+
+    (cat,) = result["categories"]
+    assert cat["category"] == "Chips sueltos (sin match en catálogo)"
+    assert cat["count"] == 3
+
+
+def test_junk_scan_chip_tier_respects_evidence(tmp_path: Path) -> None:
+    """JUNK-SMART-1: match en BD, nombre de juego, .cue hermano o >8 MB → no es chip."""
+    import os
+
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    # 1. Nombre de chip pero con match de catálogo en la BD
+    matched_chip = unknown / "c1.bin"
+    matched_chip.write_bytes(b"x" * 10)
+    # 2. Nombre de juego real (patrón No-Intro) — nunca parece chip
+    (unknown / "Alien Crush (Japan) (En).bin").write_bytes(b"x" * 10)
+    # 3. Nombre de chip pero con .cue en la misma carpeta (set de disco)
+    disc = tmp_path / "psx-game"
+    disc.mkdir()
+    (disc / "track01.cue").write_bytes(b"x")
+    (disc / "01.bin").write_bytes(b"x" * 10)
+    # 4. Nombre de chip pero >8 MB (los chips reales eran todos ≤8 MB)
+    (unknown / "u999.bin").write_bytes(b"x" * (8 * 1024 * 1024 + 1))
+
+    matched = {os.path.normpath(str(matched_chip)).lower()}
+    result = _build_junk_scan(str(tmp_path), matched_paths=matched)
+    assert result["total_junk_files"] == 0
+
+
 def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:
     (tmp_path / "System Volume Information").mkdir()
     (tmp_path / "System Volume Information" / "WPSettings.dat").write_bytes(b"x")

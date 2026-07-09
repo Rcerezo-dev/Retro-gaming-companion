@@ -155,7 +155,13 @@ def register_maintenance(
             return
         from rom_manager.web.builders.folders import _build_junk_scan
 
-        ctx._send_json(_build_junk_scan(folder))
+        # JUNK-SMART-1: rutas con match de catálogo — evidencia de "no es basura"
+        with repository.connect() as conn:
+            rows = conn.execute(
+                "SELECT source_path FROM games WHERE canonical_title IS NOT NULL"
+            ).fetchall()
+        matched = {os.path.normpath(r[0]).lower() for r in rows}
+        ctx._send_json(_build_junk_scan(folder, matched_paths=matched))
 
     # ── POST /api/junk-delete ─────────────────────────────────────────────────
     @router.post("/api/junk-delete")

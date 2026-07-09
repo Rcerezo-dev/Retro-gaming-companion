@@ -169,6 +169,42 @@ duplicados de verdad (SHA1 distinto). Ya arreglado: compara SHA1 antes de borrar
 
 ---
 
+## JUNK-SMART — Clasificador de basura basado en evidencia (diseño 2026-07-08)
+
+Origen: Día39 demostró que la whitelist de extensiones de `_build_junk_scan`
+(`web/builders/folders.py:37`) falla en las dos direcciones — falsos positivos
+que exigieron 3 rondas de parches (JUNK-FIX-1/2/3: `.rvz`, `.sms`, `.sgm`,
+`.nv`…) y falsos negativos (3.309 chips arcade con extensión gaming
+`.bin`/`.rom` pasaron limpios y hubo que borrarlos con criterio manual:
+≤8 MB + nombre de chip + cero `.cue` en el árbol). La app ya tiene el
+conocimiento para decidir sola; hoy no lo usa.
+
+**Fuentes de evidencia ya existentes (todas gratis, sin hashear de nuevo):**
+
+1. **BD `games`** — `sha1` indexado (`database/schema.py:41,62`) para todo
+   archivo con extensión gaming ya escaneado. Un archivo con match de catálogo
+   (`canonical_title`/`catalog_source`) **nunca** es basura.
+2. **Catálogos DAT** — tablas keyed por SHA1 (`database/schema.py:178,185`).
+   SHA1 presente en No-Intro/Redump → ROM real, da igual la extensión.
+3. **MAME XML** — `catalog/mame_loader.py:32` parsea `isbios`/`isdevice`/
+   `runnable=no` y los **descarta**. Guardarlos en un set aparte identifica
+   directamente la categoría 5 de JUNK-REVIEW-1 (`c1541.zip`,
+   `kb_pcat101.zip`, `sb16.zip`… = infraestructura MAME, no juegos).
+4. **`_KNOWN_BIOS_MAP`** (`web/inbox_pipeline.py`) — ZIPs BIOS con destino
+   conocido → "mover a bios/", no borrar.
+5. **Señales de contexto validadas en JUNK-CLEAN-1**: nombre de chip
+   (`u082.bin`, `c1`, `ic12`…), tamaño ≤8 MB, ausencia de `.cue` hermano.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JUNK-SMART-1 | **Tier de evidencia sobre la whitelist** — mantener la whitelist actual como filtro barato (tier 0: `.pdf`, `.exe`… siguen siendo basura obvia); añadir tier 1 para extensiones ambiguas (`.bin`, `.rom`, `.zip` fuera de carpeta de plataforma): join por ruta contra `games` → con match = skip; sin match + patrón de nombre de chip + sin `.cue` en el árbol → categoría nueva "Chips sueltos (sin match en catálogo)". `_build_junk_scan` recibe `repository` como parámetro (sigue siendo función pura, el handler se lo pasa). | `web/builders/folders.py`, `web/handlers/` (call-site) | ✅ rama `feature/junk-smart-1-evidence-tier` — el builder recibe `matched_paths` (set de rutas con `canonical_title` en BD, lo consulta el handler; con `None` el tier queda apagado → el setup pipeline, que borra lo devuelto, no cambia). Señales: sin match + stem de chip + sin `.cue` en la carpeta + ≤8 MB. Verificado contra biblioteca real: 93 chips `.rom` en `arcade\` detectados (antes invisibles), 0 falsos positivos. 3 tests nuevos (625 pass) |
+| JUNK-SMART-2 | **Clasificar ZIPs sueltos por nombre de set MAME** — `load_mame_xml` devuelve además el set de nombres bios/device excluidos (o loader hermano); el junk-scan clasifica `.zip` de `Unknown\`: stem en catálogo arcade jugable → "ROM arcade sin organizar (no borrar)"; stem en set bios/device → "Infraestructura MAME"; stem en `_KNOWN_BIOS_MAP` → "BIOS (mover)"; patrón `Vendor - Plataforma.zip` o >1 GB → "Colección fuente (revisar)". Resuelve de raíz la categoría más grande del scan actual ("ZIPs no-ROM", 5.852 falsos en Día38). | `catalog/mame_loader.py`, `web/builders/folders.py` | ⬜ |
+| JUNK-SMART-3 | **Confianza por categoría en la UI** — cada categoría lleva etiqueta `safe_delete` / `review` / `misplaced` (esto es "no borrar, organizar/mover"); el botón de borrado masivo solo se habilita para `safe_delete`, el resto exige expandir y confirmar. Evita repetir el susto de INBOX-FIX-5. | `web/builders/folders.py`, `web/static/js/tabs/esde.js` | ⬜ |
+
+> Orden: 1 → 2 → 3 (cada una es útil sola; 3 depende de que 1-2 emitan la etiqueta).
+
+---
+
 ## ONB — Onboarding / Developer Experience (audit 2026-07-04)
 
 Origen: auditoría del proyecto desde la perspectiva de un desarrollador nuevo que no
