@@ -33,7 +33,9 @@ src/rom_manager/
 
   catalog/
     catalog_loader.py             # DATs Logiqx XML + clrmamepro (sniffer de formato)
-    dat_downloader.py             # Auto-descarga de DATs desde libretro-database
+    dat_downloader.py             # Descarga de DATs desde libretro-database (lo usa
+                                  #   installer/download_dats.py; el runtime web usa
+                                  #   _run_dat_download en web/handlers/scan.py)
     mame_loader.py                # DATs arcade (MAME/FBNeo)
     matcher.py                    # CatalogMatcher; confianza high/medium/low por SHA1
 
@@ -60,14 +62,14 @@ src/rom_manager/
   hashing/hash_calculator.py      # SHA1 + MD5 + CRC32 en una pasada (chunks 1 MB)
   scanner/
     rom_scanner.py                # scan_library() — incremental por mtime+tamaño
-    save_scanner.py  asset_scanner.py
+    asset_scanner.py
 
   planner/
     operation_planner.py          # build_plan(): pending / already_correct / conflicts
     collision_resolver.py         # Conflictos de nombre canónico
   renamer/
-    file_renamer.py               # rename_rom_with_saves() — atómico con rollback
-    cue_rewriter.py               # Reescritura de .cue al renombrar .bin (PSX)
+    file_renamer.py               # rename_rom_with_saves() — atómico con rollback;
+                                  #   move_disc_set_to_subfolder() para sets de disco
 
   converters/                     # chd_converter (cue→chd), zip_extractor, n64_converter
   patch/                          # Aplicadores de parches: ips_applier, bps_applier, ups_applier
@@ -219,7 +221,9 @@ from rom_manager.renamer.file_renamer import rename_rom_with_saves
 outcome = rename_rom_with_saves(source, target, save_extensions)
 # outcome.success / outcome.saves_renamed / outcome.error — rollback si algo falla
 ```
-PSX siempre por sets: `cue_rewriter.py` reescribe el `.cue` cuando se renombra un `.bin`.
+PSX siempre por sets: `move_disc_set_to_subfolder()` (`file_renamer.py`) mueve cue+bins
+a la subcarpeta del juego **conservando los nombres de los `.bin`** — nunca se reescribe
+el `.cue` porque nunca se renombra un `.bin` suelto.
 En Windows/NTFS, renames solo-mayúsculas: conflicto solo si `target.exists()` y
 NO es el mismo archivo (`Path.samefile()` en `operation_planner.py`).
 

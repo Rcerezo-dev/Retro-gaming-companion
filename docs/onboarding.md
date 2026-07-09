@@ -90,7 +90,7 @@ por ahí. Resumen de los dos trucos más usados:
 | Test | Qué documenta |
 |------|---------------|
 | `test_operation_planner.py` | Qué renombrados se planifican y qué cuenta como conflicto |
-| `test_cue_rewriter.py` | La regla PSX: renombrar un `.bin` implica reescribir su `.cue` |
+| `test_cue_validator.py` | La regla PSX: el `.cue` referencia los `.bin` por nombre — el set viaja junto e intacto |
 | `test_catalog_matcher.py` | Niveles de confianza del match (high/medium/low) |
 | `test_conflict_resolver.py` | Política de conflictos del sync (newest/keep_pc/…) |
 | `tests/web/` | Handlers HTTP con servidor real |
