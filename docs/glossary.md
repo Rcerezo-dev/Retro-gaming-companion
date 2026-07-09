@@ -41,9 +41,10 @@ por el header; los DATs suelen hashear sin él.
 
 **`.bin` + `.cue`** — Formato clásico de imagen de CD (PSX): el `.bin` tiene los
 datos y el `.cue` es un archivo de texto que describe las pistas **por nombre de
-archivo**. De ahí la regla sagrada del proyecto: *nunca renombrar un `.bin` sin
-reescribir su `.cue`* (`renamer/cue_rewriter.py`) — un `.cue` que apunta a un
-nombre viejo deja el juego roto.
+archivo**. De ahí la regla sagrada del proyecto: *nunca renombrar un `.bin`
+suelto* — un `.cue` que apunta a un nombre viejo deja el juego roto. Por eso
+los sets de disco se mueven enteros conservando los nombres de los `.bin`
+(`renamer/file_renamer.py::move_disc_set_to_subfolder`).
 
 **Sidecar** — Archivo compañero que no contiene los datos del juego pero lo
 acompaña (`.cue`, `.m3u`, `.ccd`, `.sbi`). El verificador multidisco los trata

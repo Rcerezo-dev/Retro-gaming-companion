@@ -31,7 +31,7 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 |---------|-------------|
 | UI no actualiza | `frontend.py` polling + `result_ts` en `server.py` |
 | Config no persiste tras guardar | `_handle_save_config()` en `handlers/config.py` (recarga obligatoria) |
-| Renombrado PSX roto | `cue_rewriter.py` + `operation_planner.py` |
+| Renombrado PSX roto | `file_renamer.py` (`move_disc_set_to_subfolder` — mueve el set conservando nombres de `.bin`) + `operation_planner.py` |
 | ADB no encuentra saves | `adb_transport.py` (mapeo de rutas por emulador) |
 | Circular import al arrancar | Late imports en `cable_sync_daemon.py` / `inbox_pipeline.py` |
 | 404 en rutas registradas | `router.dispatch()` — ver BUG-ROUTING-404 en `archivo.md` |
@@ -79,7 +79,7 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 |----|------|-------|
 | ARCADE-SETUP-1 | Research MAME vs FBNeo ROM set version compatible with Anbernic RG556 RetroArch | Check RG556 community guides |
 | ARCADE-SETUP-2 | Identify target arcade systems and map each to the correct RetroArch core | e.g. CPS1/2/3, Neo-Geo, MAME 2003 Plus |
-| ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` ✅ + DAT downloader wired (scan.js/dat_downloader.py/scan.py) |
+| ARCADE-SETUP-3 | Document config additions: `config.toml`, library-structure, DAT sources for arcade | `docs/arcade-setup.md` ✅ + descarga de DATs arcade cableada (runtime: `_run_dat_download` en `web/handlers/scan.py` + `scan.js`; installer: `catalog/dat_downloader.py` vía `installer/download_dats.py`) |
 | ARCADE-SETUP-4 | Test a sample ROM end-to-end: scan → rename → launch on device | Hardware test |
 
 ---
@@ -211,13 +211,18 @@ Origen: auditoría de la suite (625 tests / 463 funciones; el resto es
 parametrización de funciones puras — sano). Cero skips, todo pasa en ~12 s.
 El único problema real: 3 módulos de `src/` sin **ningún** call-site en `src/`
 (solo los referencian sus tests), es decir, 29 tests en verde validando código
-que la app nunca ejecuta.
+que la app nunca ejecuta. **Corrección al implementar (2026-07-09)**: la
+auditoría solo miró `src/` — `dat_downloader.py` sí tiene consumidor vivo en
+`installer/download_dats.py` (build del instalador), así que TEST-CLEAN-1 se
+re-alcanzó a solo corregir la doc. Moraleja: buscar consumidores en todo el
+repo (installer/, scripts/), no solo en `src/`.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| TEST-CLEAN-1 | **Borrar `catalog/dat_downloader.py` + sus 17 tests** — la descarga de DATs vive reimplementada en `web/handlers/scan.py` (`_run_dat_download`, `scan.py:590`, catálogo en `scan.py:12`), que es lo que la UI usa y ya cubre `test_dat_catalog_age.py` (12 tests). El módulo del catálogo es una implementación paralela sin imports. Actualizar la nota de ARCADE-SETUP-3 ("DAT downloader wired") que apunta al módulo equivocado. | `catalog/dat_downloader.py`, `tests/test_dat_downloader.py` | ⬜ |
-| TEST-CLEAN-2 | **Borrar `renamer/cue_rewriter.py` + sus 6 tests, y corregir la doc** — la estrategia PSX actual es `move_disc_set_to_subfolder` (`renamer/file_renamer.py:126`): mueve cue+bins a subcarpeta **conservando los nombres de los bins**, así que nunca reescribe el `.cue`. `rewrite_cue` es la estrategia antigua, sin call-sites. Ojo: el Debug Playbook (este archivo) y `CLAUDE.md` aún dicen "Renombrado PSX roto → `cue_rewriter.py`" — actualizar ambos o un futuro debug seguirá una pista falsa. | `renamer/cue_rewriter.py`, `tests/test_cue_rewriter.py`, `CLAUDE.md`, backlog | ⬜ |
-| TEST-CLEAN-3 | **Borrar `scanner/save_scanner.py`** — sin referencias en `src/` ni tests; los saves los gestiona `sync/`. Código muerto sin más. | `scanner/save_scanner.py` | ⬜ |
+| TEST-CLEAN-1 | ~~Borrar `catalog/dat_downloader.py` + sus 17 tests~~ **Re-alcance: NO borrar** — la auditoría solo buscó consumidores en `src/`; el módulo lo usa `installer/download_dats.py:17` para bundlear DATs en el instalador (PHASE6-2b). Sus 17 tests protegen tooling vivo. Lo que sí era falso: la nota de ARCADE-SETUP-3 mezclaba runtime e installer — corregida. Queda como candidato de consolidación futura: `_run_dat_download` (`web/handlers/scan.py:590`) reimplementa descarga+TTL en runtime; podría importar de `dat_downloader` (refactor, valor bajo). | `catalog/dat_downloader.py` | ✅ (sin borrado — módulo vivo; nota ARCADE-SETUP-3 corregida, rama `chore/test-clean-dead-modules`) |
+| TEST-CLEAN-2 | **Borrar `renamer/cue_rewriter.py` + sus 6 tests, y corregir la doc** — la estrategia PSX actual es `move_disc_set_to_subfolder` (`renamer/file_renamer.py:126`): mueve cue+bins a subcarpeta **conservando los nombres de los bins**, así que nunca reescribe el `.cue`. `rewrite_cue` es la estrategia antigua, sin call-sites. Ojo: el Debug Playbook (este archivo) aún decía "Renombrado PSX roto → `cue_rewriter.py`" — pista falsa. | `renamer/cue_rewriter.py`, `tests/test_cue_rewriter.py`, backlog, docs | ✅ módulo+tests borrados; Debug Playbook, `docs/architecture/architecture.md` (árbol + patrón PSX), `docs/glossary.md` y `docs/onboarding.md` actualizados a la estrategia real (rama `chore/test-clean-dead-modules`). `CLAUDE.md` no lo mencionaba |
+| TEST-CLEAN-3 | **Borrar `scanner/save_scanner.py`** — sin referencias en `src/` ni tests; los saves los gestiona `sync/`. Código muerto sin más. | `scanner/save_scanner.py` | ✅ borrado + árbol de architecture.md actualizado (rama `chore/test-clean-dead-modules`) |
+| TEST-GAP-1 | **`renamer/file_renamer.py` no tiene tests directos** — descubierto al borrar `test_cue_rewriter.py` (el único test "de renombrado PSX" probaba la estrategia muerta). `rename_rom_with_saves` (rename atómico con rollback, patrón crítico de CLAUDE.md) y `move_disc_set_to_subfolder` (sets de disco) solo se ejercitan indirectamente. Añadir tests directos: éxito, rollback ante fallo a mitad, y set cue+bin movido íntegro. | `tests/test_file_renamer.py` (nuevo) | ⬜ |
 
 ---
 
