@@ -222,3 +222,79 @@ def test_platform_from_dat_name_unmapped_platform_returns_none() -> None:
     """Obscure DATs this project doesn't route to a folder stay unmapped, not guessed."""
     assert _platform_from_dat_name("Apple - IIGS (A2R) (2022).dat") is None
     assert _platform_from_dat_name("Microsoft - Xbox 360 (Digital).dat") is None
+
+
+# ---------------------------------------------------------------------------
+# MATCH-FIX-1 — arcade antes que el fallback por título para nombres MAME
+# ---------------------------------------------------------------------------
+
+
+def _write_fbneo_dat(path: Path, games: list[tuple[str, str]]) -> None:
+    """FBNeo/Logiqx DAT: [(set_name, description), ...]."""
+    root = ET.Element("datafile")
+    for name, desc in games:
+        ET.SubElement(root, "game", name=name, description=desc, year="1984", manufacturer="Sega")
+    ET.ElementTree(root).write(path, encoding="unicode", xml_declaration=False)
+
+
+@pytest.fixture()
+def dirs_with_arcade(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Caso real de MATCH-FIX-1: 'flicky' existe como título en un catálogo
+    No-Intro de plataforma ajena Y como set arcade en FBNeo."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    arcade = tmp_path / "arcade"
+    nointro.mkdir()
+    redump.mkdir()
+    arcade.mkdir()
+    _write_dat(
+        nointro / "Fujitsu - FM-7.dat",
+        [("Flicky", "F17A11" * 7, "MD5F", "CRCF", 65536)],
+    )
+    _write_fbneo_dat(arcade / "FBNeo Arcade.dat", [("flicky", "Flicky (128k Version)")])
+    return nointro, redump, arcade
+
+
+def test_mame_style_zip_prefers_arcade_over_title_fallback(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """flicky.zip (sin región) debe matchear el catálogo arcade, no FM-7."""
+    nointro, redump, arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="flicky.zip")
+    assert result is not None
+    assert result.title == "Flicky (128k Version)"
+    assert result.platform == "FBNeo"
+
+
+def test_zip_with_region_tag_keeps_title_fallback_first(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """Un nombre con '(Región)' no es estilo MAME: sigue mandando el índice de títulos."""
+    nointro, redump, arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="Flicky (Japan).zip")
+    assert result is not None
+    assert "FM-7" in result.catalog_source
+
+
+def test_non_zip_without_region_keeps_title_fallback_first(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """Una ROM de consola renombrada sin región (.d77) no debe tratarse como arcade."""
+    nointro, redump, arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="Flicky.d77")
+    assert result is not None
+    assert "FM-7" in result.catalog_source
+
+
+def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """Un .zip sin región que el catálogo arcade no conoce conserva el fallback por título."""
+    nointro, redump, _arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump)  # sin catálogo arcade
+    result = matcher.match("00" * 20, filename="flicky.zip")
+    assert result is not None
+    assert "FM-7" in result.catalog_source
