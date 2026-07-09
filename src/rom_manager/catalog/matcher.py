@@ -97,6 +97,10 @@ class CatalogMatcher:
     3. Arcade stem lookup (MAME/FBNeo): filename stem (without extension) matched
        against the arcade catalog → confidence "medium".
 
+    MATCH-FIX-1: for ``.zip`` filenames without a "(Region)" tag (MAME-style
+    set names) pass 3 runs *before* pass 2 — the title fallback used to grab
+    absurd cross-platform matches for those and the arcade pass never ran.
+
     Catalogs are loaded lazily on the first call to match().
     No-Intro is checked before Redump in both passes.
     """
@@ -187,43 +191,56 @@ class CatalogMatcher:
         if filename is None:
             return None
 
-        # Pass 2 — Name-based fallback (No-Intro / Redump title index)
+        # MATCH-FIX-1: un .zip sin tag "(Región)" es un set arcade estilo MAME
+        # casi seguro (los dumps No-Intro/Redump siempre llevan paréntesis).
+        # El fallback por título los emparejaba con plataformas absurdas
+        # (flicky.zip → "Fujitsu - FM-7", confianza low) y el pass arcade
+        # nunca llegaba a probarse. Para esos nombres, arcade primero.
+        mame_style = filename.lower().endswith(".zip") and "(" not in filename
+        if mame_style:
+            return self._match_arcade(filename) or self._match_by_title(filename)
+        return self._match_by_title(filename) or self._match_arcade(filename)
+
+    def _match_by_title(self, filename: str) -> MatchResult | None:
+        """Pass 2 — Name-based fallback (No-Intro / Redump title index)."""
         key = normalize_for_match(filename)
-        if key:
-            hits = self._title_index.get(key)
-            if hits:
-                entry, source = hits[0]
-                if len(hits) == 1:
-                    return MatchResult(
-                        title=entry.title,
-                        confidence="medium",
-                        catalog_source=source,
-                        platform=_platform_from_dat_name(source),
-                    )
-                return MatchResult(
-                    title=entry.title,
-                    confidence="low",
-                    catalog_source=source,
-                    ambiguous=True,
-                    platform=_platform_from_dat_name(source),
-                )
+        if not key:
+            return None
+        hits = self._title_index.get(key)
+        if not hits:
+            return None
+        entry, source = hits[0]
+        if len(hits) == 1:
+            return MatchResult(
+                title=entry.title,
+                confidence="medium",
+                catalog_source=source,
+                platform=_platform_from_dat_name(source),
+            )
+        return MatchResult(
+            title=entry.title,
+            confidence="low",
+            catalog_source=source,
+            ambiguous=True,
+            platform=_platform_from_dat_name(source),
+        )
 
-        # Pass 3 — Arcade stem lookup (MAME / FBNeo)
-        if self._arcade:
-            stem = Path(filename).stem.lower()
-            arcade_hit = self._arcade.get(stem)
-            if arcade_hit:
-                title, _year, _mfr, source = arcade_hit
-                # Derive platform from which catalog file it came from
-                arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"
-                return MatchResult(
-                    title=title,
-                    confidence="medium",
-                    catalog_source=source,
-                    platform=arcade_platform,
-                )
-
-        return None
+    def _match_arcade(self, filename: str) -> MatchResult | None:
+        """Pass 3 — Arcade stem lookup (MAME / FBNeo)."""
+        if not self._arcade:
+            return None
+        arcade_hit = self._arcade.get(Path(filename).stem.lower())
+        if not arcade_hit:
+            return None
+        title, _year, _mfr, source = arcade_hit
+        # Derive platform from which catalog file it came from
+        arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"
+        return MatchResult(
+            title=title,
+            confidence="medium",
+            catalog_source=source,
+            platform=arcade_platform,
+        )
 
     # ------------------------------------------------------------------
     # Stats
