@@ -316,6 +316,58 @@ def test_junk_scan_crc_pass_never_guesses(tmp_path: Path) -> None:
     ]
 
 
+def test_junk_scan_arcade_set_identified_by_crc_voting(tmp_path: Path) -> None:
+    """ZIP-ROUTE-2: un set arcade disfrazado con nombre No-Intro se identifica
+    votando los CRC de sus chips; cobertura total → renombrar y mover."""
+    import zlib
+
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    chips = {"lem_01.bin": b"chip-uno", "lem_02.bin": b"chip-dos"}
+    _make_zip(unknown / "Lemmings (United Kingdom).zip", chips)
+    index = {f"{zlib.crc32(d):08X}": {"lemmings"} for d in chips.values()}
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index={},
+        arcade_crc_index=index,
+    )
+    (cat,) = result["categories"]
+    assert cat["category"] == "ROMs arcade identificadas (renombrar al set y mover)"
+    assert cat["confidence"] == "misplaced"
+    assert cat["files"][0]["identified_as"] == "lemmings"
+
+
+def test_junk_scan_arcade_partial_coverage_is_review(tmp_path: Path) -> None:
+    """ZIP-ROUTE-2: cobertura parcial = otra versión de romset → review con candidato."""
+    import zlib
+
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    known = b"chip-conocido"
+    _make_zip(unknown / "qix.zip", {"a.bin": known, "b.bin": b"chip-desconocido"})
+    index = {f"{zlib.crc32(known):08X}": {"qix2"}}
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index={},
+        arcade_crc_index=index,
+    )
+    (cat,) = result["categories"]
+    assert cat["category"] == "Sets arcade de otra versión (revisar)"
+    assert cat["confidence"] == "review"
+    assert cat["files"][0]["identified_as"] == "qix2"
+    assert cat["files"][0]["coverage"] == 0.5
+
+
 def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:
     (tmp_path / "System Volume Information").mkdir()
     (tmp_path / "System Volume Information" / "WPSettings.dat").write_bytes(b"x")

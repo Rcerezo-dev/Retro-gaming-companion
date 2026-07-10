@@ -103,6 +103,37 @@ def load_arcade_infra_names(directory: Path) -> set[str]:
     return names
 
 
+def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
+    """``crc32_upper → {set names}`` de los DAT arcade (Logiqx: ``<rom crc>``).
+
+    ZIP-ROUTE-2: identifica un ZIP arcade renombrado votando los CRC de sus
+    entradas (el header del ZIP ya los trae, sin descomprimir). Un CRC puede
+    vivir en varios sets (parent/clones), por eso el valor es un set de
+    nombres y la identidad la decide la cobertura de votos, no un hit suelto.
+    Solo se leen los ``.dat``; el listxml de MAME no lleva una lista de roms
+    fiable para esto y parsear sus cientos de MB solo para CRCs es caro.
+    """
+    index: dict[str, set[str]] = {}
+    if not directory.exists():
+        return index
+    for f in sorted(directory.iterdir()):
+        if f.suffix.lower() != ".dat":
+            continue
+        try:
+            for _, elem in ET.iterparse(str(f)):
+                if elem.tag in ("game", "machine"):
+                    name = elem.get("name", "").strip().lower()
+                    if name:
+                        for rom in elem.findall("rom"):
+                            crc = (rom.get("crc") or "").strip().upper()
+                            if crc:
+                                index.setdefault(crc, set()).add(name)
+                    elem.clear()
+        except (ET.ParseError, OSError):
+            pass
+    return index
+
+
 def load_arcade_dir(directory: Path) -> dict[str, tuple[str, str, str, str]]:
     """Load all arcade catalog files from *directory*.
 
