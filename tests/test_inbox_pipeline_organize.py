@@ -31,9 +31,9 @@ def _insert_game(repo: LibraryRepository, *, source_path: str) -> int:
     )
     with repo.connect() as conn:
         return int(
-            conn.execute(
-                "SELECT id FROM games WHERE source_path=?", (source_path,)
-            ).fetchone()["id"]
+            conn.execute("SELECT id FROM games WHERE source_path=?", (source_path,)).fetchone()[
+                "id"
+            ]
         )
 
 
