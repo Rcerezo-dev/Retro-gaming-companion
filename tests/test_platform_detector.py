@@ -133,8 +133,7 @@ class TestDetectPlatformMd:
 
     def test_md_in_genesis_update_collection_folder(self) -> None:
         assert (
-            detect_platform(Path("/Inbox/Sega - Genesis (Update 1)/Sonic.md"))
-            == "Sega Mega Drive"
+            detect_platform(Path("/Inbox/Sega - Genesis (Update 1)/Sonic.md")) == "Sega Mega Drive"
         )
 
 
