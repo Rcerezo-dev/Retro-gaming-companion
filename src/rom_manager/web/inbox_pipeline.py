@@ -642,11 +642,20 @@ def _run_inbox_pipeline(
 
             try:
                 _shutil.move(str(source_file), str(dest_file))
-                # Update DB path
+                # Update DB path. ZIP-ROUTE-FIX-2: a stale row from an earlier
+                # session can already hold this exact source_path — its file
+                # no longer exists (dest_file.exists() was False above) but
+                # the UNIQUE constraint still blocks the UPDATE. Drop that
+                # ghost row first; the physical move already succeeded either way.
+                dest_path_str = str(dest_file.resolve())
                 with repository.batch() as conn:
                     conn.execute(
+                        "DELETE FROM games WHERE source_path=? AND id!=?",
+                        (dest_path_str, game_id),
+                    )
+                    conn.execute(
                         "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
-                        (str(dest_file.resolve()), dest_file.name, game_id),
+                        (dest_path_str, dest_file.name, game_id),
                     )
                 organized += 1
             except Exception as exc:
