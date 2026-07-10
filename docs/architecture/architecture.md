@@ -36,8 +36,11 @@ src/rom_manager/
     dat_downloader.py             # Descarga de DATs desde libretro-database (lo usa
                                   #   installer/download_dats.py; el runtime web usa
                                   #   _run_dat_download en web/handlers/scan.py)
-    mame_loader.py                # DATs arcade (MAME/FBNeo)
-    matcher.py                    # CatalogMatcher; confianza high/medium/low por SHA1
+    mame_loader.py                # DATs arcade (MAME/FBNeo) + load_arcade_crc_index()
+                                  #   (crc→{sets} para votación, ZIP-ROUTE-2)
+    matcher.py                    # CatalogMatcher; confianza high/medium/low por SHA1;
+                                  #   crc_index() crc32→(título,dat,plataforma) para
+                                  #   identificar ZIPs por el header (ZIP-ROUTE-1)
 
   database/
     schema.py                     # Tablas + migraciones retrocompatibles
@@ -107,6 +110,10 @@ src/rom_manager/
     daemons.py                    # Arranque de watchers (inbox, health, cable)
     cable_sync_daemon.py          # Daemons ADB auto-sync y SD card sync
     inbox_pipeline.py             # Pipeline Inbox: ZIP → BIOS → scan → match → organize
+    zip_router.py                 # ZIP-ROUTE-4: coloca en un paso los ZIPs identificados
+                                  #   por el junk-scan (arcade directo — nunca por el
+                                  #   Inbox —, colecciones extraídas por mayoría de
+                                  #   miembros, resto vía inbox_pipeline)
     frontend.py                   # Ensambla la SPA desde static/partials
     builders/                     # Funciones puras de respuesta (SRP-1a):
                                   # common, library, duplicates, diff, folders, misc

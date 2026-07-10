@@ -194,6 +194,27 @@ def register_maintenance(
             )
         )
 
+    # ── POST /api/zip-route-apply ─────────────────────────────────────────────
+    @router.post("/api/zip-route-apply")
+    def post_zip_route_apply(ctx) -> None:
+        """ZIP-ROUTE-4: colocar en un solo paso los ZIPs identificados.
+
+        Job en background bajo el nombre "inbox" (la UI ya sabe mostrarlo):
+        arcade directo a arcade\\, colecciones extraídas, el resto vía Inbox.
+        """
+        folder = ctx._post_data.get("path", "").strip() or (
+            str(config.library_root) if config.library_root else ""
+        )
+        if not folder:
+            ctx._send_json({"error": "path required"})
+            return
+        from rom_manager.web.zip_router import _run_zip_route_apply
+
+        def run() -> None:
+            _run_zip_route_apply(folder, repository, config, job_manager)
+
+        ctx._send_json(job_manager.start("inbox", run))
+
     # ── POST /api/junk-delete ─────────────────────────────────────────────────
     @router.post("/api/junk-delete")
     def post_junk_delete(ctx) -> None:

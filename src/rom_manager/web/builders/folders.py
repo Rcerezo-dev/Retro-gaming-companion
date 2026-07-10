@@ -70,6 +70,19 @@ _ZIP_CAT_ARCADE_OTHER = "Sets arcade de otra versión (revisar)"
 # una sola entrada de extensión inequívoca → la plataforma la da la extensión
 _ZIP_CAT_ROMHACK = "ROMs/romhacks por extensión (mover a su plataforma)"
 
+# ZIP-ROUTE-4: categorías con identidad/destino — el job de colocación necesita
+# los metadatos (identified_as/platform) de TODOS sus archivos, no solo de los
+# 50 que se muestran; son categorías pequeñas por naturaleza (decenas).
+_ZIP_ROUTE_CATS = {
+    _ZIP_CAT_BIOS,
+    _ZIP_CAT_ARCADE,
+    _ZIP_CAT_COLLECTION,
+    _ZIP_CAT_CONSOLE,
+    _ZIP_CAT_ARCADE_IDENT,
+    _ZIP_CAT_ARCADE_OTHER,
+    _ZIP_CAT_ROMHACK,
+}
+
 # JUNK-SMART-3: confianza por categoría. safe_delete = basura por extensión
 # (tier 0, borrable en masa); review = probable basura pero mirar antes
 # (lección de INBOX-FIX-5); misplaced = NO es basura, hay que mover/organizar.
@@ -397,13 +410,14 @@ def _build_junk_scan(
         categories.items(), key=lambda x: -sum(f["size_bytes"] for f in x[1])
     ):
         total = sum(f["size_bytes"] for f in files_list)
+        display_cap = None if cat in _ZIP_ROUTE_CATS else 50
         cat_list.append(
             {
                 "category": cat,
                 "confidence": _CATEGORY_CONFIDENCE.get(cat, "safe_delete"),
                 "count": len(files_list),
                 "total_bytes": total,
-                "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:50],
+                "files": sorted(files_list, key=lambda f: -f["size_bytes"])[:display_cap],
                 # Todas las rutas de la categoría (files se corta a 50 solo para mostrar);
                 # /api/junk-delete necesita la lista completa
                 "paths": [f["full_path"] for f in files_list],

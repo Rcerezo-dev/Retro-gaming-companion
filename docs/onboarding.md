@@ -28,6 +28,14 @@ sync    → saves ↔ nube (rclone) o ↔ consola por USB (adb)
 Regla de oro del proyecto: **`plan` siempre antes de `apply`**, y ninguna
 operación destructiva sin backup ni registro en SQLite (`file_operations`).
 
+Dos variantes empaquetan ese mismo flujo: el **Inbox**
+(`web/inbox_pipeline.py`) lo encadena entero para una carpeta de entrada
+(extract → scan → match → rename → organize → cleanup), y el **zip_router**
+(`web/zip_router.py`) coloca en un solo paso los ZIPs sueltos que el junk-scan
+identifica por el CRC32 del header del ZIP, sin descomprimir (término
+"ZIP-ROUTE" en el [glosario](glossary.md)); los ZIPs arcade van directos a
+`arcade\` porque extraerlos los rompería — el ZIP es el ROM.
+
 ## 3. Mapa de lectura del código (en este orden)
 
 | Paso | Archivo | Qué aprendes |

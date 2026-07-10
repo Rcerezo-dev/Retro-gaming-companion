@@ -733,6 +733,7 @@ export function _renderJunkResult(result) {
     <div style="display:flex;gap:6px">
       <button class="btn" style="padding:3px 8px;font-size:11px" onclick="window.junkSelectAll()">Seleccionar todo</button>
       <button id="btn-junk-delete" class="btn danger" style="padding:3px 8px;font-size:11px" disabled onclick="window.junkDelete()">Eliminar seleccionados</button>
+      ${_junkHasRoutable(cats) ? '<button id="btn-zip-route" class="btn" style="padding:3px 8px;font-size:11px;background:var(--c-teal);color:#000" onclick="window.zipRouteApply()">Organizar identificados (1 paso)</button>' : ''}
     </div>
   </div>`;
 
@@ -763,6 +764,7 @@ export function _renderJunkResult(result) {
         <summary style="font-size:11px;color:var(--c-hint);cursor:pointer">Ver archivos${c.count > shown.length ? ` (${shown.length} mayores de ${c.count})` : ''}</summary>
         ${shown.map(f => `<div style="font-size:11px;padding:2px 0;display:flex;gap:8px">
           <code style="color:var(--c-orange);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_h(f.full_path)}">${_h(f.path)}</code>
+          ${f.identified_as || f.platform ? `<span style="color:var(--c-teal);flex-shrink:0" title="Identidad detectada por CRC/extensión">→ ${_h(f.identified_as || '')}${f.platform ? ` [${_h(f.platform)}]` : ''}${f.coverage != null ? ` (${Math.round(f.coverage * 100)}%)` : ''}</span>` : ''}
           <span style="color:var(--c-dim);flex-shrink:0">${_fmtSize(f.size_bytes)}</span>
         </div>`).join('')}
       </details>
@@ -770,6 +772,46 @@ export function _renderJunkResult(result) {
   });
   html += '</div>';
   el.innerHTML = html;
+}
+
+// ZIP-ROUTE-4: hay algo que organizar en un paso si el scan identificó
+// arcade/consola/romhacks/colecciones (misplaced con destino o colección)
+const _ZIP_ROUTE_CATS = [
+  'ROMs arcade identificadas (renombrar al set y mover)',
+  'ROMs arcade sin organizar (no borrar)',
+  'ROMs de consola identificadas (mover a su plataforma)',
+  'ROMs/romhacks por extensión (mover a su plataforma)',
+  'Colecciones fuente (revisar)',
+];
+
+function _junkHasRoutable(cats) {
+  return cats.some(c => _ZIP_ROUTE_CATS.includes(c.category));
+}
+
+export async function zipRouteApply() {
+  const cats = _junkResults?.categories || [];
+  const routable = cats.filter(c => _ZIP_ROUTE_CATS.includes(c.category));
+  const total = routable.reduce((n, c) => n + c.count, 0);
+  const lines = routable.map(c => `· ${c.category}: ${c.count}`).join('\n');
+  if (!confirm(`Se organizarán ${total} ZIPs en un solo paso:\n${lines}\n\n` +
+    'Arcade → arcade\\ (renombrando al set), colecciones extraídas, el resto ' +
+    'pasa por el Inbox (emparejar → renombrar → mover) y el Inbox queda limpio.\n' +
+    'Nada se sobreescribe: los conflictos se reportan.')) return;
+  const btn = document.getElementById('btn-zip-route');
+  if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
+  try {
+    const path = document.getElementById('junk-path')?.value.trim() || '';
+    const res = await apiPost('/api/zip-route-apply', { path });
+    if (res.status === 'already_running') {
+      showToast('Ya hay un proceso de Inbox en marcha', 'err');
+    } else {
+      showToast('Organización en marcha — progreso en la pestaña Inbox', 'ok');
+      if (typeof window.startPolling === 'function') window.startPolling();
+    }
+  } catch (e) {
+    showToast('Error al organizar: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Organizar identificados (1 paso)'; }
+  }
 }
 
 function _updateJunkDeleteBtn() {
