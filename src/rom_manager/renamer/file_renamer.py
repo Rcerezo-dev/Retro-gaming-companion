@@ -74,6 +74,10 @@ def rename_rom_with_saves(
 
     # Step 1: rename the ROM
     try:
+        # ZIP-ROUTE-FIX-1: the plan can send a ROM into a subfolder that
+        # doesn't exist yet (e.g. "Virtual Console") — os.rename fails with
+        # WinError 3 unless the target directory already exists.
+        target.parent.mkdir(parents=True, exist_ok=True)
         os.rename(source, target)
     except OSError as exc:
         return RenameOutcome(success=False, source=source, target=target, error=str(exc))
