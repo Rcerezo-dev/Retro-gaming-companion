@@ -155,7 +155,8 @@ def test_junk_scan_zip_classification_by_arcade_knowledge(tmp_path: Path) -> Non
     (unknown / "sf2.zip").write_bytes(b"x")  # set arcade jugable
     (unknown / "kb_pcat101.zip").write_bytes(b"x")  # device MAME
     (unknown / "naomi.zip").write_bytes(b"x")  # BIOS conocida
-    (unknown / "Nintendo - SNES.zip").write_bytes(b"x")  # colección fuente
+    # colección fuente = contenedor de zips anidados (ZIP-ROUTE-5)
+    _make_zip(unknown / "Nintendo - SNES.zip", {"a.zip": b"x", "b.zip": b"y"})
     (unknown / "misterio.zip").write_bytes(b"x")  # sin evidencia
 
     result = _build_junk_scan(
@@ -245,7 +246,7 @@ def test_junk_scan_console_zip_identified_by_crc(tmp_path: Path) -> None:
 
 
 def test_junk_scan_console_zip_tier_off_without_crc_index(tmp_path: Path) -> None:
-    """ZIP-ROUTE-1: sin crc_index (setup pipeline) el comportamiento no cambia."""
+    """ZIP-ROUTE-1: sin crc_index no se identifica — queda en revisión genérica."""
     unknown = tmp_path / "Unknown"
     unknown.mkdir()
     _make_zip(unknown / "Arkanoid - Doh It Again (Japan) [b].zip", {"game.sfc": b"x"})
@@ -253,7 +254,35 @@ def test_junk_scan_console_zip_tier_off_without_crc_index(tmp_path: Path) -> Non
         str(tmp_path), matched_paths=set(), arcade_names=set(), mame_infra_names=set()
     )
     (cat,) = result["categories"]
-    assert cat["category"] == "Colecciones fuente (revisar)"
+    assert cat["category"] == "ZIPs no-ROM"
+
+
+def test_junk_scan_collection_by_content_not_by_name(tmp_path: Path) -> None:
+    """ZIP-ROUTE-5: colección = mayoría de .zip/.chd dentro; el nombre no cuenta.
+
+    La heurística anterior (" - " en el nombre) daba ~39 falsos positivos de 56
+    en la biblioteca real: romhacks tipo "Fire Emblem - ..." caían como colección.
+    """
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    # romhack con " - " en el nombre pero una sola ROM dentro → NO es colección
+    _make_zip(unknown / "Fire Emblem - The Binding Blade [T-En].zip", {"fe6.gba": b"x"})
+    # contenedor de .chd sin " - " reconocible → SÍ es colección
+    _make_zip(unknown / "turbografxcd.zip", {"Rondo.chd": b"a", "Ys IV.chd": b"b"})
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index={},
+    )
+    by_cat = {c["category"]: [f["path"] for f in c["files"]] for c in result["categories"]}
+    assert by_cat["Colecciones fuente (revisar)"] == [str(Path("Unknown/turbografxcd.zip"))]
+    assert by_cat["ZIPs no-ROM"] == [
+        str(Path("Unknown/Fire Emblem - The Binding Blade [T-En].zip"))
+    ]
 
 
 def test_junk_scan_crc_pass_never_guesses(tmp_path: Path) -> None:
@@ -263,7 +292,7 @@ def test_junk_scan_crc_pass_never_guesses(tmp_path: Path) -> None:
     unknown = tmp_path / "Unknown"
     unknown.mkdir()
     rom = b"contenido-rom"
-    # multi-entrada con CRC conocido → sigue siendo colección (por nombre)
+    # multi-entrada de ROMs sueltas con CRC conocido → revisar, no identificar
     _make_zip(unknown / "Nintendo - SNES.zip", {"a.sfc": rom, "b.sfc": rom})
     # una entrada con CRC desconocido → ZIPs no-ROM
     _make_zip(unknown / "misterio.zip", {"algo.bin": b"otro"})
@@ -280,8 +309,8 @@ def test_junk_scan_crc_pass_never_guesses(tmp_path: Path) -> None:
         crc_index=index,
     )
     by_cat = {c["category"]: sorted(f["path"] for f in c["files"]) for c in result["categories"]}
-    assert by_cat["Colecciones fuente (revisar)"] == [str(Path("Unknown/Nintendo - SNES.zip"))]
     assert by_cat["ZIPs no-ROM"] == [
+        str(Path("Unknown/Nintendo - SNES.zip")),
         str(Path("Unknown/misterio.zip")),
         str(Path("Unknown/roto.zip")),
     ]
