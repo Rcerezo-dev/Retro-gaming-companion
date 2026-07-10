@@ -154,6 +154,7 @@ def register_maintenance(
             ctx._send_json({"error": "path required"})
             return
         from rom_manager.catalog.mame_loader import load_arcade_dir, load_arcade_infra_names
+        from rom_manager.catalog.matcher import CatalogMatcher
         from rom_manager.web.builders.folders import _build_junk_scan
         from rom_manager.web.inbox_pipeline import _KNOWN_BIOS_MAP
 
@@ -169,6 +170,12 @@ def register_maintenance(
         arcade_names = set(load_arcade_dir(arcade_dir)) if arcade_dir else set()
         infra_names = load_arcade_infra_names(arcade_dir) if arcade_dir else set()
         known_bios = {k for k in _KNOWN_BIOS_MAP if k.endswith(".zip")}
+        # ZIP-ROUTE-1: CRC32 de No-Intro/Redump para identificar ZIPs de
+        # consola por el header del ZIP, sin descomprimir
+        crc_index = CatalogMatcher(
+            nointro_dir=config.catalogs_nointro_dir,
+            redump_dir=config.catalogs_redump_dir,
+        ).crc_index()
         ctx._send_json(
             _build_junk_scan(
                 folder,
@@ -176,6 +183,7 @@ def register_maintenance(
                 arcade_names=arcade_names,
                 mame_infra_names=infra_names,
                 known_bios_files=known_bios,
+                crc_index=crc_index,
             )
         )
 

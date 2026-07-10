@@ -116,6 +116,8 @@ class CatalogMatcher:
         self._title_index: dict[str, list[tuple[CatalogEntry, str]]] = {}
         # stem_lowercase → (title, year, manufacturer, source_filename)
         self._arcade: dict[str, tuple[str, str, str, str]] = {}
+        # crc32_upper → (title, dat_source, platform) — construido bajo demanda
+        self._crc: dict[str, tuple[str, str, str | None]] | None = None
         self._loaded = False
 
     # ------------------------------------------------------------------
@@ -157,6 +159,33 @@ class CatalogMatcher:
                     continue
                 index.setdefault(key, []).append((entry, source))
         self._title_index = index
+
+    def crc_index(self) -> dict[str, tuple[str, str, str | None]]:
+        """CRC32 → (title, dat_source, platform) de No-Intro + Redump (ZIP-ROUTE-1).
+
+        El header de un ZIP ya trae el CRC32 de cada entrada, así que este
+        índice identifica ROMs comprimidos sin descomprimirlos. Un CRC
+        reclamado por dos entradas con título distinto (p. ej. DATs
+        recopilatorios como Evercade re-listando ROMs de Atari 2600) se
+        descarta como ambiguo: nunca adivinar.
+        """
+        self._load()
+        if self._crc is None:
+            index: dict[str, tuple[str, str, str | None]] = {}
+            ambiguous: set[str] = set()
+            for catalog in (self._nointro, self._redump):
+                for entry, source in catalog.values():
+                    crc = entry.crc32.upper()
+                    if not crc or crc in ambiguous:
+                        continue
+                    prev = index.get(crc)
+                    if prev is None:
+                        index[crc] = (entry.title, source, _platform_from_dat_name(source))
+                    elif prev[0] != entry.title:
+                        ambiguous.add(crc)
+                        del index[crc]
+            self._crc = index
+        return self._crc
 
     # ------------------------------------------------------------------
     # Matching

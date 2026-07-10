@@ -298,3 +298,35 @@ def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
     result = matcher.match("00" * 20, filename="flicky.zip")
     assert result is not None
     assert "FM-7" in result.catalog_source
+
+
+# ---------------------------------------------------------------------------
+# ZIP-ROUTE-1 — índice CRC32 para identificar ZIPs por el header
+# ---------------------------------------------------------------------------
+
+
+def test_crc_index_maps_title_dat_and_platform(catalog_dirs: tuple[Path, Path]) -> None:
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    index = matcher.crc_index()
+    assert index["CRC1"] == ("Tetris (World)", "Nintendo - Game Boy.dat", "Game Boy")
+    assert index["CRC2"][0] == "Metal Gear Solid (USA)"
+
+
+def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
+    """Un CRC reclamado por dos títulos (DAT recopilatorio tipo Evercade) es
+    ambiguo y se descarta: nunca adivinar la plataforma."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        nointro / "Atari - Atari 2600.dat",
+        [("Asteroids (USA)", "AA" * 20, "M1", "46DF91AD", 4096)],
+    )
+    _write_dat(
+        nointro / "Blaze Entertainment - Evercade.dat",
+        [("Super Pocket - The Atari Collection (World)", "BB" * 20, "M2", "46DF91AD", 4096)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    assert "46DF91AD" not in matcher.crc_index()

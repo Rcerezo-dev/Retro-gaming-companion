@@ -210,6 +210,83 @@ def test_junk_scan_confidence_labels(tmp_path: Path) -> None:
     assert conf["BIOS conocidas (mover a bios/, no borrar)"] == "misplaced"
 
 
+def _make_zip(path: Path, entries: dict[str, bytes]) -> None:
+    import zipfile
+
+    with zipfile.ZipFile(path, "w") as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+
+
+def test_junk_scan_console_zip_identified_by_crc(tmp_path: Path) -> None:
+    """ZIP-ROUTE-1: ZIP de una entrada con CRC en No-Intro/Redump → identidad
+    exacta, aunque el nombre tenga ' - ' (antes caía en colecciones)."""
+    import zlib
+
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    rom = b"contenido-rom"
+    _make_zip(unknown / "Arkanoid - Doh It Again (Japan) [b].zip", {"game.sfc": rom})
+    index = {f"{zlib.crc32(rom):08X}": ("Arkanoid - Doh It Again (USA)", "snes.dat", "SNES")}
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index=index,
+    )
+    (cat,) = result["categories"]
+    assert cat["category"] == "ROMs de consola identificadas (mover a su plataforma)"
+    assert cat["confidence"] == "misplaced"
+    assert cat["files"][0]["identified_as"] == "Arkanoid - Doh It Again (USA)"
+    assert cat["files"][0]["platform"] == "SNES"
+
+
+def test_junk_scan_console_zip_tier_off_without_crc_index(tmp_path: Path) -> None:
+    """ZIP-ROUTE-1: sin crc_index (setup pipeline) el comportamiento no cambia."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    _make_zip(unknown / "Arkanoid - Doh It Again (Japan) [b].zip", {"game.sfc": b"x"})
+    result = _build_junk_scan(
+        str(tmp_path), matched_paths=set(), arcade_names=set(), mame_infra_names=set()
+    )
+    (cat,) = result["categories"]
+    assert cat["category"] == "Colecciones fuente (revisar)"
+
+
+def test_junk_scan_crc_pass_never_guesses(tmp_path: Path) -> None:
+    """ZIP-ROUTE-1: multi-entrada, CRC desconocido o zip corrupto → nunca consola."""
+    import zlib
+
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    rom = b"contenido-rom"
+    # multi-entrada con CRC conocido → sigue siendo colección (por nombre)
+    _make_zip(unknown / "Nintendo - SNES.zip", {"a.sfc": rom, "b.sfc": rom})
+    # una entrada con CRC desconocido → ZIPs no-ROM
+    _make_zip(unknown / "misterio.zip", {"algo.bin": b"otro"})
+    # zip corrupto → ZIPs no-ROM, sin explotar
+    (unknown / "roto.zip").write_bytes(b"esto no es un zip")
+
+    index = {f"{zlib.crc32(rom):08X}": ("Juego (USA)", "snes.dat", "SNES")}
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index=index,
+    )
+    by_cat = {c["category"]: sorted(f["path"] for f in c["files"]) for c in result["categories"]}
+    assert by_cat["Colecciones fuente (revisar)"] == [str(Path("Unknown/Nintendo - SNES.zip"))]
+    assert by_cat["ZIPs no-ROM"] == [
+        str(Path("Unknown/misterio.zip")),
+        str(Path("Unknown/roto.zip")),
+    ]
+
+
 def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:
     (tmp_path / "System Volume Information").mkdir()
     (tmp_path / "System Volume Information" / "WPSettings.dat").write_bytes(b"x")
