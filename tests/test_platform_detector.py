@@ -125,6 +125,17 @@ class TestDetectPlatformMd:
     def test_md_in_unrelated_folder(self) -> None:
         assert detect_platform(Path("/mygames/game.md")) is None
 
+    def test_md_in_extracted_collection_folder(self) -> None:
+        # ZIP-ROUTE-FIX-3: ZIP-ROUTE-4 extracts "Sega - Genesis.zip" into an
+        # Inbox subfolder named after the ZIP itself, not a clean platform
+        # name — "genesis" must still be recognized as a token within it.
+        assert detect_platform(Path("/Inbox/Sega - Genesis/Sonic.md")) == "Sega Mega Drive"
+
+    def test_md_in_genesis_update_collection_folder(self) -> None:
+        assert (
+            detect_platform(Path("/Inbox/Sega - Genesis (Update 1)/Sonic.md")) == "Sega Mega Drive"
+        )
+
 
 # ── detect_platform — ambiguous extensions (folder context) ───────────────────
 

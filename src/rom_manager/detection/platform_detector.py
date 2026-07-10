@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re as _re
 import tomllib
 from pathlib import Path
 
@@ -91,5 +92,13 @@ def detect_platform(path: Path) -> str | None:
 
 
 def _has_platform_context(path: Path, valid_names: set[str]) -> bool:
-    path_names = {part.casefold() for part in path.parts}
-    return any(name in path_names for name in valid_names)
+    # ZIP-ROUTE-FIX-3: ZIP-ROUTE-4 extracts source collections into a folder
+    # named after the ZIP itself (e.g. "Sega - Genesis"), not a clean
+    # platform name — an exact whole-part match never fires there. Tokenize
+    # each *folder* part (never the filename, or "Sonic.md" would match "md"
+    # via its own extension) on non-alnum runs so "Sega - Genesis" contributes
+    # the token "genesis". Only parent parts are considered.
+    tokens: set[str] = set()
+    for part in path.parent.parts:
+        tokens.update(_re.split(r"[^a-z0-9]+", part.casefold()))
+    return any(set(name.split()) <= tokens for name in valid_names)
