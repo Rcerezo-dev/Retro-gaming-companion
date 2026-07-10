@@ -205,6 +205,47 @@ conocimiento para decidir sola; hoy no lo usa.
 
 ---
 
+## ZIP-ROUTE — Colocar los ZIPs sueltos por CRC del header (diseño 2026-07-10)
+
+Origen: tras JUNK-SMART quedaban 56 "colecciones" + 208 "ZIPs no-ROM" + 5
+arcade en `Unknown\`. Investigación (informe completo con los 269 ZIPs y su
+destino: `Tareas/zip-route-identificacion.md`): **el header de un ZIP ya trae
+el CRC32 de cada entrada** (`zipfile.ZipInfo.CRC`, stdlib, cero
+descompresión) y la app ya parsea el CRC de los DATs
+(`CatalogEntry.crc32`, `catalog/catalog_loader.py:104`) — solo que el matcher
+indexa únicamente por SHA1 (`catalog/matcher.py:112`). Cruzando ambos:
+**268/269 identificados** — 95 juegos de consola con match exacto No-Intro/
+Redump, 79 sets arcade al 100 % (votación de CRCs contra MAME 0.286 + FBNeo,
+incluye sets disfrazados tipo `Lemmings (United Kingdom).zip` → `lemmings`),
+29 sets arcade probables, 49 romhacks/T-En (plataforma inequívoca por la
+extensión interna), 16 colecciones reales (zip-de-zips / .chd) y 1 resto.
+
+Hallazgo extra: la heurística de colección `" - " in stem`
+(`web/builders/folders.py:259`) tiene ~39 falsos positivos de 56 (juegos
+sueltos con " - " en el título: `Fire Emblem - ...`, `Dragon Quest III - ...`)
+— Día40 registró "un único falso positivo" y no era cierto. Con ZIP-ROUTE-1
+la heurística por nombre sobra: colección = multi-entrada de `.zip`/`.chd`.
+
+Los tags del nombre de archivo mienten sistemáticamente (`(XBLA)`, `(Disk 1)`,
+`(Windows)`… envuelven ROMs de SNES/N64/GG normales): **el contenido es la
+única evidencia fiable, nunca el nombre.**
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ZIP-ROUTE-1 | **Índice CRC32 en el matcher + pass consola para ZIPs** — índice `crc32 → (CatalogEntry, dat)` junto al de SHA1; para un `.zip` suelto con 1 entrada cuyo CRC matchea No-Intro/Redump → identidad exacta (nombre canónico + plataforma del DAT) sin extraer. En el junk-scan la categoría pasa a `misplaced` con destino conocido; plan/apply mueve y renombra. Cubre 95. Ojo: 4 matchean el DAT de Evercade además del de 2600 — preferir el DAT de la plataforma real si hay doble hit. | `catalog/matcher.py`, `web/builders/folders.py`, `web/handlers/esde/maintenance.py` | ✅ rama `feature/zip-route-1-crc-console-pass` — `CatalogMatcher.crc_index()` devuelve `crc32 → (título, dat, plataforma)`; CRC con dos títulos distintos se descarta como ambiguo (los 4 "Evercade" resultaron ser dumps solo-Evercade, sin colisión real). Categoría nueva "ROMs de consola identificadas (mover a su plataforma)" (`misplaced`), cada archivo lleva `identified_as`/`dat`/`platform`. Verificado contra biblioteca real: 95 identificados, colecciones 56→47, ZIPs no-ROM 208→122; índice +16 s por scan (cachear si duele). El mover/renombrar queda para cuando exista plan/apply de misplaced. 5 tests (634 pass) |
+| DAT-FIX-1 | **El DAT de Wii U (Digital) nunca carga** — `load_nointro_dat` revienta con `int('')` en `catalog_loader.py:135` (`size=""` en algunos `<rom>`); `_load_dir` lo captura y **salta el DAT entero** con un warning. Fix trivial: `int(rom.get("size") or 0)`. Descubierto al verificar ZIP-ROUTE-1. | `catalog/catalog_loader.py:135` | ⬜ |
+| ZIP-ROUTE-2 | **Identificar sets arcade por votación de CRCs** — índice `crc → {sets}` de los DATs arcade (`MAME 0.286 (arcade).dat` + FBNeo, iterparse); cobertura 100 % → renombrar al nombre de set y mover a `arcade\` (79, incluye los 5 "arcade sin organizar" y los 48 clones mame-stem que el XML local no lista); 1-99 % → `review` con candidato sugerido (29, otra versión de romset). | `catalog/mame_loader.py` (o loader hermano), `web/builders/folders.py` | ⬜ |
+| ZIP-ROUTE-3 | **Romhacks: plataforma por extensión interna** — sin match CRC pero 1 entrada con extensión inequívoca (`.nes`/`.sfc`/`.md`/`.gba`/`.gg`/`.pce`…) → mover a la carpeta de esa plataforma conservando el nombre (49 T-En/hacks; siguen sin `canonical_title`, correcto — no están en ningún DAT). | `web/builders/folders.py` | ⬜ |
+| ZIP-ROUTE-4 | **Colecciones → extraer al Inbox** — para las 16 colecciones reales (multi-entrada `.zip`/`.chd`, ~26 GB: `Nintendo - GBA.zip` 150 zips, `Arcade - Mame 2003 Plus.zip` 375, `NEC - TurboGrafx CD.zip` 25 .chd…): botón "Extraer al Inbox" que descomprime los miembros en el Inbox y deja que el pipeline existente haga hash → match → rename → organize (el intercept de BIOS ya rutea `MAME BIOS 0.277.zip`). Guard de espacio libre ≥ tamaño descomprimido; borrar el contenedor solo tras extraer con éxito, una colección por job. | `web/inbox_pipeline.py`, `web/handlers/esde/maintenance.py`, UI | ⬜ |
+| ZIP-ROUTE-5 | **Retirar la heurística de colección por nombre** — sustituir `" - " in stem` + `>1 GB` (`web/builders/folders.py:259,276`) por "multi-entrada de `.zip`/`.chd`" (el ZIP ya se abre para ROUTE-1, es gratis). Elimina los ~39 falsos positivos. | `web/builders/folders.py` | ⬜ |
+
+> Orden: 1 → 5 → 2 → 3 → 4 (1 crea el índice y el open del ZIP que reutilizan
+> los demás; 4 es la única que toca disco en masa y va la última).
+> Scripts de la investigación en scratchpad Día41: `identify_zips.py`,
+> `identify_arcade.py` (reproducibles).
+
+---
+
 ## TEST-CLEAN — Tests que prueban código muerto (auditoría 2026-07-09)
 
 Origen: auditoría de la suite (625 tests / 463 funciones; el resto es

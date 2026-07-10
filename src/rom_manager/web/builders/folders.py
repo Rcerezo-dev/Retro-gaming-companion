@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os as _os
 import re as _re
+import zipfile as _zipfile
 from collections import Counter
 from pathlib import Path as _Path
 
@@ -50,6 +51,9 @@ _ZIP_CAT_BIOS = "BIOS conocidas (mover a bios/, no borrar)"
 _ZIP_CAT_INFRA = "Infraestructura MAME (bios/devices, no jugable)"
 _ZIP_CAT_ARCADE = "ROMs arcade sin organizar (no borrar)"
 _ZIP_CAT_COLLECTION = "Colecciones fuente (revisar)"
+# ZIP-ROUTE-1: ZIP con una sola entrada cuyo CRC (leído del header, sin
+# descomprimir) está en No-Intro/Redump → juego de consola con identidad exacta
+_ZIP_CAT_CONSOLE = "ROMs de consola identificadas (mover a su plataforma)"
 # ponytail: heurística de colección = "Vendor - Plataforma" en el nombre o >1 GB;
 # si falla con nombres raros, JUNK-SMART-3 la deja en `review`, nunca auto-borrado
 _COLLECTION_MIN_BYTES = 1024**3
@@ -66,7 +70,23 @@ _CATEGORY_CONFIDENCE = {
     "7-Zips": "review",
     _ZIP_CAT_BIOS: "misplaced",
     _ZIP_CAT_ARCADE: "misplaced",
+    _ZIP_CAT_CONSOLE: "misplaced",
 }
+
+
+def _identify_console_zip(
+    fpath: _Path, crc_index: dict[str, tuple[str, str, str | None]]
+) -> tuple[str, str, str | None] | None:
+    """ZIP-ROUTE-1: devuelve (título, dat, plataforma) si el ZIP tiene una sola
+    entrada y su CRC32 (ya presente en el header) está en No-Intro/Redump."""
+    try:
+        with _zipfile.ZipFile(fpath) as z:
+            infos = [i for i in z.infolist() if not i.is_dir()]
+    except (OSError, _zipfile.BadZipFile):
+        return None
+    if len(infos) != 1:
+        return None
+    return crc_index.get(f"{infos[0].CRC:08X}")
 
 
 def _build_junk_scan(
@@ -75,6 +95,7 @@ def _build_junk_scan(
     arcade_names: set[str] | None = None,
     mame_infra_names: set[str] | None = None,
     known_bios_files: set[str] | None = None,
+    crc_index: dict[str, tuple[str, str, str | None]] | None = None,
 ) -> dict:
     """Scan a folder and classify non-gaming files as junk.
 
@@ -89,6 +110,10 @@ def _build_junk_scan(
     lowercase stems of playable arcade sets; *mame_infra_names* are the
     BIOS/device/non-runnable stems from the MAME XML; *known_bios_files* are
     lowercase filenames from ``_KNOWN_BIOS_MAP``.
+
+    *crc_index* (ZIP-ROUTE-1) enables exact console-ROM identification for
+    loose single-entry ZIPs via the CRC32 already stored in the ZIP header
+    (``CatalogMatcher.crc_index()``); ``None`` keeps the previous behavior.
     """
     _GAMING_EXTS = {
         ".gba",
@@ -236,6 +261,7 @@ def _build_junk_scan(
         for fname in files:
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
+            identified: tuple[str, str, str | None] | None = None
             if ext in _CHIP_CANDIDATE_EXTS:
                 # Tier de evidencia (JUNK-SMART-1): extensión gaming, pero si la BD
                 # no lo reconoce y todo apunta a chip suelto, va a categoría propia
@@ -255,10 +281,18 @@ def _build_junk_scan(
                     cat = _ZIP_CAT_INFRA
                 elif stem in arcade_names:
                     cat = _ZIP_CAT_ARCADE
-                elif " - " in fpath.stem:
-                    cat = _ZIP_CAT_COLLECTION
                 else:
-                    cat = _JUNK_CATEGORIES[".zip"]
+                    # ZIP-ROUTE-1: el contenido manda sobre el nombre — los tags
+                    # del nombre mienten ("(XBLA)", "(Disk 1)" envuelven ROMs
+                    # normales) y " - " en el título daba falsas colecciones
+                    if crc_index is not None:
+                        identified = _identify_console_zip(fpath, crc_index)
+                    if identified:
+                        cat = _ZIP_CAT_CONSOLE
+                    elif " - " in fpath.stem:
+                        cat = _ZIP_CAT_COLLECTION
+                    else:
+                        cat = _JUNK_CATEGORIES[".zip"]
             else:
                 if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
                     continue
@@ -286,7 +320,10 @@ def _build_junk_scan(
                 rel = str(fpath.relative_to(p))
             except ValueError:
                 rel = str(fpath)
-            categories[cat].append({"path": rel, "full_path": str(fpath), "size_bytes": size})
+            item = {"path": rel, "full_path": str(fpath), "size_bytes": size}
+            if identified:
+                item["identified_as"], item["dat"], item["platform"] = identified
+            categories[cat].append(item)
 
     cat_list = []
     for cat, files_list in sorted(
