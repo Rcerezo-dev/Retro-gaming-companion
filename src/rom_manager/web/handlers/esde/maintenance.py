@@ -153,7 +153,11 @@ def register_maintenance(
         if not folder:
             ctx._send_json({"error": "path required"})
             return
-        from rom_manager.catalog.mame_loader import load_arcade_dir, load_arcade_infra_names
+        from rom_manager.catalog.mame_loader import (
+            load_arcade_crc_index,
+            load_arcade_dir,
+            load_arcade_infra_names,
+        )
         from rom_manager.catalog.matcher import CatalogMatcher
         from rom_manager.web.builders.folders import _build_junk_scan
         from rom_manager.web.inbox_pipeline import _KNOWN_BIOS_MAP
@@ -176,6 +180,8 @@ def register_maintenance(
             nointro_dir=config.catalogs_nointro_dir,
             redump_dir=config.catalogs_redump_dir,
         ).crc_index()
+        # ZIP-ROUTE-2: CRC de los DAT arcade para identificar sets renombrados
+        arcade_crcs = load_arcade_crc_index(arcade_dir) if arcade_dir else {}
         ctx._send_json(
             _build_junk_scan(
                 folder,
@@ -184,6 +190,7 @@ def register_maintenance(
                 mame_infra_names=infra_names,
                 known_bios_files=known_bios,
                 crc_index=crc_index,
+                arcade_crc_index=arcade_crcs,
             )
         )
 

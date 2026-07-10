@@ -58,6 +58,13 @@ _ZIP_CAT_CONSOLE = "ROMs de consola identificadas (mover a su plataforma)"
 # Sustituye la heurística por nombre (" - " daba ~39 falsos positivos de 56:
 # juegos sueltos tipo "Fire Emblem - ..." caían como colecciones).
 _NESTED_ROM_EXTS = {".zip", ".chd"}
+# ZIP-ROUTE-2: sets arcade identificados votando los CRC de las entradas contra
+# los DAT arcade. Cobertura total → renombrar al nombre de set y mover (los
+# cores arcade piden el ZIP intacto con el nombre exacto del set); cobertura
+# parcial → probablemente el mismo juego de otra versión de romset (puede no
+# arrancar en el core instalado) → revisar.
+_ZIP_CAT_ARCADE_IDENT = "ROMs arcade identificadas (renombrar al set y mover)"
+_ZIP_CAT_ARCADE_OTHER = "Sets arcade de otra versión (revisar)"
 
 # JUNK-SMART-3: confianza por categoría. safe_delete = basura por extensión
 # (tier 0, borrable en masa); review = probable basura pero mirar antes
@@ -72,6 +79,8 @@ _CATEGORY_CONFIDENCE = {
     _ZIP_CAT_BIOS: "misplaced",
     _ZIP_CAT_ARCADE: "misplaced",
     _ZIP_CAT_CONSOLE: "misplaced",
+    _ZIP_CAT_ARCADE_IDENT: "misplaced",
+    _ZIP_CAT_ARCADE_OTHER: "review",
 }
 
 
@@ -90,6 +99,24 @@ def _is_source_collection(infos: list[_zipfile.ZipInfo]) -> bool:
     return len(infos) > 1 and nested * 2 >= len(infos)
 
 
+def _vote_arcade_set(
+    infos: list[_zipfile.ZipInfo], arcade_crc_index: dict[str, set[str]]
+) -> tuple[str, float] | None:
+    """ZIP-ROUTE-2: (mejor set, cobertura 0-1) votando los CRC de las entradas,
+    o None si ningún CRC vota. Cobertura 1.0 = todas las entradas pertenecen
+    al set → identidad segura; parcial = otra versión de romset, revisar."""
+    votes: Counter[str] = Counter()
+    for i in infos:
+        if i.file_size == 0:  # un archivo vacío (CRC 0) votaría a sets espurios
+            continue
+        for set_name in arcade_crc_index.get(f"{i.CRC:08X}", ()):
+            votes[set_name] += 1
+    if not votes:
+        return None
+    best, count = votes.most_common(1)[0]
+    return best, count / len(infos)
+
+
 def _build_junk_scan(
     folder_path: str,
     matched_paths: set[str] | None = None,
@@ -97,6 +124,7 @@ def _build_junk_scan(
     mame_infra_names: set[str] | None = None,
     known_bios_files: set[str] | None = None,
     crc_index: dict[str, tuple[str, str, str | None]] | None = None,
+    arcade_crc_index: dict[str, set[str]] | None = None,
 ) -> dict:
     """Scan a folder and classify non-gaming files as junk.
 
@@ -115,6 +143,9 @@ def _build_junk_scan(
     *crc_index* (ZIP-ROUTE-1) enables exact console-ROM identification for
     loose single-entry ZIPs via the CRC32 already stored in the ZIP header
     (``CatalogMatcher.crc_index()``); ``None`` keeps the previous behavior.
+
+    *arcade_crc_index* (ZIP-ROUTE-2, ``load_arcade_crc_index``) identifies
+    renamed arcade sets by voting entry CRCs; ``None`` disables the pass.
     """
     _GAMING_EXTS = {
         ".gba",
@@ -263,6 +294,7 @@ def _build_junk_scan(
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
             identified: tuple[str, str, str | None] | None = None
+            arcade_vote: tuple[str, float] | None = None
             if ext in _CHIP_CANDIDATE_EXTS:
                 # Tier de evidencia (JUNK-SMART-1): extensión gaming, pero si la BD
                 # no lo reconoce y todo apunta a chip suelto, va a categoría propia
@@ -294,7 +326,16 @@ def _build_junk_scan(
                     elif infos and _is_source_collection(infos):
                         cat = _ZIP_CAT_COLLECTION
                     else:
-                        cat = _JUNK_CATEGORIES[".zip"]
+                        # ZIP-ROUTE-2: sin identidad de consola ni pinta de
+                        # colección → votar los CRC contra los sets arcade
+                        if infos and arcade_crc_index:
+                            arcade_vote = _vote_arcade_set(infos, arcade_crc_index)
+                        if arcade_vote and arcade_vote[1] == 1.0:
+                            cat = _ZIP_CAT_ARCADE_IDENT
+                        elif arcade_vote:
+                            cat = _ZIP_CAT_ARCADE_OTHER
+                        else:
+                            cat = _JUNK_CATEGORIES[".zip"]
             else:
                 if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
                     continue
@@ -317,6 +358,9 @@ def _build_junk_scan(
             item = {"path": rel, "full_path": str(fpath), "size_bytes": size}
             if identified:
                 item["identified_as"], item["dat"], item["platform"] = identified
+            elif arcade_vote:
+                item["identified_as"] = arcade_vote[0]
+                item["coverage"] = round(arcade_vote[1], 2)
             categories[cat].append(item)
 
     cat_list = []
