@@ -34,6 +34,13 @@ def _same_content(a: Path, b: Path) -> bool:
         return False
 
 
+def _organize_dest_file(target_root: Path, platform: str, filename: str) -> Path:
+    """Where *filename* would land if organized — same rule the Step 6 loop uses."""
+    canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
+    folder_name = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+    return target_root / folder_name / filename
+
+
 def _resolve_organize_conflict(
     repository: LibraryRepository,
     config: AppConfig,
@@ -42,12 +49,16 @@ def _resolve_organize_conflict(
     game_id: int,
     platform: str,
     ra_hash_cache: dict[str, dict],
+    force_keep: str | None = None,
 ) -> tuple[str, str | None]:
     """RA-CONFLICT-1: same name, different content in the organize step.
 
-    Same tie-break rule as ``apply_ra_conflicts`` (services/ra_duplicates_service.py):
-    higher RA achievement count wins; a tie or "neither has RA data" leaves both
-    files untouched for manual review.
+    With *force_keep* ``None``, uses the same tie-break rule as
+    ``apply_ra_conflicts`` (services/ra_duplicates_service.py): higher RA
+    achievement count wins; a tie or "neither has RA data" leaves both files
+    untouched for manual review. Pass ``force_keep="source"``/``"dest"`` to
+    apply a user's explicit choice instead (RA-CONFLICT-2: manual resolution
+    from the UI) — same move/discard mechanics either way.
 
     Returns ``(status, error)``:
       "kept_source" — dest was the loser (discarded to its own _descartados/),
@@ -62,17 +73,20 @@ def _resolve_organize_conflict(
         get_ra_achievements_for_path,
     )
 
-    src_ra = get_ra_achievements_for_path(
-        repository, config, str(source_file), platform, ra_hash_cache
-    )
-    dst_ra = get_ra_achievements_for_path(
-        repository, config, str(dest_file.resolve()), platform, ra_hash_cache
-    )
+    if force_keep is not None:
+        keep = force_keep
+    else:
+        src_ra = get_ra_achievements_for_path(
+            repository, config, str(source_file), platform, ra_hash_cache
+        )
+        dst_ra = get_ra_achievements_for_path(
+            repository, config, str(dest_file.resolve()), platform, ra_hash_cache
+        )
+        if src_ra <= 0 and dst_ra <= 0:
+            return "unresolved", None
+        keep = "source" if dst_ra < src_ra else "dest"
 
-    if src_ra <= 0 and dst_ra <= 0:
-        return "unresolved", None
-
-    if dst_ra < src_ra:
+    if keep == "source":
         # dest is the loser: discard it, then move source into its place.
         ok, err = _discard_file(repository, str(dest_file))
         if not ok:
@@ -97,6 +111,89 @@ def _resolve_organize_conflict(
     if not ok:
         return "unresolved", err
     return "kept_dest", None
+
+
+def find_organize_conflicts(
+    repository: LibraryRepository, config: AppConfig, inbox_path_str: str, target_root_str: str
+) -> list[dict]:
+    """RA-CONFLICT-2: read-only listing of same-name/different-content conflicts.
+
+    Mirrors the detection the organize step (Step 6 of ``_run_inbox_pipeline``)
+    does live, without moving anything — for the UI to show and let the user
+    resolve one by one.
+    """
+    inbox = Path(inbox_path_str).resolve()
+    target_root = Path(target_root_str).resolve() if target_root_str else inbox
+    inbox_str_lower = str(inbox).lower()
+
+    ra_hash_cache: dict[str, dict] = {}
+    conflicts: list[dict] = []
+    with repository.connect() as conn:
+        rows = conn.execute(
+            "SELECT source_path, platform, original_filename FROM games "
+            "WHERE LOWER(source_path) LIKE ?",
+            (inbox_str_lower + "%",),
+        ).fetchall()
+
+    from rom_manager.services.ra_duplicates_service import get_ra_achievements_for_path
+
+    for source_path_str_db, platform, _orig_name in rows:
+        source_file = Path(source_path_str_db)
+        if not source_file.exists():
+            continue
+        dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
+        if not dest_file.exists() or _same_content(source_file, dest_file):
+            continue
+        src_ra = get_ra_achievements_for_path(
+            repository, config, str(source_file), platform or "", ra_hash_cache
+        )
+        dst_ra = get_ra_achievements_for_path(
+            repository, config, str(dest_file.resolve()), platform or "", ra_hash_cache
+        )
+        conflicts.append(
+            {
+                "source_path": str(source_file),
+                "dest_path": str(dest_file),
+                "filename": source_file.name,
+                "platform": platform or "",
+                "source_size": source_file.stat().st_size,
+                "dest_size": dest_file.stat().st_size,
+                "source_ra": None if src_ra < 0 else src_ra,
+                "dest_ra": None if dst_ra < 0 else dst_ra,
+            }
+        )
+    return conflicts
+
+
+def resolve_inbox_conflict(
+    repository: LibraryRepository, config: AppConfig, source_path: str, keep: str
+) -> dict:
+    """RA-CONFLICT-2: apply a user's manual choice for one conflict from the UI."""
+    with repository.connect() as conn:
+        row = conn.execute(
+            "SELECT id, platform FROM games WHERE source_path = ?", (source_path,)
+        ).fetchone()
+    if not row:
+        return {"error": f"No hay ningún juego registrado en {source_path}"}
+    game_id, platform = row["id"], row["platform"] or ""
+
+    source_file = Path(source_path)
+    if not source_file.exists():
+        return {"error": f"{source_file.name} ya no existe en disco"}
+
+    target_root = (
+        Path(config.inbox.target_root).resolve()
+        if config.inbox.target_root
+        else (config.library_root or source_file.parent)
+    )
+    dest_file = _organize_dest_file(target_root, platform, source_file.name)
+    if not dest_file.exists() or _same_content(source_file, dest_file):
+        return {"error": f"{source_file.name} ya no tiene conflicto pendiente"}
+
+    status, err = _resolve_organize_conflict(
+        repository, config, source_file, dest_file, game_id, platform, {}, force_keep=keep
+    )
+    return {"status": status, "error": err}
 
 
 # ── Inbox (Pilar 2) ───────────────────────────────────────────────────────────
@@ -674,11 +771,9 @@ def _run_inbox_pipeline(
             if not source_file.exists():
                 continue
 
-            canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
-            folder_name = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
-            dest_folder = target_root / folder_name
+            dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
+            dest_folder = dest_file.parent
             dest_folder.mkdir(parents=True, exist_ok=True)
-            dest_file = dest_folder / source_file.name
 
             _upd("organizing", 6, idx, len(rows), source_file.name)
 
