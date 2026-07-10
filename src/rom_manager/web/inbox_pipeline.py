@@ -449,8 +449,13 @@ def _run_inbox_pipeline(
     repository: LibraryRepository,
     config: AppConfig,
     job_manager,
+    extra_result: dict | None = None,
 ) -> None:
-    """Background job: extract → scan → match → plan → rename → move → cleanup."""
+    """Background job: extract → scan → match → plan → rename → move → cleanup.
+
+    *extra_result* (ZIP-ROUTE-4): contadores de las fases previas del zip_router
+    que se mezclan en el resultado del job para que la UI los muestre juntos.
+    """
     import shutil as _shutil
 
     from rom_manager.catalog.matcher import CatalogMatcher
@@ -678,6 +683,7 @@ def _run_inbox_pipeline(
                 _logger.debug("No se pudo eliminar la carpeta temporal _extracted", exc_info=True)
 
         job_result = {
+            **(extra_result or {}),
             "result_ts": utc_now(),
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
