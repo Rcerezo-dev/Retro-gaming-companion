@@ -34,6 +34,71 @@ def _same_content(a: Path, b: Path) -> bool:
         return False
 
 
+def _resolve_organize_conflict(
+    repository: LibraryRepository,
+    config: AppConfig,
+    source_file: Path,
+    dest_file: Path,
+    game_id: int,
+    platform: str,
+    ra_hash_cache: dict[str, dict],
+) -> tuple[str, str | None]:
+    """RA-CONFLICT-1: same name, different content in the organize step.
+
+    Same tie-break rule as ``apply_ra_conflicts`` (services/ra_duplicates_service.py):
+    higher RA achievement count wins; a tie or "neither has RA data" leaves both
+    files untouched for manual review.
+
+    Returns ``(status, error)``:
+      "kept_source" — dest was the loser (discarded to its own _descartados/),
+                      source moved into dest's path, DB row updated.
+      "kept_dest"   — source was the loser (discarded to the Inbox's _descartados/).
+      "unresolved"  — neither side has RA data (or a discard/move failed).
+    """
+    import shutil as _shutil_local
+
+    from rom_manager.services.ra_duplicates_service import (
+        _discard_file,
+        get_ra_achievements_for_path,
+    )
+
+    src_ra = get_ra_achievements_for_path(
+        repository, config, str(source_file), platform, ra_hash_cache
+    )
+    dst_ra = get_ra_achievements_for_path(
+        repository, config, str(dest_file.resolve()), platform, ra_hash_cache
+    )
+
+    if src_ra <= 0 and dst_ra <= 0:
+        return "unresolved", None
+
+    if dst_ra < src_ra:
+        # dest is the loser: discard it, then move source into its place.
+        ok, err = _discard_file(repository, str(dest_file))
+        if not ok:
+            return "unresolved", err
+        try:
+            _shutil_local.move(str(source_file), str(dest_file))
+        except OSError as exc:
+            return "unresolved", str(exc)
+        dest_path_str = str(dest_file.resolve())
+        with repository.batch() as conn:
+            conn.execute(
+                "DELETE FROM games WHERE source_path=? AND id!=?", (dest_path_str, game_id)
+            )
+            conn.execute(
+                "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
+                (dest_path_str, dest_file.name, game_id),
+            )
+        return "kept_source", None
+
+    # source is the loser: dest stays in place, discard source.
+    ok, err = _discard_file(repository, str(source_file))
+    if not ok:
+        return "unresolved", err
+    return "kept_dest", None
+
+
 # ── Inbox (Pilar 2) ───────────────────────────────────────────────────────────
 
 _DISC_EXTENSIONS_INBOX = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".ccd", ".chd"})
@@ -591,7 +656,9 @@ def _run_inbox_pipeline(
         # ── Step 6: Move to platform folders ─────────────────────────────────
         _upd("organizing", 6, 0, 0)
         organized = 0
+        ra_resolved = 0
         organize_errors: list[str] = []
+        _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
         with repository.connect() as conn:
@@ -634,10 +701,26 @@ def _run_inbox_pipeline(
                             f"{source_file.name}: duplicado exacto en destino, no se pudo eliminar fuente — {exc}"
                         )
                 else:
-                    organize_errors.append(
-                        f"{source_file.name}: mismo nombre en {dest_folder} pero contenido distinto "
-                        "— no se toca, revisar a mano"
+                    status, err = _resolve_organize_conflict(
+                        repository,
+                        config,
+                        source_file,
+                        dest_file,
+                        game_id,
+                        platform or "",
+                        _ra_hash_cache,
                     )
+                    if status == "kept_source":
+                        organized += 1
+                        ra_resolved += 1
+                    elif status == "kept_dest":
+                        ra_resolved += 1
+                    else:
+                        detail = f" ({err})" if err else ""
+                        organize_errors.append(
+                            f"{source_file.name}: mismo nombre en {dest_folder} pero contenido "
+                            f"distinto{detail} — no se toca, revisar a mano"
+                        )
                 continue
 
             try:
@@ -701,6 +784,7 @@ def _run_inbox_pipeline(
             "matched": matched,
             "renamed": renamed,
             "organized": organized,
+            "ra_resolved": ra_resolved,
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
             "target_root": str(target_root),

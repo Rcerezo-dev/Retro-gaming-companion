@@ -177,6 +177,63 @@ def resolve_duplicate_ra(
     return {"discarded": discarded, "failed": failed, "errors": errors[:10]}
 
 
+def get_ra_hash_lib(config: AppConfig, platform: str, cache: dict[str, dict]) -> dict:
+    """md5(lower) → parsed RA game entry (with ``.achievements``) for *platform*.
+
+    *cache* is a per-call dict the caller owns, so repeated lookups across many
+    conflicts in the same run only touch disk once per platform.
+    """
+    if platform in cache:
+        return cache[platform]
+    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
+    console_id = get_ra_console_id(platform)
+    if not console_id:
+        cache[platform] = {}
+        return {}
+    cache_file = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{console_id}.json"
+    if not cache_file.exists():
+        cache[platform] = {}
+        return {}
+    try:
+        lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
+    except Exception:
+        _log.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
+        lib = {}
+    cache[platform] = lib
+    return lib
+
+
+def get_ra_achievements(config: AppConfig, platform: str, md5: str, cache: dict[str, dict]) -> int:
+    """Achievement count for *md5* on *platform* — -1 if unknown or no cache."""
+    if not md5:
+        return -1
+    entry = get_ra_hash_lib(config, platform, cache).get(md5.lower())
+    return entry.achievements if entry else -1
+
+
+def get_ra_achievements_for_path(
+    repository: LibraryRepository,
+    config: AppConfig,
+    source_path: str,
+    platform: str,
+    cache: dict[str, dict],
+) -> int:
+    """Achievement count for the game stored at *source_path* — -1 if unknown."""
+    try:
+        with repository.connect() as conn:
+            row = conn.execute(
+                "SELECT md5 FROM games WHERE source_path = ?", (source_path,)
+            ).fetchone()
+    except Exception:
+        _log.debug("Consulta RA por ruta falló: %s", source_path, exc_info=True)
+        return -1
+    if not row:
+        return -1
+    return get_ra_achievements(config, platform, (row["md5"] or ""), cache)
+
+
 def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict:
     """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/.
 
@@ -189,8 +246,6 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves
-    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     opts = FormatOptions()
     plan = build_plan(repository, opts)
@@ -206,42 +261,8 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
     # Build per-platform hash→achievements lookup (lazily cached)
     _hash_lib_cache: dict[str, dict] = {}
 
-    def _hash_lib_for(plat: str) -> dict:
-        if plat in _hash_lib_cache:
-            return _hash_lib_cache[plat]
-        console_id = get_ra_console_id(plat)
-        if not console_id:
-            _hash_lib_cache[plat] = {}
-            return {}
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            _hash_lib_cache[plat] = {}
-            return {}
-        try:
-            lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
-        except Exception:
-            _log.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            lib = {}
-        _hash_lib_cache[plat] = lib
-        return lib
-
     def _ra_for_path(path: Path, plat: str) -> int:
-        """Return achievement count for a file (-1 = unknown / no cache)."""
-        try:
-            with repository.connect() as _c:
-                row = _c.execute(
-                    "SELECT md5 FROM games WHERE source_path = ?", (str(path),)
-                ).fetchone()
-            if not row:
-                return -1
-            md5 = (row["md5"] or "").lower()
-        except Exception:
-            _log.debug("Consulta RA por ruta falló: %s", path, exc_info=True)
-            return -1
-        if not md5:
-            return -1
-        entry = _hash_lib_for(plat).get(md5)
-        return entry.achievements if entry else -1
+        return get_ra_achievements_for_path(repository, config, str(path), plat, _hash_lib_cache)
 
     # ── Disk conflicts ────────────────────────────────────────────────────────
     # source wants to rename to target_path but target_path already holds a different file.
