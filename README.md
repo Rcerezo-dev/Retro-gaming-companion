@@ -64,6 +64,16 @@ Colección en todos tus dispositivos
 - Búsqueda de saves huérfanos (sin ROM asociada)
 - Health check: re-hashea ROMs contra el SHA1 almacenado para detectar corrupción
 - **Escaneo de archivos basura**: detecta y elimina `.DS_Store`, thumbs, temporales, etc.
+  Clasificador basado en evidencia (BD + catálogos + XML de MAME) con etiquetas de
+  confianza: `safe_delete` (borrable en masa), `review` y `misplaced` (mover, no borrar)
+- **Identificación de ZIPs sueltos sin descomprimir** (ZIP-ROUTE): el CRC32 del header
+  del ZIP se cruza con No-Intro/Redump (juegos de consola), con los DATs arcade por
+  votación (sets MAME/FBNeo renombrados) y con la extensión interna (romhacks);
+  las colecciones se detectan por contenido (zip-de-zips / `.chd`)
+- **Organizar identificados en un paso**: arcade directo a `arcade\` renombrado al set
+  (el ZIP nunca se extrae: es el ROM), colecciones extraídas a su destino y el resto
+  vía Inbox (emparejar → renombrar → mover); el Inbox queda limpio, sin duplicados,
+  y los conflictos se reportan sin sobreescribir nada
 
 ### Estructura de biblioteca (ES-DE compatible)
 - Crea automáticamente la estructura de carpetas estándar ES-DE/EmulationStation:
@@ -201,7 +211,7 @@ rommgr serve
 | **Cable Sync** | Copia directa PC ↔ consola Android por USB. Tres modos de dirección. |
 | **Scraper** | Descarga metadatos y carátulas desde ScreenScraper. Exporta `gamelist.xml`. |
 | **RetroAchievements** | Compatibilidad de logros por MD5. Filtro por plataforma. Export CSV. Progreso personal por juego. |
-| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. |
+| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. Junk-scan con identificación de ZIPs por CRC y botón "Organizar identificados (1 paso)". |
 | **Inbox** | Procesa ZIPs nuevos: identifica plataforma, descomprime y organiza automáticamente. |
 | **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático. Descarga automática de DATs. |
 

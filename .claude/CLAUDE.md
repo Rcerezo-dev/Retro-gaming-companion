@@ -102,6 +102,15 @@ def _auto_sync_loop(config, get_repo_fn):
 # srv_mod= que reciben los handlers es un alias legado de web.state (se elimina en ARC-JM-6).
 ```
 
+### ZIPs sueltos: identidad por contenido (ZIP-ROUTE)
+```python
+# El header del ZIP ya trae el CRC32 de cada entrada → identificar SIN descomprimir:
+# CatalogMatcher.crc_index() (consola) y load_arcade_crc_index() (votación arcade).
+# Los tags del nombre ("(XBLA)", "(Disk 1)") mienten: el contenido manda.
+# Un ZIP arcade NUNCA se extrae ni pasa por el Inbox — el ZIP es el ROM.
+# Colocación en un paso: web/zip_router.py (job "inbox", delete_source=True).
+```
+
 ### Static files
 ```
 GET /static/app.css  →  src/rom_manager/web/static/app.css

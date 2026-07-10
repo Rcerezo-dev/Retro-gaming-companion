@@ -35,6 +35,8 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | ADB no encuentra saves | `adb_transport.py` (mapeo de rutas por emulador) |
 | Circular import al arrancar | Late imports en `cable_sync_daemon.py` / `inbox_pipeline.py` |
 | 404 en rutas registradas | `router.dispatch()` — ver BUG-ROUTING-404 en `archivo.md` |
+| ZIP suelto mal clasificado en el junk-scan | `web/builders/folders.py` — orden de passes: BIOS/infra/arcade por nombre → CRC consola (`matcher.crc_index()`) → colección por contenido → votación arcade (`load_arcade_crc_index()`) → extensión interna. Identificación completa de un caso: `Tareas/zip-route-identificacion.md` |
+| "Organizar identificados" movió algo mal | `web/zip_router.py` (`_route_identified` — política: nunca sobreescribir, conflictos en `route_skipped` del resultado del job "inbox") |
 
 ---
 

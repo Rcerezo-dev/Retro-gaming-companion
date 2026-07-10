@@ -37,6 +37,15 @@ RetroAchievements suele soportar solo una de ellas.
 antes de los datos reales. Dos archivos "iguales" pueden diferir en hash solo
 por el header; los DATs suelen hashear sin él.
 
+**ZIP-ROUTE / CRC del header ZIP** — Truco central del clasificador de ZIPs
+sueltos: el formato ZIP guarda el CRC32 de cada archivo comprimido en su propio
+header, así que se puede identificar el contenido cruzando ese CRC con los DATs
+**sin descomprimir un byte**. Un ZIP de una entrada con CRC en No-Intro/Redump
+es ese juego exacto; un ZIP multi-entrada se identifica como set arcade votando
+los CRCs de sus chips contra los DATs de MAME/FBNeo. Lección aprendida: los
+tags del nombre de archivo (`(XBLA)`, `(Disk 1)`, `(Windows)`) mienten
+sistemáticamente — el contenido es la única evidencia fiable.
+
 ## Formatos de disco y multi-disco
 
 **`.bin` + `.cue`** — Formato clásico de imagen de CD (PSX): el `.bin` tiene los
