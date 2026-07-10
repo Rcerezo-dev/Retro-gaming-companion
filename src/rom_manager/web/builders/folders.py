@@ -54,9 +54,10 @@ _ZIP_CAT_COLLECTION = "Colecciones fuente (revisar)"
 # ZIP-ROUTE-1: ZIP con una sola entrada cuyo CRC (leído del header, sin
 # descomprimir) está en No-Intro/Redump → juego de consola con identidad exacta
 _ZIP_CAT_CONSOLE = "ROMs de consola identificadas (mover a su plataforma)"
-# ponytail: heurística de colección = "Vendor - Plataforma" en el nombre o >1 GB;
-# si falla con nombres raros, JUNK-SMART-3 la deja en `review`, nunca auto-borrado
-_COLLECTION_MIN_BYTES = 1024**3
+# ZIP-ROUTE-5: colección fuente = contenedor con mayoría de .zip/.chd dentro.
+# Sustituye la heurística por nombre (" - " daba ~39 falsos positivos de 56:
+# juegos sueltos tipo "Fire Emblem - ..." caían como colecciones).
+_NESTED_ROM_EXTS = {".zip", ".chd"}
 
 # JUNK-SMART-3: confianza por categoría. safe_delete = basura por extensión
 # (tier 0, borrable en masa); review = probable basura pero mirar antes
@@ -74,19 +75,19 @@ _CATEGORY_CONFIDENCE = {
 }
 
 
-def _identify_console_zip(
-    fpath: _Path, crc_index: dict[str, tuple[str, str, str | None]]
-) -> tuple[str, str, str | None] | None:
-    """ZIP-ROUTE-1: devuelve (título, dat, plataforma) si el ZIP tiene una sola
-    entrada y su CRC32 (ya presente en el header) está en No-Intro/Redump."""
+def _zip_entries(fpath: _Path) -> list[_zipfile.ZipInfo] | None:
+    """Entradas (no-directorio) del ZIP, o None si no se puede abrir."""
     try:
         with _zipfile.ZipFile(fpath) as z:
-            infos = [i for i in z.infolist() if not i.is_dir()]
+            return [i for i in z.infolist() if not i.is_dir()]
     except (OSError, _zipfile.BadZipFile):
         return None
-    if len(infos) != 1:
-        return None
-    return crc_index.get(f"{infos[0].CRC:08X}")
+
+
+def _is_source_collection(infos: list[_zipfile.ZipInfo]) -> bool:
+    """ZIP-ROUTE-5: varias entradas y la mayoría son .zip/.chd anidados."""
+    nested = sum(1 for i in infos if _os.path.splitext(i.filename)[1].lower() in _NESTED_ROM_EXTS)
+    return len(infos) > 1 and nested * 2 >= len(infos)
 
 
 def _build_junk_scan(
@@ -282,14 +283,15 @@ def _build_junk_scan(
                 elif stem in arcade_names:
                     cat = _ZIP_CAT_ARCADE
                 else:
-                    # ZIP-ROUTE-1: el contenido manda sobre el nombre — los tags
-                    # del nombre mienten ("(XBLA)", "(Disk 1)" envuelven ROMs
-                    # normales) y " - " en el título daba falsas colecciones
-                    if crc_index is not None:
-                        identified = _identify_console_zip(fpath, crc_index)
+                    # ZIP-ROUTE-1/5: el contenido manda sobre el nombre — los
+                    # tags del nombre mienten ("(XBLA)", "(Disk 1)" envuelven
+                    # ROMs normales) y " - " en el título daba falsas colecciones
+                    infos = _zip_entries(fpath)
+                    if infos and len(infos) == 1 and crc_index is not None:
+                        identified = crc_index.get(f"{infos[0].CRC:08X}")
                     if identified:
                         cat = _ZIP_CAT_CONSOLE
-                    elif " - " in fpath.stem:
+                    elif infos and _is_source_collection(infos):
                         cat = _ZIP_CAT_COLLECTION
                     else:
                         cat = _JUNK_CATEGORIES[".zip"]
@@ -305,14 +307,6 @@ def _build_junk_scan(
                 size = 0
             if cat == _CHIP_CATEGORY and size > _CHIP_MAX_BYTES:
                 continue
-            # JUNK-SMART-2: un ZIP sin nombre reconocible pero enorme es colección
-            if (
-                cat == _JUNK_CATEGORIES[".zip"]
-                and ext == ".zip"
-                and arcade_names is not None
-                and size >= _COLLECTION_MIN_BYTES
-            ):
-                cat = _ZIP_CAT_COLLECTION
             total_junk_bytes += size
             if cat not in categories:
                 categories[cat] = []
