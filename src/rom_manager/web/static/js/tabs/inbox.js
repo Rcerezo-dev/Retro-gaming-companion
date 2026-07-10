@@ -257,6 +257,83 @@ function _renderInboxResult(r) {
   showToast('Inbox: ' + (r.organized || 0) + ' juegos organizados', 'ok');
 }
 
+// ── RA-CONFLICT-2: review/resolve organize conflicts from the UI ─────────────
+async function loadInboxConflicts() {
+  const el  = document.getElementById('inbox-conflicts-content');
+  const btn = document.getElementById('btn-inbox-conflicts');
+  const pathEl   = document.getElementById('inbox-path');
+  const targetEl = document.getElementById('inbox-target');
+  const inboxPath = pathEl ? pathEl.value.trim() : '';
+  const targetPath = targetEl ? targetEl.value.trim() : '';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
+  if (btn) btn.disabled = true;
+  try {
+    let url = '/api/inbox-conflicts';
+    const qs = [];
+    if (inboxPath) qs.push('path=' + encodeURIComponent(inboxPath));
+    if (targetPath) qs.push('target_root=' + encodeURIComponent(targetPath));
+    if (qs.length) url += '?' + qs.join('&');
+    const d = await apiFetch(url);
+    if (d.error) {
+      el.innerHTML = `<p class="error-msg">${window._h(d.error)}</p>`;
+      return;
+    }
+    const conflicts = d.conflicts || [];
+    if (conflicts.length === 0) {
+      el.innerHTML = '<p style="color:var(--c-teal);font-size:13px">Sin conflictos pendientes. ✓</p>';
+      return;
+    }
+    let html = `<p style="color:var(--c-muted);font-size:12px;margin-bottom:8px">
+      <strong style="color:var(--c-strong)">${conflicts.length}</strong> archivos con el mismo nombre en el Inbox y en su carpeta de destino, pero contenido distinto.
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:1px solid #333;color:var(--c-dim)">
+        <th style="text-align:left;padding:4px 8px">Archivo</th>
+        <th style="text-align:left;padding:4px 8px">Plataforma</th>
+        <th style="text-align:left;padding:4px 8px">Inbox</th>
+        <th style="text-align:left;padding:4px 8px">Existente</th>
+        <th style="text-align:left;padding:4px 8px">Acción</th>
+      </tr></thead><tbody>`;
+    conflicts.forEach((c, i) => {
+      const srcRa = c.source_ra != null ? c.source_ra + ' logros' : 'sin datos RA';
+      const dstRa = c.dest_ra != null ? c.dest_ra + ' logros' : 'sin datos RA';
+      html += `<tr id="inbox-conflict-row-${i}">
+        <td style="padding:4px 8px;word-break:break-all">${window._h(c.filename)}</td>
+        <td style="padding:4px 8px">${window._h(c.platform || '—')}</td>
+        <td style="padding:4px 8px">${window.fmtSize(c.source_size)}<br><span style="color:var(--c-dim);font-size:11px">${srcRa}</span></td>
+        <td style="padding:4px 8px">${window.fmtSize(c.dest_size)}<br><span style="color:var(--c-dim);font-size:11px">${dstRa}</span></td>
+        <td style="padding:4px 8px;white-space:nowrap">
+          <button class="btn" style="font-size:11px;padding:2px 8px" onclick="resolveInboxConflict(${JSON.stringify(c.source_path)}, 'source', ${i})">Quedarme con Inbox</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="resolveInboxConflict(${JSON.stringify(c.source_path)}, 'dest', ${i})">Quedarme con existente</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function resolveInboxConflict(sourcePath, keep, idx) {
+  const label = keep === 'source' ? 'la versión del Inbox' : 'la versión ya existente';
+  if (!confirm(`¿Quedarte con ${label}?\n\nLa otra se moverá a _descartados/.`)) return;
+  const row = document.getElementById('inbox-conflict-row-' + idx);
+  try {
+    const d = await apiPost('/api/inbox-conflicts/resolve', { source_path: sourcePath, keep });
+    if (d.error) {
+      showToast('Error: ' + d.error, 'err');
+      return;
+    }
+    if (row) row.remove();
+    showToast('Conflicto resuelto', 'ok');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
 async function saveInboxSettings() {
   const pathEl   = document.getElementById('inbox-path');
   const targetEl = document.getElementById('inbox-target');
@@ -308,6 +385,8 @@ export {
   runInbox,
   _applyInboxProgress,
   _renderInboxResult,
+  loadInboxConflicts,
+  resolveInboxConflict,
   saveInboxSettings,
   _pollInboxWatcher,
 };

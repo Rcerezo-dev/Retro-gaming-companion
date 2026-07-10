@@ -70,6 +70,8 @@ import {
   runInbox,
   _applyInboxProgress,
   _renderInboxResult,
+  loadInboxConflicts,
+  resolveInboxConflict,
   saveInboxSettings,
   _pollInboxWatcher,
 } from './tabs/inbox.js';
@@ -303,6 +305,8 @@ Object.assign(window, {
   runInbox,
   _applyInboxProgress,
   _renderInboxResult,
+  loadInboxConflicts,
+  resolveInboxConflict,
   saveInboxSettings,
   _pollInboxWatcher,
   // sync.js
