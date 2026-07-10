@@ -246,7 +246,8 @@ def test_junk_scan_console_zip_identified_by_crc(tmp_path: Path) -> None:
 
 
 def test_junk_scan_console_zip_tier_off_without_crc_index(tmp_path: Path) -> None:
-    """ZIP-ROUTE-1: sin crc_index no se identifica — queda en revisión genérica."""
+    """ZIP-ROUTE-1: sin crc_index no hay identidad exacta — pero la extensión
+    interna (.sfc) sigue dando plataforma vía ZIP-ROUTE-3."""
     unknown = tmp_path / "Unknown"
     unknown.mkdir()
     _make_zip(unknown / "Arkanoid - Doh It Again (Japan) [b].zip", {"game.sfc": b"x"})
@@ -254,7 +255,8 @@ def test_junk_scan_console_zip_tier_off_without_crc_index(tmp_path: Path) -> Non
         str(tmp_path), matched_paths=set(), arcade_names=set(), mame_infra_names=set()
     )
     (cat,) = result["categories"]
-    assert cat["category"] == "ZIPs no-ROM"
+    assert cat["category"] == "ROMs/romhacks por extensión (mover a su plataforma)"
+    assert "identified_as" not in cat["files"][0]  # sin índice no hay identidad
 
 
 def test_junk_scan_collection_by_content_not_by_name(tmp_path: Path) -> None:
@@ -280,7 +282,8 @@ def test_junk_scan_collection_by_content_not_by_name(tmp_path: Path) -> None:
     )
     by_cat = {c["category"]: [f["path"] for f in c["files"]] for c in result["categories"]}
     assert by_cat["Colecciones fuente (revisar)"] == [str(Path("Unknown/turbografxcd.zip"))]
-    assert by_cat["ZIPs no-ROM"] == [
+    # el romhack no es colección: cae al pass por extensión (ZIP-ROUTE-3)
+    assert by_cat["ROMs/romhacks por extensión (mover a su plataforma)"] == [
         str(Path("Unknown/Fire Emblem - The Binding Blade [T-En].zip"))
     ]
 
@@ -366,6 +369,52 @@ def test_junk_scan_arcade_partial_coverage_is_review(tmp_path: Path) -> None:
     assert cat["confidence"] == "review"
     assert cat["files"][0]["identified_as"] == "qix2"
     assert cat["files"][0]["coverage"] == 0.5
+
+
+def test_junk_scan_romhack_platform_by_inner_extension(tmp_path: Path) -> None:
+    """ZIP-ROUTE-3: sin CRC en ningún DAT pero una sola entrada .gba →
+    plataforma por extensión (romhack/traducción parcheada)."""
+    from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION
+
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    _make_zip(unknown / "Fire Emblem - The Binding Blade [T-En].zip", {"fe6.gba": b"parche"})
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index={},
+        arcade_crc_index={},
+    )
+    (cat,) = result["categories"]
+    assert cat["category"] == "ROMs/romhacks por extensión (mover a su plataforma)"
+    assert cat["confidence"] == "misplaced"
+    assert cat["files"][0]["platform"] == PLATFORM_BY_EXTENSION[".gba"]
+
+
+def test_junk_scan_romhack_pass_skips_ambiguous_extensions(tmp_path: Path) -> None:
+    """ZIP-ROUTE-3: .md (¿Mega Drive o markdown?) y extensiones desconocidas
+    no dan plataforma — sin contexto de carpeta dentro de un ZIP, no adivinar."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    _make_zip(unknown / "docs.zip", {"README.md": b"# leeme"})
+    _make_zip(unknown / "cosa.zip", {"algo.xyz": b"?"})
+
+    result = _build_junk_scan(
+        str(tmp_path),
+        matched_paths=set(),
+        arcade_names=set(),
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        crc_index={},
+        arcade_crc_index={},
+    )
+    (cat,) = result["categories"]
+    assert cat["category"] == "ZIPs no-ROM"
+    assert cat["count"] == 2
 
 
 def test_junk_scan_skips_system_volume_information(tmp_path: Path) -> None:

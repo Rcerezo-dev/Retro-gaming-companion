@@ -12,6 +12,7 @@ import zipfile as _zipfile
 from collections import Counter
 from pathlib import Path as _Path
 
+import rom_manager.detection.platform_detector as _platform_detector
 from rom_manager.config import AppConfig
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
@@ -65,6 +66,9 @@ _NESTED_ROM_EXTS = {".zip", ".chd"}
 # arrancar en el core instalado) → revisar.
 _ZIP_CAT_ARCADE_IDENT = "ROMs arcade identificadas (renombrar al set y mover)"
 _ZIP_CAT_ARCADE_OTHER = "Sets arcade de otra versión (revisar)"
+# ZIP-ROUTE-3: sin CRC en ningún DAT (romhack/traducción parcheada) pero con
+# una sola entrada de extensión inequívoca → la plataforma la da la extensión
+_ZIP_CAT_ROMHACK = "ROMs/romhacks por extensión (mover a su plataforma)"
 
 # JUNK-SMART-3: confianza por categoría. safe_delete = basura por extensión
 # (tier 0, borrable en masa); review = probable basura pero mirar antes
@@ -81,6 +85,7 @@ _CATEGORY_CONFIDENCE = {
     _ZIP_CAT_CONSOLE: "misplaced",
     _ZIP_CAT_ARCADE_IDENT: "misplaced",
     _ZIP_CAT_ARCADE_OTHER: "review",
+    _ZIP_CAT_ROMHACK: "misplaced",
 }
 
 
@@ -115,6 +120,22 @@ def _vote_arcade_set(
         return None
     best, count = votes.most_common(1)[0]
     return best, count / len(infos)
+
+
+def _single_rom_platform(infos: list[_zipfile.ZipInfo]) -> str | None:
+    """ZIP-ROUTE-3: plataforma por la extensión de la única entrada del ZIP.
+
+    Para romhacks/traducciones: el ROM parcheado no tiene CRC en ningún DAT,
+    pero un ``.sfc``/``.gba``/… dentro identifica la plataforma sin dudas.
+    Las extensiones con contexto (``.md`` = ¿Mega Drive o markdown?) se
+    excluyen: dentro de un ZIP no hay carpeta que desambigüe.
+    """
+    if len(infos) != 1:
+        return None
+    ext = _os.path.splitext(infos[0].filename)[1].lower()
+    if ext in _platform_detector.PLATFORM_CONTEXT_BY_EXTENSION:
+        return None
+    return _platform_detector.PLATFORM_BY_EXTENSION.get(ext)
 
 
 def _build_junk_scan(
@@ -295,6 +316,7 @@ def _build_junk_scan(
             ext = fpath.suffix.lower()
             identified: tuple[str, str, str | None] | None = None
             arcade_vote: tuple[str, float] | None = None
+            hack_platform: str | None = None
             if ext in _CHIP_CANDIDATE_EXTS:
                 # Tier de evidencia (JUNK-SMART-1): extensión gaming, pero si la BD
                 # no lo reconoce y todo apunta a chip suelto, va a categoría propia
@@ -335,7 +357,12 @@ def _build_junk_scan(
                         elif arcade_vote:
                             cat = _ZIP_CAT_ARCADE_OTHER
                         else:
-                            cat = _JUNK_CATEGORIES[".zip"]
+                            # ZIP-ROUTE-3: romhack — plataforma por extensión
+                            hack_platform = _single_rom_platform(infos) if infos else None
+                            if hack_platform:
+                                cat = _ZIP_CAT_ROMHACK
+                            else:
+                                cat = _JUNK_CATEGORIES[".zip"]
             else:
                 if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
                     continue
@@ -361,6 +388,8 @@ def _build_junk_scan(
             elif arcade_vote:
                 item["identified_as"] = arcade_vote[0]
                 item["coverage"] = round(arcade_vote[1], 2)
+            elif hack_platform:
+                item["platform"] = hack_platform
             categories[cat].append(item)
 
     cat_list = []
