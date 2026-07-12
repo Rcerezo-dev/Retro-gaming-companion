@@ -20,35 +20,20 @@ async function loadDuplicates() {
   const el = document.getElementById('dup-content');
   try {
     const cfg = await apiFetch('/api/config');
-    const root = window._deviceRoot();
-    let url;
-    if (root) {
-      url = `/api/duplicates?source_root=${encodeURIComponent(root)}`;
-    } else {
-      const pcPath = document.getElementById('ov-pc-path')?.value.trim() || cfg.library_root || '';
-      const abPath = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '';
-      url = '/api/duplicates';
-      const params = new URLSearchParams();
-      if (pcPath) params.set('pc_root', pcPath);
-      if (abPath) params.set('ab_root', abPath);
-      if (params.toString()) url += '?' + params.toString();
-    }
+    // DEVSEL-FIX-3: duplicados siempre cruza ambas BDs, independiente del selector
+    const pcPath = document.getElementById('ov-pc-path')?.value.trim() || cfg.library_root || '';
+    const abPath = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '';
+    let url = '/api/duplicates';
+    const params = new URLSearchParams();
+    if (pcPath) params.set('pc_root', pcPath);
+    if (abPath) params.set('ab_root', abPath);
+    if (params.toString()) url += '?' + params.toString();
     const d = await apiFetch(url);
     const dupBar = document.getElementById('dup-context-bar');
     if (dupBar) {
-      let barHtml = '';
-      if (window._activeDevice === 'pc') {
-        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicado = mismo SHA1 exacto</span>`;
-      } else if (window._activeDevice === 'anbernic') {
-        const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${ab}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicado = mismo SHA1 exacto</span>`;
-      } else {
-        const parts = [`PC: <span style="color:var(--c-teal)">${cfg.library_root || '(no configurado)'}</span>`];
-        const ab = localStorage.getItem('anbernic_path');
-        if (ab) parts.push(`${window._devName}: <span style="color:var(--c-orange)">${ab}</span>`);
-        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> → ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${window._devName} se excluyen</span>`;
-      }
-      dupBar.innerHTML = barHtml;
+      const parts = [`PC: <span style="color:var(--c-teal)">${cfg.library_root || '(no configurado)'}</span>`];
+      if (abPath) parts.push(`${window._devName}: <span style="color:var(--c-orange)">${abPath}</span>`);
+      dupBar.innerHTML = `Viendo: ${parts.join(' &nbsp;+&nbsp; ')} &nbsp;·&nbsp; <span style="color:var(--c-dim)">Duplicados <em>dentro</em> del mismo dispositivo — las copias PC↔${window._devName} se excluyen</span>`;
       dupBar.classList.remove('hidden');
     }
     _dupAllGroups = d.groups || [];

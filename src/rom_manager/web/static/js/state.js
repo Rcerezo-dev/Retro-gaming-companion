@@ -9,7 +9,7 @@
 //   window.AppState.devName;
 
 const _state = {
-  activeDevice: 'pc',             // 'pc' | 'both' | 'anbernic'
+  activeDevice: 'pc',             // 'pc' | 'anbernic'
   devName: 'Consola Android',     // display name for the Android device
   deviceConnected: false,         // is Android device (ADB or SD card) connected?
   deviceConnectReason: '',        // why is/isn't device connected

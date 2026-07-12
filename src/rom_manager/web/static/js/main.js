@@ -409,7 +409,7 @@ export function _applyDeviceName(name) {
 
 export function setDevice(d) {
   setActiveDevice(d);
-  ['pc','both','anbernic'].forEach(id => {
+  ['pc','anbernic'].forEach(id => {
     const b = document.getElementById('dev-' + id);
     if (b) b.classList.toggle('active', id === d);
   });
@@ -427,7 +427,7 @@ export function _deviceRoot() {
   const d = getActiveDevice();
   if (d === 'pc')       return document.getElementById('ov-pc-path')?.value.trim() || null;
   if (d === 'anbernic') return document.getElementById('ov-ab-path')?.value.trim() || null;
-  return null; // 'both' = sin filtro
+  return null;
 }
 
 const _TAB_DESC = {
