@@ -68,6 +68,26 @@ def register_cable(
             except Exception as exc:
                 ctx._send_json({"accessible": False, "error": str(exc)})
 
+    # ── GET /api/sync-doctor (AUD-1) ─────────────────────────────────────────
+    @router.get("/api/sync-doctor")
+    def get_sync_doctor(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        serial = qs.get("serial", [""])[0].strip()
+        android_path = qs.get("android_path", [""])[0].strip() or config.sync.auto_sync_android_path
+        pc_path = qs.get("pc_path", [""])[0].strip() or (
+            str(config.library_root) if config.library_root else ""
+        )
+        quick = qs.get("quick", ["0"])[0] == "1"
+        if not serial:
+            ctx._send_json({"error": "serial requerido"})
+            return
+        try:
+            ctx._send_json(
+                _build_sync_doctor(config, repository, serial, android_path, pc_path, quick=quick)
+            )
+        except Exception as exc:
+            ctx._send_json({"error": str(exc)})
+
     # ── GET /api/sync-log ────────────────────────────────────────────────────
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
@@ -103,6 +123,111 @@ def register_cable(
     @router.post("/api/rom-tree-diff")
     def post_rom_tree_diff(ctx) -> None:
         _do_tree_diff(ctx, ctx._post_data, config, job_manager)
+
+
+def _build_sync_doctor(
+    config: AppConfig,
+    repository: LibraryRepository,
+    serial: str,
+    android_path: str,
+    pc_path: str,
+    *,
+    quick: bool = False,
+) -> dict:
+    """AUD-1 Sync Doctor: clock skew + anomalous saves diagnostics.
+
+    With ``quick=True`` only the clock check runs (used as pre-flight before a
+    mtime-based sync); the full report also joins local vs remote save listings
+    and the last sync per file from ``save_sync_log``.
+    """
+    import time
+    from pathlib import PurePosixPath
+
+    from rom_manager.sync.adb_transport import AdbTransport
+
+    transport = AdbTransport(config.adb, serial)
+    pc_epoch = time.time()
+    device_epoch = transport.device_epoch()
+    skew = device_epoch - pc_epoch
+    threshold = config.sync.clock_skew_threshold_s
+    result: dict = {
+        "ok": True,
+        "pc_epoch": round(pc_epoch, 1),
+        "device_epoch": device_epoch,
+        "skew_seconds": round(skew, 1),
+        "threshold_seconds": threshold,
+        "skew_exceeded": abs(skew) > threshold,
+    }
+    if quick:
+        return result
+
+    save_exts = frozenset(config.save_extensions)
+    android_prefix = android_path.rstrip("/") + "/"
+    remote_index = {
+        info.android_path.removeprefix(android_prefix): info
+        for info in transport.ls_recursive(android_path, wanted_extensions=save_exts)
+    }
+
+    local_index: dict[str, object] = {}
+    if pc_path and Path(pc_path).is_dir():
+        from rom_manager.sync.save_syncer import list_local_saves
+
+        local_index = {
+            s.relative: s for s in list_local_saves(Path(pc_path), config.save_extensions)
+        }
+
+    # mtime in the future = symptom of a badly-set clock (margin: skew threshold)
+    future_limit = pc_epoch + threshold
+    future_local = sorted(
+        rel for rel, s in local_index.items() if s.mtime.timestamp() > future_limit
+    )
+    future_remote = sorted(rel for rel, info in remote_index.items() if info.mtime > future_limit)
+    only_local = sorted(set(local_index) - set(remote_index))
+    only_remote = sorted(set(remote_index) - set(local_index))
+
+    # Last sync per file, newest first (save_sync_log already exists — AUD-1 adds the view)
+    last_syncs: list[dict] = []
+    try:
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT local_path, direction, result, created_at, MAX(id)
+                FROM save_sync_log
+                GROUP BY local_path
+                ORDER BY MAX(id) DESC
+                LIMIT 100
+                """
+            ).fetchall()
+        last_syncs = [
+            {
+                "file": PurePosixPath(str(r["local_path"]).replace("\\", "/")).name,
+                "direction": r["direction"],
+                "result": r["result"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    except Exception:
+        _logger.debug("save_sync_log no disponible para Sync Doctor", exc_info=True)
+
+    _CAP = 100
+    result.update(
+        {
+            "pc_path": pc_path,
+            "android_path": android_path,
+            "local_total": len(local_index),
+            "remote_total": len(remote_index),
+            "in_both": len(set(local_index) & set(remote_index)),
+            "future_local": future_local[:_CAP],
+            "future_remote": future_remote[:_CAP],
+            "only_local": only_local[:_CAP],
+            "only_remote": only_remote[:_CAP],
+            "only_local_total": len(only_local),
+            "only_remote_total": len(only_remote),
+            "last_syncs": last_syncs,
+        }
+    )
+    return result
 
 
 def _do_cable_sync(
