@@ -47,7 +47,8 @@ async function loadSync() {
     html += '</tr></thead><tbody>';
     html += sl.entries.map(e => {
       const dirBadge = badge(e.direction, e.direction);
-      const resBadge = badge(e.result, e.result);
+      const resBadge = badge(e.result, e.result)
+        + (e.verified ? ' <span title="Integridad verificada tras la transferencia" style="color:var(--c-teal)">✓</span>' : '');
       const msg  = e.message ? `<span style="color:var(--c-muted)">${e.message}</span>` : '';
       const date = e.created_at ? e.created_at.replace('T', ' ') : '';
       return `<tr><td>${date}</td><td>${dirBadge}</td><td>${resBadge}</td><td title="${e.local_path}">${e.local_path.split(/[\\/]/).pop()}</td><td title="${e.remote_path}">${e.remote_path}</td><td>${msg}</td></tr>`;

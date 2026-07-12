@@ -167,7 +167,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         rel_posix = adb_info.android_path.removeprefix(android_prefix)
                         local_dst = local_root / Path(rel_posix.replace("/", os.sep))
                         try:
-                            size = transport.pull(adb_info.android_path, local_dst, dry_run=False)
+                            size = transport.pull(
+                                adb_info.android_path, local_dst, dry_run=False, verify=True
+                            )
                             _log("ADB←", adb_info.android_path, str(local_dst))
                             copied += 1
                             copied_bytes += size
@@ -183,7 +185,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         rel = local_src.relative_to(local_root)
                         android_dst = android_root.rstrip("/") + "/" + rel.as_posix()
                         try:
-                            size = transport.push(local_src, android_dst, dry_run=False)
+                            size = transport.push(
+                                local_src, android_dst, dry_run=False, verify=True
+                            )
                             _log("ADB→", str(local_src), android_dst)
                             copied += 1
                             copied_bytes += size
