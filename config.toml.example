@@ -30,6 +30,9 @@ auto_sync_known_devices = []
 # Política de conflictos: "newest" | "keep_pc" | "keep_android" | "ask"
 conflict_policy = "newest"
 
+# Sync Doctor: desviación de reloj PC↔consola tolerada (segundos) antes de avisar
+clock_skew_threshold = 120
+
 # Remotos rclone para el cloud sync por tipo de archivo (opcional)
 saves_remote = ""    # p.ej. "dropbox:/RetroSync/saves"
 states_remote = ""   # p.ej. "dropbox:/RetroSync/states"

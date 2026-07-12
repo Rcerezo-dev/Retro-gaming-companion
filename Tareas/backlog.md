@@ -304,7 +304,7 @@ y criterios de "hecho" en `Tareas/Roadmap-Auditoria.md`. Orden: 1→6.
 
 | ID | Task | Pilar | Esfuerzo | Estado |
 |----|------|-------|----------|--------|
-| AUD-1 | **Sync Doctor** — detectar desviación de reloj PC↔consola (mtime gana → reloj mal = pérdida silenciosa), saves con mtime futuro, saves solo en un lado, último sync por juego | Sync | M | ⬜ |
+| AUD-1 | **Sync Doctor** — detectar desviación de reloj PC↔consola (mtime gana → reloj mal = pérdida silenciosa), saves con mtime futuro, saves solo en un lado, último sync por juego | Sync | M | 🟡 rama `feature/aud-1-sync-doctor` — `AdbTransport.device_epoch()` (`date +%s`), builder puro `web/builders/sync_doctor.py` (`analyze_saves` testeable sin dispositivo), `GET /api/sync-doctor` (con `clock_only=1` para pre-check rápido), card "Sync Doctor" en tab-cable, y confirmación en `doCableSync` si hay desviación con "Más reciente gana" real por ADB. Umbral `clock_skew_threshold` en `[sync]` (default 120 s). 5 tests (663 pass). Verificado endpoint+partial contra servidor real; **falta validar con la consola conectada** (V-AUD-1) |
 | AUD-2 | **Verificación post-transferencia** — hash origen/destino tras cada push/pull (`adb shell md5sum`); si difiere, no propagar y reportar; columna `verified` en `save_sync_log` | Sync | S-M | ⬜ |
 | AUD-3 | **Papelera unificada con purga** — todo borrado masivo pasa por `_descartados/` (helper `_discard_file` ya existe); purga >30 días en el health-check daemon; contador+vaciar en Settings. Evita repetir INBOX-FIX-5 | Seguridad | M | ⬜ |
 | AUD-4 | **`.md` ambiguos del Inbox por CRC** — los 177 varados: lookup contra `crc_index()` ya existente; hit=Mega Drive, miss=quieto. Formaliza el "ZIP-ROUTE-FIX-4" informal | Inbox | S | ⬜ |

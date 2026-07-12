@@ -757,6 +757,100 @@ async function loadCableSyncPreview() {
   }
 }
 
+// ── Sync Doctor (AUD-1) ───────────────────────────────────────────────────────
+
+async function runSyncDoctor() {
+  const serial = document.getElementById('cable-adb-device')?.value.trim();
+  if (!serial) { alert('Activa el modo ADB y detecta un dispositivo primero.'); return; }
+  const pcPath = (document.getElementById('cable-adb-pc-path')?.value
+               || document.getElementById('cable-pc-path')?.value || '').trim();
+  const androidPath = document.getElementById('cable-android-path')?.value.trim() || '';
+
+  const btn      = document.getElementById('btn-sync-doctor');
+  const statusEl = document.getElementById('sync-doctor-status');
+  const resultEl = document.getElementById('sync-doctor-result');
+  btn.disabled = true;
+  statusEl.textContent = 'Diagnosticando… (listando saves del dispositivo)';
+  resultEl.innerHTML = '';
+  try {
+    const params = new URLSearchParams({ serial });
+    if (pcPath)      params.set('pc_path', pcPath);
+    if (androidPath) params.set('android_path', androidPath);
+    const d = await apiFetch('/api/sync-doctor?' + params.toString());
+    statusEl.textContent = '';
+    resultEl.innerHTML = _renderSyncDoctor(d);
+  } catch (e) {
+    statusEl.textContent = '';
+    resultEl.innerHTML = `<div class="rv-tint-warn" style="padding:8px 12px;border-radius:4px;font-size:12px;color:var(--c-softred)">Error: ${String(e.message || e).replace(/</g, '&lt;')}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _renderSyncDoctor(d) {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (d.error) {
+    return `<div class="rv-tint-warn" style="padding:8px 12px;border-radius:4px;font-size:12px;color:var(--c-softred)">${esc(d.error)}</div>`;
+  }
+  const c = d.clock;
+  const secs = Math.round(Math.abs(c.skew_seconds));
+  const side = c.skew_seconds > 0 ? 'adelantado' : 'atrasado';
+  let html = '';
+
+  // 1. Reloj
+  if (c.exceeded) {
+    html += `<div class="rv-tint-warn" style="padding:10px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;margin-bottom:10px">
+      <strong style="color:var(--c-red)">⚠ Reloj desviado:</strong>
+      <span style="color:var(--c-softred)">la consola va ${side} <strong>${secs}s</strong> respecto al PC (umbral: ${c.threshold_s}s).
+      Con "Más reciente gana" el lado equivocado puede sobrescribir tus partidas. Pon el reloj de la consola en hora antes de sincronizar.</span>
+    </div>`;
+  } else {
+    html += `<div class="rv-tint-ok" style="padding:8px 14px;border-left:3px solid var(--c-teal);border-radius:4px;font-size:12px;margin-bottom:10px;color:var(--c-teal)">
+      ✓ Reloj OK — desviación de ${secs}s (umbral: ${c.threshold_s}s)
+    </div>`;
+  }
+
+  // 2. Saves con mtime en el futuro
+  const futureRows = [
+    ...d.future_local.map(f => ({ ...f, side: 'PC' })),
+    ...d.future_remote.map(f => ({ ...f, side: 'Consola' })),
+  ];
+  const futureTotal = d.future_local_total + d.future_remote_total;
+  if (futureTotal > 0) {
+    html += `<details style="margin-bottom:8px"><summary style="cursor:pointer;font-size:12px;color:var(--c-red)">⚠ ${futureTotal} save(s) con fecha en el futuro — síntoma de reloj mal puesto</summary>
+      <div style="font-size:11px;color:var(--c-muted);padding:6px 0 0 16px">` +
+      futureRows.map(f => `<div>[${f.side}] ${esc(f.path)} — ${new Date(f.mtime * 1000).toLocaleString()}</div>`).join('') +
+      `</div></details>`;
+  } else {
+    html += `<div style="font-size:12px;color:var(--c-teal);margin-bottom:6px">✓ Ningún save con fecha en el futuro</div>`;
+  }
+
+  // 3. Saves solo en un lado
+  const oneSide = (label, list, total) => {
+    if (total === 0) return '';
+    const extra = total > list.length ? `<div>… y ${total - list.length} más</div>` : '';
+    return `<details style="margin-bottom:8px"><summary style="cursor:pointer;font-size:12px;color:var(--c-orange)">${total} save(s) solo en ${label}</summary>
+      <div style="font-size:11px;color:var(--c-muted);padding:6px 0 0 16px">` +
+      list.map(p => `<div>${esc(p)}</div>`).join('') + extra + `</div></details>`;
+  };
+  html += oneSide('el PC', d.only_local, d.only_local_total);
+  html += oneSide('la consola', d.only_remote, d.only_remote_total);
+  if (d.only_local_total === 0 && d.only_remote_total === 0) {
+    html += `<div style="font-size:12px;color:var(--c-teal);margin-bottom:6px">✓ Los mismos saves en ambos lados (PC: ${d.local_total}, consola: ${d.remote_total})</div>`;
+  } else {
+    html += `<div style="font-size:11px;color:var(--c-dim);margin-bottom:6px">Total — PC: ${d.local_total} saves, consola: ${d.remote_total} saves</div>`;
+  }
+
+  // 4. Último sync por save
+  if (d.last_sync && d.last_sync.length) {
+    html += `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:var(--c-muted)">Último sync registrado (${d.last_sync.length} saves)</summary>
+      <table style="font-size:11px;color:var(--c-muted);margin-top:6px;border-collapse:collapse">` +
+      d.last_sync.map(r => `<tr><td style="padding:2px 10px 2px 0;color:var(--c-dim)">${esc(r.last_sync)}</td><td style="padding:2px 10px 2px 0">${esc(r.direction)}</td><td>${esc(r.local_path.split(/[\\/]/).pop())}</td></tr>`).join('') +
+      `</table></details>`;
+  }
+  return html;
+}
+
 async function doCableSync() {
   const adb = _isAdbMode();
   const pcPath = (adb
@@ -797,6 +891,20 @@ async function doCableSync() {
     localStorage.setItem('anbernic_path', abPath);
     if (pcPath) localStorage.setItem('cable_pc_path', pcPath);
     body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
+  }
+
+  // AUD-1: "Más reciente gana" resuelve por mtime — si el reloj de la consola
+  // está desviado, el lado equivocado gana silenciosamente. Confirmar antes.
+  if (adb && !dryRun && direction === 'newest') {
+    try {
+      const doc = await apiFetch(`/api/sync-doctor?serial=${encodeURIComponent(body.adb_serial)}&clock_only=1`);
+      const c = doc.clock;
+      if (c && c.exceeded) {
+        const secs = Math.round(Math.abs(c.skew_seconds));
+        const side = c.skew_seconds > 0 ? 'adelantado' : 'atrasado';
+        if (!confirm(`⚠ El reloj de la consola va ${side} ${secs}s respecto al PC (umbral: ${c.threshold_s}s).\n\nCon "Más reciente gana", el lado equivocado puede sobrescribir tus partidas.\n\n¿Continuar de todas formas?`)) return;
+      }
+    } catch (e) { /* sin diagnóstico no bloqueamos el sync */ }
   }
 
   const btn      = document.getElementById('btn-cable-sync');
@@ -1543,6 +1651,8 @@ export {
   loadCableSync,
   loadCableSyncPreview,
   doCableSync,
+  runSyncDoctor,
+  _renderSyncDoctor,
   _renderCableSyncResult,
   toggleCableSyncLog,
   loadCableSyncLog,

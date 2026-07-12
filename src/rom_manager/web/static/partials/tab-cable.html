@@ -312,6 +312,22 @@
     <div id="cable-result" class="job-result"></div>
   </div>
 
+  <!-- SYNC DOCTOR (AUD-1) -->
+  <div class="actions-panel" style="max-width:780px;margin-top:16px">
+    <h3>Sync Doctor</h3>
+    <p style="color:var(--c-muted);font-size:12px;line-height:1.6;margin-bottom:12px">
+      Diagnóstico del sync de saves por ADB: desviación de reloj PC↔consola (con "Más reciente gana",
+      un reloj mal puesto hace que el lado equivocado gane <strong>silenciosamente</strong>),
+      saves con fecha en el futuro y saves presentes solo en un lado.
+      Requiere modo ADB con un dispositivo detectado.
+    </p>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button id="btn-sync-doctor" class="btn" style="border-color:var(--c-blue);color:var(--c-blue)" onclick="runSyncDoctor()">🩺 Diagnosticar</button>
+      <span id="sync-doctor-status" style="font-size:12px;color:var(--c-muted)"></span>
+    </div>
+    <div id="sync-doctor-result" style="margin-top:12px"></div>
+  </div>
+
   <!-- Tabla de resultados -->
   <div class="hidden" id="cable-details-wrap" style="margin-top:16px;max-width:780px">
     <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Archivos procesados</div>

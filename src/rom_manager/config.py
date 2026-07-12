@@ -171,6 +171,8 @@ class SyncConfig:
     auto_sync_android_path: str = "/storage/emulated/0/RetroArch"  # Android RetroArch root path
     auto_sync_known_devices: list = field(default_factory=list)  # serials; empty = any device
     conflict_policy: str = "newest"  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # Sync Doctor (AUD-1): desviación de reloj PC↔consola tolerada antes de avisar
+    clock_skew_threshold: int = 120  # seconds
     # Dual-remote cloud sync (D2)
     saves_remote: str = ""  # rclone remote for permanent saves
     states_remote: str = ""  # rclone remote for savestates
@@ -443,6 +445,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ),
             auto_sync_known_devices=auto_sync_known_devices,
             conflict_policy=str(sync.get("conflict_policy", "newest")),
+            clock_skew_threshold=int(sync.get("clock_skew_threshold", 120) or 120),
             saves_remote=str(sync.get("saves_remote", "")),
             states_remote=str(sync.get("states_remote", "")),
             ra_config_dir=str(sync.get("ra_config_dir", "")),

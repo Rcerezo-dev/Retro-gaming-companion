@@ -68,6 +68,13 @@ def register_cable(
             except Exception as exc:
                 ctx._send_json({"accessible": False, "error": str(exc)})
 
+    # ── GET /api/sync-doctor ─────────────────────────────────────────────────
+    @router.get("/api/sync-doctor")
+    def get_sync_doctor(ctx) -> None:
+        from rom_manager.web.builders.sync_doctor import build_sync_doctor
+
+        ctx._send_json(build_sync_doctor(getattr(ctx, "_qs", {}), config, repository))
+
     # ── GET /api/sync-log ────────────────────────────────────────────────────
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
