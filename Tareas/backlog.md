@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-07-07 (SAGE-1…3: tareas de soporte para Retro Sage desde su ROADMAP.md)
+> Last updated: 2026-07-12 (AUD-1…6: auditoría funcional → `Tareas/Roadmap-Auditoria.md`)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 
@@ -294,6 +294,22 @@ estimaciones: `Tareas/Roadmap-Onboarding.md`.
 
 > **Completado 8/9** (PRs #71–#74). Solo queda **ONB-9** (TL;DR en inglés del README —
 > decisión del usuario). Detalle: `Tareas/Roadmap-Onboarding.md`.
+
+---
+
+## AUD — Auditoría funcional (2026-07-12)
+
+Funciones nuevas detectadas en auditoría de la app completa. Detalle, archivos
+y criterios de "hecho" en `Tareas/Roadmap-Auditoria.md`. Orden: 1→6.
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| AUD-1 | **Sync Doctor** — detectar desviación de reloj PC↔consola (mtime gana → reloj mal = pérdida silenciosa), saves con mtime futuro, saves solo en un lado, último sync por juego | Sync | M | ⬜ |
+| AUD-2 | **Verificación post-transferencia** — hash origen/destino tras cada push/pull (`adb shell md5sum`); si difiere, no propagar y reportar; columna `verified` en `save_sync_log` | Sync | S-M | ⬜ |
+| AUD-3 | **Papelera unificada con purga** — todo borrado masivo pasa por `_descartados/` (helper `_discard_file` ya existe); purga >30 días en el health-check daemon; contador+vaciar en Settings. Evita repetir INBOX-FIX-5 | Seguridad | M | ⬜ |
+| AUD-4 | **`.md` ambiguos del Inbox por CRC** — los 177 varados: lookup contra `crc_index()` ya existente; hit=Mega Drive, miss=quieto. Formaliza el "ZIP-ROUTE-FIX-4" informal | Inbox | S | ⬜ |
+| AUD-5 | **Informe de completitud por plataforma (1G1R)** — cruzar `games` matched vs DATs: "SNES: 412/1.748 (24 %)" + CSV de faltantes | Biblioteca | M | ⬜ |
+| AUD-6 | **`chdman verify` en health check** — verificación interna de CHDs, checkbox off por defecto | Biblioteca | S | ⬜ |
 
 ---
 
