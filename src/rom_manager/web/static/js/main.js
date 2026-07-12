@@ -15,6 +15,7 @@ import {
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
   browseFolder, detectRetroArch,
+  loadTrashStatus, emptyTrash,
 } from './tabs/config.js';
 import {
   _onScanAdbChange, detectAdbDevicesForScan,
@@ -262,6 +263,7 @@ Object.assign(window, {
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
   browseFolder, detectRetroArch,
+  loadTrashStatus, emptyTrash,
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
@@ -476,7 +478,7 @@ export function showTab(name) {
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
-  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
+  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); loadTrashStatus(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); }

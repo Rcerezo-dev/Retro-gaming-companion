@@ -140,6 +140,8 @@ def _do_cable_sync(
             import time as _time
             from pathlib import PurePosixPath
 
+            from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
+
             pc_root = Path(pc_path_str)
             save_exts = frozenset(config.save_extensions)
 
@@ -430,7 +432,7 @@ def _do_cable_sync(
                             if _frel not in _ab_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en PC")
                                     except OSError as _exc:
@@ -546,7 +548,7 @@ def _do_cable_sync(
                             if _frel not in _pc_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en destino")
                                     except OSError as _exc:
@@ -599,7 +601,7 @@ def _do_cable_sync(
                             if _frel not in _ab_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en PC")
                                     except OSError as _exc:
