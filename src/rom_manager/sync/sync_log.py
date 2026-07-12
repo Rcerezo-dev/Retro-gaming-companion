@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS save_sync_log (
     remote_mtime    TEXT,
     result          TEXT NOT NULL,
     message         TEXT,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    verified        INTEGER
 )
 """
 
@@ -31,6 +32,10 @@ def ensure_sync_log_schema(connection: sqlite3.Connection) -> None:
     """Create the save_sync_log table if it doesn't exist."""
     connection.execute(SYNC_LOG_SCHEMA)
     connection.execute(SYNC_LOG_INDEX)
+    try:
+        connection.execute("ALTER TABLE save_sync_log ADD COLUMN verified INTEGER")
+    except sqlite3.OperationalError:
+        pass  # la columna ya existe (AUD-2)
     connection.commit()
 
 
@@ -50,6 +55,7 @@ class SyncLogEntry:
     result: str  # 'ok' | 'error' | 'skipped'
     message: str | None
     created_at: str
+    verified: int | None = None  # AUD-2: 1 = MD5 comprobado tras la transferencia
 
 
 # ---------------------------------------------------------------------------
@@ -68,13 +74,14 @@ def log_sync_event(
     result: str,
     message: str | None = None,
     created_at: str,
+    verified: bool | None = None,
 ) -> None:
     connection.execute(
         """
         INSERT INTO save_sync_log
             (local_path, remote_path, direction,
-             local_mtime, remote_mtime, result, message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             local_mtime, remote_mtime, result, message, created_at, verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             local_path,
@@ -85,8 +92,50 @@ def log_sync_event(
             result,
             message,
             created_at,
+            1 if verified else (0 if verified is False else None),
         ),
     )
+
+
+def adb_sync_log_entry(
+    local_path: str,
+    remote_path: str,
+    direction: str,
+    result: str,
+    message: str | None,
+    verified: bool | None,
+) -> dict:
+    """Entrada (kwargs de log_sync_event) para una transferencia ADB de un save (AUD-2)."""
+    return {
+        "local_path": local_path,
+        "remote_path": remote_path,
+        "direction": direction,
+        "local_mtime": None,
+        "remote_mtime": None,
+        "result": result,
+        "message": message,
+        "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+        "verified": verified,
+    }
+
+
+def write_sync_log_entries(repository, entries: list[dict]) -> None:
+    """Vuelca entradas acumuladas a save_sync_log en una sola transacción.
+
+    *repository* solo necesita ``.connect()``; los fallos se tragan con warning —
+    el log nunca debe romper un sync ya completado.
+    """
+    if not entries:
+        return
+    import logging
+
+    try:
+        with repository.connect() as conn:
+            for e in entries:
+                log_sync_event(conn, **e)
+            conn.commit()
+    except Exception:
+        logging.getLogger(__name__).warning("No se pudo escribir en save_sync_log", exc_info=True)
 
 
 def get_last_sync(

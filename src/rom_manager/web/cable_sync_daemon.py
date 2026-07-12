@@ -144,6 +144,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         _log_file.write(f"[{ts}] [{tag:5s}] {src}{arrow}{note_part}\n")
 
                     copied = skipped = errors = 0
+                    verified = verify_failed = 0  # AUD-2
+                    sync_log_entries: list[dict] = []
                     copied_bytes = 0
 
                     def _update_prog(fname: str = "") -> None:
@@ -157,21 +159,53 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             },
                         )
 
-                    from rom_manager.sync.adb_transport import AdbTransport
+                    from rom_manager.sync.adb_transport import AdbTransport, AdbVerifyError
+                    from rom_manager.sync.sync_log import (
+                        adb_sync_log_entry as _sync_log_entry,
+                    )
 
                     transport = AdbTransport(config.adb, serial, timeout=60)
 
                     def _adb_copy_to_pc(adb_info, local_root: Path, android_prefix: str) -> None:
-                        nonlocal copied, errors, copied_bytes
+                        nonlocal copied, errors, copied_bytes, verified, verify_failed
                         name = PurePosixPath(adb_info.android_path).name
                         rel_posix = adb_info.android_path.removeprefix(android_prefix)
                         local_dst = local_root / Path(rel_posix.replace("/", os.sep))
                         try:
-                            size = transport.pull(adb_info.android_path, local_dst, dry_run=False)
+                            # AUD-2: aquí todo son saves/states — verificar siempre
+                            size = transport.pull(
+                                adb_info.android_path, local_dst, dry_run=False, verify=True
+                            )
                             _log("ADB←", adb_info.android_path, str(local_dst))
                             copied += 1
                             copied_bytes += size
+                            if transport.last_verified:
+                                verified += 1
+                            sync_log_entries.append(
+                                _sync_log_entry(
+                                    str(local_dst),
+                                    adb_info.android_path,
+                                    "download",
+                                    "ok",
+                                    None,
+                                    transport.last_verified,
+                                )
+                            )
                             _update_prog(name)
+                        except AdbVerifyError as exc:
+                            verify_failed += 1
+                            errors += 1
+                            _log("VRFY!", adb_info.android_path, str(local_dst), str(exc))
+                            sync_log_entries.append(
+                                _sync_log_entry(
+                                    str(local_dst),
+                                    adb_info.android_path,
+                                    "download",
+                                    "error",
+                                    str(exc),
+                                    False,
+                                )
+                            )
                         except OSError as exc:
                             _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
                             errors += 1
@@ -179,15 +213,38 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     def _adb_copy_to_device(
                         local_src: Path, local_root: Path, android_root: str
                     ) -> None:
-                        nonlocal copied, errors, copied_bytes
+                        nonlocal copied, errors, copied_bytes, verified, verify_failed
                         rel = local_src.relative_to(local_root)
                         android_dst = android_root.rstrip("/") + "/" + rel.as_posix()
                         try:
-                            size = transport.push(local_src, android_dst, dry_run=False)
+                            size = transport.push(
+                                local_src, android_dst, dry_run=False, verify=True
+                            )
                             _log("ADB→", str(local_src), android_dst)
                             copied += 1
                             copied_bytes += size
+                            if transport.last_verified:
+                                verified += 1
+                            sync_log_entries.append(
+                                _sync_log_entry(
+                                    str(local_src),
+                                    android_dst,
+                                    "upload",
+                                    "ok",
+                                    None,
+                                    transport.last_verified,
+                                )
+                            )
                             _update_prog(local_src.name)
+                        except AdbVerifyError as exc:
+                            verify_failed += 1
+                            errors += 1
+                            _log("VRFY!", str(local_src), android_dst, str(exc))
+                            sync_log_entries.append(
+                                _sync_log_entry(
+                                    str(local_src), android_dst, "upload", "error", str(exc), False
+                                )
+                            )
                         except OSError as exc:
                             _log("ERROR", str(local_src), android_dst, str(exc))
                             errors += 1
@@ -277,8 +334,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
                     ts1 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                     _log_file.write(
-                        f"=== Auto-sync fin {ts1} | copied={copied} skipped={skipped} errors={errors} ===\n"
+                        f"=== Auto-sync fin {ts1} | copied={copied} skipped={skipped} "
+                        f"verified={verified} verify_failed={verify_failed} errors={errors} ===\n"
                     )
+
+                    from rom_manager.sync.sync_log import write_sync_log_entries
+
+                    write_sync_log_entries(get_repo_fn(), sync_log_entries)
 
                     job_result = {
                         "dry_run": False,
@@ -288,6 +350,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         "skipped": skipped,
                         "sha1_skipped": 0,
                         "safe_mode_skipped_overwrites": 0,
+                        "verified": verified,
+                        "verify_failed": verify_failed,
                         "errors": errors,
                         "copied_bytes": copied_bytes,
                         "cancelled": False,

@@ -14,10 +14,24 @@ Requires:
 
 from __future__ import annotations
 
+import hashlib
+import os
 import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+
+class AdbVerifyError(OSError):
+    """La verificación MD5 post-transferencia no coincide (AUD-2) — transferencia corrupta."""
+
+
+def _file_md5(path: Path) -> str:
+    h = hashlib.md5()  # noqa: S324 — integridad de transferencia, no criptografía
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 @dataclass(slots=True)
@@ -90,6 +104,9 @@ class AdbTransport:
         self.adb_path = adb_path
         self.serial = serial
         self.timeout = timeout
+        # AUD-2: resultado de la última transferencia con verify=True
+        # (True = MD5 comprobado OK; None = sin verificar / md5sum no disponible)
+        self.last_verified: bool | None = None
 
     # ── low-level ─────────────────────────────────────────────────────────────
 
@@ -119,6 +136,17 @@ class AdbTransport:
             "accessible": False,
             "error": f"La ruta {android_path!r} no existe en el dispositivo",
         }
+
+    def md5(self, android_path: str, *, timeout: int = 60) -> str:
+        """MD5 de un archivo en el dispositivo (``md5sum``).
+
+        Raises OSError si md5sum no está disponible o la salida no es un hash.
+        """
+        out = self._shell(f"md5sum {shlex.quote(android_path)}", timeout=timeout).strip()
+        token = (out.split()[0] if out else "").lower()
+        if len(token) != 32 or any(c not in "0123456789abcdef" for c in token):
+            raise OSError(f"md5sum no disponible o salida inesperada: {out[:80]!r}")
+        return token
 
     def device_epoch(self) -> int:
         """Unix epoch (seconds) según el reloj del dispositivo (``date +%s``).
@@ -181,14 +209,39 @@ class AdbTransport:
         local_dst: Path,
         *,
         dry_run: bool = False,
+        verify: bool = False,
     ) -> int:
-        """Pull a single file from device to PC. Returns file size in bytes."""
+        """Pull a single file from device to PC. Returns file size in bytes.
+
+        Con ``verify=True`` (AUD-2) el archivo baja a un ``.part`` temporal y solo
+        sustituye *local_dst* si su MD5 coincide con el del dispositivo; si no
+        coincide se lanza AdbVerifyError y *local_dst* queda intacto. El resultado
+        queda en ``last_verified`` (True = comprobado; None = md5sum no disponible).
+        """
+        self.last_verified = None
         if not dry_run:
             local_dst.parent.mkdir(parents=True, exist_ok=True)
-            r = self._run("pull", android_src, str(local_dst))
+            target = local_dst.with_name(local_dst.name + ".part") if verify else local_dst
+            r = self._run("pull", android_src, str(target))
             if r.returncode != 0:
+                if verify:
+                    target.unlink(missing_ok=True)
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
                 raise OSError(f"adb pull falló: {err}")
+            if verify:
+                try:
+                    remote_md5 = self.md5(android_src)
+                except OSError:
+                    remote_md5 = None  # md5sum no disponible en el device — no bloquear el sync
+                if remote_md5 is not None and _file_md5(target) != remote_md5:
+                    target.unlink(missing_ok=True)
+                    raise AdbVerifyError(
+                        f"MD5 no coincide tras pull de {android_src} — "
+                        "transferencia corrupta, el destino no se toca"
+                    )
+                if remote_md5 is not None:
+                    self.last_verified = True
+                os.replace(target, local_dst)
         # Return size (approximate from listing, or stat after pull)
         try:
             size_str = self._shell(f"stat -c '%s' {shlex.quote(android_src)}").strip()
@@ -202,8 +255,15 @@ class AdbTransport:
         android_dst: str,
         *,
         dry_run: bool = False,
+        verify: bool = False,
     ) -> int:
-        """Push a single file from PC to device. Returns file size in bytes."""
+        """Push a single file from PC to device. Returns file size in bytes.
+
+        Con ``verify=True`` (AUD-2) se compara el MD5 del archivo en el dispositivo
+        con el local tras la transferencia; si no coincide se lanza AdbVerifyError
+        (el archivo remoto puede quedar corrupto — se reporta, no se borra).
+        """
+        self.last_verified = None
         size = local_src.stat().st_size if local_src.exists() else 0
         if not dry_run:
             parent = str(PurePosixPath(android_dst).parent)
@@ -212,4 +272,16 @@ class AdbTransport:
             if r.returncode != 0:
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
                 raise OSError(f"adb push falló: {err}")
+            if verify:
+                try:
+                    remote_md5 = self.md5(android_dst)
+                except OSError:
+                    remote_md5 = None  # md5sum no disponible — no bloquear el sync
+                if remote_md5 is not None and _file_md5(local_src) != remote_md5:
+                    raise AdbVerifyError(
+                        f"MD5 no coincide tras push a {android_dst} — "
+                        "el archivo en el dispositivo puede estar corrupto"
+                    )
+                if remote_md5 is not None:
+                    self.last_verified = True
         return size

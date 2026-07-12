@@ -194,6 +194,8 @@ def _do_cable_sync(
                         yield Path(dirpath) / fname
 
             copied = skipped = errors = sha1_skipped = safe_mode_skipped = deleted_extra = 0
+            verified = verify_failed = 0  # AUD-2: verificación MD5 de saves por ADB
+            sync_log_entries: list[dict] = []
             copied_bytes = 0
             details: list[dict] = []
 
@@ -260,26 +262,61 @@ def _do_cable_sync(
 
             # ── ADB mode ──────────────────────────────────────────────────────
             if use_adb:
-                from rom_manager.sync.adb_transport import AdbTransport
+                from rom_manager.sync.adb_transport import AdbTransport, AdbVerifyError
+                from rom_manager.sync.sync_log import (
+                    adb_sync_log_entry as _sync_log_entry,
+                )
 
                 transport = AdbTransport(config.adb, adb_serial)
 
                 def _adb_copy_to_pc(adb_info, rel_posix: str, arrow: str) -> None:
-                    nonlocal copied, errors, copied_bytes
+                    nonlocal copied, errors, copied_bytes, verified, verify_failed
                     if cancel_event.is_set():
                         return
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                    is_save = _cat_name(name) == "save"
                     try:
-                        size = transport.pull(adb_info.android_path, local_dst, dry_run=dry_run)
+                        size = transport.pull(
+                            adb_info.android_path, local_dst, dry_run=dry_run, verify=is_save
+                        )
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
                         )
                         copied += 1
                         copied_bytes += size
+                        if is_save and not dry_run:
+                            if transport.last_verified:
+                                verified += 1
+                            sync_log_entries.append(
+                                _sync_log_entry(
+                                    str(local_dst),
+                                    adb_info.android_path,
+                                    "download",
+                                    "ok",
+                                    None,
+                                    transport.last_verified,
+                                )
+                            )
                         if len(details) < 300:
                             details.append({"file": arrow, "path": name})
                         _update_progress(name)
+                    except AdbVerifyError as exc:
+                        verify_failed += 1
+                        errors += 1
+                        _log("VRFY!", adb_info.android_path, str(local_dst), str(exc))
+                        sync_log_entries.append(
+                            _sync_log_entry(
+                                str(local_dst),
+                                adb_info.android_path,
+                                "download",
+                                "error",
+                                str(exc),
+                                False,
+                            )
+                        )
+                        if len(details) < 300:
+                            details.append({"file": f"ERROR: {exc}", "path": name})
                     except OSError as exc:
                         _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
                         errors += 1
@@ -287,18 +324,45 @@ def _do_cable_sync(
                             details.append({"file": f"ERROR: {exc}", "path": name})
 
                 def _adb_copy_to_device(local_src: Path, rel_posix: str, arrow: str) -> None:
-                    nonlocal copied, errors, copied_bytes
+                    nonlocal copied, errors, copied_bytes, verified, verify_failed
                     if cancel_event.is_set():
                         return
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
+                    is_save = _cat_name(local_src.name) == "save"
                     try:
-                        size = transport.push(local_src, android_dst, dry_run=dry_run)
+                        size = transport.push(
+                            local_src, android_dst, dry_run=dry_run, verify=is_save
+                        )
                         _log("ADB→" if not dry_run else "DRY→", str(local_src), android_dst)
                         copied += 1
                         copied_bytes += size
+                        if is_save and not dry_run:
+                            if transport.last_verified:
+                                verified += 1
+                            sync_log_entries.append(
+                                _sync_log_entry(
+                                    str(local_src),
+                                    android_dst,
+                                    "upload",
+                                    "ok",
+                                    None,
+                                    transport.last_verified,
+                                )
+                            )
                         if len(details) < 300:
                             details.append({"file": arrow, "path": local_src.name})
                         _update_progress(local_src.name)
+                    except AdbVerifyError as exc:
+                        verify_failed += 1
+                        errors += 1
+                        _log("VRFY!", str(local_src), android_dst, str(exc))
+                        sync_log_entries.append(
+                            _sync_log_entry(
+                                str(local_src), android_dst, "upload", "error", str(exc), False
+                            )
+                        )
+                        if len(details) < 300:
+                            details.append({"file": f"ERROR: {exc}", "path": local_src.name})
                     except OSError as exc:
                         _log("ERROR", str(local_src), android_dst, str(exc))
                         errors += 1
@@ -676,6 +740,9 @@ def _do_cable_sync(
                     _logger.debug(
                         "Conteo de archivos en Android para preview de sync falló", exc_info=True
                     )
+            from rom_manager.sync.sync_log import write_sync_log_entries
+
+            write_sync_log_entries(repository, sync_log_entries)
             job_result = {
                 "dry_run": dry_run,
                 "direction": direction,
@@ -684,6 +751,8 @@ def _do_cable_sync(
                 "skipped": skipped,
                 "sha1_skipped": sha1_skipped,
                 "safe_mode_skipped_overwrites": safe_mode_skipped,
+                "verified": verified,
+                "verify_failed": verify_failed,
                 "errors": errors,
                 "copied_bytes": copied_bytes,
                 "cancelled": cancel_event.is_set(),

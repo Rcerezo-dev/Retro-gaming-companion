@@ -963,6 +963,10 @@ function _renderCableSyncResult(r) {
     ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:var(--c-amber)">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
   const mirrorMsg   = r.deleted_extra > 0
     ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
+  // AUD-2: verificación MD5 de saves transferidos por ADB
+  const verifyMsg = r.verify_failed > 0
+    ? `  |  <span title="Saves cuya verificación MD5 falló — transferencia corrupta, no propagada" style="color:var(--c-red)">&#x26A0; Verificación fallida: ${r.verify_failed}</span>`
+    : (r.verified > 0 ? `  |  <span title="Saves verificados por MD5 tras la transferencia" style="color:var(--c-teal)">&#x2713; Verificados: ${r.verified}</span>` : '');
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   // D8-6: file count display
@@ -975,7 +979,7 @@ function _renderCableSyncResult(r) {
   const diffWarn = countDiff ? ' <span style="color:var(--c-yellow);font-size:11px">&#x26A0; Los conteos difieren — puede haber archivos que no se sincronizaron</span>' : '';
   resultEl.className = 'job-result visible success';
   if (!r.dry_run) _sendNotif('Cable Sync completado', r.copied + ' archivos copiados');
-  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:var(--c-red)' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}${safeMsg}${mirrorMsg}${countMsg}${diffWarn}  —  ${dirStr}${dryTag}`
+  resultEl.innerHTML = `${verb}: <strong>${r.copied}</strong> archivo(s) (${fmtSize(r.copied_bytes)})  |  Omitidos: ${r.skipped}  |  Errores: <strong style="${r.errors > 0 ? 'color:var(--c-red)' : ''}">${r.errors}</strong>${existsMsg}${sha1Msg}${safeMsg}${mirrorMsg}${verifyMsg}${countMsg}${diffWarn}  —  ${dirStr}${dryTag}`
     + (needsScan ? `<br><span style="color:var(--c-yellow);font-size:11px">&#x26A0; Archivos copiados al PC — indexa la BD: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear ahora</button></span>` : '')
     + (!r.dry_run && r.copied > 0 && r.direction === 'newest'
         ? '<br><span style="color:var(--c-blue);font-size:11px">Para actualizar conteos en Overview: <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quickScanPC()">Escanear PC</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="quickScanAndroid()">Escanear consola</button></span>'
