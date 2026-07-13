@@ -346,6 +346,27 @@ El asistente OAuth existe (Sync → "Conexión cloud") pero no comunica qué hac
   Fix: guardar el `providerId` en `startCloudAuth()` (variable de módulo) y usarlo en el
   finalize. (`web/static/js/tabs/sync.js:1453`)
 
+## VAL-FIX — Hallazgos de la validación con consola real (2026-07-13)
+
+Origen: validación V-AUD-1/V-AUD-2 y smoke DEVSEL con la RG556 por USB (Día42,
+sección "Continuación 2026-07-13"). AUD-1 y AUD-2 **validadas** con hardware:
+Sync Doctor OK (desviación −1,9 s), sync por cable con 373 copiados / 0 errores
+(~338 saves verificados MD5), sin `.part` residuales. Los fallos de abajo
+salieron durante esa validación. Orden: 1→2 rompen borrado de duplicados y
+papelera — prioridad alta.
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| VAL-FIX-1 | **El scanner no excluye `_descartados/` ni `$RECYCLE.BIN`** — `scanner/rom_scanner.py` no tiene ninguna exclusión de directorios: la papelera de AUD-3 se re-indexa en cada scan (937 filas `_descartados\...` ya en la BD PC, 7-8 filas `$RECYCLE.BIN` en cada BD). Rompe el borrado de duplicados: "eliminar" mueve a `_descartados/`, el siguiente scan lo re-añade y el duplicado reaparece. Fix: excluir `_descartados`, `$RECYCLE.BIN` y `System Volume Information` en el walk del scanner + purga one-shot de las filas existentes | Seguridad | S | ⬜ |
+| VAL-FIX-2 | **`library_android.db` contaminada con filas del PC** — 13.164 de 13.376 filas tienen rutas `E:\` (solo 211 son de la SD `H:\`); 6.958 rutas están en AMBAS BDs; 100 % unmatched (el match nunca corrió ahí). Consecuencias: duplicados fantasma imposibles de borrar (la vista empareja el mismo archivo físico consigo mismo y el delete enruta por ruta `E:\` → siempre a la BD PC, la fila Android sobrevive) y acciones de FIX-2 no-op sobre filas contaminadas (la estrella "muerta" del smoke test — el código DEVSEL-FIX-2 funciona, verificado por API con un juego real `H:\`). Fix: (a) limpieza con backup previo — borrar de la BD android las filas cuya ruta no sea de consola (`NOT LIKE 'H:%'` y `NOT LIKE '/storage%'`); (b) investigar el origen (¿la migración V2 copió todo?); (c) guard de dominio al escribir: la BD android solo acepta rutas bajo `anbernic_root`/`/storage` | Seguridad | M | ⬜ |
+| VAL-FIX-3 | **Rutas relativas de tools con `/` rompen `subprocess` en Windows** — `CreateProcess` no acepta `tools/adb.exe` (WinError 2 → "consola no conectada" con la consola conectada); sí acepta `tools\adb.exe` o `./tools/adb.exe`. El comentario de `config.py:305` sugiere justo la forma mala. Fix de raíz: normalizar a ruta absoluta contra `project_root` en `load_config()` (`config.py:427-429`, cubre adb/chdman/rclone de golpe). El `config.toml` local ya está parcheado a mano (`tools\\adb.exe`) | Sync | S | ⬜ |
+| VAL-FIX-4 | **Auto-sync: 96 `Permission denied` en memcards de DuckStation** — `Android/data/com.github.stenzek.duckstation/` no es accesible por ADB en Android 11+ sin root (scoped storage); el auto-sync lo reintenta en cada conexión (ya fallaba en marzo con 49). Sin pérdida: los pulls fallan y nada se sobreescribe. Fix: excluir/avisar ese mapping en modo ADB y documentar la alternativa (DuckStation Android → exportar memcards a carpeta pública) en `docs/emulator-compat.md` | Sync | S | ⬜ |
+| VAL-FIX-5 | **Preview del sync por cable hardcodea "no accesible en modo ADB"** — `_build_cable_sync_preview` (`web/builders/misc.py:81`) nunca implementó el conteo remoto por ADB; el Sync Doctor de AUD-1 ya lo hace bien (226 saves). Fix: reutilizar ese conteo o esconder el preview en modo ADB | UX | S | ⬜ |
+| VAL-FIX-6 | **El aviso de ruta SD/MTP se muestra en modo ADB** — al cargar la pestaña, `testCablePath('ab')` valida el campo de ruta SD aunque el Modo ADB esté activo (aviso "Este equipo\RG556\... NO es compatible" irrelevante en ADB). Fix: no validar/ocultar los avisos de la sección SD cuando `_isAdbMode()` (`sync.js:795-796`) | UX | S | ⬜ |
+| VAL-FIX-7 | **El sync por cable no registra en `save_sync_log`** — solo `SaveSyncer` (sync cloud) escribe esa tabla; el job de cable verifica MD5 en el transporte (`handlers/sync_cable.py:394,425`, solo saves) pero no deja rastro por archivo, así que el "último sync por juego" del Sync Doctor no refleja syncs por cable. Fix: llamar `log_sync_event(..., verified=)` también desde el job de cable (valor bajo, el resultado del job ya reporta) | Sync | S | ⬜ |
+
+---
+
 ## User actions (no code needed)
 
 | ID | Task |
