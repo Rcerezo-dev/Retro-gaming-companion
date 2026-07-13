@@ -537,17 +537,18 @@ def register(
             ctx._send_json({"error": "game_id required"})
             return
         gid = int(game_id)
+        _meta_repo = get_repo_fn(data.get("source_path", ""))
         if "notes" in data:
-            repository.set_notes(gid, data["notes"] or None)
+            _meta_repo.set_notes(gid, data["notes"] or None)
         if "canonical_title" in data:
-            repository.set_canonical_title(gid, data["canonical_title"])
+            _meta_repo.set_canonical_title(gid, data["canonical_title"])
         _meta_fields = {
             k: v
             for k, v in data.items()
             if k in {"year", "genre", "publisher", "developer", "description", "rating"}
         }
         if _meta_fields:
-            repository.upsert_metadata_manual(gid, **_meta_fields)
+            _meta_repo.upsert_metadata_manual(gid, **_meta_fields)
         ctx._send_json({"ok": True})
 
     # ── POST /api/toggle-favorite ────────────────────────────────────────────
@@ -558,7 +559,8 @@ def register(
         if not game_id:
             ctx._send_json({"error": "game_id required"})
             return
-        new_val = repository.toggle_favorite(int(game_id))
+        _fav_repo = get_repo_fn(data.get("source_path", ""))
+        new_val = _fav_repo.toggle_favorite(int(game_id))
         ctx._send_json({"ok": True, "is_favorite": new_val})
 
     # ── POST /api/tag ────────────────────────────────────────────────────────
@@ -571,11 +573,12 @@ def register(
         if not game_id or not tag:
             ctx._send_json({"error": "game_id and tag required"})
             return
+        _tag_repo = get_repo_fn(data.get("source_path", ""))
         if action == "remove":
-            repository.remove_tag(int(game_id), tag)
+            _tag_repo.remove_tag(int(game_id), tag)
         else:
-            repository.add_tag(int(game_id), tag)
-        ctx._send_json({"ok": True, "tags": repository.get_tags(int(game_id))})
+            _tag_repo.add_tag(int(game_id), tag)
+        ctx._send_json({"ok": True, "tags": _tag_repo.get_tags(int(game_id))})
 
     # ── POST /api/open-folder ────────────────────────────────────────────────
     @router.post("/api/open-folder")

@@ -84,6 +84,9 @@ const _txtCls = (el, cls) => {
 // Forward declaration — set and used by game panel functions (2c-4)
 export let _gpGameId = null;
 
+// source_path del juego abierto en el panel — enruta a la BD correcta (DEVSEL-FIX-2)
+const _gpSrc = () => document.getElementById('game-panel')?.dataset.sourcePath || '';
+
 // ── Filter helpers ────────────────────────────────────────────────────────────
 
 // Navigate to Games tab pre-filtered by device root, match status, and filetype
@@ -157,7 +160,7 @@ export async function _refreshTagFilter() {
 
 export async function toggleRowFavorite(gameId, btn) {
   try {
-    const r = await apiPost('/api/toggle-favorite', { game_id: gameId });
+    const r = await apiPost('/api/toggle-favorite', { game_id: gameId, source_path: btn.dataset.path || '' });
     btn.classList.toggle('active', r.is_favorite);
     btn.title = r.is_favorite ? 'Quitar favorito' : 'Marcar favorito';
     // If the panel is open for this game, update its star too
@@ -359,7 +362,7 @@ export async function loadGames(offset) {
         const accentColor = _platHex(g.platform);
         const favActive = g.is_favorite ? ' active' : '';
         return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${JSON.stringify(g).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})">
-          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
+          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" data-path="${_h(g.source_path || '')}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
           <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:var(--c-ghost)">—</span>'}</td>
@@ -656,7 +659,7 @@ export function closeGamePanel() {
 export async function gpSetStatus(status) {
   if (!_gpGameId) return;
   try {
-    await apiPost('/api/set-play-status', { game_id: _gpGameId, status: status || null, source_path: '' });
+    await apiPost('/api/set-play-status', { game_id: _gpGameId, status: status || null, source_path: _gpSrc() });
     if (document.getElementById('tab-games')?.classList.contains('active')) loadGames(gamesState.offset);
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
@@ -683,7 +686,7 @@ export async function gpSetRating(n) {
 export async function gpToggleFavorite() {
   if (!_gpGameId) return;
   try {
-    const r = await apiPost('/api/toggle-favorite', { game_id: _gpGameId });
+    const r = await apiPost('/api/toggle-favorite', { game_id: _gpGameId, source_path: _gpSrc() });
     _gpSetFavStar(r.is_favorite);
     const rowStar = document.querySelector(`[data-fav-id="${_gpGameId}"]`);
     if (rowStar) rowStar.classList.toggle('active', r.is_favorite);
@@ -712,7 +715,7 @@ export async function gpAddTag() {
   const tag = input.value.trim();
   if (!tag) return;
   try {
-    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'add' });
+    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'add', source_path: _gpSrc() });
     _gpRenderTags(r.tags || []);
     input.value = '';
     _refreshTagFilter();
@@ -722,7 +725,7 @@ export async function gpAddTag() {
 export async function gpRemoveTag(tag) {
   if (!_gpGameId) return;
   try {
-    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove' });
+    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove', source_path: _gpSrc() });
     _gpRenderTags(r.tags || []);
     _refreshTagFilter();
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
@@ -781,7 +784,7 @@ export function gpNotesInput() {
     if (!_gpGameId) return;
     const val = document.getElementById('gp-notes')?.value ?? '';
     try {
-      await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val });
+      await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val, source_path: _gpSrc() });
       if (statusEl) {
         statusEl.textContent = '✓ guardado';
         statusEl.style.color = 'var(--c-teal)';
@@ -804,7 +807,7 @@ export function gpToggleMetaEdit() {
 
 export async function gpSaveMetaFields() {
   if (!_gpGameId) return;
-  const payload = { game_id: _gpGameId };
+  const payload = { game_id: _gpGameId, source_path: _gpSrc() };
   const title = document.getElementById('gme-title')?.value.trim();
   if (title) payload.canonical_title = title;
   ['year', 'genre', 'publisher', 'developer', 'rating'].forEach(k => {
