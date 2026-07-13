@@ -171,6 +171,8 @@ class SyncConfig:
     auto_sync_android_path: str = "/storage/emulated/0/RetroArch"  # Android RetroArch root path
     auto_sync_known_devices: list = field(default_factory=list)  # serials; empty = any device
     conflict_policy: str = "newest"  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # AUD-1 Sync Doctor: max acceptable PC↔device clock skew before warning (seconds)
+    clock_skew_threshold_s: int = 120
     # Dual-remote cloud sync (D2)
     saves_remote: str = ""  # rclone remote for permanent saves
     states_remote: str = ""  # rclone remote for savestates
@@ -259,6 +261,8 @@ class AppConfig:
     backup: BackupConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
+    # AUD-3: días que un archivo permanece en _descartados/ antes de la purga automática (0 = nunca)
+    trash_purge_days: int
     # Android emulator path mappings (SYNC-A2)
     # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
     emulator_paths: dict  # package_name → {name, saves_path, states_path, adb_required, ...}
@@ -277,6 +281,9 @@ _CONFIG_TOML_TEMPLATE = """\
 # Save files (.sav, .srm, .state, etc.) are expected to live alongside the ROMs.
 # Used by 'rommgr sync-saves' and 'rommgr sync-status'.
 # library_root = "E:/ROMs"
+# Días que un archivo descartado permanece en _descartados/ antes de la purga
+# automática (AUD-3). 0 = nunca purgar.
+# trash_purge_days = 30
 
 [sync]
 # rclone remote path where saves will be mirrored in the cloud.
@@ -443,6 +450,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ),
             auto_sync_known_devices=auto_sync_known_devices,
             conflict_policy=str(sync.get("conflict_policy", "newest")),
+            clock_skew_threshold_s=int(sync.get("clock_skew_threshold_s", 120)),
             saves_remote=str(sync.get("saves_remote", "")),
             states_remote=str(sync.get("states_remote", "")),
             ra_config_dir=str(sync.get("ra_config_dir", "")),
@@ -466,6 +474,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             pre_sync=bool(backup_cfg.get("pre_sync", True)),
         ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
+        trash_purge_days=int(lib.get("trash_purge_days", 30)),
         emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501
             "Android",

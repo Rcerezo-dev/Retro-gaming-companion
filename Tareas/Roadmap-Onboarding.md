@@ -83,11 +83,13 @@ proyecto** (o para Claude). El *desarrollador* nuevo se encuentra con:
 
 **Resultado:** un dev sin background retro entiende *qué* hace el pipeline y *por qué*.
 
-### Fase 5 — Opcional / decisión de producto
+### Fase 5 — Opcional / decisión de producto ✅ COMPLETADA (2026-07-05, rama `docs/onb9-readme-english-tldr`)
 
-| Tarea | Qué se hace | Esfuerzo |
-|-------|-------------|----------|
-| ONB-9 | Decidir audiencia del README: si el repo es también portfolio internacional, añadir TL;DR en inglés al inicio (3-4 líneas + stack + screenshot). No traducir el resto | 20 min |
+| Tarea | Qué se hace | Estado |
+|-------|-------------|--------|
+| ONB-9 | Audiencia decidida: el repo es también portfolio internacional. TL;DR en inglés al inicio del README (qué es + stack); sin screenshot porque el repo no tiene ninguno. El resto sigue en español | ✅ |
+
+**Resultado:** un visitante internacional entiende qué es el proyecto y con qué está hecho sin leer español.
 
 ---
 

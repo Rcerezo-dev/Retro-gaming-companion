@@ -131,7 +131,8 @@ SCHEMA_STATEMENTS = (
         remote_mtime    TEXT,
         result          TEXT NOT NULL,
         message         TEXT,
-        created_at      TEXT NOT NULL
+        created_at      TEXT NOT NULL,
+        verified        INTEGER
     )
     """,
     """
@@ -222,6 +223,10 @@ _SAVES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("game_id", "INTEGER"),  # DB-FIX-4: FK → games.id (declarative; enforced at app layer)
 )
 
+_SYNC_LOG_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("verified", "INTEGER"),  # AUD-2: post-transfer integrity check passed
+)
+
 _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("screenshot_path", "TEXT"),  # B6-7: local path to downloaded screenshot
     ("wheel_path", "TEXT"),  # B6-7: local path to downloaded wheel/logo
@@ -244,6 +249,7 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     _migrate_saves_columns(cursor)
     _migrate_assets_columns(cursor)
     _migrate_metadata_columns(cursor)
+    _migrate_sync_log_columns(cursor)
     _migrate_is_favorite_default(cursor)
     _drop_deprecated_columns(cursor)
     connection.commit()
@@ -301,6 +307,14 @@ def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:
     for col_name, col_type in _ASSETS_MIGRATIONS:
         if col_name not in existing:
             _alter_table_add_column(cursor, "assets", col_name, col_type)
+
+
+def _migrate_sync_log_columns(cursor: sqlite3.Cursor) -> None:
+    """Add any missing columns to save_sync_log without touching existing data."""
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(save_sync_log)")}
+    for col_name, col_type in _SYNC_LOG_MIGRATIONS:
+        if col_name not in existing:
+            _alter_table_add_column(cursor, "save_sync_log", col_name, col_type)
 
 
 def _migrate_metadata_columns(cursor: sqlite3.Cursor) -> None:

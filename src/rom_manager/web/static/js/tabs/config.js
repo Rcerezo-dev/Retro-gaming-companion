@@ -825,7 +825,42 @@ async function browseFolder(inputId, title) {
   }
 }
 
+// ── AUD-3: Papelera unificada ─────────────────────────────────────────────────
+async function loadTrashStatus() {
+  const el = document.getElementById('trash-status-text');
+  if (!el) return;
+  el.textContent = 'Calculando…';
+  try {
+    const d = await apiFetch('/api/trash-status');
+    const gb = d.bytes / 1024 / 1024 / 1024;
+    const sizeStr = gb >= 1 ? `${gb.toFixed(2)} GB` : fmtSize(d.bytes);
+    el.innerHTML = `Papelera: <strong>${d.files}</strong> archivo${d.files !== 1 ? 's' : ''}, <strong>${sizeStr}</strong>`
+      + (d.purge_days > 0 ? ` <span style="color:var(--c-dim)">(purga automática a los ${d.purge_days} días)</span>`
+                          : ' <span style="color:var(--c-yellow)">(purga automática desactivada)</span>');
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function emptyTrash() {
+  if (!confirm('¿Vaciar la papelera?\n\nTodos los archivos de las carpetas _descartados/ se eliminarán DEFINITIVAMENTE. Esta acción no se puede deshacer.')) return;
+  const res = document.getElementById('trash-empty-result');
+  const btn = document.getElementById('btn-trash-empty');
+  if (btn) btn.disabled = true;
+  if (res) { res.textContent = 'Vaciando…'; _txtCls(res, 'txt-dim'); }
+  try {
+    const d = await apiPost('/api/trash-empty', {});
+    if (res) { res.textContent = `✓ ${d.deleted} archivos eliminados (${fmtSize(d.bytes)})`; _txtCls(res, 'txt-ok'); }
+    loadTrashStatus();
+  } catch (e) {
+    if (res) { res.textContent = '✗ ' + e.message; _txtCls(res, 'txt-err'); }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 export {
+  loadTrashStatus, emptyTrash,
   _onDevicePresetChange,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
   loadLogViewer, downloadLog, loadTools, _setIfEmpty,
