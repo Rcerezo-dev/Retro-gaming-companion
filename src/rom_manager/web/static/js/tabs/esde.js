@@ -496,7 +496,9 @@ export async function doHealthCheck() {
   if (el) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Comprobando…</p>'; }
 
   try {
-    const res = await apiPost('/api/health-check', {});
+    // AUD-6: verificación profunda de CHDs (chdman verify), off por defecto
+    const deepChd = document.getElementById('health-deep-chd')?.checked ?? false;
+    const res = await apiPost('/api/health-check', { deep_chd: deepChd });
     if (res.job_id) {
       window.startPolling();
     }
@@ -540,13 +542,15 @@ function _renderHealthPage() {
   const ok = _healthResults.ok || 0;
   const corrupted = _healthResults.corrupted || 0;
   const missing = _healthResults.missing || 0;
-  const total = ok + corrupted + missing;
+  const chdInvalid = _healthResults.chd_invalid || 0;
+  const total = ok + corrupted + missing + chdInvalid;
 
   let html = `<div style="margin-bottom:12px;font-size:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <div style="flex:1;min-width:300px">
       <span style="color:var(--c-teal)">✓ ${ok} correctos</span>
       <span style="color:var(--c-softred);margin-left:8px">⚠ ${corrupted} corruptos</span>
       <span style="color:var(--c-softred);margin-left:8px">✗ ${missing} perdidos</span>
+      ${chdInvalid ? `<span style="color:var(--c-softred);margin-left:8px">&#x1F4BF; ${chdInvalid} CHDs inválidos</span>` : ''}
     </div>
     <div style="display:flex;gap:6px">
       ${filterVal !== 'all' ? `<button class="btn" style="padding:3px 8px;font-size:11px" onclick="window._clearHealthFilter()">✕ Limpiar filtro</button>` : ''}
@@ -574,7 +578,8 @@ function _renderHealthPage() {
 
   const statusGroups = [
     { key: 'corrupted', label: '⚠ Corruptos (SHA1 no coincide)', color: '#2a1a1a' },
-    { key: 'missing', label: '✗ Perdidos (archivo no encontrado)', color: '#2a1a1a' }
+    { key: 'missing', label: '✗ Perdidos (archivo no encontrado)', color: '#2a1a1a' },
+    { key: 'chd_invalid', label: '💿 CHDs inválidos (chdman verify falló — checksums internos)', color: '#2a1a1a' }
   ];
 
   statusGroups.forEach(group => {

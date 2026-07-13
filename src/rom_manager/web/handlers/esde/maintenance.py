@@ -50,6 +50,8 @@ def register_maintenance(
     @router.post("/api/health-check")
     def post_health_check(ctx) -> None:
         _cancel = job_manager.cancel_event("health_check")
+        # AUD-6: verificación profunda de CHDs (chdman verify) — off por defecto, lenta
+        _deep_chd = bool(getattr(ctx, "_post_data", {}).get("deep_chd", False))
 
         def run() -> None:
             job_result = None
@@ -64,12 +66,17 @@ def register_maintenance(
                     )
 
                 summary = check_library_health(
-                    repository, progress_cb=progress_cb, cancel_event=_cancel
+                    repository,
+                    progress_cb=progress_cb,
+                    cancel_event=_cancel,
+                    chd_verify=_deep_chd,
+                    chdman_path=config.chdman,
                 )
                 job_result = {
                     "ok": summary.ok,
                     "corrupted": summary.corrupted,
                     "missing": summary.missing,
+                    "chd_invalid": summary.chd_invalid,
                     "cancelled": _cancel.is_set(),
                     "issues": [
                         {
