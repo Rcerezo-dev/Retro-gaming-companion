@@ -176,6 +176,8 @@ def sync_saves(
                         remote_mtime=decision.remote_mtime,
                         result="ok",
                         created_at=timestamp,
+                        # AUD-2: rclone copyto verifica checksums tras cada transferencia
+                        verified=True,
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "upload")
@@ -227,6 +229,7 @@ def sync_saves(
                         remote_mtime=decision.remote_mtime,
                         result="ok",
                         created_at=timestamp,
+                        verified=True,
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "download")
@@ -335,6 +338,7 @@ def sync_saves(
                         result="ok",
                         message=msg,
                         created_at=timestamp,
+                        verified=True,
                     )
                     repository.record_play_session(local_path, timestamp)
                     result.conflicts += 1

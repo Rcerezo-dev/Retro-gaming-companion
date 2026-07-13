@@ -64,7 +64,8 @@ class SyncMixin:
             try:
                 rows = connection.execute(
                     """
-                    SELECT local_path, remote_path, direction, result, message, created_at
+                    SELECT local_path, remote_path, direction, result, message, created_at,
+                           verified
                     FROM save_sync_log
                     ORDER BY id DESC
                     LIMIT ?
@@ -81,6 +82,7 @@ class SyncMixin:
                 "result": row["result"],
                 "message": row["message"],
                 "created_at": row["created_at"],
+                "verified": row["verified"],
             }
             for row in rows
         ]

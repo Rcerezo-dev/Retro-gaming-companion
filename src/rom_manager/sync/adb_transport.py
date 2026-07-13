@@ -14,10 +14,16 @@ Requires:
 
 from __future__ import annotations
 
+import hashlib
 import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+
+def _md5_local(path: Path) -> str:
+    with open(path, "rb") as fh:
+        return hashlib.file_digest(fh, "md5").hexdigest()
 
 
 @dataclass(slots=True)
@@ -173,6 +179,16 @@ class AdbTransport:
                 continue
         return results
 
+    # ── hashing (AUD-2) ───────────────────────────────────────────────────────
+
+    def md5(self, android_path: str, *, timeout: int = 300) -> str:
+        """MD5 of a file on the device (``md5sum``)."""
+        out = self._shell(f"md5sum {shlex.quote(android_path)}", timeout=timeout).strip()
+        token = out.split()[0].lower() if out.split() else ""
+        if len(token) != 32 or not all(c in "0123456789abcdef" for c in token):
+            raise OSError(f"md5sum falló en el dispositivo para {android_path}: {out!r}")
+        return token
+
     # ── transfer ──────────────────────────────────────────────────────────────
 
     def pull(
@@ -181,14 +197,36 @@ class AdbTransport:
         local_dst: Path,
         *,
         dry_run: bool = False,
+        verify: bool = False,
     ) -> int:
-        """Pull a single file from device to PC. Returns file size in bytes."""
+        """Pull a single file from device to PC. Returns file size in bytes.
+
+        With ``verify=True`` (AUD-2) the file lands in a ``.part`` next to
+        *local_dst* and only replaces it if the MD5 matches the device's copy —
+        a corrupt transfer never overwrites a save in the library.
+        """
         if not dry_run:
             local_dst.parent.mkdir(parents=True, exist_ok=True)
-            r = self._run("pull", android_src, str(local_dst))
+            target = local_dst.with_name(local_dst.name + ".part") if verify else local_dst
+            r = self._run("pull", android_src, str(target))
             if r.returncode != 0:
+                target.unlink(missing_ok=True)
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
                 raise OSError(f"adb pull falló: {err}")
+            if verify:
+                try:
+                    local_md5 = _md5_local(target)
+                    remote_md5 = self.md5(android_src)
+                    if local_md5 != remote_md5:
+                        raise OSError(
+                            f"verificación MD5 falló tras pull de {android_src} "
+                            f"(local {local_md5} != dispositivo {remote_md5}) — "
+                            "el archivo previo se conserva intacto"
+                        )
+                except OSError:
+                    target.unlink(missing_ok=True)
+                    raise
+                target.replace(local_dst)
         # Return size (approximate from listing, or stat after pull)
         try:
             size_str = self._shell(f"stat -c '%s' {shlex.quote(android_src)}").strip()
@@ -202,8 +240,16 @@ class AdbTransport:
         android_dst: str,
         *,
         dry_run: bool = False,
+        verify: bool = False,
     ) -> int:
-        """Push a single file from PC to device. Returns file size in bytes."""
+        """Push a single file from PC to device. Returns file size in bytes.
+
+        With ``verify=True`` (AUD-2) the device copy's MD5 is compared against
+        the local file after the push; on mismatch the corrupt remote file is
+        deleted (its fresh mtime would propagate the corruption back to the PC
+        on the next "newest" sync — the good copy is still on the PC) and
+        ``OSError`` is raised.
+        """
         size = local_src.stat().st_size if local_src.exists() else 0
         if not dry_run:
             parent = str(PurePosixPath(android_dst).parent)
@@ -212,4 +258,14 @@ class AdbTransport:
             if r.returncode != 0:
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
                 raise OSError(f"adb push falló: {err}")
+            if verify:
+                local_md5 = _md5_local(local_src)
+                remote_md5 = self.md5(android_dst)
+                if remote_md5 != local_md5:
+                    self._shell(f"rm {shlex.quote(android_dst)}")
+                    raise OSError(
+                        f"verificación MD5 falló tras push a {android_dst} "
+                        f"(dispositivo {remote_md5} != local {local_md5}) — "
+                        "archivo corrupto eliminado del dispositivo; el original sigue en el PC"
+                    )
         return size

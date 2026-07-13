@@ -389,7 +389,13 @@ def _do_cable_sync(
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
                     try:
-                        size = transport.pull(adb_info.android_path, local_dst, dry_run=dry_run)
+                        # AUD-2: verificar MD5 solo en saves (en ROMs grandes sería muy lento)
+                        size = transport.pull(
+                            adb_info.android_path,
+                            local_dst,
+                            dry_run=dry_run,
+                            verify=_cat_name(name) == "save",
+                        )
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
                         )
@@ -410,7 +416,12 @@ def _do_cable_sync(
                         return
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
                     try:
-                        size = transport.push(local_src, android_dst, dry_run=dry_run)
+                        size = transport.push(
+                            local_src,
+                            android_dst,
+                            dry_run=dry_run,
+                            verify=_cat_name(local_src.name) == "save",
+                        )
                         _log("ADB→" if not dry_run else "DRY→", str(local_src), android_dst)
                         copied += 1
                         copied_bytes += size
