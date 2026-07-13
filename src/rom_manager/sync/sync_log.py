@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS save_sync_log (
     remote_mtime    TEXT,
     result          TEXT NOT NULL,
     message         TEXT,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    verified        INTEGER
 )
 """
 
@@ -31,6 +32,10 @@ def ensure_sync_log_schema(connection: sqlite3.Connection) -> None:
     """Create the save_sync_log table if it doesn't exist."""
     connection.execute(SYNC_LOG_SCHEMA)
     connection.execute(SYNC_LOG_INDEX)
+    # AUD-2: migrate pre-existing tables missing the verified column
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(save_sync_log)")}
+    if "verified" not in existing:
+        connection.execute("ALTER TABLE save_sync_log ADD COLUMN verified INTEGER")
     connection.commit()
 
 
@@ -50,6 +55,7 @@ class SyncLogEntry:
     result: str  # 'ok' | 'error' | 'skipped'
     message: str | None
     created_at: str
+    verified: bool | None = None  # AUD-2: post-transfer integrity check passed
 
 
 # ---------------------------------------------------------------------------
@@ -68,13 +74,14 @@ def log_sync_event(
     result: str,
     message: str | None = None,
     created_at: str,
+    verified: bool | None = None,
 ) -> None:
     connection.execute(
         """
         INSERT INTO save_sync_log
             (local_path, remote_path, direction,
-             local_mtime, remote_mtime, result, message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             local_mtime, remote_mtime, result, message, created_at, verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             local_path,
@@ -85,6 +92,7 @@ def log_sync_event(
             result,
             message,
             created_at,
+            None if verified is None else int(verified),
         ),
     )
 

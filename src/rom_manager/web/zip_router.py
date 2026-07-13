@@ -64,7 +64,9 @@ def _extract_collection(zp: Path, dest_dir: Path) -> tuple[int, str]:
             missing = sum(1 for m in members if not (dest_dir / m.filename).exists())
         if missing:
             return extracted, f"{missing} miembros no extraídos"
-        zp.unlink()  # cero duplicados: contenedor fuera tras éxito
+        from rom_manager.utils.trash import discard_to_trash
+
+        discard_to_trash(zp)  # cero duplicados: contenedor a _descartados/ tras éxito (AUD-3)
         return extracted, ""
     except (OSError, zipfile.BadZipFile) as exc:
         return 0, str(exc)

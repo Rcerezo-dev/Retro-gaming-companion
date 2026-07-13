@@ -679,14 +679,22 @@ export async function loadCollectionCompleteness(root) {
     const platforms = d.platforms || [];
     if (!platforms.length) { el.innerHTML = '<span style="color:var(--c-dim)">Sin catálogos cargados. Descarga DATs en Ajustes → Catálogos.</span>'; return; }
     const rows = platforms.map(p => {
-      const pct = p.pct ?? null;
+      // AUD-5: modo 1G1R (títulos base, agrupando región/revisión) como cifra
+      // principal; los dumps brutos quedan en el tooltip.
+      const has1g1r = p.total_1g1r != null;
+      const pct = has1g1r ? (p.pct_1g1r ?? null) : (p.pct ?? null);
       const barW = pct !== null ? Math.min(pct, 100) : 0;
       const clr = pct === null ? 'var(--c-dim)' : pct >= 80 ? 'var(--c-teal)' : pct >= 30 ? 'var(--c-amber)' : 'var(--c-softred)';
-      const totalTxt = p.total !== null ? `${p.owned} / ${p.total}` : `${p.owned}`;
+      const totalTxt = has1g1r ? `${p.owned_1g1r} / ${p.total_1g1r}`
+        : (p.total !== null ? `${p.owned} / ${p.total}` : `${p.owned}`);
       const pctTxt = pct !== null ? ` (${pct}%)` : '';
-      return `<div style="display:grid;grid-template-columns:1fr 90px 120px;align-items:center;gap:8px;padding:3px 0;font-size:12px">
+      const tip = has1g1r ? `title="Títulos base (1G1R). Dumps: ${p.owned} / ${p.total ?? '?'}"` : '';
+      const csvLink = has1g1r && p.owned_1g1r > 0 && p.owned_1g1r < p.total_1g1r
+        ? ` <a href="/api/collection-missing.csv?source=${encodeURIComponent(p.source)}" title="Descargar CSV de títulos faltantes" style="color:var(--c-blue);text-decoration:none">&#x2B07;</a>`
+        : '';
+      return `<div style="display:grid;grid-template-columns:1fr 110px 120px;align-items:center;gap:8px;padding:3px 0;font-size:12px">
         <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-text)">${p.label}</div>
-        <div style="color:${clr};text-align:right;white-space:nowrap">${totalTxt}${pctTxt}</div>
+        <div style="color:${clr};text-align:right;white-space:nowrap" ${tip}>${totalTxt}${pctTxt}${csvLink}</div>
         <div style="background:var(--c-panel);border-radius:3px;height:6px;overflow:hidden">
           <div style="background:${clr};height:100%;width:${barW}%;transition:width .4s"></div>
         </div>

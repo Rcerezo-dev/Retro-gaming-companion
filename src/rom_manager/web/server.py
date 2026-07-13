@@ -151,6 +151,7 @@ def make_handler(
         config=config,
         repository=repository,
         repo_android=_repo_android,
+        get_repo_fn=_get_repo,
         job_manager=_job_manager,
     )
 

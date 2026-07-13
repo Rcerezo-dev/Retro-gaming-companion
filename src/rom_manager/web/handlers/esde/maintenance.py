@@ -30,10 +30,28 @@ def register_maintenance(
 ) -> None:
     """Register health-check, cleanup-zips, cleanup-cue-bin and junk-delete routes."""
 
+    # ── GET /api/trash-status (AUD-3) ─────────────────────────────────────────
+    @router.get("/api/trash-status")
+    def get_trash_status(ctx) -> None:
+        from rom_manager.utils.trash import trash_roots, trash_stats
+
+        stats = trash_stats(trash_roots(config))
+        stats["purge_days"] = config.trash_purge_days
+        ctx._send_json(stats)
+
+    # ── POST /api/trash-empty (AUD-3) ─────────────────────────────────────────
+    @router.post("/api/trash-empty")
+    def post_trash_empty(ctx) -> None:
+        from rom_manager.utils.trash import purge_trash, trash_roots
+
+        ctx._send_json(purge_trash(trash_roots(config), older_than_days=0))
+
     # ── POST /api/health-check ────────────────────────────────────────────────
     @router.post("/api/health-check")
     def post_health_check(ctx) -> None:
         _cancel = job_manager.cancel_event("health_check")
+        # AUD-6: verificación profunda de CHDs (chdman verify) — off por defecto, lenta
+        _deep_chd = bool(getattr(ctx, "_post_data", {}).get("deep_chd", False))
 
         def run() -> None:
             job_result = None
@@ -48,12 +66,17 @@ def register_maintenance(
                     )
 
                 summary = check_library_health(
-                    repository, progress_cb=progress_cb, cancel_event=_cancel
+                    repository,
+                    progress_cb=progress_cb,
+                    cancel_event=_cancel,
+                    chd_verify=_deep_chd,
+                    chdman_path=config.chdman,
                 )
                 job_result = {
                     "ok": summary.ok,
                     "corrupted": summary.corrupted,
                     "missing": summary.missing,
+                    "chd_invalid": summary.chd_invalid,
                     "cancelled": _cancel.is_set(),
                     "issues": [
                         {
@@ -230,7 +253,10 @@ def register_maintenance(
                 if p.is_file():
                     sz = p.stat().st_size
                     if not dry_run:
-                        p.unlink()
+                        # AUD-3: soft-discard — nada se borra con unlink()
+                        from rom_manager.utils.trash import discard_to_trash
+
+                        discard_to_trash(p)
                     deleted += 1
                     freed_bytes += sz
             except OSError as exc:

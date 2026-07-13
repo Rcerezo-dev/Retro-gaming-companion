@@ -68,6 +68,26 @@ def register_cable(
             except Exception as exc:
                 ctx._send_json({"accessible": False, "error": str(exc)})
 
+    # ── GET /api/sync-doctor (AUD-1) ─────────────────────────────────────────
+    @router.get("/api/sync-doctor")
+    def get_sync_doctor(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        serial = qs.get("serial", [""])[0].strip()
+        android_path = qs.get("android_path", [""])[0].strip() or config.sync.auto_sync_android_path
+        pc_path = qs.get("pc_path", [""])[0].strip() or (
+            str(config.library_root) if config.library_root else ""
+        )
+        quick = qs.get("quick", ["0"])[0] == "1"
+        if not serial:
+            ctx._send_json({"error": "serial requerido"})
+            return
+        try:
+            ctx._send_json(
+                _build_sync_doctor(config, repository, serial, android_path, pc_path, quick=quick)
+            )
+        except Exception as exc:
+            ctx._send_json({"error": str(exc)})
+
     # ── GET /api/sync-log ────────────────────────────────────────────────────
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
@@ -105,6 +125,111 @@ def register_cable(
         _do_tree_diff(ctx, ctx._post_data, config, job_manager)
 
 
+def _build_sync_doctor(
+    config: AppConfig,
+    repository: LibraryRepository,
+    serial: str,
+    android_path: str,
+    pc_path: str,
+    *,
+    quick: bool = False,
+) -> dict:
+    """AUD-1 Sync Doctor: clock skew + anomalous saves diagnostics.
+
+    With ``quick=True`` only the clock check runs (used as pre-flight before a
+    mtime-based sync); the full report also joins local vs remote save listings
+    and the last sync per file from ``save_sync_log``.
+    """
+    import time
+    from pathlib import PurePosixPath
+
+    from rom_manager.sync.adb_transport import AdbTransport
+
+    transport = AdbTransport(config.adb, serial)
+    pc_epoch = time.time()
+    device_epoch = transport.device_epoch()
+    skew = device_epoch - pc_epoch
+    threshold = config.sync.clock_skew_threshold_s
+    result: dict = {
+        "ok": True,
+        "pc_epoch": round(pc_epoch, 1),
+        "device_epoch": device_epoch,
+        "skew_seconds": round(skew, 1),
+        "threshold_seconds": threshold,
+        "skew_exceeded": abs(skew) > threshold,
+    }
+    if quick:
+        return result
+
+    save_exts = frozenset(config.save_extensions)
+    android_prefix = android_path.rstrip("/") + "/"
+    remote_index = {
+        info.android_path.removeprefix(android_prefix): info
+        for info in transport.ls_recursive(android_path, wanted_extensions=save_exts)
+    }
+
+    local_index: dict[str, object] = {}
+    if pc_path and Path(pc_path).is_dir():
+        from rom_manager.sync.save_syncer import list_local_saves
+
+        local_index = {
+            s.relative: s for s in list_local_saves(Path(pc_path), config.save_extensions)
+        }
+
+    # mtime in the future = symptom of a badly-set clock (margin: skew threshold)
+    future_limit = pc_epoch + threshold
+    future_local = sorted(
+        rel for rel, s in local_index.items() if s.mtime.timestamp() > future_limit
+    )
+    future_remote = sorted(rel for rel, info in remote_index.items() if info.mtime > future_limit)
+    only_local = sorted(set(local_index) - set(remote_index))
+    only_remote = sorted(set(remote_index) - set(local_index))
+
+    # Last sync per file, newest first (save_sync_log already exists — AUD-1 adds the view)
+    last_syncs: list[dict] = []
+    try:
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT local_path, direction, result, created_at, MAX(id)
+                FROM save_sync_log
+                GROUP BY local_path
+                ORDER BY MAX(id) DESC
+                LIMIT 100
+                """
+            ).fetchall()
+        last_syncs = [
+            {
+                "file": PurePosixPath(str(r["local_path"]).replace("\\", "/")).name,
+                "direction": r["direction"],
+                "result": r["result"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    except Exception:
+        _logger.debug("save_sync_log no disponible para Sync Doctor", exc_info=True)
+
+    _CAP = 100
+    result.update(
+        {
+            "pc_path": pc_path,
+            "android_path": android_path,
+            "local_total": len(local_index),
+            "remote_total": len(remote_index),
+            "in_both": len(set(local_index) & set(remote_index)),
+            "future_local": future_local[:_CAP],
+            "future_remote": future_remote[:_CAP],
+            "only_local": only_local[:_CAP],
+            "only_remote": only_remote[:_CAP],
+            "only_local_total": len(only_local),
+            "only_remote_total": len(only_remote),
+            "last_syncs": last_syncs,
+        }
+    )
+    return result
+
+
 def _do_cable_sync(
     ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
@@ -139,6 +264,8 @@ def _do_cable_sync(
             import datetime as _dt
             import time as _time
             from pathlib import PurePosixPath
+
+            from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 
             pc_root = Path(pc_path_str)
             save_exts = frozenset(config.save_extensions)
@@ -264,7 +391,13 @@ def _do_cable_sync(
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
                     try:
-                        size = transport.pull(adb_info.android_path, local_dst, dry_run=dry_run)
+                        # AUD-2: verificar MD5 solo en saves (en ROMs grandes sería muy lento)
+                        size = transport.pull(
+                            adb_info.android_path,
+                            local_dst,
+                            dry_run=dry_run,
+                            verify=_cat_name(name) == "save",
+                        )
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
                         )
@@ -285,7 +418,12 @@ def _do_cable_sync(
                         return
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
                     try:
-                        size = transport.push(local_src, android_dst, dry_run=dry_run)
+                        size = transport.push(
+                            local_src,
+                            android_dst,
+                            dry_run=dry_run,
+                            verify=_cat_name(local_src.name) == "save",
+                        )
                         _log("ADB→" if not dry_run else "DRY→", str(local_src), android_dst)
                         copied += 1
                         copied_bytes += size
@@ -430,7 +568,7 @@ def _do_cable_sync(
                             if _frel not in _ab_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en PC")
                                     except OSError as _exc:
@@ -546,7 +684,7 @@ def _do_cable_sync(
                             if _frel not in _pc_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en destino")
                                     except OSError as _exc:
@@ -599,7 +737,7 @@ def _do_cable_sync(
                             if _frel not in _ab_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en PC")
                                     except OSError as _exc:
