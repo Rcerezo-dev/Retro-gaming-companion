@@ -997,7 +997,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "{\"sha1\":\"\u2026\",\"keep_path\":\"\u2026\"}"
+                "description": "{\"source_root\":\"\u2026\"} \u2014 ra\u00edz del dispositivo activo; vac\u00edo = ambas BDs (PC + consola)"
               }
             }
           }
@@ -1043,7 +1043,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "{\"source_path\":\"\u2026\"}"
+                "description": "{\"sha1\":\"\u2026\",\"source_root\":\"\u2026\"} \u2014 source_root vac\u00edo = excluir en ambas BDs"
               }
             }
           }

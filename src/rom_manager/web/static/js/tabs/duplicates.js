@@ -88,7 +88,7 @@ async function deleteAllDuplicates() {
       const btn = document.getElementById('btn-delete-all-dups');
       if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
       try {
-        const d = await apiPost('/api/duplicates/delete-all', {});
+        const d = await apiPost('/api/duplicates/delete-all', { source_root: window._deviceRoot() || '' });
 
         // Log diagnostics for troubleshooting
         if (d.diagnostics && d.diagnostics.length) {
@@ -187,7 +187,7 @@ async function markAsIntentionalCopy(sha1) {
     'Confirmar',
     async () => {
       try {
-        await apiPost('/api/duplicates/exclude', { sha1 });
+        await apiPost('/api/duplicates/exclude', { sha1, source_root: window._deviceRoot() || '' });
         const el = document.getElementById('dup-' + sha1);
         if (el) el.remove();
         showToast('Grupo excluido de duplicados', 'ok');

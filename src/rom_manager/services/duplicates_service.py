@@ -59,6 +59,34 @@ def delete_duplicate(
     return {"deleted": source_path}
 
 
+def delete_all_duplicates_multi(repositories: list[LibraryRepository]) -> dict:
+    """Run :func:`delete_all_duplicates` over several repositories and merge the results.
+
+    Used by "Sistema completo" mode, where the duplicates view shows both the PC
+    and the Android DB: deleting only against the PC repo would purge files the
+    user never saw confirmed (DEVSEL-FIX-1).
+    """
+    merged = {
+        "deleted": 0,
+        "skipped": 0,
+        "failed": 0,
+        "freed_bytes": 0,
+        "errors": [],
+        "diagnostics": [],
+    }
+    for repo in repositories:
+        result = delete_all_duplicates(repo)
+        for key in ("deleted", "skipped", "failed", "freed_bytes"):
+            merged[key] += result[key]
+        merged["errors"] = (merged["errors"] + result["errors"])[:20]
+        merged["diagnostics"] = (merged["diagnostics"] + result["diagnostics"])[:10]
+    merged["summary"] = (
+        f"{merged['deleted']} eliminados, {merged['skipped']} omitidos (no existen), "
+        f"{merged['failed']} errores"
+    )
+    return merged
+
+
 def delete_all_duplicates(repository: LibraryRepository) -> dict:
     """Delete every non-canonical duplicate (all but the first entry per group).
 
