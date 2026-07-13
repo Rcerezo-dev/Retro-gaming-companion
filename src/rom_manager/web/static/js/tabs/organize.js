@@ -30,7 +30,7 @@ function _updateApplyButtonState() {
 
   const activeDevice = getActiveDevice();
   const deviceConnected = getDeviceConnected();
-  const targetsDevice = activeDevice === 'anbernic' || activeDevice === 'both';
+  const targetsDevice = activeDevice === 'anbernic';
 
   const shouldDisable = btn.disabled || (targetsDevice && !deviceConnected);
   const wasDisabled = btn.disabled;
@@ -61,11 +61,9 @@ async function loadPlan() {
       if (window._activeDevice === 'pc') {
         const r = cfg.library_root || '(no configurado)';
         barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
-      } else if (window._activeDevice === 'anbernic') {
+      } else {
         const r = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
         barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
-      } else {
-        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${window._devName}) &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
       }
       planBar.innerHTML = barHtml;
       planBar.classList.remove('hidden');
@@ -452,7 +450,7 @@ async function doApply() {
 
   // UX-1/2-5: Check device connectivity if targeting Android device
   const activeDevice = getActiveDevice();
-  if ((activeDevice === 'anbernic' || activeDevice === 'both') && !getDeviceConnected()) {
+  if (activeDevice === 'anbernic' && !getDeviceConnected()) {
     showToast('Consola Android no conectada. Conecta por USB o inserta la SD card.', 'err');
     return;
   }

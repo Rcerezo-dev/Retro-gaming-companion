@@ -392,6 +392,56 @@ salen todos los fallos. Orden: 1→2 son pérdida de datos potencial, prioridad 
 
 ---
 
+## AUD — Auditoría funcional (2026-07-12)
+
+Funciones nuevas detectadas en auditoría de la app completa. Detalle, archivos
+y criterios de "hecho" en `Tareas/Roadmap-Auditoria.md`. Orden: 1→6.
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| AUD-1 | **Sync Doctor** — detectar desviación de reloj PC↔consola (mtime gana → reloj mal = pérdida silenciosa), saves con mtime futuro, saves solo en un lado, último sync por juego | Sync | M | ✅ rama `aud-1-sync-doctor` — pendiente validar con consola real |
+| AUD-2 | **Verificación post-transferencia** — hash origen/destino tras cada push/pull (`adb shell md5sum`); si difiere, no propagar y reportar; columna `verified` en `save_sync_log` | Sync | S-M | ✅ rama `aud-2-sync-verify` — pendiente validar con consola real |
+| AUD-3 | **Papelera unificada con purga** — todo borrado masivo pasa por `_descartados/` (helper `_discard_file` ya existe); purga >30 días en el health-check daemon; contador+vaciar en Settings. Evita repetir INBOX-FIX-5 | Seguridad | M | ✅ rama `aud-3-papelera-unificada` |
+| AUD-4 | **`.md` ambiguos del Inbox por CRC** — los 177 varados: lookup contra `crc_index()` ya existente; hit=Mega Drive, miss=quieto. Formaliza el "ZIP-ROUTE-FIX-4" informal | Inbox | S | ✅ rama `aud-4-md-por-crc` — ejecutar el pipeline sobre el Inbox real para los 177 |
+| AUD-5 | **Informe de completitud por plataforma (1G1R)** — cruzar `games` matched vs DATs: "SNES: 412/1.748 (24 %)" + CSV de faltantes | Biblioteca | M | ✅ rama `aud-5-completitud-1g1r` (extendió `/api/collection-completeness` ya existente) |
+| AUD-6 | **`chdman verify` en health check** — verificación interna de CHDs, checkbox off por defecto | Biblioteca | S | ✅ rama `aud-6-chdman-verify` |
+
+---
+
+## DEVSEL-FIX — Selector de dispositivo (auditoría 2026-07-12)
+
+El selector global PC / Sistema completo / Consola (`_nav.html:69-71`, `setDevice()` en
+`main.js:412`, `_deviceRoot()` en `main.js:428`) filtra por `source_root`; el backend elige
+BD con `_repo_for_path()` (`builders/common.py:141`): **path vacío → BD del PC**. De ahí
+salen todos los fallos. Orden: 1→2 son pérdida de datos potencial, prioridad absoluta.
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| DEVSEL-FIX-1 | **Acciones de duplicados ignoran el dispositivo** — la vista sí lee ambas BDs (`_build_duplicates_two_repos`, `handlers/duplicates.py:50`) pero TODAS las acciones usan `repository` (PC) fijo: `/api/duplicates/delete` (`duplicates.py:70` → `delete_duplicate` borra el archivo por path pero `delete_game(game_id)` contra la BD PC con un id de la BD Android, `services/duplicates_service.py:65`); `/api/duplicates/delete-all` (`duplicates.py:80`) — **en modo consola la UI muestra y confirma duplicados Android pero el backend borra los del PC** (`delete_all_duplicates` recorre `repository.get_duplicate_groups()`); `/api/duplicates/exclude` y los 6 endpoints RA-duplicates, ídem. Fix: enrutar por `get_repo_fn(source_path)` en delete, y pasar `source_root` a delete-all/exclude | Seguridad | M | 🟡 rama `feature/devsel-fix-1` — `register()` recibe `get_repo_fn`; delete enruta por `source_path`, delete-all/exclude por `source_root` del body (vacío = "Sistema completo" → ambas BDs: `delete_all_duplicates_multi()`, exclude en ambas con INSERT OR IGNORE); RA discard/resolve enrutan por path (los llama también la tab de duplicados normal). Frontend envía `_deviceRoot()` en delete-all/exclude. 6 tests handler con 2 repos reales (664 pass) |
+| DEVSEL-FIX-2 | **Favoritos/tags/notas/metadatos escriben siempre en la BD del PC** — `/api/toggle-favorite` (`handlers/games.py:502`), `/api/tag` (`games.py:516-519`), `/api/set-metadata` (`games.py:482-491`) usan `repository` fijo; en modo consola el `game_id` viene de la BD Android → escriben en el juego equivocado del PC o en ninguno. El frontend ni envía `source_path` (`games.js:160,686,715,725,784,818`). `/api/set-play-status` sí enruta bien (`games.py:468`) pero el panel de juego llama con `source_path: ''` (`games.js:659`) → siempre PC. Fix: enviar `source_path` desde el frontend y usar `get_repo_fn()` en los 3 handlers | Biblioteca | S-M | 🟡 rama `feature/devsel-fix-2` — los 3 handlers enrutan con `get_repo_fn(data["source_path"])`; el panel de juego envía `_gpSrc()` (lee `dataset.sourcePath`, ya existente) en favorite/tag/notes/metadata/play-status, y la estrella de la lista lleva `data-path`. 4 tests con 2 repos y mismo game_id en ambas BDs (662 pass) |
+| DEVSEL-FIX-3 | **"Sistema completo" = solo PC en la práctica** — `_deviceRoot()` devuelve `null` en modo `both` → sin `source_root` → `get_repo_fn("")` → BD PC. Afecta a `/api/plan` y `/api/apply` (`handlers/organize.py:35,107` — la barra dice "Viendo: Sistema completo (PC + consola)", `organize.js:68`, pero solo planifica/renombra el PC), `/api/games` (`games.py:121`), platform-stats/assets/export/disk-usage (`collection.py:35,64,126,159,181,348`), unmatched/completeness (`games.py:640,701`). Única vista correcta: duplicados. **Decisión (2026-07-13): eliminar el modo** — el usuario solo lo usa para duplicados, y esa vista ya cruza ambas BDs por sí sola (`_build_duplicates_two_repos`). Quitar "Sistema completo" del selector (`_nav.html:69-71`, `setDevice()`/`_deviceRoot()` en `main.js:412,428`) y verificar que duplicados no depende del modo `both`. Si algún día se quiere visión global fusionada, se reabre como feature | Biblioteca | S | 🟡 rama `feature/devsel-fix-3` (commit `e5ce8c1`, 658 tests) — botón eliminado, `setDevice`/estado solo `pc\|anbernic`, duplicados cruza siempre ambas BDs. Al mergear con fix-1: delete-all/exclude deben enviar `source_root: ''` (ambas BDs), no `_deviceRoot()` |
+| DEVSEL-FIX-4 | **Botón "Consola" habilitado por ruta, no por detección** — `dev-anbernic` se habilita si hay `abPath` configurada (`overview.js:424-425`, `config.js:709`) aunque la consola no esté conectada; `deviceConnected` (polling `/api/device-status`, `state.js:52`) solo gatea el badge del Overview, el botón Apply (`organize.js:27-46`) y `doApply` (`organize.js:455`) — `applyKeepBoth` (`organize.js:309`) no comprueba nada. Además `dev-both` nunca se deshabilita, ni sin ruta. Fix pedido: deshabilitar "Consola" (y "Sistema completo") cuando `!deviceConnected`, con tooltip del motivo; decidir si se permite modo solo-lectura de la BD Android offline | UX | S | ⬜ |
+
+---
+
+## CLOUD-UX — Wizard "Conexión cloud" poco claro (auditoría 2026-07-12)
+
+El asistente OAuth existe (Sync → "Conexión cloud") pero no comunica qué hace ni para qué sirve.
+
+- [ ] **CLOUD-UX-1** — El panel no explica nada: solo "Dropbox — No configurado \[Conectar\]".
+  Añadir una línea de contexto: "Conecta tu cuenta para sincronizar saves con la nube.
+  Se abrirá el navegador para autorizar — no necesitas API key propia."
+  (`web/static/partials/tab-sync.html:3-14`)
+- [ ] **CLOUD-UX-2** — El badge "✓ Conectado" solo comprueba que el remote existe en rclone,
+  no que su nombre coincida con `saves_remote`/`states_remote` del config. Puedes estar
+  "conectado" y que el sync use otro remoto (o ninguno). Mostrar aviso si el remote
+  conectado no aparece en las rutas del config. (`web/static/js/tabs/sync.js:1400-1415`)
+- [ ] **CLOUD-UX-3** — **Bug**: `_pollCloudAuth()` finaliza con "el primer provider no
+  configurado" en vez del que el usuario pulsó. Con Dropbox y GDrive ambos sin configurar,
+  pulsar "Conectar" en Google Drive guardaría el token bajo el remote `dropbox`.
+  Fix: guardar el `providerId` en `startCloudAuth()` (variable de módulo) y usarlo en el
+  finalize. (`web/static/js/tabs/sync.js:1453`)
+
 ## User actions (no code needed)
 
 | ID | Task |
@@ -400,3 +450,4 @@ salen todos los fallos. Orden: 1→2 son pérdida de datos potencial, prioridad 
 | STRUCT-3 | Update `config.toml`: `local_dir = "E:\\Carpetas anbernic\\saves"` (after STRUCT-4) |
 | ES-1 | Download `genesis_plus_gx` core in RetroArch → Online Updater |
 | ES-2 | Configure Citra (3DS) in EmulationStation |
+| PC2-1 | Añadir el segundo PC (otra ciudad) al sync de saves vía Dropbox/rclone — seguir `Tareas/Guia-Segundo-PC.md` (no requiere código; NO sincronizar las BDs SQLite) |
