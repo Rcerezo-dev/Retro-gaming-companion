@@ -12,6 +12,7 @@ from pathlib import Path
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
@@ -335,9 +336,9 @@ def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger
                 # INBOX-FIX-5: same filename is not proof of duplicate content —
                 # only delete the source if it's byte-identical to what's there.
                 if _same_content(ext_file, dst):
-                    ext_file.unlink()
+                    _discard_to_trash(ext_file)  # AUD-3: soft-discard
                     bios_moved += 1
-                    logger.info("BIOS duplicada (mismo contenido): %s eliminada", ext_file.name)
+                    logger.info("BIOS duplicada (mismo contenido): %s descartada", ext_file.name)
                 else:
                     logger.warning(
                         "BIOS %s ya existe en bios/%s con contenido distinto — no se toca, revisar a mano",
@@ -350,6 +351,76 @@ def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger
             bios_moved += 1
             logger.info("BIOS interceptada: %s -> bios/%s", ext_file.name, plat)
     return bios_moved
+
+
+def _resolve_ambiguous_md(inbox: Path, config: AppConfig, logger) -> int:
+    """AUD-4 (formaliza ZIP-ROUTE-FIX-4): identificar ``.md`` sueltos por CRC32.
+
+    Un ``.md`` en la raíz del Inbox sin carpeta que lo desambigüe puede ser un
+    ROM de Mega Drive o un markdown real — los tags del nombre mienten, el
+    contenido manda. Su CRC32 contra el índice de los DATs ya cargados
+    (``CatalogMatcher.crc_index()``) decide: hit de Mega Drive → moverlo a
+    ``inbox/megadrive/`` (el contexto de carpeta hace que el resto del
+    pipeline lo procese sin código nuevo); miss → no tocarlo (posible
+    markdown de verdad). Devuelve cuántos se identificaron.
+    """
+    import shutil as _shutil
+    import zlib
+
+    from rom_manager.detection.platform_detector import is_rom_file
+
+    candidates = [
+        p
+        for p in sorted(inbox.iterdir())
+        if p.is_file()
+        and p.suffix.lower() == ".md"
+        and not p.name.startswith((".", "_"))
+        and not is_rom_file(p)  # sin contexto de carpeta — ambiguo
+    ]
+    if not candidates:
+        return 0
+
+    from rom_manager.catalog.matcher import CatalogMatcher
+
+    crc_index = CatalogMatcher(
+        nointro_dir=config.catalogs_nointro_dir,
+        redump_dir=config.catalogs_redump_dir,
+    ).crc_index()
+
+    dest_dir = inbox / "megadrive"
+    identified = 0
+    for p in candidates:
+        try:
+            crc = 0
+            with open(p, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    crc = zlib.crc32(chunk, crc)
+            hit = crc_index.get(f"{crc & 0xFFFFFFFF:08X}")
+        except OSError:
+            continue
+        if hit is None:
+            logger.info(
+                "Inbox: %s sin match CRC en los DATs — se deja quieto (posible markdown)", p.name
+            )
+            continue
+        title, _source, platform = hit
+        if platform != "Sega Mega Drive":
+            logger.warning(
+                "Inbox: %s tiene el CRC de %r (%s) pero extensión .md — no se toca, revisar a mano",
+                p.name,
+                title,
+                platform,
+            )
+            continue
+        dest = dest_dir / p.name
+        if dest.exists():
+            logger.warning("Inbox: %s ya existe en megadrive/ — no se toca", p.name)
+            continue
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        _shutil.move(str(p), str(dest))
+        identified += 1
+        logger.info("Inbox: %s identificado por CRC como %r → megadrive/", p.name, title)
+    return identified
 
 
 def _build_inbox_scan(inbox_path_str: str) -> dict:
@@ -511,7 +582,7 @@ def _run_setup_pipeline(
                         p = Path(fp)
                         if p.is_file():
                             sz = p.stat().st_size
-                            p.unlink()
+                            _discard_to_trash(p)  # AUD-3: soft-discard
                             deleted += 1
                             freed += sz
                     except OSError:
@@ -675,6 +746,10 @@ def _run_inbox_pipeline(
         _upd("intercepting bios", 1)
         bios_moved = _intercept_bios_files(inbox, target_root, logger)
 
+        # ── Step 1.7: .md ambiguos por CRC (AUD-4) ───────────────────────────
+        _upd("identificando .md por CRC", 1)
+        md_identified = _resolve_ambiguous_md(inbox, config, logger)
+
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
 
@@ -784,7 +859,7 @@ def _run_inbox_pipeline(
             if dest_file.exists():
                 if _same_content(source_file, dest_file):
                     try:
-                        source_file.unlink()
+                        _discard_to_trash(source_file)  # AUD-3: soft-discard
                         repository.delete_game(game_id)
                         logger.info(
                             "Inbox: removed exact duplicate %s (already in %s)",
@@ -850,12 +925,12 @@ def _run_inbox_pipeline(
                 continue
             try:
                 if delete_source:
-                    zp.unlink()
+                    _discard_to_trash(zp)  # AUD-3: soft-discard
                 else:
                     processed_dir.mkdir(parents=True, exist_ok=True)
                     dest_zp = processed_dir / zp.name
                     if dest_zp.exists():
-                        zp.unlink()  # duplicate — already archived
+                        _discard_to_trash(zp)  # duplicate — already archived
                     else:
                         _shutil.move(str(zp), dest_zp)
             except Exception:
@@ -875,6 +950,7 @@ def _run_inbox_pipeline(
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
             "bios_moved": bios_moved,
+            "md_identified": md_identified,
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,

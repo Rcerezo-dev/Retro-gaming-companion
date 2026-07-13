@@ -8,25 +8,16 @@ can be unit-tested and reused outside the web server.
 from __future__ import annotations
 
 import logging
-import os
-import stat
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+# AUD-3: los duplicados ya no se eliminan con os.remove — van a _descartados/
+from rom_manager.utils.trash import discard_to_trash
 
 if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
 
 _log = logging.getLogger(__name__)
-
-
-def _force_remove(path: Path) -> None:
-    """Remove a file, clearing the read-only attribute first if needed (WinError 5)."""
-    try:
-        os.remove(str(path))
-    except PermissionError:
-        # Clear read-only flag and retry (common on drives formatted by consoles)
-        os.chmod(str(path), stat.S_IWRITE)
-        os.remove(str(path))
 
 
 def delete_duplicate(
@@ -58,14 +49,42 @@ def delete_duplicate(
     p = Path(source_path)
     if p.exists():
         try:
-            _force_remove(p)
+            discard_to_trash(p)
         except Exception as exc:
-            return {"error": f"No se pudo eliminar el archivo: {type(exc).__name__}: {exc}"}
+            return {"error": f"No se pudo mover a _descartados/: {type(exc).__name__}: {exc}"}
     try:
         repository.delete_game(int(game_id))
     except Exception as exc:
         return {"error": f"Archivo eliminado pero error en BD: {type(exc).__name__}: {exc}"}
     return {"deleted": source_path}
+
+
+def delete_all_duplicates_multi(repositories: list[LibraryRepository]) -> dict:
+    """Run :func:`delete_all_duplicates` over several repositories and merge the results.
+
+    Used by "Sistema completo" mode, where the duplicates view shows both the PC
+    and the Android DB: deleting only against the PC repo would purge files the
+    user never saw confirmed (DEVSEL-FIX-1).
+    """
+    merged = {
+        "deleted": 0,
+        "skipped": 0,
+        "failed": 0,
+        "freed_bytes": 0,
+        "errors": [],
+        "diagnostics": [],
+    }
+    for repo in repositories:
+        result = delete_all_duplicates(repo)
+        for key in ("deleted", "skipped", "failed", "freed_bytes"):
+            merged[key] += result[key]
+        merged["errors"] = (merged["errors"] + result["errors"])[:20]
+        merged["diagnostics"] = (merged["diagnostics"] + result["diagnostics"])[:10]
+    merged["summary"] = (
+        f"{merged['deleted']} eliminados, {merged['skipped']} omitidos (no existen), "
+        f"{merged['failed']} errores"
+    )
+    return merged
 
 
 def delete_all_duplicates(repository: LibraryRepository) -> dict:
@@ -108,10 +127,10 @@ def delete_all_duplicates(repository: LibraryRepository) -> dict:
                 continue
 
             try:
-                _log.info(f"Deleting file: {p}")
-                _force_remove(p)
+                _log.info(f"Discarding file: {p}")
+                discard_to_trash(p)
                 diag["deleted_file"] = True
-                _log.info(f"File deleted successfully: {p}")
+                _log.info(f"File moved to trash: {p}")
             except Exception as exc:
                 failed += 1
                 diag["file_error"] = str(exc)
@@ -146,6 +165,6 @@ def delete_all_duplicates(repository: LibraryRepository) -> dict:
         "failed": failed,
         "freed_bytes": freed_bytes,
         "errors": errors,
-        "summary": f"{deleted} eliminados, {skipped} omitidos (no existen), {failed} errores",
+        "summary": f"{deleted} movidos a _descartados/, {skipped} omitidos (no existen), {failed} errores",
         "diagnostics": diagnostics[:10],  # Return first 10 for debugging
     }

@@ -318,6 +318,24 @@
     </div>
   </div>
 
+  <!-- AUD-3: Papelera unificada -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F5D1; Papelera (<code>_descartados/</code>)</h3>
+      <button class="btn" onclick="loadTrashStatus()" style="font-size:11px;padding:3px 12px">&#x21BB; Actualizar</button>
+    </div>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">
+      Todo borrado de la app (duplicados, junk, ZIPs procesados, espejo del cable sync) se mueve a una
+      carpeta <code>_descartados/</code> junto al archivo en vez de eliminarse. La purga autom&#xe1;tica borra
+      lo que lleve descartado m&#xe1;s de N d&#xed;as (<code>library.trash_purge_days</code> en config.toml, 0 = nunca).
+    </p>
+    <div class="actions-row">
+      <span id="trash-status-text" style="font-size:13px;color:var(--c-muted)">Pulsa Actualizar para calcular</span>
+      <button class="btn danger" id="btn-trash-empty" onclick="emptyTrash()" style="font-size:12px;padding:4px 12px;margin-left:auto">Vaciar ahora</button>
+    </div>
+    <div id="trash-empty-result" style="font-size:12px;min-height:16px;margin-top:6px"></div>
+  </div>
+
   <!-- S37: Notificaciones de escritorio -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>&#x1F514; Notificaciones de escritorio</h3>

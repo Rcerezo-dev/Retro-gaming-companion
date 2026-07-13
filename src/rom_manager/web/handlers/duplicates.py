@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rom_manager.services.duplicates_service import delete_all_duplicates, delete_duplicate
+from rom_manager.services.duplicates_service import (
+    delete_all_duplicates,
+    delete_all_duplicates_multi,
+    delete_duplicate,
+)
 from rom_manager.services.ra_duplicates_service import (
     apply_ra_conflicts,
     discard_all_ra_duplicates,
@@ -12,6 +16,8 @@ from rom_manager.services.ra_duplicates_service import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -27,6 +33,7 @@ def register(
     config: AppConfig,
     repository: LibraryRepository,
     repo_android: LibraryRepository,
+    get_repo_fn: Callable[[str], LibraryRepository],
     job_manager: JobManager,
 ) -> None:
     """Register duplicate-management routes on *router*.
@@ -66,25 +73,39 @@ def register(
     @router.post("/api/duplicates/delete")
     def post_delete_duplicate(ctx) -> None:
         data = ctx._post_data
+        source_path = data.get("source_path", "")
         ctx._send_json(
             delete_duplicate(
-                repository,
+                get_repo_fn(source_path),
                 game_id=data.get("game_id"),
-                source_path=data.get("source_path", ""),
+                source_path=source_path,
             )
         )
 
     # ── POST /api/duplicates/delete-all ──────────────────────────────────────
     @router.post("/api/duplicates/delete-all")
     def post_delete_all_duplicates(ctx) -> None:
-        ctx._send_json(delete_all_duplicates(repository))
+        # source_root = device selector root; empty = "Sistema completo" → both DBs
+        source_root = (ctx._post_data.get("source_root") or "").strip()
+        if source_root:
+            ctx._send_json(delete_all_duplicates(get_repo_fn(source_root)))
+        else:
+            ctx._send_json(delete_all_duplicates_multi([repository, repo_android]))
 
     # ── POST /api/duplicates/exclude ──────────────────────────────────────────
     @router.post("/api/duplicates/exclude")
     def post_exclude_duplicate(ctx) -> None:
         sha1 = ctx._post_data.get("sha1", "")
         if sha1:
-            repository.exclude_duplicate_sha1(sha1)
+            source_root = (ctx._post_data.get("source_root") or "").strip()
+            if source_root:
+                repos = [get_repo_fn(source_root)]
+            else:
+                # "Sistema completo": el grupo puede vivir en cualquiera de las
+                # dos BDs — INSERT OR IGNORE hace que excluir en ambas sea seguro
+                repos = [repository, repo_android]
+            for repo in repos:
+                repo.exclude_duplicate_sha1(sha1)
             ctx._send_json({"ok": True})
         else:
             ctx._send_error(400, "sha1 required")
@@ -101,7 +122,7 @@ def register(
         if not source_path:
             ctx._send_error(400, "path required")
             return
-        ctx._send_json(discard_ra_duplicate(repository, source_path))
+        ctx._send_json(discard_ra_duplicate(get_repo_fn(source_path), source_path))
 
     # ── POST /api/ra-duplicates/discard-all ──────────────────────────────────
     @router.post("/api/ra-duplicates/discard-all")
@@ -127,4 +148,5 @@ def register(
         if not keep_path or not discard_paths:
             ctx._send_json({"error": "keep_path and discard_paths required"})
             return
-        ctx._send_json(resolve_duplicate_ra(repository, keep_path, discard_paths))
+        # El grupo entero vive en un mismo dispositivo → enrutar por keep_path
+        ctx._send_json(resolve_duplicate_ra(get_repo_fn(keep_path), keep_path, discard_paths))

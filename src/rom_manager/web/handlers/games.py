@@ -35,6 +35,65 @@ def _state_search_dirs(rom_path: Path, config) -> list[Path]:
     return dirs
 
 
+def _dat_title_index(config) -> dict[str, tuple[int, dict[str, str]]]:
+    """AUD-5: por DAT, ``dat_filename → (total_dumps, {clave_1g1r: título})``.
+
+    La clave 1G1R es ``normalize_for_match`` (quita región/revisión/tags), así
+    "Sonic (USA)" y "Sonic (Europe)" cuentan como un solo título base. El
+    título guardado es el primero visto, solo para mostrar en los faltantes.
+    """
+    from rom_manager.catalog.catalog_loader import (
+        _detect_dat_format,
+        load_clrmamepro_dat,
+        load_nointro_dat_with_header,
+    )
+    from rom_manager.detection.filename_normalizer import normalize_for_match
+
+    out: dict[str, tuple[int, dict[str, str]]] = {}
+    for dat_dir in (
+        config.catalogs_nointro_dir,
+        config.catalogs_redump_dir,
+        config.catalogs_arcade_dir,
+    ):
+        if not dat_dir or not dat_dir.exists():
+            continue
+        for dat_file in dat_dir.glob("*.dat"):
+            try:
+                if _detect_dat_format(dat_file) == "clrmamepro":
+                    entries = load_clrmamepro_dat(dat_file)
+                else:
+                    _label, entries = load_nointro_dat_with_header(dat_file)
+            except Exception:  # noqa: S112 — DAT corrupto: se ignora, igual que el resto de loaders
+                continue
+            titles: dict[str, str] = {}
+            for entry in entries.values():
+                key = normalize_for_match(entry.title)
+                if key and key not in titles:
+                    titles[key] = entry.title
+            out[dat_file.name] = (len(entries), titles)
+    return out
+
+
+def _owned_title_keys(repo) -> dict[str, set[str]]:
+    """AUD-5: ``catalog_source → claves 1G1R`` de los títulos que ya tienes."""
+    from rom_manager.detection.filename_normalizer import normalize_for_match
+
+    with repo.connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT catalog_source, COALESCE(canonical_title, original_filename) AS t
+            FROM games
+            WHERE file_type = 'rom' AND catalog_source IS NOT NULL
+            """
+        ).fetchall()
+    owned: dict[str, set[str]] = {}
+    for r in rows:
+        key = normalize_for_match(r["t"] or "")
+        if key:
+            owned.setdefault(r["catalog_source"], set()).add(key)
+    return owned
+
+
 def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
     """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
 
@@ -693,12 +752,6 @@ def register(
     # ── GET /api/collection-completeness ─────────────────────────────────────
     @router.get("/api/collection-completeness")
     def get_collection_completeness(ctx) -> None:
-        from rom_manager.catalog.catalog_loader import (
-            _detect_dat_format,
-            load_clrmamepro_dat,
-            load_nointro_dat_with_header,
-        )
-
         qs = getattr(ctx, "_qs", {})
         root = qs.get("root", [None])[0] or ""
         _repo = get_repo_fn(root)
@@ -715,55 +768,73 @@ def register(
             ).fetchall()
 
         owned_by_source = {r["catalog_source"]: r["owned"] for r in rows}
+        dat_index = _dat_title_index(config)
+        owned_keys = _owned_title_keys(_repo)
 
-        dat_totals: dict[str, int] = {}
-        for dat_dir in (
-            config.catalogs_nointro_dir,
-            config.catalogs_redump_dir,
-            config.catalogs_arcade_dir,
-        ):
-            if not dat_dir or not dat_dir.exists():
-                continue
-            for dat_file in dat_dir.glob("*.dat"):
-                try:
-                    if _detect_dat_format(dat_file) == "clrmamepro":
-                        entries = load_clrmamepro_dat(dat_file)
-                        label = dat_file.stem
-                    else:
-                        label, entries = load_nointro_dat_with_header(dat_file)
-                    dat_totals[dat_file.name] = len(entries)
-                except Exception:  # noqa: S110
-                    pass
+        def _row(source: str, owned: int) -> dict:
+            raw_total, titles = dat_index.get(source, (None, {}))
+            owned_1g1r = len(owned_keys.get(source, set()) & set(titles)) if titles else None
+            total_1g1r = len(titles) if titles else None
+            return {
+                "label": Path(source).stem,
+                "source": source,
+                "owned": owned,
+                "total": raw_total,
+                "pct": round(owned / raw_total * 100, 1) if raw_total else None,
+                # AUD-5: modo 1G1R — títulos base, agrupando región/revisión
+                "owned_1g1r": owned_1g1r,
+                "total_1g1r": total_1g1r,
+                "pct_1g1r": (
+                    round(owned_1g1r / total_1g1r * 100, 1)
+                    if owned_1g1r is not None and total_1g1r
+                    else None
+                ),
+            }
 
-        results = []
-        seen = set()
-        for source, owned in owned_by_source.items():
-            total = dat_totals.get(source)
-            results.append(
-                {
-                    "label": Path(source).stem,
-                    "source": source,
-                    "owned": owned,
-                    "total": total,
-                    "pct": round(owned / total * 100, 1) if total else None,
-                }
-            )
-            seen.add(source)
-
-        for dat_name, total in dat_totals.items():
-            if dat_name not in seen:
-                results.append(
-                    {
-                        "label": Path(dat_name).stem,
-                        "source": dat_name,
-                        "owned": 0,
-                        "total": total,
-                        "pct": 0.0,
-                    }
-                )
+        results = [_row(source, owned) for source, owned in owned_by_source.items()]
+        seen = set(owned_by_source)
+        results.extend(_row(dat_name, 0) for dat_name in dat_index if dat_name not in seen)
 
         results.sort(key=lambda r: (r["owned"] == 0, -(r["owned"] or 0)))
         ctx._send_json({"platforms": results})
+
+    # ── GET /api/collection-missing.csv (AUD-5) ───────────────────────────────
+    @router.get("/api/collection-missing.csv")
+    def get_collection_missing_csv(ctx) -> None:
+        """CSV de títulos base (1G1R) presentes en los DATs pero no en tu biblioteca."""
+        import csv as _csv
+        import io as _io
+
+        qs = getattr(ctx, "_qs", {})
+        root = qs.get("root", [None])[0] or ""
+        source_filter = qs.get("source", [""])[0]
+        _repo = get_repo_fn(root)
+
+        dat_index = _dat_title_index(config)
+        owned_keys = _owned_title_keys(_repo)
+
+        buf = _io.StringIO()
+        writer = _csv.writer(buf)
+        writer.writerow(["Plataforma (DAT)", "Título faltante"])
+        for dat_name in sorted(dat_index):
+            if source_filter and dat_name != source_filter:
+                continue
+            # sin filtro: solo plataformas donde ya tienes algo (si no, el CSV
+            # sería el volcado completo de todos los DATs)
+            if not source_filter and dat_name not in owned_keys:
+                continue
+            _raw, titles = dat_index[dat_name]
+            have = owned_keys.get(dat_name, set())
+            label = Path(dat_name).stem
+            for key in sorted(set(titles) - have, key=lambda k: titles[k].lower()):
+                writer.writerow([label, titles[key]])
+        body = buf.getvalue().encode("utf-8-sig")
+        ctx._send(
+            200,
+            "text/csv; charset=utf-8",
+            body,
+            extra_headers={"Content-Disposition": 'attachment; filename="faltantes.csv"'},
+        )
 
     # ── GET /api/screenshots ─────────────────────────────────────────────────────
     @router.get("/api/screenshots")

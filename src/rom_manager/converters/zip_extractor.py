@@ -162,7 +162,9 @@ def extract_zip(
     # safe to drop the now-redundant source archive.
     if delete_source:
         try:
-            zip_path.unlink()
+            from rom_manager.utils.trash import discard_to_trash
+
+            discard_to_trash(zip_path)  # AUD-3: soft-discard
         except OSError:
             pass
 

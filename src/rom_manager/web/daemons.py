@@ -49,6 +49,7 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
     """Daemon: lanza un health check automático una vez a la semana."""
     _time.sleep(60)  # esperar a que el servidor termine de arrancar
 
+    _last_trash_purge = 0.0
     while True:
         try:
             schedule = _read_health_schedule(config)
@@ -128,6 +129,23 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                         _state._job_manager.finish("health_check", job_result)
 
                 _state._job_manager.start("health_check", _scheduled_run)
+
+            # AUD-3: purga diaria de _descartados/ (archivos descartados hace
+            # más de config.trash_purge_days días; 0 = nunca purgar)
+            if config.trash_purge_days > 0 and (
+                _last_trash_purge == 0.0 or _time.monotonic() - _last_trash_purge >= 86400
+            ):
+                _last_trash_purge = _time.monotonic()
+                from rom_manager.utils.trash import purge_trash, trash_roots
+
+                purged = purge_trash(trash_roots(config), config.trash_purge_days)
+                if purged["deleted"]:
+                    _logger.info(
+                        "Papelera: purgados %d archivos (%.1f MB) con más de %d días",
+                        purged["deleted"],
+                        purged["bytes"] / 1e6,
+                        config.trash_purge_days,
+                    )
 
         except Exception as exc:
             _logger.debug("Error en health scheduler: %s", exc)
