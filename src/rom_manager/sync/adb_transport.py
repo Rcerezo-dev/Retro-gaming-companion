@@ -120,6 +120,14 @@ class AdbTransport:
             "error": f"La ruta {android_path!r} no existe en el dispositivo",
         }
 
+    def device_epoch(self) -> int:
+        """Return the device clock as a unix timestamp (``date +%s``). AUD-1."""
+        out = self._shell("date", "+%s", timeout=10).strip()
+        try:
+            return int(out)
+        except ValueError as exc:
+            raise RuntimeError(f"No se pudo leer el reloj del dispositivo: {out!r}") from exc
+
     # ── file listing ──────────────────────────────────────────────────────────
 
     def ls_recursive(

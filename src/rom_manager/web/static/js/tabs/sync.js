@@ -705,6 +705,72 @@ async function testAdbPath() {
   }
 }
 
+// ── AUD-1: Sync Doctor ────────────────────────────────────────────────────────
+function _skewLabel(seconds) {
+  const abs = Math.abs(seconds);
+  return abs >= 120 ? `${(abs / 60).toFixed(1)} min` : `${abs.toFixed(0)} s`;
+}
+
+function _sdList(title, items, total, color) {
+  if (!total) return '';
+  const extra = total > items.length ? `<div style="color:var(--c-dim)">… y ${total - items.length} más</div>` : '';
+  return `<details style="margin-top:6px"><summary style="cursor:pointer;color:${color}">${title}: ${total}</summary>
+    <div style="max-height:180px;overflow-y:auto;margin:4px 0 0 14px;color:var(--c-muted)">
+    ${items.map(f => `<div>${_h(f)}</div>`).join('')}${extra}</div></details>`;
+}
+
+function _renderSyncDoctor(d) {
+  const dir = d.skew_seconds > 0 ? 'adelantado' : 'atrasado';
+  let html = '';
+  if (d.skew_exceeded) {
+    html += `<div class="rv-tint-warn" style="padding:8px 12px;border-left:3px solid var(--c-red);border-radius:4px;margin-bottom:10px;color:var(--c-softred)">
+      &#x26A0; <strong>Reloj de la consola ${dir} ${_skewLabel(d.skew_seconds)}</strong> respecto al PC (umbral: ${d.threshold_seconds} s).<br>
+      La resolución de conflictos por fecha (mtime) no es fiable: el lado equivocado puede ganar y sobreescribir progreso.
+      Ajusta la hora de la consola antes de usar "Igualar ambos dispositivos".</div>`;
+  } else {
+    html += `<div style="color:var(--c-teal);margin-bottom:10px">✓ Reloj OK — desviación de ${_skewLabel(d.skew_seconds)} (umbral: ${d.threshold_seconds} s)</div>`;
+  }
+  html += `<div style="color:var(--c-muted)">Saves — PC: <strong style="color:var(--c-text)">${d.local_total}</strong>
+    · Consola: <strong style="color:var(--c-text)">${d.remote_total}</strong>
+    · En ambos: <strong style="color:var(--c-text)">${d.in_both}</strong></div>`;
+  html += _sdList('&#x23F0; Saves con fecha futura en PC (reloj mal puesto)', d.future_local, d.future_local.length, 'var(--c-red)');
+  html += _sdList('&#x23F0; Saves con fecha futura en consola (reloj mal puesto)', d.future_remote, d.future_remote.length, 'var(--c-red)');
+  html += _sdList('Solo en PC', d.only_local, d.only_local_total, 'var(--c-amber)');
+  html += _sdList('Solo en consola', d.only_remote, d.only_remote_total, 'var(--c-amber)');
+  if (d.last_syncs?.length) {
+    html += `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--c-blue)">Último sync por archivo: ${d.last_syncs.length}</summary>
+      <div style="max-height:220px;overflow-y:auto;margin-top:4px"><table><thead><tr><th>Archivo</th><th>Dirección</th><th>Resultado</th><th>Fecha</th></tr></thead><tbody>
+      ${d.last_syncs.map(s => `<tr><td>${_h(s.file)}</td><td>${_h(s.direction || '')}</td><td>${_h(s.result || '')}</td><td>${_h((s.created_at || '').replace('T', ' '))}</td></tr>`).join('')}
+      </tbody></table></div></details>`;
+  } else {
+    html += `<div style="color:var(--c-dim);margin-top:6px">Sin eventos en save_sync_log todavía.</div>`;
+  }
+  return html;
+}
+
+async function runSyncDoctor() {
+  const el = document.getElementById('sync-doctor-result');
+  if (!el) return;
+  const serial = document.getElementById('cable-adb-device')?.value.trim();
+  if (!serial) {
+    el.innerHTML = '<span style="color:var(--c-yellow)">Activa el Modo ADB y detecta un dispositivo primero.</span>';
+    return;
+  }
+  const androidPath = document.getElementById('cable-android-path')?.value.trim() || '';
+  const pcPath = document.getElementById('cable-adb-pc-path')?.value.trim() || '';
+  el.innerHTML = '<span style="color:var(--c-dim)">Diagnosticando… (puede tardar si hay muchos saves)</span>';
+  try {
+    const params = new URLSearchParams({ serial });
+    if (androidPath) params.set('android_path', androidPath);
+    if (pcPath) params.set('pc_path', pcPath);
+    const d = await apiFetch('/api/sync-doctor?' + params);
+    if (d.error) { el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(d.error)}</span>`; return; }
+    el.innerHTML = _renderSyncDoctor(d);
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(e.message)}</span>`;
+  }
+}
+
 async function loadCableSync() {
   // QoL-14: offline badge for ADB
   apiFetch('/api/system-status').then(st => {
@@ -788,6 +854,16 @@ async function doCableSync() {
     const serial      = document.getElementById('cable-adb-device')?.value.trim();
     const androidPath = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
     if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
+    // AUD-1: pre-flight de reloj antes de resolver conflictos por mtime
+    if (direction === 'newest' && !dryRun) {
+      try {
+        const chk = await apiFetch(`/api/sync-doctor?serial=${encodeURIComponent(serial)}&quick=1`);
+        if (chk.skew_exceeded) {
+          const dir = chk.skew_seconds > 0 ? 'adelantado' : 'atrasado';
+          if (!confirm(`⚠ El reloj de la consola va ${dir} ${_skewLabel(chk.skew_seconds)} respecto al PC (umbral ${chk.threshold_seconds} s).\n\n"Igualar ambos dispositivos" decide por fecha de modificación: con el reloj mal puesto puede ganar el lado equivocado y perder progreso.\n\n¿Continuar de todos modos?`)) return;
+        }
+      } catch (_) { /* sin diagnóstico disponible — no bloquear el sync */ }
+    }
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
              what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
   } else {
@@ -1546,6 +1622,7 @@ export {
   _renderCableSyncResult,
   toggleCableSyncLog,
   loadCableSyncLog,
+  runSyncDoctor,
   exportPegasus,
   // Auto-sync
   _updateAutoSyncBanner,
