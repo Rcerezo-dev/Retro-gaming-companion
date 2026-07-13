@@ -33,6 +33,24 @@ export function setDevName(name) {
 export function setDeviceConnected(connected, reason = '') {
   _state.deviceConnected = connected;
   _state.deviceConnectReason = reason;
+  updateDeviceButton();
+}
+
+// DEVSEL-FIX-4: "Consola Android" solo clicable con ruta configurada Y consola
+// detectada. Overview/Settings marcan data-has-path; el polling refresca aquí.
+export function updateDeviceButton() {
+  const btn = document.getElementById('dev-anbernic');
+  if (!btn) return;
+  const hasPath = btn.dataset.hasPath === '1';
+  btn.disabled = !hasPath || !_state.deviceConnected;
+  if (!hasPath) {
+    btn.title = 'Configura la ruta de la consola en Overview';
+  } else if (!_state.deviceConnected) {
+    btn.title = 'Consola no detectada' +
+      (_state.deviceConnectReason ? ' — ' + _state.deviceConnectReason : '');
+  } else {
+    btn.title = '';
+  }
 }
 
 // AppState proxy — lets app.js write via window.AppState.activeDevice = 'pc'
