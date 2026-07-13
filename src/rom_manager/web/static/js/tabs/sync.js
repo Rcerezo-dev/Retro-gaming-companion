@@ -5,6 +5,12 @@ import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { getActiveDevice, getDevName } from '../state.js';
 
+const _txtCls = (el, cls) => {
+  if (!el) return;
+  el.classList.remove('txt-err', 'txt-ok', 'txt-warn', 'txt-muted', 'txt-dim', 'txt-fav');
+  if (cls) el.classList.add(cls);
+};
+
 // ── Module-level state ────────────────────────────────────────────────────────
 let _androidSetupUrl = '';
 let _anbernicBaseUrl = '';
