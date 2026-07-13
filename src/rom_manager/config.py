@@ -261,6 +261,8 @@ class AppConfig:
     backup: BackupConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
+    # AUD-3: días que un archivo permanece en _descartados/ antes de la purga automática (0 = nunca)
+    trash_purge_days: int
     # Android emulator path mappings (SYNC-A2)
     # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
     emulator_paths: dict  # package_name → {name, saves_path, states_path, adb_required, ...}
@@ -279,6 +281,9 @@ _CONFIG_TOML_TEMPLATE = """\
 # Save files (.sav, .srm, .state, etc.) are expected to live alongside the ROMs.
 # Used by 'rommgr sync-saves' and 'rommgr sync-status'.
 # library_root = "E:/ROMs"
+# Días que un archivo descartado permanece en _descartados/ antes de la purga
+# automática (AUD-3). 0 = nunca purgar.
+# trash_purge_days = 30
 
 [sync]
 # rclone remote path where saves will be mirrored in the cloud.
@@ -469,6 +474,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             pre_sync=bool(backup_cfg.get("pre_sync", True)),
         ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
+        trash_purge_days=int(lib.get("trash_purge_days", 30)),
         emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501
             "Android",

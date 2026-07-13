@@ -15,6 +15,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.utils.trash import discard_to_trash
+
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
@@ -32,10 +34,10 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
     """Soft-discard one file: move it into ``_descartados/`` and delete its DB row.
 
     Returns ``(ok, error)``. Semantics, preserved across all RA discard endpoints:
-      * file already gone        → just clean the DB row.
-      * a same-named file is     → delete the source outright (no overwrite).
-        already in _descartados/
-      * otherwise                → move the source into _descartados/.
+      * file already gone → just clean the DB row.
+      * otherwise         → move the source into _descartados/ (AUD-3: shared
+        helper; a same-named file there gets a numeric suffix — nothing is
+        permanently deleted anymore).
     On a DB failure *after* a successful move, the file is restored (rollback).
     """
     p = Path(source_path)
@@ -48,24 +50,13 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
         except Exception as exc:
             return False, f"{p.name}: {exc}"
 
-    discard_dir = p.parent / "_descartados"
     dest: Path | None = None
-    moved = False
-    permanently_deleted = False
     try:
-        discard_dir.mkdir(parents=True, exist_ok=True)
-        dest = discard_dir / p.name
-        if dest.exists():
-            p.unlink()
-            dest = None
-            permanently_deleted = True
-        else:
-            shutil.move(str(p), str(dest))
-            moved = True
+        dest = discard_to_trash(p)
         _delete_row(repository, source_path)
         return True, None
     except Exception as exc:
-        if moved and dest is not None and dest.exists():
+        if dest is not None and dest.exists():
             try:
                 shutil.move(str(dest), str(p))
                 _log.warning("RA discard rollback: restored %s after DB error", p.name)
@@ -76,12 +67,6 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
                     False,
                     f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}",
                 )
-        if permanently_deleted:
-            _log.error("File %s deleted but DB update failed: %s", p.name, exc)
-            return (
-                False,
-                f"{p.name}: deleted but DB not updated (stale entry — will be removed on next scan)",
-            )
         return False, f"{p.name}: {exc}"
 
 

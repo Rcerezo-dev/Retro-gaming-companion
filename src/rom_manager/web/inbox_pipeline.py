@@ -12,6 +12,7 @@ from pathlib import Path
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
@@ -335,9 +336,9 @@ def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger
                 # INBOX-FIX-5: same filename is not proof of duplicate content —
                 # only delete the source if it's byte-identical to what's there.
                 if _same_content(ext_file, dst):
-                    ext_file.unlink()
+                    _discard_to_trash(ext_file)  # AUD-3: soft-discard
                     bios_moved += 1
-                    logger.info("BIOS duplicada (mismo contenido): %s eliminada", ext_file.name)
+                    logger.info("BIOS duplicada (mismo contenido): %s descartada", ext_file.name)
                 else:
                     logger.warning(
                         "BIOS %s ya existe en bios/%s con contenido distinto — no se toca, revisar a mano",
@@ -511,7 +512,7 @@ def _run_setup_pipeline(
                         p = Path(fp)
                         if p.is_file():
                             sz = p.stat().st_size
-                            p.unlink()
+                            _discard_to_trash(p)  # AUD-3: soft-discard
                             deleted += 1
                             freed += sz
                     except OSError:
@@ -784,7 +785,7 @@ def _run_inbox_pipeline(
             if dest_file.exists():
                 if _same_content(source_file, dest_file):
                     try:
-                        source_file.unlink()
+                        _discard_to_trash(source_file)  # AUD-3: soft-discard
                         repository.delete_game(game_id)
                         logger.info(
                             "Inbox: removed exact duplicate %s (already in %s)",
@@ -850,12 +851,12 @@ def _run_inbox_pipeline(
                 continue
             try:
                 if delete_source:
-                    zp.unlink()
+                    _discard_to_trash(zp)  # AUD-3: soft-discard
                 else:
                     processed_dir.mkdir(parents=True, exist_ok=True)
                     dest_zp = processed_dir / zp.name
                     if dest_zp.exists():
-                        zp.unlink()  # duplicate — already archived
+                        _discard_to_trash(zp)  # duplicate — already archived
                     else:
                         _shutil.move(str(zp), dest_zp)
             except Exception:

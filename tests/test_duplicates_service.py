@@ -122,4 +122,4 @@ def test_delete_all_duplicates_no_groups(tmp_path: Path) -> None:
     _insert_game(repo, source_path=str(tmp_path / "only.gb"), sha1=_SHA1_A)
     result = delete_all_duplicates(repo)
     assert result["deleted"] == 0
-    assert result["summary"].startswith("0 eliminados")
+    assert result["summary"].startswith("0 movidos a _descartados/")
