@@ -95,7 +95,7 @@ async function loadAssets() {
       if (_ad === 'pc') {
         barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else {
-        const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
+        const ab = document.getElementById('ov-ab-path')?.value.trim() || cfg.anbernic_root || localStorage.getItem('anbernic_path') || '(no configurado)';
         barHtml = `Viendo: <span style="color:var(--c-orange)">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;

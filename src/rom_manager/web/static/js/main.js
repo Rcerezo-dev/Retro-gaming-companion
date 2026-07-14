@@ -583,8 +583,9 @@ export function openHtmlReport(customPath) {
 }
 
 export async function openHtmlReportAndroid() {
+  const cfg = await apiFetch('/api/config').catch(() => ({}));
   const abPath = document.getElementById('ov-ab-path')?.value.trim()
-    || localStorage.getItem('anbernic_path') || '';
+    || cfg.anbernic_root || localStorage.getItem('anbernic_path') || '';
   if (!abPath) {
     alert('Configura la ruta de la consola Android en la sección Overview primero.');
     return;
