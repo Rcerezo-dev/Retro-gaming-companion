@@ -9,34 +9,8 @@
     </div>
   </div>
 
-  <!-- S40: Configurar consola Android -->
-  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-purple)">
-    <h3 style="color:var(--c-purple)">Configurar consola Android</h3>
-    <p style="font-size:12px;color:var(--c-muted);margin-bottom:12px;line-height:1.6">
-      Escanea el QR desde Termux en tu consola Android para instalar el script de auto-sync de saves.<br>
-      El script configura rclone <em>y</em> detecta si tienes Dropbox/OneDrive instalado.
-    </p>
-    <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-      <div>
-        <canvas id="android-setup-qr" width="140" height="140" style="border:2px solid var(--c-bar);border-radius:4px;display:block"></canvas>
-        <p id="android-setup-url" style="font-size:10px;color:var(--c-dim);margin-top:4px;word-break:break-all;max-width:140px">Cargando&#x2026;</p>
-      </div>
-      <div style="flex:1;min-width:200px">
-        <p style="font-size:12px;color:var(--c-text);margin-bottom:8px"><strong>Pasos:</strong></p>
-        <ol style="font-size:12px;color:var(--c-muted);line-height:2;padding-left:18px;margin:0">
-          <li>Instala <strong>Termux</strong> desde F-Droid (no Play Store)</li>
-          <li>Abre Termux y ejecuta:<br>
-            <code style="background:var(--c-deep);padding:2px 6px;border-radius:3px;font-size:11px">curl -s &lt;URL&gt; | bash</code>
-          </li>
-          <li>Sigue las instrucciones en pantalla</li>
-          <li>Instala <strong>Termux:Boot</strong> desde F-Droid para auto-sync al arrancar</li>
-        </ol>
-        <div class="hidden" id="android-setup-curl" style="margin-top:10px;background:var(--c-deep);padding:8px 10px;border-radius:4px;font-size:11px;color:var(--c-teal);word-break:break-all"></div>
-        <button onclick="copyAndroidSetupUrl()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:4px;cursor:pointer">Copiar URL</button>
-        <button onclick="downloadAndroidSetupSh()" style="margin-top:8px;margin-left:6px;padding:4px 12px;font-size:11px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:4px;cursor:pointer">Descargar .sh</button>
-      </div>
-    </div>
-  </div>
+  <!-- ANBERNIC-UX-2: el panel "Configurar consola Android" (QR + /api/anbernic-setup.sh, 404)
+       se eliminó — la única superficie de setup es la pestaña Anbernic. -->
 
   <!-- S35-1: Theme toggle -->
   <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-blue)">

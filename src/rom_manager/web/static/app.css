@@ -1291,7 +1291,7 @@ input:focus, select:focus, textarea:focus {
   padding: 20px 28px; width: 100%; max-width: 480px; box-sizing: border-box;
 }
 .tv-status-row { display: flex; align-items: center; gap: 10px; font-size: 18px; color: #d4d4d4; justify-content: center; }
-.tv-status-dot { width: 12px; height: 12px; border-radius: 50%; background: #4ec9b0; display: inline-block; flex-shrink: 0; }
+.tv-status-dot { width: 12px; height: 12px; border-radius: 50%; background: #888; display: inline-block; flex-shrink: 0; } /* ANBERNIC-UX-5: gris hasta que tvCheckServer() confirme */
 .tv-status-sub { font-size: 14px; color: #666; margin-top: 10px; }
 .tv-btn {
   min-height: 56px; width: 100%; max-width: 480px; border-radius: 10px;

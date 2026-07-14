@@ -1,7 +1,7 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-07-13 (TABS-FIX: revisión UX/lógica de Juegos/Organizar/Duplicados)
+> Last updated: 2026-07-14 (ANBERNIC-UX 1-8: pestaña Anbernic — generador único, token efímero, panel Android real)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 
@@ -114,7 +114,7 @@ autocontenido publicado en el release `v1.0.0` (detalle D37-1…D37-10 → archi
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas. Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ⬜ |
+| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas (confirmado: `gpLogPlaytime()` hoy no persiste nada, solo hace `alert()`, `games.js:531-542`). Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. Diseño detallado en `Tareas/Roadmap-Juegos-UX.md` (JUEGOS-UX-4..9) | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ⬜ |
 | MEJ-2 | **Deshacer último apply** — endpoint que invierte los renames de la última operación usando `file_operations` (ya registrado en SQLite); reutiliza `rename_rom_with_saves` en dirección inversa. | `planner/`, `web/handlers/` | ⬜ |
 | MEJ-3 | **Backup automático de la DB antes de apply/migraciones** — `sqlite3.Connection.backup()` (stdlib, ~5 líneas) antes de cada apply. | `planner/operation_planner.py` o `database/repository.py` | ⬜ |
 | MEJ-4 | **Sync de cheats (`.cht`)** — un `SyncSource` más apuntando al dir `cheats/` de RetroArch, mismo patrón que NEW-8 (`.opt`). ~10 líneas. | `config.py`, `sync/sync_cloud.py` | ⬜ |
@@ -278,7 +278,7 @@ repo (installer/, scripts/), no solo en `src/`.
 
 Origen: auditoría del proyecto desde la perspectiva de un desarrollador nuevo que no
 conoce el proyecto ni el dominio retro-gaming. Roadmap detallado con orden y
-estimaciones: `Tareas/Roadmap-Onboarding.md`.
+estimaciones: `Tareas/diario/archivo/Roadmap-Onboarding.md` (archivado — completado).
 
 | ID | Severidad | Task | Archivo | Estado |
 |----|-----------|------|---------|--------|
@@ -292,14 +292,15 @@ estimaciones: `Tareas/Roadmap-Onboarding.md`.
 | ONB-8 | ⚪ Bajo | **Backlog difícil de escanear para alguien nuevo** — mezclaba secciones enteras ya completadas ✅ (SRP, ARC, SEC, UR, REPORT-FIX, DESIGN, PONT, NEW-FEAT…) con lo pendiente. | `Tareas/backlog.md` | ✅ ~440 líneas de secciones completadas movidas a `Tareas/diario/archivo/archivo.md`; el backlog queda solo con pendientes + Debug Playbook (rama `chore/onb-phase3-arch-backlog`) |
 | ONB-9 | ⚪ Bajo | **Decisión de idioma/audiencia del README** — todo en español; si el repo también sirve de portfolio internacional, añadir un TL;DR en inglés al inicio (qué es, stack, screenshot) sin traducir el resto. Decisión del usuario. | `README.md` | ✅ TL;DR en inglés (qué es + stack) al inicio del README; sin screenshot porque el repo no tiene ninguno (rama `docs/onb9-readme-english-tldr`) |
 
-> **Completado 9/9** (PRs #71–#74 + ONB-9). Detalle: `Tareas/Roadmap-Onboarding.md`.
+> **Completado 9/9** (PRs #71–#74 + ONB-9). Detalle: `Tareas/diario/archivo/Roadmap-Onboarding.md`.
 
 ---
 
 ## AUD — Auditoría funcional (2026-07-12)
 
 Funciones nuevas detectadas en auditoría de la app completa. Detalle, archivos
-y criterios de "hecho" en `Tareas/Roadmap-Auditoria.md`. Orden: 1→6.
+y criterios de "hecho" en `Tareas/diario/archivo/Roadmap-Auditoria.md`
+(archivado — 6/6 completadas). Orden: 1→6.
 
 | ID | Task | Pilar | Esfuerzo | Estado |
 |----|------|-------|----------|--------|
@@ -384,6 +385,361 @@ absorbe 2 y 3 — si se hace 6, saltar 2/3; 4 es cosmético y puede ir dentro de
 | TABS-FIX-5 | **"Eliminar todos los duplicados" ignora el filtro de plataforma** — el confirm cuenta los botones visibles en el DOM (`duplicates.js:65`) pero envía siempre `source_root: ''` (`duplicates.js:76`) → `delete_all_duplicates_multi` recorre TODOS los grupos de ambas BDs (`handlers/duplicates.py:87-93`). Con el filtro en "SNES" el usuario confirma "3 archivos" y se descartan los duplicados de todas las plataformas. Fix: pasar la plataforma filtrada al endpoint y filtrar en `delete_all_duplicates`, o contar server-side antes del confirm | Seguridad | S | ⬜ |
 | TABS-FIX-6 | **Pantalla única "Revisar copias" (diseño 2026-07-13)** — fusionar en una sola vista los 4 solapes actuales (duplicados SHA1, duplicados semánticos, versiones RA, colisiones del plan): una cola de revisión agrupada **por juego**, cada grupo con sus copias listadas (badge del motivo: "idéntico SHA1" / "otra versión" / "colisión de nombre", badge 🏆 RA, badge dispositivo), una **recomendación precalculada** con criterio único (RA gana > mejor nombrada > primera; lógica ya en `ra_duplicates_service.py`) y acciones [Aplicar] [Elegir otra] [Copia intencional] + "Aplicar todas las recomendaciones (N)" arriba. Organizar pasa a 2 pasos: "Renombrar" y "Revisar copias"; la pestaña Duplicados desaparece. Backend: endpoint agregador que fusione `/api/duplicates` + `/api/ra-duplicates` + conflictos del plan; los endpoints de acción actuales sirven tal cual. **Implementa TABS-FIX-2 y TABS-FIX-3 de golpe** y resuelve de paso TABS-FIX-5 (el "aplicar todo" opera sobre los grupos renderizados). Diseño detallado: sesión 2026-07-13 | UX | L | ⬜ |
 | TABS-FIX-7 | **El rename no renombra saves/states en carpetas centrales de RetroArch** — `rename_rom_with_saves` solo busca compañeros en `source.parent` (`renamer/file_renamer.py:49-53`); si RetroArch usa Savefile/Savestate Directory central (su default, y lo que pide STRUCT-4: `E:\Carpetas anbernic\saves\`), el save/state conserva el stem viejo → huérfano, RetroArch crea uno vacío = pérdida de progreso percibida (Pilar 3). La app ya conoce esas rutas (`_state_search_dirs`, `handlers/games.py:22-35`, busca en `retroarch_path/states` para miniaturas) pero el renamer no. Extras: `.state.auto` nunca casa (suffix parseado `.auto`, stem `X.state`) y solo hay `.state1`/`.state2` en la lista (`config.py:529-530`) — slots 3+ huérfanos. Fix: en `rename_rom_with_saves`, buscar compañeros también en las carpetas centrales de config (saves/states de RetroArch + `local_dir` del sync), y matching por prefijo de stem para cubrir `.state.auto`/`.stateN` | Sync/Seguridad | M | ✅ |
+
+---
+
+## CABLE-UX — Auditoría de Cable Sync: simplificar la experiencia (2026-07-13)
+
+Auditoría del flujo completo de Cable Sync (`tab-cable.html`, `sync.js`,
+`handlers/sync_cable.py`, `cable_sync_daemon.py`). El caso de uso del pilar 3
+("conecto la consola y los saves aparecen solos") exige hoy ~10 decisiones:
+qué sincronizar (4 checkboxes), dirección (3 radios), modo SD/ADB, 2-4 campos
+de ruta, detección manual de dispositivo y 4 checkboxes de opciones — con un
+bloque de instrucciones de ~80 líneas encima del formulario. Detalle, archivos
+y criterios de "hecho" en `Tareas/Roadmap-Cable-UX.md`. Relacionado:
+VAL-FIX-5/6 (ya registrados, no se duplican aquí). Orden: 1 es seguridad,
+2-3 son el grueso de la simplificación, el resto elimina fricción menor.
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| CABLE-UX-1 | **El pre-flight de reloj (AUD-1) solo existe en el frontend** — `doCableSync` hace el check quick antes de "newest" (`sync.js:863-871`), pero el daemon de auto-sync dispara sync "newest" por mtime en cada conexión SIN comprobar skew (`cable_sync_daemon.py:_auto_sync_loop` — cero referencias a skew/`device_epoch`), que es justo el escenario que AUD-1 quería proteger. Fix raíz: mover el check al backend — al inicio del job `cable_sync` con `direction=newest` (manual y auto); si `skew_exceeded`, abortar con error claro en vez de sincronizar. De paso se elimina el `confirm()` del frontend | Sync/Seguridad | S | ⬜ |
+| CABLE-UX-2 | **Un botón "Sincronizar saves ahora" como acción primaria** — la acción del día a día está enterrada al final del formulario. El plumbing ya existe: `promptSyncNow()` (`sync.js:1016`) ya postea `/api/cable-sync` con body vacío, y el daemon auto-sync ya sabe hacer el sync completo con la config guardada. Fix: botón primario arriba de la pestaña (device detectado + saves + dirección de auto-sync + verify); todo el formulario manual actual pasa a un `<details>` "Sincronización avanzada". El formulario no se toca por dentro, solo se colapsa | UX | M | ⬜ |
+| CABLE-UX-3 | **El modo SD/ADB se pregunta al usuario cuando la app ya lo sabe** — hay que elegir el radio `cable-ab-mode` a mano (`tab-cable.html:198-210`), pero el daemon ADB ya sondea dispositivos cada 10 s y el daemon SD ya detecta la unidad montada. Fix: al cargar la pestaña, preseleccionar ADB si `/api/adb-devices` devuelve un device ready (y autorellenar el select), o SD si `anbernic_root` existe como ruta; el radio queda como override manual. Resuelve de rebote VAL-FIX-6 (no se validaría la ruta SD en modo ADB) | UX | S | ⬜ |
+| CABLE-UX-4 | **El select "Conflictos" de la tarjeta auto-sync no hace nada en cable sync** — `conflict_policy` solo lo consume `save_syncer.py:270` (sync cloud); el daemon de cable ignora ese valor y resuelve siempre por mtime. Además "Dirección: Más reciente gana" y "Conflictos: Más reciente gana" lado a lado (`tab-cable.html:23-39`) es una duplicación que confunde. Fix: quitar el select de la tarjeta de cable (su sitio es la config de sync cloud) | UX | S | ⬜ |
+| CABLE-UX-5 | **Campos duplicados para la misma ruta** — dos inputs "Ruta del PC" (`cable-pc-path` y `cable-adb-pc-path`, rellenados idénticos en `loadCableSync`, `sync.js:792-793`) y dos "Ruta Android" (tarjeta auto-sync `auto-sync-android-path` y sección ADB `cable-android-path`, defaults distintos). Fix: un solo input de PC fuera del bloque de modo; un solo input Android compartido con la config de auto-sync | UX | S | ⬜ |
+| CABLE-UX-6 | **Defaults contradictorios** — dirección por defecto "PC → Consola: *Sobrescribe los archivos de la consola*" (`tab-cable.html:170-173`) con "Modo seguro (*no sobreescribir*)" marcado (`:288-291`) → el resultado típico es "0 copiados / N omitidos" sin explicación. Y el checkbox dry-run empieza desmarcado pero su aviso "se copiarán realmente" empieza oculto (`:282,298` — solo aparece tras tocar el checkbox). Fix: default `direction=newest` (el caso saves), y sincronizar el aviso de dry-run con el estado inicial | UX | S | ⬜ |
+| CABLE-UX-7 | **Las instrucciones A/B/C/D ocupan la zona noble en cada visita** — ~80 líneas (`tab-cable.html:52-136`) con la opción A expandida siempre, encima del formulario. Fix: colapsar todo en un único `<details>` "¿Cómo conecto la consola?"; abrirlo solo si nunca hubo un sync exitoso (dato ya disponible en `/api/auto-sync-status.last_sync_at`) | UX | S | ⬜ |
+| CABLE-UX-8 | **Sync Doctor exige ritual previo** — `runSyncDoctor` falla con "Activa el Modo ADB y detecta un dispositivo primero" (`sync.js:759-762`) si no se pobló el select a mano. Fix: si no hay serial, llamar `/api/adb-devices` y usar el primer device ready antes de rendirse | UX | S | ⬜ |
+| CABLE-UX-9 | **Tres implementaciones divergentes del bucle de copia** — manual (`handlers/sync_cable.py:_do_cable_sync`), ADB auto (`cable_sync_daemon.py:_run_auto_sync`) y SD auto (`_run_sd_auto_sync`) reimplementan el walk+compare+copy con garantías distintas: verify MD5 solo-saves / siempre / nunca; safe_mode solo en manual; el SD auto sobrescribe sin backup en `pc_to_anbernic` (`cable_sync_daemon.py:409-429`) rozando la regla "ante duda, no sobreescribir". Es la causa raíz de CABLE-UX-1 y de futuras divergencias. Fix: extraer un módulo compartido de sync (walk, filtro, compare por mtime, copy con verify/safe/log) que consuman los tres | Sync | M-L | ⬜ |
+| CABLE-UX-10 | **Cuatro fuentes de verdad para las rutas** — cascada `ovPc \|\| cfg.library_root \|\| localStorage` en `loadCableSync` (`sync.js:787-796`) mezclando inputs de Overview, config y `localStorage` (`anbernic_path`, `cable_pc_path` — escritos en `doCableSync:878-879`). Fix: config (`library_root`/`anbernic_root`) como única fuente; eliminar el localStorage | UX | S | ⬜ |
+
+---
+
+## INICIO-UX — Auditoría de la pestaña Inicio (2026-07-13)
+
+Auditoría UX de Inicio (`tab-overview.html`, `js/tabs/overview.js`) desde la
+perspectiva de un usuario nuevo. Detalle completo, archivo:línea y fases en
+`Tareas/Roadmap-Inicio-UX.md`. Hallazgos clave: los 3 botones rápidos del
+dashboard están **rotos** (comillas `\'` estilo Python servidas tal cual al
+navegador → SyntaxError), los canvas usan `var(--c-*)` como fillStyle (canvas
+no resuelve variables CSS → heatmap y gráfico mensual pintan colores
+incorrectos), y hay dos heatmaps de actividad duplicados. Incluye la petición
+del usuario: tarjetas explicando los archivos no-gaming (BIOS, assets, saves,
+infra MAME, basura) reutilizando las categorías de `builders/folders.py`.
+
+| ID | Task | Esfuerzo | Estado |
+|----|------|----------|--------|
+| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ⬜ |
+| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ⬜ |
+| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ⬜ |
+| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ⬜ |
+| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ⬜ |
+
+---
+
+## CLOUD-UX — Auditoría de la pestaña Cloud: UX/UI y lógica (2026-07-13)
+
+Auditoría de la pestaña Cloud (`tab-sync.html`, `js/tabs/sync.js`, `main.js`,
+`jobs.js`, `handlers/sync_cloud.py`, `handlers/cloud_auth.py`). Hallazgo
+central: **el camino recomendado está roto de punta a punta** — el botón
+"Usar para saves + states (recomendado)" lanza ReferenceError; si existiera,
+guardaría un remote sin `:`; y si guardara bien, "Sincronizar" fallaría porque
+el backend exige `[[sync.sources]]` antes de mirar los remotes implícitos.
+Detalle, archivos y criterios de "hecho" en `Tareas/Roadmap-Cloud-UX.md`.
+Orden: 1-6 son bugs, 7-12 UX. Todo pilar 3.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| CLOUD-UX-1 | **Tres funciones inexistentes en `window`** — `applyRcloneSavesStates()` (botón "recomendado", `tab-sync.html:165`) existe en `sync.js:556` pero no está exportada ni en `main.js`; `backupNow()` (`tab-sync.html:42`) no existe (solo `API.backupNow`, `api.js:142`); `loadManualBackups` no existe → `main.js:479` lanza ReferenceError (`?.()` no protege identificadores no declarados) y **`loadCloudAuthStatus()` nunca corre al abrir la pestaña** ("Comprobando…" eterno); `jobs.js:439` TypeError tras cada backup. Fix: escribir `backupNow`/`loadManualBackups`, exportar las tres + window | Bug | S | ⬜ |
+| CLOUD-UX-2 | **Los botones "Guardar" del panel rclone escriben remotes sin `:`** — `/api/rclone-status` devuelve remotes con `rstrip(":")` (`sync_cloud.py:143`) y `applyRcloneRemote`/`applyRcloneSavesStates` concatenan `remote + path` (`sync.js:543,562-563`) → guardan `dropboxRetroSync/saves`. "Verificar conexión" sí funciona (backend re-añade `:`, `sync_cloud.py:196`): test OK + guardado roto. La preselección (`sync.js:489-491`) compara con `:` y nunca coincide | Bug | XS | ⬜ |
+| CLOUD-UX-3 | **"Sincronizar" falla con la config recomendada** — `_do_sync` corta con "No hay fuentes de sync configuradas… [[sync.sources]]" (`sync_cloud.py:246-251`) ANTES del bloque D2 de remotes implícitos `saves_remote`/`states_remote` (`:346-366`). El aviso del frontend tiene el mismo punto ciego (`sync.js:34-43`). Fix: error solo si no hay ni sources ni remotes implícitos | Bug | S | ⬜ |
+| CLOUD-UX-4 | **El wizard OAuth puede escribir el token en el provider equivocado** — `_pollCloudAuth` finaliza contra "el primer provider no configurado" (`sync.js:1532-1543`); con ambos sin configurar, conectar Google Drive escribe el token bajo el remote `dropbox` (`_PROVIDERS` lista dropbox primero, `cloud_auth.py:23-26`). Fix: retener el provider iniciado (mejor en `/api/cloud-auth/poll`); de paso, guard de flujo concurrente y cancel que mate el subprocess | Bug | S | ⬜ |
+| CLOUD-UX-5 | **`sync_result` sin guard `result_ts`** — `jobs.js:104-105` llama `_renderSyncResult` en cada tick (scan/match/backup sí usan `_shownResultTs`); la notificación de escritorio "Sync completado" (`sync.js:1452-1462`) se re-dispara cada 2 s mientras el polling siga vivo por otro job. Fix: mismo guard + refrescar `loadSync()` al consumir resultado | Bug | XS | ⬜ |
+| CLOUD-UX-6 | **Modo TV roto** — `tvStartSync` postea a `/api/do-sync` (`sync.js:334`); el endpoint real es `/api/sync` (`sync_cloud.py:90`). El flujo táctil ANBERNIC-TV muere con error siempre | Bug | XS | ✅ (arreglado en feature/anbernic-ux — `/api/sync`) |
+| CLOUD-UX-7 | **Script bootstrap Termux hardcodea `dropbox:/RetroSync/saves`** — `_build_bootstrap_script` (`sync_cloud.py:666`) ignora `config.sync.saves_remote` y `save_extensions`; con gdrive u otra carpeta la consola bisync-ea contra un remote inexistente. Además `rclone bisync` vs `SaveSyncer` = dos motores con políticas de conflicto distintas. Fix mínimo: inyectar remote y extensiones reales | Sync | S | ✅ (resuelto por ANBERNIC-UX-1: generador canónico con remotes de config y `copy --update`) |
+| CLOUD-UX-8 | **Reordenar la pestaña** — la config imprescindible (remote+carpeta) está al fondo tras "⚙ Verificar rclone" (`tab-sync.html:106-178`); 4 superficies de configuración solapadas; los comparadores PC-vs-consola (`:62-104`) son herramientas de dispositivo, no de cloud. Fix: checklist de setup arriba (Conectar → Carpeta → Probar, colapsable cuando todo verde), luego Sincronizar+estado, backup al final; comparadores a Cable/Herramientas | UX | M | ⬜ |
+| CLOUD-UX-9 | **"Conectado" ≠ "sync configurado"** — el wizard OAuth acaba en "✓ Conectado" pero nadie configura `saves_remote`: verde + error de fuentes al sincronizar. Fix: tras finalize, ofrecer "Usar `<remote>:RetroSync` para saves+states" a un clic (reutiliza `applyRcloneSavesStates` tras CLOUD-UX-1/2) y mostrar el destino activo en la tarjeta (`_rcloneActiveTargetHtml` ya lo calcula, `sync.js:447-459`) | UX | S | ⬜ |
+| CLOUD-UX-10 | **Mensajes que mandan a editar config.toml / a Settings** — "configura [[sync.sources]] en config.toml" (`sync.js:38,43`) y el error de `loadSync` enlaza a Settings (`sync.js:65`) cuando el panel rclone está en esta misma pestaña. Fix (tras CLOUD-UX-3): apuntar al bloque de setup de la propia pestaña | UX | XS | ⬜ |
+| CLOUD-UX-11 | **"Estado de saves" y backups no cargan solos** — exigen clic "↻ Cargar" (`tab-sync.html:56`) siendo lecturas locales baratas (`/api/save-comparison`, `games.py:367`). Fix: auto-cargar en `showTab('sync')`, ↻ queda para refrescar | UX | XS | ⬜ |
+| CLOUD-UX-12 | **`sync-decisions` muerto: el resultado no dice qué archivos se movieron** — el backend envía las decisiones por archivo (`sync_cloud.py:323-327`) y el div existe (`tab-sync.html:33`) pero nadie lo rellena; `_renderSyncResult` solo pinta totales (`sync.js:1440-1466`). Fix: listar acción+ruta por fuente, conflictos destacados; en dry run es el "plan" antes de sincronizar | UX | S | ⬜ |
+
+---
+
+## ANBERNIC-UX — Auditoría de la pestaña Anbernic: UX/UI, lógica y seguridad (2026-07-13)
+
+Auditoría de la pestaña Anbernic (`tab-anbernic.html`, `js/tabs/sync.js`,
+`_banners.html`, `handlers/sync_cloud.py`, `handlers/system.py`, `web/lan.py`).
+Hallazgo central: **dos generadores de script de setup que se contradicen en
+la misma pantalla, uno de ellos sin endpoint (404)**; y la instalación por
+defecto sirve el rclone.conf con tokens OAuth a toda la LAN sin PIN.
+Detalle, archivos y criterios de "hecho" en `Tareas/Roadmap-Anbernic-UX.md`.
+Relacionadas (no duplicar): CLOUD-UX-6 (panel TV roto), CLOUD-UX-7 (remote
+hardcodeado en `/s`). Todo pilar 3.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| ANBERNIC-UX-1 | **Dos generadores de setup contradictorios** — el comando del paso 5 usa `/s` (`sync.js:402`, crea `~/sync-saves.sh`, bisync, remote hardcodeado = CLOUD-UX-7); el botón "Descargar .sh" y el panel de Settings usan `/api/anbernic-setup.sh` (`_build_anbernic_setup_sh`, `system.py:218`, crea `~/retrovault-sync.sh`, `rclone copy --update`, lee config); la caja "Después del setup" (`tab-anbernic.html:156`) documenta el script que el comando recomendado NO crea. Fix: un solo generador canónico en `/s` con lo bueno de system.py (config + copy --update); borrar el otro | Bug | M | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-2 | **"Descargar .sh" y panel Settings → 404** — `/api/anbernic-setup.sh` no está registrado en ningún handler (solo `openapi.json:4597`; el builder de `system.py:218` es código muerto). Afecta al botón del paso 5 (`sync.js:415`) y a todo el Android setup panel de Settings (QR+curl, `sync.js:238-253`). Fix (tras -1): apuntar todo a `/s` y evaluar eliminar el panel de Settings (superficie duplicada) | Bug | S | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-3 | **Seguridad: rclone.conf (tokens OAuth) servido a toda la LAN sin auth** — el guard (`sync_cloud.py:27-34`) solo exige PIN si `web_allow_lan=false`, pero los defaults son `web_host="0.0.0.0"` + `web_allow_lan=true` (`config.py:430,432`): cualquier dispositivo de la red descarga los tokens por HTTP plano. Fix: token efímero de un uso embebido en el script `/s`, o PIN obligatorio para este endpoint en binding no-loopback | Seguridad | M | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-4 | **IP personal hardcodeada como fallback** — `get_bootstrap_script` usa `"192.168.1.160"` si `get_lan_ip()` falla (`sync_cloud.py:48`). Fix: usar el header `Host` de la request como fallback | Bug | XS | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-5 | **La promesa del paso 1 es falsa** — dice que al abrir la URL en la consola "aparecerá una guía de instalación con botones de descarga" (`tab-anbernic.html:30-32`); lo que aparece es `android-detected-panel` (`_banners.html:21-52`): panel de sync sin botones de instalación, "PC conectado" hardcodeado y botón roto (CLOUD-UX-6). Fix: estado "primera vez" con vista táctil de instalación + comprobación real del servidor | UX | M | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-6 | **QR en el paso 1** — teclear `http://ip:7777` en la consola es el paso más doloroso; `renderQR` ya existe (`config.js:499`) y no se usa aquí. Además "Copiar URL" copia al portapapeles del PC y el tip del paso 5 alude a un portapapeles-por-ADB que no existe (`tab-anbernic.html:147`). Fix: QR junto a `anb-ip-display`, quitar textos de funciones inexistentes | UX | XS | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-7 | **Sin check de prerequisitos** — la pestaña no consulta `/api/rclone-status` (sin remotes, el script descarga un rclone.conf vacío y la consola queda a medias) ni avisa de binding loopback / firewall Windows (`_check_firewall` existe en `lan.py:52` pero solo se usa en CLI, `cli.py:969`). Fix: banner arriba con ① cloud configurado ② servidor accesible por LAN | UX | S | ✅ (feature/anbernic-ux) |
+| ANBERNIC-UX-8 | **Errores silenciosos y enlaces engañosos** — si `/api/local-url` falla, "Detectando…"/"Cargando…" quedan para siempre (`sync.js:418-420`); "Descargar Termux APK" abre la página de releases, no un APK (`tab-anbernic.html:82`). Fix: error visible con reintento + etiquetas honestas | UX | XS | ✅ (feature/anbernic-ux) |
+
+Validación en hardware pendiente: comprobar en la RG556 si Termux limpio trae
+`curl` (el one-liner `curl -s …/s \| bash` falla si no; la guía manual
+`docs/sync/Guia-Termux-Anbernic.md` no lo usa).
+
+---
+
+## HERR-UX — Auditoría de la pestaña Herramientas: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Herramientas (`tab-tools.html` + JS repartido en
+`esde.js`, `config.js`, `duplicates.js`, `sync.js`, `jobs.js`). Patrón
+dominante: **la migración de frontend.py a parciales dejó HTML y JS apuntando
+a IDs distintos** — tres paneles enteros tienen botones que no hacen nada al
+pulsarlos (`getElementById` → null → return silencioso): Informe de
+biblioteca, Saves huérfanos y el render de resultados del Health Check.
+Detalle, archivo:línea y fases en `Tareas/Roadmap-Herramientas-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| HERR-UX-1 | **Panel "Informe de biblioteca" desconectado** — `generateReport` renderiza en `library-report-content` (no existe en ningún parcial, `esde.js:1207-1348`); el HTML usa `report-content`/`rpt-tab-*` (`tab-tools.html:116-150`) y sus 6 sub-tabs pasan `'zips'…'chd'` mientras el switch JS solo maneja `'overview'…'orphans'`; `btn-export-report` nunca se des-oculta. "Generar informe" no hace nada visible. Fix: reconectar a una sola versión o dejar solo los botones de informe HTML servidor (que sí funcionan, `main.js:583`) | Bug | M | ⬜ |
+| HERR-UX-2 | **"Buscar huérfanos" no hace nada** — `doFindOrphans` es un stub TODO que además escribe en `orphans-result-content` (HTML: `orphan-result`, `esde.js:903`); `orphan-path` no lo lee nadie; las acciones Mover/Eliminar existen pero son inalcanzables (`esde.js:916-980`). El dato ya está en `/api/library-report` (clave `orphans`) — reutilizar | Bug | S | ⬜ |
+| HERR-UX-3 | **Resultados del Health Check nunca se muestran** — todo el render va a `health-result-content`; el HTML tiene `health-result` (`esde.js:495,512,530` vs `tab-tools.html:75`). La barra de progreso funciona (jobs.js usa IDs correctos) y al terminar el resultado desaparece sin rastro. Fix de 1 línea: unificar el ID | Bug | XS | ⬜ |
+| HERR-UX-4 | **"Resolver todos" del Library Doctor invisible para siempre** — nace `class="btn hidden"` (`.hidden` con `!important`, `app.css:1225`) y el JS intenta mostrarlo con `style.display` (`esde.js:1039`), que no vence al `!important`. `doctorResolveAll` es código muerto. Fix: `classList.toggle('hidden', …)` | Bug | XS | ⬜ |
+| HERR-UX-5 | **"¿Qué catálogos me faltan?" descarga TODOS los DATs sin preguntar** — tras el diagnóstico lanza `POST /api/download-dats {all:true}` automáticamente (`esde.js:1160-1166`). Fix: dos pasos — diagnóstico puro + botón "Descargar catálogos que faltan (N)" + CTA hacia Identificar al acabar | UX | S | ⬜ |
+| HERR-UX-6 | **Mojibake «ྠltimo»** — `&#xfa0;` (letra tibetana) en vez de `Ú` en la programación del Health Check (`config.js:241`) | Bug | XS | ⬜ |
+| HERR-UX-7 | **Contexto PC/Android incompleto** — `setToolsContext` (`duplicates.js:345-372`) rellena el ID inexistente `health-path`, toca inputs de la pestaña Formatos (`zip-path`, `chd-path`) sin que se vea, no actualiza `report-path`/`m3u-path`/`verify-multidisc-path`, y pisa rutas escritas a mano sin avisar. Mover la función a `tools.js` al tocarla | UX | S | ⬜ |
+| HERR-UX-8 | **Doctor: "✓ Resolución completada" aunque haya fallos** — `doctorResolveAll` traga errores y no recalcula el resumen; filas solo se atenúan (`esde.js:1095-1117`). Fix: contar ok/fallos y relanzar `doLibraryDoctor()` | UX | XS | ⬜ |
+| HERR-UX-9 | **Batch "Aplicar todo": sin cancelar ni progreso real** — `alert()` nativos, botón deshabilitado sin cambiar texto, sin "paso 2 de 5", polling sin timeout, Scraper sin validar credenciales SS (`config.js:312-395`) | UX | S | ⬜ |
+| HERR-UX-10 | **Labels inconsistentes** — «Iniciar Health Check» vs «Comprobar biblioteca» (error path `esde.js:507,519`); «Settings» vs «Ajustes» (`tab-tools.html:92` vs `:183`); títulos en inglés (Library Doctor, Health Check) | UX | XS | ⬜ |
+| HERR-UX-11 | **Estados de carga eternos + pulido** — «Verificando API key…» nunca cambia si `/api/config` falla (`config.js:302` catch silencioso); toasts con tipos inexistentes `'success'`/`'warn'` sin color (`app.css:646-648`); export HTML con `var(--c-*)` sin definir fuera de la app (`esde.js:1372`); patch list no auto-escanea y su 📂 abre selector de carpetas para elegir una ROM | UX | S | ⬜ |
+
+---
+
+## FORMATOS-UX — Auditoría de la pestaña Formatos: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Formatos (`tab-formats.html` + JS repartido en
+`tools.js`, `esde.js`, `config.js`, `duplicates.js`). A diferencia de
+Herramientas, aquí casi todos los botones sí están conectados; los problemas
+son un panel-stub ("Análisis de carpeta"), el selector de contexto
+PC/Android pisando rutas de esta pestaña sin avisar en cada apertura, y
+diálogos nativos (`alert`/`confirm`) en vez de los componentes propios de la
+app. Detalle, archivo:línea y fases en `Tareas/Roadmap-Formatos-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| FORMATOS-UX-1 | **Selector de contexto pisa rutas sin avisar** — `setToolsContext` (`duplicates.js:345-367`) sobrescribe incondicionalmente `zip-path`/`chd-path`/`folder-analysis-path` cada vez que se abre Formatos o Herramientas (`main.js:485-486`), rellena el ID muerto `health-path` y deja huérfanos `cso-path`/`verify-chd-path`/`m3u-path`. Relacionado con HERR-UX-7 (misma función). Fix: solo rellenar si está vacío + cubrir todos los paths | Bug | S | ⬜ |
+| FORMATOS-UX-2 | **"Análisis de carpeta" es un panel-stub** — `doFolderAnalysis` (`esde.js:1120-1131`) ignora la ruta y siempre renderiza «Funcionalidad pendiente», pese a tener input, botón y persistencia completos (`tab-formats.html:192-204`). Mismo patrón que HERR-UX-2. Fix: implementar `/api/folder-analysis` o retirar el panel | Bug | M | ⬜ |
+| FORMATOS-UX-3 | **`alert()`/`confirm()` nativos en 9+ sitios** — `doConvertChd/doConvertCso/doExtractZip/doCleanupZips/doCleanupCueBin/doGenerateM3U/doVerifyMultidisc/doVerifyChd` (`tools.js`) usan diálogos nativos pese a existir `showToast` y `_showConfirm` propios de la app. Fix: sustituir por los componentes propios | UX | S | ⬜ |
+| FORMATOS-UX-4 | **Botón "library_root" muestra el nombre de la variable interna** — literal en inglés/snake_case en 5 paneles (`tab-formats.html:16,58,88,148,198`) en vez de una etiqueta legible en español | UX | XS | ⬜ |
+| FORMATOS-UX-5 | **Escaneos síncronos sin bloqueo de botón** — "Generar M3U", "Verificar" (multi-disco), "Escanear" (N64) y "Generar .lpl" no deshabilitan su botón durante el fetch, a diferencia de CHD/CSO/ZIP (jobs con polling) y de `autodetectM3UFolders`, que sí lo hace bien | UX | S | ⬜ |
+| FORMATOS-UX-6 | **Filtro "solo errores" con default distinto entre paneles gemelos** — CHD conversión: marcado solo si hay fallos; CHD verificación: siempre marcado (`tab-formats.html:75` vs `tools.js:76-78`) | UX | XS | ⬜ |
+| FORMATOS-UX-7 | **Pulido: mensajes de error sin guía, resultados vacíos sin sugerencia, botón "library_root" silencioso en fallo, persistencia de rutas incompleta** — `doConvertChd/doConvertCso/doExtractZip/doVerifyChd` sin pista accionable en el catch (a diferencia de los cleanup); "sin resultados" en M3U/N64 sin sugerir revisar ruta o nomenclatura; `fillToolPath` traga errores en silencio (`config.js:406-411`); `_initToolPath` no cubre `cso-path/verify-chd-path/verify-multidisc-path/lpl-output-dir/n64-path` (`config.js:295-301`) | UX | S | ⬜ |
+
+---
+
+## JUEGOS-UX — Roadmap: logros por juego + playtime automático (2026-07-13)
+
+Roadmap de feature nueva (no auditoría de bugs) para la pestaña Juegos.
+Verificado en código: el resumen de logros (`X/Y logros`) ya existe vía
+`/api/ra-user-progress`, pero RA devuelve la lista completa de logros
+individuales y el backend la descarta (`games.py:507-514`) — nunca se
+guardó ni parseó en ningún punto de `retroachievements/`. Y el control de
+"Tiempo jugado" del panel de juego (`gp-playtime-wrap`) es una simulación
+total: `gpLogPlaytime()` (`games.js:531-542`) no llama a ninguna API, solo
+hace `alert()` y limpia los campos — no hay columna de minutos en la BD
+(`play_history.py` solo tiene `play_count`/`last_played_at`). Detalle,
+archivo:línea y fases en `Tareas/Roadmap-Juegos-UX.md`. Sustituye/desarrolla
+`MEJ-1`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| JUEGOS-UX-1 | **Backend: exponer logros individuales** — `/api/ra-user-progress` (`games.py:461-516`) ya recibe el array `Achievements` de RA (título, descripción, puntos, badge, fecha de desbloqueo) y lo descarta; añadirlo a la respuesta manteniendo el cache 1h existente | Feature | S | ⬜ |
+| JUEGOS-UX-2 | **Frontend: lista de logros desbloqueados/pendientes en el panel de juego** — nuevo bloque bajo `gp-ra-user-progress` (`_foot.html:138`), reutilizando el patrón de lista colapsable ya usado en `tools.js:444` (`_faCollapsibleList`) | Feature | M | ⬜ |
+| JUEGOS-UX-3 | **Perf: lazy-load de iconos de logros** — `loading="lazy"` en los badges; reutilizar el patrón TTL de `.rommgr/ra_cache/` en vez de un cache nuevo | Feature | XS | ⬜ |
+| JUEGOS-UX-4 | **🔴 El control manual de playtime no guarda nada** — `gpLogPlaytime()` solo hace `alert()`, sin `apiPost` (`games.js:531-542`); ocultarlo o marcarlo como no persistente hasta que exista el tracking automático | Bug | XS | ⬜ |
+| JUEGOS-UX-5 | **Esquema de datos: minutos separados por origen (PC/Android)** — `playtime_minutes_pc` + `playtime_minutes_android` en vez de un total único, para poder sumar sin duplicar ni sobrescribir al sincronizar | Feature | S | ⬜ |
+| JUEGOS-UX-6 | **Scanner `.lrtl` de RetroArch (PC)** — módulo stdlib-json sobre `playlists/logs/<Core>/<rom>.lrtl`, mismo matching que `record_play_session` (`play_history.py:26-27`), como job de background con polling | Feature | M | ⬜ |
+| JUEGOS-UX-7 | **Sync de `.lrtl` desde Anbernic** — nuevo `SyncSource` (mismo patrón que MEJ-4 para `.cht`); los `.lrtl` de Android acumulan en `playtime_minutes_android`, nunca sobrescriben `_pc` | Feature | S | ⬜ |
+| JUEGOS-UX-8 | **UI: total automático PC+Anbernic sin inputs** — sustituir `gp-playtime-wrap` (`_foot.html:163-175`) por "X h Y m totales · PC: A h · Anbernic: B h", recalculado solo tras cada sync/scan | Feature | S | ⬜ |
+| JUEGOS-UX-9 | **No aparentar precisión mientras el scanner no esté completo** — indicar en la UI si el dato es parcial (solo PC, sin datos de Anbernic aún) | UX | XS | ⬜ |
+
+---
+
+## ASSETS-UX — Auditoría de la pestaña Assets: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Assets (`tab-assets.html` + `loadAssets()` en
+`sync.js:70-111`, la pestaña más pequeña auditada hasta ahora). Hallazgo
+central: `_deviceRoot()` (`main.js:430-435`) no tiene el mismo fallback a
+localStorage que ya usa el texto de la barra de contexto (`sync.js:85`) —
+la cabecera puede decir "Viendo: Android" mientras la tabla muestra datos
+del PC, sin ninguna pista de que no coinciden. Es una función compartida:
+el mismo bug aplica a Colección, Organizar y Juegos. Detalle, archivo:línea
+y fases en `Tareas/Roadmap-Assets-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| ASSETS-UX-1 | **La ruta mostrada como "Viendo: X" puede no ser la que se consulta** — `_deviceRoot()` (`main.js:430-435`) no tiene fallback a `localStorage('anbernic_path')` a diferencia del texto de la barra (`sync.js:85`); afecta también a `collection.js`, `organize.js`, `games.js` que usan la misma función | Bug | S | ⬜ |
+| ASSETS-UX-2 | **"Ejecuta un Scan" también sale cuando el filtro simplemente no tiene resultados** — el filtro se aplica antes de comprobar vacío (`sync.js:92-94`); "Solo huérfanos" sin ninguno (buena noticia) muestra el mismo mensaje que "nunca escaneado" | UX | XS | ⬜ |
+| ASSETS-UX-3 | **Error sin guía, a diferencia del resto del mismo archivo** — catch de `loadAssets` (`sync.js:108-109`) solo muestra `e.message`; el catch de `loadSync` unas líneas arriba (`sync.js:65`) sí da pista + enlace a Ajustes | UX | XS | ⬜ |
+| ASSETS-UX-4 | **Columna "Huérfanos" sin ninguna acción asociada** — solo informativo, sin enlace para ver/mover/eliminar los archivos concretos (`sync.js:104`) | UX | S | ⬜ |
+| ASSETS-UX-5 | **Estado vacío sin enlace a la acción que lo resuelve** — "Ejecuta un Scan" es texto plano sin botón a Organizar (`sync.js:94`) | UX | XS | ⬜ |
+
+---
+
+## COLECCION-UX — Auditoría de la pestaña Colección + ¿fusión con Juegos? (2026-07-13)
+
+El usuario preguntó si Colección y Juegos deberían fusionarse. Comparando el
+código: ambas pintan una galería casi idéntica (mismo endpoint `/api/games`,
+mismo panel de detalle `openGamePanel`), pero Colección solo expone 3 de los
+9 filtros de Juegos — es un subconjunto duplicado, no una vista distinta. Lo
+que Colección aporta de verdad son sus paneles de análisis agregado (Stats,
+Disco, Diff PC/Android, Completitud, Wishlist), que no tienen sentido dentro
+de la ficha de un juego. **Recomendación: no fusionar mecánicamente — retirar
+la galería duplicada de Colección y dejar la pestaña como dashboard de
+análisis puro.** Razonamiento completo y hallazgos de bugs en
+`Tareas/Roadmap-Coleccion-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| COLECCION-UX-1 | **Botón "🏥 Health" no hace nada** — `togglePlatformHealth()` se llama sin argumento (`tab-collection.html:22`), nunca alterna el panel (a diferencia de sus hermanos en `collection.js`), y escribe en `#platform-health-content` que no existe (real: `#ph-table`); `loadPlatformHealth()` es además un TODO puro (`esde.js:632-661`). Cuarta ocurrencia del patrón HTML/JS-ID-mismatch (HERR-UX-1/2/3, FORMATOS-UX-2) | Bug | S | ⬜ |
+| COLECCION-UX-2 | **Dos galerías divergentes del mismo dato** — Colección (`col-grid`) y la vista cuadrícula de Juegos comparten endpoint y panel de detalle pero Colección solo tiene 3 de los 9 filtros de Juegos; decisión de producto antes de tocar código (ver recomendación de fusión) | Decisión | M | ⬜ |
+| COLECCION-UX-3 | **"Exportar CSV" da resultados distintos según la pestaña** — el export de Juegos no manda `root` (`tab-games.html:46-47`), el de Colección sí (`collection.js:311-313`); mismo botón, mismo texto, distinto resultado sin avisar | Bug | XS | ⬜ |
+| COLECCION-UX-4 | **"ROMs faltantes" es código muerto con mejor funcionalidad que el panel activo** — `missing-section`/`loadMissingRoms()` (`tab-collection.html:113-124`, `collection.js:65-88`) nunca se invoca desde ningún botón, pero tiene wishlist + enlace IA + copiar búsqueda que el panel "Completitud" vivo no tiene | UX | S | ⬜ |
+| COLECCION-UX-5 | **Pulido: 5 acordeones sin "cerrar todos" + filtro de plataforma duplicado con estilo distinto al de Juegos** (`collection.js:182-197` vs `games-platform` select) | UX | XS | ⬜ |
+
+---
+
+## DUPLICADOS-UX — Auditoría de la pestaña Duplicados: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Duplicados (`tab-duplicates.html` +
+`js/tabs/duplicates.js`). A diferencia de otras pestañas, aquí no hay
+botones muertos — el problema central es un desajuste real entre lo que se
+confirma y lo que se borra: el filtro de plataforma es solo visual,
+`deleteAllDuplicates()` cuenta filas del DOM ya filtrado para el diálogo de
+confirmación pero el backend borra duplicados de **toda** la biblioteca sin
+recibir ningún filtro. Detalle, archivo:línea y fases en
+`Tareas/Roadmap-Duplicados-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| DUPLICADOS-UX-1 | **"Eliminar todos" borra más de lo que confirma con un filtro de plataforma activo** — el filtro solo afecta al render (`duplicates.js:381-386`); `deleteAllDuplicates()` cuenta filas del DOM filtrado para el diálogo pero llama a `/api/duplicates/delete-all` con `source_root:''` (`duplicates.js:64-109`), que borra duplicados de toda la biblioteca sin filtro de plataforma posible en el backend (`services/duplicates_service.py:90`) | Bug | S | ⬜ |
+| DUPLICADOS-UX-2 | **Toasts rotos: `showToast(msg, true/false)` en vez del string esperado** — `deleteAllDuplicates` (líneas 67,103) y `deleteDuplicate` (línea 134); el resto del mismo archivo usa `'ok'/'err'/'info'` correctamente | Bug | XS | ⬜ |
+| DUPLICADOS-UX-3 | **Mensajes contradictorios sobre si el borrado se puede deshacer** — 4 acciones dicen "no se puede deshacer" pese a usar la misma papelera `_descartados/` (AUD-3) que `deleteRaDuplicate`, cuyo mensaje sí lo menciona ("difícil de deshacer") | UX | S | ⬜ |
+| DUPLICADOS-UX-4 | **`confirm()` nativo en 2 de 6 sitios pese a tener `_showConfirm` ya importado** — `deleteRaDuplicate` (línea 255) y `discardAllRaDuplicates` (línea 323) | UX | XS | ⬜ |
+| DUPLICADOS-UX-5 | **"Copia intencional ✓" es permanente sin UI para revisarla o deshacerla** — `markAsIntentionalCopy` excluye un grupo para siempre; no existe ninguna lista de grupos excluidos en la app | UX | S | ⬜ |
+| DUPLICADOS-UX-6 | **"Tools" en inglés (y nombre de pestaña incorrecto) en 2 sitios** — `tab-duplicates.html:22` y `duplicates.js:331`; la pestaña real se llama "Herramientas" | UX | XS | ⬜ |
+| DUPLICADOS-UX-7 | **Estado vacío filtrado sin botón para quitar el filtro** — a diferencia del estado vacío general, que sí usa el componente `_emptyState` con CTA (`duplicates.js:390-392`) | UX | XS | ⬜ |
+
+---
+
+## PLAN-UX — Auditoría de la pestaña Plan/Organizar: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Plan (`tab-plan.html` + `js/tabs/organize.js`) — la
+más madura de las auditadas hasta ahora (resumen, progreso, panel de
+errores, buena distinción colisión-de-plan vs conflicto-de-disco con enlace
+a Duplicados). El usuario preguntó si podía fusionarse con otra pestaña:
+**no hay una duplicación clara que lo justifique** — el solapamiento con
+Duplicados ya está bien explicado en la propia UI; el candidato real para
+una futura revisión es Inbox (su pipeline automático ya hace internamente
+lo que Plan hace a mano), pendiente de auditar. Detalle, archivo:línea y
+fases en `Tareas/Roadmap-Plan-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| PLAN-UX-1 | **"La operación es reversible" sin que exista ningún "Deshacer"** — `doApply()` lo afirma en su confirmación (`organize.js:458`) pese a que `MEJ-2` (deshacer último apply) sigue pendiente; `applyKeepBoth()` ni lo menciona | UX | XS | ⬜ |
+| PLAN-UX-2 | **Las dos acciones de mayor riesgo usan `confirm()` nativo; las de menor riesgo, el modal propio** — `doApply`/`applyKeepBoth` (líneas 458,310) vs `deleteCollisionDuplicates`/`_discardCollisionEntry` (líneas 401,429), mismo archivo | UX | XS | ⬜ |
+| PLAN-UX-3 | **"Filtrar por dispositivo" quedó sin función útil tras DEVSEL-FIX-3** — `/api/plan` ya resuelve un único repositorio por dispositivo activo; el dropdown (`tab-plan.html:29-34`) filtra sobre datos que ya son de un solo dispositivo, vaciando la tabla sin explicación si se elige el que no se está viendo | UX | S | ⬜ |
+| PLAN-UX-4 | **Mismo bug de `_deviceRoot()` que ASSETS-UX-1** — `organize.js:52,322,469`; se resuelve con el mismo fix compartido en `main.js` | Bug | — | ⬜ (cubierto por ASSETS-UX-1) |
+| PLAN-UX-5 | **Conflictos "unknown" sin ninguna explicación** — a diferencia de los tipos `collision`/`disk`, que sí tienen contexto y acciones (`organize.js:164,265-272`) | UX | XS | ⬜ |
+
+---
+
+## SCRAPER-UX — Auditoría de la pestaña Scraper: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Scraper (`tab-scraper.html` + `js/tabs/scraper.js`).
+Sin botones muertos ni riesgo de datos (solo lee/escribe metadatos). El
+problema central: la funcionalidad de ScreenScraper está repartida entre
+Scraper y Settings sin puente entre ellas — la cuota de peticiones diarias
+solo se ve en Settings, y exportar `gamelist.xml` existe por duplicado en
+ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
+`Tareas/Roadmap-Scraper-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ⬜ |
+| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ⬜ |
+| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ⬜ |
+| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ⬜ |
+| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ⬜ |
+| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ⬜ |
+| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ⬜ |
+
+---
+
+## INBOX-UX — Auditoría de la pestaña Inbox: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Inbox (`tab-inbox.html` + `js/tabs/inbox.js`,
+Pilar 2). Cierra el hilo abierto en `Tareas/Roadmap-Plan-UX.md`: **no se
+fusiona con Plan** — el pipeline de Inbox incluye pasos que Plan no tiene
+(extraer, escanear, cotejar) precisamente porque parte de archivos aún no
+escaneados; son dos pilares distintos, no una duplicación. Hallazgo
+principal propio: "Organizar todo" es la única acción masiva de todo el
+proyecto auditado hasta ahora sin ningún paso de confirmación. Detalle,
+archivo:línea y fases en `Tareas/Roadmap-Inbox-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| INBOX-UX-1 | **"Organizar todo" sin ninguna confirmación** — `runInbox()` (`inbox.js:160-186`) lanza extraer+escanear+cotejar+renombrar+organizar sobre toda la carpeta Inbox sin `confirm()`/`_showConfirm`, a diferencia de toda acción masiva equivalente ya auditada (Duplicados, Plan, Formatos) | Bug | S | ⬜ |
+| INBOX-UX-2 | **"Analizar carpeta" no muestra un plan real, solo clasificación** — sin nombres de destino ni conflictos previstos, a diferencia de la tabla equivalente en Plan; conviene resolver junto con INBOX-UX-1 (la confirmación necesita estos datos) | UX | M | ⬜ |
+| INBOX-UX-3 | **`confirm()` nativo en `resolveInboxConflict`** (`inbox.js:321-336`) — mismo patrón ya señalado en Duplicados y Plan | UX | XS | ⬜ |
+| INBOX-UX-4 | **Checkbox "Procesar automáticamente" sin relación visible con "Guardar ajustes"** — toggle silencioso que no hace nada hasta pulsar un botón en otra fila (`tab-inbox.html:31-34,40`) | UX | XS | ⬜ |
+| INBOX-UX-5 | **"No reconocidos" sin explicar qué pasará con esos archivos** (`inbox.js:128`) | UX | XS | ⬜ |
+| INBOX-UX-6 | **Errores sin guía en `loadInboxConflicts`** (`inbox.js:314-316`) | UX | XS | ⬜ |
+
+---
+
+## TV-UX — Auditoría del Modo TV: UX/UI (2026-07-13)
+
+Auditoría del Modo TV (`tab-tv.html` + `games.js:904-976` +
+`main.js:737-782`). Modo de navegación legítimamente distinto (foco por
+teclado, pantalla completa) — no candidato a fusión. Dos hallazgos
+críticos: la colección se corta en 120 juegos sin forma de cargar más
+(`_TV_LIMIT`, paginación soportada por el backend pero nunca disparada), y
+la barra de filtro por plataforma existe en el HTML pero ninguna función
+la rellena jamás — planeada pero nunca conectada. Detalle, archivo:línea y
+fases en `Tareas/Roadmap-TV-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| TV-UX-1 | **La colección se corta en 120 juegos sin forma de cargar más** — `loadTvGrid` soporta `offset` (`games.js:918-934`) pero nada lo dispara nunca con offset > 0; `_tvMoveFocus` simplemente deja de avanzar al llegar al final sin avisar | Bug | S | ⬜ |
+| TV-UX-2 | **Barra de filtro por plataforma nunca rellenada** — `tv-platform-bar`/`tv-platform-label` (`tab-tv.html:3-4`) vacíos para siempre; `loadTvGrid` ya acepta `platform` pero `enterTvMode()` siempre llama con `''` (`games.js:905-910`) | Bug | S | ⬜ |
+| TV-UX-3 | **"Salir" siempre vuelve a Colección, ignorando de dónde viniste** — `exitTvMode()` hace `showTab('collection')` fijo (`games.js:912-916`) pese a que `t` es un atajo global desde cualquier pestaña | UX | XS | ⬜ |
+| TV-UX-4 | **Fallo de red deja la rejilla en blanco sin ningún aviso** — catch de `loadTvGrid` solo hace `console.error` (`games.js:933`), sin mensaje visible en un modo a pantalla completa | UX | XS | ⬜ |
+| TV-UX-5 | **Pulido: fallo de pantalla completa silencioso + `_tvCols` no se recalcula al redimensionar** (`games.js:908,959`) | UX | XS | ⬜ |
+
+---
+
+## SETTINGS-UX — Auditoría de la pestaña Settings: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Settings (`tab-settings.html`, ~500 líneas/20+
+paneles, + `js/tabs/config.js`, ~870 líneas) — la más grande de la app.
+Hallazgo principal, verificado de forma independiente en frontend y
+backend: el campo "ES-DE carpeta" nunca ha podido guardar nada porque el
+backend filtra `launchers.esde` de su lista de claves permitidas (a
+diferencia de `launchers.retroarch`, que sí está) — fix de una línea.
+Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ⬜ |
+| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ⬜ |
+| SETTINGS-UX-3 | **Panel "Configurar consola Android" (QR) — ya cubierto por ANBERNIC-UX-2** — mismo endpoint 404 (`/api/anbernic-setup.sh`), aplica también a esta copia del panel (`tab-settings.html:12-39`) | Bug | — | ✅ (panel eliminado en feature/anbernic-ux) |
+| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ⬜ |
+| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ⬜ |
 
 ---
 

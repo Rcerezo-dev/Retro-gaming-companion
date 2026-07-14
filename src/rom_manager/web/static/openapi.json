@@ -4594,9 +4594,9 @@
         }
       }
     },
-    "/api/anbernic-setup.sh": {
+    "/api/anbernic-setup-token": {
       "get": {
-        "summary": "Generate personalised Android/Termux setup shell script",
+        "summary": "Mint the short-lived setup token embedded in the /s command",
         "tags": [
           "Setup"
         ],
