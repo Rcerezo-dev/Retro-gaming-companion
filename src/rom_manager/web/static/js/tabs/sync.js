@@ -816,6 +816,10 @@ async function runSyncDoctor() {
   }
 }
 
+// CABLE-UX-3: preseleccionar el modo una sola vez por sesión de pestaña — no
+// pelear con un cambio manual del usuario en visitas posteriores.
+let _cableModeAutoSelected = false;
+
 async function loadCableSync() {
   // QoL-14: offline badge for ADB
   apiFetch('/api/system-status').then(st => {
@@ -834,6 +838,27 @@ async function loadCableSync() {
     _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || storedAb || '');
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
+
+    // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
+    // los controles, no solo actualizarse tras un onchange manual del usuario.
+    _onCableDryRunChange();
+    _onCableDirectionChange();
+
+    if (!_cableModeAutoSelected) {
+      _cableModeAutoSelected = true;
+      const devs = await apiFetch('/api/adb-devices').catch(() => ({ devices: [] }));
+      const hasReady = (devs.devices || []).some(d => d.ready);
+      const adbRadio = document.querySelector('input[name="cable-ab-mode"][value="adb"]');
+      const fsRadio  = document.querySelector('input[name="cable-ab-mode"][value="fs"]');
+      if (hasReady && adbRadio) {
+        adbRadio.checked = true;
+        _onCableModeChange();
+        detectAdbDevices();
+      } else if (!hasReady && cfg.anbernic_root && fsRadio) {
+        fsRadio.checked = true;
+        _onCableModeChange();
+      }
+    }
   } catch(_) {}
 }
 

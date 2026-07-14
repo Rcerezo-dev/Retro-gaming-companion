@@ -81,7 +81,7 @@ antes del panel de Sync Doctor) quedó envuelto en
 
 ---
 
-## CABLE-UX-3 — Autoseleccionar modo SD/ADB (pilar 3)
+## CABLE-UX-3 — Autoseleccionar modo SD/ADB (pilar 3) ✅
 
 **Problema.** El radio `cable-ab-mode` (`tab-cable.html:198-210`) pregunta al
 usuario algo que la app ya sabe: el daemon ADB sondea dispositivos cada 10 s y
@@ -95,6 +95,13 @@ Resuelve de rebote VAL-FIX-6 (no se validaría la ruta SD en modo ADB).
 **Archivos.** `web/static/js/tabs/sync.js` (`loadCableSync`).
 **Esfuerzo.** S. **Hecho cuando** abrir la pestaña con la consola por USB deja
 el modo ADB activo con el dispositivo seleccionado, sin clics.
+
+**Hecho.** `loadCableSync()` consulta `/api/adb-devices` una vez por sesión de
+pestaña (flag `_cableModeAutoSelected`, para no pelear con un cambio manual
+del usuario en visitas posteriores): si hay un device `ready`, marca el radio
+ADB, llama `_onCableModeChange()` y `detectAdbDevices()`; si no y
+`anbernic_root` está configurado, marca el radio SD. El radio sigue editable
+a mano en cualquier momento.
 
 ---
 
@@ -129,7 +136,7 @@ cada ruta se escribe una sola vez y ambos modos/la tarjeta la comparten.
 
 ---
 
-## CABLE-UX-6 — Defaults coherentes (dirección y aviso de dry-run)
+## CABLE-UX-6 — Defaults coherentes (dirección y aviso de dry-run) ✅
 
 **Problema.** Dirección por defecto "PC → Consola: *Sobrescribe los archivos
 de la consola*" (`tab-cable.html:170-173`) con "Modo seguro (*no
@@ -143,6 +150,12 @@ aviso de dry-run con el estado inicial del checkbox al cargar.
 
 **Archivos.** `tab-cable.html`, `sync.js`. **Esfuerzo.** S. **Hecho cuando**
 los defaults no se contradicen y el aviso refleja el estado real al abrir.
+
+**Hecho.** El radio `checked` por defecto pasó de `pc_to_anbernic` a `newest`.
+`loadCableSync()` llama `_onCableDryRunChange()` y `_onCableDirectionChange()`
+al cargar la pestaña (antes solo corrían en el `onchange` manual), así el
+aviso "se copiarán realmente" y las filas condicionales (SHA1/espejo)
+reflejan el estado inicial real de los controles, no una foto fija del HTML.
 
 ---
 
