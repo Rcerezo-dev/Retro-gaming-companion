@@ -372,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "apply":
-        from rom_manager.renamer.file_renamer import rename_rom_with_saves
+        from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
         from rom_manager.scanner.rom_scanner import utc_now
 
         plan = build_plan(repository)
@@ -383,10 +383,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         save_exts = frozenset(config.save_extensions)
+        extra_save_dirs = central_save_dirs(config)
         timestamp = utc_now()
         renamed = failed = saves_renamed = 0
         for op in plan.pending:
-            outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+            outcome = rename_rom_with_saves(
+                op.source_path, op.target_path, save_exts, extra_dirs=extra_save_dirs
+            )
             if outcome.success:
                 repository.apply_rename(
                     game_id=op.game.id,

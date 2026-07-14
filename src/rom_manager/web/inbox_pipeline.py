@@ -801,7 +801,10 @@ def _run_inbox_pipeline(
 
         # ── Step 5: Apply renames ────────────────────────────────────────────
         _upd("renaming", 5, 0, len(pending_ops))
+        from rom_manager.renamer.file_renamer import central_save_dirs
+
         save_exts = frozenset(config.save_extensions)
+        extra_save_dirs = central_save_dirs(config)
         timestamp = utc_now()
         renamed = 0
         rename_errors: list[str] = []
@@ -810,7 +813,9 @@ def _run_inbox_pipeline(
             if not op.source_path.exists():
                 continue
             try:
-                outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                outcome = rename_rom_with_saves(
+                    op.source_path, op.target_path, save_exts, extra_dirs=extra_save_dirs
+                )
                 if outcome.success:
                     repository.apply_rename(
                         game_id=op.game.id,

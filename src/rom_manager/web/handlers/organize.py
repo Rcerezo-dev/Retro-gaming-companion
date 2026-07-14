@@ -100,10 +100,11 @@ def _do_apply(
     def run() -> None:
         job_result = None
         try:
-            from rom_manager.renamer.file_renamer import rename_rom_with_saves
+            from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
             from rom_manager.scanner.rom_scanner import utc_now
 
             save_exts = frozenset(config.save_extensions)
+            extra_save_dirs = central_save_dirs(config)
             apply_repo = get_repo_fn(source_root or "")
             plan = build_plan(apply_repo, opts, keep_both=keep_both)
             pending_ops = plan.pending
@@ -141,6 +142,7 @@ def _do_apply(
                             save_exts,
                             backup_root=bk,
                             backup_keep_n=config.backup.saves_keep_n,
+                            extra_dirs=extra_save_dirs,
                         )
                     else:
                         outcome = rename_rom_with_saves(
@@ -149,6 +151,7 @@ def _do_apply(
                             save_exts,
                             backup_root=bk,
                             backup_keep_n=config.backup.saves_keep_n,
+                            extra_dirs=extra_save_dirs,
                         )
                 except Exception as exc:
                     skipped += 1

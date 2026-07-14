@@ -230,10 +230,11 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
     """
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
-    from rom_manager.renamer.file_renamer import rename_rom_with_saves
+    from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
 
     opts = FormatOptions()
     plan = build_plan(repository, opts)
+    extra_save_dirs = central_save_dirs(config)
 
     resolved = 0
     skipped_no_ra = 0
@@ -280,7 +281,9 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
             continue
         if winner_path and winner_target and winner_path.exists():
             save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
-            outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
+            outcome = rename_rom_with_saves(
+                winner_path, winner_target, save_exts, extra_dirs=extra_save_dirs
+            )
             if not outcome.success:
                 errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
             else:
@@ -332,7 +335,10 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
                     frozenset(config.save_extensions) if config.save_extensions else frozenset()
                 )
                 outcome = rename_rom_with_saves(
-                    winner_op.source_path, winner_op.target_path, save_exts
+                    winner_op.source_path,
+                    winner_op.target_path,
+                    save_exts,
+                    extra_dirs=extra_save_dirs,
                 )
                 if not outcome.success:
                     errors.append(f"{winner_op.source_path.name}: rename failed — {outcome.error}")
