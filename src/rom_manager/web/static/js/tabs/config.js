@@ -4,6 +4,7 @@
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
+import { updateDeviceButton } from '../state.js';
 
 // Local helpers (small utils duplicated from app.js, removed when app.js is deleted)
 const _txtCls = (el, cls) => {
@@ -706,7 +707,7 @@ async function saveOvPaths() {
   const abLabel = document.getElementById('scan-ab-label');
   const abLbl   = document.getElementById('ov-ab-path-label');
   if (abCb)    { abCb.disabled = !abPath; if (abPath && !abCb.checked) abCb.checked = true; }
-  if (devAb)   devAb.disabled = !abPath;
+  if (devAb)   { devAb.dataset.hasPath = abPath ? '1' : ''; updateDeviceButton(); }
   if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
   if (abLbl)   abLbl.textContent = abPath ? '— ' + abPath : '';
   // Reload Anbernic stats in Overview if path changed

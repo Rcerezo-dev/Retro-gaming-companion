@@ -4,7 +4,7 @@
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { gamesState } from './games.js';
-import { getDeviceConnected, getDeviceConnectReason } from '../state.js';
+import { getDeviceConnected, getDeviceConnectReason, updateDeviceButton } from '../state.js';
 
 // ── Local helpers (duplicated for module scope) ───────────────────────────────
 const _h = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -420,9 +420,9 @@ export async function loadOverview() {
     if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
     if (abCb) { abCb.disabled = !abPath; if (abPath && !abCb.checked) abCb.checked = true; }
 
-    // Enable/disable Anbernic device button
+    // Enable/disable Anbernic device button (DEVSEL-FIX-4: ruta Y detección)
     const devAb = document.getElementById('dev-anbernic');
-    if (devAb) devAb.disabled = !abPath;
+    if (devAb) { devAb.dataset.hasPath = abPath ? '1' : ''; updateDeviceButton(); }
 
     // Config summary
     const cfgEl = document.getElementById('ov-config-summary');
