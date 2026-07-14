@@ -842,11 +842,12 @@ async function loadCableSync() {
     const cfg = await apiFetch('/api/config');
     const ovPc = document.getElementById('ov-pc-path')?.value.trim();
     const ovAb = document.getElementById('ov-ab-path')?.value.trim();
-    const storedPc = localStorage.getItem('cable_pc_path') || '';
-    const storedAb = localStorage.getItem('anbernic_path') || '';
-    // CABLE-UX-5: un solo input de ruta PC, compartido por ambos modos
-    _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || storedPc || '');
-    _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || storedAb || '');
+    // CABLE-UX-10: config (library_root/anbernic_root) como única fuente de
+    // verdad — fuera el localStorage, que quedaba como estado fantasma tras
+    // cambiar la ruta en Settings. El override de Overview (ov-*) es la misma
+    // convención puntual que usan Assets/Colección/Organizar/Juegos.
+    _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || '');
+    _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || '');
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
 
@@ -986,9 +987,8 @@ async function doCableSync() {
   } else {
     const abPath = document.getElementById('cable-ab-path')?.value.trim();
     if (!abPath) { alert('Introduce la ruta de la tarjeta SD / consola Android.'); return; }
-    // Persist paths for next session
-    localStorage.setItem('anbernic_path', abPath);
-    if (pcPath) localStorage.setItem('cable_pc_path', pcPath);
+    // CABLE-UX-10: sin localStorage — config (anbernic_root/library_root en
+    // Ajustes) es la única fuente persistente; esto es solo la sesión actual.
     body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
   }
 

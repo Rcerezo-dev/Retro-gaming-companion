@@ -238,7 +238,7 @@ y los tests cubren las políticas en un solo sitio.
 
 ---
 
-## CABLE-UX-10 — Config como única fuente de verdad para rutas
+## CABLE-UX-10 — Config como única fuente de verdad para rutas ✅
 
 **Problema.** Cascada `ovPc || cfg.library_root || localStorage` en
 `loadCableSync` (`sync.js:787-796`) mezclando inputs de Overview, config y
@@ -250,6 +250,15 @@ eliminar el localStorage y la lectura de inputs de otra pestaña.
 
 **Archivos.** `sync.js`. **Esfuerzo.** S. **Hecho cuando** cambiar la ruta en
 Settings se refleja en Cable Sync sin estados fantasma.
+
+**Hecho.** `localStorage.getItem/setItem('cable_pc_path'|'anbernic_path')`
+eliminado de `loadCableSync()` y `doCableSync()`. Se mantiene el override de
+Overview (`ov-pc-path`/`ov-ab-path`) — es la misma convención puntual que ya
+usan Assets/Colección/Organizar/Juegos (bug de esa convención ya cubierto
+por ASSETS-UX-1, fuera de alcance aquí). Sin escritura automática a config
+desde Cable Sync: si el usuario quiere que la ruta persista, la fija en
+Ajustes explícitamente — evita sobreescribir `library_root`/`anbernic_root`
+como efecto secundario silencioso de escribir en un campo de esta pestaña.
 
 ---
 
