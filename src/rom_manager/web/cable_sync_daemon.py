@@ -90,6 +90,36 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
             _logger.info("Auto-sync: new device %s — starting sync", serial)
 
+            # CABLE-UX-1: mismo guard de reloj que el sync manual (AUD-1) — el
+            # auto-sync dispara "newest" en cada conexión sin pedir confirmación,
+            # así que aquí no hay usuario que decida "continuar de todos modos".
+            if config.sync.auto_sync_direction == "newest":
+                from rom_manager.web.handlers.sync_cable import _build_sync_doctor
+
+                try:
+                    _doc = _build_sync_doctor(
+                        config, None, serial, config.sync.auto_sync_android_path, "", quick=True
+                    )
+                except Exception:
+                    _logger.debug("Pre-flight de reloj de auto-sync falló", exc_info=True)
+                    _doc = {"skew_exceeded": False}
+                if _doc.get("skew_exceeded"):
+                    _logger.warning(
+                        "Auto-sync: reloj desviado %.0fs en %s — sync abortado",
+                        _doc.get("skew_seconds", 0),
+                        serial,
+                    )
+                    _state._auto_sync_status = {
+                        "state": "idle",
+                        "last_device": serial,
+                        "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
+                        "last_error": (
+                            f"Reloj desviado {_doc.get('skew_seconds', 0):.0f}s — "
+                            "ajusta la hora de la consola"
+                        ),
+                    }
+                    continue
+
             now_str = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _state._auto_sync_status = {
                 "state": "syncing",

@@ -256,6 +256,29 @@ def _do_cable_sync(
         ctx._send_json({"error": "anbernic_path is required"})
         return
 
+    # CABLE-UX-1: pre-flight de reloj en el backend (antes solo existía en el
+    # frontend) — cubre tanto el sync manual como el botón "Sincronizar saves
+    # ahora", que postea a este mismo endpoint.
+    if use_adb and direction == "newest" and not dry_run:
+        try:
+            _doc = _build_sync_doctor(
+                config, repository, adb_serial, android_path, pc_path_str, quick=True
+            )
+        except Exception as exc:
+            ctx._send_json({"error": f"No se pudo comprobar el reloj de la consola: {exc}"})
+            return
+        if _doc.get("skew_exceeded"):
+            ctx._send_json(
+                {
+                    "error": (
+                        f"Reloj de la consola desviado {_doc['skew_seconds']:.0f}s "
+                        f"(umbral {_doc['threshold_seconds']}s) — ajusta la hora de la "
+                        'consola antes de sincronizar por fecha ("Igualar ambos dispositivos").'
+                    )
+                }
+            )
+            return
+
     def run() -> None:
         cancel_event = job_manager.cancel_event("cable_sync")
         _log_file = None

@@ -868,6 +868,51 @@ async function loadCableSyncPreview() {
   }
 }
 
+// ── CABLE-UX-2: botón primario "Sincronizar saves ahora" ─────────────────────
+// Reutiliza /api/cable-sync (mismo motor que el formulario avanzado) con los
+// parámetros de la tarjeta de auto-sync — nada de un segundo camino de copia.
+async function doQuickSync() {
+  const btn = document.getElementById('btn-quick-sync');
+  const statusEl = document.getElementById('quick-sync-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando…'; }
+  if (statusEl) { statusEl.textContent = ''; _txtCls(statusEl, ''); }
+  try {
+    const [cfg, autoSt, devs] = await Promise.all([
+      apiFetch('/api/config'),
+      apiFetch('/api/auto-sync-status'),
+      apiFetch('/api/adb-devices').catch(() => ({ devices: [] })),
+    ]);
+    const pcPath = cfg.library_root;
+    if (!pcPath) throw new Error('Configura la carpeta de biblioteca (library_root) en Ajustes primero.');
+    const direction = autoSt.config?.direction || 'newest';
+    const androidPath = autoSt.config?.android_path || '/storage/emulated/0/RetroArch';
+
+    let body;
+    const ready = (devs.devices || []).filter(d => d.ready);
+    if (ready.length) {
+      body = { pc_path: pcPath, use_adb: true, adb_serial: ready[0].serial, android_path: androidPath,
+               what: ['saves'], direction, dry_run: false, skip_existing: true, safe_mode: false };
+    } else if (cfg.anbernic_root) {
+      body = { pc_path: pcPath, anbernic_path: cfg.anbernic_root,
+               what: ['saves'], direction, dry_run: false, skip_existing: true, safe_mode: false };
+    } else {
+      throw new Error('No se detecta la consola por ADB ni hay una ruta SD configurada (anbernic_root en Ajustes).');
+    }
+
+    _requestNotifPermission();
+    const d = await apiPost('/api/cable-sync', body);
+    if (d.status === 'already_running') {
+      if (statusEl) statusEl.textContent = 'Ya hay una sincronización en curso…';
+      return;
+    }
+    if (statusEl) statusEl.textContent = 'Sincronizando…';
+    startPolling();
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = '✗ ' + e.message; _txtCls(statusEl, 'txt-err'); }
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Sincronizar saves ahora'; }
+  }
+}
+
 async function doCableSync() {
   const adb = _isAdbMode();
   const pcPath = (adb
@@ -899,16 +944,8 @@ async function doCableSync() {
     const serial      = document.getElementById('cable-adb-device')?.value.trim();
     const androidPath = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
     if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
-    // AUD-1: pre-flight de reloj antes de resolver conflictos por mtime
-    if (direction === 'newest' && !dryRun) {
-      try {
-        const chk = await apiFetch(`/api/sync-doctor?serial=${encodeURIComponent(serial)}&quick=1`);
-        if (chk.skew_exceeded) {
-          const dir = chk.skew_seconds > 0 ? 'adelantado' : 'atrasado';
-          if (!confirm(`⚠ El reloj de la consola va ${dir} ${_skewLabel(chk.skew_seconds)} respecto al PC (umbral ${chk.threshold_seconds} s).\n\n"Igualar ambos dispositivos" decide por fecha de modificación: con el reloj mal puesto puede ganar el lado equivocado y perder progreso.\n\n¿Continuar de todos modos?`)) return;
-        }
-      } catch (_) { /* sin diagnóstico disponible — no bloquear el sync */ }
-    }
+    // CABLE-UX-1: el pre-flight de reloj ahora vive en el backend (bloquea con
+    // error en vez de confirm()) — cubre este camino y el auto-sync por igual.
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
              what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
   } else {
@@ -1660,6 +1697,7 @@ export {
   loadCableSync,
   loadCableSyncPreview,
   doCableSync,
+  doQuickSync,
   _renderCableSyncResult,
   toggleCableSyncLog,
   loadCableSyncLog,

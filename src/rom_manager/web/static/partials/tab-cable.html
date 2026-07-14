@@ -5,6 +5,13 @@
     <span style="color:var(--c-dim);margin-left:8px">Usa modo SD card o instala ADB.</span>
   </div>
 
+  <!-- CABLE-UX-2: acción primaria del pilar 3 — un clic, sin decisiones -->
+  <div class="actions-panel" style="max-width:780px;margin-bottom:20px;border-left-color:var(--c-purple);text-align:center;padding:24px 20px">
+    <button id="btn-quick-sync" class="btn primary" onclick="doQuickSync()" style="font-size:15px;padding:12px 32px;font-weight:700">&#x25B6; Sincronizar saves ahora</button>
+    <div id="quick-sync-status" style="margin-top:10px;font-size:12px;color:var(--c-muted);min-height:16px"></div>
+    <div style="font-size:11px;color:var(--c-dim);margin-top:4px">Usa la consola detectada por ADB (o la ruta SD configurada) y la dirección de la tarjeta de abajo.</div>
+  </div>
+
   <!-- AUTO-SYNC CARD -->
   <div id="auto-sync-card" class="rv-tint-info" style="max-width:780px;margin-bottom:20px;border-radius:8px;border-left:4px solid var(--c-teal);padding:18px 20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -134,6 +141,12 @@
 
     </div>
   </div>
+
+  <!-- CABLE-UX-2: el formulario manual queda plegado — la acción del día a día ya está arriba -->
+  <details style="max-width:780px">
+  <summary style="cursor:pointer;padding:10px 0;font-size:13px;color:var(--c-teal);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+    &#x2699; Sincronización avanzada <span style="color:var(--c-dim);font-size:11px;font-weight:400">(elegir qué copiar, dirección manual, modo SD/ADB, opciones)</span>
+  </summary>
 
   <!-- Formulario de sincronización -->
   <div class="actions-panel" style="max-width:780px">
@@ -311,6 +324,7 @@
     </div>
     <div id="cable-result" class="job-result"></div>
   </div>
+  </details>
 
   <!-- AUD-1: SYNC DOCTOR -->
   <div class="actions-panel" style="margin-top:20px;max-width:780px">
