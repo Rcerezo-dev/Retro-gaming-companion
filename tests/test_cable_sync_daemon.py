@@ -106,6 +106,21 @@ def test_newest_propagates_newer_side(tmp_path: Path) -> None:
     assert ab_file.read_bytes() == b"NEW"
 
 
+def test_overwrite_backs_up_destination_first(tmp_path: Path) -> None:
+    pc = tmp_path / "pc"
+    ab = tmp_path / "ab"
+    _write(pc, "gba", "mario.sav", content=b"NEWDATA")
+    _write(ab, "gba", "mario.sav", content=b"OLDDATA")
+
+    _run(_make_config(tmp_path, pc, ab, "pc_to_anbernic"))
+
+    backup_root = tmp_path / ".rommgr" / "cable_sync_backups"
+    backups = list(backup_root.glob("*/anbernic/gba/mario.sav"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == b"OLDDATA"
+    assert (ab / "gba" / "mario.sav").read_bytes() == b"NEWDATA"
+
+
 def test_newest_skips_when_pc_is_newer(tmp_path: Path) -> None:
     pc = tmp_path / "pc"
     ab = tmp_path / "ab"

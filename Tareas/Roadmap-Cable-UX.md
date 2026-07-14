@@ -227,14 +227,103 @@ sin backup en `pc_to_anbernic` (`cable_sync_daemon.py:409-429`), rozando la
 regla "ante duda, no sobreescribir". Es la causa raíz de CABLE-UX-1 y de
 futuras divergencias.
 
-**Propuesta.** Extraer un módulo compartido de sync (walk, filtro por
-extensiones, compare por mtime, copy con verify/safe/log) que consuman los
-tres. Las políticas (safe_mode, verify, skew-check) se definen una vez.
+Dividido en subtareas más pequeñas (2026-07-14) — los tres consumidores no
+son simétricos (ADB manual usa `AdbTransport`, filesystem manual usa
+`shutil`, SD-auto no tiene safe_mode), así que el motor compartido se
+construye incrementalmente en vez de en un solo refactor M-L.
 
-**Archivos.** módulo nuevo en `sync/` (p. ej. `sync/cable_engine.py`),
-`web/handlers/sync_cable.py`, `web/cable_sync_daemon.py`.
-**Esfuerzo.** M-L. **Hecho cuando** los tres caminos comparten el mismo motor
-y los tests cubren las políticas en un solo sitio.
+### CABLE-UX-9a — Backup antes de overwrite en SD auto ✅
+
+**Problema.** `_run_sd_auto_sync`, rama `pc_to_anbernic`
+(`cable_sync_daemon.py:449-450`), sobrescribe sin backup ni safe_mode. Es el
+hueco de seguridad más urgente y no depende del motor compartido.
+**Archivos.** `web/cable_sync_daemon.py`. **Esfuerzo.** S.
+
+**Hecho.** Backup a `.rommgr/cable_sync_backups/<AAAA-MM-DD>/` antes de
+sobrescribir en ambas ramas (`pc_to_anbernic` y `anbernic_to_pc`) cuando el
+destino ya existe. Se registra `BACKUP <ruta>` en el log antes del `COPY`.
+
+### CABLE-UX-9b — Extraer el motor de filesystem ✅
+
+**Propuesta.** Generalizar walk + filtro por extensión + compare por mtime +
+copy (safe_mode/verify/dry_run) de la rama no-ADB de `_do_cable_sync` en
+`sync/cable_engine.py`, sin cambiar el comportamiento de manual todavía.
+**Archivos.** módulo nuevo `sync/cable_engine.py`. **Esfuerzo.** S.
+
+**Hecho.** `sync/cable_engine.py`: `iter_files` (walk saltando dotfiles),
+`plan_direction` (resuelve `pc_to_anbernic`/`anbernic_to_pc`/`newest` a una
+lista de `CopyPlanItem` sin tocar disco) y `copy_item` (aplica
+`CopyPolicy(dry_run, safe_mode, skip_existing)` con callback `on_event` para
+logging/progreso, desacoplado de logger/job_manager concretos). No cubre
+ADB (CABLE-UX-9e) ni `delete_extra`/dedup SHA1 — siguen del lado del
+caller. Módulo aún no enchufado a ningún consumidor (eso es 9c/9d);
+`tests/test_cable_engine.py` cubre el camino feliz de cada función.
+
+### CABLE-UX-9c — Migrar SD auto al motor ✅
+
+**Propuesta.** `_run_sd_auto_sync` enchufa `cable_engine` y elimina su
+`_iter_files`/`_copy`/`_mtime` propios (incluye el backup de 9a como
+política del motor). **Archivos.** `web/cable_sync_daemon.py`.
+**Esfuerzo.** S. **Depende de** 9b.
+
+**Hecho.** `_run_sd_auto_sync` usa `cable_engine.plan_direction` +
+`copy_item`; el backup de 9a se hace por `item` antes de llamar
+`copy_item` (no dentro del motor, para no acoplar el motor a la política
+de backups). Simplificación de rebote: el motor unifica en un único plan
+lo que antes eran dos walks redundantes (uno por dirección) en modo
+`newest` — mismo resultado, menos trabajo. El contador "Omitidos" para
+empates de mtime se recalcula con un recorrido extra marcado
+`ponytail:` (árboles de saves son pequeños). Tests existentes
+(`test_cable_sync_daemon.py`) siguen en verde sin cambios.
+
+### CABLE-UX-9d — Migrar manual (rama filesystem) al motor ✅
+
+**Propuesta.** `_do_cable_sync` (rama no-ADB) pasa a ser un caller fino del
+motor. **Archivos.** `web/handlers/sync_cable.py`. **Esfuerzo.** S.
+**Depende de** 9b.
+
+**Hecho.** Los tres bucles por dirección (`pc_to_anbernic`,
+`anbernic_to_pc`, `newest`) usan `cable_engine.plan_direction` +
+`copy_item`; `_copy` local se sustituyó por `_apply_copy`, que traduce los
+eventos del motor (SAFE/SKIP/ERROR/COPY/DRYRUN) a los mismos
+contadores/log/`details` de siempre — comportamiento observable sin
+cambios. El dedup por SHA1 (`anbernic_to_pc`) y el espejo `delete_extra`
+siguen del lado del caller, como estaba previsto en 9b. El conteo de
+"Omitidos" en modo `newest` usa el mismo recorrido extra `ponytail:` que
+9c (empates de mtime no generan `CopyPlanItem`). El modo ADB no se tocó
+(CABLE-UX-9e). Nuevo `tests/test_sync_cable_filesystem.py` cubre
+pc→anbernic, safe_mode por defecto y el conteo de empates en `newest`
+disparando `_do_cable_sync` vía el router real, en vez de solo lo
+sintético; los 40 tests de `cable`/`sync` en verde.
+
+### CABLE-UX-9e — Unificar la política ADB ✅
+
+**Problema.** `_adb_copy_to_pc/device` (manual) y `_run_auto_sync` (daemon)
+reimplementan el mismo criterio "verify MD5 solo en saves" por separado.
+**Propuesta.** Wrapper compartido sobre `AdbTransport.pull/push` con esa
+política en un solo sitio (no entra en `cable_engine.py`: la primitiva de
+copia es `AdbTransport`, no `shutil`). **Archivos.**
+`web/handlers/sync_cable.py`, `web/cable_sync_daemon.py`, módulo nuevo o
+`sync/adb_transport.py`. **Esfuerzo.** S.
+
+**Hecho.** `should_verify(name, verify_exts)` en `sync/adb_transport.py` —
+única fuente de la política. Manual (`sync_cable.py`) la llama con
+`save_exts` (allí conviven ROMs y saves, así que solo verifica saves).
+Daemon (`cable_sync_daemon.py`) la llama con `effective_exts` (el filtro de
+extensión ya aplicado por fuente saves/states), preservando su
+comportamiento previo de verificar siempre — solo ve archivos que ya
+matchean esa extensión. `tests/test_adb_transport_policy.py` cubre la
+política; los 43 tests de `cable`/`sync` en verde.
+
+### CABLE-UX-9f — Tests del motor
+
+**Propuesta.** `test_cable_engine.py` cubriendo safe_mode/verify/skew en un
+solo sitio — el "hecho cuando" original de CABLE-UX-9. **Esfuerzo.** S.
+**Depende de** 9b.
+
+**Hecho cuando (conjunto).** Los tres caminos comparten el mismo motor de
+filesystem, la política ADB está unificada, y los tests cubren las
+políticas en un solo sitio.
 
 ---
 
@@ -275,7 +364,12 @@ como efecto secundario silencioso de escribir en un campo de esta pestaña.
 | 7 | CABLE-UX-5 | UX | S | Menos campos duplicados |
 | 8 | CABLE-UX-8 | UX | S | Sync Doctor a un clic |
 | 9 | CABLE-UX-10 | UX | S | Una sola fuente de verdad de rutas |
-| 10 | CABLE-UX-9 | Sync | M-L | Refactor de fondo; mejor tras estabilizar 1-3 |
+| 10 | CABLE-UX-9a | Sync/Seguridad | S | Cierra el hueco de overwrite sin backup en SD auto |
+| 11 | CABLE-UX-9b | Sync | S | Motor compartido de filesystem (sin cambiar comportamiento) |
+| 12 | CABLE-UX-9c | Sync | S | SD auto usa el motor |
+| 13 | CABLE-UX-9d | Sync | S | Manual (filesystem) usa el motor |
+| 14 | CABLE-UX-9e | Sync | S | Política ADB unificada entre manual y daemon |
+| 15 | CABLE-UX-9f | Sync | S | Tests del motor |
 
 Interacción con el backlog: CABLE-UX-3 resuelve VAL-FIX-6; VAL-FIX-5 (preview
 en modo ADB) encaja naturalmente dentro de CABLE-UX-2 si el resumen pasa a
