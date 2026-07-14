@@ -27,7 +27,7 @@
       Cuando conectes la consola Android por USB con Depuración ADB activa, los saves se sincronizan
       automáticamente sin tener que abrir esta página.
     </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div>
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Dirección</label>
         <select id="auto-sync-direction" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
@@ -37,18 +37,12 @@
         </select>
       </div>
       <div>
-        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
-        <select id="auto-sync-conflict" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
-          <option value="newest">Más reciente gana</option>
-          <option value="keep_pc">Conservar PC</option>
-          <option value="keep_android">Conservar consola</option>
-        </select>
-      </div>
-      <div>
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta Android (RetroArch)</label>
         <input id="auto-sync-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px" value="/storage/emulated/0/RetroArch">
       </div>
     </div>
+    <!-- CABLE-UX-4: "Conflictos" no afectaba al sync por cable (solo lo usa Cloud
+         Sync) — su control se movió a la pestaña Cloud Sync. -->
     <div style="display:flex;align-items:center;gap:12px">
       <button class="btn primary" onclick="saveAutoSyncSettings()" style="font-size:12px;padding:5px 14px">Guardar ajustes</button>
       <span id="auto-sync-status-text" style="font-size:12px;color:var(--c-muted)">Esperando conexión…</span>
@@ -56,9 +50,12 @@
     </div>
   </div>
 
-  <!-- Instrucciones de conexión -->
-  <div style="max-width:780px;margin-bottom:20px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px;padding:16px 20px">
-    <h3 style="color:var(--c-teal);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la consola Android desde el PC</h3>
+  <!-- CABLE-UX-7: instrucciones colapsadas en un único <details> — abierto solo
+       si nunca hubo un sync exitoso (lo decide _pollAutoSync() en sync.js,
+       leyendo /api/auto-sync-status.status.last_sync_at) -->
+  <details id="cable-howto" style="max-width:780px;margin-bottom:20px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px">
+  <summary style="cursor:pointer;padding:14px 20px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--c-teal);list-style:none;user-select:none">&#x2753; ¿Cómo conecto la consola?</summary>
+  <div style="padding:0 20px 16px">
 
     <!-- MTP warning -->
     <div class="rv-tint-warn" style="padding:9px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
@@ -141,6 +138,7 @@
 
     </div>
   </div>
+  </details>
 
   <!-- CABLE-UX-2: el formulario manual queda plegado — la acción del día a día ya está arriba -->
   <details style="max-width:780px">

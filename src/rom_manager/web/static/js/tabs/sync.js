@@ -1264,13 +1264,11 @@ async function toggleAutoSync() {
 
 async function saveAutoSyncSettings() {
   const dir       = document.getElementById('auto-sync-direction')?.value || 'newest';
-  const conflict  = document.getElementById('auto-sync-conflict')?.value  || 'newest';
   const androidP  = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0/RetroArch';
   const resultEl  = document.getElementById('auto-sync-save-result');
   try {
     const d = await apiPost('/api/auto-sync-save', {
       'sync.auto_sync_direction':   dir,
-      'sync.conflict_policy':       conflict,
       'sync.auto_sync_android_path': androidP,
       'sync.auto_sync_enabled':     _autoSyncEnabled,
     });
@@ -1294,15 +1292,40 @@ async function _pollAutoSync() {
     _updateAutoSyncBanner(d, sdStatus);
     // Populate fields on first load
     const dirEl = document.getElementById('auto-sync-direction');
-    const confEl = document.getElementById('auto-sync-conflict');
+    // CABLE-UX-4: conflict_policy solo lo usa Cloud Sync — su control vive en
+    // tab-sync.html, no en la tarjeta de auto-sync de Cable.
+    const confEl = document.getElementById('cfg-conflict-policy');
     const pathEl = document.getElementById('auto-sync-android-path');
+    if (confEl && !confEl.dataset.loaded && d.config) {
+      confEl.value = d.config.conflict_policy || 'newest';
+      confEl.dataset.loaded = '1';
+    }
     if (dirEl && !dirEl.dataset.loaded && d.config) {
       dirEl.value = d.config.direction || 'newest';
-      if (confEl) confEl.value = d.config.conflict_policy || 'newest';
       if (pathEl) pathEl.value = d.config.android_path || '/storage/emulated/0/RetroArch';
       dirEl.dataset.loaded = '1';
     }
+    // CABLE-UX-7: abrir las instrucciones de conexión solo si nunca hubo un sync exitoso
+    const howto = document.getElementById('cable-howto');
+    if (howto && !howto.dataset.loaded) {
+      howto.open = !(d.status?.last_sync_at);
+      howto.dataset.loaded = '1';
+    }
   } catch(_) { /* silent */ }
+}
+
+// CABLE-UX-4: guardado independiente — vive en Cloud Sync, no en la tarjeta de Cable
+async function saveConflictPolicy() {
+  const sel = document.getElementById('cfg-conflict-policy');
+  const resultEl = document.getElementById('conflict-policy-result');
+  if (!sel) return;
+  try {
+    await apiPost('/api/config', { 'sync.conflict_policy': sel.value });
+    if (resultEl) { resultEl.textContent = '✓ Guardado'; setTimeout(() => { if (resultEl) resultEl.textContent = ''; }, 2500); }
+    showToast('Política de conflictos guardada', 'ok');
+  } catch (e) {
+    if (resultEl) resultEl.textContent = '✗ ' + e.message;
+  }
 }
 
 function startAutoSyncPolling() {
@@ -1733,6 +1756,7 @@ export {
   _updateAutoSyncToggleUI,
   toggleAutoSync,
   saveAutoSyncSettings,
+  saveConflictPolicy,
   startAutoSyncPolling,
   promptSyncNow,
   // Tree diff

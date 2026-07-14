@@ -105,7 +105,7 @@ a mano en cualquier momento.
 
 ---
 
-## CABLE-UX-4 — Quitar el select "Conflictos" de la tarjeta auto-sync
+## CABLE-UX-4 — Quitar el select "Conflictos" de la tarjeta auto-sync ✅
 
 **Problema.** `conflict_policy` solo lo consume `save_syncer.py:270` (sync
 cloud); el daemon de cable lo ignora y resuelve siempre por mtime. Además
@@ -118,6 +118,17 @@ de sync cloud (Settings). `saveAutoSyncSettings` deja de enviarlo
 
 **Archivos.** `tab-cable.html`, `sync.js`. **Esfuerzo.** S. **Hecho cuando**
 la tarjeta solo muestra opciones que el sync por cable usa de verdad.
+
+**Hecho (con ajuste de alcance).** Al implementarlo se verificó que este
+select era el **único** control de UI para `sync.conflict_policy` en toda la
+app — Cloud Sync no tenía ninguno propio. Borrarlo sin más habría dejado el
+ajuste solo editable a mano en `config.toml`. Se movió (no se borró) a
+`tab-sync.html`, dentro del panel "Sincronización de saves": nuevo
+`saveConflictPolicy()` en `sync.js` que postea a `/api/config`
+(`sync.conflict_policy` ya estaba en el `allowed` set de
+`handlers/config.py:261`, sin cambios de backend). `saveAutoSyncSettings()`
+deja de leer/enviar ese campo; `_pollAutoSync()` precarga el nuevo select
+igual que antes precargaba el viejo.
 
 ---
 
@@ -159,7 +170,7 @@ reflejan el estado inicial real de los controles, no una foto fija del HTML.
 
 ---
 
-## CABLE-UX-7 — Colapsar las instrucciones A/B/C/D
+## CABLE-UX-7 — Colapsar las instrucciones A/B/C/D ✅
 
 **Problema.** ~80 líneas de instrucciones (`tab-cable.html:52-136`) con la
 opción A expandida siempre, encima del formulario, en cada visita — también
@@ -171,6 +182,13 @@ si nunca hubo un sync exitoso (dato disponible en
 
 **Archivos.** `tab-cable.html`, `sync.js`. **Esfuerzo.** S. **Hecho cuando**
 un usuario con syncs previos ve el formulario arriba y la ayuda plegada.
+
+**Hecho.** Las 4 opciones (A/B/C/D) + aviso MTP quedaron dentro de un único
+`<details id="cable-howto">` con resumen "¿Cómo conecto la consola?".
+`_pollAutoSync()` (ya corre globalmente desde el arranque de la app) decide
+`howto.open` una vez por sesión según `d.status.last_sync_at` de
+`/api/auto-sync-status` — igual patrón de "una vez, no pelear con el usuario"
+que CABLE-UX-3.
 
 ---
 
