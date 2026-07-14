@@ -1,15 +1,20 @@
-"""CABLE-UX-9b — smoke test del motor compartido de sync por filesystem.
+"""CABLE-UX-9b/9f — tests del motor compartido de sync por filesystem.
 
-Cobertura minima de plan_direction/copy_item para no dejar la logica sin un
-check que reviente si se rompe. CABLE-UX-9f amplia esto (safe_mode/skew) una
-vez el motor este enchufado a manual y SD-auto.
+Cubre las tres direcciones de plan_direction y todas las ramas de policy en
+copy_item (safe_mode, skip_existing, dry_run, error, on_event) en un solo
+sitio -- el "hecho cuando" de CABLE-UX-9. La politica ADB ("verify MD5 solo
+en saves") vive en adb_transport.should_verify y su cobertura esta en
+test_adb_transport_policy.py (CABLE-UX-9e); el guard de reloj ("skew") tiene
+la suya en test_cable_sync_clock_guard.py / test_sync_doctor.py -- ninguno
+de los dos es responsabilidad de este motor (ver docstring de
+cable_engine.py).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from rom_manager.sync.cable_engine import CopyPolicy, copy_item, plan_direction
+from rom_manager.sync.cable_engine import CopyPlanItem, CopyPolicy, copy_item, plan_direction
 
 _WANTED = lambda p: p.suffix == ".sav"  # noqa: E731
 
@@ -53,8 +58,6 @@ def test_copy_item_safe_mode_skips_existing_dst(tmp_path: Path) -> None:
     src = _write(pc, "mario.sav", content=b"NEW")
     dst = _write(ab, "mario.sav", content=b"OLD")
 
-    from rom_manager.sync.cable_engine import CopyPlanItem
-
     tag, size = copy_item(CopyPlanItem(src, dst, "-> Anbernic"), CopyPolicy(safe_mode=True))
 
     assert tag == "SAFE"
@@ -66,8 +69,6 @@ def test_copy_item_copies_when_no_conflict(tmp_path: Path) -> None:
     pc, ab = tmp_path / "pc", tmp_path / "ab"
     src = _write(pc, "mario.sav", content=b"DATA")
     dst = ab / "mario.sav"
-
-    from rom_manager.sync.cable_engine import CopyPlanItem
 
     tag, size = copy_item(CopyPlanItem(src, dst, "-> Anbernic"), CopyPolicy())
 
@@ -81,9 +82,70 @@ def test_copy_item_dry_run_does_not_touch_disk(tmp_path: Path) -> None:
     src = _write(pc, "mario.sav", content=b"DATA")
     dst = ab / "mario.sav"
 
-    from rom_manager.sync.cable_engine import CopyPlanItem
-
     tag, _ = copy_item(CopyPlanItem(src, dst, "-> Anbernic"), CopyPolicy(dry_run=True))
 
     assert tag == "DRYRUN"
     assert not dst.exists()
+
+
+def test_plan_anbernic_to_pc(tmp_path: Path) -> None:
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(ab, "gba", "mario.sav")
+
+    items = list(plan_direction(pc, ab, "anbernic_to_pc", _WANTED))
+
+    assert len(items) == 1
+    assert items[0].dst == pc / "gba" / "mario.sav"
+    assert items[0].arrow == "<- PC"
+
+
+def test_plan_newest_skips_equal_mtimes(tmp_path: Path) -> None:
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "mario.sav", content=b"A")
+    ab_f = _write(ab, "mario.sav", content=b"B")
+    os.utime(pc_f, (50, 50))
+    os.utime(ab_f, (50, 50))
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert items == []
+
+
+def test_copy_item_skip_existing_same_size(tmp_path: Path) -> None:
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    src = _write(pc, "mario.sav", content=b"DATA")
+    dst = _write(ab, "mario.sav", content=b"OLDD")  # same size, different bytes
+
+    tag, size = copy_item(CopyPlanItem(src, dst, "-> Anbernic"), CopyPolicy(skip_existing=True))
+
+    assert tag == "SKIP"
+    assert size == 0
+    assert dst.read_bytes() == b"OLDD"
+
+
+def test_copy_item_error_on_missing_source(tmp_path: Path) -> None:
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    src = pc / "ghost.sav"  # never written
+    dst = ab / "ghost.sav"
+
+    tag, size = copy_item(CopyPlanItem(src, dst, "-> Anbernic"), CopyPolicy())
+
+    assert tag == "ERROR"
+    assert size == 0
+
+
+def test_copy_item_emits_on_event(tmp_path: Path) -> None:
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    src = _write(pc, "mario.sav", content=b"DATA")
+    dst = ab / "mario.sav"
+    events: list[tuple[str, Path, Path]] = []
+
+    def _on_event(tag: str, item: CopyPlanItem, note: str) -> None:
+        events.append((tag, item.src, item.dst))
+
+    tag, _ = copy_item(CopyPlanItem(src, dst, "-> Anbernic"), CopyPolicy(), on_event=_on_event)
+
+    assert tag == "COPY"
+    assert events == [("COPY", src, dst)]

@@ -315,13 +315,23 @@ comportamiento previo de verificar siempre — solo ve archivos que ya
 matchean esa extensión. `tests/test_adb_transport_policy.py` cubre la
 política; los 43 tests de `cable`/`sync` en verde.
 
-### CABLE-UX-9f — Tests del motor
+### CABLE-UX-9f — Tests del motor ✅
 
 **Propuesta.** `test_cable_engine.py` cubriendo safe_mode/verify/skew en un
 solo sitio — el "hecho cuando" original de CABLE-UX-9. **Esfuerzo.** S.
 **Depende de** 9b.
 
-**Hecho cuando (conjunto).** Los tres caminos comparten el mismo motor de
+**Hecho.** `test_cable_engine.py` amplia su cobertura a las tres direcciones
+de `plan_direction` (`pc_to_anbernic`/`anbernic_to_pc`/`newest`, incluyendo
+el empate de mtimes que no genera item) y a todas las ramas de `CopyPolicy`
+en `copy_item` (safe_mode, skip_existing, dry_run, error, y el callback
+`on_event`) — 10 tests en un solo archivo. "verify" (MD5 solo-saves) y
+"skew" (reloj) no son responsabilidad de este motor (ver su propio
+docstring) y ya tienen cobertura dedicada en `test_adb_transport_policy.py`
+(9e) y `test_cable_sync_clock_guard.py`/`test_sync_doctor.py`
+respectivamente.
+
+**Hecho cuando (conjunto).** ✅ Los tres caminos comparten el mismo motor de
 filesystem, la política ADB está unificada, y los tests cubren las
 políticas en un solo sitio.
 
