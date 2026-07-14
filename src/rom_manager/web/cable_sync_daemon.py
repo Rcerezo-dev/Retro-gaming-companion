@@ -421,10 +421,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
         # auto-sync no tenía red de seguridad (regla "ante duda, no
         # sobreescribir").
         backup_dir = (
-            config.project_root
-            / ".rommgr"
-            / "cable_sync_backups"
-            / _dt2.date.today().isoformat()
+            config.project_root / ".rommgr" / "cable_sync_backups" / _dt2.date.today().isoformat()
         )
 
         # CABLE-UX-9c: motor compartido (CABLE-UX-9b) en vez de walk+compare+
