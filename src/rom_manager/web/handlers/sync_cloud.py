@@ -22,18 +22,26 @@ def register_cloud(
     """Register rclone / cloud-sync / auto-sync routes on *router*."""
 
     # ── GET /api/rclone-export-config ────────────────────────────────────────
+    # ANBERNIC-UX-3: el rclone.conf contiene tokens OAuth. Solo loopback o
+    # requests con el token efímero de setup (?t=...) pueden descargarlo.
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
-        lan_exposed = config.web_host not in ("127.0.0.1", "localhost")
-        if lan_exposed and not config.credentials.web_pin_hash and not config.web_allow_lan:
-            ctx._send_json(
-                {
-                    "error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."
-                }
+        if not _setup_token_ok(ctx):
+            ctx._send(
+                403,
+                "text/plain; charset=utf-8",
+                b"# 403 - token de setup requerido. Genera el comando desde la pestana Anbernic.\n",
             )
             return
         body, ct = _handle_rclone_export_config(config)
         ctx._send(200, ct, body)
+
+    # ── GET /api/anbernic-setup-token ────────────────────────────────────────
+    # Emite el token efímero (10 min) que la pestaña Anbernic incrusta en el
+    # comando `curl .../s?t=... | bash`.
+    @router.get("/api/anbernic-setup-token")
+    def get_anbernic_setup_token(ctx) -> None:
+        ctx._send_json({"token": _mint_setup_token(), "expires_in": _TOKEN_TTL_SECONDS})
 
     # ── GET /s ── bootstrap script para Termux/Anbernic ──────────────────────
     @router.get("/s")
@@ -41,13 +49,30 @@ def register_cloud(
         """Serve a one-liner bootstrap shell script for Termux on the Anbernic.
 
         Usage on the Anbernic (Termux):
-            curl -s http://<PC-IP>:7777/s | bash
+            curl -s "http://<PC-IP>:7777/s?t=<token>" | bash
         """
         from rom_manager.web.lan import get_lan_ip
 
-        server_ip = get_lan_ip() or "192.168.1.160"
+        if not _setup_token_ok(ctx):
+            ctx._send(
+                403,
+                "text/plain; charset=utf-8",
+                b'echo "ERROR: enlace de setup caducado - vuelve a abrir la pestana Anbernic en el PC y copia el comando de nuevo."\nexit 1\n',
+            )
+            return
+        token = ctx._qs.get("t", [""])[0] or _mint_setup_token()
+        # ANBERNIC-UX-4: fallback al header Host — la consola ya llegó al
+        # servidor por esa dirección, es por definición alcanzable.
+        server_ip = get_lan_ip() or (ctx.headers.get("Host") or "").split(":")[0]
+        if not server_ip:
+            ctx._send(
+                200,
+                "text/plain; charset=utf-8",
+                b'echo "ERROR: no se pudo determinar la IP del PC. Comprueba que ambos estan en la misma red."\nexit 1\n',
+            )
+            return
         server_url = f"http://{server_ip}:{config.web_port}"
-        script = _build_bootstrap_script(server_url)
+        script = _build_bootstrap_script(server_url, config, token)
         ctx._send(200, "text/plain; charset=utf-8", script.encode())
 
     # ── GET /api/rclone-status ───────────────────────────────────────────────
@@ -107,6 +132,35 @@ def register_cloud(
     @router.post("/api/migrate-split-db")
     def post_migrate_split_db(ctx) -> None:
         _do_migrate_split_db(ctx, config, repository, repo_android)
+
+
+# ── Token efímero de setup (ANBERNIC-UX-3) ───────────────────────────────────
+_TOKEN_TTL_SECONDS = 600  # 10 min
+
+
+def _mint_setup_token() -> str:
+    """Create a fresh short-lived setup token (replaces any previous one)."""
+    import secrets
+    import time
+
+    token = secrets.token_urlsafe(16)
+    # ponytail: un solo token global reutilizable durante su TTL (no un-solo-uso):
+    # el script hace 2 requests (/s y export-config) y curl puede reintentar.
+    _state._anbernic_setup_token = {"value": token, "expires": time.time() + _TOKEN_TTL_SECONDS}
+    return token
+
+
+def _setup_token_ok(ctx) -> bool:
+    """Allow loopback always; otherwise require a valid, unexpired ?t= token."""
+    import time
+
+    if ctx.client_address[0] in ("127.0.0.1", "::1"):
+        return True
+    tok = getattr(_state, "_anbernic_setup_token", None) or {}
+    supplied = ctx._qs.get("t", [""])[0]
+    return bool(
+        tok.get("value") and supplied == tok["value"] and time.time() < tok.get("expires", 0)
+    )
 
 
 def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
@@ -616,15 +670,30 @@ def _do_migrate_split_db(
     )
 
 
-def _build_bootstrap_script(server_url: str) -> str:
-    """Return the Termux bootstrap shell script with the server URL embedded."""
+def _build_bootstrap_script(server_url: str, config: AppConfig, token: str) -> str:
+    """Return the canonical Termux setup script (ANBERNIC-UX-1).
+
+    Único generador de setup: lee los remotes de la config del PC y usa
+    ``rclone copy --update`` en ambas direcciones (el más nuevo gana, nunca
+    borra) — nada de bisync ni remotes hardcodeados (CLOUD-UX-7).
+    Crea ``~/retrovault-sync.sh`` (el nombre que documenta la pestaña) y el
+    script de Termux:Boot para el sync automático al arrancar.
+    """
+    base = (config.sync.rclone_remote or "").rstrip("/")
+    saves_remote = config.sync.saves_remote or (
+        f"{base}/saves" if base else "dropbox:/RetroSync/saves"
+    )
+    states_remote = config.sync.states_remote or (
+        f"{base}/states" if base else "dropbox:/RetroSync/states"
+    )
     return f"""\
 #!/data/data/com.termux/files/usr/bin/bash
-# Retro Vault — bootstrap para Termux en Anbernic
+# Retro Vault — setup para Termux en Anbernic
 # Generado automáticamente por el servidor en {server_url}
 set -e
 
 SERVER="{server_url}"
+TOKEN="{token}"
 
 echo ""
 echo "=== Retro Vault — Configuración Anbernic ==="
@@ -643,46 +712,54 @@ termux-setup-storage
 echo "      Esperando 3 segundos..."
 sleep 3
 
-# 3. Descargar config de rclone desde el PC
+# 3. Descargar config de rclone desde el PC (enlace válido 10 minutos)
 echo ""
 echo "[3/4] Descargando configuración de rclone desde $SERVER..."
 mkdir -p ~/.config/rclone
-curl -sf "$SERVER/api/rclone-export-config" -o ~/.config/rclone/rclone.conf
+curl -sf "$SERVER/api/rclone-export-config?t=$TOKEN" -o ~/.config/rclone/rclone.conf
 if grep -q "\\[" ~/.config/rclone/rclone.conf 2>/dev/null; then
     echo "      rclone.conf instalado correctamente."
     rclone listremotes
 else
     echo "      AVISO: el archivo descargado parece vacío o inválido."
-    echo "      Revisa que el PC tiene rclone configurado (rclone config file)."
+    echo "      Revisa que el PC tiene rclone configurado y que el enlace no caducó."
 fi
 
 # 4. Crear script de sync
 echo ""
-echo "[4/4] Creando ~/sync-saves.sh..."
-cat > ~/sync-saves.sh << 'SCRIPT'
+echo "[4/4] Creando ~/retrovault-sync.sh..."
+cat > ~/retrovault-sync.sh << 'SCRIPT'
 #!/data/data/com.termux/files/usr/bin/bash
-LIBRARY="$HOME/storage/shared"
-REMOTE="dropbox:/RetroSync/saves"
-FILTERS=(
-  --include "*.sav" --include "*.srm" --include "*.state"
-  --include "*.state1" --include "*.state2" --include "*.sgm"
-  --include "*.brm" --include "*.brmc" --include "*.nv"
-  --include "*.hi" --include "*.fs" --include "*.ml1"
-  --exclude "*"
-)
-echo "=== Sync saves Anbernic <-> Dropbox ==="
-rclone bisync "$LIBRARY" "$REMOTE" "${{FILTERS[@]}}" --progress --log-level INFO "$@"
-echo "=== Hecho ==="
+# Retro Vault — sync de saves (copy --update: el más nuevo gana, nunca borra)
+SAVES=/storage/emulated/0/RetroArch/saves
+STATES=/storage/emulated/0/RetroArch/states
+SAVES_REMOTE="{saves_remote}"
+STATES_REMOTE="{states_remote}"
+echo "Subiendo saves..."
+rclone copy "$SAVES"  "$SAVES_REMOTE"  --update --transfers 4
+rclone copy "$STATES" "$STATES_REMOTE" --update --transfers 4
+echo "Bajando saves..."
+rclone copy "$SAVES_REMOTE"  "$SAVES"  --update --transfers 4
+rclone copy "$STATES_REMOTE" "$STATES" --update --transfers 4
+echo "=== Sync completado ==="
 SCRIPT
-chmod +x ~/sync-saves.sh
+chmod +x ~/retrovault-sync.sh
+
+# Auto-arranque con Termux:Boot (si está instalado)
+mkdir -p ~/.termux/boot
+cat > ~/.termux/boot/retrovault-sync.sh << 'BOOTEOF'
+#!/data/data/com.termux/files/usr/bin/bash
+sleep 30
+~/retrovault-sync.sh >> ~/retrovault-sync.log 2>&1
+BOOTEOF
+chmod +x ~/.termux/boot/retrovault-sync.sh
 
 echo ""
 echo "=== Listo ==="
 echo ""
 echo "Para sincronizar saves:"
-echo "  ~/sync-saves.sh"
+echo "  ~/retrovault-sync.sh"
 echo ""
-echo "Primera vez, añade --resync:"
-echo "  ~/sync-saves.sh --resync"
+echo "Con Termux:Boot instalado, el sync corre solo al encender la consola."
 echo ""
 """

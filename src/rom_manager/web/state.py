@@ -35,6 +35,10 @@ _sd_sync_status: dict = {
     "drive": None,
 }
 
+# ── Token efímero de setup Anbernic (ANBERNIC-UX-3) ────────────────────────
+# Protege /s y /api/rclone-export-config fuera de loopback. 10 min de vida.
+_anbernic_setup_token: dict = {"value": None, "expires": 0.0}
+
 # ── HTTP / tray instances (set por serve()) ───────────────────────────────
 _tray_instance = None  # type: ignore[assignment]
 _httpd_instance = None  # type: ignore[assignment]

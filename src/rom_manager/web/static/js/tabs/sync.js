@@ -12,7 +12,6 @@ const _txtCls = (el, cls) => {
 };
 
 // ── Module-level state ────────────────────────────────────────────────────────
-let _androidSetupUrl = '';
 let _anbernicBaseUrl = '';
 let _autoSyncTimer = null;
 let _autoSyncEnabled = true;
@@ -232,62 +231,48 @@ async function shutdownServer() {
   document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:var(--c-dim);font-size:14px">Retro Vault cerrado. Puedes cerrar esta pestaña.</div>';
 }
 
-// ── Android setup panel ──────────────────────────────────────────────────────
-async function loadAndroidSetupPanel() {
-  try {
-    const d = await apiFetch('/api/local-url');
-    const ip = d.ip || location.hostname;
-    const port = d.port || 7777;
-    _androidSetupUrl = `http://${ip}:${port}/api/anbernic-setup.sh`;
-    const curlCmd = `curl -s "${_androidSetupUrl}" | bash`;
-
-    // Settings panel QR
-    renderQR(_androidSetupUrl, 'android-setup-qr');
-    const urlEl = document.getElementById('android-setup-url');
-    if (urlEl) urlEl.textContent = _androidSetupUrl;
-    const curlEl = document.getElementById('android-setup-curl');
-    if (curlEl) { curlEl.textContent = curlCmd; curlEl.classList.remove('hidden'); }
-
-    // Android detected panel
-    const panelCurl = document.getElementById('android-panel-curl');
-    if (panelCurl) panelCurl.textContent = curlCmd;
-  } catch(e) {
-    console.warn('loadAndroidSetupPanel:', e);
-  }
-}
-
-function copyAndroidSetupUrl() {
-  if (!_androidSetupUrl) return;
-  navigator.clipboard?.writeText(_androidSetupUrl)
-    .then(() => showToast('URL copiada', 'ok'))
-    .catch(() => {});
-}
-
-function copyAndroidCurlCmd() {
-  const el = document.getElementById('android-panel-curl');
-  const cmd = el?.textContent?.trim();
-  if (!cmd) return;
-  navigator.clipboard?.writeText(cmd)
-    .then(() => showToast('Comando copiado', 'ok'))
-    .catch(() => {});
-}
-
-function downloadAndroidSetupSh() {
-  if (!_androidSetupUrl) return;
-  const a = document.createElement('a');
-  a.href = _androidSetupUrl;
-  a.download = 'retrovault-setup.sh';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
+// ── Android detected panel (ANBERNIC-UX-5) ───────────────────────────────────
 function _checkAndroidUserAgent() {
   if (/Android/i.test(navigator.userAgent)) {
     const panel = document.getElementById('android-detected-panel');
     if (panel) panel.classList.remove('hidden');
-    loadAndroidSetupPanel();
+    tvCheckServer();
     tvCheckStatus();
+  }
+}
+
+// Comprobación real del servidor (antes: dot verde hardcodeado)
+async function tvCheckServer() {
+  const dot  = document.getElementById('tv-status-dot');
+  const text = document.getElementById('tv-status-text');
+  try {
+    await apiFetch('/api/version');
+    if (dot)  dot.style.background = 'var(--c-teal)';
+    if (text) text.textContent = 'PC conectado';
+  } catch {
+    if (dot)  dot.style.background = 'var(--c-red)';
+    if (text) text.textContent = 'Sin conexión con el PC';
+  }
+}
+
+// Primera vez: mostrar la guía de instalación con el comando de setup
+async function tvToggleSetup() {
+  const box = document.getElementById('tv-setup');
+  if (!box) return;
+  const showing = !box.classList.contains('hidden');
+  box.classList.toggle('hidden', showing);
+  if (showing) return;
+  const cmdEl = document.getElementById('tv-setup-cmd');
+  if (!cmdEl) return;
+  try {
+    const [d, tok] = await Promise.all([
+      apiFetch('/api/local-url'),
+      apiFetch('/api/anbernic-setup-token'),
+    ]);
+    const ip = d.ip || location.hostname;
+    cmdEl.textContent = `curl -s "http://${ip}:${d.port || 7777}/s?t=${tok.token}" | bash`;
+  } catch (e) {
+    cmdEl.textContent = 'Error al generar el comando: ' + e.message;
   }
 }
 
@@ -331,7 +316,8 @@ async function tvStartSync() {
   const msgEl = document.getElementById('tv-sync-msg');
   if (msgEl) msgEl.textContent = 'Iniciando sync…';
   try {
-    await apiPost('/api/do-sync', { dry_run: false });
+    // CLOUD-UX-6: /api/do-sync nunca existió — el endpoint real es /api/sync
+    await apiPost('/api/sync', { dry_run: false });
   } catch (e) {
     tvShowResult({ error: e.message });
     return;
@@ -394,42 +380,66 @@ function tvReset() {
 
 // ── Anbernic tab ─────────────────────────────────────────────────────────────
 async function loadAnbernicTab() {
+  const ipDisplay = document.getElementById('anb-ip-display');
+  const cmdFull   = document.getElementById('anb-cmd-full');
   try {
-    const d = await apiFetch('/api/local-url');
+    const [d, tok] = await Promise.all([
+      apiFetch('/api/local-url'),
+      apiFetch('/api/anbernic-setup-token'),
+    ]);
     const ip = d.ip || location.hostname;
     const port = d.port || 7777;
     _anbernicBaseUrl = `http://${ip}:${port}`;
-    const setupUrl = `${_anbernicBaseUrl}/s`;
-    const curlCmd  = `curl -s "${setupUrl}" | bash`;
+    const curlCmd = `curl -s "${_anbernicBaseUrl}/s?t=${tok.token}" | bash`;
 
-    // Step 1 — big IP display
-    const ipDisplay = document.getElementById('anb-ip-display');
+    // Step 1 — big IP display + QR (ANBERNIC-UX-6)
     if (ipDisplay) ipDisplay.textContent = _anbernicBaseUrl;
+    renderQR(_anbernicBaseUrl, 'anb-qr');
 
-    // Step 5 — command box
-    const cmdFull = document.getElementById('anb-cmd-full');
+    // Step 5 — command box + download .sh link (mismo generador /s)
     if (cmdFull) cmdFull.textContent = curlCmd;
-
-    // Step 5 — download .sh link
     const dlLink = document.getElementById('anb-script-download');
-    if (dlLink) dlLink.href = `${_anbernicBaseUrl}/api/anbernic-setup.sh`;
+    if (dlLink) dlLink.href = `${_anbernicBaseUrl}/s?t=${tok.token}`;
 
-    _androidSetupUrl = setupUrl;
+    _renderAnbPrereqs(d);
   } catch(e) {
+    // ANBERNIC-UX-8: error visible en vez de "Detectando…" eterno
+    if (ipDisplay) ipDisplay.textContent = '✗ Sin conexión — pulsa ↻ Actualizar IP';
+    if (cmdFull) cmdFull.textContent = '—';
     console.warn('loadAnbernicTab:', e);
   }
 }
 
-function copyAnbernicUrl() {
-  if (!_anbernicBaseUrl) return;
-  navigator.clipboard?.writeText(_anbernicBaseUrl)
-    .then(() => showToast('URL copiada', 'ok'))
-    .catch(() => {});
+// ── Prerequisitos (ANBERNIC-UX-7) ────────────────────────────────────────────
+function _renderAnbPrereqs(localUrl) {
+  const el = document.getElementById('anb-prereq');
+  if (!el) return;
+  const line = (ok, okTxt, badHtml) =>
+    `<div style="padding:2px 0">${ok
+      ? `<span style="color:var(--c-teal)">✓</span> <span style="color:var(--c-muted)">${okTxt}</span>`
+      : `<span style="color:var(--c-orange)">⚠</span> ${badHtml}`}</div>`;
+
+  const serverOk = !!localUrl.lan_bound && localUrl.firewall_ok !== false;
+  const serverBad = !localUrl.lan_bound
+    ? 'El servidor solo escucha en localhost (<code>web_host</code>) — la consola no podrá conectarse.'
+    : 'El firewall de Windows puede estar bloqueando el puerto — permite "Retro Vault (LAN)" o crea la regla.';
+  let html = line(serverOk, 'Servidor accesible por red', serverBad);
+
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+
+  apiFetch('/api/rclone-status').then(rc => {
+    const cloudOk = rc.installed && rc.remotes?.length > 0;
+    const cloudBad = !rc.installed
+      ? 'rclone no encontrado en el PC — el setup descargará una config vacía.'
+      : 'rclone sin remotes configurados — conéctate a la nube en <a href="#" onclick="showTab(\'sync\');return false" style="color:var(--c-teal)">Cloud Sync</a> antes de configurar la consola.';
+    el.innerHTML = line(cloudOk, `Cloud configurado (${cloudOk ? rc.remotes.join(', ') : ''})`, cloudBad) + html;
+  }).catch(() => {});
 }
 
 function copyAnbernicCmd() {
   const cmd = document.getElementById('anb-cmd-full')?.textContent?.trim();
-  if (!cmd || cmd === 'Cargando…') return;
+  if (!cmd || !cmd.startsWith('curl')) return;
   navigator.clipboard?.writeText(cmd)
     .then(() => showToast('Comando copiado', 'ok'))
     .catch(() => {});
@@ -1591,16 +1601,11 @@ export {
   toggleAutostart,
   shutdownServer,
   // Android / Anbernic setup
-  loadAndroidSetupPanel,
-  copyAndroidSetupUrl,
-  copyAndroidCurlCmd,
-  downloadAndroidSetupSh,
   _checkAndroidUserAgent,
   loadAnbernicTab,
-  copyAnbernicUrl,
   copyAnbernicCmd,
   // ANBERNIC-TV: touch-friendly sync flow
-  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   // Cloud auth wizard (SYNC-SETUP)
   loadCloudAuthStatus,
   startCloudAuth,

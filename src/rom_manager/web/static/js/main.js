@@ -138,15 +138,10 @@ import {
   loadAutostart,
   toggleAutostart,
   shutdownServer,
-  loadAndroidSetupPanel,
-  copyAndroidSetupUrl,
-  copyAndroidCurlCmd,
-  downloadAndroidSetupSh,
   _checkAndroidUserAgent,
   loadAnbernicTab,
-  copyAnbernicUrl,
   copyAnbernicCmd,
-  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
@@ -321,15 +316,10 @@ Object.assign(window, {
   loadAutostart,
   toggleAutostart,
   shutdownServer,
-  loadAndroidSetupPanel,
-  copyAndroidSetupUrl,
-  copyAndroidCurlCmd,
-  downloadAndroidSetupSh,
   _checkAndroidUserAgent,
   loadAnbernicTab,
-  copyAnbernicUrl,
   copyAnbernicCmd,
-  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
@@ -480,7 +470,7 @@ export function showTab(name) {
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
-  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); loadTrashStatus(); }
+  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAutostart(); loadTrashStatus(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
   if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); }
