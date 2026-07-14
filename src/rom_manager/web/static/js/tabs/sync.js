@@ -13,6 +13,20 @@ const _txtCls = (el, cls) => {
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _anbernicBaseUrl = '';
+
+// Copiar al portapapeles con fallback: en la consola la UI se sirve por HTTP
+// plano y navigator.clipboard no existe (solo https/localhost).
+function _copyText(text) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+  return Promise.resolve();
+}
 let _autoSyncTimer = null;
 let _autoSyncEnabled = true;
 
@@ -276,6 +290,15 @@ async function tvToggleSetup() {
   }
 }
 
+// Copiar el comando de setup desde el navegador de la consola → pegar en Termux
+function tvCopySetupCmd() {
+  const cmd = document.getElementById('tv-setup-cmd')?.textContent?.trim();
+  if (!cmd || !cmd.startsWith('curl')) return;
+  _copyText(cmd)
+    .then(() => showToast('Comando copiado — pégalo en Termux (mantén pulsado → Pegar)', 'ok'))
+    .catch(() => {});
+}
+
 // ── ANBERNIC-TV: Touch-friendly guided sync flow ──────────────────────────────
 let _tvSyncPollTimer = null;
 let _tvSyncResultTs  = null;
@@ -392,8 +415,8 @@ async function loadAnbernicTab() {
     _anbernicBaseUrl = `http://${ip}:${port}`;
     const curlCmd = `curl -s "${_anbernicBaseUrl}/s?t=${tok.token}" | bash`;
 
-    // Step 1 — big IP display + QR (ANBERNIC-UX-6)
-    if (ipDisplay) ipDisplay.textContent = _anbernicBaseUrl;
+    // Step 1 — big IP display (enlace clicable: la consola no tiene cámara) + QR para el móvil
+    if (ipDisplay) { ipDisplay.textContent = _anbernicBaseUrl; ipDisplay.href = _anbernicBaseUrl; }
     renderQR(_anbernicBaseUrl, 'anb-qr');
 
     // Step 5 — command box + download .sh link (mismo generador /s)
@@ -440,8 +463,15 @@ function _renderAnbPrereqs(localUrl) {
 function copyAnbernicCmd() {
   const cmd = document.getElementById('anb-cmd-full')?.textContent?.trim();
   if (!cmd || !cmd.startsWith('curl')) return;
-  navigator.clipboard?.writeText(cmd)
+  _copyText(cmd)
     .then(() => showToast('Comando copiado', 'ok'))
+    .catch(() => {});
+}
+
+function copyAnbernicUrl() {
+  if (!_anbernicBaseUrl) return;
+  _copyText(_anbernicBaseUrl)
+    .then(() => showToast('URL copiada', 'ok'))
     .catch(() => {});
 }
 
@@ -1604,8 +1634,9 @@ export {
   _checkAndroidUserAgent,
   loadAnbernicTab,
   copyAnbernicCmd,
+  copyAnbernicUrl,
   // ANBERNIC-TV: touch-friendly sync flow
-  tvCheckStatus, tvCheckServer, tvToggleSetup, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvCopySetupCmd, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   // Cloud auth wizard (SYNC-SETUP)
   loadCloudAuthStatus,
   startCloudAuth,

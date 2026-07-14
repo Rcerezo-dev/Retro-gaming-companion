@@ -22,16 +22,20 @@
     </p>
     <!-- IP address — big and readable, with QR (ANBERNIC-UX-6) -->
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <canvas id="anb-qr" width="140" height="140" style="border:2px solid var(--c-bar);border-radius:4px;flex-shrink:0" title="Esc&#xe1;nealo con la c&#xe1;mara de la consola para no teclear la URL"></canvas>
+      <canvas id="anb-qr" width="140" height="140" style="border:2px solid var(--c-bar);border-radius:4px;flex-shrink:0" title="Esc&#xe1;nealo con el m&#xf3;vil para abrir esta gu&#xed;a"></canvas>
       <div style="flex:1;min-width:200px">
-        <div id="anb-ip-display" style="background:var(--c-deep);border:2px solid var(--c-teal);border-radius:8px;padding:12px 18px;font-size:22px;font-weight:700;color:var(--c-teal);font-family:monospace;letter-spacing:0.05em;text-align:center">
+        <a id="anb-ip-display" href="#" target="_blank" style="display:block;background:var(--c-deep);border:2px solid var(--c-teal);border-radius:8px;padding:12px 18px;font-size:22px;font-weight:700;color:var(--c-teal);font-family:monospace;letter-spacing:0.05em;text-align:center;text-decoration:none">
           Detectando&#x2026;
+        </a>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button onclick="copyAnbernicUrl()" style="padding:6px 16px;background:var(--c-teal);border:none;color:var(--c-deep);font-weight:700;border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x1F4CB; Copiar URL</button>
+          <button onclick="loadAnbernicTab()" style="padding:6px 16px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-muted);border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
         </div>
-        <button onclick="loadAnbernicTab()" style="margin-top:8px;padding:6px 16px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-muted);border-radius:6px;cursor:pointer;font-size:11px;white-space:nowrap">&#x21BB; Actualizar IP</button>
       </div>
     </div>
     <p style="font-size:11px;color:var(--c-dim);margin-top:10px">
-      Al abrir esta URL en la Anbernic aparecer&#xe1; un panel t&#xe1;ctil con el bot&#xf3;n de sincronizar y, si es la primera vez, la gu&#xed;a de instalaci&#xf3;n paso a paso.
+      La Anbernic no tiene c&#xe1;mara: <strong style="color:var(--c-text)">escribe la URL a mano</strong> en su navegador (o t&#xf3;cala si est&#xe1;s viendo esta p&#xe1;gina desde la propia consola).
+      El QR es un atajo para abrir esta gu&#xed;a en el m&#xf3;vil. Al abrir la URL en la Anbernic aparecer&#xe1; un panel t&#xe1;ctil con el bot&#xf3;n de sincronizar y, si es la primera vez, la gu&#xed;a de instalaci&#xf3;n paso a paso.
     </p>
   </div>
 
