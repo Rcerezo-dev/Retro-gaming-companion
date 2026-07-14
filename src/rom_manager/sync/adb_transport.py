@@ -26,6 +26,14 @@ def _md5_local(path: Path) -> str:
         return hashlib.file_digest(fh, "md5").hexdigest()
 
 
+def should_verify(name: str, verify_exts: frozenset[str]) -> bool:
+    """CABLE-UX-9e: verify MD5 only for save-type files — ROMs are too big to
+    hash on every sync. Shared by manual (`sync_cable.py`) and daemon
+    (`cable_sync_daemon.py`) ADB transfers so the policy lives in one place.
+    """
+    return Path(name).suffix.lower() in verify_exts
+
+
 @dataclass(slots=True)
 class AdbDevice:
     serial: str

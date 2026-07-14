@@ -31,6 +31,17 @@
     </div>
     <div id="job-result-sync" class="job-result"></div>
     <div id="sync-decisions" style="margin-top:12px"></div>
+    <!-- CABLE-UX-4: único control de sync.conflict_policy — solo lo usa este sync (save_syncer.py), no el de Cable -->
+    <div class="actions-row" style="align-items:center;gap:10px;margin-top:10px">
+      <label style="color:var(--c-muted);font-size:12px">Política de conflictos:</label>
+      <select id="cfg-conflict-policy" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
+        <option value="newest">Más reciente gana</option>
+        <option value="keep_pc">Conservar PC</option>
+        <option value="keep_android">Conservar consola</option>
+      </select>
+      <button class="btn" onclick="saveConflictPolicy()" style="font-size:11px;padding:4px 10px">Guardar</button>
+      <span id="conflict-policy-result" style="font-size:11px;color:var(--c-teal)"></span>
+    </div>
   </div>
   <div id="sync-content"><p class="loading">Cargando…</p></div>
 

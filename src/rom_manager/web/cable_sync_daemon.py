@@ -90,6 +90,36 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
             _logger.info("Auto-sync: new device %s — starting sync", serial)
 
+            # CABLE-UX-1: mismo guard de reloj que el sync manual (AUD-1) — el
+            # auto-sync dispara "newest" en cada conexión sin pedir confirmación,
+            # así que aquí no hay usuario que decida "continuar de todos modos".
+            if config.sync.auto_sync_direction == "newest":
+                from rom_manager.web.handlers.sync_cable import _build_sync_doctor
+
+                try:
+                    _doc = _build_sync_doctor(
+                        config, None, serial, config.sync.auto_sync_android_path, "", quick=True
+                    )
+                except Exception:
+                    _logger.debug("Pre-flight de reloj de auto-sync falló", exc_info=True)
+                    _doc = {"skew_exceeded": False}
+                if _doc.get("skew_exceeded"):
+                    _logger.warning(
+                        "Auto-sync: reloj desviado %.0fs en %s — sync abortado",
+                        _doc.get("skew_seconds", 0),
+                        serial,
+                    )
+                    _state._auto_sync_status = {
+                        "state": "idle",
+                        "last_device": serial,
+                        "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
+                        "last_error": (
+                            f"Reloj desviado {_doc.get('skew_seconds', 0):.0f}s — "
+                            "ajusta la hora de la consola"
+                        ),
+                    }
+                    continue
+
             now_str = _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             _state._auto_sync_status = {
                 "state": "syncing",
@@ -157,7 +187,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             },
                         )
 
-                    from rom_manager.sync.adb_transport import AdbTransport
+                    from rom_manager.sync.adb_transport import AdbTransport, should_verify
 
                     transport = AdbTransport(config.adb, serial, timeout=60)
 
@@ -168,7 +198,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         local_dst = local_root / Path(rel_posix.replace("/", os.sep))
                         try:
                             size = transport.pull(
-                                adb_info.android_path, local_dst, dry_run=False, verify=True
+                                adb_info.android_path,
+                                local_dst,
+                                dry_run=False,
+                                verify=should_verify(name, effective_exts),
                             )
                             _log("ADB←", adb_info.android_path, str(local_dst))
                             copied += 1
@@ -186,7 +219,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         android_dst = android_root.rstrip("/") + "/" + rel.as_posix()
                         try:
                             size = transport.push(
-                                local_src, android_dst, dry_run=False, verify=True
+                                local_src,
+                                android_dst,
+                                dry_run=False,
+                                verify=should_verify(local_src.name, effective_exts),
                             )
                             _log("ADB→", str(local_src), android_dst)
                             copied += 1
@@ -346,8 +382,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
     """Run a filesystem Cable Sync triggered by SD card insertion."""
     import datetime as _dt2
-    import os
     import shutil
+
+    from rom_manager.sync import cable_engine
 
     _sd_sync_status = _state._sd_sync_status
     _jm = _state._job_manager
@@ -363,7 +400,7 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
         pc_root = config.library_root
         ab_root = Path(config.anbernic_root)
         direction = config.sync.auto_sync_direction or "newest"
-        save_exts = frozenset(config.save_extensions)
+        save_exts = frozenset(ext.lower() for ext in config.save_extensions)
 
         log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -373,82 +410,64 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
             f"\n=== SD-AUTO-SYNC {ts0} | direction={direction} | ab={config.anbernic_root} ===\n"
         )
 
-        def _iter_files(root: Path):
-            try:
-                for entry in os.scandir(root):
-                    if entry.is_dir(follow_symlinks=False):
-                        yield from _iter_files(Path(entry.path))
-                    elif entry.is_file(follow_symlinks=False):
-                        yield Path(entry.path)
-            except PermissionError:
-                pass
-
-        def _wanted(p: Path) -> bool:
-            return p.suffix.lower() in save_exts
-
-        def _rel(p: Path, root: Path) -> Path:
-            try:
-                return p.relative_to(root)
-            except ValueError:
-                return p
-
-        def _mtime(p: Path) -> float:
-            try:
-                return p.stat().st_mtime
-            except OSError:
-                return 0.0
-
-        def _copy(src: Path, dst: Path) -> None:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
-
         if pc_root is None:
             _log_file.write("ERROR: library_root not configured\n")
             return
 
-        if direction in ("pc_to_anbernic", "newest"):
-            for f in _iter_files(pc_root):
-                if not _wanted(f):
-                    continue
-                rel = _rel(f, pc_root)
-                dst = ab_root / rel
-                if dst.exists():
-                    if direction == "newest" and _mtime(f) <= _mtime(dst):
-                        skipped += 1
-                        continue
-                    elif direction == "pc_to_anbernic":
-                        pass  # always overwrite
-                try:
-                    sz = f.stat().st_size
-                    _copy(f, dst)
-                    copied += 1
-                    copied_bytes += sz
-                    _log_file.write(f"COPY pc→ab  {rel}\n")
-                except Exception as e:
-                    errors += 1
-                    _log_file.write(f"ERROR pc→ab {rel}: {e}\n")
+        def _wanted(p: Path) -> bool:
+            return p.suffix.lower() in save_exts
 
-        if direction in ("anbernic_to_pc", "newest"):
-            for f in _iter_files(ab_root):
+        # CABLE-UX-9a: backup del destino antes de sobrescribirlo — el SD
+        # auto-sync no tenía red de seguridad (regla "ante duda, no
+        # sobreescribir").
+        backup_dir = (
+            config.project_root / ".rommgr" / "cable_sync_backups" / _dt2.date.today().isoformat()
+        )
+
+        # CABLE-UX-9c: motor compartido (CABLE-UX-9b) en vez de walk+compare+
+        # copy propios.
+        items = list(cable_engine.plan_direction(pc_root, ab_root, direction, _wanted))
+        policy = cable_engine.CopyPolicy()
+
+        def _on_event(tag: str, item: cable_engine.CopyPlanItem, note: str) -> None:
+            nonlocal errors
+            if tag == "ERROR":
+                errors += 1
+                _log_file.write(f"ERROR {item.src} -> {item.dst}: {note}\n")
+            else:
+                _log_file.write(f"COPY {item.arrow} {item.src} -> {item.dst}\n")
+
+        for item in items:
+            if item.dst.exists():
+                side = "anbernic" if item.dst.is_relative_to(ab_root) else "pc"
+                rel = item.dst.relative_to(ab_root if side == "anbernic" else pc_root)
+                backup_path = backup_dir / side / rel
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item.dst, backup_path)
+                _log_file.write(f"BACKUP {side} {rel} -> {backup_path}\n")
+            tag, size = cable_engine.copy_item(item, policy, on_event=_on_event)
+            if tag == "COPY":
+                copied += 1
+                copied_bytes += size
+
+        # ponytail: recorre ambos árboles una vez más solo para reportar
+        # "Omitidos" (empates de mtime en modo "newest", que plan_direction
+        # ya excluye del plan). Árboles de saves son pequeños; si esto pesa,
+        # exponer el conteo desde plan_direction en vez de recalcularlo aquí.
+        if direction == "newest":
+            pc_index = {
+                f.relative_to(pc_root): f for f in cable_engine.iter_files(pc_root) if _wanted(f)
+            }
+            for f in cable_engine.iter_files(ab_root):
                 if not _wanted(f):
                     continue
-                rel = _rel(f, ab_root)
-                dst = pc_root / rel
-                if dst.exists():
-                    if direction == "newest" and _mtime(f) <= _mtime(dst):
-                        skipped += 1
-                        continue
-                    elif direction == "anbernic_to_pc":
-                        pass
                 try:
-                    sz = f.stat().st_size
-                    _copy(f, dst)
-                    copied += 1
-                    copied_bytes += sz
-                    _log_file.write(f"COPY ab→pc  {rel}\n")
-                except Exception as e:
-                    errors += 1
-                    _log_file.write(f"ERROR ab→pc {rel}: {e}\n")
+                    rel = f.relative_to(ab_root)
+                except ValueError:
+                    continue
+                pc_f = pc_index.get(rel)
+                if pc_f is not None and pc_f.stat().st_mtime == f.stat().st_mtime:
+                    skipped += 1
 
         finish_ts = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         _log_file.write(

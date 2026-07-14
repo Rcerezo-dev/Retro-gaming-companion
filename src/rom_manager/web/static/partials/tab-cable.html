@@ -5,6 +5,13 @@
     <span style="color:var(--c-dim);margin-left:8px">Usa modo SD card o instala ADB.</span>
   </div>
 
+  <!-- CABLE-UX-2: acción primaria del pilar 3 — un clic, sin decisiones -->
+  <div class="actions-panel" style="max-width:780px;margin-bottom:20px;border-left-color:var(--c-purple);text-align:center;padding:24px 20px">
+    <button id="btn-quick-sync" class="btn primary" onclick="doQuickSync()" style="font-size:15px;padding:12px 32px;font-weight:700">&#x25B6; Sincronizar saves ahora</button>
+    <div id="quick-sync-status" style="margin-top:10px;font-size:12px;color:var(--c-muted);min-height:16px"></div>
+    <div style="font-size:11px;color:var(--c-dim);margin-top:4px">Usa la consola detectada por ADB (o la ruta SD configurada) y la dirección de la tarjeta de abajo.</div>
+  </div>
+
   <!-- AUTO-SYNC CARD -->
   <div id="auto-sync-card" class="rv-tint-info" style="max-width:780px;margin-bottom:20px;border-radius:8px;border-left:4px solid var(--c-teal);padding:18px 20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -20,7 +27,7 @@
       Cuando conectes la consola Android por USB con Depuración ADB activa, los saves se sincronizan
       automáticamente sin tener que abrir esta página.
     </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div>
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Dirección</label>
         <select id="auto-sync-direction" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
@@ -30,18 +37,12 @@
         </select>
       </div>
       <div>
-        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Conflictos</label>
-        <select id="auto-sync-conflict" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px">
-          <option value="newest">Más reciente gana</option>
-          <option value="keep_pc">Conservar PC</option>
-          <option value="keep_android">Conservar consola</option>
-        </select>
-      </div>
-      <div>
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta Android (RetroArch)</label>
         <input id="auto-sync-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px" value="/storage/emulated/0/RetroArch">
       </div>
     </div>
+    <!-- CABLE-UX-4: "Conflictos" no afectaba al sync por cable (solo lo usa Cloud
+         Sync) — su control se movió a la pestaña Cloud Sync. -->
     <div style="display:flex;align-items:center;gap:12px">
       <button class="btn primary" onclick="saveAutoSyncSettings()" style="font-size:12px;padding:5px 14px">Guardar ajustes</button>
       <span id="auto-sync-status-text" style="font-size:12px;color:var(--c-muted)">Esperando conexión…</span>
@@ -49,9 +50,12 @@
     </div>
   </div>
 
-  <!-- Instrucciones de conexión -->
-  <div style="max-width:780px;margin-bottom:20px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px;padding:16px 20px">
-    <h3 style="color:var(--c-teal);font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">Cómo hacer accesible la consola Android desde el PC</h3>
+  <!-- CABLE-UX-7: instrucciones colapsadas en un único <details> — abierto solo
+       si nunca hubo un sync exitoso (lo decide _pollAutoSync() en sync.js,
+       leyendo /api/auto-sync-status.status.last_sync_at) -->
+  <details id="cable-howto" style="max-width:780px;margin-bottom:20px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px">
+  <summary style="cursor:pointer;padding:14px 20px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--c-teal);list-style:none;user-select:none">&#x2753; ¿Cómo conecto la consola?</summary>
+  <div style="padding:0 20px 16px">
 
     <!-- MTP warning -->
     <div class="rv-tint-warn" style="padding:9px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.6">
@@ -134,6 +138,13 @@
 
     </div>
   </div>
+  </details>
+
+  <!-- CABLE-UX-2: el formulario manual queda plegado — la acción del día a día ya está arriba -->
+  <details style="max-width:780px">
+  <summary style="cursor:pointer;padding:10px 0;font-size:13px;color:var(--c-teal);list-style:none;display:flex;align-items:center;gap:8px;user-select:none">
+    &#x2699; Sincronización avanzada <span style="color:var(--c-dim);font-size:11px;font-weight:400">(elegir qué copiar, dirección manual, modo SD/ADB, opciones)</span>
+  </summary>
 
   <!-- Formulario de sincronización -->
   <div class="actions-panel" style="max-width:780px">
@@ -167,7 +178,7 @@
       <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dirección</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
-          <input type="radio" name="cable-direction" value="pc_to_anbernic" checked style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
+          <input type="radio" name="cable-direction" value="pc_to_anbernic" style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
           <span>
             <strong id="cable-dir-to-dev" style="color:var(--c-text)">PC → Consola Android</strong>
             <span style="color:var(--c-dim);font-size:12px;margin-left:6px">Copia del PC a la consola. Sobrescribe los archivos de la consola.</span><br>
@@ -183,7 +194,7 @@
           </span>
         </label>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
-          <input type="radio" name="cable-direction" value="newest" style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
+          <input type="radio" name="cable-direction" value="newest" checked style="margin-top:2px;accent-color:var(--c-teal)" onchange="_onCableDirectionChange()">
           <span>
             <strong style="color:var(--c-teal)">&#x21C4; Igualar ambos dispositivos</strong>
             <span style="color:var(--c-dim);font-size:12px;margin-left:6px">Compara mtime y copia en la dirección correcta. Archivos exclusivos de un lado se copian al otro.</span><br>
@@ -192,6 +203,16 @@
           </span>
         </label>
       </div>
+    </div>
+
+    <!-- CABLE-UX-5: ruta del PC única, fuera del bloque de modo — la usan ambos -->
+    <div style="margin-bottom:16px">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
+      <div style="display:flex;gap:6px">
+        <input id="cable-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+        <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('pc')" title="Verificar que la ruta existe y es accesible">Probar</button>
+      </div>
+      <div id="cable-pc-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
     </div>
 
     <!-- Modo Anbernic toggle -->
@@ -209,44 +230,27 @@
       </label>
     </div>
 
-    <!-- Rutas: modo FS -->
-    <div id="cable-fs-section" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-      <div>
-        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
-        <div style="display:flex;gap:6px">
-          <input id="cable-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
-          <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('pc')" title="Verificar que la ruta existe y es accesible">Probar</button>
-        </div>
-        <div id="cable-pc-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+    <!-- Ruta: modo FS -->
+    <div id="cable-fs-section" style="margin-bottom:16px">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">
+        Tarjeta SD / Carpeta en el PC (ruta montada de la consola Android)
+        <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
+      </label>
+      <div style="display:flex;gap:6px">
+        <input id="cable-ab-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:\Carpetas anbernic">
+        <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
       </div>
-      <div>
-        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">
-          Tarjeta SD / Carpeta en el PC (ruta montada de la consola Android)
-          <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
-        </label>
-        <div style="display:flex;gap:6px">
-          <input id="cable-ab-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:\Carpetas anbernic">
-          <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
-        </div>
-        <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
-        <div class="hidden" id="cable-drives-list" style="margin-top:6px;background:var(--c-input);border:1px solid var(--c-border);border-radius:4px;padding:6px 8px;font-size:12px"></div>
-      </div>
+      <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+      <div class="hidden" id="cable-drives-list" style="margin-top:6px;background:var(--c-input);border:1px solid var(--c-border);border-radius:4px;padding:6px 8px;font-size:12px"></div>
     </div>
 
-    <!-- Rutas: modo ADB -->
+    <!-- Ruta: modo ADB -->
     <div class="hidden" id="cable-adb-section" style="margin-bottom:16px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
-        <div>
-          <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
-          <div style="display:flex;gap:6px">
-            <input id="cable-adb-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
-          </div>
-        </div>
-        <div>
-          <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta en Android</label>
-          <input id="cable-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px;box-sizing:border-box" value="/storage/emulated/0/RetroArch">
-        </div>
-      </div>
+      <!-- CABLE-UX-5: la ruta Android es la misma que en "Sync automático al
+           conectar" (arriba) — un solo input, sin duplicar -->
+      <p style="font-size:11px;color:var(--c-dim);margin:0 0 10px">
+        Usa la ruta Android configurada en <strong style="color:var(--c-text)">"Sync automático al conectar"</strong> (arriba).
+      </p>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <label style="color:var(--c-muted);font-size:11px">Dispositivo ADB:</label>
         <select id="cable-adb-device" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 8px;border-radius:4px;font:inherit;font-size:13px;min-width:220px">
@@ -311,6 +315,7 @@
     </div>
     <div id="cable-result" class="job-result"></div>
   </div>
+  </details>
 
   <!-- AUD-1: SYNC DOCTOR -->
   <div class="actions-panel" style="margin-top:20px;max-width:780px">

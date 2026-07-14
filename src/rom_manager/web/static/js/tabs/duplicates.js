@@ -22,7 +22,7 @@ async function loadDuplicates() {
     const cfg = await apiFetch('/api/config');
     // DEVSEL-FIX-3: duplicados siempre cruza ambas BDs, independiente del selector
     const pcPath = document.getElementById('ov-pc-path')?.value.trim() || cfg.library_root || '';
-    const abPath = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '';
+    const abPath = document.getElementById('ov-ab-path')?.value.trim() || cfg.anbernic_root || localStorage.getItem('anbernic_path') || '';
     let url = '/api/duplicates';
     const params = new URLSearchParams();
     if (pcPath) params.set('pc_root', pcPath);
@@ -355,7 +355,7 @@ function setToolsContext(ctx) {
     if (ctx === 'pc') {
       rootPath = cfg.library_root || '';
     } else {
-      rootPath = localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || '';
+      rootPath = cfg.anbernic_root || localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || '';
     }
     if (lbl) lbl.textContent = rootPath ? '— ' + rootPath : '(sin ruta configurada)';
     const toolInputIds = ['zip-path', 'chd-path', 'orphan-path', 'folder-analysis-path', 'junk-path', 'health-path'];
