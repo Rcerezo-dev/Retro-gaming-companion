@@ -132,7 +132,7 @@ igual que antes precargaba el viejo.
 
 ---
 
-## CABLE-UX-5 — Unificar campos de ruta duplicados
+## CABLE-UX-5 — Unificar campos de ruta duplicados ✅
 
 **Problema.** Dos inputs "Ruta del PC" (`cable-pc-path` y `cable-adb-pc-path`,
 rellenados idénticos en `loadCableSync`, `sync.js:792-793`) y dos "Ruta
@@ -144,6 +144,13 @@ Android compartido con la config de auto-sync.
 
 **Archivos.** `tab-cable.html`, `sync.js`. **Esfuerzo.** S. **Hecho cuando**
 cada ruta se escribe una sola vez y ambos modos/la tarjeta la comparten.
+
+**Hecho.** `cable-adb-pc-path` eliminado; `cable-pc-path` es ahora un único
+input fuera del bloque de modo (usado por FS y ADB por igual — `doCableSync`,
+`loadCableSyncPreview`, `runSyncDoctor`, `testCablePath`). `cable-android-path`
+eliminado; la sección ADB del formulario reutiliza `auto-sync-android-path`
+(la tarjeta de arriba) con una nota explicando de dónde sale el valor —
+`doCableSync`, `testAdbPath` y `runSyncDoctor` leen ese mismo id.
 
 ---
 
@@ -192,7 +199,7 @@ que CABLE-UX-3.
 
 ---
 
-## CABLE-UX-8 — Sync Doctor sin ritual previo
+## CABLE-UX-8 — Sync Doctor sin ritual previo ✅
 
 **Problema.** `runSyncDoctor` falla con "Activa el Modo ADB y detecta un
 dispositivo primero" (`sync.js:759-762`) si el select no se pobló a mano.
@@ -202,6 +209,11 @@ device ready antes de rendirse.
 
 **Archivos.** `sync.js`. **Esfuerzo.** S. **Hecho cuando** "Ejecutar
 diagnóstico" funciona a un clic con la consola conectada.
+
+**Hecho.** `runSyncDoctor()` ya no exige el select poblado a mano: si está
+vacío, llama a `/api/adb-devices` y usa el primer device `ready`; solo si
+tampoco hay ninguno muestra el aviso (ahora accionable: "conecta la consola y
+activa la depuración USB").
 
 ---
 

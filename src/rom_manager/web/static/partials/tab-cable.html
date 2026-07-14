@@ -205,6 +205,16 @@
       </div>
     </div>
 
+    <!-- CABLE-UX-5: ruta del PC única, fuera del bloque de modo — la usan ambos -->
+    <div style="margin-bottom:16px">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
+      <div style="display:flex;gap:6px">
+        <input id="cable-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
+        <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('pc')" title="Verificar que la ruta existe y es accesible">Probar</button>
+      </div>
+      <div id="cable-pc-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+    </div>
+
     <!-- Modo Anbernic toggle -->
     <div style="margin-bottom:14px;display:flex;align-items:center;gap:12px">
       <span style="color:var(--c-muted);font-size:12px">Modo <span id="cable-mode-label">Consola Android</span>:</span>
@@ -220,44 +230,27 @@
       </label>
     </div>
 
-    <!-- Rutas: modo FS -->
-    <div id="cable-fs-section" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-      <div>
-        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
-        <div style="display:flex;gap:6px">
-          <input id="cable-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
-          <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('pc')" title="Verificar que la ruta existe y es accesible">Probar</button>
-        </div>
-        <div id="cable-pc-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+    <!-- Ruta: modo FS -->
+    <div id="cable-fs-section" style="margin-bottom:16px">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">
+        Tarjeta SD / Carpeta en el PC (ruta montada de la consola Android)
+        <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
+      </label>
+      <div style="display:flex;gap:6px">
+        <input id="cable-ab-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:\Carpetas anbernic">
+        <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
       </div>
-      <div>
-        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">
-          Tarjeta SD / Carpeta en el PC (ruta montada de la consola Android)
-          <button class="btn" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="detectDrives()" title="Listar letras de unidad disponibles">Detectar drives</button>
-        </label>
-        <div style="display:flex;gap:6px">
-          <input id="cable-ab-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:\Carpetas anbernic">
-          <button class="btn" style="padding:6px 10px;font-size:12px;flex-shrink:0" onclick="testCablePath('ab')" title="Verificar que la ruta existe y es accesible">Probar</button>
-        </div>
-        <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
-        <div class="hidden" id="cable-drives-list" style="margin-top:6px;background:var(--c-input);border:1px solid var(--c-border);border-radius:4px;padding:6px 8px;font-size:12px"></div>
-      </div>
+      <div id="cable-ab-path-status" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+      <div class="hidden" id="cable-drives-list" style="margin-top:6px;background:var(--c-input);border:1px solid var(--c-border);border-radius:4px;padding:6px 8px;font-size:12px"></div>
     </div>
 
-    <!-- Rutas: modo ADB -->
+    <!-- Ruta: modo ADB -->
     <div class="hidden" id="cable-adb-section" style="margin-bottom:16px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
-        <div>
-          <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta del PC (library_root)</label>
-          <div style="display:flex;gap:6px">
-            <input id="cable-adb-pc-path" type="text" style="flex:1;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px" placeholder="E:/Carpetas anbernic">
-          </div>
-        </div>
-        <div>
-          <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Ruta en Android</label>
-          <input id="cable-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 10px;border-radius:4px;font:inherit;font-size:13px;box-sizing:border-box" value="/storage/emulated/0/RetroArch">
-        </div>
-      </div>
+      <!-- CABLE-UX-5: la ruta Android es la misma que en "Sync automático al
+           conectar" (arriba) — un solo input, sin duplicar -->
+      <p style="font-size:11px;color:var(--c-dim);margin:0 0 10px">
+        Usa la ruta Android configurada en <strong style="color:var(--c-text)">"Sync automático al conectar"</strong> (arriba).
+      </p>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <label style="color:var(--c-muted);font-size:11px">Dispositivo ADB:</label>
         <select id="cable-adb-device" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 8px;border-radius:4px;font:inherit;font-size:13px;min-width:220px">

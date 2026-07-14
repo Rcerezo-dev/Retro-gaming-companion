@@ -732,7 +732,8 @@ async function detectAdbDevices() {
 
 async function testAdbPath() {
   const serial  = document.getElementById('cable-adb-device')?.value.trim();
-  const ap      = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
+  // CABLE-UX-5: ruta Android única, compartida con la tarjeta de auto-sync
+  const ap      = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0';
   const statusEl = document.getElementById('cable-adb-path-status');
   if (!serial) { if (statusEl) { _txtCls(statusEl, 'txt-muted'); statusEl.textContent = 'Selecciona un dispositivo primero.'; } return; }
   if (statusEl) { _txtCls(statusEl, 'txt-dim'); statusEl.textContent = 'Verificando ruta en el dispositivo…'; }
@@ -796,13 +797,24 @@ function _renderSyncDoctor(d) {
 async function runSyncDoctor() {
   const el = document.getElementById('sync-doctor-result');
   if (!el) return;
-  const serial = document.getElementById('cable-adb-device')?.value.trim();
+  let serial = document.getElementById('cable-adb-device')?.value.trim();
   if (!serial) {
-    el.innerHTML = '<span style="color:var(--c-yellow)">Activa el Modo ADB y detecta un dispositivo primero.</span>';
-    return;
+    // CABLE-UX-8: no exigir el ritual manual "Modo ADB → Detectar dispositivos"
+    // — si hay un device ready, usarlo directamente.
+    el.innerHTML = '<span style="color:var(--c-dim)">Buscando dispositivo ADB…</span>';
+    try {
+      const d = await apiFetch('/api/adb-devices');
+      const ready = (d.devices || []).find(dv => dv.ready);
+      if (ready) serial = ready.serial;
+    } catch (_) { /* sin adb disponible — se informa abajo */ }
+    if (!serial) {
+      el.innerHTML = '<span style="color:var(--c-yellow)">No se encontró ningún dispositivo ADB listo. Conecta la consola y activa la depuración USB.</span>';
+      return;
+    }
   }
-  const androidPath = document.getElementById('cable-android-path')?.value.trim() || '';
-  const pcPath = document.getElementById('cable-adb-pc-path')?.value.trim() || '';
+  // CABLE-UX-5: rutas únicas, compartidas con el formulario manual/auto-sync
+  const androidPath = document.getElementById('auto-sync-android-path')?.value.trim() || '';
+  const pcPath = document.getElementById('cable-pc-path')?.value.trim() || '';
   el.innerHTML = '<span style="color:var(--c-dim)">Diagnosticando… (puede tardar si hay muchos saves)</span>';
   try {
     const params = new URLSearchParams({ serial });
@@ -832,9 +844,8 @@ async function loadCableSync() {
     const ovAb = document.getElementById('ov-ab-path')?.value.trim();
     const storedPc = localStorage.getItem('cable_pc_path') || '';
     const storedAb = localStorage.getItem('anbernic_path') || '';
-    // Fill both fs and adb pc-path inputs
-    _setIfEmpty('cable-pc-path',     ovPc || cfg.library_root || storedPc || '');
-    _setIfEmpty('cable-adb-pc-path', ovPc || cfg.library_root || storedPc || '');
+    // CABLE-UX-5: un solo input de ruta PC, compartido por ambos modos
+    _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || storedPc || '');
     _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || storedAb || '');
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
@@ -864,9 +875,8 @@ async function loadCableSync() {
 
 async function loadCableSyncPreview() {
   const adb = _isAdbMode();
-  const pcPath = (adb
-    ? document.getElementById('cable-adb-pc-path')
-    : document.getElementById('cable-pc-path'))?.value.trim();
+  // CABLE-UX-5: ruta de PC única para ambos modos
+  const pcPath = document.getElementById('cable-pc-path')?.value.trim();
   const abPath = adb ? null : document.getElementById('cable-ab-path')?.value.trim();
   const direction = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
   const mode = adb ? 'adb' : 'sd';
@@ -940,9 +950,8 @@ async function doQuickSync() {
 
 async function doCableSync() {
   const adb = _isAdbMode();
-  const pcPath = (adb
-    ? document.getElementById('cable-adb-pc-path')
-    : document.getElementById('cable-pc-path'))?.value.trim();
+  // CABLE-UX-5: ruta de PC única para ambos modos
+  const pcPath = document.getElementById('cable-pc-path')?.value.trim();
   if (!pcPath) { alert('Introduce la ruta del PC (library_root).'); return; }
 
   const wantSaves     = document.getElementById('cable-what-saves').checked;
@@ -967,7 +976,8 @@ async function doCableSync() {
   let body;
   if (adb) {
     const serial      = document.getElementById('cable-adb-device')?.value.trim();
-    const androidPath = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
+    // CABLE-UX-5: ruta Android única, compartida con la tarjeta de auto-sync
+    const androidPath = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0';
     if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
     // CABLE-UX-1: el pre-flight de reloj ahora vive en el backend (bloquea con
     // error en vez de confirm()) — cubre este camino y el auto-sync por igual.
