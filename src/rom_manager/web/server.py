@@ -609,10 +609,9 @@ def serve(
             except Exception as _te:
                 _logger.warning("Could not start tray icon: %s", _te)
 
-    global _httpd_instance
     handler = make_handler(repository, config, repository_android=repository_android)
     with ThreadingHTTPServer((host, port), handler) as httpd:
-        _httpd_instance = httpd
+        _state._httpd_instance = httpd
         httpd.serve_forever()
 
     # Clean up tray when server exits
