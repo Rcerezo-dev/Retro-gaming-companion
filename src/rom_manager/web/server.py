@@ -256,8 +256,16 @@ def make_handler(
                 if path == "/login":
                     self._send(200, "text/html; charset=utf-8", _LOGIN_HTML.encode())
                     return
-                if path.startswith("/static/") or path == "/favicon.ico":
-                    pass  # fall through to normal handling (no auth on static)
+                # REV43-15: /s y /api/rclone-export-config son para curl sin sesión
+                # desde Termux (Anbernic); ya se protegen solas con loopback o el
+                # token efímero ?t= (_setup_token_ok) — exentas del gate de PIN.
+                if (
+                    path.startswith("/static/")
+                    or path == "/favicon.ico"
+                    or path == "/s"
+                    or path == "/api/rclone-export-config"
+                ):
+                    pass  # fall through to normal handling (no PIN gate)
                 elif not self._is_authenticated():
                     self._redirect_to_login()
                     return
