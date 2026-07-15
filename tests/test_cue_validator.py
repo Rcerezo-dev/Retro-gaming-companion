@@ -83,3 +83,24 @@ def test_case_insensitive_file_keyword(tmp_path: Path) -> None:
     errors = validate_cue(cue)
     assert len(errors) == 1
     assert "missing.bin" in errors[0]
+
+
+# ---------------------------------------------------------------------------
+# Unquoted FILE lines (REV43-23)
+# ---------------------------------------------------------------------------
+
+
+def test_unquoted_file_line_present(tmp_path: Path) -> None:
+    (tmp_path / "game.bin").write_bytes(b"\x00" * 8)
+    cue = _write(tmp_path, "game.cue", "FILE game.bin BINARY\n  TRACK 01 MODE2/2352\n")
+    assert validate_cue(cue) == []
+
+
+def test_unquoted_file_line_missing(tmp_path: Path) -> None:
+    """REV43-23: a .cue with an unquoted FILE line and a missing .bin must be
+    flagged, same as the quoted form — cue_validator used to silently ignore
+    unquoted FILE lines entirely."""
+    cue = _write(tmp_path, "game.cue", "FILE game.bin BINARY\n")
+    errors = validate_cue(cue)
+    assert len(errors) == 1
+    assert "game.bin" in errors[0]
