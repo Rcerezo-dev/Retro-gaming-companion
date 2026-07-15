@@ -300,7 +300,8 @@ def _do_sync(
             if not sources:
                 job_result = {
                     "error": "No hay fuentes de sync configuradas. "
-                    "Añade [[sync.sources]] en config.toml."
+                    "Añade [[sync.sources]] en config.toml.",
+                    "result_ts": _utc_now_str(),
                 }
                 return
 
@@ -502,6 +503,10 @@ def _do_sync(
                 "up_to_date": sum(r.get("up_to_date", 0) for r in all_results),
                 "conflicts": sum(r.get("conflicts", 0) for r in all_results),
                 "errors": _errs,
+                # REV43-8: sin esto, _pollSync (flow_wizard.js) nunca detecta
+                # que el job terminó y el paso "Sync" del wizard hace polling
+                # para siempre.
+                "result_ts": _utc_now_str(),
             }
             if not dry_run and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
@@ -535,7 +540,7 @@ def _do_sync(
                     (f"{_errs} errores en cloud sync") if _errs else None
                 )
         except Exception as exc:
-            job_result = {"error": str(exc)}
+            job_result = {"error": str(exc), "result_ts": _utc_now_str()}
             _state._tray_instance and _state._tray_instance.set_status("✗ Error en sync")
         finally:
             job_manager.finish("sync", job_result)

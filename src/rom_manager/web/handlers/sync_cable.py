@@ -294,6 +294,11 @@ def _do_cable_sync(
             from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 
             pc_root = Path(pc_path_str)
+            if not pc_root.exists():
+                # REV43-7: sin este chequeo, os.walk sobre una ruta inexistente
+                # no lanza error — solo no encuentra nada, y el job termina en
+                # "copied=0, errors=0" como si la sync hubiera ido bien.
+                raise OSError(f"Ruta PC no existe: {pc_path_str}")
             save_exts = frozenset(config.save_extensions)
             # REV43-2: backup versionado antes de sobrescribir un save existente
             # (mismo patrón que ya usa el SD-auto daemon, CABLE-UX-9a) — la ruta
@@ -667,6 +672,13 @@ def _do_cable_sync(
             # ── Filesystem mode ───────────────────────────────────────────────
             else:
                 ab_root = Path(anbernic_path_str)
+                if not ab_root.exists():
+                    # REV43-7: SD no insertada/montada — sin este chequeo el
+                    # job "termina bien" con copied=0 en vez de avisar.
+                    raise OSError(
+                        f"Ruta Anbernic no existe: {anbernic_path_str} "
+                        "(¿la SD está insertada/montada?)"
+                    )
 
                 try:
                     _pre_total = 0

@@ -66,6 +66,7 @@ def test_dry_run_skips_real_pull_even_with_sha1_dedup(tmp_path, monkeypatch):
         raise AssertionError("dry_run no debe disparar un pull ADB real")
 
     monkeypatch.setattr(AdbTransport, "pull", _boom_pull)
+    (tmp_path / "pc").mkdir()
 
     router = Router()
     config = _config(tmp_path)

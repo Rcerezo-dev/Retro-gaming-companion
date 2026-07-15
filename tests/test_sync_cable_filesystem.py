@@ -90,6 +90,48 @@ def test_pc_to_anbernic_copies(tmp_path: Path) -> None:
     assert (ab / "gba" / "mario.sav").exists()
 
 
+def test_missing_anbernic_path_errors_instead_of_silent_noop(tmp_path: Path) -> None:
+    """REV43-7: SD no insertada/montada debe terminar en error, no en
+    copied=0/errors=0 como si la sync hubiera ido bien."""
+    pc = tmp_path / "pc"
+    _write(pc, "mario.sav")
+    ab = tmp_path / "ab-no-existe"  # nunca creada
+
+    res = _run_sync(
+        tmp_path,
+        {
+            "pc_path": str(pc),
+            "anbernic_path": str(ab),
+            "what": ["saves"],
+            "direction": "pc_to_anbernic",
+            "dry_run": False,
+        },
+    )
+
+    assert "error" in res
+    assert "no existe" in res["error"].lower()
+
+
+def test_missing_pc_path_errors_instead_of_silent_noop(tmp_path: Path) -> None:
+    pc = tmp_path / "pc-no-existe"  # nunca creada
+    ab = tmp_path / "ab"
+    ab.mkdir()
+
+    res = _run_sync(
+        tmp_path,
+        {
+            "pc_path": str(pc),
+            "anbernic_path": str(ab),
+            "what": ["saves"],
+            "direction": "anbernic_to_pc",
+            "dry_run": False,
+        },
+    )
+
+    assert "error" in res
+    assert "no existe" in res["error"].lower()
+
+
 def test_overwrite_backs_up_existing_save_when_enabled(tmp_path: Path) -> None:
     """REV43-2: sobrescribir un save existente por cable debe respaldarlo
     primero (backup_save), igual que ya hace el SD-auto daemon (CABLE-UX-9a) —
