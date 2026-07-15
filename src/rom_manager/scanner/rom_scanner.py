@@ -17,6 +17,7 @@ from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.set_detector import detect_set_type
 from rom_manager.hashing import calculate_hashes_batch
 from rom_manager.scanner.asset_scanner import inspect_asset
+from rom_manager.utils.time import utc_now
 
 _PROGRESS_INTERVAL = 10
 # ROMs are hashed in parallel batches of this size (hashlib releases the GIL).
@@ -35,10 +36,6 @@ class ScanResult:
     unknown_files_detected: int = 0
     errors: int = 0
     pruned: int = 0
-
-
-def utc_now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def scan_library(

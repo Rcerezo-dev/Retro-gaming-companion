@@ -10,6 +10,7 @@ import os
 import sqlite3
 from pathlib import Path
 
+from rom_manager.database.repositories.base import escape_like_prefix
 from rom_manager.database.repositories.models import MatchedGame, UnresolvedGame
 
 
@@ -424,8 +425,8 @@ class GamesMixin:
         elif status == "matched":
             conditions.append("canonical_title IS NOT NULL")
         if source_root:
-            conditions.append("source_path LIKE ?")
-            params.append(source_root.rstrip("/\\").replace("%", "%%") + "%")
+            conditions.append("source_path LIKE ? ESCAPE '\\'")
+            params.append(escape_like_prefix(source_root.rstrip("/\\")) + "%")
         if search:
             like = "%" + search.replace("%", "%%").replace("_", "\\_") + "%"
             conditions.append(

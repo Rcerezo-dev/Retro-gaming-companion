@@ -453,3 +453,43 @@ def test_get_save_sync_history_escapes_underscore(repo):
     history = repo.get_save_sync_history("/saves/game_a/rom.gba")
     assert len(history) == 1
     assert history[0]["local_path"] == match_path
+
+
+# ── record_play_session (REV43-38: optional connection) ──────────────────────
+
+
+def test_record_play_session_matches_by_stem(repo):
+    _upsert(repo, source_path="/roms/gba/Game.gba", original_filename="Game.gba")
+
+    found = repo.record_play_session("/saves/gba/Game.srm", TS)
+
+    assert found is True
+    with repo.connect() as conn:
+        row = conn.execute(
+            "SELECT play_count, first_played_at, last_played_at FROM games"
+        ).fetchone()
+    assert row["play_count"] == 1
+    assert row["first_played_at"] == TS
+    assert row["last_played_at"] == TS
+
+
+def test_record_play_session_no_match_returns_false(repo):
+    found = repo.record_play_session("/saves/gba/NoSuchGame.srm", TS)
+    assert found is False
+
+
+def test_record_play_session_participates_in_external_batch(repo):
+    """REV43-38: an optional connection lets record_play_session join a
+    caller's batch() transaction instead of always opening its own."""
+    _upsert(repo, source_path="/roms/gba/Game.gba", original_filename="Game.gba")
+
+    with repo.batch() as conn:
+        found = repo.record_play_session("/saves/gba/Game.srm", TS, connection=conn)
+        assert found is True
+        # Not committed yet — still visible only within this same connection.
+        row = conn.execute("SELECT play_count FROM games").fetchone()
+        assert row["play_count"] == 1
+
+    with repo.connect() as conn:
+        row = conn.execute("SELECT play_count FROM games").fetchone()
+    assert row["play_count"] == 1

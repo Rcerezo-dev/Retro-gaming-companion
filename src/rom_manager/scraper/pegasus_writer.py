@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.scraper.gamelist_writer import _deduplicate
+
 if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
 
@@ -33,11 +35,18 @@ def write_pegasus_metadata(
             """
         ).fetchall()
 
-    # Group by platform
+    # Group by platform, deduplicating multi-disc sets the same way
+    # gamelist_writer does (REV43-50: divergent output between formats
+    # for the same underlying data otherwise).
     by_platform: dict[str, list] = {}
     for row in rows:
         plat = row["platform"] or "Unknown"
-        by_platform.setdefault(plat, []).append(row)
+        entry = dict(row)
+        entry["filename"] = entry["original_filename"]
+        entry["title"] = entry["canonical_title"] or entry["original_filename"]
+        by_platform.setdefault(plat, []).append(entry)
+    for plat, entries in by_platform.items():
+        by_platform[plat] = _deduplicate(entries)
 
     games_written = 0
     errors: list[str] = []

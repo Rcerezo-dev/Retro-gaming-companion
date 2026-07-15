@@ -597,7 +597,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
     import urllib.parse
     import urllib.request as _urlreq
 
-    from rom_manager.catalog.catalog_loader import _load_dat_file
+    from rom_manager.catalog.catalog_loader import load_dat_file
 
     downloaded: list[str] = []
     skipped: list[str] = []
@@ -635,7 +635,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
                 data = resp.read()
             dest_file.write_bytes(data)
             try:
-                entries = _load_dat_file(dest_file)
+                entries = load_dat_file(dest_file)
             except Exception:
                 entries = {}
             if not entries:

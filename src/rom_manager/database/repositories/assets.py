@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import sqlite3
 
+from rom_manager.database.repositories.base import escape_like_prefix
+
 
 class AssetsMixin:
     def upsert_asset(
@@ -62,16 +64,16 @@ class AssetsMixin:
         _IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "tga", "bmp"}
         _VIDEO_EXTS = {"mp4", "mkv", "avi", "webm", "mov"}
 
-        prefix = source_root.rstrip("/\\") + "%" if source_root else None
+        prefix = escape_like_prefix(source_root.rstrip("/\\")) + "%" if source_root else None
 
         with self.connect() as connection:
             if prefix:
                 game_rows = connection.execute(
-                    "SELECT platform, COUNT(*) AS cnt FROM games WHERE source_path LIKE ? GROUP BY platform",
+                    "SELECT platform, COUNT(*) AS cnt FROM games WHERE source_path LIKE ? ESCAPE '\\' GROUP BY platform",
                     (prefix,),
                 ).fetchall()
                 asset_rows = connection.execute(
-                    "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets WHERE source_path LIKE ? GROUP BY platform, asset_type",
+                    "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets WHERE source_path LIKE ? ESCAPE '\\' GROUP BY platform, asset_type",
                     (prefix,),
                 ).fetchall()
             else:

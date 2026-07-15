@@ -6,20 +6,7 @@ from pathlib import Path
 
 from rom_manager.database.repository import LibraryRepository, MatchedGame
 from rom_manager.detection.filename_normalizer import sanitize_filename
-
-
-def _same_file(a: Path, b: Path) -> bool:
-    """Return True if *a* and *b* refer to the same file on disk.
-
-    On Windows (case-insensitive FS) ``Path("game.gba").exists()`` returns
-    True even when ``Path("Game.gba")`` is the only file, so we must
-    distinguish a *case-only* rename from a true conflict.
-    """
-    try:
-        return a.samefile(b)
-    except OSError:
-        return False
-
+from rom_manager.utils.paths import same_file as _same_file
 
 # Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
 # Also used as the heuristic to detect whether source is flat (parent.name in this set)

@@ -94,47 +94,47 @@ def _owned_title_keys(repo) -> dict[str, set[str]]:
     return owned
 
 
-def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
-    """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
+def _lookup_ra_game(platform: str, md5: str, config: AppConfig):
+    """Return the RAGame matching *platform*/*md5* from the local RA cache, or None.
 
-    MD5-only match, consistent with the /api/game detail endpoint.
+    Shared by the bulk (_enrich_games_with_ra) and individual (/api/game) lookups
+    so there is one cache-reading implementation, not two (REV43-43). Memoized in
+    the module-level _ra_hash_cache, keyed by (console_id, cache file mtime) so a
+    refreshed cache is picked up without a server restart.
     """
-    if not games:
-        return
+    if not platform or not md5:
+        return None
     import json as _json
 
     from rom_manager.retroachievements.ra_client import _parse_game_list
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
-    cache_dir = config.project_root / ".rommgr" / "ra_cache"
-    hl_by_cid: dict = {}
+    cid = get_ra_console_id(platform)
+    if not cid:
+        return None
+    cache_file = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{cid}.json"
+    if not cache_file.exists():
+        return None
+    key = (cid, cache_file.stat().st_mtime)
+    if key not in _ra_hash_cache:
+        try:
+            _ra_hash_cache[key] = _parse_game_list(
+                _json.loads(cache_file.read_text(encoding="utf-8"))
+            )
+        except Exception:
+            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
+            _ra_hash_cache[key] = {}
+    return _ra_hash_cache[key].get(md5.lower())
 
+
+def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
+    """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
+
+    MD5-only match, consistent with the /api/game detail endpoint.
+    """
     for g in games:
         try:
-            plat = g.get("platform") or ""
-            if not plat:
-                continue
-            cid = get_ra_console_id(plat)
-            if not cid:
-                continue
-            if cid not in hl_by_cid:
-                cf = cache_dir / f"ra_hashes_{cid}.json"
-                if cf.exists():
-                    key = (cid, cf.stat().st_mtime)
-                    if key not in _ra_hash_cache:
-                        try:
-                            hl = _parse_game_list(_json.loads(cf.read_text("utf-8")))
-                        except Exception:
-                            _logger.warning("Caché RA corrupta o ilegible: %s", cf, exc_info=True)
-                            hl = {}
-                        _ra_hash_cache[key] = hl
-                    hl = _ra_hash_cache[key]
-                else:
-                    hl = {}
-                hl_by_cid[cid] = hl
-
-            md5 = g.get("md5") or ""
-            rg = hl_by_cid[cid].get(md5.lower()) if md5 else None
+            rg = _lookup_ra_game(g.get("platform") or "", g.get("md5") or "", config)
             if rg:
                 g["ra_game_id"] = rg.id
                 g["ra_achievements"] = rg.achievements
@@ -410,34 +410,12 @@ def register(
         result = dict(row)
         # RA data lookup from local cache
         try:
-            import json as _json
-
-            from rom_manager.retroachievements.ra_client import _parse_game_list
-            from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-
-            _plat = result.get("platform") or ""
-            _md5 = result.get("md5") or ""
-            if _plat and _md5:
-                _cid = get_ra_console_id(_plat)
-                if _cid:
-                    _cf = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{_cid}.json"
-                    if _cf.exists():
-                        _key = (_cid, _cf.stat().st_mtime)
-                        if _key not in _ra_hash_cache:
-                            try:
-                                _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
-                            except Exception:
-                                _logger.warning(
-                                    "Caché RA corrupta o ilegible: %s", _cf, exc_info=True
-                                )
-                                _hl = {}
-                            _ra_hash_cache[_key] = _hl
-                        _rg = _ra_hash_cache[_key].get(_md5.lower())
-                        if _rg:
-                            result["ra_game_id"] = _rg.id
-                            result["ra_title"] = _rg.title
-                            result["ra_achievements"] = _rg.achievements
-                            result["ra_points"] = _rg.points
+            rg = _lookup_ra_game(result.get("platform") or "", result.get("md5") or "", config)
+            if rg:
+                result["ra_game_id"] = rg.id
+                result["ra_title"] = rg.title
+                result["ra_achievements"] = rg.achievements
+                result["ra_points"] = rg.points
         except Exception:
             _logger.debug("Anotación RA en detalle de juego falló", exc_info=True)
         # saves count by stem matching

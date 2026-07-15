@@ -8,6 +8,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from rom_manager.utils.paths import same_file as _same_file
+
 _logger = logging.getLogger(__name__)
 
 # TABS-FIX-7: savestates de RetroArch que el chequeo simple de sufijo no ve —
@@ -93,13 +95,6 @@ class RenameOutcome:
     target: Path
     saves_renamed: int = 0
     error: str = ""
-
-
-def _same_file(a: Path, b: Path) -> bool:
-    try:
-        return a.samefile(b)
-    except OSError:
-        return False
 
 
 def rename_rom_with_saves(
