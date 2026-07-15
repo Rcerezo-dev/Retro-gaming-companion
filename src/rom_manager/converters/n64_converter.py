@@ -81,6 +81,10 @@ def convert_to_z64(source: Path, target: Path | None = None) -> N64ConvertResult
         result.error = "Ya está en formato .z64"
         return result
 
+    if target.exists():
+        result.error = f"El destino ya existe: {target.name} — no se sobrescribe."
+        return result
+
     try:
         with open(source, "rb") as fin, open(target, "wb") as fout:
             while True:
