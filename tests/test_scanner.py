@@ -213,3 +213,37 @@ def test_prune_stale_entries(tmp_path):
     _, total_after_second = repo.get_games_paginated()
     assert total_after_second == 2
     assert result.pruned == 1
+
+
+# ── last_played_at update on save detection (REV43-22) ────────────────────────
+
+
+def test_save_last_played_at_does_not_match_wrong_sibling_with_underscore(tmp_path):
+    """A save's filename with a literal '_' must not update a sibling ROM whose
+    name only differs at that position — SQL LIKE treats '_' as a wildcard
+    unless escaped, so 'Zelda_of_Time.srm' could previously match
+    'ZeldaXofXTime.gba' too."""
+    rom_dir = tmp_path / "roms"
+    db_path = tmp_path / ".rommgr" / "library.db"
+
+    correct_rom = _write(rom_dir, "Zelda_of_Time.gba")
+    decoy_rom = _write(rom_dir, "ZeldaXofXTime.gba")  # differs only where '_' is
+
+    repo = LibraryRepository(db_path)
+    cfg = load_config()
+    logger = MagicMock()
+
+    # First pass: discover both ROMs (last_played_at starts NULL).
+    scan_library(rom_dir, cfg, repo, logger)
+
+    # Second pass: a save file appears for the correct ROM only.
+    _write(rom_dir, "Zelda_of_Time.srm")
+    scan_library(rom_dir, cfg, repo, logger)
+
+    with repo.connect() as conn:
+        rows = {
+            r["source_path"]: r["last_played_at"]
+            for r in conn.execute("SELECT source_path, last_played_at FROM games").fetchall()
+        }
+    assert rows[str(correct_rom.resolve())] is not None
+    assert rows[str(decoy_rom.resolve())] is None

@@ -142,9 +142,14 @@ def scan_library(
                             .replace(microsecond=0)
                             .isoformat()
                         )
-                        stem_like = str(path.parent.resolve()) + os.sep + path.stem + ".%"
+                        prefix = str(path.parent.resolve() / path.stem)
+                        stem_like = (
+                            prefix.replace("\\", "\\\\").replace("%", "%%").replace("_", "\\_")
+                            + ".%"
+                        )
                         conn.execute(
-                            "UPDATE games SET last_played_at = ? WHERE source_path LIKE ? AND (last_played_at IS NULL OR last_played_at < ?)",
+                            "UPDATE games SET last_played_at = ? WHERE source_path LIKE ? ESCAPE '\\' "
+                            "AND (last_played_at IS NULL OR last_played_at < ?)",
                             (save_mtime_ts, stem_like, save_mtime_ts),
                         )
                     except Exception:
