@@ -122,6 +122,28 @@ def test_move_disc_set_renames_central_save_in_place(tmp_path: Path) -> None:
     assert (central / "Game (USA).srm").exists()  # renombrado en su sitio
 
 
+def test_rename_backs_up_current_save_even_with_leftover_bak(tmp_path: Path) -> None:
+    """REV43-25: a stale .bak left over from a previous attempt used to make
+    the backup step a no-op (os.replace(bak, bak)) — the save about to be
+    overwritten was never actually preserved before the overwrite."""
+    source = tmp_path / "Old.nes"
+    source.write_bytes(b"rom")
+    (tmp_path / "Old.srm").write_bytes(b"new save content")
+    # New.srm already exists (different content) — triggers the backup path.
+    (tmp_path / "New.srm").write_bytes(b"current save about to be overwritten")
+    # A leftover .bak from a previous failed/retried attempt.
+    (tmp_path / "New.srm.bak").write_bytes(b"stale backup from an earlier attempt")
+
+    outcome = rename_rom_with_saves(source, tmp_path / "New.nes", SAVE_EXTS)
+
+    assert outcome.success is True
+    assert (tmp_path / "New.srm").read_bytes() == b"new save content"
+    # The stale .bak must survive untouched, and the just-overwritten save
+    # must land in a *different* backup file — not silently discarded.
+    assert (tmp_path / "New.srm.bak").read_bytes() == b"stale backup from an earlier attempt"
+    assert (tmp_path / "New.srm.bak1").read_bytes() == b"current save about to be overwritten"
+
+
 def test_move_disc_set_rollback_failure_is_reported(tmp_path: Path, monkeypatch) -> None:
     """REV43-24: if undoing a partial move fails, the caller must be told which
     file couldn't be restored — the old _rollback() swallowed OSError silently

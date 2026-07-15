@@ -168,7 +168,14 @@ def rename_rom_with_saves(
             # If it is a different file, back it up with a .bak suffix before overwriting.
             if new_sav.exists() and not _same_file(sav, new_sav):
                 bak = new_sav.with_suffix(new_sav.suffix + ".bak")
-                os.replace(bak if bak.exists() else new_sav, bak)
+                n = 1
+                # A leftover .bak from a previous attempt must never make this a
+                # no-op (os.replace(bak, bak)) — that would leave new_sav's
+                # current content unbacked-up right before it gets overwritten.
+                while bak.exists():
+                    bak = new_sav.with_suffix(new_sav.suffix + f".bak{n}")
+                    n += 1
+                os.replace(new_sav, bak)
             if not (new_sav.exists() and _same_file(sav, new_sav)):
                 shutil.move(str(sav), str(new_sav))
             else:
