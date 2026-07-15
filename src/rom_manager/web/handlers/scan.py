@@ -374,6 +374,7 @@ def _do_adb_scan(
     import logging
 
     logger = logging.getLogger(__name__)
+    _cancel = job_manager.cancel_event("scan")
 
     def run() -> None:
         job_result = None
@@ -400,6 +401,8 @@ def _do_adb_scan(
 
             with repo_android.batch() as conn:
                 for fi in all_files:
+                    if _cancel.is_set():
+                        break
                     ap = fi.android_path
                     seen_paths.add(ap)
                     parts = ap.split("/")
@@ -492,6 +495,7 @@ def _do_adb_scan(
                 "pruned": pruned,
                 "source": "adb",
                 "android_path": android_path,
+                "cancelled": _cancel.is_set(),
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
