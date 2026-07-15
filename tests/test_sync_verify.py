@@ -43,12 +43,15 @@ class _FakeDevice:
             self.files[dst] = data[: len(data) // 2] if self.corrupt_push else data
         elif rest[0] == "shell":
             args = shlex.split(rest[1])
+            paths = [a for a in args[1:] if not a.startswith("-")]
             if args[0] == "md5sum":
-                out = f"{md5(self.files[args[1]]).hexdigest()}  {args[1]}\n".encode()
+                out = f"{md5(self.files[paths[0]]).hexdigest()}  {paths[0]}\n".encode()
             elif args[0] == "stat":
-                out = str(len(self.files[args[-1]])).encode()
+                out = str(len(self.files[paths[-1]])).encode()
             elif args[0] == "rm":
-                del self.files[args[1]]
+                self.files.pop(paths[0], None)
+            elif args[0] == "mv":
+                self.files[paths[1]] = self.files.pop(paths[0])
             # mkdir -p → no-op
         return subprocess.CompletedProcess(cmd, rc, stdout=out, stderr=b"")
 
@@ -101,7 +104,7 @@ def test_push_verified_ok(device, tmp_path) -> None:
     assert device.files["/sd/saves/zelda.sav"] == b"ZELDA-SAVE"
 
 
-def test_push_corruption_deletes_remote_and_raises(device, tmp_path) -> None:
+def test_push_corruption_never_touches_final_destination(device, tmp_path) -> None:
     src = tmp_path / "zelda.sav"
     src.write_bytes(b"ZELDA-SAVE")
     device.corrupt_push = True
@@ -109,10 +112,28 @@ def test_push_corruption_deletes_remote_and_raises(device, tmp_path) -> None:
     with pytest.raises(OSError, match="MD5"):
         _transport().push(src, "/sd/saves/zelda.sav", verify=True)
 
-    # el archivo corrupto no queda en el dispositivo (su mtime nuevo propagaría
-    # la corrupción de vuelta al PC en el siguiente sync "newest")
+    # REV43-1: se sube a un "<dst>.part" y solo se mueve al destino final si
+    # el MD5 verifica — un push corrupto no llega a crear/tocar el destino.
     assert "/sd/saves/zelda.sav" not in device.files
+    assert "/sd/saves/zelda.sav.part" not in device.files  # sin restos
     assert src.read_bytes() == b"ZELDA-SAVE"  # el original del PC intacto
+
+
+def test_push_corruption_leaves_existing_remote_intact(device, tmp_path) -> None:
+    """REV43-1: un push corrupto sobre un save YA existente en el dispositivo
+    no debe destruirlo — antes del fix, adb push escribía directo sobre el
+    destino final y solo se detectaba (y borraba) la corrupción después,
+    perdiendo para siempre lo que hubiera en el dispositivo."""
+    device.files["/sd/saves/zelda.sav"] = b"ZELDA-SAVE-DEL-DISPOSITIVO"
+    src = tmp_path / "zelda.sav"
+    src.write_bytes(b"ZELDA-SAVE-NUEVA-CORRUPTA")
+    device.corrupt_push = True
+
+    with pytest.raises(OSError, match="MD5"):
+        _transport().push(src, "/sd/saves/zelda.sav", verify=True)
+
+    assert device.files["/sd/saves/zelda.sav"] == b"ZELDA-SAVE-DEL-DISPOSITIVO"  # intacto
+    assert "/sd/saves/zelda.sav.part" not in device.files  # sin restos
 
 
 def test_sync_log_verified_column_and_migration(tmp_path) -> None:

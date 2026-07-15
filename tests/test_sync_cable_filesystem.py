@@ -18,16 +18,18 @@ from rom_manager.web.handlers.sync_cable import register_cable
 from rom_manager.web.router import Router
 
 
-def _config(tmp_path: Path) -> SimpleNamespace:
+def _config(tmp_path: Path, *, backup_saves_enabled: bool = False) -> SimpleNamespace:
     return SimpleNamespace(
         adb="adb",
         project_root=tmp_path,
+        data_dir=tmp_path / ".rommgr",
         library_root=None,
         anbernic_root=None,
         save_extensions=(".sav",),
         excluded_directories=frozenset(),
         notify_desktop=False,
         sync=SimpleNamespace(clock_skew_threshold_s=120),
+        backup=SimpleNamespace(saves_enabled=backup_saves_enabled),
     )
 
 
@@ -47,11 +49,14 @@ def _write(root: Path, *parts: str, content: bytes = b"x") -> Path:
     return p
 
 
-def _run_sync(tmp_path: Path, data: dict) -> dict:
+def _run_sync(tmp_path: Path, data: dict, *, config: SimpleNamespace | None = None) -> dict:
     _state._job_manager.finish("cable_sync", None)
     router = Router()
     register_cable(
-        router, config=_config(tmp_path), repository=None, job_manager=_state._job_manager
+        router,
+        config=config or _config(tmp_path),
+        repository=None,
+        job_manager=_state._job_manager,
     )
     ctx = _FakeCtx(data)
     router.dispatch("POST", "/api/cable-sync", ctx)
@@ -83,6 +88,34 @@ def test_pc_to_anbernic_copies(tmp_path: Path) -> None:
     assert res["copied"] == 1
     assert res["errors"] == 0
     assert (ab / "gba" / "mario.sav").exists()
+
+
+def test_overwrite_backs_up_existing_save_when_enabled(tmp_path: Path) -> None:
+    """REV43-2: sobrescribir un save existente por cable debe respaldarlo
+    primero (backup_save), igual que ya hace el SD-auto daemon (CABLE-UX-9a) —
+    la ruta manual no tenía red de seguridad."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "mario.sav", content=b"NEW")
+    _write(ab, "mario.sav", content=b"OLD")
+
+    res = _run_sync(
+        tmp_path,
+        {
+            "pc_path": str(pc),
+            "anbernic_path": str(ab),
+            "what": ["saves"],
+            "direction": "pc_to_anbernic",
+            "dry_run": False,
+            "safe_mode": False,
+        },
+        config=_config(tmp_path, backup_saves_enabled=True),
+    )
+
+    assert res["copied"] == 1
+    assert (ab / "mario.sav").read_bytes() == b"NEW"
+    backups = list((tmp_path / ".rommgr" / "saves-backup").rglob("*.sav"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == b"OLD"
 
 
 def test_safe_mode_default_skips_existing_destination(tmp_path: Path) -> None:

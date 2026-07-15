@@ -290,10 +290,15 @@ def _do_cable_sync(
             import time as _time
             from pathlib import PurePosixPath
 
+            from rom_manager.backup.save_backup import backup_save
             from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 
             pc_root = Path(pc_path_str)
             save_exts = frozenset(config.save_extensions)
+            # REV43-2: backup versionado antes de sobrescribir un save existente
+            # (mismo patrón que ya usa el SD-auto daemon, CABLE-UX-9a) — la ruta
+            # manual de cable/ADB no tenía red de seguridad.
+            _bk_root = config.data_dir if config.backup.saves_enabled else None
 
             log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -394,6 +399,14 @@ def _do_cable_sync(
                     else:  # COPY / DRYRUN
                         _log(tag, str(ev_item.src), str(ev_item.dst))
 
+                if (
+                    _bk_root is not None
+                    and not dry_run
+                    and not safe_mode
+                    and _category(item.src) == "save"
+                    and item.dst.exists()
+                ):
+                    backup_save(item.dst, _bk_root)
                 policy = cable_engine.CopyPolicy(
                     dry_run=dry_run, safe_mode=safe_mode, skip_existing=skip_existing
                 )
@@ -417,12 +430,15 @@ def _do_cable_sync(
                         return
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                    is_save = should_verify(name, save_exts)
                     try:
+                        if _bk_root is not None and not dry_run and is_save and local_dst.exists():
+                            backup_save(local_dst, _bk_root)
                         size = transport.pull(
                             adb_info.android_path,
                             local_dst,
                             dry_run=dry_run,
-                            verify=should_verify(name, save_exts),
+                            verify=is_save,
                         )
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
