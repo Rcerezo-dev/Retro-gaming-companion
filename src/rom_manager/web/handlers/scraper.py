@@ -84,8 +84,14 @@ def register(
             from rom_manager.scraper.pegasus_writer import write_pegasus_metadata
 
             result_peg = write_pegasus_metadata(config.library_root, repository)
+            errors = result_peg["errors"]
             ctx._send_json(
-                {"ok": True, "platforms": result_peg["platforms"], "games": result_peg["games"]}
+                {
+                    "ok": not errors,
+                    "platforms": result_peg["platforms"],
+                    "games": result_peg["games"],
+                    "errors": errors,
+                }
             )
         except Exception as exc:
             ctx._send_json({"error": str(exc)})

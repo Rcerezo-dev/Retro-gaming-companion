@@ -11,10 +11,12 @@ def write_pegasus_metadata(
     library_root: Path,
     repository: LibraryRepository,
     output_dir: Path | None = None,
-) -> dict[str, int]:
+) -> dict[str, object]:
     """Write Pegasus Metadata Format files (metadata.pegasus.txt) per platform.
 
-    Returns {"platforms": N, "games": M}.
+    Returns {"platforms": N (written successfully), "games": M, "errors": [...]}.
+    A platform whose file failed to write (OSError) is excluded from "platforms"
+    and reported in "errors" instead of being silently dropped.
     """
     output_dir = output_dir or library_root
     with repository.connect() as conn:
@@ -38,6 +40,7 @@ def write_pegasus_metadata(
         by_platform.setdefault(plat, []).append(row)
 
     games_written = 0
+    errors: list[str] = []
     for platform, games in by_platform.items():
         plat_dir = library_root / platform
         out_path = plat_dir / "metadata.pegasus.txt"
@@ -73,7 +76,11 @@ def write_pegasus_metadata(
                 lines.append("\n")
             out_path.write_text("".join(lines), encoding="utf-8")
             games_written += len(games)
-        except OSError:
-            pass
+        except OSError as exc:
+            errors.append(f"{platform}: {exc}")
 
-    return {"platforms": len(by_platform), "games": games_written}
+    return {
+        "platforms": len(by_platform) - len(errors),
+        "games": games_written,
+        "errors": errors,
+    }
