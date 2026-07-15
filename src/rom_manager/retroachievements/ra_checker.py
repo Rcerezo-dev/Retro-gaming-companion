@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from rom_manager.retroachievements.ra_client import RAGame, fetch_hash_library
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -23,6 +26,9 @@ class RAGameResult:
     #   "no_support"            — not in RA, no alternative found
     #   "no_md5"                — game has no MD5 calculated (needs full scan)
     #   "platform_unknown"      — platform not mapped to RA console
+    #   "check_failed"          — RA hash library fetch failed (network/API error);
+    #                             NOT the same as "no_support" — must never be
+    #                             treated as "safe to discard"
     status: str
     alternative: RAGame | None = None
 
@@ -34,6 +40,7 @@ class RACheckSummary:
     no_support: int = 0
     no_md5: int = 0
     platform_unknown: int = 0
+    check_failed: int = 0
     total: int = 0
     results: list[RAGameResult] = field(default_factory=list)
 
@@ -94,7 +101,32 @@ def check_library(
         try:
             hash_lib = fetch_hash_library(console_id, api_key, cache_dir=cache_dir)
         except Exception:
-            hash_lib = {}
+            # A transient network/API failure must NOT be treated as "this
+            # console has 0 supported games" — that would mark every game on
+            # the platform "no_support" and make it eligible for bulk-discard
+            # (discard_no_support) based on a blip, not a real fact.
+            _logger.warning(
+                "Fallo al obtener la librería RA para consola %s (%s) — se omite esta "
+                "plataforma en vez de tratarla como sin soporte",
+                console_id,
+                plat,
+                exc_info=True,
+            )
+            for row in games:
+                processed += 1
+                if progress_cb:
+                    progress_cb(processed, summary.total, row["original_filename"])
+                summary.check_failed += 1
+                summary.results.append(
+                    RAGameResult(
+                        source_path=row["source_path"],
+                        original_filename=row["original_filename"],
+                        platform=plat,
+                        our_md5=row["md5"] or "",
+                        status="check_failed",
+                    )
+                )
+            continue
 
         # Build normalized_title → [RAGame] index for alternative lookup
         title_index: dict[str, list[RAGame]] = {}
