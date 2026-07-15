@@ -261,16 +261,25 @@ def move_disc_set_to_subfolder(
 
     moved: list[tuple[Path, Path]] = []  # (new_path, original_path)
 
-    def _rollback() -> None:
+    def _rollback() -> list[str]:
+        """Undo moves already done. Returns per-file failures (empty if clean)."""
+        failures: list[str] = []
         for new_p, orig_p in reversed(moved):
             try:
                 shutil.move(str(new_p), str(orig_p))
-            except OSError:
-                pass
+            except OSError as rb_exc:
+                failures.append(f"{new_p.name} → {orig_p.name}: {rb_exc}")
         try:
             target_dir.rmdir()
         except OSError:
-            pass
+            pass  # non-critical: dir may be non-empty (rollback above failed) or already gone
+        return failures
+
+    def _rollback_detail() -> str:
+        failures = _rollback()
+        if not failures:
+            return ""
+        return "; rollback INCOMPLETE — manual fix needed: " + " | ".join(failures)
 
     # Move BIN tracks (keeping original names)
     for bin_path in bin_files:
@@ -279,12 +288,12 @@ def move_disc_set_to_subfolder(
             os.rename(bin_path, bin_dest)
             moved.append((bin_dest, bin_path))
         except OSError as exc:
-            _rollback()
+            detail = _rollback_detail()
             return RenameOutcome(
                 success=False,
                 source=source_cue,
                 target=target_cue,
-                error=f"Failed to move track '{bin_path.name}': {exc}",
+                error=f"Failed to move track '{bin_path.name}': {exc}{detail}",
             )
 
     # Move saves (renaming stem to match new CUE name); central-dir saves
@@ -298,24 +307,24 @@ def move_disc_set_to_subfolder(
             moved.append((sav_dest, sav))
             saves_moved += 1
         except OSError as exc:
-            _rollback()
+            detail = _rollback_detail()
             return RenameOutcome(
                 success=False,
                 source=source_cue,
                 target=target_cue,
-                error=f"Failed to move save '{sav.name}': {exc}",
+                error=f"Failed to move save '{sav.name}': {exc}{detail}",
             )
 
     # Move and rename the CUE itself
     try:
         os.rename(source_cue, target_cue)
     except OSError as exc:
-        _rollback()
+        detail = _rollback_detail()
         return RenameOutcome(
             success=False,
             source=source_cue,
             target=target_cue,
-            error=f"Failed to move CUE '{source_cue.name}': {exc}",
+            error=f"Failed to move CUE '{source_cue.name}': {exc}{detail}",
         )
 
     return RenameOutcome(

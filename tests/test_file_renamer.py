@@ -122,6 +122,43 @@ def test_move_disc_set_renames_central_save_in_place(tmp_path: Path) -> None:
     assert (central / "Game (USA).srm").exists()  # renombrado en su sitio
 
 
+def test_move_disc_set_rollback_failure_is_reported(tmp_path: Path, monkeypatch) -> None:
+    """REV43-24: if undoing a partial move fails, the caller must be told which
+    file couldn't be restored — the old _rollback() swallowed OSError silently
+    and the returned error never mentioned an incomplete rollback."""
+    import rom_manager.renamer.file_renamer as fr
+
+    cue = tmp_path / "Game.cue"
+    bin1 = tmp_path / "Game (Disc 1).bin"
+    bin2 = tmp_path / "Game (Disc 2).bin"
+    bin1.write_bytes(b"data1")
+    bin2.write_bytes(b"data2")
+    cue.write_text(f'FILE "{bin1.name}" BINARY\nFILE "{bin2.name}" BINARY\n')
+    target_cue = tmp_path / "Game (USA)" / "Game (USA).cue"
+
+    real_rename = fr.os.rename
+    call_count = {"n": 0}
+
+    def _flaky_rename(src, dst):
+        call_count["n"] += 1
+        if call_count["n"] == 2:  # bin2's move fails, triggering rollback of bin1
+            raise OSError("simulated move failure")
+        return real_rename(src, dst)
+
+    monkeypatch.setattr(fr.os, "rename", _flaky_rename)
+    monkeypatch.setattr(
+        fr.shutil,
+        "move",
+        lambda *_a, **_k: (_ for _ in ()).throw(OSError("simulated rollback failure")),
+    )
+
+    outcome = move_disc_set_to_subfolder(cue, target_cue, SAVE_EXTS)
+
+    assert outcome.success is False
+    assert "rollback INCOMPLETE" in outcome.error
+    assert bin1.name in outcome.error
+
+
 def test_central_save_dirs_only_returns_existing(tmp_path: Path) -> None:
     class _Src:
         def __init__(self, d: str) -> None:
