@@ -599,6 +599,11 @@ def _do_migrate_split_db(
 
         ts = _now()
 
+        # REV43-5: solo se borra en origen lo que de verdad llegó al destino —
+        # antes se borraban TODAS las filas de android_rows aunque su upsert
+        # hubiera fallado, perdiendo para siempre los metadatos de catálogo
+        # (tags, RA, stats) de las filas fallidas.
+        migrated_paths: set[str] = set()
         with repo_android.batch() as _android_conn:
             for row in android_rows:
                 try:
@@ -620,12 +625,14 @@ def _do_migrate_split_db(
                         connection=_android_conn,
                     )
                     migrated += 1
+                    migrated_paths.add(row["source_path"])
                 except Exception as exc:
                     errors.append(f"{row['source_path']}: {exc}")
 
-        with repository.batch() as _pc_conn:
-            for row in android_rows:
-                _pc_conn.execute("DELETE FROM games WHERE source_path = ?", (row["source_path"],))
+        if migrated_paths:
+            with repository.batch() as _pc_conn:
+                for source_path in migrated_paths:
+                    _pc_conn.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
 
         with repository.connect() as _conn:
             save_rows = _conn.execute(
@@ -637,6 +644,7 @@ def _do_migrate_split_db(
             r for r in save_rows if not r["original_path"].lower().startswith(lib_root)
         ]
         if android_saves:
+            migrated_save_paths: set[str] = set()
             with repo_android.batch() as _android_conn:
                 for row in android_saves:
                     try:
@@ -648,13 +656,15 @@ def _do_migrate_split_db(
                             timestamp=ts,
                             connection=_android_conn,
                         )
+                        migrated_save_paths.add(row["original_path"])
                     except Exception as exc:
                         errors.append(f"save:{row['original_path']}: {exc}")
-            with repository.batch() as _pc_conn:
-                for row in android_saves:
-                    _pc_conn.execute(
-                        "DELETE FROM saves WHERE original_path = ?", (row["original_path"],)
-                    )
+            if migrated_save_paths:
+                with repository.batch() as _pc_conn:
+                    for original_path in migrated_save_paths:
+                        _pc_conn.execute(
+                            "DELETE FROM saves WHERE original_path = ?", (original_path,)
+                        )
 
     except Exception as exc:
         ctx._send_json({"error": str(exc)})

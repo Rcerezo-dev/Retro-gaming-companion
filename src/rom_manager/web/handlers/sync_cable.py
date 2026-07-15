@@ -559,6 +559,20 @@ def _do_cable_sync(
                             continue
                         rel_posix = info.android_path.removeprefix(android_prefix)
                         if use_sha1 and _cat_name(name) == "rom":
+                            if dry_run:
+                                # REV43-6: el chequeo SHA1 exige descargar el
+                                # archivo para hashearlo — un dry-run no debe
+                                # disparar transferencias ADB reales, así que
+                                # el dedup no se evalúa aquí (se cuenta como
+                                # "se copiaría", igual que el resto de rutas
+                                # de previsualización).
+                                copied += 1
+                                if len(details) < 300:
+                                    details.append(
+                                        {"file": "DRY← (sin chequeo SHA1)", "path": name}
+                                    )
+                                _update_progress(name)
+                                continue
                             _update_progress(f"[SHA1] {name}")
                             import tempfile
 
@@ -579,11 +593,8 @@ def _do_cable_sync(
                                     tmp_path.unlink(missing_ok=True)
                                     continue
                                 dst = pc_root / Path(rel_posix.replace("/", os.sep))
-                                if not dry_run:
-                                    dst.parent.mkdir(parents=True, exist_ok=True)
-                                    shutil.move(str(tmp_path), dst)
-                                else:
-                                    tmp_path.unlink(missing_ok=True)
+                                dst.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.move(str(tmp_path), dst)
                                 copied += 1
                                 copied_bytes += info.size
                                 if len(details) < 300:
