@@ -13,6 +13,36 @@ from pathlib import Path
 from rom_manager.database.repositories.models import MatchedGame, UnresolvedGame
 
 
+def _delete_game_children(conn: sqlite3.Connection, game_id: int) -> None:
+    """Delete a game's metadata/tags/operation history. Call before deleting the games row."""
+    conn.execute("DELETE FROM game_metadata WHERE game_id = ?", (game_id,))
+    conn.execute("DELETE FROM game_tags WHERE game_id = ?", (game_id,))
+    conn.execute("DELETE FROM file_operations WHERE game_id = ?", (game_id,))
+
+
+def cascade_delete_games_by_source_path(
+    conn: sqlite3.Connection, source_path: str, *, exclude_id: int | None = None
+) -> None:
+    """Delete game row(s) matching source_path, and their metadata/tags/file_operations.
+
+    For callers that key a delete off source_path within their own transaction
+    (inbox pipeline, RA duplicate resolution, cloud migration) instead of
+    delete_game() (keyed by id) -- same cascade, different key, so a row with
+    children doesn't violate the FK constraint on games.
+    """
+    where = "source_path = ?"
+    params: tuple = (source_path,)
+    if exclude_id is not None:
+        where += " AND id != ?"
+        params = (source_path, exclude_id)
+    game_ids = [
+        r[0] for r in conn.execute(f"SELECT id FROM games WHERE {where}", params).fetchall()
+    ]
+    for game_id in game_ids:
+        _delete_game_children(conn, game_id)
+    conn.execute(f"DELETE FROM games WHERE {where}", params)
+
+
 class GamesMixin:
     def get_known_roms(self) -> dict[str, tuple[int, int]]:
         """Return {source_path: (mtime, size_bytes)} for all games with a stored mtime.
@@ -307,8 +337,9 @@ class GamesMixin:
         return total
 
     def delete_game(self, game_id: int) -> None:
-        """Remove a game record from the database (file must be deleted from disk first)."""
+        """Remove a game record and its metadata/tags/operation history (file must be deleted from disk first)."""
         with self.connect() as connection:
+            _delete_game_children(connection, game_id)
             connection.execute("DELETE FROM games WHERE id = ?", (game_id,))
             connection.commit()
 
@@ -430,7 +461,7 @@ class GamesMixin:
         if need_meta:
             conditions = [
                 c
-                if c.startswith("gm.") or c.startswith("id IN")
+                if c.startswith("gm.")
                 else c.replace("file_type", "g.file_type")
                 .replace("platform", "g.platform")
                 .replace("canonical_title", "g.canonical_title")

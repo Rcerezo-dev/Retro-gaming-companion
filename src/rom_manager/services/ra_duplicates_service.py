@@ -15,6 +15,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.utils.trash import discard_to_trash
 
 if TYPE_CHECKING:
@@ -26,7 +27,7 @@ _log = logging.getLogger(__name__)
 
 def _delete_row(repository: LibraryRepository, source_path: str) -> None:
     with repository.connect() as conn:
-        conn.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
+        cascade_delete_games_by_source_path(conn, source_path)
         conn.commit()
 
 

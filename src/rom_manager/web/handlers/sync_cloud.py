@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -637,7 +638,7 @@ def _do_migrate_split_db(
         if migrated_paths:
             with repository.batch() as _pc_conn:
                 for source_path in migrated_paths:
-                    _pc_conn.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
+                    cascade_delete_games_by_source_path(_pc_conn, source_path)
 
         with repository.connect() as _conn:
             save_rows = _conn.execute(

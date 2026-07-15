@@ -343,3 +343,113 @@ def test_sha1_exists(repo):
     assert not repo.sha1_exists(sha)
     _upsert(repo, sha1=sha)
     assert repo.sha1_exists(sha)
+
+
+# ── REV43-10: delete_game cascade ─────────────────────────────────────────────
+
+
+def test_delete_game_removes_children(repo):
+    _upsert(repo, source_path="/roms/Orig.gba")
+    with repo.connect() as conn:
+        game_id = conn.execute("SELECT id FROM games").fetchone()["id"]
+
+    repo.add_tag(game_id, "favorito")
+    with repo.connect() as conn:
+        repo.upsert_metadata(
+            game_id=game_id,
+            ss_game_id="1",
+            title="Game",
+            year="1999",
+            genre="Platform",
+            publisher="",
+            developer="",
+            description="",
+            rating="",
+            box_art_url="",
+            box_art_path="",
+            scraped_at=TS,
+            connection=conn,
+        )
+        conn.commit()
+    repo.apply_rename(
+        game_id=game_id,
+        old_source_path="/roms/Orig.gba",
+        new_source_path="/roms/Renamed.gba",
+        new_filename="Renamed.gba",
+        timestamp=TS,
+    )
+
+    repo.delete_game(game_id)
+
+    with repo.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) c FROM games").fetchone()["c"] == 0
+        assert conn.execute("SELECT COUNT(*) c FROM game_metadata").fetchone()["c"] == 0
+        assert conn.execute("SELECT COUNT(*) c FROM game_tags").fetchone()["c"] == 0
+        assert conn.execute("SELECT COUNT(*) c FROM file_operations").fetchone()["c"] == 0
+
+
+# ── REV43-9: PRAGMA foreign_keys enforcement ──────────────────────────────────
+
+
+def test_foreign_keys_enforced(repo):
+    with repo.connect() as conn, pytest.raises(Exception, match="FOREIGN KEY"):
+        conn.execute(
+            "INSERT INTO game_metadata (game_id, scraped_at) VALUES (?, ?)",
+            (999999, TS),
+        )
+
+
+# ── REV43-11: get_games_paginated tag + genre/year combined ──────────────────
+
+
+def test_get_games_paginated_tag_and_genre_together(repo):
+    _upsert(repo, source_path="/roms/A.gba")
+    with repo.connect() as conn:
+        game_id = conn.execute("SELECT id FROM games").fetchone()["id"]
+    repo.add_tag(game_id, "favorito")
+    with repo.connect() as conn:
+        repo.upsert_metadata(
+            game_id=game_id,
+            ss_game_id="1",
+            title="Game",
+            year="1999",
+            genre="Platform",
+            publisher="",
+            developer="",
+            description="",
+            rating="",
+            box_art_url="",
+            box_art_path="",
+            scraped_at=TS,
+            connection=conn,
+        )
+        conn.commit()
+
+    games, total = repo.get_games_paginated(tag="favorito", genre="Platform", year="1999")
+    assert total == 1
+    assert games[0]["source_path"] == "/roms/A.gba"
+
+
+# ── REV43-12: get_save_sync_history LIKE escape ───────────────────────────────
+
+
+def test_get_save_sync_history_escapes_underscore(repo):
+    game_dir = str(Path("/saves/game_a/rom.gba").parent)
+    other_dir = str(Path("/saves/gameXa/rom.gba").parent)
+    match_path = str(Path(game_dir) / "save1.srm")
+    other_path = str(Path(other_dir) / "save1.srm")
+    with repo.batch() as conn:
+        conn.execute(
+            "INSERT INTO save_sync_log (local_path, remote_path, direction, result, created_at) "
+            "VALUES (?, '', 'upload', 'ok', ?)",
+            (match_path, TS),
+        )
+        conn.execute(
+            "INSERT INTO save_sync_log (local_path, remote_path, direction, result, created_at) "
+            "VALUES (?, '', 'upload', 'ok', ?)",
+            (other_path, TS),
+        )
+
+    history = repo.get_save_sync_history("/saves/game_a/rom.gba")
+    assert len(history) == 1
+    assert history[0]["local_path"] == match_path

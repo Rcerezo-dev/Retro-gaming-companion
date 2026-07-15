@@ -29,6 +29,7 @@ class _RepositoryBase:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=30000")
+        connection.execute("PRAGMA foreign_keys=ON")
         return connection
 
     @contextmanager
