@@ -81,17 +81,21 @@ def verify_multidisc(
             if m:
                 disc_numbers.append(int(m.group(2)))
         disc_numbers.sort()
-        expected = list(range(disc_numbers[0], disc_numbers[0] + len(disc_numbers)))
-        if disc_numbers != expected:
-            missing_nums = sorted(set(expected) - set(disc_numbers))
-            group_issues.append(
-                DiscIssue(
-                    base_name=group.base_name,
-                    issue_type="gap",
-                    detail=f"Discos faltantes: {missing_nums}",
-                    platform=plat,
+        # A group with only sidecars (.cue/.m3u without .bin/.chd/.iso) has
+        # nothing to check here — the missing_file check above already
+        # flags any disc image referenced but absent from disk.
+        if disc_numbers:
+            expected = list(range(disc_numbers[0], disc_numbers[0] + len(disc_numbers)))
+            if disc_numbers != expected:
+                missing_nums = sorted(set(expected) - set(disc_numbers))
+                group_issues.append(
+                    DiscIssue(
+                        base_name=group.base_name,
+                        issue_type="gap",
+                        detail=f"Discos faltantes: {missing_nums}",
+                        platform=plat,
+                    )
                 )
-            )
 
         # Check catalog match
         if repository is not None:

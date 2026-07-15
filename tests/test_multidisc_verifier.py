@@ -90,6 +90,23 @@ class TestGapFalsePositives:
         assert len(gaps) == 1
         assert "2" in gaps[0].detail
 
+    def test_sidecar_only_group_does_not_crash_whole_scan(self, tmp_path: Path) -> None:
+        """REV43-26: a group whose .bin files are gone but the .cue sidecars
+        remain (disc_numbers ends up empty after filtering sidecars) used to
+        raise an unhandled IndexError, aborting verify_multidisc entirely
+        instead of just flagging that one broken group."""
+        _touch(tmp_path / "Orphaned (Disc 1).cue")
+        _touch(tmp_path / "Orphaned (Disc 2).cue")
+        # A separate, healthy group must still get verified in the same run.
+        _touch(tmp_path / "Healthy (Disc 1).bin")
+        _touch(tmp_path / "Healthy (Disc 2).bin")
+
+        result = verify_multidisc(tmp_path)  # must not raise
+
+        gaps = [i for i in result.issues if i.issue_type == "gap"]
+        assert gaps == []
+        assert result.groups_ok + result.groups_with_issues == 2
+
 
 class TestMissingM3U:
     """RPT-B1: groups without an .m3u file must be flagged as missing_m3u."""
