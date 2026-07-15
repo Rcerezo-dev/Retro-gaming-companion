@@ -171,6 +171,9 @@ def get_ra_hash_lib(config: AppConfig, platform: str, cache: dict[str, dict]) ->
     """
     if platform in cache:
         return cache[platform]
+    import time as _time
+
+    from rom_manager.retroachievements.ra_client import _CACHE_TTL_SECONDS
     from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
@@ -180,6 +183,11 @@ def get_ra_hash_lib(config: AppConfig, platform: str, cache: dict[str, dict]) ->
         return {}
     cache_file = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{console_id}.json"
     if not cache_file.exists():
+        cache[platform] = {}
+        return {}
+    # Same TTL as ra_client.fetch_hash_library — a stale cache must not be
+    # treated as authoritative for duplicate resolution.
+    if _time.time() - cache_file.stat().st_mtime >= _CACHE_TTL_SECONDS:
         cache[platform] = {}
         return {}
     try:
