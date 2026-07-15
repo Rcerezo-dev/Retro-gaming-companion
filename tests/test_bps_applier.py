@@ -97,6 +97,42 @@ def test_mixed_actions():
         assert (d / "out.bin").read_bytes() == target
 
 
+def _target_copy(length: int, offset_delta: int) -> bytes:
+    """BPS TargetCopy action with signed delta offset."""
+    if offset_delta >= 0:
+        enc = (offset_delta << 1) | 0
+    else:
+        enc = ((-offset_delta) << 1) | 1
+    return _vlq(((length - 1) << 2) | 3) + _vlq(enc)
+
+
+def test_source_copy_negative_offset_raises_patch_error():
+    """REV43-19: a corrupt BPS with a negative SourceCopy offset must fail
+    with PatchError, not silently wrap around and read from the tail of
+    source (a negative Python index is valid syntax, so this was silent
+    corruption, not a crash)."""
+    source = b"ABCDEFGH"
+    patch = _make_bps(source, source, [_source_copy(1, -1)])
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        (d / "rom.bin").write_bytes(source)
+        (d / "patch.bps").write_bytes(patch)
+        with pytest.raises(PatchError, match="SourceCopy offset negativo"):
+            apply_bps(d / "rom.bin", d / "patch.bps", d / "out.bin")
+
+
+def test_target_copy_negative_offset_raises_patch_error():
+    """Same as above but for TargetCopy indexing into the (partially built) target."""
+    source = b"ABCDEFGH"
+    patch = _make_bps(source, source, [_target_copy(1, -1)])
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        (d / "rom.bin").write_bytes(source)
+        (d / "patch.bps").write_bytes(patch)
+        with pytest.raises(PatchError, match="TargetCopy offset negativo"):
+            apply_bps(d / "rom.bin", d / "patch.bps", d / "out.bin")
+
+
 def test_source_copy():
     source = b"XY" + b"\x00" * 6
     # SourceCopy: jump to offset 0, copy 2 bytes → "XY", then jump to 1, copy 2 → "YX" wait

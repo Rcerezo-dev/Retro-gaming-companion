@@ -118,7 +118,11 @@ def sync_saves(
             remote = remote_entries.get(relative)
 
             local_path = saves_dir / Path(relative)
-            # remote_path is now determined by routing logic in upload/download
+            # REV43-3: computado aquí (antes de cualquier transport.upload/download)
+            # para que quede definido incluso si la transferencia falla en el
+            # primer intento — evita UnboundLocalError en el except y que el log
+            # de auditoría arrastre la ruta de una iteración anterior.
+            remote_path = f"<routed to saves/states remote>/{relative}"
 
             last_sync = get_last_sync(conn, str(local_path))
 
@@ -165,8 +169,6 @@ def sync_saves(
                         save_extensions=save_extensions,
                         state_extensions=state_extensions,
                     )
-                    # Construct remote_path for logging (routing already determined in upload)
-                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -218,8 +220,6 @@ def sync_saves(
                         save_extensions=save_extensions,
                         state_extensions=state_extensions,
                     )
-                    # Construct remote_path for logging (routing already determined in download)
-                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -264,7 +264,6 @@ def sync_saves(
                         )
 
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
-                remote_path = f"<routed to saves/states remote>/{relative}"
 
                 # Determine winner
                 if conflict_policy in ("keep_pc", "keep_local"):

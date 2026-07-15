@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from rom_manager.config import AppConfig
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
 from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
@@ -98,9 +99,7 @@ def _resolve_organize_conflict(
             return "unresolved", str(exc)
         dest_path_str = str(dest_file.resolve())
         with repository.batch() as conn:
-            conn.execute(
-                "DELETE FROM games WHERE source_path=? AND id!=?", (dest_path_str, game_id)
-            )
+            cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
             conn.execute(
                 "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
                 (dest_path_str, dest_file.name, game_id),
@@ -907,10 +906,7 @@ def _run_inbox_pipeline(
                 # ghost row first; the physical move already succeeded either way.
                 dest_path_str = str(dest_file.resolve())
                 with repository.batch() as conn:
-                    conn.execute(
-                        "DELETE FROM games WHERE source_path=? AND id!=?",
-                        (dest_path_str, game_id),
-                    )
+                    cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
                     conn.execute(
                         "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
                         (dest_path_str, dest_file.name, game_id),

@@ -90,11 +90,14 @@ class SyncMixin:
     def get_save_sync_history(self, source_path: str, limit: int = 10) -> list[dict]:
         """Return the last N sync log entries whose local_path starts with the game directory."""
         game_dir = str(Path(source_path).parent)
+        # Escape literal backslashes first: on Windows game_dir already uses '\' as the
+        # path separator, which would otherwise collide with ESCAPE '\' below.
+        like = game_dir.replace("\\", "\\\\").replace("%", "%%").replace("_", "\\_") + "%"
         with self.connect() as conn:
             rows = conn.execute(
                 "SELECT local_path, remote_path, direction, result, message, created_at "
-                "FROM save_sync_log WHERE local_path LIKE ? ORDER BY id DESC LIMIT ?",
-                (game_dir.replace("%", "%%").replace("_", "\\_") + "%", limit),
+                "FROM save_sync_log WHERE local_path LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT ?",
+                (like, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 

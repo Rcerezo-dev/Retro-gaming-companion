@@ -113,6 +113,38 @@ def test_plan_newest_skips_equal_mtimes(tmp_path: Path) -> None:
     assert items == []
 
 
+def test_plan_newest_skips_mtimes_within_tolerance(tmp_path: Path) -> None:
+    """REV43-4: diferencia de 1s (redondeo típico de FAT32/exFAT en la SD del
+    Anbernic) no debe elegir un "ganador" — ambos lados se tratan como
+    equivalentes, igual que con mtimes idénticos."""
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "mario.sav", content=b"A")
+    ab_f = _write(ab, "mario.sav", content=b"B")
+    os.utime(pc_f, (50, 50))
+    os.utime(ab_f, (51, 51))
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert items == []
+
+
+def test_plan_newest_picks_side_beyond_tolerance(tmp_path: Path) -> None:
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "mario.sav", content=b"A")
+    ab_f = _write(ab, "mario.sav", content=b"B")
+    os.utime(pc_f, (50, 50))
+    os.utime(ab_f, (53, 53))  # 3s > tolerancia por defecto (2s)
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert len(items) == 1
+    assert items[0].src == ab_f
+
+
 def test_copy_item_skip_existing_same_size(tmp_path: Path) -> None:
     pc, ab = tmp_path / "pc", tmp_path / "ab"
     src = _write(pc, "mario.sav", content=b"DATA")

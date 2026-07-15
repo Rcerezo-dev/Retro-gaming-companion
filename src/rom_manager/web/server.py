@@ -256,8 +256,16 @@ def make_handler(
                 if path == "/login":
                     self._send(200, "text/html; charset=utf-8", _LOGIN_HTML.encode())
                     return
-                if path.startswith("/static/") or path == "/favicon.ico":
-                    pass  # fall through to normal handling (no auth on static)
+                # REV43-15: /s y /api/rclone-export-config son para curl sin sesión
+                # desde Termux (Anbernic); ya se protegen solas con loopback o el
+                # token efímero ?t= (_setup_token_ok) — exentas del gate de PIN.
+                if (
+                    path.startswith("/static/")
+                    or path == "/favicon.ico"
+                    or path == "/s"
+                    or path == "/api/rclone-export-config"
+                ):
+                    pass  # fall through to normal handling (no PIN gate)
                 elif not self._is_authenticated():
                     self._redirect_to_login()
                     return
@@ -609,10 +617,9 @@ def serve(
             except Exception as _te:
                 _logger.warning("Could not start tray icon: %s", _te)
 
-    global _httpd_instance
     handler = make_handler(repository, config, repository_android=repository_android)
     with ThreadingHTTPServer((host, port), handler) as httpd:
-        _httpd_instance = httpd
+        _state._httpd_instance = httpd
         httpd.serve_forever()
 
     # Clean up tray when server exits

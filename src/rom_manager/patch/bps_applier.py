@@ -88,6 +88,8 @@ def apply_bps(rom_path: Path, patch_path: Path, output_path: Path) -> int:
             offset_raw, pos = _read_vlq(patch, pos)
             sign = -1 if offset_raw & 1 else 1
             src_rel += sign * (offset_raw >> 1)
+            if src_rel < 0:
+                raise PatchError("BPS SourceCopy offset negativo")
             for _ in range(length):
                 target[out_pos] = source[src_rel]
                 out_pos += 1
@@ -97,6 +99,8 @@ def apply_bps(rom_path: Path, patch_path: Path, output_path: Path) -> int:
             offset_raw, pos = _read_vlq(patch, pos)
             sign = -1 if offset_raw & 1 else 1
             tgt_rel += sign * (offset_raw >> 1)
+            if tgt_rel < 0:
+                raise PatchError("BPS TargetCopy offset negativo")
             for _ in range(length):
                 target[out_pos] = target[tgt_rel]
                 out_pos += 1

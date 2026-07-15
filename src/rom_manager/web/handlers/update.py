@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import rom_manager.web.state as _state_mod
 from rom_manager.utils.update_checker import get_result
 from rom_manager.utils.update_installer import (
     download_update,
@@ -87,8 +88,6 @@ def register(router: Router, *, config: AppConfig) -> None:
     # ── POST /api/update/apply ────────────────────────────────────────────────
     @router.post("/api/update/apply")
     def post_update_apply(ctx) -> None:
-        import rom_manager.web.state as _state_mod
-
         with _lock:
             downloaded = _state.get("downloaded_path")
         if not downloaded:

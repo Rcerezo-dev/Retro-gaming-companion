@@ -17,6 +17,41 @@ from rom_manager.database.repository import LibraryRepository
 _logger = logging.getLogger(__name__)
 
 
+def _load_ra_hash_map(
+    cache_dir: _Path, platform: str, cache: dict[str, dict[str, int]]
+) -> dict[str, int]:
+    """md5(lower) → achievements for *platform*, from the RA hash cache on disk.
+
+    Ignores a cache older than RA's own TTL (``ra_client._CACHE_TTL_SECONDS``) —
+    stale data must not be treated as authoritative for duplicate resolution
+    (REV43-53). *cache* is a per-call dict the caller owns so repeated
+    platform lookups only touch disk once.
+    """
+    if platform in cache:
+        return cache[platform]
+    import time as _time
+
+    from rom_manager.retroachievements.ra_client import _CACHE_TTL_SECONDS, _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
+    console_id = get_ra_console_id(platform or "")
+    if not console_id:
+        cache[platform] = {}
+        return {}
+    cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+    if not cache_file.exists() or _time.time() - cache_file.stat().st_mtime >= _CACHE_TTL_SECONDS:
+        cache[platform] = {}
+        return {}
+    try:
+        hash_lib = _parse_game_list(_json.loads(cache_file.read_text(encoding="utf-8")))
+        result = {md5: game.achievements for md5, game in hash_lib.items()}
+    except Exception:
+        _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
+        result = {}
+    cache[platform] = result
+    return result
+
+
 def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     """Return conflict rows annotated with RA achievement counts and winner/loser roles.
 
@@ -41,36 +76,8 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     if config is None or not conflict_ops:
         return [base_row(op) for op in conflict_ops]
 
-    try:
-        from rom_manager.retroachievements.ra_client import _parse_game_list
-        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-    except Exception:
-        _logger.debug(
-            "Módulos de RetroAchievements no disponibles; conflictos sin anotar RA", exc_info=True
-        )
-        return [base_row(op) for op in conflict_ops]
-
     cache_dir = _Path(config.project_root) / ".rommgr" / "ra_cache"
-    _hash_lib_cache: dict[str, dict] = {}
-
-    def _hash_lib_for(plat: str) -> dict:
-        if plat in _hash_lib_cache:
-            return _hash_lib_cache[plat]
-        console_id = get_ra_console_id(plat or "")
-        if not console_id:
-            _hash_lib_cache[plat] = {}
-            return {}
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            _hash_lib_cache[plat] = {}
-            return {}
-        try:
-            lib = _parse_game_list(_json.loads(cache_file.read_text(encoding="utf-8")))
-        except Exception:
-            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            lib = {}
-        _hash_lib_cache[plat] = lib
-        return lib
+    _hash_lib_cache: dict[str, dict[str, int]] = {}
 
     def _ra_for_path(path: _Path) -> int:
         """Return achievement count (-1 = no data)."""
@@ -88,8 +95,7 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
             return -1
         if not md5:
             return -1
-        entry = _hash_lib_for(plat).get(md5)
-        return entry.achievements if entry else -1
+        return _load_ra_hash_map(cache_dir, plat, _hash_lib_cache).get(md5, -1)
 
     # Pre-compute RA scores for all source paths
     ra_scores: dict[str, int] = {}
@@ -139,40 +145,22 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     return rows
 
 
-def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) -> list[dict]:
+def _annotate_duplicates_with_ra(
+    title_groups: list[dict], config: AppConfig, repository: LibraryRepository
+) -> list[dict]:
     """B1-4: Annotate title_groups entries with RA achievements count if available."""
-    from rom_manager.retroachievements.ra_client import _parse_game_list
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
     # Build platform → {md5 → achievements} map
     platform_hash_map: dict[str, dict[str, int]] = {}
     for group in title_groups:
         plat = group.get("platform") or "unknown"
-        if plat in platform_hash_map:
-            continue
-        console_id = get_ra_console_id(plat)
-        if not console_id:
-            continue
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            continue
-        try:
-            data = _json.loads(cache_file.read_text(encoding="utf-8"))
-            hash_lib = _parse_game_list(data)
-            platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
-        except Exception:
-            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            continue
+        _load_ra_hash_map(cache_dir, plat, platform_hash_map)
 
     # Get MD5 mapping: id → md5 from database
     id_to_md5: dict[int, str] = {}
     try:
-        from rom_manager.database.repository import LibraryRepository
-
-        repo = LibraryRepository(config.project_root)
-        with repo.connect() as conn:
+        with repository.connect() as conn:
             rows = conn.execute("SELECT id, md5 FROM games").fetchall()
             id_to_md5 = {r["id"]: r["md5"] for r in rows}
     except Exception:
@@ -248,7 +236,7 @@ def _build_duplicates(
     title_groups = repository.get_title_duplicate_groups()
 
     # Annotate title_groups with RA achievements if available
-    title_groups = _annotate_duplicates_with_ra(title_groups, config)
+    title_groups = _annotate_duplicates_with_ra(title_groups, config, repository)
 
     return {
         "groups": [
@@ -387,8 +375,6 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     Las versiones sin logros se marcan como candidatas a eliminar.
     """
     from rom_manager.retroachievements.ra_checker import _normalize_title
-    from rom_manager.retroachievements.ra_client import _parse_game_list
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
@@ -401,21 +387,9 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     platform_hash_map: dict[str, dict[str, int]] = {}
     platforms_seen = {r["platform"] for r in rows if r["platform"]}
     for plat in platforms_seen:
-        console_id = get_ra_console_id(plat or "")
-        if not console_id:
-            continue
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            continue
-        try:
-            data = _json.loads(cache_file.read_text(encoding="utf-8"))
-            hash_lib = _parse_game_list(data)
-            platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
-        except Exception:
-            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            continue
+        _load_ra_hash_map(cache_dir, plat, platform_hash_map)
 
-    if not platform_hash_map:
+    if not any(platform_hash_map.values()):
         return {
             "groups": [],
             "total_groups": 0,

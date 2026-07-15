@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
+import os
+import time
 from pathlib import Path
 
+from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.services.ra_duplicates_service import (
     discard_all_ra_duplicates,
     discard_no_support,
     discard_ra_duplicate,
+    get_ra_hash_lib,
     resolve_duplicate_ra,
 )
 
@@ -167,3 +172,41 @@ def test_resolve_duplicate_ra_discards_paths(tmp_path: Path) -> None:
     assert not drop1.exists()
     assert (tmp_path / "_descartados" / "drop1.gb").exists()
     assert _count(repo) == 1  # only keep survives
+
+
+# ── get_ra_hash_lib TTL (REV43-28) ────────────────────────────────────────────
+
+
+def _write_ra_cache(tmp_path: Path, console_id: int, *, age_seconds: float) -> Path:
+    cache_dir = tmp_path / ".rommgr" / "ra_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+    cache_file.write_text(
+        json.dumps([{"ID": 1, "Title": "Game", "NumAchievements": 10, "Hashes": ["m" * 32]}]),
+        encoding="utf-8",
+    )
+    stale_time = time.time() - age_seconds
+    os.utime(cache_file, (stale_time, stale_time))
+    return cache_file
+
+
+def test_get_ra_hash_lib_ignores_stale_cache(tmp_path: Path) -> None:
+    """REV43-28: get_ra_hash_lib must respect the same 1-week TTL as
+    ra_client.fetch_hash_library — a stale cache used for duplicate
+    resolution is as wrong as a stale cache used for the RA check."""
+    config = load_config(tmp_path)
+    _write_ra_cache(tmp_path, console_id=4, age_seconds=8 * 24 * 3600)  # 8 days old
+
+    lib = get_ra_hash_lib(config, "Game Boy Advance", {})
+
+    assert lib == {}
+
+
+def test_get_ra_hash_lib_uses_fresh_cache(tmp_path: Path) -> None:
+    config = load_config(tmp_path)
+    _write_ra_cache(tmp_path, console_id=4, age_seconds=3600)  # 1 hour old
+
+    lib = get_ra_hash_lib(config, "Game Boy Advance", {})
+
+    assert "m" * 32 in lib
+    assert lib["m" * 32].achievements == 10

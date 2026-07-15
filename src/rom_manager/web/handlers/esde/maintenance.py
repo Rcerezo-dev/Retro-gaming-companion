@@ -91,7 +91,7 @@ def register_maintenance(
                     ],
                     "result_ts": utc_now(),
                 }
-                from rom_manager.web.server import _write_health_schedule
+                from rom_manager.web.daemons import _write_health_schedule
 
                 _write_health_schedule(
                     config, ok=summary.ok, corrupted=summary.corrupted, missing=summary.missing

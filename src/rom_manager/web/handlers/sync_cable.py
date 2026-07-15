@@ -290,10 +290,20 @@ def _do_cable_sync(
             import time as _time
             from pathlib import PurePosixPath
 
+            from rom_manager.backup.save_backup import backup_save
             from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 
             pc_root = Path(pc_path_str)
+            if not pc_root.exists():
+                # REV43-7: sin este chequeo, os.walk sobre una ruta inexistente
+                # no lanza error — solo no encuentra nada, y el job termina en
+                # "copied=0, errors=0" como si la sync hubiera ido bien.
+                raise OSError(f"Ruta PC no existe: {pc_path_str}")
             save_exts = frozenset(config.save_extensions)
+            # REV43-2: backup versionado antes de sobrescribir un save existente
+            # (mismo patrón que ya usa el SD-auto daemon, CABLE-UX-9a) — la ruta
+            # manual de cable/ADB no tenía red de seguridad.
+            _bk_root = config.data_dir if config.backup.saves_enabled else None
 
             log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -394,6 +404,14 @@ def _do_cable_sync(
                     else:  # COPY / DRYRUN
                         _log(tag, str(ev_item.src), str(ev_item.dst))
 
+                if (
+                    _bk_root is not None
+                    and not dry_run
+                    and not safe_mode
+                    and _category(item.src) == "save"
+                    and item.dst.exists()
+                ):
+                    backup_save(item.dst, _bk_root)
                 policy = cable_engine.CopyPolicy(
                     dry_run=dry_run, safe_mode=safe_mode, skip_existing=skip_existing
                 )
@@ -417,12 +435,15 @@ def _do_cable_sync(
                         return
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                    is_save = should_verify(name, save_exts)
                     try:
+                        if _bk_root is not None and not dry_run and is_save and local_dst.exists():
+                            backup_save(local_dst, _bk_root)
                         size = transport.pull(
                             adb_info.android_path,
                             local_dst,
                             dry_run=dry_run,
-                            verify=should_verify(name, save_exts),
+                            verify=is_save,
                         )
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
@@ -543,6 +564,20 @@ def _do_cable_sync(
                             continue
                         rel_posix = info.android_path.removeprefix(android_prefix)
                         if use_sha1 and _cat_name(name) == "rom":
+                            if dry_run:
+                                # REV43-6: el chequeo SHA1 exige descargar el
+                                # archivo para hashearlo — un dry-run no debe
+                                # disparar transferencias ADB reales, así que
+                                # el dedup no se evalúa aquí (se cuenta como
+                                # "se copiaría", igual que el resto de rutas
+                                # de previsualización).
+                                copied += 1
+                                if len(details) < 300:
+                                    details.append(
+                                        {"file": "DRY← (sin chequeo SHA1)", "path": name}
+                                    )
+                                _update_progress(name)
+                                continue
                             _update_progress(f"[SHA1] {name}")
                             import tempfile
 
@@ -563,11 +598,8 @@ def _do_cable_sync(
                                     tmp_path.unlink(missing_ok=True)
                                     continue
                                 dst = pc_root / Path(rel_posix.replace("/", os.sep))
-                                if not dry_run:
-                                    dst.parent.mkdir(parents=True, exist_ok=True)
-                                    shutil.move(str(tmp_path), dst)
-                                else:
-                                    tmp_path.unlink(missing_ok=True)
+                                dst.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.move(str(tmp_path), dst)
                                 copied += 1
                                 copied_bytes += info.size
                                 if len(details) < 300:
@@ -622,9 +654,13 @@ def _do_cable_sync(
                         pc_f = pc_index.get(rel_posix)
                         ab_inf = ab_index.get(rel_posix)
                         if pc_f and ab_inf:
-                            if pc_f.stat().st_mtime > ab_inf.mtime:
+                            # REV43-4: misma tolerancia que cable_engine.plan_direction
+                            # — sin ella, el redondeo de mtime de FAT32/exFAT elige un
+                            # "ganador" arbitrario y puede sobrescribir la version buena.
+                            diff = pc_f.stat().st_mtime - ab_inf.mtime
+                            if diff > cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_device(pc_f, rel_posix, "→ ADB (PC más reciente)")
-                            elif ab_inf.mtime > pc_f.stat().st_mtime:
+                            elif diff < -cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
@@ -636,6 +672,13 @@ def _do_cable_sync(
             # ── Filesystem mode ───────────────────────────────────────────────
             else:
                 ab_root = Path(anbernic_path_str)
+                if not ab_root.exists():
+                    # REV43-7: SD no insertada/montada — sin este chequeo el
+                    # job "termina bien" con copied=0 en vez de avisar.
+                    raise OSError(
+                        f"Ruta Anbernic no existe: {anbernic_path_str} "
+                        "(¿la SD está insertada/montada?)"
+                    )
 
                 try:
                     _pre_total = 0

@@ -132,37 +132,44 @@ def write_gamelist(
     return out_path
 
 
+def _best(candidates: list[dict]) -> dict:
+    """Highest-priority entry by extension (.m3u > .chd > .pbp > .cue …)."""
+    return min(
+        candidates,
+        key=lambda e: _EXT_PRIORITY.get(Path(e["filename"]).suffix.lower(), _EXT_PRIORITY_DEFAULT),
+    )
+
+
 def _deduplicate(entries: list[dict]) -> list[dict]:
     """Devuelve una lista deduplicada por título scrapeado.
 
-    Cuando dos entradas tienen el mismo *title*, se conserva la de mayor prioridad
-    de extensión (.m3u > .chd > .pbp > .cue …).  Esto evita que los discos
-    individuales (.cue) aparezcan junto al playlist (.m3u) del mismo juego.
+    Dos niveles de colapso, ambos solo dentro del mismo título:
+    - Si hay un .m3u (playlist que cubre todo el set), gana él solo —
+      colapsa TODOS los discos individuales del set en una sola entrada.
+    - Si no hay .m3u, se deduplica por número de disco (extraído del
+      nombre de archivo): dos representaciones del *mismo* disco colapsan
+      (mayor prioridad de extensión gana), pero discos *distintos* del
+      mismo set (Disc 1, Disc 2, …) se mantienen como entradas separadas.
     """
-    best: dict[str, dict] = {}  # title_lower → entry
+    groups: dict[str, list[dict]] = {}
     for entry in entries:
         title_key = (entry.get("title") or _stem(entry["filename"])).lower().strip()
-        ext = Path(entry["filename"]).suffix.lower()
-        priority = _EXT_PRIORITY.get(ext, _EXT_PRIORITY_DEFAULT)
+        groups.setdefault(title_key, []).append(entry)
 
-        existing = best.get(title_key)
-        if existing is None:
-            best[title_key] = entry
-        else:
-            existing_ext = Path(existing["filename"]).suffix.lower()
-            existing_priority = _EXT_PRIORITY.get(existing_ext, _EXT_PRIORITY_DEFAULT)
-            if priority < existing_priority:
-                best[title_key] = entry
-
-    # Preserve original order as much as possible
-    seen: set[str] = set()
     result: list[dict] = []
-    for entry in entries:
-        title_key = (entry.get("title") or _stem(entry["filename"])).lower().strip()
-        winner = best.get(title_key)
-        if winner is not None and title_key not in seen:
-            result.append(winner)
-            seen.add(title_key)
+    for group in groups.values():
+        m3u_entries = [e for e in group if Path(e["filename"]).suffix.lower() == ".m3u"]
+        if m3u_entries:
+            result.append(_best(m3u_entries))
+            continue
+
+        by_disc: dict[str | None, list[dict]] = {}
+        for entry in group:
+            m = _DISC_RE.search(entry["filename"])
+            disc_num = m.group(1) if m else None
+            by_disc.setdefault(disc_num, []).append(entry)
+        for disc_group in by_disc.values():
+            result.append(_best(disc_group))
     return result
 
 

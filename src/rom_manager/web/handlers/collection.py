@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+
+_logger = logging.getLogger(__name__)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -20,12 +23,10 @@ def register(
     get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
-    import sys
-
     from rom_manager.web.builders.diff import _build_library_diff
     from rom_manager.web.builders.misc import _build_assets
 
-    print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
+    _logger.debug("Starting registration, router=%s", router)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
     @router.get("/api/platform-stats")

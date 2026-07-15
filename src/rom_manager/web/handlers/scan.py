@@ -374,6 +374,7 @@ def _do_adb_scan(
     import logging
 
     logger = logging.getLogger(__name__)
+    _cancel = job_manager.cancel_event("scan")
 
     def run() -> None:
         job_result = None
@@ -400,6 +401,8 @@ def _do_adb_scan(
 
             with repo_android.batch() as conn:
                 for fi in all_files:
+                    if _cancel.is_set():
+                        break
                     ap = fi.android_path
                     seen_paths.add(ap)
                     parts = ap.split("/")
@@ -492,6 +495,7 @@ def _do_adb_scan(
                 "pruned": pruned,
                 "source": "adb",
                 "android_path": android_path,
+                "cancelled": _cancel.is_set(),
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
@@ -593,7 +597,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
     import urllib.parse
     import urllib.request as _urlreq
 
-    from rom_manager.catalog.catalog_loader import _load_dat_file
+    from rom_manager.catalog.catalog_loader import load_dat_file
 
     downloaded: list[str] = []
     skipped: list[str] = []
@@ -631,7 +635,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
                 data = resp.read()
             dest_file.write_bytes(data)
             try:
-                entries = _load_dat_file(dest_file)
+                entries = load_dat_file(dest_file)
             except Exception:
                 entries = {}
             if not entries:

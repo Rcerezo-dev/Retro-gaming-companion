@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -300,7 +301,8 @@ def _do_sync(
             if not sources:
                 job_result = {
                     "error": "No hay fuentes de sync configuradas. "
-                    "Añade [[sync.sources]] en config.toml."
+                    "Añade [[sync.sources]] en config.toml.",
+                    "result_ts": _utc_now_str(),
                 }
                 return
 
@@ -502,6 +504,10 @@ def _do_sync(
                 "up_to_date": sum(r.get("up_to_date", 0) for r in all_results),
                 "conflicts": sum(r.get("conflicts", 0) for r in all_results),
                 "errors": _errs,
+                # REV43-8: sin esto, _pollSync (flow_wizard.js) nunca detecta
+                # que el job terminó y el paso "Sync" del wizard hace polling
+                # para siempre.
+                "result_ts": _utc_now_str(),
             }
             if not dry_run and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
@@ -535,7 +541,7 @@ def _do_sync(
                     (f"{_errs} errores en cloud sync") if _errs else None
                 )
         except Exception as exc:
-            job_result = {"error": str(exc)}
+            job_result = {"error": str(exc), "result_ts": _utc_now_str()}
             _state._tray_instance and _state._tray_instance.set_status("✗ Error en sync")
         finally:
             job_manager.finish("sync", job_result)
@@ -599,6 +605,11 @@ def _do_migrate_split_db(
 
         ts = _now()
 
+        # REV43-5: solo se borra en origen lo que de verdad llegó al destino —
+        # antes se borraban TODAS las filas de android_rows aunque su upsert
+        # hubiera fallado, perdiendo para siempre los metadatos de catálogo
+        # (tags, RA, stats) de las filas fallidas.
+        migrated_paths: set[str] = set()
         with repo_android.batch() as _android_conn:
             for row in android_rows:
                 try:
@@ -620,12 +631,14 @@ def _do_migrate_split_db(
                         connection=_android_conn,
                     )
                     migrated += 1
+                    migrated_paths.add(row["source_path"])
                 except Exception as exc:
                     errors.append(f"{row['source_path']}: {exc}")
 
-        with repository.batch() as _pc_conn:
-            for row in android_rows:
-                _pc_conn.execute("DELETE FROM games WHERE source_path = ?", (row["source_path"],))
+        if migrated_paths:
+            with repository.batch() as _pc_conn:
+                for source_path in migrated_paths:
+                    cascade_delete_games_by_source_path(_pc_conn, source_path)
 
         with repository.connect() as _conn:
             save_rows = _conn.execute(
@@ -637,6 +650,7 @@ def _do_migrate_split_db(
             r for r in save_rows if not r["original_path"].lower().startswith(lib_root)
         ]
         if android_saves:
+            migrated_save_paths: set[str] = set()
             with repo_android.batch() as _android_conn:
                 for row in android_saves:
                     try:
@@ -648,13 +662,15 @@ def _do_migrate_split_db(
                             timestamp=ts,
                             connection=_android_conn,
                         )
+                        migrated_save_paths.add(row["original_path"])
                     except Exception as exc:
                         errors.append(f"save:{row['original_path']}: {exc}")
-            with repository.batch() as _pc_conn:
-                for row in android_saves:
-                    _pc_conn.execute(
-                        "DELETE FROM saves WHERE original_path = ?", (row["original_path"],)
-                    )
+            if migrated_save_paths:
+                with repository.batch() as _pc_conn:
+                    for original_path in migrated_save_paths:
+                        _pc_conn.execute(
+                            "DELETE FROM saves WHERE original_path = ?", (original_path,)
+                        )
 
     except Exception as exc:
         ctx._send_json({"error": str(exc)})

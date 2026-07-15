@@ -9,6 +9,8 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
+from rom_manager.utils.time import utc_now
+
 
 class MetadataMixin:
     def get_metadata_for_nlp(self) -> list[dict]:
@@ -146,7 +148,6 @@ class MetadataMixin:
         updates = {k: v for k, v in fields.items() if k in _ALLOWED}
         if not updates:
             return
-        from rom_manager.scanner.rom_scanner import utc_now
 
         with self.connect() as conn:
             conn.execute(
