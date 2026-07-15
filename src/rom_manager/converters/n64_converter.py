@@ -91,20 +91,23 @@ def convert_to_z64(source: Path, target: Path | None = None) -> N64ConvertResult
                 chunk = fin.read(_CHUNK)
                 if not chunk:
                     break
-                # Pad to multiple of 2 (v64) or 4 (n64) if needed
+                # Pad to multiple of 2 (v64) or 4 (n64) if needed, but only to
+                # make the swap well-defined — the padding itself must not
+                # leak into the output on the (possibly shorter) last chunk.
+                orig_len = len(chunk)
                 if fmt == "v64":
                     if len(chunk) % 2:
                         chunk += b"\x00"
                     # Swap every pair of bytes
                     arr = bytearray(chunk)
                     arr[0::2], arr[1::2] = arr[1::2].copy(), arr[0::2].copy()
-                    fout.write(bytes(arr))
+                    fout.write(bytes(arr[:orig_len]))
                 elif fmt == "n64":
                     if len(chunk) % 4:
                         chunk += b"\x00" * (4 - len(chunk) % 4)
                     a = array.array("I", chunk)
                     a.byteswap()
-                    fout.write(a.tobytes())
+                    fout.write(a.tobytes()[:orig_len])
                 else:  # z64 → just copy
                     fout.write(chunk)
         result.success = True
