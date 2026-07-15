@@ -650,9 +650,12 @@ def register(
 
         bp = Path(backup_path_str)
         tp = Path(original_save_str)
-        if config.library_root and not str(tp).startswith(str(config.library_root)):
-            ctx._send_json({"error": "La ruta destino está fuera de la biblioteca"})
-            return
+        if config.library_root:
+            resolved_root = config.library_root.resolve()
+            resolved_target = tp.resolve()
+            if not resolved_target.is_relative_to(resolved_root):
+                ctx._send_json({"error": "La ruta destino está fuera de la biblioteca"})
+                return
         ok = restore_backup(bp, tp)
         if ok:
             ctx._send_json({"ok": True, "restored_to": str(tp)})
