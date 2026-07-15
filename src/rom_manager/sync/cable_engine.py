@@ -18,6 +18,12 @@ from pathlib import Path
 
 Direction = str  # "pc_to_anbernic" | "anbernic_to_pc" | "newest"
 
+# REV43-4: mismo umbral que conflict_resolver.decide() por defecto — granularidad
+# de mtime en FAT32/exFAT (SD del Anbernic) es de ~2s; sin tolerancia, un empate
+# real por redondeo del filesystem se lee como "el otro lado es más reciente" y
+# puede sobrescribir en silencio una partida más nueva.
+DEFAULT_MTIME_TOLERANCE_S = 2
+
 
 def iter_files(root: Path) -> Iterator[Path]:
     """Recorre *root* recursivamente, saltando directorios ocultos (dotfiles)."""
@@ -39,6 +45,8 @@ def plan_direction(
     ab_root: Path,
     direction: Direction,
     wanted: Callable[[Path], bool],
+    *,
+    tolerance_seconds: float = DEFAULT_MTIME_TOLERANCE_S,
 ) -> Iterator[CopyPlanItem]:
     """Decide que archivos copiar y en que sentido, sin tocar disco todavia."""
     if direction == "pc_to_anbernic":
@@ -73,11 +81,15 @@ def plan_direction(
             if pc_f and ab_f:
                 pc_mt = pc_f.stat().st_mtime
                 ab_mt = ab_f.stat().st_mtime
-                if pc_mt > ab_mt:
+                diff = pc_mt - ab_mt
+                if diff > tolerance_seconds:
                     yield CopyPlanItem(pc_f, ab_root / rel, "-> Anbernic (PC mas reciente)")
-                elif ab_mt > pc_mt:
+                elif diff < -tolerance_seconds:
                     yield CopyPlanItem(ab_f, pc_root / rel, "<- PC (Anbernic mas reciente)")
-                # mtimes iguales: nada que hacer, el caller cuenta esto como skip
+                # mtimes iguales (dentro de la tolerancia): nada que hacer, el
+                # caller cuenta esto como skip. REV43-4: sin esta tolerancia, el
+                # redondeo de mtime de FAT32/exFAT (~2s) elegía un "ganador"
+                # arbitrario y podia sobrescribir en silencio la version buena.
             elif pc_f:
                 yield CopyPlanItem(pc_f, ab_root / rel, "-> Anbernic (solo en PC)")
             elif ab_f:

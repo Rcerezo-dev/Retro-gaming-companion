@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.sync.rclone_transport import RcloneTransport, RemoteEntry
+from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport, RemoteEntry
 from rom_manager.sync.save_syncer import list_local_saves, sync_saves
 from rom_manager.sync.sync_log import log_sync_event
 
@@ -168,6 +168,32 @@ def test_apply_upload_calls_transport(tmp_path: Path) -> None:
 
     assert result.uploaded == 1
     transport.upload.assert_called_once()
+
+
+def test_upload_failure_on_first_file_does_not_raise_unbound(tmp_path: Path) -> None:
+    """REV43-3: si transport.upload() falla en el primer archivo de la cola,
+    remote_path debe estar definido para el log de error (antes: UnboundLocalError,
+    porque remote_path solo se asignaba tras un upload exitoso)."""
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    save_file = saves_dir / "tetris.sav"
+    save_file.write_bytes(b"\x00" * 8)
+
+    transport = _mock_transport([])
+    transport.upload.side_effect = RcloneError("network blip")
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+    )
+
+    assert result.errors == 1
+    assert result.uploaded == 0
 
 
 def test_apply_download_calls_transport(tmp_path: Path) -> None:

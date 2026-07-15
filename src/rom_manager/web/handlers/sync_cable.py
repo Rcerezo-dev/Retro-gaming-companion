@@ -638,9 +638,13 @@ def _do_cable_sync(
                         pc_f = pc_index.get(rel_posix)
                         ab_inf = ab_index.get(rel_posix)
                         if pc_f and ab_inf:
-                            if pc_f.stat().st_mtime > ab_inf.mtime:
+                            # REV43-4: misma tolerancia que cable_engine.plan_direction
+                            # — sin ella, el redondeo de mtime de FAT32/exFAT elige un
+                            # "ganador" arbitrario y puede sobrescribir la version buena.
+                            diff = pc_f.stat().st_mtime - ab_inf.mtime
+                            if diff > cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_device(pc_f, rel_posix, "→ ADB (PC más reciente)")
-                            elif ab_inf.mtime > pc_f.stat().st_mtime:
+                            elif diff < -cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
