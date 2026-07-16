@@ -1581,7 +1581,44 @@ async function doSync(dryRun) {
   }
 }
 
+// CLOUD-UX-12: lista por fuente de qué archivo se mueve y en qué dirección —
+// en dry run es el "plan" que se revisa antes de pulsar Sincronizar.
+function _renderSyncDecisions(result) {
+  const el = document.getElementById('sync-decisions');
+  if (!el) return;
+  if (result.error) { el.innerHTML = ''; return; }
+  const ICONS = {
+    upload:   ['&#x2191;', 'var(--c-teal)'],
+    download: ['&#x2193;', 'var(--c-blue)'],
+    conflict: ['&#x26A0;', 'var(--c-amber)'],
+  };
+  const blocks = (result.sources || []).map(src => {
+    if (src.error) {
+      return `<div style="font-size:12px;color:var(--c-softred);padding:2px 0">&#x2717; ${_h(src.name)} — ${_h(src.error)}</div>`;
+    }
+    const decs = src.decisions || [];
+    if (!decs.length) return '';
+    const conflicts = decs.filter(d => d.action === 'conflict').length;
+    const rows = decs.map(d => {
+      const [icon, color] = ICONS[d.action] || ['&#x2022;', 'var(--c-muted)'];
+      const hl = d.action === 'conflict' ? ';background:var(--rv-tint-amber-bg)' : '';
+      return `<div style="padding:1px 0;color:var(--c-muted)${hl}"><span style="color:${color};margin-right:8px">${icon}</span>${_h(d.relative)}</div>`;
+    }).join('');
+    const conflictTag = conflicts ? ` <span style="color:var(--c-amber)">&#x26A0; ${conflicts} conflicto${conflicts !== 1 ? 's' : ''}</span>` : '';
+    return `<details open style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--c-soft)">${_h(src.name)}: ${decs.length} archivo${decs.length !== 1 ? 's' : ''}${conflictTag}</summary>
+      <div style="max-height:220px;overflow-y:auto;font-size:11px;font-family:monospace;margin:4px 0 0 14px">${rows}</div>
+    </details>`;
+  }).filter(Boolean);
+  if (!blocks.length) { el.innerHTML = ''; return; }
+  const header = result.dry_run
+    ? '<div style="font-size:11px;color:var(--c-dim)">Plan — esto es lo que se movería al pulsar <strong>Sincronizar</strong> (&#x2191; subir &middot; &#x2193; bajar &middot; &#x26A0; conflicto):</div>'
+    : '<div style="font-size:11px;color:var(--c-dim)">Archivos sincronizados (&#x2191; subido &middot; &#x2193; bajado &middot; &#x26A0; conflicto):</div>';
+  el.innerHTML = header + blocks.join('');
+}
+
 function _renderSyncResult(result) {
+  _renderSyncDecisions(result);
   const resultEl = document.getElementById('job-result-sync');
   if (!resultEl) return;
   if (result.error) {
