@@ -1368,6 +1368,50 @@
         }
       }
     },
+    "/api/library-extras": {
+      "get": {
+        "summary": "Aggregated non-gaming file counts (BIOS, MAME infra, deletable junk) for the overview tab",
+        "tags": [
+          "Library"
+        ],
+        "parameters": [
+          {
+            "name": "root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bios": {
+                      "type": "integer"
+                    },
+                    "mame_infra": {
+                      "type": "integer"
+                    },
+                    "junk_files": {
+                      "type": "integer"
+                    },
+                    "junk_bytes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/junk-delete": {
       "post": {
         "summary": "Delete a specific junk file",

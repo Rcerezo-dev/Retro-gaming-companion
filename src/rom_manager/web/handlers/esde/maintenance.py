@@ -166,16 +166,9 @@ def register_maintenance(
             {"deleted": deleted, "failed": failed, "skipped": skipped, "freed_bytes": freed_bytes}
         )
 
-    # ── POST /api/junk-scan ───────────────────────────────────────────────────
-    @router.post("/api/junk-scan")
-    def post_junk_scan(ctx) -> None:
-        # ponytail: síncrono como el original pre-refactor; es un walk local rápido
-        folder = ctx._post_data.get("path", "").strip() or (
-            str(config.library_root) if config.library_root else ""
-        )
-        if not folder:
-            ctx._send_json({"error": "path required"})
-            return
+    def _full_junk_scan(folder: str) -> dict:
+        """Junk-scan con todos los índices (catálogos + BD), compartido por
+        /api/junk-scan y /api/library-extras."""
         from rom_manager.catalog.mame_loader import (
             load_arcade_crc_index,
             load_arcade_dir,
@@ -205,16 +198,64 @@ def register_maintenance(
         ).crc_index()
         # ZIP-ROUTE-2: CRC de los DAT arcade para identificar sets renombrados
         arcade_crcs = load_arcade_crc_index(arcade_dir) if arcade_dir else {}
+        return _build_junk_scan(
+            folder,
+            matched_paths=matched,
+            arcade_names=arcade_names,
+            mame_infra_names=infra_names,
+            known_bios_files=known_bios,
+            crc_index=crc_index,
+            arcade_crc_index=arcade_crcs,
+        )
+
+    # ── POST /api/junk-scan ───────────────────────────────────────────────────
+    @router.post("/api/junk-scan")
+    def post_junk_scan(ctx) -> None:
+        # ponytail: síncrono como el original pre-refactor; es un walk local rápido
+        folder = ctx._post_data.get("path", "").strip() or (
+            str(config.library_root) if config.library_root else ""
+        )
+        if not folder:
+            ctx._send_json({"error": "path required"})
+            return
+        ctx._send_json(_full_junk_scan(folder))
+
+    # ── GET /api/library-extras (INICIO-UX-5) ─────────────────────────────────
+    @router.get("/api/library-extras")
+    def get_library_extras(ctx) -> None:
+        """Conteos agregados de archivos no-gaming para la pestaña Inicio:
+        BIOS (carpeta bios/ + ZIPs sueltos identificados), infraestructura MAME
+        y basura borrable (categorías safe_delete del junk-scan)."""
+        from rom_manager.web.builders.folders import _ZIP_CAT_BIOS, _ZIP_CAT_INFRA
+
+        folder = ctx._qs.get("root", [""])[0] or (
+            str(config.library_root) if config.library_root else ""
+        )
+        empty = {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0}
+        if not folder or not Path(folder).is_dir():
+            ctx._send_json(empty)
+            return
+        bios_dir = Path(folder) / "bios"
+        bios = sum(1 for f in bios_dir.rglob("*") if f.is_file()) if bios_dir.is_dir() else 0
+        scan = _full_junk_scan(folder)
+        mame_infra = 0
+        junk_files = 0
+        junk_bytes = 0
+        for cat in scan.get("categories", []):
+            if cat["category"] == _ZIP_CAT_BIOS:
+                bios += cat["count"]
+            elif cat["category"] == _ZIP_CAT_INFRA:
+                mame_infra = cat["count"]
+            elif cat["confidence"] == "safe_delete":
+                junk_files += cat["count"]
+                junk_bytes += cat["total_bytes"]
         ctx._send_json(
-            _build_junk_scan(
-                folder,
-                matched_paths=matched,
-                arcade_names=arcade_names,
-                mame_infra_names=infra_names,
-                known_bios_files=known_bios,
-                crc_index=crc_index,
-                arcade_crc_index=arcade_crcs,
-            )
+            {
+                "bios": bios,
+                "mame_infra": mame_infra,
+                "junk_files": junk_files,
+                "junk_bytes": junk_bytes,
+            }
         )
 
     # ── POST /api/zip-route-apply ─────────────────────────────────────────────

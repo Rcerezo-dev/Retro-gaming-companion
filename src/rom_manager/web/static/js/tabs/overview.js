@@ -36,7 +36,8 @@ export function _emptyState(icon, title, sub, ctaLabel, ctaFn) {
 export function card(label, value, sub, onclick, colorCls, actions) {
   const clickStyle = onclick ? 'cursor:pointer' : '';
   const clickAttr  = onclick ? `onclick="(${onclick.toString()})()"` : '';
-  const cls = colorCls ? ` ${colorCls}` : '';
+  // INICIO-UX-11: las tarjetas clicables se ven clicables (hover + chevron via CSS)
+  const cls = (colorCls ? ` ${colorCls}` : '') + (onclick ? ' card-link' : '');
   const actHtml = actions?.length
     ? '<div class="card-actions">' + actions.map(a =>
         `<button class="btn card-actions" style="font-size:11px;padding:3px 8px;min-height:unset" onclick="event.stopPropagation();(${a.fn.toString()})()">${a.label}</button>`
@@ -101,90 +102,16 @@ function _platBadge(plat) {
   return `<span class="plat plat-${cls}">${_h(plat)}</span>`;
 }
 
-// ── Heatmap ───────────────────────────────────────────────────────────────────
-const _heatmapState = { cellMap: new Map() };
+// ── Shared games fetch (INICIO-UX-10) ─────────────────────────────────────────
+// La sugerencia y el gráfico mensual necesitan la lista completa; un solo
+// fetch por carga de Inicio en vez de uno por sección.
+let _gamesCache = null;
 
-export async function _renderActivityHeatmap() {
-  const canvas = document.getElementById('ov-heatmap');
-  if (!canvas) return;
-  try {
-    const resp = await apiFetch('/api/games?limit=10000&offset=0');
-    const games = resp.games || [];
-
-    const today = new Date();
-    const dayActivity = {};
-    games.forEach(g => {
-      if (!g.last_played_at) return;
-      const dateStr = g.last_played_at.split('T')[0];
-      dayActivity[dateStr] = (dayActivity[dateStr] || 0) + 1;
-    });
-
-    const maxVal = Math.max(...Object.values(dayActivity), 0);
-    const ctx = canvas.getContext('2d');
-    const cellSize = 12;
-    const cellGap  = 2;
-    const padding  = 10;
-
-    ctx.fillStyle = '#0a0e27';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    _heatmapState.cellMap.clear();
-
-    const weeks = 52;
-    const days  = 7;
-    let cellX = padding;
-    for (let week = 0; week < weeks; week++) {
-      let cellY = padding;
-      for (let day = 0; day < days; day++) {
-        const daysAgo = (weeks - 1 - week) * 7 + (6 - day);
-        const d = new Date(today);
-        d.setDate(d.getDate() - daysAgo);
-        const dateStr = d.toISOString().split('T')[0];
-
-        const count     = dayActivity[dateStr] || 0;
-        const intensity = maxVal > 0 ? count / maxVal : 0;
-
-        ctx.fillStyle = _getHeatmapColor(intensity);
-        ctx.fillRect(cellX, cellY, cellSize, cellSize);
-        ctx.strokeStyle = '#1a1a2e';
-        ctx.lineWidth   = 0.5;
-        ctx.strokeRect(cellX, cellY, cellSize, cellSize);
-
-        _heatmapState.cellMap.set(week + ',' + day, { x: cellX, y: cellY, dateStr, count, cellSize });
-        cellY += cellSize + cellGap;
-      }
-      cellX += cellSize + cellGap;
-    }
-
-    canvas.onmousemove  = (e) => _handleHeatmapHover(e, canvas);
-    canvas.onmouseleave = () => { canvas.title = ''; };
-  } catch(err) {
-    console.error('Heatmap error:', err);
+async function _fetchAllGames() {
+  if (!_gamesCache) {
+    _gamesCache = apiFetch('/api/games?limit=10000&offset=0').then(r => r.games || []);
   }
-}
-
-function _getHeatmapColor(intensity) {
-  if (intensity === 0)    return 'var(--c-deep)';
-  if (intensity < 0.25)   return '#0d3922';
-  if (intensity < 0.5)    return '#0d5c2c';
-  if (intensity < 0.75)   return '#1a7938';
-  return '#3fb950';
-}
-
-function _handleHeatmapHover(e, canvas) {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  let found = false;
-  for (const [, cell] of _heatmapState.cellMap) {
-    if (x >= cell.x && x <= cell.x + cell.cellSize && y >= cell.y && y <= cell.y + cell.cellSize) {
-      const d = new Date(cell.dateStr);
-      const dateStr = d.toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-      canvas.title = `${dateStr}: ${cell.count} juego${cell.count !== 1 ? 's' : ''}`;
-      found = true;
-      break;
-    }
-  }
-  if (!found) canvas.title = '';
+  return _gamesCache;
 }
 
 // ── Game suggestion (stale games) ─────────────────────────────────────────────
@@ -192,8 +119,7 @@ let _currentGameSuggestion = null;
 
 export async function _loadNewGameSuggestion() {
   try {
-    const resp = await apiFetch('/api/games?limit=10000&offset=0');
-    const games = resp.games || [];
+    const games = await _fetchAllGames();
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
@@ -213,16 +139,16 @@ export async function _loadNewGameSuggestion() {
 
     const titleEl = document.getElementById('ov-game-suggestion-title');
     const metaEl  = document.getElementById('ov-game-suggestion-meta');
-    const imgEl   = document.getElementById('ov-game-suggestion-img');
+    const coverEl = document.getElementById('ov-game-suggestion-cover');
 
     if (titleEl) titleEl.textContent = suggestion.canonical_title || suggestion.original_filename;
     if (metaEl) {
       const lastPlay = suggestion.last_played_at ? _relTime(suggestion.last_played_at) : 'Nunca';
       metaEl.innerHTML = `${_platBadge(suggestion.platform || '')} · Última vez: ${lastPlay}`;
     }
-    if (imgEl) {
-      imgEl.src     = `/api/asset-image?game_id=${suggestion.id}`;
-      imgEl.onerror = () => { imgEl.classList.add('hidden'); };
+    if (coverEl) {
+      // INICIO-UX-13: placeholder 🎮 si no hay carátula — sin salto de layout
+      coverEl.innerHTML = `<img src="/api/asset-image?game_id=${suggestion.id}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:4px" onerror="this.parentElement.innerHTML='&#127918;'">`;
     }
   } catch(err) {
     console.error('Game suggestion error:', err);
@@ -234,8 +160,7 @@ export async function _renderMonthlyChart() {
   const canvas = document.getElementById('ov-monthly-chart');
   if (!canvas) return;
   try {
-    const resp = await apiFetch('/api/games?limit=10000&offset=0');
-    const games = resp.games || [];
+    const games = await _fetchAllGames();
 
     const monthlyData = {};
     const platforms   = new Set();
@@ -267,7 +192,9 @@ export async function _renderMonthlyChart() {
       return;
     }
 
-    const colors     = ['var(--c-blue)', 'var(--c-teal)', 'var(--c-yellow)', 'var(--c-orange)', 'var(--c-lblue)', 'var(--c-purple)', '#a7ec21', 'var(--c-red)'];
+    // INICIO-UX-2: hex literales — canvas no resuelve var(--c-*) y el fondo
+    // del gráfico es siempre oscuro (valores del tema dark)
+    const colors     = ['#569cd6', '#4ec9b0', '#dcdcaa', '#ce9178', '#9cdcfe', '#c586c0', '#a7ec21', '#f44747'];
     const platArray  = Array.from(platforms).sort();
     const barWidth   = 8;
     const groupGap   = 16;
@@ -343,6 +270,11 @@ function fmtSize(n) {
   return n.toFixed(1) + ' ' + units[i];
 }
 
+// INICIO-UX-6: mensaje legible + reintento en vez de e.message pelado
+const _errRetry = (msg) =>
+  `<p class="error-msg" style="font-size:12px">No se pudieron cargar los datos (${_h(msg)}). ` +
+  `<button class="btn" style="font-size:11px;padding:2px 8px" onclick="loadOverview()">Reintentar</button></p>`;
+
 function _updateKpis(d) {
   const sc = d.status_counts || {};
   const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -386,6 +318,7 @@ function _updateDeviceConnectivityBadge() {
 
 // ── Overview load ─────────────────────────────────────────────────────────────
 export async function loadOverview() {
+  _gamesCache = null;  // INICIO-UX-10: un fetch de /api/games por carga
   try {
     const _t = Date.now();
     const cfg = await apiFetch('/api/config?t=' + _t);
@@ -429,29 +362,32 @@ export async function loadOverview() {
     if (cfgEl) {
       cfgEl.innerHTML = `<div class="config-grid" style="max-width:560px">
         <span class="cfg-key">library_root</span>
-        <span class="cfg-val ${cfg.library_root ? '' : 'missing'}">${cfg.library_root || '(not set — configura en Settings)'}</span>
+        <span class="cfg-val ${cfg.library_root ? '' : 'missing'}">${cfg.library_root || '(sin configurar — ve a Ajustes)'}</span>
         <span class="cfg-key">rclone remote</span>
-        <span class="cfg-val ${cfg.rclone_remote ? '' : 'missing'}">${cfg.rclone_remote || '(not set)'}</span>
+        <span class="cfg-val ${cfg.rclone_remote ? '' : 'missing'}">${cfg.rclone_remote || '(sin configurar)'}</span>
         <span class="cfg-key">ScreenScraper</span>
-        <span class="cfg-val ${cfg.screenscraper_user ? '' : 'missing'}">${cfg.screenscraper_user || '(not set)'}</span>
+        <span class="cfg-val ${cfg.screenscraper_user ? '' : 'missing'}">${cfg.screenscraper_user || '(sin configurar)'}</span>
         <span class="cfg-key">web</span>
         <span class="cfg-val">${cfg.web_host}:${cfg.web_port}</span>
       </div>`;
     }
 
     // Fetch PC stats (filter by library_root)
+    // INICIO-UX-10: un único /api/status compartido con "Últimas partidas" y
+    // el aviso de informe (antes 3 fetches idénticos salvo cache-buster)
     const pcCardsEl = document.getElementById('ov-pc-cards');
+    let d = null;
     try {
       const pcParam = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + _t;
-      const d = await apiFetch('/api/status' + pcParam);
+      d = await apiFetch('/api/status' + pcParam);
       const matchPct = d.total_games > 0 ? Math.round(d.matched_games / d.total_games * 100) : 0;
       if (pcCardsEl) pcCardsEl.innerHTML =
-        card('Games',      d.total_games,     null, () => goToGames(pcPath, ''), '', d.total_games > 0 ? [{label:'Ver juegos', fn:()=>showTab('games')}] : null)          +
-        card('Matched',    d.matched_games,    matchPct + '% matched', () => goToGames(pcPath, 'matched'), 'blue')    +
-        card('Unmatched',  d.unmatched_games,  null, () => goToGames(pcPath, 'unmatched'), 'orange', d.unmatched_games > 0 ? [{label:'Identificar →', fn:()=>showTab('plan')}] : null)  +
+        card('Juegos',     d.total_games,     null, () => goToGames(pcPath, ''), '', d.total_games > 0 ? [{label:'Ver juegos', fn:()=>showTab('games')}] : null)          +
+        card('Identificados', d.matched_games, matchPct + '% identificados', () => goToGames(pcPath, 'matched'), 'blue')    +
+        card('Sin identificar', d.unmatched_games, null, () => goToGames(pcPath, 'unmatched'), 'orange', d.unmatched_games > 0 ? [{label:'Identificar →', fn:()=>showTab('plan')}] : null)  +
         card('Saves',      d.total_saves,      null, d.total_saves > 0 ? () => goToGames(pcPath, '', 'save') : null, 'purple')      +
         card('Assets',     d.total_assets,     null, d.total_assets > 0 ? () => { showTab('assets'); } : null)     +
-        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' wasted', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Ver', fn:()=>showTab('duplicates')}] : null) +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' desperdiciados', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Ver', fn:()=>showTab('duplicates')}] : null) +
         card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
       // UI-2: populate dashboard bar
       const dsGames     = document.getElementById('ds-games');
@@ -474,7 +410,8 @@ export async function loadOverview() {
             dsHealth.innerHTML = `<span style="color:var(--fg)">${h.last_ok.toLocaleString()} OK</span> <span style="color:var(--accent-red);margin-left:4px">${problems} ⚠</span>`;
           }
         } else {
-          dsHealth.innerHTML = '<span style="color:var(--fg-4)">sin datos</span>';
+          // INICIO-UX-9: sin datos no es un callejón sin salida — CTA a Herramientas
+          dsHealth.innerHTML = '<a style="color:var(--c-blue);font-size:12px;cursor:pointer;text-decoration:underline" onclick="showTab(\'tools\')">Ejecutar health check →</a>';
         }
       }
       // Bloque 7: KPI row
@@ -511,7 +448,7 @@ export async function loadOverview() {
         showWizard(pcPath || cfg.library_root || '', cfg.anbernic_root || '');
       }
     } catch(e) {
-      if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
+      if (pcCardsEl) pcCardsEl.innerHTML = _errRetry(e.message);
     }
 
     // Fetch Anbernic stats (if path configured)
@@ -529,21 +466,21 @@ export async function loadOverview() {
         const lastScans = ab.last_scans_by_root || {};
         const abLastScan = Object.entries(lastScans).find(([k]) => abPath && k.toLowerCase().startsWith(abPath.toLowerCase()))?.[1] || null;
         if (ab.total_games === 0) {
-          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:var(--c-yellow);font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de <em>${_devName}</em> en <em>Gestión de biblioteca</em> y lanza un Scan.</p>`;
+          if (abCardsEl) abCardsEl.innerHTML = `<p id="ov-ab-empty-msg" style="color:var(--c-yellow);font-size:12px;padding:10px 0">&#x26A0; Ruta configurada pero sin datos escaneados. Activa el checkbox de <em>${_devName}</em> en <em>Gestión de biblioteca</em> y pulsa Escanear.</p>`;
         } else {
           const lastScanStr = abLastScan ? abLastScan.replace('T',' ').slice(0,16) : 'nunca';
           const daysAgo = ab.scan_days_ago !== null && ab.scan_days_ago !== undefined ? ab.scan_days_ago : null;
           const scanSub = daysAgo !== null ? 'hace ' + daysAgo + ' día' + (daysAgo !== 1 ? 's' : '') : 'nunca';
           if (abCardsEl) abCardsEl.innerHTML =
-            card('Games',      ab.total_games,    null, () => goToGames(abPath, ''), '')          +
-            card('Matched',    ab.matched_games,   abMatchPct + '% matched', () => goToGames(abPath, 'matched'), 'blue')  +
-            card('Unmatched',  ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'), 'orange')  +
+            card('Juegos',     ab.total_games,    null, () => goToGames(abPath, ''), '')          +
+            card('Identificados', ab.matched_games, abMatchPct + '% identificados', () => goToGames(abPath, 'matched'), 'blue')  +
+            card('Sin identificar', ab.unmatched_games, null, () => goToGames(abPath, 'unmatched'), 'orange')  +
             card('Saves',      ab.total_saves,     null, ab.total_saves > 0 ? () => goToGames(abPath, '', 'save') : null, 'purple')     +
             card('Assets',     ab.total_assets,   null, ab.total_assets > 0 ? () => { showTab('assets'); } : null)   +
             card('Último scan', lastScanStr, scanSub);
         }
       } catch(e) {
-        if (abCardsEl) abCardsEl.innerHTML = `<p class="error-msg" style="font-size:12px">${e.message}</p>`;
+        if (abCardsEl) abCardsEl.innerHTML = _errRetry(e.message);
       }
     } else if (!abPath && abCardsEl) {
       abCardsEl.innerHTML = '<p style="color:var(--c-dim);font-size:12px;padding:10px 0">Configura la ruta de la consola Android en el panel de abajo para ver sus estadísticas.</p>';
@@ -557,10 +494,9 @@ export async function loadOverview() {
     const contSection  = document.getElementById('ov-continue-section');
     const contScroll   = document.getElementById('ov-continue-scroll');
     try {
-      const pcParam2 = (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&' : '?') + 't=' + (_t+2);
-      const dRecent = await apiFetch('/api/status' + pcParam2);
-      if (dRecent.recently_played && dRecent.recently_played.length > 0) {
-        const games = dRecent.recently_played;
+      // INICIO-UX-10: reutiliza el /api/status ya cargado arriba
+      if (d && d.recently_played && d.recently_played.length > 0) {
+        const games = d.recently_played;
         const last = games[0];
         if (heroEl) {
           heroEl.classList.remove('hidden');
@@ -629,13 +565,12 @@ export async function loadOverview() {
       } catch(_) { /* silent */ }
     }
 
-    // Show report available notice
+    // Show report available notice (INICIO-UX-10: reutiliza el mismo /api/status)
     try {
-      const pcStatusForReport = await apiFetch('/api/status' + (pcPath ? '?root=' + encodeURIComponent(pcPath) + '&t=' + (_t+1) : ('?t=' + (_t+1))));
       const reportNoticeEl = document.getElementById('ov-report-notice');
-      if (reportNoticeEl) {
-        if (pcStatusForReport.last_report_at && pcStatusForReport.last_report_mins_ago !== null) {
-          const mins = pcStatusForReport.last_report_mins_ago;
+      if (reportNoticeEl && d) {
+        if (d.last_report_at && d.last_report_mins_ago !== null) {
+          const mins = d.last_report_mins_ago;
           const timeStr = mins < 60 ? ('hace ' + mins + ' min') : ('hace ' + Math.round(mins/60) + 'h');
           reportNoticeEl.classList.remove('hidden');
           reportNoticeEl.innerHTML = '<span style="color:var(--c-yellow);font-size:12px">&#x1F4CA; Informe disponible — generado ' + timeStr + '</span> '
@@ -651,8 +586,8 @@ export async function loadOverview() {
       try { _renderPlatformGrid(pcPath); } catch(_) { /* silent */ }
     }
 
-    // Render activity heatmap
-    try { _renderActivityHeatmap(); } catch(e) { console.error('Heatmap error:', e); }
+    // INICIO-UX-5 / Fase 3: qué hay en la biblioteca además de juegos
+    try { _loadLibraryExtras(d, pcPath); } catch(e) { console.error('Extras error:', e); }
 
     // Render monthly analysis chart
     try { _renderMonthlyChart(); } catch(e) { console.error('Monthly chart error:', e); }
@@ -665,8 +600,66 @@ export async function loadOverview() {
 
   } catch(e) {
     const pcCardsEl = document.getElementById('ov-pc-cards');
-    if (pcCardsEl) pcCardsEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    if (pcCardsEl) pcCardsEl.innerHTML = _errRetry(e.message);
   }
+}
+
+// ── Además de juegos… (INICIO-UX-5 / Fase 3) ─────────────────────────────────
+// Tarjetas explicativas de los archivos no-gaming: qué son, por qué están ahí
+// y — lo importante — cuáles NO hay que borrar a mano.
+let _extrasCache = null;  // ponytail: el junk-walk del backend no es gratis; 1 fetch por página cargada
+
+export async function _loadLibraryExtras(status, pcPath) {
+  const wrap = document.getElementById('ov-extras');
+  const grid = document.getElementById('ov-extras-grid');
+  if (!wrap || !grid) return;
+
+  let extras = { bios: 0, mame_infra: 0, junk_files: 0, junk_bytes: 0 };
+  try {
+    if (!_extrasCache) {
+      _extrasCache = apiFetch('/api/library-extras' + (pcPath ? '?root=' + encodeURIComponent(pcPath) : ''));
+    }
+    extras = await _extrasCache;
+  } catch(_) { _extrasCache = null; }
+
+  const totalAssets = status?.total_assets || 0;
+  const totalSaves  = status?.total_saves || 0;
+  const any = totalAssets + totalSaves + extras.bios + extras.mame_infra + extras.junk_files > 0;
+  wrap.classList.toggle('hidden', !any);
+  if (!any) return;
+
+  // Estado plegado persistente (usuario veterano no quiere verla siempre)
+  const det = document.getElementById('ov-extras-details');
+  if (det && !det.dataset.bound) {
+    det.dataset.bound = '1';
+    if (localStorage.getItem('extras_collapsed') === '1') det.removeAttribute('open');
+    det.addEventListener('toggle', () => localStorage.setItem('extras_collapsed', det.open ? '0' : '1'));
+  }
+
+  const tile = (icon, title, count, desc, verdict, verdictCls, onclick) => `
+    <div class="extras-tile${onclick ? ' extras-click' : ''}" ${onclick ? `onclick="${onclick}"` : ''}>
+      <div class="extras-title">${icon} ${title} <span class="extras-count">(${count})</span></div>
+      <div class="extras-desc">${desc} <strong class="${verdictCls}">${verdict}</strong></div>
+    </div>`;
+
+  const tiles = [];
+  if (extras.bios > 0) tiles.push(tile('&#x1F9EC;', 'BIOS', extras.bios,
+    'Firmware que algunas consolas (PSX, GBA…) necesitan para arrancar. Sin ellas ciertos juegos no funcionan.',
+    'NO borrar.', 'txt-err', null));
+  if (totalAssets > 0) tiles.push(tile('&#x1F5BC;', 'Assets', totalAssets,
+    'Carátulas y logos para los menús. Retro Vault los descarga del scraper.',
+    'Borrables y regenerables.', 'txt-ok', "showTab('assets')"));
+  if (totalSaves > 0) tiles.push(tile('&#x1F4BE;', 'Saves', totalSaves,
+    'Tus partidas guardadas. Se sincronizan con la consola desde Cable Sync.',
+    'NUNCA borrar a mano.', 'txt-err', `goToGames(${JSON.stringify(pcPath || '')}, '', 'save')`));
+  if (extras.mame_infra > 0) tiles.push(tile('&#x1F579;', 'Infraestructura MAME', extras.mame_infra,
+    'ZIPs de BIOS/devices de arcade. No son jugables pero MAME los necesita.',
+    'NO borrar.', 'txt-err', null));
+  if (extras.junk_files > 0) tiles.push(tile('&#x1F5D1;', 'Basura detectada', `${extras.junk_files}, ${fmtSize(extras.junk_bytes)}`,
+    'Manuales, .txt, instaladores… Revisar y limpiar desde Herramientas → Limpieza.',
+    'Revisable.', 'txt-warn', "showTab('tools')"));
+
+  grid.innerHTML = tiles.join('');
 }
 
 // ── Collection completeness ───────────────────────────────────────────────────
@@ -728,7 +721,7 @@ export async function _renderPlatformGrid(pcPath) {
         onmouseout="this.style.background='var(--c-panel)';this.style.borderColor='#2a2a3a'">
         <div style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">${logo}</div>
         <div style="font-size:11px;font-weight:600;color:var(--c-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%" title="${platName}">${platName}</div>
-        <div style="font-size:10px;color:var(--c-muted)">${p.count} game${p.count !== 1 ? 's' : ''}</div>
+        <div style="font-size:10px;color:var(--c-muted)">${p.count} juego${p.count !== 1 ? 's' : ''}</div>
       </div>`;
     }).join('');
 
@@ -808,7 +801,7 @@ export async function wizardAutoDetect() {
 export async function startSetup() {
   const libRoot     = (document.getElementById('wiz-library-root')?.value || '').trim();
   const androidRoot = (document.getElementById('wiz-android-root')?.value || '').trim();
-  if (!libRoot) { alert('Introduce la carpeta de biblioteca (PC) primero.'); return; }
+  if (!libRoot) { showToast('Introduce la carpeta de biblioteca (PC) primero.', 'err'); return; }
   const cleanJunk   = document.getElementById('wiz-clean-junk')?.checked || false;
   const extractZips = document.getElementById('wiz-extract-zips')?.checked !== false;
   const deleteZips  = document.getElementById('wiz-delete-zips')?.checked || false;
@@ -833,7 +826,7 @@ export async function startSetup() {
   } catch(e) {
     document.getElementById('wizard-page-2').classList.add('hidden');
     document.getElementById('wizard-page-1').classList.remove('hidden');
-    alert('Error al iniciar: ' + e.message + '\n\nConsulta los logs para más detalles.');
+    showToast('Error al iniciar: ' + e.message + ' — consulta los logs para más detalles.', 'err', 6000);
   }
 }
 
