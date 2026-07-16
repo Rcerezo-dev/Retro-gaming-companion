@@ -1600,6 +1600,41 @@ function _renderSyncResult(result) {
   }
 }
 
+// ── S29: Backup de saves (CLOUD-UX-1) ────────────────────────────────────────
+async function backupNow() {
+  const el = document.getElementById('job-result-backup-now');
+  try {
+    const d = await apiPost('/api/backup-now', {});
+    if (d.status === 'already_running') {
+      if (el) { el.className = 'job-result visible'; el.textContent = 'Ya hay un backup en curso…'; }
+      return;
+    }
+    startPolling();
+  } catch (e) {
+    if (el) { el.className = 'job-result visible error-r'; el.textContent = 'Error: ' + e.message; }
+  }
+}
+
+async function loadManualBackups() {
+  const el = document.getElementById('manual-backups-list');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/manual-backups');
+    const zips = d.zips || [];
+    if (!zips.length) {
+      el.innerHTML = '<span style="color:var(--c-dim)">Aún no hay ZIPs de backup.</span>';
+      return;
+    }
+    el.innerHTML = zips.map(z => `<div style="display:flex;gap:12px;padding:2px 0;color:var(--c-muted)">
+      <span style="flex:1" title="${_h(z.path)}">${_h(z.filename)}</span>
+      <span style="color:var(--c-dim)">${_h((z.timestamp || '').replace('T', ' '))}</span>
+      <span style="color:var(--c-dim);min-width:70px;text-align:right">${fmtSize(z.size)}</span>
+    </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
+  }
+}
+
 // ── SYNC-SETUP: Cloud auth wizard ────────────────────────────────────────────
 
 let _cloudAuthPolling = null;
@@ -1743,6 +1778,10 @@ export {
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  // Backup de saves (CLOUD-UX-1)
+  backupNow,
+  loadManualBackups,
   // Cable Sync
   _isAdbMode,
   _onCableModeChange,

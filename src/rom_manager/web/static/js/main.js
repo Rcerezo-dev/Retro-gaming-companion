@@ -148,6 +148,9 @@ import {
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  backupNow,
+  loadManualBackups,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
@@ -329,6 +332,9 @@ Object.assign(window, {
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  backupNow,
+  loadManualBackups,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
@@ -472,7 +478,7 @@ export function showTab(name) {
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
-  if (name === 'sync')       { loadSync(); loadManualBackups?.(); loadCloudAuthStatus(); }
+  if (name === 'sync')       { loadSync(); loadManualBackups(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
