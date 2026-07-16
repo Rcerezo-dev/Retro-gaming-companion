@@ -59,7 +59,7 @@ def delete_duplicate(
     return {"deleted": source_path}
 
 
-def delete_all_duplicates_multi(repositories: list[LibraryRepository]) -> dict:
+def delete_all_duplicates_multi(repositories: list[LibraryRepository], platform: str = "") -> dict:
     """Run :func:`delete_all_duplicates` over several repositories and merge the results.
 
     Used by "Sistema completo" mode, where the duplicates view shows both the PC
@@ -75,7 +75,7 @@ def delete_all_duplicates_multi(repositories: list[LibraryRepository]) -> dict:
         "diagnostics": [],
     }
     for repo in repositories:
-        result = delete_all_duplicates(repo)
+        result = delete_all_duplicates(repo, platform=platform)
         for key in ("deleted", "skipped", "failed", "freed_bytes"):
             merged[key] += result[key]
         merged["errors"] = (merged["errors"] + result["errors"])[:20]
@@ -87,13 +87,20 @@ def delete_all_duplicates_multi(repositories: list[LibraryRepository]) -> dict:
     return merged
 
 
-def delete_all_duplicates(repository: LibraryRepository) -> dict:
+def delete_all_duplicates(repository: LibraryRepository, platform: str = "") -> dict:
     """Delete every non-canonical duplicate (all but the first entry per group).
+
+    If *platform* is given, only groups of that platform are touched — so the
+    count the user confirmed in a filtered view matches what runs
+    (DUPLICADOS-UX-1).
 
     Returns a result dict ready to serialize with deleted/skipped/failed counts,
     freed bytes, a human summary, and per-file diagnostics.
     """
     groups = repository.get_duplicate_groups()
+    if platform:
+        # Mismo criterio que la UI: la plataforma del grupo es la de su primera entrada
+        groups = [g for g in groups if (g.entries[0].platform or "") == platform]
     deleted = 0
     skipped = 0  # Files that don't exist (already deleted or moved)
     failed = 0  # Files that exist but couldn't be deleted (perms, device unmounted, etc.)

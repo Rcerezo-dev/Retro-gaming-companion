@@ -87,10 +87,14 @@ def register(
     def post_delete_all_duplicates(ctx) -> None:
         # source_root = device selector root; empty = "Sistema completo" → both DBs
         source_root = (ctx._post_data.get("source_root") or "").strip()
+        # DUPLICADOS-UX-1: el filtro de plataforma de la UI restringe también el borrado
+        platform = (ctx._post_data.get("platform") or "").strip()
         if source_root:
-            ctx._send_json(delete_all_duplicates(get_repo_fn(source_root)))
+            ctx._send_json(delete_all_duplicates(get_repo_fn(source_root), platform=platform))
         else:
-            ctx._send_json(delete_all_duplicates_multi([repository, repo_android]))
+            ctx._send_json(
+                delete_all_duplicates_multi([repository, repo_android], platform=platform)
+            )
 
     # ── POST /api/duplicates/exclude ──────────────────────────────────────────
     @router.post("/api/duplicates/exclude")
@@ -109,6 +113,29 @@ def register(
             ctx._send_json({"ok": True})
         else:
             ctx._send_error(400, "sha1 required")
+
+    # ── GET /api/duplicates/exclusions ────────────────────────────────────────
+    @router.get("/api/duplicates/exclusions")
+    def get_duplicate_exclusions(ctx) -> None:
+        # DUPLICADOS-UX-5: lista revisable de grupos marcados como copia intencional.
+        # Se mergean ambas BDs dedupeando por sha1 (exclude escribe en las dos).
+        seen: dict[str, dict] = {}
+        for repo in (repository, repo_android):
+            for row in repo.get_excluded_duplicates():
+                if row["sha1"] not in seen:
+                    seen[row["sha1"]] = row
+        ctx._send_json({"exclusions": list(seen.values())})
+
+    # ── POST /api/duplicates/exclusions/remove ────────────────────────────────
+    @router.post("/api/duplicates/exclusions/remove")
+    def post_remove_duplicate_exclusion(ctx) -> None:
+        sha1 = ctx._post_data.get("sha1", "")
+        if not sha1:
+            ctx._send_error(400, "sha1 required")
+            return
+        for repo in (repository, repo_android):
+            repo.remove_excluded_duplicate(sha1)
+        ctx._send_json({"ok": True})
 
     # ── POST /api/apply-ra-conflicts ──────────────────────────────────────────
     @router.post("/api/apply-ra-conflicts")
