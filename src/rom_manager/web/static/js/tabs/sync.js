@@ -1652,12 +1652,15 @@ async function loadCloudAuthStatus() {
   const el = document.getElementById('cloud-auth-status');
   if (!el) return;
   try {
-    const data = await apiFetch('/api/cloud-auth/status');
+    const [data, cfg] = await Promise.all([
+      apiFetch('/api/cloud-auth/status'),
+      apiFetch('/api/config').catch(() => ({})),
+    ]);
     if (data.error) {
       el.innerHTML = `<span style="color:var(--c-softred)">${data.error}</span>`;
       return;
     }
-    el.innerHTML = data.providers.map(p => {
+    let html = data.providers.map(p => {
       const label = p.label;
       const configured = p.configured;
       const badge = configured
@@ -1673,8 +1676,38 @@ async function loadCloudAuthStatus() {
         ${badge}${connectBtn}${disconnectBtn}
       </div>`;
     }).join('');
+    // CLOUD-UX-9: "Conectado" (remote en rclone) ≠ "sync configurado"
+    // (saves_remote en config) — mostrar el destino activo en la tarjeta y,
+    // si falta, ofrecer configurarlo a un clic.
+    const saves = cfg.saves_remote || '';
+    const states = cfg.states_remote || '';
+    const connected = (data.providers || []).filter(p => p.configured);
+    if (saves || states) {
+      html += `<div style="margin-top:8px;font-size:11px;color:var(--c-muted)">Destino de sync — saves: <code>${_h(saves) || '&mdash;'}</code> &middot; states: <code>${_h(states) || '&mdash;'}</code></div>`;
+    } else if (connected.length) {
+      html += `<div style="margin-top:8px;font-size:12px">
+        <span style="color:var(--c-yellow)">Conectado, pero sin destino de sync.</span>
+        ${connected.map(p => `<button class="btn primary" style="font-size:11px;padding:3px 10px;margin-left:8px" onclick="useRemoteForSync('${p.remote_name}')">Usar ${_h(p.remote_name)}:RetroSync para saves + states</button>`).join('')}
+      </div>`;
+    }
+    el.innerHTML = html;
   } catch (e) {
     el.innerHTML = `<span style="color:var(--c-softred)">Error al comprobar estado: ${e.message}</span>`;
+  }
+}
+
+// CLOUD-UX-9: un clic desde la tarjeta "Conexión cloud" deja el sync funcional
+async function useRemoteForSync(remoteName) {
+  try {
+    await apiPost('/api/config', {
+      'sync.saves_remote': `${remoteName}:RetroSync/saves`,
+      'sync.states_remote': `${remoteName}:RetroSync/states`,
+    });
+    showToast(`Sync configurado — ${remoteName}:RetroSync (saves + states)`, 'ok');
+    loadCloudAuthStatus();
+    loadSync();
+  } catch (e) {
+    _showCloudAuthError(e.message);
   }
 }
 
@@ -1781,6 +1814,7 @@ export {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
   // Rclone
   toggleRcloneSetup,
   loadRcloneStatus,

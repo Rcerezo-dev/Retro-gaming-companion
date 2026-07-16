@@ -187,6 +187,7 @@ import {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
 } from './tabs/sync.js';
 import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
@@ -372,6 +373,7 @@ Object.assign(window, {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
   // PHASE6-3b: app update download/apply
   downloadAppUpdate,
   applyAppUpdate,
