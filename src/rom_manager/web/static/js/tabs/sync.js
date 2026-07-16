@@ -30,6 +30,15 @@ function _copyText(text) {
 let _autoSyncTimer = null;
 let _autoSyncEnabled = true;
 
+// CLOUD-UX-10: los mensajes de esta pestaña apuntan a su propio bloque de
+// setup, no a config.toml ni a Settings.
+function openCloudSetup() {
+  const setup = document.getElementById('cloud-setup-block');
+  if (!setup) return;
+  setup.open = true;
+  setup.scrollIntoView({ behavior: 'smooth' });
+}
+
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function loadSync() {
   const el = document.getElementById('sync-content');
@@ -55,12 +64,12 @@ async function loadSync() {
           .join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
-        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin destino de sync — conecta la nube y elige carpeta más abajo</span>`;
+        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin destino de sync — <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">Conectar y elegir carpeta</a></span>`;
       }
       syncBar.classList.remove('hidden');
     }
     if (!sources.length && !implicit.length) {
-      html += `<p class="error-msg" style="margin-bottom:16px">No hay destino de sync configurado. Usa la configuración cloud de esta pestaña (Conectar &rarr; Elegir carpeta &rarr; Probar).</p>`;
+      html += `<p class="error-msg" style="margin-bottom:16px">No hay destino de sync configurado. <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">Abre la configuración cloud</a> (Conectar &rarr; Elegir carpeta &rarr; Probar). Para varias fuentes personalizadas existe el modo avanzado <code>[[sync.sources]]</code> en config.toml.</p>`;
     }
     if (sl.entries.length === 0) {
       html += '<p class="empty">Aún no hay registros de sincronización. Pulsa <strong>Sincronizar</strong> para empezar.</p>';
@@ -82,7 +91,7 @@ async function loadSync() {
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba que rclone está instalado y configurado en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Settings → Configuración de rclone</a>.</p>`;
+    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba la <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">configuración cloud de esta pestaña</a> (rclone instalado y remote conectado).</p>`;
   }
 }
 
@@ -1796,7 +1805,7 @@ async function _pollCloudAuth() {
       });
       if (res.error) { _showCloudAuthError(res.error); return; }
     }
-    showToast('Conexión cloud configurada correctamente', 'success');
+    showToast('Conexión cloud configurada correctamente', 'ok');
     loadCloudAuthStatus();
   } catch (e) {
     clearInterval(_cloudAuthPolling);
@@ -1818,7 +1827,7 @@ async function disconnectCloud(remoteName) {
   try {
     const res = await apiPost('/api/cloud-auth/disconnect', { remote_name: remoteName });
     if (res.error) { _showCloudAuthError(res.error); return; }
-    showToast(`Remote "${remoteName}" eliminado`, 'success');
+    showToast(`Remote "${remoteName}" eliminado`, 'ok');
     loadCloudAuthStatus();
   } catch (e) {
     _showCloudAuthError(e.message);
@@ -1860,6 +1869,7 @@ export {
   cancelCloudAuth,
   disconnectCloud,
   useRemoteForSync,
+  openCloudSetup,
   // Rclone
   loadRcloneStatus,
   openRcloneConfig,
