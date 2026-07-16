@@ -298,10 +298,17 @@ def _do_sync(
                         sync_all=True,
                     )
                 )
-            if not sources:
+            # CLOUD-UX-3: los remotes implícitos saves_remote/states_remote (el
+            # camino recomendado de la UI) cuentan como fuentes — antes se
+            # cortaba aquí sin llegar al bloque D2 que los sincroniza.
+            _has_implicit = bool(config.library_root) and bool(
+                config.sync.saves_remote or config.sync.states_remote
+            )
+            if not sources and not _has_implicit:
                 job_result = {
-                    "error": "No hay fuentes de sync configuradas. "
-                    "Añade [[sync.sources]] en config.toml.",
+                    "error": "Sin destino de sync. Conecta la nube y elige carpeta "
+                    "en la pestaña Cloud, o añade [[sync.sources]] en config.toml "
+                    "(modo avanzado).",
                     "result_ts": _utc_now_str(),
                 }
                 return

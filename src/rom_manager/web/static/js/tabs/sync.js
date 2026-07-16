@@ -42,18 +42,25 @@ async function loadSync() {
     const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
     let html = '';
     const sources = cfg.sync_sources || [];
+    // CLOUD-UX-3: los remotes implícitos saves_remote/states_remote también
+    // son fuentes válidas — el aviso solo aplica si no hay ninguna de las dos.
+    const implicit = [];
+    if (cfg.saves_remote)  implicit.push(`saves &rarr; <code>${cfg.saves_remote}</code>`);
+    if (cfg.states_remote) implicit.push(`states &rarr; <code>${cfg.states_remote}</code>`);
     const syncBar = document.getElementById('sync-context-bar');
     if (syncBar) {
-      if (sources.length) {
-        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
+      if (sources.length || implicit.length) {
+        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`)
+          .concat(implicit.map(t => `<span style="color:var(--c-teal)">${t}</span>`))
+          .join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
-        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
+        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin destino de sync — conecta la nube y elige carpeta más abajo</span>`;
       }
       syncBar.classList.remove('hidden');
     }
-    if (!sources.length) {
-      html += `<p class="error-msg" style="margin-bottom:16px">No hay fuentes de sync configuradas. Edita <code>config.toml</code> y añade entradas <code>[[sync.sources]]</code>.</p>`;
+    if (!sources.length && !implicit.length) {
+      html += `<p class="error-msg" style="margin-bottom:16px">No hay destino de sync configurado. Usa la configuración cloud de esta pestaña (Conectar &rarr; Elegir carpeta &rarr; Probar).</p>`;
     }
     if (sl.entries.length === 0) {
       html += '<p class="empty">Aún no hay registros de sincronización. Pulsa <strong>Sincronizar</strong> para empezar.</p>';
