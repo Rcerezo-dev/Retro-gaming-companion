@@ -483,14 +483,6 @@ function copyAnbernicUrl() {
 }
 
 // ── Rclone setup wizard ───────────────────────────────────────────────────────
-function toggleRcloneSetup() {
-  const panel = document.getElementById('rclone-setup-panel');
-  if (!panel) return;
-  const showing = !panel.classList.contains('hidden');
-  panel.classList.toggle('hidden', showing);
-  if (!showing) loadRcloneStatus();
-}
-
 function _rcloneActiveTargetHtml() {
   const saves  = document.getElementById('cfg-saves-remote')?.value.trim()  || '';
   const states = document.getElementById('cfg-states-remote')?.value.trim() || '';
@@ -1728,6 +1720,22 @@ async function loadCloudAuthStatus() {
       </div>`;
     }
     el.innerHTML = html;
+    // CLOUD-UX-8: el bloque de setup se colapsa cuando todo está en verde
+    // (provider conectado + destino de sync configurado).
+    const setup = document.getElementById('cloud-setup-block');
+    const setupBadge = document.getElementById('cloud-setup-badge');
+    const ready = connected.length > 0 && !!(saves || states);
+    if (setupBadge) {
+      setupBadge.innerHTML = ready
+        ? '<span style="color:var(--c-green)">&#x2713; configurado</span>'
+        : '<span style="color:var(--c-yellow)">pendiente de configurar</span>';
+    }
+    if (setup) {
+      const wasOpen = setup.open;
+      setup.open = !ready;
+      // Si ya estaba abierto, ontoggle no dispara — cargar el paso 2 a mano
+      if (setup.open && wasOpen) loadRcloneStatus();
+    }
   } catch (e) {
     el.innerHTML = `<span style="color:var(--c-softred)">Error al comprobar estado: ${e.message}</span>`;
   }
@@ -1853,7 +1861,6 @@ export {
   disconnectCloud,
   useRemoteForSync,
   // Rclone
-  toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
