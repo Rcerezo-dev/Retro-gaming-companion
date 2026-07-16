@@ -522,11 +522,13 @@ async function loadRcloneStatus() {
     if (d.remotes.length) {
       const sel = document.getElementById('rclone-remote-select');
       if (sel) {
-        sel.innerHTML = d.remotes.map(r => `<option value="${r}">${r}</option>`).join('');
+        // CLOUD-UX-2: el value conserva el ':' — applyRclone* concatenan
+        // remote + ruta y sin él guardaban "dropboxRetroSync/saves" (inválido).
+        sel.innerHTML = d.remotes.map(r => `<option value="${r}:">${r}</option>`).join('');
         // Pre-select current remote
         const currentFull = document.getElementById('cfg-rclone-remote')?.value || '';
-        if (currentFull) {
-          const currentRemote = currentFull.split('/')[0] + ':';
+        if (currentFull && currentFull.includes(':')) {
+          const currentRemote = currentFull.split(':')[0] + ':';
           const currentPath = '/' + currentFull.slice(currentRemote.length).replace(/^\/+/, '');
           for (const opt of sel.options) if (opt.value === currentRemote) opt.selected = true;
           const pathInp = document.getElementById('rclone-path-input');
