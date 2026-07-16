@@ -65,3 +65,24 @@ def test_arcade_crc_index_maps_crc_to_sets(tmp_path: Path) -> None:
 
 def test_arcade_crc_index_missing_dir_is_empty() -> None:
     assert load_arcade_crc_index(Path("no-existe")) == {}
+
+
+def test_infra_names_memoized_until_files_change(tmp_path: Path, monkeypatch) -> None:
+    """INICIO-FIX-2: el listxml real pesa cientos de MB — la segunda llamada
+    con los mismos archivos no re-parsea; modificar el XML invalida la caché."""
+    import rom_manager.catalog.mame_loader as ml
+
+    xml = tmp_path / "mame.xml"
+    xml.write_text(_XML, encoding="utf-8")
+    calls: list[Path] = []
+    real_parse = ml.ET.parse
+    monkeypatch.setattr(ml.ET, "parse", lambda p: calls.append(p) or real_parse(p))
+
+    expected = {"neogeo", "kb_pcat101", "qsound"}
+    assert ml.load_arcade_infra_names(tmp_path) == expected
+    assert ml.load_arcade_infra_names(tmp_path) == expected
+    assert len(calls) == 1  # segunda llamada servida de caché
+
+    xml.write_text(_XML.replace('name="qsound"', 'name="qsound2"'), encoding="utf-8")
+    assert "qsound2" in ml.load_arcade_infra_names(tmp_path)
+    assert len(calls) == 2  # firma distinta → re-parseo

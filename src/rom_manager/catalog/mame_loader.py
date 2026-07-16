@@ -72,6 +72,12 @@ def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
     return result
 
 
+# INICIO-FIX-2: el listxml oficial de MAME pesa cientos de MB (~11 s de parseo)
+# y esto se llama en cada junk-scan y cada refresh de /api/library-extras —
+# memoizar por firma de los .xml del directorio (nombre, mtime, tamaño).
+_infra_cache: dict[Path, tuple[tuple, set[str]]] = {}
+
+
 def load_arcade_infra_names(directory: Path) -> set[str]:
     """Set names that ``load_mame_xml`` skips: BIOS, devices, non-runnable.
 
@@ -82,9 +88,17 @@ def load_arcade_infra_names(directory: Path) -> set[str]:
     names: set[str] = set()
     if not directory.exists():
         return names
-    for f in sorted(directory.iterdir()):
-        if f.suffix.lower() != ".xml":
-            continue
+    xml_files = sorted(f for f in directory.iterdir() if f.suffix.lower() == ".xml")
+    try:
+        sig: tuple | None = tuple(
+            (f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in xml_files
+        )
+    except OSError:
+        sig = None  # archivo desaparecido a mitad — parsear sin cachear
+    cached = _infra_cache.get(directory)
+    if sig is not None and cached and cached[0] == sig:
+        return cached[1]
+    for f in xml_files:
         try:
             tree = ET.parse(f)
             root = tree.getroot()
@@ -100,6 +114,8 @@ def load_arcade_infra_names(directory: Path) -> set[str]:
                         names.add(name)
         except (ET.ParseError, OSError):
             pass
+    if sig is not None:
+        _infra_cache[directory] = (sig, names)
     return names
 
 

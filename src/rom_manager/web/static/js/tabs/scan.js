@@ -289,7 +289,7 @@ async function loadDatCatalogList() {
     const byType = {};
     for (const sys of data.systems) {
       const k = sys.catalog === 'redump' ? 'Redump (óptico)'
-              : (sys.catalog === 'fbneo' || sys.catalog === 'mame') ? 'Arcade'
+              : (sys.catalog === 'fbneo' || sys.catalog === 'mame' || sys.catalog === 'mame_xml') ? 'Arcade'
               : 'No-Intro (cartuchos)';
       (byType[k] = byType[k] || []).push(sys);
     }
