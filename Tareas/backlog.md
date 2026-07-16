@@ -825,6 +825,16 @@ progreso), luego integridad de BD, luego web, luego el resto.
 
 ---
 
+## Hallazgos INICIO-UX (2026-07-16, prueba con biblioteca real)
+
+| ID | Prioridad | Hallazgo | Dónde | Estado |
+|----|-----------|----------|-------|--------|
+| INICIO-FIX-1 | 🟡 Bajo | **`int(rom.get("size", 0))` revienta con `size=""`** — un DAT real (FBNeo/MAME en `catalogs/arcade/`) trae `<rom size="">` y el parser lanza `ValueError` (logueado, el catálogo se carga a medias). Su gemelo en la línea 190 ya tiene el fix `or 0`; se corrigió un sitio y no el otro | `catalog/catalog_loader.py:135` | ⬜ |
+| INICIO-FIX-2 | 🟢 Menor | **`load_arcade_infra_names` parsea el `mame.xml` de 608 MB (~11 s) en cada llamada** — lo pagan cada junk-scan y cada refresh de `/api/library-extras` (TTL 15 min). El ponytail "cachear si algún día duele" (maintenance.py) ya duele: memoizar por `(path, mtime)` en `mame_loader` beneficia a todos los callers | `catalog/mame_loader.py:75-103` | ⬜ |
+| INICIO-FIX-3 | 🟢 Menor | **`mame0278.xml` vacío (0 bytes) en `catalogs/arcade/`** — descarga/generación fallida; cada loader lo abre y lo descarta en silencio. Borrarlo (acción de usuario o incluirlo en INICIO-FIX-2) | `.rommgr/catalogs/arcade/mame0278.xml` | ⬜ |
+
+---
+
 ## User actions (no code needed)
 
 | ID | Task |
