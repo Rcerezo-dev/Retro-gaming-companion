@@ -221,11 +221,24 @@ def register_maintenance(
         ctx._send_json(_full_junk_scan(folder))
 
     # ── GET /api/library-extras (INICIO-UX-5) ─────────────────────────────────
+    # El junk-scan completo parsea catálogos y recorre todo el árbol — caro
+    # para cada carga de Inicio. La sección es informativa: un conteo con unos
+    # minutos de retraso no importa.
+    # ponytail: caché por proceso con TTL, sin invalidación; si molesta,
+    # invalidar desde junk-delete / zip-route-apply.
+    _extras_cache: dict[str, tuple[float, dict]] = {}
+    _EXTRAS_TTL_SECONDS = 900
+
     @router.get("/api/library-extras")
     def get_library_extras(ctx) -> None:
         """Conteos agregados de archivos no-gaming para la pestaña Inicio:
         BIOS (carpeta bios/ + ZIPs sueltos identificados), infraestructura MAME
-        y basura borrable (categorías safe_delete del junk-scan)."""
+        (suelta y ya colocada en carpetas arcade) y basura borrable
+        (categorías safe_delete del junk-scan)."""
+        import time
+
+        from rom_manager.catalog.mame_loader import load_arcade_infra_names
+        from rom_manager.converters.zip_extractor import _ARCADE_FOLDER_NAMES
         from rom_manager.web.builders.folders import _ZIP_CAT_BIOS, _ZIP_CAT_INFRA
 
         folder = ctx._qs.get("root", [""])[0] or (
@@ -234,6 +247,10 @@ def register_maintenance(
         empty = {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0}
         if not folder or not Path(folder).is_dir():
             ctx._send_json(empty)
+            return
+        cached = _extras_cache.get(folder)
+        if cached and time.time() - cached[0] < _EXTRAS_TTL_SECONDS:
+            ctx._send_json(cached[1])
             return
         bios_dir = Path(folder) / "bios"
         bios = sum(1 for f in bios_dir.rglob("*") if f.is_file()) if bios_dir.is_dir() else 0
@@ -249,14 +266,27 @@ def register_maintenance(
             elif cat["confidence"] == "safe_delete":
                 junk_files += cat["count"]
                 junk_bytes += cat["total_bytes"]
-        ctx._send_json(
-            {
-                "bios": bios,
-                "mame_infra": mame_infra,
-                "junk_files": junk_files,
-                "junk_bytes": junk_bytes,
-            }
-        )
+        # El junk-scan solo ve ZIPs *sueltos* (dentro de carpeta de plataforma
+        # los salta): la infra ya colocada en arcade\/mame\/… se cuenta aparte
+        # cruzando los stems con las bios/devices del XML de MAME.
+        infra_names = load_arcade_infra_names(config.catalogs_arcade_dir)
+        if infra_names:
+            root_p = Path(folder)
+            for dirpath, _dirs, files in os.walk(root_p):
+                parts = Path(dirpath).relative_to(root_p).parts
+                if not any(part.lower() in _ARCADE_FOLDER_NAMES for part in parts):
+                    continue
+                mame_infra += sum(
+                    1 for f in files if f.lower().endswith(".zip") and f[:-4].lower() in infra_names
+                )
+        payload = {
+            "bios": bios,
+            "mame_infra": mame_infra,
+            "junk_files": junk_files,
+            "junk_bytes": junk_bytes,
+        }
+        _extras_cache[folder] = (time.time(), payload)
+        ctx._send_json(payload)
 
     # ── POST /api/zip-route-apply ─────────────────────────────────────────────
     @router.post("/api/zip-route-apply")

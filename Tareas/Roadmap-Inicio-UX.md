@@ -173,3 +173,5 @@ hay datos (`total_assets > 0` o el junk-scan encontró categorías):
 > Implementado completo en la rama `fix/inicio-ux` (2026-07-16), una sola PR
 > en vez de 5 — los cambios eran pequeños y todos sobre los mismos 2 archivos.
 > INICIO-UX-12 se resolvió solo al borrar el bloque en INICIO-UX-3.
+> `/api/library-extras` cachea el resultado por carpeta (TTL 15 min) y cuenta
+> también la infra MAME ya colocada en carpetas arcade (stems vs XML de MAME).
