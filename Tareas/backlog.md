@@ -426,7 +426,8 @@ VAL-FIX-5/6 (ya registrados, no se duplican aquí). Orden: 1 es seguridad,
 
 Auditoría UX de Inicio (`tab-overview.html`, `js/tabs/overview.js`) desde la
 perspectiva de un usuario nuevo. Detalle completo, archivo:línea y fases en
-`Tareas/Roadmap-Inicio-UX.md`. Hallazgos clave: los 3 botones rápidos del
+`Tareas/diario/archivo/Roadmap-Inicio-UX.md` (archivado 2026-07-16, implementado
+en la rama `fix/inicio-ux`). Hallazgos clave: los 3 botones rápidos del
 dashboard están **rotos** (comillas `\'` estilo Python servidas tal cual al
 navegador → SyntaxError), los canvas usan `var(--c-*)` como fillStyle (canvas
 no resuelve variables CSS → heatmap y gráfico mensual pintan colores
@@ -436,11 +437,11 @@ infra MAME, basura) reutilizando las categorías de `builders/folders.py`.
 
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
-| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ⬜ |
-| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ⬜ |
-| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ⬜ |
-| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ⬜ |
-| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ⬜ |
+| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ✅ (fix/inicio-ux) |
+| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ✅ (fix/inicio-ux) |
+| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ✅ (fix/inicio-ux) |
+| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ✅ (fix/inicio-ux) |
+| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ✅ (fix/inicio-ux) |
 
 ---
 
