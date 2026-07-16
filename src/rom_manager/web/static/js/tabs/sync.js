@@ -1707,18 +1707,16 @@ async function _pollCloudAuth() {
       return;
     }
     // Auto-finalize with the captured token
-    if (data.token) {
-      const statusData = await apiFetch('/api/cloud-auth/status');
-      // Find which provider just ran (the one that isn't configured yet)
-      const pending = (statusData.providers || []).find(p => !p.configured);
-      if (pending) {
-        const res = await apiPost('/api/cloud-auth/finalize', {
-          provider: pending.id,
-          remote_name: pending.remote_name,
-          token: data.token,
-        });
-        if (res.error) { _showCloudAuthError(res.error); return; }
-      }
+    // CLOUD-UX-4: el poll devuelve el provider que inició el flujo — antes se
+    // adivinaba "el primer provider no configurado" y el token de Google Drive
+    // podía acabar bajo el remote dropbox.
+    if (data.token && data.provider) {
+      const res = await apiPost('/api/cloud-auth/finalize', {
+        provider: data.provider,
+        remote_name: data.remote_name,
+        token: data.token,
+      });
+      if (res.error) { _showCloudAuthError(res.error); return; }
     }
     showToast('Conexión cloud configurada correctamente', 'success');
     loadCloudAuthStatus();
@@ -1733,6 +1731,8 @@ function cancelCloudAuth() {
   if (_cloudAuthPolling) { clearInterval(_cloudAuthPolling); _cloudAuthPolling = null; }
   const progressEl = document.getElementById('cloud-auth-progress');
   if (progressEl) progressEl.classList.add('hidden');
+  // CLOUD-UX-4: avisar al backend para matar el subprocess 'rclone authorize'
+  apiPost('/api/cloud-auth/cancel', {}).catch(() => {});
 }
 
 async function disconnectCloud(remoteName) {
