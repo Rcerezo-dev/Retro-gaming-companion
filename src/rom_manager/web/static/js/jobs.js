@@ -102,7 +102,15 @@ function _applyJobStatus(s) {
     }
   }
   if (!s.sync_running && s.sync_result) {
-    window._renderSyncResult(s.sync_result);
+    // CLOUD-UX-5: mismo guard result_ts que scan/match/backup — sin él la
+    // notificación "Sync completado" se re-disparaba en cada tick de polling.
+    const ts = s.sync_result.result_ts || JSON.stringify(s.sync_result);
+    if (_shownResultTs.sync !== ts) {
+      _shownResultTs.sync = ts;
+      window._renderSyncResult(s.sync_result);
+      // Refrescar el log de la pestaña al consumir un sync real nuevo
+      if (!s.sync_result.dry_run && !s.sync_result.error) window.loadSync();
+    }
   }
   // CHD progress bar
   const chdWrap = document.getElementById('chd-progress-wrap');

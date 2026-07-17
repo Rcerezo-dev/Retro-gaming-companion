@@ -30,6 +30,15 @@ function _copyText(text) {
 let _autoSyncTimer = null;
 let _autoSyncEnabled = true;
 
+// CLOUD-UX-10: los mensajes de esta pestaña apuntan a su propio bloque de
+// setup, no a config.toml ni a Settings.
+function openCloudSetup() {
+  const setup = document.getElementById('cloud-setup-block');
+  if (!setup) return;
+  setup.open = true;
+  setup.scrollIntoView({ behavior: 'smooth' });
+}
+
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function loadSync() {
   const el = document.getElementById('sync-content');
@@ -42,18 +51,25 @@ async function loadSync() {
     const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
     let html = '';
     const sources = cfg.sync_sources || [];
+    // CLOUD-UX-3: los remotes implícitos saves_remote/states_remote también
+    // son fuentes válidas — el aviso solo aplica si no hay ninguna de las dos.
+    const implicit = [];
+    if (cfg.saves_remote)  implicit.push(`saves &rarr; <code>${cfg.saves_remote}</code>`);
+    if (cfg.states_remote) implicit.push(`states &rarr; <code>${cfg.states_remote}</code>`);
     const syncBar = document.getElementById('sync-context-bar');
     if (syncBar) {
-      if (sources.length) {
-        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
+      if (sources.length || implicit.length) {
+        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`)
+          .concat(implicit.map(t => `<span style="color:var(--c-teal)">${t}</span>`))
+          .join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
-        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
+        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin destino de sync — <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">Conectar y elegir carpeta</a></span>`;
       }
       syncBar.classList.remove('hidden');
     }
-    if (!sources.length) {
-      html += `<p class="error-msg" style="margin-bottom:16px">No hay fuentes de sync configuradas. Edita <code>config.toml</code> y añade entradas <code>[[sync.sources]]</code>.</p>`;
+    if (!sources.length && !implicit.length) {
+      html += `<p class="error-msg" style="margin-bottom:16px">No hay destino de sync configurado. <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">Abre la configuración cloud</a> (Conectar &rarr; Elegir carpeta &rarr; Probar). Para varias fuentes personalizadas existe el modo avanzado <code>[[sync.sources]]</code> en config.toml.</p>`;
     }
     if (sl.entries.length === 0) {
       html += '<p class="empty">Aún no hay registros de sincronización. Pulsa <strong>Sincronizar</strong> para empezar.</p>';
@@ -75,7 +91,7 @@ async function loadSync() {
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba que rclone está instalado y configurado en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Settings → Configuración de rclone</a>.</p>`;
+    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba la <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">configuración cloud de esta pestaña</a> (rclone instalado y remote conectado).</p>`;
   }
 }
 
@@ -480,14 +496,6 @@ function copyAnbernicUrl() {
 }
 
 // ── Rclone setup wizard ───────────────────────────────────────────────────────
-function toggleRcloneSetup() {
-  const panel = document.getElementById('rclone-setup-panel');
-  if (!panel) return;
-  const showing = !panel.classList.contains('hidden');
-  panel.classList.toggle('hidden', showing);
-  if (!showing) loadRcloneStatus();
-}
-
 function _rcloneActiveTargetHtml() {
   const saves  = document.getElementById('cfg-saves-remote')?.value.trim()  || '';
   const states = document.getElementById('cfg-states-remote')?.value.trim() || '';
@@ -526,11 +534,13 @@ async function loadRcloneStatus() {
     if (d.remotes.length) {
       const sel = document.getElementById('rclone-remote-select');
       if (sel) {
-        sel.innerHTML = d.remotes.map(r => `<option value="${r}">${r}</option>`).join('');
+        // CLOUD-UX-2: el value conserva el ':' — applyRclone* concatenan
+        // remote + ruta y sin él guardaban "dropboxRetroSync/saves" (inválido).
+        sel.innerHTML = d.remotes.map(r => `<option value="${r}:">${r}</option>`).join('');
         // Pre-select current remote
         const currentFull = document.getElementById('cfg-rclone-remote')?.value || '';
-        if (currentFull) {
-          const currentRemote = currentFull.split('/')[0] + ':';
+        if (currentFull && currentFull.includes(':')) {
+          const currentRemote = currentFull.split(':')[0] + ':';
           const currentPath = '/' + currentFull.slice(currentRemote.length).replace(/^\/+/, '');
           for (const opt of sel.options) if (opt.value === currentRemote) opt.selected = true;
           const pathInp = document.getElementById('rclone-path-input');
@@ -1576,7 +1586,44 @@ async function doSync(dryRun) {
   }
 }
 
+// CLOUD-UX-12: lista por fuente de qué archivo se mueve y en qué dirección —
+// en dry run es el "plan" que se revisa antes de pulsar Sincronizar.
+function _renderSyncDecisions(result) {
+  const el = document.getElementById('sync-decisions');
+  if (!el) return;
+  if (result.error) { el.innerHTML = ''; return; }
+  const ICONS = {
+    upload:   ['&#x2191;', 'var(--c-teal)'],
+    download: ['&#x2193;', 'var(--c-blue)'],
+    conflict: ['&#x26A0;', 'var(--c-amber)'],
+  };
+  const blocks = (result.sources || []).map(src => {
+    if (src.error) {
+      return `<div style="font-size:12px;color:var(--c-softred);padding:2px 0">&#x2717; ${_h(src.name)} — ${_h(src.error)}</div>`;
+    }
+    const decs = src.decisions || [];
+    if (!decs.length) return '';
+    const conflicts = decs.filter(d => d.action === 'conflict').length;
+    const rows = decs.map(d => {
+      const [icon, color] = ICONS[d.action] || ['&#x2022;', 'var(--c-muted)'];
+      const hl = d.action === 'conflict' ? ';background:var(--rv-tint-amber-bg)' : '';
+      return `<div style="padding:1px 0;color:var(--c-muted)${hl}"><span style="color:${color};margin-right:8px">${icon}</span>${_h(d.relative)}</div>`;
+    }).join('');
+    const conflictTag = conflicts ? ` <span style="color:var(--c-amber)">&#x26A0; ${conflicts} conflicto${conflicts !== 1 ? 's' : ''}</span>` : '';
+    return `<details open style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--c-soft)">${_h(src.name)}: ${decs.length} archivo${decs.length !== 1 ? 's' : ''}${conflictTag}</summary>
+      <div style="max-height:220px;overflow-y:auto;font-size:11px;font-family:monospace;margin:4px 0 0 14px">${rows}</div>
+    </details>`;
+  }).filter(Boolean);
+  if (!blocks.length) { el.innerHTML = ''; return; }
+  const header = result.dry_run
+    ? '<div style="font-size:11px;color:var(--c-dim)">Plan — esto es lo que se movería al pulsar <strong>Sincronizar</strong> (&#x2191; subir &middot; &#x2193; bajar &middot; &#x26A0; conflicto):</div>'
+    : '<div style="font-size:11px;color:var(--c-dim)">Archivos sincronizados (&#x2191; subido &middot; &#x2193; bajado &middot; &#x26A0; conflicto):</div>';
+  el.innerHTML = header + blocks.join('');
+}
+
 function _renderSyncResult(result) {
+  _renderSyncDecisions(result);
   const resultEl = document.getElementById('job-result-sync');
   if (!resultEl) return;
   if (result.error) {
@@ -1604,6 +1651,41 @@ function _renderSyncResult(result) {
   }
 }
 
+// ── S29: Backup de saves (CLOUD-UX-1) ────────────────────────────────────────
+async function backupNow() {
+  const el = document.getElementById('job-result-backup-now');
+  try {
+    const d = await apiPost('/api/backup-now', {});
+    if (d.status === 'already_running') {
+      if (el) { el.className = 'job-result visible'; el.textContent = 'Ya hay un backup en curso…'; }
+      return;
+    }
+    startPolling();
+  } catch (e) {
+    if (el) { el.className = 'job-result visible error-r'; el.textContent = 'Error: ' + e.message; }
+  }
+}
+
+async function loadManualBackups() {
+  const el = document.getElementById('manual-backups-list');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/manual-backups');
+    const zips = d.zips || [];
+    if (!zips.length) {
+      el.innerHTML = '<span style="color:var(--c-dim)">Aún no hay ZIPs de backup.</span>';
+      return;
+    }
+    el.innerHTML = zips.map(z => `<div style="display:flex;gap:12px;padding:2px 0;color:var(--c-muted)">
+      <span style="flex:1" title="${_h(z.path)}">${_h(z.filename)}</span>
+      <span style="color:var(--c-dim)">${_h((z.timestamp || '').replace('T', ' '))}</span>
+      <span style="color:var(--c-dim);min-width:70px;text-align:right">${fmtSize(z.size)}</span>
+    </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
+  }
+}
+
 // ── SYNC-SETUP: Cloud auth wizard ────────────────────────────────────────────
 
 let _cloudAuthPolling = null;
@@ -1612,12 +1694,15 @@ async function loadCloudAuthStatus() {
   const el = document.getElementById('cloud-auth-status');
   if (!el) return;
   try {
-    const data = await apiFetch('/api/cloud-auth/status');
+    const [data, cfg] = await Promise.all([
+      apiFetch('/api/cloud-auth/status'),
+      apiFetch('/api/config').catch(() => ({})),
+    ]);
     if (data.error) {
       el.innerHTML = `<span style="color:var(--c-softred)">${data.error}</span>`;
       return;
     }
-    el.innerHTML = data.providers.map(p => {
+    let html = data.providers.map(p => {
       const label = p.label;
       const configured = p.configured;
       const badge = configured
@@ -1633,8 +1718,54 @@ async function loadCloudAuthStatus() {
         ${badge}${connectBtn}${disconnectBtn}
       </div>`;
     }).join('');
+    // CLOUD-UX-9: "Conectado" (remote en rclone) ≠ "sync configurado"
+    // (saves_remote en config) — mostrar el destino activo en la tarjeta y,
+    // si falta, ofrecer configurarlo a un clic.
+    const saves = cfg.saves_remote || '';
+    const states = cfg.states_remote || '';
+    const connected = (data.providers || []).filter(p => p.configured);
+    if (saves || states) {
+      html += `<div style="margin-top:8px;font-size:11px;color:var(--c-muted)">Destino de sync — saves: <code>${_h(saves) || '&mdash;'}</code> &middot; states: <code>${_h(states) || '&mdash;'}</code></div>`;
+    } else if (connected.length) {
+      html += `<div style="margin-top:8px;font-size:12px">
+        <span style="color:var(--c-yellow)">Conectado, pero sin destino de sync.</span>
+        ${connected.map(p => `<button class="btn primary" style="font-size:11px;padding:3px 10px;margin-left:8px" onclick="useRemoteForSync('${p.remote_name}')">Usar ${_h(p.remote_name)}:RetroSync para saves + states</button>`).join('')}
+      </div>`;
+    }
+    el.innerHTML = html;
+    // CLOUD-UX-8: el bloque de setup se colapsa cuando todo está en verde
+    // (provider conectado + destino de sync configurado).
+    const setup = document.getElementById('cloud-setup-block');
+    const setupBadge = document.getElementById('cloud-setup-badge');
+    const ready = connected.length > 0 && !!(saves || states);
+    if (setupBadge) {
+      setupBadge.innerHTML = ready
+        ? '<span style="color:var(--c-green)">&#x2713; configurado</span>'
+        : '<span style="color:var(--c-yellow)">pendiente de configurar</span>';
+    }
+    if (setup) {
+      const wasOpen = setup.open;
+      setup.open = !ready;
+      // Si ya estaba abierto, ontoggle no dispara — cargar el paso 2 a mano
+      if (setup.open && wasOpen) loadRcloneStatus();
+    }
   } catch (e) {
     el.innerHTML = `<span style="color:var(--c-softred)">Error al comprobar estado: ${e.message}</span>`;
+  }
+}
+
+// CLOUD-UX-9: un clic desde la tarjeta "Conexión cloud" deja el sync funcional
+async function useRemoteForSync(remoteName) {
+  try {
+    await apiPost('/api/config', {
+      'sync.saves_remote': `${remoteName}:RetroSync/saves`,
+      'sync.states_remote': `${remoteName}:RetroSync/states`,
+    });
+    showToast(`Sync configurado — ${remoteName}:RetroSync (saves + states)`, 'ok');
+    loadCloudAuthStatus();
+    loadSync();
+  } catch (e) {
+    _showCloudAuthError(e.message);
   }
 }
 
@@ -1667,20 +1798,18 @@ async function _pollCloudAuth() {
       return;
     }
     // Auto-finalize with the captured token
-    if (data.token) {
-      const statusData = await apiFetch('/api/cloud-auth/status');
-      // Find which provider just ran (the one that isn't configured yet)
-      const pending = (statusData.providers || []).find(p => !p.configured);
-      if (pending) {
-        const res = await apiPost('/api/cloud-auth/finalize', {
-          provider: pending.id,
-          remote_name: pending.remote_name,
-          token: data.token,
-        });
-        if (res.error) { _showCloudAuthError(res.error); return; }
-      }
+    // CLOUD-UX-4: el poll devuelve el provider que inició el flujo — antes se
+    // adivinaba "el primer provider no configurado" y el token de Google Drive
+    // podía acabar bajo el remote dropbox.
+    if (data.token && data.provider) {
+      const res = await apiPost('/api/cloud-auth/finalize', {
+        provider: data.provider,
+        remote_name: data.remote_name,
+        token: data.token,
+      });
+      if (res.error) { _showCloudAuthError(res.error); return; }
     }
-    showToast('Conexión cloud configurada correctamente', 'success');
+    showToast('Conexión cloud configurada correctamente', 'ok');
     loadCloudAuthStatus();
   } catch (e) {
     clearInterval(_cloudAuthPolling);
@@ -1693,6 +1822,8 @@ function cancelCloudAuth() {
   if (_cloudAuthPolling) { clearInterval(_cloudAuthPolling); _cloudAuthPolling = null; }
   const progressEl = document.getElementById('cloud-auth-progress');
   if (progressEl) progressEl.classList.add('hidden');
+  // CLOUD-UX-4: avisar al backend para matar el subprocess 'rclone authorize'
+  apiPost('/api/cloud-auth/cancel', {}).catch(() => {});
 }
 
 async function disconnectCloud(remoteName) {
@@ -1700,7 +1831,7 @@ async function disconnectCloud(remoteName) {
   try {
     const res = await apiPost('/api/cloud-auth/disconnect', { remote_name: remoteName });
     if (res.error) { _showCloudAuthError(res.error); return; }
-    showToast(`Remote "${remoteName}" eliminado`, 'success');
+    showToast(`Remote "${remoteName}" eliminado`, 'ok');
     loadCloudAuthStatus();
   } catch (e) {
     _showCloudAuthError(e.message);
@@ -1741,12 +1872,17 @@ export {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
+  openCloudSetup,
   // Rclone
-  toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  // Backup de saves (CLOUD-UX-1)
+  backupNow,
+  loadManualBackups,
   // Cable Sync
   _isAdbMode,
   _onCableModeChange,

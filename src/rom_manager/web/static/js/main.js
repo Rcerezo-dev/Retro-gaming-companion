@@ -143,11 +143,13 @@ import {
   copyAnbernicCmd,
   copyAnbernicUrl,
   tvCheckStatus, tvCheckServer, tvToggleSetup, tvCopySetupCmd, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
-  toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  backupNow,
+  loadManualBackups,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
@@ -184,6 +186,8 @@ import {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
+  openCloudSetup,
 } from './tabs/sync.js';
 import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
@@ -324,11 +328,13 @@ Object.assign(window, {
   copyAnbernicCmd,
   copyAnbernicUrl,
   tvCheckStatus, tvCheckServer, tvToggleSetup, tvCopySetupCmd, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
-  toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  backupNow,
+  loadManualBackups,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
@@ -366,6 +372,8 @@ Object.assign(window, {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
+  openCloudSetup,
   // PHASE6-3b: app update download/apply
   downloadAppUpdate,
   applyAppUpdate,
@@ -472,7 +480,9 @@ export function showTab(name) {
   if (name === 'plan')       loadPlan();
   if (name === 'duplicates') loadDuplicates();
   if (name === 'assets')     loadAssets();
-  if (name === 'sync')       { loadSync(); loadManualBackups?.(); loadCloudAuthStatus(); }
+  // CLOUD-UX-11: estado de saves y backups son lecturas locales baratas — se
+  // cargan solos al abrir; el botón ↻ queda para refrescar.
+  if (name === 'sync')       { loadSync(); loadManualBackups(); loadSaveComparison(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollection();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
