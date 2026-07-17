@@ -429,6 +429,20 @@ main { padding: 24px; flex: 1; }
 .card.purple .value { color: var(--accent-pur); }
 .card .sub { color: var(--fg-4); font-size: 11px; margin-top: 4px; }
 
+/* INICIO-UX-11: tarjetas clicables se distinguen de las estáticas */
+.card-link { position: relative; }
+.card-link::after { content: '›'; position: absolute; top: 12px; right: 14px; color: var(--fg-4); font-size: 16px; transition: color .2s, transform .2s; }
+.card-link:hover { border-color: var(--accent); box-shadow: 0 3px 14px rgba(78,201,176,.15); transform: translateY(-1px); }
+.card-link:hover::after { color: var(--accent); transform: translateX(2px); }
+
+/* INICIO-UX-5: tarjetas explicativas de archivos no-gaming */
+.extras-tile { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.extras-tile .extras-title { color: var(--fg); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.extras-tile .extras-count { color: var(--accent); font-family: 'Consolas', monospace; }
+.extras-tile .extras-desc { color: var(--fg-2); font-size: 11.5px; line-height: 1.6; }
+.extras-click { cursor: pointer; transition: border-color .2s, box-shadow .2s; }
+.extras-click:hover { border-color: var(--accent-h); box-shadow: 0 2px 12px rgba(78,201,176,.08); }
+
 /* ── Toolbar & inputs ─────────────────────────────────────────────────────── */
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .toolbar input, .toolbar select { background: var(--bg-panel); border: 1px solid var(--border-i); color: var(--fg); padding: 6px 10px; border-radius: 4px; font: inherit; font-size: 13px; }

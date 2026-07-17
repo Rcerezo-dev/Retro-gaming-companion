@@ -330,3 +330,15 @@ def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
     )
     matcher = CatalogMatcher(nointro, redump)
     assert "46DF91AD" not in matcher.crc_index()
+
+
+def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:
+    """INICIO-FIX-1: un DAT real trae <rom size=""> — no debe reventar int('')."""
+    from rom_manager.catalog.catalog_loader import load_nointro_dat
+
+    dat = tmp_path / "x.dat"
+    dat.write_text(
+        '<datafile><game name="G"><rom name="g.rom" size="" sha1="AB12"/></game></datafile>'
+    )
+    entries = load_nointro_dat(dat)
+    assert entries["AB12"].size_bytes == 0

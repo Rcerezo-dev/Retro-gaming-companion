@@ -23,9 +23,9 @@
       <div class="ds-lbl">salud biblioteca <span class="help-icon" tabindex="0" data-tip="Porcentaje de ROMs sin problemas: identificadas en catálogo, sin duplicados y sin archivos corruptos o ausentes.">?</span></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-left:1px solid var(--border);flex-shrink:0">
-      <button class="btn" onclick="showTab(\'sync\')" style="font-size:12px;padding:5px 14px;white-space:nowrap">&#x21D5; Sync</button>
-      <button class="btn" onclick="quickScanPC()" style="font-size:12px;padding:5px 14px;white-space:nowrap">&#x27F3; Scan</button>
-      <button class="btn" id="ov-inbox-btn" onclick="showTab(\'inbox\')" style="font-size:12px;padding:5px 14px;white-space:nowrap;position:relative">&#x1F4E5; Inbox <span class="hidden" id="ov-inbox-badge" style="background:var(--accent-ora);color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700"></span></button>
+      <button class="btn" onclick="showTab('sync')" style="font-size:12px;padding:5px 14px;white-space:nowrap">&#x21D5; Sync</button>
+      <button class="btn" onclick="quickScanPC()" style="font-size:12px;padding:5px 14px;white-space:nowrap">&#x27F3; Escanear PC</button>
+      <button class="btn" id="ov-inbox-btn" onclick="showTab('inbox')" style="font-size:12px;padding:5px 14px;white-space:nowrap;position:relative">&#x1F4E5; Inbox <span class="hidden" id="ov-inbox-badge" style="background:var(--accent-ora);color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700"></span></button>
     </div>
   </div>
 
@@ -81,6 +81,14 @@
         <p id="ov-ab-empty-msg" style="color:var(--c-dim);font-size:12px;padding:10px 0">Configura la ruta de la consola Android abajo y escanea para ver datos.</p>
       </div>
     </div>
+  </div>
+
+  <!-- INICIO-UX-5 / Fase 3: qué hay en la biblioteca además de juegos -->
+  <div class="hidden" id="ov-extras" style="margin-bottom:20px">
+    <details id="ov-extras-details" open>
+      <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;user-select:none;margin-bottom:10px">Además de juegos, tu biblioteca contiene…</summary>
+      <div id="ov-extras-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:10px"></div>
+    </details>
   </div>
 
   <!-- D8-P1: First-time setup banner -->
@@ -170,7 +178,7 @@
       <label class="fmt-check" style="margin-left:auto" title="No calcula huellas — mucho más rápido, pero Identificar y Sync no funcionarán hasta hacer un scan completo">
         <input type="checkbox" id="scan-quick"> Rápido (sin hash)
       </label>
-      <button id="btn-scan" class="btn" onclick="doScan()">Scan</button>
+      <button id="btn-scan" class="btn" onclick="doScan()">Escanear</button>
     </div>
     <div id="scan-progress-wrap" class="prog-wrap hidden">
       <div class="prog-info">
@@ -202,7 +210,7 @@
     </div>
 
     <div class="actions-row">
-      <button id="btn-fix-platforms" class="btn" onclick="doFixPlatforms()">Fix plataformas</button>
+      <button id="btn-fix-platforms" class="btn" onclick="doFixPlatforms()">Corregir plataformas</button>
       <span style="color:var(--c-dim);font-size:12px">Infiere la plataforma desde el nombre de carpeta (sin re-escanear)</span>
     </div>
     <div id="job-result-fix-platforms" class="job-result"></div>
@@ -232,7 +240,7 @@
     <div style="display:flex;gap:0">
       <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">① Scan</div>
-        <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:var(--c-text)">Scan</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:var(--c-dim);font-size:11px">Usa Quick para solo actualizar el inventario sin calcular huellas.</span></div>
+        <div style="color:var(--c-muted);font-size:12px;line-height:1.6">Activa los checkboxes de qué escanear y pulsa <strong style="color:var(--c-text)">Escanear</strong>. Se calcula la huella (SHA1/MD5) de cada ROM y se indexa en la base de datos local.<br><span style="color:var(--c-dim);font-size:11px">Usa Rápido para solo actualizar el inventario sin calcular huellas.</span></div>
       </div>
       <div style="flex:1;background:var(--c-panel);border:1px solid var(--c-border);border-right:none;padding:14px 16px">
         <div style="color:var(--c-blue);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">② Identificar</div>
@@ -250,21 +258,6 @@
     </div>
     </div>
   </details>
-
-  <!-- S36-2: Activity heatmap -->
-  <div style="margin-top:28px;margin-bottom:20px">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Mapa de actividad (últimos 365 días)</h3>
-    <div id="ov-heatmap-container" style="overflow-x:auto;padding-bottom:12px">
-      <canvas id="ov-heatmap" width="800" height="120" style="border:1px solid var(--c-border);border-radius:4px"></canvas>
-    </div>
-    <div style="font-size:11px;color:var(--c-hint);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
-      <span><span style="display:inline-block;width:12px;height:12px;background:#0d3922;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Menos</span>
-      <span><span style="display:inline-block;width:12px;height:12px;background:#0d5c2c;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
-      <span><span style="display:inline-block;width:12px;height:12px;background:#1a7938;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
-      <span><span style="display:inline-block;width:12px;height:12px;background:#26a641;border-radius:2px;margin-right:4px;vertical-align:middle"></span></span>
-      <span><span style="display:inline-block;width:12px;height:12px;background:#3fb950;border-radius:2px;margin-right:4px;vertical-align:middle"></span>Más</span>
-    </div>
-  </div>
 
   <!-- NEW-5: Collection completeness per platform -->
   <div style="margin-top:28px;margin-bottom:20px">
@@ -285,7 +278,8 @@
   <div style="margin-top:28px;margin-bottom:20px">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">Juego sugerido</h3>
     <div id="ov-game-suggestion" class="rv-tint-info" style="border-radius:8px;padding:16px;display:flex;gap:12px;align-items:start">
-      <img id="ov-game-suggestion-img" src="" alt="" style="width:80px;height:110px;object-fit:cover;border-radius:4px;flex-shrink:0">
+      <!-- INICIO-UX-13: contenedor con placeholder 🎮 — sin <img src=""> ni salto de layout -->
+      <div id="ov-game-suggestion-cover" style="width:80px;height:110px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px;background:var(--c-panel);border-radius:4px">&#127918;</div>
       <div style="flex:1">
         <div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
         <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:var(--c-text);margin-bottom:6px"></div>

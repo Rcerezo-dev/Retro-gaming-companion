@@ -429,7 +429,8 @@ VAL-FIX-5/6 (ya registrados, no se duplican aquí). Orden: 1 es seguridad,
 
 Auditoría UX de Inicio (`tab-overview.html`, `js/tabs/overview.js`) desde la
 perspectiva de un usuario nuevo. Detalle completo, archivo:línea y fases en
-`Tareas/Roadmap-Inicio-UX.md`. Hallazgos clave: los 3 botones rápidos del
+`Tareas/diario/archivo/Roadmap-Inicio-UX.md` (archivado 2026-07-16, implementado
+en la rama `fix/inicio-ux`). Hallazgos clave: los 3 botones rápidos del
 dashboard están **rotos** (comillas `\'` estilo Python servidas tal cual al
 navegador → SyntaxError), los canvas usan `var(--c-*)` como fillStyle (canvas
 no resuelve variables CSS → heatmap y gráfico mensual pintan colores
@@ -439,11 +440,11 @@ infra MAME, basura) reutilizando las categorías de `builders/folders.py`.
 
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
-| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ⬜ |
-| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ⬜ |
-| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ⬜ |
-| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ⬜ |
-| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ⬜ |
+| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ✅ (fix/inicio-ux) |
+| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ✅ (fix/inicio-ux) |
+| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ✅ (fix/inicio-ux) |
+| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ✅ (fix/inicio-ux) |
+| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ✅ (fix/inicio-ux) |
 
 ---
 
@@ -825,6 +826,17 @@ progreso), luego integridad de BD, luego web, luego el resto.
 > REV43-9…12 (integridad de BD) → REV43-13…17 (bugs de web) → resto por
 > valor/esfuerzo. Cada fix en su propia rama, siguiendo el patrón ya usado en
 > INBOX-FIX-*/ZIP-ROUTE-FIX-*/DEVSEL-FIX-*.
+
+---
+
+## Hallazgos INICIO-UX (2026-07-16, prueba con biblioteca real)
+
+| ID | Prioridad | Hallazgo | Dónde | Estado |
+|----|-----------|----------|-------|--------|
+| INICIO-FIX-1 | 🟡 Bajo | **`int(rom.get("size", 0))` revienta con `size=""`** — un DAT real (FBNeo/MAME en `catalogs/arcade/`) trae `<rom size="">` y el parser lanza `ValueError` (logueado, el catálogo se carga a medias). Su gemelo en la línea 190 ya tiene el fix `or 0`; se corrigió un sitio y no el otro | `catalog/catalog_loader.py:135` | ✅ rama `fix/inicio-ux` — `or 0` + test |
+| INICIO-FIX-2 | 🟢 Menor | **`load_arcade_infra_names` parsea el `mame.xml` de 608 MB (~11 s) en cada llamada** — lo pagan cada junk-scan y cada refresh de `/api/library-extras` (TTL 15 min). El ponytail "cachear si algún día duele" (maintenance.py) ya duele: memoizar por `(path, mtime)` en `mame_loader` beneficia a todos los callers | `catalog/mame_loader.py:75-103` | ✅ rama `fix/inicio-ux` — memoización por firma (nombre, mtime, tamaño) + test |
+| INICIO-FIX-3 | 🟢 Menor | **`mame0278.xml` vacío (0 bytes) en `catalogs/arcade/`** — descarga/generación fallida; cada loader lo abre y lo descarta en silencio. Borrarlo (acción de usuario o incluirlo en INICIO-FIX-2) | `.rommgr/catalogs/arcade/mame0278.xml` | ✅ borrado (2026-07-16) |
+| INICIO-FIX-4 | ✨ Mejora | **El listxml de MAME ahora es descargable desde Ajustes → Catálogos** — entrada "MAME XML (bios/devices)" en el grupo Arcade: resuelve la última release vía API de GitHub, baja el asset `*lx.zip` (~19 MB) y lo extrae como `catalogs/arcade/mame.xml` (~320 MB, escritura atómica vía `.part`). Verificado E2E con red real (v0.288, 7.297 nombres de infra) | `web/handlers/scan.py` (`_download_mame_listxml`) | ✅ rama `fix/inicio-ux` |
 
 ---
 

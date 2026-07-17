@@ -132,7 +132,8 @@ def load_nointro_dat(path: Path) -> dict[str, CatalogEntry]:
                 sha1=sha1,
                 md5=rom.get("md5", "").strip().upper(),
                 crc32=rom.get("crc", "").strip().upper(),
-                size_bytes=int(rom.get("size", 0)),
+                # INICIO-FIX-1: size="" en DATs reales — or 0 como sus gemelos
+                size_bytes=int(rom.get("size", 0) or 0),
             )
     return entries
 

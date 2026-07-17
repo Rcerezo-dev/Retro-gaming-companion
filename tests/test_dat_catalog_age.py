@@ -174,3 +174,63 @@ class TestRunDatDownloadTtl:
         from rom_manager.web.handlers.scan import _dat_dl_state
 
         assert entry["name"] in _dat_dl_state["result"]["downloaded"]
+
+
+# ── MAME listxml (catalog "mame_xml") ─────────────────────────────────────────
+
+
+class TestMameListxmlEntry:
+    def _cfg(self, tmp_path: Path):
+        cfg = _make_config(tmp_path)
+        cfg.catalogs_arcade_dir = tmp_path / "arcade"
+        return cfg
+
+    def test_detected_by_file_override(self, tmp_path: Path) -> None:
+        cfg = self._cfg(tmp_path)
+        _touch(cfg.catalogs_arcade_dir / "mame.xml", age_days=2)
+
+        result = _build_dat_catalog_list(cfg)
+        mx = next(s for s in result["systems"] if s["catalog"] == "mame_xml")
+        assert mx["downloaded"] is True
+        assert mx["age_days"] == 2
+
+    def test_missing_xml_not_downloaded(self, tmp_path: Path) -> None:
+        cfg = self._cfg(tmp_path)
+        result = _build_dat_catalog_list(cfg)
+        mx = next(s for s in result["systems"] if s["catalog"] == "mame_xml")
+        assert mx["downloaded"] is False
+
+    def test_download_resolves_release_and_extracts_zip(self, tmp_path: Path) -> None:
+        import io
+        import json
+        import zipfile
+
+        from rom_manager.web.handlers.scan import (
+            _LIBRETRO_DAT_CATALOG,
+            _dat_dl_state,
+            _run_dat_download,
+        )
+
+        cfg = self._cfg(tmp_path)
+        entry = next(e for e in _LIBRETRO_DAT_CATALOG if e["catalog"] == "mame_xml")
+        xml = b'<?xml version="1.0"?><mame><machine name="neogeo" isbios="yes"/></mame>'
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("mame0288.xml", xml)
+        api_json = json.dumps(
+            {"assets": [{"name": "mame0288lx.zip", "browser_download_url": "https://x/lx.zip"}]}
+        ).encode()
+
+        def _resp(payload: bytes):
+            resp = MagicMock()
+            resp.read.return_value = payload
+            resp.__enter__ = lambda s: s
+            resp.__exit__ = MagicMock(return_value=False)
+            return resp
+
+        with patch("urllib.request.urlopen", side_effect=[_resp(api_json), _resp(buf.getvalue())]):
+            _run_dat_download([entry], cfg)
+
+        assert _dat_dl_state["result"]["errors"] == []
+        assert entry["name"] in _dat_dl_state["result"]["downloaded"]
+        assert (cfg.catalogs_arcade_dir / "mame.xml").read_bytes() == xml
