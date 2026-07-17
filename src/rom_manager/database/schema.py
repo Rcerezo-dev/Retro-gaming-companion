@@ -55,7 +55,9 @@ SCHEMA_STATEMENTS = (
         user_rating INTEGER,
         first_played_at TEXT,
         play_count INTEGER NOT NULL DEFAULT 0,
-        metadata_scraped INTEGER DEFAULT 0
+        metadata_scraped INTEGER DEFAULT 0,
+        playtime_minutes_pc INTEGER,
+        playtime_minutes_android INTEGER
     )
     """,
     """
@@ -215,6 +217,10 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("user_rating", "INTEGER"),  # NLP-REC: rating 1-5 por el usuario
     ("first_played_at", "TEXT"),  # NLP-REC: primera vez jugado
     ("play_count", "INTEGER"),  # NLP-REC: número de sesiones detectadas vía saves
+    # JUEGOS-UX-5: minutos por origen, separados para poder sumar sin duplicar
+    # (cada origen es dueño de su contador; el total es la suma, nunca un merge)
+    ("playtime_minutes_pc", "INTEGER"),
+    ("playtime_minutes_android", "INTEGER"),
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = ()

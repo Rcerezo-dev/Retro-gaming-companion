@@ -500,6 +500,7 @@ class GamesMixin:
                 " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
                 " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
                 f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
+                " g.playtime_minutes_pc, g.playtime_minutes_android,"
                 " gm.genre, gm.year AS meta_year, gm.publisher"
                 f" FROM {table_expr} " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
@@ -508,7 +509,8 @@ class GamesMixin:
                 "SELECT id, original_filename, source_path, platform, region,"
                 " extension, size_bytes, sha1, md5, canonical_title,"
                 " match_confidence, catalog_source, play_status, last_played_at,"
-                " is_favorite, notes, user_rating, play_count, first_played_at"
+                " is_favorite, notes, user_rating, play_count, first_played_at,"
+                " playtime_minutes_pc, playtime_minutes_android"
                 " FROM games " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
         )
