@@ -1,176 +1,85 @@
 <div id="tab-sync" class="tab">
-  <!-- SYNC-SETUP: Wizard conexión cloud -->
-  <div class="actions-panel" style="margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-      <h3 style="margin:0">&#x2601; Conexión cloud</h3>
-      <button class="btn" onclick="loadCloudAuthStatus()" style="font-size:11px;padding:3px 10px">&#x21BB; Actualizar</button>
-    </div>
-    <div id="cloud-auth-status" style="color:var(--c-dim);font-size:12px">Comprobando…</div>
-    <div id="cloud-auth-progress" class="hidden" style="margin-top:10px;font-size:12px;color:var(--c-amber)">
-      &#x23F3; Esperando autorización en el navegador…
-      <button class="btn" onclick="cancelCloudAuth()" style="margin-left:10px;font-size:11px">Cancelar</button>
-    </div>
-    <div id="cloud-auth-error" class="hidden rv-tint-warn" style="margin-top:8px;font-size:12px;padding:6px 10px;border-radius:4px;color:var(--c-softred)"></div>
-  </div>
-
   <!-- QoL-14: rclone offline banner -->
   <div class="hidden rv-tint-warn" id="sync-offline-banner" style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--c-red);border-radius:4px;font-size:12px;color:var(--c-softred)">
     &#x26A0; <strong>Sin conexi&#xf3;n:</strong> rclone no est&#xe1; disponible — la sincronizaci&#xf3;n cloud no funcionar&#xe1;.
-    <span style="color:var(--c-dim);margin-left:8px">Instala rclone o configura su ruta en Settings.</span>
+    <span style="color:var(--c-dim);margin-left:8px">Inst&#xe1;lalo desde rclone.org (o configura su ruta en Settings) y vuelve a esta pesta&#xf1;a.</span>
   </div>
   <div class="hidden" id="sync-context-bar" style="margin-bottom:12px;padding:7px 12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
-  <div class="actions-panel" style="margin-bottom:20px">
-    <h3>Sincronización de saves</h3>
-    <div class="actions-row">
-      <button id="btn-sync-dry" class="btn" onclick="doSync(true)">Estado (dry run)</button>
-      <span style="color:var(--c-dim);font-size:12px">Muestra qué se sincronizaría sin transferir nada</span>
-    </div>
-    <div class="actions-row">
-      <button id="btn-sync-apply" class="btn primary" onclick="doSync(false)">Sincronizar</button>
-      <span style="color:var(--c-dim);font-size:12px">Transfiere archivos entre local y la nube</span>
-    </div>
-    <div id="job-result-sync" class="job-result"></div>
-    <div id="sync-decisions" style="margin-top:12px"></div>
-    <!-- CABLE-UX-4: único control de sync.conflict_policy — solo lo usa este sync (save_syncer.py), no el de Cable -->
-    <div class="actions-row" style="align-items:center;gap:10px;margin-top:10px">
-      <label style="color:var(--c-muted);font-size:12px">Política de conflictos:</label>
-      <select id="cfg-conflict-policy" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
-        <option value="newest">Más reciente gana</option>
-        <option value="keep_pc">Conservar PC</option>
-        <option value="keep_android">Conservar consola</option>
-      </select>
-      <button class="btn" onclick="saveConflictPolicy()" style="font-size:11px;padding:4px 10px">Guardar</button>
-      <span id="conflict-policy-result" style="font-size:11px;color:var(--c-teal)"></span>
-    </div>
-  </div>
-  <div id="sync-content"><p class="loading">Cargando…</p></div>
 
-  <!-- S29: BACKUP DE SAVES -->
-  <div class="actions-panel" style="margin-top:20px">
-    <h3>&#x1F9F2; Backup de saves</h3>
-    <p style="color:var(--c-muted);font-size:13px;margin:0 0 12px">Copia versional local de todos los saves. Restaurar un save lo pone de vuelta en <code>library_root</code> — el siguiente sync lo sube a Dropbox y llega a la consola.</p>
-    <div class="actions-row">
-      <button id="btn-backup-now" class="btn" onclick="backupNow()">Hacer backup ahora</button>
-      <span style="color:var(--c-dim);font-size:12px">Crea una copia de todos los saves en <code>.rommgr/saves-backup/</code></span>
-    </div>
-    <div id="job-result-backup-now" class="job-result"></div>
+  <!-- CLOUD-UX-8: setup como checklist arriba, colapsado cuando todo está en verde -->
+  <details id="cloud-setup-block" class="actions-panel" style="margin-bottom:20px" open ontoggle="if (this.open) loadRcloneStatus()">
+    <summary style="cursor:pointer;user-select:none;font-size:15px;font-weight:600">
+      &#x2601; Configuraci&#xf3;n cloud — Conectar &rarr; Elegir carpeta &rarr; Probar
+      <span id="cloud-setup-badge" style="font-size:12px;font-weight:400;margin-left:8px;color:var(--c-dim)"></span>
+    </summary>
+
+    <!-- Paso 1: conectar (wizard OAuth) -->
     <div style="margin-top:14px">
-      <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">ZIPs manuales guardados</div>
-      <div id="manual-backups-list" style="font-size:12px;max-height:200px;overflow-y:auto"></div>
-    </div>
-  </div>
-
-  <!-- S33-3: COMPARADOR DE SAVES -->
-  <div class="actions-panel" style="margin-top:20px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-      <h3 style="margin:0">&#x23F1; Estado de saves</h3>
-      <button class="btn" onclick="loadSaveComparison()" style="font-size:11px;padding:3px 12px">&#x21BB; Cargar</button>
-    </div>
-    <p style="color:var(--c-dim);font-size:12px;margin-bottom:10px">Fecha de modificaci&#xf3;n de cada save local y cu&#xe1;ndo fue sincronizado por &#xfa;ltima vez.</p>
-    <div id="save-comparison-content"></div>
-  </div>
-
-  <!-- LIBRARY COMPARATOR -->
-  <div class="actions-panel" style="margin-top:20px">
-    <h3>Comparador de bibliotecas</h3>
-    <p style="color:var(--c-muted);font-size:13px;margin:0 0 12px">Compara por huella (SHA1) los ROMs de la BD de PC con los de la BD de Android.</p>
-    <div class="actions-row">
-      <button class="btn" onclick="doLibraryDiff()">Comparar ahora</button>
-      <span id="lib-diff-parity" style="margin-left:14px;font-size:13px"></span>
-    </div>
-    <div id="lib-diff-result" style="margin-top:14px"></div>
-  </div>
-
-  <!-- AUDITORÍA DE ÁRBOL DE ARCHIVOS -->
-  <div class="actions-panel" style="margin-top:20px">
-    <h3>Auditor&#xed;a de &#xe1;rbol de archivos</h3>
-    <p style="color:var(--c-muted);font-size:13px;margin:0 0 12px">Compara los archivos presentes en PC y consola por ruta relativa. Muestra qu&#xe9; hay en uno pero no en el otro.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div>
-        <label style="font-size:12px;color:var(--c-muted);display:block;margin-bottom:4px">Ruta PC</label>
-        <input id="tree-diff-pc-path" type="text" placeholder="(usa library_root)" style="width:100%;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <h4 style="margin:0">1 &middot; Conectar con la nube</h4>
+        <button class="btn" onclick="loadCloudAuthStatus()" style="font-size:11px;padding:3px 10px">&#x21BB; Actualizar</button>
       </div>
-      <div>
-        <label style="font-size:12px;color:var(--c-muted);display:block;margin-bottom:4px">Ruta consola</label>
-        <input id="tree-diff-android-path" type="text" placeholder="(usa anbernic_root)" style="width:100%;box-sizing:border-box">
+      <p style="color:var(--c-dim);font-size:12px;margin:0 0 8px">Conecta tu cuenta para sincronizar saves con la nube. Se abrir&#xe1; el navegador para autorizar — no necesitas API key propia.</p>
+      <div id="cloud-auth-status" style="color:var(--c-dim);font-size:12px">Comprobando…</div>
+      <div id="cloud-auth-progress" class="hidden" style="margin-top:10px;font-size:12px;color:var(--c-amber)">
+        &#x23F3; Esperando autorizaci&#xf3;n en el navegador…
+        <button class="btn" onclick="cancelCloudAuth()" style="margin-left:10px;font-size:11px">Cancelar</button>
       </div>
+      <div id="cloud-auth-error" class="hidden rv-tint-warn" style="margin-top:8px;font-size:12px;padding:6px 10px;border-radius:4px;color:var(--c-softred)"></div>
+      <!-- Fallback: configurar por terminal si el wizard no funciona -->
+      <details class="rv-tint-neutral" style="margin-top:10px;border-radius:6px;padding:8px 12px">
+        <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; ¿El wizard no funciona? Configurar por terminal (Dropbox / Google Drive)</summary>
+        <div style="margin:10px 0 4px">
+          <button id="btn-rclone-open-config" class="btn" onclick="openRcloneConfig()" style="font-size:12px;padding:4px 12px">Configurar nuevo remote&#x2026;</button>
+          <span style="color:var(--c-dim);font-size:11px;margin-left:8px">Abre un terminal con <code>rclone config</code>.</span>
+        </div>
+        <details style="margin-top:8px">
+          <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">Instrucciones Dropbox</summary>
+          <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
+            <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
+            <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
+            <li>Nombre: escribe <code>dropbox</code> y pulsa Enter.</li>
+            <li>Tipo: escribe <code>13</code> (Dropbox) y pulsa Enter.</li>
+            <li>En las preguntas de App Key y Secret pulsa Enter (dejar en blanco = usar app p&#xfa;blica).</li>
+            <li>Responde <code>n</code> a "Edit advanced config".</li>
+            <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar.</li>
+            <li>Tras autorizar, responde <code>y</code> para guardar y <code>q</code> para salir.</li>
+            <li>Pulsa <strong style="color:var(--c-text)">&#x21BB; Actualizar</strong> arriba para ver el nuevo remote.</li>
+          </ol>
+        </details>
+        <details style="margin-top:6px">
+          <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">Instrucciones Google Drive</summary>
+          <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
+            <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
+            <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
+            <li>Nombre: escribe <code>gdrive</code> y pulsa Enter.</li>
+            <li>Tipo: busca <code>drive</code> en la lista (Google Drive) y escribe su n&#xfa;mero.</li>
+            <li>En las preguntas de Client ID y Client Secret pulsa Enter (dejar en blanco = usar app p&#xfa;blica de rclone).</li>
+            <li>Scope: escribe <code>1</code> (acceso completo a Google Drive).</li>
+            <li>En "root_folder_id" y "service_account_file" pulsa Enter para dejar en blanco.</li>
+            <li>Responde <code>n</code> a "Edit advanced config".</li>
+            <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar con tu cuenta de Google.</li>
+            <li>Tras autorizar, responde <code>n</code> a "Configure this as a Shared Drive" (salvo que uses una Shared Drive).</li>
+            <li>Responde <code>y</code> para guardar y <code>q</code> para salir.</li>
+            <li>Pulsa <strong style="color:var(--c-text)">&#x21BB; Actualizar</strong> arriba para ver el nuevo remote.</li>
+          </ol>
+        </details>
+        <div style="margin-top:8px">
+          <button class="btn" onclick="detectCloudFolder()" style="font-size:11px;padding:3px 12px">&#x1F4C1; Detectar carpeta de nube local (Dropbox/OneDrive instalados)</button>
+        </div>
+        <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:var(--c-deep);border:1px solid var(--rv-tint-ok-border);border-radius:4px;font-size:12px"></div>
+      </details>
     </div>
-    <div style="margin-bottom:12px;font-size:13px">
-      <label style="color:var(--c-muted);margin-right:12px">Origen consola:</label>
-      <label style="margin-right:16px"><input type="radio" name="tree-diff-source" value="local" checked onchange="window._onTreeDiffSourceChange()"> Montaje local (SD / E:)</label>
-      <label><input type="radio" name="tree-diff-source" value="adb" onchange="window._onTreeDiffSourceChange()"> ADB (cable USB)</label>
-    </div>
-    <div id="tree-diff-adb-row" class="hidden" style="margin-bottom:12px">
-      <label style="font-size:12px;color:var(--c-muted);display:block;margin-bottom:4px">Dispositivo ADB</label>
-      <div style="display:flex;gap:8px">
-        <select id="tree-diff-serial" style="flex:1"><option value="">&#8212; selecciona dispositivo &#8212;</option></select>
-        <button class="btn" onclick="window._loadTreeDiffDevices()" style="font-size:12px;padding:4px 10px">&#x21BB;</button>
-      </div>
-    </div>
-    <div class="actions-row">
-      <button id="btn-tree-diff" class="btn primary" onclick="window.doTreeDiff()">Comparar &#xe1;rboles</button>
-      <span style="color:var(--c-dim);font-size:12px">Puede tardar varios minutos en bibliotecas grandes</span>
-    </div>
-    <div id="tree-diff-result" style="margin-top:14px"></div>
-  </div>
 
-  <!-- RCLONE SETUP -->
-  <div class="actions-panel" style="margin-top:20px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
-      <h3 style="margin:0">Configuraci&#xf3;n de rclone</h3>
-      <div style="display:flex;gap:6px">
-        <button class="btn" onclick="detectCloudFolder()" style="font-size:11px;padding:3px 12px">&#x1F4C1; Detectar carpeta local</button>
-        <button class="btn" id="btn-rclone-check" onclick="toggleRcloneSetup()" style="font-size:11px;padding:3px 12px">&#x2699; Verificar rclone</button>
-      </div>
-    </div>
-    <div class="hidden" id="cloud-detect-result" style="margin-top:10px;padding:10px;background:var(--c-deep);border:1px solid var(--rv-tint-ok-border);border-radius:4px;font-size:12px"></div>
-    <p style="color:var(--c-dim);font-size:12px;margin-bottom:0;margin-top:8px">Comprueba si tienes Dropbox/OneDrive instalado o si rclone est&#xe1; configurado.</p>
-    <div class="hidden" id="rclone-setup-panel" style="margin-top:14px">
+    <!-- Paso 2: elegir remote y carpeta -->
+    <div id="rclone-setup-panel" style="margin-top:18px">
+      <h4 style="margin:0 0 8px">2 &middot; Elegir remote y carpeta</h4>
       <div id="rclone-status-info" style="font-size:12px;color:var(--c-muted);margin-bottom:10px;line-height:1.7">Comprobando&#x2026;</div>
-      <div style="margin-bottom:10px">
-        <button id="btn-rclone-open-config" class="btn" onclick="openRcloneConfig()" style="font-size:12px;padding:4px 12px">Configurar nuevo remote&#x2026;</button>
-        <span style="color:var(--c-dim);font-size:11px;margin-left:8px">Abre un terminal con <code>rclone config</code> para a&#xf1;adir Dropbox, Google Drive, etc.</span>
-      </div>
-      <!-- Instrucciones paso a paso Dropbox -->
-      <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
-        <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Dropbox</summary>
-        <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
-          <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
-          <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
-          <li>Nombre: escribe <code>dropbox</code> y pulsa Enter.</li>
-          <li>Tipo: escribe <code>13</code> (Dropbox) y pulsa Enter.</li>
-          <li>En las preguntas de App Key y Secret pulsa Enter (dejar en blanco = usar app p&#xfa;blica).</li>
-          <li>Responde <code>n</code> a "Edit advanced config".</li>
-          <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar.</li>
-          <li>Tras autorizar, responde <code>y</code> para guardar y <code>q</code> para salir.</li>
-          <li>Pulsa <strong style="color:var(--c-text)">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
-        </ol>
-      </details>
-      <!-- Instrucciones paso a paso Google Drive -->
-      <details class="rv-tint-neutral" style="margin-bottom:12px;border-radius:6px;padding:8px 12px">
-        <summary style="cursor:pointer;color:var(--c-muted);font-size:12px;user-select:none">&#x1F4CB; Instrucciones para configurar Google Drive</summary>
-        <ol style="font-size:12px;color:var(--c-soft);line-height:2;margin:10px 0 4px 16px;padding:0">
-          <li>Pulsa <strong style="color:var(--c-text)">Configurar nuevo remote&#x2026;</strong> arriba para abrir el terminal.</li>
-          <li>Escribe <code>n</code> (New remote) y pulsa Enter.</li>
-          <li>Nombre: escribe <code>gdrive</code> y pulsa Enter.</li>
-          <li>Tipo: busca <code>drive</code> en la lista (Google Drive) y escribe su n&#xfa;mero.</li>
-          <li>En las preguntas de Client ID y Client Secret pulsa Enter (dejar en blanco = usar app p&#xfa;blica de rclone).</li>
-          <li>Scope: escribe <code>1</code> (acceso completo a Google Drive).</li>
-          <li>En "root_folder_id" y "service_account_file" pulsa Enter para dejar en blanco.</li>
-          <li>Responde <code>n</code> a "Edit advanced config".</li>
-          <li>Responde <code>y</code> a "Use auto config" — se abrir&#xe1; el navegador para autorizar con tu cuenta de Google.</li>
-          <li>Tras autorizar, responde <code>n</code> a "Configure this as a Shared Drive" (salvo que uses una Shared Drive).</li>
-          <li>Responde <code>y</code> para guardar y <code>q</code> para salir.</li>
-          <li>Pulsa <strong style="color:var(--c-text)">Cargar estado</strong> para ver el nuevo remote en el selector.</li>
-        </ol>
-      </details>
       <div class="hidden" id="rclone-remotes-panel">
         <div style="margin-bottom:10px">
-          <label style="font-size:12px;color:var(--c-soft);display:block;margin-bottom:6px">Remote activo &#x2014; elige uno y configura la ruta</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <select id="rclone-remote-select" style="flex:1;min-width:140px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
             <input id="rclone-path-input" type="text" style="flex:2;min-width:160px" placeholder="/RetroSync">
-            <button class="btn" onclick="testRcloneRemote()" style="font-size:12px;padding:5px 12px;flex-shrink:0">Verificar conexi&#xf3;n</button>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
             <button class="btn primary" onclick="applyRcloneSavesStates()" style="font-size:12px;padding:5px 14px;flex-shrink:0">Usar para saves + states (recomendado)</button>
@@ -182,9 +91,117 @@
             <strong style="color:var(--c-text)">Remote &#xfa;nico</strong> guarda solo <code>sync.remote = &lt;remote&gt;&lt;ruta&gt;</code> (modo legado, sin separar states).
           </div>
         </div>
-        <div id="rclone-test-result" style="font-size:12px;min-height:16px;margin-bottom:6px"></div>
         <div id="rclone-apply-result" style="font-size:12px;min-height:16px"></div>
+
+        <!-- Paso 3: probar -->
+        <h4 style="margin:12px 0 8px">3 &middot; Probar</h4>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" onclick="testRcloneRemote()" style="font-size:12px;padding:5px 12px;flex-shrink:0">Verificar conexi&#xf3;n</button>
+          <span style="color:var(--c-dim);font-size:11px">Lista la ra&#xed;z del remote para comprobar que responde.</span>
+        </div>
+        <div id="rclone-test-result" style="font-size:12px;min-height:16px;margin-top:6px"></div>
       </div>
     </div>
+  </details>
+
+  <!-- Acción del día a día -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Sincronizaci&#xf3;n de saves</h3>
+    <div class="actions-row">
+      <button id="btn-sync-dry" class="btn" onclick="doSync(true)">Estado (dry run)</button>
+      <span style="color:var(--c-dim);font-size:12px">Muestra qu&#xe9; se sincronizar&#xed;a sin transferir nada</span>
+    </div>
+    <div class="actions-row">
+      <button id="btn-sync-apply" class="btn primary" onclick="doSync(false)">Sincronizar</button>
+      <span style="color:var(--c-dim);font-size:12px">Transfiere archivos entre local y la nube</span>
+    </div>
+    <div id="job-result-sync" class="job-result"></div>
+    <div id="sync-decisions" style="margin-top:12px"></div>
+    <!-- CABLE-UX-4: único control de sync.conflict_policy — solo lo usa este sync (save_syncer.py), no el de Cable -->
+    <div class="actions-row" style="align-items:center;gap:10px;margin-top:10px">
+      <label style="color:var(--c-muted);font-size:12px">Pol&#xed;tica de conflictos:</label>
+      <select id="cfg-conflict-policy" style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
+        <option value="newest">M&#xe1;s reciente gana</option>
+        <option value="keep_pc">Conservar PC</option>
+        <option value="keep_android">Conservar consola</option>
+      </select>
+      <button class="btn" onclick="saveConflictPolicy()" style="font-size:11px;padding:4px 10px">Guardar</button>
+      <span id="conflict-policy-result" style="font-size:11px;color:var(--c-teal)"></span>
+    </div>
   </div>
+  <div id="sync-content"><p class="loading">Cargando…</p></div>
+
+  <!-- S33-3: COMPARADOR DE SAVES -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x23F1; Estado de saves</h3>
+      <button class="btn" onclick="loadSaveComparison()" style="font-size:11px;padding:3px 12px">&#x21BB; Refrescar</button>
+    </div>
+    <p style="color:var(--c-dim);font-size:12px;margin-bottom:10px">Fecha de modificaci&#xf3;n de cada save local y cu&#xe1;ndo fue sincronizado por &#xfa;ltima vez.</p>
+    <div id="save-comparison-content"></div>
+  </div>
+
+  <!-- S29: BACKUP DE SAVES -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F9F2; Backup de saves</h3>
+    <p style="color:var(--c-muted);font-size:13px;margin:0 0 12px">Copia versional local de todos los saves. Restaurar un save lo pone de vuelta en <code>library_root</code> — el siguiente sync lo sube a la nube y llega a la consola.</p>
+    <div class="actions-row">
+      <button id="btn-backup-now" class="btn" onclick="backupNow()">Hacer backup ahora</button>
+      <span style="color:var(--c-dim);font-size:12px">Crea una copia de todos los saves en <code>.rommgr/saves-backup/</code></span>
+    </div>
+    <div id="job-result-backup-now" class="job-result"></div>
+    <div style="margin-top:14px">
+      <div style="color:var(--c-dim);font-size:11px;margin-bottom:6px">ZIPs manuales guardados</div>
+      <div id="manual-backups-list" style="font-size:12px;max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- CLOUD-UX-8: herramientas de dispositivo (no tocan rclone) al fondo, plegadas -->
+  <details class="actions-panel" style="margin-top:20px">
+    <summary style="cursor:pointer;user-select:none;font-size:15px;font-weight:600">&#x1F9F0; Herramientas de comparaci&#xf3;n PC &harr; consola</summary>
+
+    <!-- LIBRARY COMPARATOR -->
+    <div style="margin-top:14px">
+      <h3 style="margin:0 0 6px">Comparador de bibliotecas</h3>
+      <p style="color:var(--c-muted);font-size:13px;margin:0 0 12px">Compara por huella (SHA1) los ROMs de la BD de PC con los de la BD de Android.</p>
+      <div class="actions-row">
+        <button class="btn" onclick="doLibraryDiff()">Comparar ahora</button>
+        <span id="lib-diff-parity" style="margin-left:14px;font-size:13px"></span>
+      </div>
+      <div id="lib-diff-result" style="margin-top:14px"></div>
+    </div>
+
+    <!-- AUDITORÍA DE ÁRBOL DE ARCHIVOS -->
+    <div style="margin-top:20px">
+      <h3 style="margin:0 0 6px">Auditor&#xed;a de &#xe1;rbol de archivos</h3>
+      <p style="color:var(--c-muted);font-size:13px;margin:0 0 12px">Compara los archivos presentes en PC y consola por ruta relativa. Muestra qu&#xe9; hay en uno pero no en el otro.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="font-size:12px;color:var(--c-muted);display:block;margin-bottom:4px">Ruta PC</label>
+          <input id="tree-diff-pc-path" type="text" placeholder="(usa library_root)" style="width:100%;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--c-muted);display:block;margin-bottom:4px">Ruta consola</label>
+          <input id="tree-diff-android-path" type="text" placeholder="(usa anbernic_root)" style="width:100%;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;font-size:13px">
+        <label style="color:var(--c-muted);margin-right:12px">Origen consola:</label>
+        <label style="margin-right:16px"><input type="radio" name="tree-diff-source" value="local" checked onchange="window._onTreeDiffSourceChange()"> Montaje local (SD / E:)</label>
+        <label><input type="radio" name="tree-diff-source" value="adb" onchange="window._onTreeDiffSourceChange()"> ADB (cable USB)</label>
+      </div>
+      <div id="tree-diff-adb-row" class="hidden" style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--c-muted);display:block;margin-bottom:4px">Dispositivo ADB</label>
+        <div style="display:flex;gap:8px">
+          <select id="tree-diff-serial" style="flex:1"><option value="">&#8212; selecciona dispositivo &#8212;</option></select>
+          <button class="btn" onclick="window._loadTreeDiffDevices()" style="font-size:12px;padding:4px 10px">&#x21BB;</button>
+        </div>
+      </div>
+      <div class="actions-row">
+        <button id="btn-tree-diff" class="btn primary" onclick="window.doTreeDiff()">Comparar &#xe1;rboles</button>
+        <span style="color:var(--c-dim);font-size:12px">Puede tardar varios minutos en bibliotecas grandes</span>
+      </div>
+      <div id="tree-diff-result" style="margin-top:14px"></div>
+    </div>
+  </details>
 </div>
