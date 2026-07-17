@@ -97,6 +97,29 @@ class DuplicatesMixin:
             )
             conn.commit()
 
+    def get_excluded_duplicates(self) -> list[dict]:
+        """Return excluded SHA1 groups with a representative title/platform (DUPLICADOS-UX-5)."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT e.sha1, e.reason, e.created_at,
+                       MAX(g.canonical_title) AS canonical_title,
+                       MAX(g.original_filename) AS original_filename,
+                       MAX(g.platform) AS platform
+                FROM excluded_duplicates e
+                LEFT JOIN games g ON g.sha1 = e.sha1
+                GROUP BY e.sha1
+                ORDER BY e.created_at DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def remove_excluded_duplicate(self, sha1: str) -> None:
+        """Remove a SHA1 from the exclusion list — the group reappears as a duplicate."""
+        with self.connect() as conn:
+            conn.execute("DELETE FROM excluded_duplicates WHERE sha1=?", (sha1,))
+            conn.commit()
+
     # ── Wishlist ────────────────────────────────────────────────────────────────
 
     def get_wishlist(self) -> list[dict]:

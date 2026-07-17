@@ -37,6 +37,7 @@ import {
 import {
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
   resolveDuplicateRA, markAsIntentionalCopy,
+  loadExcludedDuplicates, removeDuplicateExclusion,
   loadRaDuplicates, deleteRaDuplicate,
   doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,
@@ -282,6 +283,7 @@ Object.assign(window, {
   toggleCompleteness,
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
   resolveDuplicateRA, markAsIntentionalCopy,
+  loadExcludedDuplicates, removeDuplicateExclusion,
   loadRaDuplicates, deleteRaDuplicate,
   doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,
