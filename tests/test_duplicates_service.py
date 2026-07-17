@@ -19,11 +19,12 @@ def _insert_game(
     source_path: str,
     sha1: str,
     size_bytes: int = 1024,
+    platform: str = "Game Boy",
 ) -> None:
     repo.upsert_game(
         original_filename="game.gb",
         source_path=source_path,
-        platform="Game Boy",
+        platform=platform,
         file_type="rom",
         relative_parent="",
         region="USA",
@@ -115,6 +116,45 @@ def test_delete_all_duplicates_keeps_canonical_deletes_rest(tmp_path: Path) -> N
     assert canonical.exists()
     assert not dup.exists()
     assert unique.exists()
+
+
+def test_delete_all_duplicates_respects_platform_filter(tmp_path: Path) -> None:
+    # DUPLICADOS-UX-1: con filtro de plataforma solo se borra esa plataforma
+    gb_keep, gb_dup = tmp_path / "gb1.gb", tmp_path / "gb2.gb"
+    snes_keep, snes_dup = tmp_path / "sn1.sfc", tmp_path / "sn2.sfc"
+    for f in (gb_keep, gb_dup, snes_keep, snes_dup):
+        f.write_bytes(b"data")
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=str(gb_keep), sha1=_SHA1_A)
+    _insert_game(repo, source_path=str(gb_dup), sha1=_SHA1_A)
+    _insert_game(repo, source_path=str(snes_keep), sha1=_SHA1_B, platform="SNES")
+    _insert_game(repo, source_path=str(snes_dup), sha1=_SHA1_B, platform="SNES")
+
+    result = delete_all_duplicates(repo, platform="SNES")
+
+    assert result["deleted"] == 1
+    assert not snes_dup.exists()
+    # El grupo Game Boy queda intacto
+    assert gb_keep.exists() and gb_dup.exists()
+
+
+def test_excluded_duplicates_list_and_remove(tmp_path: Path) -> None:
+    # DUPLICADOS-UX-5: listar exclusiones y quitarlas devuelve el grupo a duplicados
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=str(tmp_path / "a1.gb"), sha1=_SHA1_A)
+    _insert_game(repo, source_path=str(tmp_path / "a2.gb"), sha1=_SHA1_A)
+
+    repo.exclude_duplicate_sha1(_SHA1_A)
+    assert repo.get_duplicate_groups() == []
+    excluded = repo.get_excluded_duplicates()
+    assert len(excluded) == 1
+    assert excluded[0]["sha1"] == _SHA1_A
+    assert excluded[0]["platform"] == "Game Boy"
+
+    repo.remove_excluded_duplicate(_SHA1_A)
+    assert repo.get_excluded_duplicates() == []
+    assert len(repo.get_duplicate_groups()) == 1
 
 
 def test_delete_all_duplicates_no_groups(tmp_path: Path) -> None:

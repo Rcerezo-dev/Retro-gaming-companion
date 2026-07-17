@@ -15,6 +15,9 @@ const _txtCls = (el, cls) => {
 let _dupAllGroups = [];
 let _dupAllTitleGroups = [];
 
+// DUPLICADOS-UX-3: redacción única para todas las confirmaciones de borrado
+const _TRASH_NOTE = '<span style="color:var(--c-yellow)">Los archivos se moverán a <code>_descartados/</code> (se purgan a los 30 días).</span>';
+
 // ── Duplicates ────────────────────────────────────────────────────────────────
 async function loadDuplicates() {
   const el = document.getElementById('dup-content');
@@ -55,6 +58,7 @@ async function loadDuplicates() {
     }
 
     _renderDupContent(_dupAllGroups, _dupAllTitleGroups, '');
+    loadExcludedDuplicates();
   } catch(e) {
     const el = document.getElementById('dup-content');
     if (el) el.innerHTML = `<p class="error-msg">${e.message}</p>`;
@@ -64,16 +68,21 @@ async function loadDuplicates() {
 async function deleteAllDuplicates() {
   const rows = document.querySelectorAll('#dup-content .dup-group[id] .btn.danger');
   const count = rows.length;
-  if (count === 0) { showToast('No hay duplicados para eliminar.', false); return; }
+  if (count === 0) { showToast('No hay duplicados para eliminar.', 'info'); return; }
+  // DUPLICADOS-UX-1: el filtro de plataforma también restringe el borrado
+  const platform = document.getElementById('dup-platform-filter')?.value || '';
+  const scope = platform
+    ? `Solo la plataforma <strong>${window._h(platform)}</strong> (filtro activo).`
+    : 'Todas las plataformas.';
   _showConfirm(
     'Eliminar todos los duplicados',
-    `Se eliminarán <strong>${count} archivo${count !== 1 ? 's' : ''}</strong> del disco.<br>Se conservará una copia de cada juego.<br><br><span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
+    `Se eliminarán <strong>${count} archivo${count !== 1 ? 's' : ''}</strong>.<br>${scope}<br>Se conservará una copia de cada juego.<br><br>${_TRASH_NOTE}`,
     'Eliminar todos',
     async () => {
       const btn = document.getElementById('btn-delete-all-dups');
       if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
       try {
-        const d = await apiPost('/api/duplicates/delete-all', { source_root: '' });
+        const d = await apiPost('/api/duplicates/delete-all', { source_root: '', platform });
 
         // Log diagnostics for troubleshooting
         if (d.diagnostics && d.diagnostics.length) {
@@ -100,7 +109,7 @@ async function deleteAllDuplicates() {
           }
         }
       } catch(e) {
-        showToast('Error: ' + e.message, true);
+        showToast('Error: ' + e.message, 'err');
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Eliminar todos los duplicados'; }
       }
@@ -114,7 +123,7 @@ async function deleteDuplicate(btn) {
   const filename = sourcePath.split(/[\\/]/).pop();
   _showConfirm(
     'Eliminar archivo duplicado',
-    `¿Eliminar <strong>${window._h(filename)}</strong> del disco?<br><br><span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
+    `¿Eliminar <strong>${window._h(filename)}</strong>?<br><br>${_TRASH_NOTE}`,
     'Eliminar',
     async () => {
       btn.disabled = true;
@@ -131,7 +140,7 @@ async function deleteDuplicate(btn) {
       } catch(e) {
         btn.disabled = false;
         btn.textContent = 'Eliminar';
-        showToast('Error al eliminar: ' + e.message, true);
+        showToast('Error al eliminar: ' + e.message, 'err');
       }
     }
   );
@@ -142,7 +151,7 @@ async function resolveDuplicateRA(btn, keepPath, discardPathsStr) {
   const filename = keepPath.split(/[\\/]/).pop();
   _showConfirm(
     'Resolver: mantener versión con logros RA',
-    `Se eliminará${discardPaths.length > 1 ? 'n' : ''} <strong>${discardPaths.length}</strong> versión${discardPaths.length > 1 ? 'es' : ''} sin logros RA.<br>Se conservará: <strong>${window._h(filename)}</strong><br><br><span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
+    `Se eliminará${discardPaths.length > 1 ? 'n' : ''} <strong>${discardPaths.length}</strong> versión${discardPaths.length > 1 ? 'es' : ''} sin logros RA.<br>Se conservará: <strong>${window._h(filename)}</strong><br><br>${_TRASH_NOTE}`,
     'Resolver',
     async () => {
       btn.disabled = true;
@@ -159,7 +168,7 @@ async function resolveDuplicateRA(btn, keepPath, discardPathsStr) {
       } catch(e) {
         btn.disabled = false;
         btn.textContent = btnText;
-        showToast('Error al resolver: ' + e.message, true);
+        showToast('Error al resolver: ' + e.message, 'err');
       }
     }
   );
@@ -168,7 +177,7 @@ async function resolveDuplicateRA(btn, keepPath, discardPathsStr) {
 async function markAsIntentionalCopy(sha1) {
   _showConfirm(
     'Marcar como copia intencional',
-    '¿Marcar este grupo como copia intencional PC↔consola?<br><br>No aparecerá más en la lista de duplicados.',
+    '¿Marcar este grupo como copia intencional PC↔consola?<br><br>No aparecerá más en la lista de duplicados.<br>Podrás revertirlo desde la lista <strong>Copias intencionales</strong> al final de esta pestaña.',
     'Confirmar',
     async () => {
       try {
@@ -176,11 +185,44 @@ async function markAsIntentionalCopy(sha1) {
         const el = document.getElementById('dup-' + sha1);
         if (el) el.remove();
         showToast('Grupo excluido de duplicados', 'ok');
+        loadExcludedDuplicates();
       } catch(e) {
-        showToast('Error: ' + e.message, true);
+        showToast('Error: ' + e.message, 'err');
       }
     }
   );
+}
+
+// ── DUPLICADOS-UX-5: lista revisable de exclusiones ──────────────────────────
+async function loadExcludedDuplicates() {
+  const el = document.getElementById('dup-exclusions-content');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/duplicates/exclusions');
+    const items = d.exclusions || [];
+    const section = document.getElementById('dup-exclusions-section');
+    if (section) section.classList.toggle('hidden', items.length === 0);
+    if (items.length === 0) { el.innerHTML = ''; return; }
+    el.innerHTML = items.map(x => `
+      <div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px">
+        <button class="btn" style="padding:2px 10px;font-size:11px" onclick="removeDuplicateExclusion('${x.sha1}')">Quitar exclusión</button>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${window._h(x.canonical_title || x.original_filename || '(sin título)')}</span>
+        <span style="color:var(--c-dim);flex-shrink:0">${window._h(x.platform || '')} · SHA1: ${x.sha1.slice(0, 12)}…</span>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+async function removeDuplicateExclusion(sha1) {
+  try {
+    await apiPost('/api/duplicates/exclusions/remove', { sha1 });
+    showToast('Exclusión eliminada — el grupo vuelve a la lista de duplicados', 'ok');
+    await loadDuplicates();
+    loadExcludedDuplicates();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
 }
 
 // ── RA Duplicates ─────────────────────────────────────────────────────────────
@@ -252,26 +294,32 @@ async function loadRaDuplicates() {
 
 async function deleteRaDuplicate(gameId, sourcePath, btn) {
   const filename = sourcePath.split(/[\\/]/).pop();
-  if (!confirm(`¿Eliminar la versión sin logros RA?\n\n${filename}\n\nSe moverá a _descartados/. Esta acción es difícil de deshacer.`)) return;
-  btn.disabled = true;
-  btn.textContent = '…';
-  try {
-    const d = await apiPost('/api/ra-duplicates/discard', { path: sourcePath });
-    if (d.error) {
-      btn.disabled = false;
-      btn.textContent = 'Eliminar';
-      showToast('Error: ' + d.error, 'err');
-      return;
+  _showConfirm(
+    'Eliminar versión sin logros RA',
+    `¿Eliminar <strong>${window._h(filename)}</strong>?<br><br>${_TRASH_NOTE}`,
+    'Eliminar',
+    async () => {
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const d = await apiPost('/api/ra-duplicates/discard', { path: sourcePath });
+        if (d.error) {
+          btn.disabled = false;
+          btn.textContent = 'Eliminar';
+          showToast('Error: ' + d.error, 'err');
+          return;
+        }
+        const row = btn.closest('tr');
+        if (row) row.remove();
+        showToast(`Eliminado: ${filename}`, 'ok');
+        window.loadOverview();
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = 'Eliminar';
+        showToast('Error: ' + e.message, 'err');
+      }
     }
-    const row = btn.closest('tr');
-    if (row) row.remove();
-    showToast(`Eliminado: ${filename}`, 'ok');
-    window.loadOverview();
-  } catch(e) {
-    btn.disabled = false;
-    btn.textContent = 'Eliminar';
-    showToast('Error: ' + e.message, 'err');
-  }
+  );
 }
 
 async function doResolveRaConflicts() {
@@ -320,25 +368,31 @@ async function doResolveRaConflicts() {
 }
 
 async function discardAllRaDuplicates() {
-  if (!confirm('¿Eliminar TODOS los archivos sin logros RA de todos los grupos de versión?\n\nSe moverán a una carpeta _descartados/ junto a cada archivo. Esta acción no se puede deshacer fácilmente.')) return;
-  const btn = document.getElementById('btn-ra-dups-discard-all');
-  if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
-  try {
-    const d = await apiPost('/api/ra-duplicates/discard-all', {});
-    if (d.error) {
-      showToast('Error: ' + d.error, 'err');
-    } else if (d.discarded === 0 && d.failed === 0) {
-      showToast(d.note || 'Sin archivos que eliminar — ejecuta primero la comprobación RA en Tools para cargar el caché.', 'info');
-    } else {
-      showToast('Eliminados: ' + d.discarded + (d.failed > 0 ? ' · Fallidos: ' + d.failed : ''), d.failed > 0 ? 'info' : 'ok');
-      await loadRaDuplicates();
-      window.loadOverview();
+  _showConfirm(
+    'Eliminar todos sin logros RA',
+    `Se eliminarán <strong>TODOS</strong> los archivos sin logros RA de todos los grupos de versión.<br><br>${_TRASH_NOTE}`,
+    'Eliminar todos',
+    async () => {
+      const btn = document.getElementById('btn-ra-dups-discard-all');
+      if (btn) { btn.disabled = true; btn.textContent = 'Eliminando…'; }
+      try {
+        const d = await apiPost('/api/ra-duplicates/discard-all', {});
+        if (d.error) {
+          showToast('Error: ' + d.error, 'err');
+        } else if (d.discarded === 0 && d.failed === 0) {
+          showToast(d.note || 'Sin archivos que eliminar — ejecuta primero la comprobación RA en Herramientas para cargar el caché.', 'info');
+        } else {
+          showToast('Eliminados: ' + d.discarded + (d.failed > 0 ? ' · Fallidos: ' + d.failed : ''), d.failed > 0 ? 'info' : 'ok');
+          await loadRaDuplicates();
+          window.loadOverview();
+        }
+      } catch(e) {
+        showToast('Error: ' + e.message, 'err');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Eliminar todos sin logros'; }
+      }
     }
-  } catch(e) {
-    showToast('Error: ' + e.message, 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Eliminar todos sin logros'; }
-  }
+  );
 }
 
 // ── Tools context selector ────────────────────────────────────────────────────
@@ -387,7 +441,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
 
   if (filtered.length === 0) {
     if (platformFilter) {
-      el.innerHTML = `<p style="color:var(--c-muted)">Sin duplicados en <strong>${window._h(platformFilter)}</strong>.</p>`;
+      el.innerHTML = `<p style="color:var(--c-muted)">Sin duplicados en <strong>${window._h(platformFilter)}</strong>. <a href="#" onclick="document.getElementById('dup-platform-filter').value='';filterDuplicatesByPlatform();return false" style="color:var(--c-teal)">Quitar filtro</a></p>`;
     } else {
       el.innerHTML = window._emptyState('✅', 'Sin duplicados', 'Los duplicados son ROMs con el mismo contenido exacto (SHA1 idéntico).<br>Si acabas de añadir juegos, ejecuta un Scan y luego un Match.', 'Ir a Inicio', () => window.showTab('overview'));
     }
@@ -469,6 +523,7 @@ function _renderDupContent(groups, titleGroups, platformFilter) {
 export {
   loadDuplicates, deleteAllDuplicates, deleteDuplicate,
   resolveDuplicateRA, markAsIntentionalCopy,
+  loadExcludedDuplicates, removeDuplicateExclusion,
   loadRaDuplicates, deleteRaDuplicate,
   doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,

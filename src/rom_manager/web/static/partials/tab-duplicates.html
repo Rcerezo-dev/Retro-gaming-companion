@@ -6,7 +6,7 @@
         <option value="">Todas las plataformas</option>
       </select>
     </div>
-    <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()" title="Elimina del disco todas las copias redundantes. Se conserva una copia de cada grupo. Esta acción no se puede deshacer.">Eliminar todos los duplicados</button>
+    <button id="btn-delete-all-dups" class="btn danger" onclick="deleteAllDuplicates()" title="Mueve a _descartados/ todas las copias redundantes (respeta el filtro de plataforma). Se conserva una copia de cada grupo.">Eliminar todos los duplicados</button>
   </div>
   <div class="hidden" id="dup-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div id="dup-content"><p class="loading">Cargando…</p></div>
@@ -17,10 +17,17 @@
       <h3 style="margin:0;font-size:13px;color:var(--c-purple)">Duplicados por versión — sin logros RA</h3>
       <button class="btn" onclick="loadRaDuplicates()" id="btn-ra-dups" style="font-size:12px;padding:3px 10px">Comprobar</button>
       <!-- D8-4: batch discard all without RA -->
-      <button class="btn danger hidden" id="btn-ra-dups-discard-all" onclick="discardAllRaDuplicates()" style="font-size:12px;padding:3px 10px" title="Elimina del disco todos los duplicados que no tienen logros en RetroAchievements, conservando los que sí los tienen. No se puede deshacer.">Eliminar todos sin logros</button>
+      <button class="btn danger hidden" id="btn-ra-dups-discard-all" onclick="discardAllRaDuplicates()" style="font-size:12px;padding:3px 10px" title="Mueve a _descartados/ todos los duplicados que no tienen logros en RetroAchievements, conservando los que sí los tienen.">Eliminar todos sin logros</button>
     </div>
-    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">Detecta juegos con ≥2 versiones (mismo título normalizado, distinto MD5) donde una versión tiene logros en RetroAchievements y otra no. La versión sin logros es candidata a eliminar.<br>Requiere que hayas ejecutado la comprobación RA en <strong>Tools</strong> al menos una vez.</p>
+    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">Detecta juegos con ≥2 versiones (mismo título normalizado, distinto MD5) donde una versión tiene logros en RetroAchievements y otra no. La versión sin logros es candidata a eliminar.<br>Requiere que hayas ejecutado la comprobación RA en <strong>Herramientas</strong> al menos una vez.</p>
     <div id="ra-dup-content"></div>
+  </div>
+
+  <!-- ── DUPLICADOS-UX-5: grupos excluidos como copia intencional ── -->
+  <div class="hidden" id="dup-exclusions-section" style="margin-top:28px;border-top:1px solid #2a2a3e;padding-top:20px">
+    <h3 style="margin:0 0 8px;font-size:13px;color:var(--c-muted)">Copias intencionales (excluidas de duplicados)</h3>
+    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">Grupos que marcaste como "Copia intencional ✓". Quitar la exclusión los devuelve a la lista de duplicados.</p>
+    <div id="dup-exclusions-content"></div>
   </div>
 </div>
 

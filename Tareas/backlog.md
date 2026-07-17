@@ -639,13 +639,13 @@ recibir ningún filtro. Detalle, archivo:línea y fases en
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| DUPLICADOS-UX-1 | **"Eliminar todos" borra más de lo que confirma con un filtro de plataforma activo** — el filtro solo afecta al render (`duplicates.js:381-386`); `deleteAllDuplicates()` cuenta filas del DOM filtrado para el diálogo pero llama a `/api/duplicates/delete-all` con `source_root:''` (`duplicates.js:64-109`), que borra duplicados de toda la biblioteca sin filtro de plataforma posible en el backend (`services/duplicates_service.py:90`) | Bug | S | ⬜ |
-| DUPLICADOS-UX-2 | **Toasts rotos: `showToast(msg, true/false)` en vez del string esperado** — `deleteAllDuplicates` (líneas 67,103) y `deleteDuplicate` (línea 134); el resto del mismo archivo usa `'ok'/'err'/'info'` correctamente | Bug | XS | ⬜ |
-| DUPLICADOS-UX-3 | **Mensajes contradictorios sobre si el borrado se puede deshacer** — 4 acciones dicen "no se puede deshacer" pese a usar la misma papelera `_descartados/` (AUD-3) que `deleteRaDuplicate`, cuyo mensaje sí lo menciona ("difícil de deshacer") | UX | S | ⬜ |
-| DUPLICADOS-UX-4 | **`confirm()` nativo en 2 de 6 sitios pese a tener `_showConfirm` ya importado** — `deleteRaDuplicate` (línea 255) y `discardAllRaDuplicates` (línea 323) | UX | XS | ⬜ |
-| DUPLICADOS-UX-5 | **"Copia intencional ✓" es permanente sin UI para revisarla o deshacerla** — `markAsIntentionalCopy` excluye un grupo para siempre; no existe ninguna lista de grupos excluidos en la app | UX | S | ⬜ |
-| DUPLICADOS-UX-6 | **"Tools" en inglés (y nombre de pestaña incorrecto) en 2 sitios** — `tab-duplicates.html:22` y `duplicates.js:331`; la pestaña real se llama "Herramientas" | UX | XS | ⬜ |
-| DUPLICADOS-UX-7 | **Estado vacío filtrado sin botón para quitar el filtro** — a diferencia del estado vacío general, que sí usa el componente `_emptyState` con CTA (`duplicates.js:390-392`) | UX | XS | ⬜ |
+| DUPLICADOS-UX-1 | **"Eliminar todos" borra más de lo que confirma con un filtro de plataforma activo** — el filtro solo afecta al render (`duplicates.js:381-386`); `deleteAllDuplicates()` cuenta filas del DOM filtrado para el diálogo pero llama a `/api/duplicates/delete-all` con `source_root:''` (`duplicates.js:64-109`), que borra duplicados de toda la biblioteca sin filtro de plataforma posible en el backend (`services/duplicates_service.py:90`) | Bug | S | ✅ |
+| DUPLICADOS-UX-2 | **Toasts rotos: `showToast(msg, true/false)` en vez del string esperado** — `deleteAllDuplicates` (líneas 67,103) y `deleteDuplicate` (línea 134); el resto del mismo archivo usa `'ok'/'err'/'info'` correctamente | Bug | XS | ✅ |
+| DUPLICADOS-UX-3 | **Mensajes contradictorios sobre si el borrado se puede deshacer** — 4 acciones dicen "no se puede deshacer" pese a usar la misma papelera `_descartados/` (AUD-3) que `deleteRaDuplicate`, cuyo mensaje sí lo menciona ("difícil de deshacer") | UX | S | ✅ |
+| DUPLICADOS-UX-4 | **`confirm()` nativo en 2 de 6 sitios pese a tener `_showConfirm` ya importado** — `deleteRaDuplicate` (línea 255) y `discardAllRaDuplicates` (línea 323) | UX | XS | ✅ |
+| DUPLICADOS-UX-5 | **"Copia intencional ✓" es permanente sin UI para revisarla o deshacerla** — `markAsIntentionalCopy` excluye un grupo para siempre; no existe ninguna lista de grupos excluidos en la app | UX | S | ✅ |
+| DUPLICADOS-UX-6 | **"Tools" en inglés (y nombre de pestaña incorrecto) en 2 sitios** — `tab-duplicates.html:22` y `duplicates.js:331`; la pestaña real se llama "Herramientas" | UX | XS | ✅ |
+| DUPLICADOS-UX-7 | **Estado vacío filtrado sin botón para quitar el filtro** — a diferencia del estado vacío general, que sí usa el componente `_emptyState` con CTA (`duplicates.js:390-392`) | UX | XS | ✅ |
 
 ---
 
