@@ -102,9 +102,13 @@ async function loadAssets() {
       assetsBar.classList.remove('hidden');
     }
     let stats = d.stats;
+    if (stats.length === 0) {
+      el.innerHTML = `<p class="empty">Sin datos de assets todavía. Ejecuta un <a href="#" onclick="showTab('plan');return false" style="color:var(--c-teal)">Scan</a> para indexar la biblioteca.</p>`;
+      return;
+    }
     if (filter === 'orphans') stats = stats.filter(s => s.orphan_assets > 0);
     if (filter === 'missing') stats = stats.filter(s => s.rom_count > 0 && s.image_count === 0 && s.video_count === 0);
-    if (stats.length === 0) { el.innerHTML = '<p class="empty">Sin datos de assets todavía. Ejecuta un Scan para indexar la biblioteca.</p>'; return; }
+    if (stats.length === 0) { el.innerHTML = '<p class="empty">✓ Sin resultados para este filtro.</p>'; return; }
     let html = '<div style="overflow-x:auto"><table><thead><tr>';
     html += '<th>Plataforma</th><th>ROMs</th><th>Imágenes</th><th>Vídeos</th><th>XML</th><th>Huérfanos</th>';
     html += '</tr></thead><tbody>';
@@ -119,7 +123,7 @@ async function loadAssets() {
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba la ruta configurada en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Ajustes</a>.</p>`;
   }
 }
 

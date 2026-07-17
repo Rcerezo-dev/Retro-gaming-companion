@@ -426,7 +426,7 @@ export function setDevice(d) {
 export function _deviceRoot() {
   const d = getActiveDevice();
   if (d === 'pc')       return document.getElementById('ov-pc-path')?.value.trim() || null;
-  if (d === 'anbernic') return document.getElementById('ov-ab-path')?.value.trim() || null;
+  if (d === 'anbernic') return document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || null;
   return null;
 }
 
