@@ -68,6 +68,7 @@ def _build_config(config: AppConfig) -> dict:
         "states_remote": config.sync.states_remote or "",
         "ra_config_dir": config.sync.ra_config_dir or "",
         "ra_config_remote": config.sync.ra_config_remote or "",
+        "playtime_remote": config.sync.playtime_remote or "",
     }
 
 

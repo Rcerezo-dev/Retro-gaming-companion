@@ -27,9 +27,14 @@ abajo sustituyen/desarrollan MEJ-1, no lo duplican.
 - ✅ **JUEGOS-UX-5** — columnas `playtime_minutes_pc` / `_android` + migración.
 - ✅ **JUEGOS-UX-6** — `utils/lrtl_scanner.py` + upsert MAX
   (`set_playtime_minutes`) + job `playtime_scan`.
-- 🟡 **JUEGOS-UX-7** — la pata por **cable** está: `/api/playtime-scan` hace
-  pull adb de `playlists/logs` y acumula en `_android`. Falta la pata **cloud**
-  (`.lrtl` como SyncSource de rclone) para consolas que no se conectan por USB.
+- ✅ **JUEGOS-UX-7** — ambas patas. **Cable**: `/api/playtime-scan` hace pull
+  adb de `playlists/logs` y acumula en `_android`. **Cloud** (rama
+  `feature/juegos-ux-7-cloud`): `sync.playtime_remote` en config → el cloud
+  sync añade dos SyncSource (`<remote>/pc` ↔ logs de RetroArch del PC,
+  `<remote>/android` ↔ `.rommgr/android_lrtl/`) e ingesta los `.lrtl` en la BD
+  tras cada sync real; el script Termux de la consola sube sus logs a
+  `<remote>/android` (solo subida — nunca toca `/pc`); `/api/playtime-scan`
+  escanea `.rommgr/android_lrtl/` aunque no haya cable.
 - ✅ **JUEGOS-UX-8** — total automático "Xh Ym totales · PC / Consola" + botón
   ↻ Actualizar.
 - ✅ **JUEGOS-UX-9** — cada origen sin datos se muestra como "sin datos".
