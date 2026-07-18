@@ -49,6 +49,22 @@ def parse_lrtl(path: Path) -> LrtlEntry | None:
     return LrtlEntry(stem=path.stem, minutes=minutes, last_played=last_played)
 
 
+def ingest_lrtl_dir(repository, logs_dir: Path, origin: str) -> tuple[int, int]:
+    """Escanea *logs_dir* y vuelca los runtimes en la BD vía
+    ``repository.set_playtime_minutes`` (duck-typed para no acoplar utils→database).
+
+    Compartido por ``/api/playtime-scan`` y el cloud sync (JUEGOS-UX-7):
+    quien llene el directorio (adb pull o rclone) es irrelevante aquí.
+    Returns ``(archivos_parseados, juegos_matcheados)``.
+    """
+    entries = scan_lrtl_dir(logs_dir)
+    matched = 0
+    for e in entries:
+        if repository.set_playtime_minutes(e.stem, e.minutes, origin, e.last_played):
+            matched += 1
+    return len(entries), matched
+
+
 def scan_lrtl_dir(logs_dir: Path) -> list[LrtlEntry]:
     """Recorre ``logs_dir`` (recursivo — hay un subdir por core) y parsea cada .lrtl.
 

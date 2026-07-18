@@ -11,7 +11,12 @@ from pathlib import Path
 import pytest
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.utils.lrtl_scanner import parse_lrtl, parse_runtime, scan_lrtl_dir
+from rom_manager.utils.lrtl_scanner import (
+    ingest_lrtl_dir,
+    parse_lrtl,
+    parse_runtime,
+    scan_lrtl_dir,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -211,3 +216,59 @@ def test_set_playtime_invalid_origin_raises(repo):
     _upsert(repo)
     with pytest.raises(ValueError):
         repo.set_playtime_minutes("Game", 10, "cloud")
+
+
+# ── ingest_lrtl_dir (JUEGOS-UX-7) ─────────────────────────────────────────────
+
+
+def test_ingest_lrtl_dir_per_origin(repo, tmp_path: Path):
+    """El mismo juego con .lrtl de PC y de consola acumula en columnas separadas."""
+    _upsert(repo)
+    _write_lrtl(tmp_path / "pc" / "CoreA" / "Game.lrtl", "1:00:00")
+    _write_lrtl(tmp_path / "android" / "CoreB" / "Game.lrtl", "0:30:00")
+
+    assert ingest_lrtl_dir(repo, tmp_path / "pc", "pc") == (1, 1)
+    assert ingest_lrtl_dir(repo, tmp_path / "android", "android") == (1, 1)
+
+    row = _playtime_row(repo)
+    assert row["playtime_minutes_pc"] == 60
+    assert row["playtime_minutes_android"] == 30
+
+
+def test_ingest_lrtl_dir_counts_unmatched(repo, tmp_path: Path):
+    _upsert(repo)
+    _write_lrtl(tmp_path / "CoreA" / "Game.lrtl", "0:10:00")
+    _write_lrtl(tmp_path / "CoreA" / "Unknown Game.lrtl", "0:10:00")
+    assert ingest_lrtl_dir(repo, tmp_path, "pc") == (2, 1)
+
+
+# ── bootstrap script (subida de .lrtl desde la consola) ───────────────────────
+
+
+def _bootstrap_cfg():
+    from unittest.mock import MagicMock
+
+    cfg = MagicMock()
+    cfg.sync.rclone_remote = ""
+    cfg.sync.saves_remote = "dropbox:/RetroSync/saves"
+    cfg.sync.states_remote = "dropbox:/RetroSync/states"
+    return cfg
+
+
+def test_bootstrap_script_uploads_lrtl_when_configured():
+    from rom_manager.web.handlers.sync_cloud import _build_bootstrap_script
+
+    cfg = _bootstrap_cfg()
+    cfg.sync.playtime_remote = "dropbox:/RetroSync/playtime"
+    script = _build_bootstrap_script("http://pc:7777", cfg, "tok")
+    assert 'PLAYTIME_REMOTE="dropbox:/RetroSync/playtime/android"' in script
+    # Solo sube — la consola nunca debe escribir en la ruta /pc
+    assert "playtime/pc" not in script
+
+
+def test_bootstrap_script_omits_lrtl_when_unconfigured():
+    from rom_manager.web.handlers.sync_cloud import _build_bootstrap_script
+
+    cfg = _bootstrap_cfg()
+    cfg.sync.playtime_remote = ""
+    assert "PLAYTIME_REMOTE" not in _build_bootstrap_script("http://pc:7777", cfg, "tok")

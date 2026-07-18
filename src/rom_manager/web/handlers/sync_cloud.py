@@ -298,6 +298,33 @@ def _do_sync(
                         sync_all=True,
                     )
                 )
+            # JUEGOS-UX-7 (cloud): .lrtl por origen en subcarpetas separadas del
+            # remoto — el contador de Android nunca comparte ruta con el de PC,
+            # así un sync jamás pisa un origen con el otro.
+            _pt_remote = config.sync.playtime_remote.rstrip("/")
+            _pt_android_dir = None
+            if _pt_remote:
+                _pt_android_dir = config.project_root / ".rommgr" / "android_lrtl"
+                if config.retroarch_path:
+                    _pt_pc_dir = _Path(config.retroarch_path).parent / "playlists" / "logs"
+                    if _pt_pc_dir.is_dir():
+                        sources.append(
+                            _SyncSource(
+                                name="Playtime PC (.lrtl)",
+                                local_dir=str(_pt_pc_dir),
+                                remote=_pt_remote + "/pc",
+                                sync_all=True,
+                            )
+                        )
+                _pt_android_dir.mkdir(parents=True, exist_ok=True)
+                sources.append(
+                    _SyncSource(
+                        name="Playtime Consola (.lrtl)",
+                        local_dir=str(_pt_android_dir),
+                        remote=_pt_remote + "/android",
+                        sync_all=True,
+                    )
+                )
             # CLOUD-UX-3: los remotes implícitos saves_remote/states_remote (el
             # camino recomendado de la UI) cuentan como fuentes — antes se
             # cortaba aquí sin llegar al bloque D2 que los sincroniza.
@@ -500,10 +527,27 @@ def _do_sync(
                         }
                     )
 
+            # JUEGOS-UX-7: tras un sync real, volcar los .lrtl a la BD — el
+            # playtime se actualiza solo, sin pasar por /api/playtime-scan.
+            _playtime_ingest = None
+            if _pt_remote and not dry_run:
+                from rom_manager.utils.lrtl_scanner import ingest_lrtl_dir
+
+                _playtime_ingest = {}
+                if config.retroarch_path:
+                    _pt_pc_dir = _Path(config.retroarch_path).parent / "playlists" / "logs"
+                    if _pt_pc_dir.is_dir():
+                        _f, _m = ingest_lrtl_dir(repository, _pt_pc_dir, "pc")
+                        _playtime_ingest["pc"] = {"files": _f, "matched": _m}
+                if _pt_android_dir.is_dir():
+                    _f, _m = ingest_lrtl_dir(repository, _pt_android_dir, "android")
+                    _playtime_ingest["android"] = {"files": _f, "matched": _m}
+
             _up = sum(r.get("uploaded", 0) for r in all_results)
             _down = sum(r.get("downloaded", 0) for r in all_results)
             _errs = sum(r.get("errors", 0) for r in all_results)
             job_result = {
+                "playtime_ingest": _playtime_ingest,
                 "dry_run": dry_run,
                 "sources": all_results,
                 "uploaded": _up,
@@ -709,6 +753,21 @@ def _build_bootstrap_script(server_url: str, config: AppConfig, token: str) -> s
     states_remote = config.sync.states_remote or (
         f"{base}/states" if base else "dropbox:/RetroSync/states"
     )
+    # JUEGOS-UX-7: la consola solo SUBE sus .lrtl (a /android — nunca a la ruta
+    # del PC). Sin fallback: si el PC no tiene playtime_remote configurado no
+    # leería lo subido, así que no se genera el bloque.
+    playtime_remote = (config.sync.playtime_remote or "").rstrip("/")
+    playtime_lines = (
+        f'''LOGS=/storage/emulated/0/RetroArch/playlists/logs
+PLAYTIME_REMOTE="{playtime_remote}/android"
+if [ -d "$LOGS" ]; then
+    echo "Subiendo tiempo de juego (.lrtl)..."
+    rclone copy "$LOGS" "$PLAYTIME_REMOTE" --update --transfers 4
+fi
+'''
+        if playtime_remote
+        else ""
+    )
     return f"""\
 #!/data/data/com.termux/files/usr/bin/bash
 # Retro Vault — setup para Termux en Anbernic
@@ -764,7 +823,7 @@ rclone copy "$STATES" "$STATES_REMOTE" --update --transfers 4
 echo "Bajando saves..."
 rclone copy "$SAVES_REMOTE"  "$SAVES"  --update --transfers 4
 rclone copy "$STATES_REMOTE" "$STATES" --update --transfers 4
-echo "=== Sync completado ==="
+{playtime_lines}echo "=== Sync completado ==="
 SCRIPT
 chmod +x ~/retrovault-sync.sh
 

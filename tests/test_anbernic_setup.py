@@ -48,6 +48,7 @@ def test_bootstrap_script_uses_config_remotes_and_token() -> None:
             rclone_remote="",
             saves_remote="gdrive:/RetroSync/saves",
             states_remote="gdrive:/RetroSync/states",
+            playtime_remote="",
         )
     )
     script = _build_bootstrap_script("http://10.0.0.2:7777", config, "tok123")
@@ -64,7 +65,12 @@ def test_bootstrap_script_uses_config_remotes_and_token() -> None:
 
 def test_bootstrap_script_falls_back_to_legacy_remote() -> None:
     config = SimpleNamespace(
-        sync=SimpleNamespace(rclone_remote="dropbox:/RetroSync", saves_remote="", states_remote="")
+        sync=SimpleNamespace(
+            rclone_remote="dropbox:/RetroSync",
+            saves_remote="",
+            states_remote="",
+            playtime_remote="",
+        )
     )
     script = _build_bootstrap_script("http://10.0.0.2:7777", config, "t")
     assert 'SAVES_REMOTE="dropbox:/RetroSync/saves"' in script

@@ -50,6 +50,8 @@ async function loadSettings() {
     const raConfigRemoteEl = document.getElementById('cfg-ra-config-remote');
     if (raConfigDirEl)    raConfigDirEl.value    = cfg.ra_config_dir    || '';
     if (raConfigRemoteEl) raConfigRemoteEl.value = cfg.ra_config_remote || '';
+    const playtimeRemoteEl = document.getElementById('cfg-playtime-remote');
+    if (playtimeRemoteEl) playtimeRemoteEl.value = cfg.playtime_remote || '';
     const whEl = document.getElementById('cfg-web-host');
     if (whEl) whEl.value = cfg.web_host || '127.0.0.1';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
@@ -604,6 +606,7 @@ async function saveSettings() {
   const raConfigRemote = document.getElementById('cfg-ra-config-remote')?.value.trim() ?? '';
   updates['sync.ra_config_dir']    = raConfigDir;
   updates['sync.ra_config_remote'] = raConfigRemote;
+  updates['sync.playtime_remote'] = document.getElementById('cfg-playtime-remote')?.value.trim() ?? '';
   updates['web.host'] = document.getElementById('cfg-web-host')?.value || '127.0.0.1';
   const sd = document.getElementById('cfg-ss-devid')?.value.trim()   || '';
   const sdp = document.getElementById('cfg-ss-devpass')?.value        || '';

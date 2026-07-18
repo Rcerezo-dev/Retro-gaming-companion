@@ -307,13 +307,15 @@ def register(
         PC: ``<retroarch>/playlists/logs``. Android (opcional): pull de la
         misma carpeta vía adb a ``.rommgr/android_lrtl/`` y escaneo con origen
         separado — cada origen es dueño de su contador (JUEGOS-UX-5).
+        Sin cable, ``.rommgr/android_lrtl/`` puede haberlo llenado el cloud
+        sync (JUEGOS-UX-7) — se escanea igualmente.
         Job en background: el pull adb puede tardar.
         """
         data = getattr(ctx, "_post_data", None) or {}
         include_android = bool(data.get("include_android", True))
 
         def _run() -> None:
-            from rom_manager.utils.lrtl_scanner import scan_lrtl_dir
+            from rom_manager.utils.lrtl_scanner import ingest_lrtl_dir
 
             result: dict = {
                 "pc_files": 0,
@@ -329,19 +331,18 @@ def register(
                 if config.retroarch_path:
                     logs_dir = Path(config.retroarch_path).parent / "playlists" / "logs"
                     if logs_dir.is_dir():
-                        for e in scan_lrtl_dir(logs_dir):
-                            result["pc_files"] += 1
-                            if repository.set_playtime_minutes(
-                                e.stem, e.minutes, "pc", e.last_played
-                            ):
-                                result["pc_matched"] += 1
+                        result["pc_files"], result["pc_matched"] = ingest_lrtl_dir(
+                            repository, logs_dir, "pc"
+                        )
                     else:
                         result["pc_note"] = f"Sin logs de RetroArch en {logs_dir}"
                 else:
                     result["pc_note"] = "retroarch_path no configurado en Ajustes"
 
-                # ── Android (adb pull) ────────────────────────────────────────
+                # ── Android (adb pull si hay cable) ───────────────────────────
                 if include_android:
+                    local_dir = config.project_root / ".rommgr" / "android_lrtl"
+                    dev = None
                     try:
                         from rom_manager.sync.adb_transport import AdbTransport, list_devices
 
@@ -356,7 +357,6 @@ def register(
                             files = transport.ls_recursive(
                                 android_logs, wanted_extensions=frozenset({".lrtl"})
                             )
-                            local_dir = config.project_root / ".rommgr" / "android_lrtl"
                             android_prefix = android_logs.rstrip("/") + "/"
                             for info in files:
                                 # Conservar <Core>/<rom>.lrtl: aplanar cambiaría el
@@ -367,15 +367,18 @@ def register(
                                 result["android_note"] = (
                                     f"El dispositivo no tiene logs en {android_logs}"
                                 )
-                            elif local_dir.is_dir():
-                                for e in scan_lrtl_dir(local_dir):
-                                    result["android_files"] += 1
-                                    if repository.set_playtime_minutes(
-                                        e.stem, e.minutes, "android", e.last_played
-                                    ):
-                                        result["android_matched"] += 1
                     except (RuntimeError, OSError) as exc:
                         result["android_note"] = str(exc)
+                    # Ingesta con o sin cable: el dir también lo llena el cloud
+                    # sync (JUEGOS-UX-7), así que se escanea aunque no haya adb.
+                    if local_dir.is_dir():
+                        result["android_files"], result["android_matched"] = ingest_lrtl_dir(
+                            repository, local_dir, "android"
+                        )
+                        if dev is None and result["android_files"]:
+                            result["android_note"] = (
+                                "Sin cable — usando .lrtl sincronizados desde la nube"
+                            )
                 else:
                     result["android_note"] = "Escaneo Android desactivado"
             except Exception as exc:  # el job nunca debe morir sin resultado

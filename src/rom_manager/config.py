@@ -181,6 +181,9 @@ class SyncConfig:
     # RetroArch core config sync (.opt files)
     ra_config_dir: str = ""  # path to RetroArch/config/ folder
     ra_config_remote: str = ""  # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
+    # JUEGOS-UX-7: playtime logs (.lrtl) — base remote; se usan subcarpetas /pc
+    # y /android para que cada origen sea dueño de su contador y nunca se pisen
+    playtime_remote: str = ""  # e.g. "dropbox:/RetroSync/playtime"
 
 
 @dataclass(slots=True)
@@ -455,6 +458,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             states_remote=str(sync.get("states_remote", "")),
             ra_config_dir=str(sync.get("ra_config_dir", "")),
             ra_config_remote=str(sync.get("ra_config_remote", "")),
+            playtime_remote=str(sync.get("playtime_remote", "")),
             sync_sources=sync_sources,
         ),
         inbox=InboxConfig(
