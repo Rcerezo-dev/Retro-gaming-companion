@@ -36,11 +36,15 @@ def _same_content(a: Path, b: Path) -> bool:
         return False
 
 
+def _platform_folder_name(platform: str) -> str:
+    """Carpeta de plataforma para *platform* — la misma regla del paso 6."""
+    canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
+    return _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+
+
 def _organize_dest_file(target_root: Path, platform: str, filename: str) -> Path:
     """Where *filename* would land if organized — same rule the Step 6 loop uses."""
-    canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
-    folder_name = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
-    return target_root / folder_name / filename
+    return target_root / _platform_folder_name(platform) / filename
 
 
 def _resolve_organize_conflict(
@@ -422,8 +426,14 @@ def _resolve_ambiguous_md(inbox: Path, config: AppConfig, logger) -> int:
     return identified
 
 
-def _build_inbox_scan(inbox_path_str: str) -> dict:
-    """Scan the inbox folder and return summary + file list."""
+def _build_inbox_scan(inbox_path_str: str, target_root_str: str = "") -> dict:
+    """Scan the inbox folder and return summary + file list.
+
+    Con *target_root_str*, cada archivo incluye una previsualización de destino
+    (INBOX-UX-2): ``dest_folder`` (carpeta de plataforma, misma regla que el
+    paso 6) y ``dest_exists`` (ya hay un archivo con ese nombre en destino).
+    Aproximada a propósito: el nombre final puede cambiar tras el cotejo.
+    """
     import zipfile as _zf
 
     from rom_manager.detection.platform_detector import detect_platform as _detect_platform
@@ -431,6 +441,12 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
     inbox = Path(inbox_path_str).resolve()
     if not inbox.exists() or not inbox.is_dir():
         return {"error": f"Carpeta no encontrada: {inbox_path_str}", "files": [], "total": 0}
+
+    target_root: Path | None = None
+    if target_root_str:
+        _t = Path(target_root_str)
+        if _t.is_dir():
+            target_root = _t
 
     files_out: list[dict] = []
     total_bytes = 0
@@ -503,6 +519,12 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
         if platform_guess:
             by_platform[platform_guess] = by_platform.get(platform_guess, 0) + 1
 
+        dest_folder = _platform_folder_name(platform_guess) if platform_guess else None
+        dest_exists = None
+        if target_root and dest_folder and not needs_extraction:
+            # Para ZIPs no se comprueba: lo que llega a destino es su contenido
+            dest_exists = (target_root / dest_folder / entry.name).exists()
+
         files_out.append(
             {
                 "name": entry.name,
@@ -511,6 +533,8 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
                 "type": file_type,
                 "platform_guess": platform_guess,
                 "needs_extraction": needs_extraction,
+                "dest_folder": dest_folder,
+                "dest_exists": dest_exists,
             }
         )
 

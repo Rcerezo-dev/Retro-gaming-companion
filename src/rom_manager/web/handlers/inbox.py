@@ -42,10 +42,16 @@ def register(
 
         qs = getattr(ctx, "_qs", {})
         inbox_path_str = qs.get("path", [""])[0].strip() or config.inbox.path
+        # INBOX-UX-2: destino para la previsualización — mismo fallback que inbox-run
+        target_root_str = (
+            qs.get("target_root", [""])[0].strip()
+            or config.inbox.target_root
+            or str(config.library_root or "")
+        )
         if not inbox_path_str:
             ctx._send_json({"error": "path parameter required (or set inbox.path in config.toml)"})
         else:
-            ctx._send_json(_build_inbox_scan(inbox_path_str))
+            ctx._send_json(_build_inbox_scan(inbox_path_str, target_root_str))
 
     # ── GET /api/inbox-status ────────────────────────────────────────────────
     @router.get("/api/inbox-status")

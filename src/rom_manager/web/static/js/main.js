@@ -74,7 +74,7 @@ import {
   _renderInboxResult,
   loadInboxConflicts,
   resolveInboxConflict,
-  saveInboxSettings,
+  saveInboxSettings, autoSaveInboxToggle,
   _pollInboxWatcher,
 } from './tabs/inbox.js';
 import {
@@ -314,7 +314,7 @@ Object.assign(window, {
   _renderInboxResult,
   loadInboxConflicts,
   resolveInboxConflict,
-  saveInboxSettings,
+  saveInboxSettings, autoSaveInboxToggle,
   _pollInboxWatcher,
   // sync.js
   loadSync,
