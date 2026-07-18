@@ -26,8 +26,7 @@ import {
 import {
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
-  exportCollection, exportWishlist,
+  exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   _diffToggleAll, _syncAllSide,
@@ -103,7 +102,7 @@ import {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
-  doHealthCheck, _renderHealthResult, _filterHealthIssues, togglePlatformHealth, loadPlatformHealth, loadOperationsTimeline, _clearHealthFilter,
+  doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
   doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
   doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
@@ -222,7 +221,7 @@ Object.assign(window, {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
-  doHealthCheck, _renderHealthResult, _filterHealthIssues, togglePlatformHealth, loadPlatformHealth, loadOperationsTimeline, _clearHealthFilter,
+  doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
   doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
   doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
@@ -274,8 +273,7 @@ Object.assign(window, {
   loadCatalogStatus, importArcadeCatalog, importDats, loadDatCatalogList, downloadDats,
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
-  exportCollection, exportWishlist,
+  exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   _diffToggleAll, _syncAllSide,
@@ -486,7 +484,7 @@ export function showTab(name) {
   // cargan solos al abrir; el botón ↻ queda para refrescar.
   if (name === 'sync')       { loadSync(); loadManualBackups(); loadSaveComparison(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
-  if (name === 'collection') loadCollection();
+  if (name === 'collection') loadCollectionStatsV2();
   if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAutostart(); loadTrashStatus(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }

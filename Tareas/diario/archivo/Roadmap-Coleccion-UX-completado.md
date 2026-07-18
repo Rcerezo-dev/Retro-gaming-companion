@@ -55,6 +55,33 @@ es obligatorio independientemente de la decisión de fusión.
 
 ---
 
+## Estado (2026-07-18, rama `feature/coleccion-ux`) — COMPLETADO
+
+Decisión de producto (usuario, 2026-07-18): **fusionar** según la recomendación.
+
+- ✅ **COLECCION-UX-2 / fusión** — galería retirada; la pestaña pasa a llamarse
+  **"Análisis"** (nav + título) y conserva solo los paneles: Stats, Comparar,
+  Disco, Completitud, ROMs faltantes y export de Wishlist. Stats es la portada
+  (visible al entrar). Los nombres de plataforma en Completitud y Faltantes
+  enlazan a Juegos con el filtro aplicado. El modo TV al salir vuelve a Juegos.
+- ✅ **COLECCION-UX-1** — botón "🏥 Health" retirado (panel, botón y las dos
+  funciones muertas de `esde.js`); el health check real sigue en Mantenimiento.
+- ✅ **COLECCION-UX-3** — export unificado: queda un solo par CSV/JSON (Juegos,
+  biblioteca completa); el export duplicado de Colección se retiró con la galería.
+- ✅ **COLECCION-UX-4** — "ROMs faltantes" recuperado: botón "📥 Ver ROMs
+  faltantes" en el panel Completitud (copiar búsqueda, link Internet Archive,
+  wishlist por título).
+- ✅ **COLECCION-UX-5** — paneles en acordeón exclusivo: abrir uno cierra los demás.
+- ✅ **COLECCION-UX-6** — desapareció con la galería (no hay filtro duplicado).
+
+**Hallazgo nuevo durante la implementación**: el panel "📊 Stats" también
+estaba roto — `/api/collection-stats-v2` se perdió en el refactor `487aa91`
+(el mismo que se comió `/api/junk-scan`, MEJ-6) y el frontend llamaba a un 404
+silencioso. Restaurado en `handlers/collection.py` con filtro por `root` y
+`file_type='rom'`; 3 tests nuevos. CSS de la galería muerta también eliminado.
+
+---
+
 ## UI Audit — Retro Vault (pestaña Colección)
 
 ### 🔴 Crítico (rompe la experiencia)

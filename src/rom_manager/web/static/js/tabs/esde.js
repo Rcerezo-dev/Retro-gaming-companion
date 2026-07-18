@@ -629,37 +629,6 @@ export function _clearHealthFilter() {
   _renderHealthPage();
 }
 
-export async function togglePlatformHealth(platform) {
-  const el = document.getElementById('platform-health-content');
-  if (!el) return;
-
-  try {
-    const d = await apiFetch(`/api/platform-health?platform=${encodeURIComponent(platform)}`);
-    // Render platform-specific health data
-    let html = `<h4 style="margin-bottom:8px;color:var(--c-teal)">${_h(platform)}</h4>`;
-    html += `<p style="color:var(--c-muted);font-size:12px">ROM correctos: ${d.ok || 0}</p>`;
-    html += `<p style="color:var(--c-softred);font-size:12px">Corruptos: ${d.corrupted || 0}</p>`;
-    html += `<p style="color:var(--c-softred);font-size:12px">Perdidos: ${d.missing || 0}</p>`;
-    el.innerHTML = html;
-  } catch(e) {
-    const el = document.getElementById('platform-health-content');
-    if (el) el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Esperando disponibilidad de /api/platform-health</p>`;
-  }
-}
-
-export async function loadPlatformHealth() {
-  const el = document.getElementById('platform-health-content');
-  if (!el) return;
-  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
-
-  try {
-    // TODO: Implement when /api/platform-health endpoint is available
-    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: Salud por plataforma</p>`;
-  } catch(e) {
-    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
-  }
-}
-
 export async function loadOperationsTimeline() {
   const el = document.getElementById('operations-timeline-content');
   if (!el) return;

@@ -991,7 +991,7 @@ export async function enterTvMode() {
 export function exitTvMode() {
   _tvActive = false;
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  showTab('collection');
+  showTab('games');
 }
 
 export async function loadTvGrid(platform, offset) {
