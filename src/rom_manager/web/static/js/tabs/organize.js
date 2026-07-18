@@ -51,19 +51,16 @@ async function loadPlan() {
   try {
     const root = window._deviceRoot();
     const rootParam = root ? `&source_root=${encodeURIComponent(root)}` : '';
-    // D8-2: device filter dropdown
-    const deviceFilterSel = document.getElementById('plan-device-filter');
-    const _planDeviceFilter = deviceFilterSel ? deviceFilterSel.value : '';
     const [d, cfg] = await Promise.all([apiFetch('/api/plan' + _planQueryString() + rootParam), apiFetch('/api/config')]);
     const planBar = document.getElementById('plan-context-bar');
     if (planBar) {
       let barHtml = '';
       if (window._activeDevice === 'pc') {
         const r = cfg.library_root || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Cada cambio queda registrado en la base de datos</span>`;
       } else {
         const r = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Los cambios son reversibles</span>`;
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${window._devName} — ${r}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Los saves se renombran junto al ROM · Cada cambio queda registrado en la base de datos</span>`;
       }
       planBar.innerHTML = barHtml;
       planBar.classList.remove('hidden');
@@ -96,17 +93,16 @@ async function loadPlan() {
       summaryBar.classList.toggle('hidden', !(parts.length));
     }
 
-    // D8-2: apply device filter to pending list
-    const pendingFiltered = _planDeviceFilter
-      ? (d.pending || []).filter(op => op.device === _planDeviceFilter)
-      : (d.pending || []);
+    // PLAN-UX-3: filtro por dispositivo retirado — /api/plan ya devuelve un solo
+    // dispositivo (el activo global) desde DEVSEL-FIX-3
+    const pending = d.pending || [];
 
     // ── C3: Update action buttons with counts ─────────────────────────────────
     const btnApply    = document.getElementById('btn-apply');
     const btnResolve  = document.getElementById('btn-resolve-conflicts');
     const btnResolveRa = document.getElementById('btn-resolve-ra-conflicts');
     if (btnApply) {
-      const n = pendingFiltered.length;
+      const n = pending.length;
       btnApply.textContent = n > 0 ? `Renombrar ${n} archivo${n !== 1 ? 's' : ''}` : 'Nada que renombrar';
       btnApply.disabled = n === 0;
       // UX-1/2-5: Update disabled state based on device connectivity
@@ -139,12 +135,11 @@ async function loadPlan() {
     }
 
     let html = '';
-    if (pendingFiltered.length) {
+    if (pending.length) {
       const savesNote = d.total_saves_affected > 0 ? ` <span style="color:var(--c-yellow);font-size:11px">· ${d.total_saves_affected} save(s) se renombrarán también</span>` : '';
-      const filterNote = _planDeviceFilter ? ` <span style="color:var(--c-muted);font-size:11px">[filtro: ${_planDeviceFilter === 'pc' ? 'PC' : 'Consola Android'}]</span>` : '';
-      html += `<h3 style="color:var(--c-blue);margin-bottom:12px">Listos para renombrar — ${pendingFiltered.length}${savesNote}${filterNote}</h3>`;
+      html += `<h3 style="color:var(--c-blue);margin-bottom:12px">Listos para renombrar — ${pending.length}${savesNote}</h3>`;
       html += '<div style="overflow-x:auto"><table><thead><tr><th>Platform</th><th>Dispositivo</th><th>From</th><th>To</th><th style="text-align:center">Saves</th></tr></thead><tbody>';
-      html += pendingFiltered.map(op => {
+      html += pending.map(op => {
         const devLabel = op.device === 'pc'
           ? '<span style="color:var(--c-teal);font-size:10px">PC</span>'
           : '<span style="color:var(--c-orange);font-size:10px">Android</span>';
@@ -159,9 +154,10 @@ async function loadPlan() {
       html += '</tbody></table></div>';
     }
     if (d.conflicts.length) {
+      // PLAN-UX-5: el backend solo emite 'collision' o 'disk' (collision_resolver.py:46,
+      // operation_planner.py:140) — la rama "unknown" era código muerto y se retiró
       const collisions = d.conflicts.filter(c => c.reason === 'collision');
       const diskConflicts = d.conflicts.filter(c => c.reason === 'disk');
-      const unknown = d.conflicts.filter(c => !c.reason || (c.reason !== 'collision' && c.reason !== 'disk'));
 
       html += `<h3 style="color:var(--c-red);margin:20px 0 8px">Conflictos — ${d.conflicts.length}</h3>`;
 
@@ -262,14 +258,6 @@ async function loadPlan() {
         }
       }
 
-      if (unknown.length) {
-        html += '<div style="overflow-x:auto"><table><thead><tr><th>From</th><th>To (blocked)</th></tr></thead><tbody>';
-        html += unknown.map(op => `<tr>
-          <td class="mono">${window._h(op.source_name)}</td>
-          <td class="mono" style="color:var(--c-red)">${window._h(op.target_name)}</td>
-        </tr>`).join('');
-        html += '</tbody></table></div>';
-      }
     }
     if (d.already_correct > 0) {
       html += `<p style="color:var(--c-dim);margin-top:16px">${d.already_correct} archivo(s) ya tienen el nombre correcto.</p>`;
@@ -307,58 +295,64 @@ async function loadPlan() {
 async function applyKeepBoth() {
   const btnR = document.getElementById('btn-resolve-conflicts');
   const n = parseInt(btnR?.textContent?.match(/\d+/)?.[0] || '0');
-  if (!confirm(`¿Resolver ${n} colisión${n !== 1 ? 'es' : ''} añadiendo sufijo _1 _2? Los archivos en conflicto recibirán nombres únicos.`)) return;
+  // PLAN-UX-2: modal propio en vez de confirm() nativo
+  _showConfirm(
+    'Resolver colisiones',
+    `¿Resolver <strong>${n} colisión${n !== 1 ? 'es' : ''}</strong> añadiendo sufijo _1 _2?<br>Los archivos en conflicto recibirán nombres únicos.`,
+    'Resolver',
+    async () => {
+      const applyBody = {
+        keep_both: true,
+        format_opts: {
+          include_region:   document.getElementById('fmt-region').checked,
+          include_revision: document.getElementById('fmt-revision').checked,
+          include_platform: document.getElementById('fmt-platform').checked,
+          include_sha:      document.getElementById('fmt-sha').checked,
+          sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
+        }
+      };
+      const applyRoot = window._deviceRoot();
+      if (applyRoot) applyBody.source_root = applyRoot;
 
-  const applyBody = {
-    keep_both: true,
-    format_opts: {
-      include_region:   document.getElementById('fmt-region').checked,
-      include_revision: document.getElementById('fmt-revision').checked,
-      include_platform: document.getElementById('fmt-platform').checked,
-      include_sha:      document.getElementById('fmt-sha').checked,
-      sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
-    }
-  };
-  const applyRoot = window._deviceRoot();
-  if (applyRoot) applyBody.source_root = applyRoot;
+      if (btnR) { btnR.disabled = true; btnR.textContent = 'Resolviendo…'; }
+      const btn = document.getElementById('btn-apply');
+      if (btn) btn.disabled = true;
 
-  if (btnR) { btnR.disabled = true; btnR.textContent = 'Resolviendo…'; }
-  const btn = document.getElementById('btn-apply');
-  if (btn) btn.disabled = true;
+      const wrap = document.getElementById('apply-progress-wrap');
+      const bar  = document.getElementById('apply-progress-bar');
+      const lbl  = document.getElementById('apply-progress-label');
+      const pct  = document.getElementById('apply-progress-pct');
+      if (wrap) wrap.classList.remove('hidden');
 
-  const wrap = document.getElementById('apply-progress-wrap');
-  const bar  = document.getElementById('apply-progress-bar');
-  const lbl  = document.getElementById('apply-progress-label');
-  const pct  = document.getElementById('apply-progress-pct');
-  if (wrap) wrap.classList.remove('hidden');
-
-  try {
-    await apiPost('/api/apply', applyBody);
-    let done = false;
-    while (!done) {
-      await new Promise(r => setTimeout(r, 500));
-      const s = await apiFetch('/api/job-status');
-      if (s.apply_running && s.apply_progress) {
-        const p = s.apply_progress;
-        const fraction = p.total > 0 ? p.current / p.total : 0;
-        if (bar) bar.style.width = Math.round(fraction * 100) + '%';
-        if (pct) pct.textContent = Math.round(fraction * 100) + '%';
-        if (lbl) lbl.textContent = p.current_file ? `Resolviendo: ${p.current_file}` : 'Resolviendo…';
+      try {
+        await apiPost('/api/apply', applyBody);
+        let done = false;
+        while (!done) {
+          await new Promise(r => setTimeout(r, 500));
+          const s = await apiFetch('/api/job-status');
+          if (s.apply_running && s.apply_progress) {
+            const p = s.apply_progress;
+            const fraction = p.total > 0 ? p.current / p.total : 0;
+            if (bar) bar.style.width = Math.round(fraction * 100) + '%';
+            if (pct) pct.textContent = Math.round(fraction * 100) + '%';
+            if (lbl) lbl.textContent = p.current_file ? `Resolviendo: ${p.current_file}` : 'Resolviendo…';
+          }
+          if (!s.apply_running && s.apply_result) {
+            done = true;
+            const r = s.apply_result;
+            if (!r.error) showToast(`Resueltos: ${r.renamed} renombrados, ${r.conflicts} conflictos restantes`, r.conflicts > 0 ? 'info' : 'ok');
+          }
+        }
+        await loadPlan();
+        window.loadOverview();
+      } catch(e) {
+        showToast('Error: ' + e.message, 'err');
+      } finally {
+        setTimeout(() => { if (wrap) wrap.classList.add('hidden'); if (bar) bar.style.width = '0%'; }, 2000);
+        if (btn) btn.disabled = false;
       }
-      if (!s.apply_running && s.apply_result) {
-        done = true;
-        const r = s.apply_result;
-        if (!r.error) showToast(`Resueltos: ${r.renamed} renombrados, ${r.conflicts} conflictos restantes`, r.conflicts > 0 ? 'info' : 'ok');
-      }
     }
-    await loadPlan();
-    window.loadOverview();
-  } catch(e) {
-    showToast('Error: ' + e.message, 'err');
-  } finally {
-    setTimeout(() => { if (wrap) wrap.classList.add('hidden'); if (bar) bar.style.width = '0%'; }, 2000);
-    if (btn) btn.disabled = false;
-  }
+  );
 }
 
 // DUP-3: Delete collision duplicates instead of renaming them.
@@ -402,7 +396,7 @@ async function deleteCollisionDuplicates() {
     'Eliminar duplicados de colisión',
     `¿Eliminar ${count} archivo${count !== 1 ? 's' : ''} duplicado${count !== 1 ? 's' : ''}?<br><br>` +
     `Se conservará <strong>1 archivo por grupo</strong> (${kept} grupo${kept !== 1 ? 's' : ''}) y se eliminará${count !== 1 ? 'n' : ''} el resto.<br>` +
-    `<span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
+    `<span style="color:var(--c-yellow)">Los archivos se moverán a <code>_descartados/</code> (se purgan a los 30 días).</span>`,
     'Eliminar',
     async () => {
       let deleted = 0, failed = 0;
@@ -429,7 +423,7 @@ async function _discardCollisionEntry(gameId, sourcePath, filename) {
   _showConfirm(
     'Descartar ROM',
     `¿Mover <strong>${window._h(filename)}</strong> a <code>_descartados/</code> y eliminar de la base de datos?<br>` +
-    `<span style="color:var(--c-red)">Esta operación no se puede deshacer.</span>`,
+    `<span style="color:var(--c-yellow)">Los archivos de <code>_descartados/</code> se purgan a los 30 días.</span>`,
     'Descartar',
     async () => {
       try {
@@ -455,86 +449,92 @@ async function doApply() {
     return;
   }
 
-  if (!confirm(`¿Renombrar ${total} archivo${total !== 1 ? 's' : ''} en disco? Los saves compañeros se moverán automáticamente. La operación es reversible.`)) return;
+  // PLAN-UX-2: modal propio en vez de confirm() nativo.
+  // PLAN-UX-1: sin prometer reversibilidad — el "Deshacer" (MEJ-2) aún no existe.
+  _showConfirm(
+    'Renombrar archivos',
+    `¿Renombrar <strong>${total} archivo${total !== 1 ? 's' : ''}</strong> en disco?<br>Los saves compañeros se moverán automáticamente.<br><span style="color:var(--c-muted)">Cada cambio queda registrado en la base de datos.</span>`,
+    'Renombrar',
+    async () => {
+      const applyBody = {
+        format_opts: {
+          include_region:   document.getElementById('fmt-region').checked,
+          include_revision: document.getElementById('fmt-revision').checked,
+          include_platform: document.getElementById('fmt-platform').checked,
+          include_sha:      document.getElementById('fmt-sha').checked,
+          sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
+        }
+      };
+      const applyRoot = window._deviceRoot();
+      if (applyRoot) applyBody.source_root = applyRoot;
 
-  const applyBody = {
-    format_opts: {
-      include_region:   document.getElementById('fmt-region').checked,
-      include_revision: document.getElementById('fmt-revision').checked,
-      include_platform: document.getElementById('fmt-platform').checked,
-      include_sha:      document.getElementById('fmt-sha').checked,
-      sha_length:       parseInt(document.getElementById('fmt-sha-length')?.value || '8'),
-    }
-  };
-  const applyRoot = window._deviceRoot();
-  if (applyRoot) applyBody.source_root = applyRoot;
+      // Disable buttons while running
+      if (btn) { btn.disabled = true; btn.textContent = 'Renombrando…'; }
+      const btnR = document.getElementById('btn-resolve-conflicts');
+      if (btnR) btnR.disabled = true;
 
-  // Disable buttons while running
-  if (btn) { btn.disabled = true; btn.textContent = 'Renombrando…'; }
-  const btnR = document.getElementById('btn-resolve-conflicts');
-  if (btnR) btnR.disabled = true;
+      const wrap = document.getElementById('apply-progress-wrap');
+      const bar  = document.getElementById('apply-progress-bar');
+      const lbl  = document.getElementById('apply-progress-label');
+      const pct  = document.getElementById('apply-progress-pct');
+      if (wrap) wrap.classList.remove('hidden');
 
-  const wrap = document.getElementById('apply-progress-wrap');
-  const bar  = document.getElementById('apply-progress-bar');
-  const lbl  = document.getElementById('apply-progress-label');
-  const pct  = document.getElementById('apply-progress-pct');
-  if (wrap) wrap.classList.remove('hidden');
+      try {
+        await apiPost('/api/apply', applyBody);
 
-  try {
-    await apiPost('/api/apply', applyBody);
-
-    // Poll for completion
-    const _shownApplyTs = window._job_results_apply_ts || null;
-    let done = false;
-    while (!done) {
-      await new Promise(r => setTimeout(r, 500));
-      const s = await apiFetch('/api/job-status');
-      if (s.apply_running && s.apply_progress) {
-        const p = s.apply_progress;
-        const fraction = p.total > 0 ? p.current / p.total : 0;
-        const pctVal = Math.round(fraction * 100);
-        if (bar) bar.style.width = pctVal + '%';
-        if (pct) pct.textContent = pctVal + '%';
-        if (lbl) lbl.textContent = p.current_file ? `Renombrando: ${p.current_file}` : 'Renombrando…';
-      }
-      if (!s.apply_running && s.apply_result) {
-        done = true;
-        const r = s.apply_result;
-        if (r.error) {
-          showToast('Error: ' + r.error, 'err');
-        } else {
-          const savesInfo   = r.saves_renamed > 0 ? ` · ${r.saves_renamed} saves` : '';
-          const failedInfo  = r.failed > 0 ? ` · ${r.failed} fallidos` : '';
-          const conflictInfo = r.conflicts > 0 ? ` · ${r.conflicts} conflictos restantes` : '';
-          showToast(`✓ ${r.renamed} renombrados${savesInfo}${failedInfo}${conflictInfo}`,
-            r.failed > 0 || r.conflicts > 0 ? 'info' : 'ok');
-          if (bar) bar.style.width = '100%';
-          if (pct) pct.textContent = '100%';
-          if (lbl) lbl.textContent = 'Completado';
-          // D8-2: show error details if any
-          const errDetails = r.error_details || r.skip_details || [];
-          const errPanel = document.getElementById('apply-error-details');
-          const errList  = document.getElementById('apply-error-list');
-          const errCount = document.getElementById('apply-error-count');
-          if (errDetails.length > 0 && errPanel && errList && errCount) {
-            errCount.textContent = errDetails.length + ' archivo(s) con errores o no encontrados:';
-            errList.innerHTML = errDetails.map(e => '<div style="padding:1px 0">&#x25B8; ' + window._h(e) + '</div>').join('');
-            errPanel.classList.remove('hidden');
-          } else if (errPanel) {
-            errPanel.classList.add('hidden');
+        // Poll for completion
+        let done = false;
+        while (!done) {
+          await new Promise(r => setTimeout(r, 500));
+          const s = await apiFetch('/api/job-status');
+          if (s.apply_running && s.apply_progress) {
+            const p = s.apply_progress;
+            const fraction = p.total > 0 ? p.current / p.total : 0;
+            const pctVal = Math.round(fraction * 100);
+            if (bar) bar.style.width = pctVal + '%';
+            if (pct) pct.textContent = pctVal + '%';
+            if (lbl) lbl.textContent = p.current_file ? `Renombrando: ${p.current_file}` : 'Renombrando…';
+          }
+          if (!s.apply_running && s.apply_result) {
+            done = true;
+            const r = s.apply_result;
+            if (r.error) {
+              showToast('Error: ' + r.error, 'err');
+            } else {
+              const savesInfo   = r.saves_renamed > 0 ? ` · ${r.saves_renamed} saves` : '';
+              const failedInfo  = r.failed > 0 ? ` · ${r.failed} fallidos` : '';
+              const conflictInfo = r.conflicts > 0 ? ` · ${r.conflicts} conflictos restantes` : '';
+              showToast(`✓ ${r.renamed} renombrados${savesInfo}${failedInfo}${conflictInfo}`,
+                r.failed > 0 || r.conflicts > 0 ? 'info' : 'ok');
+              if (bar) bar.style.width = '100%';
+              if (pct) pct.textContent = '100%';
+              if (lbl) lbl.textContent = 'Completado';
+              // D8-2: show error details if any
+              const errDetails = r.error_details || r.skip_details || [];
+              const errPanel = document.getElementById('apply-error-details');
+              const errList  = document.getElementById('apply-error-list');
+              const errCount = document.getElementById('apply-error-count');
+              if (errDetails.length > 0 && errPanel && errList && errCount) {
+                errCount.textContent = errDetails.length + ' archivo(s) con errores o no encontrados:';
+                errList.innerHTML = errDetails.map(e => '<div style="padding:1px 0">&#x25B8; ' + window._h(e) + '</div>').join('');
+                errPanel.classList.remove('hidden');
+              } else if (errPanel) {
+                errPanel.classList.add('hidden');
+              }
+            }
           }
         }
+
+        await loadPlan();
+        window.loadOverview();
+      } catch(e) {
+        showToast('Error al aplicar: ' + e.message, 'err');
+      } finally {
+        setTimeout(() => { if (wrap) wrap.classList.add('hidden'); if (bar) bar.style.width = '0%'; }, 2000);
+        if (btnR) btnR.disabled = false;
       }
     }
-
-    await loadPlan();
-    window.loadOverview();
-  } catch(e) {
-    showToast('Error al aplicar: ' + e.message, 'err');
-  } finally {
-    setTimeout(() => { if (wrap) wrap.classList.add('hidden'); if (bar) bar.style.width = '0%'; }, 2000);
-    if (btnR) btnR.disabled = false;
-  }
+  );
 }
 
 // ── Public exports ────────────────────────────────────────────────────────────
