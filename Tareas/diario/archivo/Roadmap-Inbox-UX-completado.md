@@ -31,6 +31,24 @@ La hipótesis original queda descartada con evidencia de código.
 
 ---
 
+## Estado (2026-07-18, rama `fix/inbox-ux`) — COMPLETADO
+
+- ✅ **INBOX-UX-1** — "Organizar todo" pide confirmación con `_showConfirm` y
+  recuento fresco (total, ZIPs, no reconocidos, colisiones en destino, aviso
+  si se eliminarán ZIPs). Si el análisis previo falla, confirma sin recuento
+  (no bloquea).
+- ✅ **INBOX-UX-2** — columna "Destino" en el análisis: carpeta de plataforma
+  (misma regla que el paso 6, helper compartido `_platform_folder_name`) y
+  aviso "⚠ ya existe" si hay un archivo con ese nombre en destino. Para ZIPs
+  no se comprueba (lo que llega a destino es su contenido).
+- ✅ **INBOX-UX-3** — `resolveInboxConflict` usa `_showConfirm`, no `confirm()`.
+- ✅ **INBOX-UX-4** — los checkboxes se guardan solos al cambiarlos
+  (`autoSaveInboxToggle`); el botón "Guardar ajustes" sigue para los paths.
+- ✅ **INBOX-UX-5** — "N no reconocidos (no se tocan, se quedan en el Inbox)".
+- ✅ **INBOX-UX-6** — error de conflictos con mensaje y guía de acción.
+
+---
+
 ## UI Audit — Retro Vault (pestaña Inbox)
 
 ### 🔴 Crítico (rompe la experiencia)
