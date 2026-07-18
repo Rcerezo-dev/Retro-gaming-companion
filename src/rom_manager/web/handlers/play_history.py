@@ -351,8 +351,7 @@ def register(
                         else:
                             transport = AdbTransport(config.adb, dev.serial)
                             android_logs = (
-                                config.sync.auto_sync_android_path.rstrip("/")
-                                + "/playlists/logs"
+                                config.sync.auto_sync_android_path.rstrip("/") + "/playlists/logs"
                             )
                             files = transport.ls_recursive(
                                 android_logs, wanted_extensions=frozenset({".lrtl"})
@@ -360,10 +359,10 @@ def register(
                             local_dir = config.project_root / ".rommgr" / "android_lrtl"
                             android_prefix = android_logs.rstrip("/") + "/"
                             for info in files:
+                                # Conservar <Core>/<rom>.lrtl: aplanar cambiaría el
+                                # stem y ningún juego matchearía (pull crea los dirs)
                                 rel = info.android_path.removeprefix(android_prefix)
-                                transport.pull(
-                                    info.android_path, local_dir / rel.replace("/", "_")
-                                )
+                                transport.pull(info.android_path, local_dir / rel)
                             if not files:
                                 result["android_note"] = (
                                     f"El dispositivo no tiene logs en {android_logs}"

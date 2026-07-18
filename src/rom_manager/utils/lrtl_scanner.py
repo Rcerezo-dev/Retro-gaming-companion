@@ -43,7 +43,7 @@ def parse_lrtl(path: Path) -> LrtlEntry | None:
         _logger.warning("No se pudo parsear %s", path, exc_info=True)
         return None
     raw_lp = str(data.get("last_played", "")).strip()
-    # ponytail: la hora es local del dispositivo que escribió el log, sin tz;
+    # nota: la hora es local del dispositivo que escribió el log, sin tz;
     # suficiente para "última sesión" — normalizar a UTC si algún día importa
     last_played = raw_lp.replace(" ", "T") if raw_lp else None
     return LrtlEntry(stem=path.stem, minutes=minutes, last_played=last_played)
