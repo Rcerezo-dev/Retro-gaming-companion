@@ -16,6 +16,24 @@ abajo sustituyen/desarrollan MEJ-1, no lo duplican.
 
 ---
 
+## Estado (2026-07-18, rama `feature/juegos-ux`)
+
+- ✅ **JUEGOS-UX-1** — `/api/ra-user-progress` devuelve el array `achievements`.
+- ✅ **JUEGOS-UX-2** — sección de logros en el panel (`gp-ra-achievements`),
+  desbloqueados/pendientes con "ver todos".
+- ✅ **JUEGOS-UX-3** — `loading="lazy"` en los badges (el cache TTL de URLs no
+  hizo falta: el JSON ya se cachea 1h en `_ra_progress_cache`).
+- ✅ **JUEGOS-UX-4** — control manual eliminado (`gpLogPlaytime` fuera).
+- ✅ **JUEGOS-UX-5** — columnas `playtime_minutes_pc` / `_android` + migración.
+- ✅ **JUEGOS-UX-6** — `utils/lrtl_scanner.py` + upsert MAX
+  (`set_playtime_minutes`) + job `playtime_scan`.
+- 🟡 **JUEGOS-UX-7** — la pata por **cable** está: `/api/playtime-scan` hace
+  pull adb de `playlists/logs` y acumula en `_android`. Falta la pata **cloud**
+  (`.lrtl` como SyncSource de rclone) para consolas que no se conectan por USB.
+- ✅ **JUEGOS-UX-8** — total automático "Xh Ym totales · PC / Consola" + botón
+  ↻ Actualizar.
+- ✅ **JUEGOS-UX-9** — cada origen sin datos se muestra como "sin datos".
+
 ## Estado actual (lo que ya existe, verificado en código)
 
 - **Logros**: el panel de juego ya muestra un resumen agregado —

@@ -501,44 +501,78 @@ function _gpSetEditField(id, val) {
   if (el && val !== undefined) el.value = val;
 }
 
+// JUEGOS-UX-8: total automático desde los .lrtl de RetroArch, por origen
+function _fmtMinutes(m) {
+  if (!m) return '0m';
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+}
+
+function _relTimeStr(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return '';
+  const diffMs    = Date.now() - d;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays  = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays >= 365) return `Hace ${Math.floor(diffDays / 365)} años`;
+  if (diffDays >= 30)  return `Hace ${Math.floor(diffDays / 30)} meses`;
+  if (diffDays > 1)    return `Hace ${diffDays} días`;
+  if (diffHours > 1)   return `Hace ${diffHours} horas`;
+  return 'Hace menos de una hora';
+}
+
 export function gpShowPlaytimeInfo(g) {
   const wrap = document.getElementById('gp-playtime-wrap');
   if (!wrap) return;
   wrap.classList.remove('hidden');
-  const infoEl  = document.getElementById('gp-playtime-info');
-  const hoursEl = document.getElementById('gp-playtime-hours');
-  const minsEl  = document.getElementById('gp-playtime-mins');
-  if (!infoEl || !hoursEl || !minsEl) return;
-  const lastPlayed = g.last_played_at ? new Date(g.last_played_at) : null;
-  if (lastPlayed) {
-    const diffMs    = Date.now() - lastPlayed;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays  = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    let timeStr = '';
-    if (diffDays >= 365)      timeStr = `Hace ${Math.floor(diffDays / 365)} años`;
-    else if (diffDays >= 30)  timeStr = `Hace ${Math.floor(diffDays / 30)} meses`;
-    else if (diffDays > 1)    timeStr = `Hace ${diffDays} días`;
-    else if (diffHours > 1)   timeStr = `Hace ${diffHours} horas`;
-    else                      timeStr = 'Hace menos de una hora';
-    infoEl.innerHTML = timeStr || 'Nunca jugado';
+  const infoEl   = document.getElementById('gp-playtime-info');
+  const detailEl = document.getElementById('gp-playtime-detail');
+  if (!infoEl || !detailEl) return;
+
+  const pc = g.playtime_minutes_pc || 0;
+  const android = g.playtime_minutes_android || 0;
+  const total = pc + android;
+  const last = _relTimeStr(g.last_played_at);
+
+  if (total > 0) {
+    infoEl.innerHTML = `<strong>${_fmtMinutes(total)}</strong> totales${last ? ` · última sesión: ${last}` : ''}`;
+    // JUEGOS-UX-9: el desglose deja claro qué origen aún no tiene datos
+    const pcPart = pc > 0 ? `PC: ${_fmtMinutes(pc)}` : 'PC: sin datos';
+    const abPart = android > 0 ? `Consola: ${_fmtMinutes(android)}` : 'Consola: sin datos';
+    detailEl.textContent = `${pcPart} · ${abPart}`;
   } else {
-    infoEl.innerHTML = 'Nunca jugado';
+    infoEl.textContent = last ? `Última sesión: ${last}` : 'Nunca jugado';
+    detailEl.textContent = 'Sin datos de RetroArch aún — pulsa ↻ Actualizar para leer los logs de tiempo.';
   }
-  hoursEl.value = '';
-  minsEl.value  = '';
 }
 
-export function gpLogPlaytime() {
-  const hoursEl = document.getElementById('gp-playtime-hours');
-  const minsEl  = document.getElementById('gp-playtime-mins');
-  if (!hoursEl || !minsEl) return;
-  const hours = parseInt(hoursEl.value) || 0;
-  const mins  = parseInt(minsEl.value)  || 0;
-  if (hours === 0 && mins === 0) { alert('Ingresa al menos 1 minuto de juego'); return; }
-  if (mins > 59) { alert('Los minutos deben estar entre 0 y 59'); return; }
-  alert(`Sesión registrada: ${hours}h ${mins}m (${hours * 60 + mins} min)`);
-  hoursEl.value = '';
-  minsEl.value  = '';
+export async function gpRefreshPlaytime() {
+  const btn = document.getElementById('gp-playtime-refresh');
+  const gameId = _gpGameId;
+  if (btn) { btn.disabled = true; btn.textContent = 'Escaneando…'; }
+  try {
+    const r = await apiPost('/api/playtime-scan', {});
+    if (r.status === 'already_running') { showToast('Ya hay un escaneo en curso', 'info'); return; }
+    // Poll hasta que el job termine (el pull adb puede tardar)
+    const result = await new Promise((resolve, reject) => {
+      const t = setInterval(async () => {
+        try {
+          const s = await apiFetch('/api/job-status');
+          if (!s.playtime_scan_running) { clearInterval(t); resolve(s.playtime_scan_result || {}); }
+        } catch(e) { clearInterval(t); reject(e); }
+      }, 2000);
+    });
+    const notes = [result.pc_note, result.android_note].filter(Boolean).join(' · ');
+    showToast(`✓ Tiempo actualizado — PC: ${result.pc_matched || 0} juegos, Consola: ${result.android_matched || 0}${notes ? ` (${notes})` : ''}`, 'ok', 5000);
+    if (gameId && gameId === _gpGameId) {
+      const full = await apiFetch('/api/game?id=' + gameId);
+      if (!full.error) gpShowPlaytimeInfo(full);
+    }
+  } catch(e) {
+    showToast('Error al escanear tiempo de juego: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#x21BB; Actualizar'; }
+  }
 }
 
 export function openGamePanel(g) {
@@ -565,6 +599,8 @@ export function openGamePanel(g) {
   if (_raSection) _raSection.classList.add('hidden');
   const _raProgress = document.getElementById('gp-ra-user-progress');
   if (_raProgress) _raProgress.textContent = '';
+  const _raAch = document.getElementById('gp-ra-achievements');
+  if (_raAch) _raAch.innerHTML = '';
   const _savesInfo = document.getElementById('gp-saves-info');
   if (_savesInfo) _savesInfo.classList.add('hidden');
   document.getElementById('game-panel').dataset.sourcePath = g.source_path || '';
@@ -646,9 +682,52 @@ async function _gpLoadRaProgress(raGameId) {
     const pts = d.points_earned > 0 ? ` · ${d.points_earned}/${d.points_total} pts` : '';
     const color = pct >= 100 ? '#ffcc00' : pct >= 50 ? 'var(--c-teal)' : '#888';
     el.innerHTML = `<span style="color:${color};font-weight:600">${d.unlocked}/${d.total} logros (${pct}%)</span>${hc}${pts}`;
+    _gpRenderAchievements(d.achievements || []);
   } catch(_) {
     el.textContent = '';
   }
+}
+
+// JUEGOS-UX-2/3: lista de logros desbloqueados/pendientes con iconos lazy
+let _gpAchUid = 0;
+
+function _gpAchRow(a) {
+  const badge = a.badge_url
+    ? `<img src="${a.badge_url}" loading="lazy" width="24" height="24" style="border-radius:3px;flex-shrink:0${a.earned ? '' : ';filter:grayscale(1)'}" alt="">`
+    : '';
+  const hcTag = a.earned_hardcore ? ' · <span style="color:#ffcc00">hardcore</span>' : '';
+  return `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid #1c1c2a${a.earned ? '' : ';opacity:.55'}">
+    ${badge}
+    <div style="min-width:0;flex:1">
+      <div style="color:var(--c-text)">${a.earned ? '🏆' : '🔒'} ${_h(a.title)} <span style="color:var(--c-dim)">· ${a.points} pts${hcTag}</span></div>
+      <div style="color:var(--c-hint);font-size:10px">${_h(a.description)}</div>
+    </div>
+  </div>`;
+}
+
+function _gpAchGroup(label, labelColor, items, limit = 10) {
+  if (!items.length) return '';
+  const uid = 'gpach_' + (++_gpAchUid);
+  const visible = items.slice(0, limit).map(_gpAchRow).join('');
+  const rest = items.slice(limit);
+  let html = `<div style="color:${labelColor};font-weight:600;margin:8px 0 2px">${label} (${items.length})</div>`;
+  html += visible;
+  if (rest.length) {
+    html += `<div id="${uid}_rest" class="hidden">${rest.map(_gpAchRow).join('')}</div>`;
+    html += `<button id="${uid}_btn" onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');var open=!r.classList.contains('hidden');r.classList.toggle('hidden',open);b.textContent=open?'▼ Ver todos (${items.length})':'▲ Mostrar menos';})()" style="background:none;border:none;color:var(--c-blue);font-size:11px;cursor:pointer;padding:3px 0">▼ Ver todos (${items.length})</button>`;
+  }
+  return html;
+}
+
+function _gpRenderAchievements(achievements) {
+  const el = document.getElementById('gp-ra-achievements');
+  if (!el) return;
+  if (!achievements.length) { el.innerHTML = ''; return; }
+  const earned  = achievements.filter(a => a.earned);
+  const pending = achievements.filter(a => !a.earned);
+  el.innerHTML =
+    _gpAchGroup('Desbloqueados', 'var(--c-teal)', earned) +
+    _gpAchGroup('Pendientes', 'var(--c-muted)', pending);
 }
 
 export function closeGamePanel() {

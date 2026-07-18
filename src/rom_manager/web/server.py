@@ -199,6 +199,8 @@ def make_handler(
     _h_play_history.register(
         _router,
         repository=repository,
+        config=config,
+        job_manager=_job_manager,
     )
 
     _h_esde.register(
