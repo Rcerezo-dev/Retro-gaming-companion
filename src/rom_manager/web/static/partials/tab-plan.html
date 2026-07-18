@@ -25,13 +25,7 @@
       </select>
     </label>
     <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
-      <!-- D8-2: device filter for plan -->
-      <select id="plan-device-filter" onchange="loadPlan()" title="Filtrar operaciones por dispositivo"
-        style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:12px">
-        <option value="">Todos los dispositivos</option>
-        <option value="pc">Solo PC</option>
-        <option value="android">Solo Consola Android</option>
-      </select>
+      <!-- PLAN-UX-3: el filtro por dispositivo se retiró — el selector global PC/Consola ya cumple esa función -->
       <button id="btn-apply" class="btn primary" onclick="doApply()" disabled>Renombrar</button>
       <button id="btn-resolve-conflicts" class="btn hidden" onclick="applyKeepBoth()">Resolver conflictos</button>
       <!-- D8-3: RA conflict resolver button -->
