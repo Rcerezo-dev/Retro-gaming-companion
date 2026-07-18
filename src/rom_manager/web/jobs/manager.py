@@ -22,6 +22,7 @@ JOB_NAMES: tuple[str, ...] = (
     "backup_now",
     "tree_diff",
     "verify_chd",
+    "playtime_scan",
 )
 
 
@@ -139,6 +140,7 @@ class JobManager:
             "backup_now_running": running.get("backup_now", False),
             "tree_diff_running": running.get("tree_diff", False),
             "verify_chd_running": running.get("verify_chd", False),
+            "playtime_scan_running": running.get("playtime_scan", False),
             # results
             "scan_result": r.get("scan"),
             "match_result": r.get("match"),
@@ -156,6 +158,7 @@ class JobManager:
             "backup_now_result": r.get("backup_now"),
             "tree_diff_result": r.get("tree_diff"),
             "verify_chd_result": r.get("verify_chd"),
+            "playtime_scan_result": r.get("playtime_scan"),
             # progress
             "chd_progress": _prog("convert_chd"),
             "cso_progress": _prog("convert_cso"),

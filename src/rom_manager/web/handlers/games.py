@@ -395,6 +395,7 @@ def register(
                        g.play_status, g.last_played_at, g.file_type,
                        g.notes, g.is_favorite,
                        g.user_rating, g.play_count, g.first_played_at,
+                       g.playtime_minutes_pc, g.playtime_minutes_android,
                        m.title AS ss_title, m.year, m.genre, m.publisher,
                        m.developer, m.description, m.rating, m.box_art_url,
                        m.box_art_path, m.scraped_at, m.ss_game_id
@@ -482,12 +483,35 @@ def register(
             ctx._send_json({"error": str(exc)})
             return
 
+        # JUEGOS-UX-1: RA ya envía la lista completa de logros en esta misma
+        # respuesta — exponerla en vez de descartarla.
+        achievements = []
+        for a in (data.get("Achievements") or {}).values():
+            badge = a.get("BadgeName") or ""
+            achievements.append(
+                {
+                    "id": a.get("ID"),
+                    "title": a.get("Title") or "",
+                    "description": a.get("Description") or "",
+                    "points": int(a.get("Points", 0) or 0),
+                    "badge_url": (
+                        f"https://media.retroachievements.org/Badge/{badge}.png" if badge else ""
+                    ),
+                    "earned": bool(a.get("DateEarned") or a.get("DateEarnedHardcore")),
+                    "earned_hardcore": bool(a.get("DateEarnedHardcore")),
+                    "earned_at": a.get("DateEarned") or a.get("DateEarnedHardcore") or None,
+                    "display_order": int(a.get("DisplayOrder", 0) or 0),
+                }
+            )
+        achievements.sort(key=lambda x: (not x["earned"], x["display_order"]))
+
         result = {
             "total": int(data.get("NumAchievements", 0) or 0),
             "unlocked": int(data.get("NumAwardedToUser", 0) or 0),
             "hardcore": int(data.get("NumAwardedToUserHardcore", 0) or 0),
             "points_earned": int(data.get("ScoreAchieved", 0) or 0),
             "points_total": int(data.get("PossibleScore", 0) or 0),
+            "achievements": achievements,
             "_ts": time.time(),
         }
         _ra_progress_cache[cache_key] = result

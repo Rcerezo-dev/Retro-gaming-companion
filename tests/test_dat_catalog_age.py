@@ -17,7 +17,10 @@ def _touch(path: Path, age_days: float = 0.0) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"\x00")
     if age_days:
-        mtime = time.time() - age_days * 86_400
+        # -1s de margen: en Windows time.time() y datetime.now() comparten un
+        # reloj que avanza en ticks (~15.6ms); dentro del mismo tick la resta
+        # puede dar age_days*86400 - 1µs por redondeo float y .days cae en N-1.
+        mtime = time.time() - age_days * 86_400 - 1
         import os
 
         os.utime(path, (mtime, mtime))

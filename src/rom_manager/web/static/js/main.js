@@ -74,7 +74,7 @@ import {
   _renderInboxResult,
   loadInboxConflicts,
   resolveInboxConflict,
-  saveInboxSettings,
+  saveInboxSettings, autoSaveInboxToggle,
   _pollInboxWatcher,
 } from './tabs/inbox.js';
 import {
@@ -85,7 +85,7 @@ import {
   _platHex, _platBadge, fmtSize,
   loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
   _gpSetFavStar,
-  gpShowPlaytimeInfo, gpLogPlaytime,
+  gpShowPlaytimeInfo, gpRefreshPlaytime,
   openGamePanel, closeGamePanel,
   gpSetStatus, gpToggleFavorite,
   gpAddTag, gpRemoveTag,
@@ -206,7 +206,7 @@ Object.assign(window, {
   _platHex, _platBadge, fmtSize,
   loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
   _gpSetFavStar,
-  gpShowPlaytimeInfo, gpLogPlaytime,
+  gpShowPlaytimeInfo, gpRefreshPlaytime,
   openGamePanel, closeGamePanel,
   gpSetStatus, gpToggleFavorite,
   gpAddTag, gpRemoveTag,
@@ -314,7 +314,7 @@ Object.assign(window, {
   _renderInboxResult,
   loadInboxConflicts,
   resolveInboxConflict,
-  saveInboxSettings,
+  saveInboxSettings, autoSaveInboxToggle,
   _pollInboxWatcher,
   // sync.js
   loadSync,

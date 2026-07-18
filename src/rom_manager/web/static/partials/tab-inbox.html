@@ -25,11 +25,11 @@
 
     <div class="actions-row" style="margin-bottom:16px;gap:20px;align-items:center">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--c-text)">
-        <input type="checkbox" id="inbox-delete-source" style="accent-color:var(--c-blue)">
+        <input type="checkbox" id="inbox-delete-source" style="accent-color:var(--c-blue)" onchange="autoSaveInboxToggle()">
         Eliminar ZIPs originales tras organizar
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--c-text)">
-        <input type="checkbox" id="inbox-auto-process" style="accent-color:var(--c-blue)">
+        <input type="checkbox" id="inbox-auto-process" style="accent-color:var(--c-blue)" onchange="autoSaveInboxToggle()">
         Procesar automáticamente (daemon)
       </label>
     </div>
@@ -53,6 +53,7 @@
             <th style="text-align:left;padding:4px 8px">Archivo</th>
             <th style="text-align:left;padding:4px 8px">Tipo</th>
             <th style="text-align:left;padding:4px 8px">Plataforma</th>
+            <th style="text-align:left;padding:4px 8px">Destino</th>
             <th style="text-align:right;padding:4px 8px">Tamaño</th>
             <th style="text-align:left;padding:4px 8px">Estado</th>
           </tr>

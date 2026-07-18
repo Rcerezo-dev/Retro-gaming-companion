@@ -26,6 +26,7 @@ def _config(**overrides) -> SimpleNamespace:
             sync_sources=[],
             ra_config_dir="",
             ra_config_remote="",
+            playtime_remote="",
             saves_remote="",
             states_remote="",
             conflict_policy="newest",
