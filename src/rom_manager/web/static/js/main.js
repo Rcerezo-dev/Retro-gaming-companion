@@ -132,6 +132,7 @@ import {
 import {
   loadSync,
   loadAssets,
+  showOrphanAssets,
   loadSystemStatus,
   detectCloudFolder,
   useCloudFolder,
@@ -317,6 +318,7 @@ Object.assign(window, {
   // sync.js
   loadSync,
   loadAssets,
+  showOrphanAssets,
   loadSystemStatus,
   detectCloudFolder,
   useCloudFolder,
