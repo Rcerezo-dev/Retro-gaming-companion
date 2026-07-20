@@ -1,34 +1,43 @@
 <div id="tab-collection" class="tab">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-    <h3 style="margin:0">Colección</h3>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select onchange="colSort(this.value)"
-        style="background:var(--c-input);border:1px solid #444;color:var(--c-muted);padding:5px 8px;border-radius:4px;font:inherit;font-size:12px">
-        <option value="">Ordenar: plataforma</option>
-        <option value="last_played">Jugados recientemente</option>
-        <option value="title">Título</option>
-      </select>
-      <input id="col-search" type="text" placeholder="Buscar…"
-        oninput="colSearch(this.value)"
-        style="background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:5px 10px;border-radius:4px;font:inherit;font-size:12px;width:180px">
-    </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0">An&#xe1;lisis</h3>
   </div>
-  <!-- Export & Stats buttons -->
+  <!-- COLECCION-UX-2: la galería duplicada se retiró — la única galería es Juegos -->
+  <p style="color:var(--c-dim);font-size:12px;margin-bottom:14px">
+    Dashboard de tu biblioteca: estad&#xed;sticas, uso de disco, comparaci&#xf3;n PC/Android, completitud vs cat&#xe1;logos y wishlist.
+    Para explorar y abrir juegos usa la pesta&#xf1;a <a href="#" onclick="goToGames();return false" style="color:var(--c-blue)">Juegos</a>.
+  </p>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('csv')">⬇ CSV</button>
-    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportCollection('json')">⬇ JSON</button>
-    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleColStats()" id="btn-col-stats">📊 Stats</button>
-    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="togglePlatformHealth()" id="btn-platform-health">🏥 Health</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiff()" id="btn-col-diff">🔀 Comparar</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiskUsage()" id="btn-disk-usage">💾 Disco</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleCompleteness()" id="btn-completeness">📋 Completitud</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
+  </div>
+  <!-- Stats panel (visible al entrar: es la portada del dashboard) -->
+  <div class="rv-tint-neutral" id="col-stats-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div id="col-stat-total"></div>
+      <div style="flex:1;min-width:200px">
+        <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Estado de juego</div>
+        <div id="col-bar-status"></div>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Regi&#xf3;n</div>
+        <div id="col-bar-region"></div>
+      </div>
+      <div><canvas id="col-pie" width="120" height="120"></canvas></div>
+    </div>
   </div>
   <!-- Completeness panel (P5) -->
   <div class="hidden rv-tint-neutral" id="col-completeness-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <span style="color:var(--c-orange);font-size:13px;font-weight:600">Completitud de colección (vs. base de datos de juegos · DAT)</span>
-      <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadCollectionStats()">&#x27F3; Actualizar</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+      <span style="color:var(--c-orange);font-size:13px;font-weight:600">Completitud de colecci&#xf3;n (vs. base de datos de juegos &#xb7; DAT)</span>
+      <div style="display:flex;gap:6px">
+        <!-- COLECCION-UX-4: lista de faltantes con acciones (copiar, Archive, wishlist) -->
+        <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadMissingRoms()">📥 Ver ROMs faltantes</button>
+        <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadCollectionStats()">&#x27F3; Actualizar</button>
+      </div>
     </div>
     <div id="collection-stats"></div>
   </div>
@@ -39,28 +48,6 @@
       <button class="btn" style="padding:2px 8px;font-size:11px" onclick="loadDiskUsage()">&#x27F3; Actualizar</button>
     </div>
     <div id="col-disk-content"></div>
-  </div>
-  <!-- Stats panel -->
-  <div class="hidden rv-tint-neutral" id="col-stats-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
-    <div style="display:flex;gap:24px;flex-wrap:wrap">
-      <div id="col-stat-total"></div>
-      <div style="flex:1;min-width:200px">
-        <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Estado de juego</div>
-        <div id="col-bar-status"></div>
-      </div>
-      <div style="flex:1;min-width:160px">
-        <div style="color:var(--c-muted);font-size:11px;margin-bottom:8px">Región</div>
-        <div id="col-bar-region"></div>
-      </div>
-      <div><canvas id="col-pie" width="120" height="120"></canvas></div>
-    </div>
-  </div>
-  <!-- Plataformas -->
-  <div id="col-platform-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--c-border)"></div>
-  <!-- Grid -->
-  <div id="col-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px"></div>
-  <div style="text-align:center;margin-top:16px">
-    <button id="col-load-more" class="btn hidden" onclick="colLoadMore()">Cargar m&#xe1;s</button>
   </div>
 
   <!-- Library diff panel (B3) -->
@@ -100,26 +87,17 @@
     </div>
   </div>
 
-  <!-- QoL-4: Platform health dashboard -->
-  <div class="hidden rv-tint-neutral" id="platform-health-panel" style="border-radius:8px;padding:16px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-      <span style="color:var(--c-muted);font-size:11px">Última actualización:</span>
-      <span id="ph-last-scan" style="color:var(--c-dim);font-size:11px">—</span>
-      <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:auto" onclick="loadPlatformHealth()">&#x27F3; Actualizar</button>
-    </div>
-    <div id="ph-table" style="overflow-x:auto"></div>
-  </div>
-
-  <!-- LEGACY: Completion stats section (hidden but preserved) -->
-  <div class="hidden" id="missing-section">
+  <!-- COLECCION-UX-4: ROMs faltantes (recuperado — se abre desde Completitud) -->
+  <div class="hidden rv-tint-neutral" id="missing-section" style="border-radius:8px;padding:16px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
       <h4 style="margin:0;color:var(--c-orange)">ROMs faltantes</h4>
       <select id="missing-plat-filter" onchange="filterMissingByPlatform()" style="font-size:12px;background:var(--c-panel);color:var(--c-strong);border:1px solid var(--c-border);padding:3px 8px;border-radius:4px">
         <option value="">Todas las plataformas</option>
-        </select>
-        <span id="missing-count" style="color:var(--c-hint);font-size:12px"></span>
-      </div>
-      <div id="missing-list" style="max-height:520px;overflow-y:auto"></div>
+      </select>
+      <span id="missing-count" style="color:var(--c-hint);font-size:12px"></span>
+      <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:auto" onclick="document.getElementById('missing-section').classList.add('hidden')">✕ Cerrar</button>
     </div>
+    <div id="missing-list" style="max-height:520px;overflow-y:auto"></div>
   </div>
 
+</div>

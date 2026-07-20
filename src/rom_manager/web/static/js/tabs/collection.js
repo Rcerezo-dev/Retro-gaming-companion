@@ -1,5 +1,6 @@
-// js/tabs/collection.js — Colección: Missing, Gallery, Export, Stats
-// Extracted from app.js during Phase 2 migration.
+// js/tabs/collection.js — Análisis: Stats, Disco, Diff PC/Android, Completitud,
+// ROMs faltantes y Wishlist. La galería duplicada se retiró (COLECCION-UX-2):
+// la única galería de juegos es la pestaña Juegos.
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
@@ -12,18 +13,24 @@ const _txtCls = (el, cls) => {
 
 // ── Module state ──────────────────────────────────────────────────────────────
 let _collectionPlatforms = [];
-let _colPlatform = '';
-let _colSearch = '';
-let _colSortBy = '';
-let _colOffset = 0;
-const _COL_PAGE = 30;
-let _colRoot = null;
 
-function _fmtDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+// COLECCION-UX-5: paneles-acordeón exclusivos — abrir uno cierra los demás
+const _ANALYSIS_PANELS = [
+  'col-stats-panel', 'col-completeness-panel', 'col-disk-panel',
+  'col-diff-panel', 'missing-section',
+];
+
+function _showOnlyPanel(id) {
+  _ANALYSIS_PANELS.forEach(p => {
+    const el = document.getElementById(p);
+    if (el) el.classList.toggle('hidden', p !== id);
+  });
+}
+
+// Enlace "ver en Juegos" con el filtro de plataforma aplicado (COLECCION-UX-2)
+function _platLink(platform, style) {
+  const esc = platform.replace(/'/g, "\'");
+  return `<a href="#" onclick="goToGames(null,'','','${esc}');return false" style="${style};text-decoration:none" title="Ver en Juegos">${window._h(platform)}</a>`;
 }
 
 // ── Colección: Missing + Estadísticas ────────────────────────────────────────
@@ -44,7 +51,7 @@ async function loadCollectionStats() {
       const barColor = pct >= 80 ? 'var(--c-teal)' : pct >= 40 ? 'var(--c-yellow)' : 'var(--c-red)';
       html += `<div style="margin-bottom:8px">`;
       html += `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">`;
-      html += `<span style="color:var(--c-strong)">${window._h(p.platform)}</span>`;
+      html += `<span>${_platLink(p.platform, 'color:var(--c-strong)')}</span>`;
       html += `<span style="color:var(--c-muted)">${p.in_library} / ${p.total} &nbsp;<strong style="color:${barColor}">${pct}%</strong></span>`;
       html += `</div>`;
       html += `<div style="background:var(--c-input);border-radius:3px;height:6px;width:100%">`;
@@ -68,7 +75,7 @@ async function loadMissingRoms() {
   const sel = document.getElementById('missing-plat-filter');
   if (!sec || !listEl) return;
   listEl.innerHTML = '<p class="loading">Cargando faltantes…</p>';
-  sec.classList.remove('hidden');
+  _showOnlyPanel('missing-section');
   try {
     const d = await apiFetch('/api/missing');
     _collectionPlatforms = d.platforms || [];
@@ -126,7 +133,7 @@ function _renderMissingList(platformFilter) {
       const iaUrlEsc = iaUrl.replace(/'/g, "\\'");
       const wlKey = `wl_${entry.sha1}`;
       html += `<tr style="border-bottom:1px solid #1e1e1e" id="${window._h(wlKey)}">`;
-      html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(p.platform)}</td>`;
+      html += `<td style="padding:3px 6px;white-space:nowrap">${_platLink(p.platform, 'color:var(--c-muted)')}</td>`;
       html += `<td style="padding:3px 6px;color:var(--c-strong)">${window._h(entry.title)}</td>`;
       html += `<td style="padding:3px 6px;white-space:nowrap">`;
       html += `<button onclick="navigator.clipboard.writeText('${query.replace(/'/g,"\\'")}').then(()=>showToast('Copiado','ok'))" `;
@@ -165,170 +172,7 @@ async function toggleWishlist(sha1, title, platform, currentStatus) {
   }
 }
 
-// ── S35-5: Collection gallery ────────────────────────────────────────────────
-async function loadCollection() {
-  const root = window._deviceRoot();
-  _colRoot = root;
-  const gridEl = document.getElementById('col-grid');
-  const barEl = document.getElementById('col-platform-bar');
-  const loadMoreBtn = document.getElementById('col-load-more');
-  if (!gridEl || !barEl) return;
-
-  gridEl.innerHTML = '<p class="loading" style="grid-column:1/-1">Cargando colección…</p>';
-  try {
-    const stats = await apiFetch(`/api/platform-stats?root=${encodeURIComponent(root || '')}`);
-    const platforms = stats.platforms || [];
-
-    barEl.innerHTML = '';
-    const allBtn = document.createElement('button');
-    allBtn.className = 'btn' + (_colPlatform === '' ? ' active' : '');
-    allBtn.textContent = 'Todos (' + platforms.reduce((s, p) => s + p.total_games, 0) + ')';
-    allBtn.onclick = () => { _colPlatform = ''; _colOffset = 0; loadCollection(); };
-    allBtn.style.fontSize = '12px';
-    barEl.appendChild(allBtn);
-
-    for (const p of platforms) {
-      const btn = document.createElement('button');
-      btn.className = 'btn platform-tile' + (_colPlatform === p.platform ? ' active' : '');
-      btn.textContent = `${window._h(p.platform)} (${p.total_games})`;
-      btn.onclick = () => colSetPlatform(p.platform);
-      btn.style.fontSize = '12px';
-      barEl.appendChild(btn);
-    }
-
-    const params = new URLSearchParams({
-      root: root || '',
-      platform: _colPlatform,
-      search: _colSearch,
-      offset: _colOffset,
-      limit: _COL_PAGE,
-      sort_by: _colSortBy,
-    });
-    const games = await apiFetch(`/api/games?${params}`);
-    const gameList = games.games || [];
-
-    if (gameList.length === 0 && _colOffset === 0) {
-      gridEl.innerHTML = '<p class="empty" style="grid-column:1/-1">Sin juegos. Escanea tu biblioteca en Inicio.</p>';
-      loadMoreBtn.classList.add('hidden');
-      return;
-    }
-
-    _renderColGrid(gameList, _colOffset > 0);
-    loadMoreBtn.classList.toggle('hidden', !(gameList.length >= _COL_PAGE));
-  } catch (e) {
-    gridEl.innerHTML = `<p class="error-msg" style="grid-column:1/-1">${e.message}</p>`;
-  }
-}
-
-function colSetPlatform(p) {
-  _colPlatform = p;
-  _colOffset = 0;
-  loadCollection();
-}
-
-function colSearch(v) {
-  _colSearch = v;
-  _colOffset = 0;
-  loadCollection();
-}
-
-function colSort(v) {
-  _colSortBy = v;
-  _colOffset = 0;
-  loadCollection();
-}
-
-async function colLoadMore() {
-  _colOffset += _COL_PAGE;
-  const root = window._deviceRoot();
-  const gridEl = document.getElementById('col-grid');
-  if (!gridEl) return;
-
-  try {
-    const params = new URLSearchParams({
-      root: root || '',
-      platform: _colPlatform,
-      search: _colSearch,
-      offset: _colOffset,
-      limit: _COL_PAGE,
-      sort_by: _colSortBy,
-    });
-    const games = await apiFetch(`/api/games?${params}`);
-    const gameList = games.games || [];
-
-    _renderColGrid(gameList, true);
-    const loadMoreBtn = document.getElementById('col-load-more');
-    if (loadMoreBtn) {
-      loadMoreBtn.classList.toggle('hidden', !(gameList.length >= _COL_PAGE));
-    }
-  } catch (e) {
-    showToast(`Error: ${e.message}`, 'err');
-  }
-}
-
-function _renderColGrid(games, append) {
-  const gridEl = document.getElementById('col-grid');
-  if (!gridEl) return;
-
-  if (!append) gridEl.innerHTML = '';
-
-  for (const g of games) {
-    const tile = document.createElement('div');
-    tile.className = 'col-tile';
-    tile.onclick = () => window.openGamePanel(g);
-
-    const playBadge = g.play_count > 0
-      ? `<span class="col-play-badge" title="${g.play_count} sesión(es)">${g.play_count}▶</span>`
-      : '';
-    const raBadge = g.ra_achievements > 0
-      ? `<span class="col-ra-badge" title="${g.ra_achievements} logros RetroAchievements">🏆${g.ra_achievements}</span>`
-      : '';
-    const lastPlayed = g.last_played_at
-      ? `<div class="col-last-played">${_fmtDate(g.last_played_at)}</div>`
-      : '';
-    const stars = g.user_rating
-      ? `<div class="col-stars">${'★'.repeat(g.user_rating)}${'☆'.repeat(5 - g.user_rating)}</div>`
-      : '';
-
-    tile.innerHTML = `
-      <div class="col-cover skeleton" style="position:relative">
-        <img src="/api/asset-image?game_id=${g.id}"
-          onload="this.parentElement.classList.remove('skeleton')"
-          onerror="this.parentElement.classList.remove('skeleton');this.parentElement.innerHTML='<span>🎮</span>'">
-        ${playBadge}
-        ${raBadge}
-      </div>
-      <div class="col-title">${window._h(g.canonical_title || g.original_filename)}</div>
-      <div class="col-plat">${window._h(g.platform || '')}</div>
-      ${stars}
-      ${lastPlayed}
-    `;
-    gridEl.appendChild(tile);
-  }
-}
-
 // ── S36: Export & Stats ──────────────────────────────────────────────────────
-async function exportCollection(fmt) {
-  const root = window._deviceRoot() || '';
-  try {
-    const res = await fetch(`/api/export-library?root=${encodeURIComponent(root)}&format=${fmt}`);
-    if (!res.ok) {
-      showToast('Error exportando', 'err');
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `retro-vault-${fmt}.${fmt}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(`✓ Descargado: retro-vault-${fmt}.${fmt}`, 'ok');
-  } catch (e) {
-    showToast(`Error: ${e.message}`, 'err');
-  }
-}
-
 async function exportWishlist() {
   const root = window._deviceRoot() || '';
   try {
@@ -407,7 +251,7 @@ function _renderPie(canvasId, rows) {
 function toggleDiff() {
   const panel = document.getElementById('col-diff-panel');
   if (panel.classList.contains('hidden')) {
-    panel.classList.remove('hidden');
+    _showOnlyPanel('col-diff-panel');
     _populateDiffPlatforms();
     loadLibraryDiff();
   } else {
@@ -576,7 +420,7 @@ async function syncSelected() {
 function toggleColStats() {
   const panel = document.getElementById('col-stats-panel');
   if (panel.classList.contains('hidden')) {
-    panel.classList.remove('hidden');
+    _showOnlyPanel('col-stats-panel');
     loadCollectionStatsV2();
   } else {
     panel.classList.add('hidden');
@@ -587,7 +431,7 @@ function toggleColStats() {
 function toggleCompleteness() {
   const panel = document.getElementById('col-completeness-panel');
   if (panel.classList.contains('hidden')) {
-    panel.classList.remove('hidden');
+    _showOnlyPanel('col-completeness-panel');
     loadCollectionStats();
   } else {
     panel.classList.add('hidden');
@@ -598,7 +442,7 @@ function toggleCompleteness() {
 function toggleDiskUsage() {
   const panel = document.getElementById('col-disk-panel');
   if (panel.classList.contains('hidden')) {
-    panel.classList.remove('hidden');
+    _showOnlyPanel('col-disk-panel');
     loadDiskUsage();
   } else {
     panel.classList.add('hidden');
@@ -666,8 +510,7 @@ function _fmtBytes(n) {
 export {
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
-  exportCollection, exportWishlist,
+  exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   _diffToggleAll, _syncAllSide,
