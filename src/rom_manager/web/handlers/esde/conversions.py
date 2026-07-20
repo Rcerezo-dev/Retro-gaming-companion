@@ -449,6 +449,59 @@ def register_conversions(
             }
         )
 
+    # ── POST /api/folder-analysis ─────────────────────────────────────────────
+    @router.post("/api/folder-analysis")
+    def post_folder_analysis(ctx) -> None:
+        data = ctx._post_data
+        source_path_str = (data.get("source_path") or "").strip()
+        if not source_path_str:
+            ctx._send_json({"error": "source_path is required"})
+            return
+
+        source = Path(source_path_str)
+        if not source.is_dir():
+            ctx._send_json({"error": "Carpeta no encontrada"})
+            return
+
+        from collections import Counter
+
+        from rom_manager.converters.chd_converter import find_cue_files
+        from rom_manager.converters.n64_converter import scan_n64_roms
+        from rom_manager.detection.cue_validator import validate_cue
+
+        ext_counter: Counter[str] = Counter()
+        for f in source.rglob("*"):
+            if f.is_file():
+                ext_counter[f.suffix.lower() or "(sin extensión)"] += 1
+
+        psx_incomplete = []
+        for cue_path in find_cue_files(source):
+            errors = validate_cue(cue_path)
+            if errors:
+                psx_incomplete.append({"cue": cue_path.name, "errors": errors})
+
+        n64_pending = [
+            {"filename": r["filename"], "format": r["format"]}
+            for r in scan_n64_roms(source)
+            if r["needs_conversion"]
+        ]
+
+        cso_count = len(list(source.rglob("*.cso"))) + len(list(source.rglob("*.zso")))
+        zip_count = len(list(source.rglob("*.zip")))
+
+        ctx._send_json(
+            {
+                "extensions": [
+                    {"ext": ext, "count": count}
+                    for ext, count in sorted(ext_counter.items(), key=lambda kv: -kv[1])
+                ],
+                "psx_incomplete": psx_incomplete,
+                "n64_pending": n64_pending,
+                "cso_count": cso_count,
+                "zip_count": zip_count,
+            }
+        )
+
     # ── POST /api/health-check ────────────────────────────────────────────────
     @router.post("/api/convert-n64")
     def post_convert_n64(ctx) -> None:
