@@ -71,6 +71,13 @@ tiene ningún botón ni enlace para actuar.
 Fix: si existe ya un endpoint que liste los archivos concretos, añadir un
 enlace "Ver" por fila; si no, dejarlo fuera de alcance por ahora (Assets es
 secundario según los 3 pilares) pero anotarlo como limitación conocida.
+✅ Nuevo endpoint `GET /api/assets/orphans?platform=X&root=Y`
+(`web/handlers/collection.py`) sobre `get_orphan_assets()` (ya existía en
+`database/repositories/assets.py`, solo usado desde `cli.py`; se le añadió
+filtro `source_root` para que coincida con el root activo). Cada fila con
+huérfanos en `sync.js` muestra un enlace "Ver" que abre el modal de
+confirmación existente (`_showConfirm`) en modo solo-lectura con la lista de
+archivos (`showOrphanAssets()`).
 
 **ASSETS-UX-5 — El estado vacío no enlaza a la acción que lo resuelve**
 "Ejecuta un Scan para indexar la biblioteca" (`sync.js:94`) es texto plano,

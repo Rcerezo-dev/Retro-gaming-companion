@@ -158,31 +158,39 @@ class AssetsMixin:
             for row in rows
         ]
 
-    def get_orphan_assets(self, *, platform: str | None = None) -> list[dict]:
-        """Return assets in platforms that have no games."""
+    def get_orphan_assets(
+        self, *, platform: str | None = None, source_root: str | None = None
+    ) -> list[dict]:
+        """Return assets in platforms that have no games.
+
+        *source_root* filters to only entries whose source_path starts with that prefix,
+        mirroring :meth:`get_asset_platform_stats` so the counts shown in the Assets tab
+        match the files returned here for the same device root.
+        """
+        prefix = escape_like_prefix(source_root.rstrip("/\\")) + "%" if source_root else None
         with self.connect() as connection:
             if platform:
-                rows = connection.execute(
-                    """
+                sql = """
                     SELECT id, source_path, platform, asset_type
                     FROM assets
                     WHERE platform = ?
                       AND (platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
                            OR platform IS NULL)
-                    ORDER BY platform, source_path
-                    """,
-                    (platform,),
-                ).fetchall()
-            else:
-                rows = connection.execute(
                     """
+                params: tuple = (platform,)
+            else:
+                sql = """
                     SELECT id, source_path, platform, asset_type
                     FROM assets
-                    WHERE platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
-                       OR platform IS NULL
-                    ORDER BY platform, source_path
+                    WHERE (platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
+                           OR platform IS NULL)
                     """
-                ).fetchall()
+                params = ()
+            if prefix:
+                sql += " AND source_path LIKE ? ESCAPE '\\'"
+                params += (prefix,)
+            sql += " ORDER BY platform, source_path"
+            rows = connection.execute(sql, params).fetchall()
         return [
             {
                 "id": row["id"],

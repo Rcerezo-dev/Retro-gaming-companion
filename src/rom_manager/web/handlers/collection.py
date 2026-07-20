@@ -73,6 +73,21 @@ def register(
 
             ctx._send_error(500, f"Asset query failed: {str(e)} | {traceback.format_exc()}")
 
+    # ── GET /api/assets/orphans ─────────────────────────────────────────────────
+    @router.get("/api/assets/orphans")
+    def get_assets_orphans(ctx) -> None:
+        try:
+            qs = getattr(ctx, "_qs", {})
+            src_root = qs.get("root", [None])[0] or None
+            platform = qs.get("platform", [None])[0] or None
+            orphans_repo = get_repo_fn(src_root or "")
+            files = orphans_repo.get_orphan_assets(platform=platform, source_root=src_root)
+            ctx._send_json({"platform": platform, "files": files})
+        except Exception as e:
+            import traceback
+
+            ctx._send_error(500, f"Orphan asset query failed: {str(e)} | {traceback.format_exc()}")
+
     # ── GET /api/asset-image ──────────────────────────────────────────────────
     @router.get("/api/asset-image")
     def get_asset_image(ctx) -> None:
