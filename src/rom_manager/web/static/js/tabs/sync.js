@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 import { getActiveDevice, getDevName } from '../state.js';
 
 const _txtCls = (el, cls) => {
@@ -134,12 +135,34 @@ async function loadAssets() {
       <td style="text-align:right;color:${s.image_count ? 'var(--c-teal)' : '#555'}">${s.image_count}</td>
       <td style="text-align:right;color:${s.video_count ? 'var(--c-teal)' : '#555'}">${s.video_count}</td>
       <td style="text-align:right;color:${s.xml_count ? 'var(--c-teal)' : '#555'}">${s.xml_count}</td>
-      <td style="text-align:right;color:${s.orphan_assets ? 'var(--c-red)' : '#555'}">${s.orphan_assets || '—'}</td>
+      <td style="text-align:right;color:${s.orphan_assets ? 'var(--c-red)' : '#555'}">${s.orphan_assets
+        ? `${s.orphan_assets} &nbsp;<a href="#" onclick="showOrphanAssets('${s.platform.replace(/'/g, "\\'")}');return false" style="color:var(--c-teal);font-size:11px">Ver</a>`
+        : '—'}</td>
     </tr>`).join('');
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message} — Comprueba la ruta configurada en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Ajustes</a>.</p>`;
+  }
+}
+
+// ASSETS-UX-4: lista de archivos huérfanos concretos de una plataforma
+async function showOrphanAssets(platform) {
+  const esc = window._h || (s => s);
+  try {
+    const root = _deviceRoot();
+    let url = `/api/assets/orphans?platform=${encodeURIComponent(platform)}`;
+    if (root) url += `&root=${encodeURIComponent(root)}`;
+    const d = await apiFetch(url);
+    const files = d.files || [];
+    const body = files.length
+      ? `<ul style="max-height:320px;overflow-y:auto;margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+          ${files.map(f => `<li title="${esc(f.source_path)}">${esc(f.asset_type)} &nbsp;·&nbsp; ${esc(f.source_path)}</li>`).join('')}
+        </ul>`
+      : '<p class="empty">No se encontraron archivos huérfanos para esta plataforma.</p>';
+    _showConfirm(`Huérfanos — ${platform} (${files.length})`, body, 'Cerrar', () => {});
+  } catch (e) {
+    showToast(`No se pudo cargar la lista: ${e.message}`, 'err');
   }
 }
 
@@ -1854,6 +1877,7 @@ export {
   // Cloud Sync
   loadSync,
   loadAssets,
+  showOrphanAssets,
   loadSystemStatus,
   detectCloudFolder,
   useCloudFolder,
