@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.utils.paths import is_device_path
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -650,7 +651,13 @@ def _do_migrate_split_db(
                 "FROM games"
             ).fetchall()
 
-        android_rows = [r for r in rows if not r["source_path"].lower().startswith(lib_root)]
+        # VAL-FIX-2: "not under library_root" es una heurística negativa — cualquier
+        # fila de PC fuera de library_root (mayúsculas, barra final, otra unidad
+        # histórica) se migraba a Android igualmente. Clasificar por pertenencia
+        # real: anbernic_root o ruta POSIX estilo ADB.
+        android_rows = [
+            r for r in rows if is_device_path(r["source_path"], anbernic_root=config.anbernic_root)
+        ]
 
         from rom_manager.scanner.rom_scanner import utc_now as _now
 
@@ -698,7 +705,9 @@ def _do_migrate_split_db(
             ).fetchall()
 
         android_saves = [
-            r for r in save_rows if not r["original_path"].lower().startswith(lib_root)
+            r
+            for r in save_rows
+            if is_device_path(r["original_path"], anbernic_root=config.anbernic_root)
         ]
         if android_saves:
             migrated_save_paths: set[str] = set()

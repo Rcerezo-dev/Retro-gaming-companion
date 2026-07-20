@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
 
 if TYPE_CHECKING:
@@ -45,6 +46,16 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
 
     # File already gone: just clean the DB row.
     if not p.exists():
+        # TABS-FIX-1: a device path (ADB scan, e.g. /storage/...) is never a
+        # valid Windows path — Path.exists() is always False here even when
+        # the file is alive on the console. Treating that as "genuinely gone"
+        # deleted the DB row and reported success while the real duplicate
+        # stayed on the device and reappeared on the next ADB scan.
+        if is_device_path(source_path):
+            return False, (
+                f"{p.name}: ruta de consola — conecta el dispositivo para verificar "
+                "si el archivo sigue ahí; no se ha tocado la fila de la base de datos"
+            )
         try:
             _delete_row(repository, source_path)
             return True, None

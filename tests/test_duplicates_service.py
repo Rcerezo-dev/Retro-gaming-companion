@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+import pytest
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.services.duplicates_service import (
     delete_all_duplicates,
     delete_duplicate,
 )
+
+# TABS-FIX-1's device-path detection only applies on Windows — a bare leading
+# "/" is a normal, verifiable local path on POSIX (see utils/paths.is_device_path).
+_windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows-only device-path detection")
 
 _TS = "2024-01-01T00:00:00"
 _SHA1_A = "A" * 40
@@ -93,6 +100,23 @@ def test_delete_duplicate_file_already_gone_still_cleans_db(tmp_path: Path) -> N
         assert conn.execute("SELECT COUNT(*) AS n FROM games").fetchone()["n"] == 0
 
 
+@_windows_only
+def test_delete_duplicate_device_path_unreachable_does_not_touch_db(tmp_path: Path) -> None:
+    """TABS-FIX-1: a device path (ADB scan) is never reachable via Path.exists()
+    on Windows even when the file is alive on the console — must not silently
+    delete the DB row and report success."""
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path, sha1=_SHA1_A)
+    gid = _game_id(repo, device_path)
+
+    result = delete_duplicate(repo, game_id=gid)
+
+    assert "error" in result
+    with repo.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) AS n FROM games").fetchone()["n"] == 1
+
+
 def test_delete_all_duplicates_keeps_canonical_deletes_rest(tmp_path: Path) -> None:
     canonical = tmp_path / "a1.gb"
     dup = tmp_path / "a2.gb"
@@ -116,6 +140,34 @@ def test_delete_all_duplicates_keeps_canonical_deletes_rest(tmp_path: Path) -> N
     assert canonical.exists()
     assert not dup.exists()
     assert unique.exists()
+
+
+@_windows_only
+def test_delete_all_duplicates_device_path_counted_unreachable_not_deleted(
+    tmp_path: Path,
+) -> None:
+    """TABS-FIX-1: a duplicate entry that's a device path (ADB scan) must not
+    be silently cleaned from the DB — it's counted separately as
+    'unreachable', not 'skipped' (which means 'genuinely gone from this PC').
+    Both entries are device paths (alphabetically ordered: get_duplicate_groups
+    orders by source_path, and any POSIX '/...' path sorts before a Windows
+    drive-letter path, so a real local file could never land in entries[1:]
+    alongside one — this reproduces the actual bug shape either way)."""
+    device_canonical = "/storage/emulated/0/RetroArch/roms/gb/a1.gb"
+    device_dup = "/storage/emulated/0/RetroArch/roms/gb/a2.gb"
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_canonical, sha1=_SHA1_A, size_bytes=2048)
+    _insert_game(repo, source_path=device_dup, sha1=_SHA1_A, size_bytes=2048)
+
+    result = delete_all_duplicates(repo)
+
+    assert result["deleted"] == 0
+    assert result["skipped"] == 0
+    assert result["unreachable"] == 1
+    with repo.connect() as conn:
+        remaining = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+    assert device_dup in remaining  # row untouched, not phantom-deleted
 
 
 def test_delete_all_duplicates_respects_platform_filter(tmp_path: Path) -> None:

@@ -5,6 +5,8 @@ import os
 import time
 from pathlib import Path
 
+import pytest
+
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.services.ra_duplicates_service import (
@@ -14,6 +16,10 @@ from rom_manager.services.ra_duplicates_service import (
     get_ra_hash_lib,
     resolve_duplicate_ra,
 )
+
+# TABS-FIX-1's device-path detection only applies on Windows — a bare leading
+# "/" is a normal, verifiable local path on POSIX (see utils/paths.is_device_path).
+_windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows-only device-path detection")
 
 _TS = "2024-01-01T00:00:00"
 
@@ -68,6 +74,23 @@ def test_discard_ra_duplicate_file_already_gone(tmp_path: Path) -> None:
 
     assert result == {"ok": True, "note": "file already missing; removed from DB"}
     assert _count(repo) == 0
+
+
+@_windows_only
+def test_discard_ra_duplicate_device_path_unreachable_does_not_touch_db(
+    tmp_path: Path,
+) -> None:
+    """TABS-FIX-1: a device path (ADB scan) is never reachable via Path.exists()
+    on Windows even when the file is alive on the console — must not silently
+    delete the DB row and report success."""
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path)
+
+    result = discard_ra_duplicate(repo, device_path)
+
+    assert "error" in result
+    assert _count(repo) == 1
 
 
 def test_discard_ra_duplicate_dest_collision_deletes_source(tmp_path: Path) -> None:

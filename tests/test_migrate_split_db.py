@@ -21,9 +21,10 @@ class _FakeCtx:
         self.out = obj
 
 
-def _config(tmp_path: Path) -> SimpleNamespace:
+def _config(tmp_path: Path, anbernic_root: str | None = None) -> SimpleNamespace:
     return SimpleNamespace(
         library_root=tmp_path / "pc",
+        anbernic_root=anbernic_root or str(tmp_path / "android"),
         database_path=tmp_path / "pc.db",
         database_path_android=tmp_path / "android.db",
     )
@@ -84,3 +85,37 @@ def test_failed_upsert_keeps_source_row(tmp_path: Path) -> None:
         android_paths = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
     assert ok_path in android_paths
     assert fail_path not in android_paths
+
+
+def test_pc_row_outside_library_root_is_not_misclassified_as_android(tmp_path: Path) -> None:
+    """VAL-FIX-2: the old heuristic ("not under library_root") migrated ANY
+    PC row that wasn't exactly under library_root — a different drive, an
+    old scan, mismatched casing — as if it were an Android row. Classifying
+    by real device-path evidence (anbernic_root / POSIX path) instead must
+    leave a genuine PC row (just outside library_root) in the PC repo."""
+    (tmp_path / "pc").mkdir()
+    repo = LibraryRepository(tmp_path / "pc.db")
+    repo_android = LibraryRepository(tmp_path / "android.db")
+
+    # A real PC path that happens to live outside the configured library_root
+    # (e.g. a leftover scan of another drive) — must stay in the PC repo.
+    other_drive_path = str(tmp_path / "other_pc_drive" / "game.gba")
+    android_path = str(tmp_path / "android" / "game2.gba")
+    _insert_game(repo, other_drive_path, sha1="pc-sha1")
+    _insert_game(repo, android_path, sha1="android-sha1")
+
+    ctx = _FakeCtx()
+    config = _config(tmp_path)
+    _do_migrate_split_db(ctx, config, repo, repo_android)
+
+    assert ctx.out["migrated_games"] == 1
+
+    with repo.connect() as conn:
+        remaining = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+    assert other_drive_path in remaining  # PC row outside library_root -> stays in PC repo
+    assert android_path not in remaining  # real Android row -> migrated out
+
+    with repo_android.connect() as conn:
+        android_paths = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+    assert android_path in android_paths
+    assert other_drive_path not in android_paths
