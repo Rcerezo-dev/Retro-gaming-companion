@@ -4,6 +4,7 @@
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
+import { _setIfEmpty } from './config.js';
 
 const _txtCls = (el, cls) => {
   if (!el) return;
@@ -412,10 +413,17 @@ function setToolsContext(ctx) {
       rootPath = cfg.anbernic_root || localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || '';
     }
     if (lbl) lbl.textContent = rootPath ? '— ' + rootPath : '(sin ruta configurada)';
-    const toolInputIds = ['zip-path', 'chd-path', 'orphan-path', 'folder-analysis-path', 'junk-path', 'health-path'];
-    for (const id of toolInputIds) {
-      const el = document.getElementById(id);
-      if (el && rootPath) { el.value = rootPath; el.dispatchEvent(new Event('input')); }
+    if (rootPath) {
+      // Solo rellena inputs vacíos — nunca pisa una ruta que el usuario ya escribió (FORMATOS-UX-1)
+      const toolInputIds = [
+        'zip-path', 'chd-path', 'cso-path', 'verify-chd-path', 'm3u-path', 'folder-analysis-path',
+        'orphan-path', 'junk-path',
+      ];
+      for (const id of toolInputIds) {
+        if (_setIfEmpty(id, rootPath)) {
+          document.getElementById(id)?.dispatchEvent(new Event('input'));
+        }
+      }
     }
   }).catch(() => {});
 }
