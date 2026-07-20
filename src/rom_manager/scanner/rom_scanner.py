@@ -18,11 +18,27 @@ from rom_manager.detection.set_detector import detect_set_type
 from rom_manager.hashing import calculate_hashes_batch
 from rom_manager.scanner.asset_scanner import inspect_asset
 from rom_manager.utils.time import utc_now
+from rom_manager.utils.trash import TRASH_DIR_NAME
 
 _PROGRESS_INTERVAL = 10
+# VAL-FIX-1: nunca indexar la papelera de la app ni carpetas de sistema de
+# Windows — sin esto, un archivo "eliminado" (movido a _descartados/) se
+# re-escanea y reaparece como duplicado en el siguiente scan.
+_EXCLUDED_DIR_NAMES = frozenset(
+    {TRASH_DIR_NAME.lower(), "$recycle.bin", "system volume information"}
+)
 # ROMs are hashed in parallel batches of this size (hashlib releases the GIL).
 # DB writes stay single-threaded; only the hashing fans out across threads.
 _HASH_FLUSH_BATCH = 64
+
+
+def _is_excluded(path: Path, source_path: Path) -> bool:
+    """True if *path* lives inside an excluded dir (trash, OS junk) under *source_path*."""
+    try:
+        rel_parts = path.relative_to(source_path).parts[:-1]
+    except ValueError:
+        rel_parts = path.parts[:-1]
+    return any(part.lower() in _EXCLUDED_DIR_NAMES for part in rel_parts)
 
 
 @dataclass(slots=True)
@@ -97,6 +113,8 @@ def scan_library(
                 logger.info("Scan cancelled by user after %d files.", result.files_seen)
                 break
             if not path.is_file():
+                continue
+            if _is_excluded(path, source_path):
                 continue
 
             seen_paths.add(str(path.resolve()))

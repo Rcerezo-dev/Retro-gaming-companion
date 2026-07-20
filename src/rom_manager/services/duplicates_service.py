@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 # AUD-3: los duplicados ya no se eliminan con os.remove — van a _descartados/
+from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
 
 if TYPE_CHECKING:
@@ -52,6 +53,16 @@ def delete_duplicate(
             discard_to_trash(p)
         except Exception as exc:
             return {"error": f"No se pudo mover a _descartados/: {type(exc).__name__}: {exc}"}
+    elif is_device_path(source_path):
+        # TABS-FIX-1: ruta de consola (ADB) — Path.exists() siempre da False
+        # en Windows aunque el archivo siga vivo en el dispositivo. No borrar
+        # la fila ni reportar éxito silencioso.
+        return {
+            "error": (
+                "Ruta de consola — conecta el dispositivo para verificar si el archivo "
+                "sigue ahí; no se ha tocado la fila de la base de datos"
+            )
+        }
     try:
         repository.delete_game(int(game_id))
     except Exception as exc:
@@ -70,13 +81,14 @@ def delete_all_duplicates_multi(repositories: list[LibraryRepository], platform:
         "deleted": 0,
         "skipped": 0,
         "failed": 0,
+        "unreachable": 0,
         "freed_bytes": 0,
         "errors": [],
         "diagnostics": [],
     }
     for repo in repositories:
         result = delete_all_duplicates(repo, platform=platform)
-        for key in ("deleted", "skipped", "failed", "freed_bytes"):
+        for key in ("deleted", "skipped", "failed", "unreachable", "freed_bytes"):
             merged[key] += result[key]
         merged["errors"] = (merged["errors"] + result["errors"])[:20]
         merged["diagnostics"] = (merged["diagnostics"] + result["diagnostics"])[:10]
@@ -84,6 +96,10 @@ def delete_all_duplicates_multi(repositories: list[LibraryRepository], platform:
         f"{merged['deleted']} eliminados, {merged['skipped']} omitidos (no existen), "
         f"{merged['failed']} errores"
     )
+    if merged["unreachable"]:
+        merged["summary"] += (
+            f", {merged['unreachable']} en el dispositivo (conecta la consola para revisarlos)"
+        )
     return merged
 
 
@@ -104,6 +120,7 @@ def delete_all_duplicates(repository: LibraryRepository, platform: str = "") -> 
     deleted = 0
     skipped = 0  # Files that don't exist (already deleted or moved)
     failed = 0  # Files that exist but couldn't be deleted (perms, device unmounted, etc.)
+    unreachable = 0  # Device paths (ADB) — can't verify from Windows, DB row untouched
     freed_bytes = 0
     errors: list[str] = []
     diagnostics: list[dict] = []  # Detailed log of each attempt
@@ -119,6 +136,14 @@ def delete_all_duplicates(repository: LibraryRepository, platform: str = "") -> 
             }
 
             if not p.exists():
+                # TABS-FIX-1: una ruta de consola (ADB) nunca "existe" para
+                # Path en Windows aunque el archivo siga vivo — no limpiar la
+                # fila de BD, sería un borrado fantasma con éxito silencioso.
+                if is_device_path(entry.source_path):
+                    unreachable += 1
+                    diag["unreachable_device"] = True
+                    diagnostics.append(diag)
+                    continue
                 _log.info(f"Skipping missing file (file gone, cleaning DB): {p}")
                 try:
                     repository.delete_game(entry.id)
@@ -166,12 +191,18 @@ def delete_all_duplicates(repository: LibraryRepository, platform: str = "") -> 
 
             diagnostics.append(diag)
 
+    summary = (
+        f"{deleted} movidos a _descartados/, {skipped} omitidos (no existen), {failed} errores"
+    )
+    if unreachable:
+        summary += f", {unreachable} en el dispositivo (conecta la consola para revisarlos)"
     return {
         "deleted": deleted,
         "skipped": skipped,
         "failed": failed,
+        "unreachable": unreachable,
         "freed_bytes": freed_bytes,
         "errors": errors,
-        "summary": f"{deleted} movidos a _descartados/, {skipped} omitidos (no existen), {failed} errores",
+        "summary": summary,
         "diagnostics": diagnostics[:10],  # Return first 10 for debugging
     }

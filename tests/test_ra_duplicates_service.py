@@ -70,6 +70,22 @@ def test_discard_ra_duplicate_file_already_gone(tmp_path: Path) -> None:
     assert _count(repo) == 0
 
 
+def test_discard_ra_duplicate_device_path_unreachable_does_not_touch_db(
+    tmp_path: Path,
+) -> None:
+    """TABS-FIX-1: a device path (ADB scan) is never reachable via Path.exists()
+    on Windows even when the file is alive on the console — must not silently
+    delete the DB row and report success."""
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path)
+
+    result = discard_ra_duplicate(repo, device_path)
+
+    assert "error" in result
+    assert _count(repo) == 1
+
+
 def test_discard_ra_duplicate_dest_collision_deletes_source(tmp_path: Path) -> None:
     rom = tmp_path / "dup.gb"
     rom.write_bytes(b"new")
