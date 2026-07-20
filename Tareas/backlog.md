@@ -1,7 +1,9 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-07-14 (ANBERNIC-UX 1-8: pestaña Anbernic — generador único, token efímero, panel Android real)
+> Last updated: 2026-07-20 (Roadmap-Formatos-UX cerrado; reconciliación de
+> filas ⬜ desfasadas en JUEGOS-UX/ASSETS-UX/COLECCION-UX/PLAN-UX/INBOX-UX —
+> ya estaban implementadas y mergeadas, solo faltaba marcarlas ✅)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 
@@ -566,20 +568,20 @@ guardó ni parseó en ningún punto de `retroachievements/`. Y el control de
 total: `gpLogPlaytime()` (`games.js:531-542`) no llama a ninguna API, solo
 hace `alert()` y limpia los campos — no hay columna de minutos en la BD
 (`play_history.py` solo tiene `play_count`/`last_played_at`). Detalle,
-archivo:línea y fases en `Tareas/Roadmap-Juegos-UX.md`. Sustituye/desarrolla
-`MEJ-1`.
+archivo:línea y fases en `Tareas/diario/archivo/Roadmap-Juegos-UX-completado.md`.
+Sustituye/desarrolla `MEJ-1`. **Completado** — ver JUEGOS-UX-1..9 arriba.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| JUEGOS-UX-1 | **Backend: exponer logros individuales** — `/api/ra-user-progress` (`games.py:461-516`) ya recibe el array `Achievements` de RA (título, descripción, puntos, badge, fecha de desbloqueo) y lo descarta; añadirlo a la respuesta manteniendo el cache 1h existente | Feature | S | ⬜ |
-| JUEGOS-UX-2 | **Frontend: lista de logros desbloqueados/pendientes en el panel de juego** — nuevo bloque bajo `gp-ra-user-progress` (`_foot.html:138`), reutilizando el patrón de lista colapsable ya usado en `tools.js:444` (`_faCollapsibleList`) | Feature | M | ⬜ |
-| JUEGOS-UX-3 | **Perf: lazy-load de iconos de logros** — `loading="lazy"` en los badges; reutilizar el patrón TTL de `.rommgr/ra_cache/` en vez de un cache nuevo | Feature | XS | ⬜ |
-| JUEGOS-UX-4 | **🔴 El control manual de playtime no guarda nada** — `gpLogPlaytime()` solo hace `alert()`, sin `apiPost` (`games.js:531-542`); ocultarlo o marcarlo como no persistente hasta que exista el tracking automático | Bug | XS | ⬜ |
-| JUEGOS-UX-5 | **Esquema de datos: minutos separados por origen (PC/Android)** — `playtime_minutes_pc` + `playtime_minutes_android` en vez de un total único, para poder sumar sin duplicar ni sobrescribir al sincronizar | Feature | S | ⬜ |
-| JUEGOS-UX-6 | **Scanner `.lrtl` de RetroArch (PC)** — módulo stdlib-json sobre `playlists/logs/<Core>/<rom>.lrtl`, mismo matching que `record_play_session` (`play_history.py:26-27`), como job de background con polling | Feature | M | ⬜ |
-| JUEGOS-UX-7 | **Sync de `.lrtl` desde Anbernic** — nuevo `SyncSource` (mismo patrón que MEJ-4 para `.cht`); los `.lrtl` de Android acumulan en `playtime_minutes_android`, nunca sobrescriben `_pc` | Feature | S | ⬜ |
-| JUEGOS-UX-8 | **UI: total automático PC+Anbernic sin inputs** — sustituir `gp-playtime-wrap` (`_foot.html:163-175`) por "X h Y m totales · PC: A h · Anbernic: B h", recalculado solo tras cada sync/scan | Feature | S | ⬜ |
-| JUEGOS-UX-9 | **No aparentar precisión mientras el scanner no esté completo** — indicar en la UI si el dato es parcial (solo PC, sin datos de Anbernic aún) | UX | XS | ⬜ |
+| JUEGOS-UX-1 | **Backend: exponer logros individuales** — `/api/ra-user-progress` (`games.py:461-516`) ya recibe el array `Achievements` de RA (título, descripción, puntos, badge, fecha de desbloqueo) y lo descarta; añadirlo a la respuesta manteniendo el cache 1h existente | Feature | S | ✅ `games.py:486-514` construye el array `achievements` completo y lo incluye en la respuesta |
+| JUEGOS-UX-2 | **Frontend: lista de logros desbloqueados/pendientes en el panel de juego** — nuevo bloque bajo `gp-ra-user-progress` (`_foot.html:138`), reutilizando el patrón de lista colapsable ya usado en `tools.js:444` (`_faCollapsibleList`) | Feature | M | ✅ `_foot.html:139-140` (`#gp-ra-achievements`) + `games.js:722` (`_gpRenderAchievements`) |
+| JUEGOS-UX-3 | **Perf: lazy-load de iconos de logros** — `loading="lazy"` en los badges; reutilizar el patrón TTL de `.rommgr/ra_cache/` en vez de un cache nuevo | Feature | XS | ✅ `games.js:696` — `loading="lazy"` en los `<img>` de badges |
+| JUEGOS-UX-4 | **🔴 El control manual de playtime no guarda nada** — `gpLogPlaytime()` solo hace `alert()`, sin `apiPost` (`games.js:531-542`); ocultarlo o marcarlo como no persistente hasta que exista el tracking automático | Bug | XS | ✅ `gpLogPlaytime()` ya no existe — sustituido por `gpShowPlaytimeInfo()` (JUEGOS-UX-8), sin input manual |
+| JUEGOS-UX-5 | **Esquema de datos: minutos separados por origen (PC/Android)** — `playtime_minutes_pc` + `playtime_minutes_android` en vez de un total único, para poder sumar sin duplicar ni sobrescribir al sincronizar | Feature | S | ✅ `schema.py:59-60,222-223` — columnas `playtime_minutes_pc`/`playtime_minutes_android` |
+| JUEGOS-UX-6 | **Scanner `.lrtl` de RetroArch (PC)** — módulo stdlib-json sobre `playlists/logs/<Core>/<rom>.lrtl`, mismo matching que `record_play_session` (`play_history.py:26-27`), como job de background con polling | Feature | M | ✅ `utils/lrtl_scanner.py`, invocado desde `games.py`/`play_history.py` |
+| JUEGOS-UX-7 | **Sync de `.lrtl` desde Anbernic** — nuevo `SyncSource` (mismo patrón que MEJ-4 para `.cht`); los `.lrtl` de Android acumulan en `playtime_minutes_android`, nunca sobrescriben `_pc` | Feature | S | ✅ `sync_cloud.py:301-322,530-543,756-764` — `SyncSource` de `.lrtl` con `ingest_lrtl_dir` por origen |
+| JUEGOS-UX-8 | **UI: total automático PC+Anbernic sin inputs** — sustituir `gp-playtime-wrap` (`_foot.html:163-175`) por "X h Y m totales · PC: A h · Anbernic: B h", recalculado solo tras cada sync/scan | Feature | S | ✅ `games.js:524-547` (`gpShowPlaytimeInfo`) — total automático sin inputs |
+| JUEGOS-UX-9 | **No aparentar precisión mientras el scanner no esté completo** — indicar en la UI si el dato es parcial (solo PC, sin datos de Anbernic aún) | UX | XS | ✅ `games.js:540-541` — "PC: sin datos"/"Consola: sin datos" cuando falta un origen |
 
 ---
 
@@ -592,15 +594,16 @@ localStorage que ya usa el texto de la barra de contexto (`sync.js:85`) —
 la cabecera puede decir "Viendo: Android" mientras la tabla muestra datos
 del PC, sin ninguna pista de que no coinciden. Es una función compartida:
 el mismo bug aplica a Colección, Organizar y Juegos. Detalle, archivo:línea
-y fases en `Tareas/Roadmap-Assets-UX.md`.
+y fases en `Tareas/diario/archivo/Roadmap-Assets-UX-completado.md`.
+**Completado** — ver ASSETS-UX-1..5 arriba.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| ASSETS-UX-1 | **La ruta mostrada como "Viendo: X" puede no ser la que se consulta** — `_deviceRoot()` (`main.js:430-435`) no tiene fallback a `localStorage('anbernic_path')` a diferencia del texto de la barra (`sync.js:85`); afecta también a `collection.js`, `organize.js`, `games.js` que usan la misma función | Bug | S | ⬜ |
-| ASSETS-UX-2 | **"Ejecuta un Scan" también sale cuando el filtro simplemente no tiene resultados** — el filtro se aplica antes de comprobar vacío (`sync.js:92-94`); "Solo huérfanos" sin ninguno (buena noticia) muestra el mismo mensaje que "nunca escaneado" | UX | XS | ⬜ |
-| ASSETS-UX-3 | **Error sin guía, a diferencia del resto del mismo archivo** — catch de `loadAssets` (`sync.js:108-109`) solo muestra `e.message`; el catch de `loadSync` unas líneas arriba (`sync.js:65`) sí da pista + enlace a Ajustes | UX | XS | ⬜ |
-| ASSETS-UX-4 | **Columna "Huérfanos" sin ninguna acción asociada** — solo informativo, sin enlace para ver/mover/eliminar los archivos concretos (`sync.js:104`) | UX | S | ⬜ |
-| ASSETS-UX-5 | **Estado vacío sin enlace a la acción que lo resuelve** — "Ejecuta un Scan" es texto plano sin botón a Organizar (`sync.js:94`) | UX | XS | ⬜ |
+| ASSETS-UX-1 | **La ruta mostrada como "Viendo: X" puede no ser la que se consulta** — `_deviceRoot()` (`main.js:430-435`) no tiene fallback a `localStorage('anbernic_path')` a diferencia del texto de la barra (`sync.js:85`); afecta también a `collection.js`, `organize.js`, `games.js` que usan la misma función | Bug | S | ✅ `main.js:439` — `_deviceRoot()` ya incluye el fallback a `localStorage('anbernic_path')` |
+| ASSETS-UX-2 | **"Ejecuta un Scan" también sale cuando el filtro simplemente no tiene resultados** — el filtro se aplica antes de comprobar vacío (`sync.js:92-94`); "Solo huérfanos" sin ninguno (buena noticia) muestra el mismo mensaje que "nunca escaneado" | UX | XS | ✅ `sync.js:122-128` — distingue "nunca escaneado" de "✓ Sin resultados para este filtro" |
+| ASSETS-UX-3 | **Error sin guía, a diferencia del resto del mismo archivo** — catch de `loadAssets` (`sync.js:108-109`) solo muestra `e.message`; el catch de `loadSync` unas líneas arriba (`sync.js:65`) sí da pista + enlace a Ajustes | UX | XS | ✅ `sync.js:145` — catch da guía + enlace a Ajustes |
+| ASSETS-UX-4 | **Columna "Huérfanos" sin ninguna acción asociada** — solo informativo, sin enlace para ver/mover/eliminar los archivos concretos (`sync.js:104`) | UX | S | ✅ `sync.js:139` (`showOrphanAssets()`) — acción "Ver" lista los archivos concretos |
+| ASSETS-UX-5 | **Estado vacío sin enlace a la acción que lo resuelve** — "Ejecuta un Scan" es texto plano sin botón a Organizar (`sync.js:94`) | UX | XS | ✅ `sync.js:123` — enlace a `showTab('plan')` (Organizar) en el mismo mensaje |
 
 ---
 
@@ -615,15 +618,16 @@ Disco, Diff PC/Android, Completitud, Wishlist), que no tienen sentido dentro
 de la ficha de un juego. **Recomendación: no fusionar mecánicamente — retirar
 la galería duplicada de Colección y dejar la pestaña como dashboard de
 análisis puro.** Razonamiento completo y hallazgos de bugs en
-`Tareas/Roadmap-Coleccion-UX.md`.
+`Tareas/diario/archivo/Roadmap-Coleccion-UX-completado.md`.
+**Completado** — ver COLECCION-UX-1..5 arriba.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| COLECCION-UX-1 | **Botón "🏥 Health" no hace nada** — `togglePlatformHealth()` se llama sin argumento (`tab-collection.html:22`), nunca alterna el panel (a diferencia de sus hermanos en `collection.js`), y escribe en `#platform-health-content` que no existe (real: `#ph-table`); `loadPlatformHealth()` es además un TODO puro (`esde.js:632-661`). Cuarta ocurrencia del patrón HTML/JS-ID-mismatch (HERR-UX-1/2/3, FORMATOS-UX-2) | Bug | S | ⬜ |
-| COLECCION-UX-2 | **Dos galerías divergentes del mismo dato** — Colección (`col-grid`) y la vista cuadrícula de Juegos comparten endpoint y panel de detalle pero Colección solo tiene 3 de los 9 filtros de Juegos; decisión de producto antes de tocar código (ver recomendación de fusión) | Decisión | M | ⬜ |
-| COLECCION-UX-3 | **"Exportar CSV" da resultados distintos según la pestaña** — el export de Juegos no manda `root` (`tab-games.html:46-47`), el de Colección sí (`collection.js:311-313`); mismo botón, mismo texto, distinto resultado sin avisar | Bug | XS | ⬜ |
-| COLECCION-UX-4 | **"ROMs faltantes" es código muerto con mejor funcionalidad que el panel activo** — `missing-section`/`loadMissingRoms()` (`tab-collection.html:113-124`, `collection.js:65-88`) nunca se invoca desde ningún botón, pero tiene wishlist + enlace IA + copiar búsqueda que el panel "Completitud" vivo no tiene | UX | S | ⬜ |
-| COLECCION-UX-5 | **Pulido: 5 acordeones sin "cerrar todos" + filtro de plataforma duplicado con estilo distinto al de Juegos** (`collection.js:182-197` vs `games-platform` select) | UX | XS | ⬜ |
+| COLECCION-UX-1 | **Botón "🏥 Health" no hace nada** — `togglePlatformHealth()` se llama sin argumento (`tab-collection.html:22`), nunca alterna el panel (a diferencia de sus hermanos en `collection.js`), y escribe en `#platform-health-content` que no existe (real: `#ph-table`); `loadPlatformHealth()` es además un TODO puro (`esde.js:632-661`). Cuarta ocurrencia del patrón HTML/JS-ID-mismatch (HERR-UX-1/2/3, FORMATOS-UX-2) | Bug | S | ✅ el panel y sus funciones (`togglePlatformHealth`/`loadPlatformHealth`) ya no existen — retirado al rehacer la pestaña como dashboard (COLECCION-UX-2) |
+| COLECCION-UX-2 | **Dos galerías divergentes del mismo dato** — Colección (`col-grid`) y la vista cuadrícula de Juegos comparten endpoint y panel de detalle pero Colección solo tiene 3 de los 9 filtros de Juegos; decisión de producto antes de tocar código (ver recomendación de fusión) | Decisión | M | ✅ galería duplicada retirada (`tab-collection.html:5`, comentario explícito); `col-grid` ya no existe en el código — la pestaña es dashboard de análisis puro |
+| COLECCION-UX-3 | **"Exportar CSV" da resultados distintos según la pestaña** — el export de Juegos no manda `root` (`tab-games.html:46-47`), el de Colección sí (`collection.js:311-313`); mismo botón, mismo texto, distinto resultado sin avisar | Bug | XS | ✅ único endpoint `/api/export-library` (`collection.py:180`), usado solo desde `tab-games.html:46-47`; `collection.js` ya no tiene export CSV propio |
+| COLECCION-UX-4 | **"ROMs faltantes" es código muerto con mejor funcionalidad que el panel activo** — `missing-section`/`loadMissingRoms()` (`tab-collection.html:113-124`, `collection.js:65-88`) nunca se invoca desde ningún botón, pero tiene wishlist + enlace IA + copiar búsqueda que el panel "Completitud" vivo no tiene | UX | S | ✅ `tab-collection.html:38` — botón "📥 Ver ROMs faltantes" dentro de Completitud ya invoca `loadMissingRoms()` |
+| COLECCION-UX-5 | **Pulido: 5 acordeones sin "cerrar todos" + filtro de plataforma duplicado con estilo distinto al de Juegos** (`collection.js:182-197` vs `games-platform` select) | UX | XS | ✅ `collection.js:23-28` (`_showOnlyPanel`) — acordeón exclusivo, abrir uno cierra los demás |
 
 ---
 
@@ -660,15 +664,16 @@ a Duplicados). El usuario preguntó si podía fusionarse con otra pestaña:
 Duplicados ya está bien explicado en la propia UI; el candidato real para
 una futura revisión es Inbox (su pipeline automático ya hace internamente
 lo que Plan hace a mano), pendiente de auditar. Detalle, archivo:línea y
-fases en `Tareas/Roadmap-Plan-UX.md`.
+fases en `Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`.
+**Completado** — ver PLAN-UX-1..5 arriba.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| PLAN-UX-1 | **"La operación es reversible" sin que exista ningún "Deshacer"** — `doApply()` lo afirma en su confirmación (`organize.js:458`) pese a que `MEJ-2` (deshacer último apply) sigue pendiente; `applyKeepBoth()` ni lo menciona | UX | XS | ⬜ |
-| PLAN-UX-2 | **Las dos acciones de mayor riesgo usan `confirm()` nativo; las de menor riesgo, el modal propio** — `doApply`/`applyKeepBoth` (líneas 458,310) vs `deleteCollisionDuplicates`/`_discardCollisionEntry` (líneas 401,429), mismo archivo | UX | XS | ⬜ |
-| PLAN-UX-3 | **"Filtrar por dispositivo" quedó sin función útil tras DEVSEL-FIX-3** — `/api/plan` ya resuelve un único repositorio por dispositivo activo; el dropdown (`tab-plan.html:29-34`) filtra sobre datos que ya son de un solo dispositivo, vaciando la tabla sin explicación si se elige el que no se está viendo | UX | S | ⬜ |
-| PLAN-UX-4 | **Mismo bug de `_deviceRoot()` que ASSETS-UX-1** — `organize.js:52,322,469`; se resuelve con el mismo fix compartido en `main.js` | Bug | — | ⬜ (cubierto por ASSETS-UX-1) |
-| PLAN-UX-5 | **Conflictos "unknown" sin ninguna explicación** — a diferencia de los tipos `collision`/`disk`, que sí tienen contexto y acciones (`organize.js:164,265-272`) | UX | XS | ⬜ |
+| PLAN-UX-1 | **"La operación es reversible" sin que exista ningún "Deshacer"** — `doApply()` lo afirma en su confirmación (`organize.js:458`) pese a que `MEJ-2` (deshacer último apply) sigue pendiente; `applyKeepBoth()` ni lo menciona | UX | XS | ✅ `organize.js:453` — el modal ya no promete reversibilidad, comentario explícito citando MEJ-2 |
+| PLAN-UX-2 | **Las dos acciones de mayor riesgo usan `confirm()` nativo; las de menor riesgo, el modal propio** — `doApply`/`applyKeepBoth` (líneas 458,310) vs `deleteCollisionDuplicates`/`_discardCollisionEntry` (líneas 401,429), mismo archivo | UX | XS | ✅ `organize.js:298,452` — ambas usan `_showConfirm` |
+| PLAN-UX-3 | **"Filtrar por dispositivo" quedó sin función útil tras DEVSEL-FIX-3** — `/api/plan` ya resuelve un único repositorio por dispositivo activo; el dropdown (`tab-plan.html:29-34`) filtra sobre datos que ya son de un solo dispositivo, vaciando la tabla sin explicación si se elige el que no se está viendo | UX | S | ✅ `tab-plan.html:28` — dropdown retirado, comentario explícito (el selector global PC/Consola ya cumple esa función) |
+| PLAN-UX-4 | **Mismo bug de `_deviceRoot()` que ASSETS-UX-1** — `organize.js:52,322,469`; se resuelve con el mismo fix compartido en `main.js` | Bug | — | ✅ cubierto por ASSETS-UX-1 — `organize.js` sigue llamando al mismo `window._deviceRoot()` ya arreglado |
+| PLAN-UX-5 | **Conflictos "unknown" sin ninguna explicación** — a diferencia de los tipos `collision`/`disk`, que sí tienen contexto y acciones (`organize.js:164,265-272`) | UX | XS | ✅ `organize.js:156-161` — la rama `unknown` (código muerto) se retiró; solo quedan `collision`/`disk`, ambos con explicación |
 
 ---
 
@@ -697,22 +702,24 @@ ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
 ## INBOX-UX — Auditoría de la pestaña Inbox: UX/UI (2026-07-13)
 
 Auditoría de la pestaña Inbox (`tab-inbox.html` + `js/tabs/inbox.js`,
-Pilar 2). Cierra el hilo abierto en `Tareas/Roadmap-Plan-UX.md`: **no se
+Pilar 2). Cierra el hilo abierto en
+`Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`: **no se
 fusiona con Plan** — el pipeline de Inbox incluye pasos que Plan no tiene
 (extraer, escanear, cotejar) precisamente porque parte de archivos aún no
 escaneados; son dos pilares distintos, no una duplicación. Hallazgo
 principal propio: "Organizar todo" es la única acción masiva de todo el
 proyecto auditado hasta ahora sin ningún paso de confirmación. Detalle,
-archivo:línea y fases en `Tareas/Roadmap-Inbox-UX.md`.
+archivo:línea y fases en `Tareas/diario/archivo/Roadmap-Inbox-UX-completado.md`.
+**Completado** — ver INBOX-UX-1..6 arriba.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| INBOX-UX-1 | **"Organizar todo" sin ninguna confirmación** — `runInbox()` (`inbox.js:160-186`) lanza extraer+escanear+cotejar+renombrar+organizar sobre toda la carpeta Inbox sin `confirm()`/`_showConfirm`, a diferencia de toda acción masiva equivalente ya auditada (Duplicados, Plan, Formatos) | Bug | S | ⬜ |
-| INBOX-UX-2 | **"Analizar carpeta" no muestra un plan real, solo clasificación** — sin nombres de destino ni conflictos previstos, a diferencia de la tabla equivalente en Plan; conviene resolver junto con INBOX-UX-1 (la confirmación necesita estos datos) | UX | M | ⬜ |
-| INBOX-UX-3 | **`confirm()` nativo en `resolveInboxConflict`** (`inbox.js:321-336`) — mismo patrón ya señalado en Duplicados y Plan | UX | XS | ⬜ |
-| INBOX-UX-4 | **Checkbox "Procesar automáticamente" sin relación visible con "Guardar ajustes"** — toggle silencioso que no hace nada hasta pulsar un botón en otra fila (`tab-inbox.html:31-34,40`) | UX | XS | ⬜ |
-| INBOX-UX-5 | **"No reconocidos" sin explicar qué pasará con esos archivos** (`inbox.js:128`) | UX | XS | ⬜ |
-| INBOX-UX-6 | **Errores sin guía en `loadInboxConflicts`** (`inbox.js:314-316`) | UX | XS | ⬜ |
+| INBOX-UX-1 | **"Organizar todo" sin ninguna confirmación** — `runInbox()` (`inbox.js:160-186`) lanza extraer+escanear+cotejar+renombrar+organizar sobre toda la carpeta Inbox sin `confirm()`/`_showConfirm`, a diferencia de toda acción masiva equivalente ya auditada (Duplicados, Plan, Formatos) | Bug | S | ✅ `inbox.js:198,202-204` — `_showConfirm('¿Organizar el Inbox?', ...)` antes de lanzar `_launchInbox` |
+| INBOX-UX-2 | **"Analizar carpeta" no muestra un plan real, solo clasificación** — sin nombres de destino ni conflictos previstos, a diferencia de la tabla equivalente en Plan; conviene resolver junto con INBOX-UX-1 (la confirmación necesita estos datos) | UX | M | ✅ `inbox.js:147-153` (`scanInbox()`) — muestra destino previsto (`dest_folder`) y marca conflictos (`dest_exists`) |
+| INBOX-UX-3 | **`confirm()` nativo en `resolveInboxConflict`** (`inbox.js:321-336`) — mismo patrón ya señalado en Duplicados y Plan | UX | XS | ✅ `inbox.js:364-367` — usa `_showConfirm` |
+| INBOX-UX-4 | **Checkbox "Procesar automáticamente" sin relación visible con "Guardar ajustes"** — toggle silencioso que no hace nada hasta pulsar un botón en otra fila (`tab-inbox.html:31-34,40`) | UX | XS | ✅ `tab-inbox.html:28,32` — `onchange="autoSaveInboxToggle()"` guarda automáticamente (`inbox.js:402-403`) |
+| INBOX-UX-5 | **"No reconocidos" sin explicar qué pasará con esos archivos** (`inbox.js:128`) | UX | XS | ✅ `inbox.js:133` — añade "(no se tocan, se quedan en el Inbox)" |
+| INBOX-UX-6 | **Errores sin guía en `loadInboxConflicts`** (`inbox.js:314-316`) | UX | XS | ✅ `inbox.js:355-357` — guía accionable en el catch |
 
 ---
 
