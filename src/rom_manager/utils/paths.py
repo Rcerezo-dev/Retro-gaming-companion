@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -26,10 +27,15 @@ def is_device_path(source_path: str, *, anbernic_root: str | None = None) -> boo
     "file genuinely gone" silently deletes the DB row for a duplicate that
     still exists (TABS-FIX-1) and misclassifies rows during the two-DB
     migration (VAL-FIX-2).
+
+    The bare "starts with /" check only means "unreachable local path" on
+    Windows (the app's actual runtime, per CLAUDE.md) — on POSIX, a leading
+    "/" is a perfectly normal local path that ``Path.exists()`` verifies
+    correctly, so it must not be treated as a device-path signal there.
     """
     p = source_path.lower()
     if anbernic_root:
         root = anbernic_root.lower().rstrip("/\\")
         if root and p.startswith(root):
             return True
-    return p.startswith("/")
+    return os.name == "nt" and p.startswith("/")

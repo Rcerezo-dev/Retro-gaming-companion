@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+import pytest
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.services.duplicates_service import (
     delete_all_duplicates,
     delete_duplicate,
 )
+
+# TABS-FIX-1's device-path detection only applies on Windows — a bare leading
+# "/" is a normal, verifiable local path on POSIX (see utils/paths.is_device_path).
+_windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows-only device-path detection")
 
 _TS = "2024-01-01T00:00:00"
 _SHA1_A = "A" * 40
@@ -93,6 +100,7 @@ def test_delete_duplicate_file_already_gone_still_cleans_db(tmp_path: Path) -> N
         assert conn.execute("SELECT COUNT(*) AS n FROM games").fetchone()["n"] == 0
 
 
+@_windows_only
 def test_delete_duplicate_device_path_unreachable_does_not_touch_db(tmp_path: Path) -> None:
     """TABS-FIX-1: a device path (ADB scan) is never reachable via Path.exists()
     on Windows even when the file is alive on the console — must not silently
@@ -134,6 +142,7 @@ def test_delete_all_duplicates_keeps_canonical_deletes_rest(tmp_path: Path) -> N
     assert unique.exists()
 
 
+@_windows_only
 def test_delete_all_duplicates_device_path_counted_unreachable_not_deleted(
     tmp_path: Path,
 ) -> None:

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from rom_manager.utils.paths import is_device_path
 
 
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="a bare leading '/' is a normal local path on POSIX — only ambiguous on Windows",
+)
 def test_posix_path_is_device_path():
     assert is_device_path("/storage/emulated/0/RetroArch/roms/game.zip") is True
 

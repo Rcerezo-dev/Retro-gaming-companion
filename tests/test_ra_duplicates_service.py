@@ -5,6 +5,8 @@ import os
 import time
 from pathlib import Path
 
+import pytest
+
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.services.ra_duplicates_service import (
@@ -14,6 +16,10 @@ from rom_manager.services.ra_duplicates_service import (
     get_ra_hash_lib,
     resolve_duplicate_ra,
 )
+
+# TABS-FIX-1's device-path detection only applies on Windows — a bare leading
+# "/" is a normal, verifiable local path on POSIX (see utils/paths.is_device_path).
+_windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows-only device-path detection")
 
 _TS = "2024-01-01T00:00:00"
 
@@ -70,6 +76,7 @@ def test_discard_ra_duplicate_file_already_gone(tmp_path: Path) -> None:
     assert _count(repo) == 0
 
 
+@_windows_only
 def test_discard_ra_duplicate_device_path_unreachable_does_not_touch_db(
     tmp_path: Path,
 ) -> None:
