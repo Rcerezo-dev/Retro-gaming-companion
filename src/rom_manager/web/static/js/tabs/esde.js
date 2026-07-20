@@ -492,7 +492,7 @@ let _healthFilter = 'all';   // Filter: 'all' | 'corrupted' | 'missing'
 export async function doHealthCheck() {
   const btn = document.querySelector('[onclick="doHealthCheck()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Comprobando…'; }
-  const el = document.getElementById('health-result-content');
+  const el = document.getElementById('health-result');
   if (el) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Comprobando…</p>'; }
 
   try {
@@ -504,19 +504,19 @@ export async function doHealthCheck() {
     }
   } catch(e) {
     showToast('Error al iniciar comprobación: ' + e.message, 'err');
-    if (btn) { btn.disabled = false; btn.textContent = 'Comprobar biblioteca'; btn.onclick = window.doHealthCheck; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Iniciar Health Check'; btn.onclick = window.doHealthCheck; }
   }
 }
 
 export function _renderHealthResult(summary) {
-  const el = document.getElementById('health-result-content');
+  const el = document.getElementById('health-result');
   if (!el) return;
 
   _healthResults = summary;
   _healthFilter = 'all';
 
   const btn = document.querySelector('[onclick="doHealthCheck()"]');
-  if (btn) { btn.disabled = false; btn.textContent = 'Comprobar biblioteca'; btn.onclick = window.doHealthCheck; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Iniciar Health Check'; btn.onclick = window.doHealthCheck; }
 
   if (!summary || !summary.results) {
     el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Sin resultados.</p>';
@@ -527,7 +527,7 @@ export function _renderHealthResult(summary) {
 }
 
 function _renderHealthPage() {
-  const resultEl = document.getElementById('health-result-content');
+  const resultEl = document.getElementById('health-result');
   if (!resultEl) return;
 
   const filterVal = _healthFilter;
@@ -869,14 +869,43 @@ export async function junkDelete() {
 // ── Orphaned Saves ────────────────────────────────────────────────────────────
 let _orphanedSaves = [];
 
-export async function doFindOrphans() {
-  const el = document.getElementById('orphans-result-content');
+function _renderOrphansResult(orphans) {
+  const el = document.getElementById('orphan-result');
   if (!el) return;
+  _orphanedSaves = orphans.saves.map(s => s.path);
+
+  if (!orphans.total) {
+    el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ No hay saves huérfanos.</p>';
+    return;
+  }
+
+  let html = `<div style="margin-bottom:10px;font-size:12px;color:var(--c-softred)">⚠ ${orphans.total} save(s) huérfano(s) — ${_fmtSize(orphans.total_bytes)} recuperables</div>`;
+  html += `<div class="actions-row" style="margin-bottom:10px">
+    <button class="btn danger" onclick="doDeleteOrphans()">Eliminar todos</button>
+    <button class="btn" onclick="doMoveOrphansToArchive()">Archivar a _huerfanos</button>
+  </div>`;
+  html += '<div style="max-height:300px;overflow-y:auto;font-size:11px">';
+  html += orphans.saves.map(s => `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
+    ${_h(s.path.split(/[\\/]/).pop())} <span style="color:var(--c-dim)">(${_fmtSize(s.size_bytes)})</span>
+    <div style="font-size:10px;color:var(--c-hint)">${_h(s.path)}</div>
+  </div>`).join('');
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+export async function doFindOrphans() {
+  const path = document.getElementById('orphan-path')?.value.trim();
+  const el = document.getElementById('orphan-result');
+  if (!el) return;
+  if (!path) { showToast('Introduce la carpeta de la biblioteca', 'err'); return; }
   el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Buscando saves huérfanos…</p>';
 
   try {
-    // TODO: Implement when /api/orphaned-saves/find endpoint is available
-    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: búsqueda de saves huérfanos</p>`;
+    // HERR-UX-2: /api/library-report ya calcula orphans — reutilizarlo en vez
+    // de un endpoint dedicado que nunca se implementó.
+    const d = await apiFetch('/api/library-report?source_path=' + encodeURIComponent(path));
+    if (d.error) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">${_h(d.error)}</p>`; return; }
+    _renderOrphansResult(d.orphans);
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
@@ -894,8 +923,7 @@ export async function doDeleteOrphans() {
     const d = await apiPost('/api/orphaned-saves/delete', { paths: _orphanedSaves });
     showToast(`✓ Eliminados: ${d.deleted || 0}, Errores: ${d.failed || 0}`, 'ok');
     _orphanedSaves = [];
-    // Refresh list
-    const el = document.getElementById('orphans-result-content');
+    const el = document.getElementById('orphan-result');
     if (el) el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Eliminados</p>';
   } catch(e) {
     showToast('Error al eliminar: ' + e.message, 'err');
@@ -909,8 +937,10 @@ export async function doMoveOrphansToArchive() {
   }
 
   try {
-    const config = window.AppState?.config || {};
-    const libraryRoot = config.local_dir || '';
+    // HERR-UX-2: window.AppState no tiene .config (solo activeDevice/devName,
+    // state.js:57) — esto hacía fallar SIEMPRE con "Biblioteca no configurada".
+    const cfg = await apiFetch('/api/config');
+    const libraryRoot = cfg.library_root || '';
     if (!libraryRoot) {
       showToast('Biblioteca no configurada', 'err');
       return;
@@ -922,7 +952,7 @@ export async function doMoveOrphansToArchive() {
     });
     showToast(`✓ Archivados: ${d.moved || 0}, Errores: ${d.failed || 0}`, 'ok');
     _orphanedSaves = [];
-    const el = document.getElementById('orphans-result-content');
+    const el = document.getElementById('orphan-result');
     if (el) el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Movidos a _huerfanos</p>';
   } catch(e) {
     showToast('Error al archivar: ' + e.message, 'err');
@@ -1005,7 +1035,7 @@ export async function doLibraryDoctor() {
 
     const hasActionable = d.issues.some(iss => iss.type === 'misplaced_rom' || iss.type === 'empty_dir');
     const resolveBtn = document.getElementById('btn-doctor-resolve-all');
-    if (resolveBtn) { resolveBtn.style.display = hasActionable ? 'inline-block' : 'none'; }
+    if (resolveBtn) { resolveBtn.classList.toggle('hidden', !hasActionable); }
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }
@@ -1061,29 +1091,34 @@ export async function doctorResolveAll() {
   const btn = document.getElementById('btn-doctor-resolve-all');
   if (btn) btn.disabled = true;
 
+  let ok = 0, failed = 0;
   for (let i = 0; i < _doctorIssues.length; i++) {
     const iss = _doctorIssues[i];
     const row = document.getElementById('doctor-row-' + i);
 
     try {
+      let d;
       if (iss.type === 'misplaced_rom') {
-        const d = await apiPost('/api/doctor-move-rom', {
+        d = await apiPost('/api/doctor-move-rom', {
           path: iss.path,
           expected_dir: iss.expected_dir
         });
-        if (!d.error && row) row.style.opacity = '0.5';
       } else if (iss.type === 'empty_dir') {
-        const d = await apiPost('/api/doctor-delete-dir', { path: iss.path });
-        if (!d.error && row) row.style.opacity = '0.5';
+        d = await apiPost('/api/doctor-delete-dir', { path: iss.path });
+      } else {
+        continue;
       }
+      if (!d.error) { ok++; if (row) row.style.opacity = '0.5'; } else { failed++; }
     } catch(e) {
-      // Continue on error
+      failed++;
       console.warn('Error resolving issue:', e);
     }
   }
 
-  if (btn) btn.disabled = false;
-  showToast('✓ Resolución completada', 'ok');
+  // HERR-UX-8: contar ok/fallos reales y recargar el panel con datos frescos
+  // del servidor, en vez de un toast fijo que ignora los errores.
+  showToast(failed ? `${ok} resueltos, ${failed} con error` : `✓ ${ok} resueltos`, failed ? 'warn' : 'ok');
+  await doLibraryDoctor();
 }
 
 export async function doFolderAnalysis() {
@@ -1179,15 +1214,31 @@ export async function loadUnmatchedDiagnosis() {
       </div>`;
     });
     html += '</div>';
-    html += `<div id="unmatched-dl-info" style="font-size:12px;color:var(--c-muted)">Iniciando descarga de todos los catálogos…</div>
-    <div style="background:var(--c-border);border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
+    // HERR-UX-5: diagnóstico puro — la descarga es un paso aparte, explícito
+    html += `<div class="actions-row">
+      <button class="btn primary" id="btn-download-missing-dats" onclick="downloadMissingDats()">Descargar catálogos que faltan (${platforms.length})</button>
+    </div>
+    <div id="unmatched-dl-info" style="font-size:12px;color:var(--c-muted);margin-top:8px"></div>
+    <div class="hidden" id="unmatched-dl-bar-wrap" style="background:var(--c-border);border-radius:4px;height:8px;margin:6px 0 0;overflow:hidden">
       <div id="unmatched-dl-bar" style="height:100%;width:0%;background:var(--accent-blue);transition:width 0.3s"></div>
     </div>`;
     el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
+  }
+}
 
+export async function downloadMissingDats() {
+  const btn = document.getElementById('btn-download-missing-dats');
+  const infoEl = () => document.getElementById('unmatched-dl-info');
+  const barWrap = document.getElementById('unmatched-dl-bar-wrap');
+  if (btn) { btn.disabled = true; btn.textContent = 'Descargando…'; }
+  if (barWrap) barWrap.classList.remove('hidden');
+  if (infoEl()) infoEl().textContent = 'Iniciando descarga de catálogos…';
+
+  try {
     const r = await apiPost('/api/download-dats', { all: true });
-    const infoEl = () => document.getElementById('unmatched-dl-info');
-    if (r.error) { infoEl().textContent = '❌ ' + r.error; return; }
+    if (r.error) { infoEl().textContent = '❌ ' + r.error; if (btn) { btn.disabled = false; btn.textContent = 'Reintentar descarga'; } return; }
     if (r.status === 'already_running') { infoEl().textContent = 'Ya hay una descarga en curso…'; return; }
 
     const _poll = setInterval(async () => {
@@ -1208,154 +1259,156 @@ export async function loadUnmatchedDiagnosis() {
         const ok   = (res.downloaded || []).length;
         const skip = (res.skipped   || []).length;
         const err  = (res.errors    || []).length;
-        info.innerHTML = `✅ ${ok} catálogos descargados, ${skip} ya existían` + (err ? `, ❌ ${err} errores` : '');
+        info.innerHTML = `✅ ${ok} catálogos descargados, ${skip} ya existían` + (err ? `, ❌ ${err} errores` : '') +
+          ` &nbsp;·&nbsp; <a href="#" onclick="showTab('overview');setTimeout(()=>{const el=document.getElementById('btn-match');if(el)el.scrollIntoView({behavior:'smooth'})},350);return false" style="color:var(--c-blue)">Ir a Identificar →</a>`;
         info.style.color = 'var(--c-teal)';
+        if (btn) { btn.disabled = false; btn.textContent = '✓ Catálogos descargados'; }
       } catch(e) {
         clearInterval(_poll);
         const info = infoEl();
         if (info) { info.textContent = '❌ ' + e.message; info.style.color = 'var(--c-softred)'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Reintentar descarga'; }
       }
     }, 1000);
-
   } catch(e) {
-    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
+    infoEl().textContent = '❌ ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Reintentar descarga'; }
   }
 }
 
 // ── Library Report ────────────────────────────────────────────────────────────
+// HERR-UX-1: el HTML real (tab-tools.html) tiene 6 sub-pestañas — zips,
+// playlists, multidisc, orphans, ra, chd — respaldadas por /api/library-report
+// (zips/playlists/multidisc/orphans, calculados por _build_library_report) y
+// por los resultados cacheados de los jobs de RA/CHD (retroachievements/chd,
+// misma fuente que ya usa el informe HTML exportable server-side,
+// utils/library_report_html.py).
 let _reportData = null;
-let _reportTab = 'overview';
+let _reportTab = 'zips';
+const _RPT_TABS = ['zips', 'playlists', 'multidisc', 'orphans', 'ra', 'chd'];
 
 export async function generateReport() {
-  const el = document.getElementById('library-report-content');
-  if (!el) return;
-  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Generando…</p>';
+  const path = document.getElementById('report-path')?.value.trim();
+  const loadingEl = document.getElementById('report-loading');
+  const notAccessibleEl = document.getElementById('report-not-accessible');
+  const contentEl = document.getElementById('report-content');
+  if (!contentEl) return;
+
+  contentEl.classList.add('hidden');
+  if (notAccessibleEl) notAccessibleEl.classList.add('hidden');
+  if (loadingEl) loadingEl.classList.remove('hidden');
 
   try {
-    const d = await apiFetch('/api/library-report');
+    const qs = path ? '?path=' + encodeURIComponent(path) : '';
+    const d = await apiFetch('/api/library-report' + qs);
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (d.error) {
+      if (notAccessibleEl) { notAccessibleEl.textContent = d.error; notAccessibleEl.classList.remove('hidden'); }
+      return;
+    }
+    if (!d.path_accessible) {
+      if (notAccessibleEl) { notAccessibleEl.textContent = `Carpeta no accesible: ${d.source_path}`; notAccessibleEl.classList.remove('hidden'); }
+      return;
+    }
     _reportData = d;
-    showReportTab('overview');
+    const exportBtn = document.getElementById('btn-export-report');
+    if (exportBtn) exportBtn.classList.remove('hidden');
+    contentEl.classList.remove('hidden');
+    showReportTab(_reportTab);
   } catch(e) {
-    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (notAccessibleEl) { notAccessibleEl.textContent = 'Error: ' + e.message; notAccessibleEl.classList.remove('hidden'); }
   }
 }
 
 export function showReportTab(tab) {
-  if (!_reportData) return;
+  if (!_reportData || !_RPT_TABS.includes(tab)) return;
   _reportTab = tab;
 
+  for (const t of _RPT_TABS) {
+    document.getElementById(`rpt-tab-btn-${t}`)?.classList.toggle('active', t === tab);
+    document.getElementById(`rpt-tab-${t}`)?.classList.toggle('hidden', t !== tab);
+  }
+
   switch(tab) {
-    case 'overview': _renderReportOverview(); break;
-    case 'by-platform': _renderReportByPlatform(); break;
-    case 'missing': _renderReportMissing(); break;
+    case 'zips': _renderReportZips(); break;
+    case 'playlists': _renderReportPlaylists(); break;
+    case 'multidisc': _renderReportMultidisc(); break;
     case 'orphans': _renderReportOrphans(); break;
+    case 'ra': _renderReportRA(); break;
+    case 'chd': _renderReportChd(); break;
   }
 }
 
-export function _renderReportOverview() {
-  const el = document.getElementById('library-report-content');
+export function _renderReportZips() {
+  const el = document.getElementById('rpt-tab-zips');
   if (!el || !_reportData) return;
+  const z = _reportData.zips || { total: 0, files: [] };
 
-  const d = _reportData;
-  let html = `<div style="margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
-    <div style="padding:8px;background:var(--rv-tint-ok-bg);border-radius:4px;border-left:3px solid var(--c-teal)">
-      <div style="color:var(--c-teal);font-weight:600">${d.total_games || 0}</div>
-      <div style="color:var(--c-muted);font-size:11px">Juegos identificados</div>
-    </div>
-    <div style="padding:8px;background:var(--rv-tint-warn-bg);border-radius:4px;border-left:3px solid var(--c-amber)">
-      <div style="color:var(--c-amber);font-weight:600">${d.missing_count || 0}</div>
-      <div style="color:var(--c-muted);font-size:11px">Juegos sin identificar</div>
-    </div>
-    <div style="padding:8px;background:var(--rv-tint-info-bg);border-radius:4px;border-left:3px solid var(--c-teal)">
-      <div style="color:var(--c-teal);font-weight:600">${d.total_platforms || 0}</div>
-      <div style="color:var(--c-muted);font-size:11px">Plataformas</div>
-    </div>
-    <div style="padding:8px;background:var(--rv-tint-warn-bg);border-radius:4px;border-left:3px solid var(--c-softred)">
-      <div style="color:var(--c-softred);font-weight:600">${(d.orphans?.total || 0)}</div>
-      <div style="color:var(--c-muted);font-size:11px">Saves huérfanos</div>
-    </div>
-  </div>`;
+  if (!z.total) { el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ No hay ZIPs sueltos.</p>'; return; }
 
-  html += '<p style="color:var(--c-muted);font-size:11px;margin-top:8px">Última generación: ' + (d.generated_at ? new Date(d.generated_at).toLocaleString() : '—') + '</p>';
-  el.innerHTML = html;
-}
-
-export function _renderReportByPlatform() {
-  const el = document.getElementById('library-report-content');
-  if (!el || !_reportData) return;
-
-  const d = _reportData;
-  const byPlat = d.by_platform || [];
-
-  if (!byPlat.length) {
-    el.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Sin datos por plataforma</p>';
-    return;
-  }
-
-  let html = '<div style="max-height:420px;overflow-y:auto">';
-  html += '<table style="font-size:11px;width:100%;border-collapse:collapse">';
-  html += '<thead><tr style="border-bottom:1px solid #222"><th style="text-align:left;padding:6px">Plataforma</th><th style="text-align:right;padding:6px">Juegos</th><th style="text-align:right;padding:6px">%</th></tr></thead><tbody>';
-
-  const total = byPlat.reduce((sum, p) => sum + p.count, 0);
-  byPlat.forEach(p => {
-    const pct = total > 0 ? ((p.count / total) * 100).toFixed(1) : 0;
-    html += `<tr style="border-bottom:1px solid #222">
-      <td style="padding:6px;color:var(--c-orange)">${_h(p.platform)}</td>
-      <td style="padding:6px;text-align:right;color:var(--c-text)">${p.count}</td>
-      <td style="padding:6px;text-align:right;color:var(--c-muted)">${pct}%</td>
-    </tr>`;
-  });
-  html += '</tbody></table></div>';
-  el.innerHTML = html;
-}
-
-export function _renderReportMissing() {
-  const el = document.getElementById('library-report-content');
-  if (!el || !_reportData) return;
-
-  const d = _reportData;
-  const missing = d.missing_games || [];
-
-  if (!missing.length) {
-    el.innerHTML = '<p style="color:var(--c-teal);font-size:12px">✓ Todos los juegos están identificados</p>';
-    return;
-  }
-
-  let html = `<div style="margin-bottom:12px;font-size:12px;color:var(--c-amber)">⚠ ${missing.length} juegos sin identificar</div>`;
+  let html = `<div style="margin-bottom:10px;font-size:12px;color:var(--c-muted)">${z.total} archivo(s) .zip</div>`;
   html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
+  html += z.files.map(f => `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
+    ${_h(f.name)} <span style="color:var(--c-dim)">(${_fmtSize(f.size_bytes)})</span>
+    ${f.is_disc_set ? '<span style="color:var(--c-amber);font-size:10px;margin-left:6px">set de disco</span>' : ''}
+  </div>`).join('');
+  html += '</div>';
+  el.innerHTML = html;
+}
 
-  missing.slice(0, 100).forEach(m => {
-    const filename = (m.original_filename || m.path || '?').split(/[\\/]/).pop();
-    html += `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
-      <div style="color:var(--c-orange)">${_h(filename)}</div>
-      <div style="font-size:10px;color:var(--c-hint)">${_h(m.platform || '—')}</div>
-    </div>`;
-  });
+export function _renderReportPlaylists() {
+  const el = document.getElementById('rpt-tab-playlists');
+  if (!el || !_reportData) return;
+  const p = _reportData.playlists || { total_groups: 0, with_m3u: 0, without_m3u: 0, groups: [] };
 
-  if (missing.length > 100) {
-    html += `<div style="padding:4px;color:var(--c-hint)">… y ${missing.length - 100} más</div>`;
-  }
+  if (!p.total_groups) { el.innerHTML = '<p style="color:var(--c-muted);font-size:12px">No se encontraron grupos multi-disco.</p>'; return; }
 
+  let html = `<div style="margin-bottom:10px;font-size:12px">
+    <span style="color:var(--c-teal)">✓ ${p.with_m3u} con .m3u</span>
+    ${p.without_m3u ? `<span style="color:var(--c-softred);margin-left:10px">⚠ ${p.without_m3u} sin .m3u</span>` : ''}
+  </div>`;
+  html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
+  html += p.groups.map(g => `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
+    <span style="color:${g.m3u_exists ? 'var(--c-teal)' : 'var(--c-softred)'}">${_h(g.base_name)}</span>
+    <span style="color:var(--c-dim)"> — ${g.disc_count} disco(s)${g.m3u_exists ? '' : ', sin .m3u'}</span>
+  </div>`).join('');
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+export function _renderReportMultidisc() {
+  const el = document.getElementById('rpt-tab-multidisc');
+  if (!el || !_reportData) return;
+  const m = _reportData.multidisc || { groups_ok: 0, groups_with_issues: 0, issues: [] };
+
+  let html = `<div style="margin-bottom:10px;font-size:12px">
+    <span style="color:var(--c-teal)">✓ ${m.groups_ok} sets OK</span>
+    ${m.groups_with_issues ? `<span style="color:var(--c-softred);margin-left:10px">⚠ ${m.groups_with_issues} con problemas</span>` : ''}
+  </div>`;
+  if (!m.issues.length) { el.innerHTML = html + '<p style="color:var(--c-teal);font-size:12px">✓ Sin problemas detectados.</p>'; return; }
+
+  html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
+  html += m.issues.map(i => `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
+    ${i.platform ? `<span style="color:var(--c-blue);font-size:10px;margin-right:6px">${_h(i.platform)}</span>` : ''}
+    <span style="color:var(--c-orange)">${_h(i.base_name)}</span>
+    <span style="color:var(--c-dim)"> — ${_h(i.detail)}</span>
+  </div>`).join('');
   html += '</div>';
   el.innerHTML = html;
 }
 
 export function _renderReportOrphans() {
-  const el = document.getElementById('library-report-content');
+  const el = document.getElementById('rpt-tab-orphans');
   if (!el || !_reportData) return;
-
-  const d = _reportData;
-  const o = d.orphans || { total: 0, total_bytes: 0, saves: [] };
+  const o = _reportData.orphans || { total: 0, total_bytes: 0, saves: [] };
 
   let html = `<div style="margin-bottom:12px;font-size:12px">
     ${o.total ? `<div style="color:var(--c-softred)">⚠ ${o.total} saves huérfanos</div>` : `<div style="color:var(--c-teal)">✓ Sin saves huérfanos</div>`}
     ${o.total ? `<div style="color:var(--c-muted);font-size:11px">${_fmtSize(o.total_bytes)} recuperables</div>` : ''}
   </div>`;
 
-  if (!o.saves || !o.saves.length) {
-    el.innerHTML = html + '<p style="color:var(--c-muted);font-size:12px">No hay saves huérfanos.</p>';
-    return;
-  }
+  if (!o.saves || !o.saves.length) { el.innerHTML = html; return; }
 
   html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
   html += o.saves.map(s => {
@@ -1367,6 +1420,51 @@ export function _renderReportOrphans() {
   }).join('');
   html += '</div>';
   el.innerHTML = html;
+}
+
+export function _renderReportRA() {
+  const el = document.getElementById('rpt-tab-ra');
+  if (!el || !_reportData) return;
+  // Mismos datos que usa el informe HTML exportable (ra_check_result cacheado
+  // por el último job de /api/ra-check) — no dispara una comprobación nueva.
+  const ra = _reportData.retroachievements;
+  if (!ra || ra.note) {
+    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">${_h(ra?.note || 'No hay datos de RetroAchievements.')} <a href="#" onclick="showTab('tools');return false" style="color:var(--c-blue)">Ir a Herramientas → Comprobar compatibilidad RA</a></p>`;
+    return;
+  }
+  const alternatives = ra.alternatives || [];
+  let html = `<div style="margin-bottom:10px;font-size:12px">
+    <span style="color:var(--c-teal)">${ra.supported || 0} con soporte</span>
+    <span style="color:var(--c-softred);margin-left:10px">${ra.no_support_alternative || 0} sin logros con alternativa</span>
+    <span style="color:var(--c-dim);margin-left:10px">${ra.no_support || 0} sin logros</span>
+  </div>`;
+  if (!alternatives.length) { el.innerHTML = html + '<p style="color:var(--c-teal);font-size:12px">✓ Sin alternativas pendientes.</p>'; return; }
+
+  html += '<div style="max-height:420px;overflow-y:auto;font-size:11px">';
+  html += alternatives.map(r => `<div style="padding:4px;border-bottom:1px solid #222;color:var(--c-muted)">
+    <span style="color:var(--c-blue);font-size:10px;margin-right:6px">${_h(r.platform || '')}</span>
+    ${_h(r.filename || r.original_filename || '')} →
+    <a href="https://retroachievements.org/game/${r.ra_id || ''}" target="_blank" style="color:var(--c-teal)">${_h(r.ra_title || '')}</a>
+  </div>`).join('');
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+export function _renderReportChd() {
+  const el = document.getElementById('rpt-tab-chd');
+  if (!el || !_reportData) return;
+  // Mismos datos que usa el informe HTML exportable (convert_chd_result
+  // cacheado por el último job de "Convertir a CHD") — no convierte nada aquí.
+  const chd = _reportData.chd;
+  if (!chd || chd.note) {
+    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">${_h(chd?.note || 'No hay datos de conversión CHD.')} <a href="#" onclick="showTab('formats');return false" style="color:var(--c-blue)">Ir a Formatos → Convertir a CHD</a></p>`;
+    return;
+  }
+  el.innerHTML = `<p style="font-size:12px">
+    <span style="color:var(--c-teal)">${chd.converted || 0} convertidos</span>
+    <span style="color:var(--c-dim);margin-left:10px">${chd.skipped || 0} omitidos (ya existían)</span>
+    ${chd.failed ? `<span style="color:var(--c-softred);margin-left:10px">${chd.failed} fallidos</span>` : ''}
+  </p>`;
 }
 
 function _fmtSize(bytes) {
@@ -1387,45 +1485,76 @@ export function exportReportHtml() {
     return;
   }
 
+  // HERR-UX-11: colores hardcodeados — var(--c-*) no existe fuera de la app,
+  // el HTML exportado se abre suelto (sin la hoja de estilos de Retro Vault).
   const d = _reportData;
   const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const lines = [
     `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Informe Biblioteca — ${ts}</title>`,
-    `<style>body{font-family:monospace;background:var(--c-input);color:var(--c-text);padding:20px;font-size:13px}`,
-    `h1{color:var(--c-teal)}h2{color:var(--c-muted);border-bottom:1px solid #333;padding-bottom:4px;margin-top:20px}`,
+    `<style>body{font-family:monospace;background:#1a1a24;color:#ddd;padding:20px;font-size:13px}`,
+    `h1{color:#4ec9b0}h2{color:#aaa;border-bottom:1px solid #333;padding-bottom:4px;margin-top:20px}`,
     `table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;border-bottom:1px solid #222}`,
-    `.ok{color:var(--c-teal)}.warn{color:var(--c-orange)}.bad{color:var(--c-red)}.dim{color:var(--c-dim)}</style></head><body>`,
+    `.ok{color:#4ec9b0}.warn{color:#e0a030}.bad{color:#f44747}.dim{color:#888}</style></head><body>`,
     `<h1>Informe de Biblioteca Retro Vault</h1>`,
-    `<p class="dim">Generado: ${ts}</p>`,
-    `<h2>Resumen</h2>`,
-    `<table><tr><td class="dim">Juegos identificados:</td><td class="ok">${d.total_games || 0}</td></tr>`,
-    `<tr><td class="dim">Sin identificar:</td><td class="warn">${d.missing_count || 0}</td></tr>`,
-    `<tr><td class="dim">Plataformas:</td><td>${d.total_platforms || 0}</td></tr>`,
-    `<tr><td class="dim">Saves huérfanos:</td><td class="bad">${d.orphans?.total || 0}</td></tr></table>`,
+    `<p class="dim">Generado: ${ts} — ${_h(d.source_path || '')}</p>`,
   ];
 
-  // By platform
-  if (d.by_platform && d.by_platform.length) {
-    lines.push(`<h2>Por plataforma</h2><table><thead><tr><th>Plataforma</th><th style="text-align:right">Juegos</th></tr></thead><tbody>`);
-    const total = d.by_platform.reduce((sum, p) => sum + p.count, 0);
-    d.by_platform.forEach(p => {
-      const pct = total > 0 ? ((p.count / total) * 100).toFixed(1) : 0;
-      lines.push(`<tr><td>${_h(p.platform)}</td><td style="text-align:right">${p.count} (${pct}%)</td></tr>`);
-    });
+  // ZIPs
+  const z = d.zips || { total: 0, files: [] };
+  lines.push(`<h2>ZIPs (${z.total})</h2>`);
+  if (z.files.length) {
+    lines.push(`<table><thead><tr><th>Archivo</th><th style="text-align:right">Tamaño</th></tr></thead><tbody>`);
+    z.files.forEach(f => lines.push(`<tr><td>${_h(f.name)}${f.is_disc_set ? ' <span class="warn">(set de disco)</span>' : ''}</td><td style="text-align:right">${_fmtSize(f.size_bytes)}</td></tr>`));
+    lines.push(`</tbody></table>`);
+  } else {
+    lines.push(`<p class="ok">Sin ZIPs sueltos.</p>`);
+  }
+
+  // Playlists
+  const p = d.playlists || { total_groups: 0, groups: [] };
+  lines.push(`<h2>Playlists / Multi-disco (${p.total_groups})</h2>`);
+  if (p.groups.length) {
+    lines.push(`<table><thead><tr><th>Grupo</th><th>Discos</th><th>.m3u</th></tr></thead><tbody>`);
+    p.groups.forEach(g => lines.push(`<tr><td>${_h(g.base_name)}</td><td>${g.disc_count}</td><td class="${g.m3u_exists ? 'ok' : 'bad'}">${g.m3u_exists ? 'sí' : 'no'}</td></tr>`));
+    lines.push(`</tbody></table>`);
+  }
+
+  // Multidisc issues
+  const m = d.multidisc || { groups_ok: 0, groups_with_issues: 0, issues: [] };
+  lines.push(`<h2>Verificación multi-disco</h2><p>${m.groups_ok} OK / <span class="${m.groups_with_issues ? 'bad' : 'ok'}">${m.groups_with_issues} con problemas</span></p>`);
+  if (m.issues.length) {
+    lines.push(`<table><thead><tr><th>Plataforma</th><th>Set</th><th>Detalle</th></tr></thead><tbody>`);
+    m.issues.forEach(i => lines.push(`<tr><td>${_h(i.platform || '')}</td><td>${_h(i.base_name)}</td><td>${_h(i.detail)}</td></tr>`));
     lines.push(`</tbody></table>`);
   }
 
   // Orphans
-  if (d.orphans && d.orphans.total > 0) {
-    lines.push(`<h2>Saves huérfanos (${d.orphans.total})</h2>`);
-    lines.push(`<div class="warn" style="margin-bottom:8px">${_fmtSize(d.orphans.total_bytes)} recuperables</div>`);
-    if (d.orphans.saves && d.orphans.saves.length) {
-      lines.push(`<ul>`);
-      d.orphans.saves.forEach(s => {
-        lines.push(`<li>${_h(s.path)} (${_fmtSize(s.size_bytes)})</li>`);
-      });
-      lines.push(`</ul>`);
-    }
+  const o = d.orphans || { total: 0, total_bytes: 0, saves: [] };
+  lines.push(`<h2>Saves huérfanos (${o.total})</h2>`);
+  if (o.total > 0) {
+    lines.push(`<p class="warn">${_fmtSize(o.total_bytes)} recuperables</p><ul>`);
+    o.saves.forEach(s => lines.push(`<li>${_h(s.path)} (${_fmtSize(s.size_bytes)})</li>`));
+    lines.push(`</ul>`);
+  } else {
+    lines.push(`<p class="ok">Sin saves huérfanos.</p>`);
+  }
+
+  // RetroAchievements
+  const ra = d.retroachievements;
+  lines.push(`<h2>RetroAchievements</h2>`);
+  if (!ra || ra.note) {
+    lines.push(`<p class="dim">${_h(ra?.note || 'No hay datos de RetroAchievements.')}</p>`);
+  } else {
+    lines.push(`<p><span class="ok">${ra.supported || 0} con soporte</span> / <span class="warn">${ra.no_support_alternative || 0} sin logros con alternativa</span> / <span class="dim">${ra.no_support || 0} sin logros</span></p>`);
+  }
+
+  // CHD
+  const chd = d.chd;
+  lines.push(`<h2>Conversión CHD</h2>`);
+  if (!chd || chd.note) {
+    lines.push(`<p class="dim">${_h(chd?.note || 'No hay datos de conversión CHD.')}</p>`);
+  } else {
+    lines.push(`<p><span class="ok">${chd.converted || 0} convertidos</span> / <span class="dim">${chd.skipped || 0} omitidos</span>${chd.failed ? ` / <span class="bad">${chd.failed} fallidos</span>` : ''}</p>`);
   }
 
   lines.push(`</body></html>`);

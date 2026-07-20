@@ -240,7 +240,7 @@ async function loadTools() {
       const lastBad = (sched.last_corrupted || 0) + (sched.last_missing || 0);
       const statusPart = lastOk ? ` · ${lastOk}${lastBad ? `, ${lastBad} problemas` : ''}` : '';
       const overdueTxt = sched.overdue ? ' <span style="color:var(--accent-ora)">⚠ programado</span>' : '';
-      el.innerHTML = `&#xfa0;ltimo: <strong>${fmt(sched.last_run_at)}</strong>${statusPart} &nbsp;·&nbsp; Pr&#xf3;ximo: <strong>${fmt(sched.next_run_at)}</strong>${overdueTxt}`;
+      el.innerHTML = `&#xda;ltimo: <strong>${fmt(sched.last_run_at)}</strong>${statusPart} &nbsp;·&nbsp; Pr&#xf3;ximo: <strong>${fmt(sched.next_run_at)}</strong>${overdueTxt}`;
     }).catch(() => {
       const el = document.getElementById('health-schedule-info');
       if (el) el.textContent = '';
@@ -306,7 +306,13 @@ async function loadTools() {
     _initToolPath('verify-multidisc-path', 'tool_path_verify_multidisc');
     _initToolPath('lpl-output-dir',        'tool_path_lpl_output');
     _initToolPath('n64-path',              'tool_path_n64');
-  } catch(e) { /* silent */ }
+  } catch(e) {
+    // HERR-UX-11: sin esto, "Verificando API key…" se quedaba congelado
+    // para siempre si /api/config fallaba.
+    const raStatus = document.getElementById('ra-api-key-status');
+    if (raStatus) { _txtCls(raStatus, 'txt-err'); raStatus.textContent = '✗ No se pudo verificar — revisa la conexión'; }
+    showToast('Error cargando Herramientas: ' + e.message, 'err');
+  }
 }
 
 function _setIfEmpty(id, value) {
@@ -325,9 +331,9 @@ async function doBatchRun() {
     ? (cfg.anbernic_root || localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || cfg.library_root)
     : cfg.library_root;
 
-  if (!root) { alert('Configura library_root en Settings primero.'); return; }
+  if (!root) { showToast('Configura library_root en Ajustes primero.', 'err'); return; }
   if (ctx === 'android' && !cfg.anbernic_root && !localStorage.getItem('anbernic_path') && !localStorage.getItem('cable_ab_path')) {
-    alert('Contexto Android: configura la ruta de la consola en Settings o conecta el cable.');
+    showToast('Contexto Android: configura la ruta de la consola en Ajustes o conecta el cable.', 'err');
     return;
   }
 
@@ -356,45 +362,66 @@ async function doBatchRun() {
     name: 'RetroAchievements', runningKey: 'ra_check_running',
     start: () => apiPost('/api/ra-check', {}),
   });
-  if (document.getElementById('batch-scraper')?.checked) jobs.push({
-    name: 'Scraper (ScreenScraper)', runningKey: 'scrape_running',
-    start: () => apiPost('/api/scrape', { platform: null, limit: 0, images: true }),
-  });
-  if (jobs.length === 0) { alert('Selecciona al menos una herramienta.'); return; }
+  const scraperChecked = document.getElementById('batch-scraper')?.checked;
+  if (scraperChecked) {
+    // HERR-UX-9: comprobación proactiva de credenciales SS antes de arrancar,
+    // en vez de dejar que el job del Scraper falle a mitad de la secuencia.
+    if (!cfg.screenscraper_pass_set) {
+      showToast('Scraper: configura usuario y contraseña de ScreenScraper en Ajustes antes de incluirlo en el lote.', 'err');
+      return;
+    }
+    jobs.push({
+      name: 'Scraper (ScreenScraper)', runningKey: 'scrape_running',
+      start: () => apiPost('/api/scrape', { platform: null, limit: 0, images: true }),
+    });
+  }
+  if (jobs.length === 0) { showToast('Selecciona al menos una herramienta.', 'err'); return; }
 
   const btn = document.getElementById('btn-batch-run');
   const statusEl = document.getElementById('batch-status');
+  const btnOrigText = btn.textContent;
   btn.disabled = true;
+  btn.textContent = 'Ejecutando…';
   let allOk = true;
 
-  for (const job of jobs) {
-    statusEl.innerHTML = `<span style="color:var(--c-muted)">⟳ ${window._h(job.name)}…</span>`;
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const step = `Paso ${i + 1}/${jobs.length} — `;
+    statusEl.innerHTML = `<span style="color:var(--c-muted)">⟳ ${step}${window._h(job.name)}…</span>`;
     try {
       const d = await job.start();
       if (d.status === 'already_running') {
-        statusEl.innerHTML = `<span style="color:var(--c-yellow)">⚠ ${window._h(job.name)} ya está en curso — esperando…</span>`;
+        statusEl.innerHTML = `<span style="color:var(--c-yellow)">⚠ ${step}${window._h(job.name)} ya está en curso — esperando…</span>`;
       } else if (d.error) {
-        statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${window._h(job.name)}: ${window._h(d.error)}</span>`;
+        statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${step}${window._h(job.name)}: ${window._h(d.error)}</span>`;
         allOk = false; break;
       }
-      // Poll until job finishes
+      // Poll until job finishes, with a ceiling so a crashed server doesn't
+      // leave the batch waiting forever (HERR-UX-9)
+      const _MAX_POLLS = 900; // 900 × 2s = 30 min
       await new Promise((resolve, reject) => {
+        let polls = 0;
         const t = setInterval(async () => {
           try {
             const s = await apiFetch('/api/job-status');
-            if (!s[job.runningKey]) { clearInterval(t); resolve(); }
+            if (!s[job.runningKey]) { clearInterval(t); resolve(); return; }
+            if (++polls >= _MAX_POLLS) {
+              clearInterval(t);
+              reject(new Error('Tiempo de espera agotado — revisa el job manualmente'));
+            }
           } catch(e) { clearInterval(t); reject(e); }
         }, 2000);
       });
-      statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ ${window._h(job.name)} completado.</span>`;
+      statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ ${step}${window._h(job.name)} completado.</span>`;
       window.startPolling();
     } catch(e) {
-      statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${window._h(job.name)}: ${window._h(e.message)}</span>`;
+      statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${step}${window._h(job.name)}: ${window._h(e.message)}</span>`;
       allOk = false; break;
     }
   }
 
   btn.disabled = false;
+  btn.textContent = btnOrigText;
   if (allOk) {
     statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ Todas las operaciones completadas sobre ${window._h(root)}.</span>`;
     window.loadOverview();
@@ -834,6 +861,32 @@ async function browseFolder(inputId, title) {
   }
 }
 
+async function browseFile(inputId, title) {
+  // HERR-UX-11: hermano de browseFolder() para elegir un archivo suelto
+  // (p.ej. la ROM a parchear) en vez de una carpeta entera.
+  const input = document.getElementById(inputId);
+  const btn   = document.querySelector(`button[data-browse="${inputId}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    const initialDir = input?.value.trim() || '';
+    const params = new URLSearchParams({ title: title || 'Seleccionar archivo' });
+    if (initialDir) params.set('initial_dir', initialDir);
+
+    const d = await apiFetch('/api/browse-file?' + params.toString());
+    if (d.ok && d.path) {
+      if (input) input.value = d.path;
+      input?.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (!d.cancelled) {
+      showToast(d.error || 'No se pudo abrir el selector de archivo', 'err');
+    }
+  } catch (e) {
+    showToast('Error al abrir el selector: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📂'; }
+  }
+}
+
 // ── AUD-3: Papelera unificada ─────────────────────────────────────────────────
 async function loadTrashStatus() {
   const el = document.getElementById('trash-status-text');
@@ -878,5 +931,5 @@ export {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder, detectRetroArch,
+  browseFolder, browseFile, detectRetroArch,
 };

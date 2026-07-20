@@ -417,7 +417,7 @@ function setToolsContext(ctx) {
       // Solo rellena inputs vacíos — nunca pisa una ruta que el usuario ya escribió (FORMATOS-UX-1)
       const toolInputIds = [
         'zip-path', 'chd-path', 'cso-path', 'verify-chd-path', 'm3u-path', 'folder-analysis-path',
-        'orphan-path', 'junk-path',
+        'orphan-path', 'junk-path', 'report-path',
       ];
       for (const id of toolInputIds) {
         if (_setIfEmpty(id, rootPath)) {
