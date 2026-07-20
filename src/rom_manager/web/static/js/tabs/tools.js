@@ -690,7 +690,7 @@ export async function applySelectedPatch() {
       resultEl.innerHTML = `<span style="color:var(--c-softred)">&#x274C; ${_h(res.error)}</span>`;
     } else {
       resultEl.innerHTML = `<span style="color:var(--c-teal)">&#x2713; Patch aplicado — ${_h(res.output_name)} (${res.records} registros)</span>`;
-      showToast('Patch aplicado: ' + res.output_name, 'success');
+      showToast('Patch aplicado: ' + res.output_name, 'ok');
       loadPatchLog();
     }
   } catch (e) {

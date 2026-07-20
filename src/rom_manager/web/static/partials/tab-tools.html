@@ -89,7 +89,7 @@
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>RetroAchievements — Compatibilidad de logros</h3>
     <p style="color:var(--c-muted);font-size:12px;margin-bottom:8px">Comprueba qué ROMs de tu biblioteca son compatibles con RetroAchievements. Si tienes una versión sin logros pero existe una alternativa compatible, te lo indica.</p>
-    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">Necesita API key de <a href="https://retroachievements.org/settings" target="_blank" style="color:var(--c-teal)">retroachievements.org → Settings → API</a>. Configúrala en la pestaña <strong style="color:var(--c-text)">Settings</strong>.</p>
+    <p style="color:var(--c-dim);font-size:11px;margin-bottom:12px">Necesita API key de <a href="https://retroachievements.org/settings" target="_blank" style="color:var(--c-teal)">retroachievements.org → Settings → API</a>. Configúrala en la pestaña <strong style="color:var(--c-text)">Ajustes</strong>.</p>
     <div id="ra-api-key-status" style="margin-bottom:12px;font-size:12px;color:var(--c-dim)">Verificando API key…</div>
     <div class="actions-row">
       <button id="btn-ra-check" class="btn primary" onclick="doRaCheck()">Comprobar compatibilidad RA</button>
@@ -215,7 +215,7 @@
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
         <input id="patch-rom-path" type="text" placeholder="Ruta de la ROM a parchear&#x2026;" style="flex:1;font-size:11px">
-        <button onclick="browseFolder('patch-rom-path')" style="font-size:11px;padding:4px 10px">&#x1F4C2;</button>
+        <button onclick="browseFile('patch-rom-path')" style="font-size:11px;padding:4px 10px">&#x1F4C2;</button>
       </div>
       <button class="btn primary" onclick="applySelectedPatch()" style="font-size:12px">&#x25B6; Aplicar patch</button>
       <div id="patch-apply-result" style="margin-top:8px;font-size:12px"></div>

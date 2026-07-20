@@ -660,6 +660,7 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .toast.ok   { border-left-color: var(--accent); }
 .toast.err  { border-left-color: var(--accent-red); }
 .toast.info { border-left-color: var(--accent-blue); }
+.toast.warn { border-left-color: var(--accent-ora); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(20px) scale(.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
 
 /* ── S24: UX improvements ─────────────────────────────────────────────────── */

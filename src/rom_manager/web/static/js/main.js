@@ -14,7 +14,7 @@ import {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder, detectRetroArch,
+  browseFolder, browseFile, detectRetroArch,
   loadTrashStatus, emptyTrash,
 } from './tabs/config.js';
 import {
@@ -106,8 +106,8 @@ import {
   doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
   doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
-  loadUnmatchedDiagnosis,
-  generateReport, showReportTab, _renderReportOverview, _renderReportByPlatform, _renderReportMissing, _renderReportOrphans, exportReportHtml,
+  loadUnmatchedDiagnosis, downloadMissingDats,
+  generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
 } from './tabs/esde.js';
 import {
   _relTime, _emptyState, card, _getPlatformLogo,
@@ -226,8 +226,8 @@ Object.assign(window, {
   doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
   doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
-  loadUnmatchedDiagnosis,
-  generateReport, showReportTab, _renderReportOverview, _renderReportByPlatform, _renderReportMissing, _renderReportOrphans, exportReportHtml,
+  loadUnmatchedDiagnosis, downloadMissingDats,
+  generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
   // overview.js — overview tab, heatmap, charts, wizard
   _relTime, _emptyState, card, _getPlatformLogo,
   _loadNewGameSuggestion, _renderMonthlyChart,
@@ -266,7 +266,7 @@ Object.assign(window, {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder, detectRetroArch,
+  browseFolder, browseFile, detectRetroArch,
   loadTrashStatus, emptyTrash,
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
@@ -491,7 +491,7 @@ export function showTab(name) {
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAutostart(); loadTrashStatus(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
-  if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); }
+  if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); loadPatchList(); }
   if (name === 'inbox')      loadInbox();
   if (name === 'tv')         { /* enterTvMode() handles TV tab load */ }
 }
