@@ -1087,13 +1087,66 @@ export async function doctorResolveAll() {
 }
 
 export async function doFolderAnalysis() {
+  const path = document.getElementById('folder-analysis-path')?.value.trim();
   const el = document.getElementById('folder-analysis-result');
   if (!el) return;
+  if (!path) { showToast('Introduce la ruta de la carpeta a analizar', 'err'); return; }
   el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Analizando…</p>';
 
   try {
-    // TODO: Implement when /api/folder-analysis endpoint is available
-    el.innerHTML = `<p style="color:var(--c-muted);font-size:12px">Funcionalidad pendiente: análisis de carpetas</p>`;
+    const d = await apiPost('/api/folder-analysis', { source_path: path });
+    if (d.error) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">${_h(d.error)}</p>`; return; }
+
+    let html = '';
+
+    // ── Extensiones encontradas ────────────────────────────────────────────
+    const extensions = d.extensions || [];
+    html += `<details style="margin-bottom:10px" open><summary style="cursor:pointer;color:var(--c-hint);font-size:12px">Extensiones encontradas (${extensions.length})</summary>`;
+    if (extensions.length) {
+      html += '<div style="max-height:180px;overflow-y:auto;margin-top:6px">';
+      html += extensions.map(e => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-bottom:1px solid var(--c-panel)"><span style="color:var(--c-text)">${_h(e.ext)}</span><span style="color:var(--c-dim)">${e.count}</span></div>`).join('');
+      html += '</div>';
+    } else {
+      html += '<p style="color:var(--c-dim);font-size:12px;margin:6px 0 0">Carpeta vacía.</p>';
+    }
+    html += '</details>';
+
+    // ── Sets PSX con .bin faltante ─────────────────────────────────────────
+    const psxIncomplete = d.psx_incomplete || [];
+    html += `<details style="margin-bottom:10px"${psxIncomplete.length ? ' open' : ''}><summary style="cursor:pointer;color:var(--c-hint);font-size:12px">Sets PSX con .bin faltante (${psxIncomplete.length})</summary>`;
+    if (psxIncomplete.length) {
+      html += '<div style="max-height:180px;overflow-y:auto;margin-top:6px">';
+      html += psxIncomplete.map(p => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--c-panel)">
+        <span style="color:var(--c-text)">${_h(p.cue)}</span>
+        <div style="color:var(--c-red);font-size:11px;padding-left:8px">${p.errors.map(_h).join(', ')}</div>
+      </div>`).join('');
+      html += '</div>';
+    } else {
+      html += '<p style="color:var(--c-teal);font-size:12px;margin:6px 0 0">✓ Todos los sets .cue tienen sus .bin.</p>';
+    }
+    html += '</details>';
+
+    // ── Formatos que necesitan conversión ──────────────────────────────────
+    const n64Pending = d.n64_pending || [];
+    const needsConversion = n64Pending.length + (d.cso_count || 0) + (d.zip_count || 0);
+    html += `<details${needsConversion ? ' open' : ''}><summary style="cursor:pointer;color:var(--c-hint);font-size:12px">Formatos que necesitan conversión (${needsConversion})</summary>`;
+    if (needsConversion) {
+      html += '<div style="margin-top:6px;font-size:12px">';
+      if (n64Pending.length) {
+        html += `<div style="margin-bottom:6px"><strong>${n64Pending.length}</strong> ROM(s) N64 sin convertir a .z64:</div>`;
+        html += '<div style="max-height:120px;overflow-y:auto;margin-bottom:8px">';
+        html += n64Pending.map(r => `<div style="padding:2px 0;color:var(--c-text)"><span style="color:var(--c-amber)">${_h(r.format.toUpperCase())}</span> ${_h(r.filename)}</div>`).join('');
+        html += '</div>';
+      }
+      if (d.cso_count) html += `<div>${d.cso_count} archivo(s) .cso/.zso — usa "CSO / ZSO → ISO" para convertirlos.</div>`;
+      if (d.zip_count) html += `<div>${d.zip_count} archivo(s) .zip — usa "Descomprimir ZIPs" si tu emulador no los soporta.</div>`;
+      html += '</div>';
+    } else {
+      html += '<p style="color:var(--c-teal);font-size:12px;margin:6px 0 0">✓ No se encontraron formatos pendientes de conversión.</p>';
+    }
+    html += '</details>';
+
+    el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
   }

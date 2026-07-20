@@ -301,6 +301,11 @@ async function loadTools() {
     _initToolPath('report-path',           'tool_path_report');
     _initToolPath('folder-analysis-path',  'tool_path_folder_analysis');
     _initToolPath('junk-path',             'tool_path_junk');
+    _initToolPath('cso-path',              'tool_path_cso');
+    _initToolPath('verify-chd-path',       'tool_path_verify_chd');
+    _initToolPath('verify-multidisc-path', 'tool_path_verify_multidisc');
+    _initToolPath('lpl-output-dir',        'tool_path_lpl_output');
+    _initToolPath('n64-path',              'tool_path_n64');
   } catch(e) { /* silent */ }
 }
 
@@ -410,7 +415,7 @@ async function fillToolPath(inputId) {
     const cfg = await apiFetch('/api/config');
     const el = document.getElementById(inputId);
     if (el && cfg.library_root) { el.value = cfg.library_root; el.dispatchEvent(new Event('input')); }
-  } catch(e) { /* silent */ }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 
 // ── S25: PIN + URL helpers ────────────────────────────────────────────────────
