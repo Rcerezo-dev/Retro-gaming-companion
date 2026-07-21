@@ -11,6 +11,7 @@ from rom_manager.web.handlers.scan import (
     _build_dat_catalog_list,
     _is_dat_fresh,
 )
+from rom_manager.web.jobs.manager import JobManager
 
 
 def _touch(path: Path, age_days: float = 0.0) -> Path:
@@ -155,13 +156,12 @@ class TestRunDatDownloadTtl:
         entry = next(e for e in _LIBRETRO_DAT_CATALOG if e["catalog"] == "nointro")
         _touch(cfg.catalogs_nointro_dir / f"{entry['name']}.dat", age_days=1)
 
+        jobs = JobManager()
         with patch("urllib.request.urlopen") as mock_open:
-            _run_dat_download([entry], cfg)
+            _run_dat_download([entry], cfg, jobs)
             mock_open.assert_not_called()
 
-        from rom_manager.web.handlers.scan import _dat_dl_state
-
-        assert entry["name"] in _dat_dl_state["result"]["skipped"]
+        assert entry["name"] in jobs.get_job("download_dats")["result"]["skipped"]
 
     def test_stale_existing_dat_is_redownloaded(self, tmp_path: Path) -> None:
         from rom_manager.web.handlers.scan import _LIBRETRO_DAT_CATALOG, _run_dat_download
@@ -171,12 +171,11 @@ class TestRunDatDownloadTtl:
         entry = next(e for e in _LIBRETRO_DAT_CATALOG if e["catalog"] == "nointro")
         _touch(cfg.catalogs_nointro_dir / f"{entry['name']}.dat", age_days=_DAT_TTL_DAYS + 5)
 
+        jobs = JobManager()
         with patch("urllib.request.urlopen", return_value=self._fake_urlopen(self._minimal_xml())):
-            _run_dat_download([entry], cfg)
+            _run_dat_download([entry], cfg, jobs)
 
-        from rom_manager.web.handlers.scan import _dat_dl_state
-
-        assert entry["name"] in _dat_dl_state["result"]["downloaded"]
+        assert entry["name"] in jobs.get_job("download_dats")["result"]["downloaded"]
 
 
 # ── MAME listxml (catalog "mame_xml") ─────────────────────────────────────────
@@ -208,11 +207,7 @@ class TestMameListxmlEntry:
         import json
         import zipfile
 
-        from rom_manager.web.handlers.scan import (
-            _LIBRETRO_DAT_CATALOG,
-            _dat_dl_state,
-            _run_dat_download,
-        )
+        from rom_manager.web.handlers.scan import _LIBRETRO_DAT_CATALOG, _run_dat_download
 
         cfg = self._cfg(tmp_path)
         entry = next(e for e in _LIBRETRO_DAT_CATALOG if e["catalog"] == "mame_xml")
@@ -231,9 +226,11 @@ class TestMameListxmlEntry:
             resp.__exit__ = MagicMock(return_value=False)
             return resp
 
+        jobs = JobManager()
         with patch("urllib.request.urlopen", side_effect=[_resp(api_json), _resp(buf.getvalue())]):
-            _run_dat_download([entry], cfg)
+            _run_dat_download([entry], cfg, jobs)
 
-        assert _dat_dl_state["result"]["errors"] == []
-        assert entry["name"] in _dat_dl_state["result"]["downloaded"]
+        result = jobs.get_job("download_dats")["result"]
+        assert result["errors"] == []
+        assert entry["name"] in result["downloaded"]
         assert (cfg.catalogs_arcade_dir / "mame.xml").read_bytes() == xml

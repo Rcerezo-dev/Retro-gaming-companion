@@ -42,3 +42,22 @@ def test_get_status_shape_has_all_job_names():
     status = jm.get_status()
     for name in ("scan", "match", "sync", "cable_sync", "apply", "inbox"):
         assert f"{name}_running" in status
+
+
+def test_get_job_default_shape():
+    jm = JobManager()
+    job = jm.get_job("download_dats")
+    assert job == {"running": False, "progress": None, "result": None}
+
+
+def test_get_job_reflects_lifecycle():
+    jm = JobManager()
+    jm.start("download_dats", lambda: None)
+    assert jm.get_job("download_dats")["running"] is True
+    jm.update_progress("download_dats", {"done": 1, "total": 3})
+    assert jm.get_job("download_dats")["progress"] == {"done": 1, "total": 3}
+    jm.finish("download_dats", {"downloaded": ["x"]})
+    job = jm.get_job("download_dats")
+    assert job["running"] is False
+    assert job["progress"] is None
+    assert job["result"] == {"downloaded": ["x"]}

@@ -76,9 +76,6 @@ _LIBRETRO_METADAT_BASE = (
 _CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
 _DAT_TTL_DAYS = 7  # re-download if the local DAT is older than this
 
-_dat_dl_lock = threading.Lock()
-_dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
-
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
@@ -192,17 +189,21 @@ def register(
     # ── GET /api/download-dats-status ─────────────────────────────────────────
     @router.get("/api/download-dats-status")
     def get_download_dats_status(ctx) -> None:
-        with _dat_dl_lock:
-            ctx._send_json(dict(_dat_dl_state))
+        job = job_manager.get_job("download_dats")
+        progress = job["progress"] or {}
+        ctx._send_json(
+            {
+                "running": job["running"],
+                "total": progress.get("total", 0),
+                "done": progress.get("done", 0),
+                "current": progress.get("current", ""),
+                "result": job["result"],
+            }
+        )
 
     # ── POST /api/download-dats ───────────────────────────────────────────────
     @router.post("/api/download-dats")
     def post_download_dats(ctx) -> None:
-        with _dat_dl_lock:
-            if _dat_dl_state["running"]:
-                ctx._send_json({"status": "already_running"})
-                return
-
         data = ctx._post_data or {}
         all_sys = data.get("all", False)
         names = set(data.get("systems", []))
@@ -215,7 +216,12 @@ def register(
             ctx._send_json({"status": "error", "error": "No se han seleccionado sistemas"})
             return
 
-        threading.Thread(target=_run_dat_download, args=(systems, config), daemon=True).start()
+        result = job_manager.start(
+            "download_dats", lambda: _run_dat_download(systems, config, job_manager)
+        )
+        if result["status"] == "already_running":
+            ctx._send_json(result)
+            return
         ctx._send_json({"status": "started", "total": len(systems)})
 
 
@@ -601,7 +607,7 @@ def _import_dats(data: dict, config: AppConfig) -> dict:
     return {"imported": imported, "errors": errors, "total": len(imported)}
 
 
-def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
+def _run_dat_download(systems: list[dict], config: AppConfig, job_manager: JobManager) -> None:
     """Download DAT files from libretro-database and save to the catalog dirs."""
     import urllib.error
     import urllib.parse
@@ -613,10 +619,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
     skipped: list[str] = []
     errors: list[dict] = []
 
-    with _dat_dl_lock:
-        _dat_dl_state.update(
-            {"running": True, "total": len(systems), "done": 0, "current": "", "result": None}
-        )
+    job_manager.update_progress("download_dats", {"total": len(systems), "done": 0, "current": ""})
 
     for i, entry in enumerate(systems):
         name = entry["name"]
@@ -630,9 +633,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
         }.get(catalog, config.catalogs_nointro_dir)
         dest_file = dest_dir / filename
 
-        with _dat_dl_lock:
-            _dat_dl_state["current"] = name
-            _dat_dl_state["done"] = i
+        job_manager.update_progress("download_dats", {"current": name, "done": i})
 
         if dest_file.exists() and _is_dat_fresh(dest_file):
             skipped.append(name)
@@ -667,15 +668,9 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
         except Exception as exc:
             errors.append({"name": name, "error": str(exc)})
 
-    with _dat_dl_lock:
-        _dat_dl_state.update(
-            {
-                "running": False,
-                "done": len(systems),
-                "current": "",
-                "result": {"downloaded": downloaded, "skipped": skipped, "errors": errors},
-            }
-        )
+    job_manager.finish(
+        "download_dats", {"downloaded": downloaded, "skipped": skipped, "errors": errors}
+    )
 
 
 def _download_mame_listxml(dest_file: Path) -> str:

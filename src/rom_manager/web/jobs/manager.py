@@ -23,6 +23,7 @@ JOB_NAMES: tuple[str, ...] = (
     "tree_diff",
     "verify_chd",
     "playtime_scan",
+    "download_dats",
 )
 
 
@@ -104,6 +105,17 @@ class JobManager:
     def clear_result(self, job_id: str) -> None:
         with self._lock:
             self._results.pop(job_id, None)
+
+    def get_job(self, job_id: str) -> dict[str, Any]:
+        """Generic single-job snapshot (REV43-40) — for jobs with their own
+        dedicated status endpoint instead of the hand-built /api/job-status shape."""
+        with self._lock:
+            progress = self._progress.get(job_id)
+            return {
+                "running": self._running.get(job_id, False),
+                "progress": dict(progress) if progress else None,
+                "result": self._results.get(job_id),
+            }
 
     # ── Status snapshot ───────────────────────────────────────────────────────
 

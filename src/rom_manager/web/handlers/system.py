@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.web.handlers.sync_cloud import _handle_rclone_status
 
 _logger = logging.getLogger(__name__)
 
@@ -188,72 +189,6 @@ def _handle_detect_cloud_folder() -> dict:
         _logger.debug("Detección de Google Drive falló", exc_info=True)
 
     return {"detected": detected}
-
-
-def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
-    """Return the local rclone config file contents as bytes, or an error message."""
-    import shutil as _sh
-    import subprocess as _sp
-
-    rclone_bin = config.rclone_binary or "rclone"
-    if not _sh.which(rclone_bin) and not Path(rclone_bin).exists():
-        return b"# rclone not found on this machine\n", "text/plain; charset=utf-8"
-    try:
-        r = _sp.run([rclone_bin, "config", "file"], capture_output=True, text=True, timeout=8)
-        config_path = None
-        for line in (r.stdout or "").splitlines():
-            line = line.strip()
-            if line and line != "Configuration file is stored at:":
-                config_path = line
-                break
-        if config_path:
-            p = Path(config_path)
-            if p.exists():
-                return p.read_bytes(), "text/plain; charset=utf-8"
-        return b"# rclone config file not found\n", "text/plain; charset=utf-8"
-    except Exception as exc:
-        return f"# error reading rclone config: {exc}\n".encode(), "text/plain; charset=utf-8"
-
-
-def _handle_rclone_status(config: AppConfig) -> dict:
-    """Check if rclone is installed and list configured remotes."""
-    import subprocess
-
-    installed = False
-    version = ""
-    remotes: list[str] = []
-
-    try:
-        proc = subprocess.run(
-            [config.rclone_binary, "version"],
-            capture_output=True,
-            text=True,
-            timeout=8,
-        )
-        installed = proc.returncode == 0
-        if installed:
-            version = proc.stdout.split("\n")[0].strip()
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-
-    if installed:
-        try:
-            rem_proc = subprocess.run(
-                [config.rclone_binary, "listremotes"],
-                capture_output=True,
-                text=True,
-                timeout=8,
-            )
-            remotes = [r.strip() for r in rem_proc.stdout.strip().split("\n") if r.strip()]
-        except Exception:
-            _logger.warning("rclone listremotes falló", exc_info=True)
-
-    return {
-        "installed": installed,
-        "version": version,
-        "remotes": remotes,
-        "binary": config.rclone_binary,
-    }
 
 
 def _handle_system_status(config: AppConfig) -> dict:
