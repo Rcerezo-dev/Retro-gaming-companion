@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.sync import cable_engine
+from rom_manager.sync.sync_log import log_sync_event
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -319,6 +320,38 @@ def _do_cable_sync(
                     f"[{ts}] [{tag:5s}] {src}{(' -> ' + dst) if dst else ''}{(' | ' + note) if note else ''}\n"
                 )
 
+            # REV43-33: cable/ADB sync solo dejaba rastro en el .log de texto —
+            # "toda operación sobre archivos se registra en SQLite" (CLAUDE.md)
+            # no se cumplía aquí. No se registran los dry-run, igual que
+            # save_syncer.py con el remoto rclone.
+            def _sql_log(
+                direction: str, local_path: str, remote_path: str, result: str, message: str | None = None
+            ) -> None:
+                try:
+                    with repository.connect() as conn:
+                        log_sync_event(
+                            conn,
+                            local_path=local_path,
+                            remote_path=remote_path,
+                            direction=direction,
+                            local_mtime=None,
+                            remote_mtime=None,
+                            result=result,
+                            message=message,
+                            created_at=_dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                        )
+                        conn.commit()
+                except Exception:
+                    _logger.debug("No se pudo escribir en save_sync_log (cable sync)", exc_info=True)
+
+            def _sql_log_cable(
+                item: cable_engine.CopyPlanItem, result: str, message: str | None = None
+            ) -> None:
+                to_anbernic = item.arrow.startswith("->")
+                local_path = str(item.src if to_anbernic else item.dst)
+                remote_path = str(item.dst if to_anbernic else item.src)
+                _sql_log("upload" if to_anbernic else "download", local_path, remote_path, result, message)
+
             def _cat_name(name: str) -> str:
                 suffix = Path(name).suffix.lower()
                 return "save" if suffix in save_exts else "rom"
@@ -399,10 +432,13 @@ def _do_cable_sync(
                     elif tag == "ERROR":
                         errors += 1
                         _log("ERROR", str(ev_item.src), str(ev_item.dst), note)
+                        _sql_log_cable(ev_item, "error", note)
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {note}", "path": src_name})
                     else:  # COPY / DRYRUN
                         _log(tag, str(ev_item.src), str(ev_item.dst))
+                        if tag == "COPY":
+                            _sql_log_cable(ev_item, "ok")
 
                 if (
                     _bk_root is not None
@@ -448,6 +484,8 @@ def _do_cable_sync(
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
                         )
+                        if not dry_run:
+                            _sql_log("download", str(local_dst), adb_info.android_path, "ok")
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:
@@ -455,6 +493,8 @@ def _do_cable_sync(
                         _update_progress(name)
                     except OSError as exc:
                         _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
+                        if not dry_run:
+                            _sql_log("download", str(local_dst), adb_info.android_path, "error", str(exc))
                         errors += 1
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": name})
@@ -472,6 +512,8 @@ def _do_cable_sync(
                             verify=should_verify(local_src.name, save_exts),
                         )
                         _log("ADB→" if not dry_run else "DRY→", str(local_src), android_dst)
+                        if not dry_run:
+                            _sql_log("upload", str(local_src), android_dst, "ok")
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:
@@ -479,6 +521,8 @@ def _do_cable_sync(
                         _update_progress(local_src.name)
                     except OSError as exc:
                         _log("ERROR", str(local_src), android_dst, str(exc))
+                        if not dry_run:
+                            _sql_log("upload", str(local_src), android_dst, "error", str(exc))
                         errors += 1
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": local_src.name})
