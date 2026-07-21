@@ -271,6 +271,7 @@ def _save_config(
         "android.device_name",
         "web.host",
         "launchers.retroarch",
+        "launchers.esde",
         "backup.saves_enabled",
         "backup.saves_keep_n",
         "notifications.desktop",

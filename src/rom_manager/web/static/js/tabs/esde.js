@@ -26,7 +26,8 @@ export async function loadEsdeStatus() {
         <tr><td style="color:var(--c-dim);padding:2px 6px 2px 0;white-space:nowrap">ROMs</td><td><code style="color:var(--c-orange)">${_h(d.roms_path || '—')}</code></td></tr>
         <tr><td style="color:var(--c-dim);padding:2px 6px 2px 0;white-space:nowrap">Gamelists</td><td><code style="color:var(--c-orange)">${_h(d.gamelists_dir || '—')}</code></td></tr>
       </table>
-      ${d.gamelists_dir ? `<div style="margin-top:10px"><button class="btn primary" onclick="doExportGamelistsAll(${JSON.stringify(d.gamelists_dir)})" style="font-size:12px">&#x2193; Exportar todas las gamelists a ES-DE</button></div>` : ''}`;
+      ${d.gamelists_dir ? `<div style="margin-top:10px"><button class="btn primary" onclick="doExportGamelistsAll(${JSON.stringify(d.gamelists_dir)})" style="font-size:12px">&#x2193; Exportar todas las gamelists a ES-DE</button>
+        <div style="font-size:11px;color:var(--c-dim);margin-top:4px">Mismo export que en la pestaña Scraper — usa esa si quieres elegir plataforma o carpeta de destino.</div></div>` : ''}`;
   } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`; }
 }
 
