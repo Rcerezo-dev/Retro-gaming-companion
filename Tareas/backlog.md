@@ -691,13 +691,13 @@ ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ⬜ |
-| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ⬜ |
-| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ⬜ |
-| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ⬜ |
-| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ⬜ |
-| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ⬜ |
-| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ⬜ |
+| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ✅ `loadSsQuota()` generalizada para actualizar ambos paneles (sufijo `-scraper` en los IDs); nuevo bloque en `tab-scraper.html`; se llama al abrir la pestaña |
+| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ✅ nota junto al botón de ES-DE (`esde.js`) aclarando que es el mismo export que en Scraper, con más opciones allí |
+| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ✅ nuevo `loadSsCredsStatus()` (mismo patrón que `ra-api-key-status`) + chequeo proactivo en `doScrape()` antes de lanzar el job |
+| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ✅ `_friendlyError()` traduce fallos de red/fetch a un mensaje guiado; resto de mensajes se mantienen sin cambios |
+| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ✅ ambas menciones eliminadas |
+| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ✅ eliminada junto con `_autoFillEsdeGamelistDir()`/`_esdeGamelistsDir` (dead code en cascada: sin `useEsdeGamelistDir()` tampoco tenían lector) |
+| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ✅ `doExportGamelists()` deshabilita el botón con texto "Exportando…" (patrón `try/finally`) |
 
 ---
 
