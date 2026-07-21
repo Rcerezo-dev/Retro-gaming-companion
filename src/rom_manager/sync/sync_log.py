@@ -100,17 +100,35 @@ def log_sync_event(
 def get_last_sync(
     connection: sqlite3.Connection,
     local_path: str,
+    *,
+    remote_path: str | None = None,
 ) -> datetime | None:
-    """Return the UTC datetime of the last successful sync for *local_path*, or None."""
-    row = connection.execute(
-        """
-        SELECT created_at FROM save_sync_log
-        WHERE local_path = ? AND result = 'ok'
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (local_path,),
-    ).fetchone()
+    """Return the UTC datetime of the last successful sync for *local_path*, or None.
+
+    REV43-35: when *remote_path* is given, also require it to match — a watermark
+    recorded against a since-changed saves_remote/states_remote must not be reused
+    as if it applied to the current one.
+    """
+    if remote_path is not None:
+        row = connection.execute(
+            """
+            SELECT created_at FROM save_sync_log
+            WHERE local_path = ? AND remote_path = ? AND result = 'ok'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (local_path, remote_path),
+        ).fetchone()
+    else:
+        row = connection.execute(
+            """
+            SELECT created_at FROM save_sync_log
+            WHERE local_path = ? AND result = 'ok'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (local_path,),
+        ).fetchone()
     if row is None:
         return None
     raw = row[0]
