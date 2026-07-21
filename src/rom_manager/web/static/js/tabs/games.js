@@ -17,6 +17,11 @@ export let _tvPlatform = '';
 export let _tvOffset = 0;
 export let _tvCols = 5;
 export const _TV_LIMIT = 120;
+// TV-UX-1: si el último lote vino completo (== _TV_LIMIT), puede haber más.
+let _tvHasMore = true;
+// TV-UX-3: pestaña desde la que se entró, para volver ahí al salir en vez de fijo a 'games'.
+let _tvSourceTab = 'games';
+let _tvEndFlashTimer = null;
 
 // ── Column visibility ─────────────────────────────────────────────────────────
 const _COL_DEFAULTS = { region: true, match: true, size: false, sha1: false };
@@ -982,16 +987,58 @@ export async function loadGameSyncHistory(sourcePath) {
 
 // ── TV Mode ───────────────────────────────────────────────────────────────────
 export async function enterTvMode() {
+  // TV-UX-3: recuerda desde dónde se entró (el atajo 't' funciona desde cualquier
+  // pestaña) — solo la primera vez, no si 't' se repite estando ya en TV.
+  if (!_tvActive) {
+    _tvSourceTab = document.querySelector('.tab.active')?.id?.replace('tab-', '') || 'games';
+  }
   _tvActive = true;
   showTab('tv');
-  try { await document.documentElement.requestFullscreen(); } catch(_) {}
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch(_) {
+    // TV-UX-5: antes fallaba en silencio — Modo TV sigue funcionando en ventana, avisamos y ya.
+    showToast('No se pudo activar pantalla completa — Modo TV sigue funcionando en ventana', 'warn');
+  }
+  await _tvLoadPlatformBar();
   await loadTvGrid('', 0);
 }
 
 export function exitTvMode() {
   _tvActive = false;
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  showTab('games');
+  showTab(_tvSourceTab);
+}
+
+// TV-UX-2: la barra de plataformas nunca se rellenaba — reutiliza el mismo
+// endpoint que ya usan los filtros de Juegos y Scraper.
+async function _tvLoadPlatformBar() {
+  const bar = document.getElementById('tv-platform-bar');
+  if (!bar) return;
+  try {
+    const d = await apiFetch('/api/games/filter-options');
+    const platforms = d.platforms || [];
+    bar.innerHTML = '';
+    const _chip = (label, value) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.className = 'tv-plat-chip' + (value === _tvPlatform ? ' active' : '');
+      btn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--fg-2);cursor:pointer;font-size:12px';
+      btn.addEventListener('click', () => _tvSelectPlatform(value));
+      bar.appendChild(btn);
+    };
+    _chip('Todas', '');
+    platforms.forEach(p => _chip(p, p));
+  } catch(_) {}
+}
+
+async function _tvSelectPlatform(platform) {
+  const label = document.getElementById('tv-platform-label');
+  if (label) label.textContent = platform || 'Toda la colección';
+  document.querySelectorAll('#tv-platform-bar .tv-plat-chip').forEach(b => {
+    b.classList.toggle('active', b.textContent === (platform || 'Todas'));
+  });
+  await loadTvGrid(platform, 0);
 }
 
 export async function loadTvGrid(platform, offset) {
@@ -1006,10 +1053,18 @@ export async function loadTvGrid(platform, offset) {
     } else {
       _tvGames.push(...games);
     }
+    _tvHasMore = games.length === _TV_LIMIT;
     _tvPlatform = platform;
     _tvOffset = offset;
     _renderTvGrid(games, offset > 0);
-  } catch(e) { console.error('loadTvGrid failed:', e); }
+  } catch(e) {
+    // TV-UX-4: antes se quedaba en blanco sin ningún aviso — modo a pantalla completa, hace falta un mensaje visible.
+    console.error('loadTvGrid failed:', e);
+    if (offset === 0) {
+      const gridEl = document.getElementById('tv-grid');
+      if (gridEl) gridEl.innerHTML = '<p style="color:var(--c-red);padding:20px;grid-column:1/-1">No se pudo cargar la colección — comprueba la conexión con el servidor.</p>';
+    }
+  }
 }
 
 function _renderTvGrid(games, append) {
@@ -1036,15 +1091,42 @@ function _renderTvGrid(games, append) {
     gridEl.appendChild(tile);
   });
   _tvCols = Math.max(1, Math.round(gridEl.offsetWidth / 196));
-  if (_tvGames.length > 0) _tvMoveFocus(0);
+  // Solo recentra el foco en una carga nueva — al añadir página, mantiene la posición actual.
+  if (!append && _tvGames.length > 0) _tvMoveFocus(0);
 }
 
-export function _tvMoveFocus(idx) {
+// TV-UX-5: _tvCols no se recalculaba al redimensionar la ventana.
+window.addEventListener('resize', () => {
+  if (!_tvActive) return;
+  const gridEl = document.getElementById('tv-grid');
+  if (gridEl) _tvCols = Math.max(1, Math.round(gridEl.offsetWidth / 196));
+});
+
+export async function _tvMoveFocus(idx) {
+  // TV-UX-1: la colección se cortaba en _TV_LIMIT juegos sin forma de cargar más.
+  if (idx >= _tvGames.length) {
+    if (_tvHasMore) {
+      await loadTvGrid(_tvPlatform, _tvOffset + _TV_LIMIT);
+    } else {
+      _tvFlashEnd();
+      idx = _tvGames.length - 1;
+    }
+  }
   document.querySelector('.tv-tile.tv-focused')?.classList.remove('tv-focused');
   _tvFocusIdx = Math.max(0, Math.min(idx, _tvGames.length - 1));
   const tile = document.querySelector(`.tv-tile[data-tv-idx="${_tvFocusIdx}"]`);
   if (tile) { tile.classList.add('tv-focused'); tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
   if (_tvGames[_tvFocusIdx]) _updateTvInfoBar(_tvGames[_tvFocusIdx]);
+}
+
+const _TV_HELP_TEXT = '↑↓←→ navegar · Enter abrir · Esc salir';
+function _tvFlashEnd() {
+  const el = document.getElementById('tv-info-keys');
+  if (!el) return;
+  el.textContent = 'No hay más juegos por aquí';
+  el.style.color = 'var(--c-red)';
+  clearTimeout(_tvEndFlashTimer);
+  _tvEndFlashTimer = setTimeout(() => { el.textContent = _TV_HELP_TEXT; el.style.color = 'var(--c-ghost)'; }, 1000);
 }
 
 function _updateTvInfoBar(g) {
