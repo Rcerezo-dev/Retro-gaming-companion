@@ -15,6 +15,7 @@ from pathlib import Path as _Path
 import rom_manager.detection.platform_detector as _platform_detector
 from rom_manager.config import AppConfig
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.utils.media_types import IMAGE_EXTS
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
@@ -509,7 +510,7 @@ def _build_folder_analysis(folder_path: str, config: AppConfig) -> dict:
             cat = "save"
         elif ext in _NEEDS_CONVERSION:
             cat = "needs_conversion"
-        elif ext in {".jpg", ".jpeg", ".png", ".webp", ".xml", ".txt", ".cfg", ".db"}:
+        elif ext in IMAGE_EXTS | {".xml", ".txt", ".cfg", ".db"}:
             cat = "asset/meta"
         else:
             cat = "unknown"

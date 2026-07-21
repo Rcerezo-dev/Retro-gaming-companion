@@ -9,6 +9,7 @@ from __future__ import annotations
 import sqlite3
 
 from rom_manager.database.repositories.base import escape_like_prefix
+from rom_manager.utils.media_types import IMAGE_EXTS, VIDEO_EXTS
 
 
 class AssetsMixin:
@@ -61,8 +62,9 @@ class AssetsMixin:
 
         *source_root* filters to only entries whose source_path starts with that prefix.
         """
-        _IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "tga", "bmp"}
-        _VIDEO_EXTS = {"mp4", "mkv", "avi", "webm", "mov"}
+        # REV43-39: asset_type se guarda sin punto — deriva del set canónico en vez de duplicarlo.
+        _IMAGE_EXTS = {e.lstrip(".") for e in IMAGE_EXTS}
+        _VIDEO_EXTS = {e.lstrip(".") for e in VIDEO_EXTS}
 
         prefix = escape_like_prefix(source_root.rstrip("/\\")) + "%" if source_root else None
 

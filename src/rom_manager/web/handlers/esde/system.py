@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
+from rom_manager.utils.media_types import IMAGE_EXTS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -268,7 +269,7 @@ def _handle_copy_assets_to_esde(config: AppConfig) -> dict:
         img_dst = gamelists_dir / platform_dir.name / "images"
         img_dst.mkdir(parents=True, exist_ok=True)
         for img in img_src.iterdir():
-            if img.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+            if img.suffix.lower() in IMAGE_EXTS:
                 dst = img_dst / img.name
                 try:
                     shutil.copy2(str(img), str(dst))

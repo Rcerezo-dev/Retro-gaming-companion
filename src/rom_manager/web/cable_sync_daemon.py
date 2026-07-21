@@ -173,6 +173,42 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         note_part = (" | " + note) if note else ""
                         _log_file.write(f"[{ts}] [{tag:5s}] {src}{arrow}{note_part}\n")
 
+                    # REV43-33: la sync automática por ADB tampoco escribía en
+                    # save_sync_log — mismo hueco que el cable sync manual y el
+                    # SD-auto (sync_cable.py / cable_sync_daemon._run_sd_auto_sync).
+                    from rom_manager.sync.sync_log import log_sync_event
+
+                    _adb_repo = get_repo_fn(str(pc_root))
+
+                    def _sql_log(
+                        direction_: str,
+                        local_path: str,
+                        remote_path: str,
+                        result: str,
+                        message: str | None = None,
+                    ) -> None:
+                        try:
+                            with _adb_repo.connect() as conn:
+                                log_sync_event(
+                                    conn,
+                                    local_path=local_path,
+                                    remote_path=remote_path,
+                                    direction=direction_,
+                                    local_mtime=None,
+                                    remote_mtime=None,
+                                    result=result,
+                                    message=message,
+                                    created_at=_dt2.datetime.now(tz=_dt2.UTC).strftime(
+                                        "%Y-%m-%dT%H:%M:%S"
+                                    ),
+                                )
+                                conn.commit()
+                        except Exception:
+                            _logger.debug(
+                                "No se pudo escribir en save_sync_log (auto-sync ADB)",
+                                exc_info=True,
+                            )
+
                     copied = skipped = errors = 0
                     copied_bytes = 0
 
@@ -204,11 +240,15 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                 verify=should_verify(name, effective_exts),
                             )
                             _log("ADB←", adb_info.android_path, str(local_dst))
+                            _sql_log("download", str(local_dst), adb_info.android_path, "ok")
                             copied += 1
                             copied_bytes += size
                             _update_prog(name)
                         except OSError as exc:
                             _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
+                            _sql_log(
+                                "download", str(local_dst), adb_info.android_path, "error", str(exc)
+                            )
                             errors += 1
 
                     def _adb_copy_to_device(
@@ -225,11 +265,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                 verify=should_verify(local_src.name, effective_exts),
                             )
                             _log("ADB→", str(local_src), android_dst)
+                            _sql_log("upload", str(local_src), android_dst, "ok")
                             copied += 1
                             copied_bytes += size
                             _update_prog(local_src.name)
                         except OSError as exc:
                             _log("ERROR", str(local_src), android_dst, str(exc))
+                            _sql_log("upload", str(local_src), android_dst, "error", str(exc))
                             errors += 1
 
                     _jm.update_progress(
@@ -379,12 +421,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 # ── SD card auto-sync daemon ───────────────────────────────────────────────────
 
 
-def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
+def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
     """Run a filesystem Cable Sync triggered by SD card insertion."""
     import datetime as _dt2
     import shutil
 
     from rom_manager.sync import cable_engine
+    from rom_manager.sync.sync_log import log_sync_event
 
     _sd_sync_status = _state._sd_sync_status
     _jm = _state._job_manager
@@ -428,14 +471,43 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:  # noqa: ARG001
         # copy propios.
         items = list(cable_engine.plan_direction(pc_root, ab_root, direction, _wanted))
         policy = cable_engine.CopyPolicy()
+        repository = get_repo_fn(str(pc_root))
+
+        # REV43-33: este daemon solo dejaba rastro en el .log de texto, nunca
+        # en save_sync_log — mismo hueco que el cable sync manual (sync_cable.py).
+        def _sql_log(
+            item: cable_engine.CopyPlanItem, result: str, message: str | None = None
+        ) -> None:
+            to_anbernic = item.arrow.startswith("->")
+            local_path = str(item.src if to_anbernic else item.dst)
+            remote_path = str(item.dst if to_anbernic else item.src)
+            try:
+                with repository.connect() as conn:
+                    log_sync_event(
+                        conn,
+                        local_path=local_path,
+                        remote_path=remote_path,
+                        direction="upload" if to_anbernic else "download",
+                        local_mtime=None,
+                        remote_mtime=None,
+                        result=result,
+                        message=message,
+                        created_at=_dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                    )
+                    conn.commit()
+            except Exception:
+                _logger.debug("No se pudo escribir en save_sync_log (SD auto-sync)", exc_info=True)
 
         def _on_event(tag: str, item: cable_engine.CopyPlanItem, note: str) -> None:
             nonlocal errors
             if tag == "ERROR":
                 errors += 1
                 _log_file.write(f"ERROR {item.src} -> {item.dst}: {note}\n")
+                _sql_log(item, "error", note)
             else:
                 _log_file.write(f"COPY {item.arrow} {item.src} -> {item.dst}\n")
+                if tag == "COPY":
+                    _sql_log(item, "ok")
 
         for item in items:
             if item.dst.exists():
