@@ -325,7 +325,11 @@ def _do_cable_sync(
             # no se cumplía aquí. No se registran los dry-run, igual que
             # save_syncer.py con el remoto rclone.
             def _sql_log(
-                direction: str, local_path: str, remote_path: str, result: str, message: str | None = None
+                direction: str,
+                local_path: str,
+                remote_path: str,
+                result: str,
+                message: str | None = None,
             ) -> None:
                 try:
                     with repository.connect() as conn:
@@ -342,7 +346,9 @@ def _do_cable_sync(
                         )
                         conn.commit()
                 except Exception:
-                    _logger.debug("No se pudo escribir en save_sync_log (cable sync)", exc_info=True)
+                    _logger.debug(
+                        "No se pudo escribir en save_sync_log (cable sync)", exc_info=True
+                    )
 
             def _sql_log_cable(
                 item: cable_engine.CopyPlanItem, result: str, message: str | None = None
@@ -350,7 +356,13 @@ def _do_cable_sync(
                 to_anbernic = item.arrow.startswith("->")
                 local_path = str(item.src if to_anbernic else item.dst)
                 remote_path = str(item.dst if to_anbernic else item.src)
-                _sql_log("upload" if to_anbernic else "download", local_path, remote_path, result, message)
+                _sql_log(
+                    "upload" if to_anbernic else "download",
+                    local_path,
+                    remote_path,
+                    result,
+                    message,
+                )
 
             def _cat_name(name: str) -> str:
                 suffix = Path(name).suffix.lower()
@@ -494,7 +506,9 @@ def _do_cable_sync(
                     except OSError as exc:
                         _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
                         if not dry_run:
-                            _sql_log("download", str(local_dst), adb_info.android_path, "error", str(exc))
+                            _sql_log(
+                                "download", str(local_dst), adb_info.android_path, "error", str(exc)
+                            )
                         errors += 1
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": name})

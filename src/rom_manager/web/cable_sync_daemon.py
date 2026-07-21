@@ -181,7 +181,11 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     _adb_repo = get_repo_fn(str(pc_root))
 
                     def _sql_log(
-                        direction_: str, local_path: str, remote_path: str, result: str, message: str | None = None
+                        direction_: str,
+                        local_path: str,
+                        remote_path: str,
+                        result: str,
+                        message: str | None = None,
                     ) -> None:
                         try:
                             with _adb_repo.connect() as conn:
@@ -194,12 +198,15 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                     remote_mtime=None,
                                     result=result,
                                     message=message,
-                                    created_at=_dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                                    created_at=_dt2.datetime.now(tz=_dt2.UTC).strftime(
+                                        "%Y-%m-%dT%H:%M:%S"
+                                    ),
                                 )
                                 conn.commit()
                         except Exception:
                             _logger.debug(
-                                "No se pudo escribir en save_sync_log (auto-sync ADB)", exc_info=True
+                                "No se pudo escribir en save_sync_log (auto-sync ADB)",
+                                exc_info=True,
                             )
 
                     copied = skipped = errors = 0
@@ -468,7 +475,9 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
 
         # REV43-33: este daemon solo dejaba rastro en el .log de texto, nunca
         # en save_sync_log — mismo hueco que el cable sync manual (sync_cable.py).
-        def _sql_log(item: cable_engine.CopyPlanItem, result: str, message: str | None = None) -> None:
+        def _sql_log(
+            item: cable_engine.CopyPlanItem, result: str, message: str | None = None
+        ) -> None:
             to_anbernic = item.arrow.startswith("->")
             local_path = str(item.src if to_anbernic else item.dst)
             remote_path = str(item.dst if to_anbernic else item.src)

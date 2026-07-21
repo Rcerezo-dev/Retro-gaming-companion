@@ -48,8 +48,7 @@ class TestDiagnoseRouting:
         d = self._diag("game.state", saves_remote="s:/saves", fallback_remote="s:/fallback")
         assert d["routing_decision"] == "s:/fallback"
         assert d["routing_reason"] == (
-            "matches state ext (.state) but states_remote not configured "
-            "→ using fallback_remote"
+            "matches state ext (.state) but states_remote not configured → using fallback_remote"
         )
 
     def test_state_ext_without_states_remote_defaults_to_saves_remote(self):
