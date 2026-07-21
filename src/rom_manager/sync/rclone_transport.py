@@ -39,6 +39,39 @@ class RcloneError(RuntimeError):
     pass
 
 
+def _resolve_remote(
+    file_ext: str,
+    saves_remote: str | None,
+    states_remote: str | None,
+    fallback_remote: str | None,
+    save_extensions: tuple[str, ...],
+    state_extensions: tuple[str, ...],
+) -> tuple[str | None, str, bool]:
+    """Routing decision shared by diagnose_routing/upload/download (REV43-34) —
+    same state→saves→fallback priority, previously copy-pasted 3 times.
+
+    Returns (chosen_remote, category, category_had_own_remote):
+      - category: "state" | "save" | "unknown" — what file_ext matched, before
+        applying the fallback chain.
+      - category_had_own_remote: whether states_remote/saves_remote was itself
+        configured for that category (always False for "unknown").
+    Fallback chain when the category has no remote of its own: explicit
+    fallback_remote → saves_remote → states_remote.
+    """
+    if state_extensions and file_ext in state_extensions:
+        category = "state"
+        category_remote = states_remote
+    elif save_extensions and file_ext in save_extensions:
+        category = "save"
+        category_remote = saves_remote
+    else:
+        category = "unknown"
+        category_remote = None
+
+    chosen = category_remote or fallback_remote or saves_remote or states_remote
+    return chosen, category, bool(category_remote)
+
+
 class RcloneTransport:
     """Thin wrapper around the rclone CLI binary."""
 
@@ -74,35 +107,37 @@ class RcloneTransport:
         states_remote_clean = (states_remote or "").strip() or None
         fallback_remote_clean = (fallback_remote or "").strip() or None
 
-        chosen_remote: str | None = None
-        routing_reason = ""
+        chosen_remote, category, category_configured = _resolve_remote(
+            file_ext,
+            saves_remote_clean,
+            states_remote_clean,
+            fallback_remote_clean,
+            save_extensions,
+            state_extensions,
+        )
 
-        # Same logic as upload/download
-        if state_extensions and file_ext in state_extensions:
-            if states_remote_clean:
-                chosen_remote = states_remote_clean
-                routing_reason = f"state extension ({file_ext})"
-            else:
-                routing_reason = f"matches state ext ({file_ext}) but states_remote not configured"
-        elif save_extensions and file_ext in save_extensions:
-            if saves_remote_clean:
-                chosen_remote = saves_remote_clean
-                routing_reason = f"save extension ({file_ext})"
-            else:
-                routing_reason = f"matches save ext ({file_ext}) but saves_remote not configured"
+        if category == "state":
+            routing_reason = (
+                f"state extension ({file_ext})"
+                if category_configured
+                else f"matches state ext ({file_ext}) but states_remote not configured"
+            )
+        elif category == "save":
+            routing_reason = (
+                f"save extension ({file_ext})"
+                if category_configured
+                else f"matches save ext ({file_ext}) but saves_remote not configured"
+            )
         else:
             routing_reason = f"unknown extension ({file_ext})"
 
-        # Fallback chain if no match
-        if not chosen_remote:
-            if fallback_remote_clean:
-                chosen_remote = fallback_remote_clean
+        # Fallback chain if the category didn't have its own remote configured
+        if not category_configured:
+            if chosen_remote and chosen_remote == fallback_remote_clean:
                 routing_reason += " → using fallback_remote"
-            elif saves_remote_clean:
-                chosen_remote = saves_remote_clean
+            elif chosen_remote and chosen_remote == saves_remote_clean:
                 routing_reason += " → using saves_remote (default)"
-            elif states_remote_clean:
-                chosen_remote = states_remote_clean
+            elif chosen_remote and chosen_remote == states_remote_clean:
                 routing_reason += " → using states_remote (default)"
             else:
                 routing_reason += " → NO REMOTE CONFIGURED (ERROR)"
@@ -198,27 +233,31 @@ class RcloneTransport:
 
         # Determine destination remote based on file extension
         file_ext = Path(local_path).suffix.lower()
-        chosen_remote: str | None = None
-        routing_reason = ""
+        chosen_remote, category, category_configured = _resolve_remote(
+            file_ext,
+            saves_remote_clean,
+            states_remote_clean,
+            fallback_remote_clean,
+            save_extensions,
+            state_extensions,
+        )
 
-        # Priority: check states_remote first (higher priority to avoid ambiguity)
-        if state_extensions and file_ext in state_extensions:
-            if states_remote_clean:
-                chosen_remote = states_remote_clean
+        if category == "state":
+            if category_configured:
                 routing_reason = f"state extension ({file_ext})"
             else:
+                routing_reason = ""
                 log.warning(
                     "File %s matches state extension (%s) but states_remote not configured; "
                     "will use fallback or saves_remote",
                     local_path.name,
                     file_ext,
                 )
-        # Then check saves_remote
-        elif save_extensions and file_ext in save_extensions:
-            if saves_remote_clean:
-                chosen_remote = saves_remote_clean
+        elif category == "save":
+            if category_configured:
                 routing_reason = f"save extension ({file_ext})"
             else:
+                routing_reason = ""
                 log.warning(
                     "File %s matches save extension (%s) but saves_remote not configured; "
                     "will use fallback or states_remote",
@@ -226,7 +265,7 @@ class RcloneTransport:
                     file_ext,
                 )
         else:
-            # Unknown extension
+            routing_reason = ""
             log.warning(
                 "File %s has unknown extension (%s); will use fallback or default remote",
                 local_path.name,
@@ -234,15 +273,12 @@ class RcloneTransport:
             )
 
         # Fallback chain: explicit fallback → saves_remote → states_remote
-        if not chosen_remote:
-            if fallback_remote_clean:
-                chosen_remote = fallback_remote_clean
+        if not category_configured:
+            if chosen_remote and chosen_remote == fallback_remote_clean:
                 routing_reason = "fallback_remote"
-            elif saves_remote_clean:
-                chosen_remote = saves_remote_clean
+            elif chosen_remote and chosen_remote == saves_remote_clean:
                 routing_reason = "default (saves_remote)"
-            elif states_remote_clean:
-                chosen_remote = states_remote_clean
+            elif chosen_remote and chosen_remote == states_remote_clean:
                 routing_reason = "default (states_remote)"
 
         if not chosen_remote:
@@ -322,27 +358,31 @@ class RcloneTransport:
 
         # Determine source remote based on file extension
         file_ext = Path(relative).suffix.lower()
-        chosen_remote: str | None = None
-        routing_reason = ""
+        chosen_remote, category, category_configured = _resolve_remote(
+            file_ext,
+            saves_remote_clean,
+            states_remote_clean,
+            fallback_remote_clean,
+            save_extensions,
+            state_extensions,
+        )
 
-        # Priority: check states_remote first (higher priority to avoid ambiguity)
-        if state_extensions and file_ext in state_extensions:
-            if states_remote_clean:
-                chosen_remote = states_remote_clean
+        if category == "state":
+            if category_configured:
                 routing_reason = f"state extension ({file_ext})"
             else:
+                routing_reason = ""
                 log.warning(
                     "File %s matches state extension (%s) but states_remote not configured; "
                     "will use fallback or saves_remote",
                     Path(relative).name,
                     file_ext,
                 )
-        # Then check saves_remote
-        elif save_extensions and file_ext in save_extensions:
-            if saves_remote_clean:
-                chosen_remote = saves_remote_clean
+        elif category == "save":
+            if category_configured:
                 routing_reason = f"save extension ({file_ext})"
             else:
+                routing_reason = ""
                 log.warning(
                     "File %s matches save extension (%s) but saves_remote not configured; "
                     "will use fallback or states_remote",
@@ -350,7 +390,7 @@ class RcloneTransport:
                     file_ext,
                 )
         else:
-            # Unknown extension
+            routing_reason = ""
             log.warning(
                 "File %s has unknown extension (%s); will use fallback or default remote",
                 Path(relative).name,
@@ -358,15 +398,12 @@ class RcloneTransport:
             )
 
         # Fallback chain: explicit fallback → saves_remote → states_remote
-        if not chosen_remote:
-            if fallback_remote_clean:
-                chosen_remote = fallback_remote_clean
+        if not category_configured:
+            if chosen_remote and chosen_remote == fallback_remote_clean:
                 routing_reason = "fallback_remote"
-            elif saves_remote_clean:
-                chosen_remote = saves_remote_clean
+            elif chosen_remote and chosen_remote == saves_remote_clean:
                 routing_reason = "default (saves_remote)"
-            elif states_remote_clean:
-                chosen_remote = states_remote_clean
+            elif chosen_remote and chosen_remote == states_remote_clean:
                 routing_reason = "default (states_remote)"
 
         if not chosen_remote:
