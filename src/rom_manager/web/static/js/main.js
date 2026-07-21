@@ -51,10 +51,9 @@ import {
 } from './jobs.js';
 import {
   doExportGamelistsAll,
-  _autoFillEsdeGamelistDir,
-  useEsdeGamelistDir,
   loadScraperSummary,
   loadSsQuota,
+  loadSsCredsStatus,
   loadScrapePlatforms,
   doScrape,
   doExportGamelists,
@@ -292,10 +291,9 @@ Object.assign(window, {
   startPolling, _applyJobStatus, _showJobResult,
   // scraper.js
   doExportGamelistsAll,
-  _autoFillEsdeGamelistDir,
-  useEsdeGamelistDir,
   loadScraperSummary,
   loadSsQuota,
+  loadSsCredsStatus,
   loadScrapePlatforms,
   doScrape,
   doExportGamelists,
@@ -487,7 +485,7 @@ export function showTab(name) {
   if (name === 'sync')       { loadSync(); loadManualBackups(); loadSaveComparison(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
   if (name === 'collection') loadCollectionStatsV2();
-  if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
+  if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); loadSsQuota(); loadSsCredsStatus(); }
   if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAutostart(); loadTrashStatus(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
