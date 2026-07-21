@@ -113,16 +113,18 @@ async function loadSettings() {
 async function migrateSplitDb() {
   const el = document.getElementById('migrate-db-result');
   if (!el) return;
-  _txtCls(el, 'txt-muted'); el.textContent = 'Migrando…';
-  try {
-    const r = await apiPost('/api/migrate-split-db', {});
-    if (r.error) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + r.error; return; }
-    _txtCls(el, 'txt-ok');
-    el.textContent = '✓ Migrados: ' + r.migrated_games + ' juegos  |  Errores: ' + (r.errors?.length || 0);
-    if (r.errors && r.errors.length > 0) {
-      el.textContent += '  [' + r.errors.slice(0,3).join('; ') + ']';
-    }
-  } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
+  _showConfirm('Migrar BD a dos DBs', 'Mueve los registros con rutas no-PC de la BD del PC a la BD de la consola Android. Operación segura e idempotente, pero toca la base de datos real.', async () => {
+    _txtCls(el, 'txt-muted'); el.textContent = 'Migrando…';
+    try {
+      const r = await apiPost('/api/migrate-split-db', {});
+      if (r.error) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + r.error; return; }
+      _txtCls(el, 'txt-ok');
+      el.textContent = '✓ Migrados: ' + r.migrated_games + ' juegos  |  Errores: ' + (r.errors?.length || 0);
+      if (r.errors && r.errors.length > 0) {
+        el.textContent += '  [' + r.errors.slice(0,3).join('; ') + ']';
+      }
+    } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
+  });
 }
 
 async function testChdman() {
@@ -680,7 +682,14 @@ async function saveSettings() {
       const _CFG_CHECK = {
         'library.library_root':       'cfg-check-library-root',
         'library.anbernic_root':      'cfg-check-anbernic-root',
+        'android.device_name':        'cfg-check-device-name',
         'sync.remote':                'cfg-check-rclone-remote',
+        'sync.saves_remote':          'cfg-check-saves-remote',
+        'sync.states_remote':         'cfg-check-states-remote',
+        'sync.ra_config_dir':         'cfg-check-ra-config-dir',
+        'sync.ra_config_remote':      'cfg-check-ra-config-remote',
+        'sync.playtime_remote':       'cfg-check-playtime-remote',
+        'web.host':                   'cfg-check-web-host',
         'screenscraper.user':         'cfg-check-ss-user',
         'screenscraper.pass':         'cfg-check-ss-pass',
         'screenscraper.dev_id':       'cfg-check-ss-devid',
@@ -688,6 +697,12 @@ async function saveSettings() {
         'tools.chdman':               'cfg-check-chdman',
         'tools.adb':                  'cfg-check-adb',
         'retroachievements.api_key':  'cfg-check-ra-api-key',
+        'retroachievements.username': 'cfg-check-ra-username',
+        'launchers.retroarch':        'cfg-check-retroarch-path',
+        'launchers.esde':             'cfg-check-esde-path',
+        'backup.saves_enabled':       'cfg-check-backup-enabled',
+        'backup.saves_keep_n':        'cfg-check-backup-keep-n',
+        'notifications.desktop':      'cfg-check-notify-desktop',
       };
       d.saved.forEach(key => {
         const id = _CFG_CHECK[key];

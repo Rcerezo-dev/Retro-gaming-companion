@@ -691,13 +691,13 @@ ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ⬜ |
-| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ⬜ |
-| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ⬜ |
-| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ⬜ |
-| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ⬜ |
-| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ⬜ |
-| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ⬜ |
+| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ✅ `loadSsQuota()` generalizada para actualizar ambos paneles (sufijo `-scraper` en los IDs); nuevo bloque en `tab-scraper.html`; se llama al abrir la pestaña |
+| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ✅ nota junto al botón de ES-DE (`esde.js`) aclarando que es el mismo export que en Scraper, con más opciones allí |
+| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ✅ nuevo `loadSsCredsStatus()` (mismo patrón que `ra-api-key-status`) + chequeo proactivo en `doScrape()` antes de lanzar el job |
+| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ✅ `_friendlyError()` traduce fallos de red/fetch a un mensaje guiado; resto de mensajes se mantienen sin cambios |
+| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ✅ ambas menciones eliminadas |
+| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ✅ eliminada junto con `_autoFillEsdeGamelistDir()`/`_esdeGamelistsDir` (dead code en cascada: sin `useEsdeGamelistDir()` tampoco tenían lector) |
+| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ✅ `doExportGamelists()` deshabilita el botón con texto "Exportando…" (patrón `try/finally`) |
 
 ---
 
@@ -738,11 +738,11 @@ fases en `Tareas/Roadmap-TV-UX.md`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| TV-UX-1 | **La colección se corta en 120 juegos sin forma de cargar más** — `loadTvGrid` soporta `offset` (`games.js:918-934`) pero nada lo dispara nunca con offset > 0; `_tvMoveFocus` simplemente deja de avanzar al llegar al final sin avisar | Bug | S | ⬜ |
-| TV-UX-2 | **Barra de filtro por plataforma nunca rellenada** — `tv-platform-bar`/`tv-platform-label` (`tab-tv.html:3-4`) vacíos para siempre; `loadTvGrid` ya acepta `platform` pero `enterTvMode()` siempre llama con `''` (`games.js:905-910`) | Bug | S | ⬜ |
-| TV-UX-3 | **"Salir" siempre vuelve a Colección, ignorando de dónde viniste** — `exitTvMode()` hace `showTab('collection')` fijo (`games.js:912-916`) pese a que `t` es un atajo global desde cualquier pestaña | UX | XS | ⬜ |
-| TV-UX-4 | **Fallo de red deja la rejilla en blanco sin ningún aviso** — catch de `loadTvGrid` solo hace `console.error` (`games.js:933`), sin mensaje visible en un modo a pantalla completa | UX | XS | ⬜ |
-| TV-UX-5 | **Pulido: fallo de pantalla completa silencioso + `_tvCols` no se recalcula al redimensionar** (`games.js:908,959`) | UX | XS | ⬜ |
+| TV-UX-1 | **La colección se corta en 120 juegos sin forma de cargar más** — `loadTvGrid` soporta `offset` (`games.js:918-934`) pero nada lo dispara nunca con offset > 0; `_tvMoveFocus` simplemente deja de avanzar al llegar al final sin avisar | Bug | S | ✅ `_tvMoveFocus` carga la siguiente página automáticamente (`_tvHasMore`) al llegar al final; si de verdad no hay más, aviso "No hay más juegos por aquí" en `tv-info-keys`. Verificado en navegador: filtro Atari 2600 (175 juegos) cargó 2 páginas y mostró el aviso al final real |
+| TV-UX-2 | **Barra de filtro por plataforma nunca rellenada** — `tv-platform-bar`/`tv-platform-label` (`tab-tv.html:3-4`) vacíos para siempre; `loadTvGrid` ya acepta `platform` pero `enterTvMode()` siempre llama con `''` (`games.js:905-910`) | Bug | S | ✅ `_tvLoadPlatformBar()` rellena los chips desde `/api/games/filter-options` (mismo endpoint que Juegos/Scraper); clic filtra la rejilla y resalta el chip activo. Verificado en navegador |
+| TV-UX-3 | **"Salir" siempre vuelve a Colección, ignorando de dónde viniste** — `exitTvMode()` hace `showTab('collection')` fijo (`games.js:912-916`) pese a que `t` es un atajo global desde cualquier pestaña | UX | XS | ✅ `enterTvMode()` guarda la pestaña activa en `_tvSourceTab` (solo la primera vez, no si `t` se repite ya en TV); `exitTvMode()` vuelve ahí. Verificado en navegador: entrar desde Análisis y salir vuelve a Análisis |
+| TV-UX-4 | **Fallo de red deja la rejilla en blanco sin ningún aviso** — catch de `loadTvGrid` solo hace `console.error` (`games.js:933`), sin mensaje visible en un modo a pantalla completa | UX | XS | ✅ mensaje visible en `tv-grid` en la carga inicial (offset 0); las cargas de paginación solo registran el error en consola, sin romper lo ya mostrado |
+| TV-UX-5 | **Pulido: fallo de pantalla completa silencioso + `_tvCols` no se recalcula al redimensionar** (`games.js:908,959`) | UX | XS | ✅ toast de aviso si `requestFullscreen()` falla (Modo TV sigue funcionando en ventana); listener de `resize` recalcula `_tvCols` mientras `_tvActive`. Verificado en navegador (el toast salió en la propia sesión de prueba, sin fullscreen real disponible) |
 
 ---
 
@@ -758,11 +758,11 @@ Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ⬜ |
-| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ⬜ |
+| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ✅ `launchers.esde` añadido al set `allowed` (`config.py:274`) |
+| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ✅ añadidos al mapa `_CFG_CHECK`; de paso se encontró un 5º campo con el mismo bug (`sync.playtime_remote`, no documentado aquí) y se corrigió junto con los demás |
 | SETTINGS-UX-3 | **Panel "Configurar consola Android" (QR) — ya cubierto por ANBERNIC-UX-2** — mismo endpoint 404 (`/api/anbernic-setup.sh`), aplica también a esta copia del panel (`tab-settings.html:12-39`) | Bug | — | ✅ (panel eliminado en feature/anbernic-ux) |
-| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ⬜ |
-| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ⬜ |
+| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ✅ `migrateSplitDb()` envuelta en `_showConfirm(...)`, mismo patrón que `clearPin()` |
+| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ✅ añadido `<span class="cfg-saved">` + entrada en `_CFG_CHECK` a los 8 campos restantes sin checkmark propio: `android.device_name`, `sync.ra_config_dir`, `web.host`, `launchers.retroarch`, `launchers.esde`, `backup.saves_enabled`, `backup.saves_keep_n`, `notifications.desktop` — ahora los 22 campos guardables de Settings tienen confirmación inline |
 
 ---
 

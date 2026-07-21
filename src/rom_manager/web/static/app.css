@@ -942,6 +942,8 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 .tv-tile .tv-label { padding: 6px 8px 8px; font-size: 11px; font-weight: 600; color: var(--fg); }
 .tv-tile .tv-plat { font-size: 10px; color: var(--fg-2); padding: 0 8px 6px; }
 
+.tv-plat-chip.active { border-color: var(--accent) !important; color: var(--accent) !important; }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CYBERPUNK VISUAL LAYER
    Glows, scanlines, neon accents — layered on top of the existing theme
