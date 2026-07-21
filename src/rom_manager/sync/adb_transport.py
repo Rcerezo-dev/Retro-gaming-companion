@@ -95,6 +95,22 @@ def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
     return devices
 
 
+def resolve_single_device_transport(adb_path: str) -> AdbTransport | None:
+    """TABS-FIX-1a: auto-detect the connected device for on-device duplicate
+    deletion. Returns None (caller falls back to the explicit "conecta el
+    dispositivo" message) when zero or more than one ready device is
+    connected — with several devices there's no way to know which one a
+    stale DB row's ``/storage/...`` path actually refers to.
+    """
+    try:
+        devices = [d for d in list_devices(adb_path, timeout=5) if d.ready]
+    except RuntimeError:
+        return None
+    if len(devices) != 1:
+        return None
+    return AdbTransport(adb_path, devices[0].serial)
+
+
 class AdbTransport:
     """File-transfer operations against a single ADB device."""
 
@@ -141,6 +157,23 @@ class AdbTransport:
             return int(out)
         except ValueError as exc:
             raise RuntimeError(f"No se pudo leer el reloj del dispositivo: {out!r}") from exc
+
+    def file_exists(self, android_path: str) -> bool:
+        out = self._shell(
+            f"test -e {shlex.quote(android_path)} && echo EXISTS || echo GONE"
+        ).strip()
+        return "EXISTS" in out and "GONE" not in out
+
+    def remove(self, android_path: str) -> None:
+        """Delete a single file on the device (TABS-FIX-1a).
+
+        ``rm`` exit codes over ``adb shell`` aren't reliable enough to trust
+        blindly before touching the DB row — verify the file is actually gone
+        afterwards, and raise if it isn't.
+        """
+        self._shell(f"rm -f {shlex.quote(android_path)}")
+        if self.file_exists(android_path):
+            raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
 
     # ── file listing ──────────────────────────────────────────────────────────
 

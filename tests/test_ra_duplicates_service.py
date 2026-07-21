@@ -93,6 +93,50 @@ def test_discard_ra_duplicate_device_path_unreachable_does_not_touch_db(
     assert _count(repo) == 1
 
 
+@_windows_only
+def test_discard_ra_duplicate_device_path_with_adb_transport_deletes_via_adb(
+    tmp_path: Path,
+) -> None:
+    """TABS-FIX-1a: with a connected device, the file is deleted for real via
+    ADB before the DB row is touched."""
+    from types import SimpleNamespace
+
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path)
+    adb = SimpleNamespace(removed=[])
+    adb.remove = lambda path: adb.removed.append(path)
+
+    result = discard_ra_duplicate(repo, device_path, adb)
+
+    # missing=True because Path.exists() is always False for a device path on
+    # Windows — the "note" is a pre-existing quirk unrelated to this fix.
+    assert result["ok"] is True
+    assert adb.removed == [device_path]
+    assert _count(repo) == 0
+
+
+@_windows_only
+def test_discard_ra_duplicate_device_path_adb_remove_fails_does_not_touch_db(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path)
+
+    def _boom(path):
+        raise RuntimeError("device offline")
+
+    adb = SimpleNamespace(remove=_boom)
+
+    result = discard_ra_duplicate(repo, device_path, adb)
+
+    assert "error" in result
+    assert _count(repo) == 1
+
+
 def test_discard_ra_duplicate_dest_collision_deletes_source(tmp_path: Path) -> None:
     rom = tmp_path / "dup.gb"
     rom.write_bytes(b"new")

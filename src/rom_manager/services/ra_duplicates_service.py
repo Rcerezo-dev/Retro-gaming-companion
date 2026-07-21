@@ -22,6 +22,7 @@ from rom_manager.utils.trash import discard_to_trash
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
+    from rom_manager.sync.adb_transport import AdbTransport
 
 _log = logging.getLogger(__name__)
 
@@ -32,8 +33,16 @@ def _delete_row(repository: LibraryRepository, source_path: str) -> None:
         conn.commit()
 
 
-def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool, str | None]:
+def _discard_file(
+    repository: LibraryRepository,
+    source_path: str,
+    adb_transport: AdbTransport | None = None,
+) -> tuple[bool, str | None]:
     """Soft-discard one file: move it into ``_descartados/`` and delete its DB row.
+
+    *adb_transport*: when *source_path* lives on a connected device
+    (TABS-FIX-1a), deletes it there via ADB before touching the DB row.
+    ``None`` falls back to the explicit "conecta el dispositivo" error.
 
     Returns ``(ok, error)``. Semantics, preserved across all RA discard endpoints:
       * file already gone → just clean the DB row.
@@ -52,10 +61,20 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
         # deleted the DB row and reported success while the real duplicate
         # stayed on the device and reappeared on the next ADB scan.
         if is_device_path(source_path):
-            return False, (
-                f"{p.name}: ruta de consola — conecta el dispositivo para verificar "
-                "si el archivo sigue ahí; no se ha tocado la fila de la base de datos"
-            )
+            if adb_transport is None:
+                return False, (
+                    f"{p.name}: ruta de consola — conecta el dispositivo para verificar "
+                    "si el archivo sigue ahí; no se ha tocado la fila de la base de datos"
+                )
+            try:
+                adb_transport.remove(source_path)
+            except Exception as exc:
+                return False, f"{p.name}: no se pudo borrar en el dispositivo — {exc}"
+            try:
+                _delete_row(repository, source_path)
+                return True, None
+            except Exception as exc:
+                return False, f"{p.name}: archivo eliminado en consola pero error en BD — {exc}"
         try:
             _delete_row(repository, source_path)
             return True, None
@@ -82,11 +101,13 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
         return False, f"{p.name}: {exc}"
 
 
-def discard_ra_duplicate(repository: LibraryRepository, source_path: str) -> dict:
+def discard_ra_duplicate(
+    repository: LibraryRepository, source_path: str, adb_transport: AdbTransport | None = None
+) -> dict:
     """Discard a single RA-version duplicate by path. Caller validates non-empty."""
     p = Path(source_path)
     missing = not p.exists()
-    ok, error = _discard_file(repository, source_path)
+    ok, error = _discard_file(repository, source_path, adb_transport)
     if not ok:
         return {"error": error}
     if missing:
@@ -94,7 +115,9 @@ def discard_ra_duplicate(repository: LibraryRepository, source_path: str) -> dic
     return {"ok": True}
 
 
-def discard_all_ra_duplicates(repository: LibraryRepository, ra_dups: dict) -> dict:
+def discard_all_ra_duplicates(
+    repository: LibraryRepository, ra_dups: dict, adb_transport: AdbTransport | None = None
+) -> dict:
     """Discard every entry without RA support across the RA-duplicate *ra_dups* report.
 
     *ra_dups* is the result of ``builders.duplicates._build_ra_duplicates`` (built by
@@ -114,7 +137,7 @@ def discard_all_ra_duplicates(repository: LibraryRepository, ra_dups: dict) -> d
             src_path_str = entry.get("source_path", "")
             if not src_path_str:
                 continue
-            ok, error = _discard_file(repository, src_path_str)
+            ok, error = _discard_file(repository, src_path_str, adb_transport)
             if ok:
                 discarded += 1
             else:
@@ -125,7 +148,9 @@ def discard_all_ra_duplicates(repository: LibraryRepository, ra_dups: dict) -> d
     return {"discarded": discarded, "failed": failed, "errors": errors[:10]}
 
 
-def discard_no_support(repository: LibraryRepository, entries: list[dict]) -> dict:
+def discard_no_support(
+    repository: LibraryRepository, entries: list[dict], adb_transport: AdbTransport | None = None
+) -> dict:
     """Bulk-discard all games with no RA support at all (RA check ``no_support_entries``)."""
     if not entries:
         return {"discarded": 0, "failed": 0, "errors": [], "note": "No games to discard."}
@@ -138,7 +163,7 @@ def discard_no_support(repository: LibraryRepository, entries: list[dict]) -> di
         src_path_str = entry.get("source_path", "")
         if not src_path_str:
             continue
-        ok, error = _discard_file(repository, src_path_str)
+        ok, error = _discard_file(repository, src_path_str, adb_transport)
         if ok:
             discarded += 1
         else:
@@ -153,6 +178,7 @@ def resolve_duplicate_ra(
     repository: LibraryRepository,
     keep_path: str,
     discard_paths: list[str],
+    adb_transport: AdbTransport | None = None,
 ) -> dict:
     """B1-4: resolve title-based duplicates by keeping *keep_path* and discarding the rest.
 
@@ -163,7 +189,7 @@ def resolve_duplicate_ra(
     errors: list[str] = []
 
     for src_path_str in discard_paths:
-        ok, error = _discard_file(repository, src_path_str)
+        ok, error = _discard_file(repository, src_path_str, adb_transport)
         if ok:
             discarded += 1
         else:
@@ -239,7 +265,9 @@ def get_ra_achievements_for_path(
     return get_ra_achievements(config, platform, (row["md5"] or ""), cache)
 
 
-def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict:
+def apply_ra_conflicts(
+    repository: LibraryRepository, config: AppConfig, adb_transport: AdbTransport | None = None
+) -> dict:
     """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/.
 
     Handles both conflict types:
@@ -295,7 +323,7 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
             winner_path = None
             winner_target = None
 
-        ok, err = _discard_file(repository, str(loser_path))
+        ok, err = _discard_file(repository, str(loser_path), adb_transport)
         if not ok:
             errors.append(err or f"{loser_path.name}: discard failed")
             continue
@@ -342,7 +370,7 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
 
         # Discard all non-winners and rename winner to canonical target
         for loser_op, _ in scored[1:]:
-            ok, err = _discard_file(repository, str(loser_op.source_path))
+            ok, err = _discard_file(repository, str(loser_op.source_path), adb_transport)
             if ok:
                 resolved += 1
             else:

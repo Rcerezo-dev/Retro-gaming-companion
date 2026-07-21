@@ -92,12 +92,15 @@ async function deleteAllDuplicates() {
 
         await loadDuplicates();
         window.loadOverview();
-        if (d.deleted === 0 && d.skipped === 0 && d.failed === 0) {
+        if (d.deleted === 0 && d.skipped === 0 && d.failed === 0 && !d.unreachable) {
           showToast('Sin duplicados pendientes — la lista ya está limpia', 'info');
         } else {
           let msg = `✓ ${d.deleted} eliminados`;
           if (d.freed_bytes > 0) msg += ` · Liberados: ${window.fmtSize(d.freed_bytes)}`;
           if (d.skipped > 0) msg += ` · ${d.skipped} omitidos (no existen)`;
+          // TABS-FIX-1a: sin esto, los duplicados solo en el dispositivo (sin
+          // consola conectada) desaparecían del recuento sin explicación.
+          if (d.unreachable > 0) msg += ` · ${d.unreachable} en el dispositivo (conecta la consola)`;
           if (d.failed > 0) {
             msg += ` · ⚠ ${d.failed} error${d.failed !== 1 ? 'es' : ''}`;
             if (d.errors && d.errors.length) msg += `: ${d.errors[0]}`;
@@ -130,7 +133,16 @@ async function deleteDuplicate(btn) {
       btn.disabled = true;
       btn.textContent = 'Eliminando…';
       try {
-        await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
+        // TABS-FIX-1a: el backend responde 200 incluso en error (p.ej. "conecta
+        // el dispositivo") — sin comprobar d.error, la fila desaparecía de la
+        // UI aunque no se hubiera borrado nada de verdad.
+        const d = await apiPost('/api/duplicates/delete', { game_id: gameId, source_path: sourcePath });
+        if (d.error) {
+          btn.disabled = false;
+          btn.textContent = 'Eliminar';
+          showToast('Error al eliminar: ' + d.error, 'err');
+          return;
+        }
         const row = document.getElementById('dup-entry-' + gameId);
         if (row) {
           const group = row.closest('.dup-group');

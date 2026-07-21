@@ -41,10 +41,17 @@ def register(
     Routes are thin: they parse the request and delegate the business logic to
     ``services.duplicates_service`` / ``services.ra_duplicates_service``.
     """
+    from rom_manager.sync.adb_transport import resolve_single_device_transport
     from rom_manager.web.builders.duplicates import (
         _build_duplicates_two_repos,
         _build_ra_duplicates,
     )
+
+    def _adb_transport():
+        # TABS-FIX-1a: resuelto por request (no cacheado) — el dispositivo
+        # puede conectarse/desconectarse entre una carga de la lista y el clic
+        # en "Eliminar".
+        return resolve_single_device_transport(config.adb)
 
     # ── GET /api/duplicates ───────────────────────────────────────────────────
     @router.get("/api/duplicates")
@@ -79,6 +86,7 @@ def register(
                 get_repo_fn(source_path),
                 game_id=data.get("game_id"),
                 source_path=source_path,
+                adb_transport=_adb_transport(),
             )
         )
 
@@ -89,11 +97,18 @@ def register(
         source_root = (ctx._post_data.get("source_root") or "").strip()
         # DUPLICADOS-UX-1: el filtro de plataforma de la UI restringe también el borrado
         platform = (ctx._post_data.get("platform") or "").strip()
+        adb_transport = _adb_transport()
         if source_root:
-            ctx._send_json(delete_all_duplicates(get_repo_fn(source_root), platform=platform))
+            ctx._send_json(
+                delete_all_duplicates(
+                    get_repo_fn(source_root), platform=platform, adb_transport=adb_transport
+                )
+            )
         else:
             ctx._send_json(
-                delete_all_duplicates_multi([repository, repo_android], platform=platform)
+                delete_all_duplicates_multi(
+                    [repository, repo_android], platform=platform, adb_transport=adb_transport
+                )
             )
 
     # ── POST /api/duplicates/exclude ──────────────────────────────────────────
@@ -140,7 +155,7 @@ def register(
     # ── POST /api/apply-ra-conflicts ──────────────────────────────────────────
     @router.post("/api/apply-ra-conflicts")
     def post_apply_ra_conflicts(ctx) -> None:
-        ctx._send_json(apply_ra_conflicts(repository, config))
+        ctx._send_json(apply_ra_conflicts(repository, config, adb_transport=_adb_transport()))
 
     # ── POST /api/ra-duplicates/discard ───────────────────────────────────────
     @router.post("/api/ra-duplicates/discard")
@@ -149,13 +164,15 @@ def register(
         if not source_path:
             ctx._send_error(400, "path required")
             return
-        ctx._send_json(discard_ra_duplicate(get_repo_fn(source_path), source_path))
+        ctx._send_json(
+            discard_ra_duplicate(get_repo_fn(source_path), source_path, _adb_transport())
+        )
 
     # ── POST /api/ra-duplicates/discard-all ──────────────────────────────────
     @router.post("/api/ra-duplicates/discard-all")
     def post_ra_duplicate_discard_all(ctx) -> None:
         ra_dups = _build_ra_duplicates(repository, config)
-        ctx._send_json(discard_all_ra_duplicates(repository, ra_dups))
+        ctx._send_json(discard_all_ra_duplicates(repository, ra_dups, _adb_transport()))
 
     # ── POST /api/ra-check/discard-no-support ────────────────────────────────
     @router.post("/api/ra-check/discard-no-support")
@@ -164,7 +181,9 @@ def register(
         if not result:
             ctx._send_json({"error": "No RA check result available. Run RA check first."})
             return
-        ctx._send_json(discard_no_support(repository, result.get("no_support_entries", [])))
+        ctx._send_json(
+            discard_no_support(repository, result.get("no_support_entries", []), _adb_transport())
+        )
 
     # ── POST /api/resolve-duplicate-ra ───────────────────────────────────────
     @router.post("/api/resolve-duplicate-ra")
@@ -176,4 +195,6 @@ def register(
             ctx._send_json({"error": "keep_path and discard_paths required"})
             return
         # El grupo entero vive en un mismo dispositivo → enrutar por keep_path
-        ctx._send_json(resolve_duplicate_ra(get_repo_fn(keep_path), keep_path, discard_paths))
+        ctx._send_json(
+            resolve_duplicate_ra(get_repo_fn(keep_path), keep_path, discard_paths, _adb_transport())
+        )
