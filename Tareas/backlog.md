@@ -758,11 +758,11 @@ Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ⬜ |
-| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ⬜ |
+| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ✅ `launchers.esde` añadido al set `allowed` (`config.py:274`) |
+| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ✅ añadidos al mapa `_CFG_CHECK`; de paso se encontró un 5º campo con el mismo bug (`sync.playtime_remote`, no documentado aquí) y se corrigió junto con los demás |
 | SETTINGS-UX-3 | **Panel "Configurar consola Android" (QR) — ya cubierto por ANBERNIC-UX-2** — mismo endpoint 404 (`/api/anbernic-setup.sh`), aplica también a esta copia del panel (`tab-settings.html:12-39`) | Bug | — | ✅ (panel eliminado en feature/anbernic-ux) |
-| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ⬜ |
-| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ⬜ |
+| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ✅ `migrateSplitDb()` envuelta en `_showConfirm(...)`, mismo patrón que `clearPin()` |
+| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ✅ añadido `<span class="cfg-saved">` + entrada en `_CFG_CHECK` a los 8 campos restantes sin checkmark propio: `android.device_name`, `sync.ra_config_dir`, `web.host`, `launchers.retroarch`, `launchers.esde`, `backup.saves_enabled`, `backup.saves_keep_n`, `notifications.desktop` — ahora los 22 campos guardables de Settings tienen confirmación inline |
 
 ---
 

@@ -51,6 +51,7 @@
           </select>
           <input class="hidden" id="cfg-device-name-custom" type="text" style="flex:1" placeholder="Nombre personalizado">
         </div>
+        <span class="cfg-saved" id="cfg-check-device-name">&#x2713; Guardado</span>
         <div style="color:var(--c-dim);font-size:11px;margin-top:3px">Aparece en botones, etiquetas y mensajes de la interfaz.</div>
       </div>
       <div style="width:100%">
@@ -83,6 +84,7 @@
           <input id="cfg-ra-config-dir" type="text" style="flex:1" placeholder="C:/RetroArch/config">
           <button onclick="browseFolder('cfg-ra-config-dir')" style="font-size:11px;padding:4px 10px">&#x1F4C2; Examinar</button>
         </div>
+        <span class="cfg-saved" id="cfg-check-ra-config-dir">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">rclone remote para config RetroArch <span style="color:var(--c-dim)">(ej: dropbox:/RetroSync/ra-config)</span></label>
@@ -114,6 +116,7 @@
           <option value="127.0.0.1">127.0.0.1 — solo este PC (recomendado)</option>
           <option value="0.0.0.0">0.0.0.0 — toda la red local (acceso desde la consola)</option>
         </select>
+        <span class="cfg-saved" id="cfg-check-web-host">&#x2713; Guardado</span>
         <div style="color:var(--c-dim);font-size:11px;margin-top:3px">Con <code>0.0.0.0</code> puedes abrir la app desde el navegador de tu consola si están en la misma red WiFi. Requiere reiniciar el servidor.</div>
       </div>
       <div style="width:100%">
@@ -226,6 +229,7 @@
       <input id="cfg-retroarch-path" type="text" style="flex:1" placeholder="C:/RetroArch/retroarch.exe">
       <button data-action="detect-retroarch" onclick="detectRetroArch()" style="font-size:11px;padding:4px 10px;margin-left:6px">&#x1F50D; Detectar</button>
     </div>
+    <span class="cfg-saved" id="cfg-check-retroarch-path">&#x2713; Guardado</span>
     <div id="ra-detect-result" style="font-size:11px;color:var(--c-muted);min-height:14px;margin-bottom:4px"></div>
     <div id="ra-cores-status" style="font-size:11px;min-height:14px;margin-bottom:6px"></div>
     <div style="font-size:11px;color:var(--c-dim);margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente a&#xf1;adiendo <code>[launchers] retroarch = "ruta"</code>.</div>
@@ -255,6 +259,7 @@
       <input id="cfg-esde-path" type="text" style="flex:1" placeholder="C:/Users/rammu/AppData/Roaming/ES-DE">
       <button onclick="browseFolder('cfg-esde-path')" style="font-size:11px;padding:4px 10px;margin-left:6px">&#x1F4C2; Examinar</button>
     </div>
+    <span class="cfg-saved" id="cfg-check-esde-path">&#x2713; Guardado</span>
     <div style="font-size:11px;color:var(--c-dim);margin-bottom:10px">Se guarda en <code>[launchers] esde = "ruta"</code> en <code>config.toml</code>.</div>
     <div class="actions-row" style="margin-top:4px">
       <button onclick="loadEsdeStatus()" style="font-size:11px;padding:4px 12px">&#x1F50D; Detectar ES-DE</button>
@@ -290,10 +295,12 @@
     <div class="actions-row" style="margin-bottom:8px">
       <label style="color:var(--c-muted);font-size:11px;min-width:160px">Activar backup autom&#xe1;tico</label>
       <input type="checkbox" id="cfg-backup-enabled" style="width:auto;margin:0">
+      <span class="cfg-saved" id="cfg-check-backup-enabled">&#x2713; Guardado</span>
     </div>
     <div class="actions-row" style="margin-bottom:8px">
       <label style="color:var(--c-muted);font-size:11px;min-width:160px">Versiones a conservar</label>
       <input type="number" id="cfg-backup-keep-n" min="1" max="50" style="width:70px">
+      <span class="cfg-saved" id="cfg-check-backup-keep-n">&#x2713; Guardado</span>
     </div>
   </div>
 
@@ -322,6 +329,7 @@
     <div class="actions-row" style="margin-bottom:8px">
       <label style="color:var(--c-muted);font-size:11px;min-width:160px">Activar notificaciones</label>
       <input type="checkbox" id="cfg-notify-desktop" style="width:auto;margin:0">
+      <span class="cfg-saved" id="cfg-check-notify-desktop">&#x2713; Guardado</span>
     </div>
     <button class="btn" style="font-size:12px;padding:4px 10px" onclick="testNotification()">Probar notificaci&#xf3;n</button>
     <span id="notify-test-result" style="font-size:11px;color:var(--c-muted);margin-left:8px"></span>
