@@ -100,10 +100,11 @@ def _do_apply(
     def run() -> None:
         job_result = None
         try:
-            from rom_manager.renamer.file_renamer import rename_rom_with_saves
+            from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
             from rom_manager.scanner.rom_scanner import utc_now
 
             save_exts = frozenset(config.save_extensions)
+            extra_save_dirs = central_save_dirs(config)
             apply_repo = get_repo_fn(source_root or "")
             plan = build_plan(apply_repo, opts, keep_both=keep_both)
             pending_ops = plan.pending
@@ -141,6 +142,7 @@ def _do_apply(
                             save_exts,
                             backup_root=bk,
                             backup_keep_n=config.backup.saves_keep_n,
+                            extra_dirs=extra_save_dirs,
                         )
                     else:
                         outcome = rename_rom_with_saves(
@@ -149,6 +151,7 @@ def _do_apply(
                             save_exts,
                             backup_root=bk,
                             backup_keep_n=config.backup.saves_keep_n,
+                            extra_dirs=extra_save_dirs,
                         )
                 except Exception as exc:
                     skipped += 1
@@ -329,57 +332,60 @@ def _do_organize_library(
             "SELECT id, source_path, platform FROM games WHERE source_path IS NOT NULL"
         ).fetchall()
 
-    for row in rows:
-        _game_id, src_str, platform = row[0], row[1], row[2] or ""
-        src = Path(src_str)
-        if not src.exists():
-            continue
-        es_folder = es_folders.get(platform, "")
-        if not es_folder:
-            continue
-        target_dir = root / es_folder
-        target = target_dir / src.name
-        if src != target:
-            moves_roms.append(
-                {
-                    "source": str(src),
-                    "target": str(target),
-                    "platform": platform,
-                    "filename": src.name,
-                }
-            )
-            if not dry_run:
-                try:
-                    target_dir.mkdir(parents=True, exist_ok=True)
-                    if target.exists():
-                        errors.append(f"Conflicto ROM: {src.name} ya existe en {es_folder}/")
-                    else:
-                        shutil.move(str(src), str(target))
-                        with repository.connect() as conn:
-                            conn.execute(
-                                "UPDATE games SET source_path = ?, updated_at = ? WHERE source_path = ?",
-                                (str(target), _utc_now_str(), src_str),
-                            )
-                            conn.commit()
-                except Exception as exc:
-                    errors.append(f"ROM {src.name}: {exc}")
-
-        # Move sibling saves → saves/{platform}/
-        plat_save_dir = saves_dir / es_folder if es_folder else saves_dir
-        for save_ext in save_exts:
-            sibling = src.with_suffix(save_ext)
-            if sibling.exists() and sibling.parent != plat_save_dir:
-                save_target = plat_save_dir / sibling.name
-                moves_saves.append(
-                    {"source": str(sibling), "target": str(save_target), "platform": platform}
+    with repository.batch() as batch_conn:
+        for row in rows:
+            _game_id, src_str, platform = row[0], row[1], row[2] or ""
+            src = Path(src_str)
+            if not src.exists():
+                continue
+            es_folder = es_folders.get(platform, "")
+            if not es_folder:
+                continue
+            target_dir = root / es_folder
+            target = target_dir / src.name
+            if src != target:
+                moves_roms.append(
+                    {
+                        "source": str(src),
+                        "target": str(target),
+                        "platform": platform,
+                        "filename": src.name,
+                    }
                 )
                 if not dry_run:
                     try:
-                        plat_save_dir.mkdir(parents=True, exist_ok=True)
-                        if not save_target.exists():
-                            shutil.move(str(sibling), str(save_target))
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        if target.exists():
+                            errors.append(f"Conflicto ROM: {src.name} ya existe en {es_folder}/")
+                        else:
+                            shutil.move(str(src), str(target))
+                            batch_conn.execute(
+                                "UPDATE games SET source_path = ?, updated_at = ? WHERE source_path = ?",
+                                (str(target), _utc_now_str(), src_str),
+                            )
                     except Exception as exc:
-                        errors.append(f"Save {sibling.name}: {exc}")
+                        errors.append(f"ROM {src.name}: {exc}")
+
+            # Move sibling saves → saves/{platform}/
+            plat_save_dir = saves_dir / es_folder if es_folder else saves_dir
+            for save_ext in save_exts:
+                sibling = src.with_suffix(save_ext)
+                if sibling.exists() and sibling.parent != plat_save_dir:
+                    save_target = plat_save_dir / sibling.name
+                    moves_saves.append(
+                        {
+                            "source": str(sibling),
+                            "target": str(save_target),
+                            "platform": platform,
+                        }
+                    )
+                    if not dry_run:
+                        try:
+                            plat_save_dir.mkdir(parents=True, exist_ok=True)
+                            if not save_target.exists():
+                                shutil.move(str(sibling), str(save_target))
+                        except Exception as exc:
+                            errors.append(f"Save {sibling.name}: {exc}")
 
     # 2. Flat saves/ → saves/{platform}/ (saves already in saves/ root, not yet in subfolders)
     if saves_dir.exists():

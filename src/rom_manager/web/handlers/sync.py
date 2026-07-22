@@ -88,6 +88,7 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                     "no_support": 0,
                     "no_md5": 0,
                     "platform_unknown": 0,
+                    "check_failed": 0,
                     "alternatives_csv": "",
                     "results": [],
                     "alternatives": [],
@@ -103,6 +104,7 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                 "no_support": summary.no_support,
                 "no_md5": summary.no_md5,
                 "platform_unknown": summary.platform_unknown,
+                "check_failed": summary.check_failed,
                 "cancelled": _cancel.is_set(),
                 "alternatives_csv": alternatives_csv,
                 "results": [

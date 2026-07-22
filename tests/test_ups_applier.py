@@ -112,6 +112,17 @@ def test_source_size_mismatch(tmp_path: Path) -> None:
         apply_ups(rom, patch, tmp_path / "out.sfc")
 
 
+def test_truncated_patch_raises_patch_error_not_index_error(tmp_path: Path) -> None:
+    """REV43-18: a .ups cut short mid-VLQ must fail cleanly, not with an
+    unhandled IndexError (the same guard bps_applier._read_vlq already has)."""
+    rom = tmp_path / "rom.sfc"
+    patch = tmp_path / "truncated.ups"
+    rom.write_bytes(b"ABCD")
+    patch.write_bytes(b"UPS1")  # header only, truncated before any VLQ byte
+    with pytest.raises(PatchError, match="truncado"):
+        apply_ups(rom, patch, tmp_path / "out.sfc")
+
+
 def test_extend_target(tmp_path: Path) -> None:
     """Target longer than source — output padded."""
     source = b"AB"

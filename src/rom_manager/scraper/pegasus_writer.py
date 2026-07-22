@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.scraper.gamelist_writer import _deduplicate
+
 if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
 
@@ -11,10 +13,12 @@ def write_pegasus_metadata(
     library_root: Path,
     repository: LibraryRepository,
     output_dir: Path | None = None,
-) -> dict[str, int]:
+) -> dict[str, object]:
     """Write Pegasus Metadata Format files (metadata.pegasus.txt) per platform.
 
-    Returns {"platforms": N, "games": M}.
+    Returns {"platforms": N (written successfully), "games": M, "errors": [...]}.
+    A platform whose file failed to write (OSError) is excluded from "platforms"
+    and reported in "errors" instead of being silently dropped.
     """
     output_dir = output_dir or library_root
     with repository.connect() as conn:
@@ -31,13 +35,21 @@ def write_pegasus_metadata(
             """
         ).fetchall()
 
-    # Group by platform
+    # Group by platform, deduplicating multi-disc sets the same way
+    # gamelist_writer does (REV43-50: divergent output between formats
+    # for the same underlying data otherwise).
     by_platform: dict[str, list] = {}
     for row in rows:
         plat = row["platform"] or "Unknown"
-        by_platform.setdefault(plat, []).append(row)
+        entry = dict(row)
+        entry["filename"] = entry["original_filename"]
+        entry["title"] = entry["canonical_title"] or entry["original_filename"]
+        by_platform.setdefault(plat, []).append(entry)
+    for plat, entries in by_platform.items():
+        by_platform[plat] = _deduplicate(entries)
 
     games_written = 0
+    errors: list[str] = []
     for platform, games in by_platform.items():
         plat_dir = library_root / platform
         out_path = plat_dir / "metadata.pegasus.txt"
@@ -73,7 +85,11 @@ def write_pegasus_metadata(
                 lines.append("\n")
             out_path.write_text("".join(lines), encoding="utf-8")
             games_written += len(games)
-        except OSError:
-            pass
+        except OSError as exc:
+            errors.append(f"{platform}: {exc}")
 
-    return {"platforms": len(by_platform), "games": games_written}
+    return {
+        "platforms": len(by_platform) - len(errors),
+        "games": games_written,
+        "errors": errors,
+    }

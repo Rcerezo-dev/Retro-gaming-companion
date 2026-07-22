@@ -17,6 +17,11 @@ export let _tvPlatform = '';
 export let _tvOffset = 0;
 export let _tvCols = 5;
 export const _TV_LIMIT = 120;
+// TV-UX-1: si el último lote vino completo (== _TV_LIMIT), puede haber más.
+let _tvHasMore = true;
+// TV-UX-3: pestaña desde la que se entró, para volver ahí al salir en vez de fijo a 'games'.
+let _tvSourceTab = 'games';
+let _tvEndFlashTimer = null;
 
 // ── Column visibility ─────────────────────────────────────────────────────────
 const _COL_DEFAULTS = { region: true, match: true, size: false, sha1: false };
@@ -83,6 +88,9 @@ const _txtCls = (el, cls) => {
 
 // Forward declaration — set and used by game panel functions (2c-4)
 export let _gpGameId = null;
+
+// source_path del juego abierto en el panel — enruta a la BD correcta (DEVSEL-FIX-2)
+const _gpSrc = () => document.getElementById('game-panel')?.dataset.sourcePath || '';
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
 
@@ -157,7 +165,7 @@ export async function _refreshTagFilter() {
 
 export async function toggleRowFavorite(gameId, btn) {
   try {
-    const r = await apiPost('/api/toggle-favorite', { game_id: gameId });
+    const r = await apiPost('/api/toggle-favorite', { game_id: gameId, source_path: btn.dataset.path || '' });
     btn.classList.toggle('active', r.is_favorite);
     btn.title = r.is_favorite ? 'Quitar favorito' : 'Marcar favorito';
     // If the panel is open for this game, update its star too
@@ -359,7 +367,7 @@ export async function loadGames(offset) {
         const accentColor = _platHex(g.platform);
         const favActive = g.is_favorite ? ' active' : '';
         return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${JSON.stringify(g).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})">
-          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
+          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" data-path="${_h(g.source_path || '')}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
           <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:var(--c-ghost)">—</span>'}</td>
@@ -498,44 +506,78 @@ function _gpSetEditField(id, val) {
   if (el && val !== undefined) el.value = val;
 }
 
+// JUEGOS-UX-8: total automático desde los .lrtl de RetroArch, por origen
+function _fmtMinutes(m) {
+  if (!m) return '0m';
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+}
+
+function _relTimeStr(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d)) return '';
+  const diffMs    = Date.now() - d;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays  = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays >= 365) return `Hace ${Math.floor(diffDays / 365)} años`;
+  if (diffDays >= 30)  return `Hace ${Math.floor(diffDays / 30)} meses`;
+  if (diffDays > 1)    return `Hace ${diffDays} días`;
+  if (diffHours > 1)   return `Hace ${diffHours} horas`;
+  return 'Hace menos de una hora';
+}
+
 export function gpShowPlaytimeInfo(g) {
   const wrap = document.getElementById('gp-playtime-wrap');
   if (!wrap) return;
   wrap.classList.remove('hidden');
-  const infoEl  = document.getElementById('gp-playtime-info');
-  const hoursEl = document.getElementById('gp-playtime-hours');
-  const minsEl  = document.getElementById('gp-playtime-mins');
-  if (!infoEl || !hoursEl || !minsEl) return;
-  const lastPlayed = g.last_played_at ? new Date(g.last_played_at) : null;
-  if (lastPlayed) {
-    const diffMs    = Date.now() - lastPlayed;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays  = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    let timeStr = '';
-    if (diffDays >= 365)      timeStr = `Hace ${Math.floor(diffDays / 365)} años`;
-    else if (diffDays >= 30)  timeStr = `Hace ${Math.floor(diffDays / 30)} meses`;
-    else if (diffDays > 1)    timeStr = `Hace ${diffDays} días`;
-    else if (diffHours > 1)   timeStr = `Hace ${diffHours} horas`;
-    else                      timeStr = 'Hace menos de una hora';
-    infoEl.innerHTML = timeStr || 'Nunca jugado';
+  const infoEl   = document.getElementById('gp-playtime-info');
+  const detailEl = document.getElementById('gp-playtime-detail');
+  if (!infoEl || !detailEl) return;
+
+  const pc = g.playtime_minutes_pc || 0;
+  const android = g.playtime_minutes_android || 0;
+  const total = pc + android;
+  const last = _relTimeStr(g.last_played_at);
+
+  if (total > 0) {
+    infoEl.innerHTML = `<strong>${_fmtMinutes(total)}</strong> totales${last ? ` · última sesión: ${last}` : ''}`;
+    // JUEGOS-UX-9: el desglose deja claro qué origen aún no tiene datos
+    const pcPart = pc > 0 ? `PC: ${_fmtMinutes(pc)}` : 'PC: sin datos';
+    const abPart = android > 0 ? `Consola: ${_fmtMinutes(android)}` : 'Consola: sin datos';
+    detailEl.textContent = `${pcPart} · ${abPart}`;
   } else {
-    infoEl.innerHTML = 'Nunca jugado';
+    infoEl.textContent = last ? `Última sesión: ${last}` : 'Nunca jugado';
+    detailEl.textContent = 'Sin datos de RetroArch aún — pulsa ↻ Actualizar para leer los logs de tiempo.';
   }
-  hoursEl.value = '';
-  minsEl.value  = '';
 }
 
-export function gpLogPlaytime() {
-  const hoursEl = document.getElementById('gp-playtime-hours');
-  const minsEl  = document.getElementById('gp-playtime-mins');
-  if (!hoursEl || !minsEl) return;
-  const hours = parseInt(hoursEl.value) || 0;
-  const mins  = parseInt(minsEl.value)  || 0;
-  if (hours === 0 && mins === 0) { alert('Ingresa al menos 1 minuto de juego'); return; }
-  if (mins > 59) { alert('Los minutos deben estar entre 0 y 59'); return; }
-  alert(`Sesión registrada: ${hours}h ${mins}m (${hours * 60 + mins} min)`);
-  hoursEl.value = '';
-  minsEl.value  = '';
+export async function gpRefreshPlaytime() {
+  const btn = document.getElementById('gp-playtime-refresh');
+  const gameId = _gpGameId;
+  if (btn) { btn.disabled = true; btn.textContent = 'Escaneando…'; }
+  try {
+    const r = await apiPost('/api/playtime-scan', {});
+    if (r.status === 'already_running') { showToast('Ya hay un escaneo en curso', 'info'); return; }
+    // Poll hasta que el job termine (el pull adb puede tardar)
+    const result = await new Promise((resolve, reject) => {
+      const t = setInterval(async () => {
+        try {
+          const s = await apiFetch('/api/job-status');
+          if (!s.playtime_scan_running) { clearInterval(t); resolve(s.playtime_scan_result || {}); }
+        } catch(e) { clearInterval(t); reject(e); }
+      }, 2000);
+    });
+    const notes = [result.pc_note, result.android_note].filter(Boolean).join(' · ');
+    showToast(`✓ Tiempo actualizado — PC: ${result.pc_matched || 0} juegos, Consola: ${result.android_matched || 0}${notes ? ` (${notes})` : ''}`, 'ok', 5000);
+    if (gameId && gameId === _gpGameId) {
+      const full = await apiFetch('/api/game?id=' + gameId);
+      if (!full.error) gpShowPlaytimeInfo(full);
+    }
+  } catch(e) {
+    showToast('Error al escanear tiempo de juego: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#x21BB; Actualizar'; }
+  }
 }
 
 export function openGamePanel(g) {
@@ -562,6 +604,8 @@ export function openGamePanel(g) {
   if (_raSection) _raSection.classList.add('hidden');
   const _raProgress = document.getElementById('gp-ra-user-progress');
   if (_raProgress) _raProgress.textContent = '';
+  const _raAch = document.getElementById('gp-ra-achievements');
+  if (_raAch) _raAch.innerHTML = '';
   const _savesInfo = document.getElementById('gp-saves-info');
   if (_savesInfo) _savesInfo.classList.add('hidden');
   document.getElementById('game-panel').dataset.sourcePath = g.source_path || '';
@@ -643,9 +687,52 @@ async function _gpLoadRaProgress(raGameId) {
     const pts = d.points_earned > 0 ? ` · ${d.points_earned}/${d.points_total} pts` : '';
     const color = pct >= 100 ? '#ffcc00' : pct >= 50 ? 'var(--c-teal)' : '#888';
     el.innerHTML = `<span style="color:${color};font-weight:600">${d.unlocked}/${d.total} logros (${pct}%)</span>${hc}${pts}`;
+    _gpRenderAchievements(d.achievements || []);
   } catch(_) {
     el.textContent = '';
   }
+}
+
+// JUEGOS-UX-2/3: lista de logros desbloqueados/pendientes con iconos lazy
+let _gpAchUid = 0;
+
+function _gpAchRow(a) {
+  const badge = a.badge_url
+    ? `<img src="${a.badge_url}" loading="lazy" width="24" height="24" style="border-radius:3px;flex-shrink:0${a.earned ? '' : ';filter:grayscale(1)'}" alt="">`
+    : '';
+  const hcTag = a.earned_hardcore ? ' · <span style="color:#ffcc00">hardcore</span>' : '';
+  return `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid #1c1c2a${a.earned ? '' : ';opacity:.55'}">
+    ${badge}
+    <div style="min-width:0;flex:1">
+      <div style="color:var(--c-text)">${a.earned ? '🏆' : '🔒'} ${_h(a.title)} <span style="color:var(--c-dim)">· ${a.points} pts${hcTag}</span></div>
+      <div style="color:var(--c-hint);font-size:10px">${_h(a.description)}</div>
+    </div>
+  </div>`;
+}
+
+function _gpAchGroup(label, labelColor, items, limit = 10) {
+  if (!items.length) return '';
+  const uid = 'gpach_' + (++_gpAchUid);
+  const visible = items.slice(0, limit).map(_gpAchRow).join('');
+  const rest = items.slice(limit);
+  let html = `<div style="color:${labelColor};font-weight:600;margin:8px 0 2px">${label} (${items.length})</div>`;
+  html += visible;
+  if (rest.length) {
+    html += `<div id="${uid}_rest" class="hidden">${rest.map(_gpAchRow).join('')}</div>`;
+    html += `<button id="${uid}_btn" onclick="(function(){var r=document.getElementById('${uid}_rest'),b=document.getElementById('${uid}_btn');var open=!r.classList.contains('hidden');r.classList.toggle('hidden',open);b.textContent=open?'▼ Ver todos (${items.length})':'▲ Mostrar menos';})()" style="background:none;border:none;color:var(--c-blue);font-size:11px;cursor:pointer;padding:3px 0">▼ Ver todos (${items.length})</button>`;
+  }
+  return html;
+}
+
+function _gpRenderAchievements(achievements) {
+  const el = document.getElementById('gp-ra-achievements');
+  if (!el) return;
+  if (!achievements.length) { el.innerHTML = ''; return; }
+  const earned  = achievements.filter(a => a.earned);
+  const pending = achievements.filter(a => !a.earned);
+  el.innerHTML =
+    _gpAchGroup('Desbloqueados', 'var(--c-teal)', earned) +
+    _gpAchGroup('Pendientes', 'var(--c-muted)', pending);
 }
 
 export function closeGamePanel() {
@@ -656,7 +743,7 @@ export function closeGamePanel() {
 export async function gpSetStatus(status) {
   if (!_gpGameId) return;
   try {
-    await apiPost('/api/set-play-status', { game_id: _gpGameId, status: status || null, source_path: '' });
+    await apiPost('/api/set-play-status', { game_id: _gpGameId, status: status || null, source_path: _gpSrc() });
     if (document.getElementById('tab-games')?.classList.contains('active')) loadGames(gamesState.offset);
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
@@ -683,7 +770,7 @@ export async function gpSetRating(n) {
 export async function gpToggleFavorite() {
   if (!_gpGameId) return;
   try {
-    const r = await apiPost('/api/toggle-favorite', { game_id: _gpGameId });
+    const r = await apiPost('/api/toggle-favorite', { game_id: _gpGameId, source_path: _gpSrc() });
     _gpSetFavStar(r.is_favorite);
     const rowStar = document.querySelector(`[data-fav-id="${_gpGameId}"]`);
     if (rowStar) rowStar.classList.toggle('active', r.is_favorite);
@@ -712,7 +799,7 @@ export async function gpAddTag() {
   const tag = input.value.trim();
   if (!tag) return;
   try {
-    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'add' });
+    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'add', source_path: _gpSrc() });
     _gpRenderTags(r.tags || []);
     input.value = '';
     _refreshTagFilter();
@@ -722,7 +809,7 @@ export async function gpAddTag() {
 export async function gpRemoveTag(tag) {
   if (!_gpGameId) return;
   try {
-    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove' });
+    const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove', source_path: _gpSrc() });
     _gpRenderTags(r.tags || []);
     _refreshTagFilter();
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
@@ -781,7 +868,7 @@ export function gpNotesInput() {
     if (!_gpGameId) return;
     const val = document.getElementById('gp-notes')?.value ?? '';
     try {
-      await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val });
+      await apiPost('/api/set-metadata', { game_id: _gpGameId, notes: val, source_path: _gpSrc() });
       if (statusEl) {
         statusEl.textContent = '✓ guardado';
         statusEl.style.color = 'var(--c-teal)';
@@ -804,7 +891,7 @@ export function gpToggleMetaEdit() {
 
 export async function gpSaveMetaFields() {
   if (!_gpGameId) return;
-  const payload = { game_id: _gpGameId };
+  const payload = { game_id: _gpGameId, source_path: _gpSrc() };
   const title = document.getElementById('gme-title')?.value.trim();
   if (title) payload.canonical_title = title;
   ['year', 'genre', 'publisher', 'developer', 'rating'].forEach(k => {
@@ -900,16 +987,58 @@ export async function loadGameSyncHistory(sourcePath) {
 
 // ── TV Mode ───────────────────────────────────────────────────────────────────
 export async function enterTvMode() {
+  // TV-UX-3: recuerda desde dónde se entró (el atajo 't' funciona desde cualquier
+  // pestaña) — solo la primera vez, no si 't' se repite estando ya en TV.
+  if (!_tvActive) {
+    _tvSourceTab = document.querySelector('.tab.active')?.id?.replace('tab-', '') || 'games';
+  }
   _tvActive = true;
   showTab('tv');
-  try { await document.documentElement.requestFullscreen(); } catch(_) {}
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch(_) {
+    // TV-UX-5: antes fallaba en silencio — Modo TV sigue funcionando en ventana, avisamos y ya.
+    showToast('No se pudo activar pantalla completa — Modo TV sigue funcionando en ventana', 'warn');
+  }
+  await _tvLoadPlatformBar();
   await loadTvGrid('', 0);
 }
 
 export function exitTvMode() {
   _tvActive = false;
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  showTab('collection');
+  showTab(_tvSourceTab);
+}
+
+// TV-UX-2: la barra de plataformas nunca se rellenaba — reutiliza el mismo
+// endpoint que ya usan los filtros de Juegos y Scraper.
+async function _tvLoadPlatformBar() {
+  const bar = document.getElementById('tv-platform-bar');
+  if (!bar) return;
+  try {
+    const d = await apiFetch('/api/games/filter-options');
+    const platforms = d.platforms || [];
+    bar.innerHTML = '';
+    const _chip = (label, value) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.className = 'tv-plat-chip' + (value === _tvPlatform ? ' active' : '');
+      btn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--fg-2);cursor:pointer;font-size:12px';
+      btn.addEventListener('click', () => _tvSelectPlatform(value));
+      bar.appendChild(btn);
+    };
+    _chip('Todas', '');
+    platforms.forEach(p => _chip(p, p));
+  } catch(_) {}
+}
+
+async function _tvSelectPlatform(platform) {
+  const label = document.getElementById('tv-platform-label');
+  if (label) label.textContent = platform || 'Toda la colección';
+  document.querySelectorAll('#tv-platform-bar .tv-plat-chip').forEach(b => {
+    b.classList.toggle('active', b.textContent === (platform || 'Todas'));
+  });
+  await loadTvGrid(platform, 0);
 }
 
 export async function loadTvGrid(platform, offset) {
@@ -924,10 +1053,18 @@ export async function loadTvGrid(platform, offset) {
     } else {
       _tvGames.push(...games);
     }
+    _tvHasMore = games.length === _TV_LIMIT;
     _tvPlatform = platform;
     _tvOffset = offset;
     _renderTvGrid(games, offset > 0);
-  } catch(e) { console.error('loadTvGrid failed:', e); }
+  } catch(e) {
+    // TV-UX-4: antes se quedaba en blanco sin ningún aviso — modo a pantalla completa, hace falta un mensaje visible.
+    console.error('loadTvGrid failed:', e);
+    if (offset === 0) {
+      const gridEl = document.getElementById('tv-grid');
+      if (gridEl) gridEl.innerHTML = '<p style="color:var(--c-red);padding:20px;grid-column:1/-1">No se pudo cargar la colección — comprueba la conexión con el servidor.</p>';
+    }
+  }
 }
 
 function _renderTvGrid(games, append) {
@@ -954,15 +1091,42 @@ function _renderTvGrid(games, append) {
     gridEl.appendChild(tile);
   });
   _tvCols = Math.max(1, Math.round(gridEl.offsetWidth / 196));
-  if (_tvGames.length > 0) _tvMoveFocus(0);
+  // Solo recentra el foco en una carga nueva — al añadir página, mantiene la posición actual.
+  if (!append && _tvGames.length > 0) _tvMoveFocus(0);
 }
 
-export function _tvMoveFocus(idx) {
+// TV-UX-5: _tvCols no se recalculaba al redimensionar la ventana.
+window.addEventListener('resize', () => {
+  if (!_tvActive) return;
+  const gridEl = document.getElementById('tv-grid');
+  if (gridEl) _tvCols = Math.max(1, Math.round(gridEl.offsetWidth / 196));
+});
+
+export async function _tvMoveFocus(idx) {
+  // TV-UX-1: la colección se cortaba en _TV_LIMIT juegos sin forma de cargar más.
+  if (idx >= _tvGames.length) {
+    if (_tvHasMore) {
+      await loadTvGrid(_tvPlatform, _tvOffset + _TV_LIMIT);
+    } else {
+      _tvFlashEnd();
+      idx = _tvGames.length - 1;
+    }
+  }
   document.querySelector('.tv-tile.tv-focused')?.classList.remove('tv-focused');
   _tvFocusIdx = Math.max(0, Math.min(idx, _tvGames.length - 1));
   const tile = document.querySelector(`.tv-tile[data-tv-idx="${_tvFocusIdx}"]`);
   if (tile) { tile.classList.add('tv-focused'); tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
   if (_tvGames[_tvFocusIdx]) _updateTvInfoBar(_tvGames[_tvFocusIdx]);
+}
+
+const _TV_HELP_TEXT = '↑↓←→ navegar · Enter abrir · Esc salir';
+function _tvFlashEnd() {
+  const el = document.getElementById('tv-info-keys');
+  if (!el) return;
+  el.textContent = 'No hay más juegos por aquí';
+  el.style.color = 'var(--c-red)';
+  clearTimeout(_tvEndFlashTimer);
+  _tvEndFlashTimer = setTimeout(() => { el.textContent = _TV_HELP_TEXT; el.style.color = 'var(--c-ghost)'; }, 1000);
 }
 
 function _updateTvInfoBar(g) {

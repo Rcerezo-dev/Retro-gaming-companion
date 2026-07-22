@@ -10,7 +10,7 @@ _logger = logging.getLogger(__name__)
 
 # Default Android emulator save/savestate path mappings.
 # Verified live on Anbernic RG556 (serial: RG556006101273).
-# Source: docs/android-save-paths-RG556.md
+# Source: docs/sync/android-save-paths-RG556.md
 # Keys are Android package names. Users can override entries via [[emulator_paths]] in config.toml.
 EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
     "com.retroarch.aarch64": {
@@ -128,10 +128,11 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
     },
     "me.magnum.melonds": {
         "name": "melonDS (Nintendo DS)",
-        "saves_path": "/storage/emulated/0/Android/data/me.magnum.melonds/files",
+        "saves_path": "/storage/emulated/0/Android/data/me.magnum.melonds/files/saves",
         "states_path": None,
         "adb_required": True,
-        "notes": "Save location may vary; may be alongside ROMs",
+        "save_extensions": [".sav"],
+        "notes": "Confirmed on device 2026-06-22; saves at files/saves/, not files/ root",
     },
     "org.mupen64plusae.v3.fzurita.pro": {
         "name": "Mupen64Plus FZ (N64)",
@@ -139,6 +140,14 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "states_path": None,
         "adb_required": True,
         "notes": "Save location unknown — may be alongside ROMs or user-configured sdcard path",
+    },
+    "com.explusalpha.NeoEmu": {
+        "name": "NEO.emu (Neo Geo)",
+        "saves_path": None,
+        "states_path": None,
+        "adb_required": True,
+        "state_extensions": [".frz"],
+        "notes": "EmuEx saves dir not yet created — will be .../files/EmuEx/<SystemFolder>/saves/ after first in-game save",
     },
 }
 
@@ -171,6 +180,8 @@ class SyncConfig:
     auto_sync_android_path: str = "/storage/emulated/0/RetroArch"  # Android RetroArch root path
     auto_sync_known_devices: list = field(default_factory=list)  # serials; empty = any device
     conflict_policy: str = "newest"  # "newest" | "keep_pc" | "keep_android" | "ask"
+    # AUD-1 Sync Doctor: max acceptable PC↔device clock skew before warning (seconds)
+    clock_skew_threshold_s: int = 120
     # Dual-remote cloud sync (D2)
     saves_remote: str = ""  # rclone remote for permanent saves
     states_remote: str = ""  # rclone remote for savestates
@@ -179,6 +190,9 @@ class SyncConfig:
     # RetroArch core config sync (.opt files)
     ra_config_dir: str = ""  # path to RetroArch/config/ folder
     ra_config_remote: str = ""  # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
+    # JUEGOS-UX-7: playtime logs (.lrtl) — base remote; se usan subcarpetas /pc
+    # y /android para que cada origen sea dueño de su contador y nunca se pisen
+    playtime_remote: str = ""  # e.g. "dropbox:/RetroSync/playtime"
 
 
 @dataclass(slots=True)
@@ -259,6 +273,8 @@ class AppConfig:
     backup: BackupConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
+    # AUD-3: días que un archivo permanece en _descartados/ antes de la purga automática (0 = nunca)
+    trash_purge_days: int
     # Android emulator path mappings (SYNC-A2)
     # Merged from EMULATOR_SAVE_PATHS_DEFAULT + user [[emulator_paths]] overrides in config.toml
     emulator_paths: dict  # package_name → {name, saves_path, states_path, adb_required, ...}
@@ -277,6 +293,9 @@ _CONFIG_TOML_TEMPLATE = """\
 # Save files (.sav, .srm, .state, etc.) are expected to live alongside the ROMs.
 # Used by 'rommgr sync-saves' and 'rommgr sync-status'.
 # library_root = "E:/ROMs"
+# Días que un archivo descartado permanece en _descartados/ antes de la purga
+# automática (AUD-3). 0 = nunca purgar.
+# trash_purge_days = 30
 
 [sync]
 # rclone remote path where saves will be mirrored in the cloud.
@@ -328,6 +347,19 @@ def _default_tool(root: Path, exe: str, fallback: str) -> str:
         if bundled.is_file():
             return str(bundled)
     return fallback
+
+
+def _resolve_tool_path(raw: str) -> str:
+    """Normalize a configured tool path so Windows' CreateProcess accepts it.
+
+    VAL-FIX-3: CreateProcess rejects a forward slash in the executable path
+    itself (unlike in its arguments), so a user-written "tools/adb.exe" in
+    config.toml fails with WinError 2 even though the file exists. No-op on
+    non-Windows, where "/" is the native separator anyway.
+    """
+    if sys.platform == "win32" and "/" in raw:
+        return raw.replace("/", "\\")
+    return raw
 
 
 def load_config(project_root: Path | None = None) -> AppConfig:
@@ -417,9 +449,11 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_binary=sync.get("rclone", _default_tool(root, "rclone.exe", "rclone")),
-        chdman=tools.get("chdman", _default_tool(root, "chdman.exe", "chdman")),
-        adb=tools.get("adb", _default_tool(root, "adb.exe", "adb")),
+        rclone_binary=_resolve_tool_path(
+            sync.get("rclone", _default_tool(root, "rclone.exe", "rclone"))
+        ),
+        chdman=_resolve_tool_path(tools.get("chdman", _default_tool(root, "chdman.exe", "chdman"))),
+        adb=_resolve_tool_path(tools.get("adb", _default_tool(root, "adb.exe", "adb"))),
         web_host=web.get("host", "0.0.0.0"),
         web_port=int(web.get("port", 7777)),
         web_allow_lan=bool(web.get("allow_lan", True)),
@@ -443,10 +477,12 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ),
             auto_sync_known_devices=auto_sync_known_devices,
             conflict_policy=str(sync.get("conflict_policy", "newest")),
+            clock_skew_threshold_s=int(sync.get("clock_skew_threshold_s", 120)),
             saves_remote=str(sync.get("saves_remote", "")),
             states_remote=str(sync.get("states_remote", "")),
             ra_config_dir=str(sync.get("ra_config_dir", "")),
             ra_config_remote=str(sync.get("ra_config_remote", "")),
+            playtime_remote=str(sync.get("playtime_remote", "")),
             sync_sources=sync_sources,
         ),
         inbox=InboxConfig(
@@ -466,6 +502,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             pre_sync=bool(backup_cfg.get("pre_sync", True)),
         ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
+        trash_purge_days=int(lib.get("trash_purge_days", 30)),
         emulator_paths=emulator_paths,
         excluded_directories=(  # noqa: E501
             "Android",

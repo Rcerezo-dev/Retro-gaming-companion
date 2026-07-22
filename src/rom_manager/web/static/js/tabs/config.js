@@ -4,6 +4,7 @@
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
+import { updateDeviceButton } from '../state.js';
 
 // Local helpers (small utils duplicated from app.js, removed when app.js is deleted)
 const _txtCls = (el, cls) => {
@@ -49,6 +50,8 @@ async function loadSettings() {
     const raConfigRemoteEl = document.getElementById('cfg-ra-config-remote');
     if (raConfigDirEl)    raConfigDirEl.value    = cfg.ra_config_dir    || '';
     if (raConfigRemoteEl) raConfigRemoteEl.value = cfg.ra_config_remote || '';
+    const playtimeRemoteEl = document.getElementById('cfg-playtime-remote');
+    if (playtimeRemoteEl) playtimeRemoteEl.value = cfg.playtime_remote || '';
     const whEl = document.getElementById('cfg-web-host');
     if (whEl) whEl.value = cfg.web_host || '127.0.0.1';
     document.getElementById('cfg-ss-user').value       = cfg.screenscraper_user || '';
@@ -110,16 +113,18 @@ async function loadSettings() {
 async function migrateSplitDb() {
   const el = document.getElementById('migrate-db-result');
   if (!el) return;
-  _txtCls(el, 'txt-muted'); el.textContent = 'Migrando…';
-  try {
-    const r = await apiPost('/api/migrate-split-db', {});
-    if (r.error) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + r.error; return; }
-    _txtCls(el, 'txt-ok');
-    el.textContent = '✓ Migrados: ' + r.migrated_games + ' juegos  |  Errores: ' + (r.errors?.length || 0);
-    if (r.errors && r.errors.length > 0) {
-      el.textContent += '  [' + r.errors.slice(0,3).join('; ') + ']';
-    }
-  } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
+  _showConfirm('Migrar BD a dos DBs', 'Mueve los registros con rutas no-PC de la BD del PC a la BD de la consola Android. Operación segura e idempotente, pero toca la base de datos real.', async () => {
+    _txtCls(el, 'txt-muted'); el.textContent = 'Migrando…';
+    try {
+      const r = await apiPost('/api/migrate-split-db', {});
+      if (r.error) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + r.error; return; }
+      _txtCls(el, 'txt-ok');
+      el.textContent = '✓ Migrados: ' + r.migrated_games + ' juegos  |  Errores: ' + (r.errors?.length || 0);
+      if (r.errors && r.errors.length > 0) {
+        el.textContent += '  [' + r.errors.slice(0,3).join('; ') + ']';
+      }
+    } catch(e) { _txtCls(el, 'txt-err'); el.textContent = '✗ ' + e.message; }
+  });
 }
 
 async function testChdman() {
@@ -237,7 +242,7 @@ async function loadTools() {
       const lastBad = (sched.last_corrupted || 0) + (sched.last_missing || 0);
       const statusPart = lastOk ? ` · ${lastOk}${lastBad ? `, ${lastBad} problemas` : ''}` : '';
       const overdueTxt = sched.overdue ? ' <span style="color:var(--accent-ora)">⚠ programado</span>' : '';
-      el.innerHTML = `&#xfa0;ltimo: <strong>${fmt(sched.last_run_at)}</strong>${statusPart} &nbsp;·&nbsp; Pr&#xf3;ximo: <strong>${fmt(sched.next_run_at)}</strong>${overdueTxt}`;
+      el.innerHTML = `&#xda;ltimo: <strong>${fmt(sched.last_run_at)}</strong>${statusPart} &nbsp;·&nbsp; Pr&#xf3;ximo: <strong>${fmt(sched.next_run_at)}</strong>${overdueTxt}`;
     }).catch(() => {
       const el = document.getElementById('health-schedule-info');
       if (el) el.textContent = '';
@@ -298,7 +303,18 @@ async function loadTools() {
     _initToolPath('report-path',           'tool_path_report');
     _initToolPath('folder-analysis-path',  'tool_path_folder_analysis');
     _initToolPath('junk-path',             'tool_path_junk');
-  } catch(e) { /* silent */ }
+    _initToolPath('cso-path',              'tool_path_cso');
+    _initToolPath('verify-chd-path',       'tool_path_verify_chd');
+    _initToolPath('verify-multidisc-path', 'tool_path_verify_multidisc');
+    _initToolPath('lpl-output-dir',        'tool_path_lpl_output');
+    _initToolPath('n64-path',              'tool_path_n64');
+  } catch(e) {
+    // HERR-UX-11: sin esto, "Verificando API key…" se quedaba congelado
+    // para siempre si /api/config fallaba.
+    const raStatus = document.getElementById('ra-api-key-status');
+    if (raStatus) { _txtCls(raStatus, 'txt-err'); raStatus.textContent = '✗ No se pudo verificar — revisa la conexión'; }
+    showToast('Error cargando Herramientas: ' + e.message, 'err');
+  }
 }
 
 function _setIfEmpty(id, value) {
@@ -314,12 +330,12 @@ async function doBatchRun() {
   // Resolve root from context selector (PC vs Android) — B2
   const ctx = localStorage.getItem('tools_context') || 'pc';
   const root = ctx === 'android'
-    ? (localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || cfg.library_root)
+    ? (cfg.anbernic_root || localStorage.getItem('anbernic_path') || localStorage.getItem('cable_ab_path') || cfg.library_root)
     : cfg.library_root;
 
-  if (!root) { alert('Configura library_root en Settings primero.'); return; }
-  if (ctx === 'android' && !localStorage.getItem('anbernic_path') && !localStorage.getItem('cable_ab_path')) {
-    alert('Contexto Android: configura la ruta de la consola en Settings o conecta el cable.');
+  if (!root) { showToast('Configura library_root en Ajustes primero.', 'err'); return; }
+  if (ctx === 'android' && !cfg.anbernic_root && !localStorage.getItem('anbernic_path') && !localStorage.getItem('cable_ab_path')) {
+    showToast('Contexto Android: configura la ruta de la consola en Ajustes o conecta el cable.', 'err');
     return;
   }
 
@@ -348,45 +364,66 @@ async function doBatchRun() {
     name: 'RetroAchievements', runningKey: 'ra_check_running',
     start: () => apiPost('/api/ra-check', {}),
   });
-  if (document.getElementById('batch-scraper')?.checked) jobs.push({
-    name: 'Scraper (ScreenScraper)', runningKey: 'scrape_running',
-    start: () => apiPost('/api/scrape', { platform: null, limit: 0, images: true }),
-  });
-  if (jobs.length === 0) { alert('Selecciona al menos una herramienta.'); return; }
+  const scraperChecked = document.getElementById('batch-scraper')?.checked;
+  if (scraperChecked) {
+    // HERR-UX-9: comprobación proactiva de credenciales SS antes de arrancar,
+    // en vez de dejar que el job del Scraper falle a mitad de la secuencia.
+    if (!cfg.screenscraper_pass_set) {
+      showToast('Scraper: configura usuario y contraseña de ScreenScraper en Ajustes antes de incluirlo en el lote.', 'err');
+      return;
+    }
+    jobs.push({
+      name: 'Scraper (ScreenScraper)', runningKey: 'scrape_running',
+      start: () => apiPost('/api/scrape', { platform: null, limit: 0, images: true }),
+    });
+  }
+  if (jobs.length === 0) { showToast('Selecciona al menos una herramienta.', 'err'); return; }
 
   const btn = document.getElementById('btn-batch-run');
   const statusEl = document.getElementById('batch-status');
+  const btnOrigText = btn.textContent;
   btn.disabled = true;
+  btn.textContent = 'Ejecutando…';
   let allOk = true;
 
-  for (const job of jobs) {
-    statusEl.innerHTML = `<span style="color:var(--c-muted)">⟳ ${window._h(job.name)}…</span>`;
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const step = `Paso ${i + 1}/${jobs.length} — `;
+    statusEl.innerHTML = `<span style="color:var(--c-muted)">⟳ ${step}${window._h(job.name)}…</span>`;
     try {
       const d = await job.start();
       if (d.status === 'already_running') {
-        statusEl.innerHTML = `<span style="color:var(--c-yellow)">⚠ ${window._h(job.name)} ya está en curso — esperando…</span>`;
+        statusEl.innerHTML = `<span style="color:var(--c-yellow)">⚠ ${step}${window._h(job.name)} ya está en curso — esperando…</span>`;
       } else if (d.error) {
-        statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${window._h(job.name)}: ${window._h(d.error)}</span>`;
+        statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${step}${window._h(job.name)}: ${window._h(d.error)}</span>`;
         allOk = false; break;
       }
-      // Poll until job finishes
+      // Poll until job finishes, with a ceiling so a crashed server doesn't
+      // leave the batch waiting forever (HERR-UX-9)
+      const _MAX_POLLS = 900; // 900 × 2s = 30 min
       await new Promise((resolve, reject) => {
+        let polls = 0;
         const t = setInterval(async () => {
           try {
             const s = await apiFetch('/api/job-status');
-            if (!s[job.runningKey]) { clearInterval(t); resolve(); }
+            if (!s[job.runningKey]) { clearInterval(t); resolve(); return; }
+            if (++polls >= _MAX_POLLS) {
+              clearInterval(t);
+              reject(new Error('Tiempo de espera agotado — revisa el job manualmente'));
+            }
           } catch(e) { clearInterval(t); reject(e); }
         }, 2000);
       });
-      statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ ${window._h(job.name)} completado.</span>`;
+      statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ ${step}${window._h(job.name)} completado.</span>`;
       window.startPolling();
     } catch(e) {
-      statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${window._h(job.name)}: ${window._h(e.message)}</span>`;
+      statusEl.innerHTML = `<span style="color:var(--c-red)">Error en ${step}${window._h(job.name)}: ${window._h(e.message)}</span>`;
       allOk = false; break;
     }
   }
 
   btn.disabled = false;
+  btn.textContent = btnOrigText;
   if (allOk) {
     statusEl.innerHTML = `<span style="color:var(--c-teal)">✓ Todas las operaciones completadas sobre ${window._h(root)}.</span>`;
     window.loadOverview();
@@ -407,7 +444,7 @@ async function fillToolPath(inputId) {
     const cfg = await apiFetch('/api/config');
     const el = document.getElementById(inputId);
     if (el && cfg.library_root) { el.value = cfg.library_root; el.dispatchEvent(new Event('input')); }
-  } catch(e) { /* silent */ }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 
 // ── S25: PIN + URL helpers ────────────────────────────────────────────────────
@@ -603,6 +640,7 @@ async function saveSettings() {
   const raConfigRemote = document.getElementById('cfg-ra-config-remote')?.value.trim() ?? '';
   updates['sync.ra_config_dir']    = raConfigDir;
   updates['sync.ra_config_remote'] = raConfigRemote;
+  updates['sync.playtime_remote'] = document.getElementById('cfg-playtime-remote')?.value.trim() ?? '';
   updates['web.host'] = document.getElementById('cfg-web-host')?.value || '127.0.0.1';
   const sd = document.getElementById('cfg-ss-devid')?.value.trim()   || '';
   const sdp = document.getElementById('cfg-ss-devpass')?.value        || '';
@@ -644,7 +682,14 @@ async function saveSettings() {
       const _CFG_CHECK = {
         'library.library_root':       'cfg-check-library-root',
         'library.anbernic_root':      'cfg-check-anbernic-root',
+        'android.device_name':        'cfg-check-device-name',
         'sync.remote':                'cfg-check-rclone-remote',
+        'sync.saves_remote':          'cfg-check-saves-remote',
+        'sync.states_remote':         'cfg-check-states-remote',
+        'sync.ra_config_dir':         'cfg-check-ra-config-dir',
+        'sync.ra_config_remote':      'cfg-check-ra-config-remote',
+        'sync.playtime_remote':       'cfg-check-playtime-remote',
+        'web.host':                   'cfg-check-web-host',
         'screenscraper.user':         'cfg-check-ss-user',
         'screenscraper.pass':         'cfg-check-ss-pass',
         'screenscraper.dev_id':       'cfg-check-ss-devid',
@@ -652,6 +697,12 @@ async function saveSettings() {
         'tools.chdman':               'cfg-check-chdman',
         'tools.adb':                  'cfg-check-adb',
         'retroachievements.api_key':  'cfg-check-ra-api-key',
+        'retroachievements.username': 'cfg-check-ra-username',
+        'launchers.retroarch':        'cfg-check-retroarch-path',
+        'launchers.esde':             'cfg-check-esde-path',
+        'backup.saves_enabled':       'cfg-check-backup-enabled',
+        'backup.saves_keep_n':        'cfg-check-backup-keep-n',
+        'notifications.desktop':      'cfg-check-notify-desktop',
       };
       d.saved.forEach(key => {
         const id = _CFG_CHECK[key];
@@ -706,7 +757,7 @@ async function saveOvPaths() {
   const abLabel = document.getElementById('scan-ab-label');
   const abLbl   = document.getElementById('ov-ab-path-label');
   if (abCb)    { abCb.disabled = !abPath; if (abPath && !abCb.checked) abCb.checked = true; }
-  if (devAb)   devAb.disabled = !abPath;
+  if (devAb)   { devAb.dataset.hasPath = abPath ? '1' : ''; updateDeviceButton(); }
   if (abLabel) abLabel.textContent = abPath || '(configura la ruta arriba)';
   if (abLbl)   abLbl.textContent = abPath ? '— ' + abPath : '';
   // Reload Anbernic stats in Overview if path changed
@@ -825,7 +876,68 @@ async function browseFolder(inputId, title) {
   }
 }
 
+async function browseFile(inputId, title) {
+  // HERR-UX-11: hermano de browseFolder() para elegir un archivo suelto
+  // (p.ej. la ROM a parchear) en vez de una carpeta entera.
+  const input = document.getElementById(inputId);
+  const btn   = document.querySelector(`button[data-browse="${inputId}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    const initialDir = input?.value.trim() || '';
+    const params = new URLSearchParams({ title: title || 'Seleccionar archivo' });
+    if (initialDir) params.set('initial_dir', initialDir);
+
+    const d = await apiFetch('/api/browse-file?' + params.toString());
+    if (d.ok && d.path) {
+      if (input) input.value = d.path;
+      input?.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (!d.cancelled) {
+      showToast(d.error || 'No se pudo abrir el selector de archivo', 'err');
+    }
+  } catch (e) {
+    showToast('Error al abrir el selector: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📂'; }
+  }
+}
+
+// ── AUD-3: Papelera unificada ─────────────────────────────────────────────────
+async function loadTrashStatus() {
+  const el = document.getElementById('trash-status-text');
+  if (!el) return;
+  el.textContent = 'Calculando…';
+  try {
+    const d = await apiFetch('/api/trash-status');
+    const gb = d.bytes / 1024 / 1024 / 1024;
+    const sizeStr = gb >= 1 ? `${gb.toFixed(2)} GB` : fmtSize(d.bytes);
+    el.innerHTML = `Papelera: <strong>${d.files}</strong> archivo${d.files !== 1 ? 's' : ''}, <strong>${sizeStr}</strong>`
+      + (d.purge_days > 0 ? ` <span style="color:var(--c-dim)">(purga automática a los ${d.purge_days} días)</span>`
+                          : ' <span style="color:var(--c-yellow)">(purga automática desactivada)</span>');
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function emptyTrash() {
+  if (!confirm('¿Vaciar la papelera?\n\nTodos los archivos de las carpetas _descartados/ se eliminarán DEFINITIVAMENTE. Esta acción no se puede deshacer.')) return;
+  const res = document.getElementById('trash-empty-result');
+  const btn = document.getElementById('btn-trash-empty');
+  if (btn) btn.disabled = true;
+  if (res) { res.textContent = 'Vaciando…'; _txtCls(res, 'txt-dim'); }
+  try {
+    const d = await apiPost('/api/trash-empty', {});
+    if (res) { res.textContent = `✓ ${d.deleted} archivos eliminados (${fmtSize(d.bytes)})`; _txtCls(res, 'txt-ok'); }
+    loadTrashStatus();
+  } catch (e) {
+    if (res) { res.textContent = '✗ ' + e.message; _txtCls(res, 'txt-err'); }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 export {
+  loadTrashStatus, emptyTrash,
   _onDevicePresetChange,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
   loadLogViewer, downloadLog, loadTools, _setIfEmpty,
@@ -834,5 +946,5 @@ export {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder, detectRetroArch,
+  browseFolder, browseFile, detectRetroArch,
 };

@@ -1,4 +1,5 @@
 <div id="tab-plan" class="tab">
+  <h3 style="color:var(--c-blue);margin-bottom:8px">1. Renombrar</h3>
   <!-- Format options -->
   <div class="fmt-options">
     <span>Incluir en el nombre:</span>
@@ -25,17 +26,9 @@
       </select>
     </label>
     <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
-      <!-- D8-2: device filter for plan -->
-      <select id="plan-device-filter" onchange="loadPlan()" title="Filtrar operaciones por dispositivo"
-        style="background:var(--c-panel);border:1px solid #444;color:var(--c-text);padding:5px 9px;border-radius:4px;font:inherit;font-size:12px">
-        <option value="">Todos los dispositivos</option>
-        <option value="pc">Solo PC</option>
-        <option value="android">Solo Consola Android</option>
-      </select>
+      <!-- PLAN-UX-3: el filtro por dispositivo se retiró — el selector global PC/Consola ya cumple esa función -->
       <button id="btn-apply" class="btn primary" onclick="doApply()" disabled>Renombrar</button>
       <button id="btn-resolve-conflicts" class="btn hidden" onclick="applyKeepBoth()">Resolver conflictos</button>
-      <!-- D8-3: RA conflict resolver button -->
-      <button id="btn-resolve-ra-conflicts" class="btn hidden" onclick="doResolveRaConflicts()" style="border-color:var(--c-purple);color:var(--c-purple)">Resolver con RA</button>
     </div>
   </div>
   <!-- Barra de progreso del apply -->
@@ -63,5 +56,13 @@
   <div class="hidden" id="plan-summary-bar" style="margin-bottom:10px;padding:8px 14px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"></div>
   <div class="hidden" id="plan-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div id="plan-content"><p class="loading">Cargando…</p></div>
+
+  <!-- TABS-FIX-6: cola única que fusiona duplicados SHA1/semánticos/RA y
+       colisiones del plan — reemplaza la pestaña Duplicados. -->
+  <h3 style="color:var(--c-blue);margin:24px 0 8px">2. Revisar copias</h3>
+  <div style="margin-bottom:10px">
+    <button id="btn-review-apply-all" class="btn primary hidden" onclick="applyAllReviewRecommendations()">Aplicar todas las recomendaciones</button>
+  </div>
+  <div id="review-queue-content"><p class="loading">Cargando…</p></div>
 </div>
 

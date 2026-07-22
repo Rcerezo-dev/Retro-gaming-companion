@@ -68,11 +68,15 @@ def _build_config(config: AppConfig) -> dict:
         "states_remote": config.sync.states_remote or "",
         "ra_config_dir": config.sync.ra_config_dir or "",
         "ra_config_remote": config.sync.ra_config_remote or "",
+        "playtime_remote": config.sync.playtime_remote or "",
     }
 
 
 def _build_scrape_summary(repository: LibraryRepository) -> dict:
-    return {"platforms": repository.get_scraped_platform_summary()}
+    return {
+        "platforms": repository.get_scraped_platform_summary(),
+        "description_coverage": repository.get_description_coverage(),  # SAGE-1
+    }
 
 
 def _build_cable_sync_preview(qs: dict, config: AppConfig) -> dict:

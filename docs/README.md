@@ -9,6 +9,17 @@
 | Documento | Contenido |
 |-----------|-----------|
 | [guia-pruebas.md](guia-pruebas.md) | Instalación desde cero y verificación de cada función — para probar en un PC nuevo |
+| [arcade-setup.md](arcade-setup.md) | Configuración de ROMs arcade: MAME/FBNeo, cores y DATs |
+| [emulator-compat.md](emulator-compat.md) | Matriz de compatibilidad de saves PC ↔ Android por emulador |
+
+## Desarrollo
+
+| Documento | Contenido |
+|-----------|-----------|
+| [onboarding.md](onboarding.md) | Primeros 30 minutos para devs nuevos: mapa de lectura del código, e2e sintético, debug |
+| [glossary.md](glossary.md) | Glosario de jerga retro (DAT, CHD, cue/bin, saves vs states…) y por qué importa en el código |
+| [ci-cd.md](ci-cd.md) | Pipeline CI/CD: GitHub Actions, branch protection, ramas, pre-commit, gotchas |
+| [SKILLS-QUICK-START.md](SKILLS-QUICK-START.md) | Skills y agents de Claude Code disponibles en el proyecto |
 
 ## Arquitectura
 
@@ -36,6 +47,7 @@
 | [sync-cable.md](sync/sync-cable.md) | Cable Sync: ADB, SD card, SFTP — cómo conectar y transferir |
 | [sync-cloud.md](sync/sync-cloud.md) | Cloud Sync: rclone + Dropbox — setup y flujo |
 | [Guia-Termux-Anbernic.md](sync/Guia-Termux-Anbernic.md) | Guía completa: Termux + rclone en la Anbernic RG556 |
+| [sync-wifi-sftp.md](sync/sync-wifi-sftp.md) | WiFi Sync: servidor SFTP en Termux + transferencia sin cable |
 
 ## Ideas y propuestas
 

@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 // ── Utility functions ──────────────────────────────────────────────────────────
 function fmtSize(n) {
@@ -34,7 +35,7 @@ export async function doConvertChd() {
   const pathVal    = document.getElementById('chd-path').value.trim();
   const dryRun     = document.getElementById('chd-dry-run').checked;
   const delSource  = document.getElementById('chd-delete-source').checked;
-  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .cue/.bin'); return; }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta con archivos .cue/.bin', 'err'); return; }
   const btn = document.getElementById('btn-convert-chd');
   const resultEl = document.getElementById('job-result-convert-chd');
   btn.disabled = true;
@@ -52,7 +53,7 @@ export async function doConvertChd() {
     _startPolling();
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
-    resultEl.textContent = 'Error: ' + e.message;
+    resultEl.textContent = 'Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.';
     btn.disabled = false;
     btn.textContent = 'Convertir a CHD';
   }
@@ -112,7 +113,7 @@ export function applyChdFilter() {
 export async function doConvertCso() {
   const pathVal   = document.getElementById('cso-path').value.trim();
   const delSource = document.getElementById('cso-delete-source').checked;
-  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .cso/.zso'); return; }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta con archivos .cso/.zso', 'err'); return; }
   const btn = document.getElementById('btn-convert-cso');
   const resultEl = document.getElementById('job-result-convert-cso');
   btn.disabled = true;
@@ -130,7 +131,7 @@ export async function doConvertCso() {
     _startPolling();
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
-    resultEl.textContent = 'Error: ' + e.message;
+    resultEl.textContent = 'Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.';
     btn.disabled = false;
     btn.textContent = 'Convertir a ISO';
   }
@@ -165,36 +166,51 @@ export function _renderCsoResult(result) {
 }
 
 // ── Cleanup ZIPs ───────────────────────────────────────────────────────────────
-export async function doCleanupZips() {
+export function doCleanupZips() {
   const pathVal = document.getElementById('zip-path').value.trim();
-  if (!pathVal) { alert('Introduce la ruta de la carpeta'); return; }
-  const n = (document.querySelectorAll('#zip-results div').length) || '?';
-  if (!confirm(`¿Eliminar TODOS los archivos .zip de:\n${pathVal}\n\nEsta operación no se puede deshacer.`)) return;
-  try {
-    const d = await apiPost('/api/cleanup-zips', { source_path: pathVal });
-    const el = document.getElementById('job-result-extract-zip');
-    el.className = 'job-result visible success';
-    el.textContent = `ZIPs eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
-  } catch(e) { alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.'); }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta', 'err'); return; }
+  _showConfirm(
+    'Eliminar ZIPs',
+    `¿Eliminar TODOS los archivos .zip de:<br><code>${_h(pathVal)}</code><br><br>Esta operación no se puede deshacer.`,
+    'Eliminar',
+    async () => {
+      try {
+        const d = await apiPost('/api/cleanup-zips', { source_path: pathVal });
+        const el = document.getElementById('job-result-extract-zip');
+        el.className = 'job-result visible success';
+        el.textContent = `ZIPs eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
+      } catch(e) {
+        showToast('Error: ' + e.message + ' — verifica que los archivos no estén en uso por otro programa.', 'err');
+      }
+    }
+  );
 }
 
-export async function doCleanupCueBin() {
+export function doCleanupCueBin() {
   const pathVal = document.getElementById('chd-path').value.trim();
-  if (!pathVal) { alert('Introduce la ruta de la carpeta'); return; }
-  if (!confirm(`¿Eliminar los archivos .cue y .bin que ya tienen su .chd en:\n${pathVal}\n\nEsta operación no se puede deshacer.`)) return;
-  try {
-    const d = await apiPost('/api/cleanup-cue-bin', { source_path: pathVal });
-    const el = document.getElementById('job-result-convert-chd');
-    el.className = 'job-result visible success';
-    el.textContent = `Archivos eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.skipped ? `  |  Sin .chd (no tocados): ${d.skipped}` : ''}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
-  } catch(e) { alert('Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.'); }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta', 'err'); return; }
+  _showConfirm(
+    'Eliminar .cue/.bin',
+    `¿Eliminar los archivos .cue y .bin que ya tienen su .chd en:<br><code>${_h(pathVal)}</code><br><br>Esta operación no se puede deshacer.`,
+    'Eliminar',
+    async () => {
+      try {
+        const d = await apiPost('/api/cleanup-cue-bin', { source_path: pathVal });
+        const el = document.getElementById('job-result-convert-chd');
+        el.className = 'job-result visible success';
+        el.textContent = `Archivos eliminados: ${d.deleted}  |  Espacio liberado: ${fmtSize(d.freed_bytes)}${d.skipped ? `  |  Sin .chd (no tocados): ${d.skipped}` : ''}${d.failed ? `  |  Fallidos: ${d.failed}` : ''}`;
+      } catch(e) {
+        showToast('Error: ' + e.message + ' — verifica que los archivos no estén en uso por otro programa.', 'err');
+      }
+    }
+  );
 }
 
 export async function doExtractZip() {
   const pathVal   = document.getElementById('zip-path').value.trim();
   const dryRun    = document.getElementById('zip-dry-run').checked;
   const delSource = document.getElementById('zip-delete-source').checked;
-  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .zip'); return; }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta con archivos .zip', 'err'); return; }
   const btn = document.getElementById('btn-extract-zip');
   const resultEl = document.getElementById('job-result-extract-zip');
   btn.disabled = true; btn.textContent = 'Procesando…';
@@ -208,7 +224,8 @@ export async function doExtractZip() {
     }
     _startPolling();
   } catch(e) {
-    resultEl.className = 'job-result visible error-r'; resultEl.textContent = 'Error: ' + e.message;
+    resultEl.className = 'job-result visible error-r';
+    resultEl.textContent = 'Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.';
     btn.disabled = false; btn.textContent = 'Descomprimir ZIPs';
   }
 }
@@ -217,8 +234,10 @@ export async function doExtractZip() {
 export async function doGenerateM3U() {
   const pathVal = document.getElementById('m3u-path').value.trim();
   const dryRun  = document.getElementById('m3u-dry-run').checked;
-  if (!pathVal) { alert('Introduce la ruta de la carpeta de ROMs'); return; }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta de ROMs', 'err'); return; }
+  const btn = document.getElementById('btn-generate-m3u');
   const resultEl = document.getElementById('m3u-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
   resultEl.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Buscando grupos multi-disco…</p>';
   try {
     const d = await apiPost('/api/generate-m3u', { source_path: pathVal, dry_run: dryRun });
@@ -233,11 +252,13 @@ export async function doGenerateM3U() {
       }).join('');
       html += '</div>';
     } else {
-      html += '<p style="color:var(--c-dim);font-size:12px">No se encontraron grupos multi-disco.</p>';
+      html += '<p style="color:var(--c-dim);font-size:12px">No se encontraron grupos multi-disco. Revisa que la ruta sea correcta y que los nombres incluyan "(Disc N)".</p>';
     }
     resultEl.innerHTML = html;
   } catch(e) {
     resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar M3U'; }
   }
 }
 
@@ -294,9 +315,11 @@ export async function generateM3uFromVerify() {
 
 export async function doVerifyMultidisc() {
   const rawVal = document.getElementById('verify-multidisc-path').value.trim();
-  if (!rawVal) { alert('Introduce al menos una carpeta de ROMs'); return; }
+  if (!rawVal) { showToast('Introduce al menos una carpeta de ROMs', 'err'); return; }
   const paths = rawVal.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
   _lastVerifiedPaths = paths;
+  const btn = document.getElementById('btn-verify-multidisc');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando…'; }
   const resultEl = document.getElementById('multidisc-result');
   resultEl.innerHTML = '<p style="color:var(--c-muted);font-size:12px">Verificando…</p>';
   // Aggregate results across all paths
@@ -381,14 +404,18 @@ export async function doVerifyMultidisc() {
     resultEl.innerHTML = html;
   } catch(e) {
     resultEl.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Verificar'; }
   }
 }
 
 // ── Playlists RetroArch .lpl ───────────────────────────────────────────────────
 export async function doExportLpl() {
   const el = document.getElementById('lpl-result');
+  const btn = document.getElementById('btn-export-lpl');
   const outputDir = document.getElementById('lpl-output-dir')?.value.trim() || '';
   if (el) { el.innerHTML = '<span class="loading">Generando…</span>'; el.classList.remove('hidden'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
   try {
     const d = await apiPost('/api/export-lpl', outputDir ? { output_dir: outputDir } : {});
     if (d.error) {
@@ -398,6 +425,8 @@ export async function doExportLpl() {
     }
   } catch (e) {
     if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${e.message}</span>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generar .lpl'; }
   }
 }
 
@@ -406,11 +435,13 @@ export async function doN64Scan() {
   const path = document.getElementById('n64-path')?.value.trim();
   const el = document.getElementById('n64-scan-result');
   if (!path || !el) return;
+  const btn = document.getElementById('btn-n64-scan');
+  if (btn) { btn.disabled = true; btn.textContent = 'Escaneando…'; }
   el.innerHTML = '<span class="loading">Escaneando…</span>';
   try {
     const d = await apiFetch('/api/n64-scan?path=' + encodeURIComponent(path));
     const roms = d.roms || [];
-    if (!roms.length) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No se encontraron ROMs de N64 en esa carpeta.</p>'; return; }
+    if (!roms.length) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">No se encontraron ROMs de N64 en esa carpeta. Revisa que la ruta sea correcta.</p>'; return; }
     const needConv = roms.filter(r => r.needs_conversion);
     let html = `<p style="font-size:12px;color:var(--c-muted);margin-bottom:8px">${roms.length} ROMs encontrados — ${needConv.length} necesitan conversión a .z64</p>`;
     if (needConv.length) {
@@ -425,7 +456,11 @@ export async function doN64Scan() {
       html += `<p style="color:var(--c-teal);font-size:12px">&#x2713; Todos los ROMs ya están en formato .z64</p>`;
     }
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`; }
+  } catch(e) {
+    el.innerHTML = `<p style="color:var(--c-softred);font-size:12px">Error: ${_h(e.message)}</p>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Escanear'; }
+  }
 }
 
 export async function doN64Convert(sourcePath) {
@@ -521,7 +556,7 @@ export async function organizeLibrary(dryRun) {
 // ── Verify CHD (P6) ──────────────────────────────────────────────────────────
 export async function doVerifyChd() {
   const pathVal = document.getElementById('verify-chd-path').value.trim();
-  if (!pathVal) { alert('Introduce la ruta de la carpeta con archivos .chd'); return; }
+  if (!pathVal) { showToast('Introduce la ruta de la carpeta con archivos .chd', 'err'); return; }
   const btn = document.getElementById('btn-verify-chd');
   const resultEl = document.getElementById('verify-chd-result');
   btn.disabled = true;
@@ -539,7 +574,7 @@ export async function doVerifyChd() {
     }
     _startPolling();
   } catch(e) {
-    if (resultEl) { resultEl.className = 'job-result visible error-r'; resultEl.textContent = 'Error: ' + e.message; }
+    if (resultEl) { resultEl.className = 'job-result visible error-r'; resultEl.textContent = 'Error: ' + e.message + '\n\nVerifica que los archivos no estén en uso por otro programa.'; }
     btn.disabled = false;
     btn.textContent = 'Verificar CHDs';
   }
@@ -561,8 +596,11 @@ export function _renderVerifyChdResult(result) {
       (result.failed > 0 ? ` &nbsp;·&nbsp; <span style="color:var(--c-red)">${result.failed} corruptos</span>` : '') +
       `<span style="color:var(--c-dim);font-size:11px;margin-left:8px">${cancelled}</span>`;
     _verifyChdResults = result.results || [];
+    // Default: solo corruptos si hay fallos, igual que chd-filter-errors (FORMATOS-UX-6)
+    const cb = document.getElementById('verify-chd-filter-errors');
+    if (cb) cb.checked = result.failed > 0;
     if (listEl && _verifyChdResults.length) {
-      const errorsOnly = document.getElementById('verify-chd-filter-errors')?.checked ?? true;
+      const errorsOnly = cb?.checked ?? false;
       _renderVerifyChdList(listEl, errorsOnly);
     }
   }
@@ -652,7 +690,7 @@ export async function applySelectedPatch() {
       resultEl.innerHTML = `<span style="color:var(--c-softred)">&#x274C; ${_h(res.error)}</span>`;
     } else {
       resultEl.innerHTML = `<span style="color:var(--c-teal)">&#x2713; Patch aplicado — ${_h(res.output_name)} (${res.records} registros)</span>`;
-      showToast('Patch aplicado: ' + res.output_name, 'success');
+      showToast('Patch aplicado: ' + res.output_name, 'ok');
       loadPatchLog();
     }
   } catch (e) {
@@ -684,5 +722,4 @@ export async function loadPatchLog() {
   } catch (e) {
     el.textContent = 'Error: ' + e.message;
   }
-}
 }

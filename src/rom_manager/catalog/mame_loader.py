@@ -72,6 +72,84 @@ def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
     return result
 
 
+# INICIO-FIX-2: el listxml oficial de MAME pesa cientos de MB (~11 s de parseo)
+# y esto se llama en cada junk-scan y cada refresh de /api/library-extras —
+# memoizar por firma de los .xml del directorio (nombre, mtime, tamaño).
+_infra_cache: dict[Path, tuple[tuple, set[str]]] = {}
+
+
+def load_arcade_infra_names(directory: Path) -> set[str]:
+    """Set names that ``load_mame_xml`` skips: BIOS, devices, non-runnable.
+
+    These are the loose ZIPs in an unorganized library that will never match
+    the playable catalog (JUNK-SMART-2) — c1541.zip, kb_pcat101.zip, sb16.zip…
+    Only MAME XML carries the flags; FBNeo DATs are ignored.
+    """
+    names: set[str] = set()
+    if not directory.exists():
+        return names
+    xml_files = sorted(f for f in directory.iterdir() if f.suffix.lower() == ".xml")
+    try:
+        sig: tuple | None = tuple(
+            (f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in xml_files
+        )
+    except OSError:
+        sig = None  # archivo desaparecido a mitad — parsear sin cachear
+    cached = _infra_cache.get(directory)
+    if sig is not None and cached and cached[0] == sig:
+        return cached[1]
+    for f in xml_files:
+        try:
+            tree = ET.parse(f)
+            root = tree.getroot()
+            machines = root.iter("machine") if root.tag != "datafile" else root.iter("game")
+            for machine in machines:
+                if (
+                    machine.get("isbios") == "yes"
+                    or machine.get("isdevice") == "yes"
+                    or machine.get("runnable") == "no"
+                ):
+                    name = machine.get("name", "").strip().lower()
+                    if name:
+                        names.add(name)
+        except (ET.ParseError, OSError):
+            pass
+    if sig is not None:
+        _infra_cache[directory] = (sig, names)
+    return names
+
+
+def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
+    """``crc32_upper → {set names}`` de los DAT arcade (Logiqx: ``<rom crc>``).
+
+    ZIP-ROUTE-2: identifica un ZIP arcade renombrado votando los CRC de sus
+    entradas (el header del ZIP ya los trae, sin descomprimir). Un CRC puede
+    vivir en varios sets (parent/clones), por eso el valor es un set de
+    nombres y la identidad la decide la cobertura de votos, no un hit suelto.
+    Solo se leen los ``.dat``; el listxml de MAME no lleva una lista de roms
+    fiable para esto y parsear sus cientos de MB solo para CRCs es caro.
+    """
+    index: dict[str, set[str]] = {}
+    if not directory.exists():
+        return index
+    for f in sorted(directory.iterdir()):
+        if f.suffix.lower() != ".dat":
+            continue
+        try:
+            for _, elem in ET.iterparse(str(f)):
+                if elem.tag in ("game", "machine"):
+                    name = elem.get("name", "").strip().lower()
+                    if name:
+                        for rom in elem.findall("rom"):
+                            crc = (rom.get("crc") or "").strip().upper()
+                            if crc:
+                                index.setdefault(crc, set()).add(name)
+                    elem.clear()
+        except (ET.ParseError, OSError):
+            pass
+    return index
+
+
 def load_arcade_dir(directory: Path) -> dict[str, tuple[str, str, str, str]]:
     """Load all arcade catalog files from *directory*.
 

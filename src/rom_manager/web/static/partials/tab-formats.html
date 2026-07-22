@@ -13,7 +13,7 @@
         <label for="chd-path">Carpeta con archivos .cue/.bin</label>
         <input id="chd-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
       </div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('chd-path')">library_root</button>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" title="Rellenar con la carpeta de biblioteca configurada" onclick="fillToolPath('chd-path')">Usar biblioteca</button>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
       <label class="fmt-check"><input type="checkbox" id="chd-dry-run" checked> Solo previsualizar (sin convertir)</label>
@@ -55,7 +55,7 @@
         <label for="verify-chd-path">Carpeta con archivos .chd</label>
         <input id="verify-chd-path" type="text" placeholder="C:/ROMs/psx" style="width:100%">
       </div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('verify-chd-path')">library_root</button>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" title="Rellenar con la carpeta de biblioteca configurada" onclick="fillToolPath('verify-chd-path')">Usar biblioteca</button>
     </div>
     <div class="actions-row">
       <button id="btn-verify-chd" class="btn primary" onclick="doVerifyChd()">Verificar CHDs</button>
@@ -72,7 +72,7 @@
     <div id="verify-chd-result" class="job-result"></div>
     <div style="margin-top:12px;margin-bottom:4px;display:flex;align-items:center;gap:10px">
       <label style="font-size:11px;color:var(--c-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
-        <input type="checkbox" id="verify-chd-filter-errors" checked onchange="applyVerifyChdFilter()"> Solo corruptos
+        <input type="checkbox" id="verify-chd-filter-errors" onchange="applyVerifyChdFilter()"> Solo corruptos
       </label>
       <span id="verify-chd-count" style="font-size:11px;color:var(--c-dim)"></span>
     </div>
@@ -85,7 +85,7 @@
     <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Descomprime archivos .cso y .zso a formato ISO usando <code>maxcso.exe</code>. Necesario si tu emulador no lee CSO nativamente. <strong>Nota:</strong> no procesa archivos dentro de carpetas arcade (MAME, FBNeo).</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con .cso/.zso</label><input id="cso-path" type="text" placeholder="C:/ROMs/psp" style="width:100%"></div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('cso-path')">library_root</button>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" title="Rellenar con la carpeta de biblioteca configurada" onclick="fillToolPath('cso-path')">Usar biblioteca</button>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
       <label class="fmt-check"><input type="checkbox" id="cso-delete-source"> Eliminar .cso/.zso tras convertir</label>
@@ -113,7 +113,7 @@
     <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Extrae los ROMs dentro de archivos .zip directamente en la misma carpeta. RetroArch puede leer ZIPs directamente; usa esto si el emulador concreto no los soporta.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con .zip</label><input id="zip-path" type="text" placeholder="C:/ROMs/gba" style="width:100%"></div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('zip-path')">library_root</button>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" title="Rellenar con la carpeta de biblioteca configurada" onclick="fillToolPath('zip-path')">Usar biblioteca</button>
     </div>
     <div class="actions-row" style="gap:20px;align-items:center">
       <label class="fmt-check"><input type="checkbox" id="zip-dry-run" checked> Solo previsualizar (sin extraer)</label>
@@ -145,8 +145,8 @@
     <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Convierte ROMs de Nintendo 64 al formato nativo big-endian (.z64). Los formatos .v64 (Doctor V64) y .n64 (little-endian) son convertidos en Python, sin herramientas externas.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta con ROMs N64</label><input id="n64-path" type="text" placeholder="C:/ROMs/n64" style="width:100%"></div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('n64-path')">library_root</button>
-      <button class="btn" onclick="doN64Scan()">Escanear</button>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" title="Rellenar con la carpeta de biblioteca configurada" onclick="fillToolPath('n64-path')">Usar biblioteca</button>
+      <button id="btn-n64-scan" class="btn" onclick="doN64Scan()">Escanear</button>
     </div>
     <div id="n64-scan-result" style="margin-top:12px"></div>
   </div>
@@ -170,7 +170,7 @@
       <label class="fmt-check"><input type="checkbox" id="m3u-dry-run" checked> Solo previsualizar (sin crear archivos)</label>
     </div>
     <div class="actions-row">
-      <button class="btn primary" onclick="doGenerateM3U()">Generar M3U</button>
+      <button id="btn-generate-m3u" class="btn primary" onclick="doGenerateM3U()">Generar M3U</button>
     </div>
     <div id="m3u-result" style="margin-top:12px"></div>
   </div>
@@ -184,7 +184,7 @@
         <label>Carpeta destino (vac&#xed;o = .rommgr/playlists/)</label>
         <input id="lpl-output-dir" type="text" placeholder="Dejar vac&#xed;o para usar la carpeta por defecto">
       </div>
-      <button class="btn primary" onclick="doExportLpl()">Generar .lpl</button>
+      <button id="btn-export-lpl" class="btn primary" onclick="doExportLpl()">Generar .lpl</button>
     </div>
     <div id="lpl-result" style="margin-top:12px"></div>
   </div>
@@ -195,7 +195,7 @@
     <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Inspecciona una carpeta y muestra extensiones encontradas, sets PSX con .bin faltante, y formatos que necesitan conversi&#xf3;n.</p>
     <div class="actions-row" style="align-items:flex-end;gap:8px">
       <div style="flex:1"><label>Carpeta a analizar</label><input id="folder-analysis-path" type="text" placeholder="H:\\psx  o  E:\\Carpetas anbernic\\psx" style="width:100%"></div>
-      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" onclick="fillToolPath('folder-analysis-path')">library_root</button>
+      <button class="btn" style="padding:2px 8px;font-size:11px;flex-shrink:0" title="Rellenar con la carpeta de biblioteca configurada" onclick="fillToolPath('folder-analysis-path')">Usar biblioteca</button>
     </div>
     <div class="actions-row">
       <button class="btn primary" onclick="doFolderAnalysis()">Analizar carpeta</button>
@@ -214,7 +214,7 @@
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" onclick="doVerifyMultidisc()">Verificar</button>
+      <button id="btn-verify-multidisc" class="btn primary" onclick="doVerifyMultidisc()">Verificar</button>
     </div>
     <div id="multidisc-result" style="margin-top:12px"></div>
   </div>

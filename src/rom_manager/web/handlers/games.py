@@ -35,47 +35,106 @@ def _state_search_dirs(rom_path: Path, config) -> list[Path]:
     return dirs
 
 
-def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
-    """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
+def _dat_title_index(config) -> dict[str, tuple[int, dict[str, str]]]:
+    """AUD-5: por DAT, ``dat_filename → (total_dumps, {clave_1g1r: título})``.
 
-    MD5-only match, consistent with the /api/game detail endpoint.
+    La clave 1G1R es ``normalize_for_match`` (quita región/revisión/tags), así
+    "Sonic (USA)" y "Sonic (Europe)" cuentan como un solo título base. El
+    título guardado es el primero visto, solo para mostrar en los faltantes.
     """
-    if not games:
-        return
+    from rom_manager.catalog.catalog_loader import (
+        _detect_dat_format,
+        load_clrmamepro_dat,
+        load_nointro_dat_with_header,
+    )
+    from rom_manager.detection.filename_normalizer import normalize_for_match
+
+    out: dict[str, tuple[int, dict[str, str]]] = {}
+    for dat_dir in (
+        config.catalogs_nointro_dir,
+        config.catalogs_redump_dir,
+        config.catalogs_arcade_dir,
+    ):
+        if not dat_dir or not dat_dir.exists():
+            continue
+        for dat_file in dat_dir.glob("*.dat"):
+            try:
+                if _detect_dat_format(dat_file) == "clrmamepro":
+                    entries = load_clrmamepro_dat(dat_file)
+                else:
+                    _label, entries = load_nointro_dat_with_header(dat_file)
+            except Exception:  # noqa: S112 — DAT corrupto: se ignora, igual que el resto de loaders
+                continue
+            titles: dict[str, str] = {}
+            for entry in entries.values():
+                key = normalize_for_match(entry.title)
+                if key and key not in titles:
+                    titles[key] = entry.title
+            out[dat_file.name] = (len(entries), titles)
+    return out
+
+
+def _owned_title_keys(repo) -> dict[str, set[str]]:
+    """AUD-5: ``catalog_source → claves 1G1R`` de los títulos que ya tienes."""
+    from rom_manager.detection.filename_normalizer import normalize_for_match
+
+    with repo.connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT catalog_source, COALESCE(canonical_title, original_filename) AS t
+            FROM games
+            WHERE file_type = 'rom' AND catalog_source IS NOT NULL
+            """
+        ).fetchall()
+    owned: dict[str, set[str]] = {}
+    for r in rows:
+        key = normalize_for_match(r["t"] or "")
+        if key:
+            owned.setdefault(r["catalog_source"], set()).add(key)
+    return owned
+
+
+def _lookup_ra_game(platform: str, md5: str, config: AppConfig):
+    """Return the RAGame matching *platform*/*md5* from the local RA cache, or None.
+
+    Shared by the bulk (_enrich_games_with_ra) and individual (/api/game) lookups
+    so there is one cache-reading implementation, not two (REV43-43). Memoized in
+    the module-level _ra_hash_cache, keyed by (console_id, cache file mtime) so a
+    refreshed cache is picked up without a server restart.
+    """
+    if not platform or not md5:
+        return None
     import json as _json
 
     from rom_manager.retroachievements.ra_client import _parse_game_list
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
-    cache_dir = config.project_root / ".rommgr" / "ra_cache"
-    hl_by_cid: dict = {}
+    cid = get_ra_console_id(platform)
+    if not cid:
+        return None
+    cache_file = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{cid}.json"
+    if not cache_file.exists():
+        return None
+    key = (cid, cache_file.stat().st_mtime)
+    if key not in _ra_hash_cache:
+        try:
+            _ra_hash_cache[key] = _parse_game_list(
+                _json.loads(cache_file.read_text(encoding="utf-8"))
+            )
+        except Exception:
+            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
+            _ra_hash_cache[key] = {}
+    return _ra_hash_cache[key].get(md5.lower())
 
+
+def _enrich_games_with_ra(games: list[dict], config: AppConfig) -> None:
+    """Add ra_game_id and ra_achievements to each game dict using local RA cache files.
+
+    MD5-only match, consistent with the /api/game detail endpoint.
+    """
     for g in games:
         try:
-            plat = g.get("platform") or ""
-            if not plat:
-                continue
-            cid = get_ra_console_id(plat)
-            if not cid:
-                continue
-            if cid not in hl_by_cid:
-                cf = cache_dir / f"ra_hashes_{cid}.json"
-                if cf.exists():
-                    key = (cid, cf.stat().st_mtime)
-                    if key not in _ra_hash_cache:
-                        try:
-                            hl = _parse_game_list(_json.loads(cf.read_text("utf-8")))
-                        except Exception:
-                            _logger.warning("Caché RA corrupta o ilegible: %s", cf, exc_info=True)
-                            hl = {}
-                        _ra_hash_cache[key] = hl
-                    hl = _ra_hash_cache[key]
-                else:
-                    hl = {}
-                hl_by_cid[cid] = hl
-
-            md5 = g.get("md5") or ""
-            rg = hl_by_cid[cid].get(md5.lower()) if md5 else None
+            rg = _lookup_ra_game(g.get("platform") or "", g.get("md5") or "", config)
             if rg:
                 g["ra_game_id"] = rg.id
                 g["ra_achievements"] = rg.achievements
@@ -336,6 +395,7 @@ def register(
                        g.play_status, g.last_played_at, g.file_type,
                        g.notes, g.is_favorite,
                        g.user_rating, g.play_count, g.first_played_at,
+                       g.playtime_minutes_pc, g.playtime_minutes_android,
                        m.title AS ss_title, m.year, m.genre, m.publisher,
                        m.developer, m.description, m.rating, m.box_art_url,
                        m.box_art_path, m.scraped_at, m.ss_game_id
@@ -351,34 +411,12 @@ def register(
         result = dict(row)
         # RA data lookup from local cache
         try:
-            import json as _json
-
-            from rom_manager.retroachievements.ra_client import _parse_game_list
-            from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-
-            _plat = result.get("platform") or ""
-            _md5 = result.get("md5") or ""
-            if _plat and _md5:
-                _cid = get_ra_console_id(_plat)
-                if _cid:
-                    _cf = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{_cid}.json"
-                    if _cf.exists():
-                        _key = (_cid, _cf.stat().st_mtime)
-                        if _key not in _ra_hash_cache:
-                            try:
-                                _hl = _parse_game_list(_json.loads(_cf.read_text(encoding="utf-8")))
-                            except Exception:
-                                _logger.warning(
-                                    "Caché RA corrupta o ilegible: %s", _cf, exc_info=True
-                                )
-                                _hl = {}
-                            _ra_hash_cache[_key] = _hl
-                        _rg = _ra_hash_cache[_key].get(_md5.lower())
-                        if _rg:
-                            result["ra_game_id"] = _rg.id
-                            result["ra_title"] = _rg.title
-                            result["ra_achievements"] = _rg.achievements
-                            result["ra_points"] = _rg.points
+            rg = _lookup_ra_game(result.get("platform") or "", result.get("md5") or "", config)
+            if rg:
+                result["ra_game_id"] = rg.id
+                result["ra_title"] = rg.title
+                result["ra_achievements"] = rg.achievements
+                result["ra_points"] = rg.points
         except Exception:
             _logger.debug("Anotación RA en detalle de juego falló", exc_info=True)
         # saves count by stem matching
@@ -445,12 +483,35 @@ def register(
             ctx._send_json({"error": str(exc)})
             return
 
+        # JUEGOS-UX-1: RA ya envía la lista completa de logros en esta misma
+        # respuesta — exponerla en vez de descartarla.
+        achievements = []
+        for a in (data.get("Achievements") or {}).values():
+            badge = a.get("BadgeName") or ""
+            achievements.append(
+                {
+                    "id": a.get("ID"),
+                    "title": a.get("Title") or "",
+                    "description": a.get("Description") or "",
+                    "points": int(a.get("Points", 0) or 0),
+                    "badge_url": (
+                        f"https://media.retroachievements.org/Badge/{badge}.png" if badge else ""
+                    ),
+                    "earned": bool(a.get("DateEarned") or a.get("DateEarnedHardcore")),
+                    "earned_hardcore": bool(a.get("DateEarnedHardcore")),
+                    "earned_at": a.get("DateEarned") or a.get("DateEarnedHardcore") or None,
+                    "display_order": int(a.get("DisplayOrder", 0) or 0),
+                }
+            )
+        achievements.sort(key=lambda x: (not x["earned"], x["display_order"]))
+
         result = {
             "total": int(data.get("NumAchievements", 0) or 0),
             "unlocked": int(data.get("NumAwardedToUser", 0) or 0),
             "hardcore": int(data.get("NumAwardedToUserHardcore", 0) or 0),
             "points_earned": int(data.get("ScoreAchieved", 0) or 0),
             "points_total": int(data.get("PossibleScore", 0) or 0),
+            "achievements": achievements,
             "_ts": time.time(),
         }
         _ra_progress_cache[cache_key] = result
@@ -478,17 +539,18 @@ def register(
             ctx._send_json({"error": "game_id required"})
             return
         gid = int(game_id)
+        _meta_repo = get_repo_fn(data.get("source_path", ""))
         if "notes" in data:
-            repository.set_notes(gid, data["notes"] or None)
+            _meta_repo.set_notes(gid, data["notes"] or None)
         if "canonical_title" in data:
-            repository.set_canonical_title(gid, data["canonical_title"])
+            _meta_repo.set_canonical_title(gid, data["canonical_title"])
         _meta_fields = {
             k: v
             for k, v in data.items()
             if k in {"year", "genre", "publisher", "developer", "description", "rating"}
         }
         if _meta_fields:
-            repository.upsert_metadata_manual(gid, **_meta_fields)
+            _meta_repo.upsert_metadata_manual(gid, **_meta_fields)
         ctx._send_json({"ok": True})
 
     # ── POST /api/toggle-favorite ────────────────────────────────────────────
@@ -499,7 +561,8 @@ def register(
         if not game_id:
             ctx._send_json({"error": "game_id required"})
             return
-        new_val = repository.toggle_favorite(int(game_id))
+        _fav_repo = get_repo_fn(data.get("source_path", ""))
+        new_val = _fav_repo.toggle_favorite(int(game_id))
         ctx._send_json({"ok": True, "is_favorite": new_val})
 
     # ── POST /api/tag ────────────────────────────────────────────────────────
@@ -512,11 +575,12 @@ def register(
         if not game_id or not tag:
             ctx._send_json({"error": "game_id and tag required"})
             return
+        _tag_repo = get_repo_fn(data.get("source_path", ""))
         if action == "remove":
-            repository.remove_tag(int(game_id), tag)
+            _tag_repo.remove_tag(int(game_id), tag)
         else:
-            repository.add_tag(int(game_id), tag)
-        ctx._send_json({"ok": True, "tags": repository.get_tags(int(game_id))})
+            _tag_repo.add_tag(int(game_id), tag)
+        ctx._send_json({"ok": True, "tags": _tag_repo.get_tags(int(game_id))})
 
     # ── POST /api/open-folder ────────────────────────────────────────────────
     @router.post("/api/open-folder")
@@ -588,9 +652,12 @@ def register(
 
         bp = Path(backup_path_str)
         tp = Path(original_save_str)
-        if config.library_root and not str(tp).startswith(str(config.library_root)):
-            ctx._send_json({"error": "La ruta destino está fuera de la biblioteca"})
-            return
+        if config.library_root:
+            resolved_root = config.library_root.resolve()
+            resolved_target = tp.resolve()
+            if not resolved_target.is_relative_to(resolved_root):
+                ctx._send_json({"error": "La ruta destino está fuera de la biblioteca"})
+                return
         ok = restore_backup(bp, tp)
         if ok:
             ctx._send_json({"ok": True, "restored_to": str(tp)})
@@ -690,12 +757,6 @@ def register(
     # ── GET /api/collection-completeness ─────────────────────────────────────
     @router.get("/api/collection-completeness")
     def get_collection_completeness(ctx) -> None:
-        from rom_manager.catalog.catalog_loader import (
-            _detect_dat_format,
-            load_clrmamepro_dat,
-            load_nointro_dat_with_header,
-        )
-
         qs = getattr(ctx, "_qs", {})
         root = qs.get("root", [None])[0] or ""
         _repo = get_repo_fn(root)
@@ -712,55 +773,73 @@ def register(
             ).fetchall()
 
         owned_by_source = {r["catalog_source"]: r["owned"] for r in rows}
+        dat_index = _dat_title_index(config)
+        owned_keys = _owned_title_keys(_repo)
 
-        dat_totals: dict[str, int] = {}
-        for dat_dir in (
-            config.catalogs_nointro_dir,
-            config.catalogs_redump_dir,
-            config.catalogs_arcade_dir,
-        ):
-            if not dat_dir or not dat_dir.exists():
-                continue
-            for dat_file in dat_dir.glob("*.dat"):
-                try:
-                    if _detect_dat_format(dat_file) == "clrmamepro":
-                        entries = load_clrmamepro_dat(dat_file)
-                        label = dat_file.stem
-                    else:
-                        label, entries = load_nointro_dat_with_header(dat_file)
-                    dat_totals[dat_file.name] = len(entries)
-                except Exception:  # noqa: S110
-                    pass
+        def _row(source: str, owned: int) -> dict:
+            raw_total, titles = dat_index.get(source, (None, {}))
+            owned_1g1r = len(owned_keys.get(source, set()) & set(titles)) if titles else None
+            total_1g1r = len(titles) if titles else None
+            return {
+                "label": Path(source).stem,
+                "source": source,
+                "owned": owned,
+                "total": raw_total,
+                "pct": round(owned / raw_total * 100, 1) if raw_total else None,
+                # AUD-5: modo 1G1R — títulos base, agrupando región/revisión
+                "owned_1g1r": owned_1g1r,
+                "total_1g1r": total_1g1r,
+                "pct_1g1r": (
+                    round(owned_1g1r / total_1g1r * 100, 1)
+                    if owned_1g1r is not None and total_1g1r
+                    else None
+                ),
+            }
 
-        results = []
-        seen = set()
-        for source, owned in owned_by_source.items():
-            total = dat_totals.get(source)
-            results.append(
-                {
-                    "label": Path(source).stem,
-                    "source": source,
-                    "owned": owned,
-                    "total": total,
-                    "pct": round(owned / total * 100, 1) if total else None,
-                }
-            )
-            seen.add(source)
-
-        for dat_name, total in dat_totals.items():
-            if dat_name not in seen:
-                results.append(
-                    {
-                        "label": Path(dat_name).stem,
-                        "source": dat_name,
-                        "owned": 0,
-                        "total": total,
-                        "pct": 0.0,
-                    }
-                )
+        results = [_row(source, owned) for source, owned in owned_by_source.items()]
+        seen = set(owned_by_source)
+        results.extend(_row(dat_name, 0) for dat_name in dat_index if dat_name not in seen)
 
         results.sort(key=lambda r: (r["owned"] == 0, -(r["owned"] or 0)))
         ctx._send_json({"platforms": results})
+
+    # ── GET /api/collection-missing.csv (AUD-5) ───────────────────────────────
+    @router.get("/api/collection-missing.csv")
+    def get_collection_missing_csv(ctx) -> None:
+        """CSV de títulos base (1G1R) presentes en los DATs pero no en tu biblioteca."""
+        import csv as _csv
+        import io as _io
+
+        qs = getattr(ctx, "_qs", {})
+        root = qs.get("root", [None])[0] or ""
+        source_filter = qs.get("source", [""])[0]
+        _repo = get_repo_fn(root)
+
+        dat_index = _dat_title_index(config)
+        owned_keys = _owned_title_keys(_repo)
+
+        buf = _io.StringIO()
+        writer = _csv.writer(buf)
+        writer.writerow(["Plataforma (DAT)", "Título faltante"])
+        for dat_name in sorted(dat_index):
+            if source_filter and dat_name != source_filter:
+                continue
+            # sin filtro: solo plataformas donde ya tienes algo (si no, el CSV
+            # sería el volcado completo de todos los DATs)
+            if not source_filter and dat_name not in owned_keys:
+                continue
+            _raw, titles = dat_index[dat_name]
+            have = owned_keys.get(dat_name, set())
+            label = Path(dat_name).stem
+            for key in sorted(set(titles) - have, key=lambda k: titles[k].lower()):
+                writer.writerow([label, titles[key]])
+        body = buf.getvalue().encode("utf-8-sig")
+        ctx._send(
+            200,
+            "text/csv; charset=utf-8",
+            body,
+            extra_headers={"Content-Disposition": 'attachment; filename="faltantes.csv"'},
+        )
 
     # ── GET /api/screenshots ─────────────────────────────────────────────────────
     @router.get("/api/screenshots")

@@ -3,13 +3,42 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 import { getActiveDevice, getDevName } from '../state.js';
 
+const _txtCls = (el, cls) => {
+  if (!el) return;
+  el.classList.remove('txt-err', 'txt-ok', 'txt-warn', 'txt-muted', 'txt-dim', 'txt-fav');
+  if (cls) el.classList.add(cls);
+};
+
 // ── Module-level state ────────────────────────────────────────────────────────
-let _androidSetupUrl = '';
 let _anbernicBaseUrl = '';
+
+// Copiar al portapapeles con fallback: en la consola la UI se sirve por HTTP
+// plano y navigator.clipboard no existe (solo https/localhost).
+function _copyText(text) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+  return Promise.resolve();
+}
 let _autoSyncTimer = null;
 let _autoSyncEnabled = true;
+
+// CLOUD-UX-10: los mensajes de esta pestaña apuntan a su propio bloque de
+// setup, no a config.toml ni a Settings.
+function openCloudSetup() {
+  const setup = document.getElementById('cloud-setup-block');
+  if (!setup) return;
+  setup.open = true;
+  setup.scrollIntoView({ behavior: 'smooth' });
+}
 
 // ── Sync ──────────────────────────────────────────────────────────────────────
 async function loadSync() {
@@ -23,18 +52,25 @@ async function loadSync() {
     const [sl, cfg] = await Promise.all([apiFetch('/api/sync-log'), apiFetch('/api/config')]);
     let html = '';
     const sources = cfg.sync_sources || [];
+    // CLOUD-UX-3: los remotes implícitos saves_remote/states_remote también
+    // son fuentes válidas — el aviso solo aplica si no hay ninguna de las dos.
+    const implicit = [];
+    if (cfg.saves_remote)  implicit.push(`saves &rarr; <code>${cfg.saves_remote}</code>`);
+    if (cfg.states_remote) implicit.push(`states &rarr; <code>${cfg.states_remote}</code>`);
     const syncBar = document.getElementById('sync-context-bar');
     if (syncBar) {
-      if (sources.length) {
-        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`).join(' &nbsp;·&nbsp; ');
+      if (sources.length || implicit.length) {
+        const names = sources.map(s => `<span style="color:var(--c-teal)">${s.name}</span>`)
+          .concat(implicit.map(t => `<span style="color:var(--c-teal)">${t}</span>`))
+          .join(' &nbsp;·&nbsp; ');
         syncBar.innerHTML = `Fuentes configuradas: ${names}`;
       } else {
-        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin fuentes de sync — configura <code>[[sync.sources]]</code> en config.toml</span>`;
+        syncBar.innerHTML = `<span style="color:var(--c-softred)">Sin destino de sync — <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">Conectar y elegir carpeta</a></span>`;
       }
       syncBar.classList.remove('hidden');
     }
-    if (!sources.length) {
-      html += `<p class="error-msg" style="margin-bottom:16px">No hay fuentes de sync configuradas. Edita <code>config.toml</code> y añade entradas <code>[[sync.sources]]</code>.</p>`;
+    if (!sources.length && !implicit.length) {
+      html += `<p class="error-msg" style="margin-bottom:16px">No hay destino de sync configurado. <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">Abre la configuración cloud</a> (Conectar &rarr; Elegir carpeta &rarr; Probar). Para varias fuentes personalizadas existe el modo avanzado <code>[[sync.sources]]</code> en config.toml.</p>`;
     }
     if (sl.entries.length === 0) {
       html += '<p class="empty">Aún no hay registros de sincronización. Pulsa <strong>Sincronizar</strong> para empezar.</p>';
@@ -47,7 +83,8 @@ async function loadSync() {
     html += '</tr></thead><tbody>';
     html += sl.entries.map(e => {
       const dirBadge = badge(e.direction, e.direction);
-      const resBadge = badge(e.result, e.result);
+      const resBadge = badge(e.result, e.result)
+        + (e.verified ? ' <span title="Integridad verificada tras la transferencia" style="color:var(--c-teal)">✓</span>' : '');
       const msg  = e.message ? `<span style="color:var(--c-muted)">${e.message}</span>` : '';
       const date = e.created_at ? e.created_at.replace('T', ' ') : '';
       return `<tr><td>${date}</td><td>${dirBadge}</td><td>${resBadge}</td><td title="${e.local_path}">${e.local_path.split(/[\\/]/).pop()}</td><td title="${e.remote_path}">${e.remote_path}</td><td>${msg}</td></tr>`;
@@ -55,7 +92,7 @@ async function loadSync() {
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba que rclone está instalado y configurado en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Settings → Configuración de rclone</a>.</p>`;
+    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba la <a href="#" onclick="openCloudSetup();return false" style="color:var(--c-teal)">configuración cloud de esta pestaña</a> (rclone instalado y remote conectado).</p>`;
   }
 }
 
@@ -74,19 +111,21 @@ async function loadAssets() {
       let barHtml = '';
       if (_ad === 'pc') {
         barHtml = `Viendo: <span style="color:var(--c-teal)">PC — ${cfg.library_root || '(no configurado)'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
-      } else if (_ad === 'anbernic') {
-        const ab = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '(no configurado)';
-        barHtml = `Viendo: <span style="color:var(--c-orange)">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       } else {
-        barHtml = `Viendo: <span style="color:var(--c-blue)">Sistema completo</span> (PC + ${_dn}) &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
+        const ab = document.getElementById('ov-ab-path')?.value.trim() || cfg.anbernic_root || localStorage.getItem('anbernic_path') || '(no configurado)';
+        barHtml = `Viendo: <span style="color:var(--c-orange)">${_dn} — ${ab}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">Portadas, videos y otros archivos de frontend detectados en el scan</span>`;
       }
       assetsBar.innerHTML = barHtml;
       assetsBar.classList.remove('hidden');
     }
     let stats = d.stats;
+    if (stats.length === 0) {
+      el.innerHTML = `<p class="empty">Sin datos de assets todavía. Ejecuta un <a href="#" onclick="showTab('plan');return false" style="color:var(--c-teal)">Scan</a> para indexar la biblioteca.</p>`;
+      return;
+    }
     if (filter === 'orphans') stats = stats.filter(s => s.orphan_assets > 0);
     if (filter === 'missing') stats = stats.filter(s => s.rom_count > 0 && s.image_count === 0 && s.video_count === 0);
-    if (stats.length === 0) { el.innerHTML = '<p class="empty">Sin datos de assets todavía. Ejecuta un Scan para indexar la biblioteca.</p>'; return; }
+    if (stats.length === 0) { el.innerHTML = '<p class="empty">✓ Sin resultados para este filtro.</p>'; return; }
     let html = '<div style="overflow-x:auto"><table><thead><tr>';
     html += '<th>Plataforma</th><th>ROMs</th><th>Imágenes</th><th>Vídeos</th><th>XML</th><th>Huérfanos</th>';
     html += '</tr></thead><tbody>';
@@ -96,12 +135,34 @@ async function loadAssets() {
       <td style="text-align:right;color:${s.image_count ? 'var(--c-teal)' : '#555'}">${s.image_count}</td>
       <td style="text-align:right;color:${s.video_count ? 'var(--c-teal)' : '#555'}">${s.video_count}</td>
       <td style="text-align:right;color:${s.xml_count ? 'var(--c-teal)' : '#555'}">${s.xml_count}</td>
-      <td style="text-align:right;color:${s.orphan_assets ? 'var(--c-red)' : '#555'}">${s.orphan_assets || '—'}</td>
+      <td style="text-align:right;color:${s.orphan_assets ? 'var(--c-red)' : '#555'}">${s.orphan_assets
+        ? `${s.orphan_assets} &nbsp;<a href="#" onclick="showOrphanAssets('${s.platform.replace(/'/g, "\\'")}');return false" style="color:var(--c-teal);font-size:11px">Ver</a>`
+        : '—'}</td>
     </tr>`).join('');
     html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<p class="error-msg">${e.message}</p>`;
+    el.innerHTML = `<p class="error-msg">${e.message} — Comprueba la ruta configurada en <a href="#" onclick="showTab('settings');return false" style="color:var(--c-teal)">Ajustes</a>.</p>`;
+  }
+}
+
+// ASSETS-UX-4: lista de archivos huérfanos concretos de una plataforma
+async function showOrphanAssets(platform) {
+  const esc = window._h || (s => s);
+  try {
+    const root = _deviceRoot();
+    let url = `/api/assets/orphans?platform=${encodeURIComponent(platform)}`;
+    if (root) url += `&root=${encodeURIComponent(root)}`;
+    const d = await apiFetch(url);
+    const files = d.files || [];
+    const body = files.length
+      ? `<ul style="max-height:320px;overflow-y:auto;margin:0;padding-left:18px;font-size:12px;line-height:1.7">
+          ${files.map(f => `<li title="${esc(f.source_path)}">${esc(f.asset_type)} &nbsp;·&nbsp; ${esc(f.source_path)}</li>`).join('')}
+        </ul>`
+      : '<p class="empty">No se encontraron archivos huérfanos para esta plataforma.</p>';
+    _showConfirm(`Huérfanos — ${platform} (${files.length})`, body, 'Cerrar', () => {});
+  } catch (e) {
+    showToast(`No se pudo cargar la lista: ${e.message}`, 'err');
   }
 }
 
@@ -227,63 +288,58 @@ async function shutdownServer() {
   document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;color:var(--c-dim);font-size:14px">Retro Vault cerrado. Puedes cerrar esta pestaña.</div>';
 }
 
-// ── Android setup panel ──────────────────────────────────────────────────────
-async function loadAndroidSetupPanel() {
-  try {
-    const d = await apiFetch('/api/local-url');
-    const ip = d.ip || location.hostname;
-    const port = d.port || 7777;
-    _androidSetupUrl = `http://${ip}:${port}/api/anbernic-setup.sh`;
-    const curlCmd = `curl -s "${_androidSetupUrl}" | bash`;
-
-    // Settings panel QR
-    renderQR(_androidSetupUrl, 'android-setup-qr');
-    const urlEl = document.getElementById('android-setup-url');
-    if (urlEl) urlEl.textContent = _androidSetupUrl;
-    const curlEl = document.getElementById('android-setup-curl');
-    if (curlEl) { curlEl.textContent = curlCmd; curlEl.classList.remove('hidden'); }
-
-    // Android detected panel
-    const panelCurl = document.getElementById('android-panel-curl');
-    if (panelCurl) panelCurl.textContent = curlCmd;
-  } catch(e) {
-    console.warn('loadAndroidSetupPanel:', e);
-  }
-}
-
-function copyAndroidSetupUrl() {
-  if (!_androidSetupUrl) return;
-  navigator.clipboard?.writeText(_androidSetupUrl)
-    .then(() => showToast('URL copiada', 'ok'))
-    .catch(() => {});
-}
-
-function copyAndroidCurlCmd() {
-  const el = document.getElementById('android-panel-curl');
-  const cmd = el?.textContent?.trim();
-  if (!cmd) return;
-  navigator.clipboard?.writeText(cmd)
-    .then(() => showToast('Comando copiado', 'ok'))
-    .catch(() => {});
-}
-
-function downloadAndroidSetupSh() {
-  if (!_androidSetupUrl) return;
-  const a = document.createElement('a');
-  a.href = _androidSetupUrl;
-  a.download = 'retrovault-setup.sh';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
+// ── Android detected panel (ANBERNIC-UX-5) ───────────────────────────────────
 function _checkAndroidUserAgent() {
   if (/Android/i.test(navigator.userAgent)) {
     const panel = document.getElementById('android-detected-panel');
     if (panel) panel.classList.remove('hidden');
-    loadAndroidSetupPanel();
+    tvCheckServer();
     tvCheckStatus();
   }
+}
+
+// Comprobación real del servidor (antes: dot verde hardcodeado)
+async function tvCheckServer() {
+  const dot  = document.getElementById('tv-status-dot');
+  const text = document.getElementById('tv-status-text');
+  try {
+    await apiFetch('/api/version');
+    if (dot)  dot.style.background = 'var(--c-teal)';
+    if (text) text.textContent = 'PC conectado';
+  } catch {
+    if (dot)  dot.style.background = 'var(--c-red)';
+    if (text) text.textContent = 'Sin conexión con el PC';
+  }
+}
+
+// Primera vez: mostrar la guía de instalación con el comando de setup
+async function tvToggleSetup() {
+  const box = document.getElementById('tv-setup');
+  if (!box) return;
+  const showing = !box.classList.contains('hidden');
+  box.classList.toggle('hidden', showing);
+  if (showing) return;
+  const cmdEl = document.getElementById('tv-setup-cmd');
+  if (!cmdEl) return;
+  try {
+    const [d, tok] = await Promise.all([
+      apiFetch('/api/local-url'),
+      apiFetch('/api/anbernic-setup-token'),
+    ]);
+    const ip = d.ip || location.hostname;
+    cmdEl.textContent = `curl -s "http://${ip}:${d.port || 7777}/s?t=${tok.token}" | bash`;
+  } catch (e) {
+    cmdEl.textContent = 'Error al generar el comando: ' + e.message;
+  }
+}
+
+// Copiar el comando de setup desde el navegador de la consola → pegar en Termux
+function tvCopySetupCmd() {
+  const cmd = document.getElementById('tv-setup-cmd')?.textContent?.trim();
+  if (!cmd || !cmd.startsWith('curl')) return;
+  _copyText(cmd)
+    .then(() => showToast('Comando copiado — pégalo en Termux (mantén pulsado → Pegar)', 'ok'))
+    .catch(() => {});
 }
 
 // ── ANBERNIC-TV: Touch-friendly guided sync flow ──────────────────────────────
@@ -326,7 +382,8 @@ async function tvStartSync() {
   const msgEl = document.getElementById('tv-sync-msg');
   if (msgEl) msgEl.textContent = 'Iniciando sync…';
   try {
-    await apiPost('/api/do-sync', { dry_run: false });
+    // CLOUD-UX-6: /api/do-sync nunca existió — el endpoint real es /api/sync
+    await apiPost('/api/sync', { dry_run: false });
   } catch (e) {
     tvShowResult({ error: e.message });
     return;
@@ -389,56 +446,79 @@ function tvReset() {
 
 // ── Anbernic tab ─────────────────────────────────────────────────────────────
 async function loadAnbernicTab() {
+  const ipDisplay = document.getElementById('anb-ip-display');
+  const cmdFull   = document.getElementById('anb-cmd-full');
   try {
-    const d = await apiFetch('/api/local-url');
+    const [d, tok] = await Promise.all([
+      apiFetch('/api/local-url'),
+      apiFetch('/api/anbernic-setup-token'),
+    ]);
     const ip = d.ip || location.hostname;
     const port = d.port || 7777;
     _anbernicBaseUrl = `http://${ip}:${port}`;
-    const setupUrl = `${_anbernicBaseUrl}/s`;
-    const curlCmd  = `curl -s "${setupUrl}" | bash`;
+    const curlCmd = `curl -s "${_anbernicBaseUrl}/s?t=${tok.token}" | bash`;
 
-    // Step 1 — big IP display
-    const ipDisplay = document.getElementById('anb-ip-display');
-    if (ipDisplay) ipDisplay.textContent = _anbernicBaseUrl;
+    // Step 1 — big IP display (enlace clicable: la consola no tiene cámara) + QR para el móvil
+    if (ipDisplay) { ipDisplay.textContent = _anbernicBaseUrl; ipDisplay.href = _anbernicBaseUrl; }
+    renderQR(_anbernicBaseUrl, 'anb-qr');
 
-    // Step 5 — command box
-    const cmdFull = document.getElementById('anb-cmd-full');
+    // Step 5 — command box + download .sh link (mismo generador /s)
     if (cmdFull) cmdFull.textContent = curlCmd;
-
-    // Step 5 — download .sh link
     const dlLink = document.getElementById('anb-script-download');
-    if (dlLink) dlLink.href = `${_anbernicBaseUrl}/api/anbernic-setup.sh`;
+    if (dlLink) dlLink.href = `${_anbernicBaseUrl}/s?t=${tok.token}`;
 
-    _androidSetupUrl = setupUrl;
+    _renderAnbPrereqs(d);
   } catch(e) {
+    // ANBERNIC-UX-8: error visible en vez de "Detectando…" eterno
+    if (ipDisplay) ipDisplay.textContent = '✗ Sin conexión — pulsa ↻ Actualizar IP';
+    if (cmdFull) cmdFull.textContent = '—';
     console.warn('loadAnbernicTab:', e);
   }
 }
 
-function copyAnbernicUrl() {
-  if (!_anbernicBaseUrl) return;
-  navigator.clipboard?.writeText(_anbernicBaseUrl)
-    .then(() => showToast('URL copiada', 'ok'))
-    .catch(() => {});
+// ── Prerequisitos (ANBERNIC-UX-7) ────────────────────────────────────────────
+function _renderAnbPrereqs(localUrl) {
+  const el = document.getElementById('anb-prereq');
+  if (!el) return;
+  const line = (ok, okTxt, badHtml) =>
+    `<div style="padding:2px 0">${ok
+      ? `<span style="color:var(--c-teal)">✓</span> <span style="color:var(--c-muted)">${okTxt}</span>`
+      : `<span style="color:var(--c-orange)">⚠</span> ${badHtml}`}</div>`;
+
+  const serverOk = !!localUrl.lan_bound && localUrl.firewall_ok !== false;
+  const serverBad = !localUrl.lan_bound
+    ? 'El servidor solo escucha en localhost (<code>web_host</code>) — la consola no podrá conectarse.'
+    : 'El firewall de Windows puede estar bloqueando el puerto — permite "Retro Vault (LAN)" o crea la regla.';
+  let html = line(serverOk, 'Servidor accesible por red', serverBad);
+
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+
+  apiFetch('/api/rclone-status').then(rc => {
+    const cloudOk = rc.installed && rc.remotes?.length > 0;
+    const cloudBad = !rc.installed
+      ? 'rclone no encontrado en el PC — el setup descargará una config vacía.'
+      : 'rclone sin remotes configurados — conéctate a la nube en <a href="#" onclick="showTab(\'sync\');return false" style="color:var(--c-teal)">Cloud Sync</a> antes de configurar la consola.';
+    el.innerHTML = line(cloudOk, `Cloud configurado (${cloudOk ? rc.remotes.join(', ') : ''})`, cloudBad) + html;
+  }).catch(() => {});
 }
 
 function copyAnbernicCmd() {
   const cmd = document.getElementById('anb-cmd-full')?.textContent?.trim();
-  if (!cmd || cmd === 'Cargando…') return;
-  navigator.clipboard?.writeText(cmd)
+  if (!cmd || !cmd.startsWith('curl')) return;
+  _copyText(cmd)
     .then(() => showToast('Comando copiado', 'ok'))
     .catch(() => {});
 }
 
-// ── Rclone setup wizard ───────────────────────────────────────────────────────
-function toggleRcloneSetup() {
-  const panel = document.getElementById('rclone-setup-panel');
-  if (!panel) return;
-  const showing = !panel.classList.contains('hidden');
-  panel.classList.toggle('hidden', showing);
-  if (!showing) loadRcloneStatus();
+function copyAnbernicUrl() {
+  if (!_anbernicBaseUrl) return;
+  _copyText(_anbernicBaseUrl)
+    .then(() => showToast('URL copiada', 'ok'))
+    .catch(() => {});
 }
 
+// ── Rclone setup wizard ───────────────────────────────────────────────────────
 function _rcloneActiveTargetHtml() {
   const saves  = document.getElementById('cfg-saves-remote')?.value.trim()  || '';
   const states = document.getElementById('cfg-states-remote')?.value.trim() || '';
@@ -477,11 +557,13 @@ async function loadRcloneStatus() {
     if (d.remotes.length) {
       const sel = document.getElementById('rclone-remote-select');
       if (sel) {
-        sel.innerHTML = d.remotes.map(r => `<option value="${r}">${r}</option>`).join('');
+        // CLOUD-UX-2: el value conserva el ':' — applyRclone* concatenan
+        // remote + ruta y sin él guardaban "dropboxRetroSync/saves" (inválido).
+        sel.innerHTML = d.remotes.map(r => `<option value="${r}:">${r}</option>`).join('');
         // Pre-select current remote
         const currentFull = document.getElementById('cfg-rclone-remote')?.value || '';
-        if (currentFull) {
-          const currentRemote = currentFull.split('/')[0] + ':';
+        if (currentFull && currentFull.includes(':')) {
+          const currentRemote = currentFull.split(':')[0] + ':';
           const currentPath = '/' + currentFull.slice(currentRemote.length).replace(/^\/+/, '');
           for (const opt of sel.options) if (opt.value === currentRemote) opt.selected = true;
           const pathInp = document.getElementById('rclone-path-input');
@@ -687,7 +769,8 @@ async function detectAdbDevices() {
 
 async function testAdbPath() {
   const serial  = document.getElementById('cable-adb-device')?.value.trim();
-  const ap      = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
+  // CABLE-UX-5: ruta Android única, compartida con la tarjeta de auto-sync
+  const ap      = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0';
   const statusEl = document.getElementById('cable-adb-path-status');
   if (!serial) { if (statusEl) { _txtCls(statusEl, 'txt-muted'); statusEl.textContent = 'Selecciona un dispositivo primero.'; } return; }
   if (statusEl) { _txtCls(statusEl, 'txt-dim'); statusEl.textContent = 'Verificando ruta en el dispositivo…'; }
@@ -705,6 +788,87 @@ async function testAdbPath() {
   }
 }
 
+// ── AUD-1: Sync Doctor ────────────────────────────────────────────────────────
+function _skewLabel(seconds) {
+  const abs = Math.abs(seconds);
+  return abs >= 120 ? `${(abs / 60).toFixed(1)} min` : `${abs.toFixed(0)} s`;
+}
+
+function _sdList(title, items, total, color) {
+  if (!total) return '';
+  const extra = total > items.length ? `<div style="color:var(--c-dim)">… y ${total - items.length} más</div>` : '';
+  return `<details style="margin-top:6px"><summary style="cursor:pointer;color:${color}">${title}: ${total}</summary>
+    <div style="max-height:180px;overflow-y:auto;margin:4px 0 0 14px;color:var(--c-muted)">
+    ${items.map(f => `<div>${_h(f)}</div>`).join('')}${extra}</div></details>`;
+}
+
+function _renderSyncDoctor(d) {
+  const dir = d.skew_seconds > 0 ? 'adelantado' : 'atrasado';
+  let html = '';
+  if (d.skew_exceeded) {
+    html += `<div class="rv-tint-warn" style="padding:8px 12px;border-left:3px solid var(--c-red);border-radius:4px;margin-bottom:10px;color:var(--c-softred)">
+      &#x26A0; <strong>Reloj de la consola ${dir} ${_skewLabel(d.skew_seconds)}</strong> respecto al PC (umbral: ${d.threshold_seconds} s).<br>
+      La resolución de conflictos por fecha (mtime) no es fiable: el lado equivocado puede ganar y sobreescribir progreso.
+      Ajusta la hora de la consola antes de usar "Igualar ambos dispositivos".</div>`;
+  } else {
+    html += `<div style="color:var(--c-teal);margin-bottom:10px">✓ Reloj OK — desviación de ${_skewLabel(d.skew_seconds)} (umbral: ${d.threshold_seconds} s)</div>`;
+  }
+  html += `<div style="color:var(--c-muted)">Saves — PC: <strong style="color:var(--c-text)">${d.local_total}</strong>
+    · Consola: <strong style="color:var(--c-text)">${d.remote_total}</strong>
+    · En ambos: <strong style="color:var(--c-text)">${d.in_both}</strong></div>`;
+  html += _sdList('&#x23F0; Saves con fecha futura en PC (reloj mal puesto)', d.future_local, d.future_local.length, 'var(--c-red)');
+  html += _sdList('&#x23F0; Saves con fecha futura en consola (reloj mal puesto)', d.future_remote, d.future_remote.length, 'var(--c-red)');
+  html += _sdList('Solo en PC', d.only_local, d.only_local_total, 'var(--c-amber)');
+  html += _sdList('Solo en consola', d.only_remote, d.only_remote_total, 'var(--c-amber)');
+  if (d.last_syncs?.length) {
+    html += `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--c-blue)">Último sync por archivo: ${d.last_syncs.length}</summary>
+      <div style="max-height:220px;overflow-y:auto;margin-top:4px"><table><thead><tr><th>Archivo</th><th>Dirección</th><th>Resultado</th><th>Fecha</th></tr></thead><tbody>
+      ${d.last_syncs.map(s => `<tr><td>${_h(s.file)}</td><td>${_h(s.direction || '')}</td><td>${_h(s.result || '')}</td><td>${_h((s.created_at || '').replace('T', ' '))}</td></tr>`).join('')}
+      </tbody></table></div></details>`;
+  } else {
+    html += `<div style="color:var(--c-dim);margin-top:6px">Sin eventos en save_sync_log todavía.</div>`;
+  }
+  return html;
+}
+
+async function runSyncDoctor() {
+  const el = document.getElementById('sync-doctor-result');
+  if (!el) return;
+  let serial = document.getElementById('cable-adb-device')?.value.trim();
+  if (!serial) {
+    // CABLE-UX-8: no exigir el ritual manual "Modo ADB → Detectar dispositivos"
+    // — si hay un device ready, usarlo directamente.
+    el.innerHTML = '<span style="color:var(--c-dim)">Buscando dispositivo ADB…</span>';
+    try {
+      const d = await apiFetch('/api/adb-devices');
+      const ready = (d.devices || []).find(dv => dv.ready);
+      if (ready) serial = ready.serial;
+    } catch (_) { /* sin adb disponible — se informa abajo */ }
+    if (!serial) {
+      el.innerHTML = '<span style="color:var(--c-yellow)">No se encontró ningún dispositivo ADB listo. Conecta la consola y activa la depuración USB.</span>';
+      return;
+    }
+  }
+  // CABLE-UX-5: rutas únicas, compartidas con el formulario manual/auto-sync
+  const androidPath = document.getElementById('auto-sync-android-path')?.value.trim() || '';
+  const pcPath = document.getElementById('cable-pc-path')?.value.trim() || '';
+  el.innerHTML = '<span style="color:var(--c-dim)">Diagnosticando… (puede tardar si hay muchos saves)</span>';
+  try {
+    const params = new URLSearchParams({ serial });
+    if (androidPath) params.set('android_path', androidPath);
+    if (pcPath) params.set('pc_path', pcPath);
+    const d = await apiFetch('/api/sync-doctor?' + params);
+    if (d.error) { el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(d.error)}</span>`; return; }
+    el.innerHTML = _renderSyncDoctor(d);
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(e.message)}</span>`;
+  }
+}
+
+// CABLE-UX-3: preseleccionar el modo una sola vez por sesión de pestaña — no
+// pelear con un cambio manual del usuario en visitas posteriores.
+let _cableModeAutoSelected = false;
+
 async function loadCableSync() {
   // QoL-14: offline badge for ADB
   apiFetch('/api/system-status').then(st => {
@@ -715,22 +879,46 @@ async function loadCableSync() {
     const cfg = await apiFetch('/api/config');
     const ovPc = document.getElementById('ov-pc-path')?.value.trim();
     const ovAb = document.getElementById('ov-ab-path')?.value.trim();
-    const storedPc = localStorage.getItem('cable_pc_path') || '';
-    const storedAb = localStorage.getItem('anbernic_path') || '';
-    // Fill both fs and adb pc-path inputs
-    _setIfEmpty('cable-pc-path',     ovPc || cfg.library_root || storedPc || '');
-    _setIfEmpty('cable-adb-pc-path', ovPc || cfg.library_root || storedPc || '');
-    _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || storedAb || '');
+    // CABLE-UX-10: config (library_root/anbernic_root) como única fuente de
+    // verdad — fuera el localStorage, que quedaba como estado fantasma tras
+    // cambiar la ruta en Settings. El override de Overview (ov-*) es la misma
+    // convención puntual que usan Assets/Colección/Organizar/Juegos.
+    _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || '');
+    _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || '');
+
+    // VAL-FIX-6: decidir el modo ADB/SD *antes* de validar rutas, para que el
+    // aviso de la ruta SD no se calcule (ni se vea de refilón) cuando el modo
+    // final va a ser ADB.
+    if (!_cableModeAutoSelected) {
+      _cableModeAutoSelected = true;
+      const devs = await apiFetch('/api/adb-devices').catch(() => ({ devices: [] }));
+      const hasReady = (devs.devices || []).some(d => d.ready);
+      const adbRadio = document.querySelector('input[name="cable-ab-mode"][value="adb"]');
+      const fsRadio  = document.querySelector('input[name="cable-ab-mode"][value="fs"]');
+      if (hasReady && adbRadio) {
+        adbRadio.checked = true;
+        _onCableModeChange();
+        detectAdbDevices();
+      } else if (!hasReady && cfg.anbernic_root && fsRadio) {
+        fsRadio.checked = true;
+        _onCableModeChange();
+      }
+    }
+
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
-    if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
+    if (!_isAdbMode() && document.getElementById('cable-ab-path')?.value) testCablePath('ab');
+
+    // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
+    // los controles, no solo actualizarse tras un onchange manual del usuario.
+    _onCableDryRunChange();
+    _onCableDirectionChange();
   } catch(_) {}
 }
 
 async function loadCableSyncPreview() {
   const adb = _isAdbMode();
-  const pcPath = (adb
-    ? document.getElementById('cable-adb-pc-path')
-    : document.getElementById('cable-pc-path'))?.value.trim();
+  // CABLE-UX-5: ruta de PC única para ambos modos
+  const pcPath = document.getElementById('cable-pc-path')?.value.trim();
   const abPath = adb ? null : document.getElementById('cable-ab-path')?.value.trim();
   const direction = document.querySelector('input[name="cable-direction"]:checked')?.value || 'pc_to_anbernic';
   const mode = adb ? 'adb' : 'sd';
@@ -757,11 +945,55 @@ async function loadCableSyncPreview() {
   }
 }
 
+// ── CABLE-UX-2: botón primario "Sincronizar saves ahora" ─────────────────────
+// Reutiliza /api/cable-sync (mismo motor que el formulario avanzado) con los
+// parámetros de la tarjeta de auto-sync — nada de un segundo camino de copia.
+async function doQuickSync() {
+  const btn = document.getElementById('btn-quick-sync');
+  const statusEl = document.getElementById('quick-sync-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando…'; }
+  if (statusEl) { statusEl.textContent = ''; _txtCls(statusEl, ''); }
+  try {
+    const [cfg, autoSt, devs] = await Promise.all([
+      apiFetch('/api/config'),
+      apiFetch('/api/auto-sync-status'),
+      apiFetch('/api/adb-devices').catch(() => ({ devices: [] })),
+    ]);
+    const pcPath = cfg.library_root;
+    if (!pcPath) throw new Error('Configura la carpeta de biblioteca (library_root) en Ajustes primero.');
+    const direction = autoSt.config?.direction || 'newest';
+    const androidPath = autoSt.config?.android_path || '/storage/emulated/0/RetroArch';
+
+    let body;
+    const ready = (devs.devices || []).filter(d => d.ready);
+    if (ready.length) {
+      body = { pc_path: pcPath, use_adb: true, adb_serial: ready[0].serial, android_path: androidPath,
+               what: ['saves'], direction, dry_run: false, skip_existing: true, safe_mode: false };
+    } else if (cfg.anbernic_root) {
+      body = { pc_path: pcPath, anbernic_path: cfg.anbernic_root,
+               what: ['saves'], direction, dry_run: false, skip_existing: true, safe_mode: false };
+    } else {
+      throw new Error('No se detecta la consola por ADB ni hay una ruta SD configurada (anbernic_root en Ajustes).');
+    }
+
+    _requestNotifPermission();
+    const d = await apiPost('/api/cable-sync', body);
+    if (d.status === 'already_running') {
+      if (statusEl) statusEl.textContent = 'Ya hay una sincronización en curso…';
+      return;
+    }
+    if (statusEl) statusEl.textContent = 'Sincronizando…';
+    startPolling();
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = '✗ ' + e.message; _txtCls(statusEl, 'txt-err'); }
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Sincronizar saves ahora'; }
+  }
+}
+
 async function doCableSync() {
   const adb = _isAdbMode();
-  const pcPath = (adb
-    ? document.getElementById('cable-adb-pc-path')
-    : document.getElementById('cable-pc-path'))?.value.trim();
+  // CABLE-UX-5: ruta de PC única para ambos modos
+  const pcPath = document.getElementById('cable-pc-path')?.value.trim();
   if (!pcPath) { alert('Introduce la ruta del PC (library_root).'); return; }
 
   const wantSaves     = document.getElementById('cable-what-saves').checked;
@@ -786,16 +1018,18 @@ async function doCableSync() {
   let body;
   if (adb) {
     const serial      = document.getElementById('cable-adb-device')?.value.trim();
-    const androidPath = document.getElementById('cable-android-path')?.value.trim() || '/storage/emulated/0';
+    // CABLE-UX-5: ruta Android única, compartida con la tarjeta de auto-sync
+    const androidPath = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0';
     if (!serial) { alert('Detecta y selecciona un dispositivo ADB primero.'); return; }
+    // CABLE-UX-1: el pre-flight de reloj ahora vive en el backend (bloquea con
+    // error en vez de confirm()) — cubre este camino y el auto-sync por igual.
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
              what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
   } else {
     const abPath = document.getElementById('cable-ab-path')?.value.trim();
     if (!abPath) { alert('Introduce la ruta de la tarjeta SD / consola Android.'); return; }
-    // Persist paths for next session
-    localStorage.setItem('anbernic_path', abPath);
-    if (pcPath) localStorage.setItem('cable_pc_path', pcPath);
+    // CABLE-UX-10: sin localStorage — config (anbernic_root/library_root en
+    // Ajustes) es la única fuente persistente; esto es solo la sesión actual.
     body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
   }
 
@@ -1081,13 +1315,11 @@ async function toggleAutoSync() {
 
 async function saveAutoSyncSettings() {
   const dir       = document.getElementById('auto-sync-direction')?.value || 'newest';
-  const conflict  = document.getElementById('auto-sync-conflict')?.value  || 'newest';
   const androidP  = document.getElementById('auto-sync-android-path')?.value.trim() || '/storage/emulated/0/RetroArch';
   const resultEl  = document.getElementById('auto-sync-save-result');
   try {
     const d = await apiPost('/api/auto-sync-save', {
       'sync.auto_sync_direction':   dir,
-      'sync.conflict_policy':       conflict,
       'sync.auto_sync_android_path': androidP,
       'sync.auto_sync_enabled':     _autoSyncEnabled,
     });
@@ -1111,15 +1343,40 @@ async function _pollAutoSync() {
     _updateAutoSyncBanner(d, sdStatus);
     // Populate fields on first load
     const dirEl = document.getElementById('auto-sync-direction');
-    const confEl = document.getElementById('auto-sync-conflict');
+    // CABLE-UX-4: conflict_policy solo lo usa Cloud Sync — su control vive en
+    // tab-sync.html, no en la tarjeta de auto-sync de Cable.
+    const confEl = document.getElementById('cfg-conflict-policy');
     const pathEl = document.getElementById('auto-sync-android-path');
+    if (confEl && !confEl.dataset.loaded && d.config) {
+      confEl.value = d.config.conflict_policy || 'newest';
+      confEl.dataset.loaded = '1';
+    }
     if (dirEl && !dirEl.dataset.loaded && d.config) {
       dirEl.value = d.config.direction || 'newest';
-      if (confEl) confEl.value = d.config.conflict_policy || 'newest';
       if (pathEl) pathEl.value = d.config.android_path || '/storage/emulated/0/RetroArch';
       dirEl.dataset.loaded = '1';
     }
+    // CABLE-UX-7: abrir las instrucciones de conexión solo si nunca hubo un sync exitoso
+    const howto = document.getElementById('cable-howto');
+    if (howto && !howto.dataset.loaded) {
+      howto.open = !(d.status?.last_sync_at);
+      howto.dataset.loaded = '1';
+    }
   } catch(_) { /* silent */ }
+}
+
+// CABLE-UX-4: guardado independiente — vive en Cloud Sync, no en la tarjeta de Cable
+async function saveConflictPolicy() {
+  const sel = document.getElementById('cfg-conflict-policy');
+  const resultEl = document.getElementById('conflict-policy-result');
+  if (!sel) return;
+  try {
+    await apiPost('/api/config', { 'sync.conflict_policy': sel.value });
+    if (resultEl) { resultEl.textContent = '✓ Guardado'; setTimeout(() => { if (resultEl) resultEl.textContent = ''; }, 2500); }
+    showToast('Política de conflictos guardada', 'ok');
+  } catch (e) {
+    if (resultEl) resultEl.textContent = '✗ ' + e.message;
+  }
 }
 
 function startAutoSyncPolling() {
@@ -1356,7 +1613,44 @@ async function doSync(dryRun) {
   }
 }
 
+// CLOUD-UX-12: lista por fuente de qué archivo se mueve y en qué dirección —
+// en dry run es el "plan" que se revisa antes de pulsar Sincronizar.
+function _renderSyncDecisions(result) {
+  const el = document.getElementById('sync-decisions');
+  if (!el) return;
+  if (result.error) { el.innerHTML = ''; return; }
+  const ICONS = {
+    upload:   ['&#x2191;', 'var(--c-teal)'],
+    download: ['&#x2193;', 'var(--c-blue)'],
+    conflict: ['&#x26A0;', 'var(--c-amber)'],
+  };
+  const blocks = (result.sources || []).map(src => {
+    if (src.error) {
+      return `<div style="font-size:12px;color:var(--c-softred);padding:2px 0">&#x2717; ${_h(src.name)} — ${_h(src.error)}</div>`;
+    }
+    const decs = src.decisions || [];
+    if (!decs.length) return '';
+    const conflicts = decs.filter(d => d.action === 'conflict').length;
+    const rows = decs.map(d => {
+      const [icon, color] = ICONS[d.action] || ['&#x2022;', 'var(--c-muted)'];
+      const hl = d.action === 'conflict' ? ';background:var(--rv-tint-amber-bg)' : '';
+      return `<div style="padding:1px 0;color:var(--c-muted)${hl}"><span style="color:${color};margin-right:8px">${icon}</span>${_h(d.relative)}</div>`;
+    }).join('');
+    const conflictTag = conflicts ? ` <span style="color:var(--c-amber)">&#x26A0; ${conflicts} conflicto${conflicts !== 1 ? 's' : ''}</span>` : '';
+    return `<details open style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--c-soft)">${_h(src.name)}: ${decs.length} archivo${decs.length !== 1 ? 's' : ''}${conflictTag}</summary>
+      <div style="max-height:220px;overflow-y:auto;font-size:11px;font-family:monospace;margin:4px 0 0 14px">${rows}</div>
+    </details>`;
+  }).filter(Boolean);
+  if (!blocks.length) { el.innerHTML = ''; return; }
+  const header = result.dry_run
+    ? '<div style="font-size:11px;color:var(--c-dim)">Plan — esto es lo que se movería al pulsar <strong>Sincronizar</strong> (&#x2191; subir &middot; &#x2193; bajar &middot; &#x26A0; conflicto):</div>'
+    : '<div style="font-size:11px;color:var(--c-dim)">Archivos sincronizados (&#x2191; subido &middot; &#x2193; bajado &middot; &#x26A0; conflicto):</div>';
+  el.innerHTML = header + blocks.join('');
+}
+
 function _renderSyncResult(result) {
+  _renderSyncDecisions(result);
   const resultEl = document.getElementById('job-result-sync');
   if (!resultEl) return;
   if (result.error) {
@@ -1384,6 +1678,41 @@ function _renderSyncResult(result) {
   }
 }
 
+// ── S29: Backup de saves (CLOUD-UX-1) ────────────────────────────────────────
+async function backupNow() {
+  const el = document.getElementById('job-result-backup-now');
+  try {
+    const d = await apiPost('/api/backup-now', {});
+    if (d.status === 'already_running') {
+      if (el) { el.className = 'job-result visible'; el.textContent = 'Ya hay un backup en curso…'; }
+      return;
+    }
+    startPolling();
+  } catch (e) {
+    if (el) { el.className = 'job-result visible error-r'; el.textContent = 'Error: ' + e.message; }
+  }
+}
+
+async function loadManualBackups() {
+  const el = document.getElementById('manual-backups-list');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/api/manual-backups');
+    const zips = d.zips || [];
+    if (!zips.length) {
+      el.innerHTML = '<span style="color:var(--c-dim)">Aún no hay ZIPs de backup.</span>';
+      return;
+    }
+    el.innerHTML = zips.map(z => `<div style="display:flex;gap:12px;padding:2px 0;color:var(--c-muted)">
+      <span style="flex:1" title="${_h(z.path)}">${_h(z.filename)}</span>
+      <span style="color:var(--c-dim)">${_h((z.timestamp || '').replace('T', ' '))}</span>
+      <span style="color:var(--c-dim);min-width:70px;text-align:right">${fmtSize(z.size)}</span>
+    </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--c-softred)">Error: ${_h(e.message)}</span>`;
+  }
+}
+
 // ── SYNC-SETUP: Cloud auth wizard ────────────────────────────────────────────
 
 let _cloudAuthPolling = null;
@@ -1392,12 +1721,15 @@ async function loadCloudAuthStatus() {
   const el = document.getElementById('cloud-auth-status');
   if (!el) return;
   try {
-    const data = await apiFetch('/api/cloud-auth/status');
+    const [data, cfg] = await Promise.all([
+      apiFetch('/api/cloud-auth/status'),
+      apiFetch('/api/config').catch(() => ({})),
+    ]);
     if (data.error) {
       el.innerHTML = `<span style="color:var(--c-softred)">${data.error}</span>`;
       return;
     }
-    el.innerHTML = data.providers.map(p => {
+    let html = data.providers.map(p => {
       const label = p.label;
       const configured = p.configured;
       const badge = configured
@@ -1413,8 +1745,54 @@ async function loadCloudAuthStatus() {
         ${badge}${connectBtn}${disconnectBtn}
       </div>`;
     }).join('');
+    // CLOUD-UX-9: "Conectado" (remote en rclone) ≠ "sync configurado"
+    // (saves_remote en config) — mostrar el destino activo en la tarjeta y,
+    // si falta, ofrecer configurarlo a un clic.
+    const saves = cfg.saves_remote || '';
+    const states = cfg.states_remote || '';
+    const connected = (data.providers || []).filter(p => p.configured);
+    if (saves || states) {
+      html += `<div style="margin-top:8px;font-size:11px;color:var(--c-muted)">Destino de sync — saves: <code>${_h(saves) || '&mdash;'}</code> &middot; states: <code>${_h(states) || '&mdash;'}</code></div>`;
+    } else if (connected.length) {
+      html += `<div style="margin-top:8px;font-size:12px">
+        <span style="color:var(--c-yellow)">Conectado, pero sin destino de sync.</span>
+        ${connected.map(p => `<button class="btn primary" style="font-size:11px;padding:3px 10px;margin-left:8px" onclick="useRemoteForSync('${p.remote_name}')">Usar ${_h(p.remote_name)}:RetroSync para saves + states</button>`).join('')}
+      </div>`;
+    }
+    el.innerHTML = html;
+    // CLOUD-UX-8: el bloque de setup se colapsa cuando todo está en verde
+    // (provider conectado + destino de sync configurado).
+    const setup = document.getElementById('cloud-setup-block');
+    const setupBadge = document.getElementById('cloud-setup-badge');
+    const ready = connected.length > 0 && !!(saves || states);
+    if (setupBadge) {
+      setupBadge.innerHTML = ready
+        ? '<span style="color:var(--c-green)">&#x2713; configurado</span>'
+        : '<span style="color:var(--c-yellow)">pendiente de configurar</span>';
+    }
+    if (setup) {
+      const wasOpen = setup.open;
+      setup.open = !ready;
+      // Si ya estaba abierto, ontoggle no dispara — cargar el paso 2 a mano
+      if (setup.open && wasOpen) loadRcloneStatus();
+    }
   } catch (e) {
     el.innerHTML = `<span style="color:var(--c-softred)">Error al comprobar estado: ${e.message}</span>`;
+  }
+}
+
+// CLOUD-UX-9: un clic desde la tarjeta "Conexión cloud" deja el sync funcional
+async function useRemoteForSync(remoteName) {
+  try {
+    await apiPost('/api/config', {
+      'sync.saves_remote': `${remoteName}:RetroSync/saves`,
+      'sync.states_remote': `${remoteName}:RetroSync/states`,
+    });
+    showToast(`Sync configurado — ${remoteName}:RetroSync (saves + states)`, 'ok');
+    loadCloudAuthStatus();
+    loadSync();
+  } catch (e) {
+    _showCloudAuthError(e.message);
   }
 }
 
@@ -1447,20 +1825,18 @@ async function _pollCloudAuth() {
       return;
     }
     // Auto-finalize with the captured token
-    if (data.token) {
-      const statusData = await apiFetch('/api/cloud-auth/status');
-      // Find which provider just ran (the one that isn't configured yet)
-      const pending = (statusData.providers || []).find(p => !p.configured);
-      if (pending) {
-        const res = await apiPost('/api/cloud-auth/finalize', {
-          provider: pending.id,
-          remote_name: pending.remote_name,
-          token: data.token,
-        });
-        if (res.error) { _showCloudAuthError(res.error); return; }
-      }
+    // CLOUD-UX-4: el poll devuelve el provider que inició el flujo — antes se
+    // adivinaba "el primer provider no configurado" y el token de Google Drive
+    // podía acabar bajo el remote dropbox.
+    if (data.token && data.provider) {
+      const res = await apiPost('/api/cloud-auth/finalize', {
+        provider: data.provider,
+        remote_name: data.remote_name,
+        token: data.token,
+      });
+      if (res.error) { _showCloudAuthError(res.error); return; }
     }
-    showToast('Conexión cloud configurada correctamente', 'success');
+    showToast('Conexión cloud configurada correctamente', 'ok');
     loadCloudAuthStatus();
   } catch (e) {
     clearInterval(_cloudAuthPolling);
@@ -1473,6 +1849,8 @@ function cancelCloudAuth() {
   if (_cloudAuthPolling) { clearInterval(_cloudAuthPolling); _cloudAuthPolling = null; }
   const progressEl = document.getElementById('cloud-auth-progress');
   if (progressEl) progressEl.classList.add('hidden');
+  // CLOUD-UX-4: avisar al backend para matar el subprocess 'rclone authorize'
+  apiPost('/api/cloud-auth/cancel', {}).catch(() => {});
 }
 
 async function disconnectCloud(remoteName) {
@@ -1480,7 +1858,7 @@ async function disconnectCloud(remoteName) {
   try {
     const res = await apiPost('/api/cloud-auth/disconnect', { remote_name: remoteName });
     if (res.error) { _showCloudAuthError(res.error); return; }
-    showToast(`Remote "${remoteName}" eliminado`, 'success');
+    showToast(`Remote "${remoteName}" eliminado`, 'ok');
     loadCloudAuthStatus();
   } catch (e) {
     _showCloudAuthError(e.message);
@@ -1503,6 +1881,7 @@ export {
   // Cloud Sync
   loadSync,
   loadAssets,
+  showOrphanAssets,
   loadSystemStatus,
   detectCloudFolder,
   useCloudFolder,
@@ -1510,27 +1889,28 @@ export {
   toggleAutostart,
   shutdownServer,
   // Android / Anbernic setup
-  loadAndroidSetupPanel,
-  copyAndroidSetupUrl,
-  copyAndroidCurlCmd,
-  downloadAndroidSetupSh,
   _checkAndroidUserAgent,
   loadAnbernicTab,
-  copyAnbernicUrl,
   copyAnbernicCmd,
+  copyAnbernicUrl,
   // ANBERNIC-TV: touch-friendly sync flow
-  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvCopySetupCmd, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   // Cloud auth wizard (SYNC-SETUP)
   loadCloudAuthStatus,
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
+  openCloudSetup,
   // Rclone
-  toggleRcloneSetup,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  // Backup de saves (CLOUD-UX-1)
+  backupNow,
+  loadManualBackups,
   // Cable Sync
   _isAdbMode,
   _onCableModeChange,
@@ -1543,15 +1923,18 @@ export {
   loadCableSync,
   loadCableSyncPreview,
   doCableSync,
+  doQuickSync,
   _renderCableSyncResult,
   toggleCableSyncLog,
   loadCableSyncLog,
+  runSyncDoctor,
   exportPegasus,
   // Auto-sync
   _updateAutoSyncBanner,
   _updateAutoSyncToggleUI,
   toggleAutoSync,
   saveAutoSyncSettings,
+  saveConflictPolicy,
   startAutoSyncPolling,
   promptSyncNow,
   // Tree diff

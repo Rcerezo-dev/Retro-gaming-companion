@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from rom_manager.catalog.matcher import CatalogMatcher, MatchResult
+from rom_manager.catalog.matcher import CatalogMatcher, MatchResult, _platform_from_dat_name
 
 
 def _write_dat(path: Path, games: list[tuple[str, str, str, str, int]]) -> None:
@@ -52,6 +52,7 @@ def test_match_nointro(catalog_dirs: tuple[Path, Path]) -> None:
     assert result.title == "Tetris (World)"
     assert result.confidence == "high"
     assert "Game Boy" in result.catalog_source
+    assert result.platform == "Game Boy"  # INBOX-FIX-2: derived from the DAT filename
 
 
 def test_match_redump(catalog_dirs: tuple[Path, Path]) -> None:
@@ -61,6 +62,7 @@ def test_match_redump(catalog_dirs: tuple[Path, Path]) -> None:
     assert isinstance(result, MatchResult)
     assert result.title == "Metal Gear Solid (USA)"
     assert "PlayStation" in result.catalog_source
+    assert result.platform == "PlayStation"
 
 
 def test_no_match_returns_none(catalog_dirs: tuple[Path, Path]) -> None:
@@ -174,3 +176,169 @@ def test_no_filename_returns_none_on_sha1_miss(catalog_dirs: tuple[Path, Path]) 
     matcher = CatalogMatcher(nointro, redump)
     result = matcher.match("0" * 40)
     assert result is None
+
+
+def test_name_fallback_also_sets_platform(catalog_dirs: tuple[Path, Path]) -> None:
+    """INBOX-FIX-2: platform is derived on the name-fallback path too, not just SHA1."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "tetris (world).gb")
+    assert result is not None
+    assert result.platform == "Game Boy"
+
+
+# ---------------------------------------------------------------------------
+# INBOX-FIX-2: DAT filename → platform keyword matching
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("dat_name", "expected"),
+    [
+        ("Nintendo - Super Nintendo Entertainment System (2026).dat", "SNES"),
+        ("Nintendo - Nintendo Entertainment System (Headered) (2026).dat", "NES"),
+        ("Nintendo - Game Boy Advance (2026).dat", "Game Boy Advance"),
+        ("Nintendo - Game Boy Color (2026).dat", "Game Boy Color"),
+        ("Nintendo - Game Boy (2026).dat", "Game Boy"),
+        ("Nintendo - Nintendo 3DS (Digital) (CDN).dat", "Nintendo 3DS"),
+        ("Nintendo - New Nintendo 3DS (Deprecated).dat", "Nintendo 3DS"),
+        ("Nintendo - Nintendo DS (Decrypted).dat", "Nintendo DS"),
+        ("Sony - PlayStation 2 - Datfile.dat", "PlayStation 2"),
+        ("Sony - PlayStation Portable (PSN).dat", "PSP"),
+        ("Sony - PlayStation - Datfile.dat", "PlayStation"),
+        ("Sega - Mega Drive - Genesis.dat", "Sega Mega Drive"),
+        ("NEC - PC Engine - TurboGrafx-16.dat", "PC Engine"),
+        ("Bandai - WonderSwan Color.dat", "WonderSwan Color"),
+        ("Bandai - WonderSwan.dat", "WonderSwan"),
+        ("SNK - Neo Geo Pocket Color.dat", "Neo Geo Pocket Color"),
+    ],
+)
+def test_platform_from_dat_name_keyword_priority(dat_name: str, expected: str) -> None:
+    """Longer/more-specific keywords (e.g. SNES) must win over substrings they contain (NES)."""
+    assert _platform_from_dat_name(dat_name) == expected
+
+
+def test_platform_from_dat_name_unmapped_platform_returns_none() -> None:
+    """Obscure DATs this project doesn't route to a folder stay unmapped, not guessed."""
+    assert _platform_from_dat_name("Apple - IIGS (A2R) (2022).dat") is None
+    assert _platform_from_dat_name("Microsoft - Xbox 360 (Digital).dat") is None
+
+
+# ---------------------------------------------------------------------------
+# MATCH-FIX-1 — arcade antes que el fallback por título para nombres MAME
+# ---------------------------------------------------------------------------
+
+
+def _write_fbneo_dat(path: Path, games: list[tuple[str, str]]) -> None:
+    """FBNeo/Logiqx DAT: [(set_name, description), ...]."""
+    root = ET.Element("datafile")
+    for name, desc in games:
+        ET.SubElement(root, "game", name=name, description=desc, year="1984", manufacturer="Sega")
+    ET.ElementTree(root).write(path, encoding="unicode", xml_declaration=False)
+
+
+@pytest.fixture()
+def dirs_with_arcade(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Caso real de MATCH-FIX-1: 'flicky' existe como título en un catálogo
+    No-Intro de plataforma ajena Y como set arcade en FBNeo."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    arcade = tmp_path / "arcade"
+    nointro.mkdir()
+    redump.mkdir()
+    arcade.mkdir()
+    _write_dat(
+        nointro / "Fujitsu - FM-7.dat",
+        [("Flicky", "F17A11" * 7, "MD5F", "CRCF", 65536)],
+    )
+    _write_fbneo_dat(arcade / "FBNeo Arcade.dat", [("flicky", "Flicky (128k Version)")])
+    return nointro, redump, arcade
+
+
+def test_mame_style_zip_prefers_arcade_over_title_fallback(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """flicky.zip (sin región) debe matchear el catálogo arcade, no FM-7."""
+    nointro, redump, arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="flicky.zip")
+    assert result is not None
+    assert result.title == "Flicky (128k Version)"
+    assert result.platform == "FBNeo"
+
+
+def test_zip_with_region_tag_keeps_title_fallback_first(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """Un nombre con '(Región)' no es estilo MAME: sigue mandando el índice de títulos."""
+    nointro, redump, arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="Flicky (Japan).zip")
+    assert result is not None
+    assert "FM-7" in result.catalog_source
+
+
+def test_non_zip_without_region_keeps_title_fallback_first(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """Una ROM de consola renombrada sin región (.d77) no debe tratarse como arcade."""
+    nointro, redump, arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="Flicky.d77")
+    assert result is not None
+    assert "FM-7" in result.catalog_source
+
+
+def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
+    dirs_with_arcade: tuple[Path, Path, Path],
+) -> None:
+    """Un .zip sin región que el catálogo arcade no conoce conserva el fallback por título."""
+    nointro, redump, _arcade = dirs_with_arcade
+    matcher = CatalogMatcher(nointro, redump)  # sin catálogo arcade
+    result = matcher.match("00" * 20, filename="flicky.zip")
+    assert result is not None
+    assert "FM-7" in result.catalog_source
+
+
+# ---------------------------------------------------------------------------
+# ZIP-ROUTE-1 — índice CRC32 para identificar ZIPs por el header
+# ---------------------------------------------------------------------------
+
+
+def test_crc_index_maps_title_dat_and_platform(catalog_dirs: tuple[Path, Path]) -> None:
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    index = matcher.crc_index()
+    assert index["CRC1"] == ("Tetris (World)", "Nintendo - Game Boy.dat", "Game Boy")
+    assert index["CRC2"][0] == "Metal Gear Solid (USA)"
+
+
+def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
+    """Un CRC reclamado por dos títulos (DAT recopilatorio tipo Evercade) es
+    ambiguo y se descarta: nunca adivinar la plataforma."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        nointro / "Atari - Atari 2600.dat",
+        [("Asteroids (USA)", "AA" * 20, "M1", "46DF91AD", 4096)],
+    )
+    _write_dat(
+        nointro / "Blaze Entertainment - Evercade.dat",
+        [("Super Pocket - The Atari Collection (World)", "BB" * 20, "M2", "46DF91AD", 4096)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    assert "46DF91AD" not in matcher.crc_index()
+
+
+def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:
+    """INICIO-FIX-1: un DAT real trae <rom size=""> — no debe reventar int('')."""
+    from rom_manager.catalog.catalog_loader import load_nointro_dat
+
+    dat = tmp_path / "x.dat"
+    dat.write_text(
+        '<datafile><game name="G"><rom name="g.rom" size="" sha1="AB12"/></game></datafile>'
+    )
+    entries = load_nointro_dat(dat)
+    assert entries["AB12"].size_bytes == 0

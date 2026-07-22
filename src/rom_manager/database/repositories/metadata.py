@@ -9,6 +9,8 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
+from rom_manager.utils.time import utc_now
+
 
 class MetadataMixin:
     def get_metadata_for_nlp(self) -> list[dict]:
@@ -146,7 +148,6 @@ class MetadataMixin:
         updates = {k: v for k, v in fields.items() if k in _ALLOWED}
         if not updates:
             return
-        from rom_manager.scanner.rom_scanner import utc_now
 
         with self.connect() as conn:
             conn.execute(
@@ -237,15 +238,26 @@ class MetadataMixin:
         Prevents re-scraping files that were already checked but had no match."""
         connection.execute("UPDATE games SET metadata_scraped = 1 WHERE id = ?", (game_id,))
 
-    def get_games_for_scraping(self, platform: str | None = None) -> list[dict]:
+    def get_games_for_scraping(
+        self, platform: str | None = None, missing_descriptions: bool = False
+    ) -> list[dict]:
         """Return games that have no metadata yet and haven't been checked, with their hashes.
-        DB-1: Excludes games where metadata_scraped=1 (checked but no match found)."""
-        sql = """
+        DB-1: Excludes games where metadata_scraped=1 (checked but no match found).
+
+        SAGE-1: with *missing_descriptions* also includes games that already have a
+        metadata row but an empty description (re-scrape to fill it). ``has_metadata``
+        tells the caller which upsert path to use so existing image paths survive.
+        """
+        pending = "(m.id IS NULL AND (g.metadata_scraped IS NULL OR g.metadata_scraped = 0))"
+        if missing_descriptions:
+            pending += " OR (m.id IS NOT NULL AND (m.description IS NULL OR m.description = ''))"
+        sql = f"""
             SELECT g.id, g.original_filename, g.source_path, g.platform,
-                   g.crc32, g.md5, g.sha1, g.size_bytes, g.canonical_title
+                   g.crc32, g.md5, g.sha1, g.size_bytes, g.canonical_title,
+                   (m.id IS NOT NULL) AS has_metadata
             FROM games g
             LEFT JOIN game_metadata m ON m.game_id = g.id
-            WHERE m.id IS NULL AND (g.metadata_scraped IS NULL OR g.metadata_scraped = 0)
+            WHERE ({pending})
         """
         params: list = []
         if platform:
@@ -255,6 +267,42 @@ class MetadataMixin:
         with self.connect() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
+
+    def update_description(
+        self,
+        *,
+        game_id: int,
+        description: str,
+        scraped_at: str,
+        connection: sqlite3.Connection,
+    ) -> None:
+        """SAGE-1: fill only the description of an existing metadata row.
+        Avoids the full upsert, which would wipe local image paths."""
+        connection.execute(
+            "UPDATE game_metadata SET description = ?, scraped_at = ? WHERE game_id = ?",
+            (description, scraped_at, game_id),
+        )
+
+    def get_description_coverage(self) -> dict:
+        """SAGE-1: % of ROMs with a non-empty description (done when > 90%)."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS total,
+                       COALESCE(SUM(m.description IS NOT NULL AND m.description != ''), 0)
+                           AS with_description
+                FROM games g
+                LEFT JOIN game_metadata m ON m.game_id = g.id
+                WHERE g.file_type = 'rom'
+                """
+            ).fetchone()
+        total = row["total"]
+        with_desc = row["with_description"]
+        return {
+            "total": total,
+            "with_description": with_desc,
+            "pct": round(100 * with_desc / total, 1) if total else 0.0,
+        }
 
     def get_games_missing_images(self, platform: str | None = None) -> list[dict]:
         """Return games that have metadata with a stored box_art_url but no local

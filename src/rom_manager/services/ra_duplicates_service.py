@@ -15,57 +15,81 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.utils.paths import is_device_path
+from rom_manager.utils.trash import discard_to_trash
+
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
+    from rom_manager.sync.adb_transport import AdbTransport
 
 _log = logging.getLogger(__name__)
 
 
 def _delete_row(repository: LibraryRepository, source_path: str) -> None:
     with repository.connect() as conn:
-        conn.execute("DELETE FROM games WHERE source_path = ?", (source_path,))
+        cascade_delete_games_by_source_path(conn, source_path)
         conn.commit()
 
 
-def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool, str | None]:
+def _discard_file(
+    repository: LibraryRepository,
+    source_path: str,
+    adb_transport: AdbTransport | None = None,
+) -> tuple[bool, str | None]:
     """Soft-discard one file: move it into ``_descartados/`` and delete its DB row.
 
+    *adb_transport*: when *source_path* lives on a connected device
+    (TABS-FIX-1a), deletes it there via ADB before touching the DB row.
+    ``None`` falls back to the explicit "conecta el dispositivo" error.
+
     Returns ``(ok, error)``. Semantics, preserved across all RA discard endpoints:
-      * file already gone        → just clean the DB row.
-      * a same-named file is     → delete the source outright (no overwrite).
-        already in _descartados/
-      * otherwise                → move the source into _descartados/.
+      * file already gone → just clean the DB row.
+      * otherwise         → move the source into _descartados/ (AUD-3: shared
+        helper; a same-named file there gets a numeric suffix — nothing is
+        permanently deleted anymore).
     On a DB failure *after* a successful move, the file is restored (rollback).
     """
     p = Path(source_path)
 
     # File already gone: just clean the DB row.
     if not p.exists():
+        # TABS-FIX-1: a device path (ADB scan, e.g. /storage/...) is never a
+        # valid Windows path — Path.exists() is always False here even when
+        # the file is alive on the console. Treating that as "genuinely gone"
+        # deleted the DB row and reported success while the real duplicate
+        # stayed on the device and reappeared on the next ADB scan.
+        if is_device_path(source_path):
+            if adb_transport is None:
+                return False, (
+                    f"{p.name}: ruta de consola — conecta el dispositivo para verificar "
+                    "si el archivo sigue ahí; no se ha tocado la fila de la base de datos"
+                )
+            try:
+                adb_transport.remove(source_path)
+            except Exception as exc:
+                return False, f"{p.name}: no se pudo borrar en el dispositivo — {exc}"
+            try:
+                _delete_row(repository, source_path)
+                return True, None
+            except Exception as exc:
+                return False, f"{p.name}: archivo eliminado en consola pero error en BD — {exc}"
         try:
             _delete_row(repository, source_path)
             return True, None
         except Exception as exc:
             return False, f"{p.name}: {exc}"
 
-    discard_dir = p.parent / "_descartados"
     dest: Path | None = None
-    moved = False
-    permanently_deleted = False
     try:
-        discard_dir.mkdir(parents=True, exist_ok=True)
-        dest = discard_dir / p.name
-        if dest.exists():
-            p.unlink()
-            dest = None
-            permanently_deleted = True
-        else:
-            shutil.move(str(p), str(dest))
-            moved = True
+        dest = discard_to_trash(p)
         _delete_row(repository, source_path)
         return True, None
     except Exception as exc:
-        if moved and dest is not None and dest.exists():
+        if dest is not None and dest.exists():
             try:
                 shutil.move(str(dest), str(p))
                 _log.warning("RA discard rollback: restored %s after DB error", p.name)
@@ -76,20 +100,16 @@ def _discard_file(repository: LibraryRepository, source_path: str) -> tuple[bool
                     False,
                     f"{p.name}: DB error AND rollback failed — file may be lost | {exc} | {rb_exc}",
                 )
-        if permanently_deleted:
-            _log.error("File %s deleted but DB update failed: %s", p.name, exc)
-            return (
-                False,
-                f"{p.name}: deleted but DB not updated (stale entry — will be removed on next scan)",
-            )
         return False, f"{p.name}: {exc}"
 
 
-def discard_ra_duplicate(repository: LibraryRepository, source_path: str) -> dict:
+def discard_ra_duplicate(
+    repository: LibraryRepository, source_path: str, adb_transport: AdbTransport | None = None
+) -> dict:
     """Discard a single RA-version duplicate by path. Caller validates non-empty."""
     p = Path(source_path)
     missing = not p.exists()
-    ok, error = _discard_file(repository, source_path)
+    ok, error = _discard_file(repository, source_path, adb_transport)
     if not ok:
         return {"error": error}
     if missing:
@@ -97,7 +117,9 @@ def discard_ra_duplicate(repository: LibraryRepository, source_path: str) -> dic
     return {"ok": True}
 
 
-def discard_all_ra_duplicates(repository: LibraryRepository, ra_dups: dict) -> dict:
+def discard_all_ra_duplicates(
+    repository: LibraryRepository, ra_dups: dict, adb_transport: AdbTransport | None = None
+) -> dict:
     """Discard every entry without RA support across the RA-duplicate *ra_dups* report.
 
     *ra_dups* is the result of ``builders.duplicates._build_ra_duplicates`` (built by
@@ -117,7 +139,7 @@ def discard_all_ra_duplicates(repository: LibraryRepository, ra_dups: dict) -> d
             src_path_str = entry.get("source_path", "")
             if not src_path_str:
                 continue
-            ok, error = _discard_file(repository, src_path_str)
+            ok, error = _discard_file(repository, src_path_str, adb_transport)
             if ok:
                 discarded += 1
             else:
@@ -128,7 +150,9 @@ def discard_all_ra_duplicates(repository: LibraryRepository, ra_dups: dict) -> d
     return {"discarded": discarded, "failed": failed, "errors": errors[:10]}
 
 
-def discard_no_support(repository: LibraryRepository, entries: list[dict]) -> dict:
+def discard_no_support(
+    repository: LibraryRepository, entries: list[dict], adb_transport: AdbTransport | None = None
+) -> dict:
     """Bulk-discard all games with no RA support at all (RA check ``no_support_entries``)."""
     if not entries:
         return {"discarded": 0, "failed": 0, "errors": [], "note": "No games to discard."}
@@ -141,7 +165,7 @@ def discard_no_support(repository: LibraryRepository, entries: list[dict]) -> di
         src_path_str = entry.get("source_path", "")
         if not src_path_str:
             continue
-        ok, error = _discard_file(repository, src_path_str)
+        ok, error = _discard_file(repository, src_path_str, adb_transport)
         if ok:
             discarded += 1
         else:
@@ -156,6 +180,7 @@ def resolve_duplicate_ra(
     repository: LibraryRepository,
     keep_path: str,
     discard_paths: list[str],
+    adb_transport: AdbTransport | None = None,
 ) -> dict:
     """B1-4: resolve title-based duplicates by keeping *keep_path* and discarding the rest.
 
@@ -166,7 +191,7 @@ def resolve_duplicate_ra(
     errors: list[str] = []
 
     for src_path_str in discard_paths:
-        ok, error = _discard_file(repository, src_path_str)
+        ok, error = _discard_file(repository, src_path_str, adb_transport)
         if ok:
             discarded += 1
         else:
@@ -177,7 +202,74 @@ def resolve_duplicate_ra(
     return {"discarded": discarded, "failed": failed, "errors": errors[:10]}
 
 
-def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict:
+def get_ra_hash_lib(config: AppConfig, platform: str, cache: dict[str, dict]) -> dict:
+    """md5(lower) → parsed RA game entry (with ``.achievements``) for *platform*.
+
+    *cache* is a per-call dict the caller owns, so repeated lookups across many
+    conflicts in the same run only touch disk once per platform.
+    """
+    if platform in cache:
+        return cache[platform]
+    import time as _time
+
+    from rom_manager.retroachievements.ra_client import _CACHE_TTL_SECONDS
+    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
+    console_id = get_ra_console_id(platform)
+    if not console_id:
+        cache[platform] = {}
+        return {}
+    cache_file = config.project_root / ".rommgr" / "ra_cache" / f"ra_hashes_{console_id}.json"
+    if not cache_file.exists():
+        cache[platform] = {}
+        return {}
+    # Same TTL as ra_client.fetch_hash_library — a stale cache must not be
+    # treated as authoritative for duplicate resolution.
+    if _time.time() - cache_file.stat().st_mtime >= _CACHE_TTL_SECONDS:
+        cache[platform] = {}
+        return {}
+    try:
+        lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
+    except Exception:
+        _log.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
+        lib = {}
+    cache[platform] = lib
+    return lib
+
+
+def get_ra_achievements(config: AppConfig, platform: str, md5: str, cache: dict[str, dict]) -> int:
+    """Achievement count for *md5* on *platform* — -1 if unknown or no cache."""
+    if not md5:
+        return -1
+    entry = get_ra_hash_lib(config, platform, cache).get(md5.lower())
+    return entry.achievements if entry else -1
+
+
+def get_ra_achievements_for_path(
+    repository: LibraryRepository,
+    config: AppConfig,
+    source_path: str,
+    platform: str,
+    cache: dict[str, dict],
+) -> int:
+    """Achievement count for the game stored at *source_path* — -1 if unknown."""
+    try:
+        with repository.connect() as conn:
+            row = conn.execute(
+                "SELECT md5 FROM games WHERE source_path = ?", (source_path,)
+            ).fetchone()
+    except Exception:
+        _log.debug("Consulta RA por ruta falló: %s", source_path, exc_info=True)
+        return -1
+    if not row:
+        return -1
+    return get_ra_achievements(config, platform, (row["md5"] or ""), cache)
+
+
+def apply_ra_conflicts(
+    repository: LibraryRepository, config: AppConfig, adb_transport: AdbTransport | None = None
+) -> dict:
     """Resolve plan conflicts by keeping the RA winner and moving the loser to _descartados/.
 
     Handles both conflict types:
@@ -188,12 +280,11 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
     """
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
-    from rom_manager.renamer.file_renamer import rename_rom_with_saves
-    from rom_manager.retroachievements.ra_client import _parse_game_list as _pgl
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+    from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
 
     opts = FormatOptions()
     plan = build_plan(repository, opts)
+    extra_save_dirs = central_save_dirs(config)
 
     resolved = 0
     skipped_no_ra = 0
@@ -206,42 +297,8 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
     # Build per-platform hash→achievements lookup (lazily cached)
     _hash_lib_cache: dict[str, dict] = {}
 
-    def _hash_lib_for(plat: str) -> dict:
-        if plat in _hash_lib_cache:
-            return _hash_lib_cache[plat]
-        console_id = get_ra_console_id(plat)
-        if not console_id:
-            _hash_lib_cache[plat] = {}
-            return {}
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            _hash_lib_cache[plat] = {}
-            return {}
-        try:
-            lib = _pgl(_json.loads(cache_file.read_text(encoding="utf-8")))
-        except Exception:
-            _log.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            lib = {}
-        _hash_lib_cache[plat] = lib
-        return lib
-
     def _ra_for_path(path: Path, plat: str) -> int:
-        """Return achievement count for a file (-1 = unknown / no cache)."""
-        try:
-            with repository.connect() as _c:
-                row = _c.execute(
-                    "SELECT md5 FROM games WHERE source_path = ?", (str(path),)
-                ).fetchone()
-            if not row:
-                return -1
-            md5 = (row["md5"] or "").lower()
-        except Exception:
-            _log.debug("Consulta RA por ruta falló: %s", path, exc_info=True)
-            return -1
-        if not md5:
-            return -1
-        entry = _hash_lib_for(plat).get(md5)
-        return entry.achievements if entry else -1
+        return get_ra_achievements_for_path(repository, config, str(path), plat, _hash_lib_cache)
 
     # ── Disk conflicts ────────────────────────────────────────────────────────
     # source wants to rename to target_path but target_path already holds a different file.
@@ -268,13 +325,15 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
             winner_path = None
             winner_target = None
 
-        ok, err = _discard_file(repository, str(loser_path))
+        ok, err = _discard_file(repository, str(loser_path), adb_transport)
         if not ok:
             errors.append(err or f"{loser_path.name}: discard failed")
             continue
         if winner_path and winner_target and winner_path.exists():
             save_exts = frozenset(config.save_extensions) if config.save_extensions else frozenset()
-            outcome = rename_rom_with_saves(winner_path, winner_target, save_exts)
+            outcome = rename_rom_with_saves(
+                winner_path, winner_target, save_exts, extra_dirs=extra_save_dirs
+            )
             if not outcome.success:
                 errors.append(f"{winner_path.name}: rename failed — {outcome.error}")
             else:
@@ -313,7 +372,7 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
 
         # Discard all non-winners and rename winner to canonical target
         for loser_op, _ in scored[1:]:
-            ok, err = _discard_file(repository, str(loser_op.source_path))
+            ok, err = _discard_file(repository, str(loser_op.source_path), adb_transport)
             if ok:
                 resolved += 1
             else:
@@ -326,7 +385,10 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
                     frozenset(config.save_extensions) if config.save_extensions else frozenset()
                 )
                 outcome = rename_rom_with_saves(
-                    winner_op.source_path, winner_op.target_path, save_exts
+                    winner_op.source_path,
+                    winner_op.target_path,
+                    save_exts,
+                    extra_dirs=extra_save_dirs,
                 )
                 if not outcome.success:
                     errors.append(f"{winner_op.source_path.name}: rename failed — {outcome.error}")
@@ -364,3 +426,50 @@ def apply_ra_conflicts(repository: LibraryRepository, config: AppConfig) -> dict
         "hint": "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
         "next_step": next_step,
     }
+
+
+def apply_all_review_recommendations(
+    get_repo_fn: Callable[[str], LibraryRepository],
+    repos: list[LibraryRepository],
+    config: AppConfig,
+    queue: dict,
+    adb_transport: AdbTransport | None = None,
+) -> dict:
+    """TABS-FIX-6: apply every precomputed recommendation in a review-queue dict.
+
+    Composes the two mechanisms the review queue already relies on, unchanged:
+    ``resolve_duplicate_ra`` (keep the recommended entry, discard the rest) for
+    sha1/title/ra groups, and ``apply_ra_conflicts`` (resolves ALL plan conflicts
+    at once — there's no per-group entry point) for any group carrying a
+    disk/collision reason.
+    """
+    resolved = 0
+    errors: list[str] = []
+    has_plan_conflicts = False
+
+    for group in queue.get("groups", []):
+        reasons = set(group.get("reasons", ()))
+        if reasons & {"disk", "collision"}:
+            has_plan_conflicts = True
+            continue
+        entries = group.get("entries", [])
+        recommended = next((e for e in entries if e.get("recommended")), None)
+        if not recommended:
+            continue
+        discard_paths = [e["source_path"] for e in entries if e is not recommended]
+        if not discard_paths:
+            continue
+        repo = get_repo_fn(recommended["source_path"])
+        result = resolve_duplicate_ra(
+            repo, recommended["source_path"], discard_paths, adb_transport
+        )
+        resolved += result.get("discarded", 0)
+        errors.extend(result.get("errors", []))
+
+    if has_plan_conflicts:
+        for repo in repos:
+            result = apply_ra_conflicts(repo, config, adb_transport)
+            resolved += result.get("resolved", 0)
+            errors.extend(result.get("errors", []))
+
+    return {"resolved": resolved, "errors": errors[:20]}

@@ -10,11 +10,194 @@ import logging
 from pathlib import Path
 
 from rom_manager.config import AppConfig
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
+
+
+def _same_content(a: Path, b: Path) -> bool:
+    """True only if *a* and *b* are byte-identical (size check first, then SHA1).
+
+    A shared filename is NOT evidence of duplicate content — two different ROM
+    dumps/revisions can legitimately share a name. Never delete on a filename
+    match alone (INBOX-FIX-5).
+    """
+    from rom_manager.hashing.hash_calculator import calculate_hashes
+
+    try:
+        if a.stat().st_size != b.stat().st_size:
+            return False
+        return calculate_hashes(a).sha1 == calculate_hashes(b).sha1
+    except OSError:
+        return False
+
+
+def _platform_folder_name(platform: str) -> str:
+    """Carpeta de plataforma para *platform* — la misma regla del paso 6."""
+    canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
+    return _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+
+
+def _organize_dest_file(target_root: Path, platform: str, filename: str) -> Path:
+    """Where *filename* would land if organized — same rule the Step 6 loop uses."""
+    return target_root / _platform_folder_name(platform) / filename
+
+
+def _resolve_organize_conflict(
+    repository: LibraryRepository,
+    config: AppConfig,
+    source_file: Path,
+    dest_file: Path,
+    game_id: int,
+    platform: str,
+    ra_hash_cache: dict[str, dict],
+    force_keep: str | None = None,
+) -> tuple[str, str | None]:
+    """RA-CONFLICT-1: same name, different content in the organize step.
+
+    With *force_keep* ``None``, uses the same tie-break rule as
+    ``apply_ra_conflicts`` (services/ra_duplicates_service.py): higher RA
+    achievement count wins; a tie or "neither has RA data" leaves both files
+    untouched for manual review. Pass ``force_keep="source"``/``"dest"`` to
+    apply a user's explicit choice instead (RA-CONFLICT-2: manual resolution
+    from the UI) — same move/discard mechanics either way.
+
+    Returns ``(status, error)``:
+      "kept_source" — dest was the loser (discarded to its own _descartados/),
+                      source moved into dest's path, DB row updated.
+      "kept_dest"   — source was the loser (discarded to the Inbox's _descartados/).
+      "unresolved"  — neither side has RA data (or a discard/move failed).
+    """
+    import shutil as _shutil_local
+
+    from rom_manager.services.ra_duplicates_service import (
+        _discard_file,
+        get_ra_achievements_for_path,
+    )
+
+    if force_keep is not None:
+        keep = force_keep
+    else:
+        src_ra = get_ra_achievements_for_path(
+            repository, config, str(source_file), platform, ra_hash_cache
+        )
+        dst_ra = get_ra_achievements_for_path(
+            repository, config, str(dest_file.resolve()), platform, ra_hash_cache
+        )
+        if src_ra <= 0 and dst_ra <= 0:
+            return "unresolved", None
+        keep = "source" if dst_ra < src_ra else "dest"
+
+    if keep == "source":
+        # dest is the loser: discard it, then move source into its place.
+        ok, err = _discard_file(repository, str(dest_file))
+        if not ok:
+            return "unresolved", err
+        try:
+            _shutil_local.move(str(source_file), str(dest_file))
+        except OSError as exc:
+            return "unresolved", str(exc)
+        dest_path_str = str(dest_file.resolve())
+        with repository.batch() as conn:
+            cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
+            conn.execute(
+                "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
+                (dest_path_str, dest_file.name, game_id),
+            )
+        return "kept_source", None
+
+    # source is the loser: dest stays in place, discard source.
+    ok, err = _discard_file(repository, str(source_file))
+    if not ok:
+        return "unresolved", err
+    return "kept_dest", None
+
+
+def find_organize_conflicts(
+    repository: LibraryRepository, config: AppConfig, inbox_path_str: str, target_root_str: str
+) -> list[dict]:
+    """RA-CONFLICT-2: read-only listing of same-name/different-content conflicts.
+
+    Mirrors the detection the organize step (Step 6 of ``_run_inbox_pipeline``)
+    does live, without moving anything — for the UI to show and let the user
+    resolve one by one.
+    """
+    inbox = Path(inbox_path_str).resolve()
+    target_root = Path(target_root_str).resolve() if target_root_str else inbox
+    inbox_str_lower = str(inbox).lower()
+
+    ra_hash_cache: dict[str, dict] = {}
+    conflicts: list[dict] = []
+    with repository.connect() as conn:
+        rows = conn.execute(
+            "SELECT source_path, platform, original_filename FROM games "
+            "WHERE LOWER(source_path) LIKE ?",
+            (inbox_str_lower + "%",),
+        ).fetchall()
+
+    from rom_manager.services.ra_duplicates_service import get_ra_achievements_for_path
+
+    for source_path_str_db, platform, _orig_name in rows:
+        source_file = Path(source_path_str_db)
+        if not source_file.exists():
+            continue
+        dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
+        if not dest_file.exists() or _same_content(source_file, dest_file):
+            continue
+        src_ra = get_ra_achievements_for_path(
+            repository, config, str(source_file), platform or "", ra_hash_cache
+        )
+        dst_ra = get_ra_achievements_for_path(
+            repository, config, str(dest_file.resolve()), platform or "", ra_hash_cache
+        )
+        conflicts.append(
+            {
+                "source_path": str(source_file),
+                "dest_path": str(dest_file),
+                "filename": source_file.name,
+                "platform": platform or "",
+                "source_size": source_file.stat().st_size,
+                "dest_size": dest_file.stat().st_size,
+                "source_ra": None if src_ra < 0 else src_ra,
+                "dest_ra": None if dst_ra < 0 else dst_ra,
+            }
+        )
+    return conflicts
+
+
+def resolve_inbox_conflict(
+    repository: LibraryRepository, config: AppConfig, source_path: str, keep: str
+) -> dict:
+    """RA-CONFLICT-2: apply a user's manual choice for one conflict from the UI."""
+    with repository.connect() as conn:
+        row = conn.execute(
+            "SELECT id, platform FROM games WHERE source_path = ?", (source_path,)
+        ).fetchone()
+    if not row:
+        return {"error": f"No hay ningún juego registrado en {source_path}"}
+    game_id, platform = row["id"], row["platform"] or ""
+
+    source_file = Path(source_path)
+    if not source_file.exists():
+        return {"error": f"{source_file.name} ya no existe en disco"}
+
+    target_root = (
+        Path(config.inbox.target_root).resolve()
+        if config.inbox.target_root
+        else (config.library_root or source_file.parent)
+    )
+    dest_file = _organize_dest_file(target_root, platform, source_file.name)
+    if not dest_file.exists() or _same_content(source_file, dest_file):
+        return {"error": f"{source_file.name} ya no tiene conflicto pendiente"}
+
+    status, err = _resolve_organize_conflict(
+        repository, config, source_file, dest_file, game_id, platform, {}, force_keep=keep
+    )
+    return {"status": status, "error": err}
 
 
 # ── Inbox (Pilar 2) ───────────────────────────────────────────────────────────
@@ -109,11 +292,148 @@ _KNOWN_BIOS_MAP: dict[str, str] = {
     "grom.bin": "intellivision",
     "awbios.zip": "naomi",
     "naomi_boot.bin": "naomi",
+    # Arcade system BIOS (INBOX-FIX-3 — hallados sueltos en Unknown\ en JUNK-REVIEW-1;
+    # slug = nombre del propio ZIP, ya que cada uno es un sistema arcade distinto)
+    "naomi.zip": "naomi",
+    "chihiro.zip": "chihiro",
+    "triforce.zip": "triforce",
+    "hikaru.zip": "hikaru",
+    "aristmk5.zip": "aristmk5",
+    "aristmk6.zip": "aristmk6",
+    "hod2bios.zip": "hod2bios",
+    "lindbios.zip": "lindbios",
+    "f355bios.zip": "f355bios",
+    "galgbios.zip": "galgbios",
+    "airlbios.zip": "airlbios",
+    "ar_bios.zip": "ar_bios",
+    "cdibios.zip": "cdibios",
+    "macsbios.zip": "macsbios",
+    "alg_bios.zip": "alg_bios",
+    "crysbios.zip": "crysbios",
+    "v4bios.zip": "v4bios",
 }
 
 
-def _build_inbox_scan(inbox_path_str: str) -> dict:
-    """Scan the inbox folder and return summary + file list."""
+def _intercept_bios_files(inbox: Path, target_root: Path, logger: logging.Logger) -> int:
+    """Move known BIOS files out of *inbox* into ``target_root/bios/<slug>/``.
+
+    Shared by both the Inbox pipeline and the first-time setup wizard so BIOS
+    routing doesn't depend on which pipeline happened to touch the library
+    (INBOX-FIX-3 — the setup wizard never ran this step before).
+    """
+    import shutil as _shutil
+
+    bios_moved = 0
+    for ext_file in list(inbox.rglob("*")):
+        if not ext_file.is_file():
+            continue
+        if any(part.startswith("_") for part in ext_file.relative_to(inbox).parts[:-1]):
+            continue
+        name_lower = ext_file.name.lower()
+        if name_lower in _KNOWN_BIOS_MAP:
+            plat = _KNOWN_BIOS_MAP[name_lower]
+            dst = target_root / "bios" / plat / ext_file.name
+            if ext_file.resolve() == dst.resolve():
+                continue  # already in place (e.g. setup wizard re-scanning target_root == inbox)
+            if dst.exists():
+                # INBOX-FIX-5: same filename is not proof of duplicate content —
+                # only delete the source if it's byte-identical to what's there.
+                if _same_content(ext_file, dst):
+                    _discard_to_trash(ext_file)  # AUD-3: soft-discard
+                    bios_moved += 1
+                    logger.info("BIOS duplicada (mismo contenido): %s descartada", ext_file.name)
+                else:
+                    logger.warning(
+                        "BIOS %s ya existe en bios/%s con contenido distinto — no se toca, revisar a mano",
+                        ext_file.name,
+                        plat,
+                    )
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            _shutil.move(str(ext_file), dst)
+            bios_moved += 1
+            logger.info("BIOS interceptada: %s -> bios/%s", ext_file.name, plat)
+    return bios_moved
+
+
+def _resolve_ambiguous_md(inbox: Path, config: AppConfig, logger) -> int:
+    """AUD-4 (formaliza ZIP-ROUTE-FIX-4): identificar ``.md`` sueltos por CRC32.
+
+    Un ``.md`` en la raíz del Inbox sin carpeta que lo desambigüe puede ser un
+    ROM de Mega Drive o un markdown real — los tags del nombre mienten, el
+    contenido manda. Su CRC32 contra el índice de los DATs ya cargados
+    (``CatalogMatcher.crc_index()``) decide: hit de Mega Drive → moverlo a
+    ``inbox/megadrive/`` (el contexto de carpeta hace que el resto del
+    pipeline lo procese sin código nuevo); miss → no tocarlo (posible
+    markdown de verdad). Devuelve cuántos se identificaron.
+    """
+    import shutil as _shutil
+    import zlib
+
+    from rom_manager.detection.platform_detector import is_rom_file
+
+    candidates = [
+        p
+        for p in sorted(inbox.iterdir())
+        if p.is_file()
+        and p.suffix.lower() == ".md"
+        and not p.name.startswith((".", "_"))
+        and not is_rom_file(p)  # sin contexto de carpeta — ambiguo
+    ]
+    if not candidates:
+        return 0
+
+    from rom_manager.catalog.matcher import CatalogMatcher
+
+    crc_index = CatalogMatcher(
+        nointro_dir=config.catalogs_nointro_dir,
+        redump_dir=config.catalogs_redump_dir,
+    ).crc_index()
+
+    dest_dir = inbox / "megadrive"
+    identified = 0
+    for p in candidates:
+        try:
+            crc = 0
+            with open(p, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    crc = zlib.crc32(chunk, crc)
+            hit = crc_index.get(f"{crc & 0xFFFFFFFF:08X}")
+        except OSError:
+            continue
+        if hit is None:
+            logger.info(
+                "Inbox: %s sin match CRC en los DATs — se deja quieto (posible markdown)", p.name
+            )
+            continue
+        title, _source, platform = hit
+        if platform != "Sega Mega Drive":
+            logger.warning(
+                "Inbox: %s tiene el CRC de %r (%s) pero extensión .md — no se toca, revisar a mano",
+                p.name,
+                title,
+                platform,
+            )
+            continue
+        dest = dest_dir / p.name
+        if dest.exists():
+            logger.warning("Inbox: %s ya existe en megadrive/ — no se toca", p.name)
+            continue
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        _shutil.move(str(p), str(dest))
+        identified += 1
+        logger.info("Inbox: %s identificado por CRC como %r → megadrive/", p.name, title)
+    return identified
+
+
+def _build_inbox_scan(inbox_path_str: str, target_root_str: str = "") -> dict:
+    """Scan the inbox folder and return summary + file list.
+
+    Con *target_root_str*, cada archivo incluye una previsualización de destino
+    (INBOX-UX-2): ``dest_folder`` (carpeta de plataforma, misma regla que el
+    paso 6) y ``dest_exists`` (ya hay un archivo con ese nombre en destino).
+    Aproximada a propósito: el nombre final puede cambiar tras el cotejo.
+    """
     import zipfile as _zf
 
     from rom_manager.detection.platform_detector import detect_platform as _detect_platform
@@ -121,6 +441,12 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
     inbox = Path(inbox_path_str).resolve()
     if not inbox.exists() or not inbox.is_dir():
         return {"error": f"Carpeta no encontrada: {inbox_path_str}", "files": [], "total": 0}
+
+    target_root: Path | None = None
+    if target_root_str:
+        _t = Path(target_root_str)
+        if _t.is_dir():
+            target_root = _t
 
     files_out: list[dict] = []
     total_bytes = 0
@@ -193,6 +519,12 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
         if platform_guess:
             by_platform[platform_guess] = by_platform.get(platform_guess, 0) + 1
 
+        dest_folder = _platform_folder_name(platform_guess) if platform_guess else None
+        dest_exists = None
+        if target_root and dest_folder and not needs_extraction:
+            # Para ZIPs no se comprueba: lo que llega a destino es su contenido
+            dest_exists = (target_root / dest_folder / entry.name).exists()
+
         files_out.append(
             {
                 "name": entry.name,
@@ -201,6 +533,8 @@ def _build_inbox_scan(inbox_path_str: str) -> dict:
                 "type": file_type,
                 "platform_guess": platform_guess,
                 "needs_extraction": needs_extraction,
+                "dest_folder": dest_folder,
+                "dest_exists": dest_exists,
             }
         )
 
@@ -250,6 +584,7 @@ def _run_setup_pipeline(
         "junk_deleted": 0,
         "junk_freed_bytes": 0,
         "zips_extracted": 0,
+        "bios_moved": 0,
         "games_found": 0,
         "games_matched": 0,
         "plan_pending": 0,
@@ -270,7 +605,7 @@ def _run_setup_pipeline(
                         p = Path(fp)
                         if p.is_file():
                             sz = p.stat().st_size
-                            p.unlink()
+                            _discard_to_trash(p)  # AUD-3: soft-discard
                             deleted += 1
                             freed += sz
                     except OSError:
@@ -291,10 +626,14 @@ def _run_setup_pipeline(
                     rel = zp.name
                 pct = 20 + int((idx / max(total_zips, 1)) * 15)
                 _upd("Extrayendo ZIPs", 2, pct, rel)
-                r = extract_zip(zp, dry_run=False, delete_source=False)
+                r = extract_zip(zp, dry_run=False, delete_source=options.get("delete_zips", False))
                 if r.success:
                     extracted += 1
             result["zips_extracted"] = extracted
+
+        # ── Step 2.5: Intercept BIOS files (INBOX-FIX-3) ─────────────────────
+        _upd("Moviendo BIOS conocidas", 2, 35)
+        result["bios_moved"] = _intercept_bios_files(source, source, logger)
 
         # ── Step 3: Scan library ─────────────────────────────────────────────
         _upd("Escaneando biblioteca", 3, 35)
@@ -334,6 +673,7 @@ def _run_setup_pipeline(
                             canonical_title=m.title,
                             match_confidence=m.confidence,
                             catalog_source=m.catalog_source,
+                            platform=m.platform,
                             connection=conn,
                         )
                         matched += 1
@@ -365,8 +705,13 @@ def _run_inbox_pipeline(
     repository: LibraryRepository,
     config: AppConfig,
     job_manager,
+    extra_result: dict | None = None,
 ) -> None:
-    """Background job: extract → scan → match → plan → rename → move → cleanup."""
+    """Background job: extract → scan → match → plan → rename → move → cleanup.
+
+    *extra_result* (ZIP-ROUTE-4): contadores de las fases previas del zip_router
+    que se mezclan en el resultado del job para que la UI los muestre juntos.
+    """
     import shutil as _shutil
 
     from rom_manager.catalog.matcher import CatalogMatcher
@@ -422,24 +767,11 @@ def _run_inbox_pipeline(
 
         # ── Step 1.5: Intercept BIOS files ───────────────────────────────────
         _upd("intercepting bios", 1)
-        bios_moved = 0
-        for ext_file in list(inbox.rglob("*")):
-            if not ext_file.is_file():
-                continue
-            if any(part.startswith("_") for part in ext_file.relative_to(inbox).parts[:-1]):
-                continue
-            name_lower = ext_file.name.lower()
-            if name_lower in _KNOWN_BIOS_MAP:
-                plat = _KNOWN_BIOS_MAP[name_lower]
-                dst = target_root / "bios" / plat / ext_file.name
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                # handle duplicate bios in dest
-                if dst.exists():
-                    ext_file.unlink()
-                else:
-                    _shutil.move(str(ext_file), dst)
-                bios_moved += 1
-                logger.info("Inbox: routed BIOS %s to bios/%s", ext_file.name, plat)
+        bios_moved = _intercept_bios_files(inbox, target_root, logger)
+
+        # ── Step 1.7: .md ambiguos por CRC (AUD-4) ───────────────────────────
+        _upd("identificando .md por CRC", 1)
+        md_identified = _resolve_ambiguous_md(inbox, config, logger)
 
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
@@ -475,6 +807,7 @@ def _run_inbox_pipeline(
                         canonical_title=match_result.title,
                         match_confidence=match_result.confidence,
                         catalog_source=match_result.catalog_source,
+                        platform=match_result.platform,
                         connection=conn,
                     )
                     matched += 1
@@ -491,7 +824,10 @@ def _run_inbox_pipeline(
 
         # ── Step 5: Apply renames ────────────────────────────────────────────
         _upd("renaming", 5, 0, len(pending_ops))
+        from rom_manager.renamer.file_renamer import central_save_dirs
+
         save_exts = frozenset(config.save_extensions)
+        extra_save_dirs = central_save_dirs(config)
         timestamp = utc_now()
         renamed = 0
         rename_errors: list[str] = []
@@ -500,7 +836,9 @@ def _run_inbox_pipeline(
             if not op.source_path.exists():
                 continue
             try:
-                outcome = rename_rom_with_saves(op.source_path, op.target_path, save_exts)
+                outcome = rename_rom_with_saves(
+                    op.source_path, op.target_path, save_exts, extra_dirs=extra_save_dirs
+                )
                 if outcome.success:
                     repository.apply_rename(
                         game_id=op.game.id,
@@ -518,7 +856,9 @@ def _run_inbox_pipeline(
         # ── Step 6: Move to platform folders ─────────────────────────────────
         _upd("organizing", 6, 0, 0)
         organized = 0
+        ra_resolved = 0
         organize_errors: list[str] = []
+        _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
         with repository.connect() as conn:
@@ -534,35 +874,66 @@ def _run_inbox_pipeline(
             if not source_file.exists():
                 continue
 
-            canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
-            folder_name = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
-            dest_folder = target_root / folder_name
+            dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
+            dest_folder = dest_file.parent
             dest_folder.mkdir(parents=True, exist_ok=True)
-            dest_file = dest_folder / source_file.name
 
             _upd("organizing", 6, idx, len(rows), source_file.name)
 
-            # Dest already exists → source is a duplicate; remove it from inbox
+            # Dest already exists — only treat as a duplicate if the content
+            # actually matches (INBOX-FIX-5). A shared filename alone is not
+            # proof: different dumps/revisions/regions can share a name, and
+            # deleting the wrong one destroys data with no way back.
             if dest_file.exists():
-                try:
-                    source_file.unlink()
-                    repository.delete_game(game_id)
-                    logger.info(
-                        "Inbox: removed duplicate %s (already in %s)", source_file.name, dest_folder
+                if _same_content(source_file, dest_file):
+                    try:
+                        _discard_to_trash(source_file)  # AUD-3: soft-discard
+                        repository.delete_game(game_id)
+                        logger.info(
+                            "Inbox: removed exact duplicate %s (already in %s)",
+                            source_file.name,
+                            dest_folder,
+                        )
+                    except Exception as exc:
+                        organize_errors.append(
+                            f"{source_file.name}: duplicado exacto en destino, no se pudo eliminar fuente — {exc}"
+                        )
+                else:
+                    status, err = _resolve_organize_conflict(
+                        repository,
+                        config,
+                        source_file,
+                        dest_file,
+                        game_id,
+                        platform or "",
+                        _ra_hash_cache,
                     )
-                except Exception as exc:
-                    organize_errors.append(
-                        f"{source_file.name}: duplicado en destino, no se pudo eliminar fuente — {exc}"
-                    )
+                    if status == "kept_source":
+                        organized += 1
+                        ra_resolved += 1
+                    elif status == "kept_dest":
+                        ra_resolved += 1
+                    else:
+                        detail = f" ({err})" if err else ""
+                        organize_errors.append(
+                            f"{source_file.name}: mismo nombre en {dest_folder} pero contenido "
+                            f"distinto{detail} — no se toca, revisar a mano"
+                        )
                 continue
 
             try:
                 _shutil.move(str(source_file), str(dest_file))
-                # Update DB path
+                # Update DB path. ZIP-ROUTE-FIX-2: a stale row from an earlier
+                # session can already hold this exact source_path — its file
+                # no longer exists (dest_file.exists() was False above) but
+                # the UNIQUE constraint still blocks the UPDATE. Drop that
+                # ghost row first; the physical move already succeeded either way.
+                dest_path_str = str(dest_file.resolve())
                 with repository.batch() as conn:
+                    cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
                     conn.execute(
                         "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
-                        (str(dest_file.resolve()), dest_file.name, game_id),
+                        (dest_path_str, dest_file.name, game_id),
                     )
                 organized += 1
             except Exception as exc:
@@ -579,12 +950,12 @@ def _run_inbox_pipeline(
                 continue
             try:
                 if delete_source:
-                    zp.unlink()
+                    _discard_to_trash(zp)  # AUD-3: soft-discard
                 else:
                     processed_dir.mkdir(parents=True, exist_ok=True)
                     dest_zp = processed_dir / zp.name
                     if dest_zp.exists():
-                        zp.unlink()  # duplicate — already archived
+                        _discard_to_trash(zp)  # duplicate — already archived
                     else:
                         _shutil.move(str(zp), dest_zp)
             except Exception:
@@ -599,13 +970,17 @@ def _run_inbox_pipeline(
                 _logger.debug("No se pudo eliminar la carpeta temporal _extracted", exc_info=True)
 
         job_result = {
+            **(extra_result or {}),
             "result_ts": utc_now(),
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
+            "bios_moved": bios_moved,
+            "md_identified": md_identified,
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,
             "organized": organized,
+            "ra_resolved": ra_resolved,
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
             "target_root": str(target_root),

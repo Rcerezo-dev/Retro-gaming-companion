@@ -118,6 +118,10 @@ def register(
     def get_browse_folder(ctx) -> None:
         _browse_folder(ctx, getattr(ctx, "_qs", {}))
 
+    @router.get("/api/browse-file")
+    def get_browse_file(ctx) -> None:
+        _browse_file(ctx, getattr(ctx, "_qs", {}))
+
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
 
@@ -247,6 +251,7 @@ def _save_config(
         "sync.states_remote",
         "sync.ra_config_dir",
         "sync.ra_config_remote",
+        "sync.playtime_remote",
         "screenscraper.user",
         "screenscraper.pass",
         "screenscraper.dev_id",
@@ -266,6 +271,7 @@ def _save_config(
         "android.device_name",
         "web.host",
         "launchers.retroarch",
+        "launchers.esde",
         "backup.saves_enabled",
         "backup.saves_keep_n",
         "notifications.desktop",
@@ -391,3 +397,41 @@ def _browse_folder(ctx, qs: dict) -> None:
 
     # Normalize to OS-native separators
     ctx._send_json({"ok": True, "path": str(Path(folder))})
+
+
+def _browse_file(ctx, qs: dict) -> None:
+    """Open a native OS file picker and return the selected path.
+
+    HERR-UX-11: the patch manager's ROM picker used to call
+    :func:`_browse_folder` — a *directory* picker — to choose a single ROM
+    *file*, which could only ever return a folder path. Same query params
+    as ``_browse_folder``.
+    """
+    initial_dir = (qs.get("initial_dir", [None])[0] or "").strip() or None
+    title = (qs.get("title", [None])[0] or "").strip() or "Seleccionar archivo"
+
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()  # hide blank root window
+        root.wm_attributes("-topmost", True)  # bring dialog to front on Windows
+        root.lift()
+        file_path = filedialog.askopenfilename(
+            parent=root,
+            title=title,
+            initialdir=initial_dir or Path.home(),
+        )
+        root.destroy()
+    except Exception as exc:
+        ctx._send_json({"ok": False, "error": f"No se pudo abrir el selector: {exc}"})
+        return
+
+    if not file_path:
+        # User cancelled
+        ctx._send_json({"ok": False, "cancelled": True})
+        return
+
+    # Normalize to OS-native separators
+    ctx._send_json({"ok": True, "path": str(Path(file_path))})

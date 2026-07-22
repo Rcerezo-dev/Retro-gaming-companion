@@ -9,34 +9,8 @@
     </div>
   </div>
 
-  <!-- S40: Configurar consola Android -->
-  <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-purple)">
-    <h3 style="color:var(--c-purple)">Configurar consola Android</h3>
-    <p style="font-size:12px;color:var(--c-muted);margin-bottom:12px;line-height:1.6">
-      Escanea el QR desde Termux en tu consola Android para instalar el script de auto-sync de saves.<br>
-      El script configura rclone <em>y</em> detecta si tienes Dropbox/OneDrive instalado.
-    </p>
-    <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-      <div>
-        <canvas id="android-setup-qr" width="140" height="140" style="border:2px solid var(--c-bar);border-radius:4px;display:block"></canvas>
-        <p id="android-setup-url" style="font-size:10px;color:var(--c-dim);margin-top:4px;word-break:break-all;max-width:140px">Cargando&#x2026;</p>
-      </div>
-      <div style="flex:1;min-width:200px">
-        <p style="font-size:12px;color:var(--c-text);margin-bottom:8px"><strong>Pasos:</strong></p>
-        <ol style="font-size:12px;color:var(--c-muted);line-height:2;padding-left:18px;margin:0">
-          <li>Instala <strong>Termux</strong> desde F-Droid (no Play Store)</li>
-          <li>Abre Termux y ejecuta:<br>
-            <code style="background:var(--c-deep);padding:2px 6px;border-radius:3px;font-size:11px">curl -s &lt;URL&gt; | bash</code>
-          </li>
-          <li>Sigue las instrucciones en pantalla</li>
-          <li>Instala <strong>Termux:Boot</strong> desde F-Droid para auto-sync al arrancar</li>
-        </ol>
-        <div class="hidden" id="android-setup-curl" style="margin-top:10px;background:var(--c-deep);padding:8px 10px;border-radius:4px;font-size:11px;color:var(--c-teal);word-break:break-all"></div>
-        <button onclick="copyAndroidSetupUrl()" style="margin-top:8px;padding:4px 12px;font-size:11px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:4px;cursor:pointer">Copiar URL</button>
-        <button onclick="downloadAndroidSetupSh()" style="margin-top:8px;margin-left:6px;padding:4px 12px;font-size:11px;background:var(--c-bar);border:1px solid var(--c-border);color:var(--c-text);border-radius:4px;cursor:pointer">Descargar .sh</button>
-      </div>
-    </div>
-  </div>
+  <!-- ANBERNIC-UX-2: el panel "Configurar consola Android" (QR + /api/anbernic-setup.sh, 404)
+       se eliminó — la única superficie de setup es la pestaña Anbernic. -->
 
   <!-- S35-1: Theme toggle -->
   <div class="actions-panel" style="max-width:640px;margin-bottom:20px;border-left-color:var(--c-blue)">
@@ -77,6 +51,7 @@
           </select>
           <input class="hidden" id="cfg-device-name-custom" type="text" style="flex:1" placeholder="Nombre personalizado">
         </div>
+        <span class="cfg-saved" id="cfg-check-device-name">&#x2713; Guardado</span>
         <div style="color:var(--c-dim);font-size:11px;margin-top:3px">Aparece en botones, etiquetas y mensajes de la interfaz.</div>
       </div>
       <div style="width:100%">
@@ -109,11 +84,17 @@
           <input id="cfg-ra-config-dir" type="text" style="flex:1" placeholder="C:/RetroArch/config">
           <button onclick="browseFolder('cfg-ra-config-dir')" style="font-size:11px;padding:4px 10px">&#x1F4C2; Examinar</button>
         </div>
+        <span class="cfg-saved" id="cfg-check-ra-config-dir">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">rclone remote para config RetroArch <span style="color:var(--c-dim)">(ej: dropbox:/RetroSync/ra-config)</span></label>
         <input id="cfg-ra-config-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/ra-config">
         <span class="cfg-saved" id="cfg-check-ra-config-remote">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">rclone remote para tiempo de juego <span style="color:var(--c-dim)">(logs .lrtl de RetroArch; se usan subcarpetas /pc y /android)</span></label>
+        <input id="cfg-playtime-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/playtime">
+        <span class="cfg-saved" id="cfg-check-playtime-remote">&#x2713; Guardado</span>
       </div>
       <!-- D1: Migración estructura saves/states -->
       <div class="rv-tint-warn" style="width:100%;padding:10px 14px;border-radius:6px">
@@ -135,6 +116,7 @@
           <option value="127.0.0.1">127.0.0.1 — solo este PC (recomendado)</option>
           <option value="0.0.0.0">0.0.0.0 — toda la red local (acceso desde la consola)</option>
         </select>
+        <span class="cfg-saved" id="cfg-check-web-host">&#x2713; Guardado</span>
         <div style="color:var(--c-dim);font-size:11px;margin-top:3px">Con <code>0.0.0.0</code> puedes abrir la app desde el navegador de tu consola si están en la misma red WiFi. Requiere reiniciar el servidor.</div>
       </div>
       <div style="width:100%">
@@ -247,6 +229,7 @@
       <input id="cfg-retroarch-path" type="text" style="flex:1" placeholder="C:/RetroArch/retroarch.exe">
       <button data-action="detect-retroarch" onclick="detectRetroArch()" style="font-size:11px;padding:4px 10px;margin-left:6px">&#x1F50D; Detectar</button>
     </div>
+    <span class="cfg-saved" id="cfg-check-retroarch-path">&#x2713; Guardado</span>
     <div id="ra-detect-result" style="font-size:11px;color:var(--c-muted);min-height:14px;margin-bottom:4px"></div>
     <div id="ra-cores-status" style="font-size:11px;min-height:14px;margin-bottom:6px"></div>
     <div style="font-size:11px;color:var(--c-dim);margin-bottom:10px">Guarda en Settings principal y reinicia el servidor para que surta efecto. O edita <code>config.toml</code> directamente a&#xf1;adiendo <code>[launchers] retroarch = "ruta"</code>.</div>
@@ -276,6 +259,7 @@
       <input id="cfg-esde-path" type="text" style="flex:1" placeholder="C:/Users/rammu/AppData/Roaming/ES-DE">
       <button onclick="browseFolder('cfg-esde-path')" style="font-size:11px;padding:4px 10px;margin-left:6px">&#x1F4C2; Examinar</button>
     </div>
+    <span class="cfg-saved" id="cfg-check-esde-path">&#x2713; Guardado</span>
     <div style="font-size:11px;color:var(--c-dim);margin-bottom:10px">Se guarda en <code>[launchers] esde = "ruta"</code> en <code>config.toml</code>.</div>
     <div class="actions-row" style="margin-top:4px">
       <button onclick="loadEsdeStatus()" style="font-size:11px;padding:4px 12px">&#x1F50D; Detectar ES-DE</button>
@@ -311,11 +295,31 @@
     <div class="actions-row" style="margin-bottom:8px">
       <label style="color:var(--c-muted);font-size:11px;min-width:160px">Activar backup autom&#xe1;tico</label>
       <input type="checkbox" id="cfg-backup-enabled" style="width:auto;margin:0">
+      <span class="cfg-saved" id="cfg-check-backup-enabled">&#x2713; Guardado</span>
     </div>
     <div class="actions-row" style="margin-bottom:8px">
       <label style="color:var(--c-muted);font-size:11px;min-width:160px">Versiones a conservar</label>
       <input type="number" id="cfg-backup-keep-n" min="1" max="50" style="width:70px">
+      <span class="cfg-saved" id="cfg-check-backup-keep-n">&#x2713; Guardado</span>
     </div>
+  </div>
+
+  <!-- AUD-3: Papelera unificada -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F5D1; Papelera (<code>_descartados/</code>)</h3>
+      <button class="btn" onclick="loadTrashStatus()" style="font-size:11px;padding:3px 12px">&#x21BB; Actualizar</button>
+    </div>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">
+      Todo borrado de la app (duplicados, junk, ZIPs procesados, espejo del cable sync) se mueve a una
+      carpeta <code>_descartados/</code> junto al archivo en vez de eliminarse. La purga autom&#xe1;tica borra
+      lo que lleve descartado m&#xe1;s de N d&#xed;as (<code>library.trash_purge_days</code> en config.toml, 0 = nunca).
+    </p>
+    <div class="actions-row">
+      <span id="trash-status-text" style="font-size:13px;color:var(--c-muted)">Pulsa Actualizar para calcular</span>
+      <button class="btn danger" id="btn-trash-empty" onclick="emptyTrash()" style="font-size:12px;padding:4px 12px;margin-left:auto">Vaciar ahora</button>
+    </div>
+    <div id="trash-empty-result" style="font-size:12px;min-height:16px;margin-top:6px"></div>
   </div>
 
   <!-- S37: Notificaciones de escritorio -->
@@ -325,6 +329,7 @@
     <div class="actions-row" style="margin-bottom:8px">
       <label style="color:var(--c-muted);font-size:11px;min-width:160px">Activar notificaciones</label>
       <input type="checkbox" id="cfg-notify-desktop" style="width:auto;margin:0">
+      <span class="cfg-saved" id="cfg-check-notify-desktop">&#x2713; Guardado</span>
     </div>
     <button class="btn" style="font-size:12px;padding:4px 10px" onclick="testNotification()">Probar notificaci&#xf3;n</button>
     <span id="notify-test-result" style="font-size:11px;color:var(--c-muted);margin-left:8px"></span>

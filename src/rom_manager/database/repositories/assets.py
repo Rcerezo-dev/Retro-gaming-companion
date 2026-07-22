@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import sqlite3
 
+from rom_manager.database.repositories.base import escape_like_prefix
+from rom_manager.utils.media_types import IMAGE_EXTS, VIDEO_EXTS
+
 
 class AssetsMixin:
     def upsert_asset(
@@ -59,19 +62,20 @@ class AssetsMixin:
 
         *source_root* filters to only entries whose source_path starts with that prefix.
         """
-        _IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "tga", "bmp"}
-        _VIDEO_EXTS = {"mp4", "mkv", "avi", "webm", "mov"}
+        # REV43-39: asset_type se guarda sin punto — deriva del set canónico en vez de duplicarlo.
+        _IMAGE_EXTS = {e.lstrip(".") for e in IMAGE_EXTS}
+        _VIDEO_EXTS = {e.lstrip(".") for e in VIDEO_EXTS}
 
-        prefix = source_root.rstrip("/\\") + "%" if source_root else None
+        prefix = escape_like_prefix(source_root.rstrip("/\\")) + "%" if source_root else None
 
         with self.connect() as connection:
             if prefix:
                 game_rows = connection.execute(
-                    "SELECT platform, COUNT(*) AS cnt FROM games WHERE source_path LIKE ? GROUP BY platform",
+                    "SELECT platform, COUNT(*) AS cnt FROM games WHERE source_path LIKE ? ESCAPE '\\' GROUP BY platform",
                     (prefix,),
                 ).fetchall()
                 asset_rows = connection.execute(
-                    "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets WHERE source_path LIKE ? GROUP BY platform, asset_type",
+                    "SELECT platform, asset_type, COUNT(*) AS cnt FROM assets WHERE source_path LIKE ? ESCAPE '\\' GROUP BY platform, asset_type",
                     (prefix,),
                 ).fetchall()
             else:
@@ -156,31 +160,39 @@ class AssetsMixin:
             for row in rows
         ]
 
-    def get_orphan_assets(self, *, platform: str | None = None) -> list[dict]:
-        """Return assets in platforms that have no games."""
+    def get_orphan_assets(
+        self, *, platform: str | None = None, source_root: str | None = None
+    ) -> list[dict]:
+        """Return assets in platforms that have no games.
+
+        *source_root* filters to only entries whose source_path starts with that prefix,
+        mirroring :meth:`get_asset_platform_stats` so the counts shown in the Assets tab
+        match the files returned here for the same device root.
+        """
+        prefix = escape_like_prefix(source_root.rstrip("/\\")) + "%" if source_root else None
         with self.connect() as connection:
             if platform:
-                rows = connection.execute(
-                    """
+                sql = """
                     SELECT id, source_path, platform, asset_type
                     FROM assets
                     WHERE platform = ?
                       AND (platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
                            OR platform IS NULL)
-                    ORDER BY platform, source_path
-                    """,
-                    (platform,),
-                ).fetchall()
-            else:
-                rows = connection.execute(
                     """
+                params: tuple = (platform,)
+            else:
+                sql = """
                     SELECT id, source_path, platform, asset_type
                     FROM assets
-                    WHERE platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
-                       OR platform IS NULL
-                    ORDER BY platform, source_path
+                    WHERE (platform NOT IN (SELECT DISTINCT platform FROM games WHERE platform IS NOT NULL)
+                           OR platform IS NULL)
                     """
-                ).fetchall()
+                params = ()
+            if prefix:
+                sql += " AND source_path LIKE ? ESCAPE '\\'"
+                params += (prefix,)
+            sql += " ORDER BY platform, source_path"
+            rows = connection.execute(sql, params).fetchall()
         return [
             {
                 "id": row["id"],

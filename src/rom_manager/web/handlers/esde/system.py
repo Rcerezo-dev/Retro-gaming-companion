@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
+from rom_manager.utils.media_types import IMAGE_EXTS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -55,7 +56,17 @@ def register_system(
     # ── GET /api/local-url ────────────────────────────────────────────────────
     @router.get("/api/local-url")
     def get_local_url(ctx) -> None:
-        ctx._send_json({"ip": _get_local_ip(), "port": config.web_port})
+        # ANBERNIC-UX-7: lan_bound + firewall_ok para el banner de prerequisitos
+        from rom_manager.web.lan import _check_firewall
+
+        ctx._send_json(
+            {
+                "ip": _get_local_ip(),
+                "port": config.web_port,
+                "lan_bound": config.web_host not in ("127.0.0.1", "localhost"),
+                "firewall_ok": _check_firewall(config.web_port),
+            }
+        )
 
     # ── GET /api/version ──────────────────────────────────────────────────────
     @router.get("/api/version")
@@ -258,7 +269,7 @@ def _handle_copy_assets_to_esde(config: AppConfig) -> dict:
         img_dst = gamelists_dir / platform_dir.name / "images"
         img_dst.mkdir(parents=True, exist_ok=True)
         for img in img_src.iterdir():
-            if img.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+            if img.suffix.lower() in IMAGE_EXTS:
                 dst = img_dst / img.name
                 try:
                     shutil.copy2(str(img), str(dst))

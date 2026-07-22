@@ -4,9 +4,15 @@
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 
-// ── Module state ──────────────────────────────────────────────────────────────
-// gamelists_dir kept for status display only (NOT used as export output dir)
-let _esdeGamelistsDir = '';
+// SCRAPER-UX-4: e.message crudo (p.ej. "Failed to fetch") no dice nada al
+// usuario — el caso real más común es el servidor caído o sin red.
+function _friendlyError(e) {
+  const msg = e?.message || String(e);
+  if (/fetch|network/i.test(msg)) {
+    return 'No se pudo conectar con el servidor — comprueba que Retro Vault sigue en marcha.';
+  }
+  return msg;
+}
 
 // ── Gamelists / ES-DE helpers ─────────────────────────────────────────────────
 async function doExportGamelistsAll(gamelistsDir) {
@@ -15,21 +21,6 @@ async function doExportGamelistsAll(gamelistsDir) {
     if (d.error) showToast('✗ ' + d.error, 'err');
     else showToast(`✓ Gamelists exportadas: ${d.written || 0} archivos`, 'ok');
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
-}
-
-async function _autoFillEsdeGamelistDir() {
-  // Only fetch for informational display — do NOT auto-fill the export dir.
-  try {
-    const d = await apiFetch('/api/esde-status');
-    if (d.gamelists_dir) _esdeGamelistsDir = d.gamelists_dir;
-  } catch(_) {}
-}
-
-function useEsdeGamelistDir() {
-  // For ES-DE: leave the field empty so export defaults to library_root.
-  const inp = document.getElementById('gamelist-output-dir');
-  if (inp) { inp.value = ''; inp.placeholder = 'Vacío = library_root (correcto para ES-DE)'; }
-  showToast('ES-DE: deja vacío para exportar a library_root (junto a los ROMs)', 'ok');
 }
 
 // ── Scraper summary & quota ───────────────────────────────────────────────────
@@ -55,38 +46,74 @@ async function loadScraperSummary() {
       </tr>`;
     }).join('');
     html += '</tbody></table></div>';
+    const dc = d.description_coverage;
+    if (dc && dc.total > 0) {
+      const dcColor = dc.pct >= 90 ? 'var(--c-teal)' : 'var(--c-orange)';
+      html += `<p style="font-size:12px;color:var(--c-muted);margin-top:8px">
+        Descripciones: <span style="color:${dcColor}">${dc.with_description} / ${dc.total} (${dc.pct}%)</span>
+        — objetivo: &gt;90%</p>`;
+    }
     el.innerHTML = html;
   } catch(e) {
     el.innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
 }
 
+// SCRAPER-UX-1: la cuota vive tanto en Settings (`ss-quota-*`) como en la
+// pestaña Scraper (`ss-quota-*-scraper`, donde de verdad se necesita mientras
+// se scrapea). Un único fetch alimenta los paneles que existan en el DOM.
 async function loadSsQuota() {
-  const label = document.getElementById('ss-quota-label');
-  const bar   = document.getElementById('ss-quota-bar');
-  const fill  = document.getElementById('ss-quota-fill');
-  if (!label) return;
+  const targets = ['', '-scraper']
+    .map(suffix => ({
+      label: document.getElementById('ss-quota-label' + suffix),
+      bar:   document.getElementById('ss-quota-bar' + suffix),
+      fill:  document.getElementById('ss-quota-fill' + suffix),
+    }))
+    .filter(t => t.label);
+  if (!targets.length) return;
   try {
     const d = await apiFetch('/api/ss-quota');
     const today  = parseInt(d.requests_today) || 0;
     const max    = parseInt(d.max_requests_per_day) || 0;
     const hasDev = d.has_dev_account;
-    if (!today && !max) {
-      label.textContent = hasDev
-        ? 'Cuenta dev detectada (~3 req/s). Realiza un scraping para ver cuota.'
-        : 'Realiza un scraping para ver la cuota.';
-      label.style.color = hasDev ? 'var(--c-teal)' : '#555';
-      if (bar) bar.classList.add('hidden');
-      return;
-    }
-    const pct   = max > 0 ? Math.min(100, Math.round(today / max * 100)) : 0;
-    const color = pct > 90 ? 'var(--c-red)' : pct > 70 ? 'var(--c-orange)' : 'var(--c-teal)';
-    label.textContent = `${today.toLocaleString()} / ${max.toLocaleString()} peticiones hoy (${pct}%)${hasDev ? ' · Cuenta dev ✓' : ''}`;
-    label.style.color = color;
-    if (bar)  bar.classList.remove('hidden');
-    if (fill) { fill.style.background = color; fill.style.width = pct + '%'; }
+    targets.forEach(({ label, bar, fill }) => {
+      if (!today && !max) {
+        label.textContent = hasDev
+          ? 'Cuenta dev detectada (~3 req/s). Realiza un scraping para ver cuota.'
+          : 'Realiza un scraping para ver la cuota.';
+        label.style.color = hasDev ? 'var(--c-teal)' : '#555';
+        if (bar) bar.classList.add('hidden');
+        return;
+      }
+      const pct   = max > 0 ? Math.min(100, Math.round(today / max * 100)) : 0;
+      const color = pct > 90 ? 'var(--c-red)' : pct > 70 ? 'var(--c-orange)' : 'var(--c-teal)';
+      label.textContent = `${today.toLocaleString()} / ${max.toLocaleString()} peticiones hoy (${pct}%)${hasDev ? ' · Cuenta dev ✓' : ''}`;
+      label.style.color = color;
+      if (bar)  bar.classList.remove('hidden');
+      if (fill) { fill.style.background = color; fill.style.width = pct + '%'; }
+    });
   } catch(e) {
-    if (label) { label.textContent = 'No disponible'; label.style.color = '#555'; }
+    targets.forEach(({ label }) => { label.textContent = 'No disponible'; label.style.color = '#555'; });
+  }
+}
+
+// SCRAPER-UX-3: chequeo proactivo de credenciales SS, mismo patrón que ya
+// usa Herramientas para la API key de RA (config.js: panel "ra-api-key-status").
+async function loadSsCredsStatus() {
+  const el = document.getElementById('ss-creds-status');
+  if (!el) return;
+  try {
+    const cfg = await apiFetch('/api/config');
+    if (cfg.screenscraper_user) {
+      el.style.color = 'var(--c-teal)';
+      el.textContent = '✓ Credenciales de ScreenScraper configuradas';
+    } else {
+      el.style.color = 'var(--c-red)';
+      el.innerHTML = '✗ Configura usuario y contraseña de ScreenScraper — <a href="#" onclick="showTab(\'settings\');return false" style="color:var(--c-blue)">ir a Settings</a>';
+    }
+  } catch(e) {
+    el.style.color = '#555';
+    el.textContent = 'No se pudo comprobar el estado de las credenciales';
   }
 }
 
@@ -111,6 +138,15 @@ async function loadScrapePlatforms() {
 async function doScrape() {
   const btn      = document.getElementById('btn-scrape');
   const resultEl = document.getElementById('job-result-scrape');
+  // SCRAPER-UX-3: comprobación proactiva, en vez de dejar que el job falle
+  // a mitad — mismo patrón que HERR-UX-9 en el batch de Herramientas.
+  try {
+    const cfg = await apiFetch('/api/config');
+    if (!cfg.screenscraper_user) {
+      showToast('Configura usuario y contraseña de ScreenScraper en Ajustes antes de scrapear.', 'err');
+      return;
+    }
+  } catch(_) { /* si /api/config falla, deja que el intento real de scrape lo reporte */ }
   btn.disabled = true;
   btn.textContent = 'Scraping…';
   resultEl.className = 'job-result';
@@ -119,6 +155,7 @@ async function doScrape() {
       platform: document.getElementById('scrape-platform').value || null,
       limit:    parseInt(document.getElementById('scrape-limit').value) || 0,
       images:   document.getElementById('scrape-images').checked,
+      missing_descriptions: document.getElementById('scrape-missing-desc').checked,
     });
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
@@ -137,7 +174,7 @@ async function doScrape() {
     window.startPolling();
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
-    resultEl.textContent = 'Error: ' + e.message;
+    resultEl.textContent = 'Error: ' + _friendlyError(e);
     btn.disabled = false;
     btn.textContent = 'Iniciar scraping';
   }
@@ -145,7 +182,10 @@ async function doScrape() {
 
 // ── Gamelist export ───────────────────────────────────────────────────────────
 async function doExportGamelists() {
+  // SCRAPER-UX-7: mismo patrón de disabled+texto que doScrape() mientras dura la llamada.
+  const btn      = document.getElementById('btn-export-gamelist');
   const resultEl = document.getElementById('gamelist-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Exportando…'; }
   resultEl.className = 'job-result';
   try {
     const d = await apiPost('/api/export-gamelists', {
@@ -167,16 +207,17 @@ async function doExportGamelists() {
     }
   } catch(e) {
     resultEl.className = 'job-result visible error-r';
-    resultEl.textContent = 'Error: ' + e.message;
+    resultEl.textContent = 'Error: ' + _friendlyError(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Exportar gamelist.xml'; }
   }
 }
 
 export {
   doExportGamelistsAll,
-  _autoFillEsdeGamelistDir,
-  useEsdeGamelistDir,
   loadScraperSummary,
   loadSsQuota,
+  loadSsCredsStatus,
   loadScrapePlatforms,
   doScrape,
   doExportGamelists,

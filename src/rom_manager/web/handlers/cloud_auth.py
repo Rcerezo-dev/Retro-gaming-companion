@@ -4,6 +4,7 @@ Routes:
   GET  /api/cloud-auth/status        — list configured remotes
   POST /api/cloud-auth/start         — begin OAuth flow (opens browser)
   GET  /api/cloud-auth/poll          — check if flow finished
+  POST /api/cloud-auth/cancel        — abort a running flow (kills rclone)
   POST /api/cloud-auth/finalize      — write remote to rclone config
   POST /api/cloud-auth/disconnect    — delete remote from rclone config
 """
@@ -28,9 +29,15 @@ _PROVIDERS: dict[str, tuple[str, str]] = {
 # Module-level auth state (one flow at a time)
 _auth_lock = threading.Lock()
 _auth_thread: threading.Thread | None = None
+_auth_proc: subprocess.Popen | None = None
 _auth_done = False
 _auth_token: str | None = None
 _auth_error: str | None = None
+# CLOUD-UX-4: el poll devuelve el provider que inició el flujo — sin esto el
+# frontend finalizaba contra "el primer provider no configurado" y el token de
+# Google Drive podía acabar escrito bajo el remote dropbox.
+_auth_provider: str | None = None
+_auth_remote_name: str | None = None
 
 
 def _rclone(config: AppConfig, *args: str) -> subprocess.CompletedProcess:
@@ -44,15 +51,25 @@ def _rclone(config: AppConfig, *args: str) -> subprocess.CompletedProcess:
 
 
 def _run_authorize(rclone_bin: str, provider: str, remote_name: str) -> None:
-    global _auth_done, _auth_token, _auth_error
+    global _auth_done, _auth_token, _auth_error, _auth_proc
     try:
-        proc = subprocess.run(  # noqa: S603
+        # Popen (no run) para que /api/cloud-auth/cancel pueda matar el proceso
+        # — antes 'rclone authorize' seguía vivo hasta 5 min tras cancelar.
+        proc = subprocess.Popen(  # noqa: S603
             [rclone_bin, "authorize", provider],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=300,  # 5 min for user to complete browser flow
         )
-        out = proc.stdout + proc.stderr
+        with _auth_lock:
+            _auth_proc = proc
+        try:
+            stdout, stderr = proc.communicate(timeout=300)  # 5 min browser flow
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise
+        out = stdout + stderr
         # rclone outputs token between "--->" and "<---End paste"
         m = re.search(r"--->\s*(\{.*?\})\s*<---", out, re.DOTALL)
         if m:
@@ -62,9 +79,11 @@ def _run_authorize(rclone_bin: str, provider: str, remote_name: str) -> None:
                 _auth_done = True
         else:
             with _auth_lock:
-                _auth_error = (
-                    proc.stderr.strip() or "No se recibió token — ¿autorizaste en el navegador?"
-                )
+                # No pisar el "cancelado" que pudo dejar /api/cloud-auth/cancel
+                if _auth_error is None:
+                    _auth_error = (
+                        stderr.strip() or "No se recibió token — ¿autorizaste en el navegador?"
+                    )
                 _auth_done = True
     except subprocess.TimeoutExpired:
         with _auth_lock:
@@ -109,6 +128,7 @@ def register(router: Router, *, config: AppConfig) -> None:
     @router.post("/api/cloud-auth/start")
     def post_start(ctx) -> None:
         global _auth_thread, _auth_done, _auth_token, _auth_error
+        global _auth_provider, _auth_remote_name
         data = ctx._post_data
         provider_id = (data.get("provider") or "").strip()
         if provider_id not in _PROVIDERS:
@@ -117,15 +137,25 @@ def register(router: Router, *, config: AppConfig) -> None:
         rclone_type, remote_name = _PROVIDERS[provider_id]
         rclone_bin = getattr(config, "rclone_binary", None) or "rclone"
         with _auth_lock:
-            _auth_done = False
-            _auth_token = None
-            _auth_error = None
-            _auth_thread = threading.Thread(
-                target=_run_authorize,
-                args=(rclone_bin, rclone_type, remote_name),
-                daemon=True,
-            )
-            _auth_thread.start()
+            # CLOUD-UX-4: un solo flujo a la vez — todo el estado es global
+            if _auth_thread is not None and _auth_thread.is_alive():
+                busy = True
+            else:
+                busy = False
+                _auth_done = False
+                _auth_token = None
+                _auth_error = None
+                _auth_provider = provider_id
+                _auth_remote_name = remote_name
+                _auth_thread = threading.Thread(
+                    target=_run_authorize,
+                    args=(rclone_bin, rclone_type, remote_name),
+                    daemon=True,
+                )
+                _auth_thread.start()
+        if busy:
+            ctx._send_json({"error": "Ya hay una autorización en curso — cancélala primero"})
+            return
         ctx._send_json({"started": True, "provider": provider_id, "remote_name": remote_name})
 
     @router.get("/api/cloud-auth/poll")
@@ -134,7 +164,29 @@ def register(router: Router, *, config: AppConfig) -> None:
             done = _auth_done
             token = _auth_token
             error = _auth_error
-        ctx._send_json({"done": done, "token": token, "error": error})
+            provider = _auth_provider
+            remote_name = _auth_remote_name
+        ctx._send_json(
+            {
+                "done": done,
+                "token": token,
+                "error": error,
+                "provider": provider,
+                "remote_name": remote_name,
+            }
+        )
+
+    @router.post("/api/cloud-auth/cancel")
+    def post_cancel(ctx) -> None:
+        global _auth_done, _auth_error
+        with _auth_lock:
+            proc = _auth_proc
+            if _auth_error is None and not _auth_done:
+                _auth_error = "Autorización cancelada"
+            _auth_done = True
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+        ctx._send_json({"ok": True})
 
     @router.post("/api/cloud-auth/finalize")
     def post_finalize(ctx) -> None:

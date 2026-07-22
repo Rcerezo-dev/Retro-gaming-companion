@@ -126,7 +126,8 @@ async function quickScanPC() {
 
 // D8-1: Quick scan of the Android device library root
 async function quickScanAndroid() {
-  const abPath = document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || '';
+  const cfg = await apiFetch('/api/config').catch(() => ({}));
+  const abPath = document.getElementById('ov-ab-path')?.value.trim() || cfg.anbernic_root || localStorage.getItem('anbernic_path') || '';
   if (!abPath) { alert('Configura la ruta de la consola Android en Overview primero.'); return; }
   try {
     const d = await apiPost('/api/scan', { source_paths: [abPath], quick: false });
@@ -288,7 +289,7 @@ async function loadDatCatalogList() {
     const byType = {};
     for (const sys of data.systems) {
       const k = sys.catalog === 'redump' ? 'Redump (óptico)'
-              : (sys.catalog === 'fbneo' || sys.catalog === 'mame') ? 'Arcade'
+              : (sys.catalog === 'fbneo' || sys.catalog === 'mame' || sys.catalog === 'mame_xml') ? 'Arcade'
               : 'No-Intro (cartuchos)';
       (byType[k] = byType[k] || []).push(sys);
     }

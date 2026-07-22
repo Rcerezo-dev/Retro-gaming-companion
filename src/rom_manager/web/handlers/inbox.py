@@ -42,10 +42,16 @@ def register(
 
         qs = getattr(ctx, "_qs", {})
         inbox_path_str = qs.get("path", [""])[0].strip() or config.inbox.path
+        # INBOX-UX-2: destino para la previsualización — mismo fallback que inbox-run
+        target_root_str = (
+            qs.get("target_root", [""])[0].strip()
+            or config.inbox.target_root
+            or str(config.library_root or "")
+        )
         if not inbox_path_str:
             ctx._send_json({"error": "path parameter required (or set inbox.path in config.toml)"})
         else:
-            ctx._send_json(_build_inbox_scan(inbox_path_str))
+            ctx._send_json(_build_inbox_scan(inbox_path_str, target_root_str))
 
     # ── GET /api/inbox-status ────────────────────────────────────────────────
     @router.get("/api/inbox-status")
@@ -68,6 +74,42 @@ def register(
     @router.post("/api/inbox-run")
     def post_inbox_run(ctx) -> None:
         _do_inbox_run(ctx, ctx._post_data, config, repository, job_manager)
+
+    # ── GET /api/inbox-conflicts ──────────────────────────────────────────────
+    @router.get("/api/inbox-conflicts")
+    def get_inbox_conflicts(ctx) -> None:
+        from rom_manager.web.inbox_pipeline import find_organize_conflicts
+
+        qs = getattr(ctx, "_qs", {})
+        inbox_path_str = qs.get("path", [None])[0] or config.inbox.path
+        if not inbox_path_str:
+            ctx._send_json({"conflicts": [], "error": "inbox.path no configurado"})
+            return
+        target_root_str = (
+            qs.get("target_root", [None])[0]
+            or config.inbox.target_root
+            or (str(config.library_root) if config.library_root else "")
+        )
+        ctx._send_json(
+            {
+                "conflicts": find_organize_conflicts(
+                    repository, config, inbox_path_str, target_root_str
+                )
+            }
+        )
+
+    # ── POST /api/inbox-conflicts/resolve ────────────────────────────────────
+    @router.post("/api/inbox-conflicts/resolve")
+    def post_inbox_conflict_resolve(ctx) -> None:
+        from rom_manager.web.inbox_pipeline import resolve_inbox_conflict
+
+        data = ctx._post_data
+        source_path = data.get("source_path", "").strip()
+        keep = data.get("keep", "").strip()
+        if not source_path or keep not in ("source", "dest"):
+            ctx._send_error(400, "source_path and keep ('source'|'dest') required")
+            return
+        ctx._send_json(resolve_inbox_conflict(repository, config, source_path, keep))
 
     # ── POST /api/setup-run ──────────────────────────────────────────────────
     @router.post("/api/setup-run")
@@ -179,6 +221,7 @@ def _do_setup_run(
     options = {
         "clean_junk": bool(data.get("clean_junk", False)),
         "extract_zips": bool(data.get("extract_zips", True)),
+        "delete_zips": bool(data.get("delete_zips", False)),
         "scan": bool(data.get("scan", True)),
         "match": bool(data.get("match", True)),
     }

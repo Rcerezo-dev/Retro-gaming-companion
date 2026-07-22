@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _lastInboxResultTs = null;
@@ -119,13 +120,17 @@ async function scanInbox() {
   const filesWrap   = document.getElementById('inbox-files-wrap');
   const tbody       = document.getElementById('inbox-files-tbody');
   try {
-    const d = await apiFetch('/api/inbox-scan?path=' + encodeURIComponent(inboxPath));
+    const targetEl = document.getElementById('inbox-target');
+    const targetQs = targetEl && targetEl.value.trim()
+      ? '&target_root=' + encodeURIComponent(targetEl.value.trim()) : '';
+    const d = await apiFetch('/api/inbox-scan?path=' + encodeURIComponent(inboxPath) + targetQs);
     if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
     const platStr = Object.entries(d.by_platform || {}).map(([k,v]) => k + ' x' + v).join(' · ');
     if (summaryText) summaryText.innerHTML =
       '<strong style="color:var(--c-text)">' + d.total + ' archivos</strong>' +
       (d.zips > 0 ? ' · <span style="color:var(--c-yellow)">' + d.zips + ' ZIPs</span>' : '') +
-      (d.unrecognized > 0 ? ' · <span style="color:var(--c-red)">' + d.unrecognized + ' no reconocidos</span>' : '') +
+      // INBOX-UX-5: decir qué pasa con los no reconocidos
+      (d.unrecognized > 0 ? ' · <span style="color:var(--c-red)">' + d.unrecognized + ' no reconocidos</span> <span style="color:var(--c-dim)">(no se tocan, se quedan en el Inbox)</span>' : '') +
       (platStr ? ' &nbsp;|&nbsp; ' + platStr : '');
     if (summaryEl) summaryEl.classList.remove('hidden');
     if (tbody) {
@@ -139,10 +144,18 @@ async function scanInbox() {
         const typeColor = f.type === 'zip' ? 'var(--c-yellow)' : f.type === 'disc_image' ? 'var(--c-teal)' : f.type === 'rom' ? 'var(--c-lblue)' : '#555';
         const platBadge = f.platform_guess ? '<span class="badge">' + f.platform_guess + '</span>' : '<span style="color:var(--c-dim)">—</span>';
         const extract   = f.needs_extraction ? '<span style="color:var(--c-yellow)">extraer ZIP</span>' : '';
+        // INBOX-UX-2: previsualización de destino (aproximada — el nombre
+        // final puede cambiar tras el cotejo con catálogo)
+        let dest = '<span style="color:var(--c-dim)">—</span>';
+        if (f.dest_folder) {
+          dest = '<span style="color:var(--c-muted)">→ ' + window._h(f.dest_folder) + '/</span>';
+          if (f.dest_exists) dest += ' <span style="color:var(--c-yellow)" title="Ya hay un archivo con este nombre en destino — si el contenido difiere, irá a Conflictos pendientes">⚠ ya existe</span>';
+        }
         return '<tr style="border-bottom:1px solid var(--c-panel)">' +
           '<td style="padding:4px 8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + window._h(f.name) + '">' + window._h(f.name) + '</td>' +
           '<td style="padding:4px 8px;color:' + typeColor + '">' + f.type + '</td>' +
           '<td style="padding:4px 8px">' + platBadge + '</td>' +
+          '<td style="padding:4px 8px">' + dest + '</td>' +
           '<td style="padding:4px 8px;text-align:right;color:var(--c-muted)">' + window.fmtSize(f.size_bytes) + '</td>' +
           '<td style="padding:4px 8px">' + extract + '</td>' +
           '</tr>';
@@ -159,12 +172,39 @@ async function scanInbox() {
 
 async function runInbox() {
   const pathEl   = document.getElementById('inbox-path');
-  const targetEl = document.getElementById('inbox-target');
-  const delEl    = document.getElementById('inbox-delete-source');
   const inboxPath = pathEl ? pathEl.value.trim() : '';
   if (!inboxPath) { showToast('Introduce la carpeta Inbox primero', 'err'); return; }
+  const targetEl = document.getElementById('inbox-target');
+  const delEl    = document.getElementById('inbox-delete-source');
   const targetPath   = targetEl ? targetEl.value.trim() : '';
   const deleteSource = delEl ? delEl.checked : false;
+
+  // INBOX-UX-1: única acción masiva de la app — confirmar siempre, con un
+  // recuento fresco (el análisis es un listado local, tarda milisegundos).
+  let scan = null;
+  try {
+    const targetQs = targetPath ? '&target_root=' + encodeURIComponent(targetPath) : '';
+    scan = await apiFetch('/api/inbox-scan?path=' + encodeURIComponent(inboxPath) + targetQs);
+  } catch(_) {}
+  if (scan && !scan.error) {
+    if (scan.total === 0) { showToast('La carpeta Inbox está vacía', 'ok'); return; }
+    const conflicts = (scan.files || []).filter(f => f.dest_exists).length;
+    let body = 'Se van a extraer, renombrar y mover <strong>' + scan.total + ' archivo(s)</strong> a sus carpetas de plataforma.';
+    if (scan.zips > 0) body += '<br>· ' + scan.zips + ' ZIP(s) se extraerán primero.';
+    if (scan.unrecognized > 0) body += '<br>· ' + scan.unrecognized + ' no reconocido(s) no se tocarán.';
+    if (conflicts > 0) body += '<br>· <span style="color:var(--c-yellow)">' + conflicts + ' ya existen en destino</span> — si el contenido difiere irán a Conflictos pendientes.';
+    if (deleteSource) body += '<br>· <span style="color:var(--c-yellow)">Los ZIPs originales se eliminarán</span> tras organizar.';
+    body += '<br><span style="color:var(--c-dim);font-size:11px">Destino: ' + window._h(targetPath || 'library_root') + '</span>';
+    _showConfirm('¿Organizar el Inbox?', body, 'Organizar', () => _launchInbox(inboxPath, targetPath, deleteSource));
+    return;
+  }
+  // Si el análisis previo falla, no bloquear la acción — confirmar sin recuento
+  _showConfirm('¿Organizar el Inbox?',
+    'Se van a extraer, renombrar y mover todos los archivos del Inbox a sus carpetas de plataforma.',
+    'Organizar', () => _launchInbox(inboxPath, targetPath, deleteSource));
+}
+
+async function _launchInbox(inboxPath, targetPath, deleteSource) {
   const btn = document.getElementById('btn-inbox-run');
   if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
   const resultEl = document.getElementById('inbox-result');
@@ -238,6 +278,7 @@ function _renderInboxResult(r) {
   const archived = r.zips_archived || 0;
   const zipNote  = archived > 0 ? ` <span style="color:var(--c-muted);font-size:11px">(${archived} movidos a _processed/)</span>` : '';
   html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
+  if (r.md_identified > 0) html += '.md identificados por CRC: <strong>' + r.md_identified + '</strong> &nbsp;';
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';
@@ -257,6 +298,89 @@ function _renderInboxResult(r) {
   showToast('Inbox: ' + (r.organized || 0) + ' juegos organizados', 'ok');
 }
 
+// ── RA-CONFLICT-2: review/resolve organize conflicts from the UI ─────────────
+async function loadInboxConflicts() {
+  const el  = document.getElementById('inbox-conflicts-content');
+  const btn = document.getElementById('btn-inbox-conflicts');
+  const pathEl   = document.getElementById('inbox-path');
+  const targetEl = document.getElementById('inbox-target');
+  const inboxPath = pathEl ? pathEl.value.trim() : '';
+  const targetPath = targetEl ? targetEl.value.trim() : '';
+  el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Cargando…</p>';
+  if (btn) btn.disabled = true;
+  try {
+    let url = '/api/inbox-conflicts';
+    const qs = [];
+    if (inboxPath) qs.push('path=' + encodeURIComponent(inboxPath));
+    if (targetPath) qs.push('target_root=' + encodeURIComponent(targetPath));
+    if (qs.length) url += '?' + qs.join('&');
+    const d = await apiFetch(url);
+    if (d.error) {
+      el.innerHTML = `<p class="error-msg">${window._h(d.error)}</p>`;
+      return;
+    }
+    const conflicts = d.conflicts || [];
+    if (conflicts.length === 0) {
+      el.innerHTML = '<p style="color:var(--c-teal);font-size:13px">Sin conflictos pendientes. ✓</p>';
+      return;
+    }
+    let html = `<p style="color:var(--c-muted);font-size:12px;margin-bottom:8px">
+      <strong style="color:var(--c-strong)">${conflicts.length}</strong> archivos con el mismo nombre en el Inbox y en su carpeta de destino, pero contenido distinto.
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:1px solid #333;color:var(--c-dim)">
+        <th style="text-align:left;padding:4px 8px">Archivo</th>
+        <th style="text-align:left;padding:4px 8px">Plataforma</th>
+        <th style="text-align:left;padding:4px 8px">Inbox</th>
+        <th style="text-align:left;padding:4px 8px">Existente</th>
+        <th style="text-align:left;padding:4px 8px">Acción</th>
+      </tr></thead><tbody>`;
+    conflicts.forEach((c, i) => {
+      const srcRa = c.source_ra != null ? c.source_ra + ' logros' : 'sin datos RA';
+      const dstRa = c.dest_ra != null ? c.dest_ra + ' logros' : 'sin datos RA';
+      html += `<tr id="inbox-conflict-row-${i}">
+        <td style="padding:4px 8px;word-break:break-all">${window._h(c.filename)}</td>
+        <td style="padding:4px 8px">${window._h(c.platform || '—')}</td>
+        <td style="padding:4px 8px">${window.fmtSize(c.source_size)}<br><span style="color:var(--c-dim);font-size:11px">${srcRa}</span></td>
+        <td style="padding:4px 8px">${window.fmtSize(c.dest_size)}<br><span style="color:var(--c-dim);font-size:11px">${dstRa}</span></td>
+        <td style="padding:4px 8px;white-space:nowrap">
+          <button class="btn" style="font-size:11px;padding:2px 8px" onclick="resolveInboxConflict(${JSON.stringify(c.source_path)}, 'source', ${i})">Quedarme con Inbox</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="resolveInboxConflict(${JSON.stringify(c.source_path)}, 'dest', ${i})">Quedarme con existente</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) {
+    // INBOX-UX-6: error con guía, no solo el mensaje crudo
+    el.innerHTML = `<p class="error-msg">No se pudieron cargar los conflictos: ${window._h(e.message)}</p>
+      <p style="color:var(--c-dim);font-size:11px">Comprueba que las carpetas Inbox y destino existen y vuelve a pulsar "Revisar".</p>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function resolveInboxConflict(sourcePath, keep, idx) {
+  // INBOX-UX-3: modal propio, no confirm() nativo
+  const label = keep === 'source' ? 'la versión del Inbox' : 'la versión ya existente';
+  _showConfirm('Resolver conflicto',
+    `¿Quedarte con <strong>${label}</strong>?<br><span style="color:var(--c-muted)">La otra se moverá a <code>_descartados/</code> — no se elimina nada.</span>`,
+    'Resolver', async () => {
+      const row = document.getElementById('inbox-conflict-row-' + idx);
+      try {
+        const d = await apiPost('/api/inbox-conflicts/resolve', { source_path: sourcePath, keep });
+        if (d.error) {
+          showToast('Error: ' + d.error, 'err');
+          return;
+        }
+        if (row) row.remove();
+        showToast('Conflicto resuelto', 'ok');
+      } catch(e) {
+        showToast('Error: ' + e.message, 'err');
+      }
+    });
+}
+
 async function saveInboxSettings() {
   const pathEl   = document.getElementById('inbox-path');
   const targetEl = document.getElementById('inbox-target');
@@ -273,6 +397,12 @@ async function saveInboxSettings() {
   } catch(e) {
     showToast('Error al guardar: ' + e.message, 'err');
   }
+}
+
+// INBOX-UX-4: los checkboxes se guardan solos al cambiarlos — sin esto, marcar
+// "Procesar automáticamente" no activa nada hasta pulsar un botón lejano.
+function autoSaveInboxToggle() {
+  saveInboxSettings();
 }
 
 async function _pollInboxWatcher() {
@@ -308,6 +438,9 @@ export {
   runInbox,
   _applyInboxProgress,
   _renderInboxResult,
+  loadInboxConflicts,
+  resolveInboxConflict,
   saveInboxSettings,
+  autoSaveInboxToggle,
   _pollInboxWatcher,
 };

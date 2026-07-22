@@ -14,7 +14,8 @@ import {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder, detectRetroArch,
+  browseFolder, browseFile, detectRetroArch,
+  loadTrashStatus, emptyTrash,
 } from './tabs/config.js';
 import {
   _onScanAdbChange, detectAdbDevicesForScan,
@@ -25,8 +26,7 @@ import {
 import {
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
-  exportCollection, exportWishlist,
+  exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   _diffToggleAll, _syncAllSide,
@@ -34,26 +34,24 @@ import {
   toggleCompleteness,
 } from './tabs/collection.js';
 import {
-  loadDuplicates, deleteAllDuplicates, deleteDuplicate,
-  resolveDuplicateRA, markAsIntentionalCopy,
-  loadRaDuplicates, deleteRaDuplicate,
-  doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,
-  filterDuplicatesByPlatform, _renderDupContent,
 } from './tabs/duplicates.js';
 import {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
 } from './tabs/organize.js';
+import {
+  loadReviewQueue, applyReviewGroup, chooseReviewEntry,
+  markReviewGroupIntentional, applyAllReviewRecommendations, doResolveRaConflicts,
+} from './tabs/review_copies.js';
 import {
   startPolling, _applyJobStatus, _showJobResult,
 } from './jobs.js';
 import {
   doExportGamelistsAll,
-  _autoFillEsdeGamelistDir,
-  useEsdeGamelistDir,
   loadScraperSummary,
   loadSsQuota,
+  loadSsCredsStatus,
   loadScrapePlatforms,
   doScrape,
   doExportGamelists,
@@ -70,7 +68,9 @@ import {
   runInbox,
   _applyInboxProgress,
   _renderInboxResult,
-  saveInboxSettings,
+  loadInboxConflicts,
+  resolveInboxConflict,
+  saveInboxSettings, autoSaveInboxToggle,
   _pollInboxWatcher,
 } from './tabs/inbox.js';
 import {
@@ -81,7 +81,7 @@ import {
   _platHex, _platBadge, fmtSize,
   loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
   _gpSetFavStar,
-  gpShowPlaytimeInfo, gpLogPlaytime,
+  gpShowPlaytimeInfo, gpRefreshPlaytime,
   openGamePanel, closeGamePanel,
   gpSetStatus, gpToggleFavorite,
   gpAddTag, gpRemoveTag,
@@ -99,16 +99,16 @@ import {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
-  doHealthCheck, _renderHealthResult, _filterHealthIssues, togglePlatformHealth, loadPlatformHealth, loadOperationsTimeline, _clearHealthFilter,
-  doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkCatCheck, junkDelete,
+  doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
+  doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
   doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
-  loadUnmatchedDiagnosis,
-  generateReport, showReportTab, _renderReportOverview, _renderReportByPlatform, _renderReportMissing, _renderReportOrphans, exportReportHtml,
+  loadUnmatchedDiagnosis, downloadMissingDats,
+  generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
 } from './tabs/esde.js';
 import {
   _relTime, _emptyState, card, _getPlatformLogo,
-  _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
+  _loadNewGameSuggestion, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
@@ -129,26 +129,25 @@ import {
 import {
   loadSync,
   loadAssets,
+  showOrphanAssets,
   loadSystemStatus,
   detectCloudFolder,
   useCloudFolder,
   loadAutostart,
   toggleAutostart,
   shutdownServer,
-  loadAndroidSetupPanel,
-  copyAndroidSetupUrl,
-  copyAndroidCurlCmd,
-  downloadAndroidSetupSh,
   _checkAndroidUserAgent,
   loadAnbernicTab,
-  copyAnbernicUrl,
   copyAnbernicCmd,
-  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
-  toggleRcloneSetup,
+  copyAnbernicUrl,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvCopySetupCmd, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  backupNow,
+  loadManualBackups,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
@@ -160,14 +159,17 @@ import {
   loadCableSync,
   loadCableSyncPreview,
   doCableSync,
+  doQuickSync,
   _renderCableSyncResult,
   toggleCableSyncLog,
   loadCableSyncLog,
+  runSyncDoctor,
   exportPegasus,
   _updateAutoSyncBanner,
   _updateAutoSyncToggleUI,
   toggleAutoSync,
   saveAutoSyncSettings,
+  saveConflictPolicy,
   startAutoSyncPolling,
   _onTreeDiffSourceChange,
   _loadTreeDiffDevices,
@@ -182,6 +184,8 @@ import {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
+  openCloudSetup,
 } from './tabs/sync.js';
 import { openFlowWizard, closeFlowWizard } from './flow_wizard.js';
 
@@ -199,7 +203,7 @@ Object.assign(window, {
   _platHex, _platBadge, fmtSize,
   loadGames, setPlayStatus, renderPagination, setGamesView, _renderGamesGrid,
   _gpSetFavStar,
-  gpShowPlaytimeInfo, gpLogPlaytime,
+  gpShowPlaytimeInfo, gpRefreshPlaytime,
   openGamePanel, closeGamePanel,
   gpSetStatus, gpToggleFavorite,
   gpAddTag, gpRemoveTag,
@@ -215,15 +219,15 @@ Object.assign(window, {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
-  doHealthCheck, _renderHealthResult, _filterHealthIssues, togglePlatformHealth, loadPlatformHealth, loadOperationsTimeline, _clearHealthFilter,
-  doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkCatCheck, junkDelete,
+  doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
+  doJunkScan, _renderJunkResult, junkToggleCat, junkSelectAll, junkRevealCat, junkCatCheck, junkDelete, zipRouteApply,
   doFindOrphans, doDeleteOrphans, doMoveOrphansToArchive, moveOrphanedSave,
   doLibraryDoctor, doctorMoveRom, doctorDeleteDir, doctorResolveAll, doFolderAnalysis,
-  loadUnmatchedDiagnosis,
-  generateReport, showReportTab, _renderReportOverview, _renderReportByPlatform, _renderReportMissing, _renderReportOrphans, exportReportHtml,
+  loadUnmatchedDiagnosis, downloadMissingDats,
+  generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
   // overview.js — overview tab, heatmap, charts, wizard
   _relTime, _emptyState, card, _getPlatformLogo,
-  _renderActivityHeatmap, _loadNewGameSuggestion, _renderMonthlyChart,
+  _loadNewGameSuggestion, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
@@ -259,35 +263,31 @@ Object.assign(window, {
   loadLocalUrl, copyLocalUrl, renderQR,
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
-  browseFolder, detectRetroArch,
+  browseFolder, browseFile, detectRetroArch,
+  loadTrashStatus, emptyTrash,
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,
   loadCatalogStatus, importArcadeCatalog, importDats, loadDatCatalogList, downloadDats,
   loadCollectionStats, loadMissingRoms, filterMissingByPlatform,
   toggleWishlist,
-  loadCollection, colSetPlatform, colSearch, colSort, colLoadMore,
-  exportCollection, exportWishlist,
+  exportWishlist,
   loadCollectionStatsV2, toggleColStats,
   toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
   _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
-  loadDuplicates, deleteAllDuplicates, deleteDuplicate,
-  resolveDuplicateRA, markAsIntentionalCopy,
-  loadRaDuplicates, deleteRaDuplicate,
-  doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,
-  filterDuplicatesByPlatform, _renderDupContent,
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadReviewQueue, applyReviewGroup, chooseReviewEntry,
+  markReviewGroupIntentional, applyAllReviewRecommendations, doResolveRaConflicts,
   startPolling, _applyJobStatus, _showJobResult,
   // scraper.js
   doExportGamelistsAll,
-  _autoFillEsdeGamelistDir,
-  useEsdeGamelistDir,
   loadScraperSummary,
   loadSsQuota,
+  loadSsCredsStatus,
   loadScrapePlatforms,
   doScrape,
   doExportGamelists,
@@ -303,31 +303,32 @@ Object.assign(window, {
   runInbox,
   _applyInboxProgress,
   _renderInboxResult,
-  saveInboxSettings,
+  loadInboxConflicts,
+  resolveInboxConflict,
+  saveInboxSettings, autoSaveInboxToggle,
   _pollInboxWatcher,
   // sync.js
   loadSync,
   loadAssets,
+  showOrphanAssets,
   loadSystemStatus,
   detectCloudFolder,
   useCloudFolder,
   loadAutostart,
   toggleAutostart,
   shutdownServer,
-  loadAndroidSetupPanel,
-  copyAndroidSetupUrl,
-  copyAndroidCurlCmd,
-  downloadAndroidSetupSh,
   _checkAndroidUserAgent,
   loadAnbernicTab,
-  copyAnbernicUrl,
   copyAnbernicCmd,
-  tvCheckStatus, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
-  toggleRcloneSetup,
+  copyAnbernicUrl,
+  tvCheckStatus, tvCheckServer, tvToggleSetup, tvCopySetupCmd, tvStartSync, tvShowResult, tvReset, tvSkipToFull,
   loadRcloneStatus,
   openRcloneConfig,
   testRcloneRemote,
   applyRcloneRemote,
+  applyRcloneSavesStates,
+  backupNow,
+  loadManualBackups,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
@@ -339,14 +340,17 @@ Object.assign(window, {
   loadCableSync,
   loadCableSyncPreview,
   doCableSync,
+  doQuickSync,
   _renderCableSyncResult,
   toggleCableSyncLog,
   loadCableSyncLog,
+  runSyncDoctor,
   exportPegasus,
   _updateAutoSyncBanner,
   _updateAutoSyncToggleUI,
   toggleAutoSync,
   saveAutoSyncSettings,
+  saveConflictPolicy,
   startAutoSyncPolling,
   _onTreeDiffSourceChange,
   _loadTreeDiffDevices,
@@ -362,6 +366,8 @@ Object.assign(window, {
   startCloudAuth,
   cancelCloudAuth,
   disconnectCloud,
+  useRemoteForSync,
+  openCloudSetup,
   // PHASE6-3b: app update download/apply
   downloadAppUpdate,
   applyAppUpdate,
@@ -405,7 +411,7 @@ export function _applyDeviceName(name) {
 
 export function setDevice(d) {
   setActiveDevice(d);
-  ['pc','both','anbernic'].forEach(id => {
+  ['pc','anbernic'].forEach(id => {
     const b = document.getElementById('dev-' + id);
     if (b) b.classList.toggle('active', id === d);
   });
@@ -413,8 +419,7 @@ export function setDevice(d) {
   const activeTab = document.querySelector('.nav-item.active')?.id?.replace('nav-','');
   if (activeTab) {
     if (activeTab === 'games')      { loadFilterOptions(); loadGames(0); }
-    if (activeTab === 'plan')       loadPlan();
-    if (activeTab === 'duplicates') loadDuplicates();
+    if (activeTab === 'plan')       { loadPlan(); loadReviewQueue(); }
     if (activeTab === 'assets')     loadAssets();
   }
 }
@@ -422,15 +427,14 @@ export function setDevice(d) {
 export function _deviceRoot() {
   const d = getActiveDevice();
   if (d === 'pc')       return document.getElementById('ov-pc-path')?.value.trim() || null;
-  if (d === 'anbernic') return document.getElementById('ov-ab-path')?.value.trim() || null;
-  return null; // 'both' = sin filtro
+  if (d === 'anbernic') return document.getElementById('ov-ab-path')?.value.trim() || localStorage.getItem('anbernic_path') || null;
+  return null;
 }
 
 const _TAB_DESC = {
   overview:   ['Inicio',        'Estado general de tu biblioteca y acciones rápidas'],
   games:      ['Juegos',        'Explora, filtra y valora los juegos de tu biblioteca'],
-  plan:       ['Organizar',     'Revisa y aplica renombres pendientes'],
-  duplicates: ['Duplicados',    'Detecta y gestiona ROMs duplicadas'],
+  plan:       ['Organizar',     'Revisa renombres pendientes y resuelve copias duplicadas'],
   assets:     ['Assets',        'Gestiona carátulas, vídeos y otros recursos'],
   collection: ['Colección',     'Galería personal con historial de juego y logros'],
   sync:       ['Cloud Sync',    'Sincroniza saves con la nube via rclone'],
@@ -465,17 +469,18 @@ export function showTab(name) {
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
   if (name === 'overview')   { loadOverview(); loadCatalogStatus(); loadActivityHeatmap(); }
   if (name === 'games')      { loadFilterOptions(); loadGames(0); _refreshTagFilter(); loadRecommendations(); }
-  if (name === 'plan')       loadPlan();
-  if (name === 'duplicates') loadDuplicates();
+  if (name === 'plan')       { loadPlan(); loadReviewQueue(); }
   if (name === 'assets')     loadAssets();
-  if (name === 'sync')       { loadSync(); loadManualBackups?.(); loadCloudAuthStatus(); }
+  // CLOUD-UX-11: estado de saves y backups son lecturas locales baratas — se
+  // cargan solos al abrir; el botón ↻ queda para refrescar.
+  if (name === 'sync')       { loadSync(); loadManualBackups(); loadSaveComparison(); loadCloudAuthStatus(); }
   if (name === 'cable')      loadCableSync();
-  if (name === 'collection') loadCollection();
-  if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); _autoFillEsdeGamelistDir(); }
-  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAndroidSetupPanel(); loadAutostart(); }
+  if (name === 'collection') loadCollectionStatsV2();
+  if (name === 'scraper')    { loadScraperSummary(); loadScrapePlatforms(); loadSsQuota(); loadSsCredsStatus(); }
+  if (name === 'settings')   { loadSettings(); loadCatalogStatus(); loadDatCatalogList(); loadSsQuota(); loadAuthStatus(); loadLocalUrl(); loadSystemStatus(); loadAutostart(); loadTrashStatus(); }
   if (name === 'anbernic')   { loadAnbernicTab(); }
   if (name === 'formats')    { loadTools(); _initToolsContext(); }
-  if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); }
+  if (name === 'tools')      { loadTools(); _initToolsContext(); loadPatchLog(); loadPatchList(); }
   if (name === 'inbox')      loadInbox();
   if (name === 'tv')         { /* enterTvMode() handles TV tab load */ }
 }
@@ -579,8 +584,9 @@ export function openHtmlReport(customPath) {
 }
 
 export async function openHtmlReportAndroid() {
+  const cfg = await apiFetch('/api/config').catch(() => ({}));
   const abPath = document.getElementById('ov-ab-path')?.value.trim()
-    || localStorage.getItem('anbernic_path') || '';
+    || cfg.anbernic_root || localStorage.getItem('anbernic_path') || '';
   if (!abPath) {
     alert('Configura la ruta de la consola Android en la sección Overview primero.');
     return;

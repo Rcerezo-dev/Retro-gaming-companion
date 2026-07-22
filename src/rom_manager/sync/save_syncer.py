@@ -8,7 +8,12 @@ from pathlib import Path
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.sync.conflict_resolver import SyncDecision, decide
 from rom_manager.sync.delta_cache import DeltaCache
-from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport, RemoteEntry
+from rom_manager.sync.rclone_transport import (
+    RcloneError,
+    RcloneTransport,
+    RemoteEntry,
+    _resolve_remote,
+)
 from rom_manager.sync.sync_log import get_last_sync, log_sync_event
 
 _logger = logging.getLogger(__name__)
@@ -112,15 +117,41 @@ def sync_saves(
 
     decisions: list[SyncDecision] = []
 
+    # REV43-35: el watermark de conflicto ahora se busca por (local_path, remote_path)
+    # real, no solo local_path — si saves_remote/states_remote cambian en config, un
+    # last_sync_at de la ruta anterior ya no se confunde con el remoto actual.
+    saves_remote_clean = (saves_remote or "").strip() or None
+    states_remote_clean = (states_remote or "").strip() or None
+
     with repository.connect() as conn:
         for relative in all_relatives:
             local = local_saves.get(relative)
             remote = remote_entries.get(relative)
 
             local_path = saves_dir / Path(relative)
-            # remote_path is now determined by routing logic in upload/download
+            # REV43-3: computado aquí (antes de cualquier transport.upload/download)
+            # para que quede definido incluso si la transferencia falla en el
+            # primer intento — evita UnboundLocalError en el except y que el log
+            # de auditoría arrastre la ruta de una iteración anterior.
+            # REV43-35: misma decisión de enrutado que usará transport.upload/download,
+            # así el watermark y el log de auditoría reflejan el remoto real, no un
+            # placeholder fijo.
+            file_ext = Path(relative).suffix.lower()
+            chosen_remote, _category, _configured = _resolve_remote(
+                file_ext,
+                saves_remote_clean,
+                states_remote_clean,
+                None,
+                save_extensions,
+                state_extensions,
+            )
+            remote_path = (
+                f"{chosen_remote.rstrip('/')}/{relative}"
+                if chosen_remote
+                else f"<no remote configured>/{relative}"
+            )
 
-            last_sync = get_last_sync(conn, str(local_path))
+            last_sync = get_last_sync(conn, str(local_path), remote_path=remote_path)
 
             decision = decide(
                 relative,
@@ -165,8 +196,6 @@ def sync_saves(
                         save_extensions=save_extensions,
                         state_extensions=state_extensions,
                     )
-                    # Construct remote_path for logging (routing already determined in upload)
-                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -176,6 +205,8 @@ def sync_saves(
                         remote_mtime=decision.remote_mtime,
                         result="ok",
                         created_at=timestamp,
+                        # AUD-2: rclone copyto verifica checksums tras cada transferencia
+                        verified=True,
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "upload")
@@ -216,8 +247,6 @@ def sync_saves(
                         save_extensions=save_extensions,
                         state_extensions=state_extensions,
                     )
-                    # Construct remote_path for logging (routing already determined in download)
-                    remote_path = f"<routed to saves/states remote>/{relative}"
                     log_sync_event(
                         conn,
                         local_path=str(local_path),
@@ -227,6 +256,7 @@ def sync_saves(
                         remote_mtime=decision.remote_mtime,
                         result="ok",
                         created_at=timestamp,
+                        verified=True,
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "download")
@@ -261,7 +291,6 @@ def sync_saves(
                         )
 
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
-                remote_path = f"<routed to saves/states remote>/{relative}"
 
                 # Determine winner
                 if conflict_policy in ("keep_pc", "keep_local"):
@@ -335,6 +364,7 @@ def sync_saves(
                         result="ok",
                         message=msg,
                         created_at=timestamp,
+                        verified=True,
                     )
                     repository.record_play_session(local_path, timestamp)
                     result.conflicts += 1

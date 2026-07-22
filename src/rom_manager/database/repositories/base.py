@@ -17,6 +17,16 @@ from rom_manager.database.repositories.models import ScanSummary
 from rom_manager.database.schema import initialize_database
 
 
+def escape_like_prefix(prefix: str) -> str:
+    """Escape *prefix* for a ``LIKE ? ESCAPE '\\'`` "starts with" pattern.
+
+    Backslashes must be escaped first: on Windows *prefix* already uses
+    ``\\`` as the path separator, which would otherwise collide with the
+    escape character itself. Caller appends the trailing ``%`` wildcard.
+    """
+    return prefix.replace("\\", "\\\\").replace("%", "%%").replace("_", "\\_")
+
+
 class _RepositoryBase:
     def __init__(self, database_path: Path) -> None:
         self.database_path = database_path
@@ -29,6 +39,7 @@ class _RepositoryBase:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=30000")
+        connection.execute("PRAGMA foreign_keys=ON")
         return connection
 
     @contextmanager
@@ -114,15 +125,18 @@ class _RepositoryBase:
         prefix = source_root.rstrip("/\\") if source_root else None
         with self.connect() as connection:
             if prefix:
-                like = prefix.replace("%", "%%") + "%"
+                like = escape_like_prefix(prefix) + "%"
                 games_count = connection.execute(
-                    "SELECT COUNT(*) AS count FROM games WHERE source_path LIKE ?", (like,)
+                    "SELECT COUNT(*) AS count FROM games WHERE source_path LIKE ? ESCAPE '\\'",
+                    (like,),
                 ).fetchone()["count"]
                 saves_count = connection.execute(
-                    "SELECT COUNT(*) AS count FROM saves WHERE original_path LIKE ?", (like,)
+                    "SELECT COUNT(*) AS count FROM saves WHERE original_path LIKE ? ESCAPE '\\'",
+                    (like,),
                 ).fetchone()["count"]
                 assets_count = connection.execute(
-                    "SELECT COUNT(*) AS count FROM assets WHERE source_path LIKE ?", (like,)
+                    "SELECT COUNT(*) AS count FROM assets WHERE source_path LIKE ? ESCAPE '\\'",
+                    (like,),
                 ).fetchone()["count"]
             else:
                 games_count = connection.execute("SELECT COUNT(*) AS count FROM games").fetchone()[

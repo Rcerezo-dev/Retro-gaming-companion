@@ -25,11 +25,11 @@
 
     <div class="actions-row" style="margin-bottom:16px;gap:20px;align-items:center">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--c-text)">
-        <input type="checkbox" id="inbox-delete-source" style="accent-color:var(--c-blue)">
+        <input type="checkbox" id="inbox-delete-source" style="accent-color:var(--c-blue)" onchange="autoSaveInboxToggle()">
         Eliminar ZIPs originales tras organizar
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--c-text)">
-        <input type="checkbox" id="inbox-auto-process" style="accent-color:var(--c-blue)">
+        <input type="checkbox" id="inbox-auto-process" style="accent-color:var(--c-blue)" onchange="autoSaveInboxToggle()">
         Procesar automáticamente (daemon)
       </label>
     </div>
@@ -53,6 +53,7 @@
             <th style="text-align:left;padding:4px 8px">Archivo</th>
             <th style="text-align:left;padding:4px 8px">Tipo</th>
             <th style="text-align:left;padding:4px 8px">Plataforma</th>
+            <th style="text-align:left;padding:4px 8px">Destino</th>
             <th style="text-align:right;padding:4px 8px">Tamaño</th>
             <th style="text-align:left;padding:4px 8px">Estado</th>
           </tr>
@@ -75,6 +76,17 @@
 
     <!-- Result -->
     <div id="inbox-result" class="job-result"></div>
+
+    <!-- Conflictos: mismo nombre, contenido distinto -->
+    <div style="margin-top:20px">
+      <div class="actions-row" style="align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">Conflictos pendientes (mismo nombre, contenido distinto)</h3>
+        <button class="btn" id="btn-inbox-conflicts" onclick="loadInboxConflicts()" style="margin-left:auto">Revisar</button>
+      </div>
+      <div id="inbox-conflicts-content">
+        <p style="color:var(--c-dim);font-size:12px">Pulsa "Revisar" para ver los conflictos pendientes del Inbox.</p>
+      </div>
+    </div>
 
     <!-- 32-3: drag & drop zone -->
     <div id="inbox-dropzone"

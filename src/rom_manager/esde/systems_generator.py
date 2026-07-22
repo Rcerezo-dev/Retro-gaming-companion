@@ -211,7 +211,7 @@ _SYSTEMS: list[dict] = [
 # ── Data classes ──────────────────────────────────────────────────────────────
 
 
-@dataclass
+@dataclass(slots=True)
 class GeneratedSystem:
     name: str
     fullname: str
@@ -219,7 +219,7 @@ class GeneratedSystem:
     core_label: str  # e.g. "mGBA"
 
 
-@dataclass
+@dataclass(slots=True)
 class GeneratorResult:
     generated_systems: list[GeneratedSystem] = field(default_factory=list)
     missing_systems: list[str] = field(default_factory=list)

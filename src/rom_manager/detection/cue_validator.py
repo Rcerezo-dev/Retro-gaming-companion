@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_FILE_LINE_RE = re.compile(r'^\s*FILE\s+"(.+?)"\s+', re.IGNORECASE)
+_FILE_LINE_RE = re.compile(r'^\s*FILE\s+"(.+?)"', re.IGNORECASE)
+_FILE_LINE_UNQUOTED_RE = re.compile(r"^\s*FILE\s+(\S+)", re.IGNORECASE)
 
 
 def validate_cue(cue_path: Path) -> list[str]:
@@ -21,7 +22,11 @@ def validate_cue(cue_path: Path) -> list[str]:
 
     parent = cue_path.parent
     for line in text.splitlines():
+        # Quoted filename: FILE "some name.bin" BINARY
         m = _FILE_LINE_RE.match(line)
+        if not m:
+            # Unquoted filename: FILE name.bin BINARY
+            m = _FILE_LINE_UNQUOTED_RE.match(line)
         if not m:
             continue
         referenced = m.group(1)

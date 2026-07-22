@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.sync.rclone_transport import RcloneTransport, RemoteEntry
+from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport, RemoteEntry
 from rom_manager.sync.save_syncer import list_local_saves, sync_saves
 from rom_manager.sync.sync_log import log_sync_event
 
@@ -19,13 +19,23 @@ def _set_mtime(path: Path, when: datetime) -> None:
     os.utime(path, (ts, ts))
 
 
-def _seed_last_sync(repo: LibraryRepository, local_path: Path, when: datetime) -> None:
-    """Record a prior successful sync so ``decide`` can detect a conflict."""
+def _seed_last_sync(
+    repo: LibraryRepository,
+    local_path: Path,
+    when: datetime,
+    remote_path: str = "dropbox:/saves",
+) -> None:
+    """Record a prior successful sync so ``decide`` can detect a conflict.
+
+    REV43-35: *remote_path* must match what sync_saves() will actually resolve
+    for this file (remote root + relative), since the watermark lookup now
+    filters on it too — not just local_path.
+    """
     with repo.connect() as conn:
         log_sync_event(
             conn,
             local_path=str(local_path),
-            remote_path="dropbox:/saves",
+            remote_path=remote_path,
             direction="upload",
             local_mtime=None,
             remote_mtime=None,
@@ -170,6 +180,32 @@ def test_apply_upload_calls_transport(tmp_path: Path) -> None:
     transport.upload.assert_called_once()
 
 
+def test_upload_failure_on_first_file_does_not_raise_unbound(tmp_path: Path) -> None:
+    """REV43-3: si transport.upload() falla en el primer archivo de la cola,
+    remote_path debe estar definido para el log de error (antes: UnboundLocalError,
+    porque remote_path solo se asignaba tras un upload exitoso)."""
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    save_file = saves_dir / "tetris.sav"
+    save_file.write_bytes(b"\x00" * 8)
+
+    transport = _mock_transport([])
+    transport.upload.side_effect = RcloneError("network blip")
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+    )
+
+    assert result.errors == 1
+    assert result.uploaded == 0
+
+
 def test_apply_download_calls_transport(tmp_path: Path) -> None:
     saves_dir = tmp_path / "saves"
     saves_dir.mkdir()
@@ -205,7 +241,7 @@ def _conflict_setup(tmp_path: Path) -> tuple[Path, MagicMock, LibraryRepository]
     _set_mtime(save_file, _NOW + timedelta(seconds=100))
     transport = _mock_transport([_remote_entry("tetris.sav", offset_seconds=200)])
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _seed_last_sync(repo, save_file, _NOW)
+    _seed_last_sync(repo, save_file, _NOW, remote_path="dropbox:/saves/tetris.sav")
     return saves_dir, transport, repo
 
 
@@ -268,6 +304,37 @@ def test_conflict_newest_picks_newer_remote(tmp_path: Path) -> None:
     assert result.conflicts == 1
     transport.download.assert_called_once()
     transport.upload.assert_not_called()
+
+
+def test_stale_watermark_from_old_remote_is_not_reused(tmp_path: Path) -> None:
+    """REV43-35: a last_sync_at recorded against a since-changed saves_remote
+    must not be treated as if it applied to the current one — otherwise a
+    real conflict (both sides changed) could be missed."""
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    save_file = saves_dir / "tetris.sav"
+    save_file.write_bytes(b"\x00" * 8)
+    _set_mtime(save_file, _NOW + timedelta(seconds=100))
+    transport = _mock_transport([_remote_entry("tetris.sav", offset_seconds=200)])
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    # Watermark recorded against a DIFFERENT (old) remote than the one used below.
+    _seed_last_sync(repo, save_file, _NOW, remote_path="dropbox:/old-remote/tetris.sav")
+
+    result, decisions = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="newest",
+    )
+
+    # No matching watermark for the current remote → conflict-detection branch
+    # is skipped, falls back to plain newest-wins (remote is newer here).
+    assert result.conflicts == 0
+    assert decisions[0].action == "download"
+    assert decisions[0].last_sync_at is None
 
 
 # ---------------------------------------------------------------------------

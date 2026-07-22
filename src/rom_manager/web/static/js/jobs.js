@@ -102,7 +102,15 @@ function _applyJobStatus(s) {
     }
   }
   if (!s.sync_running && s.sync_result) {
-    window._renderSyncResult(s.sync_result);
+    // CLOUD-UX-5: mismo guard result_ts que scan/match/backup — sin él la
+    // notificación "Sync completado" se re-disparaba en cada tick de polling.
+    const ts = s.sync_result.result_ts || JSON.stringify(s.sync_result);
+    if (_shownResultTs.sync !== ts) {
+      _shownResultTs.sync = ts;
+      window._renderSyncResult(s.sync_result);
+      // Refrescar el log de la pestaña al consumir un sync real nuevo
+      if (!s.sync_result.dry_run && !s.sync_result.error) window.loadSync();
+    }
   }
   // CHD progress bar
   const chdWrap = document.getElementById('chd-progress-wrap');
@@ -375,6 +383,10 @@ function _applyJobStatus(s) {
 
   // Cable sync
   const btnCable = document.getElementById('btn-cable-sync');
+  // CABLE-UX-2: el botón primario dispara el mismo job "cable_sync" — se
+  // refleja aquí igual que el botón del formulario avanzado.
+  const btnQuick = document.getElementById('btn-quick-sync');
+  const quickStatus = document.getElementById('quick-sync-status');
   const cableWrap = document.getElementById('cable-progress-wrap');
   if (s.cable_sync_running && s.cable_progress) {
     const p = s.cable_progress;
@@ -408,6 +420,8 @@ function _applyJobStatus(s) {
         btnCable.onclick = () => window.stopJob('cable_sync');
         btnCable.classList.add('danger');
     }
+    if (btnQuick) { btnQuick.disabled = true; btnQuick.textContent = 'Sincronizando…'; }
+    if (quickStatus) quickStatus.textContent = 'Sincronizando…';
   } else if (!s.cable_sync_running) {
     if (cableWrap) cableWrap.classList.add('hidden');
     if (btnCable) {
@@ -415,9 +429,15 @@ function _applyJobStatus(s) {
         btnCable.onclick = window.doCableSync;
         btnCable.classList.remove('danger');
     }
+    if (btnQuick) { btnQuick.disabled = false; btnQuick.textContent = '▶ Sincronizar saves ahora'; }
   }
   if (!s.cable_sync_running && s.cable_sync_result) {
     window._renderCableSyncResult(s.cable_sync_result);
+    if (quickStatus && s.cable_sync_result.error) {
+      quickStatus.textContent = '✗ ' + s.cable_sync_result.error;
+    } else if (quickStatus) {
+      quickStatus.textContent = '';
+    }
   }
   // Backup now
   const btnBkNow = document.getElementById('btn-backup-now');

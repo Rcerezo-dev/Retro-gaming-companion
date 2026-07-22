@@ -12,6 +12,8 @@ def _read_vlq(data: bytes, pos: int) -> tuple[int, int]:
     value = 0
     shift = 1
     while True:
+        if pos >= len(data):
+            raise PatchError("UPS patch truncado en un VLQ")
         byte = data[pos]
         pos += 1
         value += (byte & 0x7F) * shift

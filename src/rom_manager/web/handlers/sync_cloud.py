@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
+from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.utils.paths import is_device_path
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -22,18 +24,26 @@ def register_cloud(
     """Register rclone / cloud-sync / auto-sync routes on *router*."""
 
     # ── GET /api/rclone-export-config ────────────────────────────────────────
+    # ANBERNIC-UX-3: el rclone.conf contiene tokens OAuth. Solo loopback o
+    # requests con el token efímero de setup (?t=...) pueden descargarlo.
     @router.get("/api/rclone-export-config")
     def get_rclone_export_config(ctx) -> None:
-        lan_exposed = config.web_host not in ("127.0.0.1", "localhost")
-        if lan_exposed and not config.credentials.web_pin_hash and not config.web_allow_lan:
-            ctx._send_json(
-                {
-                    "error": "Activa un PIN en Settings antes de exportar la config rclone cuando el servidor es accesible por red."
-                }
+        if not _setup_token_ok(ctx):
+            ctx._send(
+                403,
+                "text/plain; charset=utf-8",
+                b"# 403 - token de setup requerido. Genera el comando desde la pestana Anbernic.\n",
             )
             return
         body, ct = _handle_rclone_export_config(config)
         ctx._send(200, ct, body)
+
+    # ── GET /api/anbernic-setup-token ────────────────────────────────────────
+    # Emite el token efímero (10 min) que la pestaña Anbernic incrusta en el
+    # comando `curl .../s?t=... | bash`.
+    @router.get("/api/anbernic-setup-token")
+    def get_anbernic_setup_token(ctx) -> None:
+        ctx._send_json({"token": _mint_setup_token(), "expires_in": _TOKEN_TTL_SECONDS})
 
     # ── GET /s ── bootstrap script para Termux/Anbernic ──────────────────────
     @router.get("/s")
@@ -41,13 +51,30 @@ def register_cloud(
         """Serve a one-liner bootstrap shell script for Termux on the Anbernic.
 
         Usage on the Anbernic (Termux):
-            curl -s http://<PC-IP>:7777/s | bash
+            curl -s "http://<PC-IP>:7777/s?t=<token>" | bash
         """
         from rom_manager.web.lan import get_lan_ip
 
-        server_ip = get_lan_ip() or "192.168.1.160"
+        if not _setup_token_ok(ctx):
+            ctx._send(
+                403,
+                "text/plain; charset=utf-8",
+                b'echo "ERROR: enlace de setup caducado - vuelve a abrir la pestana Anbernic en el PC y copia el comando de nuevo."\nexit 1\n',
+            )
+            return
+        token = ctx._qs.get("t", [""])[0] or _mint_setup_token()
+        # ANBERNIC-UX-4: fallback al header Host — la consola ya llegó al
+        # servidor por esa dirección, es por definición alcanzable.
+        server_ip = get_lan_ip() or (ctx.headers.get("Host") or "").split(":")[0]
+        if not server_ip:
+            ctx._send(
+                200,
+                "text/plain; charset=utf-8",
+                b'echo "ERROR: no se pudo determinar la IP del PC. Comprueba que ambos estan en la misma red."\nexit 1\n',
+            )
+            return
         server_url = f"http://{server_ip}:{config.web_port}"
-        script = _build_bootstrap_script(server_url)
+        script = _build_bootstrap_script(server_url, config, token)
         ctx._send(200, "text/plain; charset=utf-8", script.encode())
 
     # ── GET /api/rclone-status ───────────────────────────────────────────────
@@ -107,6 +134,41 @@ def register_cloud(
     @router.post("/api/migrate-split-db")
     def post_migrate_split_db(ctx) -> None:
         _do_migrate_split_db(ctx, config, repository, repo_android)
+
+
+# ── Token efímero de setup (ANBERNIC-UX-3) ───────────────────────────────────
+_TOKEN_TTL_SECONDS = 600  # 10 min
+
+
+def _mint_setup_token() -> str:
+    """Create a fresh short-lived setup token, added to the list of valid ones."""
+    import secrets
+    import time
+
+    now = time.time()
+    # ANBERNIC-UX-10: token por request, no un slot global — cada uno sigue
+    # siendo reutilizable durante su propio TTL (el script hace 2 requests,
+    # /s y export-config, y curl puede reintentar), pero mintear uno nuevo
+    # (p.ej. desde otra pestaña) ya no invalida los que aún no han caducado.
+    live = [t for t in _state._anbernic_setup_tokens if t["expires"] > now]
+    token = secrets.token_urlsafe(16)
+    live.append({"value": token, "expires": now + _TOKEN_TTL_SECONDS})
+    _state._anbernic_setup_tokens = live
+    return token
+
+
+def _setup_token_ok(ctx) -> bool:
+    """Allow loopback always; otherwise require a valid, unexpired ?t= token."""
+    import time
+
+    if ctx.client_address[0] in ("127.0.0.1", "::1"):
+        return True
+    supplied = ctx._qs.get("t", [""])[0]
+    if not supplied:
+        return False
+    now = time.time()
+    tokens = getattr(_state, "_anbernic_setup_tokens", [])
+    return any(t["value"] == supplied and t["expires"] > now for t in tokens)
 
 
 def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
@@ -243,10 +305,45 @@ def _do_sync(
                         sync_all=True,
                     )
                 )
-            if not sources:
+            # JUEGOS-UX-7 (cloud): .lrtl por origen en subcarpetas separadas del
+            # remoto — el contador de Android nunca comparte ruta con el de PC,
+            # así un sync jamás pisa un origen con el otro.
+            _pt_remote = config.sync.playtime_remote.rstrip("/")
+            _pt_android_dir = None
+            if _pt_remote:
+                _pt_android_dir = config.project_root / ".rommgr" / "android_lrtl"
+                if config.retroarch_path:
+                    _pt_pc_dir = _Path(config.retroarch_path).parent / "playlists" / "logs"
+                    if _pt_pc_dir.is_dir():
+                        sources.append(
+                            _SyncSource(
+                                name="Playtime PC (.lrtl)",
+                                local_dir=str(_pt_pc_dir),
+                                remote=_pt_remote + "/pc",
+                                sync_all=True,
+                            )
+                        )
+                _pt_android_dir.mkdir(parents=True, exist_ok=True)
+                sources.append(
+                    _SyncSource(
+                        name="Playtime Consola (.lrtl)",
+                        local_dir=str(_pt_android_dir),
+                        remote=_pt_remote + "/android",
+                        sync_all=True,
+                    )
+                )
+            # CLOUD-UX-3: los remotes implícitos saves_remote/states_remote (el
+            # camino recomendado de la UI) cuentan como fuentes — antes se
+            # cortaba aquí sin llegar al bloque D2 que los sincroniza.
+            _has_implicit = bool(config.library_root) and bool(
+                config.sync.saves_remote or config.sync.states_remote
+            )
+            if not sources and not _has_implicit:
                 job_result = {
-                    "error": "No hay fuentes de sync configuradas. "
-                    "Añade [[sync.sources]] en config.toml."
+                    "error": "Sin destino de sync. Conecta la nube y elige carpeta "
+                    "en la pestaña Cloud, o añade [[sync.sources]] en config.toml "
+                    "(modo avanzado).",
+                    "result_ts": _utc_now_str(),
                 }
                 return
 
@@ -437,10 +534,27 @@ def _do_sync(
                         }
                     )
 
+            # JUEGOS-UX-7: tras un sync real, volcar los .lrtl a la BD — el
+            # playtime se actualiza solo, sin pasar por /api/playtime-scan.
+            _playtime_ingest = None
+            if _pt_remote and not dry_run:
+                from rom_manager.utils.lrtl_scanner import ingest_lrtl_dir
+
+                _playtime_ingest = {}
+                if config.retroarch_path:
+                    _pt_pc_dir = _Path(config.retroarch_path).parent / "playlists" / "logs"
+                    if _pt_pc_dir.is_dir():
+                        _f, _m = ingest_lrtl_dir(repository, _pt_pc_dir, "pc")
+                        _playtime_ingest["pc"] = {"files": _f, "matched": _m}
+                if _pt_android_dir.is_dir():
+                    _f, _m = ingest_lrtl_dir(repository, _pt_android_dir, "android")
+                    _playtime_ingest["android"] = {"files": _f, "matched": _m}
+
             _up = sum(r.get("uploaded", 0) for r in all_results)
             _down = sum(r.get("downloaded", 0) for r in all_results)
             _errs = sum(r.get("errors", 0) for r in all_results)
             job_result = {
+                "playtime_ingest": _playtime_ingest,
                 "dry_run": dry_run,
                 "sources": all_results,
                 "uploaded": _up,
@@ -448,6 +562,10 @@ def _do_sync(
                 "up_to_date": sum(r.get("up_to_date", 0) for r in all_results),
                 "conflicts": sum(r.get("conflicts", 0) for r in all_results),
                 "errors": _errs,
+                # REV43-8: sin esto, _pollSync (flow_wizard.js) nunca detecta
+                # que el job terminó y el paso "Sync" del wizard hace polling
+                # para siempre.
+                "result_ts": _utc_now_str(),
             }
             if not dry_run and config.notify_desktop:
                 from rom_manager.utils.notifier import notify
@@ -481,7 +599,7 @@ def _do_sync(
                     (f"{_errs} errores en cloud sync") if _errs else None
                 )
         except Exception as exc:
-            job_result = {"error": str(exc)}
+            job_result = {"error": str(exc), "result_ts": _utc_now_str()}
             _state._tray_instance and _state._tray_instance.set_status("✗ Error en sync")
         finally:
             job_manager.finish("sync", job_result)
@@ -539,12 +657,23 @@ def _do_migrate_split_db(
                 "FROM games"
             ).fetchall()
 
-        android_rows = [r for r in rows if not r["source_path"].lower().startswith(lib_root)]
+        # VAL-FIX-2: "not under library_root" es una heurística negativa — cualquier
+        # fila de PC fuera de library_root (mayúsculas, barra final, otra unidad
+        # histórica) se migraba a Android igualmente. Clasificar por pertenencia
+        # real: anbernic_root o ruta POSIX estilo ADB.
+        android_rows = [
+            r for r in rows if is_device_path(r["source_path"], anbernic_root=config.anbernic_root)
+        ]
 
         from rom_manager.scanner.rom_scanner import utc_now as _now
 
         ts = _now()
 
+        # REV43-5: solo se borra en origen lo que de verdad llegó al destino —
+        # antes se borraban TODAS las filas de android_rows aunque su upsert
+        # hubiera fallado, perdiendo para siempre los metadatos de catálogo
+        # (tags, RA, stats) de las filas fallidas.
+        migrated_paths: set[str] = set()
         with repo_android.batch() as _android_conn:
             for row in android_rows:
                 try:
@@ -566,12 +695,14 @@ def _do_migrate_split_db(
                         connection=_android_conn,
                     )
                     migrated += 1
+                    migrated_paths.add(row["source_path"])
                 except Exception as exc:
                     errors.append(f"{row['source_path']}: {exc}")
 
-        with repository.batch() as _pc_conn:
-            for row in android_rows:
-                _pc_conn.execute("DELETE FROM games WHERE source_path = ?", (row["source_path"],))
+        if migrated_paths:
+            with repository.batch() as _pc_conn:
+                for source_path in migrated_paths:
+                    cascade_delete_games_by_source_path(_pc_conn, source_path)
 
         with repository.connect() as _conn:
             save_rows = _conn.execute(
@@ -580,9 +711,12 @@ def _do_migrate_split_db(
             ).fetchall()
 
         android_saves = [
-            r for r in save_rows if not r["original_path"].lower().startswith(lib_root)
+            r
+            for r in save_rows
+            if is_device_path(r["original_path"], anbernic_root=config.anbernic_root)
         ]
         if android_saves:
+            migrated_save_paths: set[str] = set()
             with repo_android.batch() as _android_conn:
                 for row in android_saves:
                     try:
@@ -594,13 +728,15 @@ def _do_migrate_split_db(
                             timestamp=ts,
                             connection=_android_conn,
                         )
+                        migrated_save_paths.add(row["original_path"])
                     except Exception as exc:
                         errors.append(f"save:{row['original_path']}: {exc}")
-            with repository.batch() as _pc_conn:
-                for row in android_saves:
-                    _pc_conn.execute(
-                        "DELETE FROM saves WHERE original_path = ?", (row["original_path"],)
-                    )
+            if migrated_save_paths:
+                with repository.batch() as _pc_conn:
+                    for original_path in migrated_save_paths:
+                        _pc_conn.execute(
+                            "DELETE FROM saves WHERE original_path = ?", (original_path,)
+                        )
 
     except Exception as exc:
         ctx._send_json({"error": str(exc)})
@@ -616,15 +752,45 @@ def _do_migrate_split_db(
     )
 
 
-def _build_bootstrap_script(server_url: str) -> str:
-    """Return the Termux bootstrap shell script with the server URL embedded."""
+def _build_bootstrap_script(server_url: str, config: AppConfig, token: str) -> str:
+    """Return the canonical Termux setup script (ANBERNIC-UX-1).
+
+    Único generador de setup: lee los remotes de la config del PC y usa
+    ``rclone copy --update`` en ambas direcciones (el más nuevo gana, nunca
+    borra) — nada de bisync ni remotes hardcodeados (CLOUD-UX-7).
+    Crea ``~/retrovault-sync.sh`` (el nombre que documenta la pestaña) y el
+    script de Termux:Boot para el sync automático al arrancar.
+    """
+    base = (config.sync.rclone_remote or "").rstrip("/")
+    saves_remote = config.sync.saves_remote or (
+        f"{base}/saves" if base else "dropbox:/RetroSync/saves"
+    )
+    states_remote = config.sync.states_remote or (
+        f"{base}/states" if base else "dropbox:/RetroSync/states"
+    )
+    # JUEGOS-UX-7: la consola solo SUBE sus .lrtl (a /android — nunca a la ruta
+    # del PC). Sin fallback: si el PC no tiene playtime_remote configurado no
+    # leería lo subido, así que no se genera el bloque.
+    playtime_remote = (config.sync.playtime_remote or "").rstrip("/")
+    playtime_lines = (
+        f'''LOGS=/storage/emulated/0/RetroArch/playlists/logs
+PLAYTIME_REMOTE="{playtime_remote}/android"
+if [ -d "$LOGS" ]; then
+    echo "Subiendo tiempo de juego (.lrtl)..."
+    rclone copy "$LOGS" "$PLAYTIME_REMOTE" --update --transfers 4
+fi
+'''
+        if playtime_remote
+        else ""
+    )
     return f"""\
 #!/data/data/com.termux/files/usr/bin/bash
-# Retro Vault — bootstrap para Termux en Anbernic
+# Retro Vault — setup para Termux en Anbernic
 # Generado automáticamente por el servidor en {server_url}
 set -e
 
 SERVER="{server_url}"
+TOKEN="{token}"
 
 echo ""
 echo "=== Retro Vault — Configuración Anbernic ==="
@@ -643,46 +809,54 @@ termux-setup-storage
 echo "      Esperando 3 segundos..."
 sleep 3
 
-# 3. Descargar config de rclone desde el PC
+# 3. Descargar config de rclone desde el PC (enlace válido 10 minutos)
 echo ""
 echo "[3/4] Descargando configuración de rclone desde $SERVER..."
 mkdir -p ~/.config/rclone
-curl -sf "$SERVER/api/rclone-export-config" -o ~/.config/rclone/rclone.conf
+curl -sf "$SERVER/api/rclone-export-config?t=$TOKEN" -o ~/.config/rclone/rclone.conf
 if grep -q "\\[" ~/.config/rclone/rclone.conf 2>/dev/null; then
     echo "      rclone.conf instalado correctamente."
     rclone listremotes
 else
     echo "      AVISO: el archivo descargado parece vacío o inválido."
-    echo "      Revisa que el PC tiene rclone configurado (rclone config file)."
+    echo "      Revisa que el PC tiene rclone configurado y que el enlace no caducó."
 fi
 
 # 4. Crear script de sync
 echo ""
-echo "[4/4] Creando ~/sync-saves.sh..."
-cat > ~/sync-saves.sh << 'SCRIPT'
+echo "[4/4] Creando ~/retrovault-sync.sh..."
+cat > ~/retrovault-sync.sh << 'SCRIPT'
 #!/data/data/com.termux/files/usr/bin/bash
-LIBRARY="$HOME/storage/shared"
-REMOTE="dropbox:/RetroSync/saves"
-FILTERS=(
-  --include "*.sav" --include "*.srm" --include "*.state"
-  --include "*.state1" --include "*.state2" --include "*.sgm"
-  --include "*.brm" --include "*.brmc" --include "*.nv"
-  --include "*.hi" --include "*.fs" --include "*.ml1"
-  --exclude "*"
-)
-echo "=== Sync saves Anbernic <-> Dropbox ==="
-rclone bisync "$LIBRARY" "$REMOTE" "${{FILTERS[@]}}" --progress --log-level INFO "$@"
-echo "=== Hecho ==="
+# Retro Vault — sync de saves (copy --update: el más nuevo gana, nunca borra)
+SAVES=/storage/emulated/0/RetroArch/saves
+STATES=/storage/emulated/0/RetroArch/states
+SAVES_REMOTE="{saves_remote}"
+STATES_REMOTE="{states_remote}"
+echo "Subiendo saves..."
+rclone copy "$SAVES"  "$SAVES_REMOTE"  --update --transfers 4
+rclone copy "$STATES" "$STATES_REMOTE" --update --transfers 4
+echo "Bajando saves..."
+rclone copy "$SAVES_REMOTE"  "$SAVES"  --update --transfers 4
+rclone copy "$STATES_REMOTE" "$STATES" --update --transfers 4
+{playtime_lines}echo "=== Sync completado ==="
 SCRIPT
-chmod +x ~/sync-saves.sh
+chmod +x ~/retrovault-sync.sh
+
+# Auto-arranque con Termux:Boot (si está instalado)
+mkdir -p ~/.termux/boot
+cat > ~/.termux/boot/retrovault-sync.sh << 'BOOTEOF'
+#!/data/data/com.termux/files/usr/bin/bash
+sleep 30
+~/retrovault-sync.sh >> ~/retrovault-sync.log 2>&1
+BOOTEOF
+chmod +x ~/.termux/boot/retrovault-sync.sh
 
 echo ""
 echo "=== Listo ==="
 echo ""
 echo "Para sincronizar saves:"
-echo "  ~/sync-saves.sh"
+echo "  ~/retrovault-sync.sh"
 echo ""
-echo "Primera vez, añade --resync:"
-echo "  ~/sync-saves.sh --resync"
+echo "Con Termux:Boot instalado, el sync corre solo al encender la consola."
 echo ""
 """

@@ -10,7 +10,38 @@ import os
 import sqlite3
 from pathlib import Path
 
+from rom_manager.database.repositories.base import escape_like_prefix
 from rom_manager.database.repositories.models import MatchedGame, UnresolvedGame
+
+
+def _delete_game_children(conn: sqlite3.Connection, game_id: int) -> None:
+    """Delete a game's metadata/tags/operation history. Call before deleting the games row."""
+    conn.execute("DELETE FROM game_metadata WHERE game_id = ?", (game_id,))
+    conn.execute("DELETE FROM game_tags WHERE game_id = ?", (game_id,))
+    conn.execute("DELETE FROM file_operations WHERE game_id = ?", (game_id,))
+
+
+def cascade_delete_games_by_source_path(
+    conn: sqlite3.Connection, source_path: str, *, exclude_id: int | None = None
+) -> None:
+    """Delete game row(s) matching source_path, and their metadata/tags/file_operations.
+
+    For callers that key a delete off source_path within their own transaction
+    (inbox pipeline, RA duplicate resolution, cloud migration) instead of
+    delete_game() (keyed by id) -- same cascade, different key, so a row with
+    children doesn't violate the FK constraint on games.
+    """
+    where = "source_path = ?"
+    params: tuple = (source_path,)
+    if exclude_id is not None:
+        where += " AND id != ?"
+        params = (source_path, exclude_id)
+    game_ids = [
+        r[0] for r in conn.execute(f"SELECT id FROM games WHERE {where}", params).fetchall()
+    ]
+    for game_id in game_ids:
+        _delete_game_children(conn, game_id)
+    conn.execute(f"DELETE FROM games WHERE {where}", params)
 
 
 class GamesMixin:
@@ -307,8 +338,9 @@ class GamesMixin:
         return total
 
     def delete_game(self, game_id: int) -> None:
-        """Remove a game record from the database (file must be deleted from disk first)."""
+        """Remove a game record and its metadata/tags/operation history (file must be deleted from disk first)."""
         with self.connect() as connection:
+            _delete_game_children(connection, game_id)
             connection.execute("DELETE FROM games WHERE id = ?", (game_id,))
             connection.commit()
 
@@ -393,8 +425,8 @@ class GamesMixin:
         elif status == "matched":
             conditions.append("canonical_title IS NOT NULL")
         if source_root:
-            conditions.append("source_path LIKE ?")
-            params.append(source_root.rstrip("/\\").replace("%", "%%") + "%")
+            conditions.append("source_path LIKE ? ESCAPE '\\'")
+            params.append(escape_like_prefix(source_root.rstrip("/\\")) + "%")
         if search:
             like = "%" + search.replace("%", "%%").replace("_", "\\_") + "%"
             conditions.append(
@@ -430,7 +462,7 @@ class GamesMixin:
         if need_meta:
             conditions = [
                 c
-                if c.startswith("gm.") or c.startswith("id IN")
+                if c.startswith("gm.")
                 else c.replace("file_type", "g.file_type")
                 .replace("platform", "g.platform")
                 .replace("canonical_title", "g.canonical_title")
@@ -468,6 +500,7 @@ class GamesMixin:
                 " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
                 " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
                 f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
+                " g.playtime_minutes_pc, g.playtime_minutes_android,"
                 " gm.genre, gm.year AS meta_year, gm.publisher"
                 f" FROM {table_expr} " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
@@ -476,7 +509,8 @@ class GamesMixin:
                 "SELECT id, original_filename, source_path, platform, region,"
                 " extension, size_bytes, sha1, md5, canonical_title,"
                 " match_confidence, catalog_source, play_status, last_played_at,"
-                " is_favorite, notes, user_rating, play_count, first_played_at"
+                " is_favorite, notes, user_rating, play_count, first_played_at,"
+                " playtime_minutes_pc, playtime_minutes_android"
                 " FROM games " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
         )

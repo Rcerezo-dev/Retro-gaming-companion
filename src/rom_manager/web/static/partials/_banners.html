@@ -25,13 +25,28 @@
     <div class="tv-logo">&#x1F3AE; Retro Vault</div>
     <div class="tv-status-card">
       <div class="tv-status-row">
-        <span class="tv-status-dot"></span>
-        <span>PC conectado</span>
+        <span id="tv-status-dot" class="tv-status-dot"></span>
+        <span id="tv-status-text">Comprobando conexi&#xf3;n&#x2026;</span>
       </div>
       <div id="tv-last-sync" class="tv-status-sub">Comprobando &#xfa;ltimo sync&#x2026;</div>
     </div>
     <button class="tv-btn primary" onclick="tvStartSync()">&#x25B6; Sincronizar saves ahora</button>
+    <button class="tv-btn secondary" onclick="tvToggleSetup()">&#x2699; Primera vez &mdash; configurar esta consola</button>
     <button class="tv-btn secondary" onclick="tvSkipToFull()">Ir a la interfaz completa &rarr;</button>
+
+    <!-- ANBERNIC-UX-5: guía de instalación táctil para consolas sin configurar -->
+    <div id="tv-setup" class="hidden tv-status-card" style="text-align:left">
+      <ol style="font-size:13px;line-height:2.2;padding-left:20px;margin:0 0 10px">
+        <li>Instala <strong>F-Droid</strong>:
+          <a href="https://f-droid.org/F-Droid.apk" style="color:var(--c-teal)">descargar APK</a></li>
+        <li>Desde F-Droid instala <strong>Termux</strong> y <strong>Termux:Boot</strong>
+          <span style="color:var(--c-dim)">(no uses la Play Store)</span></li>
+        <li>Abre Termux y escribe este comando:</li>
+      </ol>
+      <div id="tv-setup-cmd" style="background:var(--c-deep);border:1px solid var(--c-border);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--c-teal);font-family:monospace;word-break:break-all">Generando comando&#x2026;</div>
+      <button class="tv-btn secondary" onclick="tvCopySetupCmd()" style="margin-top:10px">&#x1F4CB; Copiar comando</button>
+      <p style="font-size:11px;color:var(--c-dim);margin-top:8px">Copia el comando y p&#xe9;galo en Termux (mant&#xe9;n pulsado &#x2192; <em>Pegar</em>) &mdash; no hace falta teclear nada. Caduca a los 10 minutos; vuelve a abrir esta gu&#xed;a si tarda m&#xe1;s.</p>
+    </div>
   </div>
 
   <!-- Step 2: Syncing in progress -->
@@ -102,6 +117,10 @@
           <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer">
             <input type="checkbox" id="wiz-extract-zips" checked style="width:15px;height:15px">
             <span style="font-size:13px;color:var(--c-text)">Extraer ZIPs autom&#xe1;ticamente</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer">
+            <input type="checkbox" id="wiz-delete-zips" style="width:15px;height:15px">
+            <span style="font-size:13px;color:var(--c-text)">Borrar el ZIP original tras extraerlo completo <span style="color:var(--c-dim);font-weight:400">— solo si no quedó nada pendiente dentro</span></span>
           </label>
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
             <input type="checkbox" id="wiz-match" checked style="width:15px;height:15px">

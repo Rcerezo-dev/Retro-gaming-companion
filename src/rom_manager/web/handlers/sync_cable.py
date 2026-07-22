@@ -6,6 +6,9 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.sync import cable_engine
+from rom_manager.sync.sync_log import log_sync_event
+
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
@@ -68,6 +71,26 @@ def register_cable(
             except Exception as exc:
                 ctx._send_json({"accessible": False, "error": str(exc)})
 
+    # ── GET /api/sync-doctor (AUD-1) ─────────────────────────────────────────
+    @router.get("/api/sync-doctor")
+    def get_sync_doctor(ctx) -> None:
+        qs = getattr(ctx, "_qs", {})
+        serial = qs.get("serial", [""])[0].strip()
+        android_path = qs.get("android_path", [""])[0].strip() or config.sync.auto_sync_android_path
+        pc_path = qs.get("pc_path", [""])[0].strip() or (
+            str(config.library_root) if config.library_root else ""
+        )
+        quick = qs.get("quick", ["0"])[0] == "1"
+        if not serial:
+            ctx._send_json({"error": "serial requerido"})
+            return
+        try:
+            ctx._send_json(
+                _build_sync_doctor(config, repository, serial, android_path, pc_path, quick=quick)
+            )
+        except Exception as exc:
+            ctx._send_json({"error": str(exc)})
+
     # ── GET /api/sync-log ────────────────────────────────────────────────────
     @router.get("/api/sync-log")
     def get_sync_log(ctx) -> None:
@@ -105,6 +128,111 @@ def register_cable(
         _do_tree_diff(ctx, ctx._post_data, config, job_manager)
 
 
+def _build_sync_doctor(
+    config: AppConfig,
+    repository: LibraryRepository,
+    serial: str,
+    android_path: str,
+    pc_path: str,
+    *,
+    quick: bool = False,
+) -> dict:
+    """AUD-1 Sync Doctor: clock skew + anomalous saves diagnostics.
+
+    With ``quick=True`` only the clock check runs (used as pre-flight before a
+    mtime-based sync); the full report also joins local vs remote save listings
+    and the last sync per file from ``save_sync_log``.
+    """
+    import time
+    from pathlib import PurePosixPath
+
+    from rom_manager.sync.adb_transport import AdbTransport
+
+    transport = AdbTransport(config.adb, serial)
+    pc_epoch = time.time()
+    device_epoch = transport.device_epoch()
+    skew = device_epoch - pc_epoch
+    threshold = config.sync.clock_skew_threshold_s
+    result: dict = {
+        "ok": True,
+        "pc_epoch": round(pc_epoch, 1),
+        "device_epoch": device_epoch,
+        "skew_seconds": round(skew, 1),
+        "threshold_seconds": threshold,
+        "skew_exceeded": abs(skew) > threshold,
+    }
+    if quick:
+        return result
+
+    save_exts = frozenset(config.save_extensions)
+    android_prefix = android_path.rstrip("/") + "/"
+    remote_index = {
+        info.android_path.removeprefix(android_prefix): info
+        for info in transport.ls_recursive(android_path, wanted_extensions=save_exts)
+    }
+
+    local_index: dict[str, object] = {}
+    if pc_path and Path(pc_path).is_dir():
+        from rom_manager.sync.save_syncer import list_local_saves
+
+        local_index = {
+            s.relative: s for s in list_local_saves(Path(pc_path), config.save_extensions)
+        }
+
+    # mtime in the future = symptom of a badly-set clock (margin: skew threshold)
+    future_limit = pc_epoch + threshold
+    future_local = sorted(
+        rel for rel, s in local_index.items() if s.mtime.timestamp() > future_limit
+    )
+    future_remote = sorted(rel for rel, info in remote_index.items() if info.mtime > future_limit)
+    only_local = sorted(set(local_index) - set(remote_index))
+    only_remote = sorted(set(remote_index) - set(local_index))
+
+    # Last sync per file, newest first (save_sync_log already exists — AUD-1 adds the view)
+    last_syncs: list[dict] = []
+    try:
+        with repository.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT local_path, direction, result, created_at, MAX(id)
+                FROM save_sync_log
+                GROUP BY local_path
+                ORDER BY MAX(id) DESC
+                LIMIT 100
+                """
+            ).fetchall()
+        last_syncs = [
+            {
+                "file": PurePosixPath(str(r["local_path"]).replace("\\", "/")).name,
+                "direction": r["direction"],
+                "result": r["result"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    except Exception:
+        _logger.debug("save_sync_log no disponible para Sync Doctor", exc_info=True)
+
+    _CAP = 100
+    result.update(
+        {
+            "pc_path": pc_path,
+            "android_path": android_path,
+            "local_total": len(local_index),
+            "remote_total": len(remote_index),
+            "in_both": len(set(local_index) & set(remote_index)),
+            "future_local": future_local[:_CAP],
+            "future_remote": future_remote[:_CAP],
+            "only_local": only_local[:_CAP],
+            "only_remote": only_remote[:_CAP],
+            "only_local_total": len(only_local),
+            "only_remote_total": len(only_remote),
+            "last_syncs": last_syncs,
+        }
+    )
+    return result
+
+
 def _do_cable_sync(
     ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
@@ -131,6 +259,29 @@ def _do_cable_sync(
         ctx._send_json({"error": "anbernic_path is required"})
         return
 
+    # CABLE-UX-1: pre-flight de reloj en el backend (antes solo existía en el
+    # frontend) — cubre tanto el sync manual como el botón "Sincronizar saves
+    # ahora", que postea a este mismo endpoint.
+    if use_adb and direction == "newest" and not dry_run:
+        try:
+            _doc = _build_sync_doctor(
+                config, repository, adb_serial, android_path, pc_path_str, quick=True
+            )
+        except Exception as exc:
+            ctx._send_json({"error": f"No se pudo comprobar el reloj de la consola: {exc}"})
+            return
+        if _doc.get("skew_exceeded"):
+            ctx._send_json(
+                {
+                    "error": (
+                        f"Reloj de la consola desviado {_doc['skew_seconds']:.0f}s "
+                        f"(umbral {_doc['threshold_seconds']}s) — ajusta la hora de la "
+                        'consola antes de sincronizar por fecha ("Igualar ambos dispositivos").'
+                    )
+                }
+            )
+            return
+
     def run() -> None:
         cancel_event = job_manager.cancel_event("cable_sync")
         _log_file = None
@@ -140,8 +291,20 @@ def _do_cable_sync(
             import time as _time
             from pathlib import PurePosixPath
 
+            from rom_manager.backup.save_backup import backup_save
+            from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
+
             pc_root = Path(pc_path_str)
+            if not pc_root.exists():
+                # REV43-7: sin este chequeo, os.walk sobre una ruta inexistente
+                # no lanza error — solo no encuentra nada, y el job termina en
+                # "copied=0, errors=0" como si la sync hubiera ido bien.
+                raise OSError(f"Ruta PC no existe: {pc_path_str}")
             save_exts = frozenset(config.save_extensions)
+            # REV43-2: backup versionado antes de sobrescribir un save existente
+            # (mismo patrón que ya usa el SD-auto daemon, CABLE-UX-9a) — la ruta
+            # manual de cable/ADB no tenía red de seguridad.
+            _bk_root = config.data_dir if config.backup.saves_enabled else None
 
             log_path = config.project_root / ".rommgr" / "cable_sync_ops.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,6 +318,50 @@ def _do_cable_sync(
                 ts = _dt.datetime.now(tz=_dt.UTC).strftime("%H:%M:%S")
                 _log_file.write(
                     f"[{ts}] [{tag:5s}] {src}{(' -> ' + dst) if dst else ''}{(' | ' + note) if note else ''}\n"
+                )
+
+            # REV43-33: cable/ADB sync solo dejaba rastro en el .log de texto —
+            # "toda operación sobre archivos se registra en SQLite" (CLAUDE.md)
+            # no se cumplía aquí. No se registran los dry-run, igual que
+            # save_syncer.py con el remoto rclone.
+            def _sql_log(
+                direction: str,
+                local_path: str,
+                remote_path: str,
+                result: str,
+                message: str | None = None,
+            ) -> None:
+                try:
+                    with repository.connect() as conn:
+                        log_sync_event(
+                            conn,
+                            local_path=local_path,
+                            remote_path=remote_path,
+                            direction=direction,
+                            local_mtime=None,
+                            remote_mtime=None,
+                            result=result,
+                            message=message,
+                            created_at=_dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                        )
+                        conn.commit()
+                except Exception:
+                    _logger.debug(
+                        "No se pudo escribir en save_sync_log (cable sync)", exc_info=True
+                    )
+
+            def _sql_log_cable(
+                item: cable_engine.CopyPlanItem, result: str, message: str | None = None
+            ) -> None:
+                to_anbernic = item.arrow.startswith("->")
+                local_path = str(item.src if to_anbernic else item.dst)
+                remote_path = str(item.dst if to_anbernic else item.src)
+                _sql_log(
+                    "upload" if to_anbernic else "download",
+                    local_path,
+                    remote_path,
+                    result,
+                    message,
                 )
 
             def _cat_name(name: str) -> str:
@@ -212,48 +419,61 @@ def _do_cable_sync(
                     },
                 )
 
-            def _copy(src: Path, dst: Path, arrow: str) -> None:
+            # CABLE-UX-9d: copy_item del motor compartido (CABLE-UX-9b) hace
+            # el trabajo de safe_mode/skip_existing/dry_run; aquí solo se
+            # traducen sus eventos a los contadores/log/details de siempre.
+            def _apply_copy(item: cable_engine.CopyPlanItem) -> None:
                 nonlocal copied, skipped, errors, copied_bytes, safe_mode_skipped
                 if cancel_event.is_set():
                     return
-                try:
-                    src_stat = src.stat()
-                    size = src_stat.st_size
-                    if safe_mode and dst.exists():
+
+                def _on_event(tag: str, ev_item: cable_engine.CopyPlanItem, note: str) -> None:
+                    nonlocal skipped, errors, safe_mode_skipped
+                    src_name = str(ev_item.src.name)
+                    if tag == "SAFE":
                         safe_mode_skipped += 1
                         skipped += 1
-                        _log("SAFE", str(src), str(dst), "destino existe — omitido por modo seguro")
+                        _log("SAFE", str(ev_item.src), str(ev_item.dst), note)
                         if len(details) < 300:
-                            details.append({"file": "SAFE", "path": str(src.name)})
-                        return
-                    if skip_existing and dst.exists():
-                        try:
-                            if dst.stat().st_size == size:
-                                skipped += 1
-                                _log("SKIP", str(src), str(dst), "mismo tamaño")
-                                if len(details) < 300:
-                                    details.append({"file": "EXISTS", "path": str(src.name)})
-                                return
-                        except OSError:
-                            pass
-                    if not dry_run:
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(src, dst)
-                    _log("COPY" if not dry_run else "DRYRUN", str(src), str(dst))
+                            details.append({"file": "SAFE", "path": src_name})
+                    elif tag == "SKIP":
+                        skipped += 1
+                        _log("SKIP", str(ev_item.src), str(ev_item.dst), note)
+                        if len(details) < 300:
+                            details.append({"file": "EXISTS", "path": src_name})
+                    elif tag == "ERROR":
+                        errors += 1
+                        _log("ERROR", str(ev_item.src), str(ev_item.dst), note)
+                        _sql_log_cable(ev_item, "error", note)
+                        if len(details) < 300:
+                            details.append({"file": f"ERROR: {note}", "path": src_name})
+                    else:  # COPY / DRYRUN
+                        _log(tag, str(ev_item.src), str(ev_item.dst))
+                        if tag == "COPY":
+                            _sql_log_cable(ev_item, "ok")
+
+                if (
+                    _bk_root is not None
+                    and not dry_run
+                    and not safe_mode
+                    and _category(item.src) == "save"
+                    and item.dst.exists()
+                ):
+                    backup_save(item.dst, _bk_root)
+                policy = cable_engine.CopyPolicy(
+                    dry_run=dry_run, safe_mode=safe_mode, skip_existing=skip_existing
+                )
+                tag, size = cable_engine.copy_item(item, policy, on_event=_on_event)
+                if tag in ("COPY", "DRYRUN"):
                     copied += 1
                     copied_bytes += size
                     if len(details) < 300:
-                        details.append({"file": arrow, "path": str(src.name)})
-                    _update_progress(src.name)
-                except OSError as exc:
-                    errors += 1
-                    _log("ERROR", str(src), str(dst), str(exc))
-                    if len(details) < 300:
-                        details.append({"file": f"ERROR: {exc}", "path": str(src.name)})
+                        details.append({"file": item.arrow, "path": item.src.name})
+                    _update_progress(item.src.name)
 
             # ── ADB mode ──────────────────────────────────────────────────────
             if use_adb:
-                from rom_manager.sync.adb_transport import AdbTransport
+                from rom_manager.sync.adb_transport import AdbTransport, should_verify
 
                 transport = AdbTransport(config.adb, adb_serial)
 
@@ -263,11 +483,21 @@ def _do_cable_sync(
                         return
                     name = PurePosixPath(adb_info.android_path).name
                     local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                    is_save = should_verify(name, save_exts)
                     try:
-                        size = transport.pull(adb_info.android_path, local_dst, dry_run=dry_run)
+                        if _bk_root is not None and not dry_run and is_save and local_dst.exists():
+                            backup_save(local_dst, _bk_root)
+                        size = transport.pull(
+                            adb_info.android_path,
+                            local_dst,
+                            dry_run=dry_run,
+                            verify=is_save,
+                        )
                         _log(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
                         )
+                        if not dry_run:
+                            _sql_log("download", str(local_dst), adb_info.android_path, "ok")
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:
@@ -275,6 +505,10 @@ def _do_cable_sync(
                         _update_progress(name)
                     except OSError as exc:
                         _log("ERROR", adb_info.android_path, str(local_dst), str(exc))
+                        if not dry_run:
+                            _sql_log(
+                                "download", str(local_dst), adb_info.android_path, "error", str(exc)
+                            )
                         errors += 1
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": name})
@@ -285,8 +519,15 @@ def _do_cable_sync(
                         return
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
                     try:
-                        size = transport.push(local_src, android_dst, dry_run=dry_run)
+                        size = transport.push(
+                            local_src,
+                            android_dst,
+                            dry_run=dry_run,
+                            verify=should_verify(local_src.name, save_exts),
+                        )
                         _log("ADB→" if not dry_run else "DRY→", str(local_src), android_dst)
+                        if not dry_run:
+                            _sql_log("upload", str(local_src), android_dst, "ok")
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:
@@ -294,6 +535,8 @@ def _do_cable_sync(
                         _update_progress(local_src.name)
                     except OSError as exc:
                         _log("ERROR", str(local_src), android_dst, str(exc))
+                        if not dry_run:
+                            _sql_log("upload", str(local_src), android_dst, "error", str(exc))
                         errors += 1
                         if len(details) < 300:
                             details.append({"file": f"ERROR: {exc}", "path": local_src.name})
@@ -379,6 +622,20 @@ def _do_cable_sync(
                             continue
                         rel_posix = info.android_path.removeprefix(android_prefix)
                         if use_sha1 and _cat_name(name) == "rom":
+                            if dry_run:
+                                # REV43-6: el chequeo SHA1 exige descargar el
+                                # archivo para hashearlo — un dry-run no debe
+                                # disparar transferencias ADB reales, así que
+                                # el dedup no se evalúa aquí (se cuenta como
+                                # "se copiaría", igual que el resto de rutas
+                                # de previsualización).
+                                copied += 1
+                                if len(details) < 300:
+                                    details.append(
+                                        {"file": "DRY← (sin chequeo SHA1)", "path": name}
+                                    )
+                                _update_progress(name)
+                                continue
                             _update_progress(f"[SHA1] {name}")
                             import tempfile
 
@@ -399,11 +656,8 @@ def _do_cable_sync(
                                     tmp_path.unlink(missing_ok=True)
                                     continue
                                 dst = pc_root / Path(rel_posix.replace("/", os.sep))
-                                if not dry_run:
-                                    dst.parent.mkdir(parents=True, exist_ok=True)
-                                    shutil.move(str(tmp_path), dst)
-                                else:
-                                    tmp_path.unlink(missing_ok=True)
+                                dst.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.move(str(tmp_path), dst)
                                 copied += 1
                                 copied_bytes += info.size
                                 if len(details) < 300:
@@ -430,7 +684,7 @@ def _do_cable_sync(
                             if _frel not in _ab_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en PC")
                                     except OSError as _exc:
@@ -458,9 +712,13 @@ def _do_cable_sync(
                         pc_f = pc_index.get(rel_posix)
                         ab_inf = ab_index.get(rel_posix)
                         if pc_f and ab_inf:
-                            if pc_f.stat().st_mtime > ab_inf.mtime:
+                            # REV43-4: misma tolerancia que cable_engine.plan_direction
+                            # — sin ella, el redondeo de mtime de FAT32/exFAT elige un
+                            # "ganador" arbitrario y puede sobrescribir la version buena.
+                            diff = pc_f.stat().st_mtime - ab_inf.mtime
+                            if diff > cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_device(pc_f, rel_posix, "→ ADB (PC más reciente)")
-                            elif ab_inf.mtime > pc_f.stat().st_mtime:
+                            elif diff < -cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
@@ -472,6 +730,13 @@ def _do_cable_sync(
             # ── Filesystem mode ───────────────────────────────────────────────
             else:
                 ab_root = Path(anbernic_path_str)
+                if not ab_root.exists():
+                    # REV43-7: SD no insertada/montada — sin este chequeo el
+                    # job "termina bien" con copied=0 en vez de avisar.
+                    raise OSError(
+                        f"Ruta Anbernic no existe: {anbernic_path_str} "
+                        "(¿la SD está insertada/montada?)"
+                    )
 
                 try:
                     _pre_total = 0
@@ -523,14 +788,10 @@ def _do_cable_sync(
                     )
 
                 if direction == "pc_to_anbernic":
-                    for src in _iter_files(pc_root):
+                    for item in cable_engine.plan_direction(pc_root, ab_root, direction, _wanted):
                         if cancel_event.is_set():
                             break
-                        if not _wanted(src):
-                            continue
-                        rel = src.relative_to(pc_root)
-                        dst = ab_root / rel
-                        _copy(src, dst, "→ Anbernic")
+                        _apply_copy(item)
 
                     if delete_extra and not cancel_event.is_set():
                         _pc_rels = {
@@ -546,7 +807,7 @@ def _do_cable_sync(
                             if _frel not in _pc_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en destino")
                                     except OSError as _exc:
@@ -560,29 +821,22 @@ def _do_cable_sync(
                     use_sha1 = skip_sha1_dups and "roms" in what
                     if use_sha1:
                         from rom_manager.hashing.hash_calculator import calculate_hashes
-                    for src in _iter_files(ab_root):
+                    for item in cable_engine.plan_direction(pc_root, ab_root, direction, _wanted):
                         if cancel_event.is_set():
                             break
-                        if not _wanted(src):
-                            continue
-                        try:
-                            rel = src.relative_to(ab_root)
-                        except ValueError:
-                            continue
-                        if use_sha1 and _category(src) == "rom":
-                            _update_progress(f"[SHA1] {src.name}")
+                        if use_sha1 and _category(item.src) == "rom":
+                            _update_progress(f"[SHA1] {item.src.name}")
                             try:
-                                h = calculate_hashes(src)
+                                h = calculate_hashes(item.src)
                                 if repository.sha1_exists(h.sha1):
                                     sha1_skipped += 1
                                     skipped += 1
                                     if len(details) < 300:
-                                        details.append({"file": "DUP", "path": src.name})
+                                        details.append({"file": "DUP", "path": item.src.name})
                                     continue
                             except OSError:
                                 pass
-                        dst = pc_root / rel
-                        _copy(src, dst, "← PC")
+                        _apply_copy(item)
 
                     if delete_extra and not cancel_event.is_set():
                         _ab_rels: set[Path] = set()
@@ -599,7 +853,7 @@ def _do_cable_sync(
                             if _frel not in _ab_rels:
                                 if not dry_run:
                                     try:
-                                        _f.unlink()
+                                        _discard_to_trash(_f)  # AUD-3: soft-discard
                                         deleted_extra += 1
                                         _log("DEL", str(_f), "", "espejo: extra en PC")
                                     except OSError as _exc:
@@ -610,38 +864,28 @@ def _do_cable_sync(
                                     _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
-                    pc_files: dict[Path, Path] = {}
-                    for f in _iter_files(pc_root):
-                        if _wanted(f):
-                            pc_files[f.relative_to(pc_root)] = f
-
-                    ab_files: dict[Path, Path] = {}
-                    for f in _iter_files(ab_root):
-                        if _wanted(f):
-                            try:
-                                ab_files[f.relative_to(ab_root)] = f
-                            except ValueError:
-                                pass
-
-                    all_rels_fs = sorted(set(pc_files) | set(ab_files), key=lambda p: str(p))
-                    for rel in all_rels_fs:
+                    for item in cable_engine.plan_direction(pc_root, ab_root, direction, _wanted):
                         if cancel_event.is_set():
                             break
-                        pc_f = pc_files.get(rel)
-                        ab_f = ab_files.get(rel)
-                        if pc_f and ab_f:
-                            pc_mt = pc_f.stat().st_mtime
-                            ab_mt = ab_f.stat().st_mtime
-                            if pc_mt > ab_mt:
-                                _copy(pc_f, ab_root / rel, "→ Anbernic (PC más reciente)")
-                            elif ab_mt > pc_mt:
-                                _copy(ab_f, pc_root / rel, "← PC (Anbernic más reciente)")
-                            else:
+                        _apply_copy(item)
+
+                    # ponytail: recorre otra vez para contar empates de mtime
+                    # (plan_direction ya los excluye del plan porque no hay
+                    # nada que copiar). Mismo enfoque que CABLE-UX-9c.
+                    if not cancel_event.is_set():
+                        pc_index = {
+                            f.relative_to(pc_root): f for f in _iter_files(pc_root) if _wanted(f)
+                        }
+                        for f in _iter_files(ab_root):
+                            if not _wanted(f):
+                                continue
+                            try:
+                                rel = f.relative_to(ab_root)
+                            except ValueError:
+                                continue
+                            pc_f = pc_index.get(rel)
+                            if pc_f is not None and pc_f.stat().st_mtime == f.stat().st_mtime:
                                 skipped += 1
-                        elif pc_f:
-                            _copy(pc_f, ab_root / rel, "→ Anbernic (solo en PC)")
-                        elif ab_f:
-                            _copy(ab_f, pc_root / rel, "← PC (solo en Anbernic)")
 
             import datetime as _dt
 

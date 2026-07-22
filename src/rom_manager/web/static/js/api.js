@@ -103,11 +103,12 @@ export const api = {
   deleteDuplicate:   (body)   => _post('/api/duplicates/delete', body),
   deleteAllDuplicates: (body) => _post('/api/duplicates/delete-all', body),
   excludeDuplicate:  (body)   => _post('/api/duplicates/exclude', body),
-  raDuplicates:      ()       => _get('/api/ra-duplicates'),
-  discardRaDuplicate:(body)   => _post('/api/ra-duplicates/discard', body),
-  discardAllRaDuplicates: ()  => _post('/api/ra-duplicates/discard-all'),
   resolveRaDuplicate:(body)   => _post('/api/resolve-duplicate-ra', body),
   applyRaConflicts:  (body)   => _post('/api/apply-ra-conflicts', body),
+  // TABS-FIX-6: cola única que fusiona duplicados SHA1/semánticos/RA y conflictos del plan
+  reviewQueue:       ()       => _get('/api/review-queue'),
+  excludeReviewGroup:(body)   => _post('/api/review-queue/exclude', body),
+  applyAllReviewQueue: ()     => _post('/api/review-queue/apply-all'),
 
   // ── Converters ────────────────────────────────────────────────────────────
   convertChd:        (body)   => _post('/api/convert-chd', body),

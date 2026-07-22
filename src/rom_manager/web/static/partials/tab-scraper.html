@@ -20,6 +20,20 @@
       <label class="fmt-check" style="align-self:flex-end">
         <input type="checkbox" id="scrape-images"> Descargar portadas
       </label>
+      <label class="fmt-check" style="align-self:flex-end" title="Re-scrapea juegos que ya tienen metadata pero descripci&#xf3;n vac&#xed;a">
+        <input type="checkbox" id="scrape-missing-desc"> Rellenar descripciones vac&#xed;as
+      </label>
+    </div>
+    <div id="ss-creds-status" style="font-size:12px;margin:6px 0"></div>
+    <div style="margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <label style="color:var(--c-muted);font-size:11px">Cuota ScreenScraper (última sesión de scraping)</label>
+        <button class="btn" style="font-size:11px;padding:3px 10px" onclick="loadSsQuota()">&#x21BB; Actualizar</button>
+      </div>
+      <div class="hidden" id="ss-quota-bar-scraper" style="background:var(--c-bar);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px">
+        <div id="ss-quota-fill-scraper" style="height:100%;background:var(--c-teal);width:0%;transition:width 0.5s"></div>
+      </div>
+      <div id="ss-quota-label-scraper" style="font-size:11px;color:var(--c-dim)">Realiza un scraping para ver la cuota.</div>
     </div>
     <p style="color:var(--c-dim);font-size:11px;margin:4px 0 10px">
       &#x1F5BC; Las portadas se guardan junto a los ROMs: <code>{plataforma}/media/images/{nombre}.jpg</code><br>
@@ -70,7 +84,7 @@
       </div>
     </div>
     <div class="actions-row">
-      <button class="btn primary" onclick="doExportGamelists()">Exportar gamelist.xml</button>
+      <button id="btn-export-gamelist" class="btn primary" onclick="doExportGamelists()">Exportar gamelist.xml</button>
     </div>
     <div id="gamelist-result" class="job-result"></div>
   </div>

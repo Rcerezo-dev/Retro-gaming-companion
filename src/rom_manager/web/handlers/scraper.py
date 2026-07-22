@@ -84,8 +84,14 @@ def register(
             from rom_manager.scraper.pegasus_writer import write_pegasus_metadata
 
             result_peg = write_pegasus_metadata(config.library_root, repository)
+            errors = result_peg["errors"]
             ctx._send_json(
-                {"ok": True, "platforms": result_peg["platforms"], "games": result_peg["games"]}
+                {
+                    "ok": not errors,
+                    "platforms": result_peg["platforms"],
+                    "games": result_peg["games"],
+                    "errors": errors,
+                }
             )
         except Exception as exc:
             ctx._send_json({"error": str(exc)})
@@ -100,6 +106,8 @@ def _do_scrape(
     platform = data.get("platform") or None
     download_images = bool(data.get("images", False))
     limit = int(data.get("limit", 0))
+    # SAGE-1: also re-scrape games whose metadata exists but description is empty
+    missing_descriptions = bool(data.get("missing_descriptions", False))
 
     _cancel = job_manager.cancel_event("scrape")
 
@@ -120,7 +128,9 @@ def _do_scrape(
                 dev_id=config.credentials.screenscraper_dev_id,
                 dev_password=config.credentials.screenscraper_dev_pass,
             )
-            games = repository.get_games_for_scraping(platform=platform)
+            games = repository.get_games_for_scraping(
+                platform=platform, missing_descriptions=missing_descriptions
+            )
             if limit:
                 games = games[:limit]
             total = len(games)
@@ -232,23 +242,33 @@ def _do_scrape(
                                     )
                             if _dest.exists():
                                 wheel_path = str(_dest)
-                    repository.upsert_metadata(
-                        game_id=game["id"],
-                        ss_game_id=result.ss_game_id,
-                        title=result.title,
-                        year=result.year,
-                        genre=result.genre,
-                        publisher=result.publisher,
-                        developer=result.developer,
-                        description=result.description,
-                        rating=result.rating,
-                        box_art_url=result.box_art_url,
-                        box_art_path=box_art_path,
-                        screenshot_path=screenshot_path,
-                        wheel_path=wheel_path,
-                        scraped_at=utc_now(),
-                        connection=conn,
-                    )
+                    if game.get("has_metadata"):
+                        # SAGE-1: metadata row exists (description was empty) — update
+                        # only the description; a full upsert would wipe image paths.
+                        repository.update_description(
+                            game_id=game["id"],
+                            description=result.description,
+                            scraped_at=utc_now(),
+                            connection=conn,
+                        )
+                    else:
+                        repository.upsert_metadata(
+                            game_id=game["id"],
+                            ss_game_id=result.ss_game_id,
+                            title=result.title,
+                            year=result.year,
+                            genre=result.genre,
+                            publisher=result.publisher,
+                            developer=result.developer,
+                            description=result.description,
+                            rating=result.rating,
+                            box_art_url=result.box_art_url,
+                            box_art_path=box_art_path,
+                            screenshot_path=screenshot_path,
+                            wheel_path=wheel_path,
+                            scraped_at=utc_now(),
+                            connection=conn,
+                        )
                     repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
                     conn.commit()
                     found += 1
@@ -334,6 +354,7 @@ def _do_scrape(
                 "failed_games": failed_games[:20],
                 "cancelled": _cancel.is_set(),
                 "gamelists_written": _gamelist_written,
+                "description_coverage": repository.get_description_coverage(),  # SAGE-1
                 "result_ts": utc_now(),
             }
         except Exception as exc:

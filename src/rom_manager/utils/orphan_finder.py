@@ -29,31 +29,6 @@ def _iter_files(root: Path) -> Iterator[Path]:
             yield item
 
 
-# Directory names (case-insensitive) that are never ROM folders.
-_EXCLUDED_DIR_NAMES = frozenset(
-    {
-        "bios",
-        "system volume information",
-        "_descartados",
-    }
-)
-
-
-def _iter_files(root: Path) -> Iterator[Path]:
-    """Yield files under *root*, skipping excluded and hidden directories."""
-    try:
-        entries = list(root.iterdir())
-    except PermissionError:
-        return
-    for item in entries:
-        if item.is_dir():
-            if item.name.startswith(".") or item.name.lower() in _EXCLUDED_DIR_NAMES:
-                continue
-            yield from _iter_files(item)
-        elif item.is_file():
-            yield item
-
-
 @dataclass(slots=True)
 class OrphanedSave:
     save_path: str

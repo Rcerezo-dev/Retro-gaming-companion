@@ -1,20 +1,23 @@
 # Arquitectura técnica — Retro Vault
 
-> Documentación técnica del proyecto. Ver `CLAUDE.md` para reglas de trabajo y patrones críticos.
+> Documentación técnica del proyecto. Ver `.claude/CLAUDE.md` para reglas de trabajo y
+> patrones críticos, y [`CONTRIBUTING.md`](../../CONTRIBUTING.md) para el flujo de desarrollo.
+> Última regeneración desde el código: 2026-07-04 (ONB-3).
 
 ---
 
 ## Stack técnico
 
-- **Python 3.12** (Conda: `C:\Users\rammu\anaconda3\envs\rom_manager`)
-- **SQLite** via `sqlite3` stdlib — BD en `.rommgr/library.db`
-- **tomllib** para `config.toml`
-- **rclone** — binario externo para cloud sync
-- **chdman** — `tools/chdman.exe` v0.286 (NO en PATH)
-- **adb** — `tools/adb.exe` para Cable Sync
-- **Sin dependencias externas de runtime** (solo stdlib)
-- Lanzador: `scripts\rommgr.cmd`
-- Ejecución directa: `C:\Users\rammu\anaconda3\envs\rom_manager\python.exe -m rom_manager <cmd>`
+- **Python 3.11+** (desarrollo en 3.12; CI testea 3.11 y 3.12)
+- **SQLite** vía `sqlite3` stdlib — dos BDs en `.rommgr/`: `library_pc.db` y `library_android.db`
+- **tomllib** para `config.toml` — referencia completa de claves: [`config.toml.example`](../../config.toml.example)
+- **Sin dependencias externas de runtime** (solo stdlib); dev-deps: pytest, ruff, pre-commit
+- Binarios externos invocados como subprocesos:
+  - **rclone** — cloud sync (bundled en `tools/` o PATH)
+  - **chdman** — `tools/chdman.exe` (conversión a CHD; NO en PATH)
+  - **adb** — `tools/adb.exe` (Cable Sync USB)
+- Lanzador Windows: `scripts\rommgr.cmd` · directo: `python -m rom_manager <cmd>` (env conda `rom_manager`)
+- Distribución: PyInstaller (`RetroVault.spec`) + Inno Setup (`installer/RetroVault.iss`)
 
 ---
 
@@ -22,62 +25,120 @@
 
 ```
 src/rom_manager/
-  cli.py                          # Entrypoint CLI
-  config.py                       # AppConfig; carga config.toml
-  database/
-    schema.py                     # tablas: scan_runs, games, saves, assets, ...
-    repository.py                 # LibraryRepository — toda la lógica BD
-  detection/
-    file_classifier.py            # ROM / save / asset / system / unknown
-    platform_detector.py          # GBA, PSX, SNES... por extensión/carpeta
-    region_parser.py              # (USA), [Europe], etc.
-  hashing/hash_calculator.py      # SHA1+MD5+CRC32, chunks 1 MB
-  scanner/rom_scanner.py          # scan_library(); incremental por mtime
+  cli.py                          # Entrypoint CLI (argparse)
+  config.py                       # AppConfig + dataclasses anidadas:
+                                  #   SyncConfig, CredentialsConfig (secretos repr=False),
+                                  #   InboxConfig, BackupConfig; load_config()/save
+  wizard.py                       # Wizard CLI de primer arranque
+
   catalog/
-    catalog_loader.py             # DAT XML Logiqx (No-Intro/Redump)
-    matcher.py                    # CatalogMatcher; confianza high/medium/low
-  planner/operation_planner.py    # build_plan(); FormatOptions
-  renamer/file_renamer.py         # rename_rom_with_saves() — atómico con rollback
-  converters/
-    chd_converter.py              # cue→chd vía chdman
-    zip_extractor.py              # extrae .zip; omite disc sets (→CHD)
-  utils/
-    m3u_generator.py              # genera .m3u para multi-disco
-    multidisc_verifier.py
-    orphan_finder.py              # saves sin ROM asociada
-    health_checker.py             # re-hashea ROMs vs SHA1 almacenado
+    catalog_loader.py             # DATs Logiqx XML + clrmamepro (sniffer de formato)
+    dat_downloader.py             # Descarga de DATs desde libretro-database (lo usa
+                                  #   installer/download_dats.py; el runtime web usa
+                                  #   _run_dat_download en web/handlers/scan.py)
+    mame_loader.py                # DATs arcade (MAME/FBNeo) + load_arcade_crc_index()
+                                  #   (crc→{sets} para votación, ZIP-ROUTE-2)
+    matcher.py                    # CatalogMatcher; confianza high/medium/low por SHA1;
+                                  #   crc_index() crc32→(título,dat,plataforma) para
+                                  #   identificar ZIPs por el header (ZIP-ROUTE-1)
+
+  database/
+    schema.py                     # Tablas + migraciones retrocompatibles
+    repository.py                 # LibraryRepository = ensamblado de mixins (SRP-1c)
+    repositories/                 # Un mixin por agregado:
+      base.py                     #   _RepositoryBase: connect/batch/scan-runs/summary
+      games.py  metadata.py       #   GamesMixin, MetadataMixin (tags/notas/scraping)
+      sync.py   assets.py         #   SyncMixin (saves+sync log), AssetsMixin
+      duplicates.py               #   DuplicatesMixin (+wishlist)
+      play_history.py             #   PlayHistoryMixin (rating, sesiones, playtime)
+      models.py                   #   Dataclasses compartidas
+
+  detection/
+    file_classifier.py            # ROM / save / asset / BIOS / desconocido
+    platform_detector.py          # Plataforma por extensión/carpeta/cabecera
+    region_parser.py              # (USA), [Europe], etc.
+    filename_normalizer.py        # Normalización de títulos
+    cue_validator.py              # Integridad de sets .cue+.bin
+    set_detector.py               # Detección de sets multi-disco
+    bios_checker.py               # Identificación de BIOS conocidas
+
+  hashing/hash_calculator.py      # SHA1 + MD5 + CRC32 en una pasada (chunks 1 MB)
+  scanner/
+    rom_scanner.py                # scan_library() — incremental por mtime+tamaño
+    asset_scanner.py
+
+  planner/
+    operation_planner.py          # build_plan(): pending / already_correct / conflicts
+    collision_resolver.py         # Conflictos de nombre canónico
+  renamer/
+    file_renamer.py               # rename_rom_with_saves() — atómico con rollback;
+                                  #   move_disc_set_to_subfolder() para sets de disco
+
+  converters/                     # chd_converter (cue→chd), zip_extractor, n64_converter
+  patch/                          # Aplicadores de parches: ips_applier, bps_applier, ups_applier
+  esde/systems_generator.py       # Genera custom_systems/es_systems.xml para ES-DE
+  backup/save_backup.py           # Backups versionados de saves (pre-sync/pre-rename)
+  reports/reporter.py             # Informe de biblioteca (JSON/CSV)
+
+  utils/                          # m3u_generator, multidisc_verifier, orphan_finder,
+                                  # health_checker, dir_diff, lpl_generator,
+                                  # library_report_html, state_reader (savestates RA),
+                                  # notifier (toasts Windows), tray_icon,
+                                  # update_checker + update_installer (auto-update)
+
   sync/
-    rclone_transport.py           # wrapper rclone
-    save_syncer.py                # lógica de sync con política de conflictos
-    conflict_resolver.py
-    sync_log.py
-    adb_transport.py              # ADB pull/push para Cable Sync
-  scraper/
-    screenscraper.py              # REST ScreenScraper; fallback búsqueda por nombre
-    platform_ids.py               # plataforma → ScreenScraper ID
-    gamelist_writer.py            # genera gamelist.xml (formato EmulationStation)
-    pegasus_writer.py             # genera metadata.pegasus.txt (Pegasus frontend)
-  retroachievements/
-    ra_client.py                  # API_GetGameList; caché .rommgr/ra_cache/ 1 semana
-    ra_checker.py                 # cross-reference MD5 + búsqueda por título
-    ra_platform_ids.py            # plataforma → RA console ID (~30 plataformas)
+    rclone_transport.py           # Wrapper rclone (cloud)
+    adb_transport.py              # ADB pull/push (Cable Sync) — rutas via shlex.quote
+    save_syncer.py                # Lógica de sync + política de conflictos
+    conflict_resolver.py  sync_log.py  delta_cache.py
+    device_detector.py            # is_device_connected() (extraído de AppConfig)
+
+  scraper/                        # screenscraper (REST), platform_ids,
+                                  # gamelist_writer (ES-DE), pegasus_writer
+  retroachievements/              # ra_client (API + caché 1 semana), ra_checker (MD5),
+                                  # ra_platform_ids (~30 plataformas)
+  services/                       # Lógica de negocio pura (sin ctx HTTP):
+                                  # duplicates_service, ra_duplicates_service
+
   web/
-    server.py                     # HTTP server stdlib; todos los endpoints (~2900 líneas)
-    frontend.py                   # SPA HTML (una sola cadena Python, sin CSS/JS inline)
-    response_builders.py          # Funciones puras de respuesta (extraídas de server.py en S18)
-    cable_sync_daemon.py          # Daemons ADB auto-sync y SD card sync (extraídos en S19)
-    inbox_pipeline.py             # Pipeline Inbox: scan, setup, watcher (extraído en S19)
+    server.py                     # ThreadingHTTPServer + arranque de daemons
+    router.py                     # Registro y dispatch de rutas
+    auth.py                       # Sesiones + PIN (lockout por IP)
+    lan.py                        # Exposición LAN (allow_lan, IPs locales)
+    state.py                      # Estado mutable compartido (import a nivel de módulo)
+    jobs/manager.py               # JobManager — único dueño del estado de jobs
+    daemons.py                    # Arranque de watchers (inbox, health, cable)
+    cable_sync_daemon.py          # Daemons ADB auto-sync y SD card sync
+    inbox_pipeline.py             # Pipeline Inbox: ZIP → BIOS → scan → match → organize
+    zip_router.py                 # ZIP-ROUTE-4: coloca en un paso los ZIPs identificados
+                                  #   por el junk-scan (arcade directo — nunca por el
+                                  #   Inbox —, colecciones extraídas por mayoría de
+                                  #   miembros, resto vía inbox_pipeline)
+    frontend.py                   # Ensambla la SPA desde static/partials
+    builders/                     # Funciones puras de respuesta (SRP-1a):
+                                  # common, library, duplicates, diff, folders, misc
+    handlers/                     # Un módulo por dominio; register(router, ...):
+                                  # scan, games, organize, duplicates, collection,
+                                  # play_history, scraper, sync, sync_cable, sync_cloud,
+                                  # cloud_auth, inbox, config, patches, update, system,
+                                  # esde/ (conversions, reports, maintenance, doctor, system)
     static/
-      app.css                     # CSS de la SPA (extraído de frontend.py en S21)
-      app.js                      # JavaScript de la SPA (extraído en S21, ~4400 líneas)
+      index.html  app.css         # Shell de la SPA + estilos (tokens --rv-*)
+      openapi.json                # Especificación OpenAPI de la API (~4600 líneas)
+      js/                         # main.js, api.js, state.js, jobs.js, flow_wizard.js,
+                                  #   components/ (modal, toast), tabs/ (un JS por pestaña)
+      partials/                   # Un HTML por pestaña (tab-*.html) + _nav/_banners/_modals/_foot
 ```
+
+Regla de dependencias: `handlers` → `services`/`builders` → `database`/`utils`/`sync`.
+Los handlers son routers finos; la lógica de negocio vive en `services/` (ARC-SVC).
 
 ---
 
 ## Estructura de biblioteca en disco
 
 ```
-<library_root>/           (PC: E:\Carpetas anbernic\)
+<library_root>/
 │
 ├── nes/   snes/   n64/   gb/   gbc/   gba/   nds/   3ds/
 ├── gamecube/   wii/   wiiu/   switch/
@@ -86,77 +147,121 @@ src/rom_manager/
 ├── dreamcast/   saturn/
 ├── atari2600/   atari5200/   atari7800/   atarilynx/   atarijaguar/
 ├── neogeo/   pcengine/
-│   └── (cada carpeta tiene media/images/ y media/videos/)
+│   └── (cada carpeta tiene media/images/ y media/videos/ + gamelist.xml)
 │
-├── saves/
-│   ├── gba/       ← saves de Game Boy Advance (Game.sav, Game.srm…)
-│   ├── psx/       ← saves de PlayStation
-│   ├── snes/      ← saves de SNES
-│   └── …          ← una subcarpeta por cada plataforma (27 en total)
-│
-├── states/
-│   ├── gba/       ← savestates de GBA (Game.state, Game.state0…)
-│   ├── psx/
-│   └── …          ← misma estructura que saves/
-│
-├── bios/          ← BIOS (scph1001.bin, gba_bios.bin…) — no sincronizadas
-├── inbox/         ← ZIPs nuevos sin organizar (Pilar 2)
-└── screenshots/   ← capturas en-juego
+├── saves/{platform}/      ← saves por plataforma (27 subcarpetas)
+├── states/{platform}/     ← savestates, misma estructura
+├── bios/                  ← BIOS (scph1001.bin…) — no sincronizadas
+├── inbox/                 ← ZIPs nuevos sin organizar (Pilar 2)
+└── screenshots/           ← capturas en-juego
 ```
 
-**Regla crítica:** los saves NUNCA van en `saves/` directamente — siempre en `saves/{platform}/`.
-Esto garantiza que los saves de distintas consolas no se mezclen y que el sync sea auditable.
+**Regla crítica:** los saves NUNCA van en `saves/` directamente — siempre en
+`saves/{platform}/`. Garantiza que saves de distintas consolas no se mezclen y
+que el sync sea auditable.
 
-La consola Android debe replicar la misma estructura bajo su `android_root`.
-RetroArch Android guarda en `/storage/emulated/0/RetroArch/saves/` y `.../states/` por defecto (plano).
-Para que coincida con esta estructura, configura en RetroArch → Ajustes → Directorio:
-- "Directorio de archivos de guardado" → activar "Usar directorio del sistema" (crea subcarpetas por core automáticamente)
+La consola Android replica la misma estructura bajo su `android_root`.
+RetroArch Android guarda por defecto en `/storage/emulated/0/RetroArch/saves|states/` (plano);
+configurar RetroArch → Ajustes → Directorio para que use subcarpetas por core.
 
 ---
 
-## config.toml de referencia
+## Configuración
 
-```toml
-[library]
-library_root = "E:\\Carpetas anbernic"
+Un único documento de referencia: [`config.toml.example`](../../config.toml.example)
+(todas las claves soportadas, comentadas, con defaults). `config.py` la parsea en
+`AppConfig` con sub-dataclasses por dominio: `sync: SyncConfig`,
+`credentials: CredentialsConfig` (secretos con `repr=False` para no filtrarlos en
+logs), `inbox: InboxConfig`, `backup: BackupConfig`.
 
-[sync]
-remote = "dropbox:/RetroSync/saves"   # legacy; usar [[sync.sources]] para multi-emulador
-
-[[sync.sources]]
-name      = "RetroArch"
-local_dir = "E:\\Carpetas anbernic\\saves"
-remote    = "dropbox:/RetroSync/saves"
-
-[tools]
-chdman = "tools/chdman.exe"
-
-[web]
-host = "127.0.0.1"   # cambiar a "0.0.0.0" para acceder desde la consola Android
-port = 7777
-
-[screenscraper]
-user = "tu_usuario"
-pass = "tu_contraseña"
-
-[retroachievements]
-api_key = ""   # retroachievements.org → Settings → Web API Key
-```
+Tras guardar config desde la web, `_handle_save_config()` **recarga** `load_config()`
+en memoria — sin eso los cambios no se aplican hasta reiniciar.
 
 ---
 
 ## Base de datos
 
-Tablas principales en `.rommgr/library.db`:
+Dos BDs independientes con el mismo schema (`database/schema.py`):
+`.rommgr/library_pc.db` (PC) y `.rommgr/library_android.db` (consola).
 
 | Tabla | Propósito |
 |-------|-----------|
-| `games` | Un registro por archivo ROM/save/asset. Columnas clave: `source_path`, `platform`, `canonical_title`, `sha1`, `md5`, `crc32`, `match_confidence`, `play_status`, `last_played_at` |
-| `scan_runs` | Historial de escaneos con timestamp y ruta |
-| `assets` | Metadatos de ScreenScraper (carátulas, descripciones, etc.) |
+| `games` | Un registro por ROM: `source_path`, `platform`, `canonical_title`, `sha1/md5/crc32`, `match_confidence`, `play_status`, `user_rating`, `play_count`, `last_played_at` |
+| `saves` | Saves detectados y su asociación a ROM |
+| `assets` | Carátulas/vídeos/metadatos de scraping |
+| `scan_runs` | Historial de escaneos |
+| `file_operations` | **Toda** operación sobre archivos (rename, move, delete) — auditable |
 | `save_sync_log` | Log de operaciones de sync |
+| `game_metadata` | Metadatos extendidos (notas, descripciones) |
+| `game_tags` | Tags por juego |
+| `excluded_duplicates` | Duplicados descartados por el usuario |
+| `wishlist` | Juegos deseados |
 
-Índices activos: `idx_games_sha1`, `idx_games_platform`, `idx_games_file_type`, `idx_games_canonical_title`, `idx_games_play_status`, `idx_games_match_confidence`, `idx_games_last_played`.
+Migraciones: `schema.py` aplica `ALTER TABLE` retrocompatibles al conectar
+(nunca destructivas). Acceso: `repository.connect()` para lecturas,
+`repository.batch()` para escrituras en bulk.
+
+---
+
+## Patrones arquitecturales
+
+### Jobs en background — JobManager (ARC-JM)
+Todo el estado de jobs vive en **`web/jobs/manager.py`** (`JobManager`, con locking
+correcto). No hay dicts de progreso globales: los handlers y daemons usan
+`_state._job_manager`. Frontend: `startPolling()` cada 2s → `GET /api/job-status` →
+`_applyJobStatus(s)`; cada resultado lleva `result_ts` para no re-mostrar toasts.
+
+### Estado compartido — web/state.py (CLEAN-1)
+El estado mutable global vive en `rom_manager.web.state`, importado **a nivel de
+módulo** (no late imports; no hay ciclos porque ningún handler importa `server`):
+
+```python
+import rom_manager.web.state as _state
+
+_state._auto_sync_status = {"state": "syncing"}   # reasignación → siempre via _state.xxx
+progress = _state._cable_progress                  # mutación → binding local válido
+```
+
+### Renombrado atómico
+```python
+from rom_manager.renamer.file_renamer import rename_rom_with_saves
+outcome = rename_rom_with_saves(source, target, save_extensions)
+# outcome.success / outcome.saves_renamed / outcome.error — rollback si algo falla
+```
+PSX siempre por sets: `move_disc_set_to_subfolder()` (`file_renamer.py`) mueve cue+bins
+a la subcarpeta del juego **conservando los nombres de los `.bin`** — nunca se reescribe
+el `.cue` porque nunca se renombra un `.bin` suelto.
+En Windows/NTFS, renames solo-mayúsculas: conflicto solo si `target.exists()` y
+NO es el mismo archivo (`Path.samefile()` en `operation_planner.py`).
+
+### Seguridad web
+- PIN opcional con hash+salt (`web/auth.py`); lockout por IP tras intentos fallidos.
+- `serve()` aborta si se expone a la red sin PIN (`InsecureExposureError`), salvo
+  `allow_lan = true` (red doméstica) o `--allow-insecure`.
+- Rutas Android en ADB siempre con `shlex.quote()` (SEC-1).
+- `GET /api/config` nunca devuelve secretos, solo flags `*_set` (SEC-2).
+
+### Static files
+`GET /static/<archivo>` sirve desde `web/static/` con protección path-traversal.
+La SPA se ensambla en `frontend.py` a partir de `partials/` (un HTML por pestaña)
+y `js/tabs/` (un módulo JS por pestaña).
+
+---
+
+## API web
+
+La referencia completa y actualizada es **`web/static/openapi.json`** (OpenAPI, ~200
+endpoints), servida por el propio servidor. Rutas representativas:
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/status` | Estado global: library_root, first_run, jobs en curso |
+| GET | `/api/games` | Lista de ROMs con filtros (platform, device, match) |
+| GET | `/api/job-status` | Estado de todos los jobs (polling del frontend) |
+| POST | `/api/scan` · `/api/match` · `/api/apply` | Pipeline scan → match → rename |
+| POST | `/api/sync` · `/api/cable-sync` | Cloud sync (rclone) · sync USB (ADB) |
+| POST | `/api/download-dat` | Auto-descarga de catálogos DAT |
+| POST | `/api/config` | Guardar config.toml (allowlist de campos) |
 
 ---
 
@@ -164,53 +269,16 @@ Tablas principales en `.rommgr/library.db`:
 
 | Dispositivo | OS | Emulador | Conexión al PC |
 |-------------|----|---------|----|
-| PC (Windows 10/11) | Windows | RetroArch `C:\RetroArch-Win64\` + EmulationStation | — |
-| Consola Android (RG 556) | Android puro (NO ArkOS/JELOS) | RetroArch Android | Cable USB (ADB) o SD card |
+| PC (Windows 10/11) | Windows | RetroArch + ES-DE | — |
+| Consola Android (RG556) | Android puro | RetroArch Android | USB (ADB), SD card o SFTP (Termux) |
 
-Rutas de RetroArch PC:
-- Ejecutable: `C:\RetroArch-Win64\retroarch.exe`
-- Cores: `C:\RetroArch-Win64\cores\`
-- Saves configurados en: `E:\Carpetas anbernic\saves\` (ajustar en RetroArch → Ajustes → Directorio)
+Rutas RetroArch Android: saves `/storage/emulated/0/RetroArch/saves/`,
+states `/storage/emulated/0/RetroArch/states/`. Rutas por emulador standalone:
+`EMULATOR_SAVE_PATHS_DEFAULT` en `config.py` (overrides via `[[emulator_paths]]`).
+Detalle verificado en hardware: [`docs/sync/android-save-paths-RG556.md`](../sync/android-save-paths-RG556.md).
 
-Rutas de RetroArch en Android:
-- Saves: `/storage/emulated/0/RetroArch/saves/`
-- States: `/storage/emulated/0/RetroArch/states/`
-
----
-
-## EmulationStation (PC)
-
-Frontend instalado en `C:\Program Files (x86)\EmulationStation\emulationstation.exe` (v2.0.1a).
-
-Configuración en `C:\Users\rammu\.emulationstation\`:
-- `es_systems.cfg` — sistemas, rutas de ROMs y comandos de lanzador
-- `gamelists\{sistema}\gamelist.xml` — metadatos e imágenes por sistema
-- `themes\` — temas visuales (tema activo: `simple`)
-
-**Integración con Retro Vault:**
-- `gamelist_writer.py` escribe `gamelist.xml` dentro de cada carpeta de plataforma (`E:\Carpetas anbernic\{sistema}\gamelist.xml`). ES lo lee desde ahí automáticamente.
-- Las imágenes de carátulas se escriben en `E:\Carpetas anbernic\{sistema}\media\images\` y el `gamelist.xml` las referencia con rutas relativas.
-
-**Sistemas configurados en ES y cores usados:**
-
-| Sistema | Core RetroArch | Nota |
-|---------|---------------|------|
-| NES | `nestopia_libretro.dll` | |
-| SNES | `snes9x2010_libretro.dll` | |
-| GB / GBC | `gambatte_libretro.dll` | |
-| GBA | `mgba_libretro.dll` | |
-| N64 | `mupen64plus_next_libretro.dll` | |
-| NDS | `melondsds_libretro.dll` | |
-| 3DS | `citra_libretro.dll` | Sin tema propio; usa fallback `simple` |
-| PSX | `mednafen_psx_libretro.dll` | |
-| PS2 | `pcsx2_libretro.dll` | |
-| PSP | `ppsspp_libretro.dll` | |
-| Master System | `genesis_plus_gx_libretro.dll` | Descargar via RetroArch → Online Updater |
-| Mega Drive | `blastem_libretro.dll` | |
-| Game Gear | `genesis_plus_gx_libretro.dll` | Descargar via RetroArch → Online Updater |
-| Saturn | `mednafen_saturn_libretro.dll` | |
-| Dreamcast | `flycast_libretro.dll` | |
-| Arcade | `fbneo_libretro.dll` | Tema ES: `mame` |
+Cores por sistema: ver [`docs/architecture/platforms-cores.md`](platforms-cores.md)
+y la config `[launchers]` (plataforma → core libretro).
 
 ---
 
@@ -219,67 +287,7 @@ Configuración en `C:\Users\rammu\.emulationstation\`:
 - Endpoint: `GET https://retroachievements.org/API/API_GetGameList.php?i={console_id}&h=1&f=1&y={api_key}`
 - Hash principal: **MD5** (no SHA1)
 - Caché: `.rommgr/ra_cache/ra_hashes_{console_id}.json`, TTL 1 semana
-- Si juego no encontrado → búsqueda alternativa por título normalizado
-
----
-
-## Endpoints web clave
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | `/api/status` | Estado global: library_root, first_run, jobs en curso |
-| GET | `/api/games` | Lista de ROMs con filtros (platform, device, match_confidence) |
-| GET | `/api/plan` | Plan de renombrado (build_plan) |
-| GET | `/api/catalog-status` | DATs cargados: archivos, entradas por tipo |
-| GET | `/api/wizard-detect` | Autodetecta RetroArch y dispositivos ADB para el wizard |
-| GET | `/api/rclone-status` | Estado rclone: instalado, versión, remotes |
-| GET | `/api/adb-devices` | Dispositivos ADB conectados |
-| GET | `/api/library-diff` | Diff SHA1 entre BD de PC y BD de Android |
-| GET | `/api/setup-status` | Estado del job de setup (wizard) |
-| POST | `/api/scan` | Lanzar escaneo de biblioteca |
-| POST | `/api/match` | Lanzar cruce con catálogos DAT |
-| POST | `/api/apply` | Aplicar plan de renombrado |
-| POST | `/api/import-dats` | Importar archivos DAT desde una carpeta |
-| POST | `/api/sync` | Lanzar sync cloud (rclone) |
-| POST | `/api/cable-sync` | Lanzar sync por cable (ADB o filesystem) |
-| POST | `/api/setup-run` | Lanzar pipeline de primer arranque |
-| POST | `/api/config` | Guardar config.toml (campos permitidos allowlist) |
-
----
-
-## Patrones arquitecturales
-
-### Jobs en background
-```python
-# Estado en server.py (module level):
-_job_lock = threading.Lock()
-_jobs: dict = {"scan": False, "match": False, ...}  # bool: ¿está corriendo?
-_job_results: dict = {}       # resultado del último job
-_scan_progress: dict = {}     # dict mutable compartido con el thread
-
-# Para acceder desde módulos externos (circular import prevention):
-import rom_manager.web.server as _srv
-_srv._auto_sync_status = {"state": "syncing", ...}  # reasignación → must use _srv.xxx
-_cable_progress = _srv._cable_progress               # mismo objeto → mutations visibles
-```
-
-### Módulos externos que necesitan estado de server.py
-`cable_sync_daemon.py` e `inbox_pipeline.py` usan **late imports** dentro de cada función:
-```python
-def _auto_sync_loop(config, get_repo_fn):
-    import rom_manager.web.server as _srv  # late import evita circular import
-    # Variables reasignadas: siempre via _srv.xxx
-    # Variables mutadas (.update, []=): local binding válido
-```
-
-### Static files (S21)
-El servidor sirve `/static/app.css` y `/static/app.js` desde `web/static/`.
-La ruta de servicio tiene protección contra path traversal:
-```python
-filename = path[len("/static/"):]
-if "/" in filename or "\\" in filename or not filename:
-    send 404
-```
+- Progreso personal por juego: caché 1 h
 
 ---
 
@@ -287,22 +295,24 @@ if "/" in filename or "\\" in filename or not filename:
 
 - `from __future__ import annotations` en todos los módulos
 - `@dataclass(slots=True)` para estructuras de datos internas
-- Extensiones de archivo siempre en minúsculas
-- `source_path` siempre como `str(path.resolve())`
+- Extensiones de archivo siempre en minúsculas; `source_path` como `str(path.resolve())`
 - Timestamps en UTC, ISO-8601, sin microsegundos
-- `repository.connect()` para lecturas (no `_connect()`)
-- `repository.batch()` para escrituras en bulk
 - Tests con BD real en `tmp_path` (pytest) — no mocks, no `:memory:`
+- Lint/format: ruff (ver [`CONTRIBUTING.md`](../../CONTRIBUTING.md) y `pyproject.toml`)
 
 ---
 
-## Historial de refactoring (referencia para entender el estado actual)
+## Historial de refactoring (para entender el estado actual)
 
-| Sesión | Qué se hizo |
-|--------|-------------|
-| S18 | 22 funciones puras extraídas de `server.py` → `response_builders.py` |
-| S19 | Daemons ADB/SD → `cable_sync_daemon.py`; pipeline inbox → `inbox_pipeline.py` |
-| S20 | 20 tests para `repository.py` con BD real en tmp_path |
-| S21 | CSS/JS extraído de `frontend.py` a `static/app.css` y `static/app.js` |
-| S22 | Wizard primer arranque: `GET /api/wizard-detect`; branding Retro Vault |
-| S23 | DATs sin esfuerzo: `catalog-status`, `import-dats`; Sync wizard rclone |
+| Hito | Qué se hizo |
+|------|-------------|
+| S18–S21 | `server.py` troceado: response builders, daemons, inbox pipeline; CSS/JS extraídos de `frontend.py` a `static/` |
+| S22–S23 | Wizard de primer arranque; import de DATs |
+| SRP-1a/b/c | `response_builders.py` → `web/builders/`; `handlers/esde.py` → paquete `esde/`; `repository.py` → mixins en `database/repositories/` |
+| ARC-JM 1–6 | Migración completa al `JobManager`; eliminados los dicts globales de progreso y `srv_mod` |
+| ARC-CFG 1–4 | `AppConfig` dividido en `SyncConfig` / `CredentialsConfig` / `InboxConfig` / `BackupConfig`; `device_detector` extraído |
+| ARC-SVC | Capa `services/` — lógica de negocio fuera de los handlers |
+| SEC 1–7 | shlex.quote en ADB, secretos fuera de la API, PIN forzado en exposición de red, rate-limit de auth |
+| Día33–37 | DAT auto-download (clrmamepro parser), patch appliers (IPS/BPS/UPS), auto-update, PyInstaller + Inno Setup, LAN/PIN, WiFi-SFTP |
+
+Detalle por sesión: `Tareas/diario/` y `Tareas/diario/archivo/`.

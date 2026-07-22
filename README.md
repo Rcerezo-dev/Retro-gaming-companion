@@ -1,4 +1,8 @@
 # Retro Vault
+
+> **TL;DR (English):** Local Python tool with a web UI that turns a messy ROM folder into an organized retro game library — automatic identification against No-Intro/Redump catalogs, metadata and cover art scraping, and cloud/USB **save-game sync** between PC and Android handhelds (like Steam Cloud, but for emulators).
+> **Stack:** Python 3.12 (stdlib only, zero runtime dependencies), SQLite, vanilla JS web UI, GitHub Actions CI. Docs are in Spanish.
+
 ## ¿Por qué existe esto?
 
 Soy aficionado a los videojuegos retro y tengo una consola portátil Android (Anbernic) además del PC. El problema era siempre el mismo: terminar una partida en el PC y no poder continuarla en la consola, o tener cientos de ROMs sin organizar, con nombres crípticos, duplicados y sin carátulas.
@@ -64,6 +68,16 @@ Colección en todos tus dispositivos
 - Búsqueda de saves huérfanos (sin ROM asociada)
 - Health check: re-hashea ROMs contra el SHA1 almacenado para detectar corrupción
 - **Escaneo de archivos basura**: detecta y elimina `.DS_Store`, thumbs, temporales, etc.
+  Clasificador basado en evidencia (BD + catálogos + XML de MAME) con etiquetas de
+  confianza: `safe_delete` (borrable en masa), `review` y `misplaced` (mover, no borrar)
+- **Identificación de ZIPs sueltos sin descomprimir** (ZIP-ROUTE): el CRC32 del header
+  del ZIP se cruza con No-Intro/Redump (juegos de consola), con los DATs arcade por
+  votación (sets MAME/FBNeo renombrados) y con la extensión interna (romhacks);
+  las colecciones se detectan por contenido (zip-de-zips / `.chd`)
+- **Organizar identificados en un paso**: arcade directo a `arcade\` renombrado al set
+  (el ZIP nunca se extrae: es el ROM), colecciones extraídas a su destino y el resto
+  vía Inbox (emparejar → renombrar → mover); el Inbox queda limpio, sin duplicados,
+  y los conflictos se reportan sin sobreescribir nada
 
 ### Estructura de biblioteca (ES-DE compatible)
 - Crea automáticamente la estructura de carpetas estándar ES-DE/EmulationStation:
@@ -163,58 +177,20 @@ tools/
 
 ## Configuración
 
-Crea `config.toml` en la raíz del proyecto (o ejecuta `rommgr init-config`):
+Copia [`config.toml.example`](config.toml.example) a `config.toml` en la raíz
+del proyecto y ajusta las rutas — el example documenta **todas** las claves
+soportadas con sus defaults. La pestaña **Ajustes** de la interfaz web edita
+el archivo por ti, así que lo mínimo para arrancar es:
 
 ```toml
 [library]
-library_root = "E:\\ROMs"           # Raíz de la biblioteca
+library_root = "E:\\ROMs"    # Raíz de la biblioteca
 
-[sync]
-rclone = "rclone"                   # Binario rclone (o ruta completa)
-
-# ── Una entrada por emulador ──────────────────────────────────────────────────
+# Una entrada por emulador cuyos saves quieras sincronizar con la nube
 [[sync.sources]]
 name      = "RetroArch"
 local_dir = "E:\\ROMs\\saves"
 remote    = "dropbox:/RetroSync/saves/retroarch"
-
-[[sync.sources]]
-name      = "DuckStation (PSX)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\DuckStation\\memcards"
-remote    = "dropbox:/RetroSync/saves/duckstation"
-
-[[sync.sources]]
-name      = "PCSX2 (PS2)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PCSX2\\memcards"
-remote    = "dropbox:/RetroSync/saves/pcsx2"
-
-[[sync.sources]]
-name      = "PPSSPP (PSP)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\PPSSPP\\PSP\\SAVEDATA"
-remote    = "dropbox:/RetroSync/saves/ppsspp"
-sync_all  = true
-
-[[sync.sources]]
-name      = "Dolphin (GC/Wii)"
-local_dir = "C:\\Users\\TU_USUARIO\\Documents\\Dolphin Emulator"
-remote    = "dropbox:/RetroSync/saves/dolphin"
-sync_all  = true
-
-[tools]
-chdman = "tools\\chdman.exe"
-adb    = "tools\\adb.exe"
-
-[web]
-host = "127.0.0.1"
-port = 7777
-
-[screenscraper]
-user = ""
-pass = ""
-
-[retroachievements]
-api_key  = ""   # retroachievements.org → Settings → Web API Key
-username = ""   # tu nombre de usuario en retroachievements.org (para ver tu progreso personal)
 ```
 
 ---
@@ -239,7 +215,7 @@ rommgr serve
 | **Cable Sync** | Copia directa PC ↔ consola Android por USB. Tres modos de dirección. |
 | **Scraper** | Descarga metadatos y carátulas desde ScreenScraper. Exporta `gamelist.xml`. |
 | **RetroAchievements** | Compatibilidad de logros por MD5. Filtro por plataforma. Export CSV. Progreso personal por juego. |
-| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. |
+| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. Junk-scan con identificación de ZIPs por CRC y botón "Organizar identificados (1 paso)". |
 | **Inbox** | Procesa ZIPs nuevos: identifica plataforma, descomprime y organiza automáticamente. |
 | **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático. Descarga automática de DATs. |
 
@@ -391,6 +367,16 @@ Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 ---
 
+## Documentación
+
+Toda la documentación técnica (arquitectura, configuración, guías de sync,
+CI/CD y desarrollo) está indexada en [`docs/README.md`](docs/README.md).
+¿Quieres contribuir? Empieza por [`CONTRIBUTING.md`](CONTRIBUTING.md), sigue con
+[`docs/onboarding.md`](docs/onboarding.md) (tus primeros 30 minutos en el código)
+y ten a mano [`docs/glossary.md`](docs/glossary.md) para la jerga retro.
+
+---
+
 ## Licencia
 
-MIT
+[MIT](LICENSE)

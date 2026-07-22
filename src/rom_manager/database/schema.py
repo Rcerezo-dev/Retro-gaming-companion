@@ -55,7 +55,9 @@ SCHEMA_STATEMENTS = (
         user_rating INTEGER,
         first_played_at TEXT,
         play_count INTEGER NOT NULL DEFAULT 0,
-        metadata_scraped INTEGER DEFAULT 0
+        metadata_scraped INTEGER DEFAULT 0,
+        playtime_minutes_pc INTEGER,
+        playtime_minutes_android INTEGER
     )
     """,
     """
@@ -131,7 +133,8 @@ SCHEMA_STATEMENTS = (
         remote_mtime    TEXT,
         result          TEXT NOT NULL,
         message         TEXT,
-        created_at      TEXT NOT NULL
+        created_at      TEXT NOT NULL,
+        verified        INTEGER
     )
     """,
     """
@@ -181,6 +184,13 @@ SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS excluded_duplicate_groups (
+        group_key   TEXT NOT NULL PRIMARY KEY,
+        reason      TEXT NOT NULL DEFAULT 'intentional_copy',
+        created_at  TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS wishlist (
         sha1        TEXT NOT NULL PRIMARY KEY,
         title       TEXT NOT NULL,
@@ -214,12 +224,20 @@ _GAMES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("user_rating", "INTEGER"),  # NLP-REC: rating 1-5 por el usuario
     ("first_played_at", "TEXT"),  # NLP-REC: primera vez jugado
     ("play_count", "INTEGER"),  # NLP-REC: número de sesiones detectadas vía saves
+    # JUEGOS-UX-5: minutos por origen, separados para poder sumar sin duplicar
+    # (cada origen es dueño de su contador; el total es la suma, nunca un merge)
+    ("playtime_minutes_pc", "INTEGER"),
+    ("playtime_minutes_android", "INTEGER"),
 )
 
 _ASSETS_MIGRATIONS: tuple[tuple[str, str], ...] = ()
 
 _SAVES_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("game_id", "INTEGER"),  # DB-FIX-4: FK → games.id (declarative; enforced at app layer)
+)
+
+_SYNC_LOG_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("verified", "INTEGER"),  # AUD-2: post-transfer integrity check passed
 )
 
 _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
@@ -244,6 +262,7 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     _migrate_saves_columns(cursor)
     _migrate_assets_columns(cursor)
     _migrate_metadata_columns(cursor)
+    _migrate_sync_log_columns(cursor)
     _migrate_is_favorite_default(cursor)
     _drop_deprecated_columns(cursor)
     connection.commit()
@@ -301,6 +320,14 @@ def _migrate_assets_columns(cursor: sqlite3.Cursor) -> None:
     for col_name, col_type in _ASSETS_MIGRATIONS:
         if col_name not in existing:
             _alter_table_add_column(cursor, "assets", col_name, col_type)
+
+
+def _migrate_sync_log_columns(cursor: sqlite3.Cursor) -> None:
+    """Add any missing columns to save_sync_log without touching existing data."""
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(save_sync_log)")}
+    for col_name, col_type in _SYNC_LOG_MIGRATIONS:
+        if col_name not in existing:
+            _alter_table_add_column(cursor, "save_sync_log", col_name, col_type)
 
 
 def _migrate_metadata_columns(cursor: sqlite3.Cursor) -> None:

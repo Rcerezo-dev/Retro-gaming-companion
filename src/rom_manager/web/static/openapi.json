@@ -997,7 +997,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "{\"sha1\":\"\u2026\",\"keep_path\":\"\u2026\"}"
+                "description": "{\"source_root\":\"\u2026\"} \u2014 ra\u00edz del dispositivo activo; vac\u00edo = ambas BDs (PC + consola)"
               }
             }
           }
@@ -1043,7 +1043,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "{\"source_path\":\"\u2026\"}"
+                "description": "{\"sha1\":\"\u2026\",\"source_root\":\"\u2026\"} \u2014 source_root vac\u00edo = excluir en ambas BDs"
               }
             }
           }
@@ -1359,6 +1359,50 @@
                   "properties": {
                     "error": {
                       "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library-extras": {
+      "get": {
+        "summary": "Aggregated non-gaming file counts (BIOS, MAME infra, deletable junk) for the overview tab",
+        "tags": [
+          "Library"
+        ],
+        "parameters": [
+          {
+            "name": "root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bios": {
+                      "type": "integer"
+                    },
+                    "mame_infra": {
+                      "type": "integer"
+                    },
+                    "junk_files": {
+                      "type": "integer"
+                    },
+                    "junk_bytes": {
+                      "type": "integer"
                     }
                   }
                 }
@@ -4594,9 +4638,9 @@
         }
       }
     },
-    "/api/anbernic-setup.sh": {
+    "/api/anbernic-setup-token": {
       "get": {
-        "summary": "Generate personalised Android/Termux setup shell script",
+        "summary": "Mint the short-lived setup token embedded in the /s command",
         "tags": [
           "Setup"
         ],

@@ -132,12 +132,13 @@ def load_nointro_dat(path: Path) -> dict[str, CatalogEntry]:
                 sha1=sha1,
                 md5=rom.get("md5", "").strip().upper(),
                 crc32=rom.get("crc", "").strip().upper(),
-                size_bytes=int(rom.get("size", 0)),
+                # INICIO-FIX-1: size="" en DATs reales — or 0 como sus gemelos
+                size_bytes=int(rom.get("size", 0) or 0),
             )
     return entries
 
 
-def _load_dat_file(path: Path) -> dict[str, CatalogEntry]:
+def load_dat_file(path: Path) -> dict[str, CatalogEntry]:
     """Load a single DAT file, auto-detecting XML vs clrmamepro format."""
     if _detect_dat_format(path) == "clrmamepro":
         return load_clrmamepro_dat(path)
@@ -151,7 +152,7 @@ def load_dat_directory(directory: Path) -> dict[str, CatalogEntry]:
     """
     merged: dict[str, CatalogEntry] = {}
     for dat_file in sorted(directory.glob("*.dat")):
-        merged.update(_load_dat_file(dat_file))
+        merged.update(load_dat_file(dat_file))
     return merged
 
 

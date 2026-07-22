@@ -6,20 +6,7 @@ from pathlib import Path
 
 from rom_manager.database.repository import LibraryRepository, MatchedGame
 from rom_manager.detection.filename_normalizer import sanitize_filename
-
-
-def _same_file(a: Path, b: Path) -> bool:
-    """Return True if *a* and *b* refer to the same file on disk.
-
-    On Windows (case-insensitive FS) ``Path("game.gba").exists()`` returns
-    True even when ``Path("Game.gba")`` is the only file, so we must
-    distinguish a *case-only* rename from a true conflict.
-    """
-    try:
-        return a.samefile(b)
-    except OSError:
-        return False
-
+from rom_manager.utils.paths import same_file as _same_file
 
 # Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
 # Also used as the heuristic to detect whether source is flat (parent.name in this set)
@@ -45,6 +32,9 @@ _REGION_RE = re.compile(
 
 # Annotations de revisión: (Rev 1), (Rev A), (v1.0), (v1.1), etc.
 _REVISION_RE = re.compile(r"\s*\((Rev [A-Z0-9]+|v\d[\d.]*)\)", re.IGNORECASE)
+
+# TABS-FIX-6-DISC: tag de disco al estilo No-Intro/Redump, p.ej. "(Disc 2)".
+_DISC_TAG_RE = re.compile(r"\(disc\s*\d+\)", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -80,12 +70,26 @@ class RenamePlan:
         return len(self.pending) + len(self.already_correct) + len(self.conflicts)
 
 
-def _canonical_filename(game: MatchedGame, opts: FormatOptions | None = None) -> str:
+def _canonical_filename(
+    game: MatchedGame, opts: FormatOptions | None = None, *, include_disc_tag: bool = True
+) -> str:
     """Build the target filename applying optional format options.
 
-    Component order: [platform - ]title[ (region)][ (revision)][ [sha]]
+    Component order: [platform - ]title[ (Disc N)][ (region)][ (revision)][ [sha]]
+
+    TABS-FIX-6-DISC: No-Intro/Redump often share one canonical_title across
+    every disc of a multi-disc set (no disc number in the DAT) — without the
+    real "(Disc N)" tag from the source filename, every disc computes the
+    same target filename, collides, and "Resolver con RA" can discard Disc
+    2/3 thinking they're alternate copies. *include_disc_tag=False* derives
+    the shared game *folder* name, which must stay disc-agnostic.
     """
     title = game.canonical_title
+
+    if include_disc_tag and not _DISC_TAG_RE.search(title):
+        disc_match = _DISC_TAG_RE.search(game.original_filename)
+        if disc_match:
+            title = f"{title} {disc_match.group(0)}"
 
     if opts is not None:
         if not opts.include_region:
@@ -126,12 +130,15 @@ def build_plan(
         source = Path(game.source_path)
         new_filename = _canonical_filename(game, opts)
 
-        # Disc platforms: each game lives in its own subfolder (psx/Game/Game.cue)
+        # Disc platforms: each game lives in its own subfolder (psx/Game/Game.cue).
+        # TABS-FIX-6-DISC: the folder is shared by every disc of a set, so it must
+        # be derived disc-agnostic even though new_filename now carries the tag.
         if game.platform and game.platform.lower() in _DISC_SUBFOLDER_PLATFORMS:
+            folder_name = Path(_canonical_filename(game, opts, include_disc_tag=False)).stem
             target = (
-                source.parent.parent / Path(new_filename).stem / new_filename
+                source.parent.parent / folder_name / new_filename
                 if source.parent.name.lower() not in _DISC_SUBFOLDER_PLATFORMS
-                else source.parent / Path(new_filename).stem / new_filename
+                else source.parent / folder_name / new_filename
             )
         else:
             target = source.parent / new_filename

@@ -58,6 +58,16 @@ _LIBRETRO_DAT_CATALOG = [
     # Arcade → arcade/
     {"name": "FBNeo - Arcade Games", "short": "FBNeo Arcade", "catalog": "fbneo"},
     {"name": "MAME 2003-Plus", "short": "MAME 2003+", "catalog": "mame"},
+    # listxml oficial de MAME (asset mameXXXXlx.zip de la última release en
+    # GitHub) — única fuente de los flags isbios/isdevice/runnable que usan
+    # load_arcade_infra_names y el junk-scan (JUNK-SMART-2). "file" fija el
+    # nombre local en vez del patrón "{name}.dat".
+    {
+        "name": "MAME - Full listxml",
+        "short": "MAME XML (bios/devices)",
+        "catalog": "mame_xml",
+        "file": "mame.xml",
+    },
 ]
 
 _LIBRETRO_METADAT_BASE = (
@@ -65,9 +75,6 @@ _LIBRETRO_METADAT_BASE = (
 )
 _CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
 _DAT_TTL_DAYS = 7  # re-download if the local DAT is older than this
-
-_dat_dl_lock = threading.Lock()
-_dat_dl_state: dict = {"running": False, "total": 0, "done": 0, "current": "", "result": None}
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -182,17 +189,21 @@ def register(
     # ── GET /api/download-dats-status ─────────────────────────────────────────
     @router.get("/api/download-dats-status")
     def get_download_dats_status(ctx) -> None:
-        with _dat_dl_lock:
-            ctx._send_json(dict(_dat_dl_state))
+        job = job_manager.get_job("download_dats")
+        progress = job["progress"] or {}
+        ctx._send_json(
+            {
+                "running": job["running"],
+                "total": progress.get("total", 0),
+                "done": progress.get("done", 0),
+                "current": progress.get("current", ""),
+                "result": job["result"],
+            }
+        )
 
     # ── POST /api/download-dats ───────────────────────────────────────────────
     @router.post("/api/download-dats")
     def post_download_dats(ctx) -> None:
-        with _dat_dl_lock:
-            if _dat_dl_state["running"]:
-                ctx._send_json({"status": "already_running"})
-                return
-
         data = ctx._post_data or {}
         all_sys = data.get("all", False)
         names = set(data.get("systems", []))
@@ -205,7 +216,12 @@ def register(
             ctx._send_json({"status": "error", "error": "No se han seleccionado sistemas"})
             return
 
-        threading.Thread(target=_run_dat_download, args=(systems, config), daemon=True).start()
+        result = job_manager.start(
+            "download_dats", lambda: _run_dat_download(systems, config, job_manager)
+        )
+        if result["status"] == "already_running":
+            ctx._send_json(result)
+            return
         ctx._send_json({"status": "started", "total": len(systems)})
 
 
@@ -374,6 +390,7 @@ def _do_adb_scan(
     import logging
 
     logger = logging.getLogger(__name__)
+    _cancel = job_manager.cancel_event("scan")
 
     def run() -> None:
         job_result = None
@@ -400,6 +417,8 @@ def _do_adb_scan(
 
             with repo_android.batch() as conn:
                 for fi in all_files:
+                    if _cancel.is_set():
+                        break
                     ap = fi.android_path
                     seen_paths.add(ap)
                     parts = ap.split("/")
@@ -492,6 +511,7 @@ def _do_adb_scan(
                 "pruned": pruned,
                 "source": "adb",
                 "android_path": android_path,
+                "cancelled": _cancel.is_set(),
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
@@ -587,40 +607,44 @@ def _import_dats(data: dict, config: AppConfig) -> dict:
     return {"imported": imported, "errors": errors, "total": len(imported)}
 
 
-def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
+def _run_dat_download(systems: list[dict], config: AppConfig, job_manager: JobManager) -> None:
     """Download DAT files from libretro-database and save to the catalog dirs."""
     import urllib.error
     import urllib.parse
     import urllib.request as _urlreq
 
-    from rom_manager.catalog.catalog_loader import _load_dat_file
+    from rom_manager.catalog.catalog_loader import load_dat_file
 
     downloaded: list[str] = []
     skipped: list[str] = []
     errors: list[dict] = []
 
-    with _dat_dl_lock:
-        _dat_dl_state.update(
-            {"running": True, "total": len(systems), "done": 0, "current": "", "result": None}
-        )
+    job_manager.update_progress("download_dats", {"total": len(systems), "done": 0, "current": ""})
 
     for i, entry in enumerate(systems):
         name = entry["name"]
         catalog = entry["catalog"]
-        filename = name + ".dat"
+        filename = entry.get("file") or (name + ".dat")
         dest_dir = {
             "redump": config.catalogs_redump_dir,
             "fbneo": config.catalogs_arcade_dir,
             "mame": config.catalogs_arcade_dir,
+            "mame_xml": config.catalogs_arcade_dir,
         }.get(catalog, config.catalogs_nointro_dir)
         dest_file = dest_dir / filename
 
-        with _dat_dl_lock:
-            _dat_dl_state["current"] = name
-            _dat_dl_state["done"] = i
+        job_manager.update_progress("download_dats", {"current": name, "done": i})
 
         if dest_file.exists() and _is_dat_fresh(dest_file):
             skipped.append(name)
+            continue
+
+        if catalog == "mame_xml":
+            err = _download_mame_listxml(dest_file)
+            if err:
+                errors.append({"name": name, "error": err})
+            else:
+                downloaded.append(name)
             continue
 
         source = _CATALOG_TO_SOURCE.get(catalog, "no-intro")
@@ -631,7 +655,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
                 data = resp.read()
             dest_file.write_bytes(data)
             try:
-                entries = _load_dat_file(dest_file)
+                entries = load_dat_file(dest_file)
             except Exception:
                 entries = {}
             if not entries:
@@ -644,15 +668,58 @@ def _run_dat_download(systems: list[dict], config: AppConfig) -> None:
         except Exception as exc:
             errors.append({"name": name, "error": str(exc)})
 
-    with _dat_dl_lock:
-        _dat_dl_state.update(
-            {
-                "running": False,
-                "done": len(systems),
-                "current": "",
-                "result": {"downloaded": downloaded, "skipped": skipped, "errors": errors},
-            }
+    job_manager.finish(
+        "download_dats", {"downloaded": downloaded, "skipped": skipped, "errors": errors}
+    )
+
+
+def _download_mame_listxml(dest_file: Path) -> str:
+    """Descarga el listxml oficial de MAME y lo extrae como *dest_file*.
+
+    Resuelve la última release vía la API de GitHub (el asset ``*lx.zip``,
+    ~19 MB comprimido / ~300 MB extraído). Devuelve "" si todo fue bien o el
+    mensaje de error — nunca lanza, como el resto del descargador.
+    """
+    import io
+    import os
+    import shutil
+    import urllib.error
+    import urllib.request as _urlreq
+    import zipfile
+
+    api_url = "https://api.github.com/repos/mamedev/mame/releases/latest"
+    try:
+        with _urlreq.urlopen(api_url, timeout=30) as resp:  # noqa: S310 — constante
+            release = json.load(resp)
+        asset = next(
+            (a for a in release.get("assets", []) if a.get("name", "").endswith("lx.zip")),
+            None,
         )
+        if not asset:
+            return "La última release de MAME no incluye el asset *lx.zip"
+        with _urlreq.urlopen(asset["browser_download_url"], timeout=600) as resp:  # noqa: S310
+            data = resp.read()
+        # Extraer a .part y renombrar al final: un fallo a mitad no debe dejar
+        # un mame.xml corrupto pisando el que ya funcionaba
+        part = dest_file.with_name(dest_file.name + ".part")
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            inner = next((n for n in z.namelist() if n.lower().endswith(".xml")), None)
+            if not inner:
+                return "El ZIP de la release no contiene ningún .xml"
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            with z.open(inner) as src, open(part, "wb") as out:
+                shutil.copyfileobj(src, out)
+        # El DTD inicial ocupa unos pocos KB; si en 256 KB no hay <machine>,
+        # el formato no es el esperado
+        if b"<machine" not in part.read_bytes()[:262_144]:
+            part.unlink(missing_ok=True)
+            return "XML descargado pero sin elementos <machine> — formato inesperado"
+        os.replace(part, dest_file)
+        return ""
+    except urllib.error.URLError as exc:
+        return f"Error de red: {exc.reason}"
+    except Exception as exc:  # noqa: BLE001 — el resultado viaja al frontend
+        return str(exc)
 
 
 def _is_dat_fresh(path: Path) -> bool:
@@ -669,7 +736,8 @@ def _build_dat_catalog_list(config: AppConfig) -> dict:
     def _index_dir(directory: Path) -> dict[str, Path]:
         if not directory.exists():
             return {}
-        return {f.stem: f for f in directory.iterdir() if f.suffix.lower() == ".dat"}
+        # .xml además de .dat: el listxml de MAME se guarda como mame.xml
+        return {f.stem: f for f in directory.iterdir() if f.suffix.lower() in (".dat", ".xml")}
 
     nointro_files = _index_dir(config.catalogs_nointro_dir)
     redump_files = _index_dir(config.catalogs_redump_dir)
@@ -681,7 +749,8 @@ def _build_dat_catalog_list(config: AppConfig) -> dict:
     result = []
     for entry in _LIBRETRO_DAT_CATALOG:
         files = _catalog_dir.get(entry["catalog"], arcade_files)
-        dat_path = files.get(entry["name"])
+        stem = Path(entry["file"]).stem if "file" in entry else entry["name"]
+        dat_path = files.get(stem)
         if dat_path is None:
             result.append(
                 {

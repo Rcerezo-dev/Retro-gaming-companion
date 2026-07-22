@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
+    from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
 
+_logger = logging.getLogger(__name__)
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -19,6 +24,8 @@ def register(
     router: Router,
     *,
     repository: LibraryRepository,
+    config: AppConfig,
+    job_manager: JobManager,
 ) -> None:
     """Register play-history CRUD routes on *router*."""
 
@@ -291,3 +298,96 @@ def register(
         )
 
         ctx._send_json({"ok": True, "stored": len(_recommendations["items"])})
+
+    # ── POST /api/playtime-scan ───────────────────────────────────────────────
+    @router.post("/api/playtime-scan")
+    def post_playtime_scan(ctx) -> None:
+        """Scan RetroArch ``.lrtl`` playtime logs (JUEGOS-UX-6/7).
+
+        PC: ``<retroarch>/playlists/logs``. Android (opcional): pull de la
+        misma carpeta vía adb a ``.rommgr/android_lrtl/`` y escaneo con origen
+        separado — cada origen es dueño de su contador (JUEGOS-UX-5).
+        Sin cable, ``.rommgr/android_lrtl/`` puede haberlo llenado el cloud
+        sync (JUEGOS-UX-7) — se escanea igualmente.
+        Job en background: el pull adb puede tardar.
+        """
+        data = getattr(ctx, "_post_data", None) or {}
+        include_android = bool(data.get("include_android", True))
+
+        def _run() -> None:
+            from rom_manager.utils.lrtl_scanner import ingest_lrtl_dir
+
+            result: dict = {
+                "pc_files": 0,
+                "pc_matched": 0,
+                "android_files": 0,
+                "android_matched": 0,
+                "android_note": None,
+                "pc_note": None,
+                "errors": [],
+            }
+            try:
+                # ── PC ────────────────────────────────────────────────────────
+                if config.retroarch_path:
+                    logs_dir = Path(config.retroarch_path).parent / "playlists" / "logs"
+                    if logs_dir.is_dir():
+                        result["pc_files"], result["pc_matched"] = ingest_lrtl_dir(
+                            repository, logs_dir, "pc"
+                        )
+                    else:
+                        result["pc_note"] = f"Sin logs de RetroArch en {logs_dir}"
+                else:
+                    result["pc_note"] = "retroarch_path no configurado en Ajustes"
+
+                # ── Android (adb pull si hay cable) ───────────────────────────
+                if include_android:
+                    local_dir = config.project_root / ".rommgr" / "android_lrtl"
+                    dev = None
+                    try:
+                        from rom_manager.sync.adb_transport import AdbTransport, list_devices
+
+                        dev = next((d for d in list_devices(config.adb) if d.ready), None)
+                        if dev is None:
+                            result["android_note"] = "Sin dispositivo adb conectado"
+                        else:
+                            transport = AdbTransport(config.adb, dev.serial)
+                            android_logs = (
+                                config.sync.auto_sync_android_path.rstrip("/") + "/playlists/logs"
+                            )
+                            files = transport.ls_recursive(
+                                android_logs, wanted_extensions=frozenset({".lrtl"})
+                            )
+                            android_prefix = android_logs.rstrip("/") + "/"
+                            for info in files:
+                                # Conservar <Core>/<rom>.lrtl: aplanar cambiaría el
+                                # stem y ningún juego matchearía (pull crea los dirs)
+                                rel = info.android_path.removeprefix(android_prefix)
+                                transport.pull(info.android_path, local_dir / rel)
+                            if not files:
+                                result["android_note"] = (
+                                    f"El dispositivo no tiene logs en {android_logs}"
+                                )
+                    except (RuntimeError, OSError) as exc:
+                        result["android_note"] = str(exc)
+                    # Ingesta con o sin cable: el dir también lo llena el cloud
+                    # sync (JUEGOS-UX-7), así que se escanea aunque no haya adb.
+                    if local_dir.is_dir():
+                        result["android_files"], result["android_matched"] = ingest_lrtl_dir(
+                            repository, local_dir, "android"
+                        )
+                        if dev is None and result["android_files"]:
+                            result["android_note"] = (
+                                "Sin cable — usando .lrtl sincronizados desde la nube"
+                            )
+                else:
+                    result["android_note"] = "Escaneo Android desactivado"
+            except Exception as exc:  # el job nunca debe morir sin resultado
+                _logger.warning("playtime-scan falló", exc_info=True)
+                result["errors"].append(str(exc))
+            finally:
+                result["result_ts"] = datetime.datetime.now(datetime.UTC).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+                job_manager.finish("playtime_scan", result)
+
+        ctx._send_json(job_manager.start("playtime_scan", _run))

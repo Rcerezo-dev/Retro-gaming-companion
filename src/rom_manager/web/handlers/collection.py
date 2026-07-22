@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.router import Router
+
+_logger = logging.getLogger(__name__)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -20,12 +23,10 @@ def register(
     get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
-    import sys
-
     from rom_manager.web.builders.diff import _build_library_diff
     from rom_manager.web.builders.misc import _build_assets
 
-    print(f"[collection.register] Starting registration, router={router}", file=sys.stderr)
+    _logger.debug("Starting registration, router=%s", router)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
     @router.get("/api/platform-stats")
@@ -55,6 +56,53 @@ def register(
             }
         )
 
+    # ── GET /api/collection-stats-v2 ──────────────────────────────────────────
+    @router.get("/api/collection-stats-v2")
+    def get_collection_stats_v2(ctx) -> None:
+        """Agregados del panel Stats de Análisis (COLECCION-UX: restaurado).
+
+        Existía antes del refactor 487aa91 (server.py monolítico) y se perdió
+        al trocearlo — mismo destino que /api/junk-scan (MEJ-6). El frontend
+        (loadCollectionStatsV2) siguió llamándolo contra un 404 silencioso.
+        """
+        qs = getattr(ctx, "_qs", {})
+        src_root = qs.get("root", [None])[0] or None
+        stats_repo = get_repo_fn(src_root or "")
+        where = "WHERE file_type = 'rom'"
+        params: list = []
+        if src_root:
+            where += " AND source_path LIKE ?"
+            params.append(src_root.rstrip("/\\") + "%")
+        with stats_repo.connect() as conn:
+            by_plat = conn.execute(
+                f"SELECT COALESCE(platform,'?') AS p, COUNT(*) AS n FROM games {where}"
+                " GROUP BY p ORDER BY n DESC",
+                params,
+            ).fetchall()
+            by_status = conn.execute(
+                f"SELECT COALESCE(play_status,'Sin estado') AS s, COUNT(*) AS n"
+                f" FROM games {where} GROUP BY s ORDER BY n DESC",
+                params,
+            ).fetchall()
+            by_region = conn.execute(
+                f"SELECT COALESCE(region,'?') AS r, COUNT(*) AS n FROM games {where}"
+                " GROUP BY r ORDER BY n DESC",
+                params,
+            ).fetchall()
+            favs = conn.execute(
+                f"SELECT COUNT(*) AS n FROM games {where} AND is_favorite = 1",
+                params,
+            ).fetchone()["n"]
+        ctx._send_json(
+            {
+                "total": sum(r["n"] for r in by_plat),
+                "favorites": favs,
+                "by_platform": [dict(r) for r in by_plat],
+                "by_status": [dict(r) for r in by_status],
+                "by_region": [dict(r) for r in by_region],
+            }
+        )
+
     # ── GET /api/assets ───────────────────────────────────────────────────────
     @router.get("/api/assets")
     def get_assets(ctx) -> None:
@@ -71,6 +119,21 @@ def register(
             import traceback
 
             ctx._send_error(500, f"Asset query failed: {str(e)} | {traceback.format_exc()}")
+
+    # ── GET /api/assets/orphans ─────────────────────────────────────────────────
+    @router.get("/api/assets/orphans")
+    def get_assets_orphans(ctx) -> None:
+        try:
+            qs = getattr(ctx, "_qs", {})
+            src_root = qs.get("root", [None])[0] or None
+            platform = qs.get("platform", [None])[0] or None
+            orphans_repo = get_repo_fn(src_root or "")
+            files = orphans_repo.get_orphan_assets(platform=platform, source_root=src_root)
+            ctx._send_json({"platform": platform, "files": files})
+        except Exception as e:
+            import traceback
+
+            ctx._send_error(500, f"Orphan asset query failed: {str(e)} | {traceback.format_exc()}")
 
     # ── GET /api/asset-image ──────────────────────────────────────────────────
     @router.get("/api/asset-image")

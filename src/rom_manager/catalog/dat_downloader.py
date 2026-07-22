@@ -8,7 +8,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from rom_manager.catalog.catalog_loader import _load_dat_file
+from rom_manager.catalog.catalog_loader import load_dat_file
 
 _BASE = "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
 
@@ -87,7 +87,7 @@ _SUBDIR: dict[str, str] = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class DatDownloadResult:
     platform: str
     success: bool
@@ -152,7 +152,7 @@ def download_dat(
     dest.write_bytes(data)
 
     try:
-        entries = _load_dat_file(dest)
+        entries = load_dat_file(dest)
     except Exception as exc:  # noqa: BLE001
         dest.unlink(missing_ok=True)
         return DatDownloadResult(

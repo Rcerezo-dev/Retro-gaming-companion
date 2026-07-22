@@ -14,173 +14,183 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
-KNOWN_BIOS: list[dict] = [
+
+@dataclass(slots=True, frozen=True)
+class BiosDef:
+    filename: str
+    md5: str | None
+    platform: str
+    required: bool
+    notes: str
+
+
+KNOWN_BIOS: list[BiosDef] = [
     # PlayStation
-    {
-        "filename": "scph5500.bin",
-        "md5": "8dd7d5296a650fac7319bce665a6a53c",
-        "platform": "PlayStation",
-        "required": True,
-        "notes": "BIOS JP (v3.0)",
-    },
-    {
-        "filename": "scph5501.bin",
-        "md5": "490f666e1afb15b7362b406ed1cea246",
-        "platform": "PlayStation",
-        "required": True,
-        "notes": "BIOS US (v3.0)",
-    },
-    {
-        "filename": "scph5502.bin",
-        "md5": "32736f17079d0b2b7024407c39bd3050",
-        "platform": "PlayStation",
-        "required": True,
-        "notes": "BIOS EU (v3.0)",
-    },
-    {
-        "filename": "scph1001.bin",
-        "md5": "924e392ed05558ffdb115408c263dccf",
-        "platform": "PlayStation",
-        "required": False,
-        "notes": "BIOS US (v2.2) — alternativa",
-    },
+    BiosDef(
+        filename="scph5500.bin",
+        md5="8dd7d5296a650fac7319bce665a6a53c",
+        platform="PlayStation",
+        required=True,
+        notes="BIOS JP (v3.0)",
+    ),
+    BiosDef(
+        filename="scph5501.bin",
+        md5="490f666e1afb15b7362b406ed1cea246",
+        platform="PlayStation",
+        required=True,
+        notes="BIOS US (v3.0)",
+    ),
+    BiosDef(
+        filename="scph5502.bin",
+        md5="32736f17079d0b2b7024407c39bd3050",
+        platform="PlayStation",
+        required=True,
+        notes="BIOS EU (v3.0)",
+    ),
+    BiosDef(
+        filename="scph1001.bin",
+        md5="924e392ed05558ffdb115408c263dccf",
+        platform="PlayStation",
+        required=False,
+        notes="BIOS US (v2.2) — alternativa",
+    ),
     # PlayStation 2
-    {
-        "filename": "ps2-0230a-20080220.bin",
-        "md5": None,
-        "platform": "PlayStation 2",
-        "required": True,
-        "notes": "BIOS — el MD5 varía por región/versión",
-    },
-    {
-        "filename": "SCPH-70012_BIOS_V12_USA_200.BIN",
-        "md5": None,
-        "platform": "PlayStation 2",
-        "required": False,
-        "notes": "BIOS US v12 (comprobación por nombre)",
-    },
+    BiosDef(
+        filename="ps2-0230a-20080220.bin",
+        md5=None,
+        platform="PlayStation 2",
+        required=True,
+        notes="BIOS — el MD5 varía por región/versión",
+    ),
+    BiosDef(
+        filename="SCPH-70012_BIOS_V12_USA_200.BIN",
+        md5=None,
+        platform="PlayStation 2",
+        required=False,
+        notes="BIOS US v12 (comprobación por nombre)",
+    ),
     # PSP
-    {
-        "filename": "ppge_atlas.zim",
-        "md5": None,
-        "platform": "PSP",
-        "required": False,
-        "notes": "PPSSPP UI atlas (opcional)",
-    },
+    BiosDef(
+        filename="ppge_atlas.zim",
+        md5=None,
+        platform="PSP",
+        required=False,
+        notes="PPSSPP UI atlas (opcional)",
+    ),
     # Game Boy Advance
-    {
-        "filename": "gba_bios.bin",
-        "md5": "a860e8c0b6d573d191e4ec7db1b1e4f6",
-        "platform": "Game Boy Advance",
-        "required": False,
-        "notes": "BIOS oficial GBA — mejora compatibilidad",
-    },
+    BiosDef(
+        filename="gba_bios.bin",
+        md5="a860e8c0b6d573d191e4ec7db1b1e4f6",
+        platform="Game Boy Advance",
+        required=False,
+        notes="BIOS oficial GBA — mejora compatibilidad",
+    ),
     # Famicom Disk System
-    {
-        "filename": "disksys.rom",
-        "md5": "ca30b50f880eb660a320674ed365ef7a",
-        "platform": "Famicom Disk System",
-        "required": True,
-        "notes": "BIOS FDS obligatoria",
-    },
+    BiosDef(
+        filename="disksys.rom",
+        md5="ca30b50f880eb660a320674ed365ef7a",
+        platform="Famicom Disk System",
+        required=True,
+        notes="BIOS FDS obligatoria",
+    ),
     # Sega CD / Mega-CD
-    {
-        "filename": "bios_CD_U.bin",
-        "md5": "2efd74e3232ff260e371b99f84024f7f",
-        "platform": "Sega CD",
-        "required": True,
-        "notes": "BIOS US",
-    },
-    {
-        "filename": "bios_CD_E.bin",
-        "md5": "e66fa1dc5820d254611fdcdba0662372",
-        "platform": "Sega CD",
-        "required": True,
-        "notes": "BIOS EU",
-    },
-    {
-        "filename": "bios_CD_J.bin",
-        "md5": "278a9397d192149e84e820ac621a8edd",
-        "platform": "Sega CD",
-        "required": True,
-        "notes": "BIOS JP",
-    },
+    BiosDef(
+        filename="bios_CD_U.bin",
+        md5="2efd74e3232ff260e371b99f84024f7f",
+        platform="Sega CD",
+        required=True,
+        notes="BIOS US",
+    ),
+    BiosDef(
+        filename="bios_CD_E.bin",
+        md5="e66fa1dc5820d254611fdcdba0662372",
+        platform="Sega CD",
+        required=True,
+        notes="BIOS EU",
+    ),
+    BiosDef(
+        filename="bios_CD_J.bin",
+        md5="278a9397d192149e84e820ac621a8edd",
+        platform="Sega CD",
+        required=True,
+        notes="BIOS JP",
+    ),
     # Sega Saturn
-    {
-        "filename": "sega_101.bin",
-        "md5": "85ec9ca47d8f6807718151cbcca8b964",
-        "platform": "Sega Saturn",
-        "required": True,
-        "notes": "BIOS JP",
-    },
-    {
-        "filename": "mpr-17933.bin",
-        "md5": "3240872c70984b6cbfda1586cab68dbe",
-        "platform": "Sega Saturn",
-        "required": True,
-        "notes": "BIOS US/EU",
-    },
+    BiosDef(
+        filename="sega_101.bin",
+        md5="85ec9ca47d8f6807718151cbcca8b964",
+        platform="Sega Saturn",
+        required=True,
+        notes="BIOS JP",
+    ),
+    BiosDef(
+        filename="mpr-17933.bin",
+        md5="3240872c70984b6cbfda1586cab68dbe",
+        platform="Sega Saturn",
+        required=True,
+        notes="BIOS US/EU",
+    ),
     # Dreamcast
-    {
-        "filename": "dc_boot.bin",
-        "md5": "e10c53c2f8b90bab96ead2d368858623",
-        "platform": "Dreamcast",
-        "required": True,
-        "notes": "BIOS Dreamcast",
-    },
-    {
-        "filename": "dc_flash.bin",
-        "md5": "0a93f7940c455905bea6e392dfde92a4",
-        "platform": "Dreamcast",
-        "required": True,
-        "notes": "Flash Dreamcast",
-    },
+    BiosDef(
+        filename="dc_boot.bin",
+        md5="e10c53c2f8b90bab96ead2d368858623",
+        platform="Dreamcast",
+        required=True,
+        notes="BIOS Dreamcast",
+    ),
+    BiosDef(
+        filename="dc_flash.bin",
+        md5="0a93f7940c455905bea6e392dfde92a4",
+        platform="Dreamcast",
+        required=True,
+        notes="Flash Dreamcast",
+    ),
     # Neo Geo
-    {
-        "filename": "neogeo.zip",
-        "md5": None,
-        "platform": "Neo Geo",
-        "required": True,
-        "notes": "BIOS Neo Geo (MAME) — MD5 varía por versión",
-    },
+    BiosDef(
+        filename="neogeo.zip",
+        md5=None,
+        platform="Neo Geo",
+        required=True,
+        notes="BIOS Neo Geo (MAME) — MD5 varía por versión",
+    ),
     # PC Engine CD
-    {
-        "filename": "syscard3.pce",
-        "md5": "38179df8f4ac870017db21ebcbf53114",
-        "platform": "PC Engine",
-        "required": True,
-        "notes": "Super System Card 3.0",
-    },
+    BiosDef(
+        filename="syscard3.pce",
+        md5="38179df8f4ac870017db21ebcbf53114",
+        platform="PC Engine",
+        required=True,
+        notes="Super System Card 3.0",
+    ),
     # Atari Lynx
-    {
-        "filename": "lynxboot.img",
-        "md5": "fcd403db69f54290b51035d82f835e7b",
-        "platform": "Atari Lynx",
-        "required": True,
-        "notes": "BIOS Lynx",
-    },
+    BiosDef(
+        filename="lynxboot.img",
+        md5="fcd403db69f54290b51035d82f835e7b",
+        platform="Atari Lynx",
+        required=True,
+        notes="BIOS Lynx",
+    ),
     # Nintendo DS
-    {
-        "filename": "bios7.bin",
-        "md5": "df692a80a5b1bc90728bc3dfc76cd948",
-        "platform": "Nintendo DS",
-        "required": True,
-        "notes": "ARM7 BIOS",
-    },
-    {
-        "filename": "bios9.bin",
-        "md5": "a392174eb3e572fed6447e956bde4b25",
-        "platform": "Nintendo DS",
-        "required": True,
-        "notes": "ARM9 BIOS",
-    },
-    {
-        "filename": "firmware.bin",
-        "md5": None,
-        "platform": "Nintendo DS",
-        "required": True,
-        "notes": "Firmware NDS",
-    },
+    BiosDef(
+        filename="bios7.bin",
+        md5="df692a80a5b1bc90728bc3dfc76cd948",
+        platform="Nintendo DS",
+        required=True,
+        notes="ARM7 BIOS",
+    ),
+    BiosDef(
+        filename="bios9.bin",
+        md5="a392174eb3e572fed6447e956bde4b25",
+        platform="Nintendo DS",
+        required=True,
+        notes="ARM9 BIOS",
+    ),
+    BiosDef(
+        filename="firmware.bin",
+        md5=None,
+        platform="Nintendo DS",
+        required=True,
+        notes="Firmware NDS",
+    ),
 ]
 
 
@@ -229,12 +239,12 @@ def check_bios(search_dirs: list[Path]) -> list[dict]:
 
     results = []
     for entry in KNOWN_BIOS:
-        fname = entry["filename"]
+        fname = entry.filename
         matches = candidates.get(fname.lower(), [])
         found = bool(matches)
         found_path = str(matches[0]) if matches else ""
         md5_match: bool | None = None
-        expected_md5 = entry["md5"] or ""
+        expected_md5 = entry.md5 or ""
         if found and expected_md5:
             actual = _md5_of(matches[0])
             md5_match = actual.lower() == expected_md5.lower()
@@ -242,9 +252,9 @@ def check_bios(search_dirs: list[Path]) -> list[dict]:
         results.append(
             {
                 "filename": fname,
-                "platform": entry["platform"],
-                "required": entry["required"],
-                "notes": entry["notes"],
+                "platform": entry.platform,
+                "required": entry.required,
+                "notes": entry.notes,
                 "found": found,
                 "found_path": found_path,
                 "md5_match": md5_match,

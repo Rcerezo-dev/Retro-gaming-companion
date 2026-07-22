@@ -8,13 +8,96 @@ from __future__ import annotations
 import json as _json
 import logging
 import os as _os
+import re as _re_top
 from collections import defaultdict
 from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.utils.paths import is_device_path
 
 _logger = logging.getLogger(__name__)
+
+_SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
+
+_DISC_TAG_RE = _re_top.compile(r"\(disc\s*(\d+)\)", _re_top.IGNORECASE)
+
+
+def _is_disc_set(members) -> bool:
+    """True if every member is a distinct disc of the same multi-disc game
+    (e.g. "Final Fantasy VII (Disc 1/2/3).cue") — companion discs share the
+    DAT's canonical_title (it doesn't encode the disc number) and would
+    otherwise look exactly like a title-duplicate cluster (TABS-FIX-6: found
+    by hitting a real PSX library — without this guard, "Aplicar recomendación"
+    would discard the other discs as if they were alternate copies)."""
+    disc_nums = []
+    for r in members:
+        m = _DISC_TAG_RE.search(r["original_filename"])
+        if not m:
+            return False
+        disc_nums.append(m.group(1))
+    return len(set(disc_nums)) == len(disc_nums)
+
+
+def _is_spanish_filename(filename: str) -> bool:
+    import re as _re
+
+    tags = _re.findall(r"\(([^)]+)\)", filename.lower())
+    return any(any(t.strip() == s for s in _SPANISH_TAGS) for tag in tags for t in tag.split(","))
+
+
+def _review_entry_sort_key(entry: dict) -> tuple[int, int, str]:
+    """Recommendation order shared by every reason: RA support > Spanish > filename.
+
+    Same criterion the RA-duplicates view already used (before TABS-FIX-6
+    generalized it to all 4 review-queue sources). Every entry — including
+    disk/collision ones, see ``_review_groups_for_repo`` — always carries
+    ``ra_achievements``/``ra_supported``, computed once from the same RA hash
+    cache; a plan-conflict entry's own ``conflict_role`` (see
+    ``_annotate_conflicts_with_ra``) is display-only and deliberately NOT
+    used here. It's derived from a *different* lookup that's gated on the
+    source file existing on disk (`op.source_path.exists()`), so it can be
+    `None` even when `ra_supported` correctly knows the winner — using it as
+    the sort driver picked the wrong "recommended" entry in exactly that case.
+    """
+    ra_tier = 0 if entry["ra_supported"] else 1
+    lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
+    return (ra_tier, lang_tier, entry["filename"])
+
+
+def _load_ra_hash_map(
+    cache_dir: _Path, platform: str, cache: dict[str, dict[str, int]]
+) -> dict[str, int]:
+    """md5(lower) → achievements for *platform*, from the RA hash cache on disk.
+
+    Ignores a cache older than RA's own TTL (``ra_client._CACHE_TTL_SECONDS``) —
+    stale data must not be treated as authoritative for duplicate resolution
+    (REV43-53). *cache* is a per-call dict the caller owns so repeated
+    platform lookups only touch disk once.
+    """
+    if platform in cache:
+        return cache[platform]
+    import time as _time
+
+    from rom_manager.retroachievements.ra_client import _CACHE_TTL_SECONDS, _parse_game_list
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
+    console_id = get_ra_console_id(platform or "")
+    if not console_id:
+        cache[platform] = {}
+        return {}
+    cache_file = cache_dir / f"ra_hashes_{console_id}.json"
+    if not cache_file.exists() or _time.time() - cache_file.stat().st_mtime >= _CACHE_TTL_SECONDS:
+        cache[platform] = {}
+        return {}
+    try:
+        hash_lib = _parse_game_list(_json.loads(cache_file.read_text(encoding="utf-8")))
+        result = {md5: game.achievements for md5, game in hash_lib.items()}
+    except Exception:
+        _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
+        result = {}
+    cache[platform] = result
+    return result
 
 
 def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
@@ -41,36 +124,8 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     if config is None or not conflict_ops:
         return [base_row(op) for op in conflict_ops]
 
-    try:
-        from rom_manager.retroachievements.ra_client import _parse_game_list
-        from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-    except Exception:
-        _logger.debug(
-            "Módulos de RetroAchievements no disponibles; conflictos sin anotar RA", exc_info=True
-        )
-        return [base_row(op) for op in conflict_ops]
-
     cache_dir = _Path(config.project_root) / ".rommgr" / "ra_cache"
-    _hash_lib_cache: dict[str, dict] = {}
-
-    def _hash_lib_for(plat: str) -> dict:
-        if plat in _hash_lib_cache:
-            return _hash_lib_cache[plat]
-        console_id = get_ra_console_id(plat or "")
-        if not console_id:
-            _hash_lib_cache[plat] = {}
-            return {}
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            _hash_lib_cache[plat] = {}
-            return {}
-        try:
-            lib = _parse_game_list(_json.loads(cache_file.read_text(encoding="utf-8")))
-        except Exception:
-            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            lib = {}
-        _hash_lib_cache[plat] = lib
-        return lib
+    _hash_lib_cache: dict[str, dict[str, int]] = {}
 
     def _ra_for_path(path: _Path) -> int:
         """Return achievement count (-1 = no data)."""
@@ -88,8 +143,7 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
             return -1
         if not md5:
             return -1
-        entry = _hash_lib_for(plat).get(md5)
-        return entry.achievements if entry else -1
+        return _load_ra_hash_map(cache_dir, plat, _hash_lib_cache).get(md5, -1)
 
     # Pre-compute RA scores for all source paths
     ra_scores: dict[str, int] = {}
@@ -139,40 +193,22 @@ def _annotate_conflicts_with_ra(conflict_ops, repository, config) -> list[dict]:
     return rows
 
 
-def _annotate_duplicates_with_ra(title_groups: list[dict], config: AppConfig) -> list[dict]:
+def _annotate_duplicates_with_ra(
+    title_groups: list[dict], config: AppConfig, repository: LibraryRepository
+) -> list[dict]:
     """B1-4: Annotate title_groups entries with RA achievements count if available."""
-    from rom_manager.retroachievements.ra_client import _parse_game_list
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
-
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
     # Build platform → {md5 → achievements} map
     platform_hash_map: dict[str, dict[str, int]] = {}
     for group in title_groups:
         plat = group.get("platform") or "unknown"
-        if plat in platform_hash_map:
-            continue
-        console_id = get_ra_console_id(plat)
-        if not console_id:
-            continue
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            continue
-        try:
-            data = _json.loads(cache_file.read_text(encoding="utf-8"))
-            hash_lib = _parse_game_list(data)
-            platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
-        except Exception:
-            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            continue
+        _load_ra_hash_map(cache_dir, plat, platform_hash_map)
 
     # Get MD5 mapping: id → md5 from database
     id_to_md5: dict[int, str] = {}
     try:
-        from rom_manager.database.repository import LibraryRepository
-
-        repo = LibraryRepository(config.project_root)
-        with repo.connect() as conn:
+        with repository.connect() as conn:
             rows = conn.execute("SELECT id, md5 FROM games").fetchall()
             id_to_md5 = {r["id"]: r["md5"] for r in rows}
     except Exception:
@@ -248,7 +284,7 @@ def _build_duplicates(
     title_groups = repository.get_title_duplicate_groups()
 
     # Annotate title_groups with RA achievements if available
-    title_groups = _annotate_duplicates_with_ra(title_groups, config)
+    title_groups = _annotate_duplicates_with_ra(title_groups, config, repository)
 
     return {
         "groups": [
@@ -387,8 +423,6 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     Las versiones sin logros se marcan como candidatas a eliminar.
     """
     from rom_manager.retroachievements.ra_checker import _normalize_title
-    from rom_manager.retroachievements.ra_client import _parse_game_list
-    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
 
@@ -401,21 +435,9 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
     platform_hash_map: dict[str, dict[str, int]] = {}
     platforms_seen = {r["platform"] for r in rows if r["platform"]}
     for plat in platforms_seen:
-        console_id = get_ra_console_id(plat or "")
-        if not console_id:
-            continue
-        cache_file = cache_dir / f"ra_hashes_{console_id}.json"
-        if not cache_file.exists():
-            continue
-        try:
-            data = _json.loads(cache_file.read_text(encoding="utf-8"))
-            hash_lib = _parse_game_list(data)
-            platform_hash_map[plat] = {md5: game.achievements for md5, game in hash_lib.items()}
-        except Exception:
-            _logger.warning("Caché RA corrupta o ilegible: %s", cache_file, exc_info=True)
-            continue
+        _load_ra_hash_map(cache_dir, plat, platform_hash_map)
 
-    if not platform_hash_map:
+    if not any(platform_hash_map.values()):
         return {
             "groups": [],
             "total_groups": 0,
@@ -460,22 +482,7 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
         if not (has_supported and has_unsupported):
             continue
 
-        _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
-
-        def _is_spanish(filename: str) -> bool:
-            import re as _re
-
-            tags = _re.findall(r"\(([^)]+)\)", filename.lower())
-            return any(
-                any(t.strip() == s for s in _SPANISH_TAGS) for tag in tags for t in tag.split(",")
-            )
-
-        def _sort_key(entry: dict) -> tuple:
-            ra_tier = 0 if entry["ra_supported"] else 1
-            lang_tier = 0 if _is_spanish(entry["filename"]) else 1
-            return (ra_tier, lang_tier, entry["filename"])
-
-        annotated.sort(key=_sort_key)
+        annotated.sort(key=_review_entry_sort_key)
         wasted = sum(a["size_bytes"] for a in annotated if not a["ra_supported"])
         result_groups.append(
             {
@@ -492,3 +499,237 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
         "total_groups": len(result_groups),
         "wasted_bytes": sum(g["wasted_bytes"] for g in result_groups),
     }
+
+
+def _build_review_queue(
+    repository: LibraryRepository, repository_android: LibraryRepository, config: AppConfig
+) -> dict:
+    """TABS-FIX-6: fuse SHA1/title/RA duplicates + plan conflicts into one queue.
+
+    Delegates to :func:`_review_groups_for_repo` per repo — PC and Android are
+    never merged into the same group (a copy on each device is expected, not a
+    mistake; same convention the old duplicates view already used).
+    """
+    repos = [repository] if repository_android is repository else [repository, repository_android]
+    cache_dir = _Path(config.project_root) / ".rommgr" / "ra_cache" if config else None
+    hash_cache: dict[str, dict[str, int]] = {}
+    excluded_keys = {
+        row["group_key"] for repo in repos for row in repo.get_excluded_duplicate_groups()
+    }
+
+    result_groups: list[dict] = []
+    for repo in repos:
+        result_groups.extend(
+            _review_groups_for_repo(repo, config, cache_dir, hash_cache, excluded_keys)
+        )
+
+    result_groups.sort(key=lambda g: g["wasted_bytes"], reverse=True)
+    return {
+        "groups": result_groups,
+        "total_groups": len(result_groups),
+        "wasted_bytes": sum(g["wasted_bytes"] for g in result_groups),
+    }
+
+
+def _review_groups_for_repo(
+    repo: LibraryRepository,
+    config: AppConfig,
+    cache_dir: _Path | None,
+    hash_cache: dict[str, dict[str, int]],
+    excluded_keys: set[str],
+) -> list[dict]:
+    """Union-Find over one repo's ROM rows: two rows are "the same game" if they
+    share a sha1 *or* a (platform, normalized title) — either link is enough,
+    which is what lets a sha1-identical pair with different filenames and a
+    title-only pair with different sha1s both surface as a single group.
+    Plan conflicts (disk/collision) fold into the same clusters when the file
+    is already a tracked row, adding their reason without creating a
+    duplicate entry.
+    """
+    from rom_manager.planner.operation_planner import build_plan
+    from rom_manager.retroachievements.ra_checker import _normalize_title
+
+    with repo.connect() as conn:
+        rows = conn.execute(
+            "SELECT original_filename, source_path, platform, md5, sha1,"
+            " canonical_title, size_bytes FROM games WHERE file_type = 'rom'"
+        ).fetchall()
+    if not rows:
+        return []
+
+    path_to_idx = {row["source_path"]: i for i, row in enumerate(rows)}
+    parent = list(range(len(rows)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+
+    first_by_sha1: dict[str, int] = {}
+    first_by_title: dict[tuple[str, str], int] = {}
+    for idx, row in enumerate(rows):
+        if row["sha1"]:
+            union(idx, first_by_sha1.setdefault(row["sha1"], idx))
+        # EXACT canonical_title (not RA's fuzzy normalizer) — same key
+        # get_title_duplicate_groups() already used. Tried the fuzzy
+        # normalizer first (region tags stripped) to also catch "(USA)" vs
+        # "(Europe)" pairs; against a real PSX library it merged 18 distinct
+        # regional releases of Final Fantasy VII (different discs, different
+        # languages) into a single "duplicate" group — exact match is the
+        # only safe union key here, a false negative is far cheaper than a
+        # false positive that invites bulk-discarding a legitimate release.
+        if row["canonical_title"]:
+            title_key = (row["platform"] or "unknown", row["canonical_title"])
+            union(idx, first_by_title.setdefault(title_key, idx))
+
+    # Plan conflicts: fold into the same clusters via the row they belong to
+    # (the common case); a "collision" also unions its contenders together —
+    # they may not otherwise share a sha1/title link at all.
+    extra_reasons: dict[int, str] = {}
+    extra_fields: dict[int, dict] = {}
+    orphan_conflicts: list[dict] = []  # conflict row with no matching games row (rare)
+    plan = build_plan(repo)
+    if plan.conflicts:
+        conflict_rows = _annotate_conflicts_with_ra(plan.conflicts, repo, config)
+        collision_idxs: dict[str, list[int]] = defaultdict(list)
+        for op, crow in zip(plan.conflicts, conflict_rows, strict=True):
+            idx = path_to_idx.get(str(op.source_path))
+            if idx is None:
+                orphan_conflicts.append(crow)
+                continue
+            extra_reasons[idx] = crow["reason"]
+            extra_fields[idx] = crow
+            if crow["reason"] == "collision":
+                collision_idxs[crow["target_name"]].append(idx)
+        for idxs in collision_idxs.values():
+            for other in idxs[1:]:
+                union(idxs[0], other)
+
+    clusters: dict[int, list[int]] = defaultdict(list)
+    for idx in range(len(rows)):
+        clusters[find(idx)].append(idx)
+
+    result: list[dict] = []
+    for idxs in clusters.values():
+        members = [rows[i] for i in idxs]
+        sha1_counts: dict[str, int] = defaultdict(int)
+        for r in members:
+            if r["sha1"]:
+                sha1_counts[r["sha1"]] += 1
+        distinct_sha1 = {r["sha1"] for r in members if r["sha1"]}
+        has_sha1_dup = any(c > 1 for c in sha1_counts.values())
+        has_title_dup = (
+            len(distinct_sha1) > 1
+            and any(r["canonical_title"] for r in members)
+            and not _is_disc_set(members)
+        )
+
+        plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
+        hash_map = _load_ra_hash_map(cache_dir, plat, hash_cache) if cache_dir else {}
+        scored = []
+        for r in members:
+            md5_lower = (r["md5"] or "").lower()
+            achievements = hash_map.get(md5_lower, -1) if md5_lower else -1
+            scored.append(achievements)
+        has_ra_mix = any(a > 0 for a in scored) and any(a <= 0 for a in scored)
+
+        reasons: set[str] = set()
+        if has_sha1_dup:
+            reasons.add("sha1")
+        if has_title_dup:
+            reasons.add("title")
+        if has_ra_mix:
+            reasons.add("ra")
+        for idx in idxs:
+            if idx in extra_reasons:
+                reasons.add(extra_reasons[idx])
+        if not reasons:
+            # United by a coincidental title/sha1 match but nothing actually
+            # duplicated (e.g. two unmatched files with the same filename stem
+            # and no other signal) — don't invent a false positive.
+            continue
+
+        sample_title = next(
+            (r["canonical_title"] for r in members if r["canonical_title"]),
+            members[0]["original_filename"],
+        )
+        group_key = f"{plat}::{_normalize_title(sample_title)}"
+        if group_key in excluded_keys:
+            continue
+
+        entries: dict[str, dict] = {}
+        for idx, achievements in zip(idxs, scored, strict=True):
+            r = rows[idx]
+            entry = {
+                "source_path": r["source_path"],
+                "filename": r["original_filename"],
+                "size_bytes": int(r["size_bytes"]),
+                "sha1": r["sha1"],
+                "ra_achievements": achievements if achievements >= 0 else None,
+                "ra_supported": achievements > 0,
+                "is_device": is_device_path(r["source_path"]),
+            }
+            extra = extra_fields.get(idx)
+            if extra:
+                entry["conflict_role"] = extra["ra_role"]
+                if extra["reason"] == "disk":
+                    # The blocking file itself isn't a tracked games row, so it
+                    # can't be a second entry of its own — just extra context here.
+                    entry["target_name"] = extra["target_name"]
+                    entry["ra_target_achievements"] = extra["ra_target_achievements"]
+            entries[entry["source_path"]] = entry
+
+        entries_list = list(entries.values())
+        entries_list.sort(key=_review_entry_sort_key)
+        for i, entry in enumerate(entries_list):
+            entry["recommended"] = i == 0
+        wasted = sum(e["size_bytes"] or 0 for e in entries_list[1:])
+        result.append(
+            {
+                "platform": plat,
+                "canonical_title": sample_title,
+                "group_key": group_key,
+                "reasons": sorted(reasons),
+                "wasted_bytes": wasted,
+                "entries": entries_list,
+            }
+        )
+
+    for crow in orphan_conflicts:
+        plat = "unknown"
+        title = _Path(crow["source_name"]).stem
+        group_key = f"{plat}::{_normalize_title(title)}"
+        if group_key in excluded_keys:
+            continue
+        entry = {
+            "source_path": crow["source_path"],
+            "filename": crow["source_name"],
+            "size_bytes": None,
+            "sha1": None,
+            "ra_achievements": crow["ra_achievements"],
+            "ra_supported": (crow["ra_achievements"] or 0) > 0,
+            "is_device": is_device_path(crow["source_path"]),
+            "conflict_role": crow["ra_role"],
+            "recommended": True,
+        }
+        if crow["reason"] == "disk":
+            entry["target_name"] = crow["target_name"]
+            entry["ra_target_achievements"] = crow["ra_target_achievements"]
+        result.append(
+            {
+                "platform": plat,
+                "canonical_title": title,
+                "group_key": group_key,
+                "reasons": [crow["reason"]],
+                "wasted_bytes": 0,
+                "entries": [entry],
+            }
+        )
+
+    return result

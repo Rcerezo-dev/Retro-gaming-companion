@@ -18,6 +18,7 @@ from pathlib import Path
 
 import rom_manager.web.state as _state
 from rom_manager.config import load_config
+from rom_manager.database.repository import LibraryRepository
 from rom_manager.web.cable_sync_daemon import _run_sd_auto_sync
 
 _BASE = datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC)
@@ -40,7 +41,10 @@ def _make_config(tmp_path: Path, pc_root: Path, ab_root: Path, direction: str):
 
 def _run(cfg) -> dict:
     _state._job_manager.clear_result("cable_sync")
-    _run_sd_auto_sync(cfg, lambda: None)
+    # REV43-33: _run_sd_auto_sync ahora escribe en save_sync_log de verdad —
+    # get_repo_fn debe devolver un repositorio real, no un stub inerte.
+    repo = LibraryRepository(cfg.project_root / "lib.sqlite")
+    _run_sd_auto_sync(cfg, lambda _path: repo)
     return _state._job_manager.get_status()["cable_sync_result"]
 
 
@@ -62,6 +66,30 @@ def test_pc_to_anbernic_copies_saves(tmp_path: Path) -> None:
     assert res["copied"] == 1
     assert res["errors"] == 0
     assert (ab / "gba" / "mario.sav").read_bytes() == b"PCDATA"
+
+
+def test_pc_to_anbernic_writes_save_sync_log(tmp_path: Path) -> None:
+    """REV43-33: el SD-auto-sync no dejaba rastro en save_sync_log, solo en
+    el .log de texto — 'toda operación sobre archivos se registra en SQLite'
+    (CLAUDE.md) no se cumplía en esta ruta."""
+    pc = tmp_path / "pc"
+    ab = tmp_path / "ab"
+    ab.mkdir()
+    mario = _write(pc, "gba", "mario.sav", content=b"PCDATA")
+
+    _run(_make_config(tmp_path, pc, ab, "pc_to_anbernic"))
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    with repo.connect() as conn:
+        rows = conn.execute(
+            "SELECT local_path, remote_path, direction, result FROM save_sync_log"
+        ).fetchall()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["local_path"] == str(mario)
+    assert row["remote_path"] == str(ab / "gba" / "mario.sav")
+    assert row["direction"] == "upload"
+    assert row["result"] == "ok"
 
 
 def test_anbernic_to_pc_copies_saves(tmp_path: Path) -> None:
@@ -104,6 +132,21 @@ def test_newest_propagates_newer_side(tmp_path: Path) -> None:
     assert res["copied"] >= 1
     assert pc_file.read_bytes() == b"NEW"
     assert ab_file.read_bytes() == b"NEW"
+
+
+def test_overwrite_backs_up_destination_first(tmp_path: Path) -> None:
+    pc = tmp_path / "pc"
+    ab = tmp_path / "ab"
+    _write(pc, "gba", "mario.sav", content=b"NEWDATA")
+    _write(ab, "gba", "mario.sav", content=b"OLDDATA")
+
+    _run(_make_config(tmp_path, pc, ab, "pc_to_anbernic"))
+
+    backup_root = tmp_path / ".rommgr" / "cable_sync_backups"
+    backups = list(backup_root.glob("*/anbernic/gba/mario.sav"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == b"OLDDATA"
+    assert (ab / "gba" / "mario.sav").read_bytes() == b"NEWDATA"
 
 
 def test_newest_skips_when_pc_is_newer(tmp_path: Path) -> None:
