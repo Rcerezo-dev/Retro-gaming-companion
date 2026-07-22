@@ -885,14 +885,10 @@ async function loadCableSync() {
     // convención puntual que usan Assets/Colección/Organizar/Juegos.
     _setIfEmpty('cable-pc-path', ovPc || cfg.library_root || '');
     _setIfEmpty('cable-ab-path', ovAb || cfg.anbernic_root || '');
-    if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
-    if (document.getElementById('cable-ab-path')?.value) testCablePath('ab');
 
-    // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
-    // los controles, no solo actualizarse tras un onchange manual del usuario.
-    _onCableDryRunChange();
-    _onCableDirectionChange();
-
+    // VAL-FIX-6: decidir el modo ADB/SD *antes* de validar rutas, para que el
+    // aviso de la ruta SD no se calcule (ni se vea de refilón) cuando el modo
+    // final va a ser ADB.
     if (!_cableModeAutoSelected) {
       _cableModeAutoSelected = true;
       const devs = await apiFetch('/api/adb-devices').catch(() => ({ devices: [] }));
@@ -908,6 +904,14 @@ async function loadCableSync() {
         _onCableModeChange();
       }
     }
+
+    if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
+    if (!_isAdbMode() && document.getElementById('cable-ab-path')?.value) testCablePath('ab');
+
+    // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
+    // los controles, no solo actualizarse tras un onchange manual del usuario.
+    _onCableDryRunChange();
+    _onCableDirectionChange();
   } catch(_) {}
 }
 

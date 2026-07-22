@@ -141,14 +141,19 @@ _TOKEN_TTL_SECONDS = 600  # 10 min
 
 
 def _mint_setup_token() -> str:
-    """Create a fresh short-lived setup token (replaces any previous one)."""
+    """Create a fresh short-lived setup token, added to the list of valid ones."""
     import secrets
     import time
 
+    now = time.time()
+    # ANBERNIC-UX-10: token por request, no un slot global — cada uno sigue
+    # siendo reutilizable durante su propio TTL (el script hace 2 requests,
+    # /s y export-config, y curl puede reintentar), pero mintear uno nuevo
+    # (p.ej. desde otra pestaña) ya no invalida los que aún no han caducado.
+    live = [t for t in _state._anbernic_setup_tokens if t["expires"] > now]
     token = secrets.token_urlsafe(16)
-    # ponytail: un solo token global reutilizable durante su TTL (no un-solo-uso):
-    # el script hace 2 requests (/s y export-config) y curl puede reintentar.
-    _state._anbernic_setup_token = {"value": token, "expires": time.time() + _TOKEN_TTL_SECONDS}
+    live.append({"value": token, "expires": now + _TOKEN_TTL_SECONDS})
+    _state._anbernic_setup_tokens = live
     return token
 
 
@@ -158,11 +163,12 @@ def _setup_token_ok(ctx) -> bool:
 
     if ctx.client_address[0] in ("127.0.0.1", "::1"):
         return True
-    tok = getattr(_state, "_anbernic_setup_token", None) or {}
     supplied = ctx._qs.get("t", [""])[0]
-    return bool(
-        tok.get("value") and supplied == tok["value"] and time.time() < tok.get("expires", 0)
-    )
+    if not supplied:
+        return False
+    now = time.time()
+    tokens = getattr(_state, "_anbernic_setup_tokens", [])
+    return any(t["value"] == supplied and t["expires"] > now for t in tokens)
 
 
 def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
