@@ -10,6 +10,7 @@ import pytest
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.services.ra_duplicates_service import (
+    apply_all_review_recommendations,
     discard_all_ra_duplicates,
     discard_no_support,
     discard_ra_duplicate,
@@ -88,6 +89,50 @@ def test_discard_ra_duplicate_device_path_unreachable_does_not_touch_db(
     _insert_game(repo, source_path=device_path)
 
     result = discard_ra_duplicate(repo, device_path)
+
+    assert "error" in result
+    assert _count(repo) == 1
+
+
+@_windows_only
+def test_discard_ra_duplicate_device_path_with_adb_transport_deletes_via_adb(
+    tmp_path: Path,
+) -> None:
+    """TABS-FIX-1a: with a connected device, the file is deleted for real via
+    ADB before the DB row is touched."""
+    from types import SimpleNamespace
+
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path)
+    adb = SimpleNamespace(removed=[])
+    adb.remove = lambda path: adb.removed.append(path)
+
+    result = discard_ra_duplicate(repo, device_path, adb)
+
+    # missing=True because Path.exists() is always False for a device path on
+    # Windows — the "note" is a pre-existing quirk unrelated to this fix.
+    assert result["ok"] is True
+    assert adb.removed == [device_path]
+    assert _count(repo) == 0
+
+
+@_windows_only
+def test_discard_ra_duplicate_device_path_adb_remove_fails_does_not_touch_db(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path)
+
+    def _boom(path):
+        raise RuntimeError("device offline")
+
+    adb = SimpleNamespace(remove=_boom)
+
+    result = discard_ra_duplicate(repo, device_path, adb)
 
     assert "error" in result
     assert _count(repo) == 1
@@ -233,3 +278,84 @@ def test_get_ra_hash_lib_uses_fresh_cache(tmp_path: Path) -> None:
 
     assert "m" * 32 in lib
     assert lib["m" * 32].achievements == 10
+
+
+# ── apply_all_review_recommendations (TABS-FIX-6) ─────────────────────────────
+
+
+def test_apply_all_resolves_sha1_group(tmp_path: Path) -> None:
+    """A sha1/title/ra group: the non-recommended entries get discarded via
+    resolve_duplicate_ra, exactly like a single-group 'Aplicar' click would."""
+    from rom_manager.web.builders.duplicates import _build_review_queue
+
+    keep = tmp_path / "tetris.gb"
+    keep.write_bytes(b"keep")
+    dupe = tmp_path / "backup" / "tetris.gb"
+    dupe.parent.mkdir()
+    dupe.write_bytes(b"dupe")
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for path in (keep, dupe):
+        repo.upsert_game(
+            original_filename="tetris.gb",
+            source_path=str(path),
+            platform="Game Boy",
+            file_type="rom",
+            relative_parent="",
+            region="USA",
+            extension=".gb",
+            size_bytes=4,
+            mtime=0,
+            sha1="A" * 40,
+            md5="M" * 32,
+            crc32="CCCCCCCC",
+            set_type="single",
+            timestamp=_TS,
+        )
+
+    queue = _build_review_queue(repo, repo, None)
+    assert queue["total_groups"] == 1
+
+    result = apply_all_review_recommendations(lambda _path: repo, [repo], config=None, queue=queue)
+
+    assert result["errors"] == []
+    assert result["resolved"] == 1
+    assert _count(repo) == 1  # the discarded entry's row is gone
+    with repo.connect() as conn:
+        remaining = conn.execute("SELECT source_path FROM games").fetchall()
+    assert remaining[0]["source_path"] in {str(keep), str(dupe)}
+
+
+def test_apply_all_routes_plan_conflicts_to_apply_ra_conflicts(monkeypatch) -> None:
+    """Groups flagged disk/collision must never go through resolve_duplicate_ra
+    (there's no 'recommended entry to keep' semantics for a plan conflict) —
+    they're routed to apply_ra_conflicts instead, once per repo."""
+    import rom_manager.services.ra_duplicates_service as mod
+
+    calls: list[object] = []
+    monkeypatch.setattr(
+        mod, "apply_ra_conflicts", lambda repo, config, adb_transport=None: calls.append(repo) or {}
+    )
+    resolve_calls: list[object] = []
+    monkeypatch.setattr(
+        mod,
+        "resolve_duplicate_ra",
+        lambda *a, **kw: resolve_calls.append(a) or {"discarded": 0, "errors": []},
+    )
+
+    queue = {
+        "groups": [
+            {
+                "reasons": ["disk"],
+                "entries": [{"source_path": "/roms/a.gb", "recommended": True}],
+            }
+        ]
+    }
+    repos = ["repo-pc", "repo-android"]
+
+    result = mod.apply_all_review_recommendations(
+        lambda _path: "repo-pc", repos, config=None, queue=queue
+    )
+
+    assert calls == ["repo-pc", "repo-android"]
+    assert resolve_calls == []
+    assert result == {"resolved": 0, "errors": []}

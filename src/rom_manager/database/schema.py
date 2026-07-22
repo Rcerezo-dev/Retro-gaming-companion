@@ -184,6 +184,13 @@ SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS excluded_duplicate_groups (
+        group_key   TEXT NOT NULL PRIMARY KEY,
+        reason      TEXT NOT NULL DEFAULT 'intentional_copy',
+        created_at  TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS wishlist (
         sha1        TEXT NOT NULL PRIMARY KEY,
         title       TEXT NOT NULL,

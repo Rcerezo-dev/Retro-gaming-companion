@@ -5,6 +5,7 @@ from __future__ import annotations
 import socket
 import subprocess
 import sys
+import time
 
 
 def get_lan_ip() -> str | None:
@@ -48,28 +49,42 @@ def lan_urls(port: int) -> list[str]:
 
 _FIREWALL_RULE_NAME = "Retro Vault (LAN)"
 
+# ANBERNIC-UX-9: el estado del firewall no cambia entre refrescos de pestaña;
+# cachear evita un subprocess (netsh, decenas de ms) en cada GET /api/local-url.
+_FIREWALL_CACHE_TTL_S = 60.0
+_firewall_cache: dict[int, tuple[bool, float]] = {}
+
 
 def _check_firewall(port: int) -> bool:
     """Return True if the Retro Vault inbound firewall rule exists (Windows only).
     Returns True on non-Windows (no firewall to worry about)."""
+    cached = _firewall_cache.get(port)
+    now = time.time()
+    if cached and now - cached[1] < _FIREWALL_CACHE_TTL_S:
+        return cached[0]
+
     if sys.platform != "win32":
-        return True
-    try:
-        result = subprocess.run(
-            [
-                "netsh",
-                "advfirewall",
-                "firewall",
-                "show",
-                "rule",
-                f"name={_FIREWALL_RULE_NAME}",
-                "dir=in",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        out = result.stdout
-        return ("Permitir" in out or "Allow" in out) and result.returncode == 0
-    except Exception:
-        return True  # can't check → don't warn
+        result = True
+    else:
+        try:
+            proc = subprocess.run(
+                [
+                    "netsh",
+                    "advfirewall",
+                    "firewall",
+                    "show",
+                    "rule",
+                    f"name={_FIREWALL_RULE_NAME}",
+                    "dir=in",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            out = proc.stdout
+            result = ("Permitir" in out or "Allow" in out) and proc.returncode == 0
+        except Exception:
+            result = True  # can't check → don't warn
+
+    _firewall_cache[port] = (result, now)
+    return result

@@ -35,9 +35,11 @@ _sd_sync_status: dict = {
     "drive": None,
 }
 
-# ── Token efímero de setup Anbernic (ANBERNIC-UX-3) ────────────────────────
-# Protege /s y /api/rclone-export-config fuera de loopback. 10 min de vida.
-_anbernic_setup_token: dict = {"value": None, "expires": 0.0}
+# ── Tokens efímeros de setup Anbernic (ANBERNIC-UX-3) ──────────────────────
+# Protegen /s y /api/rclone-export-config fuera de loopback. 10 min de vida.
+# ANBERNIC-UX-10: lista (no un slot único) — abrir la pestaña Anbernic en dos
+# sitios a la vez no debe invalidar el token ya copiado en el primero.
+_anbernic_setup_tokens: list = []
 
 # ── HTTP / tray instances (set por serve()) ───────────────────────────────
 _tray_instance = None  # type: ignore[assignment]

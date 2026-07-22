@@ -155,3 +155,49 @@ def test_exclude_without_sha1_is_400(tmp_path: Path) -> None:
     ctx = _Ctx({})
     router.dispatch("POST", "/api/duplicates/exclude", ctx)
     assert ctx.error == (400, "sha1 required")
+
+
+# ── /api/review-queue (TABS-FIX-6) ────────────────────────────────────────────
+
+
+def test_review_queue_merges_both_repos(tmp_path: Path) -> None:
+    router, *_ = _setup(tmp_path)
+    ctx = _Ctx()
+    router.dispatch("GET", "/api/review-queue", ctx)
+
+    assert ctx.payload["total_groups"] == 2  # one sha1-dup pair per repo (pc + android)
+    assert all(g["reasons"] == ["sha1"] for g in ctx.payload["groups"])
+
+
+def test_review_queue_exclude_then_hidden(tmp_path: Path) -> None:
+    router, repo_pc, repo_ab, *_ = _setup(tmp_path)
+    ctx = _Ctx()
+    router.dispatch("GET", "/api/review-queue", ctx)
+    group_key = ctx.payload["groups"][0]["group_key"]
+
+    exclude_ctx = _Ctx({"group_key": group_key})
+    router.dispatch("POST", "/api/review-queue/exclude", exclude_ctx)
+    assert exclude_ctx.payload == {"ok": True}
+
+    after_ctx = _Ctx()
+    router.dispatch("GET", "/api/review-queue", after_ctx)
+    assert group_key not in {g["group_key"] for g in after_ctx.payload["groups"]}
+
+
+def test_review_queue_exclude_without_group_key_is_400(tmp_path: Path) -> None:
+    router, *_ = _setup(tmp_path)
+    ctx = _Ctx({})
+    router.dispatch("POST", "/api/review-queue/exclude", ctx)
+    assert ctx.error == (400, "group_key required")
+
+
+def test_review_queue_apply_all_resolves_both_repos(tmp_path: Path) -> None:
+    router, repo_pc, repo_ab, files, _ = _setup(tmp_path)
+
+    ctx = _Ctx()
+    router.dispatch("POST", "/api/review-queue/apply-all", ctx)
+
+    assert ctx.payload["errors"] == []
+    assert ctx.payload["resolved"] == 2  # one discard per repo's sha1-dup pair
+    assert _count_games(repo_pc) == 1
+    assert _count_games(repo_ab) == 1

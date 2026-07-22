@@ -21,12 +21,12 @@ def _ctx(client_ip: str, token: str = "") -> SimpleNamespace:
 
 
 def test_loopback_always_allowed() -> None:
-    _state._anbernic_setup_token = {"value": None, "expires": 0.0}
+    _state._anbernic_setup_tokens = []
     assert _setup_token_ok(_ctx("127.0.0.1"))
 
 
 def test_lan_without_token_denied() -> None:
-    _state._anbernic_setup_token = {"value": None, "expires": 0.0}
+    _state._anbernic_setup_tokens = []
     assert not _setup_token_ok(_ctx("192.168.1.50"))
 
 
@@ -38,8 +38,20 @@ def test_lan_with_valid_token_allowed() -> None:
 def test_lan_with_wrong_or_expired_token_denied() -> None:
     token = _mint_setup_token()
     assert not _setup_token_ok(_ctx("192.168.1.50", "wrong"))
-    _state._anbernic_setup_token["expires"] = time.time() - 1
+    for t in _state._anbernic_setup_tokens:
+        t["expires"] = time.time() - 1
     assert not _setup_token_ok(_ctx("192.168.1.50", token))
+
+
+def test_minting_new_token_does_not_invalidate_still_valid_ones() -> None:
+    """ANBERNIC-UX-10: opening the Anbernic tab in a second window must not
+    invalidate the command already copied from the first."""
+    _state._anbernic_setup_tokens = []
+    first = _mint_setup_token()
+    second = _mint_setup_token()
+    assert first != second
+    assert _setup_token_ok(_ctx("192.168.1.50", first))
+    assert _setup_token_ok(_ctx("192.168.1.50", second))
 
 
 def test_bootstrap_script_uses_config_remotes_and_token() -> None:

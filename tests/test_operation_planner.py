@@ -83,6 +83,42 @@ def test_empty_when_no_games() -> None:
     assert plan.total == 0
 
 
+def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
+    """TABS-FIX-6-DISC: canonical_title identical across discs (DAT has no disc
+    number) must not collide — each disc keeps its "(Disc N)" tag from the
+    original filename, and the shared game folder stays disc-agnostic."""
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    games = []
+    for n in (1, 2, 3):
+        src = psx_dir / f"Final Fantasy VII (Disc {n})" / f"Final Fantasy VII (Disc {n}).cue"
+        src.parent.mkdir(parents=True)
+        src.touch()
+        games.append(
+            _make_game(
+                id=n,
+                original_filename=f"Final Fantasy VII (Disc {n}).cue",
+                source_path=str(src),
+                canonical_title="Final Fantasy VII (Europe)",  # same for all discs, no disc tag
+                extension=".cue",
+                platform="psx",
+            )
+        )
+    plan = build_plan(_repo_with(games))
+
+    assert len(plan.conflicts) == 0
+    assert len(plan.pending) == 3
+    filenames = {op.target_path.name for op in plan.pending}
+    assert filenames == {
+        "Final Fantasy VII (Europe) (Disc 1).cue",
+        "Final Fantasy VII (Europe) (Disc 2).cue",
+        "Final Fantasy VII (Europe) (Disc 3).cue",
+    }
+    # All three discs share the same game folder
+    folders = {op.target_path.parent.name for op in plan.pending}
+    assert folders == {"Final Fantasy VII (Europe)"}
+
+
 def test_mixed_statuses(tmp_path: Path) -> None:
     # pending
     g1_path = tmp_path / "mario.gb"

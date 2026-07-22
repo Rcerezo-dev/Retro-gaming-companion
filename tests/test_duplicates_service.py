@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -117,6 +118,46 @@ def test_delete_duplicate_device_path_unreachable_does_not_touch_db(tmp_path: Pa
         assert conn.execute("SELECT COUNT(*) AS n FROM games").fetchone()["n"] == 1
 
 
+@_windows_only
+def test_delete_duplicate_device_path_with_adb_transport_deletes_via_adb(tmp_path: Path) -> None:
+    """TABS-FIX-1a: with a connected device, the file is deleted for real via
+    ADB before the DB row is touched."""
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path, sha1=_SHA1_A)
+    gid = _game_id(repo, device_path)
+    adb = SimpleNamespace(remove=lambda path: None, removed=[])
+    adb.remove = lambda path: adb.removed.append(path)
+
+    result = delete_duplicate(repo, game_id=gid, adb_transport=adb)
+
+    assert result == {"deleted": device_path}
+    assert adb.removed == [device_path]
+    with repo.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) AS n FROM games").fetchone()["n"] == 0
+
+
+@_windows_only
+def test_delete_duplicate_device_path_adb_remove_fails_does_not_touch_db(tmp_path: Path) -> None:
+    """If the ADB delete itself fails (device unplugged mid-op, permission
+    denied…), the DB row must stay — no phantom-deleted duplicate."""
+    device_path = "/storage/emulated/0/RetroArch/roms/gb/dup.gb"
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_path, sha1=_SHA1_A)
+    gid = _game_id(repo, device_path)
+
+    def _boom(path):
+        raise RuntimeError("no se pudo borrar en el dispositivo")
+
+    adb = SimpleNamespace(remove=_boom)
+
+    result = delete_duplicate(repo, game_id=gid, adb_transport=adb)
+
+    assert "error" in result
+    with repo.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) AS n FROM games").fetchone()["n"] == 1
+
+
 def test_delete_all_duplicates_keeps_canonical_deletes_rest(tmp_path: Path) -> None:
     canonical = tmp_path / "a1.gb"
     dup = tmp_path / "a2.gb"
@@ -168,6 +209,58 @@ def test_delete_all_duplicates_device_path_counted_unreachable_not_deleted(
     with repo.connect() as conn:
         remaining = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
     assert device_dup in remaining  # row untouched, not phantom-deleted
+
+
+@_windows_only
+def test_delete_all_duplicates_device_path_with_adb_transport_deletes_via_adb(
+    tmp_path: Path,
+) -> None:
+    """TABS-FIX-1a: with a connected device, on-device duplicates are deleted
+    for real and counted as 'deleted', not 'unreachable'."""
+    device_canonical = "/storage/emulated/0/RetroArch/roms/gb/a1.gb"
+    device_dup = "/storage/emulated/0/RetroArch/roms/gb/a2.gb"
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_canonical, sha1=_SHA1_A, size_bytes=2048)
+    _insert_game(repo, source_path=device_dup, sha1=_SHA1_A, size_bytes=2048)
+    adb = SimpleNamespace(removed=[])
+    adb.remove = lambda path: adb.removed.append(path)
+
+    result = delete_all_duplicates(repo, adb_transport=adb)
+
+    assert result["deleted"] == 1
+    assert result["unreachable"] == 0
+    assert result["freed_bytes"] == 2048
+    assert adb.removed == [device_dup]
+    with repo.connect() as conn:
+        remaining = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+    assert device_dup not in remaining
+
+
+@_windows_only
+def test_delete_all_duplicates_device_path_adb_remove_fails_counted_as_failed(
+    tmp_path: Path,
+) -> None:
+    device_canonical = "/storage/emulated/0/RetroArch/roms/gb/a1.gb"
+    device_dup = "/storage/emulated/0/RetroArch/roms/gb/a2.gb"
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=device_canonical, sha1=_SHA1_A, size_bytes=2048)
+    _insert_game(repo, source_path=device_dup, sha1=_SHA1_A, size_bytes=2048)
+
+    def _boom(path):
+        raise RuntimeError("device offline")
+
+    adb = SimpleNamespace(remove=_boom)
+
+    result = delete_all_duplicates(repo, adb_transport=adb)
+
+    assert result["deleted"] == 0
+    assert result["failed"] == 1
+    assert result["unreachable"] == 0
+    with repo.connect() as conn:
+        remaining = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+    assert device_dup in remaining  # row untouched after a failed ADB delete
 
 
 def test_delete_all_duplicates_respects_platform_filter(tmp_path: Path) -> None:

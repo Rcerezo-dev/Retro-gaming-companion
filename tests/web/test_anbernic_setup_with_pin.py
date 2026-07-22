@@ -72,9 +72,9 @@ def config_with_pin(tmp_path: Path):
 
 @pytest.fixture(autouse=True)
 def _reset_setup_token():
-    _state._anbernic_setup_token = {"value": None, "expires": 0.0}
+    _state._anbernic_setup_tokens = []
     yield
-    _state._anbernic_setup_token = {"value": None, "expires": 0.0}
+    _state._anbernic_setup_tokens = []
 
 
 def test_bootstrap_script_not_redirected_to_login_with_pin(repo, config_with_pin):
@@ -97,7 +97,7 @@ def test_rclone_export_config_not_redirected_to_login_with_pin(repo, config_with
 
 def test_bootstrap_script_served_with_valid_setup_token_and_pin(repo, config_with_pin):
     token = "test-token-123"
-    _state._anbernic_setup_token = {"value": token, "expires": time.time() + 600}
+    _state._anbernic_setup_tokens = [{"value": token, "expires": time.time() + 600}]
     handler_class = make_handler(repo, config_with_pin)
     code, headers, body = _get(handler_class, f"/s?t={token}", client_ip="192.168.1.50")
     assert code == 200

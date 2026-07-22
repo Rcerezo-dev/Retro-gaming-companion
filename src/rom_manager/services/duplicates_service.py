@@ -17,6 +17,7 @@ from rom_manager.utils.trash import discard_to_trash
 
 if TYPE_CHECKING:
     from rom_manager.database.repository import LibraryRepository
+    from rom_manager.sync.adb_transport import AdbTransport
 
 _log = logging.getLogger(__name__)
 
@@ -26,8 +27,14 @@ def delete_duplicate(
     *,
     game_id,
     source_path: str = "",
+    adb_transport: AdbTransport | None = None,
 ) -> dict:
     """Delete one duplicate ROM file and its DB record.
+
+    *adb_transport*: when the file lives on a connected device (TABS-FIX-1a),
+    deletes it there via ADB before touching the DB row. ``None`` (no device
+    connected, or several connected and ambiguous) falls back to the explicit
+    "conecta el dispositivo" error — never a silent no-op success.
 
     Returns a result dict ready to serialize: ``{"deleted": path}`` on success,
     or ``{"error": msg}`` on failure.
@@ -57,12 +64,17 @@ def delete_duplicate(
         # TABS-FIX-1: ruta de consola (ADB) — Path.exists() siempre da False
         # en Windows aunque el archivo siga vivo en el dispositivo. No borrar
         # la fila ni reportar éxito silencioso.
-        return {
-            "error": (
-                "Ruta de consola — conecta el dispositivo para verificar si el archivo "
-                "sigue ahí; no se ha tocado la fila de la base de datos"
-            )
-        }
+        if adb_transport is None:
+            return {
+                "error": (
+                    "Ruta de consola — conecta el dispositivo para verificar si el archivo "
+                    "sigue ahí; no se ha tocado la fila de la base de datos"
+                )
+            }
+        try:
+            adb_transport.remove(source_path)
+        except Exception as exc:
+            return {"error": f"No se pudo borrar en el dispositivo: {type(exc).__name__}: {exc}"}
     try:
         repository.delete_game(int(game_id))
     except Exception as exc:
@@ -70,7 +82,11 @@ def delete_duplicate(
     return {"deleted": source_path}
 
 
-def delete_all_duplicates_multi(repositories: list[LibraryRepository], platform: str = "") -> dict:
+def delete_all_duplicates_multi(
+    repositories: list[LibraryRepository],
+    platform: str = "",
+    adb_transport: AdbTransport | None = None,
+) -> dict:
     """Run :func:`delete_all_duplicates` over several repositories and merge the results.
 
     Used by "Sistema completo" mode, where the duplicates view shows both the PC
@@ -87,7 +103,7 @@ def delete_all_duplicates_multi(repositories: list[LibraryRepository], platform:
         "diagnostics": [],
     }
     for repo in repositories:
-        result = delete_all_duplicates(repo, platform=platform)
+        result = delete_all_duplicates(repo, platform=platform, adb_transport=adb_transport)
         for key in ("deleted", "skipped", "failed", "unreachable", "freed_bytes"):
             merged[key] += result[key]
         merged["errors"] = (merged["errors"] + result["errors"])[:20]
@@ -103,12 +119,19 @@ def delete_all_duplicates_multi(repositories: list[LibraryRepository], platform:
     return merged
 
 
-def delete_all_duplicates(repository: LibraryRepository, platform: str = "") -> dict:
+def delete_all_duplicates(
+    repository: LibraryRepository,
+    platform: str = "",
+    adb_transport: AdbTransport | None = None,
+) -> dict:
     """Delete every non-canonical duplicate (all but the first entry per group).
 
     If *platform* is given, only groups of that platform are touched — so the
     count the user confirmed in a filtered view matches what runs
     (DUPLICADOS-UX-1).
+
+    *adb_transport*: see :func:`delete_duplicate` — device-path entries are
+    deleted via ADB when given, otherwise counted as ``unreachable`` (untouched).
 
     Returns a result dict ready to serialize with deleted/skipped/failed counts,
     freed bytes, a human summary, and per-file diagnostics.
@@ -140,8 +163,39 @@ def delete_all_duplicates(repository: LibraryRepository, platform: str = "") -> 
                 # Path en Windows aunque el archivo siga vivo — no limpiar la
                 # fila de BD, sería un borrado fantasma con éxito silencioso.
                 if is_device_path(entry.source_path):
-                    unreachable += 1
-                    diag["unreachable_device"] = True
+                    if adb_transport is None:
+                        unreachable += 1
+                        diag["unreachable_device"] = True
+                        diagnostics.append(diag)
+                        continue
+                    try:
+                        adb_transport.remove(entry.source_path)
+                    except Exception as exc:
+                        failed += 1
+                        diag["file_error"] = str(exc)
+                        _log.warning("ADB delete failed for %s: %s", entry.source_path, exc)
+                        if len(errors) < 20:
+                            errors.append(f"{p.name}: borrado ADB falló — {exc}")
+                        diagnostics.append(diag)
+                        continue
+                    diag["deleted_file"] = True
+                    try:
+                        repository.delete_game(entry.id)
+                        deleted += 1
+                        freed_bytes += entry.size_bytes
+                        diag["deleted_db"] = True
+                    except Exception as exc:
+                        failed += 1
+                        diag["db_error"] = str(exc)
+                        _log.warning(
+                            "ADB file deleted but DB update failed for %s: %s",
+                            entry.source_path,
+                            exc,
+                        )
+                        if len(errors) < 20:
+                            errors.append(
+                                f"{p.name}: archivo eliminado en consola pero error en BD — {exc}"
+                            )
                     diagnostics.append(diag)
                     continue
                 _log.info(f"Skipping missing file (file gone, cleaning DB): {p}")

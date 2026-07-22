@@ -387,7 +387,7 @@ export async function loadOverview() {
         card('Sin identificar', d.unmatched_games, null, () => goToGames(pcPath, 'unmatched'), 'orange', d.unmatched_games > 0 ? [{label:'Identificar →', fn:()=>showTab('plan')}] : null)  +
         card('Saves',      d.total_saves,      null, d.total_saves > 0 ? () => goToGames(pcPath, '', 'save') : null, 'purple')      +
         card('Assets',     d.total_assets,     null, d.total_assets > 0 ? () => { showTab('assets'); } : null)     +
-        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' desperdiciados', d.duplicate_groups > 0 ? () => showTab('duplicates') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Ver', fn:()=>showTab('duplicates')}] : null) +
+        card('Duplicados', d.duplicate_groups, fmtSize(d.wasted_bytes) + ' desperdiciados', d.duplicate_groups > 0 ? () => showTab('plan') : null, d.duplicate_groups > 0 ? 'red' : '', d.duplicate_groups > 0 ? [{label:'Revisar copias →', fn:()=>showTab('plan')}] : null) +
         card('Último scan', d.last_scan_at ? d.last_scan_at.replace('T',' ').slice(0,16) : 'nunca');
       // UI-2: populate dashboard bar
       const dsGames     = document.getElementById('ds-games');

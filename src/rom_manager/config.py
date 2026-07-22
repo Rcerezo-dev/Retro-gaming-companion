@@ -349,6 +349,19 @@ def _default_tool(root: Path, exe: str, fallback: str) -> str:
     return fallback
 
 
+def _resolve_tool_path(raw: str) -> str:
+    """Normalize a configured tool path so Windows' CreateProcess accepts it.
+
+    VAL-FIX-3: CreateProcess rejects a forward slash in the executable path
+    itself (unlike in its arguments), so a user-written "tools/adb.exe" in
+    config.toml fails with WinError 2 even though the file exists. No-op on
+    non-Windows, where "/" is the native separator anyway.
+    """
+    if sys.platform == "win32" and "/" in raw:
+        return raw.replace("/", "\\")
+    return raw
+
+
 def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
@@ -436,9 +449,11 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         library_root=library_root,
         anbernic_root=anbernic_root,
         device_name=device_name,
-        rclone_binary=sync.get("rclone", _default_tool(root, "rclone.exe", "rclone")),
-        chdman=tools.get("chdman", _default_tool(root, "chdman.exe", "chdman")),
-        adb=tools.get("adb", _default_tool(root, "adb.exe", "adb")),
+        rclone_binary=_resolve_tool_path(
+            sync.get("rclone", _default_tool(root, "rclone.exe", "rclone"))
+        ),
+        chdman=_resolve_tool_path(tools.get("chdman", _default_tool(root, "chdman.exe", "chdman"))),
+        adb=_resolve_tool_path(tools.get("adb", _default_tool(root, "adb.exe", "adb"))),
         web_host=web.get("host", "0.0.0.0"),
         web_port=int(web.get("port", 7777)),
         web_allow_lan=bool(web.get("allow_lan", True)),
