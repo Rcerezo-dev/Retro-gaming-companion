@@ -20,6 +20,8 @@ from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.sync.adb_transport import AdbTransport
@@ -424,3 +426,50 @@ def apply_ra_conflicts(
         "hint": "Si resolved=0 y skipped_no_ra>0: ejecuta primero el Check RA para poblar los MD5. Si debug_samples muestra 'not_found', la ruta en BD no coincide con la del plan.",
         "next_step": next_step,
     }
+
+
+def apply_all_review_recommendations(
+    get_repo_fn: Callable[[str], LibraryRepository],
+    repos: list[LibraryRepository],
+    config: AppConfig,
+    queue: dict,
+    adb_transport: AdbTransport | None = None,
+) -> dict:
+    """TABS-FIX-6: apply every precomputed recommendation in a review-queue dict.
+
+    Composes the two mechanisms the review queue already relies on, unchanged:
+    ``resolve_duplicate_ra`` (keep the recommended entry, discard the rest) for
+    sha1/title/ra groups, and ``apply_ra_conflicts`` (resolves ALL plan conflicts
+    at once — there's no per-group entry point) for any group carrying a
+    disk/collision reason.
+    """
+    resolved = 0
+    errors: list[str] = []
+    has_plan_conflicts = False
+
+    for group in queue.get("groups", []):
+        reasons = set(group.get("reasons", ()))
+        if reasons & {"disk", "collision"}:
+            has_plan_conflicts = True
+            continue
+        entries = group.get("entries", [])
+        recommended = next((e for e in entries if e.get("recommended")), None)
+        if not recommended:
+            continue
+        discard_paths = [e["source_path"] for e in entries if e is not recommended]
+        if not discard_paths:
+            continue
+        repo = get_repo_fn(recommended["source_path"])
+        result = resolve_duplicate_ra(
+            repo, recommended["source_path"], discard_paths, adb_transport
+        )
+        resolved += result.get("discarded", 0)
+        errors.extend(result.get("errors", []))
+
+    if has_plan_conflicts:
+        for repo in repos:
+            result = apply_ra_conflicts(repo, config, adb_transport)
+            resolved += result.get("resolved", 0)
+            errors.extend(result.get("errors", []))
+
+    return {"resolved": resolved, "errors": errors[:20]}

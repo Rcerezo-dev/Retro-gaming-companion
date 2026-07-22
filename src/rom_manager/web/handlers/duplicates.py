@@ -8,10 +8,9 @@ from rom_manager.services.duplicates_service import (
     delete_duplicate,
 )
 from rom_manager.services.ra_duplicates_service import (
+    apply_all_review_recommendations,
     apply_ra_conflicts,
-    discard_all_ra_duplicates,
     discard_no_support,
-    discard_ra_duplicate,
     resolve_duplicate_ra,
 )
 
@@ -45,6 +44,7 @@ def register(
     from rom_manager.web.builders.duplicates import (
         _build_duplicates_two_repos,
         _build_ra_duplicates,
+        _build_review_queue,
     )
 
     def _adb_transport():
@@ -157,22 +157,35 @@ def register(
     def post_apply_ra_conflicts(ctx) -> None:
         ctx._send_json(apply_ra_conflicts(repository, config, adb_transport=_adb_transport()))
 
-    # ── POST /api/ra-duplicates/discard ───────────────────────────────────────
-    @router.post("/api/ra-duplicates/discard")
-    def post_ra_duplicate_discard(ctx) -> None:
-        source_path = ctx._post_data.get("path", "").strip()
-        if not source_path:
-            ctx._send_error(400, "path required")
-            return
-        ctx._send_json(
-            discard_ra_duplicate(get_repo_fn(source_path), source_path, _adb_transport())
-        )
+    # ── GET /api/review-queue ─────────────────────────────────────────────────
+    @router.get("/api/review-queue")
+    def get_review_queue(ctx) -> None:
+        # TABS-FIX-6: cola única que fusiona duplicados SHA1/semánticos/RA y
+        # colisiones del plan — reemplaza la pestaña Duplicados.
+        ctx._send_json(_build_review_queue(repository, repo_android, config))
 
-    # ── POST /api/ra-duplicates/discard-all ──────────────────────────────────
-    @router.post("/api/ra-duplicates/discard-all")
-    def post_ra_duplicate_discard_all(ctx) -> None:
-        ra_dups = _build_ra_duplicates(repository, config)
-        ctx._send_json(discard_all_ra_duplicates(repository, ra_dups, _adb_transport()))
+    # ── POST /api/review-queue/exclude ────────────────────────────────────────
+    @router.post("/api/review-queue/exclude")
+    def post_exclude_review_group(ctx) -> None:
+        group_key = (ctx._post_data.get("group_key") or "").strip()
+        if not group_key:
+            ctx._send_error(400, "group_key required")
+            return
+        # El grupo puede tener entries en cualquiera de las dos BDs — excluir en
+        # ambas, mismo criterio que la exclusión por sha1 (INSERT OR IGNORE).
+        for repo in (repository, repo_android):
+            repo.exclude_duplicate_group(group_key)
+        ctx._send_json({"ok": True})
+
+    # ── POST /api/review-queue/apply-all ──────────────────────────────────────
+    @router.post("/api/review-queue/apply-all")
+    def post_apply_all_review(ctx) -> None:
+        queue = _build_review_queue(repository, repo_android, config)
+        ctx._send_json(
+            apply_all_review_recommendations(
+                get_repo_fn, [repository, repo_android], config, queue, _adb_transport()
+            )
+        )
 
     # ── POST /api/ra-check/discard-no-support ────────────────────────────────
     @router.post("/api/ra-check/discard-no-support")

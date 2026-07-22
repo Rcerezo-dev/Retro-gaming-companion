@@ -120,6 +120,36 @@ class DuplicatesMixin:
             conn.execute("DELETE FROM excluded_duplicates WHERE sha1=?", (sha1,))
             conn.commit()
 
+    # ── Group-level exclusions (TABS-FIX-6 "Revisar copias") ─────────────────────
+    # Same pattern as the SHA1 exclusion above, keyed by "{platform}::{normalized_title}"
+    # instead of sha1 — covers title/RA/plan-conflict groups that don't share a sha1.
+
+    def exclude_duplicate_group(self, group_key: str, reason: str = "intentional_copy") -> None:
+        """Mark a review-queue group as an intentional copy."""
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO excluded_duplicate_groups (group_key, reason, created_at) "
+                "VALUES (?, ?, ?)",
+                (group_key, reason, now),
+            )
+            conn.commit()
+
+    def get_excluded_duplicate_groups(self) -> list[dict]:
+        """Return excluded review-queue group keys."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT group_key, reason, created_at FROM excluded_duplicate_groups "
+                "ORDER BY created_at DESC"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def remove_excluded_duplicate_group(self, group_key: str) -> None:
+        """Remove a group_key from the exclusion list — it reappears in the review queue."""
+        with self.connect() as conn:
+            conn.execute("DELETE FROM excluded_duplicate_groups WHERE group_key=?", (group_key,))
+            conn.commit()
+
     # ── Wishlist ────────────────────────────────────────────────────────────────
 
     def get_wishlist(self) -> list[dict]:
