@@ -84,8 +84,47 @@ def test_no_duplicates_no_groups(tmp_path: Path) -> None:
     assert result["groups"] == []
 
 
-def test_title_duplicate_across_region_tags(tmp_path: Path) -> None:
-    """Same normalized title (region tag differs) but different sha1 → 'title'."""
+def test_title_duplicate_same_exact_canonical_title(tmp_path: Path) -> None:
+    """Two different dumps (distinct sha1) of the exact same canonical_title
+    -> 'title'. This is the narrow, safe case; see the region-tags test below
+    for the broader case that must NOT merge."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    path_a = str(tmp_path / "tetris_good_dump.gb")
+    path_b = str(tmp_path / "tetris_bad_dump.gb")
+    _insert_game(
+        repo,
+        source_path=path_a,
+        sha1="A" * 40,
+        original_filename="tetris_good_dump.gb",
+        canonical_title="Tetris (USA)",
+    )
+    _insert_game(
+        repo,
+        source_path=path_b,
+        sha1="B" * 40,
+        original_filename="tetris_bad_dump.gb",
+        canonical_title="Tetris (USA)",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    # Both dumps also want the same canonical target -> legitimately a
+    # "collision" too, not asserted away here; the test only cares about "title".
+    assert "title" in group["reasons"]
+    assert {e["source_path"] for e in group["entries"]} == {path_a, path_b}
+
+
+def test_different_regions_are_not_merged(tmp_path: Path) -> None:
+    """Regression (found against a real PSX library, see the multi-disc test
+    below for the worse variant): region tags must NOT be stripped when
+    deciding "same game" for the union — "Tetris (USA)" and "Tetris (Europe)"
+    are different canonical_title strings and must stay separate groups.
+    Merging them by a fuzzy normalized title merged 18 distinct regional PSX
+    releases of Final Fantasy VII into one "duplicate" group in production
+    data — a false negative here is far cheaper than a false positive that
+    invites bulk-discarding a legitimate release."""
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     _insert_game(
         repo,
@@ -102,36 +141,35 @@ def test_title_duplicate_across_region_tags(tmp_path: Path) -> None:
 
     result = _build_review_queue(repo, repo, None)
 
-    assert result["total_groups"] == 1
-    group = result["groups"][0]
-    assert group["reasons"] == ["title"]
-    assert {e["source_path"] for e in group["entries"]} == {
-        "/roms/tetris_usa.gb",
-        "/roms/tetris_eu.gb",
-    }
+    assert result["groups"] == []
 
 
 def test_ra_mixed_reason_and_recommendation(tmp_path: Path) -> None:
-    """One entry has RA achievements, the other doesn't -> reason 'ra' and the
-    RA-supported entry is recommended, matching the criterion the old
-    '/api/ra-duplicates' view already used."""
+    """Two dumps of the exact same canonical_title, only one has RA
+    achievements -> reason 'ra' added on top of 'title', and the RA-supported
+    entry is recommended (same criterion the old '/api/ra-duplicates' view
+    already used)."""
     config = load_config(tmp_path)
     _write_ra_cache(tmp_path, console_id=4, hashes={"m" * 32: 10})
     repo = LibraryRepository(config.database_path)
+    path_a = str(tmp_path / "tetris_good.gb")
+    path_b = str(tmp_path / "tetris_bad.gb")
     _insert_game(
         repo,
-        source_path="/roms/tetris_a.gb",
+        source_path=path_a,
         sha1="A" * 40,
         md5="m" * 32,
+        original_filename="tetris_good.gb",
         canonical_title="Tetris (USA)",
         platform="Game Boy Advance",
     )
     _insert_game(
         repo,
-        source_path="/roms/tetris_b.gb",
+        source_path=path_b,
         sha1="B" * 40,
         md5="n" * 32,
-        canonical_title="Tetris (Europe)",
+        original_filename="tetris_bad.gb",
+        canonical_title="Tetris (USA)",
         platform="Game Boy Advance",
     )
 
@@ -140,9 +178,9 @@ def test_ra_mixed_reason_and_recommendation(tmp_path: Path) -> None:
     assert result["total_groups"] == 1
     group = result["groups"][0]
     assert "ra" in group["reasons"]
-    assert "title" in group["reasons"]  # distinct sha1 + canonical_title also flags "title"
+    assert "title" in group["reasons"]  # distinct sha1 + same canonical_title also flags "title"
     recommended = next(e for e in group["entries"] if e["recommended"])
-    assert recommended["source_path"] == "/roms/tetris_a.gb"
+    assert recommended["source_path"] == path_a
 
 
 def test_excluded_group_is_hidden(tmp_path: Path) -> None:
@@ -185,3 +223,69 @@ def test_plan_disk_conflict_single_entry_group(tmp_path: Path) -> None:
     assert len(disk_groups[0]["entries"]) == 1
     assert disk_groups[0]["entries"][0]["source_path"] == str(messy)
     assert disk_groups[0]["entries"][0]["target_name"] == "Tetris (World).gb"
+
+
+def test_disk_conflict_mixed_into_title_group_does_not_crash_sort(tmp_path: Path) -> None:
+    """Regression (found by hitting the real server): a disk-conflict entry
+    (has 'conflict_role') can land in the same union-find cluster as a plain
+    title-duplicate entry (no 'conflict_role') — e.g. a second dump of a ROM
+    already correctly placed on disk. Sorting the mixed list must not raise
+    str-vs-int."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    correct = tmp_path / "Tetris (USA).gb"
+    correct.write_bytes(b"good dump")
+    _insert_game(
+        repo,
+        source_path=str(correct),
+        sha1="A" * 40,
+        original_filename="Tetris (USA).gb",
+        canonical_title="Tetris (USA)",
+        platform="Game Boy",
+    )
+    messy = tmp_path / "tetris_bad_dump.gb"
+    messy.write_bytes(b"bad dump")
+    _insert_game(
+        repo,
+        source_path=str(messy),
+        sha1="B" * 40,
+        original_filename="tetris_bad_dump.gb",
+        canonical_title="Tetris (USA)",  # same exact title -> "title" union
+        platform="Game Boy",
+    )
+    # `correct` already occupies the canonical target -> messy's rename is a
+    # "disk" conflict against it, while `correct` itself has no conflict_role.
+
+    result = _build_review_queue(repo, repo, None)  # must not raise
+
+    group = next(g for g in result["groups"] if "title" in g["reasons"])
+    assert "disk" in group["reasons"]
+    assert {e["source_path"] for e in group["entries"]} == {str(correct), str(messy)}
+
+
+def test_multidisc_set_is_not_flagged_as_title_duplicate(tmp_path: Path) -> None:
+    """Regression (found against a real PSX library): No-Intro/Redump DATs give
+    every disc of a multi-disc game the SAME canonical_title (it doesn't encode
+    the disc number) — "Final Fantasy VII (Disc 1/2/3).cue" all normalize to one
+    cluster with 3 distinct sha1s, which looks exactly like a title-duplicate
+    group. Without the disc-tag guard, 'Aplicar recomendación' would discard
+    the other two discs as if they were alternate copies of the same disc.
+
+    They *do* still collide in the plan (pre-existing planner gap: identical
+    canonical_title across discs means identical rename target — tracked
+    separately in the backlog, out of scope here) — this test only asserts
+    the "title" false-positive is gone, not that the collision disappears.
+    """
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i in range(1, 4):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / f"Final Fantasy VII (Disc {i}).cue"),
+            sha1=chr(64 + i) * 40,
+            original_filename=f"Final Fantasy VII (Disc {i}).cue",
+            canonical_title="Final Fantasy VII (Europe)",
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert not any("title" in g["reasons"] for g in result["groups"])

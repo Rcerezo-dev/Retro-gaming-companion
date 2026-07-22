@@ -100,7 +100,6 @@ async function loadPlan() {
     // ── C3: Update action buttons with counts ─────────────────────────────────
     const btnApply    = document.getElementById('btn-apply');
     const btnResolve  = document.getElementById('btn-resolve-conflicts');
-    const btnResolveRa = document.getElementById('btn-resolve-ra-conflicts');
     if (btnApply) {
       const n = pending.length;
       btnApply.textContent = n > 0 ? `Renombrar ${n} archivo${n !== 1 ? 's' : ''}` : 'Nada que renombrar';
@@ -117,13 +116,6 @@ async function loadPlan() {
         btnResolve.classList.add('hidden');
       }
     }
-    // D8-3: show RA resolver if there are disk or collision conflicts
-    if (btnResolveRa) {
-      const diskConflictCount = (d.conflicts || []).filter(c => c.reason === 'disk' || c.reason === 'collision').length;
-      btnResolveRa.classList.toggle('hidden', !(diskConflictCount > 0));
-      if (diskConflictCount > 0) btnResolveRa.textContent = 'Resolver con RA (' + diskConflictCount + ')';
-    }
-
     if (d.total === 0) {
       if (window._activeDevice === 'anbernic') {
         const ab = document.getElementById('ov-ab-path')?.value.trim() || '(no configurado)';
@@ -169,9 +161,8 @@ async function loadPlan() {
         html += `</div>`;
         html += `<div style="color:var(--c-muted);font-size:11px;margin-bottom:10px">`;
         html += `Causa habitual: tienes múltiples versiones del mismo juego (regional, revisión) y la opción <strong>Región</strong> o <strong>Revisión</strong> está desactivada en el formato. Actívalas para que cada versión obtenga un nombre único.<br>`;
-        html += `Opciones: <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Renombrar (añadir sufijo _1 _2)</button>`;
-        html += ` o <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px;border-color:var(--c-red);color:var(--c-red)" onclick="deleteCollisionDuplicates()">Eliminar duplicados</button><br>`;
-        html += `Si tienes caché de RetroAchievements, usa el botón <strong>Resolver con RA</strong> (arriba) para conservar solo la versión con logros.`;
+        html += `Opciones: <button class="btn" style="padding:2px 10px;font-size:11px;margin:0 4px" onclick="applyKeepBoth()">Renombrar (añadir sufijo _1 _2)</button><br>`;
+        html += `Si tienes caché de RetroAchievements, resuélvelo desde <strong>2. Revisar copias</strong> (abajo), que conserva solo la versión con logros.`;
         html += `</div>`;
         if (hasRaData) {
           html += '<div style="overflow-x:auto"><table><thead><tr><th>ROM</th><th style="text-align:center">Logros RA</th><th>Nombre canónico</th><th>Resultado previsto</th></tr></thead><tbody>';
@@ -219,12 +210,11 @@ async function loadPlan() {
         html += `&#x26D4; Conflicto de disco (${diskConflicts.length}) — el nombre de destino ya está ocupado por un archivo diferente`;
         html += `</div>`;
         html += `<div style="color:var(--c-muted);font-size:11px;margin-bottom:10px">`;
-        html += `<strong style="color:var(--c-text)">¿Por qué no aparecen en la pestaña Duplicados?</strong><br>`;
-        html += `La pestaña <em>Duplicados</em> solo muestra archivos con el <strong>mismo contenido exacto</strong> (mismo hash SHA1). `;
+        html += `<strong style="color:var(--c-text)">¿Por qué no se detecta como duplicado?</strong><br>`;
+        html += `Un duplicado tiene el <strong>mismo contenido exacto</strong> (mismo hash SHA1). `;
         html += `Estos conflictos son distintos: el archivo que quieres renombrar y el que ya ocupa el nombre de destino son ROMs <em>diferentes</em> (distinto contenido), `;
         html += `pero el catálogo les asigna el mismo nombre canónico — por ejemplo, <code>Super Mario Bros (E)</code> y <code>Super Mario Bros (Europe)</code> son el mismo juego con nombres distintos.<br><br>`;
-        html += `<strong style="color:var(--c-text)">Qué hacer:</strong> Decide cuál de los dos quieres conservar. `;
-        html += `Puedes ir a la pestaña <a href="#" style="color:var(--c-blue)" onclick="event.preventDefault();showTab('duplicates')">Duplicados →</a> para verificar si alguno es idéntico por hash. `;
+        html += `<strong style="color:var(--c-text)">Qué hacer:</strong> este conflicto ya aparece en <strong>2. Revisar copias</strong> (abajo) con el criterio RA aplicado. `;
         html += `Si son versiones distintas y quieres conservar ambas, activa la opción <strong>Región</strong> o <strong>Revisión</strong> en el formato (arriba) para que cada una obtenga un nombre único.`;
         html += `</div>`;
         html += `<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">`;
@@ -355,69 +345,6 @@ async function applyKeepBoth() {
   );
 }
 
-// DUP-3: Delete collision duplicates instead of renaming them.
-// Keeps ONE file per collision group (the first), discards the rest.
-async function deleteCollisionDuplicates() {
-  // Collision rows carry data-game-id and data-target on the first <td>
-  const collisionDivs = Array.from(document.querySelectorAll('#plan-content > div'))
-    .filter(div => div.textContent.includes('Colisión de plan'));
-
-  const allRows = collisionDivs.length > 0
-    ? Array.from(collisionDivs[0].querySelectorAll('td[data-game-id]'))
-    : [];
-
-  if (allRows.length === 0) {
-    showToast('No hay duplicados en colisión para eliminar.', 'info');
-    return;
-  }
-
-  // Group by target name — keep index-0 in each group, discard the rest
-  const byTarget = new Map();
-  allRows.forEach(td => {
-    const key = td.dataset.target || 'unknown';
-    if (!byTarget.has(key)) byTarget.set(key, []);
-    byTarget.get(key).push({ game_id: parseInt(td.dataset.gameId), source_path: td.dataset.path });
-  });
-
-  const toDelete = [];
-  byTarget.forEach(entries => {
-    // Skip index 0 (keep one), delete the rest
-    entries.slice(1).forEach(e => toDelete.push(e));
-  });
-
-  if (toDelete.length === 0) {
-    showToast('Cada grupo ya tiene un solo archivo — nada que eliminar.', 'info');
-    return;
-  }
-
-  const count = toDelete.length;
-  const kept = byTarget.size;
-  _showConfirm(
-    'Eliminar duplicados de colisión',
-    `¿Eliminar ${count} archivo${count !== 1 ? 's' : ''} duplicado${count !== 1 ? 's' : ''}?<br><br>` +
-    `Se conservará <strong>1 archivo por grupo</strong> (${kept} grupo${kept !== 1 ? 's' : ''}) y se eliminará${count !== 1 ? 'n' : ''} el resto.<br>` +
-    `<span style="color:var(--c-yellow)">Los archivos se moverán a <code>_descartados/</code> (se purgan a los 30 días).</span>`,
-    'Eliminar',
-    async () => {
-      let deleted = 0, failed = 0;
-      for (const { game_id, source_path } of toDelete) {
-        try {
-          await apiPost('/api/duplicates/delete', { game_id, source_path });
-          deleted++;
-        } catch (e) {
-          failed++;
-        }
-      }
-      showToast(
-        `✓ ${deleted} eliminado${deleted !== 1 ? 's' : ''}` +
-        (failed > 0 ? ` · ${failed} error${failed !== 1 ? 'es' : ''}` : ''),
-        failed > 0 ? 'info' : 'ok'
-      );
-      if (deleted > 0) setTimeout(() => loadPlan(), 800);
-    }
-  );
-}
-
 // Discard a single collision entry from the plan view (row-level button)
 async function _discardCollisionEntry(gameId, sourcePath, filename) {
   _showConfirm(
@@ -540,5 +467,5 @@ async function doApply() {
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
 };

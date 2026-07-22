@@ -8,6 +8,7 @@ from __future__ import annotations
 import json as _json
 import logging
 import os as _os
+import re as _re_top
 from collections import defaultdict
 from pathlib import Path as _Path
 
@@ -19,6 +20,24 @@ _logger = logging.getLogger(__name__)
 
 _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
 
+_DISC_TAG_RE = _re_top.compile(r"\(disc\s*(\d+)\)", _re_top.IGNORECASE)
+
+
+def _is_disc_set(members) -> bool:
+    """True if every member is a distinct disc of the same multi-disc game
+    (e.g. "Final Fantasy VII (Disc 1/2/3).cue") — companion discs share the
+    DAT's canonical_title (it doesn't encode the disc number) and would
+    otherwise look exactly like a title-duplicate cluster (TABS-FIX-6: found
+    by hitting a real PSX library — without this guard, "Aplicar recomendación"
+    would discard the other discs as if they were alternate copies)."""
+    disc_nums = []
+    for r in members:
+        m = _DISC_TAG_RE.search(r["original_filename"])
+        if not m:
+            return False
+        disc_nums.append(m.group(1))
+    return len(set(disc_nums)) == len(disc_nums)
+
 
 def _is_spanish_filename(filename: str) -> bool:
     import re as _re
@@ -27,15 +46,20 @@ def _is_spanish_filename(filename: str) -> bool:
     return any(any(t.strip() == s for s in _SPANISH_TAGS) for tag in tags for t in tag.split(","))
 
 
-def _review_entry_sort_key(entry: dict) -> tuple:
-    """Recommendation order shared by every reason: RA winner/support > Spanish > filename.
+def _review_entry_sort_key(entry: dict) -> tuple[int, int, str]:
+    """Recommendation order shared by every reason: RA support > Spanish > filename.
 
-    Same criterion the RA-duplicates view already used (``_sort_key`` below), just
-    generalized so all 4 sources in the review queue rank consistently (TABS-FIX-6).
+    Same criterion the RA-duplicates view already used (before TABS-FIX-6
+    generalized it to all 4 review-queue sources). Every entry — including
+    disk/collision ones, see ``_review_groups_for_repo`` — always carries
+    ``ra_achievements``/``ra_supported``, computed once from the same RA hash
+    cache; a plan-conflict entry's own ``conflict_role`` (see
+    ``_annotate_conflicts_with_ra``) is display-only and deliberately NOT
+    used here. It's derived from a *different* lookup that's gated on the
+    source file existing on disk (`op.source_path.exists()`), so it can be
+    `None` even when `ra_supported` correctly knows the winner — using it as
+    the sort driver picked the wrong "recommended" entry in exactly that case.
     """
-    if "conflict_role" in entry:
-        # Plan conflicts already carry a precomputed winner (see _annotate_conflicts_with_ra).
-        return (0 if entry["conflict_role"] == "winner" else 1, entry["filename"])
     ra_tier = 0 if entry["ra_supported"] else 1
     lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
     return (ra_tier, lang_tier, entry["filename"])
@@ -552,9 +576,17 @@ def _review_groups_for_repo(
     for idx, row in enumerate(rows):
         if row["sha1"]:
             union(idx, first_by_sha1.setdefault(row["sha1"], idx))
-        title = row["canonical_title"] or _Path(row["original_filename"]).stem
-        title_key = (row["platform"] or "unknown", _normalize_title(title))
-        union(idx, first_by_title.setdefault(title_key, idx))
+        # EXACT canonical_title (not RA's fuzzy normalizer) — same key
+        # get_title_duplicate_groups() already used. Tried the fuzzy
+        # normalizer first (region tags stripped) to also catch "(USA)" vs
+        # "(Europe)" pairs; against a real PSX library it merged 18 distinct
+        # regional releases of Final Fantasy VII (different discs, different
+        # languages) into a single "duplicate" group — exact match is the
+        # only safe union key here, a false negative is far cheaper than a
+        # false positive that invites bulk-discarding a legitimate release.
+        if row["canonical_title"]:
+            title_key = (row["platform"] or "unknown", row["canonical_title"])
+            union(idx, first_by_title.setdefault(title_key, idx))
 
     # Plan conflicts: fold into the same clusters via the row they belong to
     # (the common case); a "collision" also unions its contenders together —
@@ -592,7 +624,11 @@ def _review_groups_for_repo(
                 sha1_counts[r["sha1"]] += 1
         distinct_sha1 = {r["sha1"] for r in members if r["sha1"]}
         has_sha1_dup = any(c > 1 for c in sha1_counts.values())
-        has_title_dup = len(distinct_sha1) > 1 and any(r["canonical_title"] for r in members)
+        has_title_dup = (
+            len(distinct_sha1) > 1
+            and any(r["canonical_title"] for r in members)
+            and not _is_disc_set(members)
+        )
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
         hash_map = _load_ra_hash_map(cache_dir, plat, hash_cache) if cache_dir else {}

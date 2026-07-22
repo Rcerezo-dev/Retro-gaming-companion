@@ -34,18 +34,16 @@ import {
   toggleCompleteness,
 } from './tabs/collection.js';
 import {
-  loadDuplicates, deleteAllDuplicates, deleteDuplicate,
-  resolveDuplicateRA, markAsIntentionalCopy,
-  loadExcludedDuplicates, removeDuplicateExclusion,
-  loadRaDuplicates, deleteRaDuplicate,
-  doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,
-  filterDuplicatesByPlatform, _renderDupContent,
 } from './tabs/duplicates.js';
 import {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
 } from './tabs/organize.js';
+import {
+  loadReviewQueue, applyReviewGroup, chooseReviewEntry,
+  markReviewGroupIntentional, applyAllReviewRecommendations, doResolveRaConflicts,
+} from './tabs/review_copies.js';
 import {
   startPolling, _applyJobStatus, _showJobResult,
 } from './jobs.js';
@@ -279,15 +277,11 @@ Object.assign(window, {
   _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
-  loadDuplicates, deleteAllDuplicates, deleteDuplicate,
-  resolveDuplicateRA, markAsIntentionalCopy,
-  loadExcludedDuplicates, removeDuplicateExclusion,
-  loadRaDuplicates, deleteRaDuplicate,
-  doResolveRaConflicts, discardAllRaDuplicates,
   setToolsContext, _initToolsContext,
-  filterDuplicatesByPlatform, _renderDupContent,
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, deleteCollisionDuplicates, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadReviewQueue, applyReviewGroup, chooseReviewEntry,
+  markReviewGroupIntentional, applyAllReviewRecommendations, doResolveRaConflicts,
   startPolling, _applyJobStatus, _showJobResult,
   // scraper.js
   doExportGamelistsAll,
@@ -425,8 +419,7 @@ export function setDevice(d) {
   const activeTab = document.querySelector('.nav-item.active')?.id?.replace('nav-','');
   if (activeTab) {
     if (activeTab === 'games')      { loadFilterOptions(); loadGames(0); }
-    if (activeTab === 'plan')       loadPlan();
-    if (activeTab === 'duplicates') loadDuplicates();
+    if (activeTab === 'plan')       { loadPlan(); loadReviewQueue(); }
     if (activeTab === 'assets')     loadAssets();
   }
 }
@@ -441,8 +434,7 @@ export function _deviceRoot() {
 const _TAB_DESC = {
   overview:   ['Inicio',        'Estado general de tu biblioteca y acciones rápidas'],
   games:      ['Juegos',        'Explora, filtra y valora los juegos de tu biblioteca'],
-  plan:       ['Organizar',     'Revisa y aplica renombres pendientes'],
-  duplicates: ['Duplicados',    'Detecta y gestiona ROMs duplicadas'],
+  plan:       ['Organizar',     'Revisa renombres pendientes y resuelve copias duplicadas'],
   assets:     ['Assets',        'Gestiona carátulas, vídeos y otros recursos'],
   collection: ['Colección',     'Galería personal con historial de juego y logros'],
   sync:       ['Cloud Sync',    'Sincroniza saves con la nube via rclone'],
@@ -477,8 +469,7 @@ export function showTab(name) {
   else if (event?.currentTarget) event.currentTarget.classList.add('active');
   if (name === 'overview')   { loadOverview(); loadCatalogStatus(); loadActivityHeatmap(); }
   if (name === 'games')      { loadFilterOptions(); loadGames(0); _refreshTagFilter(); loadRecommendations(); }
-  if (name === 'plan')       loadPlan();
-  if (name === 'duplicates') loadDuplicates();
+  if (name === 'plan')       { loadPlan(); loadReviewQueue(); }
   if (name === 'assets')     loadAssets();
   // CLOUD-UX-11: estado de saves y backups son lecturas locales baratas — se
   // cargan solos al abrir; el botón ↻ queda para refrescar.
