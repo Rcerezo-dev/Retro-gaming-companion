@@ -23,13 +23,24 @@ de seguridad), **6 después** (absorbe 2, 3 y 4).
    por plataforma antes de borrar. Nada que implementar — solo se corrigió
    la entrada del backlog (mismo patrón que DAT-FIX-1/INICIO-FIX-1 en
    Día44).
-2. **TABS-FIX-6** — pantalla única "Revisar copias": fusiona duplicados
+2. ~~**TABS-FIX-6**~~ ✅ — pantalla única "Revisar copias" (rama
+   `feature/tabs-fix-6-revisar-copias`, sin PR todavía). Fusiona duplicados
    SHA1, duplicados semánticos, versiones RA y colisiones del plan en una
-   cola por juego con recomendación precalculada (RA > mejor nombrada >
-   primera, lógica ya en `ra_duplicates_service.py`). Absorbe de paso
-   TABS-FIX-2 (3 UIs para el mismo criterio RA), TABS-FIX-3 (botón que
-   ignora RA) y TABS-FIX-4 (textos de borrado que mienten sobre
-   `_descartados/`). Esfuerzo L — es el grueso de la sesión.
+   cola por juego (Union-Find por SHA1 o `canonical_title` exacto — nunca
+   mezcla PC/Android). Absorbe TABS-FIX-2/3, y TABS-FIX-4 resultó tener
+   menos alcance real del esperado (solo un texto engañoso, el resto ya
+   estaba bien redactado). Backend con plan de agente (Explore ×2 + Plan),
+   luego implementación propia. **2 bugs de severidad alta encontrados
+   probando contra la biblioteca real de datos** (no sintética) antes de dar
+   la tarea por cerrada: agrupar por título normalizado fusionaba 18
+   versiones regionales de un mismo juego en un "duplicado" (corregido a
+   coincidencia exacta de `canonical_title`), y la recomendación de grupos
+   `disk`/`collision` podía caer a orden alfabético en vez de al criterio RA
+   por un campo (`conflict_role`) que depende de que el archivo exista en
+   disco. Encontrado de paso un bug preexistente del planner con sets
+   multi-disco (**TABS-FIX-6-DISC**, documentado en el backlog, no
+   arreglado — fuera de alcance de hoy). 897 tests (22 nuevos), suite
+   completa en verde.
 3. **Si queda tiempo, quick wins de Sync (Pilar 3, prioridad real del
    proyecto):**
    - VAL-FIX-3 — rutas relativas de `tools/adb.exe` con `/` rompen
