@@ -493,3 +493,24 @@ def test_record_play_session_participates_in_external_batch(repo):
     with repo.connect() as conn:
         row = conn.execute("SELECT play_count FROM games").fetchone()
     assert row["play_count"] == 1
+
+
+def test_backup_database_creates_restorable_snapshot(repo):
+    """MEJ-3: backup before apply — snapshot must contain committed rows."""
+    _upsert(repo, source_path="/roms/gba/Game.gba", original_filename="Game.gba")
+
+    dest = repo.backup_database()
+
+    assert dest.exists()
+    assert dest.parent.name == "db-backup"
+    snapshot = LibraryRepository(dest)
+    with snapshot.connect() as conn:
+        row = conn.execute("SELECT original_filename FROM games").fetchone()
+    assert row["original_filename"] == "Game.gba"
+
+
+def test_backup_database_prunes_old_backups(repo):
+    for _ in range(3):
+        repo.backup_database(keep_n=2)
+    backups = list((repo.database_path.parent / "db-backup").glob("*.db"))
+    assert len(backups) <= 2

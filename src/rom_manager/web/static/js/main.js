@@ -38,7 +38,7 @@ import {
 } from './tabs/duplicates.js';
 import {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,
 } from './tabs/organize.js';
 import {
   loadReviewQueue, applyReviewGroup, chooseReviewEntry,
@@ -279,7 +279,7 @@ Object.assign(window, {
   toggleCompleteness,
   setToolsContext, _initToolsContext,
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,
   loadReviewQueue, applyReviewGroup, chooseReviewEntry,
   markReviewGroupIntentional, applyAllReviewRecommendations, doResolveRaConflicts,
   startPolling, _applyJobStatus, _showJobResult,

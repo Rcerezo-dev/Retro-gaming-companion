@@ -110,7 +110,22 @@ def _build_cable_sync_preview(qs: dict, config: AppConfig) -> dict:
     android_message: str | None = None
 
     if mode == "adb":
-        android_message = "no accesible en modo ADB (conecta y detecta el dispositivo)"
+        serial = (qs.get("serial", [None])[0] or "").strip()
+        if not serial:
+            android_message = "conecta y detecta el dispositivo primero"
+        else:
+            android_path = (qs.get("android_path", [None])[0] or "").strip() or (
+                config.sync.auto_sync_android_path
+            )
+            try:
+                from rom_manager.sync.adb_transport import AdbTransport
+
+                transport = AdbTransport(config.adb, serial)
+                android_saves = len(
+                    transport.ls_recursive(android_path, wanted_extensions=save_exts)
+                )
+            except Exception as exc:
+                android_message = f"error ADB: {exc}"
     elif ab_path_s:
         ab_root = Path(ab_path_s)
         if ab_root.is_dir():

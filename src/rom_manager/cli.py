@@ -382,6 +382,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{len(plan.conflicts)} conflict(s) require manual resolution.")
             return 0
 
+        repository.backup_database()
+
         save_exts = frozenset(config.save_extensions)
         extra_save_dirs = central_save_dirs(config)
         timestamp = utc_now()

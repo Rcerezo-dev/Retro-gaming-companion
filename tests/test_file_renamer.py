@@ -144,6 +144,70 @@ def test_rename_backs_up_current_save_even_with_leftover_bak(tmp_path: Path) -> 
     assert (tmp_path / "New.srm.bak1").read_bytes() == b"current save about to be overwritten"
 
 
+def test_rename_rollback_restores_original_state_on_save_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """TEST-GAP-1: rename_rom_with_saves' rollback path (companion save move
+    fails mid-way) had no direct test — only exercised indirectly through the
+    apply handler. Whichever companion fails, everything already renamed must
+    end up back at its original name/location, and the ROM/save contents must
+    be untouched (this is the "never lose a save" guarantee CLAUDE.md calls
+    out as the highest-priority failure mode)."""
+    import rom_manager.renamer.file_renamer as fr
+
+    source = tmp_path / "Old.nes"
+    source.write_bytes(b"rom data")
+    srm = tmp_path / "Old.srm"
+    srm.write_bytes(b"save data")
+    state = tmp_path / "Old.state"
+    state.write_bytes(b"state data")
+    target = tmp_path / "New.nes"
+
+    real_move = fr.shutil.move
+
+    def _flaky_move(src, dst):
+        if Path(src).name == "Old.state":
+            raise OSError("simulated save move failure")
+        return real_move(src, dst)
+
+    monkeypatch.setattr(fr.shutil, "move", _flaky_move)
+
+    outcome = rename_rom_with_saves(source, target, SAVE_EXTS)
+
+    assert outcome.success is False
+    assert "Old.state" in outcome.error
+    assert source.exists()
+    assert source.read_bytes() == b"rom data"
+    assert not target.exists()
+    assert srm.exists()
+    assert srm.read_bytes() == b"save data"
+    assert not (tmp_path / "New.srm").exists()
+    assert state.exists()
+    assert state.read_bytes() == b"state data"
+
+
+def test_move_disc_set_moves_all_bins_intact(tmp_path: Path) -> None:
+    """TEST-GAP-1: multi-track disc set (2+ .bin) must move as one atomic unit,
+    keeping each BIN's original filename and content — only the CUE is renamed."""
+    cue = tmp_path / "Game (Disc 1-2).cue"
+    bin1 = tmp_path / "Game (Disc 1).bin"
+    bin2 = tmp_path / "Game (Disc 2).bin"
+    bin1.write_bytes(b"disc1 data")
+    bin2.write_bytes(b"disc2 data")
+    cue.write_text(f'FILE "{bin1.name}" BINARY\nFILE "{bin2.name}" BINARY\n')
+    target_cue = tmp_path / "Game (USA)" / "Game (USA).cue"
+
+    outcome = move_disc_set_to_subfolder(cue, target_cue, SAVE_EXTS)
+
+    assert outcome.success is True
+    assert target_cue.exists()
+    assert (target_cue.parent / bin1.name).read_bytes() == b"disc1 data"
+    assert (target_cue.parent / bin2.name).read_bytes() == b"disc2 data"
+    assert not bin1.exists()
+    assert not bin2.exists()
+    assert not cue.exists()
+
+
 def test_move_disc_set_rollback_failure_is_reported(tmp_path: Path, monkeypatch) -> None:
     """REV43-24: if undoing a partial move fails, the caller must be told which
     file couldn't be restored — the old _rollback() swallowed OSError silently
@@ -179,6 +243,43 @@ def test_move_disc_set_rollback_failure_is_reported(tmp_path: Path, monkeypatch)
     assert outcome.success is False
     assert "rollback INCOMPLETE" in outcome.error
     assert bin1.name in outcome.error
+
+
+def test_move_disc_set_rollback_restores_original_state(tmp_path: Path, monkeypatch) -> None:
+    """TEST-GAP-1: the companion to test_move_disc_set_rollback_failure_is_reported
+    — that one forces the rollback itself to fail; this one checks the common
+    case where rollback succeeds: bin2's move fails, and bin1 must end up back
+    at its original path with its original content, with nothing left in the
+    target directory."""
+    import rom_manager.renamer.file_renamer as fr
+
+    cue = tmp_path / "Game.cue"
+    bin1 = tmp_path / "Game (Disc 1).bin"
+    bin2 = tmp_path / "Game (Disc 2).bin"
+    bin1.write_bytes(b"data1")
+    bin2.write_bytes(b"data2")
+    cue.write_text(f'FILE "{bin1.name}" BINARY\nFILE "{bin2.name}" BINARY\n')
+    target_cue = tmp_path / "Game (USA)" / "Game (USA).cue"
+
+    real_rename = fr.os.rename
+
+    def _flaky_rename(src, dst):
+        if Path(src).name == bin2.name:
+            raise OSError("simulated move failure")
+        return real_rename(src, dst)
+
+    monkeypatch.setattr(fr.os, "rename", _flaky_rename)
+
+    outcome = move_disc_set_to_subfolder(cue, target_cue, SAVE_EXTS)
+
+    assert outcome.success is False
+    assert "rollback INCOMPLETE" not in outcome.error
+    assert bin1.exists()
+    assert bin1.read_bytes() == b"data1"
+    assert bin2.exists()
+    assert bin2.read_bytes() == b"data2"
+    assert cue.exists()  # CUE itself is renamed last — never touched here
+    assert not target_cue.parent.exists()  # empty target dir cleaned up
 
 
 def test_central_save_dirs_only_returns_existing(tmp_path: Path) -> None:

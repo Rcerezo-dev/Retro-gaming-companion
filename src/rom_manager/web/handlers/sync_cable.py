@@ -330,6 +330,8 @@ def _do_cable_sync(
                 remote_path: str,
                 result: str,
                 message: str | None = None,
+                *,
+                verified: bool | None = None,
             ) -> None:
                 try:
                     with repository.connect() as conn:
@@ -343,6 +345,7 @@ def _do_cable_sync(
                             result=result,
                             message=message,
                             created_at=_dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                            verified=verified,
                         )
                         conn.commit()
                 except Exception:
@@ -497,7 +500,16 @@ def _do_cable_sync(
                             "ADB←" if not dry_run else "DRY←", adb_info.android_path, str(local_dst)
                         )
                         if not dry_run:
-                            _sql_log("download", str(local_dst), adb_info.android_path, "ok")
+                            # is_save reaching here means pull(verify=True) already
+                            # matched the device MD5 — a mismatch raises OSError
+                            # before this line (VAL-FIX-7).
+                            _sql_log(
+                                "download",
+                                str(local_dst),
+                                adb_info.android_path,
+                                "ok",
+                                verified=True if is_save else None,
+                            )
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:
@@ -518,16 +530,25 @@ def _do_cable_sync(
                     if cancel_event.is_set():
                         return
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
+                    _verified = should_verify(local_src.name, save_exts)
                     try:
                         size = transport.push(
                             local_src,
                             android_dst,
                             dry_run=dry_run,
-                            verify=should_verify(local_src.name, save_exts),
+                            verify=_verified,
                         )
                         _log("ADB→" if not dry_run else "DRY→", str(local_src), android_dst)
                         if not dry_run:
-                            _sql_log("upload", str(local_src), android_dst, "ok")
+                            # Same guarantee as the pull side: verify=True and no
+                            # exception means push()'s MD5 check already passed.
+                            _sql_log(
+                                "upload",
+                                str(local_src),
+                                android_dst,
+                                "ok",
+                                verified=True if _verified else None,
+                            )
                         copied += 1
                         copied_bytes += size
                         if len(details) < 300:

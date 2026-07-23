@@ -210,6 +210,33 @@ class GamesMixin:
             )
             connection.commit()
 
+    def get_last_apply_batch(self) -> list[dict]:
+        """Return the rows from the most recent apply, newest first (MEJ-2 undo).
+
+        All renames from one apply share the same ``created_at`` (set once per
+        job, see ``_do_apply``/``cli.py apply``) — that timestamp is the
+        natural grouping key for "last batch". Undoing writes new rows via
+        ``apply_rename`` (reversed source/target), so a second undo call
+        reverses the undo itself instead of silently no-op'ing.
+        """
+        with self.connect() as connection:
+            last = connection.execute(
+                "SELECT created_at FROM file_operations "
+                "WHERE operation_type = 'rename' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if not last:
+                return []
+            rows = connection.execute(
+                """
+                SELECT id, game_id, source_path, target_path
+                FROM file_operations
+                WHERE operation_type = 'rename' AND created_at = ?
+                ORDER BY id DESC
+                """,
+                (last["created_at"],),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def update_match(
         self,
         source_path: str,

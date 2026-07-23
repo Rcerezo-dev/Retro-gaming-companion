@@ -827,6 +827,68 @@
         }
       }
     },
+    "/api/undo-last-apply": {
+      "post": {
+        "summary": "MEJ-2: reverse the renames from the most recent apply batch",
+        "tags": [
+          "Library"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "{\"source_root\":\"\"}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/undo-last-apply-status": {
+      "get": {
+        "summary": "MEJ-2: poll the undo-last-apply background job",
+        "tags": [
+          "Library"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "progress": {
+                      "type": "object"
+                    },
+                    "result": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/match": {
       "post": {
         "summary": "Match unresolved ROMs against No-Intro/Redump catalogs",

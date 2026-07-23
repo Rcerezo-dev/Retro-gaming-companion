@@ -49,6 +49,19 @@ def register(
     def post_apply(ctx) -> None:
         _do_apply(ctx, ctx._post_data, config, get_repo_fn, job_manager)
 
+    # ── POST /api/undo-last-apply ─────────────────────────────────────────────
+    @router.post("/api/undo-last-apply")
+    def post_undo_last_apply(ctx) -> None:
+        _do_undo_last_apply(ctx, ctx._post_data, config, get_repo_fn, job_manager)
+
+    # ── GET /api/undo-last-apply-status ───────────────────────────────────────
+    @router.get("/api/undo-last-apply-status")
+    def get_undo_last_apply_status(ctx) -> None:
+        job = job_manager.get_job("undo_apply")
+        ctx._send_json(
+            {"running": job["running"], "progress": job["progress"], "result": job["result"]}
+        )
+
     # ── POST /api/fix-platforms ───────────────────────────────────────────────
     @router.post("/api/fix-platforms")
     def post_fix_platforms(ctx) -> None:
@@ -106,6 +119,7 @@ def _do_apply(
             save_exts = frozenset(config.save_extensions)
             extra_save_dirs = central_save_dirs(config)
             apply_repo = get_repo_fn(source_root or "")
+            apply_repo.backup_database()
             plan = build_plan(apply_repo, opts, keep_both=keep_both)
             pending_ops = plan.pending
             if source_root:
@@ -193,6 +207,113 @@ def _do_apply(
             job_manager.finish("apply", job_result)
 
     ctx._send_json(job_manager.start("apply", run))
+
+
+def _do_undo_last_apply(
+    ctx,
+    data: dict,
+    config: AppConfig,
+    get_repo_fn: Callable[[str], LibraryRepository],
+    job_manager: JobManager,
+) -> None:
+    """MEJ-2: reverse the most recent apply batch (file_operations rows sharing
+    its created_at timestamp), rename by rename. Reuses the same source/target
+    reversal that ``rename_rom_with_saves``/``move_disc_set_to_subfolder``
+    already do atomically — no separate rollback path to maintain.
+
+    Each successful reversal is itself recorded via ``apply_rename``, so a
+    second undo call reverses the undo (a redo), rather than silently no-op'ing.
+    """
+    source_root = data.get("source_root") or None
+
+    def run() -> None:
+        job_result = None
+        try:
+            from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
+            from rom_manager.scanner.rom_scanner import utc_now
+
+            save_exts = frozenset(config.save_extensions)
+            extra_save_dirs = central_save_dirs(config)
+            undo_repo = get_repo_fn(source_root or "")
+            undo_repo.backup_database()
+            batch = undo_repo.get_last_apply_batch()
+
+            total = len(batch)
+            undone = failed = skipped = 0
+            skip_details: list[str] = []
+            timestamp = utc_now()
+            job_manager.update_progress(
+                "undo_apply", {"current": 0, "total": total, "current_file": ""}
+            )
+
+            for idx, row in enumerate(batch, 1):
+                current_path = Path(row["target_path"])
+                original_path = Path(row["source_path"])
+                job_manager.update_progress(
+                    "undo_apply",
+                    {"current": idx, "total": total, "current_file": current_path.name},
+                )
+                if not current_path.exists():
+                    skipped += 1
+                    skip_details.append(
+                        f"{current_path.name}: no está en esa ruta (¿se movió después del apply?)"
+                    )
+                    continue
+                try:
+                    bk = config.data_dir if config.backup.saves_enabled else None
+                    original_path.parent.mkdir(parents=True, exist_ok=True)
+                    if current_path.suffix.lower() in {".cue", ".gdi"}:
+                        from rom_manager.renamer.file_renamer import move_disc_set_to_subfolder
+
+                        outcome = move_disc_set_to_subfolder(
+                            current_path,
+                            original_path,
+                            save_exts,
+                            backup_root=bk,
+                            backup_keep_n=config.backup.saves_keep_n,
+                            extra_dirs=extra_save_dirs,
+                        )
+                    else:
+                        outcome = rename_rom_with_saves(
+                            current_path,
+                            original_path,
+                            save_exts,
+                            backup_root=bk,
+                            backup_keep_n=config.backup.saves_keep_n,
+                            extra_dirs=extra_save_dirs,
+                        )
+                except Exception as exc:
+                    skipped += 1
+                    skip_details.append(f"{current_path.name}: unexpected error — {exc}")
+                    continue
+
+                if outcome.success:
+                    undo_repo.apply_rename(
+                        game_id=row["game_id"],
+                        old_source_path=str(current_path),
+                        new_source_path=str(original_path),
+                        new_filename=original_path.name,
+                        timestamp=timestamp,
+                    )
+                    undone += 1
+                else:
+                    failed += 1
+                    skip_details.append(f"{current_path.name}: {outcome.error}")
+
+            job_result = {
+                "undone": undone,
+                "failed": failed,
+                "skipped": skipped,
+                "skip_details": skip_details[:20],
+                "message": "No hay ningún apply para deshacer" if total == 0 else None,
+                "result_ts": utc_now(),
+            }
+        except Exception as exc:
+            job_result = {"error": str(exc), "result_ts": ""}
+        finally:
+            job_manager.finish("undo_apply", job_result)
+
+    ctx._send_json(job_manager.start("undo_apply", run))
 
 
 def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:

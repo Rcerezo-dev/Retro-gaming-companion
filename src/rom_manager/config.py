@@ -33,6 +33,12 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "adb_required": True,
         "save_extensions": [".mcd", ".mcr", ".srm"],
         "state_extensions": [".sav"],
+        "notes": (
+            "Permission denied via ADB on Android 11+ scoped storage without root — "
+            "in DuckStation, change Settings > Memory Cards > Directory to a public "
+            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable"
+        ),
+        "accessible": False,
     },
     "xyz.aethersx2.android": {
         "name": "AetherSX2 / NetherSX2 (PS2)",
