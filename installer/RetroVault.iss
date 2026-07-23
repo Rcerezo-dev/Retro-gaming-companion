@@ -6,7 +6,7 @@
 ; Output: installer\output\RetroVault-Setup.exe
 
 #define MyAppName "Retro Vault"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Rcerezo-dev"
 #define MyAppURL "https://github.com/Rcerezo-dev/Retro-gaming-companion"
 #define MyAppExeName "RetroVault.exe"
