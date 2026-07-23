@@ -210,6 +210,33 @@ class GamesMixin:
             )
             connection.commit()
 
+    def get_last_apply_batch(self) -> list[dict]:
+        """Return the rows from the most recent apply, newest first (MEJ-2 undo).
+
+        All renames from one apply share the same ``created_at`` (set once per
+        job, see ``_do_apply``/``cli.py apply``) — that timestamp is the
+        natural grouping key for "last batch". Undoing writes new rows via
+        ``apply_rename`` (reversed source/target), so a second undo call
+        reverses the undo itself instead of silently no-op'ing.
+        """
+        with self.connect() as connection:
+            last = connection.execute(
+                "SELECT created_at FROM file_operations "
+                "WHERE operation_type = 'rename' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if not last:
+                return []
+            rows = connection.execute(
+                """
+                SELECT id, game_id, source_path, target_path
+                FROM file_operations
+                WHERE operation_type = 'rename' AND created_at = ?
+                ORDER BY id DESC
+                """,
+                (last["created_at"],),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def update_match(
         self,
         source_path: str,
@@ -349,6 +376,26 @@ class GamesMixin:
         with self.connect() as conn:
             conn.execute("UPDATE games SET play_status = ? WHERE id = ?", (status, game_id))
             conn.commit()
+
+    def get_recommendation_candidates(self) -> list[dict]:
+        """Rows for the "¿A qué juego hoy?" recommender (MEJ-5).
+
+        Every ROM not already finished — ``completed``/``100pct`` have
+        nothing left to recommend. Weighting (status/rating/recency) is the
+        caller's job (``services/recommend_service.py``); this just returns
+        the columns it needs.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, original_filename, canonical_title, platform,
+                       play_status, user_rating, last_played_at
+                FROM games
+                WHERE file_type = 'rom'
+                  AND (play_status IS NULL OR play_status NOT IN ('completed', '100pct'))
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_filter_options(self) -> dict:
         """Return distinct values for advanced filter dropdowns: genres, years, regions, platforms."""

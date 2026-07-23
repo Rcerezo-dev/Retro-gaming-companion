@@ -281,11 +281,11 @@
       <!-- INICIO-UX-13: contenedor con placeholder 🎮 — sin <img src=""> ni salto de layout -->
       <div id="ov-game-suggestion-cover" style="width:80px;height:110px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px;background:var(--c-panel);border-radius:4px">&#127918;</div>
       <div style="flex:1">
-        <div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">No tocado en 6+ meses</div>
+        <div style="color:var(--c-muted);font-size:11px;margin-bottom:4px">&#191;A qué juego hoy?</div>
         <div id="ov-game-suggestion-title" style="font-size:14px;font-weight:600;color:var(--c-text);margin-bottom:6px"></div>
         <div id="ov-game-suggestion-meta" style="font-size:12px;color:var(--c-hint);margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
-          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openGamePanel(window._currentGameSuggestion)">Abrir</button>
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openGameSuggestionPanel()">Abrir</button>
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="_loadNewGameSuggestion()">Otra sugerencia</button>
         </div>
       </div>

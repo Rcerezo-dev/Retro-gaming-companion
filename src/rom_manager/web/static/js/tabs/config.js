@@ -50,6 +50,10 @@ async function loadSettings() {
     const raConfigRemoteEl = document.getElementById('cfg-ra-config-remote');
     if (raConfigDirEl)    raConfigDirEl.value    = cfg.ra_config_dir    || '';
     if (raConfigRemoteEl) raConfigRemoteEl.value = cfg.ra_config_remote || '';
+    const cheatsDirEl    = document.getElementById('cfg-cheats-dir');
+    const cheatsRemoteEl = document.getElementById('cfg-cheats-remote');
+    if (cheatsDirEl)    cheatsDirEl.value    = cfg.cheats_dir    || '';
+    if (cheatsRemoteEl) cheatsRemoteEl.value = cfg.cheats_remote || '';
     const playtimeRemoteEl = document.getElementById('cfg-playtime-remote');
     if (playtimeRemoteEl) playtimeRemoteEl.value = cfg.playtime_remote || '';
     const whEl = document.getElementById('cfg-web-host');
@@ -640,6 +644,10 @@ async function saveSettings() {
   const raConfigRemote = document.getElementById('cfg-ra-config-remote')?.value.trim() ?? '';
   updates['sync.ra_config_dir']    = raConfigDir;
   updates['sync.ra_config_remote'] = raConfigRemote;
+  const cheatsDir    = document.getElementById('cfg-cheats-dir')?.value.trim()    ?? '';
+  const cheatsRemote = document.getElementById('cfg-cheats-remote')?.value.trim() ?? '';
+  updates['sync.cheats_dir']    = cheatsDir;
+  updates['sync.cheats_remote'] = cheatsRemote;
   updates['sync.playtime_remote'] = document.getElementById('cfg-playtime-remote')?.value.trim() ?? '';
   updates['web.host'] = document.getElementById('cfg-web-host')?.value || '127.0.0.1';
   const sd = document.getElementById('cfg-ss-devid')?.value.trim()   || '';
@@ -688,6 +696,8 @@ async function saveSettings() {
         'sync.states_remote':         'cfg-check-states-remote',
         'sync.ra_config_dir':         'cfg-check-ra-config-dir',
         'sync.ra_config_remote':      'cfg-check-ra-config-remote',
+        'sync.cheats_dir':            'cfg-check-cheats-dir',
+        'sync.cheats_remote':         'cfg-check-cheats-remote',
         'sync.playtime_remote':       'cfg-check-playtime-remote',
         'web.host':                   'cfg-check-web-host',
         'screenscraper.user':         'cfg-check-ss-user',

@@ -38,7 +38,7 @@ import {
 } from './tabs/duplicates.js';
 import {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,
 } from './tabs/organize.js';
 import {
   loadReviewQueue, applyReviewGroup, chooseReviewEntry,
@@ -108,7 +108,7 @@ import {
 } from './tabs/esde.js';
 import {
   _relTime, _emptyState, card, _getPlatformLogo,
-  _loadNewGameSuggestion, _renderMonthlyChart,
+  _loadNewGameSuggestion, openGameSuggestionPanel, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
@@ -227,7 +227,7 @@ Object.assign(window, {
   generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
   // overview.js — overview tab, heatmap, charts, wizard
   _relTime, _emptyState, card, _getPlatformLogo,
-  _loadNewGameSuggestion, _renderMonthlyChart,
+  _loadNewGameSuggestion, openGameSuggestionPanel, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
@@ -279,7 +279,7 @@ Object.assign(window, {
   toggleCompleteness,
   setToolsContext, _initToolsContext,
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,
   loadReviewQueue, applyReviewGroup, chooseReviewEntry,
   markReviewGroupIntentional, applyAllReviewRecommendations, doResolveRaConflicts,
   startPolling, _applyJobStatus, _showJobResult,

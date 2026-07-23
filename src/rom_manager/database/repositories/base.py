@@ -11,6 +11,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rom_manager.database.repositories.models import ScanSummary
@@ -62,6 +63,24 @@ class _RepositoryBase:
             raise
         finally:
             connection.close()
+
+    def backup_database(self, keep_n: int = 5) -> Path:
+        """Snapshot the live database before a risky write (e.g. apply).
+
+        Uses ``sqlite3.Connection.backup()`` rather than a raw file copy so a
+        concurrent WAL writer can't produce a torn snapshot. Prunes older
+        backups, keeping at most *keep_n*.
+        """
+        backup_dir = self.database_path.parent / "db-backup"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        dest = backup_dir / f"{self.database_path.stem}.{ts}.db"
+        with self.connect() as source, sqlite3.connect(dest) as target:
+            source.backup(target)
+        backups = sorted(backup_dir.glob(f"{self.database_path.stem}.*.db"), reverse=True)
+        for old in backups[keep_n:]:
+            old.unlink(missing_ok=True)
+        return dest
 
     def create_scan_run(self, source_root: str, started_at: str) -> int:
         with self.connect() as connection:

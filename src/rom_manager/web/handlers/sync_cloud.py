@@ -291,47 +291,16 @@ def _do_sync(
         try:
             from pathlib import Path as _Path
 
-            from rom_manager.config import SyncSource as _SyncSource
+            from rom_manager.config import build_cloud_sync_sources
             from rom_manager.sync.rclone_transport import RcloneTransport
             from rom_manager.sync.save_syncer import sync_saves
 
-            sources = list(config.sync.sync_sources)
-            if config.sync.ra_config_dir and config.sync.ra_config_remote:
-                sources.append(
-                    _SyncSource(
-                        name="RetroArch Config (.opt)",
-                        local_dir=config.sync.ra_config_dir,
-                        remote=config.sync.ra_config_remote,
-                        sync_all=True,
-                    )
-                )
-            # JUEGOS-UX-7 (cloud): .lrtl por origen en subcarpetas separadas del
-            # remoto — el contador de Android nunca comparte ruta con el de PC,
-            # así un sync jamás pisa un origen con el otro.
+            sources = build_cloud_sync_sources(config)
+            # JUEGOS-UX-7: reused below to ingest .lrtl after a real sync.
             _pt_remote = config.sync.playtime_remote.rstrip("/")
-            _pt_android_dir = None
-            if _pt_remote:
-                _pt_android_dir = config.project_root / ".rommgr" / "android_lrtl"
-                if config.retroarch_path:
-                    _pt_pc_dir = _Path(config.retroarch_path).parent / "playlists" / "logs"
-                    if _pt_pc_dir.is_dir():
-                        sources.append(
-                            _SyncSource(
-                                name="Playtime PC (.lrtl)",
-                                local_dir=str(_pt_pc_dir),
-                                remote=_pt_remote + "/pc",
-                                sync_all=True,
-                            )
-                        )
-                _pt_android_dir.mkdir(parents=True, exist_ok=True)
-                sources.append(
-                    _SyncSource(
-                        name="Playtime Consola (.lrtl)",
-                        local_dir=str(_pt_android_dir),
-                        remote=_pt_remote + "/android",
-                        sync_all=True,
-                    )
-                )
+            _pt_android_dir = (
+                config.project_root / ".rommgr" / "android_lrtl" if _pt_remote else None
+            )
             # CLOUD-UX-3: los remotes implícitos saves_remote/states_remote (el
             # camino recomendado de la UI) cuentan como fuentes — antes se
             # cortaba aquí sin llegar al bloque D2 que los sincroniza.

@@ -377,10 +377,9 @@ async function doApply() {
   }
 
   // PLAN-UX-2: modal propio en vez de confirm() nativo.
-  // PLAN-UX-1: sin prometer reversibilidad — el "Deshacer" (MEJ-2) aún no existe.
   _showConfirm(
     'Renombrar archivos',
-    `¿Renombrar <strong>${total} archivo${total !== 1 ? 's' : ''}</strong> en disco?<br>Los saves compañeros se moverán automáticamente.<br><span style="color:var(--c-muted)">Cada cambio queda registrado en la base de datos.</span>`,
+    `¿Renombrar <strong>${total} archivo${total !== 1 ? 's' : ''}</strong> en disco?<br>Los saves compañeros se moverán automáticamente.<br><span style="color:var(--c-muted)">Cada cambio queda registrado en la base de datos — puedes deshacerlo con "Deshacer último apply" si algo sale mal.</span>`,
     'Renombrar',
     async () => {
       const applyBody = {
@@ -464,8 +463,51 @@ async function doApply() {
   );
 }
 
+// ── MEJ-2: deshacer el último apply ──────────────────────────────────────────
+async function doUndoLastApply() {
+  _showConfirm(
+    'Deshacer último apply',
+    'Se revertirán los renombrados del último apply (el que se ejecutó más recientemente), archivo por archivo.<br><span style="color:var(--c-muted)">Si algún archivo se movió o borró después del apply, ese se salta y se reporta.</span>',
+    'Deshacer',
+    async () => {
+      const btn = document.getElementById('btn-undo-apply');
+      if (btn) { btn.disabled = true; btn.textContent = 'Deshaciendo…'; }
+      try {
+        const applyRoot = window._deviceRoot();
+        await apiPost('/api/undo-last-apply', applyRoot ? { source_root: applyRoot } : {});
+
+        let done = false;
+        while (!done) {
+          await new Promise(r => setTimeout(r, 500));
+          const s = await apiFetch('/api/undo-last-apply-status');
+          if (!s.running && s.result) {
+            done = true;
+            const r = s.result;
+            if (r.error) {
+              showToast('Error: ' + r.error, 'err');
+            } else if (r.message) {
+              showToast(r.message, 'info');
+            } else {
+              const failedInfo  = r.failed  > 0 ? ` · ${r.failed} fallidos`  : '';
+              const skippedInfo = r.skipped > 0 ? ` · ${r.skipped} saltados` : '';
+              showToast(`✓ ${r.undone} deshechos${failedInfo}${skippedInfo}`,
+                r.failed > 0 ? 'info' : 'ok');
+            }
+          }
+        }
+        await loadPlan();
+        window.loadOverview();
+      } catch (e) {
+        showToast('Error al deshacer: ' + e.message, 'err');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Deshacer último apply'; }
+      }
+    }
+  );
+}
+
 // ── Public exports ────────────────────────────────────────────────────────────
 export {
   _chk, toggleShaLength, _planQueryString,
-  loadPlan, applyKeepBoth, doApply, _discardCollisionEntry,
+  loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,
 };
