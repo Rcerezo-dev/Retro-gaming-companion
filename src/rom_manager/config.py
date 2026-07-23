@@ -196,6 +196,9 @@ class SyncConfig:
     # RetroArch core config sync (.opt files)
     ra_config_dir: str = ""  # path to RetroArch/config/ folder
     ra_config_remote: str = ""  # rclone remote for .opt files (e.g. "dropbox:/RetroSync/ra-config")
+    # MEJ-4: RetroArch cheats (.cht) sync — same dir+remote pattern as ra_config
+    cheats_dir: str = ""  # path to RetroArch/cheats/ folder
+    cheats_remote: str = ""  # rclone remote for .cht files (e.g. "dropbox:/RetroSync/cheats")
     # JUEGOS-UX-7: playtime logs (.lrtl) — base remote; se usan subcarpetas /pc
     # y /android para que cada origen sea dueño de su contador y nunca se pisen
     playtime_remote: str = ""  # e.g. "dropbox:/RetroSync/playtime"
@@ -488,6 +491,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             states_remote=str(sync.get("states_remote", "")),
             ra_config_dir=str(sync.get("ra_config_dir", "")),
             ra_config_remote=str(sync.get("ra_config_remote", "")),
+            cheats_dir=str(sync.get("cheats_dir", "")),
+            cheats_remote=str(sync.get("cheats_remote", "")),
             playtime_remote=str(sync.get("playtime_remote", "")),
             sync_sources=sync_sources,
         ),
@@ -640,6 +645,67 @@ def get_adb_sync_sources(config: AppConfig) -> list[dict]:
                 "save_extensions": frozenset(raw_save_ext) if raw_save_ext else None,
                 "state_extensions": frozenset(raw_state_ext) if raw_state_ext else None,
             }
+        )
+    return sources
+
+
+def build_cloud_sync_sources(config: AppConfig) -> list[SyncSource]:
+    """Return every cloud (rclone) sync source configured for *config*.
+
+    REV43-52: this was inlined separately in ``web/handlers/sync_cloud.py``
+    (``_do_sync``, the UI-triggered job) and duplicated — minus the
+    ra_config/cheats/playtime entries — in ``cli.py``'s headless ``sync``
+    command, so a Task Scheduler run silently skipped whatever the UI synced.
+    One function, one behavior for both entry points.
+
+    Order: explicit ``[[sync.sources]]`` from config.toml, then RetroArch
+    config (.opt), cheats (.cht), and playtime (.lrtl PC + Android) if their
+    dir/remote pair is configured.
+    """
+    sources = list(config.sync.sync_sources)
+    if config.sync.ra_config_dir and config.sync.ra_config_remote:
+        sources.append(
+            SyncSource(
+                name="RetroArch Config (.opt)",
+                local_dir=config.sync.ra_config_dir,
+                remote=config.sync.ra_config_remote,
+                sync_all=True,
+            )
+        )
+    if config.sync.cheats_dir and config.sync.cheats_remote:
+        sources.append(
+            SyncSource(
+                name="RetroArch Cheats (.cht)",
+                local_dir=config.sync.cheats_dir,
+                remote=config.sync.cheats_remote,
+                sync_all=True,
+            )
+        )
+    # JUEGOS-UX-7 (cloud): .lrtl por origen en subcarpetas separadas del
+    # remoto — el contador de Android nunca comparte ruta con el de PC,
+    # así un sync jamás pisa un origen con el otro.
+    pt_remote = config.sync.playtime_remote.rstrip("/")
+    if pt_remote:
+        if config.retroarch_path:
+            pt_pc_dir = Path(config.retroarch_path).parent / "playlists" / "logs"
+            if pt_pc_dir.is_dir():
+                sources.append(
+                    SyncSource(
+                        name="Playtime PC (.lrtl)",
+                        local_dir=str(pt_pc_dir),
+                        remote=pt_remote + "/pc",
+                        sync_all=True,
+                    )
+                )
+        pt_android_dir = config.project_root / ".rommgr" / "android_lrtl"
+        pt_android_dir.mkdir(parents=True, exist_ok=True)
+        sources.append(
+            SyncSource(
+                name="Playtime Consola (.lrtl)",
+                local_dir=str(pt_android_dir),
+                remote=pt_remote + "/android",
+                sync_all=True,
+            )
         )
     return sources
 

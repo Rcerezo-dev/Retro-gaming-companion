@@ -251,6 +251,8 @@ def _save_config(
         "sync.states_remote",
         "sync.ra_config_dir",
         "sync.ra_config_remote",
+        "sync.cheats_dir",
+        "sync.cheats_remote",
         "sync.playtime_remote",
         "screenscraper.user",
         "screenscraper.pass",

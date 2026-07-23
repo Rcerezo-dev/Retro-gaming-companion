@@ -828,7 +828,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "sync":
-        sources = config.sync.sync_sources
+        from rom_manager.config import build_cloud_sync_sources
+
+        # REV43-52: previously only config.sync.sync_sources — this headless
+        # command silently skipped the RA config/cheats/playtime sources that
+        # the web UI's sync already includes (same helper, one behavior).
+        sources = build_cloud_sync_sources(config)
         if not sources:
             print(
                 "[ERROR] No hay fuentes de sync configuradas. Añade [[sync.sources]] en config.toml."

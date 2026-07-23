@@ -92,6 +92,19 @@
         <span class="cfg-saved" id="cfg-check-ra-config-remote">&#x2713; Guardado</span>
       </div>
       <div style="width:100%">
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">Carpeta cheats RetroArch <span style="color:var(--c-dim)">(para sincronizar archivos .cht)</span></label>
+        <div style="display:flex;gap:6px">
+          <input id="cfg-cheats-dir" type="text" style="flex:1" placeholder="C:/RetroArch/cheats">
+          <button onclick="browseFolder('cfg-cheats-dir')" style="font-size:11px;padding:4px 10px">&#x1F4C2; Examinar</button>
+        </div>
+        <span class="cfg-saved" id="cfg-check-cheats-dir">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
+        <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">rclone remote para cheats <span style="color:var(--c-dim)">(ej: dropbox:/RetroSync/cheats)</span></label>
+        <input id="cfg-cheats-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/cheats">
+        <span class="cfg-saved" id="cfg-check-cheats-remote">&#x2713; Guardado</span>
+      </div>
+      <div style="width:100%">
         <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px">rclone remote para tiempo de juego <span style="color:var(--c-dim)">(logs .lrtl de RetroArch; se usan subcarpetas /pc y /android)</span></label>
         <input id="cfg-playtime-remote" type="text" style="width:100%" placeholder="dropbox:/RetroSync/playtime">
         <span class="cfg-saved" id="cfg-check-playtime-remote">&#x2713; Guardado</span>
