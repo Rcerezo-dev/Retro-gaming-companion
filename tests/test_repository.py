@@ -514,3 +514,31 @@ def test_backup_database_prunes_old_backups(repo):
         repo.backup_database(keep_n=2)
     backups = list((repo.database_path.parent / "db-backup").glob("*.db"))
     assert len(backups) <= 2
+
+
+def test_get_recommendation_candidates_excludes_finished_games(repo):
+    """MEJ-5: completed/100pct games have nothing left to recommend."""
+    _upsert(repo, source_path="/roms/gba/Pending.gba", original_filename="Pending.gba")
+    _upsert(repo, source_path="/roms/gba/Playing.gba", original_filename="Playing.gba")
+    _upsert(repo, source_path="/roms/gba/Done.gba", original_filename="Done.gba")
+    _upsert(repo, source_path="/roms/gba/Full.gba", original_filename="Full.gba")
+    _upsert(
+        repo,
+        source_path="/saves/gba/Pending.srm",
+        original_filename="Pending.srm",
+        file_type="save",
+    )
+
+    with repo.connect() as conn:
+        conn.execute(
+            "UPDATE games SET play_status = 'playing' WHERE original_filename = 'Playing.gba'"
+        )
+        conn.execute(
+            "UPDATE games SET play_status = 'completed' WHERE original_filename = 'Done.gba'"
+        )
+        conn.execute("UPDATE games SET play_status = '100pct' WHERE original_filename = 'Full.gba'")
+        conn.commit()
+
+    names = {g["original_filename"] for g in repo.get_recommendation_candidates()}
+
+    assert names == {"Pending.gba", "Playing.gba"}

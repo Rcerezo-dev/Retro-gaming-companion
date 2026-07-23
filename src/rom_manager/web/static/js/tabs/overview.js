@@ -114,44 +114,52 @@ async function _fetchAllGames() {
   return _gamesCache;
 }
 
-// ── Game suggestion (stale games) ─────────────────────────────────────────────
-let _currentGameSuggestion = null;
+// ── Game suggestion — MEJ-5 recomendador v0 (sorteo ponderado en backend) ────
+// Pendiente de jugar + rating + no jugado recientemente, vía /api/suggest-game
+// (services/recommend_service.py). Antes esto pedía las 10.000 filas de
+// /api/games y elegía uniforme entre "no tocado en 6 meses" — sin distinguir
+// favoritos ni backlog. Sin modelo NLP todavía (ese es el trabajo de Sage).
+let _currentGameSuggestionId = null;
 
 export async function _loadNewGameSuggestion() {
   try {
-    const games = await _fetchAllGames();
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const d = await apiFetch('/api/suggest-game');
+    const container = document.getElementById('ov-game-suggestion');
 
-    const staleGames = games.filter(g => {
-      if (!g.last_played_at) return true;
-      return new Date(g.last_played_at) < sixMonthsAgo;
-    });
-
-    if (staleGames.length === 0) {
-      const container = document.getElementById('ov-game-suggestion');
-      if (container) container.innerHTML = '<div style="padding:20px;color:var(--c-hint);text-align:center;width:100%">¡Excelente! No tienes juegos olvidados. ¡Sigue jugando!</div>';
+    if (!d.game) {
+      _currentGameSuggestionId = null;
+      if (container) container.innerHTML = '<div style="padding:20px;color:var(--c-hint);text-align:center;width:100%">Sin candidatos todavía — escanea tu biblioteca primero.</div>';
       return;
     }
 
-    const suggestion = staleGames[Math.floor(Math.random() * staleGames.length)];
-    _currentGameSuggestion = suggestion;
+    _currentGameSuggestionId = d.game.id;
 
     const titleEl = document.getElementById('ov-game-suggestion-title');
     const metaEl  = document.getElementById('ov-game-suggestion-meta');
     const coverEl = document.getElementById('ov-game-suggestion-cover');
 
-    if (titleEl) titleEl.textContent = suggestion.canonical_title || suggestion.original_filename;
+    if (titleEl) titleEl.textContent = d.game.title;
     if (metaEl) {
-      const lastPlay = suggestion.last_played_at ? _relTime(suggestion.last_played_at) : 'Nunca';
-      metaEl.innerHTML = `${_platBadge(suggestion.platform || '')} · Última vez: ${lastPlay}`;
+      const stars = d.game.user_rating ? '★'.repeat(d.game.user_rating) : '';
+      metaEl.innerHTML = [_platBadge(d.game.platform || ''), stars].filter(Boolean).join(' · ');
     }
     if (coverEl) {
       // INICIO-UX-13: placeholder 🎮 si no hay carátula — sin salto de layout
-      coverEl.innerHTML = `<img src="/api/asset-image?game_id=${suggestion.id}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:4px" onerror="this.parentElement.innerHTML='&#127918;'">`;
+      coverEl.innerHTML = `<img src="/api/asset-image?game_id=${d.game.id}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:4px" onerror="this.parentElement.innerHTML='&#127918;'">`;
     }
   } catch(err) {
     console.error('Game suggestion error:', err);
+  }
+}
+
+export async function openGameSuggestionPanel() {
+  if (!_currentGameSuggestionId) return;
+  try {
+    const g = await apiFetch('/api/game?id=' + _currentGameSuggestionId);
+    if (g.error) { showToast(g.error, 'err'); return; }
+    window.openGamePanel(g);
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
   }
 }
 

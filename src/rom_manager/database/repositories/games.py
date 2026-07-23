@@ -377,6 +377,26 @@ class GamesMixin:
             conn.execute("UPDATE games SET play_status = ? WHERE id = ?", (status, game_id))
             conn.commit()
 
+    def get_recommendation_candidates(self) -> list[dict]:
+        """Rows for the "¿A qué juego hoy?" recommender (MEJ-5).
+
+        Every ROM not already finished — ``completed``/``100pct`` have
+        nothing left to recommend. Weighting (status/rating/recency) is the
+        caller's job (``services/recommend_service.py``); this just returns
+        the columns it needs.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, original_filename, canonical_title, platform,
+                       play_status, user_rating, last_played_at
+                FROM games
+                WHERE file_type = 'rom'
+                  AND (play_status IS NULL OR play_status NOT IN ('completed', '100pct'))
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_filter_options(self) -> dict:
         """Return distinct values for advanced filter dropdowns: genres, years, regions, platforms."""
         with self.connect() as conn:
