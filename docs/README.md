@@ -26,7 +26,6 @@
 | Documento | Contenido |
 |-----------|-----------|
 | [architecture.md](architecture/architecture.md) | Estructura técnica completa: módulos, base de datos, flujos |
-| [frontend.md](architecture/frontend.md) | Arquitectura del frontend JS: tabs, estado, polling |
 | [platforms-cores.md](architecture/platforms-cores.md) | Plataformas soportadas y núcleos RetroArch |
 | [Roadmap-Arquitectura-Frontend.md](architecture/Roadmap-Arquitectura-Frontend.md) | Diseño original de la migración frontend (referencia histórica) |
 
@@ -63,6 +62,7 @@ Documentos obsoletos o supersedidos, conservados como referencia histórica.
 | Documento | Por qué está archivado |
 |-----------|------------------------|
 | [refactor-plan.md](_archive/refactor-plan.md) | El refactor está completado |
+| [frontend-migration-status.md](_archive/frontend-migration-status.md) | Snapshot de 2026-03-30 de una migración a módulos JS ya terminada — el monolito `app.js` que describía ya no existe, cada pestaña tiene su propio módulo en `js/tabs/`. Estado actual en `architecture.md` |
 | [retroarch-saves-anbernic.md](_archive/retroarch-saves-anbernic.md) | Supersedido por `android-save-paths-RG556.md` |
 | [android-sync.md](_archive/android-sync.md) | Supersedido por `Guia-Termux-Anbernic.md` |
 | [guia-consola-android.md](_archive/guia-consola-android.md) | Supersedido por `Guia-Termux-Anbernic.md` |

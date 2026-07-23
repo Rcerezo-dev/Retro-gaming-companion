@@ -2,7 +2,7 @@
 
 > Documentación técnica del proyecto. Ver `.claude/CLAUDE.md` para reglas de trabajo y
 > patrones críticos, y [`CONTRIBUTING.md`](../../CONTRIBUTING.md) para el flujo de desarrollo.
-> Última regeneración desde el código: 2026-07-04 (ONB-3).
+> Última regeneración desde el código: 2026-07-23 (verificado tras la release v1.1.0).
 
 ---
 
@@ -98,7 +98,8 @@ src/rom_manager/
   retroachievements/              # ra_client (API + caché 1 semana), ra_checker (MD5),
                                   # ra_platform_ids (~30 plataformas)
   services/                       # Lógica de negocio pura (sin ctx HTTP):
-                                  # duplicates_service, ra_duplicates_service
+                                  # duplicates_service, ra_duplicates_service,
+                                  # recommend_service (MEJ-5, "¿A qué juego hoy?")
 
   web/
     server.py                     # ThreadingHTTPServer + arranque de daemons

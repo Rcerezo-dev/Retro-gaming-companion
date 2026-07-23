@@ -38,6 +38,15 @@ states_remote = ""   # p.ej. "dropbox:/RetroSync/states"
 ra_config_dir = ""     # carpeta local de config de RetroArch
 ra_config_remote = ""  # remoto rclone para esa config
 
+# Sync de cheats de RetroArch (opcional, MEJ-4)
+cheats_dir = ""     # carpeta local cheats/ de RetroArch
+cheats_remote = ""  # remoto rclone para esos cheats
+
+# Sync de tiempo de juego — logs .lrtl de RetroArch (opcional, JUEGOS-UX-7)
+# Usa subcarpetas /pc y /android automáticamente para que cada origen tenga
+# su propio contador y nunca se pisen entre sí.
+playtime_remote = ""  # p.ej. "dropbox:/RetroSync/playtime"
+
 # ── Fuentes de sync: una entrada por emulador/carpeta ─────────────────────────
 # Puedes tener tantas como quieras. sync_all=true sincroniza TODO el árbol
 # (no solo extensiones de save) — necesario para PPSSPP/Dolphin.

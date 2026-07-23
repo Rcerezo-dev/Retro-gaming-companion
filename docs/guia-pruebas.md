@@ -210,16 +210,23 @@ También puedes colocar DATs manualmente en esas carpetas si ya los tienes.
 
 ---
 
-### 5.6 Duplicados
+### 5.6 Revisar copias (duplicados)
 
-**Qué hace:** detecta ROMs con el mismo SHA1 (copias exactas) para liberar espacio.
+**Qué hace:** agrupa por juego los archivos duplicados (mismo SHA1), versiones
+distintas (mismo título, otro hash) y colisiones del plan de renombrado, con
+una recomendación precalculada (gana el que tenga logros RA, si no el mejor
+nombrado).
 
 **Pasos:**
-1. Pestaña **Duplicados**.
-2. Revisa los grupos. La primera entrada de cada grupo es el "canónico" (el que se conserva).
-3. Pulsa **Eliminar sobrantes** si quieres borrar las copias.
+1. Pestaña **Organizar** → sección **"2. Revisar copias"**.
+2. Revisa cada grupo — la recomendación aparece marcada.
+3. Por grupo: **Aplicar**, **Elegir otra** o **Copia intencional** (para
+   marcarlo como "no es un duplicado real" y que deje de aparecer). O
+   **"Aplicar todas las recomendaciones"** arriba para procesar la cola entera.
 
-**Resultado esperado:** cada grupo muestra N entradas con el mismo hash. Eliminar sobrantes deja solo una copia por grupo.
+**Resultado esperado:** cada grupo se resuelve moviendo las copias no
+elegidas a `_descartados/` (recuperable, purga a 30 días) — nunca un borrado
+permanente inmediato.
 
 ---
 
@@ -253,7 +260,7 @@ Requiere API key de retroachievements.org (Settings → Web API Key).
 
 **Pasos:**
 1. Añade `api_key` y `username` en `config.toml` o en **Ajustes**.
-2. Pestaña **RetroAchievements** → **Comprobar compatibilidad**.
+2. Pestaña **Herramientas** → **Comprobar compatibilidad**.
 
 **Resultado esperado:** la tabla muestra qué ROMs tienen soporte de logros y qué versión es la compatible. El progreso personal aparece si el `username` es correcto.
 
@@ -264,7 +271,7 @@ Requiere API key de retroachievements.org (Settings → Web API Key).
 Para sets PSX, Saturn o Dreamcast en formato `.cue + .bin`.
 
 **Pasos:**
-1. Pestaña **Herramientas** → sección **Conversión CHD**.
+1. Pestaña **Formatos** → sección **Convertir a CHD**.
 2. Selecciona la carpeta con los sets → **Convertir**.
 
 **Resultado esperado:** cada set `nombre.cue + nombre.bin` se convierte en `nombre.chd`. Los archivos originales se eliminan solo si la conversión fue exitosa (comprueba el log).
@@ -293,7 +300,7 @@ remote    = "dropbox:/RetroSync/saves/duckstation"
 ```
 
 **Pasos:**
-1. Pestaña **Sync** → verifica que aparecen las fuentes configuradas.
+1. Pestaña **Cloud** → verifica que aparecen las fuentes configuradas.
 2. Pulsa **Sincronizar**.
 
 **Resultado esperado:** el log muestra qué archivos se subieron/bajaron. Conflictos (mismo archivo modificado en ambos lados) quedan como `nombre_TIMESTAMP.ext`.

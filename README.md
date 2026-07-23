@@ -125,7 +125,7 @@ Colección en todos tus dispositivos
 | Plataformas | PC | Android (consola) | Saves compatibles |
 |---|---|---|---|
 | NES · SNES · MD · N64 · GB/GBC/GBA · DS · Dreamcast · Saturn | RetroArch | RetroArch | ✅ Mismos cores → 100% |
-| PlayStation (PSX) | DuckStation | DuckStation Android | ✅ `.mcd` |
+| PlayStation (PSX) | DuckStation | DuckStation Android | ⚠️ `.mcd`, requiere mover el directorio de memcards a una carpeta pública (ver [`docs/emulator-compat.md`](docs/emulator-compat.md)) |
 | PlayStation 2 | PCSX2 | NetherSX2 | ✅ `.ps2` |
 | PSP | PPSSPP | PPSSPP Android | ✅ `SAVEDATA/` completo |
 | Nintendo DS | MelonDS | MelonDS Android | ✅ `.sav` |
@@ -135,7 +135,11 @@ Colección en todos tus dispositivos
 
 ## Instalación
 
-### Requisitos
+### Opción rápida (Windows, sin Python)
+
+Descarga `RetroVault-Setup.exe` de la [última release](https://github.com/Rcerezo-dev/Retro-gaming-companion/releases/latest), ejecútalo (instala por usuario, sin permisos de administrador) y abre **Retro Vault** desde el acceso directo. Incluye `adb`, `chdman`, `rclone` y catálogos DAT de 34 plataformas — no hace falta instalar nada más. Detalle: [`docs/guia-pruebas.md`](docs/guia-pruebas.md#0-ruta-a--instalación-en-un-pc-limpio-sin-python).
+
+### Requisitos (instalación desde código fuente)
 - **Python 3.11+** (recomendado 3.12)
 - **rclone** — para cloud sync ([rclone.org](https://rclone.org/))
 - **chdman** v0.286+ — para convertir a CHD ([MAME tools](https://www.mamedev.org/tools/))
@@ -206,18 +210,20 @@ rommgr serve
 
 | Pestaña | Descripción |
 |---------|-------------|
-| **Inicio** | Dashboard: totales, % match, duplicados, espacio. Botón de escaneo con progreso en tiempo real. |
-| **Juegos** | Tabla filtrable por plataforma, región y estado de match. Búsqueda por título o archivo. Panel de detalle con rating, tags, notas y progreso RA. |
-| **Colección** | Galería de portadas con rating ★, sesiones, último juego, sort "Jugados recientemente". Stats, health, diff PC↔Android y uso de disco. |
-| **Organizar** | Preview de renombrados y conflictos. Botón Apply para ejecutar. |
-| **Duplicados** | Grupos de ROMs con el mismo SHA1. Botón para eliminar los sobrantes. |
-| **Sync** | Cloud sync multi-emulador. Estado por fuente (RetroArch, DuckStation, PPSSPP…). Log de operaciones. UI TV-friendly para consolas táctiles. |
-| **Cable Sync** | Copia directa PC ↔ consola Android por USB. Tres modos de dirección. |
+| **Inicio** | Dashboard: totales, % match, espacio, KPIs por estado de juego. Sugerencia "¿A qué juego hoy?" ponderada. Botón de escaneo con progreso en tiempo real. |
+| **Juegos** | Tabla o galería (toggle) filtrable por plataforma, región y estado. Búsqueda por título o archivo. Panel de detalle con rating ★, tags, notas y progreso RA. |
+| **Organizar** | Preview de renombrados y conflictos, botón Apply (con "Deshacer último apply"). Pantalla "Revisar copias": duplicados por SHA1, versiones distintas y colisiones en una sola cola con recomendación precalculada. |
+| **Assets** | Cobertura de carátulas/vídeos/XML por plataforma; huérfanos y ROMs sin assets. |
+| **Análisis** | Dashboard de biblioteca: estadísticas, uso de disco, comparación PC↔Android, completitud vs. catálogos DAT y wishlist. |
+| **Cloud** | Cloud sync multi-emulador. Estado por fuente (RetroArch, DuckStation, PPSSPP, cheats, config…). Log de operaciones. |
+| **Cable Sync** | Copia directa PC ↔ consola Android por USB. Tres modos de dirección. UI TV-friendly para consolas táctiles. |
+| **Anbernic** | Setup guiado de la consola (Termux/rclone) desde el PC, sin escribir comandos a mano. |
+| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas, compatibilidad RetroAchievements por MD5. Junk-scan con identificación de ZIPs por CRC y botón "Organizar identificados (1 paso)". |
+| **Formatos** | Conversión y parches: CHD, CSO, N64, aplicador IPS/BPS/UPS. |
 | **Scraper** | Descarga metadatos y carátulas desde ScreenScraper. Exporta `gamelist.xml`. |
-| **RetroAchievements** | Compatibilidad de logros por MD5. Filtro por plataforma. Export CSV. Progreso personal por juego. |
-| **Herramientas** | CHD, ZIP, M3U, verificación multi-disco, health check, backup BD, estructura de carpetas. Junk-scan con identificación de ZIPs por CRC y botón "Organizar identificados (1 paso)". |
 | **Inbox** | Procesa ZIPs nuevos: identifica plataforma, descomprime y organiza automáticamente. |
-| **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático. Descarga automática de DATs. |
+| **Modo TV** | Navegación fullscreen con mando/teclado, pensada para pantalla de salón. |
+| **Ajustes** | Rutas, credenciales, extensiones de save, config de sync automático (saves, cheats, config RetroArch, playtime). Descarga automática de DATs. |
 
 ### CLI
 
@@ -361,8 +367,10 @@ scripts\rommgr.cmd pytest tests/ -v
 | 5 | Cloud sync · Cable Sync · ScreenScraper · RetroAchievements | ✅ |
 | 6 | Multi-source sync · Estructura ES-DE · Inbox · Fix duplicados | ✅ |
 | 7 | Wizard unificado · Sync Anbernic TV · Cloud (Termux+rclone) · Galería con ratings · DAT auto-download · Progreso RA personal | ✅ |
-| 8 | PyInstaller exe · instalador Windows · auto-update · PIN de acceso | 🔜 |
+| 8 | PyInstaller exe · instalador Windows · auto-update · PIN de acceso | ✅ |
+| 9 | ZIP-ROUTE · JUNK-SMART · pantalla "Revisar copias" unificada · deshacer apply · backup automático de BD · playtime real · recomendador de juego · auditorías UX de casi toda la interfaz | ✅ |
 
+Última release: [**v1.1.0**](https://github.com/Rcerezo-dev/Retro-gaming-companion/releases/latest) — ver [`CHANGELOG.md`](CHANGELOG.md).
 Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.
 
 ---
