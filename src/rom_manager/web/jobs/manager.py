@@ -17,6 +17,7 @@ JOB_NAMES: tuple[str, ...] = (
     "ra_check",
     "cable_sync",
     "apply",
+    "undo_apply",
     "inbox",
     "setup",
     "backup_now",

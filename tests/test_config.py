@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from rom_manager.config import _resolve_tool_path, load_config
+from rom_manager.config import _resolve_tool_path, get_adb_sync_sources, load_config
 
 
 def test_defaults_without_toml(tmp_path: Path) -> None:
@@ -76,6 +76,19 @@ def test_partial_toml_uses_defaults(tmp_path: Path) -> None:
     assert cfg.rclone_binary == "rclone"  # default preserved
     assert cfg.chdman == "chdman"  # default preserved
     assert cfg.web_port == 7777  # default preserved
+
+
+def test_get_adb_sync_sources_excludes_duckstation(tmp_path: Path) -> None:
+    """VAL-FIX-4: DuckStation memcards are unreachable via ADB (scoped storage,
+    Android 11+, no root) — must be excluded like Dolphin, not retried forever."""
+    (tmp_path / "config.toml").write_text(
+        f'[library]\nlibrary_root = "{tmp_path.as_posix()}"\n', encoding="utf-8"
+    )
+    cfg = load_config(tmp_path)
+    packages = {src["package"] for src in get_adb_sync_sources(cfg)}
+    assert "com.github.stenzek.duckstation" not in packages
+    assert "org.dolphinemu.dolphinemu" not in packages
+    assert "xyz.aethersx2.android" in packages  # sanity: accessible ones still included
 
 
 def test_resolve_tool_path_normalizes_slashes_on_windows() -> None:

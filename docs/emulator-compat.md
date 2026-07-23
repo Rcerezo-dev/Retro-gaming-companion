@@ -41,10 +41,13 @@ los archivos `.srm` / `.state` son intercambiables directamente.
 | Saves (memory cards) | `%AppData%\DuckStation\memcards\*.mcd` | `Android/data/com.github.stenzek.duckstation/files/memcards/*.mcd` |
 | Save states | `%AppData%\DuckStation\savestates\*.sav` | `…/files/savestates/*.sav` |
 | Formato save | `.mcd` / `.mcr` | `.mcd` / `.mcr` |
-| Sync method | ADB cable | ✅ ADB (Retro Vault → cable sync) |
-| Estado | ✅ Compatible | Mismo formato `.mcd`, nombres idénticos por serial |
+| Sync method | ADB cable | ❌ **No sincronizable** via ADB sin root (VAL-FIX-4) |
+| Estado | ✅ Compatible en formato | `Android/data/...` es scoped storage en Android 11+ — ADB devuelve `Permission denied` aunque el paquete esté instalado y depurable |
 
 > Naming: `SCUS-12345_1.mcd` (slot 1). El serial identifica el juego en ambas plataformas.
+> Workaround: en DuckStation Android, cambiar Settings → Memory Cards → Directory a
+> una carpeta pública (p.ej. `/sdcard/DuckStation/memcards`) — así queda fuera del
+> sandbox de la app y accesible por ADB sin root.
 > Alternativa en Android: RetroArch + Beetle PSX → saves en `/RetroArch/saves/Beetle PSX/`.
 
 ---
@@ -147,7 +150,7 @@ los archivos `.srm` / `.state` son intercambiables directamente.
 |------------|------------------|--------|
 | NES / SNES / GB / GBC / GBA / MD / SMS / GG / DS / Neo Geo / Atari | ✅ | cloud o SD |
 | PSP | ✅ | SD (sin ADB) |
-| PS1 (DuckStation) | ✅ | ADB cable |
+| PS1 (DuckStation) | ❌ | Requiere root o mover el directorio de memcards a una carpeta pública (VAL-FIX-4) |
 | PS2 (PCSX2 ↔ AetherSX2) | ✅ | ADB cable |
 | Saturn (Yaba Sanshiro) | ⚠️ verificar | ADB cable |
 | N64 | ⚠️ verificar | cloud o SD |

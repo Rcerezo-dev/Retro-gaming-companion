@@ -29,6 +29,8 @@
       <!-- PLAN-UX-3: el filtro por dispositivo se retiró — el selector global PC/Consola ya cumple esa función -->
       <button id="btn-apply" class="btn primary" onclick="doApply()" disabled>Renombrar</button>
       <button id="btn-resolve-conflicts" class="btn hidden" onclick="applyKeepBoth()">Resolver conflictos</button>
+      <button id="btn-undo-apply" class="btn" onclick="doUndoLastApply()"
+        title="Revierte los renombrados del último apply (MEJ-2)">Deshacer último apply</button>
     </div>
   </div>
   <!-- Barra de progreso del apply -->

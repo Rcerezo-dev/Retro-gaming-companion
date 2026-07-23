@@ -930,6 +930,14 @@ async function loadCableSyncPreview() {
     const params = new URLSearchParams({ mode, direction });
     if (pcPath)  params.set('pc_path',  pcPath);
     if (abPath)  params.set('ab_path',  abPath);
+    if (adb) {
+      // VAL-FIX-5: reutiliza el mismo serial/ruta que Sync Doctor para contar
+      // saves remotos por ADB en vez de mostrar siempre "no accesible".
+      const serial = document.getElementById('cable-adb-device')?.value.trim();
+      if (serial) params.set('serial', serial);
+      const androidPath = document.getElementById('auto-sync-android-path')?.value.trim();
+      if (androidPath) params.set('android_path', androidPath);
+    }
     const d = await apiFetch('/api/cable-sync-preview?' + params);
     const pcN  = d.pc_saves !== null && d.pc_saves !== undefined ? `<span class="cp-num">${d.pc_saves}</span>` : `<span class="cp-null">?</span>`;
     const abN  = d.android_saves !== null && d.android_saves !== undefined ? `<span class="cp-num">${d.android_saves}</span>` : `<span class="cp-null">${d.android_message || 'no accesible'}</span>`;
