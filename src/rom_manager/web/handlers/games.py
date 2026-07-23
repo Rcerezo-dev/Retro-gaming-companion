@@ -530,6 +530,31 @@ def register(
         _status_repo.set_play_status(int(game_id), status)
         ctx._send_json({"ok": True})
 
+    # ── GET /api/suggest-game ────────────────────────────────────────────────
+    @router.get("/api/suggest-game")
+    def get_suggest_game(ctx) -> None:
+        from rom_manager.services.recommend_service import pick_game_for_today
+
+        qs = getattr(ctx, "_qs", {})
+        root = qs.get("root", [None])[0] or None
+        _suggest_repo = get_repo_fn(root or "")
+        candidates = _suggest_repo.get_recommendation_candidates()
+        game = pick_game_for_today(candidates)
+        if game is None:
+            ctx._send_json({"game": None})
+            return
+        ctx._send_json(
+            {
+                "game": {
+                    "id": game["id"],
+                    "title": game["canonical_title"] or game["original_filename"],
+                    "platform": game["platform"],
+                    "play_status": game["play_status"],
+                    "user_rating": game["user_rating"],
+                }
+            }
+        )
+
     # ── POST /api/set-metadata ───────────────────────────────────────────────
     @router.post("/api/set-metadata")
     def post_set_metadata(ctx) -> None:
