@@ -1,9 +1,8 @@
 # Retro Vault — Backlog
 
 > Single source of truth for pending work. Updated every session.
-> Last updated: 2026-07-20 (Roadmap-Formatos-UX cerrado; reconciliación de
-> filas ⬜ desfasadas en JUEGOS-UX/ASSETS-UX/COLECCION-UX/PLAN-UX/INBOX-UX —
-> ya estaban implementadas y mergeadas, solo faltaba marcarlas ✅)
+> Last updated: 2026-07-23 (MEJ-2/3/4/5, VAL-FIX-4/5/7, INBOX-FIX-4,
+> REV43-52, TEST-GAP-1 cerrados; release v1.1.0 publicada)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 
