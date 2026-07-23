@@ -4,7 +4,12 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from rom_manager.config import _resolve_tool_path, get_adb_sync_sources, load_config
+from rom_manager.config import (
+    _resolve_tool_path,
+    build_cloud_sync_sources,
+    get_adb_sync_sources,
+    load_config,
+)
 
 
 def test_defaults_without_toml(tmp_path: Path) -> None:
@@ -76,6 +81,59 @@ def test_partial_toml_uses_defaults(tmp_path: Path) -> None:
     assert cfg.rclone_binary == "rclone"  # default preserved
     assert cfg.chdman == "chdman"  # default preserved
     assert cfg.web_port == 7777  # default preserved
+
+
+def test_build_cloud_sync_sources_includes_all_optional_sources(tmp_path: Path) -> None:
+    """REV43-52: one shared source-list builder for both the web sync job and
+    the headless CLI 'sync' command — previously the CLI silently dropped the
+    ra_config/cheats/playtime sources that the UI's sync already included."""
+    ra_dir = tmp_path / "ra-config"
+    cheats_dir = tmp_path / "cheats"
+    (tmp_path / "config.toml").write_text(
+        f"""
+[library]
+library_root = "{tmp_path.as_posix()}"
+
+[sync]
+ra_config_dir = "{ra_dir.as_posix()}"
+ra_config_remote = "dropbox:/ra-config"
+cheats_dir = "{cheats_dir.as_posix()}"
+cheats_remote = "dropbox:/cheats"
+playtime_remote = "dropbox:/playtime"
+
+[[sync.sources]]
+name = "RetroArch"
+local_dir = "{tmp_path.as_posix()}"
+remote = "dropbox:/saves"
+""",
+        encoding="utf-8",
+    )
+    cfg = load_config(tmp_path)
+
+    names = [s.name for s in build_cloud_sync_sources(cfg)]
+
+    assert "RetroArch" in names
+    assert "RetroArch Config (.opt)" in names
+    assert "RetroArch Cheats (.cht)" in names
+    assert "Playtime Consola (.lrtl)" in names
+    # Android playtime dir gets created so a later ingest step can find it.
+    assert (tmp_path / ".rommgr" / "android_lrtl").is_dir()
+
+
+def test_build_cloud_sync_sources_empty_without_config(tmp_path: Path) -> None:
+    cfg = load_config(tmp_path)
+    assert build_cloud_sync_sources(cfg) == []
+
+
+def test_reads_cheats_sync_section(tmp_path: Path) -> None:
+    """MEJ-4: .cht sync config, same dir+remote pair pattern as ra_config."""
+    (tmp_path / "config.toml").write_text(
+        '[sync]\ncheats_dir = "C:/RetroArch/cheats"\ncheats_remote = "dropbox:/RetroSync/cheats"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.sync.cheats_dir == "C:/RetroArch/cheats"
+    assert cfg.sync.cheats_remote == "dropbox:/RetroSync/cheats"
 
 
 def test_get_adb_sync_sources_excludes_duckstation(tmp_path: Path) -> None:

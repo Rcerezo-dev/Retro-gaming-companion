@@ -26,6 +26,8 @@ def _config(**overrides) -> SimpleNamespace:
             sync_sources=[],
             ra_config_dir="",
             ra_config_remote="",
+            cheats_dir="",
+            cheats_remote="",
             playtime_remote="",
             saves_remote="",
             states_remote="",
@@ -73,3 +75,17 @@ def test_implicit_saves_remote_counts_as_source(tmp_path) -> None:
     assert res["sources"], "el remote implícito debe aparecer como fuente"
     assert res["sources"][0]["remote"] == "dropbox:RetroSync/saves"
     assert res.get("result_ts")
+
+
+def test_cheats_source_appended_when_configured(tmp_path) -> None:
+    """MEJ-4: cheats_dir/cheats_remote configured → a .cht SyncSource is added,
+    same dir+remote pattern as ra_config_dir/ra_config_remote above."""
+    cfg = _config(library_root=str(tmp_path), data_dir=tmp_path)
+    cfg.sync.cheats_dir = str(tmp_path / "cheats")
+    cfg.sync.cheats_remote = "dropbox:RetroSync/cheats"
+
+    res = _run_sync(cfg)
+
+    assert "error" not in res
+    names = [s["name"] for s in res["sources"]]
+    assert "RetroArch Cheats (.cht)" in names
