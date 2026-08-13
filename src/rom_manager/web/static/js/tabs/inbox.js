@@ -279,6 +279,7 @@ function _renderInboxResult(r) {
   const zipNote  = archived > 0 ? ` <span style="color:var(--c-muted);font-size:11px">(${archived} movidos a _processed/)</span>` : '';
   html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
   if (r.md_identified > 0) html += '.md identificados por CRC: <strong>' + r.md_identified + '</strong> &nbsp;';
+  if (r.arcade_reconstructed > 0) html += 'Sets arcade reconstruidos: <strong>' + r.arcade_reconstructed + '</strong> <span style="color:var(--c-muted);font-size:11px">(' + (r.arcade_chips_used || 0) + ' chips)</span> &nbsp;';
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';

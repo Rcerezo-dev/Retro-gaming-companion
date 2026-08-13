@@ -426,6 +426,138 @@ def _resolve_ambiguous_md(inbox: Path, config: AppConfig, logger) -> int:
     return identified
 
 
+def _reconstruct_loose_arcade_sets(
+    inbox: Path, target_root: Path, config: AppConfig, logger: logging.Logger
+) -> dict:
+    """ARCADE-RECON — reconstruye sets MAME sueltos por cobertura CRC.
+
+    Un chip suelto (``01.u12``, ``.epr``…) no dice a qué máquina pertenece
+    por sí solo — su CRC puede vivir en varias (parent/clones comparten
+    roms). Pero un set completo sí es inequívoco: solo se reclama una
+    máquina cuando el 100% de sus roms esperados (manifest del DAT) están
+    presentes entre los sueltos. Se procesan las máquinas con más roms
+    primero para que un set grande completo no pierda chips ante una
+    máquina más pequeña que también los reclama. Nunca se sobreescribe un
+    ZIP ya existente en destino; los sueltos solo van a la papelera
+    (AUD-3, nunca borrado directo) tras confirmar el ZIP final en su sitio.
+    """
+    import shutil as _shutil
+    import zipfile
+    import zlib
+
+    from rom_manager.catalog.mame_loader import load_arcade_crc_index, load_arcade_manifest
+    from rom_manager.detection import FileCategory, classify_path
+
+    arcade_dir = config.catalogs_arcade_dir
+    result = {"reconstructed": 0, "chips_used": 0}
+    if not arcade_dir:
+        return result
+
+    candidates = [
+        p
+        for p in sorted(inbox.iterdir())
+        if p.is_file()
+        and not p.name.startswith((".", "_"))
+        and classify_path(p, config, inbox) is FileCategory.UNKNOWN
+    ]
+    if not candidates:
+        return result
+
+    # crc -> archivos del pool con ese contenido (normalmente 1, a veces más
+    # si un mismo chip aparece duplicado en la carpeta)
+    pool: dict[str, list[Path]] = {}
+    for p in candidates:
+        try:
+            crc = 0
+            with open(p, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    crc = zlib.crc32(chunk, crc)
+            pool.setdefault(f"{crc & 0xFFFFFFFF:08X}", []).append(p)
+        except OSError:
+            continue
+
+    crc_index = load_arcade_crc_index(arcade_dir)
+    manifest = load_arcade_manifest(arcade_dir)
+
+    candidate_machines: set[str] = set()
+    for crc in pool:
+        candidate_machines.update(crc_index.get(crc, ()))
+
+    # sets grandes primero: consumen sus chips antes de que se los dispute
+    # una máquina más pequeña con roms compartidos
+    ordered = sorted(
+        (m for m in candidate_machines if manifest.get(m)),
+        key=lambda m: len(manifest[m]),
+        reverse=True,
+    )
+
+    arcade_folder = target_root / _ES_PLATFORM_FOLDERS.get("Arcade", "arcade")
+    staging = inbox / "_arcade_staging"
+
+    for machine in ordered:
+        roms = manifest[machine]
+        dest = arcade_folder / f"{machine}.zip"
+        if dest.exists():
+            logger.info("Arcade-recon: %s ya existe en %s — no se toca el pool", machine, dest)
+            continue
+
+        picks: list[tuple[str, str, Path]] = []  # (rom_name, crc, source_file)
+        reserved: set[Path] = set()
+        ok = True
+        for rom_name, crc, size in roms:
+            option = next(
+                (
+                    f
+                    for f in pool.get(crc, [])
+                    if f not in reserved and f.stat().st_size == size
+                ),
+                None,
+            )
+            if option is None:
+                ok = False
+                break
+            reserved.add(option)
+            picks.append((rom_name, crc, option))
+        if not ok:
+            continue
+
+        staging.mkdir(parents=True, exist_ok=True)
+        staged_zip = staging / f"{machine}.zip"
+        try:
+            with zipfile.ZipFile(staged_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+                for rom_name, _crc, src in picks:
+                    zf.write(src, arcname=rom_name)
+            with zipfile.ZipFile(staged_zip) as zf:
+                if set(zf.namelist()) != {rom_name for rom_name, _crc, _src in picks}:
+                    raise OSError("zip incompleto tras escribir")
+        except OSError as exc:
+            logger.warning("Arcade-recon: fallo empaquetando %s — %s", machine, exc)
+            staged_zip.unlink(missing_ok=True)
+            continue
+
+        arcade_folder.mkdir(parents=True, exist_ok=True)
+        try:
+            _shutil.move(str(staged_zip), str(dest))
+        except OSError as exc:
+            logger.warning("Arcade-recon: fallo moviendo %s a %s — %s", machine, dest, exc)
+            continue
+
+        for _rom_name, crc, src in picks:
+            pool[crc].remove(src)
+            _discard_to_trash(src)  # AUD-3: soft-discard
+            result["chips_used"] += 1
+        result["reconstructed"] += 1
+        logger.info("Arcade-recon: %s reconstruido (%d chips) -> %s", machine, len(picks), dest)
+
+    if staging.exists():
+        try:
+            staging.rmdir()
+        except OSError:
+            pass
+
+    return result
+
+
 def _build_inbox_scan(inbox_path_str: str, target_root_str: str = "") -> dict:
     """Scan the inbox folder and return summary + file list.
 
@@ -773,6 +905,10 @@ def _run_inbox_pipeline(
         _upd("identificando .md por CRC", 1)
         md_identified = _resolve_ambiguous_md(inbox, config, logger)
 
+        # ── Step 1.8: reconstruir sets MAME sueltos por cobertura CRC ────────
+        _upd("reconstruyendo sets arcade sueltos", 1)
+        arcade_recon = _reconstruct_loose_arcade_sets(inbox, target_root, config, logger)
+
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
 
@@ -976,6 +1112,8 @@ def _run_inbox_pipeline(
             "zips_archived": len(source_zips),
             "bios_moved": bios_moved,
             "md_identified": md_identified,
+            "arcade_reconstructed": arcade_recon["reconstructed"],
+            "arcade_chips_used": arcade_recon["chips_used"],
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,

@@ -254,6 +254,51 @@ Los tags del nombre de archivo mienten sistemáticamente (`(XBLA)`, `(Disk 1)`,
 
 ---
 
+## ARCADE-RECON — Reconstruir sets MAME sueltos por cobertura CRC (diseño 2026-08-13)
+
+Origen: INBOX-CFG-2. 3.526 archivos sueltos en la raíz del Inbox (`01.u12`,
+`02.u11`, `.epr`, `.047`, extensiones numéricas sin estandarizar) — chips
+individuales de sets MAME/arcade descomprimidos, **sin carpeta que agrupe qué
+chips pertenecen a qué máquina**. `classify_path` los ignora (`unknown`,
+ninguna extensión de ningún catálogo de consola). El ZIP-ROUTE existente
+(`web/zip_router.py`) asume que un set arcade siempre llega como ZIP intacto
+— "el ZIP es el ROM", nunca se extrae — así que no hay ruta de código para
+reconstituir chips ya sueltos.
+
+**Prueba de viabilidad** (script `feasibility_mame.py`, contra el Inbox real):
+de 2.000 archivos sueltos, **1.964 (98 %)** tienen un CRC32 que matchea al
+menos un nombre de máquina en `MAME 0.286 (arcade).dat` vía
+`load_arcade_crc_index()` — el mismo índice que ya usa ZIP-ROUTE-2 para
+identificar ZIPs de arcade renombrados. Cada CRC puede votar a varias
+máquinas (ROM compartido entre parent/clones — p. ej. `asteroid`/`asteroid2`/
+`aerolitol` comparten el mismo chip): la identidad de un archivo aislado es
+ambigua, pero la del **conjunto** no lo es — solo una máquina tendrá el 100 %
+de sus roms esperados presentes entre los sueltos.
+
+| ID | Task | Notas |
+|----|------|-------|
+| ARCADE-RECON-1 | **`load_arcade_manifest()`** — nueva función en `catalog/mame_loader.py`, hermana de `load_arcade_crc_index()` (mismo `iterparse` de los `.dat`, sin segundo parseo del archivo de 75 MB): `machine_name → [(rom_name, crc, size), …]`. Necesaria para calcular cobertura por máquina, no solo pertenencia por CRC | Reutiliza el bucle existente — ampliarlo para devolver también el manifest en la misma pasada, en vez de una función independiente que vuelva a `iterparse` |
+| ARCADE-RECON-2 | **Identificación por cobertura** — nuevo paso en `web/inbox_pipeline.py` (mismo hueco que `_intercept_bios_files`/`_resolve_ambiguous_md`, Step 1.x): candidatos = archivos sueltos en la raíz del Inbox con `classify_path` = `UNKNOWN`; CRC32 de cada uno (misma rutina que `_resolve_ambiguous_md`); por cada máquina votada por ≥1 archivo, `coverage = roms_presentes / roms_totales_de_la_máquina`; **solo se reclama al 100 %** (mismo umbral que ZIP-ROUTE-2 ya usa para "identificado, mover directo" vs. "revisar a mano"). Procesar las máquinas 100 %-cubiertas de mayor a menor nº de roms primero — un set grande completo consume sus chips antes de que un subconjunto compartido se lo dispute una máquina más pequeña; un archivo consumido sale del pool | Sin heurística de nombre — igual que el resto de ZIP-ROUTE, el contenido manda |
+| ARCADE-RECON-3 | **Empaquetar y entregar al pipeline arcade existente** — por cada máquina reclamada: escribir `<machine>.zip` en `inbox/_arcade_staging/`, verificar que el ZIP contiene exactamente los miembros esperados, y moverlo directo a `target_root/arcade/` reutilizando el mismo paso que `zip_router._route_identified()` ya usa para ZIPs arcade identificados — **nunca por el Inbox normal** (un set arcade extraído está roto). Solo tras confirmar el ZIP final en su destino, los sueltos originales van a `_descartados/` (AUD-3, nunca borrado directo) | `web/inbox_pipeline.py`, reutiliza `web/zip_router.py` |
+| ARCADE-RECON-4 | **Restos sin reclamar quedan intactos** — cobertura <100 % (chips faltantes, set incompleto) se deja sin tocar en el Inbox, logueado para revisión manual — mismo principio "ante duda, no se toca" que el resto del pipeline (INBOX-FIX-5, RA-CONFLICT-1) | — |
+
+> Estado: ✅ implementado (rama pendiente de nombrar — trabajo hecho directo
+> sobre `develop` en esta sesión) y **ejecutado de verdad 2026-08-13** contra
+> el Inbox real (3.526 sueltos): `load_arcade_manifest()` en `catalog/mame_loader.py`
+> (932 tests pass, incl. `tests/test_arcade_recon.py` y 2 nuevos en
+> `tests/test_mame_loader.py`); paso nuevo `_reconstruct_loose_arcade_sets()`
+> en `web/inbox_pipeline.py` (Step 1.8, antes del scan). Prueba controlada
+> primero en sandbox (copia, Inbox real intacto) → **15 sets, 106 chips**
+> reconstruidos correctamente (`polepos2` 44 chips, `tekken3je1`/`tekkenac`
+> 13+12, `mwalkbl2` 23, `seawolf` 4, y 10 más de 1 chip). Confirmado el mismo
+> resultado tras ejecutar de verdad (watcher `auto_process`, reinicio del
+> servidor): **15/15 ZIPs verificados en `E:\Carpetas anbernic\arcade\`**,
+> quedan **3.431 sueltos** sin reclamar (sets incompletos — se dejan
+> intactos, ante duda no se toca). UI: contador "Sets arcade reconstruidos"
+> añadido a `web/static/js/tabs/inbox.js`.
+
+---
+
 ## TEST-CLEAN — Tests que prueban código muerto (auditoría 2026-07-09)
 
 Origen: auditoría de la suite (625 tests / 463 funciones; el resto es
@@ -853,6 +898,32 @@ progreso), luego integridad de BD, luego web, luego el resto.
 | INICIO-FIX-2 | 🟢 Menor | **`load_arcade_infra_names` parsea el `mame.xml` de 608 MB (~11 s) en cada llamada** — lo pagan cada junk-scan y cada refresh de `/api/library-extras` (TTL 15 min). El ponytail "cachear si algún día duele" (maintenance.py) ya duele: memoizar por `(path, mtime)` en `mame_loader` beneficia a todos los callers | `catalog/mame_loader.py:75-103` | ✅ rama `fix/inicio-ux` — memoización por firma (nombre, mtime, tamaño) + test |
 | INICIO-FIX-3 | 🟢 Menor | **`mame0278.xml` vacío (0 bytes) en `catalogs/arcade/`** — descarga/generación fallida; cada loader lo abre y lo descarta en silencio. Borrarlo (acción de usuario o incluirlo en INICIO-FIX-2) | `.rommgr/catalogs/arcade/mame0278.xml` | ✅ borrado (2026-07-16) |
 | INICIO-FIX-4 | ✨ Mejora | **El listxml de MAME ahora es descargable desde Ajustes → Catálogos** — entrada "MAME XML (bios/devices)" en el grupo Arcade: resuelve la última release vía API de GitHub, baja el asset `*lx.zip` (~19 MB) y lo extrae como `catalogs/arcade/mame.xml` (~320 MB, escritura atómica vía `.part`). Verificado E2E con red real (v0.288, 7.297 nombres de infra) | `web/handlers/scan.py` (`_download_mame_listxml`) | ✅ rama `fix/inicio-ux` |
+
+---
+
+## INBOX-CFG — `target_root` apuntaba fuera de la biblioteca + gap de arcade suelto (2026-08-13)
+
+Origen: el usuario reportó que el Inbox "solo detecta zips" tras soltar juegos de
+Mega Drive, Dreamcast, MAME2003 y Nintendo DS. Investigación: `.rommgr/library_pc.db`
+(`scan_runs`) mostraba 8 corridas del pipeline ese mismo día con `roms_detected`
+bajando de 1719 a 0 — el Inbox sí procesaba y organizaba, pero no en
+`E:\Carpetas anbernic`.
+
+| ID | Prioridad | Hallazgo | Dónde | Estado |
+|----|-----------|----------|-------|--------|
+| INBOX-CFG-1 | 🔴 Crítico | **`inbox.target_root = "Este equipo\\RG556\\Ambernic"`** (ruta MTP del móvil, no un path real) se resolvía como relativa contra el cwd del proceso → `Path.resolve()` creaba `Retro_gaming_app\Este equipo\RG556\Ambernic\` dentro del propio repo, en C:. El pipeline organizaba correctamente por plataforma (megadrive/, dreamcast/, nds/…) pero en ese destino fantasma — de ahí que el usuario no viera nada organizado en `E:\Carpetas anbernic` y que C: llegara a 0 GB libres (1.527 archivos, 48,96 GB) | `config.toml:40` | ✅ `target_root` vaciado (cae al fallback `config.library_root` en `inbox_pipeline.py:727`) — servidor reiniciado. 1.024 archivos reubicados a `E:\Carpetas anbernic\<plataforma>\`, 482 duplicados exactos eliminados, 21 conflictos (mismo nombre/contenido distinto) dejados sin tocar para revisión manual — ver lista en el diario de hoy |
+| INBOX-CFG-2 | 🟡 Medio | **~3.526 archivos sueltos de sets MAME/arcade** (`.u12`, `.epr`, `.rom`, extensiones numéricas) en la raíz del Inbox, sin agrupar por juego — `classify_path` no los reconoce (no están en ningún catálogo de consola) y quedan como `unknown_files_detected`. Diseño actual (`ZIP-ROUTE`) asume que un set arcade siempre llega como ZIP intacto; no hay ruta de código para reconstituir chips sueltos | `web/inbox_pipeline.py` (`classify_path` los ignora), `catalog/mame_loader.py:load_arcade_crc_index()` ya da `CRC32→{set names}` reutilizable | 🔲 Propuesta: calcular CRC32 de cada chip suelto, votar contra `load_arcade_crc_index()`, agrupar por set identificado, re-empaquetar en `<set>.zip`, alimentar al `zip_router.py` existente y borrar los sueltos solo tras verificar el ZIP escrito. Pendiente de diseño detallado |
+| INBOX-CFG-3 | 🟢 Menor | **21 conflictos** (mismo nombre, contenido distinto) que quedaron en la carpeta fantasma de C: | `amiga/`, `atari2600/`, `atarilynx/`, `c64/`, `gba/`, `msx/`, `nds/`, `psx/`, `unknown/` | ✅ movidos a `E:\Carpetas anbernic\<plataforma>\` con sufijo ` (conflicto-inbox 2026-08-13)` — nada se sobreescribió, quedan pendientes de comparar/elegir a mano. Carpeta fantasma de C: eliminada por completo |
+
+---
+
+## ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún)
+
+| ID | Idea | Notas |
+|----|------|-------|
+| CFG-PORGAME | Configuraciones específicas por juego (core options, overrides RetroArch), editables desde el PC | Necesita decidir formato (`.opt`/`.cfg` de RetroArch por juego) y cómo sincronizarlas con Android sin pisar los overrides que ya gestiona el usuario a mano |
+| MODS-AUTO | Añadir e instalar mods automáticamente — viable para PS1/PS2/N64/GameCube (formatos de parche/mod más estandarizados: `.pnach`, ISO patching, texture packs); no viable para consolas muy antiguas (sin ecosistema de mods) | Requiere investigar formato de mods por emulador/plataforma antes de diseñar; alcance grande, candidato a su propia fase de roadmap |
+| STORAGE-MGR | Gestor de almacenamiento — decidir y borrar en bloque (PC, Anbernic o ambos) desde un menú dedicado | Necesita: vista combinada de qué existe en cada lado (ya hay base en `sync/` para comparar PC↔Android), selección múltiple, y pasar por la papelera unificada `_descartados/` (AUD-3) en vez de borrado directo — nunca borrar sin poder deshacer |
 
 ---
 
