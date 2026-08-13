@@ -178,7 +178,16 @@ def load_arcade_manifest(directory: Path) -> dict[str, list[tuple[str, str, int]
                                 continue
                             roms.append((rom.get("name", ""), crc, int(rom.get("size") or 0)))
                         if roms:
-                            manifest.setdefault(name, []).extend(roms)
+                            # Un mismo nombre de máquina puede aparecer en varios DAT
+                            # (MAME propio + FBNeo "Arcade only" se solapan mucho) —
+                            # sin deduplicar, un chip compartido cuenta dos veces y
+                            # ARCADE-RECON exigiría dos copias físicas del mismo chip.
+                            existing = manifest.setdefault(name, [])
+                            seen = set(existing)
+                            for rom in roms:
+                                if rom not in seen:
+                                    existing.append(rom)
+                                    seen.add(rom)
                     elem.clear()
         except (ET.ParseError, OSError):
             pass
