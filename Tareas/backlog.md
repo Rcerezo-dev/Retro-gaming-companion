@@ -950,11 +950,14 @@ saltar duplicados — la asimetría sugiere que `pc_to_anbernic` quedó a medias
 
 | ID | Task | Notas |
 |----|------|-------|
-| CABLE-ROM-FIX-1 | Implementar comparación real contra `ab_adb_files` antes de copiar en la rama `pc_to_anbernic` (mismo patrón que ya usa `anbernic_to_pc`: por tamaño+mtime rápido, SHA1 opcional con `skip_sha1_dups`) | `web/handlers/sync_cable.py:597-605` |
-| CABLE-ROM-FIX-2 | Guard de espacio libre en destino antes de empezar (ya existe un patrón idéntico en `zip_router.py:_extract_collection` — `shutil.disk_usage(dest_dir).free`) — evita rellenar la SD a medias | `web/handlers/sync_cable.py` (rama ADB de `_do_cable_sync`) |
+| CABLE-ROM-FIX-1 | Implementar comparación real contra `ab_adb_files`/`pc_root` antes de copiar en ambas ramas ADB (`pc_to_anbernic` y `anbernic_to_pc`) — mismo criterio que ya usa `cable_engine.copy_item` en el modo sistema de archivos (tamaño) | `web/handlers/sync_cable.py:597-605,672-729` | ✅ rama `fix/cable-sync-rom-skip-existing` → PR #161 |
+| CABLE-ROM-FIX-2 | Guard de espacio libre en destino antes de empezar (ya existe un patrón idéntico en `zip_router.py:_extract_collection` — `shutil.disk_usage(dest_dir).free`) — evita rellenar la SD a medias | `web/handlers/sync_cable.py` (rama ADB de `_do_cable_sync`) | ✅ `AdbTransport.free_bytes()` (`sync/adb_transport.py`, vía `df -k`) + guard antes de escribir en corridas reales (`dry_run=False`) |
+| CABLE-ROM-FIX-3 | Sync por plataformas — con el fix, la SD (78 GB libres) sigue sin caber la biblioteca completa (305,9 GB). No hace falta código nuevo: el endpoint ya soporta `pc_path`/`android_path` apuntando a una subcarpeta. Desglose real por plataforma: `psx` 61,1 GB, `gamecube` 34,3 GB, `ps2` 29,9 GB, `Unknown` 25,2 GB (basura), `arcade` 17,6 GB no caben; el resto (~66 GB tras `skip_existing`) sí | — | ✅ ejecutado de verdad 2026-08-13: 50 carpetas (allowlist cruzada contra `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, nunca `Documents`/`Music`/`DCIM` etc.), lanzado vía script de orquestación (llama al endpoint ya arreglado, una carpeta por vez, secuencial) — en curso al cerrar la sesión, ver diario Día49 para el resultado final |
 
-> Estado: 🔲 diagnosticado con dry-run real, sin implementar. No se lanzó
-> la transferencia real (516 GB no cabían en los 49 GB libres de la SD).
+> Estado: ✅ implementado y validado con dry-run + ejecución real contra
+> hardware conectado (RG556). Ver `Tareas/diario/Día49.md` para los
+> números completos y el resultado final de la transferencia por
+> plataformas.
 
 ---
 
