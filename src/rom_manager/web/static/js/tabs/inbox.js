@@ -234,7 +234,10 @@ function _applyInboxProgress(s) {
   const btn    = document.getElementById('btn-inbox-run');
 
   const _STEP_LABELS = {
-    'extracting': 'Paso 1/6: Extrayendo ZIPs',
+    'extracting':                       'Paso 1/6: Extrayendo ZIPs',
+    'intercepting bios':                'Paso 1/6: Interceptando BIOS conocidas',
+    'identificando .md por CRC':        'Paso 1/6: Identificando .md por CRC',
+    'reconstruyendo sets arcade sueltos': 'Paso 1/6: Reconstruyendo sets arcade sueltos',
     'scanning':   'Paso 2/6: Escaneando archivos',
     'matching':   'Paso 3/6: Cotejando catálogos',
     'planning':   'Paso 4/6: Planificando renames',
