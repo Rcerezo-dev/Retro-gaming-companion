@@ -23,10 +23,17 @@ def register(
     get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
+    from rom_manager.services.storage_service import delete_storage_items
+    from rom_manager.sync.adb_transport import resolve_single_device_transport
     from rom_manager.web.builders.diff import _build_library_diff
     from rom_manager.web.builders.misc import _build_assets
 
     _logger.debug("Starting registration, router=%s", router)
+
+    def _adb_transport():
+        # TABS-FIX-1a: resuelto por request (no cacheado) — el dispositivo puede
+        # conectarse/desconectarse entre cargar el diff y pulsar "Borrar".
+        return resolve_single_device_transport(config.adb)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
     @router.get("/api/platform-stats")
@@ -311,6 +318,17 @@ def register(
         qs = getattr(ctx, "_qs", {})
         platform = qs.get("platform", [None])[0] or None
         ctx._send_json(_build_library_diff(repository, repo_android, config, platform=platform))
+
+    # ── POST /api/storage/delete-bulk (STORAGE-MGR-3) ────────────────────────
+    @router.post("/api/storage/delete-bulk")
+    def post_storage_delete_bulk(ctx) -> None:
+        items = (ctx._post_data or {}).get("items", [])
+        if not items:
+            ctx._send_json({"trashed": 0, "deleted_device": 0, "errors": []})
+            return
+        ctx._send_json(
+            delete_storage_items(repository, repo_android, items, adb_transport=_adb_transport())
+        )
 
     # ── POST /api/sync-roms (B3-4) ───────────────────────────────────────────
     @router.post("/api/sync-roms")
