@@ -150,6 +150,24 @@ class AdbTransport:
             "error": f"La ruta {android_path!r} no existe en el dispositivo",
         }
 
+    def free_bytes(self, android_path: str) -> int:
+        """Free space in bytes on the filesystem holding *android_path* (CABLE-ROM-FIX-2).
+
+        Uses ``df -k`` (POSIX-portable, unlike ``df -B1`` which some Android
+        toybox builds reject) and scales the "Available" column (KiB) up.
+        """
+        out = self._shell("df", "-k", shlex.quote(android_path), timeout=10).strip()
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        if len(lines) < 2:
+            raise RuntimeError(f"No se pudo leer el espacio libre en {android_path!r}: {out!r}")
+        fields = lines[-1].split()
+        if len(fields) < 4:
+            raise RuntimeError(f"Salida de 'df' inesperada para {android_path!r}: {out!r}")
+        try:
+            return int(fields[3]) * 1024
+        except ValueError as exc:
+            raise RuntimeError(f"No se pudo leer el espacio libre en {android_path!r}") from exc
+
     def device_epoch(self) -> int:
         """Return the device clock as a unix timestamp (``date +%s``). AUD-1."""
         out = self._shell("date", "+%s", timeout=10).strip()

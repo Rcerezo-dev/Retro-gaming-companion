@@ -593,8 +593,66 @@ def _do_cable_sync(
                         "No se pudo actualizar el progreso de cable-sync (ADB)", exc_info=True
                     )
                 android_prefix = android_path.rstrip("/") + "/"
+                # CABLE-ROM-FIX-1: índice del lado remoto por ruta relativa —
+                # ya se recorrió el dispositivo entero para las estadísticas
+                # de arriba (`ab_adb_files`), así que construir el índice no
+                # cuesta un viaje ADB extra. Sin esto, pc_to_anbernic/
+                # anbernic_to_pc copiaban TODO sin mirar nunca qué ya existía
+                # al otro lado — `skip_existing` se aceptaba pero no se usaba.
+                ab_index = {
+                    info.android_path.removeprefix(android_prefix): info
+                    for info in ab_adb_files
+                    if _wanted_name(PurePosixPath(info.android_path).name)
+                }
+
+                def _skip_existing_device(rel_posix: str, local_size: int) -> bool:
+                    if not skip_existing:
+                        return False
+                    ab_inf = ab_index.get(rel_posix)
+                    return ab_inf is not None and ab_inf.size == local_size
+
+                def _skip_existing_pc(rel_posix: str, remote_size: int) -> bool:
+                    if not skip_existing:
+                        return False
+                    pc_f = pc_root / Path(rel_posix.replace("/", os.sep))
+                    try:
+                        return pc_f.stat().st_size == remote_size
+                    except OSError:
+                        return False
 
                 if direction == "pc_to_anbernic":
+                    if not dry_run:
+                        # CABLE-ROM-FIX-2: cuánto hace falta de verdad (tras
+                        # descontar lo que skip_existing ya se salta) contra
+                        # el espacio libre real del dispositivo — antes de
+                        # escribir el primer byte, no a mitad de transferencia.
+                        _needed_bytes = 0
+                        for _f in _iter_files(pc_root):
+                            if not _wanted(_f):
+                                continue
+                            try:
+                                _fsize = _f.stat().st_size
+                            except OSError:
+                                continue
+                            _frel = _f.relative_to(pc_root).as_posix()
+                            if not _skip_existing_device(_frel, _fsize):
+                                _needed_bytes += _fsize
+                        try:
+                            _free = transport.free_bytes(android_path)
+                        except (RuntimeError, OSError) as exc:
+                            _logger.warning(
+                                "No se pudo comprobar el espacio libre en %s: %s",
+                                android_path,
+                                exc,
+                            )
+                            _free = None
+                        if _free is not None and _needed_bytes > _free:
+                            raise OSError(
+                                f"Espacio insuficiente en {android_path}: hacen falta "
+                                f"{_needed_bytes / 1024**3:.1f} GB y quedan "
+                                f"{_free / 1024**3:.1f} GB libres en el dispositivo"
+                            )
+
                     for src in _iter_files(pc_root):
                         if cancel_event.is_set():
                             break
@@ -602,6 +660,16 @@ def _do_cable_sync(
                             continue
                         rel = src.relative_to(pc_root)
                         rel_posix = rel.as_posix()
+                        try:
+                            local_size = src.stat().st_size
+                        except OSError:
+                            local_size = -1
+                        if _skip_existing_device(rel_posix, local_size):
+                            skipped += 1
+                            _log("SKIP", str(src), "", "mismo tamaño ya en el dispositivo")
+                            if len(details) < 300:
+                                details.append({"file": "EXISTS", "path": src.name})
+                            continue
                         _adb_copy_to_device(src, rel_posix, "→ ADB")
 
                     if delete_extra and not cancel_event.is_set():
@@ -689,6 +757,11 @@ def _do_cable_sync(
                                 errors += 1
                                 if len(details) < 300:
                                     details.append({"file": f"ERROR: {exc}", "path": name})
+                        elif _skip_existing_pc(rel_posix, info.size):
+                            skipped += 1
+                            _log("SKIP", info.android_path, "", "mismo tamaño ya en el PC")
+                            if len(details) < 300:
+                                details.append({"file": "EXISTS", "path": name})
                         else:
                             _adb_copy_to_pc(info, rel_posix, "← ADB")
 
