@@ -150,6 +150,50 @@ def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
     return index
 
 
+def load_arcade_manifest(directory: Path) -> dict[str, list[tuple[str, str, int]]]:
+    """``machine_name → [(rom_name, crc32_upper, size_bytes), …]`` de los DAT arcade.
+
+    ARCADE-RECON-1: complementa a ``load_arcade_crc_index()`` (que solo dice
+    "este CRC vive en estos sets") con la lista completa de roms esperados
+    por máquina — necesaria para calcular cobertura (¿están TODOS los chips
+    de un set entre los sueltos del Inbox, no solo uno?). Mismo recorrido
+    que ``load_arcade_crc_index``; se deja como función aparte porque cada
+    caller normalmente solo necesita una de las dos vistas.
+    """
+    manifest: dict[str, list[tuple[str, str, int]]] = {}
+    if not directory.exists():
+        return manifest
+    for f in sorted(directory.iterdir()):
+        if f.suffix.lower() != ".dat":
+            continue
+        try:
+            for _, elem in ET.iterparse(str(f)):
+                if elem.tag in ("game", "machine"):
+                    name = elem.get("name", "").strip().lower()
+                    if name:
+                        roms = []
+                        for rom in elem.findall("rom"):
+                            crc = (rom.get("crc") or "").strip().upper()
+                            if not crc:
+                                continue
+                            roms.append((rom.get("name", ""), crc, int(rom.get("size") or 0)))
+                        if roms:
+                            # Un mismo nombre de máquina puede aparecer en varios DAT
+                            # (MAME propio + FBNeo "Arcade only" se solapan mucho) —
+                            # sin deduplicar, un chip compartido cuenta dos veces y
+                            # ARCADE-RECON exigiría dos copias físicas del mismo chip.
+                            existing = manifest.setdefault(name, [])
+                            seen = set(existing)
+                            for rom in roms:
+                                if rom not in seen:
+                                    existing.append(rom)
+                                    seen.add(rom)
+                    elem.clear()
+        except (ET.ParseError, OSError):
+            pass
+    return manifest
+
+
 def load_arcade_dir(directory: Path) -> dict[str, tuple[str, str, str, str]]:
     """Load all arcade catalog files from *directory*.
 
