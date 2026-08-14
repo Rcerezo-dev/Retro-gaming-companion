@@ -234,7 +234,10 @@ function _applyInboxProgress(s) {
   const btn    = document.getElementById('btn-inbox-run');
 
   const _STEP_LABELS = {
-    'extracting': 'Paso 1/6: Extrayendo ZIPs',
+    'extracting':                       'Paso 1/6: Extrayendo ZIPs',
+    'intercepting bios':                'Paso 1/6: Interceptando BIOS conocidas',
+    'identificando .md por CRC':        'Paso 1/6: Identificando .md por CRC',
+    'reconstruyendo sets arcade sueltos': 'Paso 1/6: Reconstruyendo sets arcade sueltos',
     'scanning':   'Paso 2/6: Escaneando archivos',
     'matching':   'Paso 3/6: Cotejando catálogos',
     'planning':   'Paso 4/6: Planificando renames',
@@ -279,6 +282,7 @@ function _renderInboxResult(r) {
   const zipNote  = archived > 0 ? ` <span style="color:var(--c-muted);font-size:11px">(${archived} movidos a _processed/)</span>` : '';
   html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
   if (r.md_identified > 0) html += '.md identificados por CRC: <strong>' + r.md_identified + '</strong> &nbsp;';
+  if (r.arcade_reconstructed > 0) html += 'Sets arcade reconstruidos: <strong>' + r.arcade_reconstructed + '</strong> <span style="color:var(--c-muted);font-size:11px">(' + (r.arcade_chips_used || 0) + ' chips)</span> &nbsp;';
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';

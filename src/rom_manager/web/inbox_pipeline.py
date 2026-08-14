@@ -944,6 +944,10 @@ def _run_inbox_pipeline(
         _upd("identificando .md por CRC", 1)
         md_identified = _resolve_ambiguous_md(inbox, config, logger)
 
+        # ── Step 1.8: reconstruir sets MAME sueltos por cobertura CRC ────────
+        _upd("reconstruyendo sets arcade sueltos", 1)
+        arcade_recon = _reconstruct_loose_arcade_sets(inbox, target_root, config, logger)
+
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
 
@@ -1148,6 +1152,8 @@ def _run_inbox_pipeline(
             "arcade_zips_routed": arcade_zips_routed,
             "bios_moved": bios_moved,
             "md_identified": md_identified,
+            "arcade_reconstructed": arcade_recon["reconstructed"],
+            "arcade_chips_used": arcade_recon["chips_used"],
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,

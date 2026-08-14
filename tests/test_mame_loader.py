@@ -8,6 +8,7 @@ from pathlib import Path
 from rom_manager.catalog.mame_loader import (
     load_arcade_crc_index,
     load_arcade_infra_names,
+    load_arcade_manifest,
     load_mame_xml,
 )
 
@@ -65,6 +66,45 @@ def test_arcade_crc_index_maps_crc_to_sets(tmp_path: Path) -> None:
 
 def test_arcade_crc_index_missing_dir_is_empty() -> None:
     assert load_arcade_crc_index(Path("no-existe")) == {}
+
+
+def test_arcade_manifest_lists_expected_roms_per_machine(tmp_path: Path) -> None:
+    """ARCADE-RECON-1: machine -> roms esperados, para calcular cobertura."""
+    (tmp_path / "MAME.dat").write_text(_DAT, encoding="utf-8")
+
+    manifest = load_arcade_manifest(tmp_path)
+
+    assert manifest["lemmings"] == [
+        ("lem_01.bin", "AABB0001", 1024),
+        ("lem_02.bin", "AABB0002", 1024),
+    ]
+    assert manifest["lemmingsj"] == [
+        ("lem_01.bin", "AABB0001", 1024),
+        ("lem_03.bin", "AABB0003", 1024),
+    ]
+
+
+def test_arcade_manifest_missing_dir_is_empty() -> None:
+    assert load_arcade_manifest(Path("no-existe")) == {}
+
+
+def test_arcade_manifest_dedupes_same_machine_across_dat_sources(tmp_path: Path) -> None:
+    """Un mismo set (p.ej. rtype2) puede definirse tanto en el DAT de MAME
+    como en el de FBNeo, con roms idénticos — no debe contarse dos veces
+    (bloquearía ARCADE-RECON exigiendo dos copias físicas del mismo chip)."""
+    dat = """<?xml version="1.0"?>
+<datafile>
+  <game name="rtype2">
+    <rom name="ic5" size="279" crc="21ede612"/>
+  </game>
+</datafile>
+"""
+    (tmp_path / "MAME.dat").write_text(dat, encoding="utf-8")
+    (tmp_path / "FBNeo.dat").write_text(dat, encoding="utf-8")
+
+    manifest = load_arcade_manifest(tmp_path)
+
+    assert manifest["rtype2"] == [("ic5", "21EDE612", 279)]
 
 
 def test_infra_names_memoized_until_files_change(tmp_path: Path, monkeypatch) -> None:
