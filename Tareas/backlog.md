@@ -856,6 +856,66 @@ progreso), luego integridad de BD, luego web, luego el resto.
 
 ---
 
+## INBOX-CFG — `target_root` apuntaba fuera de la biblioteca + gap de arcade suelto (2026-08-13)
+
+Origen: el usuario reportó que el Inbox "solo detecta zips" tras soltar juegos de
+Mega Drive, Dreamcast, MAME2003 y Nintendo DS. Investigación: `.rommgr/library_pc.db`
+(`scan_runs`) mostraba 8 corridas del pipeline ese mismo día con `roms_detected`
+bajando de 1719 a 0 — el Inbox sí procesaba y organizaba, pero no en
+`E:\Carpetas anbernic`.
+
+| ID | Prioridad | Hallazgo | Dónde | Estado |
+|----|-----------|----------|-------|--------|
+| INBOX-CFG-1 | 🔴 Crítico | **`inbox.target_root = "Este equipo\\RG556\\Ambernic"`** (ruta MTP del móvil, no un path real) se resolvía como relativa contra el cwd del proceso → `Path.resolve()` creaba `Retro_gaming_app\Este equipo\RG556\Ambernic\` dentro del propio repo, en C:. El pipeline organizaba correctamente por plataforma (megadrive/, dreamcast/, nds/…) pero en ese destino fantasma — de ahí que el usuario no viera nada organizado en `E:\Carpetas anbernic` y que C: llegara a 0 GB libres (1.527 archivos, 48,96 GB) | `config.toml:40` | ✅ `target_root` vaciado (cae al fallback `config.library_root` en `inbox_pipeline.py:727`) — servidor reiniciado. 1.024 archivos reubicados a `E:\Carpetas anbernic\<plataforma>\`, 482 duplicados exactos eliminados, 21 conflictos (mismo nombre/contenido distinto) dejados sin tocar para revisión manual — ver lista en el diario de hoy |
+| INBOX-CFG-4 | 🟡 Medio | **El Inbox extrae CUALQUIER ZIP suelto sin distinguir arcade de consola** — a diferencia de `zip_router.py` (que nunca extrae un ZIP arcade, lo mueve directo a `arcade/`), el watcher normal (`_run_inbox_pipeline` Step 1, `find_zip_files`+`extract_zip`) no tiene ese filtro — es el mecanismo de siempre, no algo nuevo de esta sesión, pero el primer arranque del servidor en esta sesión lo disparó sobre los ZIPs que ya había en el Inbox, reventando **75 sets arcade** en chips sueltos. Recuperado sin pérdida: los ZIPs originales seguían en `_descartados/` (AUD-3, nunca borrado directo) — 39 eran redundantes (la biblioteca ya tenía versión igual o más completa en `arcade/`, sin tocar) y **36 se restauraron directos a `arcade/`** (sin re-extraer, sin colisión, íntegros). Verificado con búsqueda exhaustiva: los 114 ZIPs de consola del mismo lote sí se procesaron bien (extraídos → organizados correctamente en su plataforma) — el problema era solo arcade | `web/inbox_pipeline.py` Step 1 (`find_zip_files`) | ✅ nueva comprobación `_is_arcade_zip_container()` antes de `extract_zip()`: si el 100% de las entradas del ZIP coinciden con CRCs conocidos de `load_arcade_crc_index()`, se mueve intacto a `arcade/` sin extraer (mismo criterio que `zip_router.py`, ahora también aplicado al watcher automático). Tests en `tests/test_inbox_arcade_zip_route.py` |
+| INBOX-CFG-2 | 🟡 Medio | **~3.526 archivos sueltos de sets MAME/arcade** (`.u12`, `.epr`, `.rom`, extensiones numéricas) en la raíz del Inbox, sin agrupar por juego — `classify_path` no los reconoce (no están en ningún catálogo de consola) y quedan como `unknown_files_detected`. Diseño actual (`ZIP-ROUTE`) asume que un set arcade siempre llega como ZIP intacto; no hay ruta de código para reconstituir chips sueltos | `web/inbox_pipeline.py` (`classify_path` los ignora), `catalog/mame_loader.py:load_arcade_crc_index()` ya da `CRC32→{set names}` reutilizable | ✅ implementado como ARCADE-RECON (`_reconstruct_loose_arcade_sets` en `web/inbox_pipeline.py:429`, PR #160): CRC32 de cada chip suelto, cobertura contra `load_arcade_crc_index()`+`load_arcade_manifest()`, solo reclama una máquina al 100% de cobertura, re-empaqueta en `<set>.zip` con verificación de contenido antes de mover a `arcade/`, descarta los chips sueltos usados (papelera, AUD-3) solo tras confirmar el ZIP en destino. Tests en `tests/test_arcade_recon.py` |
+| INBOX-CFG-3 | 🟢 Menor | **21 conflictos** (mismo nombre, contenido distinto) que quedaron en la carpeta fantasma de C: | `amiga/`, `atari2600/`, `atarilynx/`, `c64/`, `gba/`, `msx/`, `nds/`, `psx/`, `unknown/` | ✅ movidos a `E:\Carpetas anbernic\<plataforma>\` con sufijo ` (conflicto-inbox 2026-08-13)` — nada se sobreescribió, quedan pendientes de comparar/elegir a mano. Carpeta fantasma de C: eliminada por completo |
+
+---
+
+## ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún)
+
+| ID | Idea | Notas |
+|----|------|-------|
+| CFG-PORGAME | Configuraciones específicas por juego (core options, overrides RetroArch), editables desde el PC | Necesita decidir formato (`.opt`/`.cfg` de RetroArch por juego) y cómo sincronizarlas con Android sin pisar los overrides que ya gestiona el usuario a mano |
+| MODS-AUTO | Añadir e instalar mods automáticamente — viable para PS1/PS2/N64/GameCube (formatos de parche/mod más estandarizados: `.pnach`, ISO patching, texture packs); no viable para consolas muy antiguas (sin ecosistema de mods) | Requiere investigar formato de mods por emulador/plataforma antes de diseñar; alcance grande, candidato a su propia fase de roadmap |
+| STORAGE-MGR | Gestor de almacenamiento — decidir y borrar en bloque (PC, Anbernic o ambos) desde un menú dedicado | Necesita: vista combinada de qué existe en cada lado (ya hay base en `sync/` para comparar PC↔Android), selección múltiple, y pasar por la papelera unificada `_descartados/` (AUD-3) en vez de borrado directo — nunca borrar sin poder deshacer |
+
+## CABLE-ROM-FIX — El sync de ROMs por cable no compara con el destino (hallazgo 2026-08-13)
+
+Origen: el usuario pidió sincronizar biblioteca PC↔consola vía Cable Sync
+(`what: ["roms"]`). Investigación con dry-run real contra la RG556
+(serial `RG556006101273`, SD en `/storage/521D-04EA`, 49 GB libres de 466 GB):
+pidió copiar **47.191 archivos / 516 GB** — la biblioteca del PC entera,
+sin importar que la SD ya tenga casi todo (misma estructura de carpetas que
+el PC). Repetido con `skip_existing: true` + `skip_sha1_dups: true`: **resultado
+idéntico**, byte a byte.
+
+Causa raíz: `web/handlers/sync_cable.py:597-605` (rama `direction ==
+"pc_to_anbernic"`) itera todos los archivos del PC y llama a
+`_adb_copy_to_device` para cada uno **sin comprobar nunca** el listado del
+dispositivo (`ab_adb_files`, calculado en la línea 569 pero solo usado para
+`delete_extra` y estadísticas de progreso — nunca para decidir qué copiar).
+El parámetro `skip_existing` que acepta el endpoint no se referencia en
+ningún punto de esta rama. `sync/adb_transport.py:278`
+(`AdbTransport.push`) tampoco compara contenido/mtime antes de subir — en
+`dry_run` ni siquiera llega a intentarlo, solo devuelve el tamaño local.
+Contraste: la rama `anbernic_to_pc` (línea 636) sí usa `use_sha1`/hash para
+saltar duplicados — la asimetría sugiere que `pc_to_anbernic` quedó a medias.
+
+| ID | Task | Notas |
+|----|------|-------|
+| CABLE-ROM-FIX-1 | Implementar comparación real contra `ab_adb_files`/`pc_root` antes de copiar en ambas ramas ADB (`pc_to_anbernic` y `anbernic_to_pc`) — mismo criterio que ya usa `cable_engine.copy_item` en el modo sistema de archivos (tamaño) | `web/handlers/sync_cable.py:597-605,672-729` | ✅ rama `fix/cable-sync-rom-skip-existing` → PR #161 |
+| CABLE-ROM-FIX-2 | Guard de espacio libre en destino antes de empezar (ya existe un patrón idéntico en `zip_router.py:_extract_collection` — `shutil.disk_usage(dest_dir).free`) — evita rellenar la SD a medias | `web/handlers/sync_cable.py` (rama ADB de `_do_cable_sync`) | ✅ `AdbTransport.free_bytes()` (`sync/adb_transport.py`, vía `df -k`) + guard antes de escribir en corridas reales (`dry_run=False`) |
+| CABLE-ROM-FIX-3 | Sync por plataformas — con el fix, la SD (78 GB libres) sigue sin caber la biblioteca completa (305,9 GB). No hace falta código nuevo: el endpoint ya soporta `pc_path`/`android_path` apuntando a una subcarpeta. Desglose real por plataforma: `psx` 61,1 GB, `gamecube` 34,3 GB, `ps2` 29,9 GB, `Unknown` 25,2 GB (basura), `arcade` 17,6 GB no caben; el resto (~66 GB tras `skip_existing`) sí | — | ✅ ejecutado de verdad 2026-08-13: 50 carpetas (allowlist cruzada contra `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, nunca `Documents`/`Music`/`DCIM` etc.), lanzado vía script de orquestación (llama al endpoint ya arreglado, una carpeta por vez, secuencial) — en curso al cerrar la sesión, ver diario Día49 para el resultado final |
+
+> Estado: ✅ implementado y validado con dry-run + ejecución real contra
+> hardware conectado (RG556). Ver `Tareas/diario/Día49.md` para los
+> números completos y el resultado final de la transferencia por
+> plataformas.
+
+---
+
 ## User actions (no code needed)
 
 | ID | Task |
