@@ -506,11 +506,7 @@ def _reconstruct_loose_arcade_sets(
         ok = True
         for rom_name, crc, size in roms:
             option = next(
-                (
-                    f
-                    for f in pool.get(crc, [])
-                    if f not in reserved and f.stat().st_size == size
-                ),
+                (f for f in pool.get(crc, []) if f not in reserved and f.stat().st_size == size),
                 None,
             )
             if option is None:

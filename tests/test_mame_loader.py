@@ -74,8 +74,14 @@ def test_arcade_manifest_lists_expected_roms_per_machine(tmp_path: Path) -> None
 
     manifest = load_arcade_manifest(tmp_path)
 
-    assert manifest["lemmings"] == [("lem_01.bin", "AABB0001", 1024), ("lem_02.bin", "AABB0002", 1024)]
-    assert manifest["lemmingsj"] == [("lem_01.bin", "AABB0001", 1024), ("lem_03.bin", "AABB0003", 1024)]
+    assert manifest["lemmings"] == [
+        ("lem_01.bin", "AABB0001", 1024),
+        ("lem_02.bin", "AABB0002", 1024),
+    ]
+    assert manifest["lemmingsj"] == [
+        ("lem_01.bin", "AABB0001", 1024),
+        ("lem_03.bin", "AABB0003", 1024),
+    ]
 
 
 def test_arcade_manifest_missing_dir_is_empty() -> None:
