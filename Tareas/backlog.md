@@ -5,6 +5,7 @@
 > REV43-52, TEST-GAP-1 cerrados; release v1.1.0 publicada)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
+> Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
 
 Regla de branching: una rama por tarea → PR a `develop`. Las sub-tareas que comparten
 fichero o son la misma unidad de cambio se agrupan en una sola rama. Refactores
@@ -41,40 +42,10 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 ---
 
-## Roadmap App Universal
+## Pilar 1 — Limpieza y organización inicial de la biblioteca — → #202
 
-> Phases 1–5 (first run, DATs, sync, UX no-técnica, auth) **completadas** →
-> detalle en `Tareas/diario/archivo/archivo.md`.
-
-### Phase 6 — Distribution
-
-| ID | Task | Estado |
-|----|------|--------|
-| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
-| PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | 🟡 Validado en este equipo (build, smoke test de `serve`, instalación/desinstalación silenciosa); falta una prueba en una máquina realmente sin Python instalado. Corregidos hiddenimports obsoletos de `RetroVault.spec` (`response_builders`→`builders/`, `cable_sync_daemon` movido a `web/`) y las DLLs de ADB ahora son opcionales (adb.exe moderno no las necesita) |
-| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ✅ `installer/RetroVault.iss` — instalador por usuario (`PrivilegesRequired=lowest`), shortcuts en menú + escritorio, desinstalador limpio. Compilado y probado con Inno Setup 6.7.3 → `RetroVault-Setup.exe` (~15 MB) |
-| PHASE6-2b | Bundlear DATs mínimos en el installer | ✅ (34 plataformas — `b4d2107`) |
-| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ✅ `update_checker.py` + `GET /api/version` + banner en UI. 13 tests. PR #52. |
-| PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ✅ `utils/update_installer.py` (`find_update_asset`, `download_update` con progreso, `launch_installer`); `web/handlers/update.py` (`/api/update/{status,download,apply}`); banner con botones "Descargar e instalar" / "Instalar y reiniciar" en `main.js`. Solo aplica a builds frozen (PyInstaller); en modo fuente solo enlaza al release. Aún sin probar contra un release real (ningún release publicado todavía — depende de 6-1b/6-2a). 30 tests nuevos. |
-| PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ✅ (Retro Vault confirmado — no-op, Día31) |
-
----
-
-## Roadmap — Ideas from Idea_final.md
-
-Extracted from `docs/ideas/Idea_final.md` and broken into actionable tasks.
-COL-REVIEW, FLOW-WIZARD, CLOUD-RESEARCH, ANBERNIC-TV y NLP-REC **completados** → archivo.
-
-### EMULATOR-COMPAT — Save compatibility PC ↔ Android
-
-Verify that synced saves from PC actually load on Android and vice versa, for each emulator pair.
-
-| ID | Task | Notes |
-|----|------|-------|
-| EMULATOR-COMPAT-1 | Create compatibility matrix — PC emulator, Android emulator, save format, save path per platform | `docs/emulator-compat.md` ✅ |
-| EMULATOR-COMPAT-2 | Test PS1 round-trip: DuckStation PC → sync → DuckStation Android → load | Hardware test with RG556 |
-| EMULATOR-COMPAT-3 | Test PS2 round-trip: PCSX2 PC → sync → AetherSX2/NetherSX2 Android → load | Hardware test |
-| EMULATOR-COMPAT-4 | Test remaining platforms (GBA, SNES, GBC, NDS…) and document any format mismatches | Update matrix per result |
+Detectar basura, clasificar ZIPs sueltos y dejar la biblioteca organizada por
+plataforma con nombre canónico.
 
 ### ARCADE-SETUP — Research arcade ROM config (no code)
 
@@ -87,92 +58,7 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 
 ---
 
-## Hardware validation (requires console or SD card)
-
-| ID | Task |
-|----|------|
-| V1 | SD card auto-sync — configure `anbernic_root`, insert SD, verify banner + log |
-| V2 | Two-database migration — Settings → "Migrate DB" → verify separate PC/Android counts |
-| V3 | Inbox end-to-end — configure `inbox_path`, drop ZIP, verify extraction + rename + move |
-| V4 | RetroAchievements with real API key |
-| V5 | Termux guide on console — prereq for WiFi sync |
-| B1-hw | Android renamer doesn't reduce queue — test with SD inserted |
-
----
-
-## DÍA37 — Distribuible completo + prueba en PC limpio (2026-07-02)
-
-Objetivo cumplido salvo la validación en hardware ajeno: `RetroVault-Setup.exe`
-autocontenido publicado en el release `v1.0.0` (detalle D37-1…D37-10 → archivo).
-
-| ID | Task | Archivo(s) | Estado |
-|----|------|-----------|--------|
-| D37-8 | **Prueba en PC limpio** — hardware test: instalar en máquina sin Python siguiendo la sección 0 de la guía; ejecutar checklist funcional (§5); valida PHASE6-1b | otro PC | ⬜ |
-
----
-
-## MEJORAS — Propuestas 2026-07-02 (ordenadas por valor/esfuerzo)
-
-| ID | Task | Archivo(s) | Estado |
-|----|------|-----------|--------|
-| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas (confirmado: `gpLogPlaytime()` hoy no persiste nada, solo hace `alert()`, `games.js:531-542`). Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. Diseño detallado en `Tareas/Roadmap-Juegos-UX.md` (JUEGOS-UX-4..9) | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ✅ rama `feature/juegos-ux` — scanner `utils/lrtl_scanner.py`, columnas por origen `playtime_minutes_pc/_android`, endpoint `/api/playtime-scan` (job, PC + pull adb), UI automática sin inputs manuales. Pata cloud (rama `feature/juegos-ux-7-cloud`): `sync.playtime_remote` + SyncSources `/pc` y `/android` + ingesta post-sync + subida de `.lrtl` en el script Termux |
-| MEJ-2 | **Deshacer último apply** — endpoint que invierte los renames de la última operación usando `file_operations` (ya registrado en SQLite); reutiliza `rename_rom_with_saves` en dirección inversa. | `planner/`, `web/handlers/` | ✅ `get_last_apply_batch()` (`database/repositories/games.py`) agrupa por el `created_at` compartido del último apply; `_do_undo_last_apply()` (`web/handlers/organize.py`) reproduce la misma rama cue/gdi vs archivo suelto que `_do_apply`, pero con `source`/`target` invertidos, y llama `apply_rename()` con las rutas invertidas — cada undo queda registrado como una fila nueva, así que un segundo undo revierte el undo (redo) en vez de no hacer nada. Backup de la BD (MEJ-3) antes de tocar nada. Job en background (`undo_apply` en `JOB_NAMES`, endpoints `POST /api/undo-last-apply` + `GET /api/undo-last-apply-status`, patrón moderno `job_manager.get_job()` sin tocar el `get_status()` compartido). Botón "Deshacer último apply" en Organizar (`organize.js`, `tab-plan.html`). 2 tests nuevos (`test_undo_last_apply.py`) |
-| MEJ-3 | **Backup automático de la DB antes de apply/migraciones** — `sqlite3.Connection.backup()` (stdlib, ~5 líneas) antes de cada apply. | `planner/operation_planner.py` o `database/repository.py` | ✅ `backup_database()` en `_RepositoryBase` (`database/repositories/base.py`) — snapshot vía `sqlite3.Connection.backup()` (seguro con WAL, a diferencia de una copia de archivo cruda) a `<data_dir>/db-backup/`, poda a `keep_n=5`. Llamado desde `_do_apply` (`web/handlers/organize.py`) y `cli.py apply`, antes de construir el plan. 2 tests nuevos en `test_repository.py` |
-| MEJ-4 | **Sync de cheats (`.cht`)** — un `SyncSource` más apuntando al dir `cheats/` de RetroArch, mismo patrón que NEW-8 (`.opt`). ~10 líneas. | `config.py`, `sync/sync_cloud.py` | ✅ mismo patrón dir+remote que `ra_config_dir`/`ra_config_remote`: campos `cheats_dir`/`cheats_remote` en `SyncConfig` (`config.py`), `_do_sync` (`sync_cloud.py`) añade el `SyncSource` "RetroArch Cheats (.cht)" cuando ambos están configurados. Wiring completo: `allowed` en `_save_config` (`web/handlers/config.py`), `_build_config` (`misc.py`), campos nuevos en Ajustes (`tab-settings.html`, `config.js`). 2 tests nuevos (917 en total) |
-| MEJ-5 | **"¿A qué juego hoy?"** — botón en Overview: `random.choices` ponderado por status Pendiente + rating + no jugado recientemente. Recomendador v0 mientras no exista el modelo NLP. | `web/handlers/`, `tab-overview.html` | ✅ ya existía la tarjeta "Juego sugerido" (S36-4) pero con selección uniforme entre "no tocado en 6 meses" (sin ponderar por Pendiente/rating) y el botón "Abrir" estaba roto de raíz (`onclick="openGamePanel(window._currentGameSuggestion)"` — esa variable nunca se asignaba a `window`, solo al scope del módulo). Reemplazada la selección por `GET /api/suggest-game` → `services/recommend_service.py::pick_game_for_today()` (peso = 3x si Pendiente/sin tocar · `1+rating` · hasta 3x cuanto más tiempo sin jugar, tope a los 90 días) sobre `repository.get_recommendation_candidates()` (excluye completados/100%). "Abrir" corregido: pide `/api/game?id=` y llama `openGamePanel()` con el objeto completo. Verificado en navegador con la biblioteca real (sugerencia + reroll + Abrir abren el panel correcto). 4 tests nuevos en `test_recommend_service.py` + 1 en `test_repository.py` |
-| MEJ-6 | **UI del junk-scan (tarea 2i-1)** — el endpoint `POST /api/junk-scan` fue restaurado (PR #80, se perdió en el refactor `487aa91`) pero el frontend sigue en stubs: `_renderJunkResult`, selección por categoría y borrado vía `/api/junk-delete` son TODOs en `esde.js`. | `web/static/js/tabs/esde.js` | ✅ rama `feature/mej-6-junk-scan-ui` — stubs implementados (render con `<details>`, selección por categoría, borrado con confirm + re-scan); `doJunkScan` corregido (id del contenedor, input `#junk-path`, endpoint síncrono sin job); builder expone `paths` completos por categoría (antes el borrado solo cubría los 50 mostrados). Verificado e2e con servidor real |
-
-> **Orden sugerido:** MEJ-1 → MEJ-2 → MEJ-3 → MEJ-4 → MEJ-5
-
----
-
-## SAGE — Soporte para Retro Sage (recomendador NLP)
-
-Origen: `ROADMAP.md` de Retro Sage. SAGE-1 y SAGE-2 son **bloqueantes** para su
-fase 2 (embeddings). Contexto adicional: `docs/ideas/propuestas-recomendador-nlp.md`.
-
-| ID | Task | Archivo(s) | Estado |
-|----|------|-----------|--------|
-| SAGE-1 | **Scraping masivo de descripciones** (bloqueante Sage v0.2) — completar las descripciones de la biblioteca por lotes desde la fuente del scraper puntual. Reanudable (no re-scrapear lo ya descargado), rate-limit razonable, descripciones visibles en `GET /api/export-history`. Hecho cuando >90% de los juegos tienen descripción no vacía en el export. | `database/repositories/metadata.py`, `web/handlers/scraper.py`, `web/builders/misc.py`, `tab-scraper.html`, `scraper.js` | 🟡 código listo (rama `feature/sage-1-mass-descriptions`): el job `/api/scrape` ya era reanudable+rate-limited; añadido modo `missing_descriptions` (re-scrapea metadata con descripción vacía sin machacar imágenes), cobertura en `/api/scrape-summary` + UI (hoy 70.0%). Pasada real 2026-07-07: 964 en cola, 860 match, 0 errores (tras fix `_loads_lenient`, PR #79) pero cobertura 70,0→70,1% — los re-scrapeados no tienen sinopsis en SS. Para >90% hay que resetear `metadata_scraped` de los ~4.700 sin match histórico y re-scrapear (~89% de acierto hoy), o usar otra fuente. **Experimento reset 2026-07-07: fallido** — la cola de 4.692 era basura no-juego (chips de romsets arcade, shaders RetroArch, restos de Papelera `$I*.iso`, firmware): 415 procesados, 6 match. Flags revertidos. **Camino real al >90%: limpiar la basura de la biblioteca** (junk-scan restaurado en PR #80) — al quitar ~4.700 no-juegos del denominador, 13.217/~14.150 ≈ 93%. **Limpieza ejecutada 2026-07-08 (Día39)**: 28.718 archivos borrados (chips arcade de `Unknown\`, ~15,4 GB) + fixes del clasificador (PRs #82/#83) → cobertura **70,1% → 84,3%** (13.136/15.591). Para >90% queda JUNK-REVIEW-1 (revisar 5.771 ZIPs de `Unknown\`: colecciones fuente vs juegos individuales — decisión usuario) y re-scrape de los ~2.455 sin descripción restantes |
-| SAGE-2 | **Migración `genres_list` / `players` persistidos** (bloqueante Sage v0.2) — persistir ambos campos en la BD (hoy derivados al vuelo) con backfill de registros existentes, y exponerlos en el export. Hecho cuando aparecen estables en `/api/export-history` y el contrato queda documentado en `play_history.py`. Detalle: `docs/ideas/propuestas-recomendador-nlp.md`. | `database/`, `database/repositories/play_history.py` | ⬜ |
-| SAGE-3 | **Registro de recomendaciones mostradas/clicadas** (futuro, Sage v0.4) — para el bucle de feedback de Sage: registrar qué recomendaciones se mostraron en el panel y cuáles se clicaron, y exponerlo (export o endpoint nuevo). **No implementar todavía**: el diseño se negocia cuando Sage llegue a v0.4. | — | ⬜ |
-
----
-
-## INBOX-FIX — Bugs del pipeline de extracción/organización (hallados en JUNK-REVIEW-1, 2026-07-08)
-
-Origen: al categorizar los 5.774 ZIPs de `Unknown\` para JUNK-REVIEW-1 se detectaron
-tres fallos de raíz en el pipeline de Inbox/setup que explican por qué tantos
-archivos quedan varados sin extraer/organizar. Detalle de la investigación:
-`Tareas/diario/Día39.md` (sección JUNK-REVIEW-1) y conversación 2026-07-08.
-INBOX-FIX-1/2/3 → PRs #85/#87/#88, todas mergeadas. Aplicados manualmente sobre
-la biblioteca real 2026-07-08 con el código de esas 3 ramas antes del merge:
-20 BIOS movidas a `bios/<slug>/` (+20 filas basura eliminadas de `games`),
-1.606 juegos con `platform` recuperado por backfill desde `catalog_source`,
-4.515 archivos organizados a su carpeta de plataforma, 139 re-matches (solo 2
-genuinamente nuevos, ambos correctos). `Unknown\` pasa de ~6.021 a 1.437 filas
-en BD (mayoría categoría 5: componentes MAME + las 15 colecciones de categoría
-2, aún pendientes de tu decisión). **INBOX-FIX-5** (PR #90) surgió al verificar
-esa aplicación: el borrado por "duplicado" (organize + BIOS intercept) solo
-comparaba nombre de archivo, no contenido — 22 archivos reales borrados sin ser
-duplicados de verdad (SHA1 distinto). Ya arreglado: compara SHA1 antes de borrar.
-
-| ID | Task | Archivo(s) | Estado |
-|----|------|-----------|--------|
-| INBOX-FIX-1 | **`extract_zip` aborta el ZIP entero por una sola colisión + el setup wizard nunca borra el origen** — `converters/zip_extractor.py:106-114`: si un solo archivo de destino ya existe, se salta la extracción de **todo** el ZIP (sin avisar, sin extraer el resto). `web/inbox_pipeline.py:294` (`_run_setup_pipeline`) llama `extract_zip(..., delete_source=False)` hardcodeado. Confirmado en biblioteca real: `Nintendo - SNES.zip` (325 juegos) tiene algunos ya extraídos sueltos en `Unknown\` y el resto (`Blackthorne`, `BioMetal`...) nunca extraído por la colisión con uno solo. Fix: extraer archivo por archivo saltando solo los que colisionan (no abortar el ZIP completo); exponer `delete_source` como opción real del wizard. | `converters/zip_extractor.py`, `web/inbox_pipeline.py` | ✅ `extract_zip` ahora extrae miembro a miembro (solo salta los que colisionan, ya no aborta el ZIP); el original solo se borra si todo su contenido queda confirmado en disco sin errores. Checkbox nuevo "Borrar el ZIP original..." en el wizard (`wiz-delete-zips`, desmarcado por defecto). 4 tests nuevos (`tests/test_zip_extractor.py`) — PR #85 |
-| INBOX-FIX-2 | **El catalog match nunca escribe `platform` en la BD** — `repository.update_match()` (`database/repositories/games.py:182`) ya soporta `platform=`, pero ninguno de los dos call-sites lo pasa (`web/inbox_pipeline.py:332` en setup, `:473` en inbox). Consecuencia: el 96% de los juegos individuales sueltos en `Unknown\` ya tienen `canonical_title` matched (1.658/1.727) pero quedan con `platform=NULL` para siempre, así que el paso "organize" nunca sabe a qué carpeta moverlos. Fix: derivar `platform` del nombre del DAT (`catalog_source`, p.ej. `"Nintendo - Super Nintendo Entertainment System.dat"`) vía un mapeo DAT→plataforma, poblar `MatchResult.platform` también en la rama No-Intro/Redump (hoy solo se pone en la rama arcade, `catalog/matcher.py:20`), y pasar `platform=m.platform` en ambos call-sites. | `catalog/matcher.py`, `web/inbox_pipeline.py` | ✅ `_platform_from_dat_name()` + 18 tests — PR #87 |
-| INBOX-FIX-3 | **Categoría 5 de JUNK-REVIEW-1 (1.105 ZIPs sueltos en `Unknown\`) son mayoritariamente infraestructura MAME, no juegos** — `catalog/mame_loader.py:32` ya excluye `isbios`/`isdevice` al indexar, así que la mayoría (`c1541.zip`, `kb_pcat101.zip`, `sb16.zip`...) nunca podrá matchear porque no son juegos jugables por sí solos (mismo perfil que los chips ya borrados en JUNK-CLEAN-1, Día39). Los más grandes sí son BIOS de sistema con nombre reconocible (`naomi.zip`, `chihiro.zip`, `triforce.zip`, `hikaru.zip`, `aristmk5/6.zip`, `hod2bios.zip`, `lindbios.zip`, `f355bios.zip`, `galgbios.zip`, `airlbios.zip`, `ar_bios.zip`, `cdibios.zip`, `macsbios.zip`, `alg_bios.zip`, `crysbios.zip`, `v4bios.zip`) pero **faltan en `_KNOWN_BIOS_MAP`** (`web/inbox_pipeline.py:54-112` — hoy solo tiene `stvbios.zip`→saturn y `awbios.zip`→naomi de este grupo). Además el "Step 1.5: Intercept BIOS files" que mueve BIOS conocidas a `bios/<plataforma>/` **solo corre en `_run_inbox_pipeline`, no en `_run_setup_pipeline`** — el asistente de primera configuración (que probablemente procesó `Unknown\` originalmente) nunca ejecuta ese paso. Fix: ampliar `_KNOWN_BIOS_MAP` con estas entradas y extraer el intercept a una función compartida que también llame `_run_setup_pipeline`. Tras INBOX-FIX-2, re-lanzar el match arcade sobre el resto (los `.zip` sin nombre de BIOS conocido) para ver qué queda genuinamente sin identificar antes de decidir si se borra. | `web/inbox_pipeline.py` | ✅ `_intercept_bios_files()` compartida por ambos pipelines + 16 BIOS arcade nuevas en el mapa; 5 tests (`tests/test_bios_intercept.py`) — PR #88 |
-| INBOX-FIX-4 | **`_run_setup_pipeline` construye el plan de renombrado pero nunca lo aplica** — a diferencia de `_run_inbox_pipeline` (extract→scan→match→plan→**rename→organize**→cleanup, todo automático), el asistente de primera configuración se para en "build plan" (Step 5) y deja el resto para una acción manual aparte. Es la razón de fondo por la que `Unknown\` quedó con miles de archivos sin categorizar tras el primer scan de la biblioteca real — nadie ejecutó nunca el equivalente de los Steps 5-6 del pipeline de Inbox sobre ella, así que hubo que aplicar los fixes con scripts manuales en vez de con la app. **Decisión de diseño (2026-07-23): NO auto-aplicar** — mantener la revisión manual (regla `rommgr plan siempre antes de apply` intacta); el wizard debe dirigir explícitamente al usuario a un botón "Aplicar plan" al terminar el Step 5 en vez de dejarlo ahí sin más pasos. | `web/inbox_pipeline.py` (`_run_setup_pipeline`) | ✅ **ya implementado, sin código nuevo** — verificado 2026-07-23: `_showSetupResult()` (`overview.js`) ya muestra en la página 3 del wizard "Siguiente paso: revisa el plan de renombrado y aprueba los cambios" + un botón primario destacado "Ir a Organizar y renombrar ▶" (`wizardGoToOrganize()`, `_banners.html`) que navega directo a la pestaña Organizar/Renombrar. Esta UI viene de FLOW-WIZARD (`2e4dba0`, 2026-04-14) — **anterior** a que se documentara este hallazgo (JUNK-REVIEW-1, 2026-07-08); el episodio real de `Unknown\` sin categorizar ocurrió con una versión de la app previa a que existiera este wizard. Nada que tocar hoy: el flujo actual ya cumple la decisión de diseño acordada |
-| INBOX-FIX-5 | **El borrado por "duplicado" (organize + BIOS intercept) solo comparaba nombre de archivo, no contenido** — bug de pérdida de datos real: aplicado a la biblioteca real, 22 archivos "duplicados" borrados resultaron tener SHA1 distinto del superviviente (dumps/revisiones distintas que solo compartían nombre). `Path.unlink()` en Windows no pasa por la Papelera — no recuperable. | `web/inbox_pipeline.py` | ✅ `_same_content()` (tamaño + SHA1) antes de borrar en ambos sitios; si difiere, no se toca ninguno y se reporta para revisión manual. 8 tests — PR #90 |
-| MATCH-FIX-1 | **`CatalogMatcher.match()` — Pass 2 (nombre) da falsos positivos en ficheros arcade sin tag de región** — nombres cortos estilo MAME (`flicky.zip`, `frogger.zip`, `dw.zip`…) sin `(Region)` colisionan por coincidencia de título normalizado contra catálogos No-Intro/Redump de plataformas completamente ajenas (`flicky.zip` → "Fujitsu - FM-7", `frogger.zip` → "APF - Imagination Machine") con confianza `low`, en vez de matchear contra el catálogo arcade correcto (Pass 3, que nunca llega a probarse porque Pass 2 ya "acertó"). Detectado 2026-07-08 al re-lanzar el match sobre `Unknown\` — son matches **preexistentes**, no introducidos hoy. Fix: para nombres sin región/paréntesis, probar primero el catálogo arcade (Pass 3) antes que el name-fallback No-Intro/Redump (Pass 2), o exigir una señal más fuerte que la sola coincidencia de título normalizado. | `catalog/matcher.py` | ✅ rama `fix/match-fix-1-arcade-before-name-fallback` — para `.zip` sin `(` en el nombre (estilo MAME) el pass arcade corre antes que el fallback por título; el resto conserva el orden actual. Passes 2/3 extraídos a `_match_by_title()`/`_match_arcade()`. 4 tests nuevos (caso real flicky.zip vs FM-7; 635 pass). **Pendiente aparte**: los falsos matches preexistentes en BD no se corrigen solos — re-lanzar el match sobre `Unknown\` tras mergear |
-
-> Quedan pendientes: INBOX-FIX-4 (decisión de diseño sobre auto-apply del wizard),
-> MATCH-FIX-1 (prioridad del matcher), y la decisión del usuario sobre las 15
-> colecciones completas de JUNK-REVIEW-1 (categoría 2).
-
----
-
-## JUNK-SMART — Clasificador de basura basado en evidencia (diseño 2026-07-08)
+### JUNK-SMART — Clasificador de basura basado en evidencia (diseño 2026-07-08)
 
 Origen: Día39 demostró que la whitelist de extensiones de `_build_junk_scan`
 (`web/builders/folders.py:37`) falla en las dos direcciones — falsos positivos
@@ -208,7 +94,88 @@ conocimiento para decidir sola; hoy no lo usa.
 
 ---
 
-## ZIP-ROUTE — Colocar los ZIPs sueltos por CRC del header (diseño 2026-07-10)
+### TABS-FIX — Revisión UX/lógica pestañas Juegos/Organizar/Duplicados (2026-07-13)
+
+Revisión pedida por el usuario: solapes entre Organizar y Duplicados, y "borra de la BD
+pero no de la carpeta". Juegos está limpia (sin acciones destructivas ni solapes — solo
+metadatos/tags/launch). El resto confirmado con archivo:línea. Orden: 1, 5 y 7 primero
+(borrados engañosos y saves huérfanos al renombrar); 6 (pantalla única "Revisar copias")
+absorbe 2 y 3 — si se hace 6, saltar 2/3; 4 es cosmético y puede ir dentro de 6.
+
+**TABS-FIX-1/2/3/4/5/6/7 completos.** TABS-FIX-6 (rama
+`feature/tabs-fix-6-revisar-copias`, sin mergear a `develop` todavía) — pantalla
+"Revisar copias" en Organizar, pestaña Duplicados eliminada. Descubrió
+**TABS-FIX-6-DISC** (bug preexistente del planner con sets multi-disco),
+arreglado en la misma rama en una sesión posterior (ver detalle abajo).
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| TABS-FIX-1 | **Borrado fantasma: si el archivo no existe localmente, se borra solo la fila de BD y se reporta éxito** — `delete_duplicate` (`services/duplicates_service.py:49-59`): `if p.exists()` → mueve a papelera; si no existe, borra la fila igualmente y devuelve `{"deleted": path}`. Mismo patrón en `_discard_file` (`ra_duplicates_service.py:45-51`, "file already gone → clean DB row") y `delete_all_duplicates` (`duplicates_service.py:114-127`, cuenta "skipped"). Las entradas Android escaneadas por ADB guardan rutas de consola (`/storage/...`, `handlers/scan.py:451`) que **nunca** existen como `Path` en Windows → todo "Eliminar" sobre ellas borra solo la BD, el archivo queda en la consola y el siguiente scan lo re-añade (mismo síntoma de reaparición que VAL-FIX-1). También aplica a rutas PC obsoletas. Fix: (a) entradas con ruta de dispositivo → borrar vía ADB (`tools/adb.exe shell rm` con confirmación) o deshabilitar el botón con tooltip "solo accesible con la consola conectada"; (b) ruta local inexistente → devolver aviso "el archivo ya no está en esa ruta; ejecuta un scan" en vez de éxito silencioso | Seguridad | M | ✅ (a) rama `fix/tabs-fix-1a` — `AdbTransport.remove()`/`file_exists()` (verifica que el archivo desaparece de verdad, el exit code de `rm` sobre `adb shell` no es fiable) + `resolve_single_device_transport()` (auto-detecta el único dispositivo conectado; `None` si hay 0 o >1, mismo mensaje explícito de antes). Threading de `adb_transport` opcional por los 3 sitios de (b) (PR #147) y sus 11 call-sites totales (incluye los 5 wrappers de `ra_duplicates_service.py` + `apply_ra_conflicts`), resuelto una vez por request en `web/handlers/duplicates.py`. De paso: `deleteDuplicate()` en el frontend no comprobaba `d.error` (el backend responde 200 incluso en error) — la fila desaparecía de la UI aunque no se hubiera borrado nada; `deleteAllDuplicates()` no mencionaba el contador `unreachable` en su toast. Verificado end-to-end contra la consola real conectada (RG556): archivo de prueba desechable push→delete_duplicate()→confirmado borrado en el dispositivo con `adb shell`, limpiado después. 15 tests nuevos (`test_adb_transport_remove.py` + ampliaciones en `test_duplicates_service.py`/`test_ra_duplicates_service.py`). (b) ya cerrado en PR #147 |
+| TABS-FIX-2 | **"Quedarse con la versión con logros RA" existe 3 veces con 3 endpoints** — (1) Organizar → botón "Resolver con RA" (`tab-plan.html:38` → `doResolveRaConflicts`, `duplicates.js:277` → `/api/apply-ra-conflicts`); (2) Duplicados → sección "Duplicados por versión — sin logros RA" (`tab-duplicates.html:14-24` → `/api/ra-duplicates` + discard/discard-all); (3) Duplicados → duplicados semánticos con "Resolver: mantener éste" (`duplicates.js:140-166,424-462` → `/api/resolve-duplicate-ra`). (2) y (3) detectan lo mismo (mismo título normalizado, distinto hash, uno con RA) en la **misma pestaña** con dos UIs y dos endpoints. Fix: fusionar (2)+(3) en una sola lista "mismo juego, versiones distintas" con el criterio RA integrado (lógica canónica ya en `ra_duplicates_service.py`); (1) se queda en Organizar (resuelve conflictos del plan, contexto distinto) pero mover `doResolveRaConflicts` de `duplicates.js` a `organize.js` | UX | M | ✅ implementado de golpe por TABS-FIX-6 |
+| TABS-FIX-3 | **Dos botones vecinos con criterio de conservación contradictorio en colisiones** — en el aviso de colisión de Organizar, "Eliminar duplicados" (`organize.js:364-425`, `deleteCollisionDuplicates`) conserva el índice 0 del DOM **arbitrariamente**, ignorando RA, mientras el botón "Resolver con RA" de al lado prioriza logros (preferencia registrada del usuario). Además borra en bucle llamando a `/api/duplicates/delete` por fila. Fix: eliminar el botón "Eliminar duplicados" (el flujo RA + "Descartar" por fila ya cubren el caso) o hacer que conserve por criterio RA | UX | S | ✅ implementado de golpe por TABS-FIX-6 — `deleteCollisionDuplicates()` eliminada de `organize.js` |
+| TABS-FIX-4 | **Los textos de borrado mienten desde AUD-3** — "Se eliminarán N archivos del disco… Esta operación no se puede deshacer" (`duplicates.js:70,117,145`, `tab-duplicates.html:4,9,20`) cuando en realidad todo va a `_descartados/` (recuperable, purga a 30 días); solo el confirm de `deleteRaDuplicate` (`duplicates.js:255`) lo dice bien. Y el toast "Liberados: X" (`duplicates.js:89`) usa `freed_bytes` que no se libera hasta la purga (mover dentro del mismo volumen no libera nada). Fix: unificar todos los confirms/toasts a "se moverán a `_descartados/` (recuperable 30 días)" y renombrar "Liberados" a "Recuperables tras purga" | UX | S | ✅ alcance real menor de lo que parecía al verificarlo: `tools.js:174,194`, `esde.js:854`, `config.js:923` son borrados genuinamente permanentes (zips, papelera, limpieza post-CHD) y ya estaban bien redactados — el único texto engañoso era `duplicates.js:99` ("Liberados"), corregido a "Recuperables tras purga" en `review_copies.js` (la pestaña Duplicados entera desapareció con TABS-FIX-6) |
+| TABS-FIX-5 | **"Eliminar todos los duplicados" ignora el filtro de plataforma** — el confirm cuenta los botones visibles en el DOM (`duplicates.js:65`) pero envía siempre `source_root: ''` (`duplicates.js:76`) → `delete_all_duplicates_multi` recorre TODOS los grupos de ambas BDs (`handlers/duplicates.py:87-93`). Con el filtro en "SNES" el usuario confirma "3 archivos" y se descartan los duplicados de todas las plataformas. Fix: pasar la plataforma filtrada al endpoint y filtrar en `delete_all_duplicates`, o contar server-side antes del confirm | Seguridad | S | ✅ duplicado de **DUPLICADOS-UX-1** (mismo bug, mismas líneas) — ya cerrado en PR #132 (`fix/duplicados-ux`, `023aafe`): `deleteAllDuplicates()` manda `platform` en el payload (`duplicates.js:74-86`), el handler lo reenvía (`handlers/duplicates.py:98-99`) y `delete_all_duplicates()` filtra los grupos por esa plataforma antes de borrar (`duplicates_service.py:140-142`). Entrada dejada como referencia histórica |
+| TABS-FIX-6 | **Pantalla única "Revisar copias" (diseño 2026-07-13)** — fusionar en una sola vista los 4 solapes actuales (duplicados SHA1, duplicados semánticos, versiones RA, colisiones del plan): una cola de revisión agrupada **por juego**, cada grupo con sus copias listadas (badge del motivo: "idéntico SHA1" / "otra versión" / "colisión de nombre", badge 🏆 RA, badge dispositivo), una **recomendación precalculada** con criterio único (RA gana > mejor nombrada > primera; lógica ya en `ra_duplicates_service.py`) y acciones [Aplicar] [Elegir otra] [Copia intencional] + "Aplicar todas las recomendaciones (N)" arriba. Organizar pasa a 2 pasos: "Renombrar" y "Revisar copias"; la pestaña Duplicados desaparece. Backend: endpoint agregador que fusione `/api/duplicates` + `/api/ra-duplicates` + conflictos del plan; los endpoints de acción actuales sirven tal cual. **Implementa TABS-FIX-2 y TABS-FIX-3 de golpe** y resuelve de paso TABS-FIX-5 (el "aplicar todo" opera sobre los grupos renderizados). Diseño detallado: sesión 2026-07-13 | UX | L | ✅ rama `feature/tabs-fix-6-revisar-copias` — `_build_review_queue()`/`_review_groups_for_repo()` (`web/builders/duplicates.py`), Union-Find por repo (PC/Android nunca se mezclan): dos archivos son "el mismo juego" si comparten SHA1 **o** `(plataforma, canonical_title exacto)`. `excluded_duplicate_groups` (tabla nueva, mismo patrón que `excluded_duplicates`) para "copia intencional" por grupo. `apply_all_review_recommendations()` compone `resolve_duplicate_ra` (grupos sha1/title/ra) + `apply_ra_conflicts` (grupos disk/collision, sin tocar su lógica). Endpoints: `GET /api/review-queue`, `POST /api/review-queue/exclude`, `POST /api/review-queue/apply-all`. Frontend: `tabs/review_copies.js` (nuevo) montado como sección "2. Revisar copias" en `tab-plan.html`; `tab-duplicates.html` + nav eliminados; `duplicates.js` reducido al selector de contexto de Herramientas (lo único que seguía vivo). **2 bugs de severidad alta encontrados y corregidos probando contra la biblioteca real (no sintética) antes de dar la tarea por cerrada**: (1) agrupar por título *normalizado* (sin tags de región, como haría RA) fusionó 18 versiones regionales distintas de Final Fantasy VII en un solo grupo "duplicado" — se cambió a coincidencia **exacta** de `canonical_title` (mismo criterio que ya usaba `get_title_duplicate_groups()`); (2) la recomendación de un grupo con reason `disk`/`collision` usaba `conflict_role` en vez del `ra_supported` ya calculado, y `conflict_role` depende de que el archivo exista físicamente en disco — podía quedar `None` y la recomendación caía a orden alfabético. `_review_entry_sort_key()` simplificado a un único criterio uniforme. 22 tests nuevos (897 total). Ver también **TABS-FIX-6-DISC** abajo (hallazgo relacionado, no arreglado en esta rama) |
+| TABS-FIX-7 | **El rename no renombra saves/states en carpetas centrales de RetroArch** — `rename_rom_with_saves` solo busca compañeros en `source.parent` (`renamer/file_renamer.py:49-53`); si RetroArch usa Savefile/Savestate Directory central (su default, y lo que pide STRUCT-4: `E:\Carpetas anbernic\saves\`), el save/state conserva el stem viejo → huérfano, RetroArch crea uno vacío = pérdida de progreso percibida (Pilar 3). La app ya conoce esas rutas (`_state_search_dirs`, `handlers/games.py:22-35`, busca en `retroarch_path/states` para miniaturas) pero el renamer no. Extras: `.state.auto` nunca casa (suffix parseado `.auto`, stem `X.state`) y solo hay `.state1`/`.state2` en la lista (`config.py:529-530`) — slots 3+ huérfanos. Fix: en `rename_rom_with_saves`, buscar compañeros también en las carpetas centrales de config (saves/states de RetroArch + `local_dir` del sync), y matching por prefijo de stem para cubrir `.state.auto`/`.stateN` | Sync/Seguridad | M | ✅ |
+| TABS-FIX-6-DISC | **El planner de renombrado colisiona discos de un mismo set multi-disco** — `_canonical_filename` (`planner/operation_planner.py:70-90`) usa `game.canonical_title` tal cual para el nombre destino; en DATs No-Intro/Redump el `canonical_title` de un set multi-disco (PSX típicamente) es idéntico para todos los discos (`"Final Fantasy VII (Europe)"`, sin `(Disc N)`) — sus 3 archivos calculan el mismo `target_path`, y `collision_resolver.resolve()` los marca "collision" (`operation_planner.py:150`). Hoy eso ya se resuelve con "Resolver con RA" (`apply_ra_conflicts`, `services/ra_duplicates_service.py:268`), que se queda con el disco de mayor logros RA y **descarta los demás a `_descartados/`** — para un set multi-disco eso significa borrar Disc 2/3 pensando que son "copias alternativas". Descubierto probando TABS-FIX-6 contra la biblioteca real (`Final Fantasy VII (Disc 1/2/3).cue`, 3 entradas). No es un bug nuevo de TABS-FIX-6 (el mecanismo de resolución ya existía vía el botón "Resolver con RA" de Organizar) — TABS-FIX-6 solo lo hace más visible al mostrarlo en la cola unificada. Mitigado parcialmente: la detección de "otra versión" (`title`) de TABS-FIX-6 ya excluye sets multi-disco genuinos vía tag `(Disc N)` en el nombre (`_is_disc_set()`, `web/builders/duplicates.py`) — pero el conflicto de **plan** (`disk`/`collision`) sigue sin distinguirlos. Fix real: que `_canonical_filename` conserve el tag `(Disc N)` del `original_filename` cuando el DAT no lo incluya en `canonical_title`, o que `collision_resolver`/`apply_ra_conflicts` detecten sets multi-disco (mismo patrón `_is_disc_set`) y los excluyan de la resolución automática | Seguridad | M | ✅ implementada la primera opción del fix real: `_canonical_filename()` (`operation_planner.py`) ahora preserva el tag `(Disc N)` del `original_filename` cuando `canonical_title` no lo trae, con un parámetro `include_disc_tag=False` para derivar la carpeta compartida del juego (que debe seguir siendo disc-agnostic). Efecto: cada disco calcula un `target_path` distinto → `collision_resolver` ya no los marca "collision" en absoluto, así que `apply_ra_conflicts` nunca los ve como grupo a resolver — **fix en la raíz, sin tocar `collision_resolver.py` ni `ra_duplicates_service.py`**. Test nuevo en `test_operation_planner.py` reproduce el caso real (3 discos, mismo `canonical_title`, sin tag): 0 conflictos, 3 pendientes con nombre de archivo distinto y misma carpeta |
+
+---
+
+### DEVSEL-FIX — Selector de dispositivo (auditoría 2026-07-12)
+
+El selector global PC / Sistema completo / Consola (`_nav.html:69-71`, `setDevice()` en
+`main.js:412`, `_deviceRoot()` en `main.js:428`) filtra por `source_root`; el backend elige
+BD con `_repo_for_path()` (`builders/common.py:141`): **path vacío → BD del PC**. De ahí
+salen todos los fallos. Orden: 1→2 son pérdida de datos potencial, prioridad absoluta.
+
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| DEVSEL-FIX-1 | **Acciones de duplicados ignoran el dispositivo** — la vista sí lee ambas BDs (`_build_duplicates_two_repos`, `handlers/duplicates.py:50`) pero TODAS las acciones usan `repository` (PC) fijo: `/api/duplicates/delete` (`duplicates.py:70` → `delete_duplicate` borra el archivo por path pero `delete_game(game_id)` contra la BD PC con un id de la BD Android, `services/duplicates_service.py:65`); `/api/duplicates/delete-all` (`duplicates.py:80`) — **en modo consola la UI muestra y confirma duplicados Android pero el backend borra los del PC** (`delete_all_duplicates` recorre `repository.get_duplicate_groups()`); `/api/duplicates/exclude` y los 6 endpoints RA-duplicates, ídem. Fix: enrutar por `get_repo_fn(source_path)` en delete, y pasar `source_root` a delete-all/exclude | Seguridad | M | ✅ PR #118 mergeada — `register()` recibe `get_repo_fn`; delete enruta por `source_path`, delete-all/exclude por `source_root` del body (vacío → ambas BDs: `delete_all_duplicates_multi()`, exclude en ambas con INSERT OR IGNORE); RA discard/resolve enrutan por path. Tras FIX-3 el frontend envía siempre `source_root: ''` (la vista muestra ambos dispositivos). 6 tests handler con 2 repos reales |
+| DEVSEL-FIX-2 | **Favoritos/tags/notas/metadatos escriben siempre en la BD del PC** — `/api/toggle-favorite` (`handlers/games.py:502`), `/api/tag` (`games.py:516-519`), `/api/set-metadata` (`games.py:482-491`) usan `repository` fijo; en modo consola el `game_id` viene de la BD Android → escriben en el juego equivocado del PC o en ninguno. El frontend ni envía `source_path` (`games.js:160,686,715,725,784,818`). `/api/set-play-status` sí enruta bien (`games.py:468`) pero el panel de juego llama con `source_path: ''` (`games.js:659`) → siempre PC. Fix: enviar `source_path` desde el frontend y usar `get_repo_fn()` en los 3 handlers | Biblioteca | S-M | ✅ PR #119 mergeada — los 3 handlers enrutan con `get_repo_fn(data["source_path"])`; el panel de juego envía `_gpSrc()` en favorite/tag/notes/metadata/play-status, y la estrella de la lista lleva `data-path`. 4 tests con 2 repos y mismo game_id en ambas BDs |
+| DEVSEL-FIX-3 | **"Sistema completo" = solo PC en la práctica** — `_deviceRoot()` devuelve `null` en modo `both` → sin `source_root` → `get_repo_fn("")` → BD PC. Afecta a `/api/plan` y `/api/apply` (`handlers/organize.py:35,107` — la barra dice "Viendo: Sistema completo (PC + consola)", `organize.js:68`, pero solo planifica/renombra el PC), `/api/games` (`games.py:121`), platform-stats/assets/export/disk-usage (`collection.py:35,64,126,159,181,348`), unmatched/completeness (`games.py:640,701`). Única vista correcta: duplicados. **Decisión (2026-07-13): eliminar el modo** — el usuario solo lo usa para duplicados, y esa vista ya cruza ambas BDs por sí sola (`_build_duplicates_two_repos`). Quitar "Sistema completo" del selector (`_nav.html:69-71`, `setDevice()`/`_deviceRoot()` en `main.js:412,428`) y verificar que duplicados no depende del modo `both`. Si algún día se quiere visión global fusionada, se reabre como feature | Biblioteca | S | ✅ PR #120 mergeada — botón eliminado, `setDevice`/estado solo `pc\|anbernic`, duplicados cruza siempre ambas BDs; delete-all/exclude envían `source_root: ''` (ambas BDs), integración con FIX-1 aplicada en el merge |
+| DEVSEL-FIX-4 | **Botón "Consola" habilitado por ruta, no por detección** — `dev-anbernic` se habilita si hay `abPath` configurada (`overview.js:424-425`, `config.js:709`) aunque la consola no esté conectada; `deviceConnected` (polling `/api/device-status`, `state.js:52`) solo gatea el badge del Overview, el botón Apply (`organize.js:27-46`) y `doApply` (`organize.js:455`) — `applyKeepBoth` (`organize.js:309`) no comprueba nada. Fix pedido: deshabilitar "Consola" cuando `!deviceConnected`, con tooltip del motivo; decidir si se permite modo solo-lectura de la BD Android offline. (El modo "Sistema completo"/`dev-both` ya no existe — eliminado en FIX-3). **Hecho (2026-07-13)**: gating centralizado en `state.js::updateDeviceButton()` (ruta configurada Y `deviceConnected`, tooltip con el motivo); Overview/Settings marcan `data-has-path`, el polling refresca. Decisión: sin modo solo-lectura offline explícito — si la consola se desconecta estando seleccionada, la vista actual se mantiene pero el botón queda deshabilitado | UX | S | ✅ |
+
+---
+
+## Pilar 2 — Inbox automático — → #203
+
+Soltar un juego sin organizar y que la app lo detecte, empareje con catálogo
+y mueva sola, sin intervención manual.
+
+### INBOX-FIX — Bugs del pipeline de extracción/organización (hallados en JUNK-REVIEW-1, 2026-07-08)
+
+Origen: al categorizar los 5.774 ZIPs de `Unknown\` para JUNK-REVIEW-1 se detectaron
+tres fallos de raíz en el pipeline de Inbox/setup que explican por qué tantos
+archivos quedan varados sin extraer/organizar. Detalle de la investigación:
+`Tareas/diario/Día39.md` (sección JUNK-REVIEW-1) y conversación 2026-07-08.
+INBOX-FIX-1/2/3 → PRs #85/#87/#88, todas mergeadas. Aplicados manualmente sobre
+la biblioteca real 2026-07-08 con el código de esas 3 ramas antes del merge:
+20 BIOS movidas a `bios/<slug>/` (+20 filas basura eliminadas de `games`),
+1.606 juegos con `platform` recuperado por backfill desde `catalog_source`,
+4.515 archivos organizados a su carpeta de plataforma, 139 re-matches (solo 2
+genuinamente nuevos, ambos correctos). `Unknown\` pasa de ~6.021 a 1.437 filas
+en BD (mayoría categoría 5: componentes MAME + las 15 colecciones de categoría
+2, aún pendientes de tu decisión). **INBOX-FIX-5** (PR #90) surgió al verificar
+esa aplicación: el borrado por "duplicado" (organize + BIOS intercept) solo
+comparaba nombre de archivo, no contenido — 22 archivos reales borrados sin ser
+duplicados de verdad (SHA1 distinto). Ya arreglado: compara SHA1 antes de borrar.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-FIX-1 | **`extract_zip` aborta el ZIP entero por una sola colisión + el setup wizard nunca borra el origen** — `converters/zip_extractor.py:106-114`: si un solo archivo de destino ya existe, se salta la extracción de **todo** el ZIP (sin avisar, sin extraer el resto). `web/inbox_pipeline.py:294` (`_run_setup_pipeline`) llama `extract_zip(..., delete_source=False)` hardcodeado. Confirmado en biblioteca real: `Nintendo - SNES.zip` (325 juegos) tiene algunos ya extraídos sueltos en `Unknown\` y el resto (`Blackthorne`, `BioMetal`...) nunca extraído por la colisión con uno solo. Fix: extraer archivo por archivo saltando solo los que colisionan (no abortar el ZIP completo); exponer `delete_source` como opción real del wizard. | `converters/zip_extractor.py`, `web/inbox_pipeline.py` | ✅ `extract_zip` ahora extrae miembro a miembro (solo salta los que colisionan, ya no aborta el ZIP); el original solo se borra si todo su contenido queda confirmado en disco sin errores. Checkbox nuevo "Borrar el ZIP original..." en el wizard (`wiz-delete-zips`, desmarcado por defecto). 4 tests nuevos (`tests/test_zip_extractor.py`) — PR #85 |
+| INBOX-FIX-2 | **El catalog match nunca escribe `platform` en la BD** — `repository.update_match()` (`database/repositories/games.py:182`) ya soporta `platform=`, pero ninguno de los dos call-sites lo pasa (`web/inbox_pipeline.py:332` en setup, `:473` en inbox). Consecuencia: el 96% de los juegos individuales sueltos en `Unknown\` ya tienen `canonical_title` matched (1.658/1.727) pero quedan con `platform=NULL` para siempre, así que el paso "organize" nunca sabe a qué carpeta moverlos. Fix: derivar `platform` del nombre del DAT (`catalog_source`, p.ej. `"Nintendo - Super Nintendo Entertainment System.dat"`) vía un mapeo DAT→plataforma, poblar `MatchResult.platform` también en la rama No-Intro/Redump (hoy solo se pone en la rama arcade, `catalog/matcher.py:20`), y pasar `platform=m.platform` en ambos call-sites. | `catalog/matcher.py`, `web/inbox_pipeline.py` | ✅ `_platform_from_dat_name()` + 18 tests — PR #87 |
+| INBOX-FIX-3 | **Categoría 5 de JUNK-REVIEW-1 (1.105 ZIPs sueltos en `Unknown\`) son mayoritariamente infraestructura MAME, no juegos** — `catalog/mame_loader.py:32` ya excluye `isbios`/`isdevice` al indexar, así que la mayoría (`c1541.zip`, `kb_pcat101.zip`, `sb16.zip`...) nunca podrá matchear porque no son juegos jugables por sí solos (mismo perfil que los chips ya borrados en JUNK-CLEAN-1, Día39). Los más grandes sí son BIOS de sistema con nombre reconocible (`naomi.zip`, `chihiro.zip`, `triforce.zip`, `hikaru.zip`, `aristmk5/6.zip`, `hod2bios.zip`, `lindbios.zip`, `f355bios.zip`, `galgbios.zip`, `airlbios.zip`, `ar_bios.zip`, `cdibios.zip`, `macsbios.zip`, `alg_bios.zip`, `crysbios.zip`, `v4bios.zip`) pero **faltan en `_KNOWN_BIOS_MAP`** (`web/inbox_pipeline.py:54-112` — hoy solo tiene `stvbios.zip`→saturn y `awbios.zip`→naomi de este grupo). Además el "Step 1.5: Intercept BIOS files" que mueve BIOS conocidas a `bios/<plataforma>/` **solo corre en `_run_inbox_pipeline`, no en `_run_setup_pipeline`** — el asistente de primera configuración (que probablemente procesó `Unknown\` originalmente) nunca ejecuta ese paso. Fix: ampliar `_KNOWN_BIOS_MAP` con estas entradas y extraer el intercept a una función compartida que también llame `_run_setup_pipeline`. Tras INBOX-FIX-2, re-lanzar el match arcade sobre el resto (los `.zip` sin nombre de BIOS conocido) para ver qué queda genuinamente sin identificar antes de decidir si se borra. | `web/inbox_pipeline.py` | ✅ `_intercept_bios_files()` compartida por ambos pipelines + 16 BIOS arcade nuevas en el mapa; 5 tests (`tests/test_bios_intercept.py`) — PR #88 |
+| INBOX-FIX-4 | **`_run_setup_pipeline` construye el plan de renombrado pero nunca lo aplica** — a diferencia de `_run_inbox_pipeline` (extract→scan→match→plan→**rename→organize**→cleanup, todo automático), el asistente de primera configuración se para en "build plan" (Step 5) y deja el resto para una acción manual aparte. Es la razón de fondo por la que `Unknown\` quedó con miles de archivos sin categorizar tras el primer scan de la biblioteca real — nadie ejecutó nunca el equivalente de los Steps 5-6 del pipeline de Inbox sobre ella, así que hubo que aplicar los fixes con scripts manuales en vez de con la app. **Decisión de diseño (2026-07-23): NO auto-aplicar** — mantener la revisión manual (regla `rommgr plan siempre antes de apply` intacta); el wizard debe dirigir explícitamente al usuario a un botón "Aplicar plan" al terminar el Step 5 en vez de dejarlo ahí sin más pasos. | `web/inbox_pipeline.py` (`_run_setup_pipeline`) | ✅ **ya implementado, sin código nuevo** — verificado 2026-07-23: `_showSetupResult()` (`overview.js`) ya muestra en la página 3 del wizard "Siguiente paso: revisa el plan de renombrado y aprueba los cambios" + un botón primario destacado "Ir a Organizar y renombrar ▶" (`wizardGoToOrganize()`, `_banners.html`) que navega directo a la pestaña Organizar/Renombrar. Esta UI viene de FLOW-WIZARD (`2e4dba0`, 2026-04-14) — **anterior** a que se documentara este hallazgo (JUNK-REVIEW-1, 2026-07-08); el episodio real de `Unknown\` sin categorizar ocurrió con una versión de la app previa a que existiera este wizard. Nada que tocar hoy: el flujo actual ya cumple la decisión de diseño acordada |
+| INBOX-FIX-5 | **El borrado por "duplicado" (organize + BIOS intercept) solo comparaba nombre de archivo, no contenido** — bug de pérdida de datos real: aplicado a la biblioteca real, 22 archivos "duplicados" borrados resultaron tener SHA1 distinto del superviviente (dumps/revisiones distintas que solo compartían nombre). `Path.unlink()` en Windows no pasa por la Papelera — no recuperable. | `web/inbox_pipeline.py` | ✅ `_same_content()` (tamaño + SHA1) antes de borrar en ambos sitios; si difiere, no se toca ninguno y se reporta para revisión manual. 8 tests — PR #90 |
+| MATCH-FIX-1 | **`CatalogMatcher.match()` — Pass 2 (nombre) da falsos positivos en ficheros arcade sin tag de región** — nombres cortos estilo MAME (`flicky.zip`, `frogger.zip`, `dw.zip`…) sin `(Region)` colisionan por coincidencia de título normalizado contra catálogos No-Intro/Redump de plataformas completamente ajenas (`flicky.zip` → "Fujitsu - FM-7", `frogger.zip` → "APF - Imagination Machine") con confianza `low`, en vez de matchear contra el catálogo arcade correcto (Pass 3, que nunca llega a probarse porque Pass 2 ya "acertó"). Detectado 2026-07-08 al re-lanzar el match sobre `Unknown\` — son matches **preexistentes**, no introducidos hoy. Fix: para nombres sin región/paréntesis, probar primero el catálogo arcade (Pass 3) antes que el name-fallback No-Intro/Redump (Pass 2), o exigir una señal más fuerte que la sola coincidencia de título normalizado. | `catalog/matcher.py` | ✅ rama `fix/match-fix-1-arcade-before-name-fallback` — para `.zip` sin `(` en el nombre (estilo MAME) el pass arcade corre antes que el fallback por título; el resto conserva el orden actual. Passes 2/3 extraídos a `_match_by_title()`/`_match_arcade()`. 4 tests nuevos (caso real flicky.zip vs FM-7; 635 pass). **Pendiente aparte**: los falsos matches preexistentes en BD no se corrigen solos — re-lanzar el match sobre `Unknown\` tras mergear |
+
+> Quedan pendientes: INBOX-FIX-4 (decisión de diseño sobre auto-apply del wizard),
+> MATCH-FIX-1 (prioridad del matcher), y la decisión del usuario sobre las 15
+> colecciones completas de JUNK-REVIEW-1 (categoría 2).
+
+---
+
+### ZIP-ROUTE — Colocar los ZIPs sueltos por CRC del header (diseño 2026-07-10)
 
 Origen: tras JUNK-SMART quedaban 56 "colecciones" + 208 "ZIPs no-ROM" + 5
 arcade en `Unknown\`. Investigación (informe completo con los 269 ZIPs y su
@@ -254,7 +221,7 @@ Los tags del nombre de archivo mienten sistemáticamente (`(XBLA)`, `(Disk 1)`,
 
 ---
 
-## ARCADE-RECON — Reconstruir sets MAME sueltos por cobertura CRC (diseño 2026-08-13)
+### ARCADE-RECON — Reconstruir sets MAME sueltos por cobertura CRC (diseño 2026-08-13)
 
 Origen: INBOX-CFG-2. 3.526 archivos sueltos en la raíz del Inbox (`01.u12`,
 `02.u11`, `.epr`, `.047`, extensiones numéricas sin estandarizar) — chips
@@ -299,152 +266,66 @@ de sus roms esperados presentes entre los sueltos.
 
 ---
 
-## TEST-CLEAN — Tests que prueban código muerto (auditoría 2026-07-09)
+### INBOX-UX — Auditoría de la pestaña Inbox: UX/UI (2026-07-13)
 
-Origen: auditoría de la suite (625 tests / 463 funciones; el resto es
-parametrización de funciones puras — sano). Cero skips, todo pasa en ~12 s.
-El único problema real: 3 módulos de `src/` sin **ningún** call-site en `src/`
-(solo los referencian sus tests), es decir, 29 tests en verde validando código
-que la app nunca ejecuta. **Corrección al implementar (2026-07-09)**: la
-auditoría solo miró `src/` — `dat_downloader.py` sí tiene consumidor vivo en
-`installer/download_dats.py` (build del instalador), así que TEST-CLEAN-1 se
-re-alcanzó a solo corregir la doc. Moraleja: buscar consumidores en todo el
-repo (installer/, scripts/), no solo en `src/`.
+Auditoría de la pestaña Inbox (`tab-inbox.html` + `js/tabs/inbox.js`,
+Pilar 2). Cierra el hilo abierto en
+`Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`: **no se
+fusiona con Plan** — el pipeline de Inbox incluye pasos que Plan no tiene
+(extraer, escanear, cotejar) precisamente porque parte de archivos aún no
+escaneados; son dos pilares distintos, no una duplicación. Hallazgo
+principal propio: "Organizar todo" es la única acción masiva de todo el
+proyecto auditado hasta ahora sin ningún paso de confirmación. Detalle,
+archivo:línea y fases en `Tareas/diario/archivo/Roadmap-Inbox-UX-completado.md`.
+**Completado** — ver INBOX-UX-1..6 arriba.
 
-| ID | Task | Archivo(s) | Estado |
-|----|------|-----------|--------|
-| TEST-CLEAN-1 | ~~Borrar `catalog/dat_downloader.py` + sus 17 tests~~ **Re-alcance: NO borrar** — la auditoría solo buscó consumidores en `src/`; el módulo lo usa `installer/download_dats.py:17` para bundlear DATs en el instalador (PHASE6-2b). Sus 17 tests protegen tooling vivo. Lo que sí era falso: la nota de ARCADE-SETUP-3 mezclaba runtime e installer — corregida. Queda como candidato de consolidación futura: `_run_dat_download` (`web/handlers/scan.py:590`) reimplementa descarga+TTL en runtime; podría importar de `dat_downloader` (refactor, valor bajo). | `catalog/dat_downloader.py` | ✅ (sin borrado — módulo vivo; nota ARCADE-SETUP-3 corregida, rama `chore/test-clean-dead-modules`) |
-| TEST-CLEAN-2 | **Borrar `renamer/cue_rewriter.py` + sus 6 tests, y corregir la doc** — la estrategia PSX actual es `move_disc_set_to_subfolder` (`renamer/file_renamer.py:126`): mueve cue+bins a subcarpeta **conservando los nombres de los bins**, así que nunca reescribe el `.cue`. `rewrite_cue` es la estrategia antigua, sin call-sites. Ojo: el Debug Playbook (este archivo) aún decía "Renombrado PSX roto → `cue_rewriter.py`" — pista falsa. | `renamer/cue_rewriter.py`, `tests/test_cue_rewriter.py`, backlog, docs | ✅ módulo+tests borrados; Debug Playbook, `docs/architecture/architecture.md` (árbol + patrón PSX), `docs/glossary.md` y `docs/onboarding.md` actualizados a la estrategia real (rama `chore/test-clean-dead-modules`). `CLAUDE.md` no lo mencionaba |
-| TEST-CLEAN-3 | **Borrar `scanner/save_scanner.py`** — sin referencias en `src/` ni tests; los saves los gestiona `sync/`. Código muerto sin más. | `scanner/save_scanner.py` | ✅ borrado + árbol de architecture.md actualizado (rama `chore/test-clean-dead-modules`) |
-| TEST-GAP-1 | **`renamer/file_renamer.py` no tiene tests directos** — descubierto al borrar `test_cue_rewriter.py` (el único test "de renombrado PSX" probaba la estrategia muerta). `rename_rom_with_saves` (rename atómico con rollback, patrón crítico de CLAUDE.md) y `move_disc_set_to_subfolder` (sets de disco) solo se ejercitan indirectamente. Añadir tests directos: éxito, rollback ante fallo a mitad, y set cue+bin movido íntegro. | `tests/test_file_renamer.py` (nuevo) | ✅ `tests/test_file_renamer.py` ya existía con buena cobertura de éxito, pero le faltaban exactamente los 2 huecos que nombra la tarea: (1) rollback de `rename_rom_with_saves` cuando falla un save a mitad — nunca se probaba directamente, solo vía el handler de apply; (2) el caso normal de rollback en `move_disc_set_to_subfolder` (ya había un test, pero solo del caso "el rollback en sí falla"). Añadidos: rollback de `rename_rom_with_saves` (ROM+saves vuelven a su estado y contenido original), rollback exitoso de `move_disc_set_to_subfolder` (bin1 vuelve a su sitio, carpeta destino vacía se limpia), y un set de 2 discos movido íntegro (nombres y contenido de ambos `.bin` intactos). 3 tests nuevos (915 en total) |
-
----
-
-## ONB — Onboarding / Developer Experience (audit 2026-07-04)
-
-Origen: auditoría del proyecto desde la perspectiva de un desarrollador nuevo que no
-conoce el proyecto ni el dominio retro-gaming. Roadmap detallado con orden y
-estimaciones: `Tareas/diario/archivo/Roadmap-Onboarding.md` (archivado — completado).
-
-| ID | Severidad | Task | Archivo | Estado |
-|----|-----------|------|---------|--------|
-| ONB-1 | 🔴 Alto | **Falta el archivo `LICENSE`** — el README declara "MIT" pero no existía `LICENSE` en la raíz. Sin él, legalmente el código NO es open source y GitHub no muestra la licencia. | `LICENSE` | ✅ texto MIT estándar (rama `chore/onb-phase1-license-docs-index`, PR #71) |
-| ONB-2 | 🔴 Alto | **No hay `CONTRIBUTING.md`** — un dev nuevo no sabe que los PRs van a `develop` (no a `main`), ni los check names de CI, ni que hay pre-commit hooks. Esa info existe pero está en `docs/ci-cd.md` redactada "para Claude". | `CONTRIBUTING.md` | ✅ setup + ramas + checks CI + convenciones + checklist de PR; enlazado desde README (rama `chore/onb-phase2-contributing-config`, PR #72) |
-| ONB-3 | 🟠 Medio | **`docs/architecture/architecture.md` desactualizado** — describía `web/response_builders.py` (hoy `web/builders/`), `repository.py` monolítico (hoy mixins), `app.js` monolítico (hoy `static/js/` + `partials/`), BD `library.db` (hoy `library_pc.db` + android), rutas de usuario hardcodeadas y patrones obsoletos (globales de jobs + late imports, sustituidos por `JobManager` + `web/state.py`). | `docs/architecture/architecture.md` | ✅ regenerado desde el código: árbol de módulos real, 2 BDs + 10 tablas, patrones actuales (JobManager, state, seguridad), API → `openapi.json`, historial de refactors (rama `chore/onb-phase3-arch-backlog`) |
-| ONB-4 | 🟠 Medio | **`config.toml.example` incompleto** — faltaban secciones que `config.py` ya soporta: `retroachievements.username`, `[inbox]`, `[backup]`, `auto_sync_*`, `[launchers]`, `[notifications]`, `session_ttl`, `[[emulator_paths]]`. Además difería del ejemplo embebido en el README (dos fuentes de verdad, y el del README con el default `host` obsoleto). | `config.toml.example`, `README.md` | ✅ example regenerado desde `load_config()` con todas las claves; README reducido a snippet mínimo + enlace al example (rama `chore/onb-phase2-contributing-config`, PR #72) |
-| ONB-5 | 🟡 Medio | **No hay guía de orientación para devs nuevos** — un recién llegado no sabe por dónde empezar a leer, ni que puede levantar el app con datos sintéticos. | `docs/onboarding.md` | ✅ "primeros 30 minutos": pipeline central, mapa de lectura en 6 pasos, flujo request→handler→service→repo, e2e sintético + `/test-pipeline`, Debug Playbook, tests como documentación, primer cambio (rama `chore/onb-phase4-onboarding-glossary`) |
-| ONB-6 | 🟡 Medio | **Glosario de dominio inexistente** — el proyecto asume jerga retro que un dev nuevo no domina. | `docs/glossary.md` | ✅ ~30 términos en 4 bloques (identificación, formatos de disco, saves/emulación, infraestructura), cada uno con su "por qué importa en este código"; enlazado desde README, índice de docs y onboarding (rama `chore/onb-phase4-onboarding-glossary`) |
-| ONB-7 | ⚪ Bajo | **Índice `docs/README.md` incompleto** — no listaba `ci-cd.md`, `SKILLS-QUICK-START.md`, `arcade-setup.md`, `emulator-compat.md` ni `sync-wifi-sftp.md`; el README raíz tampoco enlazaba al índice de docs. | `docs/README.md`, `README.md` | ✅ sección "Desarrollo" + docs faltantes en índice; sección "Documentación" + licencia enlazada en README (rama `chore/onb-phase1-license-docs-index`, PR #71) |
-| ONB-8 | ⚪ Bajo | **Backlog difícil de escanear para alguien nuevo** — mezclaba secciones enteras ya completadas ✅ (SRP, ARC, SEC, UR, REPORT-FIX, DESIGN, PONT, NEW-FEAT…) con lo pendiente. | `Tareas/backlog.md` | ✅ ~440 líneas de secciones completadas movidas a `Tareas/diario/archivo/archivo.md`; el backlog queda solo con pendientes + Debug Playbook (rama `chore/onb-phase3-arch-backlog`) |
-| ONB-9 | ⚪ Bajo | **Decisión de idioma/audiencia del README** — todo en español; si el repo también sirve de portfolio internacional, añadir un TL;DR en inglés al inicio (qué es, stack, screenshot) sin traducir el resto. Decisión del usuario. | `README.md` | ✅ TL;DR en inglés (qué es + stack) al inicio del README; sin screenshot porque el repo no tiene ninguno (rama `docs/onb9-readme-english-tldr`) |
-
-> **Completado 9/9** (PRs #71–#74 + ONB-9). Detalle: `Tareas/diario/archivo/Roadmap-Onboarding.md`.
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| INBOX-UX-1 | **"Organizar todo" sin ninguna confirmación** — `runInbox()` (`inbox.js:160-186`) lanza extraer+escanear+cotejar+renombrar+organizar sobre toda la carpeta Inbox sin `confirm()`/`_showConfirm`, a diferencia de toda acción masiva equivalente ya auditada (Duplicados, Plan, Formatos) | Bug | S | ✅ `inbox.js:198,202-204` — `_showConfirm('¿Organizar el Inbox?', ...)` antes de lanzar `_launchInbox` |
+| INBOX-UX-2 | **"Analizar carpeta" no muestra un plan real, solo clasificación** — sin nombres de destino ni conflictos previstos, a diferencia de la tabla equivalente en Plan; conviene resolver junto con INBOX-UX-1 (la confirmación necesita estos datos) | UX | M | ✅ `inbox.js:147-153` (`scanInbox()`) — muestra destino previsto (`dest_folder`) y marca conflictos (`dest_exists`) |
+| INBOX-UX-3 | **`confirm()` nativo en `resolveInboxConflict`** (`inbox.js:321-336`) — mismo patrón ya señalado en Duplicados y Plan | UX | XS | ✅ `inbox.js:364-367` — usa `_showConfirm` |
+| INBOX-UX-4 | **Checkbox "Procesar automáticamente" sin relación visible con "Guardar ajustes"** — toggle silencioso que no hace nada hasta pulsar un botón en otra fila (`tab-inbox.html:31-34,40`) | UX | XS | ✅ `tab-inbox.html:28,32` — `onchange="autoSaveInboxToggle()"` guarda automáticamente (`inbox.js:402-403`) |
+| INBOX-UX-5 | **"No reconocidos" sin explicar qué pasará con esos archivos** (`inbox.js:128`) | UX | XS | ✅ `inbox.js:133` — añade "(no se tocan, se quedan en el Inbox)" |
+| INBOX-UX-6 | **Errores sin guía en `loadInboxConflicts`** (`inbox.js:314-316`) | UX | XS | ✅ `inbox.js:355-357` — guía accionable en el catch |
 
 ---
 
-## AUD — Auditoría funcional (2026-07-12)
+### INBOX-CFG — `target_root` apuntaba fuera de la biblioteca + gap de arcade suelto (2026-08-13)
 
-Funciones nuevas detectadas en auditoría de la app completa. Detalle, archivos
-y criterios de "hecho" en `Tareas/diario/archivo/Roadmap-Auditoria.md`
-(archivado — 6/6 completadas). Orden: 1→6.
+Origen: el usuario reportó que el Inbox "solo detecta zips" tras soltar juegos de
+Mega Drive, Dreamcast, MAME2003 y Nintendo DS. Investigación: `.rommgr/library_pc.db`
+(`scan_runs`) mostraba 8 corridas del pipeline ese mismo día con `roms_detected`
+bajando de 1719 a 0 — el Inbox sí procesaba y organizaba, pero no en
+`E:\Carpetas anbernic`.
 
-| ID | Task | Pilar | Esfuerzo | Estado |
-|----|------|-------|----------|--------|
-| AUD-1 | **Sync Doctor** — detectar desviación de reloj PC↔consola (mtime gana → reloj mal = pérdida silenciosa), saves con mtime futuro, saves solo en un lado, último sync por juego | Sync | M | ✅ rama `aud-1-sync-doctor` — pendiente validar con consola real |
-| AUD-2 | **Verificación post-transferencia** — hash origen/destino tras cada push/pull (`adb shell md5sum`); si difiere, no propagar y reportar; columna `verified` en `save_sync_log` | Sync | S-M | ✅ rama `aud-2-sync-verify` — pendiente validar con consola real |
-| AUD-3 | **Papelera unificada con purga** — todo borrado masivo pasa por `_descartados/` (helper `_discard_file` ya existe); purga >30 días en el health-check daemon; contador+vaciar en Settings. Evita repetir INBOX-FIX-5 | Seguridad | M | ✅ rama `aud-3-papelera-unificada` |
-| AUD-4 | **`.md` ambiguos del Inbox por CRC** — los 177 varados: lookup contra `crc_index()` ya existente; hit=Mega Drive, miss=quieto. Formaliza el "ZIP-ROUTE-FIX-4" informal | Inbox | S | ✅ rama `aud-4-md-por-crc` — ejecutar el pipeline sobre el Inbox real para los 177 |
-| AUD-5 | **Informe de completitud por plataforma (1G1R)** — cruzar `games` matched vs DATs: "SNES: 412/1.748 (24 %)" + CSV de faltantes | Biblioteca | M | ✅ rama `aud-5-completitud-1g1r` (extendió `/api/collection-completeness` ya existente) |
-| AUD-6 | **`chdman verify` en health check** — verificación interna de CHDs, checkbox off por defecto | Biblioteca | S | ✅ rama `aud-6-chdman-verify` |
-
----
-
-## DEVSEL-FIX — Selector de dispositivo (auditoría 2026-07-12)
-
-El selector global PC / Sistema completo / Consola (`_nav.html:69-71`, `setDevice()` en
-`main.js:412`, `_deviceRoot()` en `main.js:428`) filtra por `source_root`; el backend elige
-BD con `_repo_for_path()` (`builders/common.py:141`): **path vacío → BD del PC**. De ahí
-salen todos los fallos. Orden: 1→2 son pérdida de datos potencial, prioridad absoluta.
-
-| ID | Task | Pilar | Esfuerzo | Estado |
-|----|------|-------|----------|--------|
-| DEVSEL-FIX-1 | **Acciones de duplicados ignoran el dispositivo** — la vista sí lee ambas BDs (`_build_duplicates_two_repos`, `handlers/duplicates.py:50`) pero TODAS las acciones usan `repository` (PC) fijo: `/api/duplicates/delete` (`duplicates.py:70` → `delete_duplicate` borra el archivo por path pero `delete_game(game_id)` contra la BD PC con un id de la BD Android, `services/duplicates_service.py:65`); `/api/duplicates/delete-all` (`duplicates.py:80`) — **en modo consola la UI muestra y confirma duplicados Android pero el backend borra los del PC** (`delete_all_duplicates` recorre `repository.get_duplicate_groups()`); `/api/duplicates/exclude` y los 6 endpoints RA-duplicates, ídem. Fix: enrutar por `get_repo_fn(source_path)` en delete, y pasar `source_root` a delete-all/exclude | Seguridad | M | ✅ PR #118 mergeada — `register()` recibe `get_repo_fn`; delete enruta por `source_path`, delete-all/exclude por `source_root` del body (vacío → ambas BDs: `delete_all_duplicates_multi()`, exclude en ambas con INSERT OR IGNORE); RA discard/resolve enrutan por path. Tras FIX-3 el frontend envía siempre `source_root: ''` (la vista muestra ambos dispositivos). 6 tests handler con 2 repos reales |
-| DEVSEL-FIX-2 | **Favoritos/tags/notas/metadatos escriben siempre en la BD del PC** — `/api/toggle-favorite` (`handlers/games.py:502`), `/api/tag` (`games.py:516-519`), `/api/set-metadata` (`games.py:482-491`) usan `repository` fijo; en modo consola el `game_id` viene de la BD Android → escriben en el juego equivocado del PC o en ninguno. El frontend ni envía `source_path` (`games.js:160,686,715,725,784,818`). `/api/set-play-status` sí enruta bien (`games.py:468`) pero el panel de juego llama con `source_path: ''` (`games.js:659`) → siempre PC. Fix: enviar `source_path` desde el frontend y usar `get_repo_fn()` en los 3 handlers | Biblioteca | S-M | ✅ PR #119 mergeada — los 3 handlers enrutan con `get_repo_fn(data["source_path"])`; el panel de juego envía `_gpSrc()` en favorite/tag/notes/metadata/play-status, y la estrella de la lista lleva `data-path`. 4 tests con 2 repos y mismo game_id en ambas BDs |
-| DEVSEL-FIX-3 | **"Sistema completo" = solo PC en la práctica** — `_deviceRoot()` devuelve `null` en modo `both` → sin `source_root` → `get_repo_fn("")` → BD PC. Afecta a `/api/plan` y `/api/apply` (`handlers/organize.py:35,107` — la barra dice "Viendo: Sistema completo (PC + consola)", `organize.js:68`, pero solo planifica/renombra el PC), `/api/games` (`games.py:121`), platform-stats/assets/export/disk-usage (`collection.py:35,64,126,159,181,348`), unmatched/completeness (`games.py:640,701`). Única vista correcta: duplicados. **Decisión (2026-07-13): eliminar el modo** — el usuario solo lo usa para duplicados, y esa vista ya cruza ambas BDs por sí sola (`_build_duplicates_two_repos`). Quitar "Sistema completo" del selector (`_nav.html:69-71`, `setDevice()`/`_deviceRoot()` en `main.js:412,428`) y verificar que duplicados no depende del modo `both`. Si algún día se quiere visión global fusionada, se reabre como feature | Biblioteca | S | ✅ PR #120 mergeada — botón eliminado, `setDevice`/estado solo `pc\|anbernic`, duplicados cruza siempre ambas BDs; delete-all/exclude envían `source_root: ''` (ambas BDs), integración con FIX-1 aplicada en el merge |
-| DEVSEL-FIX-4 | **Botón "Consola" habilitado por ruta, no por detección** — `dev-anbernic` se habilita si hay `abPath` configurada (`overview.js:424-425`, `config.js:709`) aunque la consola no esté conectada; `deviceConnected` (polling `/api/device-status`, `state.js:52`) solo gatea el badge del Overview, el botón Apply (`organize.js:27-46`) y `doApply` (`organize.js:455`) — `applyKeepBoth` (`organize.js:309`) no comprueba nada. Fix pedido: deshabilitar "Consola" cuando `!deviceConnected`, con tooltip del motivo; decidir si se permite modo solo-lectura de la BD Android offline. (El modo "Sistema completo"/`dev-both` ya no existe — eliminado en FIX-3). **Hecho (2026-07-13)**: gating centralizado en `state.js::updateDeviceButton()` (ruta configurada Y `deviceConnected`, tooltip con el motivo); Overview/Settings marcan `data-has-path`, el polling refresca. Decisión: sin modo solo-lectura offline explícito — si la consola se desconecta estando seleccionada, la vista actual se mantiene pero el botón queda deshabilitado | UX | S | ✅ |
+| ID | Prioridad | Hallazgo | Dónde | Estado |
+|----|-----------|----------|-------|--------|
+| INBOX-CFG-1 | 🔴 Crítico | **`inbox.target_root = "Este equipo\\RG556\\Ambernic"`** (ruta MTP del móvil, no un path real) se resolvía como relativa contra el cwd del proceso → `Path.resolve()` creaba `Retro_gaming_app\Este equipo\RG556\Ambernic\` dentro del propio repo, en C:. El pipeline organizaba correctamente por plataforma (megadrive/, dreamcast/, nds/…) pero en ese destino fantasma — de ahí que el usuario no viera nada organizado en `E:\Carpetas anbernic` y que C: llegara a 0 GB libres (1.527 archivos, 48,96 GB) | `config.toml:40` | ✅ `target_root` vaciado (cae al fallback `config.library_root` en `inbox_pipeline.py:727`) — servidor reiniciado. 1.024 archivos reubicados a `E:\Carpetas anbernic\<plataforma>\`, 482 duplicados exactos eliminados, 21 conflictos (mismo nombre/contenido distinto) dejados sin tocar para revisión manual — ver lista en el diario de hoy |
+| INBOX-CFG-4 | 🟡 Medio | **El Inbox extrae CUALQUIER ZIP suelto sin distinguir arcade de consola** — a diferencia de `zip_router.py` (que nunca extrae un ZIP arcade, lo mueve directo a `arcade/`), el watcher normal (`_run_inbox_pipeline` Step 1, `find_zip_files`+`extract_zip`) no tiene ese filtro — es el mecanismo de siempre, no algo nuevo de esta sesión, pero el primer arranque del servidor en esta sesión lo disparó sobre los ZIPs que ya había en el Inbox, reventando **75 sets arcade** en chips sueltos. Recuperado sin pérdida: los ZIPs originales seguían en `_descartados/` (AUD-3, nunca borrado directo) — 39 eran redundantes (la biblioteca ya tenía versión igual o más completa en `arcade/`, sin tocar) y **36 se restauraron directos a `arcade/`** (sin re-extraer, sin colisión, íntegros). Verificado con búsqueda exhaustiva: los 114 ZIPs de consola del mismo lote sí se procesaron bien (extraídos → organizados correctamente en su plataforma) — el problema era solo arcade | `web/inbox_pipeline.py` Step 1 (`find_zip_files`) | ✅ nueva comprobación `_is_arcade_zip_container()` antes de `extract_zip()`: si el 100% de las entradas del ZIP coinciden con CRCs conocidos de `load_arcade_crc_index()`, se mueve intacto a `arcade/` sin extraer (mismo criterio que `zip_router.py`, ahora también aplicado al watcher automático). Tests en `tests/test_inbox_arcade_zip_route.py` |
+| INBOX-CFG-2 | 🟡 Medio | **~3.526 archivos sueltos de sets MAME/arcade** (`.u12`, `.epr`, `.rom`, extensiones numéricas) en la raíz del Inbox, sin agrupar por juego — `classify_path` no los reconoce (no están en ningún catálogo de consola) y quedan como `unknown_files_detected`. Diseño actual (`ZIP-ROUTE`) asume que un set arcade siempre llega como ZIP intacto; no hay ruta de código para reconstituir chips sueltos | `web/inbox_pipeline.py` (`classify_path` los ignora), `catalog/mame_loader.py:load_arcade_crc_index()` ya da `CRC32→{set names}` reutilizable | ✅ implementado como ARCADE-RECON (`_reconstruct_loose_arcade_sets` en `web/inbox_pipeline.py:429`, PR #160): CRC32 de cada chip suelto, cobertura contra `load_arcade_crc_index()`+`load_arcade_manifest()`, solo reclama una máquina al 100% de cobertura, re-empaqueta en `<set>.zip` con verificación de contenido antes de mover a `arcade/`, descarta los chips sueltos usados (papelera, AUD-3) solo tras confirmar el ZIP en destino. Tests en `tests/test_arcade_recon.py` |
+| INBOX-CFG-3 | 🟢 Menor | **21 conflictos** (mismo nombre, contenido distinto) que quedaron en la carpeta fantasma de C: | `amiga/`, `atari2600/`, `atarilynx/`, `c64/`, `gba/`, `msx/`, `nds/`, `psx/`, `unknown/` | ✅ movidos a `E:\Carpetas anbernic\<plataforma>\` con sufijo ` (conflicto-inbox 2026-08-13)` — nada se sobreescribió, quedan pendientes de comparar/elegir a mano. Carpeta fantasma de C: eliminada por completo |
 
 ---
 
-## CLOUD-UX — Wizard "Conexión cloud" poco claro (auditoría 2026-07-12)
+## Pilar 3 — Sync de saves PC ↔ Anbernic — → #204
 
-El asistente OAuth existe (Sync → "Conexión cloud") pero no comunica qué hace ni para qué sirve.
+Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
+otro, sin miedo a sobrescribir — el valor diferencial real del proyecto.
 
-- [x] **CLOUD-UX-1** — El panel no explica nada: solo "Dropbox — No configurado \[Conectar\]".
-  Añadir una línea de contexto: "Conecta tu cuenta para sincronizar saves con la nube.
-  Se abrirá el navegador para autorizar — no necesitas API key propia."
-  (`web/static/partials/tab-sync.html:3-14`)
-  ✅ (fix/cloud-ux — línea de contexto añadida en el paso 1 del setup)
-- [x] **CLOUD-UX-2** — El badge "✓ Conectado" solo comprueba que el remote existe en rclone,
-  no que su nombre coincida con `saves_remote`/`states_remote` del config. Puedes estar
-  "conectado" y que el sync use otro remoto (o ninguno). Mostrar aviso si el remote
-  conectado no aparece en las rutas del config. (`web/static/js/tabs/sync.js:1400-1415`)
-  ✅ (fix/cloud-ux — cubierto por CLOUD-UX-9: la tarjeta muestra el destino de sync activo o avisa si falta)
-- [x] **CLOUD-UX-3** — **Bug**: `_pollCloudAuth()` finaliza con "el primer provider no
-  configurado" en vez del que el usuario pulsó. Con Dropbox y GDrive ambos sin configurar,
-  pulsar "Conectar" en Google Drive guardaría el token bajo el remote `dropbox`.
-  Fix: guardar el `providerId` en `startCloudAuth()` (variable de módulo) y usarlo en el
-  finalize. (`web/static/js/tabs/sync.js:1453`)
-  ✅ (fix/cloud-ux — es el mismo bug que CLOUD-UX-4 de la auditoría 2026-07-13, resuelto ahí)
+### EMULATOR-COMPAT — Save compatibility PC ↔ Android
 
-## VAL-FIX — Hallazgos de la validación con consola real (2026-07-13)
+Verify that synced saves from PC actually load on Android and vice versa, for each emulator pair.
 
-Origen: validación V-AUD-1/V-AUD-2 y smoke DEVSEL con la RG556 por USB (Día42,
-sección "Continuación 2026-07-13"). AUD-1 y AUD-2 **validadas** con hardware:
-Sync Doctor OK (desviación −1,9 s), sync por cable con 373 copiados / 0 errores
-(~338 saves verificados MD5), sin `.part` residuales. Los fallos de abajo
-salieron durante esa validación. Orden: 1→2 rompen borrado de duplicados y
-papelera — prioridad alta.
-
-| ID | Task | Pilar | Esfuerzo | Estado |
-|----|------|-------|----------|--------|
-| VAL-FIX-1 | **El scanner no excluye `_descartados/` ni `$RECYCLE.BIN`** — `scanner/rom_scanner.py` no tiene ninguna exclusión de directorios: la papelera de AUD-3 se re-indexa en cada scan (937 filas `_descartados\...` ya en la BD PC, 7-8 filas `$RECYCLE.BIN` en cada BD). Rompe el borrado de duplicados: "eliminar" mueve a `_descartados/`, el siguiente scan lo re-añade y el duplicado reaparece. Fix: excluir `_descartados`, `$RECYCLE.BIN` y `System Volume Information` en el walk del scanner + purga one-shot de las filas existentes | Seguridad | S | ✅ rama `fix/val-tabs-duplicados-fantasma` (PR #147) — `_is_excluded()` en `rom_scanner.py` excluye `TRASH_DIR_NAME`/`$RECYCLE.BIN`/`System Volume Information`. **Purga real ejecutada 2026-07-20** (backup previo en `.rommgr/backup_valfix_2026-07-20/`): `rommgr scan --quick` sobre la biblioteca real prunó las 220 filas `_descartados` existentes vía `prune_stale_entries` (ya no entran en `seen_paths`) → 0 tras el scan |
-| VAL-FIX-2 | **`library_android.db` contaminada con filas del PC** — 13.164 de 13.376 filas tienen rutas `E:\` (solo 211 son de la SD `H:\`); 6.958 rutas están en AMBAS BDs; 100 % unmatched (el match nunca corrió ahí). Consecuencias: duplicados fantasma imposibles de borrar (la vista empareja el mismo archivo físico consigo mismo y el delete enruta por ruta `E:\` → siempre a la BD PC, la fila Android sobrevive) y acciones de FIX-2 no-op sobre filas contaminadas (la estrella "muerta" del smoke test — el código DEVSEL-FIX-2 funciona, verificado por API con un juego real `H:\`). Fix: (a) limpieza con backup previo — borrar de la BD android las filas cuya ruta no sea de consola (`NOT LIKE 'H:%'` y `NOT LIKE '/storage%'`); (b) investigar el origen (¿la migración V2 copió todo?); (c) guard de dominio al escribir: la BD android solo acepta rutas bajo `anbernic_root`/`/storage` | Seguridad | M | ✅ rama `fix/val-tabs-duplicados-fantasma` (PR #147) — **(b) causa raíz encontrada**: `_do_migrate_split_db` (`sync_cloud.py`) clasificaba con `not source_path.startswith(lib_root)` — heurística negativa, migraba cualquier fila de PC fuera de `library_root` aunque fuera válida. **(c) fix aplicado**: clasificación ahora por `is_device_path()` (pertenencia a `anbernic_root` o ruta POSIX estilo ADB, `utils/paths.py`). **(a) purga**: `library_android.db` real tenía 0 filas en el momento del fix (verificado) — nada que limpiar hoy; el fix de código evita que la contaminación original vuelva a producirse si se repite la migración |
-| VAL-FIX-3 | **Rutas relativas de tools con `/` rompen `subprocess` en Windows** — `CreateProcess` no acepta `tools/adb.exe` (WinError 2 → "consola no conectada" con la consola conectada); sí acepta `tools\adb.exe` o `./tools/adb.exe`. El comentario de `config.py:305` sugiere justo la forma mala. Fix de raíz: normalizar a ruta absoluta contra `project_root` en `load_config()` (`config.py:427-429`, cubre adb/chdman/rclone de golpe). El `config.toml` local ya está parcheado a mano (`tools\\adb.exe`) | Sync | S | ✅ `_resolve_tool_path()` (`config.py`) — reemplaza `/` por `\` en Windows para adb/chdman/rclone leídos de `config.toml` (no-op en bare commands tipo `"rclone"` ni en no-Windows). Se descartó normalizar a absoluto contra `project_root` (lo que sugería el hallazgo original): la CI corre en `ubuntu-latest` donde `Path.resolve()` sobre rutas con letra de unidad (`C:/...`) no se comporta igual que en Windows real — el fix mínimo (solo separador) es portable y resuelve el WinError 2 real. 2 tests nuevos |
-| VAL-FIX-4 | **Auto-sync: 96 `Permission denied` en memcards de DuckStation** — `Android/data/com.github.stenzek.duckstation/` no es accesible por ADB en Android 11+ sin root (scoped storage); el auto-sync lo reintenta en cada conexión (ya fallaba en marzo con 49). Sin pérdida: los pulls fallan y nada se sobreescribe. Fix: excluir/avisar ese mapping en modo ADB y documentar la alternativa (DuckStation Android → exportar memcards a carpeta pública) en `docs/emulator-compat.md` | Sync | S | ✅ `accessible: False` en el mapping de DuckStation (`config.py`, mismo patrón ya usado por Dolphin) — `get_adb_sync_sources()` lo excluye, cero reintentos. `notes` explica el workaround (cambiar Memory Cards → Directory a carpeta pública en DuckStation). Se evaluó `run-as` (sandbox sin root) y quedó descartado: solo funciona si la build es debuggable, no aplica al DuckStation de Play Store. `docs/emulator-compat.md` actualizado (tabla PS1 + resumen rápido). 1 test nuevo en `test_config.py` |
-| VAL-FIX-5 | **Preview del sync por cable hardcodea "no accesible en modo ADB"** — `_build_cable_sync_preview` (`web/builders/misc.py:81`) nunca implementó el conteo remoto por ADB; el Sync Doctor de AUD-1 ya lo hace bien (226 saves). Fix: reutilizar ese conteo o esconder el preview en modo ADB | UX | S | ✅ `_build_cable_sync_preview` reutiliza `AdbTransport.ls_recursive()` (mismo método que Sync Doctor) cuando `mode == "adb"` y hay `serial`; sin serial muestra "conecta el dispositivo primero", con error de transporte muestra el mensaje. Frontend (`sync.js`, `loadCableSyncPreview`) manda `serial` (`#cable-adb-device`) y `android_path` (`#auto-sync-android-path`) en modo ADB. 3 tests nuevos (`tests/test_cable_sync_preview.py`) |
-| VAL-FIX-6 | **El aviso de ruta SD/MTP se muestra en modo ADB** — al cargar la pestaña, `testCablePath('ab')` valida el campo de ruta SD aunque el Modo ADB esté activo (aviso "Este equipo\RG556\... NO es compatible" irrelevante en ADB). Fix: no validar/ocultar los avisos de la sección SD cuando `_isAdbMode()` (`sync.js:795-796`) | UX | S | ✅ `loadCableSync()` (`sync.js`) — causa raíz real: la auto-selección de modo (ADB vs SD) corría *después* de testear la ruta SD, así que `_isAdbMode()` aún reflejaba el radio por defecto. Reordenado: decidir el modo primero, testear rutas después; `testCablePath('ab')` ahora se salta por completo si el modo final es ADB |
-| VAL-FIX-7 | **El sync por cable no registra en `save_sync_log`** — solo `SaveSyncer` (sync cloud) escribe esa tabla; el job de cable verifica MD5 en el transporte (`handlers/sync_cable.py:394,425`, solo saves) pero no deja rastro por archivo, así que el "último sync por juego" del Sync Doctor no refleja syncs por cable. Fix: llamar `log_sync_event(..., verified=)` también desde el job de cable (valor bajo, el resultado del job ya reporta) | Sync | S | ✅ el registro en `save_sync_log` ya existía desde REV43-33 (PR #153); lo que faltaba era `verified=`. `_sql_log()` (`handlers/sync_cable.py`) gana el parámetro; en `_adb_copy_to_pc`/`_adb_copy_to_device`, llegar a la línea "ok" implica que `pull()`/`push()` con `verify=True` ya comprobó el MD5 (un mismatch lanza `OSError` antes) — se pasa `verified=True` cuando el archivo era save, `None` cuando no aplicaba verificación. 1 test nuevo (`test_cable_sync_adb_verified_log.py`) |
+| ID | Task | Notes |
+|----|------|-------|
+| EMULATOR-COMPAT-1 | Create compatibility matrix — PC emulator, Android emulator, save format, save path per platform | `docs/emulator-compat.md` ✅ |
+| EMULATOR-COMPAT-2 | Test PS1 round-trip: DuckStation PC → sync → DuckStation Android → load | Hardware test with RG556 |
+| EMULATOR-COMPAT-3 | Test PS2 round-trip: PCSX2 PC → sync → AetherSX2/NetherSX2 Android → load | Hardware test |
+| EMULATOR-COMPAT-4 | Test remaining platforms (GBA, SNES, GBC, NDS…) and document any format mismatches | Update matrix per result |
 
 ---
 
-## TABS-FIX — Revisión UX/lógica pestañas Juegos/Organizar/Duplicados (2026-07-13)
-
-Revisión pedida por el usuario: solapes entre Organizar y Duplicados, y "borra de la BD
-pero no de la carpeta". Juegos está limpia (sin acciones destructivas ni solapes — solo
-metadatos/tags/launch). El resto confirmado con archivo:línea. Orden: 1, 5 y 7 primero
-(borrados engañosos y saves huérfanos al renombrar); 6 (pantalla única "Revisar copias")
-absorbe 2 y 3 — si se hace 6, saltar 2/3; 4 es cosmético y puede ir dentro de 6.
-
-**TABS-FIX-1/2/3/4/5/6/7 completos.** TABS-FIX-6 (rama
-`feature/tabs-fix-6-revisar-copias`, sin mergear a `develop` todavía) — pantalla
-"Revisar copias" en Organizar, pestaña Duplicados eliminada. Descubrió
-**TABS-FIX-6-DISC** (bug preexistente del planner con sets multi-disco),
-arreglado en la misma rama en una sesión posterior (ver detalle abajo).
-
-| ID | Task | Pilar | Esfuerzo | Estado |
-|----|------|-------|----------|--------|
-| TABS-FIX-1 | **Borrado fantasma: si el archivo no existe localmente, se borra solo la fila de BD y se reporta éxito** — `delete_duplicate` (`services/duplicates_service.py:49-59`): `if p.exists()` → mueve a papelera; si no existe, borra la fila igualmente y devuelve `{"deleted": path}`. Mismo patrón en `_discard_file` (`ra_duplicates_service.py:45-51`, "file already gone → clean DB row") y `delete_all_duplicates` (`duplicates_service.py:114-127`, cuenta "skipped"). Las entradas Android escaneadas por ADB guardan rutas de consola (`/storage/...`, `handlers/scan.py:451`) que **nunca** existen como `Path` en Windows → todo "Eliminar" sobre ellas borra solo la BD, el archivo queda en la consola y el siguiente scan lo re-añade (mismo síntoma de reaparición que VAL-FIX-1). También aplica a rutas PC obsoletas. Fix: (a) entradas con ruta de dispositivo → borrar vía ADB (`tools/adb.exe shell rm` con confirmación) o deshabilitar el botón con tooltip "solo accesible con la consola conectada"; (b) ruta local inexistente → devolver aviso "el archivo ya no está en esa ruta; ejecuta un scan" en vez de éxito silencioso | Seguridad | M | ✅ (a) rama `fix/tabs-fix-1a` — `AdbTransport.remove()`/`file_exists()` (verifica que el archivo desaparece de verdad, el exit code de `rm` sobre `adb shell` no es fiable) + `resolve_single_device_transport()` (auto-detecta el único dispositivo conectado; `None` si hay 0 o >1, mismo mensaje explícito de antes). Threading de `adb_transport` opcional por los 3 sitios de (b) (PR #147) y sus 11 call-sites totales (incluye los 5 wrappers de `ra_duplicates_service.py` + `apply_ra_conflicts`), resuelto una vez por request en `web/handlers/duplicates.py`. De paso: `deleteDuplicate()` en el frontend no comprobaba `d.error` (el backend responde 200 incluso en error) — la fila desaparecía de la UI aunque no se hubiera borrado nada; `deleteAllDuplicates()` no mencionaba el contador `unreachable` en su toast. Verificado end-to-end contra la consola real conectada (RG556): archivo de prueba desechable push→delete_duplicate()→confirmado borrado en el dispositivo con `adb shell`, limpiado después. 15 tests nuevos (`test_adb_transport_remove.py` + ampliaciones en `test_duplicates_service.py`/`test_ra_duplicates_service.py`). (b) ya cerrado en PR #147 |
-| TABS-FIX-2 | **"Quedarse con la versión con logros RA" existe 3 veces con 3 endpoints** — (1) Organizar → botón "Resolver con RA" (`tab-plan.html:38` → `doResolveRaConflicts`, `duplicates.js:277` → `/api/apply-ra-conflicts`); (2) Duplicados → sección "Duplicados por versión — sin logros RA" (`tab-duplicates.html:14-24` → `/api/ra-duplicates` + discard/discard-all); (3) Duplicados → duplicados semánticos con "Resolver: mantener éste" (`duplicates.js:140-166,424-462` → `/api/resolve-duplicate-ra`). (2) y (3) detectan lo mismo (mismo título normalizado, distinto hash, uno con RA) en la **misma pestaña** con dos UIs y dos endpoints. Fix: fusionar (2)+(3) en una sola lista "mismo juego, versiones distintas" con el criterio RA integrado (lógica canónica ya en `ra_duplicates_service.py`); (1) se queda en Organizar (resuelve conflictos del plan, contexto distinto) pero mover `doResolveRaConflicts` de `duplicates.js` a `organize.js` | UX | M | ✅ implementado de golpe por TABS-FIX-6 |
-| TABS-FIX-3 | **Dos botones vecinos con criterio de conservación contradictorio en colisiones** — en el aviso de colisión de Organizar, "Eliminar duplicados" (`organize.js:364-425`, `deleteCollisionDuplicates`) conserva el índice 0 del DOM **arbitrariamente**, ignorando RA, mientras el botón "Resolver con RA" de al lado prioriza logros (preferencia registrada del usuario). Además borra en bucle llamando a `/api/duplicates/delete` por fila. Fix: eliminar el botón "Eliminar duplicados" (el flujo RA + "Descartar" por fila ya cubren el caso) o hacer que conserve por criterio RA | UX | S | ✅ implementado de golpe por TABS-FIX-6 — `deleteCollisionDuplicates()` eliminada de `organize.js` |
-| TABS-FIX-4 | **Los textos de borrado mienten desde AUD-3** — "Se eliminarán N archivos del disco… Esta operación no se puede deshacer" (`duplicates.js:70,117,145`, `tab-duplicates.html:4,9,20`) cuando en realidad todo va a `_descartados/` (recuperable, purga a 30 días); solo el confirm de `deleteRaDuplicate` (`duplicates.js:255`) lo dice bien. Y el toast "Liberados: X" (`duplicates.js:89`) usa `freed_bytes` que no se libera hasta la purga (mover dentro del mismo volumen no libera nada). Fix: unificar todos los confirms/toasts a "se moverán a `_descartados/` (recuperable 30 días)" y renombrar "Liberados" a "Recuperables tras purga" | UX | S | ✅ alcance real menor de lo que parecía al verificarlo: `tools.js:174,194`, `esde.js:854`, `config.js:923` son borrados genuinamente permanentes (zips, papelera, limpieza post-CHD) y ya estaban bien redactados — el único texto engañoso era `duplicates.js:99` ("Liberados"), corregido a "Recuperables tras purga" en `review_copies.js` (la pestaña Duplicados entera desapareció con TABS-FIX-6) |
-| TABS-FIX-5 | **"Eliminar todos los duplicados" ignora el filtro de plataforma** — el confirm cuenta los botones visibles en el DOM (`duplicates.js:65`) pero envía siempre `source_root: ''` (`duplicates.js:76`) → `delete_all_duplicates_multi` recorre TODOS los grupos de ambas BDs (`handlers/duplicates.py:87-93`). Con el filtro en "SNES" el usuario confirma "3 archivos" y se descartan los duplicados de todas las plataformas. Fix: pasar la plataforma filtrada al endpoint y filtrar en `delete_all_duplicates`, o contar server-side antes del confirm | Seguridad | S | ✅ duplicado de **DUPLICADOS-UX-1** (mismo bug, mismas líneas) — ya cerrado en PR #132 (`fix/duplicados-ux`, `023aafe`): `deleteAllDuplicates()` manda `platform` en el payload (`duplicates.js:74-86`), el handler lo reenvía (`handlers/duplicates.py:98-99`) y `delete_all_duplicates()` filtra los grupos por esa plataforma antes de borrar (`duplicates_service.py:140-142`). Entrada dejada como referencia histórica |
-| TABS-FIX-6 | **Pantalla única "Revisar copias" (diseño 2026-07-13)** — fusionar en una sola vista los 4 solapes actuales (duplicados SHA1, duplicados semánticos, versiones RA, colisiones del plan): una cola de revisión agrupada **por juego**, cada grupo con sus copias listadas (badge del motivo: "idéntico SHA1" / "otra versión" / "colisión de nombre", badge 🏆 RA, badge dispositivo), una **recomendación precalculada** con criterio único (RA gana > mejor nombrada > primera; lógica ya en `ra_duplicates_service.py`) y acciones [Aplicar] [Elegir otra] [Copia intencional] + "Aplicar todas las recomendaciones (N)" arriba. Organizar pasa a 2 pasos: "Renombrar" y "Revisar copias"; la pestaña Duplicados desaparece. Backend: endpoint agregador que fusione `/api/duplicates` + `/api/ra-duplicates` + conflictos del plan; los endpoints de acción actuales sirven tal cual. **Implementa TABS-FIX-2 y TABS-FIX-3 de golpe** y resuelve de paso TABS-FIX-5 (el "aplicar todo" opera sobre los grupos renderizados). Diseño detallado: sesión 2026-07-13 | UX | L | ✅ rama `feature/tabs-fix-6-revisar-copias` — `_build_review_queue()`/`_review_groups_for_repo()` (`web/builders/duplicates.py`), Union-Find por repo (PC/Android nunca se mezclan): dos archivos son "el mismo juego" si comparten SHA1 **o** `(plataforma, canonical_title exacto)`. `excluded_duplicate_groups` (tabla nueva, mismo patrón que `excluded_duplicates`) para "copia intencional" por grupo. `apply_all_review_recommendations()` compone `resolve_duplicate_ra` (grupos sha1/title/ra) + `apply_ra_conflicts` (grupos disk/collision, sin tocar su lógica). Endpoints: `GET /api/review-queue`, `POST /api/review-queue/exclude`, `POST /api/review-queue/apply-all`. Frontend: `tabs/review_copies.js` (nuevo) montado como sección "2. Revisar copias" en `tab-plan.html`; `tab-duplicates.html` + nav eliminados; `duplicates.js` reducido al selector de contexto de Herramientas (lo único que seguía vivo). **2 bugs de severidad alta encontrados y corregidos probando contra la biblioteca real (no sintética) antes de dar la tarea por cerrada**: (1) agrupar por título *normalizado* (sin tags de región, como haría RA) fusionó 18 versiones regionales distintas de Final Fantasy VII en un solo grupo "duplicado" — se cambió a coincidencia **exacta** de `canonical_title` (mismo criterio que ya usaba `get_title_duplicate_groups()`); (2) la recomendación de un grupo con reason `disk`/`collision` usaba `conflict_role` en vez del `ra_supported` ya calculado, y `conflict_role` depende de que el archivo exista físicamente en disco — podía quedar `None` y la recomendación caía a orden alfabético. `_review_entry_sort_key()` simplificado a un único criterio uniforme. 22 tests nuevos (897 total). Ver también **TABS-FIX-6-DISC** abajo (hallazgo relacionado, no arreglado en esta rama) |
-| TABS-FIX-7 | **El rename no renombra saves/states en carpetas centrales de RetroArch** — `rename_rom_with_saves` solo busca compañeros en `source.parent` (`renamer/file_renamer.py:49-53`); si RetroArch usa Savefile/Savestate Directory central (su default, y lo que pide STRUCT-4: `E:\Carpetas anbernic\saves\`), el save/state conserva el stem viejo → huérfano, RetroArch crea uno vacío = pérdida de progreso percibida (Pilar 3). La app ya conoce esas rutas (`_state_search_dirs`, `handlers/games.py:22-35`, busca en `retroarch_path/states` para miniaturas) pero el renamer no. Extras: `.state.auto` nunca casa (suffix parseado `.auto`, stem `X.state`) y solo hay `.state1`/`.state2` en la lista (`config.py:529-530`) — slots 3+ huérfanos. Fix: en `rename_rom_with_saves`, buscar compañeros también en las carpetas centrales de config (saves/states de RetroArch + `local_dir` del sync), y matching por prefijo de stem para cubrir `.state.auto`/`.stateN` | Sync/Seguridad | M | ✅ |
-| TABS-FIX-6-DISC | **El planner de renombrado colisiona discos de un mismo set multi-disco** — `_canonical_filename` (`planner/operation_planner.py:70-90`) usa `game.canonical_title` tal cual para el nombre destino; en DATs No-Intro/Redump el `canonical_title` de un set multi-disco (PSX típicamente) es idéntico para todos los discos (`"Final Fantasy VII (Europe)"`, sin `(Disc N)`) — sus 3 archivos calculan el mismo `target_path`, y `collision_resolver.resolve()` los marca "collision" (`operation_planner.py:150`). Hoy eso ya se resuelve con "Resolver con RA" (`apply_ra_conflicts`, `services/ra_duplicates_service.py:268`), que se queda con el disco de mayor logros RA y **descarta los demás a `_descartados/`** — para un set multi-disco eso significa borrar Disc 2/3 pensando que son "copias alternativas". Descubierto probando TABS-FIX-6 contra la biblioteca real (`Final Fantasy VII (Disc 1/2/3).cue`, 3 entradas). No es un bug nuevo de TABS-FIX-6 (el mecanismo de resolución ya existía vía el botón "Resolver con RA" de Organizar) — TABS-FIX-6 solo lo hace más visible al mostrarlo en la cola unificada. Mitigado parcialmente: la detección de "otra versión" (`title`) de TABS-FIX-6 ya excluye sets multi-disco genuinos vía tag `(Disc N)` en el nombre (`_is_disc_set()`, `web/builders/duplicates.py`) — pero el conflicto de **plan** (`disk`/`collision`) sigue sin distinguirlos. Fix real: que `_canonical_filename` conserve el tag `(Disc N)` del `original_filename` cuando el DAT no lo incluya en `canonical_title`, o que `collision_resolver`/`apply_ra_conflicts` detecten sets multi-disco (mismo patrón `_is_disc_set`) y los excluyan de la resolución automática | Seguridad | M | ✅ implementada la primera opción del fix real: `_canonical_filename()` (`operation_planner.py`) ahora preserva el tag `(Disc N)` del `original_filename` cuando `canonical_title` no lo trae, con un parámetro `include_disc_tag=False` para derivar la carpeta compartida del juego (que debe seguir siendo disc-agnostic). Efecto: cada disco calcula un `target_path` distinto → `collision_resolver` ya no los marca "collision" en absoluto, así que `apply_ra_conflicts` nunca los ve como grupo a resolver — **fix en la raíz, sin tocar `collision_resolver.py` ni `ra_duplicates_service.py`**. Test nuevo en `test_operation_planner.py` reproduce el caso real (3 discos, mismo `canonical_title`, sin tag): 0 conflictos, 3 pendientes con nombre de archivo distinto y misma carpeta |
-
----
-
-## CABLE-UX — Auditoría de Cable Sync: simplificar la experiencia (2026-07-13)
+### CABLE-UX — Auditoría de Cable Sync: simplificar la experiencia (2026-07-13)
 
 Auditoría del flujo completo de Cable Sync (`tab-cable.html`, `sync.js`,
 `handlers/sync_cable.py`, `cable_sync_daemon.py`). El caso de uso del pilar 3
@@ -478,30 +359,30 @@ VAL-FIX-5/6 (ya registrados, no se duplican aquí). Orden: 1 es seguridad,
 
 ---
 
-## INICIO-UX — Auditoría de la pestaña Inicio (2026-07-13)
+### CLOUD-UX — Wizard "Conexión cloud" poco claro (auditoría 2026-07-12)
 
-Auditoría UX de Inicio (`tab-overview.html`, `js/tabs/overview.js`) desde la
-perspectiva de un usuario nuevo. Detalle completo, archivo:línea y fases en
-`Tareas/diario/archivo/Roadmap-Inicio-UX.md` (archivado 2026-07-16, implementado
-en la rama `fix/inicio-ux`). Hallazgos clave: los 3 botones rápidos del
-dashboard están **rotos** (comillas `\'` estilo Python servidas tal cual al
-navegador → SyntaxError), los canvas usan `var(--c-*)` como fillStyle (canvas
-no resuelve variables CSS → heatmap y gráfico mensual pintan colores
-incorrectos), y hay dos heatmaps de actividad duplicados. Incluye la petición
-del usuario: tarjetas explicando los archivos no-gaming (BIOS, assets, saves,
-infra MAME, basura) reutilizando las categorías de `builders/folders.py`.
+El asistente OAuth existe (Sync → "Conexión cloud") pero no comunica qué hace ni para qué sirve.
 
-| ID | Task | Esfuerzo | Estado |
-|----|------|----------|--------|
-| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ✅ (fix/inicio-ux) |
-| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ✅ (fix/inicio-ux) |
-| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ✅ (fix/inicio-ux) |
-| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ✅ (fix/inicio-ux) |
-| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ✅ (fix/inicio-ux) |
+- [x] **CLOUD-UX-1** — El panel no explica nada: solo "Dropbox — No configurado \[Conectar\]".
+  Añadir una línea de contexto: "Conecta tu cuenta para sincronizar saves con la nube.
+  Se abrirá el navegador para autorizar — no necesitas API key propia."
+  (`web/static/partials/tab-sync.html:3-14`)
+  ✅ (fix/cloud-ux — línea de contexto añadida en el paso 1 del setup)
+- [x] **CLOUD-UX-2** — El badge "✓ Conectado" solo comprueba que el remote existe en rclone,
+  no que su nombre coincida con `saves_remote`/`states_remote` del config. Puedes estar
+  "conectado" y que el sync use otro remoto (o ninguno). Mostrar aviso si el remote
+  conectado no aparece en las rutas del config. (`web/static/js/tabs/sync.js:1400-1415`)
+  ✅ (fix/cloud-ux — cubierto por CLOUD-UX-9: la tarjeta muestra el destino de sync activo o avisa si falta)
+- [x] **CLOUD-UX-3** — **Bug**: `_pollCloudAuth()` finaliza con "el primer provider no
+  configurado" en vez del que el usuario pulsó. Con Dropbox y GDrive ambos sin configurar,
+  pulsar "Conectar" en Google Drive guardaría el token bajo el remote `dropbox`.
+  Fix: guardar el `providerId` en `startCloudAuth()` (variable de módulo) y usarlo en el
+  finalize. (`web/static/js/tabs/sync.js:1453`)
+  ✅ (fix/cloud-ux — es el mismo bug que CLOUD-UX-4 de la auditoría 2026-07-13, resuelto ahí)
 
 ---
 
-## CLOUD-UX — Auditoría de la pestaña Cloud: UX/UI y lógica (2026-07-13)
+### CLOUD-UX — Auditoría de la pestaña Cloud: UX/UI y lógica (2026-07-13)
 
 Auditoría de la pestaña Cloud (`tab-sync.html`, `js/tabs/sync.js`, `main.js`,
 `jobs.js`, `handlers/sync_cloud.py`, `handlers/cloud_auth.py`). Hallazgo
@@ -529,7 +410,7 @@ Orden: 1-6 son bugs, 7-12 UX. Todo pilar 3.
 
 ---
 
-## ANBERNIC-UX — Auditoría de la pestaña Anbernic: UX/UI, lógica y seguridad (2026-07-13)
+### ANBERNIC-UX — Auditoría de la pestaña Anbernic: UX/UI, lógica y seguridad (2026-07-13)
 
 Auditoría de la pestaña Anbernic (`tab-anbernic.html`, `js/tabs/sync.js`,
 `_banners.html`, `handlers/sync_cloud.py`, `handlers/system.py`, `web/lan.py`).
@@ -559,7 +440,236 @@ Validación en hardware pendiente: comprobar en la RG556 si Termux limpio trae
 
 ---
 
-## HERR-UX — Auditoría de la pestaña Herramientas: UX/UI (2026-07-13)
+### CABLE-ROM-FIX — El sync de ROMs por cable no compara con el destino (hallazgo 2026-08-13)
+
+Origen: el usuario pidió sincronizar biblioteca PC↔consola vía Cable Sync
+(`what: ["roms"]`). Investigación con dry-run real contra la RG556
+(serial `RG556006101273`, SD en `/storage/521D-04EA`, 49 GB libres de 466 GB):
+pidió copiar **47.191 archivos / 516 GB** — la biblioteca del PC entera,
+sin importar que la SD ya tenga casi todo (misma estructura de carpetas que
+el PC). Repetido con `skip_existing: true` + `skip_sha1_dups: true`: **resultado
+idéntico**, byte a byte.
+
+Causa raíz: `web/handlers/sync_cable.py:597-605` (rama `direction ==
+"pc_to_anbernic"`) itera todos los archivos del PC y llama a
+`_adb_copy_to_device` para cada uno **sin comprobar nunca** el listado del
+dispositivo (`ab_adb_files`, calculado en la línea 569 pero solo usado para
+`delete_extra` y estadísticas de progreso — nunca para decidir qué copiar).
+El parámetro `skip_existing` que acepta el endpoint no se referencia en
+ningún punto de esta rama. `sync/adb_transport.py:278`
+(`AdbTransport.push`) tampoco compara contenido/mtime antes de subir — en
+`dry_run` ni siquiera llega a intentarlo, solo devuelve el tamaño local.
+Contraste: la rama `anbernic_to_pc` (línea 636) sí usa `use_sha1`/hash para
+saltar duplicados — la asimetría sugiere que `pc_to_anbernic` quedó a medias.
+
+| ID | Task | Notas |
+|----|------|-------|
+| CABLE-ROM-FIX-1 | Implementar comparación real contra `ab_adb_files`/`pc_root` antes de copiar en ambas ramas ADB (`pc_to_anbernic` y `anbernic_to_pc`) — mismo criterio que ya usa `cable_engine.copy_item` en el modo sistema de archivos (tamaño) | `web/handlers/sync_cable.py:597-605,672-729` | ✅ rama `fix/cable-sync-rom-skip-existing` → PR #161 |
+| CABLE-ROM-FIX-2 | Guard de espacio libre en destino antes de empezar (ya existe un patrón idéntico en `zip_router.py:_extract_collection` — `shutil.disk_usage(dest_dir).free`) — evita rellenar la SD a medias | `web/handlers/sync_cable.py` (rama ADB de `_do_cable_sync`) | ✅ `AdbTransport.free_bytes()` (`sync/adb_transport.py`, vía `df -k`) + guard antes de escribir en corridas reales (`dry_run=False`) |
+| CABLE-ROM-FIX-3 | Sync por plataformas — con el fix, la SD (78 GB libres) sigue sin caber la biblioteca completa (305,9 GB). No hace falta código nuevo: el endpoint ya soporta `pc_path`/`android_path` apuntando a una subcarpeta. Desglose real por plataforma: `psx` 61,1 GB, `gamecube` 34,3 GB, `ps2` 29,9 GB, `Unknown` 25,2 GB (basura), `arcade` 17,6 GB no caben; el resto (~66 GB tras `skip_existing`) sí | — | ✅ ejecutado de verdad 2026-08-13: 50 carpetas (allowlist cruzada contra `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, nunca `Documents`/`Music`/`DCIM` etc.), lanzado vía script de orquestación (llama al endpoint ya arreglado, una carpeta por vez, secuencial) — en curso al cerrar la sesión, ver diario Día49 para el resultado final |
+
+> Estado: ✅ implementado y validado con dry-run + ejecución real contra
+> hardware conectado (RG556). Ver `Tareas/diario/Día49.md` para los
+> números completos y el resultado final de la transferencia por
+> plataformas.
+
+---
+
+## UX — Auditorías por pestaña — → #206
+
+Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
+(dashboard, tabs de biblioteca/herramientas/formatos, etc.).
+
+### INICIO-UX — Auditoría de la pestaña Inicio (2026-07-13)
+
+Auditoría UX de Inicio (`tab-overview.html`, `js/tabs/overview.js`) desde la
+perspectiva de un usuario nuevo. Detalle completo, archivo:línea y fases en
+`Tareas/diario/archivo/Roadmap-Inicio-UX.md` (archivado 2026-07-16, implementado
+en la rama `fix/inicio-ux`). Hallazgos clave: los 3 botones rápidos del
+dashboard están **rotos** (comillas `\'` estilo Python servidas tal cual al
+navegador → SyntaxError), los canvas usan `var(--c-*)` como fillStyle (canvas
+no resuelve variables CSS → heatmap y gráfico mensual pintan colores
+incorrectos), y hay dos heatmaps de actividad duplicados. Incluye la petición
+del usuario: tarjetas explicando los archivos no-gaming (BIOS, assets, saves,
+infra MAME, basura) reutilizando las categorías de `builders/folders.py`.
+
+| ID | Task | Esfuerzo | Estado |
+|----|------|----------|--------|
+| INICIO-UX-F1 | Fase 1 — bugs visibles: onclick rotos del dashboard (`tab-overview.html:26-28`), hex literales en canvas (`overview.js:166,270`), eliminar heatmap canvas duplicado (S36-2) | XS | ✅ (fix/inicio-ux) |
+| INICIO-UX-F2 | Fase 2 — idioma: tarjetas "Games/Matched/Unmatched/wasted" → español (`overview.js:449-455,537-543`), unificar "Escanear", "Corregir plataformas" | S | ✅ (fix/inicio-ux) |
+| INICIO-UX-F3 | Fase 3 ⭐ — sección "Además de juegos…": tarjetas explicativas de BIOS / assets / saves / infra MAME / basura con qué es + NO borrar/borrable + link al tab correspondiente; conteos desde `/api/status` y junk-scan (`builders/folders.py:51-96`) | M | ✅ (fix/inicio-ux) |
+| INICIO-UX-F4 | Fase 4 — errores accionables: mensajes en español + Reintentar (`overview.js:514,546,668`), wizard sin `alert()` (`:811,836`), CTA en "salud: sin datos" | S | ✅ (fix/inicio-ux) |
+| INICIO-UX-F5 | Fase 5 — rendimiento y pulido: un solo fetch de `/api/status` (hoy 3) y `/api/games?limit=10000` (hoy 3), hover en tarjetas clicables, placeholder de imagen | S-M | ✅ (fix/inicio-ux) |
+
+---
+
+### Hallazgos INICIO-UX (2026-07-16, prueba con biblioteca real)
+
+| ID | Prioridad | Hallazgo | Dónde | Estado |
+|----|-----------|----------|-------|--------|
+| INICIO-FIX-1 | 🟡 Bajo | **`int(rom.get("size", 0))` revienta con `size=""`** — un DAT real (FBNeo/MAME en `catalogs/arcade/`) trae `<rom size="">` y el parser lanza `ValueError` (logueado, el catálogo se carga a medias). Su gemelo en la línea 190 ya tiene el fix `or 0`; se corrigió un sitio y no el otro | `catalog/catalog_loader.py:135` | ✅ rama `fix/inicio-ux` — `or 0` + test |
+| INICIO-FIX-2 | 🟢 Menor | **`load_arcade_infra_names` parsea el `mame.xml` de 608 MB (~11 s) en cada llamada** — lo pagan cada junk-scan y cada refresh de `/api/library-extras` (TTL 15 min). El ponytail "cachear si algún día duele" (maintenance.py) ya duele: memoizar por `(path, mtime)` en `mame_loader` beneficia a todos los callers | `catalog/mame_loader.py:75-103` | ✅ rama `fix/inicio-ux` — memoización por firma (nombre, mtime, tamaño) + test |
+| INICIO-FIX-3 | 🟢 Menor | **`mame0278.xml` vacío (0 bytes) en `catalogs/arcade/`** — descarga/generación fallida; cada loader lo abre y lo descarta en silencio. Borrarlo (acción de usuario o incluirlo en INICIO-FIX-2) | `.rommgr/catalogs/arcade/mame0278.xml` | ✅ borrado (2026-07-16) |
+| INICIO-FIX-4 | ✨ Mejora | **El listxml de MAME ahora es descargable desde Ajustes → Catálogos** — entrada "MAME XML (bios/devices)" en el grupo Arcade: resuelve la última release vía API de GitHub, baja el asset `*lx.zip` (~19 MB) y lo extrae como `catalogs/arcade/mame.xml` (~320 MB, escritura atómica vía `.part`). Verificado E2E con red real (v0.288, 7.297 nombres de infra) | `web/handlers/scan.py` (`_download_mame_listxml`) | ✅ rama `fix/inicio-ux` |
+
+---
+
+### ASSETS-UX — Auditoría de la pestaña Assets: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Assets (`tab-assets.html` + `loadAssets()` en
+`sync.js:70-111`, la pestaña más pequeña auditada hasta ahora). Hallazgo
+central: `_deviceRoot()` (`main.js:430-435`) no tiene el mismo fallback a
+localStorage que ya usa el texto de la barra de contexto (`sync.js:85`) —
+la cabecera puede decir "Viendo: Android" mientras la tabla muestra datos
+del PC, sin ninguna pista de que no coinciden. Es una función compartida:
+el mismo bug aplica a Colección, Organizar y Juegos. Detalle, archivo:línea
+y fases en `Tareas/diario/archivo/Roadmap-Assets-UX-completado.md`.
+**Completado** — ver ASSETS-UX-1..5 arriba.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| ASSETS-UX-1 | **La ruta mostrada como "Viendo: X" puede no ser la que se consulta** — `_deviceRoot()` (`main.js:430-435`) no tiene fallback a `localStorage('anbernic_path')` a diferencia del texto de la barra (`sync.js:85`); afecta también a `collection.js`, `organize.js`, `games.js` que usan la misma función | Bug | S | ✅ `main.js:439` — `_deviceRoot()` ya incluye el fallback a `localStorage('anbernic_path')` |
+| ASSETS-UX-2 | **"Ejecuta un Scan" también sale cuando el filtro simplemente no tiene resultados** — el filtro se aplica antes de comprobar vacío (`sync.js:92-94`); "Solo huérfanos" sin ninguno (buena noticia) muestra el mismo mensaje que "nunca escaneado" | UX | XS | ✅ `sync.js:122-128` — distingue "nunca escaneado" de "✓ Sin resultados para este filtro" |
+| ASSETS-UX-3 | **Error sin guía, a diferencia del resto del mismo archivo** — catch de `loadAssets` (`sync.js:108-109`) solo muestra `e.message`; el catch de `loadSync` unas líneas arriba (`sync.js:65`) sí da pista + enlace a Ajustes | UX | XS | ✅ `sync.js:145` — catch da guía + enlace a Ajustes |
+| ASSETS-UX-4 | **Columna "Huérfanos" sin ninguna acción asociada** — solo informativo, sin enlace para ver/mover/eliminar los archivos concretos (`sync.js:104`) | UX | S | ✅ `sync.js:139` (`showOrphanAssets()`) — acción "Ver" lista los archivos concretos |
+| ASSETS-UX-5 | **Estado vacío sin enlace a la acción que lo resuelve** — "Ejecuta un Scan" es texto plano sin botón a Organizar (`sync.js:94`) | UX | XS | ✅ `sync.js:123` — enlace a `showTab('plan')` (Organizar) en el mismo mensaje |
+
+---
+
+### COLECCION-UX — Auditoría de la pestaña Colección + ¿fusión con Juegos? (2026-07-13)
+
+El usuario preguntó si Colección y Juegos deberían fusionarse. Comparando el
+código: ambas pintan una galería casi idéntica (mismo endpoint `/api/games`,
+mismo panel de detalle `openGamePanel`), pero Colección solo expone 3 de los
+9 filtros de Juegos — es un subconjunto duplicado, no una vista distinta. Lo
+que Colección aporta de verdad son sus paneles de análisis agregado (Stats,
+Disco, Diff PC/Android, Completitud, Wishlist), que no tienen sentido dentro
+de la ficha de un juego. **Recomendación: no fusionar mecánicamente — retirar
+la galería duplicada de Colección y dejar la pestaña como dashboard de
+análisis puro.** Razonamiento completo y hallazgos de bugs en
+`Tareas/diario/archivo/Roadmap-Coleccion-UX-completado.md`.
+**Completado** — ver COLECCION-UX-1..5 arriba.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| COLECCION-UX-1 | **Botón "🏥 Health" no hace nada** — `togglePlatformHealth()` se llama sin argumento (`tab-collection.html:22`), nunca alterna el panel (a diferencia de sus hermanos en `collection.js`), y escribe en `#platform-health-content` que no existe (real: `#ph-table`); `loadPlatformHealth()` es además un TODO puro (`esde.js:632-661`). Cuarta ocurrencia del patrón HTML/JS-ID-mismatch (HERR-UX-1/2/3, FORMATOS-UX-2) | Bug | S | ✅ el panel y sus funciones (`togglePlatformHealth`/`loadPlatformHealth`) ya no existen — retirado al rehacer la pestaña como dashboard (COLECCION-UX-2) |
+| COLECCION-UX-2 | **Dos galerías divergentes del mismo dato** — Colección (`col-grid`) y la vista cuadrícula de Juegos comparten endpoint y panel de detalle pero Colección solo tiene 3 de los 9 filtros de Juegos; decisión de producto antes de tocar código (ver recomendación de fusión) | Decisión | M | ✅ galería duplicada retirada (`tab-collection.html:5`, comentario explícito); `col-grid` ya no existe en el código — la pestaña es dashboard de análisis puro |
+| COLECCION-UX-3 | **"Exportar CSV" da resultados distintos según la pestaña** — el export de Juegos no manda `root` (`tab-games.html:46-47`), el de Colección sí (`collection.js:311-313`); mismo botón, mismo texto, distinto resultado sin avisar | Bug | XS | ✅ único endpoint `/api/export-library` (`collection.py:180`), usado solo desde `tab-games.html:46-47`; `collection.js` ya no tiene export CSV propio |
+| COLECCION-UX-4 | **"ROMs faltantes" es código muerto con mejor funcionalidad que el panel activo** — `missing-section`/`loadMissingRoms()` (`tab-collection.html:113-124`, `collection.js:65-88`) nunca se invoca desde ningún botón, pero tiene wishlist + enlace IA + copiar búsqueda que el panel "Completitud" vivo no tiene | UX | S | ✅ `tab-collection.html:38` — botón "📥 Ver ROMs faltantes" dentro de Completitud ya invoca `loadMissingRoms()` |
+| COLECCION-UX-5 | **Pulido: 5 acordeones sin "cerrar todos" + filtro de plataforma duplicado con estilo distinto al de Juegos** (`collection.js:182-197` vs `games-platform` select) | UX | XS | ✅ `collection.js:23-28` (`_showOnlyPanel`) — acordeón exclusivo, abrir uno cierra los demás |
+
+---
+
+### DUPLICADOS-UX — Auditoría de la pestaña Duplicados: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Duplicados (`tab-duplicates.html` +
+`js/tabs/duplicates.js`). A diferencia de otras pestañas, aquí no hay
+botones muertos — el problema central es un desajuste real entre lo que se
+confirma y lo que se borra: el filtro de plataforma es solo visual,
+`deleteAllDuplicates()` cuenta filas del DOM ya filtrado para el diálogo de
+confirmación pero el backend borra duplicados de **toda** la biblioteca sin
+recibir ningún filtro. Detalle, archivo:línea y fases en
+`Tareas/Roadmap-Duplicados-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| DUPLICADOS-UX-1 | **"Eliminar todos" borra más de lo que confirma con un filtro de plataforma activo** — el filtro solo afecta al render (`duplicates.js:381-386`); `deleteAllDuplicates()` cuenta filas del DOM filtrado para el diálogo pero llama a `/api/duplicates/delete-all` con `source_root:''` (`duplicates.js:64-109`), que borra duplicados de toda la biblioteca sin filtro de plataforma posible en el backend (`services/duplicates_service.py:90`) | Bug | S | ✅ |
+| DUPLICADOS-UX-2 | **Toasts rotos: `showToast(msg, true/false)` en vez del string esperado** — `deleteAllDuplicates` (líneas 67,103) y `deleteDuplicate` (línea 134); el resto del mismo archivo usa `'ok'/'err'/'info'` correctamente | Bug | XS | ✅ |
+| DUPLICADOS-UX-3 | **Mensajes contradictorios sobre si el borrado se puede deshacer** — 4 acciones dicen "no se puede deshacer" pese a usar la misma papelera `_descartados/` (AUD-3) que `deleteRaDuplicate`, cuyo mensaje sí lo menciona ("difícil de deshacer") | UX | S | ✅ |
+| DUPLICADOS-UX-4 | **`confirm()` nativo en 2 de 6 sitios pese a tener `_showConfirm` ya importado** — `deleteRaDuplicate` (línea 255) y `discardAllRaDuplicates` (línea 323) | UX | XS | ✅ |
+| DUPLICADOS-UX-5 | **"Copia intencional ✓" es permanente sin UI para revisarla o deshacerla** — `markAsIntentionalCopy` excluye un grupo para siempre; no existe ninguna lista de grupos excluidos en la app | UX | S | ✅ |
+| DUPLICADOS-UX-6 | **"Tools" en inglés (y nombre de pestaña incorrecto) en 2 sitios** — `tab-duplicates.html:22` y `duplicates.js:331`; la pestaña real se llama "Herramientas" | UX | XS | ✅ |
+| DUPLICADOS-UX-7 | **Estado vacío filtrado sin botón para quitar el filtro** — a diferencia del estado vacío general, que sí usa el componente `_emptyState` con CTA (`duplicates.js:390-392`) | UX | XS | ✅ |
+
+---
+
+### PLAN-UX — Auditoría de la pestaña Plan/Organizar: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Plan (`tab-plan.html` + `js/tabs/organize.js`) — la
+más madura de las auditadas hasta ahora (resumen, progreso, panel de
+errores, buena distinción colisión-de-plan vs conflicto-de-disco con enlace
+a Duplicados). El usuario preguntó si podía fusionarse con otra pestaña:
+**no hay una duplicación clara que lo justifique** — el solapamiento con
+Duplicados ya está bien explicado en la propia UI; el candidato real para
+una futura revisión es Inbox (su pipeline automático ya hace internamente
+lo que Plan hace a mano), pendiente de auditar. Detalle, archivo:línea y
+fases en `Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`.
+**Completado** — ver PLAN-UX-1..5 arriba.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| PLAN-UX-1 | **"La operación es reversible" sin que exista ningún "Deshacer"** — `doApply()` lo afirma en su confirmación (`organize.js:458`) pese a que `MEJ-2` (deshacer último apply) sigue pendiente; `applyKeepBoth()` ni lo menciona | UX | XS | ✅ `organize.js:453` — el modal ya no promete reversibilidad, comentario explícito citando MEJ-2 |
+| PLAN-UX-2 | **Las dos acciones de mayor riesgo usan `confirm()` nativo; las de menor riesgo, el modal propio** — `doApply`/`applyKeepBoth` (líneas 458,310) vs `deleteCollisionDuplicates`/`_discardCollisionEntry` (líneas 401,429), mismo archivo | UX | XS | ✅ `organize.js:298,452` — ambas usan `_showConfirm` |
+| PLAN-UX-3 | **"Filtrar por dispositivo" quedó sin función útil tras DEVSEL-FIX-3** — `/api/plan` ya resuelve un único repositorio por dispositivo activo; el dropdown (`tab-plan.html:29-34`) filtra sobre datos que ya son de un solo dispositivo, vaciando la tabla sin explicación si se elige el que no se está viendo | UX | S | ✅ `tab-plan.html:28` — dropdown retirado, comentario explícito (el selector global PC/Consola ya cumple esa función) |
+| PLAN-UX-4 | **Mismo bug de `_deviceRoot()` que ASSETS-UX-1** — `organize.js:52,322,469`; se resuelve con el mismo fix compartido en `main.js` | Bug | — | ✅ cubierto por ASSETS-UX-1 — `organize.js` sigue llamando al mismo `window._deviceRoot()` ya arreglado |
+| PLAN-UX-5 | **Conflictos "unknown" sin ninguna explicación** — a diferencia de los tipos `collision`/`disk`, que sí tienen contexto y acciones (`organize.js:164,265-272`) | UX | XS | ✅ `organize.js:156-161` — la rama `unknown` (código muerto) se retiró; solo quedan `collision`/`disk`, ambos con explicación |
+
+---
+
+### SCRAPER-UX — Auditoría de la pestaña Scraper: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Scraper (`tab-scraper.html` + `js/tabs/scraper.js`).
+Sin botones muertos ni riesgo de datos (solo lee/escribe metadatos). El
+problema central: la funcionalidad de ScreenScraper está repartida entre
+Scraper y Settings sin puente entre ellas — la cuota de peticiones diarias
+solo se ve en Settings, y exportar `gamelist.xml` existe por duplicado en
+ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
+`Tareas/Roadmap-Scraper-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ✅ `loadSsQuota()` generalizada para actualizar ambos paneles (sufijo `-scraper` en los IDs); nuevo bloque en `tab-scraper.html`; se llama al abrir la pestaña |
+| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ✅ nota junto al botón de ES-DE (`esde.js`) aclarando que es el mismo export que en Scraper, con más opciones allí |
+| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ✅ nuevo `loadSsCredsStatus()` (mismo patrón que `ra-api-key-status`) + chequeo proactivo en `doScrape()` antes de lanzar el job |
+| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ✅ `_friendlyError()` traduce fallos de red/fetch a un mensaje guiado; resto de mensajes se mantienen sin cambios |
+| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ✅ ambas menciones eliminadas |
+| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ✅ eliminada junto con `_autoFillEsdeGamelistDir()`/`_esdeGamelistsDir` (dead code en cascada: sin `useEsdeGamelistDir()` tampoco tenían lector) |
+| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ✅ `doExportGamelists()` deshabilita el botón con texto "Exportando…" (patrón `try/finally`) |
+
+---
+
+### TV-UX — Auditoría del Modo TV: UX/UI (2026-07-13)
+
+Auditoría del Modo TV (`tab-tv.html` + `games.js:904-976` +
+`main.js:737-782`). Modo de navegación legítimamente distinto (foco por
+teclado, pantalla completa) — no candidato a fusión. Dos hallazgos
+críticos: la colección se corta en 120 juegos sin forma de cargar más
+(`_TV_LIMIT`, paginación soportada por el backend pero nunca disparada), y
+la barra de filtro por plataforma existe en el HTML pero ninguna función
+la rellena jamás — planeada pero nunca conectada. Detalle, archivo:línea y
+fases en `Tareas/Roadmap-TV-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| TV-UX-1 | **La colección se corta en 120 juegos sin forma de cargar más** — `loadTvGrid` soporta `offset` (`games.js:918-934`) pero nada lo dispara nunca con offset > 0; `_tvMoveFocus` simplemente deja de avanzar al llegar al final sin avisar | Bug | S | ✅ `_tvMoveFocus` carga la siguiente página automáticamente (`_tvHasMore`) al llegar al final; si de verdad no hay más, aviso "No hay más juegos por aquí" en `tv-info-keys`. Verificado en navegador: filtro Atari 2600 (175 juegos) cargó 2 páginas y mostró el aviso al final real |
+| TV-UX-2 | **Barra de filtro por plataforma nunca rellenada** — `tv-platform-bar`/`tv-platform-label` (`tab-tv.html:3-4`) vacíos para siempre; `loadTvGrid` ya acepta `platform` pero `enterTvMode()` siempre llama con `''` (`games.js:905-910`) | Bug | S | ✅ `_tvLoadPlatformBar()` rellena los chips desde `/api/games/filter-options` (mismo endpoint que Juegos/Scraper); clic filtra la rejilla y resalta el chip activo. Verificado en navegador |
+| TV-UX-3 | **"Salir" siempre vuelve a Colección, ignorando de dónde viniste** — `exitTvMode()` hace `showTab('collection')` fijo (`games.js:912-916`) pese a que `t` es un atajo global desde cualquier pestaña | UX | XS | ✅ `enterTvMode()` guarda la pestaña activa en `_tvSourceTab` (solo la primera vez, no si `t` se repite ya en TV); `exitTvMode()` vuelve ahí. Verificado en navegador: entrar desde Análisis y salir vuelve a Análisis |
+| TV-UX-4 | **Fallo de red deja la rejilla en blanco sin ningún aviso** — catch de `loadTvGrid` solo hace `console.error` (`games.js:933`), sin mensaje visible en un modo a pantalla completa | UX | XS | ✅ mensaje visible en `tv-grid` en la carga inicial (offset 0); las cargas de paginación solo registran el error en consola, sin romper lo ya mostrado |
+| TV-UX-5 | **Pulido: fallo de pantalla completa silencioso + `_tvCols` no se recalcula al redimensionar** (`games.js:908,959`) | UX | XS | ✅ toast de aviso si `requestFullscreen()` falla (Modo TV sigue funcionando en ventana); listener de `resize` recalcula `_tvCols` mientras `_tvActive`. Verificado en navegador (el toast salió en la propia sesión de prueba, sin fullscreen real disponible) |
+
+---
+
+### SETTINGS-UX — Auditoría de la pestaña Settings: UX/UI (2026-07-13)
+
+Auditoría de la pestaña Settings (`tab-settings.html`, ~500 líneas/20+
+paneles, + `js/tabs/config.js`, ~870 líneas) — la más grande de la app.
+Hallazgo principal, verificado de forma independiente en frontend y
+backend: el campo "ES-DE carpeta" nunca ha podido guardar nada porque el
+backend filtra `launchers.esde` de su lista de claves permitidas (a
+diferencia de `launchers.retroarch`, que sí está) — fix de una línea.
+Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md`.
+
+| ID | Task | Tipo | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ✅ `launchers.esde` añadido al set `allowed` (`config.py:274`) |
+| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ✅ añadidos al mapa `_CFG_CHECK`; de paso se encontró un 5º campo con el mismo bug (`sync.playtime_remote`, no documentado aquí) y se corrigió junto con los demás |
+| SETTINGS-UX-3 | **Panel "Configurar consola Android" (QR) — ya cubierto por ANBERNIC-UX-2** — mismo endpoint 404 (`/api/anbernic-setup.sh`), aplica también a esta copia del panel (`tab-settings.html:12-39`) | Bug | — | ✅ (panel eliminado en feature/anbernic-ux) |
+| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ✅ `migrateSplitDb()` envuelta en `_showConfirm(...)`, mismo patrón que `clearPin()` |
+| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ✅ añadido `<span class="cfg-saved">` + entrada en `_CFG_CHECK` a los 8 campos restantes sin checkmark propio: `android.device_name`, `sync.ra_config_dir`, `web.host`, `launchers.retroarch`, `launchers.esde`, `backup.saves_enabled`, `backup.saves_keep_n`, `notifications.desktop` — ahora los 22 campos guardables de Settings tienen confirmación inline |
+
+---
+
+### HERR-UX — Auditoría de la pestaña Herramientas: UX/UI (2026-07-13)
 
 Auditoría de la pestaña Herramientas (`tab-tools.html` + JS repartido en
 `esde.js`, `config.js`, `duplicates.js`, `sync.js`, `jobs.js`). Patrón
@@ -587,7 +697,7 @@ auditadas ese día). **Completado 2026-07-20, rama `feature/herr-ux`.**
 
 ---
 
-## FORMATOS-UX — Auditoría de la pestaña Formatos: UX/UI (2026-07-13)
+### FORMATOS-UX — Auditoría de la pestaña Formatos: UX/UI (2026-07-13)
 
 Auditoría de la pestaña Formatos (`tab-formats.html` + JS repartido en
 `tools.js`, `esde.js`, `config.js`, `duplicates.js`). A diferencia de
@@ -610,7 +720,55 @@ app. Detalle, archivo:línea y fases en
 
 ---
 
-## JUEGOS-UX — Roadmap: logros por juego + playtime automático (2026-07-13)
+## Distribución / Release — → #207
+
+Empaquetado, instalador y actualizaciones — llevar la app a un ejecutable
+distribuible.
+
+### Phase 6 — Distribution
+
+| ID | Task | Estado |
+|----|------|--------|
+| PHASE6-1a | Crear `RetroVault.spec` — PyInstaller con static assets, templates y `tools/` bundled | ✅ `RetroVault.spec` empaqueta `web/static` (incluye partials HTML), `tools/` (adb, dlls, chdman) e hiddenimports de subpaquetes (build no verificado aún → ver 6-1b) |
+| PHASE6-1b | Probar ejecutable en máquina limpia (sin Python) | 🟡 Validado en este equipo (build, smoke test de `serve`, instalación/desinstalación silenciosa); falta una prueba en una máquina realmente sin Python instalado. Corregidos hiddenimports obsoletos de `RetroVault.spec` (`response_builders`→`builders/`, `cable_sync_daemon` movido a `web/`) y las DLLs de ADB ahora son opcionales (adb.exe moderno no las necesita) |
+| PHASE6-2a | Escribir script Inno Setup — shortcut + Add/Remove Programs | ✅ `installer/RetroVault.iss` — instalador por usuario (`PrivilegesRequired=lowest`), shortcuts en menú + escritorio, desinstalador limpio. Compilado y probado con Inno Setup 6.7.3 → `RetroVault-Setup.exe` (~15 MB) |
+| PHASE6-2b | Bundlear DATs mínimos en el installer | ✅ (34 plataformas — `b4d2107`) |
+| PHASE6-3a | Endpoint `/api/version` + check de actualizaciones al arrancar | ✅ `update_checker.py` + `GET /api/version` + banner en UI. 13 tests. PR #52. |
+| PHASE6-3b | Descarga y aplicación de update desde GitHub Releases | ✅ `utils/update_installer.py` (`find_update_asset`, `download_update` con progreso, `launch_installer`); `web/handlers/update.py` (`/api/update/{status,download,apply}`); banner con botones "Descargar e instalar" / "Instalar y reiniciar" en `main.js`. Solo aplica a builds frozen (PyInstaller); en modo fuente solo enlaza al release. Aún sin probar contra un release real (ningún release publicado todavía — depende de 6-1b/6-2a). 30 tests nuevos. |
+| PHASE6-4 | Decidir nombre final: Retro Vault vs Retro Companion | ✅ (Retro Vault confirmado — no-op, Día31) |
+
+---
+
+### DÍA37 — Distribuible completo + prueba en PC limpio (2026-07-02)
+
+Objetivo cumplido salvo la validación en hardware ajeno: `RetroVault-Setup.exe`
+autocontenido publicado en el release `v1.0.0` (detalle D37-1…D37-10 → archivo).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| D37-8 | **Prueba en PC limpio** — hardware test: instalar en máquina sin Python siguiendo la sección 0 de la guía; ejecutar checklist funcional (§5); valida PHASE6-1b | otro PC | ⬜ |
+
+---
+
+## RA, Scraper y Recomendador (SAGE) — → #208
+
+Soporte a RetroAchievements, scraping de metadatos y el recomendador NLP
+Retro Sage.
+
+### SAGE — Soporte para Retro Sage (recomendador NLP)
+
+Origen: `ROADMAP.md` de Retro Sage. SAGE-1 y SAGE-2 son **bloqueantes** para su
+fase 2 (embeddings). Contexto adicional: `docs/ideas/propuestas-recomendador-nlp.md`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SAGE-1 | **Scraping masivo de descripciones** (bloqueante Sage v0.2) — completar las descripciones de la biblioteca por lotes desde la fuente del scraper puntual. Reanudable (no re-scrapear lo ya descargado), rate-limit razonable, descripciones visibles en `GET /api/export-history`. Hecho cuando >90% de los juegos tienen descripción no vacía en el export. | `database/repositories/metadata.py`, `web/handlers/scraper.py`, `web/builders/misc.py`, `tab-scraper.html`, `scraper.js` | 🟡 código listo (rama `feature/sage-1-mass-descriptions`): el job `/api/scrape` ya era reanudable+rate-limited; añadido modo `missing_descriptions` (re-scrapea metadata con descripción vacía sin machacar imágenes), cobertura en `/api/scrape-summary` + UI (hoy 70.0%). Pasada real 2026-07-07: 964 en cola, 860 match, 0 errores (tras fix `_loads_lenient`, PR #79) pero cobertura 70,0→70,1% — los re-scrapeados no tienen sinopsis en SS. Para >90% hay que resetear `metadata_scraped` de los ~4.700 sin match histórico y re-scrapear (~89% de acierto hoy), o usar otra fuente. **Experimento reset 2026-07-07: fallido** — la cola de 4.692 era basura no-juego (chips de romsets arcade, shaders RetroArch, restos de Papelera `$I*.iso`, firmware): 415 procesados, 6 match. Flags revertidos. **Camino real al >90%: limpiar la basura de la biblioteca** (junk-scan restaurado en PR #80) — al quitar ~4.700 no-juegos del denominador, 13.217/~14.150 ≈ 93%. **Limpieza ejecutada 2026-07-08 (Día39)**: 28.718 archivos borrados (chips arcade de `Unknown\`, ~15,4 GB) + fixes del clasificador (PRs #82/#83) → cobertura **70,1% → 84,3%** (13.136/15.591). Para >90% queda JUNK-REVIEW-1 (revisar 5.771 ZIPs de `Unknown\`: colecciones fuente vs juegos individuales — decisión usuario) y re-scrape de los ~2.455 sin descripción restantes |
+| SAGE-2 | **Migración `genres_list` / `players` persistidos** (bloqueante Sage v0.2) — persistir ambos campos en la BD (hoy derivados al vuelo) con backfill de registros existentes, y exponerlos en el export. Hecho cuando aparecen estables en `/api/export-history` y el contrato queda documentado en `play_history.py`. Detalle: `docs/ideas/propuestas-recomendador-nlp.md`. | `database/`, `database/repositories/play_history.py` | ⬜ |
+| SAGE-3 | **Registro de recomendaciones mostradas/clicadas** (futuro, Sage v0.4) — para el bucle de feedback de Sage: registrar qué recomendaciones se mostraron en el panel y cuáles se clicaron, y exponerlo (export o endpoint nuevo). **No implementar todavía**: el diseño se negocia cuando Sage llegue a v0.4. | — | ⬜ |
+
+---
+
+### JUEGOS-UX — Roadmap: logros por juego + playtime automático (2026-07-13)
 
 Roadmap de feature nueva (no auditoría de bugs) para la pestaña Juegos.
 Verificado en código: el resumen de logros (`X/Y logros`) ya existe vía
@@ -638,186 +796,143 @@ Sustituye/desarrolla `MEJ-1`. **Completado** — ver JUEGOS-UX-1..9 arriba.
 
 ---
 
-## ASSETS-UX — Auditoría de la pestaña Assets: UX/UI (2026-07-13)
+## Validación en hardware — → #211
 
-Auditoría de la pestaña Assets (`tab-assets.html` + `loadAssets()` en
-`sync.js:70-111`, la pestaña más pequeña auditada hasta ahora). Hallazgo
-central: `_deviceRoot()` (`main.js:430-435`) no tiene el mismo fallback a
-localStorage que ya usa el texto de la barra de contexto (`sync.js:85`) —
-la cabecera puede decir "Viendo: Android" mientras la tabla muestra datos
-del PC, sin ninguna pista de que no coinciden. Es una función compartida:
-el mismo bug aplica a Colección, Organizar y Juegos. Detalle, archivo:línea
-y fases en `Tareas/diario/archivo/Roadmap-Assets-UX-completado.md`.
-**Completado** — ver ASSETS-UX-1..5 arriba.
+Tareas que requieren consola real o SD card para verificarse — no ejecutables
+solo con datos sintéticos.
 
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| ASSETS-UX-1 | **La ruta mostrada como "Viendo: X" puede no ser la que se consulta** — `_deviceRoot()` (`main.js:430-435`) no tiene fallback a `localStorage('anbernic_path')` a diferencia del texto de la barra (`sync.js:85`); afecta también a `collection.js`, `organize.js`, `games.js` que usan la misma función | Bug | S | ✅ `main.js:439` — `_deviceRoot()` ya incluye el fallback a `localStorage('anbernic_path')` |
-| ASSETS-UX-2 | **"Ejecuta un Scan" también sale cuando el filtro simplemente no tiene resultados** — el filtro se aplica antes de comprobar vacío (`sync.js:92-94`); "Solo huérfanos" sin ninguno (buena noticia) muestra el mismo mensaje que "nunca escaneado" | UX | XS | ✅ `sync.js:122-128` — distingue "nunca escaneado" de "✓ Sin resultados para este filtro" |
-| ASSETS-UX-3 | **Error sin guía, a diferencia del resto del mismo archivo** — catch de `loadAssets` (`sync.js:108-109`) solo muestra `e.message`; el catch de `loadSync` unas líneas arriba (`sync.js:65`) sí da pista + enlace a Ajustes | UX | XS | ✅ `sync.js:145` — catch da guía + enlace a Ajustes |
-| ASSETS-UX-4 | **Columna "Huérfanos" sin ninguna acción asociada** — solo informativo, sin enlace para ver/mover/eliminar los archivos concretos (`sync.js:104`) | UX | S | ✅ `sync.js:139` (`showOrphanAssets()`) — acción "Ver" lista los archivos concretos |
-| ASSETS-UX-5 | **Estado vacío sin enlace a la acción que lo resuelve** — "Ejecuta un Scan" es texto plano sin botón a Organizar (`sync.js:94`) | UX | XS | ✅ `sync.js:123` — enlace a `showTab('plan')` (Organizar) en el mismo mensaje |
+### Hardware validation (requires console or SD card)
+
+| ID | Task |
+|----|------|
+| V1 | SD card auto-sync — configure `anbernic_root`, insert SD, verify banner + log |
+| V2 | Two-database migration — Settings → "Migrate DB" → verify separate PC/Android counts |
+| V3 | Inbox end-to-end — configure `inbox_path`, drop ZIP, verify extraction + rename + move |
+| V4 | RetroAchievements with real API key |
+| V5 | Termux guide on console — prereq for WiFi sync |
+| B1-hw | Android renamer doesn't reduce queue — test with SD inserted |
 
 ---
 
-## COLECCION-UX — Auditoría de la pestaña Colección + ¿fusión con Juegos? (2026-07-13)
+### VAL-FIX — Hallazgos de la validación con consola real (2026-07-13)
 
-El usuario preguntó si Colección y Juegos deberían fusionarse. Comparando el
-código: ambas pintan una galería casi idéntica (mismo endpoint `/api/games`,
-mismo panel de detalle `openGamePanel`), pero Colección solo expone 3 de los
-9 filtros de Juegos — es un subconjunto duplicado, no una vista distinta. Lo
-que Colección aporta de verdad son sus paneles de análisis agregado (Stats,
-Disco, Diff PC/Android, Completitud, Wishlist), que no tienen sentido dentro
-de la ficha de un juego. **Recomendación: no fusionar mecánicamente — retirar
-la galería duplicada de Colección y dejar la pestaña como dashboard de
-análisis puro.** Razonamiento completo y hallazgos de bugs en
-`Tareas/diario/archivo/Roadmap-Coleccion-UX-completado.md`.
-**Completado** — ver COLECCION-UX-1..5 arriba.
+Origen: validación V-AUD-1/V-AUD-2 y smoke DEVSEL con la RG556 por USB (Día42,
+sección "Continuación 2026-07-13"). AUD-1 y AUD-2 **validadas** con hardware:
+Sync Doctor OK (desviación −1,9 s), sync por cable con 373 copiados / 0 errores
+(~338 saves verificados MD5), sin `.part` residuales. Los fallos de abajo
+salieron durante esa validación. Orden: 1→2 rompen borrado de duplicados y
+papelera — prioridad alta.
 
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| COLECCION-UX-1 | **Botón "🏥 Health" no hace nada** — `togglePlatformHealth()` se llama sin argumento (`tab-collection.html:22`), nunca alterna el panel (a diferencia de sus hermanos en `collection.js`), y escribe en `#platform-health-content` que no existe (real: `#ph-table`); `loadPlatformHealth()` es además un TODO puro (`esde.js:632-661`). Cuarta ocurrencia del patrón HTML/JS-ID-mismatch (HERR-UX-1/2/3, FORMATOS-UX-2) | Bug | S | ✅ el panel y sus funciones (`togglePlatformHealth`/`loadPlatformHealth`) ya no existen — retirado al rehacer la pestaña como dashboard (COLECCION-UX-2) |
-| COLECCION-UX-2 | **Dos galerías divergentes del mismo dato** — Colección (`col-grid`) y la vista cuadrícula de Juegos comparten endpoint y panel de detalle pero Colección solo tiene 3 de los 9 filtros de Juegos; decisión de producto antes de tocar código (ver recomendación de fusión) | Decisión | M | ✅ galería duplicada retirada (`tab-collection.html:5`, comentario explícito); `col-grid` ya no existe en el código — la pestaña es dashboard de análisis puro |
-| COLECCION-UX-3 | **"Exportar CSV" da resultados distintos según la pestaña** — el export de Juegos no manda `root` (`tab-games.html:46-47`), el de Colección sí (`collection.js:311-313`); mismo botón, mismo texto, distinto resultado sin avisar | Bug | XS | ✅ único endpoint `/api/export-library` (`collection.py:180`), usado solo desde `tab-games.html:46-47`; `collection.js` ya no tiene export CSV propio |
-| COLECCION-UX-4 | **"ROMs faltantes" es código muerto con mejor funcionalidad que el panel activo** — `missing-section`/`loadMissingRoms()` (`tab-collection.html:113-124`, `collection.js:65-88`) nunca se invoca desde ningún botón, pero tiene wishlist + enlace IA + copiar búsqueda que el panel "Completitud" vivo no tiene | UX | S | ✅ `tab-collection.html:38` — botón "📥 Ver ROMs faltantes" dentro de Completitud ya invoca `loadMissingRoms()` |
-| COLECCION-UX-5 | **Pulido: 5 acordeones sin "cerrar todos" + filtro de plataforma duplicado con estilo distinto al de Juegos** (`collection.js:182-197` vs `games-platform` select) | UX | XS | ✅ `collection.js:23-28` (`_showOnlyPanel`) — acordeón exclusivo, abrir uno cierra los demás |
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| VAL-FIX-1 | **El scanner no excluye `_descartados/` ni `$RECYCLE.BIN`** — `scanner/rom_scanner.py` no tiene ninguna exclusión de directorios: la papelera de AUD-3 se re-indexa en cada scan (937 filas `_descartados\...` ya en la BD PC, 7-8 filas `$RECYCLE.BIN` en cada BD). Rompe el borrado de duplicados: "eliminar" mueve a `_descartados/`, el siguiente scan lo re-añade y el duplicado reaparece. Fix: excluir `_descartados`, `$RECYCLE.BIN` y `System Volume Information` en el walk del scanner + purga one-shot de las filas existentes | Seguridad | S | ✅ rama `fix/val-tabs-duplicados-fantasma` (PR #147) — `_is_excluded()` en `rom_scanner.py` excluye `TRASH_DIR_NAME`/`$RECYCLE.BIN`/`System Volume Information`. **Purga real ejecutada 2026-07-20** (backup previo en `.rommgr/backup_valfix_2026-07-20/`): `rommgr scan --quick` sobre la biblioteca real prunó las 220 filas `_descartados` existentes vía `prune_stale_entries` (ya no entran en `seen_paths`) → 0 tras el scan |
+| VAL-FIX-2 | **`library_android.db` contaminada con filas del PC** — 13.164 de 13.376 filas tienen rutas `E:\` (solo 211 son de la SD `H:\`); 6.958 rutas están en AMBAS BDs; 100 % unmatched (el match nunca corrió ahí). Consecuencias: duplicados fantasma imposibles de borrar (la vista empareja el mismo archivo físico consigo mismo y el delete enruta por ruta `E:\` → siempre a la BD PC, la fila Android sobrevive) y acciones de FIX-2 no-op sobre filas contaminadas (la estrella "muerta" del smoke test — el código DEVSEL-FIX-2 funciona, verificado por API con un juego real `H:\`). Fix: (a) limpieza con backup previo — borrar de la BD android las filas cuya ruta no sea de consola (`NOT LIKE 'H:%'` y `NOT LIKE '/storage%'`); (b) investigar el origen (¿la migración V2 copió todo?); (c) guard de dominio al escribir: la BD android solo acepta rutas bajo `anbernic_root`/`/storage` | Seguridad | M | ✅ rama `fix/val-tabs-duplicados-fantasma` (PR #147) — **(b) causa raíz encontrada**: `_do_migrate_split_db` (`sync_cloud.py`) clasificaba con `not source_path.startswith(lib_root)` — heurística negativa, migraba cualquier fila de PC fuera de `library_root` aunque fuera válida. **(c) fix aplicado**: clasificación ahora por `is_device_path()` (pertenencia a `anbernic_root` o ruta POSIX estilo ADB, `utils/paths.py`). **(a) purga**: `library_android.db` real tenía 0 filas en el momento del fix (verificado) — nada que limpiar hoy; el fix de código evita que la contaminación original vuelva a producirse si se repite la migración |
+| VAL-FIX-3 | **Rutas relativas de tools con `/` rompen `subprocess` en Windows** — `CreateProcess` no acepta `tools/adb.exe` (WinError 2 → "consola no conectada" con la consola conectada); sí acepta `tools\adb.exe` o `./tools/adb.exe`. El comentario de `config.py:305` sugiere justo la forma mala. Fix de raíz: normalizar a ruta absoluta contra `project_root` en `load_config()` (`config.py:427-429`, cubre adb/chdman/rclone de golpe). El `config.toml` local ya está parcheado a mano (`tools\\adb.exe`) | Sync | S | ✅ `_resolve_tool_path()` (`config.py`) — reemplaza `/` por `\` en Windows para adb/chdman/rclone leídos de `config.toml` (no-op en bare commands tipo `"rclone"` ni en no-Windows). Se descartó normalizar a absoluto contra `project_root` (lo que sugería el hallazgo original): la CI corre en `ubuntu-latest` donde `Path.resolve()` sobre rutas con letra de unidad (`C:/...`) no se comporta igual que en Windows real — el fix mínimo (solo separador) es portable y resuelve el WinError 2 real. 2 tests nuevos |
+| VAL-FIX-4 | **Auto-sync: 96 `Permission denied` en memcards de DuckStation** — `Android/data/com.github.stenzek.duckstation/` no es accesible por ADB en Android 11+ sin root (scoped storage); el auto-sync lo reintenta en cada conexión (ya fallaba en marzo con 49). Sin pérdida: los pulls fallan y nada se sobreescribe. Fix: excluir/avisar ese mapping en modo ADB y documentar la alternativa (DuckStation Android → exportar memcards a carpeta pública) en `docs/emulator-compat.md` | Sync | S | ✅ `accessible: False` en el mapping de DuckStation (`config.py`, mismo patrón ya usado por Dolphin) — `get_adb_sync_sources()` lo excluye, cero reintentos. `notes` explica el workaround (cambiar Memory Cards → Directory a carpeta pública en DuckStation). Se evaluó `run-as` (sandbox sin root) y quedó descartado: solo funciona si la build es debuggable, no aplica al DuckStation de Play Store. `docs/emulator-compat.md` actualizado (tabla PS1 + resumen rápido). 1 test nuevo en `test_config.py` |
+| VAL-FIX-5 | **Preview del sync por cable hardcodea "no accesible en modo ADB"** — `_build_cable_sync_preview` (`web/builders/misc.py:81`) nunca implementó el conteo remoto por ADB; el Sync Doctor de AUD-1 ya lo hace bien (226 saves). Fix: reutilizar ese conteo o esconder el preview en modo ADB | UX | S | ✅ `_build_cable_sync_preview` reutiliza `AdbTransport.ls_recursive()` (mismo método que Sync Doctor) cuando `mode == "adb"` y hay `serial`; sin serial muestra "conecta el dispositivo primero", con error de transporte muestra el mensaje. Frontend (`sync.js`, `loadCableSyncPreview`) manda `serial` (`#cable-adb-device`) y `android_path` (`#auto-sync-android-path`) en modo ADB. 3 tests nuevos (`tests/test_cable_sync_preview.py`) |
+| VAL-FIX-6 | **El aviso de ruta SD/MTP se muestra en modo ADB** — al cargar la pestaña, `testCablePath('ab')` valida el campo de ruta SD aunque el Modo ADB esté activo (aviso "Este equipo\RG556\... NO es compatible" irrelevante en ADB). Fix: no validar/ocultar los avisos de la sección SD cuando `_isAdbMode()` (`sync.js:795-796`) | UX | S | ✅ `loadCableSync()` (`sync.js`) — causa raíz real: la auto-selección de modo (ADB vs SD) corría *después* de testear la ruta SD, así que `_isAdbMode()` aún reflejaba el radio por defecto. Reordenado: decidir el modo primero, testear rutas después; `testCablePath('ab')` ahora se salta por completo si el modo final es ADB |
+| VAL-FIX-7 | **El sync por cable no registra en `save_sync_log`** — solo `SaveSyncer` (sync cloud) escribe esa tabla; el job de cable verifica MD5 en el transporte (`handlers/sync_cable.py:394,425`, solo saves) pero no deja rastro por archivo, así que el "último sync por juego" del Sync Doctor no refleja syncs por cable. Fix: llamar `log_sync_event(..., verified=)` también desde el job de cable (valor bajo, el resultado del job ya reporta) | Sync | S | ✅ el registro en `save_sync_log` ya existía desde REV43-33 (PR #153); lo que faltaba era `verified=`. `_sql_log()` (`handlers/sync_cable.py`) gana el parámetro; en `_adb_copy_to_pc`/`_adb_copy_to_device`, llegar a la línea "ok" implica que `pull()`/`push()` con `verify=True` ya comprobó el MD5 (un mismatch lanza `OSError` antes) — se pasa `verified=True` cuando el archivo era save, `None` cuando no aplicaba verificación. 1 test nuevo (`test_cable_sync_adb_verified_log.py`) |
 
 ---
 
-## DUPLICADOS-UX — Auditoría de la pestaña Duplicados: UX/UI (2026-07-13)
+## Roadmap — Ideas futuras — → #212
 
-Auditoría de la pestaña Duplicados (`tab-duplicates.html` +
-`js/tabs/duplicates.js`). A diferencia de otras pestañas, aquí no hay
-botones muertos — el problema central es un desajuste real entre lo que se
-confirma y lo que se borra: el filtro de plataforma es solo visual,
-`deleteAllDuplicates()` cuenta filas del DOM ya filtrado para el diálogo de
-confirmación pero el backend borra duplicados de **toda** la biblioteca sin
-recibir ningún filtro. Detalle, archivo:línea y fases en
-`Tareas/Roadmap-Duplicados-UX.md`.
+Propuestas del usuario sin diseñar todavía.
 
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| DUPLICADOS-UX-1 | **"Eliminar todos" borra más de lo que confirma con un filtro de plataforma activo** — el filtro solo afecta al render (`duplicates.js:381-386`); `deleteAllDuplicates()` cuenta filas del DOM filtrado para el diálogo pero llama a `/api/duplicates/delete-all` con `source_root:''` (`duplicates.js:64-109`), que borra duplicados de toda la biblioteca sin filtro de plataforma posible en el backend (`services/duplicates_service.py:90`) | Bug | S | ✅ |
-| DUPLICADOS-UX-2 | **Toasts rotos: `showToast(msg, true/false)` en vez del string esperado** — `deleteAllDuplicates` (líneas 67,103) y `deleteDuplicate` (línea 134); el resto del mismo archivo usa `'ok'/'err'/'info'` correctamente | Bug | XS | ✅ |
-| DUPLICADOS-UX-3 | **Mensajes contradictorios sobre si el borrado se puede deshacer** — 4 acciones dicen "no se puede deshacer" pese a usar la misma papelera `_descartados/` (AUD-3) que `deleteRaDuplicate`, cuyo mensaje sí lo menciona ("difícil de deshacer") | UX | S | ✅ |
-| DUPLICADOS-UX-4 | **`confirm()` nativo en 2 de 6 sitios pese a tener `_showConfirm` ya importado** — `deleteRaDuplicate` (línea 255) y `discardAllRaDuplicates` (línea 323) | UX | XS | ✅ |
-| DUPLICADOS-UX-5 | **"Copia intencional ✓" es permanente sin UI para revisarla o deshacerla** — `markAsIntentionalCopy` excluye un grupo para siempre; no existe ninguna lista de grupos excluidos en la app | UX | S | ✅ |
-| DUPLICADOS-UX-6 | **"Tools" en inglés (y nombre de pestaña incorrecto) en 2 sitios** — `tab-duplicates.html:22` y `duplicates.js:331`; la pestaña real se llama "Herramientas" | UX | XS | ✅ |
-| DUPLICADOS-UX-7 | **Estado vacío filtrado sin botón para quitar el filtro** — a diferencia del estado vacío general, que sí usa el componente `_emptyState` con CTA (`duplicates.js:390-392`) | UX | XS | ✅ |
+### ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún)
+
+| ID | Idea | Notas |
+|----|------|-------|
+| CFG-PORGAME | Configuraciones específicas por juego (core options, overrides RetroArch), editables desde el PC | Necesita decidir formato (`.opt`/`.cfg` de RetroArch por juego) y cómo sincronizarlas con Android sin pisar los overrides que ya gestiona el usuario a mano |
+| MODS-AUTO | Añadir e instalar mods automáticamente — viable para PS1/PS2/N64/GameCube (formatos de parche/mod más estandarizados: `.pnach`, ISO patching, texture packs); no viable para consolas muy antiguas (sin ecosistema de mods) | Requiere investigar formato de mods por emulador/plataforma antes de diseñar; alcance grande, candidato a su propia fase de roadmap |
+| STORAGE-MGR | Gestor de almacenamiento — decidir y borrar en bloque (PC, Anbernic o ambos) desde un menú dedicado | Necesita: vista combinada de qué existe en cada lado (ya hay base en `sync/` para comparar PC↔Android), selección múltiple, y pasar por la papelera unificada `_descartados/` (AUD-3) en vez de borrado directo — nunca borrar sin poder deshacer |
+| GHA-OPT-1 | Optimizar el flujo de Claude Code GitHub Actions (`claude.yml` / `claude-code-review.yml`, instalados 2026-08-14 vía `/install-github-app`) | Repo público → minutos de runner gratis y autentica con `CLAUDE_CODE_OAUTH_TOKEN` (consume cuota Pro/Max, no API pay-as-you-go) — el coste real a acotar es esa cuota, no dinero. Palancas disponibles: `--max-turns` en `claude_args`, controles de concurrencia de GitHub para no solapar corridas, revisar qué eventos disparan cada workflow (evitar reviews redundantes en PRs triviales/drafts), y mantener `CLAUDE.md` conciso ya que se lee en cada corrida |
 
 ---
 
-## PLAN-UX — Auditoría de la pestaña Plan/Organizar: UX/UI (2026-07-13)
+## Transversal — Calidad de código, DX y referencia (sin epic)
 
-Auditoría de la pestaña Plan (`tab-plan.html` + `js/tabs/organize.js`) — la
-más madura de las auditadas hasta ahora (resumen, progreso, panel de
-errores, buena distinción colisión-de-plan vs conflicto-de-disco con enlace
-a Duplicados). El usuario preguntó si podía fusionarse con otra pestaña:
-**no hay una duplicación clara que lo justifique** — el solapamiento con
-Duplicados ya está bien explicado en la propia UI; el candidato real para
-una futura revisión es Inbox (su pipeline automático ya hace internamente
-lo que Plan hace a mano), pendiente de auditar. Detalle, archivo:línea y
-fases en `Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`.
-**Completado** — ver PLAN-UX-1..5 arriba.
+Auditorías y limpieza que cruzan varios pilares a la vez (calidad de código,
+onboarding, tests) — no tienen una épica de GitHub propia porque no son
+roadmap de producto. Mayoría ya completada; se mantiene como referencia
+histórica.
 
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| PLAN-UX-1 | **"La operación es reversible" sin que exista ningún "Deshacer"** — `doApply()` lo afirma en su confirmación (`organize.js:458`) pese a que `MEJ-2` (deshacer último apply) sigue pendiente; `applyKeepBoth()` ni lo menciona | UX | XS | ✅ `organize.js:453` — el modal ya no promete reversibilidad, comentario explícito citando MEJ-2 |
-| PLAN-UX-2 | **Las dos acciones de mayor riesgo usan `confirm()` nativo; las de menor riesgo, el modal propio** — `doApply`/`applyKeepBoth` (líneas 458,310) vs `deleteCollisionDuplicates`/`_discardCollisionEntry` (líneas 401,429), mismo archivo | UX | XS | ✅ `organize.js:298,452` — ambas usan `_showConfirm` |
-| PLAN-UX-3 | **"Filtrar por dispositivo" quedó sin función útil tras DEVSEL-FIX-3** — `/api/plan` ya resuelve un único repositorio por dispositivo activo; el dropdown (`tab-plan.html:29-34`) filtra sobre datos que ya son de un solo dispositivo, vaciando la tabla sin explicación si se elige el que no se está viendo | UX | S | ✅ `tab-plan.html:28` — dropdown retirado, comentario explícito (el selector global PC/Consola ya cumple esa función) |
-| PLAN-UX-4 | **Mismo bug de `_deviceRoot()` que ASSETS-UX-1** — `organize.js:52,322,469`; se resuelve con el mismo fix compartido en `main.js` | Bug | — | ✅ cubierto por ASSETS-UX-1 — `organize.js` sigue llamando al mismo `window._deviceRoot()` ya arreglado |
-| PLAN-UX-5 | **Conflictos "unknown" sin ninguna explicación** — a diferencia de los tipos `collision`/`disk`, que sí tienen contexto y acciones (`organize.js:164,265-272`) | UX | XS | ✅ `organize.js:156-161` — la rama `unknown` (código muerto) se retiró; solo quedan `collision`/`disk`, ambos con explicación |
+### MEJORAS — Propuestas 2026-07-02 (ordenadas por valor/esfuerzo)
 
----
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas (confirmado: `gpLogPlaytime()` hoy no persiste nada, solo hace `alert()`, `games.js:531-542`). Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. Diseño detallado en `Tareas/Roadmap-Juegos-UX.md` (JUEGOS-UX-4..9) | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ✅ rama `feature/juegos-ux` — scanner `utils/lrtl_scanner.py`, columnas por origen `playtime_minutes_pc/_android`, endpoint `/api/playtime-scan` (job, PC + pull adb), UI automática sin inputs manuales. Pata cloud (rama `feature/juegos-ux-7-cloud`): `sync.playtime_remote` + SyncSources `/pc` y `/android` + ingesta post-sync + subida de `.lrtl` en el script Termux |
+| MEJ-2 | **Deshacer último apply** — endpoint que invierte los renames de la última operación usando `file_operations` (ya registrado en SQLite); reutiliza `rename_rom_with_saves` en dirección inversa. | `planner/`, `web/handlers/` | ✅ `get_last_apply_batch()` (`database/repositories/games.py`) agrupa por el `created_at` compartido del último apply; `_do_undo_last_apply()` (`web/handlers/organize.py`) reproduce la misma rama cue/gdi vs archivo suelto que `_do_apply`, pero con `source`/`target` invertidos, y llama `apply_rename()` con las rutas invertidas — cada undo queda registrado como una fila nueva, así que un segundo undo revierte el undo (redo) en vez de no hacer nada. Backup de la BD (MEJ-3) antes de tocar nada. Job en background (`undo_apply` en `JOB_NAMES`, endpoints `POST /api/undo-last-apply` + `GET /api/undo-last-apply-status`, patrón moderno `job_manager.get_job()` sin tocar el `get_status()` compartido). Botón "Deshacer último apply" en Organizar (`organize.js`, `tab-plan.html`). 2 tests nuevos (`test_undo_last_apply.py`) |
+| MEJ-3 | **Backup automático de la DB antes de apply/migraciones** — `sqlite3.Connection.backup()` (stdlib, ~5 líneas) antes de cada apply. | `planner/operation_planner.py` o `database/repository.py` | ✅ `backup_database()` en `_RepositoryBase` (`database/repositories/base.py`) — snapshot vía `sqlite3.Connection.backup()` (seguro con WAL, a diferencia de una copia de archivo cruda) a `<data_dir>/db-backup/`, poda a `keep_n=5`. Llamado desde `_do_apply` (`web/handlers/organize.py`) y `cli.py apply`, antes de construir el plan. 2 tests nuevos en `test_repository.py` |
+| MEJ-4 | **Sync de cheats (`.cht`)** — un `SyncSource` más apuntando al dir `cheats/` de RetroArch, mismo patrón que NEW-8 (`.opt`). ~10 líneas. | `config.py`, `sync/sync_cloud.py` | ✅ mismo patrón dir+remote que `ra_config_dir`/`ra_config_remote`: campos `cheats_dir`/`cheats_remote` en `SyncConfig` (`config.py`), `_do_sync` (`sync_cloud.py`) añade el `SyncSource` "RetroArch Cheats (.cht)" cuando ambos están configurados. Wiring completo: `allowed` en `_save_config` (`web/handlers/config.py`), `_build_config` (`misc.py`), campos nuevos en Ajustes (`tab-settings.html`, `config.js`). 2 tests nuevos (917 en total) |
+| MEJ-5 | **"¿A qué juego hoy?"** — botón en Overview: `random.choices` ponderado por status Pendiente + rating + no jugado recientemente. Recomendador v0 mientras no exista el modelo NLP. | `web/handlers/`, `tab-overview.html` | ✅ ya existía la tarjeta "Juego sugerido" (S36-4) pero con selección uniforme entre "no tocado en 6 meses" (sin ponderar por Pendiente/rating) y el botón "Abrir" estaba roto de raíz (`onclick="openGamePanel(window._currentGameSuggestion)"` — esa variable nunca se asignaba a `window`, solo al scope del módulo). Reemplazada la selección por `GET /api/suggest-game` → `services/recommend_service.py::pick_game_for_today()` (peso = 3x si Pendiente/sin tocar · `1+rating` · hasta 3x cuanto más tiempo sin jugar, tope a los 90 días) sobre `repository.get_recommendation_candidates()` (excluye completados/100%). "Abrir" corregido: pide `/api/game?id=` y llama `openGamePanel()` con el objeto completo. Verificado en navegador con la biblioteca real (sugerencia + reroll + Abrir abren el panel correcto). 4 tests nuevos en `test_recommend_service.py` + 1 en `test_repository.py` |
+| MEJ-6 | **UI del junk-scan (tarea 2i-1)** — el endpoint `POST /api/junk-scan` fue restaurado (PR #80, se perdió en el refactor `487aa91`) pero el frontend sigue en stubs: `_renderJunkResult`, selección por categoría y borrado vía `/api/junk-delete` son TODOs en `esde.js`. | `web/static/js/tabs/esde.js` | ✅ rama `feature/mej-6-junk-scan-ui` — stubs implementados (render con `<details>`, selección por categoría, borrado con confirm + re-scan); `doJunkScan` corregido (id del contenedor, input `#junk-path`, endpoint síncrono sin job); builder expone `paths` completos por categoría (antes el borrado solo cubría los 50 mostrados). Verificado e2e con servidor real |
 
-## SCRAPER-UX — Auditoría de la pestaña Scraper: UX/UI (2026-07-13)
-
-Auditoría de la pestaña Scraper (`tab-scraper.html` + `js/tabs/scraper.js`).
-Sin botones muertos ni riesgo de datos (solo lee/escribe metadatos). El
-problema central: la funcionalidad de ScreenScraper está repartida entre
-Scraper y Settings sin puente entre ellas — la cuota de peticiones diarias
-solo se ve en Settings, y exportar `gamelist.xml` existe por duplicado en
-ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
-`Tareas/Roadmap-Scraper-UX.md`.
-
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| SCRAPER-UX-1 | **Cuota de ScreenScraper solo visible en Settings** — `loadSsQuota()` (`scraper.js:71-98`) solo se llama al abrir Settings (`main.js:483`); sus elementos no existen en `tab-scraper.html`, pese a que aquí es donde se necesita mientras se scrapea | UX | S | ✅ `loadSsQuota()` generalizada para actualizar ambos paneles (sufijo `-scraper` en los IDs); nuevo bloque en `tab-scraper.html`; se llama al abrir la pestaña |
-| SCRAPER-UX-2 | **Exportar gamelist.xml duplicado en dos pestañas** — panel completo en Scraper (`tab-scraper.html:56-79`) + botón suelto en el widget ES-DE de Settings (`esde.js:29`, `doExportGamelistsAll`), mismo endpoint `/api/export-gamelists`, sin relación visible entre ambos | UX | S | ✅ nota junto al botón de ES-DE (`esde.js`) aclarando que es el mismo export que en Scraper, con más opciones allí |
-| SCRAPER-UX-3 | **Sin comprobación proactiva de credenciales SS** — el usuario solo se entera de que faltan al pulsar "Iniciar scraping" y recibir un error (`doScrape`, `scraper.js:146-151`); Herramientas ya tiene este chequeo proactivo para la API key de RA como referencia | UX | S | ✅ nuevo `loadSsCredsStatus()` (mismo patrón que `ra-api-key-status`) + chequeo proactivo en `doScrape()` antes de lanzar el job |
-| SCRAPER-UX-4 | **Mensajes de error sin guía** — `doScrape`/`doExportGamelists` (líneas 148,178) muestran `e.message` crudo | UX | XS | ✅ `_friendlyError()` traduce fallos de red/fetch a un mensaje guiado; resto de mensajes se mantienen sin cambios |
-| SCRAPER-UX-5 | **Jerga interna "SAGE-1"/"Sage" filtrada a la UI** — tooltip (`tab-scraper.html:23`) y texto de cobertura (`scraper.js:63`) mencionan el código interno de una tarea del backlog sin explicarlo | UX | XS | ✅ ambas menciones eliminadas |
-| SCRAPER-UX-6 | **`useEsdeGamelistDir()` es código muerto** — exportada pero ningún botón la llama (`scraper.js:28-33`) | UX | XS | ✅ eliminada junto con `_autoFillEsdeGamelistDir()`/`_esdeGamelistsDir` (dead code en cascada: sin `useEsdeGamelistDir()` tampoco tenían lector) |
-| SCRAPER-UX-7 | **Exportar gamelists no deshabilita su botón durante la llamada** — inconsistente con `doScrape`, riesgo bajo | UX | XS | ✅ `doExportGamelists()` deshabilita el botón con texto "Exportando…" (patrón `try/finally`) |
+> **Orden sugerido:** MEJ-1 → MEJ-2 → MEJ-3 → MEJ-4 → MEJ-5
 
 ---
 
-## INBOX-UX — Auditoría de la pestaña Inbox: UX/UI (2026-07-13)
+### AUD — Auditoría funcional (2026-07-12)
 
-Auditoría de la pestaña Inbox (`tab-inbox.html` + `js/tabs/inbox.js`,
-Pilar 2). Cierra el hilo abierto en
-`Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`: **no se
-fusiona con Plan** — el pipeline de Inbox incluye pasos que Plan no tiene
-(extraer, escanear, cotejar) precisamente porque parte de archivos aún no
-escaneados; son dos pilares distintos, no una duplicación. Hallazgo
-principal propio: "Organizar todo" es la única acción masiva de todo el
-proyecto auditado hasta ahora sin ningún paso de confirmación. Detalle,
-archivo:línea y fases en `Tareas/diario/archivo/Roadmap-Inbox-UX-completado.md`.
-**Completado** — ver INBOX-UX-1..6 arriba.
+Funciones nuevas detectadas en auditoría de la app completa. Detalle, archivos
+y criterios de "hecho" en `Tareas/diario/archivo/Roadmap-Auditoria.md`
+(archivado — 6/6 completadas). Orden: 1→6.
 
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| INBOX-UX-1 | **"Organizar todo" sin ninguna confirmación** — `runInbox()` (`inbox.js:160-186`) lanza extraer+escanear+cotejar+renombrar+organizar sobre toda la carpeta Inbox sin `confirm()`/`_showConfirm`, a diferencia de toda acción masiva equivalente ya auditada (Duplicados, Plan, Formatos) | Bug | S | ✅ `inbox.js:198,202-204` — `_showConfirm('¿Organizar el Inbox?', ...)` antes de lanzar `_launchInbox` |
-| INBOX-UX-2 | **"Analizar carpeta" no muestra un plan real, solo clasificación** — sin nombres de destino ni conflictos previstos, a diferencia de la tabla equivalente en Plan; conviene resolver junto con INBOX-UX-1 (la confirmación necesita estos datos) | UX | M | ✅ `inbox.js:147-153` (`scanInbox()`) — muestra destino previsto (`dest_folder`) y marca conflictos (`dest_exists`) |
-| INBOX-UX-3 | **`confirm()` nativo en `resolveInboxConflict`** (`inbox.js:321-336`) — mismo patrón ya señalado en Duplicados y Plan | UX | XS | ✅ `inbox.js:364-367` — usa `_showConfirm` |
-| INBOX-UX-4 | **Checkbox "Procesar automáticamente" sin relación visible con "Guardar ajustes"** — toggle silencioso que no hace nada hasta pulsar un botón en otra fila (`tab-inbox.html:31-34,40`) | UX | XS | ✅ `tab-inbox.html:28,32` — `onchange="autoSaveInboxToggle()"` guarda automáticamente (`inbox.js:402-403`) |
-| INBOX-UX-5 | **"No reconocidos" sin explicar qué pasará con esos archivos** (`inbox.js:128`) | UX | XS | ✅ `inbox.js:133` — añade "(no se tocan, se quedan en el Inbox)" |
-| INBOX-UX-6 | **Errores sin guía en `loadInboxConflicts`** (`inbox.js:314-316`) | UX | XS | ✅ `inbox.js:355-357` — guía accionable en el catch |
+| ID | Task | Pilar | Esfuerzo | Estado |
+|----|------|-------|----------|--------|
+| AUD-1 | **Sync Doctor** — detectar desviación de reloj PC↔consola (mtime gana → reloj mal = pérdida silenciosa), saves con mtime futuro, saves solo en un lado, último sync por juego | Sync | M | ✅ rama `aud-1-sync-doctor` — pendiente validar con consola real |
+| AUD-2 | **Verificación post-transferencia** — hash origen/destino tras cada push/pull (`adb shell md5sum`); si difiere, no propagar y reportar; columna `verified` en `save_sync_log` | Sync | S-M | ✅ rama `aud-2-sync-verify` — pendiente validar con consola real |
+| AUD-3 | **Papelera unificada con purga** — todo borrado masivo pasa por `_descartados/` (helper `_discard_file` ya existe); purga >30 días en el health-check daemon; contador+vaciar en Settings. Evita repetir INBOX-FIX-5 | Seguridad | M | ✅ rama `aud-3-papelera-unificada` |
+| AUD-4 | **`.md` ambiguos del Inbox por CRC** — los 177 varados: lookup contra `crc_index()` ya existente; hit=Mega Drive, miss=quieto. Formaliza el "ZIP-ROUTE-FIX-4" informal | Inbox | S | ✅ rama `aud-4-md-por-crc` — ejecutar el pipeline sobre el Inbox real para los 177 |
+| AUD-5 | **Informe de completitud por plataforma (1G1R)** — cruzar `games` matched vs DATs: "SNES: 412/1.748 (24 %)" + CSV de faltantes | Biblioteca | M | ✅ rama `aud-5-completitud-1g1r` (extendió `/api/collection-completeness` ya existente) |
+| AUD-6 | **`chdman verify` en health check** — verificación interna de CHDs, checkbox off por defecto | Biblioteca | S | ✅ rama `aud-6-chdman-verify` |
 
 ---
 
-## TV-UX — Auditoría del Modo TV: UX/UI (2026-07-13)
+### TEST-CLEAN — Tests que prueban código muerto (auditoría 2026-07-09)
 
-Auditoría del Modo TV (`tab-tv.html` + `games.js:904-976` +
-`main.js:737-782`). Modo de navegación legítimamente distinto (foco por
-teclado, pantalla completa) — no candidato a fusión. Dos hallazgos
-críticos: la colección se corta en 120 juegos sin forma de cargar más
-(`_TV_LIMIT`, paginación soportada por el backend pero nunca disparada), y
-la barra de filtro por plataforma existe en el HTML pero ninguna función
-la rellena jamás — planeada pero nunca conectada. Detalle, archivo:línea y
-fases en `Tareas/Roadmap-TV-UX.md`.
+Origen: auditoría de la suite (625 tests / 463 funciones; el resto es
+parametrización de funciones puras — sano). Cero skips, todo pasa en ~12 s.
+El único problema real: 3 módulos de `src/` sin **ningún** call-site en `src/`
+(solo los referencian sus tests), es decir, 29 tests en verde validando código
+que la app nunca ejecuta. **Corrección al implementar (2026-07-09)**: la
+auditoría solo miró `src/` — `dat_downloader.py` sí tiene consumidor vivo en
+`installer/download_dats.py` (build del instalador), así que TEST-CLEAN-1 se
+re-alcanzó a solo corregir la doc. Moraleja: buscar consumidores en todo el
+repo (installer/, scripts/), no solo en `src/`.
 
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| TV-UX-1 | **La colección se corta en 120 juegos sin forma de cargar más** — `loadTvGrid` soporta `offset` (`games.js:918-934`) pero nada lo dispara nunca con offset > 0; `_tvMoveFocus` simplemente deja de avanzar al llegar al final sin avisar | Bug | S | ✅ `_tvMoveFocus` carga la siguiente página automáticamente (`_tvHasMore`) al llegar al final; si de verdad no hay más, aviso "No hay más juegos por aquí" en `tv-info-keys`. Verificado en navegador: filtro Atari 2600 (175 juegos) cargó 2 páginas y mostró el aviso al final real |
-| TV-UX-2 | **Barra de filtro por plataforma nunca rellenada** — `tv-platform-bar`/`tv-platform-label` (`tab-tv.html:3-4`) vacíos para siempre; `loadTvGrid` ya acepta `platform` pero `enterTvMode()` siempre llama con `''` (`games.js:905-910`) | Bug | S | ✅ `_tvLoadPlatformBar()` rellena los chips desde `/api/games/filter-options` (mismo endpoint que Juegos/Scraper); clic filtra la rejilla y resalta el chip activo. Verificado en navegador |
-| TV-UX-3 | **"Salir" siempre vuelve a Colección, ignorando de dónde viniste** — `exitTvMode()` hace `showTab('collection')` fijo (`games.js:912-916`) pese a que `t` es un atajo global desde cualquier pestaña | UX | XS | ✅ `enterTvMode()` guarda la pestaña activa en `_tvSourceTab` (solo la primera vez, no si `t` se repite ya en TV); `exitTvMode()` vuelve ahí. Verificado en navegador: entrar desde Análisis y salir vuelve a Análisis |
-| TV-UX-4 | **Fallo de red deja la rejilla en blanco sin ningún aviso** — catch de `loadTvGrid` solo hace `console.error` (`games.js:933`), sin mensaje visible en un modo a pantalla completa | UX | XS | ✅ mensaje visible en `tv-grid` en la carga inicial (offset 0); las cargas de paginación solo registran el error en consola, sin romper lo ya mostrado |
-| TV-UX-5 | **Pulido: fallo de pantalla completa silencioso + `_tvCols` no se recalcula al redimensionar** (`games.js:908,959`) | UX | XS | ✅ toast de aviso si `requestFullscreen()` falla (Modo TV sigue funcionando en ventana); listener de `resize` recalcula `_tvCols` mientras `_tvActive`. Verificado en navegador (el toast salió en la propia sesión de prueba, sin fullscreen real disponible) |
-
----
-
-## SETTINGS-UX — Auditoría de la pestaña Settings: UX/UI (2026-07-13)
-
-Auditoría de la pestaña Settings (`tab-settings.html`, ~500 líneas/20+
-paneles, + `js/tabs/config.js`, ~870 líneas) — la más grande de la app.
-Hallazgo principal, verificado de forma independiente en frontend y
-backend: el campo "ES-DE carpeta" nunca ha podido guardar nada porque el
-backend filtra `launchers.esde` de su lista de claves permitidas (a
-diferencia de `launchers.retroarch`, que sí está) — fix de una línea.
-Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md`.
-
-| ID | Task | Tipo | Esfuerzo | Estado |
-|----|------|------|----------|--------|
-| SETTINGS-UX-1 | **"ES-DE carpeta" nunca se guarda, para nadie** — el frontend envía `launchers.esde` (`config.js:621-622`) pero el `allowed` set del backend no lo incluye (`handlers/config.py:242-272`, comparar con `launchers.retroarch` que sí está); se descarta en silencio antes de escribir `config.toml` | Bug | XS | ✅ `launchers.esde` añadido al set `allowed` (`config.py:274`) |
-| SETTINGS-UX-2 | **4 campos se guardan bien pero nunca muestran "✓ Guardado"** — `sync.saves_remote`/`sync.states_remote`/`sync.ra_config_remote`/`retroachievements.username` faltan en el mapa `_CFG_CHECK` (`config.js:645-656`) pese a tener el mismo `<span class="cfg-saved">` que sus vecinos en el HTML | UX | XS | ✅ añadidos al mapa `_CFG_CHECK`; de paso se encontró un 5º campo con el mismo bug (`sync.playtime_remote`, no documentado aquí) y se corrigió junto con los demás |
-| SETTINGS-UX-3 | **Panel "Configurar consola Android" (QR) — ya cubierto por ANBERNIC-UX-2** — mismo endpoint 404 (`/api/anbernic-setup.sh`), aplica también a esta copia del panel (`tab-settings.html:12-39`) | Bug | — | ✅ (panel eliminado en feature/anbernic-ux) |
-| SETTINGS-UX-4 | **"Migrar BD a dos DBs" sin confirmación** — única operación de BD sin `confirm()`/`_showConfirm` en la pestaña, a diferencia de "Vaciar papelera" y "Cerrar Retro Vault" (`config.js:111-124`) | UX | XS | ✅ `migrateSplitDb()` envuelta en `_showConfirm(...)`, mismo patrón que `clearPin()` |
-| SETTINGS-UX-5 | **Pulido: la mayoría de campos no tienen confirmación inline** — solo dependen del toast genérico al guardar | UX | XS | ✅ añadido `<span class="cfg-saved">` + entrada en `_CFG_CHECK` a los 8 campos restantes sin checkmark propio: `android.device_name`, `sync.ra_config_dir`, `web.host`, `launchers.retroarch`, `launchers.esde`, `backup.saves_enabled`, `backup.saves_keep_n`, `notifications.desktop` — ahora los 22 campos guardables de Settings tienen confirmación inline |
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| TEST-CLEAN-1 | ~~Borrar `catalog/dat_downloader.py` + sus 17 tests~~ **Re-alcance: NO borrar** — la auditoría solo buscó consumidores en `src/`; el módulo lo usa `installer/download_dats.py:17` para bundlear DATs en el instalador (PHASE6-2b). Sus 17 tests protegen tooling vivo. Lo que sí era falso: la nota de ARCADE-SETUP-3 mezclaba runtime e installer — corregida. Queda como candidato de consolidación futura: `_run_dat_download` (`web/handlers/scan.py:590`) reimplementa descarga+TTL en runtime; podría importar de `dat_downloader` (refactor, valor bajo). | `catalog/dat_downloader.py` | ✅ (sin borrado — módulo vivo; nota ARCADE-SETUP-3 corregida, rama `chore/test-clean-dead-modules`) |
+| TEST-CLEAN-2 | **Borrar `renamer/cue_rewriter.py` + sus 6 tests, y corregir la doc** — la estrategia PSX actual es `move_disc_set_to_subfolder` (`renamer/file_renamer.py:126`): mueve cue+bins a subcarpeta **conservando los nombres de los bins**, así que nunca reescribe el `.cue`. `rewrite_cue` es la estrategia antigua, sin call-sites. Ojo: el Debug Playbook (este archivo) aún decía "Renombrado PSX roto → `cue_rewriter.py`" — pista falsa. | `renamer/cue_rewriter.py`, `tests/test_cue_rewriter.py`, backlog, docs | ✅ módulo+tests borrados; Debug Playbook, `docs/architecture/architecture.md` (árbol + patrón PSX), `docs/glossary.md` y `docs/onboarding.md` actualizados a la estrategia real (rama `chore/test-clean-dead-modules`). `CLAUDE.md` no lo mencionaba |
+| TEST-CLEAN-3 | **Borrar `scanner/save_scanner.py`** — sin referencias en `src/` ni tests; los saves los gestiona `sync/`. Código muerto sin más. | `scanner/save_scanner.py` | ✅ borrado + árbol de architecture.md actualizado (rama `chore/test-clean-dead-modules`) |
+| TEST-GAP-1 | **`renamer/file_renamer.py` no tiene tests directos** — descubierto al borrar `test_cue_rewriter.py` (el único test "de renombrado PSX" probaba la estrategia muerta). `rename_rom_with_saves` (rename atómico con rollback, patrón crítico de CLAUDE.md) y `move_disc_set_to_subfolder` (sets de disco) solo se ejercitan indirectamente. Añadir tests directos: éxito, rollback ante fallo a mitad, y set cue+bin movido íntegro. | `tests/test_file_renamer.py` (nuevo) | ✅ `tests/test_file_renamer.py` ya existía con buena cobertura de éxito, pero le faltaban exactamente los 2 huecos que nombra la tarea: (1) rollback de `rename_rom_with_saves` cuando falla un save a mitad — nunca se probaba directamente, solo vía el handler de apply; (2) el caso normal de rollback en `move_disc_set_to_subfolder` (ya había un test, pero solo del caso "el rollback en sí falla"). Añadidos: rollback de `rename_rom_with_saves` (ROM+saves vuelven a su estado y contenido original), rollback exitoso de `move_disc_set_to_subfolder` (bin1 vuelve a su sitio, carpeta destino vacía se limpia), y un set de 2 discos movido íntegro (nombres y contenido de ambos `.bin` intactos). 3 tests nuevos (915 en total) |
 
 ---
 
-## REV43 — Auditoría de calidad de código (`/revisar`, 2026-07-15)
+### ONB — Onboarding / Developer Experience (audit 2026-07-04)
+
+Origen: auditoría del proyecto desde la perspectiva de un desarrollador nuevo que no
+conoce el proyecto ni el dominio retro-gaming. Roadmap detallado con orden y
+estimaciones: `Tareas/diario/archivo/Roadmap-Onboarding.md` (archivado — completado).
+
+| ID | Severidad | Task | Archivo | Estado |
+|----|-----------|------|---------|--------|
+| ONB-1 | 🔴 Alto | **Falta el archivo `LICENSE`** — el README declara "MIT" pero no existía `LICENSE` en la raíz. Sin él, legalmente el código NO es open source y GitHub no muestra la licencia. | `LICENSE` | ✅ texto MIT estándar (rama `chore/onb-phase1-license-docs-index`, PR #71) |
+| ONB-2 | 🔴 Alto | **No hay `CONTRIBUTING.md`** — un dev nuevo no sabe que los PRs van a `develop` (no a `main`), ni los check names de CI, ni que hay pre-commit hooks. Esa info existe pero está en `docs/ci-cd.md` redactada "para Claude". | `CONTRIBUTING.md` | ✅ setup + ramas + checks CI + convenciones + checklist de PR; enlazado desde README (rama `chore/onb-phase2-contributing-config`, PR #72) |
+| ONB-3 | 🟠 Medio | **`docs/architecture/architecture.md` desactualizado** — describía `web/response_builders.py` (hoy `web/builders/`), `repository.py` monolítico (hoy mixins), `app.js` monolítico (hoy `static/js/` + `partials/`), BD `library.db` (hoy `library_pc.db` + android), rutas de usuario hardcodeadas y patrones obsoletos (globales de jobs + late imports, sustituidos por `JobManager` + `web/state.py`). | `docs/architecture/architecture.md` | ✅ regenerado desde el código: árbol de módulos real, 2 BDs + 10 tablas, patrones actuales (JobManager, state, seguridad), API → `openapi.json`, historial de refactors (rama `chore/onb-phase3-arch-backlog`) |
+| ONB-4 | 🟠 Medio | **`config.toml.example` incompleto** — faltaban secciones que `config.py` ya soporta: `retroachievements.username`, `[inbox]`, `[backup]`, `auto_sync_*`, `[launchers]`, `[notifications]`, `session_ttl`, `[[emulator_paths]]`. Además difería del ejemplo embebido en el README (dos fuentes de verdad, y el del README con el default `host` obsoleto). | `config.toml.example`, `README.md` | ✅ example regenerado desde `load_config()` con todas las claves; README reducido a snippet mínimo + enlace al example (rama `chore/onb-phase2-contributing-config`, PR #72) |
+| ONB-5 | 🟡 Medio | **No hay guía de orientación para devs nuevos** — un recién llegado no sabe por dónde empezar a leer, ni que puede levantar el app con datos sintéticos. | `docs/onboarding.md` | ✅ "primeros 30 minutos": pipeline central, mapa de lectura en 6 pasos, flujo request→handler→service→repo, e2e sintético + `/test-pipeline`, Debug Playbook, tests como documentación, primer cambio (rama `chore/onb-phase4-onboarding-glossary`) |
+| ONB-6 | 🟡 Medio | **Glosario de dominio inexistente** — el proyecto asume jerga retro que un dev nuevo no domina. | `docs/glossary.md` | ✅ ~30 términos en 4 bloques (identificación, formatos de disco, saves/emulación, infraestructura), cada uno con su "por qué importa en este código"; enlazado desde README, índice de docs y onboarding (rama `chore/onb-phase4-onboarding-glossary`) |
+| ONB-7 | ⚪ Bajo | **Índice `docs/README.md` incompleto** — no listaba `ci-cd.md`, `SKILLS-QUICK-START.md`, `arcade-setup.md`, `emulator-compat.md` ni `sync-wifi-sftp.md`; el README raíz tampoco enlazaba al índice de docs. | `docs/README.md`, `README.md` | ✅ sección "Desarrollo" + docs faltantes en índice; sección "Documentación" + licencia enlazada en README (rama `chore/onb-phase1-license-docs-index`, PR #71) |
+| ONB-8 | ⚪ Bajo | **Backlog difícil de escanear para alguien nuevo** — mezclaba secciones enteras ya completadas ✅ (SRP, ARC, SEC, UR, REPORT-FIX, DESIGN, PONT, NEW-FEAT…) con lo pendiente. | `Tareas/backlog.md` | ✅ ~440 líneas de secciones completadas movidas a `Tareas/diario/archivo/archivo.md`; el backlog queda solo con pendientes + Debug Playbook (rama `chore/onb-phase3-arch-backlog`) |
+| ONB-9 | ⚪ Bajo | **Decisión de idioma/audiencia del README** — todo en español; si el repo también sirve de portfolio internacional, añadir un TL;DR en inglés al inicio (qué es, stack, screenshot) sin traducir el resto. Decisión del usuario. | `README.md` | ✅ TL;DR en inglés (qué es + stack) al inicio del README; sin screenshot porque el repo no tiene ninguno (rama `docs/onb9-readme-english-tldr`) |
+
+> **Completado 9/9** (PRs #71–#74 + ONB-9). Detalle: `Tareas/diario/archivo/Roadmap-Onboarding.md`.
+
+---
+
+### REV43 — Auditoría de calidad de código (`/revisar`, 2026-07-15)
 
 Origen: revisión completa de `src/rom_manager/` (26.9k líneas) con 6 agentes
 en paralelo por área (sync, database, web/handlers core, web/server+builders,
@@ -890,79 +1005,7 @@ progreso), luego integridad de BD, luego web, luego el resto.
 
 ---
 
-## Hallazgos INICIO-UX (2026-07-16, prueba con biblioteca real)
-
-| ID | Prioridad | Hallazgo | Dónde | Estado |
-|----|-----------|----------|-------|--------|
-| INICIO-FIX-1 | 🟡 Bajo | **`int(rom.get("size", 0))` revienta con `size=""`** — un DAT real (FBNeo/MAME en `catalogs/arcade/`) trae `<rom size="">` y el parser lanza `ValueError` (logueado, el catálogo se carga a medias). Su gemelo en la línea 190 ya tiene el fix `or 0`; se corrigió un sitio y no el otro | `catalog/catalog_loader.py:135` | ✅ rama `fix/inicio-ux` — `or 0` + test |
-| INICIO-FIX-2 | 🟢 Menor | **`load_arcade_infra_names` parsea el `mame.xml` de 608 MB (~11 s) en cada llamada** — lo pagan cada junk-scan y cada refresh de `/api/library-extras` (TTL 15 min). El ponytail "cachear si algún día duele" (maintenance.py) ya duele: memoizar por `(path, mtime)` en `mame_loader` beneficia a todos los callers | `catalog/mame_loader.py:75-103` | ✅ rama `fix/inicio-ux` — memoización por firma (nombre, mtime, tamaño) + test |
-| INICIO-FIX-3 | 🟢 Menor | **`mame0278.xml` vacío (0 bytes) en `catalogs/arcade/`** — descarga/generación fallida; cada loader lo abre y lo descarta en silencio. Borrarlo (acción de usuario o incluirlo en INICIO-FIX-2) | `.rommgr/catalogs/arcade/mame0278.xml` | ✅ borrado (2026-07-16) |
-| INICIO-FIX-4 | ✨ Mejora | **El listxml de MAME ahora es descargable desde Ajustes → Catálogos** — entrada "MAME XML (bios/devices)" en el grupo Arcade: resuelve la última release vía API de GitHub, baja el asset `*lx.zip` (~19 MB) y lo extrae como `catalogs/arcade/mame.xml` (~320 MB, escritura atómica vía `.part`). Verificado E2E con red real (v0.288, 7.297 nombres de infra) | `web/handlers/scan.py` (`_download_mame_listxml`) | ✅ rama `fix/inicio-ux` |
-
----
-
-## INBOX-CFG — `target_root` apuntaba fuera de la biblioteca + gap de arcade suelto (2026-08-13)
-
-Origen: el usuario reportó que el Inbox "solo detecta zips" tras soltar juegos de
-Mega Drive, Dreamcast, MAME2003 y Nintendo DS. Investigación: `.rommgr/library_pc.db`
-(`scan_runs`) mostraba 8 corridas del pipeline ese mismo día con `roms_detected`
-bajando de 1719 a 0 — el Inbox sí procesaba y organizaba, pero no en
-`E:\Carpetas anbernic`.
-
-| ID | Prioridad | Hallazgo | Dónde | Estado |
-|----|-----------|----------|-------|--------|
-| INBOX-CFG-1 | 🔴 Crítico | **`inbox.target_root = "Este equipo\\RG556\\Ambernic"`** (ruta MTP del móvil, no un path real) se resolvía como relativa contra el cwd del proceso → `Path.resolve()` creaba `Retro_gaming_app\Este equipo\RG556\Ambernic\` dentro del propio repo, en C:. El pipeline organizaba correctamente por plataforma (megadrive/, dreamcast/, nds/…) pero en ese destino fantasma — de ahí que el usuario no viera nada organizado en `E:\Carpetas anbernic` y que C: llegara a 0 GB libres (1.527 archivos, 48,96 GB) | `config.toml:40` | ✅ `target_root` vaciado (cae al fallback `config.library_root` en `inbox_pipeline.py:727`) — servidor reiniciado. 1.024 archivos reubicados a `E:\Carpetas anbernic\<plataforma>\`, 482 duplicados exactos eliminados, 21 conflictos (mismo nombre/contenido distinto) dejados sin tocar para revisión manual — ver lista en el diario de hoy |
-| INBOX-CFG-4 | 🟡 Medio | **El Inbox extrae CUALQUIER ZIP suelto sin distinguir arcade de consola** — a diferencia de `zip_router.py` (que nunca extrae un ZIP arcade, lo mueve directo a `arcade/`), el watcher normal (`_run_inbox_pipeline` Step 1, `find_zip_files`+`extract_zip`) no tiene ese filtro — es el mecanismo de siempre, no algo nuevo de esta sesión, pero el primer arranque del servidor en esta sesión lo disparó sobre los ZIPs que ya había en el Inbox, reventando **75 sets arcade** en chips sueltos. Recuperado sin pérdida: los ZIPs originales seguían en `_descartados/` (AUD-3, nunca borrado directo) — 39 eran redundantes (la biblioteca ya tenía versión igual o más completa en `arcade/`, sin tocar) y **36 se restauraron directos a `arcade/`** (sin re-extraer, sin colisión, íntegros). Verificado con búsqueda exhaustiva: los 114 ZIPs de consola del mismo lote sí se procesaron bien (extraídos → organizados correctamente en su plataforma) — el problema era solo arcade | `web/inbox_pipeline.py` Step 1 (`find_zip_files`) | ✅ nueva comprobación `_is_arcade_zip_container()` antes de `extract_zip()`: si el 100% de las entradas del ZIP coinciden con CRCs conocidos de `load_arcade_crc_index()`, se mueve intacto a `arcade/` sin extraer (mismo criterio que `zip_router.py`, ahora también aplicado al watcher automático). Tests en `tests/test_inbox_arcade_zip_route.py` |
-| INBOX-CFG-2 | 🟡 Medio | **~3.526 archivos sueltos de sets MAME/arcade** (`.u12`, `.epr`, `.rom`, extensiones numéricas) en la raíz del Inbox, sin agrupar por juego — `classify_path` no los reconoce (no están en ningún catálogo de consola) y quedan como `unknown_files_detected`. Diseño actual (`ZIP-ROUTE`) asume que un set arcade siempre llega como ZIP intacto; no hay ruta de código para reconstituir chips sueltos | `web/inbox_pipeline.py` (`classify_path` los ignora), `catalog/mame_loader.py:load_arcade_crc_index()` ya da `CRC32→{set names}` reutilizable | ✅ implementado como ARCADE-RECON (`_reconstruct_loose_arcade_sets` en `web/inbox_pipeline.py:429`, PR #160): CRC32 de cada chip suelto, cobertura contra `load_arcade_crc_index()`+`load_arcade_manifest()`, solo reclama una máquina al 100% de cobertura, re-empaqueta en `<set>.zip` con verificación de contenido antes de mover a `arcade/`, descarta los chips sueltos usados (papelera, AUD-3) solo tras confirmar el ZIP en destino. Tests en `tests/test_arcade_recon.py` |
-| INBOX-CFG-3 | 🟢 Menor | **21 conflictos** (mismo nombre, contenido distinto) que quedaron en la carpeta fantasma de C: | `amiga/`, `atari2600/`, `atarilynx/`, `c64/`, `gba/`, `msx/`, `nds/`, `psx/`, `unknown/` | ✅ movidos a `E:\Carpetas anbernic\<plataforma>\` con sufijo ` (conflicto-inbox 2026-08-13)` — nada se sobreescribió, quedan pendientes de comparar/elegir a mano. Carpeta fantasma de C: eliminada por completo |
-
----
-
-## ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún)
-
-| ID | Idea | Notas |
-|----|------|-------|
-| CFG-PORGAME | Configuraciones específicas por juego (core options, overrides RetroArch), editables desde el PC | Necesita decidir formato (`.opt`/`.cfg` de RetroArch por juego) y cómo sincronizarlas con Android sin pisar los overrides que ya gestiona el usuario a mano |
-| MODS-AUTO | Añadir e instalar mods automáticamente — viable para PS1/PS2/N64/GameCube (formatos de parche/mod más estandarizados: `.pnach`, ISO patching, texture packs); no viable para consolas muy antiguas (sin ecosistema de mods) | Requiere investigar formato de mods por emulador/plataforma antes de diseñar; alcance grande, candidato a su propia fase de roadmap |
-| STORAGE-MGR | Gestor de almacenamiento — decidir y borrar en bloque (PC, Anbernic o ambos) desde un menú dedicado | Necesita: vista combinada de qué existe en cada lado (ya hay base en `sync/` para comparar PC↔Android), selección múltiple, y pasar por la papelera unificada `_descartados/` (AUD-3) en vez de borrado directo — nunca borrar sin poder deshacer |
-| GHA-OPT-1 | Optimizar el flujo de Claude Code GitHub Actions (`claude.yml` / `claude-code-review.yml`, instalados 2026-08-14 vía `/install-github-app`) | Repo público → minutos de runner gratis y autentica con `CLAUDE_CODE_OAUTH_TOKEN` (consume cuota Pro/Max, no API pay-as-you-go) — el coste real a acotar es esa cuota, no dinero. Palancas disponibles: `--max-turns` en `claude_args`, controles de concurrencia de GitHub para no solapar corridas, revisar qué eventos disparan cada workflow (evitar reviews redundantes en PRs triviales/drafts), y mantener `CLAUDE.md` conciso ya que se lee en cada corrida |
-
-## CABLE-ROM-FIX — El sync de ROMs por cable no compara con el destino (hallazgo 2026-08-13)
-
-Origen: el usuario pidió sincronizar biblioteca PC↔consola vía Cable Sync
-(`what: ["roms"]`). Investigación con dry-run real contra la RG556
-(serial `RG556006101273`, SD en `/storage/521D-04EA`, 49 GB libres de 466 GB):
-pidió copiar **47.191 archivos / 516 GB** — la biblioteca del PC entera,
-sin importar que la SD ya tenga casi todo (misma estructura de carpetas que
-el PC). Repetido con `skip_existing: true` + `skip_sha1_dups: true`: **resultado
-idéntico**, byte a byte.
-
-Causa raíz: `web/handlers/sync_cable.py:597-605` (rama `direction ==
-"pc_to_anbernic"`) itera todos los archivos del PC y llama a
-`_adb_copy_to_device` para cada uno **sin comprobar nunca** el listado del
-dispositivo (`ab_adb_files`, calculado en la línea 569 pero solo usado para
-`delete_extra` y estadísticas de progreso — nunca para decidir qué copiar).
-El parámetro `skip_existing` que acepta el endpoint no se referencia en
-ningún punto de esta rama. `sync/adb_transport.py:278`
-(`AdbTransport.push`) tampoco compara contenido/mtime antes de subir — en
-`dry_run` ni siquiera llega a intentarlo, solo devuelve el tamaño local.
-Contraste: la rama `anbernic_to_pc` (línea 636) sí usa `use_sha1`/hash para
-saltar duplicados — la asimetría sugiere que `pc_to_anbernic` quedó a medias.
-
-| ID | Task | Notas |
-|----|------|-------|
-| CABLE-ROM-FIX-1 | Implementar comparación real contra `ab_adb_files`/`pc_root` antes de copiar en ambas ramas ADB (`pc_to_anbernic` y `anbernic_to_pc`) — mismo criterio que ya usa `cable_engine.copy_item` en el modo sistema de archivos (tamaño) | `web/handlers/sync_cable.py:597-605,672-729` | ✅ rama `fix/cable-sync-rom-skip-existing` → PR #161 |
-| CABLE-ROM-FIX-2 | Guard de espacio libre en destino antes de empezar (ya existe un patrón idéntico en `zip_router.py:_extract_collection` — `shutil.disk_usage(dest_dir).free`) — evita rellenar la SD a medias | `web/handlers/sync_cable.py` (rama ADB de `_do_cable_sync`) | ✅ `AdbTransport.free_bytes()` (`sync/adb_transport.py`, vía `df -k`) + guard antes de escribir en corridas reales (`dry_run=False`) |
-| CABLE-ROM-FIX-3 | Sync por plataformas — con el fix, la SD (78 GB libres) sigue sin caber la biblioteca completa (305,9 GB). No hace falta código nuevo: el endpoint ya soporta `pc_path`/`android_path` apuntando a una subcarpeta. Desglose real por plataforma: `psx` 61,1 GB, `gamecube` 34,3 GB, `ps2` 29,9 GB, `Unknown` 25,2 GB (basura), `arcade` 17,6 GB no caben; el resto (~66 GB tras `skip_existing`) sí | — | ✅ ejecutado de verdad 2026-08-13: 50 carpetas (allowlist cruzada contra `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, nunca `Documents`/`Music`/`DCIM` etc.), lanzado vía script de orquestación (llama al endpoint ya arreglado, una carpeta por vez, secuencial) — en curso al cerrar la sesión, ver diario Día49 para el resultado final |
-
-> Estado: ✅ implementado y validado con dry-run + ejecución real contra
-> hardware conectado (RG556). Ver `Tareas/diario/Día49.md` para los
-> números completos y el resultado final de la transferencia por
-> plataformas.
-
----
-
-## User actions (no code needed)
+### User actions (no code needed)
 
 | ID | Task |
 |----|------|
