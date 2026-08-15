@@ -781,6 +781,8 @@ def main(argv: list[str] | None = None) -> int:
                     rating=result.rating,
                     box_art_url=result.box_art_url,
                     box_art_path=box_art_path,
+                    genres_list=result.genres_list,
+                    players=result.players,
                     scraped_at=utc_now(),
                     connection=conn,
                 )

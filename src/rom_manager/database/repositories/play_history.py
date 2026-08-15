@@ -2,6 +2,20 @@
 
 Mixed into :class:`~rom_manager.database.repository.LibraryRepository`; relies on
 ``connect`` from ``_RepositoryBase``.
+
+SAGE-2 — contrato de ``game_metadata.genres_list``/``players`` (consumidos por
+``GET /api/export-history`` en ``web/handlers/play_history.py``):
+    genres_list  TEXT  todos los géneros de ScreenScraper separados por coma
+                        (``genre`` solo guarda el primero). Poblado por
+                        ``upsert_metadata()`` en cada (re-)scrape; para filas
+                        scrapeadas antes de esta migración, backfill único
+                        desde ``genre`` (``_migrate_genres_list_backfill`` en
+                        ``database/schema.py``) — no es la lista completa
+                        real hasta que el juego se re-scrapee.
+    players      TEXT  nº de jugadores tal cual lo reporta ScreenScraper
+                        (p.ej. ``"1-2"``). Sin fuente local para backfill —
+                        queda NULL en filas scrapeadas antes de esta
+                        migración hasta que se re-scrapeen.
 """
 
 from __future__ import annotations

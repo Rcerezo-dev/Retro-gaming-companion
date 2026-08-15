@@ -266,6 +266,8 @@ def _do_scrape(
                             box_art_path=box_art_path,
                             screenshot_path=screenshot_path,
                             wheel_path=wheel_path,
+                            genres_list=result.genres_list,
+                            players=result.players,
                             scraped_at=utc_now(),
                             connection=conn,
                         )
@@ -471,6 +473,8 @@ def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRep
                 box_art_path=_box_art_path,
                 screenshot_path=_screenshot_path,
                 wheel_path=_wheel_path,
+                genres_list=_result.genres_list,
+                players=_result.players,
                 scraped_at=utc_now(),
                 connection=_bconn,
             )
