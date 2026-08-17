@@ -177,12 +177,17 @@ def _detect_retroarch_install() -> dict:
 
     retroarch_path: str | None = None
     library_root: str | None = None
+    ra_config_dir: str | None = None
 
     for ra_dir in candidates:
         exe = ra_dir / "retroarch.exe"
         if not exe.exists():
             continue
         retroarch_path = str(exe)
+        # CFG-PORGAME: config/ es la carpeta estándar de RetroArch junto al
+        # ejecutable (mismo directorio que ya usa _handle_retroarch_check para
+        # cores/ y retroarch.cfg) — de ahí cuelgan los .opt de opciones por core.
+        ra_config_dir = str(ra_dir / "config")
         cfg_path = ra_dir / "retroarch.cfg"
         if cfg_path.exists():
             try:
@@ -200,6 +205,7 @@ def _detect_retroarch_install() -> dict:
         "found": retroarch_path is not None,
         "retroarch_path": retroarch_path,
         "library_root": library_root,
+        "ra_config_dir": ra_config_dir,
     }
 
 

@@ -850,6 +850,13 @@ async function detectRetroArch() {
           msg += '  ·  Biblioteca: ' + d.library_root;
         }
       }
+      if (d.ra_config_dir) {
+        const raCfgInput = document.getElementById('cfg-ra-config-dir');
+        if (raCfgInput && !raCfgInput.value.trim()) {
+          raCfgInput.value = d.ra_config_dir;
+          msg += '  ·  Config: ' + d.ra_config_dir;
+        }
+      }
       if (resultEl) { resultEl.textContent = msg; resultEl.style.color = 'var(--c-teal)'; }
     } else {
       if (resultEl) { resultEl.textContent = '✗ No encontrado — introduce la ruta manualmente.'; resultEl.style.color = 'var(--c-red)'; }
