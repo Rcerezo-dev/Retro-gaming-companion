@@ -315,3 +315,61 @@ def test_no_ra_data_skips_conflict(tmp_path: Path) -> None:
 
     assert response["resolved"] == 0
     assert response["skipped_no_ra"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Scenario 5 — DUP-RA-COLLISION-1: multi-disc set collision is never auto-resolved
+# ---------------------------------------------------------------------------
+
+
+def test_collision_on_disc_platform_is_never_auto_resolved(tmp_path: Path) -> None:
+    """Two *different* discs of one PSX set can collide on the same canonical
+    target when neither source filename carries a "(Disc N)" tag (see
+    TABS-FIX-6-DISC). They must NEVER be resolved via RA winner-take-all —
+    doing so would discard a real, distinct disc, not a duplicate copy.
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    disc1 = roms / "Final Fantasy VII Disc1.cue"
+    disc2 = roms / "Final Fantasy VII Disc2.cue"
+    disc1.write_bytes(b"DISC_ONE_CONTENT")
+    disc2.write_bytes(b"DISC_TWO_CONTENT")
+
+    md5_disc1 = "1" * 32
+    md5_disc2 = "2" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=disc1,
+        md5=md5_disc1,
+        canonical_title="Final Fantasy VII (USA)",
+        platform="psx",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2,
+        md5=md5_disc2,
+        canonical_title="Final Fantasy VII (USA)",
+        platform="psx",
+    )
+
+    # Only Disc 1 has RA achievement data — the exact scenario that used to
+    # make the "winner" logic discard Disc 2.
+    _write_ra_cache(
+        tmp_path,
+        [_ra_entry(7, md5_disc1, 40)],
+    )
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    # Both discs must remain exactly where they were — nothing discarded, nothing renamed.
+    assert disc1.exists(), "Disc 1 was moved/renamed"
+    assert disc2.exists(), "Disc 2 was incorrectly discarded"
+    assert not (roms / "_descartados").exists(), "_descartados created for a real disc"
+
+    assert response["resolved"] == 0
+    assert response["skipped_multi_disc"] == 2
+    assert response["errors"] == []
