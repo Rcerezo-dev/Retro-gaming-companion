@@ -158,7 +158,11 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
 
 def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> None:
     """Daemon: vigila la carpeta inbox y lanza el pipeline cuando hay archivos."""
-    from rom_manager.web.inbox_pipeline import _run_inbox_pipeline, _watcher_now
+    from rom_manager.web.inbox_pipeline import (
+        _route_orphan_saves,
+        _run_inbox_pipeline,
+        _watcher_now,
+    )
 
     while True:
         try:
@@ -184,10 +188,19 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 )
                 continue
 
+            try:
+                _route_orphan_saves(inbox, repository, config, _logger)
+            except Exception:
+                _logger.debug("Error reuniendo saves huérfanos del Inbox", exc_info=True)
+
+            save_exts = frozenset(config.save_extensions)
             pending = [
                 e
                 for e in inbox.iterdir()
-                if e.is_file() and not e.name.startswith(".") and not e.name.startswith("_")
+                if e.is_file()
+                and not e.name.startswith(".")
+                and not e.name.startswith("_")
+                and e.suffix.lower() not in save_exts
             ]
             _state._inbox_watcher_status.update(
                 {
@@ -202,15 +215,6 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                     "Inbox watcher: %d archivos detectados, lanzando pipeline", len(pending)
                 )
                 _state._inbox_watcher_status["trigger_ts"] = _time.time()
-                if config.notify_desktop:
-                    from rom_manager.utils.notifier import notify
-
-                    _n = len(pending)
-                    _plural = "archivo" if _n == 1 else "archivos"
-                    notify(
-                        "Retro Vault — Inbox",
-                        f"📥 {_n} {_plural} detectado{'' if _n == 1 else 's'}, procesando…",
-                    )
                 target_root_str = config.inbox.target_root or (
                     str(config.library_root) if config.library_root else ""
                 )
@@ -224,6 +228,27 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                         config,
                         _state._job_manager,
                     )
+                    if not config.notify_desktop:
+                        return
+                    from rom_manager.utils.notifier import notify
+
+                    result = _state._job_manager.get_status().get("inbox_result") or {}
+                    if result.get("error"):
+                        notify(
+                            "Retro Vault — Inbox", f"⚠ Error procesando el Inbox: {result['error']}"
+                        )
+                        return
+                    organized = result.get("organized", 0)
+                    n_errors = len(result.get("organize_errors", [])) + len(
+                        result.get("rename_errors", [])
+                    )
+                    if n_errors:
+                        notify(
+                            "Retro Vault — Inbox",
+                            f"✓ {organized} organizados — ⚠ {n_errors} con error, revisar",
+                        )
+                    else:
+                        notify("Retro Vault — Inbox", f"✓ {organized} juegos organizados")
 
                 _state._job_manager.start("inbox", _watcher_run)
 

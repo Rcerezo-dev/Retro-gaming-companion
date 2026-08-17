@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rom_manager.database.repository import LibraryRepository, MatchedGame
 from rom_manager.detection.filename_normalizer import sanitize_filename
+from rom_manager.utils.disc_tag import find_disc_tag, has_disc_tag
 from rom_manager.utils.paths import same_file as _same_file
 
 # Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
@@ -32,9 +33,6 @@ _REGION_RE = re.compile(
 
 # Annotations de revisión: (Rev 1), (Rev A), (v1.0), (v1.1), etc.
 _REVISION_RE = re.compile(r"\s*\((Rev [A-Z0-9]+|v\d[\d.]*)\)", re.IGNORECASE)
-
-# TABS-FIX-6-DISC: tag de disco al estilo No-Intro/Redump, p.ej. "(Disc 2)".
-_DISC_TAG_RE = re.compile(r"\(disc\s*\d+\)", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -78,18 +76,20 @@ def _canonical_filename(
     Component order: [platform - ]title[ (Disc N)][ (region)][ (revision)][ [sha]]
 
     TABS-FIX-6-DISC: No-Intro/Redump often share one canonical_title across
-    every disc of a multi-disc set (no disc number in the DAT) — without the
-    real "(Disc N)" tag from the source filename, every disc computes the
+    every disc of a multi-disc set (no disc number in the DAT) — without a
+    disc tag recovered from the source filename, every disc computes the
     same target filename, collides, and "Resolver con RA" can discard Disc
-    2/3 thinking they're alternate copies. *include_disc_tag=False* derives
-    the shared game *folder* name, which must stay disc-agnostic.
+    2/3 thinking they're alternate copies. ``find_disc_tag`` (DUP-RA-COLLISION-1)
+    also catches messy real-world tags without parentheses ("Disc1", "cd2",
+    "Disco 2"), not just the strict "(Disc N)" form. *include_disc_tag=False*
+    derives the shared game *folder* name, which must stay disc-agnostic.
     """
     title = game.canonical_title
 
-    if include_disc_tag and not _DISC_TAG_RE.search(title):
-        disc_match = _DISC_TAG_RE.search(game.original_filename)
-        if disc_match:
-            title = f"{title} {disc_match.group(0)}"
+    if include_disc_tag and not has_disc_tag(title):
+        disc_tag = find_disc_tag(game.original_filename)
+        if disc_tag:
+            title = f"{title} {disc_tag}"
 
     if opts is not None:
         if not opts.include_region:
