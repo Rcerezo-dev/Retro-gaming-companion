@@ -57,3 +57,8 @@ jobs:
           # or https://code.claude.com/docs/en/cli-reference for available options
           # claude_args: '--allowed-tools Bash(gh pr *)'
 
+          # GHA-OPT-1d: techo de turnos — consume cuota Pro/Max
+          # (CLAUDE_CODE_OAUTH_TOKEN), no API pay-as-you-go; esto es lo que
+          # hay que acotar, no minutos de runner.
+          claude_args: '--max-turns 50'
+

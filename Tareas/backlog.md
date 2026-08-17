@@ -308,6 +308,21 @@ bajando de 1719 a 0 — el Inbox sí procesaba y organizaba, pero no en
 
 ---
 
+### INBOX-ORPHAN-1 — Saves sueltos en el Inbox + notificación en bucle (hallazgo 2026-08-14)
+
+Un `.sav` suelto en la raíz del Inbox (sin ROM acompañante en el mismo lote,
+p. ej. copiado suelto desde la Anbernic) nunca casaba con nada — `scan_library`
+no lo reconoce como ROM, así que quedaba "pendiente" para siempre y el
+watcher lo redetectaba cada 30s, disparando notificación de escritorio en
+bucle infinito.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-ORPHAN-1 | **Reunir el save con su ROM ya organizado** — nuevo paso 1.9 del pipeline, `_route_orphan_saves()`: empareja por coincidencia EXACTA de stem contra `games` (fuera del propio Inbox); solo mueve si hay un único match y el destino no existe ya — nunca sobreescribe, nunca descarta un save sin match único, se deja intacto para revisión manual antes que arriesgar la única copia | `web/inbox_pipeline.py` | ✅ verificado en real: el `.sav` de "Kid Dracula" se reunió con su ROM en `nes\`. Test `tests/test_inbox_orphan_saves.py` (4 casos: match único, sin match, match ambiguo, destino ya existe) |
+| INBOX-ORPHAN-2 | **Causa raíz de la notificación en bucle** — el watcher notificaba al *detectar* archivos pendientes, no al *terminar* el job; un `.sav` huérfano que nunca completa quedaba pendiente para siempre. Fix: notifica solo al completar el job; el watcher barre saves huérfanos en cada ciclo sin depender del pipeline pesado ni contarlos como "pendiente" | `web/daemons.py` | ✅ |
+
+---
+
 ## Pilar 3 — Sync de saves PC ↔ Anbernic — → #204
 
 Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
@@ -763,7 +778,7 @@ fase 2 (embeddings). Contexto adicional: `docs/ideas/propuestas-recomendador-nlp
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| SAGE-1 | **Scraping masivo de descripciones** (bloqueante Sage v0.2) — completar las descripciones de la biblioteca por lotes desde la fuente del scraper puntual. Reanudable (no re-scrapear lo ya descargado), rate-limit razonable, descripciones visibles en `GET /api/export-history`. Hecho cuando >90% de los juegos tienen descripción no vacía en el export. | `database/repositories/metadata.py`, `web/handlers/scraper.py`, `web/builders/misc.py`, `tab-scraper.html`, `scraper.js` | 🟡 código listo (rama `feature/sage-1-mass-descriptions`): el job `/api/scrape` ya era reanudable+rate-limited; añadido modo `missing_descriptions` (re-scrapea metadata con descripción vacía sin machacar imágenes), cobertura en `/api/scrape-summary` + UI (hoy 70.0%). Pasada real 2026-07-07: 964 en cola, 860 match, 0 errores (tras fix `_loads_lenient`, PR #79) pero cobertura 70,0→70,1% — los re-scrapeados no tienen sinopsis en SS. Para >90% hay que resetear `metadata_scraped` de los ~4.700 sin match histórico y re-scrapear (~89% de acierto hoy), o usar otra fuente. **Experimento reset 2026-07-07: fallido** — la cola de 4.692 era basura no-juego (chips de romsets arcade, shaders RetroArch, restos de Papelera `$I*.iso`, firmware): 415 procesados, 6 match. Flags revertidos. **Camino real al >90%: limpiar la basura de la biblioteca** (junk-scan restaurado en PR #80) — al quitar ~4.700 no-juegos del denominador, 13.217/~14.150 ≈ 93%. **Limpieza ejecutada 2026-07-08 (Día39)**: 28.718 archivos borrados (chips arcade de `Unknown\`, ~15,4 GB) + fixes del clasificador (PRs #82/#83) → cobertura **70,1% → 84,3%** (13.136/15.591). Para >90% queda JUNK-REVIEW-1 (revisar 5.771 ZIPs de `Unknown\`: colecciones fuente vs juegos individuales — decisión usuario) y re-scrape de los ~2.455 sin descripción restantes |
+| SAGE-1 | **Scraping masivo de descripciones** (bloqueante Sage v0.2) — completar las descripciones de la biblioteca por lotes desde la fuente del scraper puntual. Reanudable (no re-scrapear lo ya descargado), rate-limit razonable, descripciones visibles en `GET /api/export-history`. Hecho cuando >90% de los juegos tienen descripción no vacía en el export. | `database/repositories/metadata.py`, `web/handlers/scraper.py`, `web/builders/misc.py`, `tab-scraper.html`, `scraper.js` | 🟡 código listo (rama `feature/sage-1-mass-descriptions`): el job `/api/scrape` ya era reanudable+rate-limited; añadido modo `missing_descriptions` (re-scrapea metadata con descripción vacía sin machacar imágenes), cobertura en `/api/scrape-summary` + UI (hoy 70.0%). Pasada real 2026-07-07: 964 en cola, 860 match, 0 errores (tras fix `_loads_lenient`, PR #79) pero cobertura 70,0→70,1% — los re-scrapeados no tienen sinopsis en SS. Para >90% hay que resetear `metadata_scraped` de los ~4.700 sin match histórico y re-scrapear (~89% de acierto hoy), o usar otra fuente. **Experimento reset 2026-07-07: fallido** — la cola de 4.692 era basura no-juego (chips de romsets arcade, shaders RetroArch, restos de Papelera `$I*.iso`, firmware): 415 procesados, 6 match. Flags revertidos. **Camino real al >90%: limpiar la basura de la biblioteca** (junk-scan restaurado en PR #80) — al quitar ~4.700 no-juegos del denominador, 13.217/~14.150 ≈ 93%. **Limpieza ejecutada 2026-07-08 (Día39)**: 28.718 archivos borrados (chips arcade de `Unknown\`, ~15,4 GB) + fixes del clasificador (PRs #82/#83) → cobertura **70,1% → 84,3%** (13.136/15.591). **JUNK-REVIEW-1 resuelto (2026-08-14)**: la nota original (5.771 ZIPs, colecciones vs juegos individuales) estaba desactualizada — JUNK-SMART-1/2/3 ya la habían reducido a una cola mucho más pequeña y categorizada (1.522 archivos/1,18 GB en 6 categorías `review`, verificado con `/api/junk-scan` real). Decisión del usuario: borrar las 6 categorías. Aplicado vía `/api/junk-delete` (dry-run 1522/1522 OK, 0 fallos, luego real → `_descartados/`, AUD-3, deshacible 30 días — hasta ~2026-09-13). Rescan: 14.147→13.746 filas, cobertura **72,1%→75,5%**. Sin cambios de código, solo decisión + ejecución sobre la biblioteca real. Queda re-scrape de los sin descripción restantes para >90% |
 | SAGE-2 | **Migración `genres_list` / `players` persistidos** (bloqueante Sage v0.2) — persistir ambos campos en la BD (hoy derivados al vuelo) con backfill de registros existentes, y exponerlos en el export. Hecho cuando aparecen estables en `/api/export-history` y el contrato queda documentado en `play_history.py`. Detalle: `docs/ideas/propuestas-recomendador-nlp.md`. | `database/`, `database/repositories/play_history.py` | ⬜ |
 | SAGE-3 | **Registro de recomendaciones mostradas/clicadas** (futuro, Sage v0.4) — para el bucle de feedback de Sage: registrar qué recomendaciones se mostraron en el panel y cuáles se clicaron, y exponerlo (export o endpoint nuevo). **No implementar todavía**: el diseño se negocia cuando Sage llegue a v0.4. | — | ⬜ |
 
@@ -844,10 +859,47 @@ Propuestas del usuario sin diseñar todavía.
 
 | ID | Idea | Notas |
 |----|------|-------|
-| CFG-PORGAME | Configuraciones específicas por juego (core options, overrides RetroArch), editables desde el PC | Necesita decidir formato (`.opt`/`.cfg` de RetroArch por juego) y cómo sincronizarlas con Android sin pisar los overrides que ya gestiona el usuario a mano |
+| CFG-PORGAME | Configuraciones específicas por juego (core options, overrides RetroArch), editables desde el PC | 🟡 Investigado 2026-08-14, pausado sin implementar — diseño inicial (editor de overrides `.opt` existentes) escrito, pero el usuario amplió el alcance a mitad de sesión a "importar configs verificadas para RG556". No existe BD/API pública de configs RetroArch verificadas para RG556 (a diferencia de ScreenScraper/RA, que sí son fuentes reales ya integradas); `docs/architecture/platforms-cores.md` tiene ajustes ya probados por el usuario pero descriptivos (no claves reales de RetroArch) y tuneados para PC, no para la RG556; `ra_config_dir`/`retroarch_path` están vacíos en el `config.toml` real hoy. 3 problemas de diseño abiertos, no 1 — mismo estado que MODS-AUTO (alcance grande, necesita más decisiones) |
 | MODS-AUTO | Añadir e instalar mods automáticamente — viable para PS1/PS2/N64/GameCube (formatos de parche/mod más estandarizados: `.pnach`, ISO patching, texture packs); no viable para consolas muy antiguas (sin ecosistema de mods) | Requiere investigar formato de mods por emulador/plataforma antes de diseñar; alcance grande, candidato a su propia fase de roadmap |
-| STORAGE-MGR | Gestor de almacenamiento — decidir y borrar en bloque (PC, Anbernic o ambos) desde un menú dedicado | Necesita: vista combinada de qué existe en cada lado (ya hay base en `sync/` para comparar PC↔Android), selección múltiple, y pasar por la papelera unificada `_descartados/` (AUD-3) en vez de borrado directo — nunca borrar sin poder deshacer |
-| GHA-OPT-1 | Optimizar el flujo de Claude Code GitHub Actions (`claude.yml` / `claude-code-review.yml`, instalados 2026-08-14 vía `/install-github-app`) | Repo público → minutos de runner gratis y autentica con `CLAUDE_CODE_OAUTH_TOKEN` (consume cuota Pro/Max, no API pay-as-you-go) — el coste real a acotar es esa cuota, no dinero. ✅ implementado (rama `chore/gha-opt-1-optimize-claude-workflows`, 2026-08-17): evidencia real antes de tocar nada — `claude-code-review.yml` se había disparado 5 veces seguidas sobre la misma rama en una sola sesión (2026-08-14, cada `synchronize` relanzaba la revisión sin cancelar la anterior). (a) `concurrency` por nº de PR + `cancel-in-progress: true` en `claude-code-review.yml`; (b) `paths-ignore` (`Tareas/**`, `**.md`) para no revisar PRs de solo-backlog, y `if: draft == false` para no revisar mientras el PR sigue en borrador; (c) `--max-turns 30` en `claude_args`; (d) mismo `concurrency` en `claude.yml` pero con `cancel-in-progress: false` (cada mención `@claude` es una petición distinta del usuario, se encola en vez de perderse); (e) `CLAUDE.md` revisado — 145 líneas / ~7 KB, ya conciso, sin cambios |
+| STORAGE-MGR | Gestor de almacenamiento — decidir y borrar en bloque (PC, Anbernic o ambos) desde un menú dedicado | 🟢 Diseñado e implementado 2026-08-14, ver sección propia más abajo — subtareas STORAGE-MGR-1..5 |
+| GHA-OPT-1 | Optimizar el flujo de Claude Code GitHub Actions (`claude.yml` / `claude-code-review.yml`, instalados 2026-08-14 vía `/install-github-app`) | Repo público → minutos de runner gratis y autentica con `CLAUDE_CODE_OAUTH_TOKEN` (consume cuota Pro/Max, no API pay-as-you-go) — el coste real a acotar es esa cuota, no dinero. ✅ implementado (rama `chore/gha-opt-1-optimize-claude-workflows`, 2026-08-17): evidencia real antes de tocar nada — `claude-code-review.yml` se había disparado 5 veces seguidas sobre la misma rama en una sola sesión (2026-08-14, cada `synchronize` relanzaba la revisión sin cancelar la anterior). (a) `concurrency` por nº de PR + `cancel-in-progress: true` en `claude-code-review.yml`; (b) `paths-ignore` (`Tareas/**`, `**.md`) para no revisar PRs de solo-backlog, y `if: draft == false` para no revisar mientras el PR sigue en borrador; (c) `--max-turns 30` en `claude_args`; (d) mismo `concurrency` en `claude.yml` pero con `cancel-in-progress: false` (cada mención `@claude` es una petición distinta del usuario, se encola en vez de perderse) + `--max-turns 50` propio (más holgado que la revisión: puede implicar tareas más largas); (e) `CLAUDE.md` revisado — 145 líneas / ~7 KB, ya conciso, sin cambios |
+
+### STORAGE-MGR — Gestor de almacenamiento (diseño e implementación 2026-08-14)
+
+Origen: idea del usuario (`ROADMAP-IDEAS`) — vista combinada PC↔Android y
+borrado en bloque desde un menú dedicado, siempre pasando por papelera.
+
+**Decisiones tomadas con el usuario antes de diseñar:**
+
+1. **Sin papelera en Android** — el borrado ADB de hoy (`AdbTransport.remove()`)
+   es `rm -f` directo, sin equivalente a `_descartados/`. Se decidió NO añadir
+   una papelera en el dispositivo (coste: ocuparía SD hasta purgar). Consecuencia
+   de diseño: el modal de confirmación distingue explícitamente qué entra en
+   papelera (PC, deshacible) de qué se borra sin vuelta atrás (Android) — nunca
+   la misma advertencia genérica para ambos.
+2. **Saves fuera de alcance** — v1 cubre solo ROMs (y de paso assets, mismo
+   mecanismo). Los saves son el pilar de mayor riesgo del proyecto (ver
+   CLAUDE.md — "cualquier bug aquí es prioridad absoluta"); no entran en un
+   borrado masivo genérico.
+
+Reutiliza infraestructura existente sin pestaña nueva: el panel "Comparar" de
+Colección (`_build_library_diff()`, `web/builders/diff.py`) ya tenía la vista
+combinada PC↔Android por SHA1 y el multi-select; `discard_to_trash()` (PC) y
+`AdbTransport.remove()` (Android) ya existían como precedente de branching por
+`is_device_path()` en `duplicates_service.delete_duplicate()`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| STORAGE-MGR-1 | Backend: `size_bytes` por entrada en `_build_library_diff()` | `web/builders/diff.py` | ✅ |
+| STORAGE-MGR-2 | Backend: resumen combinado PC/Android por plataforma (`total_pc_bytes`/`total_android_bytes`) | `web/builders/diff.py` | ✅ |
+| STORAGE-MGR-3 | Backend: `delete_storage_items()` — borrado en bloque keyed por `(sha1, location)` (mismo shape que `/api/sync-roms`); PC → `discard_to_trash` (deshacible), Android → `AdbTransport.remove` (hard delete, decisión tomada con el usuario); `POST /api/storage/delete-bulk` | `services/storage_service.py` (nuevo), `web/handlers/collection.py` | ✅ |
+| STORAGE-MGR-4 | Frontend: botón "Borrar seleccionados" en el panel "Comparar", junto al ya existente "Sincronizar seleccionados" — mismas checkboxes; confirm con nota de papelera para PC y nota de irreversibilidad separada para Android cuando la selección mezcla ambos lados | `web/static/js/tabs/collection.js`, `web/static/partials/tab-collection.html` | ✅ |
+| STORAGE-MGR-5 | Frontend: cabecera con tamaño PC/Android junto a los conteos existentes | `web/static/js/tabs/collection.js` | ✅ |
+
+Tests: `test_storage_service.py` (bulk delete, PC/Android no se cruzan, sha1
+desconocido, sin transporte ADB) + `test_library_diff.py` (`size_bytes` en el
+diff). No probado aún contra hardware real — pendiente de validación con la
+RG556 conectada antes de un borrado real desde Android (irreversible).
 
 ---
 
