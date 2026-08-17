@@ -257,7 +257,7 @@ async function doResolveRaConflicts() {
               'info'
             );
           }
-        } else if (d.resolved === 0 && d.skipped_no_ra > 0) {
+        } else if (d.resolved === 0 && d.skipped_no_ra > 0 && !d.skipped_multi_disc) {
           showToast(
             d.skipped_no_ra + ' conflictos sin datos RA (versión no reconocida o plataforma sin soporte)',
             'info'
@@ -267,7 +267,10 @@ async function doResolveRaConflicts() {
             '✓ RA resuelto: ' +
               d.resolved +
               ' conflictos' +
-              (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : ''),
+              (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : '') +
+              (d.skipped_multi_disc > 0
+                ? ' · ' + d.skipped_multi_disc + ' de sets multi-disco (revisión manual — no se descartan automáticamente)'
+                : ''),
             d.resolved > 0 ? 'ok' : 'info'
           );
           await loadReviewQueue();
