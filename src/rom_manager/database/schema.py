@@ -243,6 +243,8 @@ _SYNC_LOG_MIGRATIONS: tuple[tuple[str, str], ...] = (
 _METADATA_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("screenshot_path", "TEXT"),  # B6-7: local path to downloaded screenshot
     ("wheel_path", "TEXT"),  # B6-7: local path to downloaded wheel/logo
+    ("genres_list", "TEXT"),  # SAGE-2: todos los géneros de ScreenScraper, no solo el primero
+    ("players", "TEXT"),  # SAGE-2: nº de jugadores tal cual lo reporta ScreenScraper (p.ej. "1-2")
 )
 
 # Columns that existed in old schema but are now removed (DB-FIX-3).
@@ -264,6 +266,7 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     _migrate_metadata_columns(cursor)
     _migrate_sync_log_columns(cursor)
     _migrate_is_favorite_default(cursor)
+    _migrate_genres_list_backfill(cursor)
     _drop_deprecated_columns(cursor)
     connection.commit()
 
@@ -274,6 +277,22 @@ def _migrate_is_favorite_default(cursor: sqlite3.Cursor) -> None:
         cursor.execute("UPDATE games SET is_favorite = 0 WHERE is_favorite IS NULL")
     except Exception:
         _logger.debug("Could not backfill is_favorite default", exc_info=True)
+
+
+def _migrate_genres_list_backfill(cursor: sqlite3.Cursor) -> None:
+    """SAGE-2: backfill genres_list for rows scraped before the column existed.
+
+    ``players`` has no other column to derive from — it stays NULL until the
+    game is (re-)scraped. ``genres_list`` can at least seed from the existing
+    single ``genre`` so already-scraped games aren't stuck empty.
+    """
+    try:
+        cursor.execute(
+            "UPDATE game_metadata SET genres_list = genre "
+            "WHERE genres_list IS NULL AND genre IS NOT NULL AND genre != ''"
+        )
+    except Exception:
+        _logger.debug("Could not backfill genres_list default", exc_info=True)
 
 
 def _alter_table_add_column(

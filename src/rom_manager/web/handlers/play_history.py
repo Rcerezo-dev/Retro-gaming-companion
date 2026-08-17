@@ -155,10 +155,18 @@ def register(
 
         Includes ALL ROMs (played and unplayed) so the model can recommend
         from the unplayed set. Fields:
-            id, title, platform, genre, year, developer, publisher, description,
-            play_count, first_played_at, last_played_at, play_status,
-            user_rating, tags, notes
+            id, title, platform, genre, genres_list, players, year, developer,
+            publisher, description, play_count, first_played_at, last_played_at,
+            play_status, user_rating, tags, notes
         exported_at: ISO timestamp of export.
+
+        genres_list/players (SAGE-2): tal cual los reporta ScreenScraper
+        (genres_list = todos los géneros separados por coma, no solo el
+        primero; players = p.ej. "1-2"). Solo se rellenan al (re-)scrapear —
+        los juegos ya scrapeados antes de esta migración tienen genres_list
+        backfilled desde genre (un único género) y players en NULL hasta que
+        se re-scrapeen. Contrato completo documentado en
+        ``database/repositories/play_history.py``.
         """
         with repository.connect() as conn:
             rows = conn.execute(
@@ -174,6 +182,8 @@ def register(
                     g.user_rating,
                     g.notes,
                     gm.genre,
+                    gm.genres_list,
+                    gm.players,
                     gm.year,
                     gm.developer,
                     gm.publisher,
@@ -203,6 +213,8 @@ def register(
                     "title": row["title"],
                     "platform": row["platform"],
                     "genre": row["genre"],
+                    "genres_list": row["genres_list"],
+                    "players": row["players"],
                     "year": row["year"],
                     "developer": row["developer"],
                     "publisher": row["publisher"],

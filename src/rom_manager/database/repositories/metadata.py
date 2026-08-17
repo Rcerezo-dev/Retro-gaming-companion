@@ -182,6 +182,8 @@ class MetadataMixin:
         scraped_at: str,
         screenshot_path: str = "",
         wheel_path: str = "",
+        genres_list: str = "",
+        players: str = "",
         connection: sqlite3.Connection,
     ) -> None:
         connection.execute(
@@ -189,8 +191,8 @@ class MetadataMixin:
             INSERT INTO game_metadata
                 (game_id, ss_game_id, title, year, genre, publisher, developer,
                  description, rating, box_art_url, box_art_path, scraped_at,
-                 screenshot_path, wheel_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 screenshot_path, wheel_path, genres_list, players)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id) DO UPDATE SET
                 ss_game_id=excluded.ss_game_id, title=excluded.title,
                 year=excluded.year, genre=excluded.genre,
@@ -199,7 +201,9 @@ class MetadataMixin:
                 box_art_url=excluded.box_art_url, box_art_path=excluded.box_art_path,
                 scraped_at=excluded.scraped_at,
                 screenshot_path=excluded.screenshot_path,
-                wheel_path=excluded.wheel_path
+                wheel_path=excluded.wheel_path,
+                genres_list=excluded.genres_list,
+                players=excluded.players
             """,
             (
                 game_id,
@@ -216,6 +220,8 @@ class MetadataMixin:
                 scraped_at,
                 screenshot_path,
                 wheel_path,
+                genres_list,
+                players,
             ),
         )
 
