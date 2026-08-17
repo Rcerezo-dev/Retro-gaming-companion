@@ -120,7 +120,7 @@ concreta: **auto-detección**, no configuración manual —
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
 | CFG-PORGAME-5 | Backend: auto-detección de rutas | M | ✅ mitad PC (B0-3a/b) — 2026-08-17. ⬜ falta mitad Android (B0-3c/d, sondeo ADB) |
-| CFG-PORGAME-6 | Backend: lectura/listado de overrides existentes por juego, en PC y Android por separado (nunca fusionados) — incluye el nombre del core de cada lado para saber si coinciden | M | ⬜ |
+| CFG-PORGAME-6 | Backend: lectura/listado de overrides existentes por juego, en PC y Android por separado (nunca fusionados) — incluye el nombre del core de cada lado para saber si coinciden | M | ✅ 2026-08-17 — `services/retroarch_overrides_service.py::list_overrides()`, una sola función para PC (filesystem) y Android (`AdbTransport.ls_recursive()`, ya existente, reutilizado sin ADB shell nuevo); agrupa por stem de ROM, reporta todos los cores si hay más de uno. 5 tests (`tests/test_retroarch_overrides_service.py`, transporte Android simulado — sin RG556 a mano para probarlo en real todavía). Sin endpoint/UI aún — depende de CFG-PORGAME-4 (dónde vive en la UI) |
 | CFG-PORGAME-7 | Backend: editor (lectura/escritura del `.opt`, sin interpretar claves) | M | ⬜ |
 | CFG-PORGAME-8 | Backend: "copiar a [PC\|Android]" por juego (CFG-PORGAME-3) — copia puntual vía ADB o filesystem, valida que el core coincide antes de permitirlo, nunca sobreescribe sin confirmación | M | ⬜ |
 | CFG-PORGAME-9 | Frontend: UI del editor + botón de copia puntual con aviso de rendimiento | M | ⬜ |
