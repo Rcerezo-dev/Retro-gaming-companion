@@ -119,6 +119,39 @@ def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
     assert folders == {"Final Fantasy VII (Europe)"}
 
 
+def test_multidisc_set_messy_tags_do_not_collide(tmp_path: Path) -> None:
+    """DUP-RA-COLLISION-1: real-world dumps often skip the strict "(Disc N)"
+    form No-Intro/Redump uses. ``find_disc_tag`` also recognizes "Disc1"
+    (no parens/space) and "cd2" so these don't collide either — the same
+    guarantee as the strict-form case in ``test_multidisc_set_does_not_collide``."""
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    names = {1: "Final Fantasy VII Disc1.cue", 2: "Final Fantasy VII-cd2.cue"}
+    games = []
+    for n, filename in names.items():
+        src = psx_dir / filename
+        src.touch()
+        games.append(
+            _make_game(
+                id=n,
+                original_filename=filename,
+                source_path=str(src),
+                canonical_title="Final Fantasy VII (Europe)",
+                extension=".cue",
+                platform="psx",
+            )
+        )
+    plan = build_plan(_repo_with(games))
+
+    assert len(plan.conflicts) == 0
+    assert len(plan.pending) == 2
+    filenames = {op.target_path.name for op in plan.pending}
+    assert filenames == {
+        "Final Fantasy VII (Europe) (Disc 1).cue",
+        "Final Fantasy VII (Europe) (Disc 2).cue",
+    }
+
+
 def test_mixed_statuses(tmp_path: Path) -> None:
     # pending
     g1_path = tmp_path / "mario.gb"

@@ -573,6 +573,58 @@ def _reconstruct_loose_arcade_sets(
     return result
 
 
+def _route_orphan_saves(
+    inbox: Path, repository: LibraryRepository, config: AppConfig, logger: logging.Logger
+) -> int:
+    """Reúne saves sueltos en la raíz del Inbox con su ROM ya organizado en la biblioteca.
+
+    Un save sin ROM acompañante en el mismo lote (p. ej. copiado suelto desde
+    la Anbernic) se empareja por coincidencia EXACTA de stem contra `games`
+    (fuera del propio Inbox). Solo se mueve si hay un único match y el
+    destino no existe ya — nunca se sobreescribe, nunca se descarta el save
+    si no hay match: se deja intacto para revisión manual antes que arriesgar
+    perder la única copia.
+    """
+    save_exts = frozenset(config.save_extensions)
+    candidates = [
+        p
+        for p in sorted(inbox.iterdir())
+        if p.is_file() and not p.name.startswith((".", "_")) and p.suffix.lower() in save_exts
+    ]
+    if not candidates:
+        return 0
+
+    inbox_str_lower = str(inbox).lower()
+    with repository.connect() as conn:
+        rows = conn.execute(
+            "SELECT source_path FROM games WHERE LOWER(source_path) NOT LIKE ?",
+            (inbox_str_lower + "%",),
+        ).fetchall()
+    by_stem: dict[str, list[Path]] = {}
+    for (source_path_str,) in rows:
+        p = Path(source_path_str)
+        by_stem.setdefault(p.stem.lower(), []).append(p)
+
+    moved = 0
+    for save in candidates:
+        matches = [p for p in by_stem.get(save.stem.lower(), []) if p.exists()]
+        if len(matches) != 1:
+            continue
+        dest = matches[0].parent / save.name
+        if dest.exists():
+            logger.warning("Inbox: save %s ya existe junto a su ROM — no se toca", save.name)
+            continue
+        try:
+            import shutil as _shutil_saves
+
+            _shutil_saves.move(str(save), str(dest))
+            moved += 1
+            logger.info("Inbox: save huérfano %s reunido con su ROM en %s", save.name, dest.parent)
+        except OSError as exc:
+            logger.warning("Inbox: fallo moviendo save huérfano %s — %s", save.name, exc)
+    return moved
+
+
 def _build_inbox_scan(inbox_path_str: str, target_root_str: str = "") -> dict:
     """Scan the inbox folder and return summary + file list.
 
@@ -948,6 +1000,10 @@ def _run_inbox_pipeline(
         _upd("reconstruyendo sets arcade sueltos", 1)
         arcade_recon = _reconstruct_loose_arcade_sets(inbox, target_root, config, logger)
 
+        # ── Step 1.9: reunir saves huérfanos con su ROM ya organizado ────────
+        _upd("reuniendo saves huérfanos", 1)
+        saves_reunited = _route_orphan_saves(inbox, repository, config, logger)
+
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
 
@@ -1154,6 +1210,7 @@ def _run_inbox_pipeline(
             "md_identified": md_identified,
             "arcade_reconstructed": arcade_recon["reconstructed"],
             "arcade_chips_used": arcade_recon["chips_used"],
+            "saves_reunited": saves_reunited,
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,

@@ -10,6 +10,15 @@ on:
   pull_request_review:
     types: [submitted]
 
+# GHA-OPT-1d: agrupa por PR/issue para que varias menciones @claude seguidas
+# en el mismo hilo no se ejecuten en paralelo. Sin cancel-in-progress a
+# proposito: a diferencia de la revision automatica (re-derivable del mismo
+# diff), cada mencion @claude es una peticion distinta del usuario — se
+# encolan en vez de cancelarse para no perder una peticion en curso.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}-${{ github.event_name }}
+  cancel-in-progress: false
+
 jobs:
   claude:
     if: |
@@ -47,4 +56,9 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           # claude_args: '--allowed-tools Bash(gh pr *)'
+
+          # GHA-OPT-1d: techo de turnos — consume cuota Pro/Max
+          # (CLAUDE_CODE_OAUTH_TOKEN), no API pay-as-you-go; esto es lo que
+          # hay que acotar, no minutos de runner.
+          claude_args: '--max-turns 50'
 

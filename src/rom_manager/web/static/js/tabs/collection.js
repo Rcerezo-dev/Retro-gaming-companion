@@ -4,6 +4,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 const _txtCls = (el, cls) => {
   if (!el) return;
@@ -290,7 +291,7 @@ async function loadLibraryDiff() {
     document.getElementById('diff-conf-count').textContent = d.conflicts.length;
 
     const syncIcon = d.parity ? '✓ Sincronizadas' : `${d.only_pc.length + d.only_android.length + d.conflicts.length} diferencias`;
-    sumEl.innerHTML = `PC: <b style="color:var(--c-strong)">${d.total_pc}</b> ROMs &nbsp;|&nbsp; Android: <b style="color:var(--c-strong)">${d.total_android}</b> ROMs &nbsp;|&nbsp; En ambas: <b style="color:var(--c-strong)">${d.in_both.length}</b> &nbsp;|&nbsp; <span class="${d.parity ? 'txt-ok' : 'txt-warn'}">${syncIcon}</span>`;
+    sumEl.innerHTML = `PC: <b style="color:var(--c-strong)">${d.total_pc}</b> ROMs (${_fmtBytes(d.total_pc_bytes)}) &nbsp;|&nbsp; Android: <b style="color:var(--c-strong)">${d.total_android}</b> ROMs (${_fmtBytes(d.total_android_bytes)}) &nbsp;|&nbsp; En ambas: <b style="color:var(--c-strong)">${d.in_both.length}</b> &nbsp;|&nbsp; <span class="${d.parity ? 'txt-ok' : 'txt-warn'}">${syncIcon}</span>`;
 
     pcEl.innerHTML   = _renderDiffTable(d.only_pc,      'pc');
     andEl.innerHTML  = _renderDiffTable(d.only_android, 'android');
@@ -349,6 +350,45 @@ async function _syncAllSide(side) {
     if (statusEl) statusEl.textContent = '';
     showToast(`Error: ${e.message}`, 'err');
   }
+}
+
+// ── STORAGE-MGR-4: delete selected diff items ─────────────────────────────────
+// Mismo texto que review_copies.js (_TRASH_NOTE) para el lado PC — nunca "no
+// se puede deshacer" cuando sí va a _descartados/. El lado Android no tiene
+// papelera (decisión 2026-08-14: costaría espacio en la SD) — se avisa aparte.
+const _STORAGE_TRASH_NOTE = 'Los archivos de <b>PC</b> se moverán a <code>_descartados/</code> (se purgan a los 30 días).';
+const _STORAGE_DEVICE_NOTE = '<span style="color:var(--c-pink)">Los archivos de <b>Android</b> se borran directamente del dispositivo — no hay papelera ahí, no se pueden recuperar.</span>';
+
+async function deleteSelectedStorage() {
+  const checks = document.querySelectorAll('#col-diff-panel .diff-sel:checked');
+  if (!checks.length) {
+    showToast('Selecciona al menos un juego', 'warn');
+    return;
+  }
+  const items = Array.from(checks).map(cb => ({ sha1: cb.dataset.sha1, location: cb.dataset.side }));
+  const hasPc = items.some(i => i.location === 'pc');
+  const hasAndroid = items.some(i => i.location === 'android');
+
+  const notes = [];
+  if (hasPc) notes.push(_STORAGE_TRASH_NOTE);
+  if (hasAndroid) notes.push(_STORAGE_DEVICE_NOTE);
+  const body = `<p>¿Borrar ${items.length} archivo(s) seleccionado(s)?</p>${notes.map(n => `<p>${n}</p>`).join('')}`;
+
+  _showConfirm('Borrar seleccionados', body, 'Borrar', async () => {
+    const statusEl = document.getElementById('diff-sync-status');
+    if (statusEl) statusEl.textContent = `Borrando ${items.length} archivo(s)…`;
+    try {
+      const r = await apiPost('/api/storage/delete-bulk', { items });
+      const msg = `✓ ${r.trashed} a papelera` + (r.deleted_device ? ` · ${r.deleted_device} borrado(s) en Android` : '') + (r.errors.length ? ` · ${r.errors.length} error(es)` : '');
+      if (statusEl) statusEl.textContent = msg;
+      showToast(msg, r.errors.length ? 'warn' : 'ok');
+      if (r.errors.length) console.error('Storage delete errors:', r.errors);
+      if (r.trashed || r.deleted_device) await loadLibraryDiff();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = '';
+      showToast(`Error: ${e.message}`, 'err');
+    }
+  });
 }
 
 function _renderDiffConflicts(conflicts) {
@@ -512,7 +552,7 @@ export {
   toggleWishlist,
   exportWishlist,
   loadCollectionStatsV2, toggleColStats,
-  toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
+  toggleDiff, loadLibraryDiff, syncSelected, syncConflict, deleteSelectedStorage,
   _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,

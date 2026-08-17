@@ -277,9 +277,15 @@ def apply_ra_conflicts(
                    Compare source vs target RA; discard the loser, rename winner to target.
     - "collision": two pending ops share the same target path (two ROMs → same canonical name).
                    Group by target, compare all sources' RA; discard all but the winner.
+
+    DUP-RA-COLLISION-1: conflicts on disc-based platforms (``_DISC_SUBFOLDER_PLATFORMS``)
+    are never auto-resolved here — a conflict there may be two distinct discs of one
+    multi-disc set colliding on the same untagged canonical name, not duplicate copies,
+    and RA achievement count is not a valid signal to pick which disc to keep. They are
+    counted in ``skipped_multi_disc`` and left untouched for manual review.
     """
     from rom_manager.planner import build_plan
-    from rom_manager.planner.operation_planner import FormatOptions
+    from rom_manager.planner.operation_planner import _DISC_SUBFOLDER_PLATFORMS, FormatOptions
     from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
 
     opts = FormatOptions()
@@ -288,6 +294,7 @@ def apply_ra_conflicts(
 
     resolved = 0
     skipped_no_ra = 0
+    skipped_multi_disc = 0
     errors: list[str] = []
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
@@ -306,6 +313,15 @@ def apply_ra_conflicts(
         if not op.source_path.exists():
             continue
         plat = op.game.platform or ""
+        if plat.lower() in _DISC_SUBFOLDER_PLATFORMS:
+            # DUP-RA-COLLISION-1: on disc-based platforms (psx/saturn/ps2/dreamcast/
+            # gamecube/wii) a "disk" conflict here can be two *different* discs of the
+            # same multi-disc set whose canonical filenames collide because the source
+            # never carried a "(Disc N)" tag (see TABS-FIX-6-DISC in operation_planner).
+            # RA achievement count says nothing about which disc is "better" — discarding
+            # the loser could delete a real, needed disc. Skip for manual review instead.
+            skipped_multi_disc += 1
+            continue
         src_ra = _ra_for_path(op.source_path, plat)
         tgt_ra = _ra_for_path(op.target_path, plat)
 
@@ -354,6 +370,12 @@ def apply_ra_conflicts(
 
     for _target_str, ops in collision_groups.items():
         plat = ops[0].game.platform or ""
+        if plat.lower() in _DISC_SUBFOLDER_PLATFORMS:
+            # DUP-RA-COLLISION-1: same reasoning as the "disk" branch above — a
+            # collision on a disc platform may be distinct discs of one set, not
+            # duplicate copies. Never auto-discard; leave for manual review.
+            skipped_multi_disc += len(ops)
+            continue
         scored = [(op, _ra_for_path(op.source_path, plat)) for op in ops if op.source_path.exists()]
         if not scored:
             continue
@@ -420,6 +442,7 @@ def apply_ra_conflicts(
     return {
         "resolved": resolved,
         "skipped_no_ra": skipped_no_ra,
+        "skipped_multi_disc": skipped_multi_disc,
         "errors": errors[:10],
         "no_cache": not cache_files_exist,
         "debug_samples": debug_samples,
