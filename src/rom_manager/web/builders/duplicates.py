@@ -8,19 +8,17 @@ from __future__ import annotations
 import json as _json
 import logging
 import os as _os
-import re as _re_top
 from collections import defaultdict
 from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.utils.disc_tag import find_disc_number
 from rom_manager.utils.paths import is_device_path
 
 _logger = logging.getLogger(__name__)
 
 _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
-
-_DISC_TAG_RE = _re_top.compile(r"\(disc\s*(\d+)\)", _re_top.IGNORECASE)
 
 
 def _is_disc_set(members) -> bool:
@@ -32,10 +30,10 @@ def _is_disc_set(members) -> bool:
     would discard the other discs as if they were alternate copies)."""
     disc_nums = []
     for r in members:
-        m = _DISC_TAG_RE.search(r["original_filename"])
-        if not m:
+        num = find_disc_number(r["original_filename"])
+        if num is None:
             return False
-        disc_nums.append(m.group(1))
+        disc_nums.append(num)
     return len(set(disc_nums)) == len(disc_nums)
 
 

@@ -324,15 +324,17 @@ def test_no_ra_data_skips_conflict(tmp_path: Path) -> None:
 
 def test_collision_on_disc_platform_is_never_auto_resolved(tmp_path: Path) -> None:
     """Two *different* discs of one PSX set can collide on the same canonical
-    target when neither source filename carries a "(Disc N)" tag (see
-    TABS-FIX-6-DISC). They must NEVER be resolved via RA winner-take-all —
-    doing so would discard a real, distinct disc, not a duplicate copy.
+    target when neither source filename carries any recognizable disc tag at
+    all (see TABS-FIX-6-DISC / DUP-RA-COLLISION-1 — ``find_disc_tag`` catches
+    "Disc1", "cd2", "Disco 2"..., but a completely opaque filename still slips
+    through). They must NEVER be resolved via RA winner-take-all — doing so
+    would discard a real, distinct disc, not a duplicate copy.
     """
     roms = tmp_path / "roms"
     roms.mkdir()
 
-    disc1 = roms / "Final Fantasy VII Disc1.cue"
-    disc2 = roms / "Final Fantasy VII Disc2.cue"
+    disc1 = roms / "Final Fantasy VII Media A.cue"
+    disc2 = roms / "Final Fantasy VII Media B.cue"
     disc1.write_bytes(b"DISC_ONE_CONTENT")
     disc2.write_bytes(b"DISC_TWO_CONTENT")
 
