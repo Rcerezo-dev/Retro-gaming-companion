@@ -42,3 +42,11 @@ build/
 dist/
 installer/output/
 installer/bundled_dats/
+
+# Android app (ANDROID-SYNC, android/) — Gradle/Android Studio local state
+android/local.properties
+android/.gradle/
+android/app/release/
+android/captures/
+*.apk
+*.aab
