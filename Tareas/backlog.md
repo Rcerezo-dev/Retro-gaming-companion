@@ -348,10 +348,10 @@ Room/SQLite. minSdk bajo (cubre otras consolas Android, no solo la RG556).
 
 | ID | Task | Fase | Esfuerzo | Estado |
 |----|------|------|----------|--------|
-| ANDROID-SYNC-1 | Scaffold Gradle Kotlin-DSL en `android/`, módulo `:app`, Compose, manifest con permisos placeholder, `MainActivity` vacía, `.gitignore` raíz, `android/README.md` | 0 — Scaffold | S | ⬜ |
-| ANDROID-SYNC-2 | Flujo de permisos de storage (rama API 30+ vs legacy) + `POST_NOTIFICATIONS` condicional a API 33+ | 1 — Local | S | ⬜ |
-| ANDROID-SYNC-3 | `SaveExtensions` + `RemoteRouter` (precedencia state-antes-que-save) + `LocalFileScanner` (recorrido recursivo) | 1 — Local | S | ⬜ |
-| ANDROID-SYNC-4 | Pantalla "Escaneo": conteo de archivos bajo saves/states, sin red | 1 — Local | XS | ⬜ |
+| ANDROID-SYNC-1 | Scaffold Gradle Kotlin-DSL en `android/`, módulo `:app`, Compose, manifest con permisos placeholder, `MainActivity` vacía, `.gitignore` raíz, `android/README.md` | 0 — Scaffold | S | ✅ PR #226 — verificado con `./gradlew assembleDebug test` real (toolchain portable JDK17+SDK+Gradle 8.7 instalada fuera del repo, sin Android Studio) |
+| ANDROID-SYNC-2 | Flujo de permisos de storage (rama API 30+ vs legacy) + `POST_NOTIFICATIONS` condicional a API 33+ | 1 — Local | S | ✅ PR #227 — `StoragePermissionPolicy` (puro, 4 tests JVM) + `StoragePermissionManager` + pantalla de permisos en `MainActivity` |
+| ANDROID-SYNC-3 | `SaveExtensions` + `RemoteRouter` (precedencia state-antes-que-save) + `LocalFileScanner` (recorrido recursivo) | 1 — Local | S | ✅ PR #228 — 12 tests JVM nuevos, extensiones idénticas a `config.py:544-576` |
+| ANDROID-SYNC-4 | Pantalla "Escaneo": conteo de archivos bajo saves/states, sin red | 1 — Local | XS | ✅ PR #229 — `ScanScreen` + `formatBytes` (Locale.ROOT, 3 tests). Primer intento de build falló de verdad (import faltante), corregido tras compilar |
 | ANDROID-SYNC-5 | OAuth PKCE de Dropbox, `DropboxAuthManager`, credenciales en `EncryptedSharedPreferences` | 2 — Dropbox core | M | ⬜ |
 | ANDROID-SYNC-6 | `DropboxTransport`: listado recursivo con `client_modified`, upload/download coherentes con mtime | 2 — Dropbox core | M | ⬜ |
 | ANDROID-SYNC-7 | Puerto de `ConflictResolver` (tolerancia 2s, newest-wins, backup de conflicto) + `SyncEngine` + watermark Room `(relative, remote_root)` | 2 — Dropbox core | M | ⬜ |
