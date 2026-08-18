@@ -360,10 +360,12 @@ function toggleOverrides() {
     loadOverrides();
   } else {
     panel.classList.add('hidden');
+    closeOverrideEditor();
   }
 }
 
 async function loadOverrides() {
+  closeOverrideEditor();
   const pcEl   = document.getElementById('overrides-pc-list');
   const andEl  = document.getElementById('overrides-android-list');
   const bothEl = document.getElementById('overrides-both-list');
@@ -380,15 +382,24 @@ async function loadOverrides() {
     if (pcWarnEl) pcWarnEl.classList.toggle('hidden', d.pc_configured);
     if (andWarnEl) andWarnEl.textContent = d.android_message || '';
 
-    pcEl.innerHTML   = _renderOverridesList(d.only_pc, 'cores');
-    andEl.innerHTML  = _renderOverridesList(d.only_android, 'cores');
+    pcEl.innerHTML   = _renderOverridesList(d.only_pc, 'cores', 'pc');
+    andEl.innerHTML  = _renderOverridesList(d.only_android, 'cores', 'android');
     bothEl.innerHTML = _renderOverridesBoth(d.in_both);
   } catch (e) {
     [pcEl, andEl, bothEl].forEach(el => { if (el) el.innerHTML = `<p class="error-msg">${window._h(e.message)}</p>`; });
   }
 }
 
-function _renderOverridesList(entries, coresKey) {
+// Escapa para incrustar en un atributo onclick='...' de comilla simple.
+const _jsAttrEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+function _coreLinks(rom, cores, side) {
+  return cores
+    .map(c => `<a href="#" onclick="openOverrideEditor('${_jsAttrEsc(rom)}','${_jsAttrEsc(c)}','${side}');return false" style="color:var(--c-blue);text-decoration:none;margin-right:8px">${window._h(c)}</a>`)
+    .join('');
+}
+
+function _renderOverridesList(entries, coresKey, side) {
   if (!entries.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin overrides.</p>';
   let html = '<table style="width:100%;border-collapse:collapse">';
   html += '<thead><tr style="color:var(--c-dim);font-size:11px;border-bottom:1px solid #222">'
@@ -398,7 +409,7 @@ function _renderOverridesList(entries, coresKey) {
   for (const e of entries) {
     html += '<tr style="border-bottom:1px solid #1a1a1a">';
     html += `<td style="padding:3px 6px;color:var(--c-strong);word-break:break-word">${window._h(e.rom)}</td>`;
-    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e[coresKey].join(', '))}</td>`;
+    html += `<td style="padding:3px 6px;white-space:nowrap">${_coreLinks(e.rom, e[coresKey], side)}</td>`;
     html += '</tr>';
   }
   html += '</tbody></table>';
@@ -418,12 +429,65 @@ function _renderOverridesBoth(entries) {
     const title = e.core_match ? '' : 'title="Cores distintos — un override de un lado no es aplicable al otro"';
     html += `<tr style="border-bottom:1px solid #1a1a1a" ${title}>`;
     html += `<td style="padding:3px 6px;color:${rowColor};word-break:break-word">${window._h(e.rom)}</td>`;
-    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e.pc_cores.join(', '))}</td>`;
-    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e.android_cores.join(', '))}</td>`;
+    html += `<td style="padding:3px 6px;white-space:nowrap">${_coreLinks(e.rom, e.pc_cores, 'pc')}</td>`;
+    html += `<td style="padding:3px 6px;white-space:nowrap">${_coreLinks(e.rom, e.android_cores, 'android')}</td>`;
     html += '</tr>';
   }
   html += '</tbody></table>';
   return html;
+}
+
+// ── Editor de un .opt (CFG-PORGAME-7) ───────────────────────────────────────────
+let _overrideEditorTarget = null; // { rom, core, side }
+
+async function openOverrideEditor(rom, core, side) {
+  const panel = document.getElementById('override-editor');
+  const titleEl = document.getElementById('override-editor-title');
+  const contentEl = document.getElementById('override-editor-content');
+  const statusEl = document.getElementById('override-editor-status');
+  _overrideEditorTarget = { rom, core, side };
+  const sideLabel = side === 'pc' ? 'PC' : 'Android';
+  titleEl.textContent = `${rom} — ${core} (${sideLabel})`;
+  contentEl.value = 'Cargando…';
+  statusEl.textContent = '';
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    const params = new URLSearchParams({ rom, core, side });
+    const d = await apiFetch('/api/retroarch-override?' + params);
+    contentEl.value = d.content;
+  } catch (e) {
+    contentEl.value = '';
+    statusEl.textContent = `Error: ${e.message}`;
+    _txtCls(statusEl, 'txt-err');
+  }
+}
+
+function closeOverrideEditor() {
+  document.getElementById('override-editor').classList.add('hidden');
+  _overrideEditorTarget = null;
+}
+
+async function saveOverrideEditor() {
+  if (!_overrideEditorTarget) return;
+  const contentEl = document.getElementById('override-editor-content');
+  const statusEl = document.getElementById('override-editor-status');
+  statusEl.textContent = 'Guardando…';
+  _txtCls(statusEl, 'txt-muted');
+  try {
+    await apiPost('/api/retroarch-override', {
+      ..._overrideEditorTarget,
+      content: contentEl.value,
+    });
+    statusEl.textContent = '✓ Guardado';
+    _txtCls(statusEl, 'txt-ok');
+    showToast('Override guardado', 'ok');
+  } catch (e) {
+    statusEl.textContent = `Error: ${e.message}`;
+    _txtCls(statusEl, 'txt-err');
+    showToast(`Error guardando: ${e.message}`, 'err');
+  }
 }
 
 // ── STORAGE-MGR-4: delete selected diff items ─────────────────────────────────
@@ -631,4 +695,5 @@ export {
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
   toggleOverrides, loadOverrides,
+  openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
 };
