@@ -26,14 +26,9 @@ Diseño completo, contrato de interoperabilidad con el sync del PC
 3. Ejecuta la configuración `app` sobre un emulador (API 26+) o un
    dispositivo físico con depuración USB activada.
 
-> **Nota**: este proyecto no incluye aún el Gradle Wrapper (`gradlew`,
-> `gradlew.bat`, `gradle-wrapper.jar`) porque se generó sin tener Gradle
-> instalado en la máquina de desarrollo original. La primera vez que abras
-> el proyecto, Android Studio debería ofrecer generarlo automáticamente
-> (o hazlo tú a mano: **File → Settings → Build Tools → Gradle**, o
-> `gradle wrapper --gradle-version 8.7` si tienes Gradle instalado aparte).
-> Una vez generado, commitea `gradle/wrapper/`, `gradlew` y `gradlew.bat`
-> normalmente — son parte del proyecto, no van en `.gitignore`.
+El Gradle Wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/`) está
+incluido y versionado — no hace falta tener Gradle instalado aparte,
+`./gradlew` se autodescarga la versión correcta (8.7) la primera vez.
 
 ## Estructura
 

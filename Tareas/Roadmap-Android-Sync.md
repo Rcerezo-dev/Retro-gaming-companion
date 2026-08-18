@@ -329,13 +329,21 @@ ejecutar cuando haya consola a mano):
 
 ## 8. Nota sobre el entorno de desarrollo
 
-Esta máquina (la que ha diseñado y escribe el scaffold inicial) **no tiene
-Java, Gradle ni el Android SDK instalados** — el código se escribe completo
-y coherente con el plan, pero no se puede compilar ni correr
-`./gradlew test`/`assembleDebug` desde aquí. La verificación real de cada
-fase requiere abrir `android/` en Android Studio (trae JDK+SDK+Gradle
-integrados). Cada PR de fase debe dejar constancia explícita de si se
-verificó por compilación real o solo por revisión de código.
+Esta máquina no tenía Android Studio instalado. En vez de instalar el IDE
+completo, se instalaron solo las herramientas de línea de comandos
+necesarias para compilar y testear de verdad (no solo revisión de código):
+JDK 17 (Temurin), Android SDK command-line tools (`platform-tools`,
+`platforms;android-34`, `build-tools;34.0.0`) y Gradle 8.7 — todo portable,
+extraído en `C:\Users\Ruben\android-build-tools\` (fuera del repo, no
+versionado). Con eso se generó el Gradle Wrapper real del proyecto
+(`android/gradlew`, versionado) y se verificó `ANDROID-SYNC-1` con
+`./gradlew assembleDebug` y `./gradlew test` reales, no solo con lectura de
+código. Sigue haciendo falta Android Studio (o un emulador arrancado a mano)
+para lo que este toolchain de línea de comandos no cubre: instrumented
+tests (`connectedAndroidTest`), previews de Compose, y probar la app
+instalada de verdad en un emulador/dispositivo. Cada PR de fase debe seguir
+dejando constancia explícita de qué se verificó por compilación/tests
+reales y qué quedó solo por revisión de código.
 
 ---
 
