@@ -30,6 +30,12 @@ def test_pc_not_configured_flag(config) -> None:
     assert result["pc_configured"] is False
 
 
+def test_exposes_shared_cores_for_the_copy_button(config) -> None:
+    result = _build_overrides(config, None)
+    assert "Gambatte" in result["shared_cores"]
+    assert "Snes9x" not in result["shared_cores"]
+
+
 def test_pc_only_override(config, tmp_path: Path) -> None:
     ra_dir = tmp_path / "ra-config"
     (ra_dir / "Snes9x").mkdir(parents=True)

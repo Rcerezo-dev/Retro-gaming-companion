@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rom_manager.config import AppConfig
-from rom_manager.services.retroarch_overrides_service import list_overrides
+from rom_manager.services.retroarch_overrides_service import SHARED_CORES, list_overrides
 
 if TYPE_CHECKING:
     from rom_manager.sync.adb_transport import AdbTransport
@@ -61,4 +61,7 @@ def _build_overrides(config: AppConfig, adb_transport: AdbTransport | None) -> d
         "total_android": len(android_overrides),
         "pc_configured": bool(config.sync.ra_config_dir),
         "android_message": android_message,
+        # CFG-PORGAME-3/8: la UI decide si mostrar "Copiar" por core mirando
+        # esta lista — evita duplicar el criterio de negocio en JS.
+        "shared_cores": sorted(SHARED_CORES),
     }

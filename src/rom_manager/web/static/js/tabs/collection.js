@@ -364,6 +364,8 @@ function toggleOverrides() {
   }
 }
 
+let _overridesSharedCores = []; // CFG-PORGAME-3: cores donde "Copiar" tiene sentido
+
 async function loadOverrides() {
   closeOverrideEditor();
   const pcEl   = document.getElementById('overrides-pc-list');
@@ -381,6 +383,7 @@ async function loadOverrides() {
 
     if (pcWarnEl) pcWarnEl.classList.toggle('hidden', d.pc_configured);
     if (andWarnEl) andWarnEl.textContent = d.android_message || '';
+    _overridesSharedCores = d.shared_cores || [];
 
     pcEl.innerHTML   = _renderOverridesList(d.only_pc, 'cores', 'pc');
     andEl.innerHTML  = _renderOverridesList(d.only_android, 'cores', 'android');
@@ -395,8 +398,36 @@ const _jsAttrEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 function _coreLinks(rom, cores, side) {
   return cores
-    .map(c => `<a href="#" onclick="openOverrideEditor('${_jsAttrEsc(rom)}','${_jsAttrEsc(c)}','${side}');return false" style="color:var(--c-blue);text-decoration:none;margin-right:8px">${window._h(c)}</a>`)
-    .join('');
+    .map(c => {
+      let html = `<a href="#" onclick="openOverrideEditor('${_jsAttrEsc(rom)}','${_jsAttrEsc(c)}','${side}');return false" style="color:var(--c-blue);text-decoration:none">${window._h(c)}</a>`;
+      if (_overridesSharedCores.includes(c)) {
+        const direction = side === 'pc' ? 'pc_to_android' : 'android_to_pc';
+        const label = side === 'pc' ? 'Copiar a Android' : 'Copiar a PC';
+        html += ` <a href="#" onclick="copyOverride('${_jsAttrEsc(rom)}','${_jsAttrEsc(c)}','${direction}');return false" title="${label}" style="color:var(--c-teal);text-decoration:none">&#x21C4;</a>`;
+      }
+      return html;
+    })
+    .join('<span style="display:inline-block;width:10px"></span>');
+}
+
+async function copyOverride(rom, core, direction) {
+  const srcLabel  = direction === 'pc_to_android' ? 'PC' : 'Android';
+  const destLabel = direction === 'pc_to_android' ? 'Android' : 'PC';
+  const body = `<p>¿Copiar el override de <b>${window._h(rom)}</b> (${window._h(core)}) de ${srcLabel} a ${destLabel}?</p>`
+    + `<p style="color:var(--c-muted);font-size:12px">El rendimiento puede no ser el mismo en cada lado. Si ${destLabel} ya tiene un override para este juego, se guarda una copia de seguridad antes de sobrescribirlo.</p>`;
+
+  _showConfirm('Copiar override', body, 'Copiar', async () => {
+    try {
+      const r = await apiPost('/api/retroarch-override/copy', { rom, core, direction });
+      const msg = r.backed_up
+        ? `✓ Copiado a ${destLabel} (override anterior guardado como backup)`
+        : `✓ Copiado a ${destLabel}`;
+      showToast(msg, 'ok');
+      await loadOverrides();
+    } catch (e) {
+      showToast(`Error copiando: ${e.message}`, 'err');
+    }
+  });
 }
 
 function _renderOverridesList(entries, coresKey, side) {
@@ -696,4 +727,5 @@ export {
   toggleCompleteness,
   toggleOverrides, loadOverrides,
   openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
+  copyOverride,
 };
