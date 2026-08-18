@@ -41,6 +41,11 @@
         <input id="auto-sync-android-path" type="text" style="width:100%;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px" value="/storage/emulated/0/RetroArch">
       </div>
     </div>
+    <!-- B0-3d: confirma por ADB que <ruta>/config existe en el dispositivo — necesario para leer overrides Android (CFG-PORGAME-6/7/8) -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button class="btn" onclick="detectAndroidRaConfigDir()" style="font-size:11px;padding:4px 10px">&#x1F50D; Detectar carpeta config de RetroArch (Android)</button>
+      <span id="android-ra-config-detect-result" style="font-size:11px;color:var(--c-muted)"></span>
+    </div>
     <!-- CABLE-UX-4: "Conflictos" no afectaba al sync por cable (solo lo usa Cloud
          Sync) — su control se movió a la pestaña Cloud Sync. -->
     <div style="display:flex;align-items:center;gap:12px">
