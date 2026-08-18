@@ -26,10 +26,10 @@ import com.retrovault.android.permissions.StoragePermissionPolicy
 import com.retrovault.android.ui.theme.RetroVaultSyncTheme
 
 /**
- * Punto de entrada de la app. En esta fase (ANDROID-SYNC-2) solo gestiona el
- * flujo de permisos — la pantalla de escaneo (ANDROID-SYNC-4), Ajustes
- * (ANDROID-SYNC-8) y estado (ANDROID-SYNC-14) sustituyen este contenido en
- * fases posteriores.
+ * Punto de entrada de la app. Antes de conceder el permiso de storage
+ * muestra [StoragePermissionScreen]; una vez concedido, muestra
+ * [ScanScreen] (ANDROID-SYNC-4). Ajustes (ANDROID-SYNC-8) y estado
+ * (ANDROID-SYNC-14) sustituyen este contenido en fases posteriores.
  */
 class MainActivity : ComponentActivity() {
     private var hasStorageAccess by mutableStateOf(false)
@@ -57,13 +57,22 @@ class MainActivity : ComponentActivity() {
         setContent {
             RetroVaultSyncTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    PermissionGateScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        hasStorageAccess = hasStorageAccess,
-                        hasNotificationAccess = hasNotificationAccess,
-                        onRequestStorageAccess = ::requestStorageAccess,
-                        onRequestNotificationAccess = ::requestNotificationAccess,
-                    )
+                    if (hasStorageAccess) {
+                        Column {
+                            if (!hasNotificationAccess) {
+                                NotificationPermissionBanner(
+                                    modifier = Modifier.padding(innerPadding),
+                                    onRequestNotificationAccess = ::requestNotificationAccess,
+                                )
+                            }
+                            ScanScreen(modifier = Modifier.padding(innerPadding))
+                        }
+                    } else {
+                        StoragePermissionScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            onRequestStorageAccess = ::requestStorageAccess,
+                        )
+                    }
                 }
             }
         }
@@ -97,11 +106,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun PermissionGateScreen(
-    hasStorageAccess: Boolean,
-    hasNotificationAccess: Boolean,
+fun StoragePermissionScreen(
     onRequestStorageAccess: () -> Unit,
-    onRequestNotificationAccess: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -109,46 +115,33 @@ fun PermissionGateScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(text = "Retro Vault Sync")
-
-        Text(
-            text =
-                if (hasStorageAccess) {
-                    "✓ Acceso a saves/states concedido"
-                } else {
-                    "Necesita acceso a las carpetas de saves/states de RetroArch"
-                },
-        )
-        if (!hasStorageAccess) {
-            Button(onClick = onRequestStorageAccess) {
-                Text("Conceder acceso a almacenamiento")
-            }
+        Text(text = "Necesita acceso a las carpetas de saves/states de RetroArch")
+        Button(onClick = onRequestStorageAccess) {
+            Text("Conceder acceso a almacenamiento")
         }
+    }
+}
 
-        Text(
-            text =
-                if (hasNotificationAccess) {
-                    "✓ Notificaciones permitidas"
-                } else {
-                    "Notificaciones necesarias para el modo de sync instantáneo"
-                },
-        )
-        if (!hasNotificationAccess) {
-            Button(onClick = onRequestNotificationAccess) {
-                Text("Permitir notificaciones")
-            }
+@Composable
+fun NotificationPermissionBanner(
+    onRequestNotificationAccess: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(text = "Notificaciones necesarias para el modo de sync instantáneo")
+        Button(onClick = onRequestNotificationAccess) {
+            Text("Permitir notificaciones")
         }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun PermissionGateScreenPreview() {
+fun StoragePermissionScreenPreview() {
     RetroVaultSyncTheme {
-        PermissionGateScreen(
-            hasStorageAccess = false,
-            hasNotificationAccess = false,
-            onRequestStorageAccess = {},
-            onRequestNotificationAccess = {},
-        )
+        StoragePermissionScreen(onRequestStorageAccess = {})
     }
 }
