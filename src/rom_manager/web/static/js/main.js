@@ -34,6 +34,7 @@ import {
   toggleCompleteness,
   toggleOverrides, loadOverrides,
   openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
+  copyOverride,
 } from './tabs/collection.js';
 import {
   setToolsContext, _initToolsContext,
@@ -281,6 +282,7 @@ Object.assign(window, {
   toggleCompleteness,
   toggleOverrides, loadOverrides,
   openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
+  copyOverride,
   setToolsContext, _initToolsContext,
   _chk, toggleShaLength, _planQueryString,
   loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,

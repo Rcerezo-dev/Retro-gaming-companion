@@ -395,6 +395,64 @@ def register(
         else:
             ctx._send_json({"ok": True})
 
+    # ── POST /api/retroarch-override/copy (CFG-PORGAME-8) ──────────────────────
+    @router.post("/api/retroarch-override/copy")
+    def post_retroarch_override_copy(ctx) -> None:
+        from rom_manager.services.retroarch_overrides_service import SHARED_CORES, copy_override
+
+        data = ctx._post_data or {}
+        rom = data.get("rom") or ""
+        core = data.get("core") or ""
+        direction = data.get("direction") or ""
+
+        sides = {
+            "pc_to_android": ("pc", "android"),
+            "android_to_pc": ("android", "pc"),
+        }.get(direction)
+        if sides is None:
+            ctx._send_error(400, "direction debe ser 'pc_to_android' o 'android_to_pc'")
+            return
+        source_side, dest_side = sides
+
+        # Comprobar el core antes de resolver ADB: un core no compartido es
+        # inválido pase lo que pase con el dispositivo, y así no pedimos
+        # conectarlo para una copia que nunca iba a tener sentido.
+        if core not in SHARED_CORES:
+            ctx._send_error(
+                400,
+                f"{core!r} no es un core compartido entre PC y Android — "
+                "copiar este override no tiene sentido en el otro lado",
+            )
+            return
+
+        source_resolved = _override_side_config(source_side)
+        dest_resolved = _override_side_config(dest_side)
+        source_config_dir, source_adb = source_resolved
+        dest_config_dir, dest_adb = dest_resolved
+        if (source_side == "android" and source_adb is None) or (
+            dest_side == "android" and dest_adb is None
+        ):
+            ctx._send_error(400, "conecta el dispositivo Android por ADB primero")
+            return
+
+        try:
+            result = copy_override(
+                rom,
+                core,
+                source_config_dir=source_config_dir,
+                source_adb_transport=source_adb,
+                dest_config_dir=dest_config_dir,
+                dest_adb_transport=dest_adb,
+            )
+        except ValueError as exc:
+            ctx._send_error(400, str(exc))
+        except FileNotFoundError:
+            ctx._send_error(404, f"No existe override de origen para {rom!r} ({core})")
+        except OSError as exc:
+            ctx._send_error(500, f"Error copiando override: {exc}")
+        else:
+            ctx._send_json({"ok": True, **result})
+
     # ── POST /api/storage/delete-bulk (STORAGE-MGR-3) ────────────────────────
     @router.post("/api/storage/delete-bulk")
     def post_storage_delete_bulk(ctx) -> None:

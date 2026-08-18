@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from rom_manager.services.retroarch_overrides_service import (
+    copy_override,
     list_overrides,
     read_override,
     write_override,
@@ -125,3 +126,87 @@ def test_android_read_and_write_via_adb(monkeypatch) -> None:
 
     write_override(config_dir, "Pokemon Emerald", "mGBA", "new = 2\n", adb_transport=transport)
     assert store[f"{config_dir}/mGBA/Pokemon Emerald.opt"] == "new = 2\n"
+
+
+def test_copy_rejects_non_shared_core(tmp_path: Path) -> None:
+    src = tmp_path / "pc"
+    (src / "Snes9x").mkdir(parents=True)
+    (src / "Snes9x" / "Chrono Trigger.opt").write_text("x = 1\n", encoding="utf-8")
+    dest = tmp_path / "android"
+
+    with pytest.raises(ValueError):
+        copy_override(
+            "Chrono Trigger",
+            "Snes9x",
+            source_config_dir=str(src),
+            source_adb_transport=None,
+            dest_config_dir=str(dest),
+            dest_adb_transport=None,
+        )
+    assert not (dest / "Snes9x").exists()
+
+
+def test_copy_creates_override_with_no_backup_when_destination_empty(tmp_path: Path) -> None:
+    src = tmp_path / "pc"
+    (src / "Gambatte").mkdir(parents=True)
+    (src / "Gambatte" / "Tetris.opt").write_text("x = 1\n", encoding="utf-8")
+    dest = tmp_path / "android"
+
+    result = copy_override(
+        "Tetris",
+        "Gambatte",
+        source_config_dir=str(src),
+        source_adb_transport=None,
+        dest_config_dir=str(dest),
+        dest_adb_transport=None,
+    )
+
+    assert result == {"backed_up": False, "backup_filename": None}
+    assert (dest / "Gambatte" / "Tetris.opt").read_text(encoding="utf-8") == "x = 1\n"
+
+
+def test_copy_backs_up_existing_destination_before_overwrite(tmp_path: Path) -> None:
+    src = tmp_path / "pc"
+    (src / "Gambatte").mkdir(parents=True)
+    (src / "Gambatte" / "Tetris.opt").write_text("new = 2\n", encoding="utf-8")
+    dest = tmp_path / "android"
+    (dest / "Gambatte").mkdir(parents=True)
+    (dest / "Gambatte" / "Tetris.opt").write_text("old = 1\n", encoding="utf-8")
+
+    result = copy_override(
+        "Tetris",
+        "Gambatte",
+        source_config_dir=str(src),
+        source_adb_transport=None,
+        dest_config_dir=str(dest),
+        dest_adb_transport=None,
+    )
+
+    assert result["backed_up"] is True
+    backup_path = dest / "Gambatte" / result["backup_filename"]
+    assert backup_path.read_text(encoding="utf-8") == "old = 1\n"
+    assert (dest / "Gambatte" / "Tetris.opt").read_text(encoding="utf-8") == "new = 2\n"
+
+
+def test_copy_android_to_pc_via_adb(tmp_path: Path, monkeypatch) -> None:
+    store = {"/storage/emulated/0/RetroArch/config/mGBA/Pokemon Emerald.opt": "src = 1\n"}
+
+    def fake_pull(self, android_src, local_dst, *, dry_run=False, verify=False):
+        local_dst.write_text(store[android_src], encoding="utf-8")
+        return len(store[android_src])
+
+    monkeypatch.setattr(AdbTransport, "pull", fake_pull)
+    transport = AdbTransport("adb", "ABC123")
+    dest = tmp_path / "pc"
+
+    result = copy_override(
+        "Pokemon Emerald",
+        "mGBA",
+        source_config_dir="/storage/emulated/0/RetroArch/config",
+        source_adb_transport=transport,
+        dest_config_dir=str(dest),
+        dest_adb_transport=None,
+    )
+
+    assert result == {"backed_up": False, "backup_filename": None}
+    assert (dest / "mGBA" / "Pokemon Emerald.opt").read_text(encoding="utf-8") == "src = 1\n"
