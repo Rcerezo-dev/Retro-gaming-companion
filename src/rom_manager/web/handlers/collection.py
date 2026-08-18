@@ -27,6 +27,7 @@ def register(
     from rom_manager.sync.adb_transport import resolve_single_device_transport
     from rom_manager.web.builders.diff import _build_library_diff
     from rom_manager.web.builders.misc import _build_assets
+    from rom_manager.web.builders.overrides import _build_overrides
 
     _logger.debug("Starting registration, router=%s", router)
 
@@ -318,6 +319,11 @@ def register(
         qs = getattr(ctx, "_qs", {})
         platform = qs.get("platform", [None])[0] or None
         ctx._send_json(_build_library_diff(repository, repo_android, config, platform=platform))
+
+    # ── GET /api/retroarch-overrides (CFG-PORGAME-6) ──────────────────────────
+    @router.get("/api/retroarch-overrides")
+    def get_retroarch_overrides(ctx) -> None:
+        ctx._send_json(_build_overrides(config, _adb_transport()))
 
     # ── POST /api/storage/delete-bulk (STORAGE-MGR-3) ────────────────────────
     @router.post("/api/storage/delete-bulk")

@@ -12,6 +12,7 @@
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiff()" id="btn-col-diff">🔀 Comparar</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleDiskUsage()" id="btn-disk-usage">💾 Disco</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleCompleteness()" id="btn-completeness">📋 Completitud</button>
+    <button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleOverrides()" id="btn-col-overrides">⚙️ Overrides</button>
     <button class="btn" style="padding:4px 10px;font-size:11px" onclick="exportWishlist()">⬇ Wishlist</button>
   </div>
   <!-- Stats panel (visible al entrar: es la portada del dashboard) -->
@@ -85,6 +86,43 @@
       <button class="btn" onclick="syncSelected()" style="background:var(--rv-tint-ok-bg);border-color:var(--c-teal);color:var(--c-teal);font-size:12px">&#x2195; Sincronizar seleccionados</button>
       <button class="btn" onclick="deleteSelectedStorage()" style="background:var(--rv-tint-warn-bg);border-color:var(--c-pink);color:var(--c-pink);font-size:12px">&#x1F5D1; Borrar seleccionados</button>
       <span id="diff-sync-status" style="font-size:12px;color:var(--c-muted)"></span>
+    </div>
+  </div>
+
+  <!-- RetroArch overrides por juego (CFG-PORGAME-6) -->
+  <div class="hidden actions-panel" id="col-overrides-panel" style="margin-top:16px;border-left-color:var(--c-teal)">
+    <h3 style="color:var(--c-teal)">Overrides de RetroArch — PC vs Android</h3>
+    <p style="color:var(--c-dim);font-size:11px;margin:-4px 0 12px">
+      Listado de <code>.opt</code> ya guardados desde el Quick Menu de RetroArch, por juego.
+      Nunca se copian automáticamente entre PC y Android, ni siquiera con el mismo core (el
+      rendimiento de cada lado es distinto).
+    </p>
+    <div class="toolbar" style="margin-bottom:14px">
+      <button class="btn" onclick="loadOverrides()" style="font-size:12px;padding:4px 10px">&#x27F3; Actualizar</button>
+      <span id="overrides-pc-warning" class="hidden" style="font-size:12px;color:var(--c-pink)">
+        Configura la carpeta <code>config/</code> de RetroArch (PC) en Settings para ver overrides aquí.
+      </span>
+      <span id="overrides-android-warning" style="font-size:12px;color:var(--c-muted)"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start">
+      <div>
+        <div style="color:var(--c-pink);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Solo PC <span id="overrides-pc-count" class="badge" style="background:var(--rv-tint-warn-bg);color:var(--c-pink)"></span>
+        </div>
+        <div id="overrides-pc-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+      <div>
+        <div style="color:var(--c-lblue);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          Solo Android <span id="overrides-android-count" class="badge" style="background:var(--rv-tint-info-bg);color:var(--c-lblue)"></span>
+        </div>
+        <div id="overrides-android-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
+      <div>
+        <div style="color:var(--c-teal);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+          En ambos <span id="overrides-both-count" class="badge" style="background:var(--rv-tint-ok-bg);color:var(--c-teal)"></span>
+        </div>
+        <div id="overrides-both-list" style="max-height:420px;overflow-y:auto;font-size:12px"></div>
+      </div>
     </div>
   </div>
 
