@@ -325,6 +325,76 @@ def register(
     def get_retroarch_overrides(ctx) -> None:
         ctx._send_json(_build_overrides(config, _adb_transport()))
 
+    def _override_side_config(side: str) -> tuple[str, object] | None:
+        """(config_dir, adb_transport) for 'pc'/'android', or None if *side* is invalid."""
+        if side == "pc":
+            return config.sync.ra_config_dir, None
+        if side == "android":
+            return f"{config.sync.auto_sync_android_path}/config", _adb_transport()
+        return None
+
+    # ── GET /api/retroarch-override (CFG-PORGAME-7) ────────────────────────────
+    @router.get("/api/retroarch-override")
+    def get_retroarch_override(ctx) -> None:
+        from rom_manager.services.retroarch_overrides_service import read_override
+
+        qs = getattr(ctx, "_qs", {})
+        rom = qs.get("rom", [None])[0] or ""
+        core = qs.get("core", [None])[0] or ""
+        side = qs.get("side", [None])[0] or ""
+
+        resolved = _override_side_config(side)
+        if resolved is None:
+            ctx._send_error(400, "side debe ser 'pc' o 'android'")
+            return
+        config_dir, adb_transport = resolved
+        if side == "android" and adb_transport is None:
+            ctx._send_error(400, "conecta el dispositivo Android por ADB primero")
+            return
+
+        try:
+            content = read_override(config_dir, rom, core, adb_transport=adb_transport)
+        except ValueError as exc:
+            ctx._send_error(400, str(exc))
+        except FileNotFoundError:
+            ctx._send_error(404, f"No existe override para {rom!r} ({core})")
+        except OSError as exc:
+            ctx._send_error(500, f"Error leyendo override: {exc}")
+        else:
+            ctx._send_json({"rom": rom, "core": core, "side": side, "content": content})
+
+    # ── POST /api/retroarch-override (CFG-PORGAME-7) ───────────────────────────
+    @router.post("/api/retroarch-override")
+    def post_retroarch_override(ctx) -> None:
+        from rom_manager.services.retroarch_overrides_service import write_override
+
+        data = ctx._post_data or {}
+        rom = data.get("rom") or ""
+        core = data.get("core") or ""
+        side = data.get("side") or ""
+        content = data.get("content")
+        if content is None:
+            ctx._send_error(400, "content requerido")
+            return
+
+        resolved = _override_side_config(side)
+        if resolved is None:
+            ctx._send_error(400, "side debe ser 'pc' o 'android'")
+            return
+        config_dir, adb_transport = resolved
+        if side == "android" and adb_transport is None:
+            ctx._send_error(400, "conecta el dispositivo Android por ADB primero")
+            return
+
+        try:
+            write_override(config_dir, rom, core, content, adb_transport=adb_transport)
+        except ValueError as exc:
+            ctx._send_error(400, str(exc))
+        except OSError as exc:
+            ctx._send_error(500, f"Error guardando override: {exc}")
+        else:
+            ctx._send_json({"ok": True})
+
     # ── POST /api/storage/delete-bulk (STORAGE-MGR-3) ────────────────────────
     @router.post("/api/storage/delete-bulk")
     def post_storage_delete_bulk(ctx) -> None:

@@ -33,6 +33,7 @@ import {
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
   toggleOverrides, loadOverrides,
+  openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
 } from './tabs/collection.js';
 import {
   setToolsContext, _initToolsContext,
@@ -279,6 +280,7 @@ Object.assign(window, {
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
   toggleOverrides, loadOverrides,
+  openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
   setToolsContext, _initToolsContext,
   _chk, toggleShaLength, _planQueryString,
   loadPlan, applyKeepBoth, doApply, doUndoLastApply, _discardCollisionEntry,
