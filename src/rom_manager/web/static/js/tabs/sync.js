@@ -767,6 +767,26 @@ async function detectAdbDevices() {
   }
 }
 
+// B0-3d: confirma por ADB que <ruta Android>/config existe — el candidato que
+// list_overrides()/read_override() (CFG-PORGAME-6/7/8) asumen para leer y
+// escribir overrides del lado Android. No requiere ningún campo nuevo: la
+// ruta candidata sale de auto-sync-android-path, ya guardado en config.toml.
+async function detectAndroidRaConfigDir() {
+  const resultEl = document.getElementById('android-ra-config-detect-result');
+  if (resultEl) { _txtCls(resultEl, 'txt-dim'); resultEl.textContent = 'Buscando…'; }
+  try {
+    const d = await apiFetch('/api/detect-android-ra-config-dir');
+    if (d.found) {
+      if (resultEl) { _txtCls(resultEl, 'txt-ok'); resultEl.textContent = '✓ Encontrado: ' + d.ra_config_dir; }
+    } else if (resultEl) {
+      _txtCls(resultEl, 'txt-err');
+      resultEl.textContent = '✗ ' + (d.error || 'No encontrado');
+    }
+  } catch (e) {
+    if (resultEl) { _txtCls(resultEl, 'txt-err'); resultEl.textContent = '✗ Error: ' + e.message; }
+  }
+}
+
 async function testAdbPath() {
   const serial  = document.getElementById('cable-adb-device')?.value.trim();
   // CABLE-UX-5: ruta Android única, compartida con la tarjeta de auto-sync
@@ -1927,6 +1947,7 @@ export {
   testCablePath,
   detectDrives,
   detectAdbDevices,
+  detectAndroidRaConfigDir,
   testAdbPath,
   loadCableSync,
   loadCableSyncPreview,
