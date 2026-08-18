@@ -52,8 +52,27 @@
             </intent-filter>
         </activity>
 
-        <!-- SyncForegroundService, BootRestartReceiver y el intent-filter de
-             redirect OAuth de Dropbox se registran en ANDROID-SYNC-5/10/11. -->
+        <!-- AuthActivity del SDK de Dropbox (ANDROID-SYNC-5) — captura el
+             redirect del navegador tras el login PKCE. El scheme
+             "db-<APP_KEY>" se resuelve vía manifestPlaceholders
+             (app/build.gradle.kts, léido de local.properties). Con la App
+             Key vacía (sin configurar todavía) el scheme queda "db-" — no
+             rompe el build, solo no captura ningún redirect real. -->
+        <activity
+            android:name="com.dropbox.core.android.AuthActivity"
+            android:configChanges="orientation|keyboard"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="db-${dropboxAppKey}" />
+            </intent-filter>
+        </activity>
+
+        <!-- SyncForegroundService y BootRestartReceiver se registran en
+             ANDROID-SYNC-10/11. -->
 
     </application>
 

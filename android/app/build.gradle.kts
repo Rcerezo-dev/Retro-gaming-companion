@@ -1,7 +1,23 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// App Key de Dropbox (ANDROID-SYNC-5) — nunca hardcodeada ni versionada.
+// Se lee de android/local.properties (ignorado por git), clave
+// "dropbox.appKey". Sin ella, la app compila igual (OAuth deshabilitado en
+// runtime) — ver DropboxAuthManager.isAppKeyConfigured() y
+// android/local.properties.example.
+val localProperties =
+    Properties().apply {
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use { load(it) }
+        }
+    }
+val dropboxAppKey: String = localProperties.getProperty("dropbox.appKey", "")
 
 android {
     namespace = "com.retrovault.android"
@@ -19,6 +35,11 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
+
+        buildConfigField("String", "DROPBOX_APP_KEY", "\"$dropboxAppKey\"")
+        // AuthActivity del SDK de Dropbox necesita el scheme "db-<APP_KEY>"
+        // declarado en el manifest — ver AndroidManifest.xml.
+        manifestPlaceholders["dropboxAppKey"] = dropboxAppKey
     }
 
     buildTypes {
@@ -42,6 +63,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -68,10 +90,17 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // Dependencias de fases futuras (Dropbox SDK, Room, WorkManager,
-    // datastore-preferences, security-crypto) se añaden en sus propios PRs
-    // — ANDROID-SYNC-5/6/7/12 — para mantener cada fase enfocada. No
-    // adelantarlas aquí sin código que las use.
+    // ANDROID-SYNC-5/6: OAuth PKCE de Dropbox + storage cifrado de la
+    // credencial. dropbox-android-sdk trae Auth/AuthActivity (helper de
+    // Android); dropbox-core-sdk trae DbxClientV2 y el resto del API v2
+    // (ambos en Maven Central desde 7.0.0, ya no dependen de JCenter).
+    implementation("com.dropbox.core:dropbox-core-sdk:7.0.0")
+    implementation("com.dropbox.core:dropbox-android-sdk:7.0.0")
+    implementation("androidx.security:security-crypto:1.1.0")
+
+    // Dependencias de fases futuras (Room, WorkManager, datastore-preferences)
+    // se añaden en sus propios PRs — ANDROID-SYNC-7/8/12 — para mantener
+    // cada fase enfocada. No adelantarlas aquí sin código que las use.
 
     testImplementation("junit:junit:4.13.2")
 
