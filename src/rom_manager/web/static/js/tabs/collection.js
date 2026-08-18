@@ -18,7 +18,7 @@ let _collectionPlatforms = [];
 // COLECCION-UX-5: paneles-acordeón exclusivos — abrir uno cierra los demás
 const _ANALYSIS_PANELS = [
   'col-stats-panel', 'col-completeness-panel', 'col-disk-panel',
-  'col-diff-panel', 'missing-section',
+  'col-diff-panel', 'col-overrides-panel', 'missing-section',
 ];
 
 function _showOnlyPanel(id) {
@@ -352,6 +352,80 @@ async function _syncAllSide(side) {
   }
 }
 
+// ── RetroArch overrides por juego (CFG-PORGAME-6) ──────────────────────────────
+function toggleOverrides() {
+  const panel = document.getElementById('col-overrides-panel');
+  if (panel.classList.contains('hidden')) {
+    _showOnlyPanel('col-overrides-panel');
+    loadOverrides();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+async function loadOverrides() {
+  const pcEl   = document.getElementById('overrides-pc-list');
+  const andEl  = document.getElementById('overrides-android-list');
+  const bothEl = document.getElementById('overrides-both-list');
+  const pcWarnEl  = document.getElementById('overrides-pc-warning');
+  const andWarnEl = document.getElementById('overrides-android-warning');
+  [pcEl, andEl, bothEl].forEach(el => { if (el) el.innerHTML = '<p class="loading">Cargando…</p>'; });
+
+  try {
+    const d = await apiFetch('/api/retroarch-overrides');
+    document.getElementById('overrides-pc-count').textContent = d.only_pc.length;
+    document.getElementById('overrides-android-count').textContent = d.only_android.length;
+    document.getElementById('overrides-both-count').textContent = d.in_both.length;
+
+    if (pcWarnEl) pcWarnEl.classList.toggle('hidden', d.pc_configured);
+    if (andWarnEl) andWarnEl.textContent = d.android_message || '';
+
+    pcEl.innerHTML   = _renderOverridesList(d.only_pc, 'cores');
+    andEl.innerHTML  = _renderOverridesList(d.only_android, 'cores');
+    bothEl.innerHTML = _renderOverridesBoth(d.in_both);
+  } catch (e) {
+    [pcEl, andEl, bothEl].forEach(el => { if (el) el.innerHTML = `<p class="error-msg">${window._h(e.message)}</p>`; });
+  }
+}
+
+function _renderOverridesList(entries, coresKey) {
+  if (!entries.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin overrides.</p>';
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr style="color:var(--c-dim);font-size:11px;border-bottom:1px solid #222">'
+    + '<th style="padding:3px 6px;text-align:left">Juego</th>'
+    + '<th style="padding:3px 6px;text-align:left">Core</th>'
+    + '</tr></thead><tbody>';
+  for (const e of entries) {
+    html += '<tr style="border-bottom:1px solid #1a1a1a">';
+    html += `<td style="padding:3px 6px;color:var(--c-strong);word-break:break-word">${window._h(e.rom)}</td>`;
+    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e[coresKey].join(', '))}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function _renderOverridesBoth(entries) {
+  if (!entries.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin overrides en ambos lados.</p>';
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr style="color:var(--c-dim);font-size:11px;border-bottom:1px solid #222">'
+    + '<th style="padding:3px 6px;text-align:left">Juego</th>'
+    + '<th style="padding:3px 6px;text-align:left">Core PC</th>'
+    + '<th style="padding:3px 6px;text-align:left">Core Android</th>'
+    + '</tr></thead><tbody>';
+  for (const e of entries) {
+    const rowColor = e.core_match ? 'var(--c-strong)' : 'var(--c-amber)';
+    const title = e.core_match ? '' : 'title="Cores distintos — un override de un lado no es aplicable al otro"';
+    html += `<tr style="border-bottom:1px solid #1a1a1a" ${title}>`;
+    html += `<td style="padding:3px 6px;color:${rowColor};word-break:break-word">${window._h(e.rom)}</td>`;
+    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e.pc_cores.join(', '))}</td>`;
+    html += `<td style="padding:3px 6px;color:var(--c-muted);white-space:nowrap">${window._h(e.android_cores.join(', '))}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 // ── STORAGE-MGR-4: delete selected diff items ─────────────────────────────────
 // Mismo texto que review_copies.js (_TRASH_NOTE) para el lado PC — nunca "no
 // se puede deshacer" cuando sí va a _descartados/. El lado Android no tiene
@@ -556,4 +630,5 @@ export {
   _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
+  toggleOverrides, loadOverrides,
 };
