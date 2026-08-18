@@ -11,6 +11,7 @@ _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
+    from rom_manager.sync.adb_transport import AdbTransport
     from rom_manager.web.router import Router
 
 
@@ -114,6 +115,15 @@ def register(
     def get_detect_retroarch(ctx) -> None:
         ctx._send_json(_detect_retroarch_install())
 
+    # ── GET /api/detect-android-ra-config-dir (B0-3c) ───────────────────────────
+    @router.get("/api/detect-android-ra-config-dir")
+    def get_detect_android_ra_config_dir(ctx) -> None:
+        from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+        ctx._send_json(
+            _detect_android_ra_config_dir(config, resolve_single_device_transport(config.adb))
+        )
+
     @router.get("/api/browse-folder")
     def get_browse_folder(ctx) -> None:
         _browse_folder(ctx, getattr(ctx, "_qs", {}))
@@ -206,6 +216,35 @@ def _detect_retroarch_install() -> dict:
         "retroarch_path": retroarch_path,
         "library_root": library_root,
         "ra_config_dir": ra_config_dir,
+    }
+
+
+def _detect_android_ra_config_dir(config: AppConfig, adb_transport: AdbTransport | None) -> dict:
+    """Probe the connected Android device for its RetroArch ``config/`` folder (B0-3c).
+
+    Mirrors `_detect_retroarch_install()`'s response shape for the PC side, but
+    there's no filesystem to scan directly here — ADB is the only way to know
+    the folder is really there. Candidate: ``<auto_sync_android_path>/config``,
+    the same RetroArch root already validated in production for this device's
+    saves/states (``config.py`` ``EMULATOR_MAP``); `AdbTransport.test_path()`
+    (already used for the same purpose elsewhere, e.g. cable-sync path checks)
+    confirms it instead of assuming it's there.
+    """
+    if adb_transport is None:
+        return {
+            "found": False,
+            "ra_config_dir": None,
+            "error": "conecta el dispositivo Android por ADB primero",
+        }
+
+    candidate = f"{config.sync.auto_sync_android_path}/config"
+    result = adb_transport.test_path(candidate)
+    if result.get("accessible"):
+        return {"found": True, "ra_config_dir": candidate}
+    return {
+        "found": False,
+        "ra_config_dir": None,
+        "error": result.get("error", f"No se encontró {candidate!r} en el dispositivo"),
     }
 
 
