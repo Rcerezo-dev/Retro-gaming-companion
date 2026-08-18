@@ -114,9 +114,12 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // Dependencias de fases futuras (WorkManager, datastore-preferences)
-    // se añaden en sus propios PRs — ANDROID-SYNC-8/12 — para mantener
-    // cada fase enfocada. No adelantarlas aquí sin código que las use.
+    // ANDROID-SYNC-8: paths remotos + preferencia de modo de sync.
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
+
+    // Dependencias de fases futuras (WorkManager) se añaden en su propio PR
+    // — ANDROID-SYNC-12 — para mantener cada fase enfocada. No adelantarla
+    // aquí sin código que la use.
 
     testImplementation("junit:junit:4.13.2")
 
