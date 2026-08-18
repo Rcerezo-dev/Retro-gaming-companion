@@ -328,6 +328,44 @@ bucle infinito.
 Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
 otro, sin miedo a sobrescribir — el valor diferencial real del proyecto.
 
+### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
+
+Petición del usuario: sync de saves lo más automático posible, sin depender
+de que el PC esté encendido. Decisión: app Android nativa instalada en la
+propia Anbernic que sincroniza directamente con Dropbox (sustituye al script
+Termux+rclone de `docs/sync/Guia-Termux-Anbernic.md`, que solo auto-corre al
+arrancar). Vive en `android/` (carpeta nueva en este mismo repo), Kotlin,
+Jetpack Compose, SDK oficial de Dropbox (OAuth PKCE, sin rclone embebido),
+distribución APK sideload. Contrato de interoperabilidad con
+`src/rom_manager/sync/` (paths remotos, semántica `client_modified`,
+resolución de conflictos por mtime ±2s, extensiones save/state) diseñado y
+verificado contra el código real antes de escribir nada — ver
+`Tareas/Roadmap-Android-Sync.md` para el detalle completo. Ambos modos de
+background (servicio foreground con `FileObserver` + `WorkManager`
+periódico) configurables por el usuario; permisos `MANAGE_EXTERNAL_STORAGE`
+(API 30+) con fallback legacy storage (API < 30); persistencia local en
+Room/SQLite. minSdk bajo (cubre otras consolas Android, no solo la RG556).
+
+| ID | Task | Fase | Esfuerzo | Estado |
+|----|------|------|----------|--------|
+| ANDROID-SYNC-1 | Scaffold Gradle Kotlin-DSL en `android/`, módulo `:app`, Compose, manifest con permisos placeholder, `MainActivity` vacía, `.gitignore` raíz, `android/README.md` | 0 — Scaffold | S | ⬜ |
+| ANDROID-SYNC-2 | Flujo de permisos de storage (rama API 30+ vs legacy) + `POST_NOTIFICATIONS` condicional a API 33+ | 1 — Local | S | ⬜ |
+| ANDROID-SYNC-3 | `SaveExtensions` + `RemoteRouter` (precedencia state-antes-que-save) + `LocalFileScanner` (recorrido recursivo) | 1 — Local | S | ⬜ |
+| ANDROID-SYNC-4 | Pantalla "Escaneo": conteo de archivos bajo saves/states, sin red | 1 — Local | XS | ⬜ |
+| ANDROID-SYNC-5 | OAuth PKCE de Dropbox, `DropboxAuthManager`, credenciales en `EncryptedSharedPreferences` | 2 — Dropbox core | M | ⬜ |
+| ANDROID-SYNC-6 | `DropboxTransport`: listado recursivo con `client_modified`, upload/download coherentes con mtime | 2 — Dropbox core | M | ⬜ |
+| ANDROID-SYNC-7 | Puerto de `ConflictResolver` (tolerancia 2s, newest-wins, backup de conflicto) + `SyncEngine` + watermark Room `(relative, remote_root)` | 2 — Dropbox core | M | ⬜ |
+| ANDROID-SYNC-8 | Pantalla de Ajustes: conectar/desconectar, paths remotos con auto-recorte de prefijo rclone, botón "Sincronizar ahora" | 2 — Dropbox core | S | ⬜ |
+| ANDROID-SYNC-9 | `SaveFileObserverManager`: `FileObserver` multi-path (API 29+) con fallback por-carpeta (API < 29), debounce, re-enumeración | 3 — Instantáneo | M | ⬜ |
+| ANDROID-SYNC-10 | `SyncForegroundService` + notificación de baja prioridad + rescan de seguridad periódico | 3 — Instantáneo | S | ⬜ |
+| ANDROID-SYNC-11 | `BootRestartReceiver` para relanzar el servicio si el modo instantáneo estaba activo | 3 — Instantáneo | XS | ⬜ |
+| ANDROID-SYNC-12 | `SyncWorker` (`CoroutineWorker`, 15 min mínimo, `NetworkType.CONNECTED`) + selector de modo en Ajustes | 4 — Periódico | S | ⬜ |
+| ANDROID-SYNC-13 | `DeltaCache` (SHA1 skip-si-no-cambió), tabla Room, integración en `SyncEngine` | 5 — Optimización | S | ⬜ |
+| ANDROID-SYNC-14 | Pantalla de estado/historial respaldada por `SyncEventEntity` | 5 — Optimización | S | ⬜ |
+| ANDROID-SYNC-15 | Checklist RG556: instalar, permisos, anidado real por-core, round-trip cruzado con `rommgr sync-saves`, reboot, batería | 6 — Validación hardware | M | ⬜ bloqueado — sin RG556 a mano |
+
+---
+
 ### EMULATOR-COMPAT — Save compatibility PC ↔ Android
 
 Verify that synced saves from PC actually load on Android and vice versa, for each emulator pair.
