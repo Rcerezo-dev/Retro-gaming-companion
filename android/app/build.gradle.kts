@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
 }
 
 // App Key de Dropbox (ANDROID-SYNC-5) — nunca hardcodeada ni versionada.
@@ -98,8 +99,23 @@ dependencies {
     implementation("com.dropbox.core:dropbox-android-sdk:7.0.0")
     implementation("androidx.security:security-crypto:1.1.0")
 
-    // Dependencias de fases futuras (Room, WorkManager, datastore-preferences)
-    // se añaden en sus propios PRs — ANDROID-SYNC-7/8/12 — para mantener
+    // ANDROID-SYNC-7: watermark de sync (relative + remote_root -> último
+    // mtime/hash/rev sincronizado) en Room/SQLite — no JSON plano, porque
+    // el servicio foreground y el WorkManager periódico (Fases 3/4) pueden
+    // disparar sync casi a la vez y SQLite evita las carreras de un JSON a
+    // mano (decisión ya tomada en Tareas/Roadmap-Android-Sync.md, decisión 7).
+    // 2.6.1, no la última (2.8.4): Room 2.8.x está compilado contra
+    // metadata de Kotlin 2.1 ("Module was compiled with an incompatible
+    // version of Kotlin" — kspDebugKotlin/kspReleaseKotlin FAILED con
+    // Kotlin 1.9.24 real, no una suposición). Subir a Room 2.8.x exigiría
+    // subir también el plugin de Kotlin del proyecto a 2.x, un cambio de
+    // mayor alcance que esta tarea — evaluar en su propio PR si hace falta.
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+
+    // Dependencias de fases futuras (WorkManager, datastore-preferences)
+    // se añaden en sus propios PRs — ANDROID-SYNC-8/12 — para mantener
     // cada fase enfocada. No adelantarlas aquí sin código que las use.
 
     testImplementation("junit:junit:4.13.2")
