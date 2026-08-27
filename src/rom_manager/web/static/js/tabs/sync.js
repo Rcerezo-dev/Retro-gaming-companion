@@ -5,6 +5,7 @@ import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
 import { getActiveDevice, getDevName } from '../state.js';
+import { badge } from './games.js';
 
 const _txtCls = (el, cls) => {
   if (!el) return;
