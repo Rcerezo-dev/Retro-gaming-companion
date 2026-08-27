@@ -366,7 +366,7 @@ export async function loadGames(offset) {
         </select>`;
         const accentColor = _platHex(g.platform);
         const favActive = g.is_favorite ? ' active' : '';
-        return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${JSON.stringify(g).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})">
+        return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${_h(JSON.stringify(g))})">
           <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" data-path="${_h(g.source_path || '')}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
@@ -443,7 +443,7 @@ export function _renderGamesGrid(games) {
     const statusBadge = (g.play_status && statusIcon[g.play_status])
       ? `<span class="gc-status-badge" title="${g.play_status}">${statusIcon[g.play_status]}</span>` : '';
     const favBadge = g.is_favorite ? `<span class="gc-fav-badge" title="Favorito">★</span>` : '';
-    return `<div class="game-card" style="border-top:2px solid ${accentGc}40" onclick="openGamePanel(${JSON.stringify(g).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})">
+    return `<div class="game-card" style="border-top:2px solid ${accentGc}40" onclick="openGamePanel(${_h(JSON.stringify(g))})">
       <div class="gc-thumb">${thumb}${statusBadge}${favBadge}</div>
       <div class="gc-body">
         <div class="gc-title" title="${title}">${title}</div>

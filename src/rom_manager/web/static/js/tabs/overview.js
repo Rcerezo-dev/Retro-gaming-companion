@@ -508,7 +508,7 @@ export async function loadOverview() {
         const last = games[0];
         if (heroEl) {
           heroEl.classList.remove('hidden');
-          heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${JSON.stringify(last).replace(/</g,'\\u003c')})">
+          heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${_h(JSON.stringify(last))})">
             <img src="/api/asset-image?game_id=${last.id}" onerror="this.classList.add('hidden')" alt="">
             <div class="hg-body">
               <div class="hg-label">Continuar jugando</div>
@@ -520,7 +520,7 @@ export async function loadOverview() {
         if (contScroll && contSection) {
           contSection.classList.remove('hidden');
           contScroll.innerHTML = games.slice(0, 6).map(g => {
-            const gj = JSON.stringify(g).replace(/</g,'\\u003c');
+            const gj = _h(JSON.stringify(g));
             return `<div class="continue-card" onclick="openGamePanel(${gj})" title="${_h(g.canonical_title||g.original_filename)}">
               <div class="cc-cover">
                 <img src="/api/asset-image?game_id=${g.id}" onerror="this.parentElement.innerHTML='&#127918;'" alt="">
@@ -534,7 +534,7 @@ export async function loadOverview() {
         }
         if (recentEl) recentEl.innerHTML = games.map(g => {
           const title = g.canonical_title || g.original_filename;
-          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--c-panel);font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
+          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--c-panel);font-size:12px;cursor:pointer" onclick="openGamePanel(${_h(JSON.stringify(g))})">
             <span>${_platBadge(g.platform)} <span style="color:var(--c-text)">${_h(title)}</span></span>
             <span style="color:var(--c-dim)">${_relTime(g.last_played_at)}</span>
           </div>`;
