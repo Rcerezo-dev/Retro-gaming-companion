@@ -271,6 +271,15 @@ class AdbTransport:
             if r.returncode != 0:
                 target.unlink(missing_ok=True)
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
+                if "permission denied" in err.lower():
+                    # Lectura bloqueada por scoped storage (Android 11+): el
+                    # archivo es privado de otra app y ni el shell de adb puede
+                    # leerlo sin root. No hay forma de solucionarlo desde aquí.
+                    raise OSError(
+                        f"{android_src}: sin permiso de lectura en este dispositivo "
+                        "(carpeta privada de la app, scoped storage de Android — "
+                        "requiere root o que la app guarde en almacenamiento público)"
+                    )
                 raise OSError(f"adb pull falló: {err}")
             if verify:
                 try:
@@ -316,10 +325,18 @@ class AdbTransport:
             target = f"{android_dst}.part" if verify else android_dst
             r = self._run("push", str(local_src), target)
             if r.returncode != 0:
-                if verify:
-                    self._shell(f"rm -f {shlex.quote(target)}")
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
-                raise OSError(f"adb push falló: {err}")
+                # Carpetas Android/data/<pkg> con scoped storage (Android 11+):
+                # adb SÍ escribe el contenido pero el fchown final a la UID de
+                # la app falla sin root — el archivo queda en el dispositivo
+                # pese al exit code != 0. En vez de descartarlo a ciegas, cae
+                # al chequeo MD5 de abajo: si el contenido llegó bien, se
+                # continúa; si no, la limpieza/raise de esa rama actúa igual.
+                benign_fchown_only = verify and "fchown failed" in err
+                if not benign_fchown_only:
+                    if verify:
+                        self._shell(f"rm -f {shlex.quote(target)}")
+                    raise OSError(f"adb push falló: {err}")
             if verify:
                 try:
                     local_md5 = _md5_local(local_src)
