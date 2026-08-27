@@ -63,7 +63,9 @@ def test_push_survives_benign_fchown_failure_when_content_matches(
     monkeypatch.setattr(transport, "_run", fake_run)
     monkeypatch.setattr(transport, "_shell", fake_shell)
 
-    size = transport.push(local_src, "/storage/emulated/0/Android/data/pkg/files/game.p2s", verify=True)
+    size = transport.push(
+        local_src, "/storage/emulated/0/Android/data/pkg/files/game.p2s", verify=True
+    )
 
     assert size == len(content)
     assert any(c[0] == "shell" and c[1].startswith("mv -f") for c in calls), (
@@ -74,9 +76,7 @@ def test_push_survives_benign_fchown_failure_when_content_matches(
     )
 
 
-def test_push_still_fails_if_fchown_error_but_content_corrupt(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_push_still_fails_if_fchown_error_but_content_corrupt(tmp_path: Path, monkeypatch) -> None:
     local_src = tmp_path / "game.p2s"
     local_src.write_bytes(b"savestate-bytes")
 
@@ -100,7 +100,9 @@ def test_push_still_fails_if_fchown_error_but_content_corrupt(
     monkeypatch.setattr(transport, "_shell", fake_shell)
 
     with pytest.raises(OSError, match="verificación MD5"):
-        transport.push(local_src, "/storage/emulated/0/Android/data/pkg/files/game.p2s", verify=True)
+        transport.push(
+            local_src, "/storage/emulated/0/Android/data/pkg/files/game.p2s", verify=True
+        )
 
 
 def test_push_still_raises_for_unrelated_errors(tmp_path: Path, monkeypatch) -> None:
