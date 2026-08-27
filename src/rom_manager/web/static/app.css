@@ -557,6 +557,7 @@ td.mono, td code { font-family: 'Consolas', monospace; font-size: 12px; }
 /* ── Games grid view ──────────────────────────────────────────────────────── */
 .rec-card { background: #111a11; border: 1px solid #1a3a1a; border-radius: 6px; padding: 8px 10px; cursor: pointer; transition: border-color .15s; min-width: 140px; max-width: 200px; }
 .rec-card:hover { border-color: #4ec9b0; }
+.games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
 .game-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; display: flex; flex-direction: column; position: relative; }
 .game-card:hover { border-color: var(--accent); box-shadow: 0 6px 20px var(--shadow); transform: translateY(-3px); }
 .game-card .gc-thumb { width: 100%; aspect-ratio: 2/3; background: var(--bg-cover); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }

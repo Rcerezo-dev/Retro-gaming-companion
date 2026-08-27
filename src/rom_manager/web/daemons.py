@@ -259,14 +259,24 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
 # ── Punto de entrada único ────────────────────────────────────────────────────
 
 
-def start_all(config: AppConfig, repository: LibraryRepository) -> None:
+def start_all(
+    config: AppConfig,
+    repository: LibraryRepository,
+    repository_android: LibraryRepository | None = None,
+) -> None:
     """Arranca todos los daemons de background. Llamado desde serve()."""
+    from rom_manager.web.builders.common import _repo_for_path
     from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loop
+
+    _repo_android = repository_android if repository_android is not None else repository
+
+    def _get_repo(path_str: str) -> LibraryRepository:
+        return _repo_for_path(path_str, repository, _repo_android, config)
 
     if config.sync.auto_sync_enabled:
         t = threading.Thread(
             target=_auto_sync_loop,
-            args=(config, lambda: repository),
+            args=(config, _get_repo),
             daemon=True,
         )
         t.name = "auto-sync-daemon"
@@ -275,7 +285,7 @@ def start_all(config: AppConfig, repository: LibraryRepository) -> None:
 
     t_sd = threading.Thread(
         target=_sd_card_sync_loop,
-        args=(config, lambda: repository),
+        args=(config, _get_repo),
         daemon=True,
     )
     t_sd.name = "sd-sync-daemon"
