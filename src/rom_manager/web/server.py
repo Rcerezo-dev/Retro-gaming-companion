@@ -516,7 +516,7 @@ def serve(
     user_platforms = config.data_dir / "platforms.toml"
     reload_platforms(user_platforms if user_platforms.exists() else None)
 
-    _start_all_daemons(config, repository)
+    _start_all_daemons(config, repository, repository_android=repository_android)
 
     # PHASE6-3a: check GitHub for a newer release in the background
     from rom_manager import __version__
