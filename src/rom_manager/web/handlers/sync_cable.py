@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from rom_manager.sync import cable_engine
 from rom_manager.sync.sync_log import log_sync_event
+from rom_manager.utils.trash import TRASH_DIR_NAME
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -392,7 +393,11 @@ def _do_cable_sync(
 
             def _iter_files(root: Path):
                 for dirpath, dirs, files in os.walk(root):
-                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    # TRASH-FIX-1: sin esto, cada sync vuelve a copiar el
+                    # contenido de _descartados/ (ya descartado) al otro lado,
+                    # aterrizando dentro de SU _descartados/ — repetido varias
+                    # veces anida _descartados/_descartados/... indefinidamente.
+                    dirs[:] = [d for d in dirs if not d.startswith(".") and d != TRASH_DIR_NAME]
                     for fname in files:
                         yield Path(dirpath) / fname
 

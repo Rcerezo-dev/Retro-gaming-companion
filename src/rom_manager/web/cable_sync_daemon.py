@@ -12,6 +12,7 @@ from pathlib import Path
 
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
+from rom_manager.utils.trash import TRASH_DIR_NAME
 
 _logger = logging.getLogger(__name__)
 
@@ -317,7 +318,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                 if not local_root_p.exists():
                                     return
                                 for dp, dirs, files in os.walk(local_root_p):
-                                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                                    # TRASH-FIX-1: no volver a subir/bajar lo ya descartado
+                                    dirs[:] = [
+                                        d
+                                        for d in dirs
+                                        if not d.startswith(".") and d != TRASH_DIR_NAME
+                                    ]
                                     for fname in files:
                                         yield Path(dp) / fname
 

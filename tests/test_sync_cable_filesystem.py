@@ -90,6 +90,31 @@ def test_pc_to_anbernic_copies(tmp_path: Path) -> None:
     assert (ab / "gba" / "mario.sav").exists()
 
 
+def test_descartados_folder_is_never_copied(tmp_path: Path) -> None:
+    """TRASH-FIX-1: sin excluir _descartados/, cada sync repetida vuelve a
+    copiar lo ya descartado al otro lado, anidando _descartados/_descartados/...
+    indefinidamente (hallado en la Anbernic real, hasta 7 niveles)."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "psx", "game.chd")
+    _write(pc, "psx", "_descartados", "old_game.bin")
+    ab.mkdir()
+
+    res = _run_sync(
+        tmp_path,
+        {
+            "pc_path": str(pc),
+            "anbernic_path": str(ab),
+            "what": ["roms"],
+            "direction": "pc_to_anbernic",
+            "dry_run": False,
+        },
+    )
+
+    assert res["copied"] == 1
+    assert (ab / "psx" / "game.chd").exists()
+    assert not (ab / "psx" / "_descartados").exists()
+
+
 def test_missing_anbernic_path_errors_instead_of_silent_noop(tmp_path: Path) -> None:
     """REV43-7: SD no insertada/montada debe terminar en error, no en
     copied=0/errors=0 como si la sync hubiera ido bien."""
