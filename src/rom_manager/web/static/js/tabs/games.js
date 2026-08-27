@@ -183,7 +183,7 @@ export function fmtSize(n) {
   return n.toFixed(1) + ' ' + units[i];
 }
 
-function badge(cls, text, title) {
+export function badge(cls, text, title) {
   const t = title ? ` title="${window._h(title)}"` : '';
   return `<span class="badge ${cls}"${t}>${text}</span>`;
 }
