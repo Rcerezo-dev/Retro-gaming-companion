@@ -239,13 +239,24 @@ def convert_directory(
                 )
                 summary.skipped += 1
             else:
-                result = ConversionResult(
-                    cue_path=cue_path,
-                    chd_path=chd_path,
-                    bin_paths=bin_paths,
-                    success=True,
-                )
-                summary.converted += 1
+                missing = [b for b in bin_paths if not b.exists()]
+                if missing:
+                    result = ConversionResult(
+                        cue_path=cue_path,
+                        chd_path=chd_path,
+                        bin_paths=bin_paths,
+                        success=False,
+                        error=f"Bin file(s) not found: {', '.join(b.name for b in missing)}",
+                    )
+                    summary.failed += 1
+                else:
+                    result = ConversionResult(
+                        cue_path=cue_path,
+                        chd_path=chd_path,
+                        bin_paths=bin_paths,
+                        success=True,
+                    )
+                    summary.converted += 1
             summary.results.append(result)
             continue
 

@@ -81,6 +81,19 @@ def test_convert_directory_dry_run_skips_existing_chd(tmp_path: Path) -> None:
     assert summary.converted == 0
 
 
+def test_convert_directory_dry_run_flags_missing_bins(tmp_path: Path) -> None:
+    # PSX-FIX-1: a .cue referencing a .bin that doesn't exist must not be
+    # reported as "convertible" just because no .chd exists yet.
+    cue = tmp_path / "Broken Game (USA).cue"
+    _write_cue(cue, ["Broken Game (USA) (Track 01).bin"])
+
+    summary = convert_directory(tmp_path, dry_run=True)
+
+    assert summary.converted == 0
+    assert summary.failed == 1
+    assert "not found" in summary.results[0].error
+
+
 def test_convert_directory_apply_chdman_not_found(tmp_path: Path) -> None:
     cue = tmp_path / "game.cue"
     _write_cue(cue, [])
