@@ -14,7 +14,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rom_manager.sync.cable_engine import CopyPlanItem, CopyPolicy, copy_item, plan_direction
+from rom_manager.sync.cable_engine import (
+    CopyPlanItem,
+    CopyPolicy,
+    copy_item,
+    iter_files,
+    plan_direction,
+)
 
 _WANTED = lambda p: p.suffix == ".sav"  # noqa: E731
 
@@ -24,6 +30,18 @@ def _write(root: Path, *parts: str, content: bytes = b"x") -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(content)
     return p
+
+
+def test_iter_files_skips_descartados(tmp_path: Path) -> None:
+    """TRASH-FIX-1: la papelera nunca debe volver a entrar en un plan de sync
+    (si no, cada sync repetida anida _descartados/_descartados/... sin fin)."""
+    _write(tmp_path, "psx", "game.chd")
+    _write(tmp_path, "psx", "_descartados", "old_game.bin")
+    _write(tmp_path, ".hidden", "junk.txt")
+
+    found = {p.name for p in iter_files(tmp_path)}
+
+    assert found == {"game.chd"}
 
 
 def test_plan_pc_to_anbernic(tmp_path: Path) -> None:
