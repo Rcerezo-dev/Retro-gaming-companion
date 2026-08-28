@@ -369,6 +369,7 @@ caso de uso real sin la complejidad de un daemon en segundo plano.
 | ANDROID-SYNC-13 | ~~`DeltaCache` (SHA1 skip-si-no-cambió)~~ | 5 — Optimización | S | ❌ descartado — optimización prematura sin datos de uso real que la justifiquen |
 | ANDROID-SYNC-14 | ~~Pantalla de estado/historial~~ | 5 — Optimización | S | ❌ descartado — fuera del alcance mínimo (gestionar el envío de saves a Dropbox desde la consola); reconsiderar si hace falta depurar fallos de sync en el futuro |
 | ANDROID-SYNC-15 | Checklist RG556: instalar, permisos, anidado real por-core, round-trip cruzado con `rommgr sync-saves`, reboot, batería | 6 — Validación hardware | M | ⬜ bloqueado — sin RG556 a mano |
+| ANDROID-SYNC-FIX-1 | **Bug: el primer sync de una cuenta/carpeta Dropbox nueva fallaba siempre** — `DropboxTransport.listFolderRecursive()` propagaba `ListFolderErrorException` (`path/not_found`) como error fatal cuando la carpeta remota simplemente no existe todavía (cuenta nueva, nunca se subió nada ahí); eso es un listado vacío legítimo, no un fallo. Sin este fix ningún usuario Android nuevo podía completar su primer sync. Hallado validando Dropbox sync a mano contra una cuenta real (AVD `retrovault_test`, API 34) | `android/app/src/main/java/com/retrovault/android/sync/DropboxTransport.kt` | ✅ captura `ListFolderErrorException` y devuelve lista vacía si `errorValue.isPath && errorValue.pathValue.isNotFound`; cualquier otro error se relanza igual que antes. Verificado contra la cuenta real: antes "Errores: 2", después "Errores: 0" |
 
 ---
 
