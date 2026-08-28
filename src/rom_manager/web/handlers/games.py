@@ -607,6 +607,42 @@ def register(
             _tag_repo.add_tag(int(game_id), tag)
         ctx._send_json({"ok": True, "tags": _tag_repo.get_tags(int(game_id))})
 
+    # ── POST /api/tag-bulk ───────────────────────────────────────────────────
+    @router.post("/api/tag-bulk")
+    def post_tag_bulk(ctx) -> None:
+        """ANBERNIC-PICK-1: aplica/quita un tag a todos los juegos que cumplan el
+        filtro actual de la pestaña Juegos (mismos parámetros que /api/games),
+        sin paginar en el frontend. Reutiliza get_games_paginated tal cual."""
+        data = ctx._post_data
+        tag = str(data.get("tag", "")).strip()
+        action = data.get("action", "add")
+        if not tag:
+            ctx._send_json({"error": "tag required"})
+            return
+        root = data.get("root") or None
+        _repo = get_repo_fn(root or "")
+        games, _total = _repo.get_games_paginated(
+            offset=0,
+            limit=100000,
+            platform=data.get("platform") or None,
+            status=data.get("status") or None,
+            source_root=root,
+            file_type=data.get("filetype") or "rom",
+            search=data.get("search") or None,
+            play_status=data.get("play_status") or None,
+            favorite=bool(data.get("favorite")),
+            tag=data.get("existing_tag") or None,
+            genre=data.get("genre") or None,
+            year=data.get("year") or None,
+            region=data.get("region") or None,
+        )
+        ids = [g["id"] for g in games]
+        if action == "remove":
+            count = _repo.remove_tag_bulk(ids, tag)
+        else:
+            count = _repo.add_tag_bulk(ids, tag)
+        ctx._send_json({"ok": True, "count": count, "tag": tag.lower()})
+
     # ── POST /api/open-folder ────────────────────────────────────────────────
     @router.post("/api/open-folder")
     def post_open_folder(ctx) -> None:

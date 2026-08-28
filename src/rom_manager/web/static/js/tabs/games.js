@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 // ── Games pagination state ────────────────────────────────────────────────────
 export let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null };
@@ -161,6 +162,44 @@ export async function _refreshTagFilter() {
     sel.innerHTML = '<option value="">Todos los tags</option>' +
       (r.tags || []).map(t => `<option value="${_h(t)}"${t === cur ? ' selected' : ''}>${_h(t)}</option>`).join('');
   } catch (_) {}
+}
+
+// ANBERNIC-PICK-1: marca/desmarca con el tag "anbernic" TODOS los juegos que
+// cumplen el filtro actual de la pestaña (mismos parámetros que loadGames),
+// no solo la página visible — el backend recalcula el conjunto server-side.
+export function markFilteredForAnbernic(unmark) {
+  const q = document.getElementById('games-search')?.value.trim() || '';
+  const body = { tag: 'anbernic', action: unmark ? 'remove' : 'add' };
+  if (gamesState.platform) body.platform = gamesState.platform;
+  if (gamesState.status)   body.status   = gamesState.status;
+  if (q)                   body.search   = q;
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') body.filetype = ft;
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) body.play_status = ps;
+  if (gamesState.favorite) body.favorite = true;
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) body.existing_tag = tagF;
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) body.genre = genreF;
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) body.year = yearF;
+  const root = gamesState.root || _deviceRoot();
+  if (root) body.root = root;
+
+  const verb = unmark ? 'Desmarcar' : 'Marcar';
+  _showConfirm(
+    `${verb} para la Anbernic`,
+    `¿${verb.toLowerCase()} para la Anbernic <b>todos los juegos que cumplen el filtro actual</b> (${gamesState.total} en total)?`,
+    verb,
+    async () => {
+      const r = await apiPost('/api/tag-bulk', body);
+      if (r.error) { showToast(r.error, 'error'); return; }
+      showToast(`${r.count} juego${r.count !== 1 ? 's' : ''} ${unmark ? 'desmarcados' : 'marcados'} para la Anbernic`, 'success');
+      _refreshTagFilter();
+      loadGames(gamesState.offset);
+    },
+  );
 }
 
 export async function toggleRowFavorite(gameId, btn) {
