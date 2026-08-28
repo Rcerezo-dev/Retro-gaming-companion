@@ -18,7 +18,17 @@ data class SyncResult(
     val upToDate: Int = 0,
     val conflicts: Int = 0,
     val errors: List<String> = emptyList(),
-)
+) {
+    /** Suma dos resultados — usado para fusionar el pase de `saves/` con el de `states/`. */
+    operator fun plus(other: SyncResult) =
+        SyncResult(
+            uploaded = uploaded + other.uploaded,
+            downloaded = downloaded + other.downloaded,
+            upToDate = upToDate + other.upToDate,
+            conflicts = conflicts + other.conflicts,
+            errors = errors + other.errors,
+        )
+}
 
 /**
  * Orquesta un pase completo de sync para una raíz local (`saves/` o

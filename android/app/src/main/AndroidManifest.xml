@@ -16,17 +16,16 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
-    <!-- Notificación del servicio de sync instantáneo (ANDROID-SYNC-9/10).
-         Runtime prompt solo en API 33+. -->
+    <!-- Notificaciones (runtime prompt solo en API 33+). Sin uso hoy — el
+         modo instantáneo que la necesitaba (ANDROID-SYNC-9/10) se descartó
+         (2026-08-18, la app es complemento del PC, no un daemon en segundo
+         plano); se mantiene el permiso porque el flujo de solicitud ya
+         existe (ANDROID-SYNC-2) y sirve para una futura notificación de
+         resultado de sync. FOREGROUND_SERVICE/FOREGROUND_SERVICE_DATA_SYNC/
+         RECEIVE_BOOT_COMPLETED (servicio foreground + relanzo tras reboot,
+         ANDROID-SYNC-10/11) se retiran: WorkManager persiste y re-programa
+         el trabajo periódico solo, sin necesitar ninguno de los dos. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Servicio foreground de sync instantáneo (ANDROID-SYNC-10). -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
-    <!-- Relanzar el servicio tras reboot si el modo instantáneo estaba
-         activo (ANDROID-SYNC-11). -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Llamadas a la API de Dropbox + constraint de red de WorkManager. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -70,9 +69,6 @@
                 <data android:scheme="db-${dropboxAppKey}" />
             </intent-filter>
         </activity>
-
-        <!-- SyncForegroundService y BootRestartReceiver se registran en
-             ANDROID-SYNC-10/11. -->
 
     </application>
 
