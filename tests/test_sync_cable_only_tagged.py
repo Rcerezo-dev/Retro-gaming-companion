@@ -74,7 +74,9 @@ def _insert_game(repo: LibraryRepository, *, source_path: str, platform: str = "
 def _run_sync(tmp_path: Path, data: dict, repository: LibraryRepository | None) -> dict:
     _state._job_manager.finish("cable_sync", None)
     router = Router()
-    register_cable(router, config=_config(tmp_path), repository=repository, job_manager=_state._job_manager)
+    register_cable(
+        router, config=_config(tmp_path), repository=repository, job_manager=_state._job_manager
+    )
     ctx = _FakeCtx(data)
     router.dispatch("POST", "/api/cable-sync", ctx)
     assert ctx.out.get("status") == "started", ctx.out
