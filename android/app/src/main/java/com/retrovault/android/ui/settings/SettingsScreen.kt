@@ -2,18 +2,21 @@ package com.retrovault.android.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -35,10 +38,12 @@ fun SettingsScreen(
     statesRemote: String,
     isSyncing: Boolean,
     lastSyncSummary: String?,
+    autoSyncEnabled: Boolean,
     onConnectDropbox: () -> Unit,
     onDisconnectDropbox: () -> Unit,
     onSaveRemotes: (saves: String, states: String) -> Unit,
     onSyncNow: () -> Unit,
+    onAutoSyncToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -88,6 +93,11 @@ fun SettingsScreen(
                 CircularProgressIndicator()
             }
             lastSyncSummary?.let { Text(text = it) }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "Sync automático (cada 15 min)")
+                Switch(checked = autoSyncEnabled, onCheckedChange = onAutoSyncToggle)
+            }
         }
     }
 }
@@ -103,10 +113,12 @@ fun SettingsScreenPreview() {
             statesRemote = "/RetroSync/states",
             isSyncing = false,
             lastSyncSummary = "Subidos: 2 · Descargados: 0 · Al día: 41",
+            autoSyncEnabled = true,
             onConnectDropbox = {},
             onDisconnectDropbox = {},
             onSaveRemotes = { _, _ -> },
             onSyncNow = {},
+            onAutoSyncToggle = {},
         )
     }
 }

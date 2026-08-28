@@ -26,21 +26,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.retrovault.android.data.auth.DropboxAuthManager
-import com.retrovault.android.data.auth.DropboxClientProvider
 import com.retrovault.android.data.auth.DropboxCredentialStore
-import com.retrovault.android.data.db.AppDatabase
 import com.retrovault.android.data.prefs.SettingsRepository
 import com.retrovault.android.permissions.StoragePermissionManager
 import com.retrovault.android.permissions.StoragePermissionPolicy
-import com.retrovault.android.sync.DropboxTransport
-import com.retrovault.android.sync.RetroArchPaths
-import com.retrovault.android.sync.SyncEngine
+import com.retrovault.android.sync.PeriodicSyncScheduler
+import com.retrovault.android.sync.SyncOrchestrator
 import com.retrovault.android.sync.SyncResult
 import com.retrovault.android.ui.settings.SettingsScreen
 import com.retrovault.android.ui.theme.RetroVaultSyncTheme
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.File
 
 private enum class AppTab { SCAN, SETTINGS }
 
@@ -60,9 +55,7 @@ class MainActivity : ComponentActivity() {
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
     private val authManager by lazy { DropboxAuthManager(this, credentialStore) }
-    private val clientProvider by lazy { DropboxClientProvider(credentialStore) }
     private val settingsRepository by lazy { SettingsRepository(this) }
-    private val watermarkDao by lazy { AppDatabase.getInstance(this).syncWatermarkDao() }
 
     private val manageStorageSettingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -105,6 +98,8 @@ class MainActivity : ComponentActivity() {
                                         .collectAsState(initial = SettingsRepository.DEFAULT_SAVES_REMOTE)
                                     val statesRemote by settingsRepository.statesRemote
                                         .collectAsState(initial = SettingsRepository.DEFAULT_STATES_REMOTE)
+                                    val autoSyncEnabled by settingsRepository.autoSyncEnabled
+                                        .collectAsState(initial = false)
                                     SettingsScreen(
                                         isDropboxConfigured = authManager.isAppKeyConfigured(),
                                         isDropboxConnected = isDropboxConnected,
@@ -112,10 +107,12 @@ class MainActivity : ComponentActivity() {
                                         statesRemote = statesRemote,
                                         isSyncing = isSyncing,
                                         lastSyncSummary = lastSyncSummary,
+                                        autoSyncEnabled = autoSyncEnabled,
                                         onConnectDropbox = authManager::startAuth,
                                         onDisconnectDropbox = ::disconnectDropbox,
                                         onSaveRemotes = ::saveRemotes,
                                         onSyncNow = ::syncNow,
+                                        onAutoSyncToggle = ::setAutoSyncEnabled,
                                     )
                                 }
                             }
@@ -175,33 +172,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun syncNow() {
-        val client = clientProvider.client() ?: return
-        val engine = SyncEngine(DropboxTransport(client), watermarkDao)
         isSyncing = true
         lifecycleScope.launch {
-            val savesRemote = settingsRepository.savesRemote.first()
-            val statesRemote = settingsRepository.statesRemote.first()
-            val savesResult = engine.sync(File(RetroArchPaths.SAVES), savesRemote)
-            val statesResult = engine.sync(File(RetroArchPaths.STATES), statesRemote)
-            lastSyncSummary = summarize(savesResult, statesResult)
+            val result = SyncOrchestrator.runFullSync(this@MainActivity)
+            lastSyncSummary = if (result != null) summarize(result) else "Dropbox no conectado"
             isSyncing = false
         }
     }
 
-    private fun summarize(
-        saves: SyncResult,
-        states: SyncResult,
-    ): String {
-        val uploaded = saves.uploaded + states.uploaded
-        val downloaded = saves.downloaded + states.downloaded
-        val upToDate = saves.upToDate + states.upToDate
-        val conflicts = saves.conflicts + states.conflicts
-        val errors = saves.errors.size + states.errors.size
-        val base = "Subidos: $uploaded · Descargados: $downloaded · Al día: $upToDate"
+    private fun setAutoSyncEnabled(enabled: Boolean) {
+        if (enabled) PeriodicSyncScheduler.enable(this) else PeriodicSyncScheduler.disable(this)
+        lifecycleScope.launch { settingsRepository.setAutoSyncEnabled(enabled) }
+    }
+
+    private fun summarize(result: SyncResult): String {
+        val base = "Subidos: ${result.uploaded} · Descargados: ${result.downloaded} · Al día: ${result.upToDate}"
         val extra =
             buildString {
-                if (conflicts > 0) append(" · Conflictos: $conflicts")
-                if (errors > 0) append(" · Errores: $errors")
+                if (result.conflicts > 0) append(" · Conflictos: ${result.conflicts}")
+                if (result.errors.isNotEmpty()) append(" · Errores: ${result.errors.size}")
             }
         return base + extra
     }

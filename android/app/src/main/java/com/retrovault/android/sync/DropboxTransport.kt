@@ -2,6 +2,7 @@ package com.retrovault.android.sync
 
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.FileMetadata
+import com.dropbox.core.v2.files.ListFolderErrorException
 import com.dropbox.core.v2.files.WriteMode
 import java.io.File
 import java.io.FileInputStream
@@ -42,10 +43,23 @@ internal fun relativePathFrom(
  * siempre fijando/leyendo `client_modified`.
  */
 class DropboxTransport(private val client: DbxClientV2) {
-    /** Listado recursivo de [remoteRoot], solo archivos, `relative` POSIX a esa raíz. */
+    /**
+     * Listado recursivo de [remoteRoot], solo archivos, `relative` POSIX a
+     * esa raíz. Si [remoteRoot] todavía no existe en Dropbox (primer sync
+     * de la cuenta/carpeta — nunca se subió nada ahí), Dropbox devuelve
+     * `path/not_found` (`ListFolderErrorException`, `LookupError.NOT_FOUND`):
+     * eso es un listado vacío legítimo, no un fallo — sin este caso ningún
+     * usuario Android nuevo podría completar su primer sync (ANDROID-SYNC-FIX-1).
+     */
     fun listFolderRecursive(remoteRoot: String): List<RemoteSave> {
         val entries = mutableListOf<RemoteSave>()
-        var result = client.files().listFolderBuilder(remoteRoot.trimEnd('/')).withRecursive(true).start()
+        var result =
+            try {
+                client.files().listFolderBuilder(remoteRoot.trimEnd('/')).withRecursive(true).start()
+            } catch (e: ListFolderErrorException) {
+                if (e.errorValue.isPath && e.errorValue.pathValue.isNotFound) return emptyList()
+                throw e
+            }
         while (true) {
             for (entry in result.entries) {
                 val file = entry as? FileMetadata ?: continue

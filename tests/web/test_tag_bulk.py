@@ -49,10 +49,17 @@ def _insert_game(repo: LibraryRepository, *, source_path: str, platform: str, sh
 def _setup(tmp_path: Path):
     repo = LibraryRepository(tmp_path / "pc.sqlite")
     arcade_ids = [
-        _insert_game(repo, source_path=str(tmp_path / f"arcade/g{i}.zip"), platform="Arcade", sha1=f"A{i}" * 10)
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / f"arcade/g{i}.zip"),
+            platform="Arcade",
+            sha1=f"A{i}" * 10,
+        )
         for i in range(3)
     ]
-    nds_id = _insert_game(repo, source_path=str(tmp_path / "nds/g.nds"), platform="Nintendo DS", sha1="B" * 40)
+    nds_id = _insert_game(
+        repo, source_path=str(tmp_path / "nds/g.nds"), platform="Nintendo DS", sha1="B" * 40
+    )
 
     router = Router()
     _h_games.register(
@@ -114,7 +121,9 @@ def test_tag_bulk_requires_tag(tmp_path: Path) -> None:
 def test_add_tag_bulk_and_remove_tag_bulk_repository_methods(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "solo.sqlite")
     ids = [
-        _insert_game(repo, source_path=str(tmp_path / f"g{i}.zip"), platform="Arcade", sha1=f"C{i}" * 10)
+        _insert_game(
+            repo, source_path=str(tmp_path / f"g{i}.zip"), platform="Arcade", sha1=f"C{i}" * 10
+        )
         for i in range(2)
     ]
 
