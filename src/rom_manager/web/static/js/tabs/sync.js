@@ -672,6 +672,13 @@ function _onCableModeChange() {
   if (adbEl) adbEl.classList.toggle('hidden', !(adb));
 }
 
+// ANBERNIC-PICK-2: el checkbox "solo marcados" solo tiene sentido si se van a
+// sincronizar ROMs — se oculta si esa casilla no está marcada.
+function _onCableWhatRomsChange() {
+  const wrap = document.getElementById('cable-only-tagged-wrap');
+  if (wrap) wrap.style.display = document.getElementById('cable-what-roms')?.checked ? '' : 'none';
+}
+
 function _onCableDryRunChange() {
   const cb = document.getElementById('cable-dry-run');
   const warn = document.getElementById('cable-dry-run-warning');
@@ -928,6 +935,7 @@ async function loadCableSync() {
 
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (!_isAdbMode() && document.getElementById('cable-ab-path')?.value) testCablePath('ab');
+    _onCableWhatRomsChange(); // ANBERNIC-PICK-2: por si el navegador recordó "ROMs" marcado
 
     // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
     // los controles, no solo actualizarse tras un onchange manual del usuario.
@@ -1043,6 +1051,8 @@ async function doCableSync() {
   const safeMode     = document.getElementById('cable-safe-mode')?.checked ?? true;
   const skipSha1Dups = direction === 'anbernic_to_pc' && (document.getElementById('cable-skip-sha1')?.checked ?? false);
   const deleteExtra  = direction !== 'newest' && (document.getElementById('cable-mirror')?.checked ?? false);
+  // ANBERNIC-PICK-2: solo tiene efecto con roms + pc_to_anbernic (ver _wanted en sync_cable.py)
+  const onlyTagged   = wantRoms && (document.getElementById('cable-only-tagged')?.checked ?? false);
 
   let body;
   if (adb) {
@@ -1053,13 +1063,13 @@ async function doCableSync() {
     // CABLE-UX-1: el pre-flight de reloj ahora vive en el backend (bloquea con
     // error en vez de confirm()) — cubre este camino y el auto-sync por igual.
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
-             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
+             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged };
   } else {
     const abPath = document.getElementById('cable-ab-path')?.value.trim();
     if (!abPath) { alert('Introduce la ruta de la tarjeta SD / consola Android.'); return; }
     // CABLE-UX-10: sin localStorage — config (anbernic_root/library_root en
     // Ajustes) es la única fuente persistente; esto es solo la sesión actual.
-    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
+    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged };
   }
 
   const btn      = document.getElementById('btn-cable-sync');
@@ -1613,6 +1623,56 @@ async function doLibraryDiff() {
   }
 }
 
+// SAVE-CONSOLIDATOR-1: agrupa saves por juego (ignora carpeta por-core y
+// extensión), marca plantillas en blanco por contenido, y reporta grupos
+// divergentes sin tocar nada — nunca fusiona ni borra automáticamente.
+async function doSaveFragmentation() {
+  const summaryEl = document.getElementById('save-frag-summary');
+  const resultEl = document.getElementById('save-frag-result');
+  if (summaryEl) summaryEl.textContent = 'Analizando…';
+  if (resultEl) resultEl.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/save-fragmentation');
+    if (d.error) {
+      if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--c-pink)">' + d.error + '</span>';
+      return;
+    }
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const { summary, groups, roots } = d;
+    const missing = roots.filter(r => !r.exists).map(r => r.name);
+    if (summaryEl) {
+      const parts = [];
+      if (summary.divergent) parts.push('<span style="color:var(--c-pink)">' + summary.divergent + ' divergente' + (summary.divergent !== 1 ? 's' : '') + ' (necesitan tu decisión)</span>');
+      if (summary.blank) parts.push('<span style="color:var(--c-amber)">' + summary.blank + ' solo-plantilla (seguro descartar)</span>');
+      if (summary.identical) parts.push('<span style="color:#a6e3a1">' + summary.identical + ' idénticos (seguro deduplicar)</span>');
+      if (!parts.length) parts.push('<span style="color:#a6e3a1">✓ Sin fragmentación detectada</span>');
+      if (missing.length) parts.push('<span style="color:var(--c-dim)">(' + missing.join(', ') + ' no existe)</span>');
+      summaryEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+    }
+    if (!resultEl) return;
+    if (!groups.length) { resultEl.innerHTML = ''; return; }
+    const statusLabel = { divergent: 'Divergente', blank: 'Solo plantilla', identical: 'Idéntico' };
+    const statusColor = { divergent: 'var(--c-pink)', blank: 'var(--c-amber)', identical: '#a6e3a1' };
+    let html = '<div style="overflow-x:auto"><table><thead><tr><th>Estado</th><th>Juego</th><th>Copias</th></tr></thead><tbody>';
+    html += groups.map((g, i) => {
+      const rows = g.entries.map(e =>
+        '<tr style="border-bottom:1px solid #1a1a2a"><td colspan="3" style="padding:2px 4px 2px 20px;font-size:11px;color:var(--c-dim)">'
+        + esc(e.relative) + ' &middot; ' + e.size + ' B &middot; ' + esc(e.mtime.replace('T', ' ').slice(0, 16))
+        + (e.is_blank ? ' &middot; <span style="color:var(--c-amber)">plantilla en blanco</span>' : '')
+        + '</td></tr>'
+      ).join('');
+      return '<tr><td style="color:' + statusColor[g.status] + '">' + statusLabel[g.status] + '</td>'
+        + '<td>' + esc(g.stem) + ' <span style="color:var(--c-dim);font-size:11px">(' + esc(g.root) + ')</span></td>'
+        + '<td>' + g.entries.length + '</td></tr>' + rows;
+    }).join('');
+    html += '</tbody></table></div>';
+    resultEl.innerHTML = html;
+  } catch (e) {
+    if (summaryEl) summaryEl.textContent = '';
+    if (resultEl) resultEl.innerHTML = '<p style="color:var(--c-pink)">Error: ' + String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+  }
+}
+
 async function doSync(dryRun) {
   const btnDry   = document.getElementById('btn-sync-dry');
   const btnApply = document.getElementById('btn-sync-apply');
@@ -1905,6 +1965,7 @@ export {
   // Save comparison & library diff
   loadSaveComparison,
   doLibraryDiff,
+  doSaveFragmentation,
   doSync,
   _renderSyncResult,
   // Cloud Sync
@@ -1944,6 +2005,7 @@ export {
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
+  _onCableWhatRomsChange,
   _onCableDirectionChange,
   testCablePath,
   detectDrives,

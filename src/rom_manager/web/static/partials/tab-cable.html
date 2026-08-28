@@ -164,7 +164,7 @@
           <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(.sav, .srm, .state…)</span>
         </label>
         <label class="fmt-check">
-          <input type="checkbox" id="cable-what-roms"> ROMs
+          <input type="checkbox" id="cable-what-roms" onchange="_onCableWhatRomsChange()"> ROMs
           <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(todo lo dem&#xe1;s)</span>
         </label>
         <label class="fmt-check">
@@ -176,6 +176,10 @@
           <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(gamelist.xml)</span>
         </label>
       </div>
+      <label class="fmt-check" id="cable-only-tagged-wrap" style="display:none;margin-top:10px">
+        <input type="checkbox" id="cable-only-tagged"> Solo ROMs marcados para la Anbernic
+        <span style="color:var(--c-dim);font-size:11px;margin-left:4px">(pesta&#xf1;a Juegos &#x2192; "Marcar para Anbernic"; sin marcar ninguno, no se copia nada)</span>
+      </label>
     </div>
 
     <!-- Dirección -->

@@ -249,6 +249,7 @@ def _do_cable_sync(
     use_adb = bool(data.get("use_adb", False))
     adb_serial = data.get("adb_serial", "").strip()
     android_path = data.get("android_path", "/storage/emulated/0").strip()
+    only_tagged = bool(data.get("only_tagged", False))
 
     if not pc_path_str:
         ctx._send_json({"error": "pc_path is required"})
@@ -383,13 +384,34 @@ def _do_cable_sync(
             def _category(p: Path) -> str:
                 return "save" if p.suffix.lower() in save_exts else "rom"
 
+            # ANBERNIC-PICK-2: opt-in — solo ROMs marcados con el tag "anbernic"
+            # (game_tags, ver ANBERNIC-PICK-1) salen del PC hacia la consola.
+            # Por defecto desactivado: comportamiento actual sin cambios.
+            _tagged_pc_paths: frozenset[str] | None = None
+            if only_tagged and "roms" in what:
+                with repository.connect() as conn:
+                    _rows = conn.execute(
+                        "SELECT g.source_path FROM games g "
+                        "JOIN game_tags gt ON gt.game_id = g.id "
+                        "WHERE gt.tag = 'anbernic' AND g.file_type = 'rom'"
+                    ).fetchall()
+                _tagged_pc_paths = frozenset(os.path.normpath(r[0]).lower() for r in _rows)
+
             def _wanted(p: Path) -> bool:
                 if "assets" in what and p.suffix.lower() in _ASSET_EXTS:
                     if "media" in (part.lower() for part in p.parts):
                         return True
                 if "gamelists" in what and p.name.lower() == "gamelist.xml":
                     return True
-                return _wanted_name(p.name)
+                if not _wanted_name(p.name):
+                    return False
+                if _tagged_pc_paths is not None and _cat_name(p.name) == "rom":
+                    try:
+                        p.relative_to(pc_root)
+                    except ValueError:
+                        return True  # no es del lado PC (p.ej. iterando ab_root para delete_extra)
+                    return os.path.normpath(str(p)).lower() in _tagged_pc_paths
+                return True
 
             def _iter_files(root: Path):
                 for dirpath, dirs, files in os.walk(root):
