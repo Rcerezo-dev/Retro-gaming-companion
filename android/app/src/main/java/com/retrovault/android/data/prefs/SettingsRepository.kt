@@ -1,6 +1,7 @@
 package com.retrovault.android.data.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -20,6 +21,9 @@ class SettingsRepository(context: Context) {
     val savesRemote: Flow<String> = dataStore.data.map { it[SAVES_REMOTE_KEY] ?: DEFAULT_SAVES_REMOTE }
     val statesRemote: Flow<String> = dataStore.data.map { it[STATES_REMOTE_KEY] ?: DEFAULT_STATES_REMOTE }
 
+    /** ANDROID-SYNC-12: sync automático cada 15 min vía WorkManager, off por defecto. */
+    val autoSyncEnabled: Flow<Boolean> = dataStore.data.map { it[AUTO_SYNC_ENABLED_KEY] ?: false }
+
     suspend fun setSavesRemote(value: String) {
         dataStore.edit { it[SAVES_REMOTE_KEY] = stripRcloneRemotePrefix(value) }
     }
@@ -28,9 +32,14 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[STATES_REMOTE_KEY] = stripRcloneRemotePrefix(value) }
     }
 
+    suspend fun setAutoSyncEnabled(value: Boolean) {
+        dataStore.edit { it[AUTO_SYNC_ENABLED_KEY] = value }
+    }
+
     companion object {
         private val SAVES_REMOTE_KEY = stringPreferencesKey("saves_remote")
         private val STATES_REMOTE_KEY = stringPreferencesKey("states_remote")
+        private val AUTO_SYNC_ENABLED_KEY = booleanPreferencesKey("auto_sync_enabled")
         const val DEFAULT_SAVES_REMOTE = "/RetroSync/saves"
         const val DEFAULT_STATES_REMOTE = "/RetroSync/states"
     }

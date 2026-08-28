@@ -117,9 +117,8 @@ dependencies {
     // ANDROID-SYNC-8: paths remotos + preferencia de modo de sync.
     implementation("androidx.datastore:datastore-preferences:1.2.1")
 
-    // Dependencias de fases futuras (WorkManager) se añaden en su propio PR
-    // — ANDROID-SYNC-12 — para mantener cada fase enfocada. No adelantarla
-    // aquí sin código que la use.
+    // ANDROID-SYNC-12: SyncWorker periódico.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     testImplementation("junit:junit:4.13.2")
 
