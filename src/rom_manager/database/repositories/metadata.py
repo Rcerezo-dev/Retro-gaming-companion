@@ -114,6 +114,30 @@ class MetadataMixin:
             )
             conn.commit()
 
+    def add_tag_bulk(self, game_ids: list[int], tag: str) -> int:
+        """Add *tag* to many games in one transaction (idempotent). Returns len(game_ids)."""
+        tag = tag.strip().lower()
+        if not tag or not game_ids:
+            return 0
+        with self.batch() as conn:
+            conn.executemany(
+                "INSERT OR IGNORE INTO game_tags (game_id, tag) VALUES (?, ?)",
+                [(gid, tag) for gid in game_ids],
+            )
+        return len(game_ids)
+
+    def remove_tag_bulk(self, game_ids: list[int], tag: str) -> int:
+        """Remove *tag* from many games in one transaction. Returns len(game_ids)."""
+        tag = tag.strip().lower()
+        if not tag or not game_ids:
+            return 0
+        with self.batch() as conn:
+            conn.executemany(
+                "DELETE FROM game_tags WHERE game_id = ? AND tag = ?",
+                [(gid, tag) for gid in game_ids],
+            )
+        return len(game_ids)
+
     def get_tags(self, game_id: int) -> list[str]:
         """Return all tags for a game."""
         with self.connect() as conn:

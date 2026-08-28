@@ -38,6 +38,8 @@
       <option value="year">Orden: A&#xf1;o</option>
       <option value="last_played">Orden: &#xda;ltima partida</option>
     </select>
+    <button id="btn-mark-anbernic" title="Marca con el tag 'anbernic' todos los juegos que cumplen el filtro actual" onclick="markFilteredForAnbernic(false)" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x1F4E6; Marcar para Anbernic</button>
+    <button id="btn-unmark-anbernic" title="Quita el tag 'anbernic' de todos los juegos que cumplen el filtro actual" onclick="markFilteredForAnbernic(true)" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2715; Desmarcar</button>
     <span id="games-count" style="color:var(--c-hint);margin-left:8px;"></span>
     <div class="view-toggle" style="margin-left:auto" title="Cambiar vista">
       <button id="btn-view-list" class="active" onclick="setGamesView('list')" title="Vista lista">&#x2630;</button>
