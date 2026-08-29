@@ -451,6 +451,7 @@ class GamesMixin:
         genre: str | None = None,
         year: str | None = None,
         region: str | None = None,
+        initial: str | None = None,
         sort_by: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
@@ -501,6 +502,13 @@ class GamesMixin:
         if region:
             conditions.append("region = ?")
             params.append(region)
+        if initial:
+            _first_char = "UPPER(SUBSTR(COALESCE(canonical_title, original_filename), 1, 1))"
+            if initial == "#":
+                conditions.append(f"({_first_char} < 'A' OR {_first_char} > 'Z')")
+            else:
+                conditions.append(f"{_first_char} = ?")
+                params.append(initial[0].upper())
 
         # genre / year require JOIN with game_metadata
         need_meta = bool(genre or year)
@@ -522,6 +530,7 @@ class GamesMixin:
                 else c.replace("file_type", "g.file_type")
                 .replace("platform", "g.platform")
                 .replace("canonical_title", "g.canonical_title")
+                .replace("original_filename", "g.original_filename")
                 .replace("source_path", "g.source_path")
                 .replace("play_status", "g.play_status")
                 .replace("is_favorite", "g.is_favorite")

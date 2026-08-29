@@ -41,6 +41,8 @@
     </select>
     <button id="btn-mark-anbernic" title="Marca con el tag 'anbernic' todos los juegos que cumplen el filtro actual" onclick="markFilteredForAnbernic(false)" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x1F4E6; Marcar para Anbernic</button>
     <button id="btn-unmark-anbernic" title="Quita el tag 'anbernic' de todos los juegos que cumplen el filtro actual" onclick="markFilteredForAnbernic(true)" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x2715; Desmarcar</button>
+    <button id="btn-send-anbernic" title="Envía a la Anbernic (por ADB) todos los juegos que cumplen el filtro actual. Los que ya estén en la consola con el mismo tamaño se saltan." onclick="sendFilteredToAnbernic()" style="background:var(--c-panel);border:1px solid var(--c-green,#3a3);color:var(--c-green,#6d6);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x1F4E4; Enviar a la Anbernic</button>
+    <button id="btn-remove-anbernic" title="Elimina de la Anbernic (por ADB) todos los juegos que cumplen el filtro actual. Los saves se copian al PC antes de borrar y nunca se eliminan." onclick="removeFilteredFromAnbernic()" style="background:var(--c-panel);border:1px solid var(--c-softred,#a33);color:var(--c-softred,#d66);padding:5px 9px;border-radius:4px;font:inherit;font-size:13px;cursor:pointer">&#x1F5D1; Eliminar de la Anbernic</button>
     <span id="games-count" style="color:var(--c-hint);margin-left:8px;"></span>
     <div class="view-toggle" style="margin-left:auto" title="Cambiar vista">
       <button id="btn-view-list" class="active" onclick="setGamesView('list')" title="Vista lista">&#x2630;</button>
@@ -49,6 +51,7 @@
     <a href="/api/export-library?format=csv" class="btn" title="Exportar biblioteca completa con metadatos a CSV">&#x2193; CSV</a>
     <a href="/api/export-library?format=json" class="btn" title="Exportar biblioteca completa con metadatos a JSON">&#x2193; JSON</a>
   </div>
+  <div id="games-alpha-bar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px" title="Filtrar por letra inicial del título"></div>
   <!-- NLP-REC: recommendations panel (hidden until model pushes data) -->
   <div class="hidden rv-tint-ok" id="rec-panel" style="margin-bottom:14px;padding:10px 14px;border-radius:6px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
