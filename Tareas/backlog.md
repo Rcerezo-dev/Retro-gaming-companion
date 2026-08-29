@@ -1180,8 +1180,14 @@ combinada PC↔Android por SHA1 y el multi-select; `discard_to_trash()` (PC) y
 
 Tests: `test_storage_service.py` (bulk delete, PC/Android no se cruzan, sha1
 desconocido, sin transporte ADB) + `test_library_diff.py` (`size_bytes` en el
-diff). No probado aún contra hardware real — pendiente de validación con la
-RG556 conectada antes de un borrado real desde Android (irreversible).
+diff). **Validado contra hardware real 2026-08-29**: archivo `.gba`
+desechable subido a `/storage/521D-04EA/_storage_mgr_validation/` en la
+RG556 conectada, borrado con el código real (`delete_storage_items` +
+`resolve_single_device_transport` + `AdbTransport.remove`) contra una BD
+temporal (no la real), confirmado ausente por un segundo `adb shell`
+independiente tras el borrado, carpeta de prueba limpiada — sin tocar la
+biblioteca real de la consola. `POST /api/storage/delete-bulk` puede usarse
+con confianza para un borrado real desde Android.
 
 ---
 
