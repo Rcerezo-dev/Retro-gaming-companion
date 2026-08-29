@@ -15,6 +15,7 @@ from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.utils.disc_tag import find_disc_number
 from rom_manager.utils.paths import is_device_path
+from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
 
@@ -44,8 +45,23 @@ def _is_spanish_filename(filename: str) -> bool:
     return any(any(t.strip() == s for s in _SPANISH_TAGS) for tag in tags for t in tag.split(","))
 
 
-def _review_entry_sort_key(entry: dict) -> tuple[int, int, str]:
-    """Recommendation order shared by every reason: RA support > Spanish > filename.
+def _in_correct_platform_folder(source_path: str, platform: str | None, library_root) -> bool:
+    """True if *source_path* already lives under its platform's canonical folder.
+
+    Same check the misplaced-ROM health-check uses (``handlers/system.py``).
+    """
+    if not platform or not library_root:
+        return False
+    slug = _ES_PLATFORM_FOLDERS.get(platform, "")
+    if not slug:
+        return False
+    return source_path.startswith(str(_Path(library_root) / slug))
+
+
+def _review_entry_sort_key(
+    entry: dict, platform: str | None = None, library_root=None
+) -> tuple[int, int, int, str]:
+    """Recommendation order shared by every reason: RA support > correct folder > Spanish > filename.
 
     Same criterion the RA-duplicates view already used (before TABS-FIX-6
     generalized it to all 4 review-queue sources). Every entry — including
@@ -57,10 +73,19 @@ def _review_entry_sort_key(entry: dict) -> tuple[int, int, str]:
     source file existing on disk (`op.source_path.exists()`), so it can be
     `None` even when `ra_supported` correctly knows the winner — using it as
     the sort driver picked the wrong "recommended" entry in exactly that case.
+
+    INBOX-ORPHAN-4: RA can't hash any disc-image format yet (INBOX-RA-HASH-GAP),
+    so both sides of a disc duplicate always tie on ``ra_tier`` and the pick used
+    to fall through to whatever order the DB query happened to return — a
+    misplaced duplicate could win the tie purely by having a lower row id. A
+    duplicate sitting outside its canonical platform folder is almost always the
+    stale/misplaced one (INBOX-ORPHAN-3/4 incidents), so that check comes before
+    the filename tiebreak.
     """
     ra_tier = 0 if entry["ra_supported"] else 1
+    folder_tier = 0 if _in_correct_platform_folder(entry["source_path"], platform, library_root) else 1
     lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
-    return (ra_tier, lang_tier, entry["filename"])
+    return (ra_tier, folder_tier, lang_tier, entry["filename"])
 
 
 def _load_ra_hash_map(
@@ -480,7 +505,8 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
         if not (has_supported and has_unsupported):
             continue
 
-        annotated.sort(key=_review_entry_sort_key)
+        _lib_root = getattr(config, "library_root", None)
+        annotated.sort(key=lambda e: _review_entry_sort_key(e, e.get("platform"), _lib_root))
         wasted = sum(a["size_bytes"] for a in annotated if not a["ra_supported"])
         result_groups.append(
             {
@@ -691,7 +717,8 @@ def _review_groups_for_repo(
             entries[entry["source_path"]] = entry
 
         entries_list = list(entries.values())
-        entries_list.sort(key=_review_entry_sort_key)
+        _lib_root = getattr(config, "library_root", None)
+        entries_list.sort(key=lambda e: _review_entry_sort_key(e, plat, _lib_root))
         for i, entry in enumerate(entries_list):
             entry["recommended"] = i == 0
         wasted = sum(e["size_bytes"] or 0 for e in entries_list[1:])
