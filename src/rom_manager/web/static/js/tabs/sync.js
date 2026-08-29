@@ -1118,7 +1118,7 @@ function _renderCableSyncResult(r) {
 
   const verb   = r.dry_run ? 'Copiaría' : 'Copiados';
   const _dn = getDevName();
-  const dirMap = { pc_to_anbernic: `PC → ${_dn}`, anbernic_to_pc: `${_dn} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_dn}`, device_to_pc: `${_dn} → PC` };
+  const dirMap = { pc_to_anbernic: `PC → ${_dn}`, anbernic_to_pc: `${_dn} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_dn}`, device_to_pc: `${_dn} → PC`, remove_selected: `Eliminados de ${_dn} (saves preservados)` };
   const dirStr = dirMap[r.direction] || r.direction;
   const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
   const sha1Msg     = r.sha1_skipped > 0 ? `  |  Dups SHA1: ${r.sha1_skipped}` : '';
@@ -1127,7 +1127,10 @@ function _renderCableSyncResult(r) {
   const safeMsg     = r.safe_mode_skipped_overwrites > 0
     ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:var(--c-amber)">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
   const mirrorMsg   = r.deleted_extra > 0
-    ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
+    ? (r.direction === 'remove_selected'
+        ? `  |  <span title="Juegos eliminados de la consola (saves preservados en el PC)" style="color:var(--c-softred)">&#x1F5D1; ${r.deleted_extra} juego${r.deleted_extra !== 1 ? 's' : ''} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>`
+        : `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>`)
+    : '';
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   // D8-6: file count display

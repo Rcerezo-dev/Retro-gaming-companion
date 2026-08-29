@@ -267,6 +267,57 @@ def get_ra_achievements_for_path(
     return get_ra_achievements(config, platform, (row["md5"] or ""), cache)
 
 
+def filter_duplicate_winners(
+    repository: LibraryRepository, config: AppConfig, games: list[dict]
+) -> list[dict]:
+    """Collapse same-title duplicates within *games* to one winner each — used
+    before a bulk push to the Anbernic so the tiny SD card never gets two
+    copies of the same game. Same (platform, canonical_title) exact match as
+    ``duplicates.py`` (region variants must never merge). Winner order: most
+    RetroAchievements achievements, then whichever extension already
+    dominates that platform in the library (keeps the collection's own
+    format instead of introducing a one-off), then filename for stability.
+    """
+    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    singles: list[dict] = []
+    for g in games:
+        title = g.get("canonical_title")
+        if not title:
+            singles.append(g)
+            continue
+        groups[(g.get("platform") or "", title)].append(g)
+
+    ra_cache: dict[str, dict] = {}
+    ext_cache: dict[str, str] = {}
+
+    def _dominant_ext(platform: str) -> str:
+        if platform not in ext_cache:
+            with repository.connect() as conn:
+                row = conn.execute(
+                    "SELECT extension FROM games WHERE platform = ? AND file_type = 'rom' "
+                    "GROUP BY extension ORDER BY COUNT(*) DESC LIMIT 1",
+                    (platform,),
+                ).fetchone()
+            ext_cache[platform] = (row["extension"] or "") if row else ""
+        return ext_cache[platform]
+
+    winners: list[dict] = list(singles)
+    for (platform, _title), entries in groups.items():
+        if len(entries) == 1:
+            winners.append(entries[0])
+            continue
+        dom_ext = _dominant_ext(platform)
+
+        def _key(e: dict, _platform: str = platform, _dom_ext: str = dom_ext) -> tuple:
+            ra = get_ra_achievements(config, _platform, e.get("md5") or "", ra_cache)
+            same_format = 0 if (e.get("extension") or "") == _dom_ext else 1
+            return (-ra, same_format, e.get("original_filename") or "")
+
+        entries.sort(key=_key)
+        winners.append(entries[0])
+    return winners
+
+
 def apply_ra_conflicts(
     repository: LibraryRepository, config: AppConfig, adb_transport: AdbTransport | None = None
 ) -> dict:
