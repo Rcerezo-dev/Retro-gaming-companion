@@ -475,6 +475,25 @@ def make_handler(
             body = _json_response({"error": message})
             self._send(code, "application/json; charset=utf-8", body)
 
+        def _send_file(self, path, download_name: str) -> None:
+            """Descarga en streaming (nunca carga el archivo entero en RAM —
+            los ROMs de PS2/GameCube pueden pesar varios GB, a diferencia de
+            `_send()`, pensado para respuestas pequeñas como JSON/imágenes)."""
+            import mimetypes as _mimetypes
+            import shutil as _shutil
+            import urllib.parse as _urllib_parse
+
+            size = path.stat().st_size
+            mime_type, _ = _mimetypes.guess_type(download_name)
+            quoted_name = _urllib_parse.quote(download_name)
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type or "application/octet-stream")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quoted_name}")
+            self.end_headers()
+            with path.open("rb") as fh:
+                _shutil.copyfileobj(fh, self.wfile, length=1024 * 1024)
+
     return Handler
 
 

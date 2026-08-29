@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 // ── Local helper ──────────────────────────────────────────────────────────────
 const _h = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -281,7 +282,7 @@ function _renderRaPage() {
       ${noMd5 > 0 ? `<span style="color:var(--c-muted);margin-left:8px">? ${noMd5} sin MD5</span>` : ''}
     </div>
     <div style="display:flex;gap:6px">
-      ${noSupport > 0 ? `<button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="window.discardRaNoSupport()" title="Mover ${noSupport} juegos sin soporte a _descartados/">Descartar sin soporte</button>` : ''}
+      ${alternative > 0 ? `<button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="window.discardRaNoSupport()" title="Mover ${alternative} juegos sin logros que SÍ tienen una alternativa con logros en tu biblioteca a _descartados/">Descartar con alternativa RA</button>` : ''}
       ${platformFilter ? `<button class="btn" style="padding:3px 8px;font-size:11px" onclick="window.clearRaFilter()">✕ Limpiar filtro</button>` : ''}
     </div>
   </div>`;
@@ -389,59 +390,51 @@ function _raStatusColor(status) {
 }
 
 export async function discardRaNoSupport() {
-  const noSupportGames = _raResults.filter(r => r.status === 'no_support');
+  // HERR-FIX-1: solo descarta juegos con alternativa RA disponible (esos son
+  // seguros — ya hay una copia mejor en la biblioteca). "no_support" a secas
+  // (sin alternativa) nunca se toca aquí: sería la única copia del juego.
+  const discardable = _raResults.filter(r => r.status === 'no_support_alternative');
 
-  if (!noSupportGames.length) {
-    showToast('No hay juegos sin soporte RA para descartar.', 'info');
+  if (!discardable.length) {
+    showToast('No hay juegos con alternativa RA disponible para descartar.', 'info');
     return;
   }
 
-  // Show confirmation dialog
-  if (!window._showConfirm) {
-    // Fallback if confirm component not available
-    const confirmed = confirm(`¿Descartar ${noSupportGames.length} juegos sin soporte RA?\n\nLos archivos se moverán a una carpeta _descartados en su ubicación actual.\nEsta acción se registrará en la base de datos.`);
-    if (!confirmed) return;
-  } else {
-    // Use confirm modal if available
-    const confirmed = await new Promise(resolve => {
-      const origCallback = window._confirmCallback;
-      window._confirmCallback = (result) => {
-        window._confirmCallback = origCallback;
-        resolve(result);
-      };
-      window._showConfirm(
-        `¿Descartar ${noSupportGames.length} juegos sin soporte RA?`,
-        'Los archivos se moverán a _descartados/. Haz una copia de seguridad si es tu primera vez.'
-      );
-    });
-    if (!confirmed) return;
-  }
+  // HERR-FIX-1: la integración anterior usaba window._confirmCallback, que
+  // _showConfirm() (components/modal.js) nunca llama — el botón "Confirmar"
+  // no hacía nada (_confirmOkHandler quedaba undefined). _showConfirm recibe
+  // el callback como 4º argumento, igual que el resto de la app.
+  _showConfirm(
+    `¿Descartar ${discardable.length} juegos sin logros con alternativa?`,
+    'Los archivos se moverán a _descartados/ (recuperable). Se conserva la alternativa con logros RA de cada uno.',
+    'Descartar',
+    async () => {
+      try {
+        const d = await apiPost('/api/ra-check/discard-no-support', {});
+        if (d.error) {
+          showToast('Error: ' + d.error, 'err');
+          return;
+        }
 
-  try {
-    const d = await apiPost('/api/ra-check/discard-no-support', {});
-    if (d.error) {
-      showToast('Error: ' + d.error, 'err');
-      return;
-    }
+        const { discarded, failed, errors } = d;
+        const msg = `✓ ${discarded} descartados`;
+        showToast(msg + (failed > 0 ? ` (${failed} fallos)` : ''), failed > 0 ? 'warn' : 'ok');
 
-    const { discarded, failed, errors } = d;
-    const msg = `✓ ${discarded} descartados`;
-    showToast(msg + (failed > 0 ? ` (${failed} fallos)` : ''), failed > 0 ? 'warn' : 'ok');
+        // Remove discarded games from results
+        _raResults = _raResults.filter(r => r.status !== 'no_support_alternative');
+        _raPage = 0;
+        _renderRaPage();
 
-    // Remove discarded games from results
-    _raResults = _raResults.filter(r => r.status !== 'no_support');
-    _raPage = 0;
-    _renderRaPage();
-
-    // Show error details if any
-    if (errors && errors.length > 0) {
-      console.warn('RA discard errors:', errors);
-      const errMsg = errors.slice(0, 3).join('\n');
-      showToast(`⚠ Algunos errores: ${errors.length > 3 ? '...' : ''}`, 'warn');
-    }
-  } catch(e) {
-    showToast('Error al descartar juegos: ' + e.message, 'err');
-  }
+        // Show error details if any
+        if (errors && errors.length > 0) {
+          console.warn('RA discard errors:', errors);
+          showToast(`⚠ Algunos errores: ${errors.length > 3 ? '...' : ''}`, 'warn');
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message, 'err');
+      }
+    },
+  );
 }
 
 export function _raSelectAlternative(idx) {

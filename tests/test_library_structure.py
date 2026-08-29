@@ -227,6 +227,30 @@ class TestCreateLibraryStructure:
         # Should not crash — android result can be empty dict or have error
         assert isinstance(android, dict)
 
+    def test_android_platforms_nest_under_roms(
+        self, library: Path, config_root: Path, repo: LibraryRepository, tmp_path: Path
+    ) -> None:
+        """HERR-FIX-3: on the Anbernic (SD card), platform folders live under
+        ROMs/ (DEVICE-DUP-1) -- unlike the PC library_root, where they sit
+        directly at the root."""
+        sd = tmp_path / "sd_root"
+        sd.mkdir()
+        cfg_text = (
+            f'[library]\nlibrary_root = "{str(library).replace(chr(92), "/")}"\n'
+            f'anbernic_root = "{str(sd).replace(chr(92), "/")}"\n'
+        )
+        (config_root / "config.toml").write_text(cfg_text, encoding="utf-8")
+
+        _, data = _post("/api/create-library-structure", {"also_android": True}, repo, config_root)
+
+        assert (sd / "ROMs" / "gba").is_dir()
+        assert (sd / "ROMs" / "psx").is_dir()
+        assert not (sd / "gba").exists(), "platform folder must not also sit loose at the SD root"
+        # Special folders stay at the SD root, not nested under ROMs/
+        assert (sd / "saves").is_dir()
+        assert (sd / "bios").is_dir()
+        assert not (sd / "ROMs" / "saves").exists()
+
 
 # ── /api/organize-library endpoint ────────────────────────────────────────────
 

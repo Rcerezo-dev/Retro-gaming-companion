@@ -664,6 +664,17 @@ function _isAdbMode() {
   return document.querySelector('input[name="cable-ab-mode"]:checked')?.value === 'adb';
 }
 
+// ANBERNIC-PICK-6: acceso directo desde Herramientas a la sincronización
+// avanzada (ya existía, pero plegada y sin enlace desde donde el usuario la buscaba)
+function goToCableSyncAdvanced() {
+  showTab('cable');
+  const details = document.getElementById('cable-advanced-details');
+  if (details) {
+    details.open = true;
+    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function _onCableModeChange() {
   const adb = _isAdbMode();
   const fsEl  = document.getElementById('cable-fs-section');
@@ -2005,6 +2016,7 @@ export {
   backupNow,
   loadManualBackups,
   // Cable Sync
+  goToCableSyncAdvanced,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
