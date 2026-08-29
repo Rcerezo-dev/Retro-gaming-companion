@@ -49,16 +49,12 @@ export function applyColVisibility() {
   show('gcol-match',  prefs.match);
   show('gcol-size',   prefs.size);
   show('gcol-sha1',   prefs.sha1);
-  // JUEGOS-FIX-3: los índices de celda hardcodeados (`tr.cells[N]`) se
-  // desincronizaban cada vez que se añadía/quitaba una columna a la tabla
-  // (p.ej. el 📦 de Anbernic) — con una preferencia guardada de ocultar
-  // "Identificación" acababa ocultando el Título en su lugar. `data-col`
-  // en el `<td>` (fijado en el template de la fila) hace esto inmune al
-  // orden real de columnas.
+  // Update row cells (col index: 0=platform,1=title,2=filename,3=region,4=match,5=size,6=sha1)
+  const COL = { region: 3, match: 4, size: 5, sha1: 6 };
   document.querySelectorAll('#games-tbody tr').forEach(tr => {
-    Object.entries(prefs).forEach(([key, visible]) => {
-      const td = tr.querySelector(`[data-col="${key}"]`);
-      if (td) td.classList.toggle('hidden', !visible);
+    Object.entries(COL).forEach(([key, idx]) => {
+      const td = tr.cells[idx];
+      if (td) td.classList.toggle('hidden', !(prefs[key]));
     });
   });
 }
@@ -143,16 +139,8 @@ export async function loadFilterOptions() {
       items.forEach(v => { const o = document.createElement('option'); o.value = v; o.text = v; sel.add(o); });
       if (cur) sel.value = cur;
     };
-    _populate('games-genre',    r.genres    || []);
-    _populate('games-year',     r.years     || []);
-    // Bug real: el desplegable de plataforma solo se rellenaba con las
-    // plataformas presentes en la página actual de resultados (loadGames,
-    // máx. 100 filas) — con la biblioteca ordenada por plataforma, esa
-    // primera página cae entera en una sola plataforma (o "Unknown"),
-    // dejando el filtro casi inútil. filter-options ya devuelve la lista
-    // completa y distinta de la BD, igual que genre/year.
-    _populate('games-platform', r.platforms || []);
-    platformsLoaded = true;
+    _populate('games-genre', r.genres || []);
+    _populate('games-year',  r.years  || []);
   } catch (_) {}
 }
 
@@ -224,102 +212,6 @@ export async function toggleRowFavorite(gameId, btn) {
     // If filtering by favorites, refresh list
     if (gamesState.favorite) loadGames(gamesState.offset);
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
-}
-
-// ANBERNIC-PICK-7: marcar/desmarcar un juego suelto (selector individual),
-// mismo tag 'anbernic' que markFilteredForAnbernic pero sin depender del filtro.
-export async function toggleRowAnbernic(gameId, btn) {
-  const isSet = btn.classList.contains('active');
-  try {
-    const r = await apiPost('/api/tag', {
-      game_id: gameId,
-      tag: 'anbernic',
-      action: isSet ? 'remove' : 'add',
-      source_path: btn.dataset.path || '',
-    });
-    const nowSet = (r.tags || []).includes('anbernic');
-    btn.classList.toggle('active', nowSet);
-    btn.title = nowSet ? 'Quitar de Anbernic' : 'Marcar para Anbernic';
-    if (document.getElementById('games-tag-filter')?.value === 'anbernic') loadGames(gamesState.offset);
-  } catch(e) { showToast('Error: ' + e.message, 'err'); }
-}
-
-// ── ANBERNIC-PICK-7: asistente guiado "¿qué te llevas a la Anbernic?" ──────────
-// ponytail: umbral fijo para "pequeña" vs "grande" — ajustar si 2 GiB no encaja
-// con el tamaño real de SD del usuario.
-const _WIZARD_SMALL_THRESHOLD_BYTES = 2 * 1024 ** 3;
-
-export async function openAnbernicWizard() {
-  const modal = document.getElementById('anbernic-wizard-modal');
-  const body = document.getElementById('anbernic-wizard-body');
-  if (!modal || !body) return;
-  modal.classList.remove('hidden');
-  body.innerHTML = '<p class="loading">Cargando plataformas…</p>';
-  try {
-    const d = await apiFetch('/api/platform-stats');
-    _renderAnbernicWizard(d.platforms || []);
-  } catch(e) {
-    body.innerHTML = `<p class="error-msg">${e.message}</p>`;
-  }
-}
-
-export function closeAnbernicWizard() {
-  document.getElementById('anbernic-wizard-modal')?.classList.add('hidden');
-}
-
-function _renderAnbernicWizard(platforms) {
-  const body = document.getElementById('anbernic-wizard-body');
-  if (!body) return;
-  const small = platforms.filter(p => p.total_size <= _WIZARD_SMALL_THRESHOLD_BYTES);
-  const large = platforms.filter(p => p.total_size > _WIZARD_SMALL_THRESHOLD_BYTES);
-
-  const row = (p, actionHtml) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--c-border)">
-      <div style="flex:1;min-width:0">
-        <div style="color:var(--c-text);font-size:13px">${_h(p.platform)}</div>
-        <div style="color:var(--c-dim);font-size:11px">${p.total_games} juego${p.total_games !== 1 ? 's' : ''} · ${fmtSize(p.total_size)} · ${p.tagged_count}/${p.total_games} marcados</div>
-      </div>
-      ${actionHtml}
-    </div>`;
-
-  const smallHtml = small.map(p => {
-    const done = p.tagged_count >= p.total_games && p.total_games > 0;
-    return row(p, done
-      ? `<span style="color:var(--c-teal);font-size:12px">&#x2713; Toda marcada</span>`
-      : `<button class="btn" style="font-size:12px" onclick="wizardMarkPlatform('${_h(p.platform).replace(/'/g, "\\'")}', this)">Marcar toda</button>`);
-  }).join('') || '<p class="empty" style="font-size:12px">Ninguna.</p>';
-
-  const largeHtml = large.map(p => row(p,
-    `<button class="btn" style="font-size:12px;border-color:var(--c-teal);color:var(--c-teal)" onclick="wizardPickIndividually('${_h(p.platform).replace(/'/g, "\\'")}')">Elegir juego a juego &#x2192;</button>`
-  )).join('') || '<p class="empty" style="font-size:12px">Ninguna.</p>';
-
-  body.innerHTML = `
-    <p style="color:var(--c-muted);font-size:12px;margin-bottom:10px">
-      Plataformas pequeñas: llévatelas enteras de un clic. Plataformas grandes: elige juego a juego
-      en Juegos (usa el 📦 por fila, o filtra y busca ahí).
-    </p>
-    <div style="margin-bottom:6px;color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px">Pequeñas — llévatelas enteras (&le; ${fmtSize(_WIZARD_SMALL_THRESHOLD_BYTES)})</div>
-    ${smallHtml}
-    <div style="margin:14px 0 6px;color:var(--c-orange);font-size:11px;text-transform:uppercase;letter-spacing:1px">Grandes — elige juego a juego</div>
-    ${largeHtml}
-  `;
-}
-
-export async function wizardMarkPlatform(platform, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = 'Marcando…'; }
-  try {
-    const r = await apiPost('/api/tag-bulk', { platform, tag: 'anbernic', action: 'add' });
-    if (r.error) { showToast(r.error, 'err'); return; }
-    showToast(`${r.count} juego${r.count !== 1 ? 's' : ''} de ${platform} marcados para la Anbernic`, 'ok');
-    openAnbernicWizard(); // re-render with fresh tagged_count
-  } catch(e) { showToast('Error: ' + e.message, 'err'); }
-}
-
-export function wizardPickIndividually(platform) {
-  closeAnbernicWizard();
-  goToGames(null, '', 'rom', platform);
-  const sortSel = document.getElementById('games-sort-by');
-  if (sortSel) sortSel.value = 'added';
 }
 
 // ── Platform helpers (duplicated for module scope) ────────────────────────────
@@ -399,7 +291,7 @@ function _emptyState(icon, title, sub, ctaLabel, ctaFn) {
 export async function loadGames(offset) {
   gamesState.offset = offset ?? 0;
   const tbody = document.getElementById('games-tbody');
-  tbody.innerHTML = '<tr><td colspan="10" class="loading">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" class="loading">Cargando…</td></tr>';
   // Apply view mode visibility on each load
   const _listV = document.getElementById('games-list-view');
   const _gridV = document.getElementById('games-grid-view');
@@ -515,18 +407,15 @@ export async function loadGames(offset) {
         const favActive = g.is_favorite ? ' active' : '';
         return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${_h(JSON.stringify(g))})">
           <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" data-path="${_h(g.source_path || '')}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
-          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${g.is_anbernic ? ' active' : ''}" data-path="${_h(g.source_path || '')}" onclick="toggleRowAnbernic(${g.id},this)" title="${g.is_anbernic ? 'Quitar de Anbernic' : 'Marcar para Anbernic'}">&#x1F4E6;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
           <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:var(--c-ghost)">—</span>'}</td>
-          <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}
-            <a href="/api/download-rom?path=${encodeURIComponent(g.source_path || '')}" onclick="event.stopPropagation()" title="Descargar este ROM" style="margin-left:6px;text-decoration:none">&#x2B07;</a>
-          </td>
+          <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}</td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
-          <td data-col="region"><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
-          <td data-col="match">${matchBadge(g.match_confidence)}</td>
-          <td data-col="size" style="color:var(--c-hint);font-size:12px">${fmtSize(g.size_bytes)}</td>
-          <td data-col="sha1" class="mono" style="color:var(--c-ghost);font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
+          <td><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
+          <td>${matchBadge(g.match_confidence)}</td>
+          <td style="color:var(--c-hint);font-size:12px">${fmtSize(g.size_bytes)}</td>
+          <td class="mono" style="color:var(--c-ghost);font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
         </tr>`;
       }).join('');
       applyColVisibility();
@@ -535,7 +424,7 @@ export async function loadGames(offset) {
 
     renderPagination();
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="10" class="error-msg">${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="error-msg">${e.message}</td></tr>`;
   }
 }
 

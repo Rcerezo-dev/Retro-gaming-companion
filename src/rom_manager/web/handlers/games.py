@@ -203,46 +203,6 @@ def register(
         ) + (sum(1 for f in _rd.iterdir() if f.suffix.lower() == ".dat") if _rd.exists() else 0)
         ctx._send_json(_result)
 
-    # ── GET /api/download-rom ────────────────────────────────────────────────
-    @router.get("/api/download-rom")
-    def get_download_rom(ctx) -> None:
-        """FTP-PICK (rediseñado 2026-08-29): descarga un ROM desde el navegador
-        de la Anbernic — reutiliza el servidor HTTP ya existente en vez de un
-        protocolo nuevo. Solo sirve rutas que ya están en la BD como ROM (no
-        cualquier archivo del disco) y, además, que resuelvan dentro de
-        library_root/anbernic_root (mismo patrón de path traversal que
-        REV43-16, `post_restore_backup`)."""
-        from pathlib import Path as _Path
-
-        qs = getattr(ctx, "_qs", {})
-        source_path = qs.get("path", [None])[0]
-        if not source_path:
-            ctx._send_error(400, "path required")
-            return
-
-        _dl_repo = get_repo_fn(source_path)
-        with _dl_repo.connect() as conn:
-            row = conn.execute(
-                "SELECT original_filename FROM games WHERE source_path = ? AND file_type = 'rom'",
-                (source_path,),
-            ).fetchone()
-        if not row:
-            ctx._send_error(404, "ROM no encontrada en la biblioteca")
-            return
-
-        target = _Path(source_path).resolve()
-        allowed_roots = [
-            _Path(r).resolve() for r in (config.library_root, config.anbernic_root) if r
-        ]
-        if not any(target.is_relative_to(root) for root in allowed_roots):
-            ctx._send_error(403, "Ruta fuera de la biblioteca")
-            return
-        if not target.is_file():
-            ctx._send_error(404, "Archivo no encontrado en disco")
-            return
-
-        ctx._send_file(target, row["original_filename"])
-
     # ── GET /api/games/filter-options ────────────────────────────────────────
     @router.get("/api/games/filter-options")
     def get_filter_options(ctx) -> None:

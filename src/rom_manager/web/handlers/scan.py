@@ -159,7 +159,7 @@ def register(
     # ── POST /api/match ───────────────────────────────────────────────────────
     @router.post("/api/match")
     def post_match(ctx) -> None:
-        _do_match(ctx, config, repository, job_manager, ctx._post_data or {})
+        _do_match(ctx, config, repository, job_manager)
 
     # ── POST /api/stop-job ────────────────────────────────────────────────────
     @router.post("/api/stop-job")
@@ -522,14 +522,9 @@ def _do_adb_scan(
 
 
 def _do_match(
-    ctx,
-    config: AppConfig,
-    repository: LibraryRepository,
-    job_manager: JobManager,
-    data: dict | None = None,
+    ctx, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
     _cancel = job_manager.cancel_event("match")
-    include_low_confidence = bool((data or {}).get("include_low_confidence"))
 
     def run() -> None:
         job_result = None
@@ -541,7 +536,7 @@ def _do_match(
                 redump_dir=config.catalogs_redump_dir,
                 arcade_dir=config.catalogs_arcade_dir,
             )
-            games = repository.get_unresolved_games(include_low_confidence=include_low_confidence)
+            games = repository.get_unresolved_games()
             matched_high = matched_low = unmatched = 0
             with repository.batch() as conn:
                 for game in games:

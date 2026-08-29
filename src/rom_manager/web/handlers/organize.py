@@ -327,12 +327,7 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
     also_android = bool(data.get("also_android"))
     android_root_str = config.anbernic_root or None
 
-    def _create_tree(root: Path, *, roms_subdir: str = "") -> tuple[list[str], list[str]]:
-        """HERR-FIX-3: en la Anbernic las plataformas van bajo <raíz SD>/ROMs/
-        (convención confirmada en DEVICE-DUP-1, `archivo.md`), no sueltas en la
-        raíz como en el PC. saves/media/configs/bios/inbox/screenshots se
-        quedan en la raíz de la SD en ambos casos — decisión del usuario, sin
-        evidencia de que deban anidarse bajo ROMs/ también."""
+    def _create_tree(root: Path) -> tuple[list[str], list[str]]:
         created: list[str] = []
         skipped: list[str] = []
 
@@ -350,12 +345,9 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
         _ensure(root / "bios" / "wii", "bios/wii")
         _ensure(root / "bios" / "shaders", "bios/shaders")
 
-        roms_root = (root / roms_subdir) if roms_subdir else root
-
         # 2. Rutas por plataforma
         for folder in std_folders:
-            roms_label = f"{roms_subdir}/{folder}" if roms_subdir else folder
-            _ensure(roms_root / folder, roms_label)
+            _ensure(root / folder, folder)
             _ensure(root / "saves" / folder, f"saves/{folder}")
             _ensure(root / "saves" / folder / "states", f"saves/{folder}/states")
             _ensure(root / "media" / folder / "images", f"media/{folder}/images")
@@ -371,7 +363,7 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
     if also_android and android_root_str:
         android_root = Path(android_root_str)
         if android_root.exists():
-            ab_created, ab_skipped = _create_tree(android_root, roms_subdir="ROMs")
+            ab_created, ab_skipped = _create_tree(android_root)
             android_result = {
                 "root": str(android_root),
                 "created": ab_created,

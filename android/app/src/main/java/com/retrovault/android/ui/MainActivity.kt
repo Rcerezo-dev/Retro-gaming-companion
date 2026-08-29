@@ -33,12 +33,11 @@ import com.retrovault.android.permissions.StoragePermissionPolicy
 import com.retrovault.android.sync.PeriodicSyncScheduler
 import com.retrovault.android.sync.SyncOrchestrator
 import com.retrovault.android.sync.SyncResult
-import com.retrovault.android.ui.pick.PickScreen
 import com.retrovault.android.ui.settings.SettingsScreen
 import com.retrovault.android.ui.theme.RetroVaultSyncTheme
 import kotlinx.coroutines.launch
 
-private enum class AppTab { SCAN, PICK, SETTINGS }
+private enum class AppTab { SCAN, SETTINGS }
 
 /**
  * Punto de entrada de la app. Antes de conceder el permiso de storage
@@ -94,18 +93,6 @@ class MainActivity : ComponentActivity() {
                             TabSelector(selected = selectedTab, onSelect = { selectedTab = it })
                             when (selectedTab) {
                                 AppTab.SCAN -> ScanScreen()
-                                AppTab.PICK -> {
-                                    val pcHost by settingsRepository.pcHost.collectAsState(initial = "")
-                                    val romsDestPath by settingsRepository.romsDestPath
-                                        .collectAsState(initial = SettingsRepository.DEFAULT_ROMS_DEST)
-                                    PickScreen(
-                                        initialHost = pcHost,
-                                        romsDestPath = romsDestPath,
-                                        onSaveHost = { host ->
-                                            lifecycleScope.launch { settingsRepository.setPcHost(host) }
-                                        },
-                                    )
-                                }
                                 AppTab.SETTINGS -> {
                                     val savesRemote by settingsRepository.savesRemote
                                         .collectAsState(initial = SettingsRepository.DEFAULT_SAVES_REMOTE)
@@ -216,7 +203,6 @@ private fun TabSelector(
 ) {
     Row {
         TabButton(label = "Escaneo", isSelected = selected == AppTab.SCAN, onClick = { onSelect(AppTab.SCAN) })
-        TabButton(label = "Elegir ROMs", isSelected = selected == AppTab.PICK, onClick = { onSelect(AppTab.PICK) })
         TabButton(label = "Ajustes", isSelected = selected == AppTab.SETTINGS, onClick = { onSelect(AppTab.SETTINGS) })
     }
 }

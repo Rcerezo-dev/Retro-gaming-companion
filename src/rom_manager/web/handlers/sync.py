@@ -141,10 +141,6 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                     for r in summary.results
                     if r.status == "no_support_alternative" and r.alternative
                 ],
-                # HERR-FIX-1: solo los juegos que SÍ tienen una alternativa con
-                # logros RA en la biblioteca son seguros de descartar — un
-                # "no_support" sin alternativa es la única copia que hay de
-                # ese juego, descartarlo sería perderlo sin sustituto.
                 "no_support_entries": [
                     {
                         "source_path": r.source_path,
@@ -152,7 +148,7 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                         "platform": r.platform,
                     }
                     for r in summary.results
-                    if r.status == "no_support_alternative"
+                    if r.status == "no_support"
                 ],
                 "result_ts": utc_now(),
             }

@@ -7,7 +7,6 @@ from pathlib import Path
 from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
 from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
-from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION
 
 _logger = logging.getLogger(__name__)
 
@@ -239,28 +238,14 @@ class CatalogMatcher:
         hits = self._title_index.get(key)
         if not hits:
             return None
+        entry, source = hits[0]
         if len(hits) == 1:
-            entry, source = hits[0]
             return MatchResult(
                 title=entry.title,
                 confidence="medium",
                 catalog_source=source,
                 platform=_platform_from_dat_name(source),
             )
-        # MATCH-FIX-2: la misma clave de título normalizado puede venir de
-        # varias plataformas (remakes, Virtual Console, romhacks...) — sin
-        # esto se quedaba con hits[0], que solo depende del orden alfabético
-        # de carga de los .dat (catalog/matcher.py:142), no de qué plataforma
-        # es realmente el archivo. Preferir el hit cuya plataforma coincide
-        # con la extensión real; si ninguno coincide (p.ej. .zip, ambiguo por
-        # diseño), cae al primero como antes.
-        ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
-        entry, source = hits[0]
-        if ext_platform:
-            for hit_entry, hit_source in hits:
-                if _platform_from_dat_name(hit_source) == ext_platform:
-                    entry, source = hit_entry, hit_source
-                    break
         return MatchResult(
             title=entry.title,
             confidence="low",

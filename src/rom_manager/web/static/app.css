@@ -1223,20 +1223,11 @@ input:focus, select:focus, textarea:focus {
 .hidden { display: none !important; }
 
 /* ── Flow Wizard Modal ───────────────────────────────────────────────────── */
-#flow-wizard-modal, #anbernic-wizard-modal {
+#flow-wizard-modal {
   display: flex;
   position: fixed; inset: 0; z-index: 9100;
   background: rgba(0,0,0,.82);
   align-items: center; justify-content: center;
-}
-#anbernic-wizard-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border-s);
-  border-radius: 12px;
-  width: 640px;
-  max-width: calc(100vw - 32px);
-  padding: 20px 24px;
-  display: flex; flex-direction: column; gap: 16px;
 }
 #flow-wizard-box {
   background: var(--bg-card);
