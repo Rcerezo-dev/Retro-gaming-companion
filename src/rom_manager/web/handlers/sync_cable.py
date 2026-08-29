@@ -248,14 +248,41 @@ def _do_cable_sync(
     delete_extra = bool(data.get("delete_extra", False))
     use_adb = bool(data.get("use_adb", False))
     adb_serial = data.get("adb_serial", "").strip()
-    android_path = data.get("android_path", "/storage/emulated/0").strip()
+    android_path = (
+        data.get("android_path", "").strip()
+        or getattr(config.sync, "auto_sync_android_path", "")
+        or "/storage/emulated/0"
+    )
     only_tagged = bool(data.get("only_tagged", False))
 
+    # ANBERNIC-BULK-DEL / ANBERNIC-BULK-SEND: modos "eliminar/enviar juegos
+    # filtrados" — resuelven un conjunto de juegos por filtro (mismos campos
+    # que /api/tag-bulk) en vez de un árbol de directorios completo. Solo
+    # tienen sentido por ADB; sin este chequeo, use_adb=false cae en el modo
+    # SD y no hace nada silenciosamente (ninguna rama los reconoce ahí).
+    if direction in ("remove_selected", "send_selected") and not use_adb:
+        ctx._send_json({"error": f"{direction} requiere use_adb=true"})
+        return
+
+    if not pc_path_str and config.library_root:
+        pc_path_str = str(config.library_root)
+    if use_adb and not adb_serial:
+        # Igual que TABS-FIX-1a: si solo hay un dispositivo listo conectado,
+        # no hace falta que el frontend lo pida explícitamente.
+        from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+        _auto = resolve_single_device_transport(config.adb)
+        if _auto is None:
+            ctx._send_json(
+                {
+                    "error": "adb_serial is required when use_adb is true "
+                    "(no se detectó un único dispositivo conectado)"
+                }
+            )
+            return
+        adb_serial = _auto.serial
     if not pc_path_str:
         ctx._send_json({"error": "pc_path is required"})
-        return
-    if use_adb and not adb_serial:
-        ctx._send_json({"error": "adb_serial is required when use_adb is true"})
         return
     if not use_adb and not anbernic_path_str:
         ctx._send_json({"error": "anbernic_path is required"})
@@ -847,6 +874,200 @@ def _do_cable_sync(
                             _adb_copy_to_device(pc_f, rel_posix, "→ ADB (solo en PC)")
                         elif ab_inf:
                             _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (solo en Anbernic)")
+
+                # ANBERNIC-BULK-DEL: elimina ROMs seleccionados por filtro de
+                # la consola. El save de cada juego se copia primero al PC
+                # (verificado por MD5, igual que _adb_copy_to_pc) y solo se
+                # borra el ROM si esa copia funcionó — un save nunca se borra
+                # aquí y nunca se pierde si falla la copia.
+                elif direction == "remove_selected":
+                    full_index = {
+                        info.android_path.removeprefix(android_prefix): info
+                        for info in ab_adb_files
+                    }
+                    games, _total_games = repository.get_games_paginated(
+                        offset=0,
+                        limit=100000,
+                        platform=data.get("platform") or None,
+                        status=data.get("status") or None,
+                        source_root=data.get("root") or None,
+                        file_type=data.get("filetype") or "rom",
+                        search=data.get("search") or None,
+                        play_status=data.get("play_status") or None,
+                        favorite=bool(data.get("favorite")),
+                        tag=data.get("existing_tag") or None,
+                        genre=data.get("genre") or None,
+                        year=data.get("year") or None,
+                        region=data.get("region") or None,
+                    )
+                    for g in games:
+                        if cancel_event.is_set():
+                            break
+                        try:
+                            rel_posix = Path(g["source_path"]).relative_to(pc_root).as_posix()
+                        except ValueError:
+                            if len(details) < 300:
+                                details.append(
+                                    {"file": "fuera de pc_path", "path": g["original_filename"]}
+                                )
+                            continue
+                        rom_info = full_index.get(rel_posix)
+                        if rom_info is None:
+                            if len(details) < 300:
+                                details.append(
+                                    {
+                                        "file": "no está en la consola",
+                                        "path": g["original_filename"],
+                                    }
+                                )
+                            continue
+
+                        stem_rel = str(PurePosixPath(rel_posix).with_suffix(""))
+                        save_failed = False
+                        for ext in save_exts:
+                            save_info = full_index.get(stem_rel + ext)
+                            if save_info is None:
+                                continue
+                            save_name = PurePosixPath(save_info.android_path).name
+                            local_save = pc_root / Path((stem_rel + ext).replace("/", os.sep))
+                            if dry_run:
+                                copied += 1
+                                _log("DRY-PRESERVE", save_info.android_path, str(local_save))
+                                if len(details) < 300:
+                                    details.append({"file": "guardaría save", "path": save_name})
+                                continue
+                            try:
+                                if _bk_root is not None and local_save.exists():
+                                    backup_save(local_save, _bk_root)
+                                size = transport.pull(
+                                    save_info.android_path, local_save, verify=True
+                                )
+                                _sql_log(
+                                    "download",
+                                    str(local_save),
+                                    save_info.android_path,
+                                    "ok",
+                                    "preservado antes de eliminar el ROM",
+                                    verified=True,
+                                )
+                                copied += 1
+                                copied_bytes += size
+                                _log("PRESERVE", save_info.android_path, str(local_save))
+                                if len(details) < 300:
+                                    details.append({"file": "save preservado", "path": save_name})
+                            except OSError as exc:
+                                save_failed = True
+                                errors += 1
+                                _log("ERROR", save_info.android_path, str(local_save), str(exc))
+                                _sql_log(
+                                    "download",
+                                    str(local_save),
+                                    save_info.android_path,
+                                    "error",
+                                    str(exc),
+                                )
+                                if len(details) < 300:
+                                    details.append(
+                                        {"file": f"ERROR save: {exc}", "path": save_name}
+                                    )
+                            _update_progress(save_name)
+
+                        if save_failed:
+                            if len(details) < 300:
+                                details.append(
+                                    {
+                                        "file": "ROM NO eliminado (fallo al guardar el save)",
+                                        "path": g["original_filename"],
+                                    }
+                                )
+                            continue
+
+                        rom_name = PurePosixPath(rom_info.android_path).name
+                        if dry_run:
+                            deleted_extra += 1
+                            _log("DEL?", rom_info.android_path, "", "se eliminaría")
+                            if len(details) < 300:
+                                details.append({"file": "se eliminaría", "path": rom_name})
+                            continue
+                        try:
+                            transport.remove(rom_info.android_path)
+                            deleted_extra += 1
+                            _log("DEL", rom_info.android_path, "", "eliminación masiva")
+                            _sql_log(
+                                "delete_rom", str(g["source_path"]), rom_info.android_path, "ok"
+                            )
+                            if len(details) < 300:
+                                details.append({"file": "eliminado", "path": rom_name})
+                        except RuntimeError as exc:
+                            errors += 1
+                            _log("ERROR", rom_info.android_path, "", str(exc))
+                            _sql_log(
+                                "delete_rom",
+                                str(g["source_path"]),
+                                rom_info.android_path,
+                                "error",
+                                str(exc),
+                            )
+                            if len(details) < 300:
+                                details.append({"file": f"ERROR: {exc}", "path": rom_name})
+                        _update_progress(rom_name)
+
+                # ANBERNIC-BULK-SEND: contraparte de remove_selected — envía a
+                # la consola los ROMs de los juegos que cumplen el filtro
+                # actual, sin pasar por el tag "anbernic" ni por un árbol
+                # completo. Reutiliza _adb_copy_to_device/_skip_existing_device
+                # tal cual (mismo push+verify+log que pc_to_anbernic).
+                elif direction == "send_selected":
+                    games, _total_games = repository.get_games_paginated(
+                        offset=0,
+                        limit=100000,
+                        platform=data.get("platform") or None,
+                        status=data.get("status") or None,
+                        source_root=data.get("root") or None,
+                        file_type=data.get("filetype") or "rom",
+                        search=data.get("search") or None,
+                        play_status=data.get("play_status") or None,
+                        favorite=bool(data.get("favorite")),
+                        tag=data.get("existing_tag") or None,
+                        genre=data.get("genre") or None,
+                        year=data.get("year") or None,
+                        region=data.get("region") or None,
+                    )
+                    if bool(data.get("dedupe_by_ra", True)):
+                        from rom_manager.services.ra_duplicates_service import (
+                            filter_duplicate_winners,
+                        )
+
+                        games = filter_duplicate_winners(repository, config, games)
+                    for g in games:
+                        if cancel_event.is_set():
+                            break
+                        local_src = Path(g["source_path"])
+                        if not local_src.is_file():
+                            if len(details) < 300:
+                                details.append(
+                                    {"file": "no existe en el PC", "path": g["original_filename"]}
+                                )
+                            continue
+                        try:
+                            rel_posix = local_src.relative_to(pc_root).as_posix()
+                        except ValueError:
+                            if len(details) < 300:
+                                details.append(
+                                    {"file": "fuera de pc_path", "path": g["original_filename"]}
+                                )
+                            continue
+                        try:
+                            local_size = local_src.stat().st_size
+                        except OSError:
+                            local_size = -1
+                        if _skip_existing_device(rel_posix, local_size):
+                            skipped += 1
+                            _log("SKIP", str(local_src), "", "mismo tamaño ya en el dispositivo")
+                            if len(details) < 300:
+                                details.append({"file": "EXISTS", "path": local_src.name})
+                            continue
+                        _adb_copy_to_device(local_src, rel_posix, "→ ADB")
 
             # ── Filesystem mode ───────────────────────────────────────────────
             else:

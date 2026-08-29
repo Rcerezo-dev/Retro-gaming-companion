@@ -226,6 +226,83 @@ export function markFilteredForAnbernic(unmark) {
   );
 }
 
+// ANBERNIC-BULK-DEL: elimina de la consola (por ADB) todos los juegos que
+// cumplen el filtro actual — mismo criterio de selección que
+// markFilteredForAnbernic, reutiliza /api/cable-sync (job "cable_sync") en
+// vez de un endpoint nuevo. Los saves se copian al PC antes de borrar cada
+// ROM (nunca se borra un save) — ver direction="remove_selected" en
+// sync_cable.py.
+export function removeFilteredFromAnbernic() {
+  const q = document.getElementById('games-search')?.value.trim() || '';
+  const body = { direction: 'remove_selected', use_adb: true, what: ['roms'], dry_run: false };
+  if (gamesState.platform) body.platform = gamesState.platform;
+  if (gamesState.status)   body.status   = gamesState.status;
+  if (q)                   body.search   = q;
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') body.filetype = ft;
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) body.play_status = ps;
+  if (gamesState.favorite) body.favorite = true;
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) body.existing_tag = tagF;
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) body.genre = genreF;
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) body.year = yearF;
+  const root = gamesState.root || _deviceRoot();
+  if (root) body.root = root;
+
+  _showConfirm(
+    'Eliminar de la Anbernic',
+    `¿Eliminar de la Anbernic (por ADB) <b>todos los juegos que cumplen el filtro actual</b> (${gamesState.total} en total)? Los saves se copian al PC antes de borrar cada ROM y nunca se eliminan.`,
+    'Eliminar',
+    async () => {
+      const r = await apiPost('/api/cable-sync', body);
+      if (r.error) { showToast(r.error, 'error'); return; }
+      if (r.status === 'already_running') { showToast('Ya hay una sincronización en curso', 'error'); return; }
+      showToast('Eliminando de la Anbernic en segundo plano (ver pestaña Sync)…', 'success');
+      if (typeof window.startPolling === 'function') window.startPolling();
+    },
+  );
+}
+
+// ANBERNIC-BULK-SEND: contraparte de removeFilteredFromAnbernic — envía por
+// ADB todos los juegos que cumplen el filtro actual (mismo criterio de
+// selección), reutiliza /api/cable-sync con direction="send_selected".
+export function sendFilteredToAnbernic() {
+  const q = document.getElementById('games-search')?.value.trim() || '';
+  const body = { direction: 'send_selected', use_adb: true, what: ['roms'], dry_run: false, skip_existing: true };
+  if (gamesState.platform) body.platform = gamesState.platform;
+  if (gamesState.status)   body.status   = gamesState.status;
+  if (q)                   body.search   = q;
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') body.filetype = ft;
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) body.play_status = ps;
+  if (gamesState.favorite) body.favorite = true;
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) body.existing_tag = tagF;
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) body.genre = genreF;
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) body.year = yearF;
+  const root = gamesState.root || _deviceRoot();
+  if (root) body.root = root;
+
+  _showConfirm(
+    'Enviar a la Anbernic',
+    `¿Enviar a la Anbernic (por ADB) <b>todos los juegos que cumplen el filtro actual</b> (${gamesState.total} en total)? Los que ya estén en la consola con el mismo tamaño se saltan. Si hay duplicados del mismo juego, se envía solo la copia con más logros RA (o la del formato habitual de la biblioteca).`,
+    'Enviar',
+    async () => {
+      const r = await apiPost('/api/cable-sync', body);
+      if (r.error) { showToast(r.error, 'error'); return; }
+      if (r.status === 'already_running') { showToast('Ya hay una sincronización en curso', 'error'); return; }
+      showToast('Enviando a la Anbernic en segundo plano (ver pestaña Sync)…', 'success');
+      if (typeof window.startPolling === 'function') window.startPolling();
+    },
+  );
+}
+
 export async function toggleRowFavorite(gameId, btn) {
   try {
     const r = await apiPost('/api/toggle-favorite', { game_id: gameId, source_path: btn.dataset.path || '' });
