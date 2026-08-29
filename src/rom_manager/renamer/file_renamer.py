@@ -86,6 +86,22 @@ def _collect_companions(
     return companions
 
 
+def _cleanup_empty_source_dir(source_dir: Path, target_dir: Path) -> None:
+    """INBOX-ORPHAN-3: a per-game subfolder rename (psx/saturn/dreamcast/wii)
+    moves everything out of *source_dir* into a differently-named *target_dir*
+    but never deletes the now-empty original — os.rmdir only succeeds when the
+    directory is truly empty, so this is a no-op for the platform-root folder
+    (never empty after a single move) and for any dir still holding a file
+    the move didn't touch (e.g. a manual leftover).
+    """
+    if source_dir == target_dir or source_dir.parent != target_dir.parent:
+        return
+    try:
+        source_dir.rmdir()
+    except OSError:
+        pass
+
+
 @dataclass(slots=True)
 class RenameOutcome:
     """Result of a single atomic ROM+saves rename."""
@@ -200,6 +216,7 @@ def rename_rom_with_saves(
             error=f"Save rename failed ({sav.name}): {exc}{detail}",
         )
 
+    _cleanup_empty_source_dir(source.parent, target.parent)
     return RenameOutcome(
         success=True,
         source=source,
@@ -329,6 +346,7 @@ def move_disc_set_to_subfolder(
             error=f"Failed to move CUE '{source_cue.name}': {exc}{detail}",
         )
 
+    _cleanup_empty_source_dir(source_cue.parent, target_cue.parent)
     return RenameOutcome(
         success=True, source=source_cue, target=target_cue, saves_renamed=saves_moved
     )
