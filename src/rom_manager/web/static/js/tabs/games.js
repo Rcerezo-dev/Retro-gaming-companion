@@ -6,7 +6,8 @@ import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
 
 // ── Games pagination state ────────────────────────────────────────────────────
-export let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null };
+export let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null, initial: '' };
+let _alphaBarBuilt = false;
 export let _gamesViewMode = localStorage.getItem('games_view_mode') || 'list'; // 'list' | 'grid'
 export let platformsLoaded = false;
 
@@ -144,6 +145,28 @@ export async function loadFilterOptions() {
   } catch (_) {}
 }
 
+// Letra inicial del título (subdivisión "por consola" — el desplegable de
+// plataforma ya hace ese primer nivel; esto acota dentro de la plataforma
+// elegida, junto con búsqueda y género).
+function _renderAlphaBar() {
+  const bar = document.getElementById('games-alpha-bar');
+  if (!bar) return;
+  const letters = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+  bar.innerHTML = letters.map(l =>
+    `<button class="alpha-btn" data-letter="${l}" onclick="setInitialFilter('${l}')" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:3px 7px;border-radius:3px;font:inherit;font-size:12px;cursor:pointer;min-width:24px">${l}</button>`
+  ).join('');
+}
+
+export function setInitialFilter(letter) {
+  gamesState.initial = gamesState.initial === letter ? '' : letter;
+  document.querySelectorAll('#games-alpha-bar .alpha-btn').forEach(btn => {
+    const active = btn.dataset.letter === gamesState.initial;
+    btn.style.borderColor = active ? 'var(--c-orange)' : '#444';
+    _txtCls(btn, active ? null : 'txt-muted');
+  });
+  loadGames(0);
+}
+
 export function toggleFavoritesFilter() {
   const btn = document.getElementById('btn-filter-favorites');
   if (!btn) return;
@@ -184,6 +207,7 @@ export function markFilteredForAnbernic(unmark) {
   if (genreF) body.genre = genreF;
   const yearF = document.getElementById('games-year')?.value;
   if (yearF) body.year = yearF;
+  if (gamesState.initial) body.initial = gamesState.initial;
   const root = gamesState.root || _deviceRoot();
   if (root) body.root = root;
 
@@ -290,6 +314,7 @@ function _emptyState(icon, title, sub, ctaLabel, ctaFn) {
 // ── Core load / render ────────────────────────────────────────────────────────
 export async function loadGames(offset) {
   gamesState.offset = offset ?? 0;
+  if (!_alphaBarBuilt) { _renderAlphaBar(); _alphaBarBuilt = true; }
   const tbody = document.getElementById('games-tbody');
   tbody.innerHTML = '<tr><td colspan="9" class="loading">Cargando…</td></tr>';
   // Apply view mode visibility on each load
@@ -332,6 +357,7 @@ export async function loadGames(offset) {
   if (genreF) params.set('genre', genreF);
   const yearF = document.getElementById('games-year')?.value;
   if (yearF) params.set('year', yearF);
+  if (gamesState.initial) params.set('initial', gamesState.initial);
   const sortBy = document.getElementById('games-sort-by')?.value;
   if (sortBy) params.set('sort_by', sortBy);
   const _gamesRoot = gamesState.root || _deviceRoot();

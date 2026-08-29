@@ -176,6 +176,7 @@ def register(
         genre_filter = qs.get("genre", [None])[0] or None
         year_filter = qs.get("year", [None])[0] or None
         region_filter = qs.get("region", [None])[0] or None
+        initial_filter = qs.get("initial", [None])[0] or None
         sort_by = qs.get("sort_by", [None])[0] or None
         _games_repo = get_repo_fn(root or "")
         _result = _build_games(
@@ -193,6 +194,7 @@ def register(
             genre=genre_filter,
             year=year_filter,
             region=region_filter,
+            initial=initial_filter,
             sort_by=sort_by,
         )
         _enrich_games_with_ra(_result["games"], config)
@@ -635,6 +637,7 @@ def register(
             genre=data.get("genre") or None,
             year=data.get("year") or None,
             region=data.get("region") or None,
+            initial=data.get("initial") or None,
         )
         ids = [g["id"] for g in games]
         if action == "remove":

@@ -939,6 +939,19 @@ con el mismo filtro. No investigado a fondo — candidatos: `games.js`/`main.js`
 aplicado, o depende de datos (carátulas) que estas 157 entradas no tienen.
 Pendiente de investigar causa raíz (`archivo:línea`) antes de arreglar. | `web/static/js/tabs/games.js`, `web/static/js/main.js` | ✅ PR [#243](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/243) — causa raíz doble: (1) `.games-grid` sin regla base `display:grid` en `app.css` (solo overrides `@media`), cada `.game-card` caía a ~1200px de alto apiladas; (2) bug separado y más grave: `onclick="openGamePanel(${JSON.stringify(g)...})"` en 6 sitios (galería, tabla, búsqueda global, recientes) solo escapaba `<`/`>`, nunca `"` — el primer `"` de `JSON.stringify` cerraba el atributo, dejando JS inválido. Abrir el panel de detalle estaba roto en toda la app, no solo en la galería. Fix: regla `display:grid` + reutilizar `_h()` (ya escapa comillas) en vez del `.replace` ad-hoc. Verificado en navegador con la biblioteca real
 
+### GAMES-ALPHA-FILTER — Filtro por letra inicial en la pestaña Juegos
+
+Con bibliotecas grandes por plataforma (cientos/miles de ROMs), el
+desplegable de plataforma ya hace un primer corte pero dentro de una
+plataforma sigue habiendo demasiado para hojear a mano. Barra alfabética
+(A-Z + "#" para títulos que no empiezan por letra) sobre la lista, se
+combina con búsqueda/género/año como un filtro más.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| GAMES-ALPHA-FILTER-1 | `get_games_paginated(initial=...)` filtra por la primera letra de `canonical_title` (o `original_filename` si no hay match), `"#"` agrupa lo que no empieza por A-Z | `database/repositories/games.py`, `web/builders/library.py`, `web/handlers/games.py` (`/api/games` + `/api/tag-bulk`) | ✅ 2 tests (`test_games_initial_filter.py`) |
+| GAMES-ALPHA-FILTER-2 | Barra de botones A-Z/# sobre la tabla/galería, toggle (click de nuevo quita el filtro), se respeta en "Marcar para Anbernic" | `web/static/js/tabs/games.js` (`setInitialFilter`, `_renderAlphaBar`), `tab-games.html` | ✅ |
+
 ### CLOUD-FIX-1 — Error JS "badge is not defined" filtra al usuario en la pestaña Cloud (hallado en vivo, 2026-08-27)
 
 Al abrir Cloud con Dropbox conectado pero sin remote de sync guardado
