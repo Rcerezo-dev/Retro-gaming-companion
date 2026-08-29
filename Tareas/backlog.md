@@ -7,6 +7,9 @@
 > docs/ideas/ + docs/Feedback/29/8.md (DEDUP-RENAME, HERR-FIX, PSX-ORPHAN-5,
 > ZIP-ROUTE-7, ANBERNIC-PICK-6/7, SAGE-4, GAME-BLOCKLIST, 5 filas nuevas en
 > ROADMAP-IDEAS)
+> 2026-08-29 (tarde): INBOX-FIX-6 (ZIPs de consola, PS2 confirmado, nunca se
+> descomprimen fuera del Inbox) e INBOX-ORPHAN-3 (carpetas vacías en la raíz
+> por `_DISC_SUBFOLDER_PLATFORMS` mal alcanzado) — investigados, sin arreglar
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -256,6 +259,81 @@ Los tags del nombre de archivo mienten sistemáticamente (`(XBLA)`, `(Disk 1)`,
 ---
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: ARCADE-RECON-1..4, INBOX-UX-1..6, INBOX-CFG-1..4, INBOX-ORPHAN-1/2 (reconstrucción de sets MAME sueltos, auditoría UX Inbox, fix de target_root y saves huérfanos — completas, 2026-08-13 a 2026-08-14).
+
+---
+
+### INBOX-FIX-6 — ZIPs de consola (PS2 confirmado) se renombran/colocan pero nunca se descomprimen (hallazgo usuario 2026-08-29)
+
+Origen: el usuario reporta que tras organizar la biblioteca con el Inbox, varios
+`.zip` de PS2 (y sospecha que de otras plataformas) quedaron en su carpeta de
+plataforma correcta, con nombre canónico, pero **sin descomprimir** — inútiles
+para el emulador (PCSX2/AetherSX2 no leen un `.iso` dentro de un `.zip`).
+Verificado en la biblioteca real (`library_pc.db`): 20 `.zip` en `ps2\` con
+`platform: PlayStation 2` y nombre canónico correcto, `created_at` repartido en
+varias tandas (2026-03-24, 2026-08-28 en tres lotes) — no es un caso aislado ni
+antiguo, sigue ocurriendo con datos recientes.
+
+Causa raíz confirmada leyendo el código: hay **dos únicos caminos que
+descomprimen un ZIP** en toda la app — `_run_inbox_pipeline` (`web/inbox_pipeline.py:955`,
+`find_zip_files(inbox)`) y `_run_setup_pipeline` (`:818`) — **ambos escanean
+solo dentro de una carpeta concreta** (`inbox/`, o la carpeta de origen del
+wizard). El flujo general de Organizar/Renombrar (`web/handlers/organize.py::_do_apply`,
+líneas 92-162) **no tiene ninguna llamada a `extract_zip` en todo el archivo**
+— solo `rename_rom_with_saves` (mover + renombrar, nunca descomprimir). Un
+`.zip` de consola identificado por CRC (`CatalogMatcher.crc_index()`, ZIP-ROUTE-1)
+o que ya vivía suelto dentro de `ps2\` antes de pasar por match/plan/apply
+termina con nombre y ubicación correctos pero **sigue siendo un `.zip` para
+siempre** — el diseño original de ZIP-ROUTE-1 ya lo advertía ("el mover/renombrar
+queda para cuando exista plan/apply de misplaced") pero esa segunda mitad
+(descomprimir tras colocar) nunca se cerró para el flujo general, solo para el
+que pasa por el Inbox real.
+
+**Respuesta a la pregunta del usuario sobre arcade**: no, con arcade NO hay que
+descomprimir — es una decisión de diseño ya tomada y correcta (`zip_router.py`,
+regla documentada en `.claude/CLAUDE.md`: "un ZIP arcade nunca se extrae, el ZIP
+es el ROM" — los cores MAME/FBNeo leen el `.zip` directamente). El problema es
+específico de plataformas que necesitan el archivo crudo (PS2, GameCube y
+cualquier otra fuera de `arcade`/`mame`/`cps1-3`/`fbneo`/`neogeo`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-FIX-6 | Decidir y cerrar el hueco: o bien `_do_apply` extrae ZIPs de plataformas no-arcade antes de renombrar (mismo criterio de exclusión que `zip_router.py` ya usa: `ARCADE_FOLDERS`/`mame`/`cps1-3`/`fbneo`/`neogeo` se quedan zipados, el resto se descomprime), o bien el matcher/plan nunca deja pasar un `.zip` de consola sin antes empujarlo por el pipeline de extracción del Inbox. Auditar primero cuántos `.zip` de consola hay hoy fuera de `arcade\` en la biblioteca real antes de decidir el mecanismo | `web/handlers/organize.py::_do_apply`, `web/inbox_pipeline.py` (`extract_zip`), `catalog/matcher.py` (`crc_index`) | 🔴 pendiente, sin implementar (investigado 2026-08-29) |
+
+---
+
+### INBOX-ORPHAN-3 — Carpetas vacías con nombre de juego directamente en la raíz de la biblioteca (hallazgo usuario 2026-08-29)
+
+Origen: el usuario encontró carpetas como `Legend of Zelda, The - Twilight
+Princess (USA)` directamente en `E:\Carpetas anbernic\` (fuera de `gamecube\`),
+vacías o con solo una subcarpeta `media\` residual, en vez de tener el juego
+organizado dentro de su plataforma. Verificado: **~40 carpetas** de este tipo
+en la biblioteca real, la mayoría creadas el 2026-08-13 22:10 (mismo incidente
+de `INBOX-CFG-1`, ya archivado), pero **siguen apareciendo nuevas** — 3 el
+2026-08-28 y **2 hoy mismo, 2026-08-29** (`Monster World IV`, `X-Men Legends II
+- Rise of Apocalypse`, creadas justo después de la corrida real de re-match de
+`MATCH-FIX-2` sobre toda la biblioteca) — no es solo un residuo histórico, el
+mecanismo que las genera sigue activo.
+
+Causa raíz confirmada leyendo el código: `_DISC_SUBFOLDER_PLATFORMS`
+(`planner/operation_planner.py:15-24`) incluye `gamecube`, `ps2` y `wii` junto
+a las plataformas que sí son sets multi-track (`psx`, `saturn`, `dreamcast`)
+que necesitan una subcarpeta por juego (`psx/Juego/Juego.cue` + sus `.bin`).
+GameCube/PS2/Wii casi siempre son una imagen única (`.iso`/`.rvz`/`.chd`) que
+**no necesita ninguna subcarpeta** — al tratarlas igual, `build_plan()`
+(`operation_planner.py:136-142`) calcula el destino como
+`source.parent.parent / folder_name / new_filename` cuando el archivo ya vive
+en una carpeta mal ubicada (ni bajo el nombre de la plataforma ni ya en
+subcarpeta), lo que **preserva y reproduce la ubicación equivocada** en vez de
+corregirla a `platform/Juego.ext` plano. Y como ningún código de renombrado
+(`rename_rom_with_saves`, `move_disc_set_to_subfolder`) borra el directorio de
+origen tras dejarlo vacío (comportamiento normal de mover un archivo, no un
+bug en sí), cada vez que un juego mal ubicado se corrige a mano o se vuelve a
+tocar (re-match, re-organize) la carpeta vieja se queda huérfana para siempre
+en la raíz.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-ORPHAN-3 | Quitar `gamecube`/`ps2`/`wii` de `_DISC_SUBFOLDER_PLATFORMS` (dejar solo plataformas con sets multi-track reales: `psx`, `saturn`, `dreamcast` — confirmar si Wii alguna vez necesita subcarpeta antes de tocarlo, algunos dumps Wii sí vienen en `.wbfs`+extras) para que estas plataformas usen destino plano `platform/Juego.ext` sin heredar carpetas mal ubicadas. Después, barrido one-off (no automático) para localizar y borrar las ~40 carpetas huérfanas ya existentes (confirmar antes que estén realmente vacías salvo `media/` residual, no borrar nada con contenido real) | `planner/operation_planner.py:15-24,136-142` | 🔴 pendiente, sin implementar (investigado 2026-08-29) |
 
 ---
 
