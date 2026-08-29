@@ -286,7 +286,10 @@ function _renderInboxResult(r) {
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';
-  html += 'Organizados: <strong>' + (r.organized || 0) + '</strong>';
+  html += 'Organizados: <strong>' + (r.organized || 0) + '</strong> &nbsp;';
+  html += 'Duplicados descartados: <strong>' + (r.duplicates_removed || 0) + '</strong> &nbsp;';
+  html += 'Resueltos por RA: <strong>' + (r.ra_resolved || 0) + '</strong>';
+  if (r.conflicts_unresolved > 0) html += ' &nbsp;<span style="color:var(--c-yellow)">Conflictos sin resolver: <strong>' + r.conflicts_unresolved + '</strong></span>';
   if (r.target_root) html += '<br><span style="color:var(--c-dim);font-size:11px">Destino: ' + r.target_root + '</span>';
   if ((r.rename_errors || []).length > 0) {
     html += '<details style="margin-top:8px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
