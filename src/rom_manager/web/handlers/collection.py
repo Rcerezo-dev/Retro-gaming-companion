@@ -39,27 +39,39 @@ def register(
     # ── GET /api/platform-stats ───────────────────────────────────────────────
     @router.get("/api/platform-stats")
     def get_platform_stats(ctx) -> None:
+        # ANBERNIC-PICK-7: size_bytes/tagged_cnt añadidos para el asistente
+        # guiado — reutiliza esta misma agregación en vez de una nueva.
         qs = getattr(ctx, "_qs", {})
         src_root = qs.get("root", [None])[0] or None
         ps_repo = get_repo_fn(src_root or "")
+        tagged_sql = (
+            "SUM(CASE WHEN id IN (SELECT game_id FROM game_tags WHERE tag = 'anbernic')"
+            " THEN 1 ELSE 0 END) AS tagged_cnt"
+        )
         with ps_repo.connect() as conn:
             if src_root:
                 rows = conn.execute(
-                    "SELECT platform, COUNT(*) AS cnt FROM games "
-                    "WHERE source_path LIKE ? AND file_type = 'rom' "
+                    f"SELECT platform, COUNT(*) AS cnt, SUM(size_bytes) AS total_size, {tagged_sql}"
+                    " FROM games WHERE source_path LIKE ? AND file_type = 'rom' "
                     "GROUP BY platform ORDER BY cnt DESC",
                     [src_root.rstrip("/\\") + "%"],
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT platform, COUNT(*) AS cnt FROM games "
-                    "WHERE file_type = 'rom' "
+                    f"SELECT platform, COUNT(*) AS cnt, SUM(size_bytes) AS total_size, {tagged_sql}"
+                    " FROM games WHERE file_type = 'rom' "
                     "GROUP BY platform ORDER BY cnt DESC"
                 ).fetchall()
         ctx._send_json(
             {
                 "platforms": [
-                    {"platform": r["platform"] or "?", "total_games": r["cnt"]} for r in rows
+                    {
+                        "platform": r["platform"] or "?",
+                        "total_games": r["cnt"],
+                        "total_size": r["total_size"] or 0,
+                        "tagged_count": r["tagged_cnt"] or 0,
+                    }
+                    for r in rows
                 ]
             }
         )

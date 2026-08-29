@@ -31,6 +31,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- FTP-PICK-2: usesCleartextTraffic habilita el HTTP plano (no HTTPS) del
+         servidor local (`rommgr serve`, `PcApiClient.kt`) — solo LAN de
+         confianza, mismo modelo de confianza que `allow_lan` en config.toml. -->
     <application
         android:name=".RetroVaultApp"
         android:allowBackup="true"
@@ -39,6 +42,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.RetroVaultSync">
 
         <activity

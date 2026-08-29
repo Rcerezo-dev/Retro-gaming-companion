@@ -8,6 +8,24 @@
     <span id="tools-ctx-path-label" style="color:var(--c-dim);font-size:11px;margin-left:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px"></span>
   </div>
 
+  <!-- ANBERNIC-PICK-6: discoverabilidad — el envío en bloque PC→Anbernic ya
+       existe (marcar juegos + Cable Sync "solo marcados"/"Espejo completo")
+       pero el usuario no lo encontraba desde Herramientas -->
+  <div class="actions-panel" style="margin-bottom:24px;border-left-color:var(--c-teal)">
+    <h3 style="color:var(--c-teal)">&#x1F4E6; Enviar archivos a la Anbernic</h3>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">
+      1) Marca en <strong style="color:var(--c-text)">Juegos</strong> lo que quieres llevarte.
+      2) En <strong style="color:var(--c-text)">Cable Sync</strong>, activa "Solo ROMs marcados para la Anbernic"
+      (dentro de Sincronización avanzada). Opcional: "Espejo completo" también retira de la consola
+      lo que ya no esté marcado, para liberar espacio.
+    </p>
+    <div class="actions-row">
+      <button class="btn" onclick="showTab('games')">&#x1F3AE; Ir a Juegos — Marcar para Anbernic</button>
+      <button class="btn primary" onclick="goToCableSyncAdvanced()">&#x1F517; Ir a Cable Sync</button>
+      <button class="btn" style="border-color:var(--c-teal);color:var(--c-teal)" onclick="openAnbernicWizard()">&#x1F9ED; Asistente guiado</button>
+    </div>
+  </div>
+
   <!-- ── Aplicar todo ── -->
   <div class="actions-panel" style="margin-bottom:24px;border-left-color:var(--c-purple)">
     <h3 style="color:var(--c-purple)">Aplicar todo — Limpieza en un clic</h3>

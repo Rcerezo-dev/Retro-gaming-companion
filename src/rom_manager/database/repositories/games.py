@@ -133,14 +133,23 @@ class GamesMixin:
             conn.execute(sql, params)
             conn.commit()
 
-    def get_unresolved_games(self) -> list[UnresolvedGame]:
-        """Return all games that have not yet been matched against a catalog."""
+    def get_unresolved_games(self, include_low_confidence: bool = False) -> list[UnresolvedGame]:
+        """Return games that have not yet been matched against a catalog.
+
+        MATCH-FIX-2: ``include_low_confidence=True`` also re-queues rows already
+        matched with ``match_confidence = 'low'`` (ambiguous title, possibly
+        wrong platform) so a matcher fix can correct them on re-run — otherwise
+        they're invisible here forever once ``match_confidence`` is non-NULL.
+        """
+        where = "match_confidence IS NULL"
+        if include_low_confidence:
+            where += " OR match_confidence = 'low'"
         with self.connect() as connection:
             rows = connection.execute(
-                """
+                f"""
                 SELECT original_filename, source_path, platform, region, sha1
                 FROM games
-                WHERE match_confidence IS NULL
+                WHERE {where}
                 ORDER BY platform, original_filename
                 """
             ).fetchall()
@@ -527,6 +536,7 @@ class GamesMixin:
             {
                 "year": "gm.year DESC, g.platform, g.canonical_title, g.original_filename",
                 "last_played": "g.last_played_at DESC, g.platform, g.canonical_title",
+                "added": "g.created_at DESC, g.platform, g.canonical_title",
                 "title": "g.canonical_title, g.original_filename",
                 "platform": "g.platform, g.canonical_title, g.original_filename",
             }.get(sort_by or "", "g.platform, g.canonical_title, g.original_filename")
@@ -534,6 +544,7 @@ class GamesMixin:
             else {
                 "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, canonical_title",
                 "last_played": "last_played_at DESC, platform, canonical_title",
+                "added": "created_at DESC, platform, canonical_title",
                 "title": "canonical_title, original_filename",
                 "platform": "platform, canonical_title, original_filename",
             }.get(sort_by or "", "platform, canonical_title, original_filename")
@@ -547,7 +558,8 @@ class GamesMixin:
                 " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
                 " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
                 f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
-                " g.playtime_minutes_pc, g.playtime_minutes_android,"
+                " g.playtime_minutes_pc, g.playtime_minutes_android, g.created_at,"
+                " EXISTS(SELECT 1 FROM game_tags WHERE game_id = g.id AND tag = 'anbernic') AS is_anbernic,"
                 " gm.genre, gm.year AS meta_year, gm.publisher"
                 f" FROM {table_expr} " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
@@ -557,7 +569,8 @@ class GamesMixin:
                 " extension, size_bytes, sha1, md5, canonical_title,"
                 " match_confidence, catalog_source, play_status, last_played_at,"
                 " is_favorite, notes, user_rating, play_count, first_played_at,"
-                " playtime_minutes_pc, playtime_minutes_android"
+                " playtime_minutes_pc, playtime_minutes_android, created_at,"
+                " EXISTS(SELECT 1 FROM game_tags WHERE game_id = games.id AND tag = 'anbernic') AS is_anbernic"
                 " FROM games " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
         )
@@ -591,6 +604,8 @@ class GamesMixin:
                 "user_rating": row["user_rating"],
                 "play_count": row["play_count"] or 0,
                 "first_played_at": row["first_played_at"],
+                "created_at": row["created_at"],
+                "is_anbernic": bool(row["is_anbernic"]),
                 **(
                     {"genre": row["genre"], "year": row["meta_year"], "publisher": row["publisher"]}
                     if "genre" in _keys
