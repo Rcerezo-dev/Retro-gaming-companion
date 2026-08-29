@@ -10,4 +10,15 @@ object RetroArchPaths {
     const val ROOT = "/storage/emulated/0/RetroArch"
     const val SAVES = "$ROOT/saves"
     const val STATES = "$ROOT/states"
+
+    /**
+     * EMULATOR-COMPAT-5: el NVRAM de arcade (`.nv`) no vive en `saves/` ni
+     * `states/` — vive junto a las propias ROMs en `$ROOT/<carpeta>`
+     * (verificado en hardware real: `RetroArch/mame/*.nv`, `cps1/*.nv`…).
+     * Mismos nombres de carpeta que las claves "Arcade" de
+     * `src/rom_manager/detection/platforms.toml` (mame/cps1/cps2/cps3/
+     * fbneo/arcade) — sin fuente compartida entre Python y Kotlin, igual
+     * que `SaveExtensions`.
+     */
+    val ARCADE_FOLDERS = listOf("mame", "cps1", "cps2", "cps3", "fbneo", "arcade")
 }
