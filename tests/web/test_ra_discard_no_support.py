@@ -13,8 +13,8 @@ import pytest
 
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.retroachievements.ra_checker import RACheckSummary, RAGameResult
 from rom_manager.retroachievements import ra_client
+from rom_manager.retroachievements.ra_checker import RACheckSummary, RAGameResult
 from rom_manager.web.handlers.sync import _do_ra_check
 from rom_manager.web.jobs.manager import JobManager
 
