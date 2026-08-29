@@ -919,7 +919,12 @@ def _do_cable_sync(
                             f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)
                         }
                         for _f in _iter_files(ab_root):
-                            if not _wanted(_f):
+                            # ANBERNIC-PICK-4: _wanted() siempre da por bueno un
+                            # archivo del lado Anbernic (necesario para no romper
+                            # anbernic_to_pc/newest) — aquí basta la categoría
+                            # (rom/save); "extra" ya sale de comparar contra
+                            # _pc_rels, que sí respeta el tag.
+                            if not _wanted_name(_f.name):
                                 continue
                             try:
                                 _frel = _f.relative_to(ab_root)

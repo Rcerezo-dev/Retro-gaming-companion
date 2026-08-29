@@ -1088,6 +1088,8 @@ def _run_inbox_pipeline(
         _upd("organizing", 6, 0, 0)
         organized = 0
         ra_resolved = 0
+        duplicates_removed = 0
+        conflicts_unresolved = 0
         organize_errors: list[str] = []
         _ra_hash_cache: dict[str, dict] = {}
 
@@ -1120,6 +1122,7 @@ def _run_inbox_pipeline(
                     try:
                         _discard_to_trash(source_file)  # AUD-3: soft-discard
                         repository.delete_game(game_id)
+                        duplicates_removed += 1
                         logger.info(
                             "Inbox: removed exact duplicate %s (already in %s)",
                             source_file.name,
@@ -1145,6 +1148,7 @@ def _run_inbox_pipeline(
                     elif status == "kept_dest":
                         ra_resolved += 1
                     else:
+                        conflicts_unresolved += 1
                         detail = f" ({err})" if err else ""
                         organize_errors.append(
                             f"{source_file.name}: mismo nombre en {dest_folder} pero contenido "
@@ -1216,6 +1220,8 @@ def _run_inbox_pipeline(
             "renamed": renamed,
             "organized": organized,
             "ra_resolved": ra_resolved,
+            "duplicates_removed": duplicates_removed,
+            "conflicts_unresolved": conflicts_unresolved,
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
             "target_root": str(target_root),
