@@ -44,6 +44,13 @@ def register(
         job_manager=job_manager,
     )
 
+    # ── GET /api/save-fragmentation ──────────────────────────────────────────
+    @router.get("/api/save-fragmentation")
+    def get_save_fragmentation(ctx) -> None:
+        from rom_manager.web.builders.save_consolidator import _build_save_fragmentation_report
+
+        ctx._send_json(_build_save_fragmentation_report(config))
+
     # ── POST /api/ra-check ───────────────────────────────────────────────────
     @router.post("/api/ra-check")
     def post_ra_check(ctx) -> None:
