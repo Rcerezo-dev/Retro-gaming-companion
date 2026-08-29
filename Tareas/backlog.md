@@ -8,8 +8,9 @@
 > ZIP-ROUTE-7, ANBERNIC-PICK-6/7, SAGE-4, GAME-BLOCKLIST, 5 filas nuevas en
 > ROADMAP-IDEAS)
 > 2026-08-29 (tarde): INBOX-FIX-6 (ZIPs de consola, PS2 confirmado, nunca se
-> descomprimen fuera del Inbox) e INBOX-ORPHAN-3 (carpetas vacías en la raíz
-> por `_DISC_SUBFOLDER_PLATFORMS` mal alcanzado) — investigados, sin arreglar
+> descomprimen fuera del Inbox) — investigado, sin arreglar
+> 2026-08-30: INBOX-ORPHAN-3 arreglado (fix + limpieza de 104 carpetas huérfanas
+> reales) — ver INBOX-ORPHAN-4/5, hallazgos nuevos derivados de la investigación
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -333,7 +334,9 @@ en la raíz.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| INBOX-ORPHAN-3 | Quitar `gamecube`/`ps2`/`wii` de `_DISC_SUBFOLDER_PLATFORMS` (dejar solo plataformas con sets multi-track reales: `psx`, `saturn`, `dreamcast` — confirmar si Wii alguna vez necesita subcarpeta antes de tocarlo, algunos dumps Wii sí vienen en `.wbfs`+extras) para que estas plataformas usen destino plano `platform/Juego.ext` sin heredar carpetas mal ubicadas. Después, barrido one-off (no automático) para localizar y borrar las ~40 carpetas huérfanas ya existentes (confirmar antes que estén realmente vacías salvo `media/` residual, no borrar nada con contenido real) | `planner/operation_planner.py:15-24,136-142` | 🔴 pendiente, sin implementar (investigado 2026-08-29) |
+| INBOX-ORPHAN-3 | Quitar `gamecube`/`ps2` de `_DISC_SUBFOLDER_PLATFORMS` (Wii confirmado que sí necesita subcarpeta — mezcla real de Virtual Console + dumps nativos multi-archivo, se deja igual que psx/saturn/dreamcast). Causa raíz real: ningún código de rename limpiaba la carpeta origen tras dejarla vacía — se añadió `_cleanup_empty_source_dir()` en `file_renamer.py`, compartida por `rename_rom_with_saves`/`move_disc_set_to_subfolder`, con guard que solo actúa si origen y destino son hermanos dentro de la misma plataforma (nunca toca la carpeta raíz de una plataforma). Barrido one-off ejecutado sobre la biblioteca real: 63 carpetas vacías dentro de plataforma (`dreamcast` 7, `ps2` 2, `wii` 54) + 39 carpetas huérfanas en la **raíz** de la biblioteca (mismo bug, casos donde el juego ya vivía mal ubicado) + 2 carpetas con solo `media/` residual (artwork movido a `dreamcast/media/{images,wheels}/` antes de borrar, no descartado) — 104 carpetas eliminadas en total, 0 restantes. 8 tests nuevos (`test_operation_planner.py`, `test_file_renamer.py`), 1067 tests en verde (3 fallos preexistentes en `tests/web/test_retroarch_override_*`/`test_detect_android_ra_config_dir_endpoint.py` no relacionados — dependen de que NO haya un dispositivo ADB conectado, y la RG556 está conectada). | `planner/operation_planner.py:15-24`, `renamer/file_renamer.py` | ✅ hecho 2026-08-30 |
+| INBOX-ORPHAN-4 | 4 carpetas en la raíz de la biblioteca (`Bomberman Generation (Europe) (En,Fr,De)`, `Mario Smash Football (Europe) (En,Fr,De,Es,It)`, `Soulcalibur II (USA)`, `Star Fox Adventures (Europe) (En,Fr,De,Es,It)`) tienen un `.rvz` real, mal ubicado (debería estar en `gamecube/`), y **`gamecube/` ya tiene un archivo con el mismo nombre pero de tamaño distinto** (verificado, no es basura: los 4 pares difieren en bytes, p. ej. Soulcalibur II: raíz 796.811.992 vs `gamecube/` 781.653.060 — probablemente distinto nivel de compresión RVZ o distinta revisión del dump, no confirmado). No se puede resolver automáticamente sin saber cuál copia es la buena — decidir con el usuario cuál conservar (comparar hash/jugabilidad) antes de borrar la otra. | — | 🔴 pendiente, requiere decisión del usuario |
+| INBOX-ORPHAN-5 | 9 carpetas sueltas en la raíz con nombre de plataforma en formato *display* de ES-DE (`Master System`, `Atari 2600`, `Famicom Disk System`, `Game Boy`, `Game Boy Advance`, `Game Boy Color`, `Game Gear`, `NGC`, `Nintendo DS`) en vez del slug real (`mastersystem`, `atari2600`, etc.) — cada una con un `media/{images,wheels}/` propio, aparentemente duplicado del `media/` de la carpeta de plataforma real. Sin investigar aún: no se sabe si son artwork huérfano seguro de descartar o si tienen archivos que la carpeta real no tiene. Mismo patrón que INBOX-ORPHAN-3 pero de otro origen (no es `operation_planner`, probablemente un scraper o `create-library-structure` viejo usando nombres display) — investigar antes de tocar. | — | 🔴 pendiente, sin investigar |
 
 ---
 

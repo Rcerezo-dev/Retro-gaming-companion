@@ -306,3 +306,72 @@ def test_central_save_dirs_only_returns_existing(tmp_path: Path) -> None:
     assert tmp_path / "RetroArch" / "saves" in dirs
     assert existing in dirs
     assert all(d.is_dir() for d in dirs)
+
+
+def test_rename_removes_now_empty_sibling_source_subfolder(tmp_path: Path) -> None:
+    """INBOX-ORPHAN-3: a rematch that renames a per-game subfolder (e.g.
+    wii/Old Name/Old Name.iso -> wii/New Name/New Name.iso) must not leave the
+    old, now-empty subfolder behind."""
+    platform = tmp_path / "wii"
+    old_dir = platform / "Old Name"
+    old_dir.mkdir(parents=True)
+    source = old_dir / "Old Name.iso"
+    source.write_bytes(b"rom")
+    target = platform / "New Name" / "New Name.iso"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert target.exists()
+    assert not old_dir.exists(), "empty source subfolder must be removed"
+    assert platform.exists()
+
+
+def test_rename_keeps_source_subfolder_if_not_empty(tmp_path: Path) -> None:
+    """A leftover unrelated file in the old subfolder must block cleanup —
+    os.rmdir only ever removes a truly empty directory."""
+    platform = tmp_path / "wii"
+    old_dir = platform / "Old Name"
+    old_dir.mkdir(parents=True)
+    source = old_dir / "Old Name.iso"
+    source.write_bytes(b"rom")
+    (old_dir / "manual.txt").write_bytes(b"notes")
+    target = platform / "New Name" / "New Name.iso"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert old_dir.exists(), "must not touch a subfolder holding other files"
+
+
+def test_move_disc_set_removes_now_empty_sibling_source_subfolder(tmp_path: Path) -> None:
+    """Same cleanup for the CUE/GDI disc-set path (psx/saturn/dreamcast)."""
+    platform = tmp_path / "psx"
+    old_dir = platform / "Old Name"
+    old_dir.mkdir(parents=True)
+    cue = old_dir / "Old Name.cue"
+    bin_ = old_dir / "Old Name.bin"
+    bin_.write_bytes(b"disc data")
+    cue.write_text(f'FILE "{bin_.name}" BINARY\n')
+    target_cue = platform / "New Name" / "New Name.cue"
+
+    outcome = move_disc_set_to_subfolder(cue, target_cue, SAVE_EXTS)
+
+    assert outcome.success is True
+    assert target_cue.exists()
+    assert not old_dir.exists(), "empty source subfolder must be removed"
+
+
+def test_rename_never_removes_platform_root(tmp_path: Path) -> None:
+    """Flat-platform renames (no subfolder) must never touch the platform
+    root folder itself, even though it becomes momentarily 'emptier'."""
+    platform = tmp_path / "gamecube"
+    platform.mkdir()
+    source = platform / "old-name.iso"
+    source.write_bytes(b"rom")
+    target = platform / "New Title (USA).iso"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert platform.exists()

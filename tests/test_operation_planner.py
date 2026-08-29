@@ -119,6 +119,33 @@ def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
     assert folders == {"Final Fantasy VII (Europe)"}
 
 
+def test_gamecube_and_ps2_stay_flat_no_subfolder(tmp_path: Path) -> None:
+    """INBOX-ORPHAN-3: gamecube/ps2 are single-file platforms — a rematch that
+    renames the title must rename the file in place, never move it into (or
+    out of) a per-game subfolder, since that's what left orphaned empty
+    folders behind."""
+    for platform, ext in (("gamecube", ".rvz"), ("ps2", ".iso")):
+        plat_dir = tmp_path / platform
+        plat_dir.mkdir()
+        src = plat_dir / f"old-name{ext}"
+        src.touch()
+        game = _make_game(
+            original_filename=src.name,
+            source_path=str(src),
+            canonical_title="New Title (USA)",
+            extension=ext,
+            platform=platform,
+        )
+        plan = build_plan(_repo_with([game]))
+
+        assert len(plan.pending) == 1, platform
+        op = plan.pending[0]
+        assert op.target_path.parent == plat_dir, (
+            f"{platform}: target must stay flat in {plat_dir}, got {op.target_path.parent}"
+        )
+        assert op.target_path.name == f"New Title (USA){ext}"
+
+
 def test_multidisc_set_messy_tags_do_not_collide(tmp_path: Path) -> None:
     """DUP-RA-COLLISION-1: real-world dumps often skip the strict "(Disc N)"
     form No-Intro/Redump uses. ``find_disc_tag`` also recognizes "Disc1"

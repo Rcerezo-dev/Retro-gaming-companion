@@ -12,13 +12,15 @@ from rom_manager.utils.paths import same_file as _same_file
 # Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
 # Also used as the heuristic to detect whether source is flat (parent.name in this set)
 # or already in a subfolder (parent.name not in this set).
+# INBOX-ORPHAN-3: gamecube/ps2 dumps in this library are single-file
+# (.iso/.rvz/.chd/.zip) — a per-game subfolder buys nothing, and a rematch
+# that changes canonical_title moves the file into a new folder without ever
+# cleaning up the now-empty old one, leaving an orphan behind.
 _DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset(
     {
         "psx",
         "saturn",
-        "ps2",
         "dreamcast",
-        "gamecube",
         "wii",
     }
 )
