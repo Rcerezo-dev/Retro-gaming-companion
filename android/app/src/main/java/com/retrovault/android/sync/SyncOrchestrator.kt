@@ -23,8 +23,16 @@ object SyncOrchestrator {
         val settingsRepository = SettingsRepository(appContext)
         val engine = SyncEngine(DropboxTransport(client), AppDatabase.getInstance(appContext).syncWatermarkDao())
 
-        val savesResult = engine.sync(File(RetroArchPaths.SAVES), settingsRepository.savesRemote.first())
+        val savesRemote = settingsRepository.savesRemote.first()
+        val savesResult = engine.sync(File(RetroArchPaths.SAVES), savesRemote)
         val statesResult = engine.sync(File(RetroArchPaths.STATES), settingsRepository.statesRemote.first())
-        return savesResult + statesResult
+        // EMULATOR-COMPAT-5: NVRAM de arcade, un pase por carpeta de
+        // plataforma (mezcladas con las ROMs) contra un subdirectorio propio
+        // de savesRemote — LocalFileScanner ya filtra por SaveExtensions, así
+        // que las ROMs de cada carpeta nunca se suben.
+        val arcadeResult = RetroArchPaths.ARCADE_FOLDERS
+            .map { platform -> engine.sync(File(RetroArchPaths.ROOT, platform), "$savesRemote/$platform") }
+            .fold(SyncResult()) { acc, r -> acc + r }
+        return savesResult + statesResult + arcadeResult
     }
 }
