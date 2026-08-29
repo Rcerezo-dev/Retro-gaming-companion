@@ -142,6 +142,56 @@ def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
     assert result.ambiguous is True
 
 
+def test_ambiguous_title_prefers_platform_matching_extension(tmp_path: Path) -> None:
+    """MATCH-FIX-2: caso real (Final Fantasy III) — el mismo título normalizado
+    existe en el DAT de NES y en el de Nintendo 3DS (Virtual Console). Sin el
+    fix, siempre ganaba el primer hit por orden alfabético del .dat ("3DS" <
+    "Entertainment System"), asignando la plataforma equivocada a un .nes real."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    # Mismo orden alfabético que reproduce el bug real: "3DS" antes que
+    # "Entertainment System" en sorted(directory.glob("*.dat")).
+    _write_dat(
+        nointro / "Nintendo - Nintendo 3DS (Digital) (CDN).dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        nointro / "Nintendo - Nintendo Entertainment System.dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Final Fantasy III (J) [T+Eng1.0_ad0220].nes")
+    assert result is not None
+    assert result.ambiguous is True
+    assert result.confidence == "low"
+    assert result.platform == "NES"
+    assert "Entertainment System" in result.catalog_source
+
+
+def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_path: Path) -> None:
+    """Sin extensión que desambigüe (p.ej. .zip), se mantiene el comportamiento
+    previo: el primer hit por orden de carga."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        nointro / "Nintendo - Nintendo 3DS (Digital) (CDN).dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        nointro / "Nintendo - Nintendo Entertainment System.dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Final Fantasy III (J) [T+Eng1.0_ad0220].zip")
+    assert result is not None
+    assert result.ambiguous is True
+    assert result.platform == "Nintendo 3DS"
+
+
 def test_name_fallback_no_hit_returns_none(catalog_dirs: tuple[Path, Path]) -> None:
     """Unknown SHA1 + unknown name → None."""
     nointro, redump = catalog_dirs
