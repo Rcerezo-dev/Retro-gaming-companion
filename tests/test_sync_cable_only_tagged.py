@@ -168,6 +168,40 @@ def test_only_tagged_does_not_filter_saves(tmp_path: Path) -> None:
     assert (ab / "gba" / "mario.sav").exists()
 
 
+def test_only_tagged_with_mirror_removes_untagged_from_device(tmp_path: Path) -> None:
+    """ANBERNIC-PICK-4: combinado con "espejo completo" (delete_extra), lo que
+    no está marcado debe desaparecer del dispositivo, no solo dejar de copiarse
+    — esto es lo que permite liberar espacio en la Anbernic sincronizando."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    marked = _write(pc, "arcade", "sf2.zip")
+    _write(pc, "arcade", "dino.zip")  # sin marcar, sigue en el PC
+    _write(ab, "arcade", "dino.zip")  # ya estaba en la consola de una sync anterior
+    _write(ab, "arcade", "kof98.zip")  # ni siquiera está en la biblioteca del PC
+
+    repo = LibraryRepository(tmp_path / "pc.sqlite")
+    marked_id = _insert_game(repo, source_path=str(marked))
+    repo.add_tag(marked_id, "anbernic")
+
+    res = _run_sync(
+        tmp_path,
+        {
+            "pc_path": str(pc),
+            "anbernic_path": str(ab),
+            "what": ["roms"],
+            "direction": "pc_to_anbernic",
+            "dry_run": False,
+            "only_tagged": True,
+            "delete_extra": True,
+        },
+        repo,
+    )
+
+    assert (ab / "arcade" / "sf2.zip").exists()
+    assert not (ab / "arcade" / "dino.zip").exists()
+    assert not (ab / "arcade" / "kof98.zip").exists()
+    assert res["deleted_extra"] == 2
+
+
 def test_only_tagged_does_not_block_anbernic_to_pc(tmp_path: Path) -> None:
     """El filtro solo decide qué SALE del PC — tirar de la consola hacia el
     PC (backup) no debe verse afectado por marcas del lado PC."""
