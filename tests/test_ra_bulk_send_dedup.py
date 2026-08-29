@@ -15,7 +15,9 @@ from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.services.ra_duplicates_service import filter_duplicate_winners
 
 
-def _insert(repo: LibraryRepository, *, source_path: str, canonical_title: str, extension: str, md5: str) -> None:
+def _insert(
+    repo: LibraryRepository, *, source_path: str, canonical_title: str, extension: str, md5: str
+) -> None:
     repo.upsert_game(
         original_filename=Path(source_path).name,
         source_path=source_path,
@@ -58,8 +60,20 @@ def _write_ra_cache(project_root: Path, console_id: int, md5_with_achievements: 
 
 def test_filter_duplicate_winners_keeps_ra_copy(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert(repo, source_path=str(tmp_path / "a.gba"), canonical_title="Test Game", extension=".gba", md5="A" * 32)
-    _insert(repo, source_path=str(tmp_path / "b.zip"), canonical_title="Test Game", extension=".zip", md5="B" * 32)
+    _insert(
+        repo,
+        source_path=str(tmp_path / "a.gba"),
+        canonical_title="Test Game",
+        extension=".gba",
+        md5="A" * 32,
+    )
+    _insert(
+        repo,
+        source_path=str(tmp_path / "b.zip"),
+        canonical_title="Test Game",
+        extension=".zip",
+        md5="B" * 32,
+    )
     _write_ra_cache(tmp_path, get_ra_console_id("gba"), "b" * 32)
 
     config = SimpleNamespace(project_root=tmp_path)
@@ -72,11 +86,35 @@ def test_filter_duplicate_winners_keeps_ra_copy(tmp_path: Path) -> None:
 def test_filter_duplicate_winners_falls_back_to_dominant_format(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     # Two .gba files already establish the platform's dominant format.
-    _insert(repo, source_path=str(tmp_path / "other.gba"), canonical_title="Other Game", extension=".gba", md5="C" * 32)
-    _insert(repo, source_path=str(tmp_path / "another.gba"), canonical_title="Another", extension=".gba", md5="E" * 32)
+    _insert(
+        repo,
+        source_path=str(tmp_path / "other.gba"),
+        canonical_title="Other Game",
+        extension=".gba",
+        md5="C" * 32,
+    )
+    _insert(
+        repo,
+        source_path=str(tmp_path / "another.gba"),
+        canonical_title="Another",
+        extension=".gba",
+        md5="E" * 32,
+    )
     # Duplicate pair with no RA data at all -> tie-break on format.
-    _insert(repo, source_path=str(tmp_path / "a.gba"), canonical_title="Test Game", extension=".gba", md5="A" * 32)
-    _insert(repo, source_path=str(tmp_path / "a.zip"), canonical_title="Test Game", extension=".zip", md5="D" * 32)
+    _insert(
+        repo,
+        source_path=str(tmp_path / "a.gba"),
+        canonical_title="Test Game",
+        extension=".gba",
+        md5="A" * 32,
+    )
+    _insert(
+        repo,
+        source_path=str(tmp_path / "a.zip"),
+        canonical_title="Test Game",
+        extension=".zip",
+        md5="D" * 32,
+    )
 
     config = SimpleNamespace(project_root=tmp_path)
     games, _total = repo.get_games_paginated(platform="gba", limit=100)
