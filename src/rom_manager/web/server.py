@@ -489,9 +489,7 @@ def make_handler(
             self.send_response(200)
             self.send_header("Content-Type", mime_type or "application/octet-stream")
             self.send_header("Content-Length", str(size))
-            self.send_header(
-                "Content-Disposition", f"attachment; filename*=UTF-8''{quoted_name}"
-            )
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quoted_name}")
             self.end_headers()
             with path.open("rb") as fh:
                 _shutil.copyfileobj(fh, self.wfile, length=1024 * 1024)
