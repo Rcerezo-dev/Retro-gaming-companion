@@ -628,6 +628,37 @@ no automático por espacio libre/prioridad.
 | ANBERNIC-PICK-3 | **Informe de la corrida** — agregar en una vista legible los contadores que el pipeline ya calcula por corrida (organizados, duplicados exactos descartados, resueltos por RA, conflictos sin resolver) en vez de solo el log de texto — insumo directo para "qué se movió, qué no, qué se reemplazó, qué se renombró" que pidió el usuario. Base de datos real de la sesión 2026-08-28 ya disponible como caso de prueba: 13.211 organizados, 1.005 renombrados, 152 duplicados, 0 resueltos por RA, 295 conflictos (176 arcade) | `web/inbox_pipeline.py`, `web/static/js/tabs/inbox.js` | ✅ el paso "organize" no contaba duplicados exactos descartados ni conflictos sin resolver por separado (solo iban mezclados como texto en `organize_errors`) — dos contadores nuevos (`duplicates_removed`, `conflicts_unresolved`) en `_run_inbox_pipeline`, incrementados en las ramas ya existentes de `_same_content`/`_resolve_organize_conflict`. `_renderInboxResult()` (`inbox.js`) los añade a la línea de resumen junto a "Resueltos por RA" (ya se calculaba pero no se mostraba) |
 | ANBERNIC-PICK-4 | **El sync también debe quitar de la consola lo que ya no está marcado** — petición del usuario 2026-08-29: al sincronizar, lo no marcado debería desaparecer de la Anbernic, no solo dejar de copiarse, para poder liberar espacio con el mismo flujo. Ya existía el checkbox "Espejo completo" (`delete_extra`) independiente de `only_tagged`; combinados, la rama ADB (cable) ya funcionaba bien (`_arel not in _pc_rels`, `_pc_rels` calculado con `_wanted()` que sí respeta el tag), pero la rama sistema de archivos (SD montada) no — su bucle de "extra en destino" llamaba a `_wanted(_f)` sobre archivos del lado Anbernic, que **siempre** devuelve `True` para ese lado (rama `except ValueError` de `_wanted`, necesaria para no romper `anbernic_to_pc`/`newest`, que sí deben ignorar el tag por diseño de ANBERNIC-PICK-2) | `web/handlers/sync_cable.py` (bucle `delete_extra` de `pc_to_anbernic`, modo sistema de archivos) | ✅ ese bucle ahora filtra por categoría (`_wanted_name`, igual que ya hacía la rama ADB) en vez de por `_wanted()` completo — "extra" sale de comparar contra `_pc_rels`, que ya respeta el tag; sin tocar `anbernic_to_pc`/`newest`. Tooltip de "Espejo completo" actualizado explicando la combinación. 1 test nuevo (`test_only_tagged_with_mirror_removes_untagged_from_device`), 1034 pass |
 
+**Validado con dry-run real contra la RG556 (2026-08-29)**: 1 juego real
+(`'96 Flag Rally.zip`, arcade) marcado `anbernic` vía `/api/tag`, sync
+`pc_to_anbernic` por ADB, `what=roms`, `only_tagged=true`,
+`delete_extra=true`, `dry_run=true` contra `/storage/521D-04EA/ROMs/arcade`.
+Resultado: el marcado se detecta correctamente como ya presente (`SKIP —
+mismo tamaño`, nunca entra en la lista de borrado) y **3.461 archivos sin
+marcar** se listan como "se borrarían" (`.rommgr/cable_sync_ops.log`) — el
+combo funciona tal como se diseñó. El tag de prueba se quitó al terminar
+(sin residuo). Nota: el servidor llevaba corriendo desde antes del fix de
+ANBERNIC-PICK-4 (Python no recarga módulos en caliente) — hubo que
+reiniciarlo para probar la versión real del código; se esperó primero a que
+terminara un job de Inbox en curso (15.105 ROMs) antes de reiniciar.
+
+> **ANBERNIC-PICK-5 — hallazgo durante la validación anterior, bug real
+> preexistente (no introducido por ANBERNIC-PICK-4)**: de los 3.461
+> "extra" candidatos a borrar, **204 eran `.jpg` de `media/wheels/` (carátulas),
+> más 2 `.txt`, 1 `.xml`, 1 `.ini`** — ninguno es un ROM, y el sync estaba
+> acotado a `what=["roms"]` (sin "assets"/"media" marcado). Causa: `_cat_name()`
+> (`web/handlers/sync_cable.py:372`) clasifica cualquier archivo que no sea
+> una extensión de save como `"rom"` — no comprueba una lista real de
+> extensiones de ROM, así que `_wanted_name()` (`:378`) acepta cualquier cosa
+> que no sea un save cuando `"roms"` está en `what`. Con "Espejo completo"
+> activo, esto borraría carátulas y metadatos junto con los ROMs de verdad.
+> No afecta a copiar (solo se copian archivos que ya pasaron por el scan como
+> ROM/save en la BD), pero si el "extra" del lado Anbernic no está en la BD
+> —caso típico de `media/`, que nunca se escanea como juego— nada lo protege
+> de aparecer como "extra". Pendiente: `_cat_name()` debería devolver una
+> tercera categoría (`"other"`) para lo que no sea ni save ni ROM reconocido,
+> y `_wanted_name()` debería excluirla salvo que `"assets"`/`"media"` esté en
+> `what` explícitamente | `web/handlers/sync_cable.py:372-382` | 🔴 pendiente |
+
 ---
 
 ## UX — Auditorías por pestaña — → #206
