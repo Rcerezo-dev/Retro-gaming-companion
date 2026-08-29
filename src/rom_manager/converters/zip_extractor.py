@@ -31,8 +31,10 @@ class ExtractionSummary:
     results: list[ExtractionResult] = field(default_factory=list)
 
 
-# Extensions of disc-based formats — these belong to the CHD workflow, not ZIP extraction
-_DISC_EXTENSIONS = frozenset({".cue", ".bin", ".iso", ".img", ".mdf", ".mds", ".ccd"})
+# INBOX-FIX-6: only a multi-track descriptor means "this is a set, reconstruct
+# via the CHD workflow instead of a raw unzip" — a lone .iso/.img/etc. (PS2,
+# GameCube) is a single playable file and extracting it plain is correct.
+_DISC_SET_EXTENSIONS = frozenset({".cue", ".gdi"})
 
 # B7-5: Folder names that indicate arcade/MAME ROMs — ZIPs must NOT be extracted
 # because the ZIP *is* the ROM (MAME loads directly from the archive).
@@ -68,7 +70,7 @@ def extract_zip(
     Skips the whole archive if:
     - The filename matches a multi-disc set pattern (e.g. "Game (Disc 1).zip")
     - It sits under an arcade/MAME folder (the ZIP itself is the ROM)
-    - It contains .cue/.bin/.iso files (use the CHD converter instead)
+    - It contains a .cue/.gdi (multi-track set — use the CHD converter instead)
 
     Members whose target already exists on disk are left alone — a single
     collision no longer aborts the rest of the archive (INBOX-FIX-1). The
@@ -98,13 +100,14 @@ def extract_zip(
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = [n for n in zf.namelist() if not n.endswith("/")]
-            # Skip disc-based archives (contents check)
-            if any(Path(n).suffix.lower() in _DISC_EXTENSIONS for n in names):
+            # Skip multi-track disc sets (contents check) — a .cue/.gdi describes
+            # sibling track files that need set-aware handling, not a plain unzip.
+            if any(Path(n).suffix.lower() in _DISC_SET_EXTENSIONS for n in names):
                 return ExtractionResult(
                     zip_path=zip_path,
                     extracted_files=[],
                     success=False,
-                    skipped_reason="Contiene archivos de disco (.cue/.bin/.iso) — usa el conversor CHD",
+                    skipped_reason="Set multi-disco (.cue/.gdi) — usa el conversor CHD",
                 )
 
             dest_dir = zip_path.parent
