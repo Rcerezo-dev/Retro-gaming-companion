@@ -9,7 +9,9 @@ from pathlib import Path
 from rom_manager.database.repository import LibraryRepository
 
 
-def _insert(repo: LibraryRepository, *, source_path: str, canonical_title: str, extension: str, md5: str) -> None:
+def _insert(
+    repo: LibraryRepository, *, source_path: str, canonical_title: str, extension: str, md5: str
+) -> None:
     repo.upsert_game(
         original_filename=Path(source_path).name,
         source_path=source_path,
@@ -36,8 +38,20 @@ def _insert(repo: LibraryRepository, *, source_path: str, canonical_title: str, 
 
 def test_get_games_paginated_initial_filter(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert(repo, source_path=str(tmp_path / "e.gba"), canonical_title="Earthbound", extension=".gba", md5="A" * 32)
-    _insert(repo, source_path=str(tmp_path / "z.gba"), canonical_title="Zelda", extension=".gba", md5="B" * 32)
+    _insert(
+        repo,
+        source_path=str(tmp_path / "e.gba"),
+        canonical_title="Earthbound",
+        extension=".gba",
+        md5="A" * 32,
+    )
+    _insert(
+        repo,
+        source_path=str(tmp_path / "z.gba"),
+        canonical_title="Zelda",
+        extension=".gba",
+        md5="B" * 32,
+    )
 
     games_e, total_e = repo.get_games_paginated(platform="gba", initial="E", limit=100)
     assert total_e == 1
@@ -50,8 +64,20 @@ def test_get_games_paginated_initial_filter(tmp_path: Path) -> None:
 
 def test_get_games_paginated_initial_hash_matches_non_alpha(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert(repo, source_path=str(tmp_path / "3.gba"), canonical_title="3 Ninjas", extension=".gba", md5="C" * 32)
-    _insert(repo, source_path=str(tmp_path / "z.gba"), canonical_title="Zelda", extension=".gba", md5="D" * 32)
+    _insert(
+        repo,
+        source_path=str(tmp_path / "3.gba"),
+        canonical_title="3 Ninjas",
+        extension=".gba",
+        md5="C" * 32,
+    )
+    _insert(
+        repo,
+        source_path=str(tmp_path / "z.gba"),
+        canonical_title="Zelda",
+        extension=".gba",
+        md5="D" * 32,
+    )
 
     games_hash, total_hash = repo.get_games_paginated(platform="gba", initial="#", limit=100)
     assert total_hash == 1
