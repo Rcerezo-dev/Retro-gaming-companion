@@ -105,9 +105,7 @@ def test_playstation_uses_disc_hash_not_stored_md5(repo, monkeypatch, tmp_path) 
         },
     )
 
-    summary = ra_checker.check_library(
-        repo, api_key="fake-key", cache_dir=tmp_path / "ra_cache"
-    )
+    summary = ra_checker.check_library(repo, api_key="fake-key", cache_dir=tmp_path / "ra_cache")
 
     assert summary.supported == 1
     assert summary.results[0].our_md5 == disc_hash

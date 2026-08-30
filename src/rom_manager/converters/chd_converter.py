@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
 
@@ -89,12 +89,12 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
         # Quoted filename: FILE "some name.bin" BINARY
         m = re.match(r'FILE\s+"([^"]+)"', stripped, re.IGNORECASE)
         if m:
-            bins.append(cue_dir / Path(m.group(1)).name)
+            bins.append(cue_dir / PureWindowsPath(m.group(1)).name)
             continue
         # Unquoted filename: FILE name.bin BINARY
         m = re.match(r"FILE\s+(\S+)", stripped, re.IGNORECASE)
         if m:
-            bins.append(cue_dir / Path(m.group(1)).name)
+            bins.append(cue_dir / PureWindowsPath(m.group(1)).name)
     return bins
 
 
@@ -172,9 +172,7 @@ def _stage_corrected_cue(cue_path: Path, bin_paths: list[Path]) -> Path:
     return staged
 
 
-def _run_chdman_createcd(
-    staged_cue: Path, chd_path: Path, chdman: str
-) -> str | None:
+def _run_chdman_createcd(staged_cue: Path, chd_path: Path, chdman: str) -> str | None:
     """Run ``chdman createcd``; returns an error message, or None on success."""
     try:
         subprocess.run(
@@ -310,14 +308,20 @@ def convert_bin_to_chd(
             bin_path.unlink(missing_ok=True)
             return ConversionResult(cue_path, chd_path, bin_paths, success=True)
         return ConversionResult(
-            cue_path, chd_path, bin_paths, success=False,
+            cue_path,
+            chd_path,
+            bin_paths,
+            success=False,
             error="Output .chd already exists — skipping to avoid overwrite.",
         )
 
     cue_text = synthesize_cue_text(bin_path)
     if cue_text is None:
         return ConversionResult(
-            cue_path, chd_path, bin_paths, success=False,
+            cue_path,
+            chd_path,
+            bin_paths,
+            success=False,
             error="geometría de sector no reconocida (no es un .bin de PS1 estándar)",
         )
 
@@ -376,7 +380,10 @@ def convert_directory(
                 _record(
                     summary,
                     ConversionResult(
-                        cue_path, chd_path, bin_paths, success=False,
+                        cue_path,
+                        chd_path,
+                        bin_paths,
+                        success=False,
                         error="Output .chd already exists — would skip.",
                     ),
                 )
@@ -386,7 +393,10 @@ def convert_directory(
                 _record(
                     summary,
                     ConversionResult(
-                        cue_path, chd_path, bin_paths, success=False,
+                        cue_path,
+                        chd_path,
+                        bin_paths,
+                        success=False,
                         error=f"Bin file(s) not found: {', '.join(b.name for b in missing)}",
                     ),
                 )
@@ -405,7 +415,10 @@ def convert_directory(
                 _record(
                     summary,
                     ConversionResult(
-                        cue_path, chd_path, [bin_path], success=False,
+                        cue_path,
+                        chd_path,
+                        [bin_path],
+                        success=False,
                         error="Output .chd already exists — would skip.",
                     ),
                 )

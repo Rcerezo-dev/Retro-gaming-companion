@@ -42,9 +42,7 @@ def _save(cache_dir: Path, data: dict[str, dict[str, str]]) -> None:
     p.write_text(json.dumps(data), encoding="utf-8")
 
 
-def get_psx_disc_hash(
-    source_path: str, cache_dir: Path, chdman_path: Path | None
-) -> str | None:
+def get_psx_disc_hash(source_path: str, cache_dir: Path, chdman_path: Path | None) -> str | None:
     """RA-compatible MD5 for a PS1 disc image at *source_path*, cached by
     (mtime, size). Returns None if the file is missing or the format/content
     isn't supported yet (see ``ra_hash_psx.compute_psx_ra_hash``) -- a miss
