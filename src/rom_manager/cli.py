@@ -150,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     chd_parser = subparsers.add_parser(
         "convert-chd",
-        help="Convert PSX .cue+.bin sets to .chd (dry run by default).",
+        help="Convert PSX .cue+.bin sets AND bare .bin dumps to .chd, RA-hash verified (dry run by default).",
     )
     chd_parser.add_argument("source_path", type=Path, help="Folder to scan for .cue files.")
     chd_parser.add_argument(

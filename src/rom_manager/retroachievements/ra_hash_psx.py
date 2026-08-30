@@ -230,7 +230,10 @@ def _hash_bin_file(bin_path: Path) -> str | None:
 
 
 def _hash_chd_file(chd_path: Path, chdman_path: Path | None) -> str | None:
-    if chdman_path is None or not chdman_path.exists():
+    # chdman_path may be a bare command name resolved via PATH (not a literal
+    # file relative to cwd) -- don't require .exists(), let subprocess itself
+    # raise/fail if it truly can't be found.
+    if chdman_path is None:
         return None
     with tempfile.TemporaryDirectory(prefix="rommgr_chd_") as tmp:
         out_cue = Path(tmp) / "out.cue"
@@ -246,6 +249,29 @@ def _hash_chd_file(chd_path: Path, chdman_path: Path | None) -> str | None:
         if not out_cue.exists():
             return None
         return compute_psx_ra_hash(out_cue)
+
+
+_CUE_MODE_BY_GEOMETRY = {
+    (2352, 24): "MODE2/2352",
+    (2352, 16): "MODE1/2352",
+    (2048, 0): "MODE1/2048",
+    (2336, 8): "MODE2/2336",
+}
+
+
+def detect_bin_cue_mode(bin_path: Path) -> str | None:
+    """CUE ``MODE`` string for a bare .bin's detected sector geometry (e.g.
+    "MODE2/2352"), or None if the geometry isn't one of the standard ones a
+    synthesized single-track .cue can declare, or the track doesn't start at
+    the beginning of the file (``first_sector != 0`` -- a pregap-adjusted
+    dump; too rare here to be worth a general synthetic .cue)."""
+    try:
+        with _CdImage(bin_path) as cd:
+            if cd.first_sector != 0:
+                return None
+            return _CUE_MODE_BY_GEOMETRY.get((cd.sector_size, cd.header_size))
+    except OSError:
+        return None
 
 
 def compute_psx_ra_hash(path: Path, *, chdman_path: Path | None = None) -> str | None:

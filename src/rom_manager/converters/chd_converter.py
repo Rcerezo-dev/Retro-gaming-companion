@@ -5,6 +5,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
+
 
 @dataclass(slots=True)
 class ConversionResult:
@@ -67,6 +69,12 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
     """Return all files referenced inside a .cue file (existing or not).
 
     Handles both quoted (FILE "name.bin" BINARY) and unquoted (FILE name.bin BINARY) forms.
+
+    Only the *basename* of the referenced token is trusted -- real .cue
+    files found in this library can carry a stale absolute path from
+    whatever tool ripped them originally (e.g. ``FILE "C:\\CRASH 2.BIN"
+    BINARY``), which would otherwise resolve to that literal (nonexistent)
+    path instead of the sibling file that's actually next to the .cue.
     """
     cue_dir = cue_path.parent
     bins: list[Path] = []
@@ -81,13 +89,44 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
         # Quoted filename: FILE "some name.bin" BINARY
         m = re.match(r'FILE\s+"([^"]+)"', stripped, re.IGNORECASE)
         if m:
-            bins.append(cue_dir / m.group(1))
+            bins.append(cue_dir / Path(m.group(1)).name)
             continue
         # Unquoted filename: FILE name.bin BINARY
         m = re.match(r"FILE\s+(\S+)", stripped, re.IGNORECASE)
         if m:
-            bins.append(cue_dir / m.group(1))
+            bins.append(cue_dir / Path(m.group(1)).name)
     return bins
+
+
+def find_bare_bin_files(directory: Path) -> list[Path]:
+    """Return .bin files under *directory* not referenced by any .cue there
+    -- the common shape in this library, where most PS1 dumps are
+    single-track raw rips with no sidecar .cue at all. Only bins with a
+    real, readable PS1 filesystem are returned (``detect_bin_cue_mode`` +
+    an actual RA hash computed successfully) -- an orphan audio-track .bin
+    left over from some other multi-track set has no filesystem and is
+    silently excluded here, never guessed at.
+    """
+    claimed: set[Path] = set()
+    for cue in find_cue_files(directory):
+        claimed.update(parse_bins_from_cue(cue))
+
+    bins = []
+    for f in sorted(directory.rglob("*.bin")):
+        if f in claimed:
+            continue
+        if detect_bin_cue_mode(f) is not None and compute_psx_ra_hash(f) is not None:
+            bins.append(f)
+    return bins
+
+
+def synthesize_cue_text(bin_path: Path) -> str | None:
+    """Minimal single-track .cue text for a bare .bin, or None if its sector
+    geometry isn't one ``detect_bin_cue_mode`` recognizes."""
+    mode = detect_bin_cue_mode(bin_path)
+    if mode is None:
+        return None
+    return f'FILE "{bin_path.name}" BINARY\nTRACK 01 {mode}\n  INDEX 01 00:00:00\n'
 
 
 def parse_tracks_from_gdi(gdi_path: Path) -> list[Path]:
@@ -108,6 +147,69 @@ def parse_tracks_from_gdi(gdi_path: Path) -> list[Path]:
         if len(parts) >= 5:
             tracks.append(gdi_dir / parts[4])
     return tracks
+
+
+def _stage_corrected_cue(cue_path: Path, bin_paths: list[Path]) -> Path:
+    """Write a throwaway copy of *cue_path* next to it with every FILE line
+    replaced by the plain basename of the real, verified-existing sibling in
+    *bin_paths* -- chdman reads the .cue's raw text itself, so a stale
+    absolute FILE reference (e.g. "C:\\CRASH 2.BIN", found live in this
+    library) is never actually fixed by a ``cwd=`` alone; it has to be
+    rewritten before chdman ever sees the file."""
+    text = cue_path.read_text(encoding="utf-8", errors="replace")
+    names = iter(b.name for b in bin_paths)
+    out_lines = []
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.upper().startswith("FILE "):
+            newline = "\n" if line.endswith("\n") else ""
+            rest = re.sub(r"^FILE\s+(?:\"[^\"]+\"|\S+)", "", stripped, flags=re.IGNORECASE)
+            out_lines.append(f'FILE "{next(names)}"{rest}{newline}')
+        else:
+            out_lines.append(line)
+    staged = cue_path.with_name(f"{cue_path.stem}.staged.cue")
+    staged.write_text("".join(out_lines), encoding="utf-8")
+    return staged
+
+
+def _run_chdman_createcd(
+    staged_cue: Path, chd_path: Path, chdman: str
+) -> str | None:
+    """Run ``chdman createcd``; returns an error message, or None on success."""
+    try:
+        subprocess.run(
+            [chdman, "createcd", "-i", str(staged_cue), "-o", str(chd_path)],
+            check=True,
+            capture_output=True,
+            cwd=str(staged_cue.parent),
+        )
+    except FileNotFoundError:
+        return f"chdman binary not found: {chdman!r}"
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.decode(errors="replace").strip()
+        return stderr or f"chdman exited with code {exc.returncode}"
+
+    if not chd_path.exists() or chd_path.stat().st_size == 0:
+        if chd_path.exists():
+            chd_path.unlink(missing_ok=True)
+        return "chdman terminó sin error pero el .chd resultante falta o está vacío"
+    return None
+
+
+def _verify_ra_hash(source_for_hash: Path, chd_path: Path, chdman: str) -> str | None:
+    """Compare the RetroAchievements hash of *source_for_hash* (a .cue or a
+    bare .bin -- ``compute_psx_ra_hash`` dispatches on extension) against the
+    freshly-created *chd_path*. Returns an error message on mismatch/failure
+    (and deletes the bad .chd), or None if they match. A disc that had no
+    computable hash to begin with (unsupported disc, no boot exe) is *not*
+    treated as a failure here -- that would have already been caught earlier
+    when the candidate was discovered."""
+    source_hash = compute_psx_ra_hash(source_for_hash)
+    chd_hash = compute_psx_ra_hash(chd_path, chdman_path=Path(chdman))
+    if source_hash is not None and source_hash != chd_hash:
+        chd_path.unlink(missing_ok=True)
+        return f"el hash RA no coincide tras la conversión (origen={source_hash}, chd={chd_hash}) — no se toca el original"
+    return None
 
 
 def convert_to_chd(
@@ -160,41 +262,20 @@ def convert_to_chd(
             error=f"Bin file(s) not found: {', '.join(b.name for b in missing)}",
         )
 
+    staged_cue = _stage_corrected_cue(cue_path, bin_paths)
     try:
-        subprocess.run(
-            [chdman, "createcd", "-i", str(cue_path), "-o", str(chd_path)],
-            check=True,
-            capture_output=True,
-            cwd=str(cue_path.parent),  # B2-1: resolve relative .bin paths in .cue correctly
-        )
-    except FileNotFoundError:
+        error = _run_chdman_createcd(staged_cue, chd_path, chdman)
+    finally:
+        staged_cue.unlink(missing_ok=True)
+    if error:
         return ConversionResult(
-            cue_path=cue_path,
-            chd_path=chd_path,
-            bin_paths=bin_paths,
-            success=False,
-            error=f"chdman binary not found: {chdman!r}",
-        )
-    except subprocess.CalledProcessError as exc:
-        stderr = exc.stderr.decode(errors="replace").strip()
-        return ConversionResult(
-            cue_path=cue_path,
-            chd_path=chd_path,
-            bin_paths=bin_paths,
-            success=False,
-            error=stderr or f"chdman exited with code {exc.returncode}",
+            cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths, success=False, error=error
         )
 
-    # B5-2: post-conversion validation — chdman can exit 0 and still produce no output
-    if not chd_path.exists() or chd_path.stat().st_size == 0:
-        if chd_path.exists():
-            chd_path.unlink(missing_ok=True)  # remove empty/corrupt file
+    error = _verify_ra_hash(cue_path, chd_path, chdman)
+    if error:
         return ConversionResult(
-            cue_path=cue_path,
-            chd_path=chd_path,
-            bin_paths=bin_paths,
-            success=False,
-            error="chdman terminó sin error pero el .chd resultante falta o está vacío",
+            cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths, success=False, error=error
         )
 
     if delete_source:
@@ -210,6 +291,65 @@ def convert_to_chd(
     )
 
 
+def convert_bin_to_chd(
+    bin_path: Path,
+    *,
+    chdman: str = "chdman",
+    delete_source: bool = False,
+) -> ConversionResult:
+    """Convert a bare .bin (no sidecar .cue -- the common shape in this
+    library) to .chd, via a synthesized single-track .cue. Mirrors
+    ``convert_to_chd``'s result shape (``cue_path`` is where that synthetic
+    .cue *would* live, ``bin_paths`` is just ``[bin_path]``)."""
+    cue_path = bin_path.with_suffix(".cue")
+    chd_path = bin_path.with_suffix(".chd")
+    bin_paths = [bin_path]
+
+    if chd_path.exists():
+        if delete_source:
+            bin_path.unlink(missing_ok=True)
+            return ConversionResult(cue_path, chd_path, bin_paths, success=True)
+        return ConversionResult(
+            cue_path, chd_path, bin_paths, success=False,
+            error="Output .chd already exists — skipping to avoid overwrite.",
+        )
+
+    cue_text = synthesize_cue_text(bin_path)
+    if cue_text is None:
+        return ConversionResult(
+            cue_path, chd_path, bin_paths, success=False,
+            error="geometría de sector no reconocida (no es un .bin de PS1 estándar)",
+        )
+
+    staged_cue = bin_path.with_name(f"{bin_path.stem}.staged.cue")
+    staged_cue.write_text(cue_text, encoding="ascii")
+    try:
+        error = _run_chdman_createcd(staged_cue, chd_path, chdman)
+    finally:
+        staged_cue.unlink(missing_ok=True)
+    if error:
+        return ConversionResult(cue_path, chd_path, bin_paths, success=False, error=error)
+
+    error = _verify_ra_hash(bin_path, chd_path, chdman)
+    if error:
+        return ConversionResult(cue_path, chd_path, bin_paths, success=False, error=error)
+
+    if delete_source:
+        bin_path.unlink(missing_ok=True)
+
+    return ConversionResult(cue_path, chd_path, bin_paths, success=True)
+
+
+def _record(summary: ConversionSummary, result: ConversionResult) -> None:
+    summary.results.append(result)
+    if result.success:
+        summary.converted += 1
+    elif result.error and "already exists" in result.error:
+        summary.skipped += 1
+    else:
+        summary.failed += 1
+
+
 def convert_directory(
     directory: Path,
     *,
@@ -217,56 +357,62 @@ def convert_directory(
     delete_source: bool = False,
     dry_run: bool = True,
 ) -> ConversionSummary:
-    """Convert all .cue files in a directory tree.
+    """Convert every PS1 disc image in a directory tree to .chd -- both
+    existing .cue+.bin sets and bare .bin files with no .cue at all (the
+    common shape in this library, see ``find_bare_bin_files``).
 
-    In dry_run mode (the default) no files are touched — only a summary is returned.
+    In dry_run mode (the default) no files are touched — only a summary is
+    returned; the RA-hash verification only runs when actually converting
+    (dry-run has nothing to compare the not-yet-created .chd against).
     """
     summary = ConversionSummary()
-    cue_files = find_cue_files(directory)
 
-    for cue_path in cue_files:
+    for cue_path in find_cue_files(directory):
         chd_path = cue_path.with_suffix(".chd")
         bin_paths = parse_bins_from_cue(cue_path)
 
         if dry_run:
             if chd_path.exists():
-                result = ConversionResult(
-                    cue_path=cue_path,
-                    chd_path=chd_path,
-                    bin_paths=bin_paths,
-                    success=False,
-                    error="Output .chd already exists — would skip.",
+                _record(
+                    summary,
+                    ConversionResult(
+                        cue_path, chd_path, bin_paths, success=False,
+                        error="Output .chd already exists — would skip.",
+                    ),
                 )
-                summary.skipped += 1
-            else:
-                missing = [b for b in bin_paths if not b.exists()]
-                if missing:
-                    result = ConversionResult(
-                        cue_path=cue_path,
-                        chd_path=chd_path,
-                        bin_paths=bin_paths,
-                        success=False,
+                continue
+            missing = [b for b in bin_paths if not b.exists()]
+            if missing:
+                _record(
+                    summary,
+                    ConversionResult(
+                        cue_path, chd_path, bin_paths, success=False,
                         error=f"Bin file(s) not found: {', '.join(b.name for b in missing)}",
-                    )
-                    summary.failed += 1
-                else:
-                    result = ConversionResult(
-                        cue_path=cue_path,
-                        chd_path=chd_path,
-                        bin_paths=bin_paths,
-                        success=True,
-                    )
-                    summary.converted += 1
-            summary.results.append(result)
+                    ),
+                )
+            else:
+                _record(summary, ConversionResult(cue_path, chd_path, bin_paths, success=True))
             continue
 
-        result = convert_to_chd(cue_path, chdman=chdman, delete_source=delete_source)
-        summary.results.append(result)
-        if result.success:
-            summary.converted += 1
-        elif result.error and "already exists" in result.error:
-            summary.skipped += 1
-        else:
-            summary.failed += 1
+        _record(summary, convert_to_chd(cue_path, chdman=chdman, delete_source=delete_source))
+
+    for bin_path in find_bare_bin_files(directory):
+        chd_path = bin_path.with_suffix(".chd")
+        cue_path = bin_path.with_suffix(".cue")  # would-be synthetic .cue
+
+        if dry_run:
+            if chd_path.exists():
+                _record(
+                    summary,
+                    ConversionResult(
+                        cue_path, chd_path, [bin_path], success=False,
+                        error="Output .chd already exists — would skip.",
+                    ),
+                )
+            else:
+                _record(summary, ConversionResult(cue_path, chd_path, [bin_path], success=True))
+            continue
+
+        _record(summary, convert_bin_to_chd(bin_path, chdman=chdman, delete_source=delete_source))
 
     return summary
