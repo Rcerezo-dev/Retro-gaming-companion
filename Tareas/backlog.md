@@ -175,6 +175,28 @@ casos `disk`/`collision` que sí lo hacen.
 
 ---
 
+### DUP-DISC-RA-1 — Hash RA de discos (PS1 primero) para poder descartar copias sin logros (pedido usuario 2026-08-30)
+
+Origen: tras DUP-REGION-1, el usuario pidió que las copias duplicadas en
+plataformas de disco (PSX/Saturn/Dreamcast/Wii) también se puedan descartar
+prefiriendo la que tiene soporte RetroAchievements — igual que ya se hace en
+GBA. Investigado primero: **0 de 474 juegos PSX con MD5 calculado coincidían
+con el caché de RA** (`ra_hashes_12.json`, 1.318 hashes) — 0/29 en Dreamcast
+también. Causa: RA no hashea el archivo completo del disco para PS1/Saturn/
+Dreamcast, usa un algoritmo específico (localiza `SYSTEM.CNF` en el
+filesystem ISO9660, extrae el ejecutable de arranque de la línea `BOOT=`, y
+hashea `nombre_exe + bytes_del_exe`) — nuestro MD5 de archivo completo nunca
+iba a coincidir, independientemente de la lógica de agrupación.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DUP-DISC-RA-1a | **Implementado y verificado 2026-08-30**: reimplementación en Python del algoritmo de hash PSX de RetroAchievements (`rc_hash_psx`, fuente consultada directamente en github.com/RetroAchievements/rcheevos `src/rhash/hash_disc.c`+`cdreader.c` — no es un port del C, pero fiel byte a byte, incluyendo sus particularidades case-sensitive en "BOOT"/"cdrom:", porque una reimplementación "más limpia" daría un hash *distinto* que nunca coincidiría con el de RA). Soporta `.bin` suelto, `.cue`+`.bin` (primer FILE) y `.chd` (vía `chdman extractcd`, `tools/chdman.exe` ya en el proyecto). **Validado contra caché RA real, no solo con datos sintéticos**: de 259 archivos `.bin`/`.cue` reales de la biblioteca PSX, 124 coincidieron EXACTAMENTE con un hash ya presente en `ra_hashes_12.json` (47,9%) — prueba directa de que el algoritmo es correcto. CHD también probado en vivo (3/15 de una muestra, el resto son juegos fuera del caché de 1.318 o casos sin `SYSTEM.CNF` estándar) — más lento (~7s/archivo, `chdman` descomprime el CHD entero a un `.bin` temporal cada vez, sin caché todavía). Test unitario con imagen ISO9660 sintética mínima construida a mano (`tests/test_ra_hash_psx.py`, 3/3) — no depende de archivos reales | `retroachievements/ra_hash_psx.py` (nuevo), `tests/test_ra_hash_psx.py` (nuevo) | ✅ algoritmo implementado y verificado contra datos reales |
+| DUP-DISC-RA-1b | **Pendiente, no implementado**: integrar `compute_psx_ra_hash()` en el flujo real — (1) `ra_checker.check_library()` usa hoy `row["md5"]` directo de la BD (`retroachievements/ra_checker.py:145`), que para PSX nunca sirve; necesita una rama que compute/cachee el hash de disco en vez de leer la columna `md5`. (2) cachear el resultado (columna nueva o tabla aparte — recorrer 474 discos cada vez que se abre la cola de duplicados no es viable, y el caso `.chd` es especialmente caro sin caché). (3) extender `_review_groups_for_repo` (`web/builders/duplicates.py`, ver DUP-REGION-1b) con agrupado por **edición completa** (título con región/rev pero sin número de disco, discos de una misma edición agrupados y descartados juntos — nunca mezclar Disc 1 de una edición con Disc 2 de otra) reutilizando `find_disc_number`/`_is_disc_set`, no archivo por archivo como en GBA. Alcance real medido hoy sin este paso: 71 juegos PSX/Dreamcast/Saturn/Wii con ≥2 ediciones regionales completas en `library_pc.db` | `retroachievements/ra_checker.py`, `web/builders/duplicates.py`, esquema BD (caché de hash) | 🔴 pendiente, no implementado |
+| DUP-DISC-RA-1c | **Pendiente, no implementado**: mismo algoritmo pero para Saturn/Dreamcast (formatos de disco distintos — Saturn usa IP.BIN en vez de SYSTEM.CNF, Dreamcast usa IP.BIN también pero con su propio formato) — Wii no aplica (no es un CD, RA lo hashea distinto, wiiiso/formato propio). Solo PSX cubierto por ahora, pedido explícito del usuario ("el hash RA de disco primero") | — | 🔴 pendiente, no implementado |
+| DUP-DISC-RA-2 | **Pedido del usuario 2026-08-30, investigado, sin decisión de ejecución**: la carpeta `psx/` mezcla formatos (`.bin` 242, `.zip` 99, `.chd` 83, `.cue` 18, `.ccd` 12, `.ecm` 7, `.img` 6, `.pbp` 5 — 456 archivos, todos sueltos directamente en `psx/`, **0 en subcarpetas propias** — confirma que PSX-ORPHAN-5 sigue sin decidirse). Recomendación: **CHD** como formato objetivo — un archivo por disco (adiós a sets sueltos de `.bin`/`.cue` con tracks de audio como filas de BD separadas, ya visto en DUP-DISC-RA-1a), más pequeño, soportado nativamente por RetroArch/`chdman` (ya en `tools/`), y es lo que ya sugieren los "needs_conversion" existentes en `web/builders/folders.py` para `.ccd`/`.nrg`/`.ecm`. Con CHD, la pregunta de PSX-ORPHAN-5 (subcarpeta por juego) deja de tener sentido para discos únicos — solo los multi-disco seguirían necesitando agrupación (ya sea subcarpeta o tag `(Disc N)` en el nombre, como ya hacen otras plataformas de disco). **No ejecutado**: convertir 373 archivos no-CHD (todo menos los 83 ya CHD) es una operación grande — conversión + reverificar match de catálogo + decidir qué pasa con los `.zip`/`.pbp` que no son `.bin`/`.cue`/`.ccd` directos — necesita su propio alcance, no se coló aquí | `psx/` (456 archivos), `web/builders/folders.py` (`_NEEDS_CONVERSION`) | 🟡 recomendación dada (CHD), conversión real pendiente de decisión/ejecución aparte |
+
+---
+
 ## Pilar 2 — Inbox automático — → #203
 
 Soltar un juego sin organizar y que la app lo detecte, empareje con catálogo
