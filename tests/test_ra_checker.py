@@ -8,6 +8,7 @@ import pytest
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.retroachievements import ra_checker
+from tests.test_ra_hash_psx import _build_psx_image
 
 TS = "2026-01-01T00:00:00"
 
@@ -74,3 +75,37 @@ def test_genuinely_empty_hash_library_still_marks_no_support(repo, monkeypatch) 
 
     assert summary.check_failed == 0
     assert summary.no_support == 1
+
+
+def test_playstation_uses_disc_hash_not_stored_md5(repo, monkeypatch, tmp_path) -> None:
+    """DUP-DISC-RA-1b: for PSX, the stored (whole-file) md5 never matches RA
+    — check_library must compute/cache the disc-specific hash instead and
+    use *that* to look up support, ignoring the games.md5 column entirely."""
+    from rom_manager.retroachievements.ra_client import RAGame
+
+    bin_path = _build_psx_image(tmp_path)
+    from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash
+
+    disc_hash = compute_psx_ra_hash(bin_path)
+    assert disc_hash is not None
+
+    _upsert(
+        repo,
+        source_path=str(bin_path),
+        original_filename=bin_path.name,
+        platform="PlayStation",
+        md5="thiswillnevermatchanything0000",  # deliberately wrong/irrelevant
+    )
+
+    monkeypatch.setattr(
+        ra_checker,
+        "fetch_hash_library",
+        lambda *_a, **_k: {
+            disc_hash: RAGame(id=1, title="Test Game", achievements=10, leaderboards=0, points=100)
+        },
+    )
+
+    summary = ra_checker.check_library(repo, api_key="fake-key", cache_dir=tmp_path / "ra_cache")
+
+    assert summary.supported == 1
+    assert summary.results[0].our_md5 == disc_hash

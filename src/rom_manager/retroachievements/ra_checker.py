@@ -45,14 +45,21 @@ class RACheckSummary:
     results: list[RAGameResult] = field(default_factory=list)
 
 
+_DISC_HASH_CONSOLE_IDS = {12}  # PlayStation -- see ra_hash_psx.py for why
+
+
 def check_library(
     repository,  # LibraryRepository
     api_key: str,
     *,
     cache_dir: Path | None = None,
+    chdman_path: Path | None = None,
     progress_cb: Callable[[int, int, str], None] | None = None,
 ) -> RACheckSummary:
     """Cross-reference library games against the RetroAchievements hash database.
+
+    *chdman_path*: needed to hash a PS1 .chd (see ``ra_disc_hash_cache``) --
+    without it, .chd PS1 games fall back to "no_md5" the same as before.
 
     For each game:
     - If its MD5 is in the RA hash library → "supported"
@@ -142,7 +149,15 @@ def check_library(
             if progress_cb:
                 progress_cb(processed, summary.total, row["original_filename"])
 
-            md5 = (row["md5"] or "").strip().lower()
+            if console_id in _DISC_HASH_CONSOLE_IDS and cache_dir is not None:
+                # PSX/etc.: RA doesn't hash the whole disc file, our stored
+                # md5 (whole-file scan hash) never matches theirs -- compute/
+                # cache their disc-specific hash instead (see ra_hash_psx.py).
+                from rom_manager.retroachievements.ra_disc_hash_cache import get_psx_disc_hash
+
+                md5 = (get_psx_disc_hash(row["source_path"], cache_dir, chdman_path) or "").lower()
+            else:
+                md5 = (row["md5"] or "").strip().lower()
             if not md5:
                 summary.no_md5 += 1
                 summary.results.append(

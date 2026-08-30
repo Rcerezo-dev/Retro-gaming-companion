@@ -329,6 +329,11 @@ def test_collision_on_disc_platform_is_never_auto_resolved(tmp_path: Path) -> No
     "Disc1", "cd2", "Disco 2"..., but a completely opaque filename still slips
     through). They must NEVER be resolved via RA winner-take-all — doing so
     would discard a real, distinct disc, not a duplicate copy.
+
+    GAMECUBE-DISC-BUG-1d: platform is "PlayStation" (the real catalog display
+    name games.platform holds in production, from platforms.toml), not the
+    short folder code "psx" — using the short code here used to pass only
+    because the guard was (wrongly) matching against short codes too.
     """
     roms = tmp_path / "roms"
     roms.mkdir()
@@ -347,14 +352,14 @@ def test_collision_on_disc_platform_is_never_auto_resolved(tmp_path: Path) -> No
         source_path=disc1,
         md5=md5_disc1,
         canonical_title="Final Fantasy VII (USA)",
-        platform="psx",
+        platform="PlayStation",
     )
     _insert_game(
         repo,
         source_path=disc2,
         md5=md5_disc2,
         canonical_title="Final Fantasy VII (USA)",
-        platform="psx",
+        platform="PlayStation",
     )
 
     # Only Disc 1 has RA achievement data — the exact scenario that used to
@@ -368,6 +373,102 @@ def test_collision_on_disc_platform_is_never_auto_resolved(tmp_path: Path) -> No
     response = apply_ra_conflicts(repo, config)
 
     # Both discs must remain exactly where they were — nothing discarded, nothing renamed.
+    assert disc1.exists(), "Disc 1 was moved/renamed"
+    assert disc2.exists(), "Disc 2 was incorrectly discarded"
+    assert not (roms / "_descartados").exists(), "_descartados created for a real disc"
+
+    assert response["resolved"] == 0
+    assert response["skipped_multi_disc"] == 2
+    assert response["errors"] == []
+
+
+def test_collision_on_gamecube_multi_disc_is_never_auto_resolved(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1a regression: GameCube was excluded from
+    _DISC_SUBFOLDER_PLATFORMS (single-file dumps, INBOX-ORPHAN-3) and that same
+    exclusion used to also disable the multi-disc collision guard here, letting
+    real sets (Twin Snakes, Resident Evil 0/1/4) get RA-winner-resolved as if
+    they were duplicate copies — discarding a real, needed disc.
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    disc1 = roms / "Metal Gear Solid - The Twin Snakes Media A.rvz"
+    disc2 = roms / "Metal Gear Solid - The Twin Snakes Media B.rvz"
+    disc1.write_bytes(b"DISC_ONE_CONTENT")
+    disc2.write_bytes(b"DISC_TWO_CONTENT")
+
+    md5_disc1 = "1" * 32
+    md5_disc2 = "2" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=disc1,
+        md5=md5_disc1,
+        canonical_title="Metal Gear Solid - The Twin Snakes (USA)",
+        platform="gamecube",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2,
+        md5=md5_disc2,
+        canonical_title="Metal Gear Solid - The Twin Snakes (USA)",
+        platform="gamecube",
+    )
+
+    _write_ra_cache(tmp_path, [_ra_entry(7, md5_disc1, 40)])
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    assert disc1.exists(), "Disc 1 was moved/renamed"
+    assert disc2.exists(), "Disc 2 was incorrectly discarded"
+    assert not (roms / "_descartados").exists(), "_descartados created for a real disc"
+
+    assert response["resolved"] == 0
+    assert response["skipped_multi_disc"] == 2
+    assert response["errors"] == []
+
+
+def test_collision_on_ps2_multi_disc_is_never_auto_resolved(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1d regression: the multi-disc guard compared
+    ``platform.lower()`` against short folder codes ("psx", "saturn", "ps2"),
+    but games.platform in production holds the catalog display name
+    ("PlayStation", "Sega Saturn", "PlayStation 2") — so PS2 (and PSX/Saturn)
+    were silently never protected. Real case: Shadow Hearts - Covenant.
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    disc1 = roms / "Shadow Hearts - Covenant Media A.zip"
+    disc2 = roms / "Shadow Hearts - Covenant Media B.zip"
+    disc1.write_bytes(b"DISC_ONE_CONTENT")
+    disc2.write_bytes(b"DISC_TWO_CONTENT")
+
+    md5_disc1 = "1" * 32
+    md5_disc2 = "2" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=disc1,
+        md5=md5_disc1,
+        canonical_title="Shadow Hearts - Covenant (USA)",
+        platform="PlayStation 2",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2,
+        md5=md5_disc2,
+        canonical_title="Shadow Hearts - Covenant (USA)",
+        platform="PlayStation 2",
+    )
+
+    _write_ra_cache(tmp_path, [_ra_entry(7, md5_disc1, 40)])
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
     assert disc1.exists(), "Disc 1 was moved/renamed"
     assert disc2.exists(), "Disc 2 was incorrectly discarded"
     assert not (roms / "_descartados").exists(), "_descartados created for a real disc"

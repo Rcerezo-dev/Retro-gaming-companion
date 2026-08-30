@@ -25,6 +25,30 @@ _DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset(
     }
 )
 
+# GAMECUBE-DISC-BUG-1a/1d: platforms that can have real multi-disc sets, used
+# by apply_ra_conflicts() to skip auto-discard on "disk"/"collision"
+# conflicts — a separate concept from _DISC_SUBFOLDER_PLATFORMS above (folder
+# layout, matched against actual on-disk folder names like "psx"/"gamecube").
+# This set is matched against ``MatchedGame.platform.lower()``, which is the
+# catalog *display* name from platforms.toml (e.g. "PlayStation", "Sega
+# Saturn"), not the short folder code — using folder-code strings here
+# ("psx", "saturn") silently never matched real PlayStation/Sega Saturn/
+# PlayStation 2 games (only GameCube/Dreamcast/Wii happened to match because
+# their display name equals their folder code). GameCube dumps are
+# single-file (no subfolder, see _DISC_SUBFOLDER_PLATFORMS) but still ship
+# multi-disc titles (Twin Snakes, Resident Evil 0/1/4), so it's included here
+# even though it's excluded from _DISC_SUBFOLDER_PLATFORMS.
+_MULTI_DISC_RISK_PLATFORMS: frozenset[str] = frozenset(
+    {
+        "playstation",
+        "playstation 2",
+        "sega saturn",
+        "dreamcast",
+        "gamecube",
+        "wii",
+    }
+)
+
 # Annotations de región al estilo No-Intro: (USA), (Europe), (World), etc.
 _REGION_RE = re.compile(
     r"\s*\((?:USA|Europe|World|Japan|Germany|France|Spain|Italy|Australia|"

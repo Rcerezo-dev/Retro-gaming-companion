@@ -8,6 +8,7 @@ from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
 from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
 from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION
+from rom_manager.utils.disc_tag import find_disc_number
 
 _logger = logging.getLogger(__name__)
 
@@ -251,14 +252,26 @@ class CatalogMatcher:
         # varias plataformas (remakes, Virtual Console, romhacks...) — sin
         # esto se quedaba con hits[0], que solo depende del orden alfabético
         # de carga de los .dat (catalog/matcher.py:142), no de qué plataforma
-        # es realmente el archivo. Preferir el hit cuya plataforma coincide
+        # es realmente el archivo. Preferir los hits cuya plataforma coincide
         # con la extensión real; si ninguno coincide (p.ej. .zip, ambiguo por
-        # diseño), cae al primero como antes.
+        # diseño), se queda con todos como antes.
         ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
-        entry, source = hits[0]
+        candidates = hits
         if ext_platform:
-            for hit_entry, hit_source in hits:
-                if _platform_from_dat_name(hit_source) == ext_platform:
+            platform_hits = [h for h in hits if _platform_from_dat_name(h[1]) == ext_platform]
+            if platform_hits:
+                candidates = platform_hits
+
+        # GAMECUBE-DISC-BUG-1e: normalize_for_match() borra "(Disc N)" junto
+        # con el resto de anotaciones, así que un set multi-disco colapsa a
+        # una sola clave y `candidates` puede traer una entrada del DAT por
+        # disco. Sin esto siempre ganaba la primera (casi siempre Disc 1),
+        # asignando el mismo canonical_title a todos los discos del set.
+        entry, source = candidates[0]
+        file_disc = find_disc_number(filename)
+        if file_disc is not None:
+            for hit_entry, hit_source in candidates:
+                if find_disc_number(hit_entry.title) == file_disc:
                     entry, source = hit_entry, hit_source
                     break
         return MatchResult(

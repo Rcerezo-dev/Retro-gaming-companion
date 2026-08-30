@@ -544,7 +544,7 @@ def _review_groups_for_repo(
     is already a tracked row, adding their reason without creating a
     duplicate entry.
     """
-    from rom_manager.planner.operation_planner import build_plan
+    from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS, build_plan
     from rom_manager.retroachievements.ra_checker import _normalize_title
 
     with repo.connect() as conn:
@@ -647,6 +647,13 @@ def _review_groups_for_repo(
         for idx in idxs:
             if idx in extra_reasons:
                 reasons.add(extra_reasons[idx])
+        # GAMECUBE-DISC-BUG-1a/1d/UX: a "disk"/"collision" conflict on a
+        # platform that can have real multi-disc sets (PSX/PS2/Saturn/
+        # Dreamcast/GameCube/Wii) is never auto-resolved by apply_ra_conflicts
+        # (see ra_duplicates_service.py) — flag it here too so the UI can show
+        # a "posible multi-disco" explanation instead of a plain conflict.
+        if reasons & {"disk", "collision"} and plat.lower() in _MULTI_DISC_RISK_PLATFORMS:
+            reasons.add("multi_disc_risk")
         if not reasons:
             # United by a coincidental title/sha1 match but nothing actually
             # duplicated (e.g. two unmatched files with the same filename stem
