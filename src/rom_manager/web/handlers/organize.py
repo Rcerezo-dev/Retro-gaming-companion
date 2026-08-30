@@ -189,9 +189,7 @@ def _do_apply(
                         # INBOX-FIX-6: colocar un .zip de consola en su carpeta
                         # de plataforma no lo hace jugable — extraer aquí mismo
                         # (extract_zip ya se auto-excluye para carpetas arcade/MAME).
-                        zip_result = extract_zip(
-                            op.target_path, delete_source=True, dry_run=False
-                        )
+                        zip_result = extract_zip(op.target_path, delete_source=True, dry_run=False)
                         if zip_result.success:
                             zips_extracted += 1
                         elif zip_result.error:
