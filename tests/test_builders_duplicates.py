@@ -116,6 +116,43 @@ def test_title_duplicate_same_exact_canonical_title(tmp_path: Path) -> None:
     assert {e["source_path"] for e in group["entries"]} == {path_a, path_b}
 
 
+def test_misplaced_duplicate_loses_tie_to_correct_folder(tmp_path: Path) -> None:
+    """INBOX-ORPHAN-4: with RA unsupported on both sides (true for every disc
+    format today, INBOX-RA-HASH-GAP) and an identical filename, the old
+    tiebreak fell through to insertion order — a misplaced duplicate could win
+    just by being scanned first. The entry outside its platform folder must
+    now lose the tie even when it has the lower row id."""
+    from types import SimpleNamespace
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    misplaced = str(tmp_path / "Game (USA)" / "Game (USA).rvz")
+    correct = str(tmp_path / "gamecube" / "Game (USA).rvz")
+    # Misplaced copy inserted FIRST -> lower row id, would have won pre-fix.
+    _insert_game(
+        repo,
+        source_path=misplaced,
+        sha1="A" * 40,
+        original_filename="Game (USA).rvz",
+        platform="GameCube",
+        canonical_title="Game (USA)",
+    )
+    _insert_game(
+        repo,
+        source_path=correct,
+        sha1="B" * 40,
+        original_filename="Game (USA).rvz",
+        platform="GameCube",
+        canonical_title="Game (USA)",
+    )
+
+    config = SimpleNamespace(project_root=tmp_path, library_root=tmp_path)
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    recommended = next(e for e in result["groups"][0]["entries"] if e["recommended"])
+    assert recommended["source_path"] == correct
+
+
 def test_different_regions_are_not_merged(tmp_path: Path) -> None:
     """Regression (found against a real PSX library, see the multi-disc test
     below for the worse variant): region tags must NOT be stripped when
