@@ -64,25 +64,38 @@ function _renderReviewQueue(groups, wastedBytes) {
 
 function _renderReviewGroup(g) {
   const isConflictGroup = g.reasons.some((r) => _CONFLICT_REASONS.has(r));
+  const isMultiDiscRisk = g.reasons.includes('multi_disc_risk');
   const badges = g.reasons
+    .filter((r) => r !== 'multi_disc_risk') // se explica con su propia insignia + nota, no como badge genérico
     .map((r) => {
       const info = _REASON_LABELS[r] || { text: r, color: 'var(--c-muted)' };
       return `<span class="badge" style="background:transparent;border:1px solid ${info.color};color:${info.color};font-size:10px;margin-left:4px">${info.text}</span>`;
     })
     .join('');
   const wastedLabel = g.wasted_bytes > 0 ? ` · ${window.fmtSize(g.wasted_bytes)} recuperables` : '';
-  const actions = isConflictGroup
-    ? `<button class="btn" style="font-size:11px;padding:3px 10px;border-color:var(--c-purple);color:var(--c-purple)" onclick="doResolveRaConflicts()">Resolver con RA (todos los conflictos del plan)</button>`
-    : `<button class="btn primary" style="font-size:11px;padding:3px 10px" onclick="applyReviewGroup('${_jsStr(g.group_key)}')">Aplicar recomendación</button>
+  // GAMECUBE-DISC-BUG-1a/1d/UX: en plataformas con multi-disco real
+  // (PSX/PS2/Saturn/Dreamcast/GameCube/Wii), "Resolver con RA" nunca actúa
+  // sobre este grupo (apply_ra_conflicts lo salta a propósito, ver
+  // ra_duplicates_service.py) — explicarlo en vez de ofrecer un botón que no
+  // hace nada, y dar una salida real: marcarlo revisado tras comprobarlo.
+  const multiDiscNote = isMultiDiscRisk
+    ? `<div style="font-size:11px;color:var(--c-amber);margin-bottom:6px">⚠ Puede que sean discos distintos del mismo set (Disc 1/Disc 2…), no copias duplicadas — no se descartan automáticamente. Comprueba manualmente antes de decidir.</div>`
+    : '';
+  const actions = isMultiDiscRisk
+    ? `<button class="btn" style="font-size:11px;padding:3px 10px;color:var(--c-muted)" onclick="markReviewGroupIntentional('${_jsStr(g.group_key)}')">Ya lo he revisado</button>`
+    : isConflictGroup
+      ? `<button class="btn" style="font-size:11px;padding:3px 10px;border-color:var(--c-purple);color:var(--c-purple)" onclick="doResolveRaConflicts()">Resolver con RA (todos los conflictos del plan)</button>`
+      : `<button class="btn primary" style="font-size:11px;padding:3px 10px" onclick="applyReviewGroup('${_jsStr(g.group_key)}')">Aplicar recomendación</button>
        <button class="btn" style="font-size:11px;padding:3px 10px;color:var(--c-muted)" onclick="markReviewGroupIntentional('${_jsStr(g.group_key)}')">Copia intencional</button>`;
   return `<details class="dup-group" style="margin-bottom:10px" open>
     <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:6px 0">
       <span>${window._h(g.canonical_title || '(sin título)')}
-        <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${window._h(g.platform || 'Unknown')}</span>${badges}
+        <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${window._h(g.platform || 'Unknown')}</span>${isMultiDiscRisk ? `<span class="badge" style="background:transparent;border:1px solid var(--c-amber);color:var(--c-amber);font-size:10px;margin-left:4px">Posible multi-disco</span>` : ''}${badges}
       </span>
       <span style="color:var(--c-dim);font-size:11px">${g.entries.length} copia${g.entries.length !== 1 ? 's' : ''}${wastedLabel}</span>
     </summary>
     <div style="padding:6px 4px 4px">
+      ${multiDiscNote}
       ${g.entries.map((e) => _renderReviewEntry(e, g, isConflictGroup)).join('')}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>
     </div>

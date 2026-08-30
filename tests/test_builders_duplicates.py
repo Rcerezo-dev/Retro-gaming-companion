@@ -289,3 +289,48 @@ def test_multidisc_set_is_not_flagged_as_title_duplicate(tmp_path: Path) -> None
     result = _build_review_queue(repo, repo, None)
 
     assert not any("title" in g["reasons"] for g in result["groups"])
+
+
+def test_gamecube_multi_disc_collision_flagged_as_risk(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1a/1d/UX: a "collision" conflict on a platform that
+    can have real multi-disc sets (here GameCube — excluded from the
+    per-game-subfolder set since INBOX-ORPHAN-3, but still ships multi-disc
+    titles) must carry the "multi_disc_risk" reason so the review UI can
+    explain it instead of showing a plain, misleading "conflict"."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i in (1, 2):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "gamecube" / f"Twin Snakes (Disc {i}).rvz"),
+            sha1=chr(64 + i) * 40,
+            original_filename=f"Twin Snakes (Disc {i}).rvz",
+            # Same canonical_title on purpose (GAMECUBE-DISC-BUG-1e): the
+            # matcher used to assign Disc 1's DAT entry to every disc.
+            canonical_title="Metal Gear Solid - The Twin Snakes (USA) (Disc 1)",
+            platform="GameCube",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    group = next(g for g in result["groups"] if "collision" in g["reasons"])
+    assert "multi_disc_risk" in group["reasons"]
+
+
+def test_non_disc_platform_collision_not_flagged_as_risk(tmp_path: Path) -> None:
+    """Sanity check: a plain name collision on a platform with no real
+    multi-disc concept (Game Boy) must NOT get the multi-disc explanation."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i in (1, 2):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / f"tetris_{i}.gb"),
+            sha1=chr(64 + i) * 40,
+            original_filename=f"tetris_{i}.gb",
+            canonical_title="Tetris (World)",
+            platform="Game Boy",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    group = next(g for g in result["groups"] if "collision" in g["reasons"])
+    assert "multi_disc_risk" not in group["reasons"]
