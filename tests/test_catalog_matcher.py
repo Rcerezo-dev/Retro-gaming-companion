@@ -192,6 +192,36 @@ def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_pa
     assert result.platform == "Nintendo 3DS"
 
 
+def test_multi_disc_title_picks_matching_disc_entry(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1e: caso real (Metal Gear Solid - The Twin Snakes,
+    GameCube). normalize_for_match() borra "(Disc N)" junto con el resto de
+    anotaciones, así que Disc 1 y Disc 2 colapsan a la misma clave del índice
+    de títulos y ambos hits son de la misma plataforma (el desempate por
+    extensión no los separa). Sin el fix, el Disc 2 real habría heredado el
+    canonical_title del Disc 1 (siempre gana el primero en orden de carga),
+    causando una colisión de nombre que hacía parecer duplicados a dos discos
+    distintos."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        nointro / "Nintendo - GameCube.dat",
+        [
+            ("Metal Gear Solid - The Twin Snakes (USA) (Disc 1)", "AA" * 20, "MD1", "C1", 1024),
+            ("Metal Gear Solid - The Twin Snakes (USA) (Disc 2)", "BB" * 20, "MD2", "C2", 1024),
+        ],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+
+    result_disc1 = matcher.match("0" * 40, "Metal Gear Solid - The Twin Snakes (USA) (Disc 1).rvz")
+    result_disc2 = matcher.match("0" * 40, "Metal Gear Solid - The Twin Snakes (USA) (Disc 2).rvz")
+
+    assert result_disc1 is not None and result_disc2 is not None
+    assert result_disc1.title == "Metal Gear Solid - The Twin Snakes (USA) (Disc 1)"
+    assert result_disc2.title == "Metal Gear Solid - The Twin Snakes (USA) (Disc 2)"
+
+
 def test_name_fallback_no_hit_returns_none(catalog_dirs: tuple[Path, Path]) -> None:
     """Unknown SHA1 + unknown name → None."""
     nointro, redump = catalog_dirs
