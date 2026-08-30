@@ -428,9 +428,10 @@ async function doApply() {
               showToast('Error: ' + r.error, 'err');
             } else {
               const savesInfo   = r.saves_renamed > 0 ? ` · ${r.saves_renamed} saves` : '';
+              const zipsInfo    = r.zips_extracted > 0 ? ` · ${r.zips_extracted} ZIPs descomprimidos` : '';
               const failedInfo  = r.failed > 0 ? ` · ${r.failed} fallidos` : '';
               const conflictInfo = r.conflicts > 0 ? ` · ${r.conflicts} conflictos restantes` : '';
-              showToast(`✓ ${r.renamed} renombrados${savesInfo}${failedInfo}${conflictInfo}`,
+              showToast(`✓ ${r.renamed} renombrados${savesInfo}${zipsInfo}${failedInfo}${conflictInfo}`,
                 r.failed > 0 || r.conflicts > 0 ? 'info' : 'ok');
               if (bar) bar.style.width = '100%';
               if (pct) pct.textContent = '100%';

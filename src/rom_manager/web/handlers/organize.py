@@ -129,7 +129,7 @@ def _do_apply(
                 ]
 
             total = len(pending_ops)
-            renamed = failed = skipped = saves_renamed = 0
+            renamed = failed = skipped = saves_renamed = zips_extracted = 0
             skip_details: list[str] = []
             timestamp = utc_now()
             job_manager.update_progress("apply", {"current": 0, "total": total, "current_file": ""})
@@ -183,6 +183,19 @@ def _do_apply(
                     )
                     renamed += 1
                     saves_renamed += outcome.saves_renamed
+                    if op.target_path.suffix.lower() == ".zip":
+                        from rom_manager.converters.zip_extractor import extract_zip
+
+                        # INBOX-FIX-6: colocar un .zip de consola en su carpeta
+                        # de plataforma no lo hace jugable — extraer aquí mismo
+                        # (extract_zip ya se auto-excluye para carpetas arcade/MAME).
+                        zip_result = extract_zip(op.target_path, delete_source=True, dry_run=False)
+                        if zip_result.success:
+                            zips_extracted += 1
+                        elif zip_result.error:
+                            skip_details.append(
+                                f"{op.target_path.name}: ZIP sin extraer — {zip_result.error}"
+                            )
                 else:
                     err_lower = outcome.error.lower()
                     if "not found" in err_lower or "no such file" in err_lower:
@@ -196,6 +209,7 @@ def _do_apply(
                 "failed": failed,
                 "skipped": skipped,
                 "saves_renamed": saves_renamed,
+                "zips_extracted": zips_extracted,
                 "conflicts": len(plan.conflicts),
                 "skip_details": skip_details[:20],
                 "error_details": skip_details[:50],

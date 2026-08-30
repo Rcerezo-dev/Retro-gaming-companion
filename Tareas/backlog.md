@@ -7,8 +7,6 @@
 > docs/ideas/ + docs/Feedback/29/8.md (DEDUP-RENAME, HERR-FIX, PSX-ORPHAN-5,
 > ZIP-ROUTE-7, ANBERNIC-PICK-6/7, SAGE-4, GAME-BLOCKLIST, 5 filas nuevas en
 > ROADMAP-IDEAS)
-> 2026-08-29 (tarde): INBOX-FIX-6 (ZIPs de consola, PS2 confirmado, nunca se
-> descomprimen fuera del Inbox) — investigado, sin arreglar
 > 2026-08-30: INBOX-ORPHAN-3 arreglado (fix + limpieza de 104 carpetas huérfanas
 > reales) — ver INBOX-ORPHAN-4/5, hallazgos nuevos derivados de la investigación
 > 2026-08-30: INBOX-FIX-6 arreglado (ZIPs de consola ahora se descomprimen tras
@@ -325,7 +323,7 @@ cualquier otra fuera de `arcade`/`mame`/`cps1-3`/`fbneo`/`neogeo`).
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| INBOX-FIX-6 | Decidir y cerrar el hueco: o bien `_do_apply` extrae ZIPs de plataformas no-arcade antes de renombrar (mismo criterio de exclusión que `zip_router.py` ya usa: `ARCADE_FOLDERS`/`mame`/`cps1-3`/`fbneo`/`neogeo` se quedan zipados, el resto se descomprime), o bien el matcher/plan nunca deja pasar un `.zip` de consola sin antes empujarlo por el pipeline de extracción del Inbox. Auditar primero cuántos `.zip` de consola hay hoy fuera de `arcade\` en la biblioteca real antes de decidir el mecanismo | `web/handlers/organize.py::_do_apply`, `web/inbox_pipeline.py` (`extract_zip`), `catalog/matcher.py` (`crc_index`) | 🔴 pendiente, sin implementar (investigado 2026-08-29) |
+| INBOX-FIX-6 | `_do_apply` ahora llama a `extract_zip(target_path, delete_source=True)` tras cada rename exitoso a `.zip` — reutiliza el guard de `extract_zip` (arcade/MAME por carpeta destino, se auto-excluye). Causa raíz secundaria encontrada al testear con datos reales de PS2: el guard de `extract_zip` rechazaba **cualquier** ZIP con `.iso` dentro ("usa el conversor CHD"), que es exactamente el caso PS2 reportado — no hay pipeline de CHD para PS2/GameCube en la app (solo `.cue`/`.gdi` de PSX/Saturn/Dreamcast lo tienen), así que un `.iso` suelto sin `.cue`/`.gdi` compañero es un archivo reproducible por sí solo. Guard reducido a solo `.cue`/`.gdi` (sets multi-track reales) — un `.iso`/`.bin` sin ninguno de esos dos ya se extrae. 8 tests nuevos (`test_zip_extractor.py`, `test_organize_apply_zip_extract.py`), suite completa en verde salvo los 3 fallos preexistentes de ADB (dependen de que no haya dispositivo conectado) | `web/handlers/organize.py::_do_apply`, `converters/zip_extractor.py` (`extract_zip`, guard `_DISC_SET_EXTENSIONS`) | ✅ hecho 2026-08-30 |
 
 ---
 
