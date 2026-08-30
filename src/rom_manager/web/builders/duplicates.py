@@ -83,7 +83,9 @@ def _review_entry_sort_key(
     the filename tiebreak.
     """
     ra_tier = 0 if entry["ra_supported"] else 1
-    folder_tier = 0 if _in_correct_platform_folder(entry["source_path"], platform, library_root) else 1
+    folder_tier = (
+        0 if _in_correct_platform_folder(entry["source_path"], platform, library_root) else 1
+    )
     lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
     return (ra_tier, folder_tier, lang_tier, entry["filename"])
 
