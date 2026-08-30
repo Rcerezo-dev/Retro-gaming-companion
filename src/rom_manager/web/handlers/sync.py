@@ -77,8 +77,16 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                 if _cancel.is_set():
                     raise InterruptedError("RA check cancelled")
 
+            from pathlib import Path as _Path
+
             try:
-                summary = check_library(repository, api_key, cache_dir=cache_dir, progress_cb=_prog)
+                summary = check_library(
+                    repository,
+                    api_key,
+                    cache_dir=cache_dir,
+                    chdman_path=_Path(config.chdman) if config.chdman else None,
+                    progress_cb=_prog,
+                )
             except InterruptedError:
                 job_result = {
                     "cancelled": True,
