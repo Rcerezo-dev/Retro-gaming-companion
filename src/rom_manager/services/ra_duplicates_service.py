@@ -329,14 +329,14 @@ def apply_ra_conflicts(
     - "collision": two pending ops share the same target path (two ROMs → same canonical name).
                    Group by target, compare all sources' RA; discard all but the winner.
 
-    DUP-RA-COLLISION-1: conflicts on disc-based platforms (``_DISC_SUBFOLDER_PLATFORMS``)
+    DUP-RA-COLLISION-1: conflicts on disc-based platforms (``_MULTI_DISC_RISK_PLATFORMS``)
     are never auto-resolved here — a conflict there may be two distinct discs of one
     multi-disc set colliding on the same untagged canonical name, not duplicate copies,
     and RA achievement count is not a valid signal to pick which disc to keep. They are
     counted in ``skipped_multi_disc`` and left untouched for manual review.
     """
     from rom_manager.planner import build_plan
-    from rom_manager.planner.operation_planner import _DISC_SUBFOLDER_PLATFORMS, FormatOptions
+    from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS, FormatOptions
     from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
 
     opts = FormatOptions()
@@ -364,7 +364,7 @@ def apply_ra_conflicts(
         if not op.source_path.exists():
             continue
         plat = op.game.platform or ""
-        if plat.lower() in _DISC_SUBFOLDER_PLATFORMS:
+        if plat.lower() in _MULTI_DISC_RISK_PLATFORMS:
             # DUP-RA-COLLISION-1: on disc-based platforms (psx/saturn/ps2/dreamcast/
             # gamecube/wii) a "disk" conflict here can be two *different* discs of the
             # same multi-disc set whose canonical filenames collide because the source
@@ -421,7 +421,7 @@ def apply_ra_conflicts(
 
     for _target_str, ops in collision_groups.items():
         plat = ops[0].game.platform or ""
-        if plat.lower() in _DISC_SUBFOLDER_PLATFORMS:
+        if plat.lower() in _MULTI_DISC_RISK_PLATFORMS:
             # DUP-RA-COLLISION-1: same reasoning as the "disk" branch above — a
             # collision on a disc platform may be distinct discs of one set, not
             # duplicate copies. Never auto-discard; leave for manual review.
