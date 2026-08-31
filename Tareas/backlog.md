@@ -13,6 +13,9 @@
 > el apply; guard de `extract_zip` corregido para no bloquear `.iso` sueltos de PS2)
 > 2026-08-30: INBOX-ORPHAN-4 resuelto (4 duplicados GameCube borrados, mismo
 > dump peor comprimido) — hallazgo nuevo INBOX-RA-HASH-GAP (RA no compara discos)
+> 2026-08-31: hallazgos LIBRARY-SYNC-STALE-1 (biblioteca corregida el 08-30 sin
+> sincronizar a la Anbernic) y GBA-SAVE-PATH-1 (GBA no encuentra saves tras
+> instalar emuladores nuevos, bloqueado por ADB unauthorized)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -971,4 +974,163 @@ Lo que sí es un hallazgo real y sin explicar: **1.522 archivos marcados "missin
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | HEALTH-CHECK-1a | Investigar los 1.522 "missing" del Health Check del 2026-08-26: ejecutar (con permiso del usuario, es lento) un Health Check nuevo desde la pestaña Herramientas y comparar — si el número baja mucho, confirma que fue un falso positivo transitorio (disco desconectado); si se mantiene, hay que mirar los `source_path` concretos que fallan (¿todos en una misma subcarpeta/plataforma? ¿rutas con caracteres especiales?) | `utils/health_checker.py`, `.rommgr/health_schedule.json` | 🔴 pendiente, requiere lanzar Health Check completo (con permiso) |
+
+---
+
+### ARCADE-RENAME-BUG-1 — MAME/FBNeo no cargan ~2.766 ROMs de `arcade/` por nombre de archivo (hallazgo 2026-08-31)
+
+Origen: el usuario reportó que desde iiSU y Daijishou, cargar juegos de
+MAME/FBNeo "es terrible" — en muchos casos el emulador no llega a abrir el
+juego. Investigado contra la biblioteca real (`E:\Carpetas anbernic\arcade`,
+10.420 `.zip`) y los catálogos reales (`.rommgr/catalogs/Arcade/`):
+
+**Causa raíz #1 (la principal, confirmada con datos)**: MAME y FBNeo
+identifican una ROM por el **nombre corto interno del set** (p. ej.
+`silkwrm.zip`, `cclimber.zip`), no por un título descriptivo. **2.766 ZIPs
+de `arcade/` (26,5% del total) tienen nombre descriptivo tipo No-Intro**
+("Silkworm (Europe).zip", "Crazy Climber (US set 1).zip") — cruzados contra
+el índice de nombres cortos de FBNeo (8.136 machines) + MAME 2003-Plus
+(4.858 machines, ver bug de parseo abajo): **0 de esos 2.766 coinciden** —
+ninguno puede cargar en ningún core de MAME/FBNeo tal como está nombrado
+ahora mismo. Los otros 7.553 ZIPs ya usan nombre corto y sí funcionan.
+Verificado en la BD (`library_pc.db`) que "Crazy Climber (US set 1).zip"
+**sí está bien identificado como MAME** (`catalog_source='mame.xml'`) pero
+el renombrado nunca lo llevó al nombre corto que el emulador necesita — la
+misma lógica de "nombre canónico descriptivo" que usamos para
+GBA/PSX/SNES... se aplicó también a arcade, donde es precisamente lo
+contrario de lo que hace falta.
+
+**Causa raíz #2 (bug de parseo encontrado de rebote)**: `load_mame_xml`
+(`catalog/mame_loader.py:29`) asume que si `root.tag != "datafile"` los
+juegos están en `<machine>`, pero `MAME 2003-Plus.dat` real (`.rommgr/catalogs/Arcade/MAME 2003-Plus.dat`)
+tiene `root.tag == "mame"` con hijos `<game>` (no `<machine>`) — el parseo
+no lanza error (el XML es válido) pero devuelve **0 machines siempre**,
+silenciosamente. Cualquier feature que dependa de `load_mame_xml` contra
+este dat real (matching, `ARCADE-RECON`, DAT-DL) ha estado funcionando sin
+la mitad de la cobertura MAME sin que nada lo avisara.
+
+**Causa raíz #3 (ya conocida, reconfirmada aquí)**: el mismo bug de
+`_match_by_title` de `GBA-MISPLACED-2` también corrompe arcade — "Silkworm
+(Europe).zip" y "Outzone (Europe).zip" (juegos arcade con versión
+homónima en Atari ST/Amiga) quedaron etiquetados `platform='Atari ST'` /
+`'Amiga'` en vez de Arcade, `match_confidence='low'`/`'medium'` — mismo
+`hits[0]` arbitrario sin desambiguar por carpeta real.
+
+**Config de iiSU (dato de contexto, no la causa principal)**: `arcade`,
+`cps1`, `cps2`, `cps3` y `neogeo` en `emulator_options.json` del dispositivo
+apuntan todos al mismo core FinalBurn Neo — no hay separación por core, así
+que incluso arreglando el nombre, un set que sea genuinamente solo-MAME (44
+casos confirmados: están en `MAME 2003-Plus.dat` pero no en el FBNeo dat)
+seguiría sin cargar por esta vía.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ARCADE-RENAME-BUG-1a | Arreglar `load_mame_xml` para detectar el tag real de hijos (`<machine>` vs `<game>`) en vez de asumirlo por `root.tag` — comprobar con `root.find('machine') is not None` como ya se validó aquí, o iterar ambos tags | `catalog/mame_loader.py:18-45` | 🔴 pendiente |
+| ARCADE-RENAME-BUG-1b | **La pieza que de verdad arregla la carga**: la lógica de renombrado/organización de arcade nunca debe convertir el nombre a un título descriptivo — debe conservar (o restaurar) el nombre corto de set (`name` del DAT, no `description`). Localizar dónde se decide `canonical_title` para plataforma Arcade (probablemente donde se aplica el resultado de `_match_by_title`/`_match_by_crc`) y forzar ahí el nombre corto para esta plataforma | `catalog/matcher.py`, `renamer/file_renamer.py` (punto exacto por confirmar) | 🔴 pendiente, causa raíz principal |
+| ARCADE-RENAME-BUG-1c | Backfill: para los 2.766 ZIPs ya renombrados a título descriptivo, hay que recuperar su nombre corto real (por CRC contra FBNeo/MAME, ya tenemos `load_arcade_crc_index`/`load_arcade_manifest`) y renombrarlos de vuelta — **irreversible en apariencia pero no en datos** (el contenido no cambia, solo el nombre del zip) — requiere backup previo y plan (`rommgr plan`) antes de aplicar, mismo patrón que cualquier rename masivo | Biblioteca real (`arcade/`) | 🔴 pendiente, depende de 1b para no repetir el problema |
+| ARCADE-RENAME-BUG-1d | Aplicar el mismo fix de `GBA-MISPLACED-2` (desambiguar por carpeta real cuando la extensión es ambigua) también cubre los casos arcade→Atari ST/Amiga de este hallazgo — no es tarea nueva, solo confirma que arcade también se beneficia de `GBA-MISPLACED-2` | `catalog/matcher.py:250-270` | 🔴 pendiente, mismo fix que GBA-MISPLACED-2 |
+| ARCADE-RENAME-BUG-1e | Separar `arcade`/`cps1/2/3`/`neogeo` en `emulator_options.json` de iiSU por core real (FBNeo vs MAME 2003-Plus) en vez de forzar FBNeo para todo — solo tiene sentido después de 1b/1c, para los 44 sets confirmados solo-MAME | Config del dispositivo (iiSU) | 🔴 pendiente, depende de 1b/1c |
+
+---
+
+### LIBRARY-SYNC-STALE-1 — Biblioteca corregida el 08-30 (GBA/PSX/GameCube) nunca llegó a la Anbernic (hallazgo 2026-08-31)
+
+Origen: el usuario reportó que se dejó "a medias" mandar las bibliotecas
+arregladas de PSX y GBA (y posiblemente GameCube) a la consola. Verificado
+contra `.rommgr/cable_sync_ops.log` (no contra suposiciones): el último Cable
+Sync real de ROMs (`pc_to_anbernic`) corrió 2026-08-29T22:58→23:14Z —
+**antes** de los hallazgos/fixes de `GBA-MISPLACED-1` y `GAMECUBE-DISC-BUG-1`
+(fechados 2026-08-30). Desde entonces solo hay `AUTO-SYNC` de saves en el log,
+ningún Cable Sync de ROMs nuevo. Además, ese último sync ya excluía a
+propósito `psx/`, `gamecube/`, `ps2/`, `Unknown/` y `arcade/` por falta de
+espacio (78 GB libres en la SD, esas carpetas suman 61+34+30+25+18 GB) — es
+decir, PSX y GameCube nunca han llegado a la consola, no es que se cortara a
+medias.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| LIBRARY-SYNC-STALE-1a | Re-lanzar Cable Sync `pc_to_anbernic` solo de `gba/` (cabe de sobra) para reflejar los 25 archivos movidos fuera/dentro de esa carpeta por `GBA-MISPLACED-1a/b/c` — hoy la consola tiene la versión vieja (con archivos mal ubicados que ya no están en el PC) | Cable Sync (pestaña Sync) | 🔴 pendiente, requiere ADB autorizado (ver `GBA-SAVE-PATH-1`) |
+| LIBRARY-SYNC-STALE-1b | **Hecho 2026-08-31.** `psx/` marcaba 195 GB con `du`, pero solo 86,3 GB eran biblioteca real — el resto era limpieza pendiente. Verificado con `chdman extractcd` + `md5sum` (no solo por nombre) antes de mover nada: (1) **182 `.bin` sueltos (93,4 GB)** con nombre exacto de un `.chd` ya existente — hash idéntico confirmado en 3 muestras (Vagrant Story, Darkstalkers 3, Tony Hawk's Pro Skater 2), son el resto sin limpiar de conversiones `chdman` antiguas; (2) **47 grupos de duplicado por región/versión (15,8 GB)** dentro de los `.chd` reales — política aplicada: preferir USA > World > Europe > Spain > Germany > France > Italy > Japan > Asia > el más grande como último criterio (reversible, no es la lógica RA real de la app); (3) **41 `.zip` sueltos (13,5 GB)** que duplican un `.chd` ya existente. Todo movido a subcarpetas dentro de `psx/_descartados/` (excluidas del Cable Sync por diseño, `cable_engine.py:39`) con manifiesto en cada una — nada borrado de forma irreversible. Delta real de sync bajó de 139,5 GB → **75,1 GB**, cabe en los 84 GB libres de la SD. Sync real `pc_to_anbernic` de `psx/` lanzado y verificado | `E:\Carpetas anbernic\psx\_descartados\{bin-redundante-verificado-2026-08-31,duplicados-region-2026-08-31,zip-duplicado-de-chd-2026-08-31}` | ✅ hecho y verificado 2026-08-31 |
+| LIBRARY-SYNC-STALE-1c | **Hecho 2026-08-31.** Los 22 `.cue` de `Tareas/psx-cue-rotos-2026-08-30.md` (ninguno funcional) movidos a `psx/_descartados/cue-rotos-investigados-2026-08-30/` con manifiesto que remite al informe. **Crash 2 sigue pendiente de volver a descargar** — no tiene copia de reemplazo, se movió igual porque el `.cue` en sí ya era inútil (referenciaba un `.bin` inexistente), pero el juego en sí sigue sin resolver | `Tareas/psx-cue-rotos-2026-08-30.md`, `psx/_descartados/cue-rotos-investigados-2026-08-30/` | 🟡 `.cue` rotos limpiados; Crash 2 pendiente de descargar |
+| LIBRARY-SYNC-STALE-1e | **Hallazgo nuevo, sin tocar a propósito**: 42 `.zip` sueltos en `psx/` (8,6 GB) que NO duplican ningún `.chd` existente — probablemente contenido real sin organizar (mismo síntoma que `bagman.zip`/`donpachi.zip` vistos en los conflictos del Inbox al arrancar el servidor hoy). Y 61 `.bin` sueltos (2,75 GB) sin `.chd` ni `.cue` correspondiente — igual, posible contenido único. Ninguno de los dos se tocó (no son duplicados, podrían ser juegos que faltan) — requieren pasar por el Inbox normal, no por limpieza de duplicados | `psx/` (42 `.zip` + 61 `.bin` sueltos) | 🔴 pendiente, revisar vía Inbox, no es limpieza de duplicados |
+| LIBRARY-SYNC-STALE-1d | Re-aplicar a la BD real el fix de `canonical_title` de `GAMECUBE-DISC-BUG-1e` (el código ya distingue bien Disc 1/Disc 2 por número, pero `library_pc.db` sigue con los valores incorrectos hasta un re-scan/re-match) | `library_pc.db` (requiere backup previo) | 🔴 pendiente, requiere backup + re-scan |
+
+---
+
+### GBA-SAVE-PATH-1 — GBA "no encuentra los saves anteriores" tras instalar emuladores nuevos (investigado en vivo 2026-08-31, sin repro confirmado)
+
+Origen: el usuario reportó que tras instalar emuladores nuevos en la
+Anbernic, GBA no arranca con la partida anterior. Investigado en vivo con
+ADB ya autorizado (`RG556006101273 device`):
+
+- **GBA.emu sigue siendo el único emulador de GBA instalado** (`pm list
+  packages` — ningún GBA nuevo, standalone o núcleo). Instalaciones
+  recientes reales: `com.armsx2` (2026-08-25, PS2 — parte de
+  `SAVES-FRAGMENT-6`) y `com.seleuco.mame4d2024` (2026-08-27, `astrocde` —
+  parte de `IISU-CONFIG-1`). Ninguna toca GBA.
+- La ruta que asume `EMULATOR_SAVE_PATHS_DEFAULT` para GBA.emu
+  (`config.py:107-113`, `Android/data/com.explusalpha.GbaEmu/files/EmuEx/GBA/saves`)
+  **está vacía en el dispositivo real** — ese árbol `EmuEx/` ni existe.
+  GBA.emu en esta Anbernic en realidad guarda los `.sav` **junto a las ROMs**
+  en `/storage/521D-04EA/ROMs/gba/*.sav` (mismo patrón ya documentado en
+  `SAVES-FRAGMENT-8`, sin arreglar) — es decir, la ruta configurada en
+  `config.py` para el sync automático por ADB **nunca ha sido la correcta
+  para GBA.emu en este dispositivo**; el mecanismo que sí ha mantenido esos
+  saves sincronizados hasta ahora es el Cable Sync normal de la carpeta
+  `gba/` completa (arrastra ROMs + `.sav` juntos), no el sync especial por
+  paquete de `EMULATOR_SAVE_PATHS_DEFAULT`.
+- Comparado el listado completo de `.sav` en `ROMs/gba/` (dispositivo) contra
+  `gba/` (PC, `E:\Carpetas anbernic`): **coinciden casi 1:1**, incluso
+  copias de 2014. El histórico está intacto y sigue en sync.
+- Solo 2 archivos de hoy (2026-08-31 00:46-00:48, mismos minutos en que
+  `dumpsys usagestats` registra a GBA.emu abierto con un `PickActivity` de
+  selección de carpeta): `Pokemon WaterBlue.sav` (ROM nueva, añadida ayer
+  23:06, sin partida previa — normal) y `Prince of Persia - The Sands of
+  Time (USA) (En,Fr,Es).sav` (**0 bytes, plantilla en blanco** — pero no hay
+  ningún `.sav` previo en el PC con ese nombre exacto tampoco, así que no es
+  un caso de "nombre cambiado sin arrastrar el save" tipo `SAVES-FRAGMENT-7`
+  — simplemente no había partida guardada de este juego en esta biblioteca).
+
+**No se ha reproducido el síntoma exacto** con la evidencia disponible — el
+histórico de saves de GBA está intacto y sincronizado. Sigue sin confirmarse
+qué juego concreto perdió progreso, o si el problema fue puntual (un save en
+blanco creado sobre la marcha por GBA.emu al perder el permiso SAF de la
+carpeta tras la ronda de instalaciones del 08-25/08-27, y el usuario lo
+interpretó como "no encuentra los saves") vs. sistémico.
+
+**Causa raíz confirmada 2026-08-31**: el cambio de core/emulador de GBA en
+RetroArch dejó dos esquemas de saves conviviendo — el viejo por-core
+(`RetroArch/saves/VBA Next/`, con el progreso real) y el nuevo por-plataforma
+(`RetroArch/saves/gba/`, el que lee el emulador/core actual). La migración
+del 08-25 copió bien la mayoría, pero no todos los juegos:
+
+| Juego | Verificación (diff de bytes real, no solo fecha) | Resultado |
+|---|---|---|
+| **Pokémon Rojo Fuego/FireRed (Rev 1)** | `saves/gba/` (partida de ayer) vs `saves/VBA Next/` (08-23): **13,2% de bytes distintos** → partida nueva, no continuación (el usuario confirmó: probó el juego y no encontró la vieja) | 🔴 progreso real sí estaba en riesgo de quedar "detrás" — **restaurado** |
+| **Pokémon Pinball - Ruby & Sapphire (Japan) (Rev 1)** | 0,09% de bytes distintos entre 08-20 y 08-30 | ✅ es la misma partida, un poco más avanzada — sin acción |
+| **Zelda - A Link to the Past** (ambas variantes de nombre) | 0% de diferencia, bytes idénticos | ✅ migración correcta — sin acción |
+| **Metroid - Zero Mission [E]** | El save real (2025-06-29) nunca se copió a `saves/gba/` — no había nada que lo sobrescribiera todavía (el usuario no lo había probado) | 🔴 hueco real, mismo patrón que iba a repetir el caso de FireRed en cuanto se abriera — **restaurado antes de que pasara** |
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| GBA-SAVE-PATH-1a | **Hecho 2026-08-31**: backup del save de prueba descartado de FireRed en `.rommgr/backup_gba_save_restore_2026-08-31/` (con manifiesto), luego copiado en el dispositivo (`adb shell cp`, mismo filesystem) el save real de `saves/VBA Next/` → `saves/gba/` para **Pokémon Rojo Fuego/FireRed** (sobrescrito) y **Metroid - Zero Mission [E]** (no existía, sin sobrescritura). Verificado con `md5sum` en el propio dispositivo tras la copia: coincide exacto con el origen en ambos casos | Dispositivo (RG556006101273) + `.rommgr/backup_gba_save_restore_2026-08-31/` | ✅ hecho y verificado 2026-08-31 |
+| GBA-SAVE-PATH-1b | **Hecho 2026-08-31 — auditoría completa, no solo los 4 juegos nombrados.** El usuario avisó que "todos los juegos deberían tener partidas más antiguas" — comparado por `md5sum` **el listado entero** de `RetroArch/saves/VBA Next/` (50 archivos) contra `RetroArch/saves/gba/` (74 antes de arreglar): 39 ya coincidían byte a byte, 1 (Pokémon Pinball Japan Rev 1) era continuación real (0,09% de diferencia, sin tocar), y **10 juegos no tenían ningún archivo en `saves/gba/`** (Castlevania - Harmony of Dissonance ×2 nombres, Megaman Zero 1, Pokémon Esmeralda/Rojo Fuego/Verde Hoja ×2 nombres cada uno, Pokémon Pinball ×2 nombres) — mismo hueco que Metroid. Copiados los 10 desde `VBA Next/` a `gba/` (script generado y ejecutado vía `adb shell sh`, sin sobrescribir nada — ninguno existía ya en destino). Verificado con `md5sum` tras la copia: **las 50 partidas de `VBA Next/` están ahora también en `saves/gba/`, 0 huecos, 0 discrepancias**. Nota informativa sin acción: la carpeta `saves/mGBA/` tiene 2 copias sueltas de mediados de 2025 (Metroid Zero Mission, Pokémon Rojo Fuego) de un experimento con ese core, más antiguas que las restauradas — no se tocaron | Dispositivo (RG556006101273), scripts en `.rommgr/backup_gba_save_restore_2026-08-31/` | ✅ hecho y verificado 2026-08-31 |
+| GBA-SAVE-PATH-1c | Corregir `EMULATOR_SAVE_PATHS_DEFAULT["com.explusalpha.GbaEmu"]` (`config.py:107-113`) — la ruta real en esta Anbernic es "junto a las ROMs" (`ROMs/gba/`), no `Android/data/.../EmuEx/GBA/saves` (ese árbol no existe) — mismo patrón que `SAVES-FRAGMENT-8`, revisar si aplica también a GBC/NES/MD.emu (misma familia EmuEx) | `config.py` | 🔴 pendiente, confirmar si es un problema real (el Cable Sync normal de carpeta ya cubre este caso, el especial por-paquete puede que nunca haya hecho nada útil para GBA.emu) |
+
+---
+
+### LIBRARY-CLEANUP-GAPS-1 — Huecos reales encontrados al limpiar PSX a mano (hallazgo 2026-08-31)
+
+Origen: para que `psx/` cupiera en la Anbernic (`LIBRARY-SYNC-STALE-1b/c`) se
+hizo a mano una limpieza de 195 GB → 81 GB reales. La detección de saves
+divergentes de GBA (`GBA-SAVE-PATH-1`) ya la hace la app
+(`SAVE-CONSOLIDATOR-1`) — lo que no existe es la parte de actuar sobre ello.
+Cuatro huecos concretos, ninguno cubierto hoy por ninguna feature existente:
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CHD-CLEANUP-1 | **El hueco más grande (93 GB solo en PSX real).** Tras convertir un `.bin`/`.cue` a `.chd` con `chdman`, el `.bin`/`.cue` original nunca se limpia — se queda para siempre ocupando espacio. Propuesta: paso opcional tras la conversión que verifica el `.chd` (extraer con `chdman extractcd` + comparar hash contra el `.bin` origen, mismo método usado hoy a mano) y mueve el origen a `_descartados/` solo si coincide — nunca objetivo automático sin verificar | Módulo de conversión CHD (buscar dónde vive hoy `chdman createcd`) | 🔴 pendiente, tarea nueva |
+| DUP-CROSSFMT-1 | Detección de duplicados no compara entre formatos distintos del mismo juego — un `.zip` que contiene exactamente el mismo disco que ya existe como `.chd` no se detecta hoy (encontrados 41 casos, 13,5 GB, solo comparando título normalizado a mano). Extender `ra_duplicates_service`/`_build_review_queue` para que agrupe también por normalized_title+disco cruzando extensiones, no solo por SHA1 exacto dentro del mismo formato | `services/ra_duplicates_service.py`, `web/builders/duplicates.py` | 🔴 pendiente, tarea nueva |
+| DISC-HEALTH-1 | No existe un chequeo repetible de "sets de disco rotos" — `Tareas/psx-cue-rotos-2026-08-30.md` fue investigación 100% manual (parsear `.cue`, comprobar que el `FILE` referenciado existe, y si no, buscar si ya hay un `.chd`/`.pbp` del mismo juego en la biblioteca). Convertir esto en una función reutilizable (mismo espíritu que `check_library_health`, pero para integridad de sets multi-archivo, no solo "existe la ruta") | `utils/health_checker.py` (candidato) o módulo nuevo | 🔴 pendiente, tarea nueva |
+| LIB-MISPLACED-1 | El Inbox solo audita archivos **nuevos** que entran — nada revisa archivos ya sueltos dentro de una carpeta de plataforma ya organizada. Hoy mismo aparecieron chips de MAME sueltos en `gba/` (TMNT, `963-*.*`) y ROMs de otra plataforma (`.md`, `.nes`) mezclados en `gba/`, más una carpeta `_descartados/_descartados` con chips de arcade sueltos dentro de `psx/` — todo encontrado a mano antes de cada Cable Sync. Falta un escaneo de salud que recorra las carpetas de plataforma ya organizadas buscando extensiones que no pertenecen a esa plataforma (reutilizar `detect_platform()`/`PLATFORM_BY_EXTENSION`, ya fiables) | `scanner/rom_scanner.py` o `utils/health_checker.py` (punto de entrada exacto por confirmar) | 🔴 pendiente, tarea nueva |
 

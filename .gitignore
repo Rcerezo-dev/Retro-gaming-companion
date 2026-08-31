@@ -25,6 +25,9 @@ Thumbs.db
 # Archivos de registro
 *.log
 
+# BD sueltas en la raíz (artefacto accidental — la BD real vive en .rommgr/)
+/*.db
+
 
 # Ignore the .env file which may contain sensitive information
 .env
