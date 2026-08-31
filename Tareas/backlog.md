@@ -834,6 +834,10 @@ guardar, sustitución al restaurar).
 junto a los saves. Versionado por fecha, nunca sobrescrito — mismo criterio
 que ya se usa en saves.
 
+**Diseño de DEVPROFILE-1..4** (catálogo de plataformas único + tokenizador +
+reutilización de `sync_sources`, verificado contra el código real): ver
+`Tareas/Roadmap-DEVPROFILE-1-4.md`.
+
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
 | DEVPROFILE-0 | **Bloqueante**: verificar dónde vive `retroarch.cfg` en la RG556 (por cable, `tools/adb.exe`) | XS | ✅ resuelto 2026-08-25 en hardware real — **NO accesible sin root**: `/data/data/com.retroarch/` da `Permission denied`, `run-as` falla (`package not debuggable`, build Play Store), y no hay ningún `retroarch*.cfg` en almacenamiento público. Sí son accesibles `config/<Core>/*.opt`, `retroarch-core-options.cfg`, `config/remaps/` y `system/`. Ver comentario en #238 |

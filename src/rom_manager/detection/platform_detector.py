@@ -42,6 +42,13 @@ def _build_tables(user_override: Path | None = None) -> tuple[dict, set, dict]:
     return by_ext, ambiguous, by_folder
 
 
+def bios_definitions() -> list[dict]:
+    """BIOS requirements per platform, bundled in the same TOML as extensions/folders
+    (DEVPROFILE-1c — single source, no user override yet: no ticket has asked to
+    customize BIOS requirements, add override support if that changes)."""
+    return _load_toml().get("bios", [])
+
+
 # Module-level tables (built once at import time from bundled TOML + no user override yet)
 PLATFORM_BY_EXTENSION, AMBIGUOUS_EXTENSIONS, PLATFORM_BY_FOLDER = _build_tables()
 
