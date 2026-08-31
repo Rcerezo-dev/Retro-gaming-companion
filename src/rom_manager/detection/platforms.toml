@@ -236,6 +236,33 @@ extensions = [
 "msx"          = "MSX"
 "dos"          = "DOS"
 
+# ── Cores PC candidatos por sistema ES-DE (DEVPROFILE-1d) ──────────────────────
+# Clave = mismo slug que usaba systems_generator.py::_SYSTEMS[i]["name"] — no el
+# nombre canónico de plataforma de arriba: "mame" y "fbneo" comparten canónico
+# "Arcade" pero necesitan listas de cores distintas (ver Roadmap-DEVPROFILE-1-4.md §2).
+# Orden = prioridad: el primer core encontrado instalado en cores/ gana.
+[cores.pc]
+nes = ["fceumm", "nestopia", "mesen"]
+snes = ["snes9x", "bsnes", "mesen-s"]
+n64 = ["mupen64plus_next", "parallel_n64"]
+gamecube = ["dolphin"]
+wii = ["dolphin"]
+gb = ["gambatte", "mgba", "sameboy"]
+gbc = ["gambatte", "mgba", "sameboy"]
+gba = ["mgba", "vba_next", "gpsp"]
+nds = ["melonds", "desmume"]
+"3ds" = ["citra", "citra2018"]
+megadrive = ["genesis_plus_gx", "picodrive"]
+mastersystem = ["genesis_plus_gx", "picodrive"]
+gamegear = ["genesis_plus_gx"]
+dreamcast = ["flycast"]
+psx = ["duckstation", "pcsx_rearmed", "mednafen_psx_hw", "mednafen_psx"]
+ps2 = ["pcsx2"]
+psp = ["ppsspp"]
+mame = ["mame", "mame2003_plus", "mame2010", "mame2015"]
+fbneo = ["fbneo"]
+neogeo = ["fbneo", "mame"]
+
 # ── BIOS requerido por plataforma (DEVPROFILE-1c) ──────────────────────────────
 # filename: nombre canónico que espera RetroArch
 # md5: MD5 esperado (se omite si varía por región/versión — solo se comprueba presencia)

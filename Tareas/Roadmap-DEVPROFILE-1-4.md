@@ -104,11 +104,17 @@ Pasos:
 - **1c** — Migrar `bios_checker.py::KNOWN_BIOS` primero (las claves ya
   coinciden en formato) — es la reconciliación más barata y sirve de
   prueba del schema antes de tocar `systems_generator.py`.
-- **1d** — Migrar `systems_generator.py::_SYSTEMS`: sus claves son slugs
-  ES-DE (`"gamecube"`), no nombres humanos — necesita una tabla de mapeo
-  pequeña (slug → nombre humano) o normalizar `platforms.toml` a slugs.
-  Decidir cuál de los dos formatos gana antes de escribir código, para no
-  mantener dos convenciones de clave a la vez.
+- **1d** — ✅ Resuelto (2026-08-31): **no** normalizar a nombre humano.
+  `_SYSTEMS` tiene 3 entradas arcade-adjacentes (`"mame"`, `"fbneo"`,
+  `"neogeo"`) donde `"mame"` y `"fbneo"` comparten canónico `"Arcade"` pero
+  necesitan listas de cores **distintas** — fusionarlas por nombre de
+  plataforma habría cambiado qué core gana cuando solo hay uno instalado
+  (regresión de comportamiento). `[cores.pc]` en `platforms.toml` queda
+  keyed por el slug ES-DE (`sys_def["name"]`, idéntico 1:1 a la clave que
+  ya usaba `_SYSTEMS`) — migración sin cambio de semántica. `name`/
+  `fullname`/`path`/`extension`/`theme`/`platform` (campos propios del XML
+  de ES-DE) se quedan en Python, no hay duplicación de esos en ningún otro
+  sitio.
 - **1e** — `docs/architecture/platforms-cores.md`: no vale la pena
   generarlo automáticamente del TOML si nadie más lo lee en código —
   dejarlo como documentación humana, pero añadir una nota al principio

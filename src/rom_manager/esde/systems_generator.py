@@ -20,9 +20,13 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from rom_manager.detection.platform_detector import pc_cores_by_system
+
 # ── System catalogue ──────────────────────────────────────────────────────────
-# Each entry defines one ES-DE system.  `cores` is an ordered list of candidate
-# core DLL prefixes — the first one found on disk wins.
+# Each entry defines one ES-DE system. Candidate core DLL prefixes (ordered,
+# first found on disk wins) live in platforms.toml's [cores.pc], keyed by
+# `name` below — DEVPROFILE-1d, see Roadmap-DEVPROFILE-1-4.md §2 for why that
+# table isn't keyed by canonical platform name instead (mame/fbneo collision).
 
 _SYSTEMS: list[dict] = [
     {
@@ -32,7 +36,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".nes .unf .unif .zip .7z .NES .ZIP .7Z",
         "platform": "nes",
         "theme": "nes",
-        "cores": ["fceumm", "nestopia", "mesen"],
     },
     {
         "name": "snes",
@@ -41,7 +44,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".sfc .smc .swc .fig .zip .7z .SFC .SMC .ZIP .7Z",
         "platform": "snes",
         "theme": "snes",
-        "cores": ["snes9x", "bsnes", "mesen-s"],
     },
     {
         "name": "n64",
@@ -50,7 +52,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".n64 .z64 .v64 .ndd .zip .7z .N64 .Z64 .ZIP .7Z",
         "platform": "n64",
         "theme": "n64",
-        "cores": ["mupen64plus_next", "parallel_n64"],
     },
     {
         "name": "gamecube",
@@ -59,7 +60,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".iso .rvz .gcm .gcz .ciso .wbfs .zip .7z .ISO .RVZ .ZIP .7Z",
         "platform": "gamecube",
         "theme": "gc",
-        "cores": ["dolphin"],
     },
     {
         "name": "wii",
@@ -68,7 +68,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".iso .rvz .gcm .gcz .ciso .wbfs .zip .7z .ISO .RVZ .WBFS .ZIP .7Z",
         "platform": "wii",
         "theme": "wii",
-        "cores": ["dolphin"],
     },
     {
         "name": "gb",
@@ -77,7 +76,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".gb .gbc .zip .7z .GB .ZIP .7Z",
         "platform": "gb",
         "theme": "gb",
-        "cores": ["gambatte", "mgba", "sameboy"],
     },
     {
         "name": "gbc",
@@ -86,7 +84,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".gbc .gb .zip .7z .GBC .ZIP .7Z",
         "platform": "gbc",
         "theme": "gbc",
-        "cores": ["gambatte", "mgba", "sameboy"],
     },
     {
         "name": "gba",
@@ -95,7 +92,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".gba .zip .7z .GBA .ZIP .7Z",
         "platform": "gba",
         "theme": "gba",
-        "cores": ["mgba", "vba_next", "gpsp"],
     },
     {
         "name": "nds",
@@ -104,7 +100,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".nds .zip .7z .NDS .ZIP .7Z",
         "platform": "nds",
         "theme": "nds",
-        "cores": ["melonds", "desmume"],
     },
     {
         "name": "3ds",
@@ -113,7 +108,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".3ds .3dsx .cia .app .cci .zip .7z .3DS .ZIP .7Z",
         "platform": "3ds",
         "theme": "3ds",
-        "cores": ["citra", "citra2018"],
     },
     {
         "name": "megadrive",
@@ -122,7 +116,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".md .bin .smd .gen .68k .zip .7z .MD .BIN .ZIP .7Z",
         "platform": "megadrive",
         "theme": "megadrive",
-        "cores": ["genesis_plus_gx", "picodrive"],
     },
     {
         "name": "mastersystem",
@@ -131,7 +124,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".sms .bin .zip .7z .SMS .ZIP .7Z",
         "platform": "mastersystem",
         "theme": "mastersystem",
-        "cores": ["genesis_plus_gx", "picodrive"],
     },
     {
         "name": "gamegear",
@@ -140,7 +132,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".gg .bin .zip .7z .GG .ZIP .7Z",
         "platform": "gamegear",
         "theme": "gamegear",
-        "cores": ["genesis_plus_gx"],
     },
     {
         "name": "dreamcast",
@@ -149,7 +140,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".gdi .cdi .chd .iso .zip .7z .GDI .CDI .CHD .ZIP .7Z",
         "platform": "dreamcast",
         "theme": "dreamcast",
-        "cores": ["flycast"],
     },
     {
         "name": "psx",
@@ -158,7 +148,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".bin .cue .img .iso .chd .pbp .m3u .zip .7z .BIN .CUE .CHD .ZIP .7Z",
         "platform": "psx",
         "theme": "psx",
-        "cores": ["duckstation", "pcsx_rearmed", "mednafen_psx_hw", "mednafen_psx"],
     },
     {
         "name": "ps2",
@@ -167,7 +156,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".iso .bin .img .mdf .chd .cso .gz .zip .7z .ISO .CHD .ZIP .7Z",
         "platform": "ps2",
         "theme": "ps2",
-        "cores": ["pcsx2"],
     },
     {
         "name": "psp",
@@ -176,7 +164,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".iso .cso .pbp .elf .prx .zip .7z .ISO .CSO .ZIP .7Z",
         "platform": "psp",
         "theme": "psp",
-        "cores": ["ppsspp"],
     },
     {
         "name": "mame",
@@ -185,7 +172,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".zip .7z .ZIP .7Z",
         "platform": "arcade",
         "theme": "mame",
-        "cores": ["mame", "mame2003_plus", "mame2010", "mame2015"],
     },
     {
         "name": "fbneo",
@@ -194,7 +180,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".zip .7z .ZIP .7Z",
         "platform": "arcade",
         "theme": "neogeo",
-        "cores": ["fbneo"],
     },
     {
         "name": "neogeo",
@@ -203,7 +188,6 @@ _SYSTEMS: list[dict] = [
         "extension": ".zip .7z .ZIP .7Z",
         "platform": "neogeo",
         "theme": "neogeo",
-        "cores": ["fbneo", "mame"],
     },
 ]
 
@@ -343,9 +327,10 @@ def generate_es_systems_xml(
         return result
 
     matched: list[tuple[dict, str]] = []
+    cores_by_system = pc_cores_by_system()
 
     for sys_def in _SYSTEMS:
-        dll = _find_core(cores_dir, sys_def["cores"])
+        dll = _find_core(cores_dir, cores_by_system.get(sys_def["name"], []))
         if dll:
             matched.append((sys_def, dll))
             result.generated_systems.append(

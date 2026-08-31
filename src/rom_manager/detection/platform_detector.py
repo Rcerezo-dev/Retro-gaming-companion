@@ -49,6 +49,15 @@ def bios_definitions() -> list[dict]:
     return _load_toml().get("bios", [])
 
 
+def pc_cores_by_system() -> dict[str, list[str]]:
+    """PC libretro core candidates per ES-DE system slug (DEVPROFILE-1d).
+
+    Keyed by the ES-DE system name (e.g. "mame", "fbneo"), not the canonical
+    platform name — some ES-DE systems share a platform but need different
+    core candidates (see Roadmap-DEVPROFILE-1-4.md §2)."""
+    return _load_toml().get("cores", {}).get("pc", {})
+
+
 # Module-level tables (built once at import time from bundled TOML + no user override yet)
 PLATFORM_BY_EXTENSION, AMBIGUOUS_EXTENSIONS, PLATFORM_BY_FOLDER = _build_tables()
 
