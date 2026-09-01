@@ -381,17 +381,17 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         result["issues"].append(f"retroarch.cfg no encontrado en {ra_dir}")
 
     if cfg.exists():
+        from rom_manager.services.retroarch_cfg_writer import read_key
+
         try:
             text = cfg.read_text(encoding="utf-8", errors="replace")
             for key, field in (
                 ("savefile_directory", "savefile_dir"),
                 ("savestate_directory", "savestate_dir"),
             ):
-                m = re.search(rf'^{key}\s*=\s*"(.+)"', text, re.MULTILINE)
-                if m:
-                    val = m.group(1).strip()
-                    if val not in ("", "default"):
-                        result[field] = val
+                val = read_key(text, key)
+                if val:
+                    result[field] = val
         except OSError:
             pass
 
@@ -457,3 +457,40 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         and len(result["issues"]) == 0
     )
     return result
+
+
+def _handle_apply_retroarch_savefile_layout(config: AppConfig) -> dict:
+    """DEVPROFILE-2d: manual trigger for apply_savefile_layout() from Settings.
+
+    Botón manual, no automático (Tareas/Roadmap-DEVPROFILE-1-4.md §3) —
+    reescribe un .cfg del usuario, así que solo se dispara si lo pide.
+    Localiza retroarch.cfg igual que ``_handle_retroarch_check`` (junto al
+    exe configurado, no ``_detect_retroarch_install()``) y usa
+    ``library_root/saves`` + ``library_root/states`` como destino, el mismo
+    convenio que ya asume el sync a la nube (D2, ``sync.saves_remote``).
+    """
+    from rom_manager.services.retroarch_cfg_writer import (
+        apply_savefile_layout,
+        default_savefile_layout,
+    )
+
+    ra_exe = (config.retroarch_path or "").strip()
+    if not ra_exe:
+        return {"applied": False, "error": "RetroArch no está configurado en Settings."}
+    if not config.library_root:
+        return {"applied": False, "error": "library_root no está configurado en Settings."}
+
+    cfg = Path(ra_exe).parent / "retroarch.cfg"
+    if not cfg.exists():
+        return {"applied": False, "error": f"retroarch.cfg no encontrado en {cfg.parent}"}
+
+    layout = default_savefile_layout(config.library_root)
+    result = apply_savefile_layout(cfg, layout.savefile_dir, layout.savestate_dir)
+    return {
+        "applied": result.applied,
+        "backup_path": result.backup_path,
+        "changed_keys": result.changed_keys,
+        "error": result.error,
+        "savefile_dir": layout.savefile_dir,
+        "savestate_dir": layout.savestate_dir,
+    }

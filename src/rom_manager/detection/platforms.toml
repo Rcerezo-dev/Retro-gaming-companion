@@ -235,3 +235,184 @@ extensions = [
 "spectrum"     = "ZX Spectrum"
 "msx"          = "MSX"
 "dos"          = "DOS"
+
+# ── Cores PC candidatos por sistema ES-DE (DEVPROFILE-1d) ──────────────────────
+# Clave = mismo slug que usaba systems_generator.py::_SYSTEMS[i]["name"] — no el
+# nombre canónico de plataforma de arriba: "mame" y "fbneo" comparten canónico
+# "Arcade" pero necesitan listas de cores distintas (ver Roadmap-DEVPROFILE-1-4.md §2).
+# Orden = prioridad: el primer core encontrado instalado en cores/ gana.
+[cores.pc]
+nes = ["fceumm", "nestopia", "mesen"]
+snes = ["snes9x", "bsnes", "mesen-s"]
+n64 = ["mupen64plus_next", "parallel_n64"]
+gamecube = ["dolphin"]
+wii = ["dolphin"]
+gb = ["gambatte", "mgba", "sameboy"]
+gbc = ["gambatte", "mgba", "sameboy"]
+gba = ["mgba", "vba_next", "gpsp"]
+nds = ["melonds", "desmume"]
+"3ds" = ["citra", "citra2018"]
+megadrive = ["genesis_plus_gx", "picodrive"]
+mastersystem = ["genesis_plus_gx", "picodrive"]
+gamegear = ["genesis_plus_gx"]
+dreamcast = ["flycast"]
+psx = ["duckstation", "pcsx_rearmed", "mednafen_psx_hw", "mednafen_psx"]
+ps2 = ["pcsx2"]
+psp = ["ppsspp"]
+mame = ["mame", "mame2003_plus", "mame2010", "mame2015"]
+fbneo = ["fbneo"]
+neogeo = ["fbneo", "mame"]
+
+# ── BIOS requerido por plataforma (DEVPROFILE-1c) ──────────────────────────────
+# filename: nombre canónico que espera RetroArch
+# md5: MD5 esperado (se omite si varía por región/versión — solo se comprueba presencia)
+# platform: debe coincidir con un valor de [extensions]/[folders] de arriba
+# required: false = el core funciona sin él pero con menos compatibilidad
+[[bios]]
+filename = "scph5500.bin"
+md5 = "8dd7d5296a650fac7319bce665a6a53c"
+platform = "PlayStation"
+required = true
+notes = "BIOS JP (v3.0)"
+
+[[bios]]
+filename = "scph5501.bin"
+md5 = "490f666e1afb15b7362b406ed1cea246"
+platform = "PlayStation"
+required = true
+notes = "BIOS US (v3.0)"
+
+[[bios]]
+filename = "scph5502.bin"
+md5 = "32736f17079d0b2b7024407c39bd3050"
+platform = "PlayStation"
+required = true
+notes = "BIOS EU (v3.0)"
+
+[[bios]]
+filename = "scph1001.bin"
+md5 = "924e392ed05558ffdb115408c263dccf"
+platform = "PlayStation"
+required = false
+notes = "BIOS US (v2.2) — alternativa"
+
+[[bios]]
+filename = "ps2-0230a-20080220.bin"
+platform = "PlayStation 2"
+required = true
+notes = "BIOS — el MD5 varía por región/versión"
+
+[[bios]]
+filename = "SCPH-70012_BIOS_V12_USA_200.BIN"
+platform = "PlayStation 2"
+required = false
+notes = "BIOS US v12 (comprobación por nombre)"
+
+[[bios]]
+filename = "ppge_atlas.zim"
+platform = "PSP"
+required = false
+notes = "PPSSPP UI atlas (opcional)"
+
+[[bios]]
+filename = "gba_bios.bin"
+md5 = "a860e8c0b6d573d191e4ec7db1b1e4f6"
+platform = "Game Boy Advance"
+required = false
+notes = "BIOS oficial GBA — mejora compatibilidad"
+
+[[bios]]
+filename = "disksys.rom"
+md5 = "ca30b50f880eb660a320674ed365ef7a"
+platform = "Famicom Disk System"
+required = true
+notes = "BIOS FDS obligatoria"
+
+[[bios]]
+filename = "bios_CD_U.bin"
+md5 = "2efd74e3232ff260e371b99f84024f7f"
+platform = "Sega CD"
+required = true
+notes = "BIOS US"
+
+[[bios]]
+filename = "bios_CD_E.bin"
+md5 = "e66fa1dc5820d254611fdcdba0662372"
+platform = "Sega CD"
+required = true
+notes = "BIOS EU"
+
+[[bios]]
+filename = "bios_CD_J.bin"
+md5 = "278a9397d192149e84e820ac621a8edd"
+platform = "Sega CD"
+required = true
+notes = "BIOS JP"
+
+[[bios]]
+filename = "sega_101.bin"
+md5 = "85ec9ca47d8f6807718151cbcca8b964"
+platform = "Sega Saturn"
+required = true
+notes = "BIOS JP"
+
+[[bios]]
+filename = "mpr-17933.bin"
+md5 = "3240872c70984b6cbfda1586cab68dbe"
+platform = "Sega Saturn"
+required = true
+notes = "BIOS US/EU"
+
+[[bios]]
+filename = "dc_boot.bin"
+md5 = "e10c53c2f8b90bab96ead2d368858623"
+platform = "Dreamcast"
+required = true
+notes = "BIOS Dreamcast"
+
+[[bios]]
+filename = "dc_flash.bin"
+md5 = "0a93f7940c455905bea6e392dfde92a4"
+platform = "Dreamcast"
+required = true
+notes = "Flash Dreamcast"
+
+[[bios]]
+filename = "neogeo.zip"
+platform = "Neo Geo"
+required = true
+notes = "BIOS Neo Geo (MAME) — MD5 varía por versión"
+
+[[bios]]
+filename = "syscard3.pce"
+md5 = "38179df8f4ac870017db21ebcbf53114"
+platform = "PC Engine"
+required = true
+notes = "Super System Card 3.0"
+
+[[bios]]
+filename = "lynxboot.img"
+md5 = "fcd403db69f54290b51035d82f835e7b"
+platform = "Atari Lynx"
+required = true
+notes = "BIOS Lynx"
+
+[[bios]]
+filename = "bios7.bin"
+md5 = "df692a80a5b1bc90728bc3dfc76cd948"
+platform = "Nintendo DS"
+required = true
+notes = "ARM7 BIOS"
+
+[[bios]]
+filename = "bios9.bin"
+md5 = "a392174eb3e572fed6447e956bde4b25"
+platform = "Nintendo DS"
+required = true
+notes = "ARM9 BIOS"
+
+[[bios]]
+filename = "firmware.bin"
+platform = "Nintendo DS"
+required = true
+notes = "Firmware NDS"

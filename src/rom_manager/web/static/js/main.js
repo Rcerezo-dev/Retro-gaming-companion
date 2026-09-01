@@ -102,7 +102,7 @@ import {
   loadRecommendations, dismissRecommendations, loadGameScreenshots, loadGameStatshots,
 } from './tabs/games.js';
 import {
-  loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
+  loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, applyRetroArchSavefileLayout, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
   doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
@@ -229,7 +229,7 @@ Object.assign(window, {
   enterTvMode, exitTvMode, loadTvGrid, _tvMoveFocus,
   loadRecommendations, dismissRecommendations, loadGameScreenshots, loadGameStatshots,
   // esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility, health check, junk/orphans/doctor
-  loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, generateEsSystems,
+  loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, applyRetroArchSavefileLayout, generateEsSystems,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
   doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,

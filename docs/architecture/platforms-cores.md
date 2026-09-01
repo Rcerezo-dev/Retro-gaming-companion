@@ -3,6 +3,14 @@
 > Referencia para saber qué emulador/core usar en cada sistema y qué configurar para calidad óptima.
 > En PC se usa EmulationStation como frontend (`~/.emulationstation/es_systems.cfg`).
 > En la Anbernic se usa RetroArch con los mismos cores que en PC donde sea posible.
+>
+> **DEVPROFILE-1 (2026-08-31)**: los cores PC candidatos (columna "Emulador /
+> Core" de la tabla de abajo) y el BIOS requerido por plataforma ya no viven
+> solo aquí — la fuente real que usa el código es
+> `src/rom_manager/detection/platforms.toml` (`[cores.pc]` / `[[bios]]`). Esta
+> página sigue siendo una guía humana (incluye la columna Android, que el
+> código todavía no consume), pero si algo no coincide con el TOML, manda el
+> TOML.
 
 ---
 
