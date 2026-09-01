@@ -103,7 +103,7 @@ import {
 } from './tabs/games.js';
 import {
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, applyRetroArchSavefileLayout, generateEsSystems,
-  loadDeviceProfileDetect, saveDeviceProfileSources,
+  loadDeviceProfileDetect, saveDeviceProfileSources, saveDeviceProfileManifest,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
   doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,
@@ -231,7 +231,7 @@ Object.assign(window, {
   loadRecommendations, dismissRecommendations, loadGameScreenshots, loadGameStatshots,
   // esde.js — ES-DE status, BIOS checker, RetroArch diagnostic, RA compatibility, health check, junk/orphans/doctor
   loadEsdeStatus, loadBiosStatus, loadRetroArchCheck, applyRetroArchSavefileLayout, generateEsSystems,
-  loadDeviceProfileDetect, saveDeviceProfileSources,
+  loadDeviceProfileDetect, saveDeviceProfileSources, saveDeviceProfileManifest,
   doRaCheck, _renderRaResult, _updateRaProgress, filterRaByPlatform, clearRaFilter, _raGoToPage, _raSelectAlternative, discardRaNoSupport,
   _copyText, _googleQuery, _archiveOrgUrl, _openArchiveOrg, _copyArchiveOrgLink,
   doHealthCheck, _renderHealthResult, _filterHealthIssues, loadOperationsTimeline, _clearHealthFilter,

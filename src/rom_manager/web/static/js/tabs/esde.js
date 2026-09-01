@@ -233,6 +233,26 @@ export async function saveDeviceProfileSources() {
   }
 }
 
+// DEVPROFILE-5a: upload the confirmed sync_sources as a portable manifest
+export async function saveDeviceProfileManifest() {
+  const el = document.getElementById('devprofile-manifest-result');
+  if (!el) return;
+  el.textContent = 'Guardando en la nube…'; el.style.color = 'var(--c-dim)';
+  try {
+    const d = await apiPost('/api/device-profile-save-manifest');
+    if (!d.saved) {
+      el.textContent = '✗ ' + (d.error || 'No se pudo guardar.');
+      el.style.color = 'var(--c-softred)';
+      return;
+    }
+    el.innerHTML = `✓ Perfil guardado en <code>${_h(d.remote_path)}</code> (${d.sources} fuentes)`;
+    el.style.color = 'var(--c-teal)';
+  } catch(e) {
+    el.textContent = '✗ Error: ' + e.message;
+    el.style.color = 'var(--c-softred)';
+  }
+}
+
 // ── RetroAchievements Compatibility Check ──────────────────────────────────
 // State variables for RA check
 let _raResults = [];

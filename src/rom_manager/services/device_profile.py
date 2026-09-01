@@ -1,8 +1,6 @@
 """DEVPROFILE-4a/4b: Tier A source detection + portable export/import.
-
-Backend only (no UI yet — the Settings screen where the user confirms
-detected sources before they sync is a separate, later piece, see
-Tareas/Roadmap-DEVPROFILE-1-4.md §5).
+DEVPROFILE-5a adds the missing piece: actually uploading that export as a
+manifest, see ``save_profile_manifest()``.
 
 Tier A = config/<core>/*.cfg, retroarch-core-options.cfg, config/remaps/,
 autoconfig/, shaders/, .opt in bulk, BIOS/system/ — everything the D2 cloud
@@ -16,10 +14,16 @@ covers the Tier A folders that mechanism doesn't reach yet.
 
 from __future__ import annotations
 
+import json
+import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rom_manager.config import SyncSource
 from rom_manager.services.path_tokenizer import resolve, tokenize
+
+if TYPE_CHECKING:
+    from rom_manager.sync.rclone_transport import RcloneTransport
 
 # name → (subfolder under the RetroArch install dir, human label)
 # ponytail: retroarch-core-options.cfg (a single file, not a folder) isn't
@@ -74,6 +78,43 @@ def export_profile_sources(
         }
         for s in sources
     ]
+
+
+_MANIFEST_FILENAME = "device-profile.json"
+
+
+def save_profile_manifest(
+    sources: list[SyncSource],
+    roms_dir: Path,
+    saves_dir: Path,
+    system_dir: Path,
+    transport: RcloneTransport,
+    remote_base: str,
+) -> str:
+    """DEVPROFILE-5a: upload the tokenized ``export_profile_sources()`` output
+    as ``<remote_base>/device-profile.json`` — the manifest ``rommgr restore``
+    (DEVPROFILE-5b+) reads to bootstrap a new device. Closes the gap where
+    export/import existed as pure functions with no production caller (see
+    Tareas/Roadmap-DEVPROFILE-5-6.md §1).
+
+    Reuses ``RcloneTransport.upload()``'s existing fallback-remote routing
+    (empty extension tuples → always routes to *fallback_remote*, already
+    exercised by ``test_upload_unknown_ext_falls_back_to_fallback_remote``)
+    instead of adding a new single-file upload method.
+
+    Returns the full remote path written.
+    """
+    manifest = export_profile_sources(sources, roms_dir, saves_dir, system_dir)
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".json", delete=False, encoding="utf-8"
+    ) as fh:
+        json.dump(manifest, fh, indent=2, ensure_ascii=False)
+        tmp_path = Path(fh.name)
+    try:
+        transport.upload(tmp_path, _MANIFEST_FILENAME, fallback_remote=remote_base.rstrip("/"))
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    return f"{remote_base.rstrip('/')}/{_MANIFEST_FILENAME}"
 
 
 def import_profile_sources(

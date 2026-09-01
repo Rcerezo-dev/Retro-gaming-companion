@@ -570,3 +570,52 @@ def _handle_device_profile_detect(config: AppConfig) -> dict:
         "existing": [_as_dict(s) for s in existing],
         "remote_base": remote_base,
     }
+
+
+def _handle_save_device_profile_manifest(config: AppConfig) -> dict:
+    """DEVPROFILE-5a: manual "save profile to the cloud" trigger from the
+    same "Perfil del dispositivo" panel.
+
+    Uploads the already-confirmed ``config.sync.sync_sources`` (not the
+    detect candidates — only what the user actually saved) as
+    ``<remote_base>/device-profile.json``, closing the gap where
+    DEVPROFILE-4's export/import functions had no production caller (see
+    Tareas/Roadmap-DEVPROFILE-5-6.md §1). ``rommgr restore`` (DEVPROFILE-5b+)
+    is the future reader of this file.
+    """
+    from rom_manager.services.device_profile import save_profile_manifest
+    from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
+
+    if not config.library_root:
+        return {"saved": False, "error": "library_root no está configurado en Settings."}
+    if not config.sync.sync_sources:
+        return {
+            "saved": False,
+            "error": 'No hay fuentes de sync confirmadas todavía — usa "Guardar selección" primero.',
+        }
+
+    remote = config.sync.saves_remote or config.sync.states_remote or ""
+    remote_base = remote.rsplit("/", 1)[0] if "/" in remote else remote
+    if not remote_base:
+        return {
+            "saved": False,
+            "error": "No hay remoto de sync configurado (saves_remote/states_remote).",
+        }
+
+    ra_exe = (config.retroarch_path or "").strip()
+    system_dir = Path(ra_exe).parent / "system" if ra_exe else config.library_root / "system"
+
+    transport = RcloneTransport(rclone=config.rclone_binary)
+    try:
+        remote_path = save_profile_manifest(
+            config.sync.sync_sources,
+            roms_dir=config.library_root,
+            saves_dir=config.library_root / "saves",
+            system_dir=system_dir,
+            transport=transport,
+            remote_base=remote_base,
+        )
+    except RcloneError as exc:
+        return {"saved": False, "error": str(exc)}
+
+    return {"saved": True, "remote_path": remote_path, "sources": len(config.sync.sync_sources)}
