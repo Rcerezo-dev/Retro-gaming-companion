@@ -165,17 +165,17 @@ Alcance ya recortado por DEVPROFILE-0: solo PC. Cuatro claves:
 
 ## 4. DEVPROFILE-3 — Tokenizador de rutas `{ROMS}` / `{SAVES}` / `{SYSTEM}`
 
-Función pura, sin dependencias del resto del bloque:
-```python
-def tokenize(path: Path, roms_dir: Path, saves_dir: Path, system_dir: Path) -> str: ...
-def resolve(token_path: str, roms_dir: Path, saves_dir: Path, system_dir: Path) -> Path: ...
-```
+✅ Resuelto (2026-09-01). `src/rom_manager/services/path_tokenizer.py` —
+`tokenize()`/`resolve()`, funciones puras sin I/O. Si una ruta cae bajo
+varias raíces (una anidada dentro de otra, p. ej. `saves_dir` dentro de
+`roms_dir`) gana la más específica (raíz con el path más largo). Una ruta
+fuera de las tres raíces se devuelve tal cual — no es un error, son rutas
+propias de emuladores standalone que no necesitan re-rooting (ver §5).
+6 tests (`tests/test_path_tokenizer.py`).
+
 Se usa al **guardar** el manifiesto de DEVPROFILE-4 (tokeniza rutas
 absolutas del dispositivo origen) y al **restaurar** en DEVPROFILE-5/6
-(sustituye por las rutas del dispositivo destino). No tiene entidad propia
-más allá de esto — considerar fusionarlo en el mismo PR que DEVPROFILE-4 en
-vez de una rama separada, ya que no tiene uso sin él (evita un PR que solo
-añade una función sin consumidor).
+(sustituye por las rutas del dispositivo destino).
 
 ---
 
@@ -189,25 +189,44 @@ sync multi-carpeta que moverá `config/<core>/*.cfg`,
 por `sync_cloud.py`/`cable_sync_daemon.py` (mismo mecanismo que hoy mueve
 carpetas completas de PPSSPP/Dolphin).
 
-Alcance recortado:
-- **4a** — En vez de un "manifiesto" nuevo, generar automáticamente las
-  entradas `SyncSource` de Tier A (auto-detectadas a partir de
-  `ra_config_dir` — ya existe la detección, ver `_detect_retroarch_install()`
-  y su contraparte Android) y dejar que el usuario las confirme en una
-  pantalla nueva de Settings ("Perfil del dispositivo") — no un mecanismo
-  de sync paralelo.
-- **4b** — Aplicar el tokenizador (§4) a `SyncSource.local_dir` solo en el
-  momento de export/import entre dispositivos distintos — el sync normal
-  entre el mismo PC y la misma Anbernic no lo necesita, porque las rutas ya
-  son estables en ese par.
-- **4c** — `retroarch.cfg` queda explícitamente fuera de esta lista (ver
-  DEVPROFILE-0/2) — el manifiesto documenta esto para que DEVPROFILE-5/6 no
-  intenten restaurarlo.
+Alcance recortado — **backend hecho (2026-09-01), pantalla de Settings
+todavía sin construir** (decidido explícitamente con el usuario: primero
+backend testeable, la UI en otra sesión):
 
-Si al implementar 4a resulta que `sync_sources` no cubre algún caso (p. ej.
-BIOS/`system/` necesita lógica distinta a un `SyncSource` normal porque son
-pocos archivos grandes, no un árbol), es la señal de que hace falta código
-nuevo ahí — pero no antes de intentar la reutilización.
+- **4a** — ✅ backend. `src/rom_manager/services/device_profile.py::
+  detect_tier_a_sources(ra_dir, remote_base)`. Resulta que la mayor parte de
+  Tier A **ya estaba cubierta** sin código nuevo: `config/` (que ya sincroniza
+  `config/<core>/*.opt` Y `config/remaps/`, porque remaps vive *dentro* de
+  `config/`) y `cheats/` los mueve `build_cloud_sync_sources()` vía
+  `config.sync.ra_config_dir`/`cheats_dir` (mecanismo D2 ya existente, sin
+  tocar). Lo que de verdad faltaba era autodetectar 3 carpetas hermanas de
+  `config/` bajo el directorio de instalación de RetroArch:
+  `autoconfig/`, `shaders/`, `system/` (BIOS) — cada una solo se devuelve si
+  existe en disco, con un remoto sugerido `<remote_base>/<carpeta>` (mismo
+  patrón `<remote>:RetroSync/<categoría>` que ya usa `useRemoteForSync()` en
+  `sync.js`). **`retroarch-core-options.cfg` (archivo suelto, no carpeta)
+  queda fuera** — `SyncSource` sincroniza directorios, no archivos sueltos;
+  marcado con `ponytail:` en el código, se añade si resulta que importa en
+  la práctica. 5 tests (`tests/test_device_profile.py`).
+  **Pendiente**: la pantalla "Perfil del dispositivo" en Settings donde el
+  usuario ve las carpetas detectadas y confirma/edita el remoto antes de
+  guardarlas como `sync_sources` reales — sin esto, `detect_tier_a_sources()`
+  es una función sin consumidor en la UI todavía.
+- **4b** — ✅ backend. `export_profile_sources()`/`import_profile_sources()`
+  en el mismo módulo: aplican el tokenizador (§4/DEVPROFILE-3) a
+  `SyncSource.local_dir` solo al serializar/deserializar el perfil — el sync
+  normal entre el mismo PC y la misma Anbernic sigue usando rutas absolutas
+  sin tokenizar, porque ya son estables en ese par. Una fuente cuyo
+  `local_dir` cae fuera de `roms_dir`/`saves_dir`/`system_dir` (un standalone
+  como Dolphin) se serializa sin tokenizar — no tiene sentido re-rootearla
+  entre dispositivos.
+- **4c** — `retroarch.cfg` queda explícitamente fuera de esta lista (ver
+  DEVPROFILE-0/2) — ninguna función de este módulo lo toca.
+
+Si al construir la pantalla de Settings resulta que `sync_sources` no cubre
+algún caso (p. ej. BIOS/`system/` necesita lógica distinta a un `SyncSource`
+normal porque son pocos archivos grandes, no un árbol), es la señal de que
+hace falta código nuevo ahí — pero no antes de intentar la reutilización.
 
 ---
 
@@ -220,3 +239,13 @@ nuevo ahí — pero no antes de intentar la reutilización.
 Cada tarea sigue la convención del repo: rama propia, PR a `develop`, sin
 mezclar fases (mismo patrón que `ANDROID-SYNC-*`, ver
 `Tareas/Roadmap-Android-Sync.md`).
+
+**Estado 2026-09-01**: `1` y `2` ✅ (PR #270 a `develop`, pendiente de merge).
+`3` ✅ y `4a`/`4b` backend ✅ en rama
+`feature/devprofile-3-4-path-tokenizer-manifest`, **apilada sobre
+`feature/devprofile-2-retroarch-cfg-writer`** (necesita el roadmap/backlog
+que solo existen ahí todavía) — rebasar sobre `develop` cuando la #270
+mergee, antes de abrir su propia PR. Pendiente en esa rama: la pantalla de
+Settings "Perfil del dispositivo" que consume `detect_tier_a_sources()`
+(§5, 4a) — sin eso, `DEVPROFILE-4` no está usable desde la UI todavía.
+`5`/`6`/`7`/`8`/`9` sin empezar.
