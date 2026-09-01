@@ -45,16 +45,23 @@ def cascade_delete_games_by_source_path(
 
 
 class GamesMixin:
-    def get_known_roms(self) -> dict[str, tuple[int, int]]:
-        """Return {source_path: (mtime, size_bytes)} for all games with a stored mtime.
+    def get_known_roms(self) -> dict[str, tuple[int, int, bool]]:
+        """Return {source_path: (mtime, size_bytes, has_sha1)} for all games with a stored mtime.
 
         Used by the scanner to skip files that have not changed since the last scan.
+        LIBRARY-AUDIT-5: ``has_sha1`` lets a full (non ``--quick``) scan re-hash a
+        row that was previously written without one (``--quick`` scan or the ADB
+        device scan, both of which always store ``sha1=""``) even when its
+        mtime/size haven't changed — otherwise it stays unhashed forever.
         """
         with self.connect() as connection:
             rows = connection.execute(
-                "SELECT source_path, mtime, size_bytes FROM games WHERE mtime IS NOT NULL"
+                "SELECT source_path, mtime, size_bytes, sha1 FROM games WHERE mtime IS NOT NULL"
             ).fetchall()
-        return {row["source_path"]: (int(row["mtime"]), int(row["size_bytes"])) for row in rows}
+        return {
+            row["source_path"]: (int(row["mtime"]), int(row["size_bytes"]), bool(row["sha1"]))
+            for row in rows
+        }
 
     def upsert_game(
         self,
