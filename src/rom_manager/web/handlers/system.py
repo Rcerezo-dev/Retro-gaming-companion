@@ -469,7 +469,10 @@ def _handle_apply_retroarch_savefile_layout(config: AppConfig) -> dict:
     ``library_root/saves`` + ``library_root/states`` como destino, el mismo
     convenio que ya asume el sync a la nube (D2, ``sync.saves_remote``).
     """
-    from rom_manager.services.retroarch_cfg_writer import apply_savefile_layout, default_savefile_layout
+    from rom_manager.services.retroarch_cfg_writer import (
+        apply_savefile_layout,
+        default_savefile_layout,
+    )
 
     ra_exe = (config.retroarch_path or "").strip()
     if not ra_exe:
