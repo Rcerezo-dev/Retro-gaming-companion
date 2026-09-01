@@ -104,10 +104,9 @@ antes (o comprobar que los binarios existen y avisar si no).
   serializa con `export_profile_sources()` (ya existe) a JSON y sube con
   `RcloneTransport` (necesita un método `copyto` genérico de un solo
   archivo — `upload()` actual está especializado en routing por extensión
-  saves/states, no sirve tal cual). Disparador: botón "Guardar copia del
-  perfil en la nube" en el mismo panel de Settings de DEVPROFILE-4a, o
-  automático cada vez que se guardan `sync_sources` — **pregunta abierta,
-  ver §5**.
+  saves/states, no sirve tal cual). Disparador: botón manual "Guardar copia
+  del perfil en la nube" en el mismo panel de Settings de DEVPROFILE-4a
+  (PR #272) — decidido en §5.
 - **5b — `rommgr restore` (nuevo comando CLI)**: descarga el manifiesto
   (`RcloneTransport.download`, ya existe) → pide `roms_dir`/`saves_dir`/
   `system_dir` de este PC (puede reusar los `_ask()` de `wizard.py`, o
@@ -127,9 +126,8 @@ antes (o comprobar que los binarios existen y avisar si no).
   falta (BIOS requerido no encontrado) como resumen final de `rommgr
   restore`.
 - **5f — Disparador**: comando CLI (`rommgr restore`) es el mínimo viable
-  (headless, scripteable). Un botón en Settings puede esperar a que el CLI
-  funcione y esté probado — evita construir wizard-en-navegador y wizard-en-
-  terminal a la vez. **Pregunta abierta, ver §5.**
+  (headless, scripteable) — decidido en §5. Un botón en Settings puede
+  esperar a que el CLI funcione y esté probado.
 
 DEVPROFILE-6 (botón Android) es más pequeño porque no puede tocar
 `retroarch.cfg` (DEVPROFILE-0): solo core options/remaps/BIOS vía el mismo
@@ -155,23 +153,19 @@ diseña después de que 5 esté probado en PC, para reusar lo aprendido.
 
 ---
 
-## 5. Preguntas para el usuario antes de implementar
+## 5. Preguntas para el usuario — resueltas 2026-09-01
 
-1. **¿Dónde vive el manifiesto en el remoto?** Propuesta:
-   `<remote_base>/device-profile.json` (mismo `remote_base` que ya deriva
-   `_handle_device_profile_detect`, p. ej. `dropbox:RetroSync/device-profile.json`).
-2. **¿Qué lleva el manifiesto además de `sync_sources`?** Solo rutas
-   tokenizadas (mínimo, sin secretos) vs. incluir también
-   ScreenScraper/RA (conveniente pero credenciales en la nube). Recomendación:
-   solo rutas — las credenciales se piden de nuevo en el `rommgr restore`
-   interactivo, como ya hace `wizard.py`.
-3. **¿Cuándo se sube el manifiesto?** Botón manual en Settings (mismo
-   patrón que DEVPROFILE-2d, "sin sorpresas") vs. automático cada vez que
-   se guardan `sync_sources` desde la pantalla de perfil.
-4. **¿CLI primero o botón en Settings primero?** Recomendación: CLI
-   (`rommgr restore`) primero — es headless, más fácil de probar sin
-   depender de un PC realmente vacío, y un botón en Settings puede llamarlo
-   por debajo más tarde.
+1. **¿Dónde vive el manifiesto en el remoto?** ✅ `<remote_base>/device-profile.json`
+   (mismo `remote_base` que ya deriva `_handle_device_profile_detect`, p. ej.
+   `dropbox:RetroSync/device-profile.json`).
+2. **¿Qué lleva el manifiesto además de `sync_sources`?** ✅ Solo rutas
+   tokenizadas — sin secretos. ScreenScraper/RA se piden de nuevo en el
+   `rommgr restore` interactivo, como ya hace `wizard.py`.
+3. **¿Cuándo se sube el manifiesto?** ✅ Botón manual en Settings (mismo
+   patrón que DEVPROFILE-2d) — en el mismo panel "Perfil del dispositivo"
+   de DEVPROFILE-4a (PR #272), junto a `saveDeviceProfileSources()`.
+4. **¿CLI primero o botón en Settings primero?** ✅ CLI (`rommgr restore`,
+   §5b-5e) primero — un botón en Settings puede envolverlo más adelante.
 
 ---
 
