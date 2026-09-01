@@ -45,7 +45,9 @@ def test_export_import_roundtrips_tokenized_paths(tmp_path: Path) -> None:
     for d in (roms, saves, system):
         d.mkdir(parents=True)
 
-    sources = [SyncSource(name="BIOS / System", local_dir=str(system), remote="dropbox:RetroSync/system")]
+    sources = [
+        SyncSource(name="BIOS / System", local_dir=str(system), remote="dropbox:RetroSync/system")
+    ]
 
     exported = export_profile_sources(sources, roms, saves, system)
     assert exported[0]["local_dir"] == "{SYSTEM}"
@@ -66,7 +68,14 @@ def test_export_leaves_paths_outside_roots_untouched(tmp_path: Path) -> None:
     standalone = tmp_path / "Dolphin" / "Config"
     standalone.mkdir(parents=True)
 
-    sources = [SyncSource(name="Dolphin", local_dir=str(standalone), remote="dropbox:RetroSync/dolphin", sync_all=True)]
+    sources = [
+        SyncSource(
+            name="Dolphin",
+            local_dir=str(standalone),
+            remote="dropbox:RetroSync/dolphin",
+            sync_all=True,
+        )
+    ]
 
     exported = export_profile_sources(sources, roms, saves, system)
     assert exported[0]["local_dir"] == str(standalone)
