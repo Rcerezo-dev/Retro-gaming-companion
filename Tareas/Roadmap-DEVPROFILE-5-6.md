@@ -189,3 +189,9 @@ diseña después de que 5 esté probado en PC, para reusar lo aprendido.
 directorio de prueba (`tmp_path`-style, **nunca contra el `config.toml`
 real** — ver `feedback_config_toml_manual_testing` en memoria) antes de
 tocar el PC real. DEVPROFILE-6 después, reusando lo aprendido de 5.
+
+**5b-5f implementados 2026-09-01** (`rommgr restore` en `cli.py`, ver
+`Tareas/backlog.md` DEVPROFILE-5) — probado contra un `tmp_path` con
+`RcloneTransport._run` fake (`tests/test_cli_restore.py`), nunca contra
+rclone/Dropbox real. **Pendiente de validar en un PC realmente nuevo/vacío**
+antes de darlo por probado en condiciones reales.
