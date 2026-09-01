@@ -494,3 +494,46 @@ def _handle_apply_retroarch_savefile_layout(config: AppConfig) -> dict:
         "savefile_dir": layout.savefile_dir,
         "savestate_dir": layout.savestate_dir,
     }
+
+
+def _handle_device_profile_detect(config: AppConfig) -> dict:
+    """DEVPROFILE-4a UI: Tier A source candidates for the "Perfil del
+    dispositivo" confirm screen in Settings.
+
+    Locates RetroArch the same way as ``_handle_retroarch_check`` (next to
+    the configured exe) and reuses ``detect_tier_a_sources()``
+    (services/device_profile.py). Candidates already present in
+    ``config.sync.sync_sources`` (by local_dir) are excluded — the screen
+    only asks about *new* folders, confirming again on every visit would be
+    noise.
+    """
+    from rom_manager.services.device_profile import detect_tier_a_sources
+
+    ra_exe = (config.retroarch_path or "").strip()
+    if not ra_exe:
+        return {
+            "error": "RetroArch no está configurado en Settings.",
+            "candidates": [],
+            "existing": [],
+        }
+
+    ra_dir = Path(ra_exe).parent
+    remote = config.sync.saves_remote or config.sync.states_remote or ""
+    remote_base = remote.rsplit("/", 1)[0] if "/" in remote else remote
+
+    existing = config.sync.sync_sources
+    existing_dirs = {str(Path(s.local_dir)) for s in existing}
+
+    def _as_dict(s):
+        return {"name": s.name, "local_dir": s.local_dir, "remote": s.remote, "sync_all": s.sync_all}
+
+    candidates = [
+        _as_dict(s)
+        for s in detect_tier_a_sources(ra_dir, remote_base)
+        if str(Path(s.local_dir)) not in existing_dirs
+    ]
+    return {
+        "candidates": candidates,
+        "existing": [_as_dict(s) for s in existing],
+        "remote_base": remote_base,
+    }

@@ -189,9 +189,9 @@ sync multi-carpeta que moverá `config/<core>/*.cfg`,
 por `sync_cloud.py`/`cable_sync_daemon.py` (mismo mecanismo que hoy mueve
 carpetas completas de PPSSPP/Dolphin).
 
-Alcance recortado — **backend hecho (2026-09-01), pantalla de Settings
-todavía sin construir** (decidido explícitamente con el usuario: primero
-backend testeable, la UI en otra sesión):
+Alcance recortado — **backend y pantalla de Settings hechos (2026-09-01)**
+(decidido explícitamente con el usuario: primero backend testeable, la UI en
+otra sesión — ver más abajo):
 
 - **4a** — ✅ backend. `src/rom_manager/services/device_profile.py::
   detect_tier_a_sources(ra_dir, remote_base)`. Resulta que la mayor parte de
@@ -208,10 +208,27 @@ backend testeable, la UI en otra sesión):
   queda fuera** — `SyncSource` sincroniza directorios, no archivos sueltos;
   marcado con `ponytail:` en el código, se añade si resulta que importa en
   la práctica. 5 tests (`tests/test_device_profile.py`).
-  **Pendiente**: la pantalla "Perfil del dispositivo" en Settings donde el
-  usuario ve las carpetas detectadas y confirma/edita el remoto antes de
-  guardarlas como `sync_sources` reales — sin esto, `detect_tier_a_sources()`
-  es una función sin consumidor en la UI todavía.
+  **Pantalla "Perfil del dispositivo" en Settings** — ✅ 2026-09-01.
+  `_handle_device_profile_detect()` (`web/handlers/system.py`) localiza
+  RetroArch igual que `_handle_retroarch_check` (junto al exe configurado),
+  llama a `detect_tier_a_sources()` con `remote_base` derivado de
+  `saves_remote`/`states_remote` (recorta el último segmento, p. ej.
+  `dropbox:RetroSync/saves` → `dropbox:RetroSync`) y **excluye** candidatos
+  cuyo `local_dir` ya está en `config.sync.sync_sources` — la pantalla solo
+  pregunta por carpetas nuevas, volver a confirmar en cada visita sería
+  ruido. Ruta `GET /api/device-profile-detect`
+  (`web/handlers/esde/system.py`). El guardado **no necesitó endpoint
+  nuevo**: `sync.sources` se añadió al `allowed` set de
+  `_save_config()`/`POST /api/config` (`web/handlers/config.py`) —
+  `write_config_toml()` ya soportaba listas de dicts como array-of-tables
+  genérico, y `config.sync = new_cfg.sync` en el reload ya recarga
+  `sync_sources` en memoria sin código adicional. UI en `tab-settings.html`
+  (panel bajo RetroArch) + `loadDeviceProfileDetect()`/
+  `saveDeviceProfileSources()` en `js/tabs/esde.js` (patrón calcado de
+  `loadRetroArchCheck`), exportadas en `main.js`. El frontend envía
+  `existing` (sin tocar) + los candidatos marcados con su remoto editado —
+  nunca sobrescribe fuentes ajenas a Tier A que el usuario haya añadido a
+  mano en `config.toml`. 2 tests nuevos en `tests/test_device_profile.py`.
 - **4b** — ✅ backend. `export_profile_sources()`/`import_profile_sources()`
   en el mismo módulo: aplican el tokenizador (§4/DEVPROFILE-3) a
   `SyncSource.local_dir` solo al serializar/deserializar el perfil — el sync
@@ -240,12 +257,9 @@ Cada tarea sigue la convención del repo: rama propia, PR a `develop`, sin
 mezclar fases (mismo patrón que `ANDROID-SYNC-*`, ver
 `Tareas/Roadmap-Android-Sync.md`).
 
-**Estado 2026-09-01**: `1` y `2` ✅ (PR #270 a `develop`, pendiente de merge).
-`3` ✅ y `4a`/`4b` backend ✅ en rama
-`feature/devprofile-3-4-path-tokenizer-manifest`, **apilada sobre
-`feature/devprofile-2-retroarch-cfg-writer`** (necesita el roadmap/backlog
-que solo existen ahí todavía) — rebasar sobre `develop` cuando la #270
-mergee, antes de abrir su propia PR. Pendiente en esa rama: la pantalla de
-Settings "Perfil del dispositivo" que consume `detect_tier_a_sources()`
-(§5, 4a) — sin eso, `DEVPROFILE-4` no está usable desde la UI todavía.
-`5`/`6`/`7`/`8`/`9` sin empezar.
+**Estado 2026-09-01**: `1`, `2`, `3` y `4` (4a/4b/4c, backend + pantalla de
+Settings) ✅, mergeados a `develop` en PR #270 y #271. La pantalla "Perfil
+del dispositivo" (§5, 4a) se completó en rama
+`feature/devprofile-4a-settings-ui` — `DEVPROFILE-4` ya es usable end-to-end
+desde la UI. `5`/`6`/`7`/`8`/`9` sin empezar; `5`/`6` (botones de
+restauración PC/Android) ya no están bloqueados por la pantalla de perfil.

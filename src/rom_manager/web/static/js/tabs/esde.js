@@ -167,6 +167,72 @@ export async function applyRetroArchSavefileLayout() {
   }
 }
 
+// ── DEVPROFILE-4a: Perfil del dispositivo (Tier A backup a la nube) ───────────
+let _devProfileCandidates = [];
+let _devProfileExisting = [];
+
+export async function loadDeviceProfileDetect() {
+  const spinner = document.getElementById('devprofile-spinner');
+  const el = document.getElementById('devprofile-result');
+  if (!el) return;
+  if (spinner) spinner.classList.remove('hidden');
+  el.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/device-profile-detect');
+    if (spinner) spinner.classList.add('hidden');
+    if (d.error) { el.innerHTML = `<p style="color:var(--c-softred)">${_h(d.error)}</p>`; return; }
+    _devProfileCandidates = d.candidates || [];
+    _devProfileExisting = d.existing || [];
+
+    let html = '';
+    if (_devProfileExisting.length) {
+      const names = _devProfileExisting.map(s => `<span style="color:var(--c-teal)">${_h(s.name)}</span>`).join(', ');
+      html += `<div style="color:var(--c-dim);margin-bottom:8px">Ya configuradas: ${names}</div>`;
+    }
+    if (!_devProfileCandidates.length) {
+      html += `<p style="color:var(--c-dim)">${_devProfileExisting.length ? 'No hay carpetas nuevas que añadir.' : 'No se encontró ninguna carpeta Tier A junto a RetroArch.'}</p>`;
+      el.innerHTML = html;
+      return;
+    }
+    html += '<table style="width:100%;border-collapse:collapse"><tbody>';
+    _devProfileCandidates.forEach((s, i) => {
+      html += `<tr>
+        <td style="padding:3px 6px 3px 0"><input type="checkbox" id="devprofile-chk-${i}" checked></td>
+        <td style="padding:3px 6px 3px 0;color:var(--c-text);white-space:nowrap">${_h(s.name)}</td>
+        <td style="padding:3px 6px 3px 0"><code style="color:var(--c-orange)">${_h(s.local_dir)}</code></td>
+        <td style="padding:3px 0"><input type="text" id="devprofile-remote-${i}" value="${_h(s.remote)}" style="width:100%;font-size:11px" placeholder="remoto:RetroSync/carpeta"></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    html += '<button onclick="saveDeviceProfileSources()" style="font-size:11px;padding:4px 12px;margin-top:10px">&#x1F4BE; Guardar selecci&#xf3;n</button>';
+    html += '<div id="devprofile-save-result" style="min-height:14px;margin-top:6px"></div>';
+    el.innerHTML = html;
+  } catch(e) {
+    if (spinner) spinner.classList.add('hidden');
+    el.innerHTML = `<p style="color:var(--c-softred)">Error: ${_h(e.message)}</p>`;
+  }
+}
+
+export async function saveDeviceProfileSources() {
+  const resEl = document.getElementById('devprofile-save-result');
+  const merged = [..._devProfileExisting];
+  _devProfileCandidates.forEach((s, i) => {
+    const chk = document.getElementById(`devprofile-chk-${i}`);
+    if (!chk?.checked) return;
+    const remoteInput = document.getElementById(`devprofile-remote-${i}`);
+    merged.push({ name: s.name, local_dir: s.local_dir, remote: (remoteInput?.value || '').trim() || s.remote, sync_all: s.sync_all });
+  });
+  if (resEl) { resEl.textContent = 'Guardando…'; resEl.style.color = 'var(--c-dim)'; }
+  try {
+    await apiPost('/api/config', { 'sync.sources': merged });
+    if (resEl) { resEl.textContent = ''; }
+    showToast('Fuentes guardadas — se sincronizarán junto al resto', 'ok');
+    loadDeviceProfileDetect();
+  } catch(e) {
+    if (resEl) { resEl.textContent = '✗ Error: ' + e.message; resEl.style.color = 'var(--c-softred)'; }
+  }
+}
+
 // ── RetroAchievements Compatibility Check ──────────────────────────────────
 // State variables for RA check
 let _raResults = [];
