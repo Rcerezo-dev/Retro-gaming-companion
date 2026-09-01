@@ -16,6 +16,10 @@
 > 2026-08-31: hallazgos LIBRARY-SYNC-STALE-1 (biblioteca corregida el 08-30 sin
 > sincronizar a la Anbernic) y GBA-SAVE-PATH-1 (GBA no encuentra saves tras
 > instalar emuladores nuevos, bloqueado por ADB unauthorized)
+> 2026-09-01: auditoría LIBRARY-AUDIT (issue #275) — bug real en `rommgr
+> duplicates` (agrupa archivos sin hash como duplicados falsos), 126,4 GB en
+> `Unknown/` sin organizar, 96,4 GB de ZIPs de consola sin descomprimir, ~14,4 GB
+> seguros de recuperar en duplicados de consola (arcade excluido a propósito)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -81,6 +85,25 @@ vieja. Pendiente: identificar qué app escribe ahí (probablemente Daijishō, ve
 |----|------|-------|
 | ANBERNIC-ROMTREE-1 | Confirmar qué proceso sigue escribiendo en las carpetas huérfanas de la raíz de la SD tras la migración a `ROMs/` (2026-08-25) y cerrar esa fuente antes de mover nada | Hardware + investigación | XS | ⬜ documentado 2026-08-29 |
 | ANBERNIC-ROMTREE-2 | Mover el contenido de las 9 carpetas huérfanas (`Game Boy Advance`, `Game Gear`, `Nintendo DS`, `Atari 2600`, `Master System`, `Famicom Disk System`, `Game Boy`, `Game Boy Color`, `NGC`) a `ROMs/<plataforma>` y borrar las vacías — revisar duplicados antes de mover, no sobreescribir | Hardware | S | ⬜ documentado 2026-08-29, bloqueado por ANBERNIC-ROMTREE-1 |
+
+---
+
+### LIBRARY-AUDIT — Auditoría de biblioteca real: duplicados, ZIPs sin organizar, espacio desperdiciado — → #275
+
+Origen: usuario conectó la Anbernic (`E:\Carpetas anbernic`) y detectó a ojo
+duplicados (varias copias de un mismo juego GBA) y ZIPs mal colocados.
+Auditoría real 2026-09-01 contra `library_pc.db` (scan del mismo día) — sin
+tocar ningún archivo, solo investigación. Detalle completo de cifras y
+metodología en el issue #275; aquí solo las tareas de implementación.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| LIBRARY-AUDIT-1 | **Bug confirmado y arreglado**: `get_duplicate_groups()` (`database/repositories/duplicates.py:15-38`) no filtraba `sha1 IS NULL OR sha1=''` → agrupaba los 750 archivos sin hash de la BD como un único "grupo duplicado" falso (mezcla ROMs de MAME sin relación entre sí). Filtro añadido (`sha1 IS NOT NULL AND sha1 != ''` en ambas partes de la query). Confirmado que era el único método afectado de los 6 puntos de llamada — `_review_groups_for_repo` ("Revisar copias") ya filtraba `if row["sha1"]:` por separado, sin tocar. Test nuevo `test_empty_sha1_rows_are_not_grouped_together` (`tests/test_duplicates.py`) | `database/repositories/duplicates.py:15-38` | ✅ (`feature/library-audit-1-duplicates-null-sha1`) |
+| LIBRARY-AUDIT-2 | `Unknown/` tiene 18.577 archivos (126,4 GB) ya identificados por plataforma en la BD (MAME 9.573, FBNeo 4.323, NES 1.196, Mega Drive 359...) pero nunca movidos a `ROMs/<plataforma>/`. Extender el pipeline de Inbox para poder apuntarlo a `Unknown/` como fuente sobre la biblioteca ya existente, no solo sobre archivos nuevos | `web/zip_router.py`, `inbox_pipeline.py` | 🔴 pendiente |
+| LIBRARY-AUDIT-3 | 3.282 ZIPs de consola sin descomprimir dentro de carpetas ya organizadas (96,4 GB — PS2 45,3 GB/32 archivos, PSX 21,2 GB/94, GBA 8,4 GB/83, NDS 5,0 GB/80, Wii 4,0 GB/89), violando la regla ya documentada "ZIPs descomprimidos". Job de descompresión reutilizando el extractor del Inbox, misma política de no-sobreescritura | `zip_extractor.py` | 🔴 pendiente |
+| LIBRARY-AUDIT-4 | 15.094 grupos de duplicados reales por SHA1 (33.023 archivos, ~77 GB, ~43 GB recuperables). MAME+FBNeo son el 82% (63 GB) — NO auto-borrar, `docs/arcade-setup.md` documenta FBNeo+MAME convivencia intencional y clones que comparten SHA1 con su parent set a propósito. Espacio seguro de auto-resolver: ~14,4 GB en consolas (PSX 4,9 GB, Wii 4,0 GB, GBA 1,1 GB, Mega Drive 0,8 GB...) reutilizando el criterio RA ya existente (`ra_duplicates_service.py`) | `services/ra_duplicates_service.py` | 🔴 pendiente, arcade fuera de alcance hasta tener reglas propias de sets/clones |
+| LIBRARY-AUDIT-5 | Al menos 1 caso confirmado de ROM corrupto/truncado invisible: `Pokemon - Emerald Version (USA, Europe)` (GBA) con 6.976.143 bytes (esperado 16.777.216) y `sha1` vacío — nunca hasheado, nunca detectado como duplicado/corrupto. Detectar y marcar (no borrar solo) archivos sin hash o con tamaño fuera de lo esperado para revisión manual, en vez de dejarlos invisibles. Auditar caso a caso cuántos de los 750 archivos sin hash son esto vs. simplemente sin procesar | `health.py` o pipeline de scan | 🔴 pendiente investigación |
+| LIBRARY-AUDIT-6 | Cerrar `ANBERNIC-ROMTREE-2` como parte del mismo esfuerzo — confirmado 2026-09-01 que las 6 carpetas huérfanas (`Atari 2600`, `Famicom Disk System`, `Game Gear`, `Master System`, `Nintendo DS`, `NGC`) siguen presentes en la SD conectada ahora mismo | ver `ANBERNIC-ROMTREE` arriba | 🔴 pendiente, bloqueado por ANBERNIC-ROMTREE-1 |
 
 ---
 
