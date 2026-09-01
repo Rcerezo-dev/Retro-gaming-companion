@@ -1027,7 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if issues else 0
 
     if args.command == "organize-source":
-        from rom_manager.web.inbox_pipeline import _build_inbox_scan, _run_inbox_pipeline
+        from rom_manager.web.inbox_pipeline import _run_inbox_pipeline
         from rom_manager.web.jobs.manager import JobManager
 
         source_path = args.source_path.resolve()
@@ -1036,21 +1036,28 @@ def main(argv: list[str] | None = None) -> int:
         target_root = args.target_root.resolve() if args.target_root else config.library_root
 
         if not args.apply:
+            from collections import Counter
+
             print("DRY RUN — no files will be changed. Pass --apply to organize.")
-            preview = _build_inbox_scan(
-                str(source_path), str(target_root) if target_root else ""
-            )
-            if preview.get("error"):
-                print(preview["error"])
-                return 1
+            # Same prefix match step 6 (organize) uses live — a recursive DB
+            # query, not a filesystem walk, so it also counts nested folders
+            # (_build_inbox_scan only looks at the top level — a much smaller,
+            # misleading number for a folder like Unknown/ with subfolders).
+            with repository.connect() as conn:
+                rows = conn.execute(
+                    "SELECT platform FROM games WHERE LOWER(source_path) LIKE ?",
+                    (str(source_path).lower() + "%",),
+                ).fetchall()
+            if not rows:
+                print(
+                    f"No hay archivos ya escaneados bajo {source_path} "
+                    "— ejecuta 'rommgr scan' primero."
+                )
+                return 0
+            by_platform = Counter(row["platform"] or "(sin identificar)" for row in rows)
             print(f"Origen: {source_path}")
-            print(
-                f"Archivos: {preview.get('total', 0)}  "
-                f"(ZIPs: {preview.get('zips', 0)}, sin reconocer: {preview.get('unrecognized', 0)})"
-            )
-            for plat, n in sorted(
-                preview.get("by_platform", {}).items(), key=lambda kv: -kv[1]
-            ):
+            print(f"Archivos ya escaneados que se organizarían: {len(rows)}")
+            for plat, n in by_platform.most_common():
                 print(f"  {plat}: {n}")
             print("\nRun with --apply to organize.")
             return 0
@@ -1116,11 +1123,11 @@ def main(argv: list[str] | None = None) -> int:
 
         for result in summary.results:
             if result.success:
-                print(f"  [OK]   {result.zip_path.name}  →  {len(result.extracted_files)} archivo(s)")
+                print(f"  [OK]   {result.zip_path.name}  ->  {len(result.extracted_files)} archivo(s)")
             elif result.skipped_reason:
-                print(f"  [SKIP] {result.zip_path.name}  —  {result.skipped_reason}")
+                print(f"  [SKIP] {result.zip_path.name}  -  {result.skipped_reason}")
             elif result.error:
-                print(f"  [FAIL] {result.zip_path.name}  —  {result.error}")
+                print(f"  [FAIL] {result.zip_path.name}  -  {result.error}")
 
         print()
         if dry_run:
@@ -1156,8 +1163,24 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         if not args.apply:
-            print("DRY RUN — no files will be changed. Pass --apply to resolve.\n")
-            for group in console_groups:
+            print("DRY RUN - no files will be changed. Pass --apply to resolve.\n")
+            # Mirror apply_all_review_recommendations' own branching exactly —
+            # a group with a "disk"/"collision" reason never goes through
+            # resolve_duplicate_ra (its "recommended" entry is not what
+            # decides the outcome there), it's deferred to apply_ra_conflicts,
+            # which itself never touches _MULTI_DISC_RISK_PLATFORMS (PSX/PS2/
+            # Saturn/Dreamcast/GameCube/Wii) — showing a plain keep/discard
+            # line for those would wrongly suggest a different disc of a
+            # multi-disc game is "just a duplicate" about to be discarded.
+            plain_groups = [
+                g for g in console_groups if not (set(g.get("reasons", ())) & {"disk", "collision"})
+            ]
+            conflict_groups = [
+                g for g in console_groups if set(g.get("reasons", ())) & {"disk", "collision"}
+            ]
+            multi_disc_risk = sum(1 for g in conflict_groups if "multi_disc_risk" in g.get("reasons", ()))
+
+            for group in plain_groups:
                 entries = group.get("entries", [])
                 recommended = next((e for e in entries if e.get("recommended")), None)
                 if not recommended:
@@ -1167,7 +1190,20 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 print(
                     f"  [{group.get('platform')}] conservar: {recommended['filename']}"
-                    f"  →  descartar: {', '.join(discard)}"
+                    f"  ->  descartar: {', '.join(discard)}"
+                )
+            if conflict_groups:
+                print(
+                    f"\n{len(conflict_groups)} grupo(s) con conflicto de nombre (colision al "
+                    "renombrar) se resuelven aparte via apply_ra_conflicts, no por esta lista:"
+                )
+                print(
+                    f"  - {multi_disc_risk} en plataformas con riesgo de multi-disco "
+                    "(PSX/PS2/Saturn/Dreamcast/GameCube/Wii) — nunca se tocan automaticamente"
+                )
+                print(
+                    f"  - {len(conflict_groups) - multi_disc_risk} en el resto de plataformas "
+                    "— se resuelven por logros RA si los hay, si no quedan sin resolver"
                 )
             print("\nRun with --apply to resolve.")
             return 0

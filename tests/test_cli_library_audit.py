@@ -139,6 +139,48 @@ def test_resolve_duplicates_resolves_console_but_excludes_arcade(
     assert any(e["group_key"].startswith("MAME::") for e in excluded)
 
 
+def test_resolve_duplicates_dry_run_never_shows_multi_disc_risk_as_plain_discard(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A group whose reason includes disk/collision is never resolved via the
+    plain keep/discard path (apply_all_review_recommendations defers it to
+    apply_ra_conflicts, which skips _MULTI_DISC_RISK_PLATFORMS entirely) — the
+    dry-run preview must not print it as if a disc were about to be discarded,
+    that reads as data loss for a legitimate multi-disc game."""
+    monkeypatch.chdir(tmp_path)
+    import rom_manager.web.builders.duplicates as dup_builders
+
+    fake_queue = {
+        "groups": [
+            {
+                "platform": "Dreamcast",
+                "group_key": "Dreamcast::shenmue ii",
+                "reasons": ["collision", "multi_disc_risk"],
+                "entries": [
+                    {
+                        "filename": "Shenmue II (Disc 1).chd",
+                        "source_path": "/d/1.chd",
+                        "recommended": True,
+                    },
+                    {
+                        "filename": "Shenmue II (Disc 2).chd",
+                        "source_path": "/d/2.chd",
+                        "recommended": False,
+                    },
+                ],
+            }
+        ]
+    }
+    monkeypatch.setattr(dup_builders, "_build_review_queue", lambda *a, **kw: fake_queue)
+
+    ret = main(["resolve-duplicates"])
+
+    assert ret == 0
+    out = capsys.readouterr().out
+    assert "descartar: Shenmue II (Disc 2).chd" not in out
+    assert "conflicto de nombre" in out
+
+
 def test_resolve_duplicates_dry_run_does_not_change_db(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     repo = LibraryRepository(_db_path(tmp_path))
