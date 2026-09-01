@@ -320,7 +320,13 @@ def test_get_known_roms_returns_mtime_and_size(repo):
     _upsert(repo, source_path="/roms/Known.gba", mtime=999, size_bytes=2048)
     known = repo.get_known_roms()
     assert "/roms/Known.gba" in known
-    assert known["/roms/Known.gba"] == (999, 2048)
+    assert known["/roms/Known.gba"] == (999, 2048, True)
+
+
+def test_get_known_roms_flags_missing_sha1(repo):
+    _upsert(repo, source_path="/roms/Unhashed.gba", mtime=999, size_bytes=2048, sha1="")
+    known = repo.get_known_roms()
+    assert known["/roms/Unhashed.gba"] == (999, 2048, False)
 
 
 # ── delete_game ───────────────────────────────────────────────────────────────
