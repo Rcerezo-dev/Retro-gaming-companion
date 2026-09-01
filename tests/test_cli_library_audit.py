@@ -77,6 +77,56 @@ def test_organize_source_apply_moves_and_removes_empty_source(
     assert not source.exists()
 
 
+def test_organize_source_exclude_platform_leaves_files_untouched(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "Unknown"
+    source.mkdir()
+    (source / "console.gba").write_bytes(b"\x00" * 64)
+    arcade_zip = source / "arcade.zip"
+    arcade_zip.write_bytes(b"not a real zip, doesn't matter, it never gets opened")
+    target_root = tmp_path / "library"
+    target_root.mkdir()
+
+    repo = LibraryRepository(_db_path(tmp_path))
+    repo.upsert_game(
+        original_filename="arcade.zip",
+        source_path=str(arcade_zip.resolve()),
+        platform="MAME",
+        file_type="rom",
+        relative_parent="",
+        region="USA",
+        extension=".zip",
+        size_bytes=arcade_zip.stat().st_size,
+        mtime=0,
+        sha1="A" * 40,
+        md5="M" * 32,
+        crc32="CCCCCCCC",
+        set_type="single",
+        timestamp=_TS,
+    )
+
+    ret = main(
+        [
+            "organize-source",
+            str(source),
+            "--target-root",
+            str(target_root),
+            "--exclude-platform",
+            "MAME",
+            "--apply",
+        ]
+    )
+
+    assert ret == 0
+    # The excluded file never moved — same bytes, same exact path.
+    assert arcade_zip.exists()
+    assert not list(target_root.rglob("arcade.zip"))
+    # The console file was organized normally.
+    assert list(target_root.rglob("console.gba"))
+
+
 # ── decompress ───────────────────────────────────────────────────────────────
 
 

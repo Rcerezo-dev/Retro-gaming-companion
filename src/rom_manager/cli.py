@@ -283,6 +283,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Actually organize the folder (default is dry run).",
     )
+    organize_source_parser.add_argument(
+        "--exclude-platform",
+        action="append",
+        default=[],
+        metavar="PLATFORM",
+        help=(
+            "Leave files of this platform (as stored in the games table, e.g. "
+            "'MAME', 'FBNeo') completely untouched by this run — repeat for "
+            "more than one. They are set aside before the pipeline runs and "
+            "restored to their exact original path afterwards, so a fresh "
+            "'rommgr scan' is needed for them to reappear in the database."
+        ),
+    )
 
     decompress_parser = subparsers.add_parser(
         "decompress",
@@ -1035,6 +1048,8 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"Source path does not exist or is not a directory: {source_path}")
         target_root = args.target_root.resolve() if args.target_root else config.library_root
 
+        exclude_platforms = set(args.exclude_platform)
+
         if not args.apply:
             from collections import Counter
 
@@ -1054,24 +1069,71 @@ def main(argv: list[str] | None = None) -> int:
                     "— ejecuta 'rommgr scan' primero."
                 )
                 return 0
-            by_platform = Counter(row["platform"] or "(sin identificar)" for row in rows)
+            included = [r for r in rows if (r["platform"] or "") not in exclude_platforms]
+            excluded = [r for r in rows if (r["platform"] or "") in exclude_platforms]
+            by_platform = Counter(row["platform"] or "(sin identificar)" for row in included)
             print(f"Origen: {source_path}")
-            print(f"Archivos ya escaneados que se organizarían: {len(rows)}")
+            print(f"Archivos que se organizarían: {len(included)}")
             for plat, n in by_platform.most_common():
                 print(f"  {plat}: {n}")
+            if excluded:
+                print(f"Excluidos por --exclude-platform (quedan intactos): {len(excluded)}")
             print("\nRun with --apply to organize.")
             return 0
 
-        job_manager = JobManager()
-        _run_inbox_pipeline(
-            str(source_path),
-            str(target_root) if target_root else "",
-            args.delete_source,
-            repository,
-            config,
-            job_manager,
-        )
-        result = job_manager.get_job("inbox")["result"] or {}
+        # Files of an excluded platform must never reach the pipeline at all —
+        # step 1 (extraction) already routes complete arcade ZIP sets straight
+        # to the arcade folder by CRC content, independent of step 6's move,
+        # so filtering only the final move would be too late. Set them aside
+        # on disk first and restore them to their exact original path once the
+        # pipeline is done, whether it succeeded or not.
+        _shelved: list[tuple[Path, Path]] = []  # (temp_path, original_path)
+        if exclude_platforms:
+            import shutil as _shutil
+            import tempfile as _tempfile
+
+            with repository.connect() as conn:
+                placeholders = ",".join("?" for _ in exclude_platforms)
+                rows = conn.execute(
+                    f"SELECT source_path FROM games WHERE LOWER(source_path) LIKE ? "
+                    f"AND platform IN ({placeholders})",
+                    (str(source_path).lower() + "%", *exclude_platforms),
+                ).fetchall()
+            if rows:
+                holding_dir = Path(_tempfile.mkdtemp(prefix="rommgr_organize_source_excluded_"))
+                for i, row in enumerate(rows):
+                    original = Path(row["source_path"])
+                    if not original.exists():
+                        continue
+                    temp_path = holding_dir / f"{i}_{original.name}"
+                    _shutil.move(str(original), str(temp_path))
+                    _shelved.append((temp_path, original))
+                print(
+                    f"{len(_shelved)} archivo(s) de {', '.join(sorted(exclude_platforms))} "
+                    "apartados temporalmente, se restauran a su ruta exacta al terminar."
+                )
+
+        try:
+            job_manager = JobManager()
+            _run_inbox_pipeline(
+                str(source_path),
+                str(target_root) if target_root else "",
+                args.delete_source,
+                repository,
+                config,
+                job_manager,
+            )
+            result = job_manager.get_job("inbox")["result"] or {}
+        finally:
+            for temp_path, original in _shelved:
+                original.parent.mkdir(parents=True, exist_ok=True)
+                _shutil.move(str(temp_path), str(original))
+            if _shelved:
+                print(
+                    f"{len(_shelved)} archivo(s) restaurados a su ruta original — "
+                    "ejecuta 'rommgr scan' para que vuelvan a aparecer en la base de datos."
+                )
+
         if result.get("error"):
             print(f"Error: {result['error']}")
             return 1
