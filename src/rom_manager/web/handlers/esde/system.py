@@ -48,6 +48,7 @@ def register_system(
     from rom_manager.web.builders.library import _build_status
     from rom_manager.web.handlers.system import (
         _get_local_ip,
+        _handle_apply_retroarch_savefile_layout,
         _handle_detect_cloud_folder,
         _handle_retroarch_check,
         _handle_system_status,
@@ -156,6 +157,11 @@ def register_system(
     @router.get("/api/retroarch-check")
     def get_retroarch_check(ctx) -> None:
         ctx._send_json(_handle_retroarch_check(config))
+
+    # ── POST /api/retroarch-apply-savefile-layout ───────────────────────────
+    @router.post("/api/retroarch-apply-savefile-layout")
+    def post_apply_savefile_layout(ctx) -> None:
+        ctx._send_json(_handle_apply_retroarch_savefile_layout(config))
 
     # ── GET /api/generate-es-systems ─────────────────────────────────────────
     @router.get("/api/generate-es-systems")

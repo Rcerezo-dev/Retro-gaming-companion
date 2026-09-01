@@ -249,7 +249,9 @@
     <div class="actions-row" style="margin-top:4px">
       <button onclick="loadRetroArchCheck()" style="font-size:11px;padding:4px 12px">&#x1F50D; Diagnosticar</button>
       <span class="hidden" id="ra-check-spinner" style="color:var(--c-muted);font-size:11px;margin-left:8px">Comprobando&#x2026;</span>
+      <button id="btn-ra-apply-layout" onclick="applyRetroArchSavefileLayout()" style="font-size:11px;padding:4px 12px;margin-left:6px">&#x1F4BE; Aplicar layout de saves</button>
     </div>
+    <div id="ra-apply-layout-result" style="font-size:11px;min-height:14px;margin-top:6px"></div>
     <div class="hidden" id="ra-check-result" style="margin-top:12px">
       <div id="ra-check-status" style="font-size:12px;font-weight:bold;margin-bottom:8px"></div>
       <table style="width:100%;border-collapse:collapse;font-size:11px">

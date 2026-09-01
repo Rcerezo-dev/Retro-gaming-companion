@@ -139,6 +139,34 @@ export async function loadRetroArchCheck() {
   }
 }
 
+// DEVPROFILE-2d: manual "apply savefile layout" trigger
+export async function applyRetroArchSavefileLayout() {
+  const el  = document.getElementById('ra-apply-layout-result');
+  const btn = document.getElementById('btn-ra-apply-layout');
+  if (!el) return;
+  if (btn) btn.disabled = true;
+  el.textContent = 'Aplicando…'; el.style.color = 'var(--c-dim)';
+  try {
+    const d = await apiPost('/api/retroarch-apply-savefile-layout');
+    if (!d.applied) {
+      el.textContent = '✗ ' + (d.error || 'No se pudo aplicar.');
+      el.style.color = 'var(--c-softred)';
+      return;
+    }
+    const changed = Object.keys(d.changed_keys || {});
+    el.innerHTML = changed.length
+      ? `✓ Layout aplicado (${_h(d.savefile_dir)}) — backup en <code>${_h(d.backup_path)}</code>`
+      : '✓ Ya estaba correcto, nada que cambiar.';
+    el.style.color = 'var(--c-teal)';
+    loadRetroArchCheck();
+  } catch(e) {
+    el.textContent = '✗ Error: ' + e.message;
+    el.style.color = 'var(--c-softred)';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ── RetroAchievements Compatibility Check ──────────────────────────────────
 // State variables for RA check
 let _raResults = [];

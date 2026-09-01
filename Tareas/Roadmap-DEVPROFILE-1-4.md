@@ -129,23 +129,37 @@ Alcance ya recortado por DEVPROFILE-0: solo PC. Cuatro claves:
 `savefile_directory`, `savestate_directory`,
 `sort_savefiles_by_content_enable`, `sort_savestates_by_content_enable`.
 
-- **2a** — Reusar `_detect_retroarch_install()` (`web/handlers/config.py:139`)
-  para localizar el `retroarch.cfg` real en vez de pedir la ruta a mano.
-- **2b** — Escritor idempotente línea a línea (mismo enfoque opaco que
-  `retroarch_overrides_service.py` ya usa para `.opt`): si la clave existe,
-  reemplaza su valor; si no, la añade. No parsear ni validar el resto del
-  archivo — RetroArch es dueño de ese formato, Retro Vault solo toca 4
-  líneas conocidas.
-- **2c** — Valores a escribir: los directorios reales de saves/states que
-  ya están en `SyncConfig` (mismos paths que usa `save_syncer.py` hoy) —
-  así el sync deja de "adivinar" el layout, coincide por construcción.
-- **2d** — **Pregunta abierta para el usuario**: ¿disparo manual (botón en
-  Settings, "Aplicar layout de saves a RetroArch") o automático la primera
-  vez que se detecta una instalación nueva? Un disparo automático que
-  reescribe un `.cfg` del usuario sin pedir confirmación es el tipo de
-  acción que este proyecto trata con cautela (ver reglas de trabajo del
-  repo sobre no sobreescribir sin política clara) — recomendación: botón
-  manual con preview del diff antes de escribir, no automático.
+- **2a/2b/2c** — ✅ Hecho (2026-08-31), `src/rom_manager/services/retroarch_cfg_writer.py`:
+  `read_key()`/`_set_key()` (parser línea a línea, opaco fuera de las 4 claves
+  gestionadas — mismo espíritu que `retroarch_overrides_service.py` pero a
+  nivel de clave, no de archivo entero, porque `retroarch.cfg` tiene cientos
+  de claves ajenas que no se pueden reemplazar en bloque) y
+  `apply_savefile_layout(cfg_path, savefile_dir, savestate_dir)`: escribe
+  `savefile_directory`/`savestate_directory` con los valores dados y activa
+  `sort_savefiles_by_content_enable`/`sort_savestates_by_content_enable`
+  (necesario para que el layout `saves/<core>/<rom>.srm` que asume
+  `RemoteRouter` sea cierto por construcción). Backup `.bak` antes de escribir,
+  no-op si ya está todo correcto, solo toca las claves que realmente cambian.
+  `_handle_retroarch_check()` (`web/handlers/system.py`) refactorizado para
+  reusar `read_key()` en vez de su propia regex duplicada. 9 tests nuevos
+  (`tests/test_retroarch_cfg_writer.py`), suite completa en verde.
+
+  Nota: la localización real del `.cfg` no usa `_detect_retroarch_install()`
+  (escanea rutas candidatas) sino `config.retroarch_path` — ya configurado
+  por el usuario en Settings y ya usado por `_handle_retroarch_check()` para
+  lo mismo, más autoritativo que adivinar por candidatos.
+
+- **2d** — ✅ Resuelto (2026-09-01): botón manual, no automático (confirmado
+  con el usuario). `default_savefile_layout(library_root)` fija los valores
+  por defecto (`library_root/saves`, `library_root/states` — mismo convenio
+  que ya usa el sync a la nube D2 para `sync.saves_remote`/`states_remote`,
+  ver `server.py::_implicit_tray`), sin pedirlos por UI. Botón "Aplicar
+  layout de saves" en el panel RetroArch de Settings
+  (`POST /api/retroarch-apply-savefile-layout`,
+  `_handle_apply_retroarch_savefile_layout` en `web/handlers/system.py`,
+  `applyRetroArchSavefileLayout()` en `js/tabs/esde.js`) reusa la misma
+  resolución de `retroarch.cfg` que `_handle_retroarch_check` (junto al exe
+  configurado). Refresca el diagnóstico tras aplicar.
 
 ---
 
