@@ -178,6 +178,58 @@ plataformas cuyo DAT contaminaba el índice. **Resuelto 2026-09-02** (ARCADE-DAT
 
 ---
 
+### DECOMPRESS-ARCADE-GAP — `decompress` dañó sets arcade mal ubicados fuera de carpetas arcade (hallazgo real 2026-09-02, causado por acciones de esta sesión)
+
+**Encontrado auditando la estructura de `psx/`** a petición del usuario. `decompress`
+(`converters/zip_extractor.py:41-54`, `_ARCADE_FOLDER_NAMES`) solo protege un ZIP arcade si
+alguna carpeta ANCESTRA de su ruta se llama literalmente `mame`/`arcade`/`fbneo`/`fba`/`neogeo`/
+`mame200X`/`mame_libretro` — a diferencia de `organize-source`, que verifica el CRC real
+(`_is_arcade_zip_container`, ya arreglado hoy en `ARCADE-DAT-CONTAMINATION`). Si un ZIP arcade
+está mal ubicado en una carpeta NO-arcade (p. ej. `psx/`, un caso de contaminación histórica
+independiente y anterior a hoy), `decompress` no lo reconoce y lo extrae, destruyendo el
+contenedor multi-chip que el core arcade necesita intacto.
+
+`decompress --apply` se ejecutó hoy contra ambas bibliotecas completas (`E:\Carpetas anbernic` y
+`H:\ROMs`) como parte de `LIBRARY-AUDIT-3`. Ambas tenían, desde antes de hoy, 7 sets arcade
+mal ubicados directamente en `psx/` (mismos 7 juegos en las dos: `gunbirdj`, `gunbirdk`,
+`raystormj`, `raystormo`, `raystormu`, `riotw`, `ryujina` — Gunbird, Raystorm y Ryujin/Riot, todos
+con versión PSX también, probable origen de la confusión de plataforma original). `decompress` los
+extrajo, dejando solo 2-3 chips sueltos por carpeta (un set real necesita bastantes más — el log
+de hoy registró 16/11/9 archivos extraídos para copias de estos mismos juegos que sí estaban
+protegidas en `arcade/`).
+
+**Alcance real verificado, no es igual de grave en las dos bibliotecas**:
+- `E:\Carpetas anbernic`: `gunbirdj`, `gunbirdk`, `riotw`, `ryujina` tienen copia intacta en
+  `arcade/` (el ZIP original, protegido ahí, no se tocó) — **sin pérdida real**, solo limpieza
+  pendiente de los chips sueltos redundantes en `psx/`. `raystormj`/`raystormo`/`raystormu` no
+  tienen copia en `arcade/`, pero `psx/Raystorm (Japan).zip` (10 MB, no corrupto) sigue intacto —
+  cubre al menos la variante Japan.
+- `H:\ROMs`: **ninguno de los 7 tiene copia intacta en `arcade/` ni ningún ZIP superviviente en
+  `psx/`** — solo quedan los 2-3 chips sueltos por juego. Posible pérdida real de estos 7 sets
+  arcade en esta unidad, salvo que se puedan recuperar copiando desde `E:\Carpetas anbernic\arcade\`
+  (4 de 7 están ahí intactos) o desde otra fuente.
+
+No se ha intentado ninguna reparación todavía — decisión pendiente del usuario.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DECOMPRESS-ARCADE-GAP-1 | Decidir qué hacer con los 7 sets arcade dañados en `H:\ROMs\psx\` (copiar desde `E:\arcade\` los 4 recuperables, decidir si `raystormo`/`raystormu` se dan por perdidos o se re-descargan) | `H:\ROMs\psx\gunbirdj\`, `gunbirdk\`, `raystormj\`, `raystormo\`, `raystormu\`, `riotw\`, `ryujina\` | 🔴 pendiente, decisión del usuario |
+| DECOMPRESS-ARCADE-GAP-2 | Limpiar los chips sueltos redundantes de `E:\Carpetas anbernic\psx\` (4 de 7 ya tienen copia intacta en `arcade/`, los chips sueltos no aportan nada) | `E:\Carpetas anbernic\psx\gunbirdj\`, `gunbirdk\`, `riotw\`, `ryujina\` | 🔴 pendiente |
+| DECOMPRESS-ARCADE-GAP-3 | Fix de raíz: blindar `decompress` con la misma detección por CRC real que ya usa `organize-source` (`_is_arcade_zip_container`), en vez de confiar solo en el nombre de carpeta ancestro — evita que se repita con cualquier otro set arcade mal ubicado que no se haya encontrado todavía | `converters/zip_extractor.py:41-54`, `extract_zip()` | 🔴 pendiente, bloqueante antes de volver a correr `decompress` sobre carpetas no auditadas |
+| DECOMPRESS-ARCADE-GAP-4 | Auditar el resto de carpetas de plataforma (no solo `psx/`) en ambas bibliotecas por si hay más sets arcade mal ubicados fuera de `arcade/` que `decompress` pueda dañar en una futura ejecución | ambas bibliotecas | 🔴 pendiente |
+
+---
+
+### PSX-STRUCTURE — Auditoría de estructura de `psx/` (2026-09-02, a petición del usuario)
+
+| ID | Task | Notas |
+|----|------|-------|
+| PSX-STRUCTURE-1 | `H:\ROMs\psx`: 125 `.cue`, **39 con pista(s) `.bin` faltante** (sets rotos, ya apuntados como "49 sets multi-disco rotos" en el diario del Día52 — 39 es el recuento exacto por `.cue`, la diferencia son juegos con más de un `.cue` roto). Sin tocar — revisión/re-descarga manual | `H:\ROMs\psx\*.cue` | 🔴 pendiente, revisión manual |
+| PSX-STRUCTURE-2 | `E:\Carpetas anbernic\psx`: **0 archivos `.cue` en toda la carpeta** (formato dominante ahí es `.chd`, 214 — correcto) pero **93 `.bin` sueltos sin ningún `.cue` que los referencie** — restos de rips incompletos o de extracciones de sets ya convertidos a CHD cuyo `.bin`/`.cue` original no se limpió. Investigar caso por caso antes de borrar nada (podría haber contenido único no cubierto por el `.chd` equivalente) | `E:\Carpetas anbernic\psx\*.bin` | 🔴 pendiente, investigación |
+| PSX-STRUCTURE-3 | Auditoría de carpetas mal ubicadas por extensión (refrescada tras los cambios de hoy): `H:\ROMs` baja de 94 a **24** (8 carpetas — incluye 6 GBC dentro de una subcarpeta de `gb/`, 2 `.rvz` de GameCube en `gbc/`, 2 NES bootleg de "Crash Bandicoot" en `psx/`, 4 "(Virtual Console)" en `3ds/` de dudosa intención). `E:\Carpetas anbernic` sigue en **605** (sin tocar hoy, mismo desglose que ayer: 3ds 133, amiga 87, gb 71, c64 70, atari2600 51...) — pendiente de decidir si se reclasifica al mismo nivel que `amiga/`/`arcade/` | ambas bibliotecas | 🔴 pendiente, decisión del usuario |
+
+---
+
 ### ARCADE-SETUP — Research arcade ROM config (no code)
 
 | ID | Task | Notes |
