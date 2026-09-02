@@ -426,25 +426,6 @@ def _resolve_ambiguous_md(inbox: Path, config: AppConfig, logger) -> int:
     return identified
 
 
-def _is_arcade_zip_container(zip_path: Path, arcade_crc_index: dict) -> bool:
-    """INBOX-CFG-4: True si *zip_path* es un set MAME completo, sin extraer.
-
-    Todas las entradas del ZIP coinciden con un CRC conocido de la BD arcade
-    → es un contenedor de chips MAME, no una colección de consola. Extraerlo
-    lo destroza (el ZIP ES el ROM); debe moverse tal cual a ``arcade\\``.
-    """
-    import zipfile
-
-    try:
-        with zipfile.ZipFile(zip_path) as zf:
-            infos = [i for i in zf.infolist() if not i.is_dir()]
-            if not infos:
-                return False
-            return all(f"{info.CRC & 0xFFFFFFFF:08X}" in arcade_crc_index for info in infos)
-    except (OSError, zipfile.BadZipFile):
-        return False
-
-
 def _reconstruct_loose_arcade_sets(
     inbox: Path, target_root: Path, config: AppConfig, logger: logging.Logger
 ) -> dict:
@@ -915,7 +896,11 @@ def _run_inbox_pipeline(
 
     from rom_manager.catalog.mame_loader import load_arcade_crc_index
     from rom_manager.catalog.matcher import CatalogMatcher
-    from rom_manager.converters.zip_extractor import extract_zip, find_zip_files
+    from rom_manager.converters.zip_extractor import (
+        extract_zip,
+        find_zip_files,
+        is_arcade_zip_container,
+    )
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves
@@ -963,7 +948,7 @@ def _run_inbox_pipeline(
             _upd("extracting", 1, idx, len(zip_files), zp.name)
             # INBOX-CFG-4: un ZIP arcade nunca se extrae — el ZIP es el ROM.
             # Extraerlo shredea el set en chips sueltos (incidente Día49).
-            if arcade_crc_index and _is_arcade_zip_container(zp, arcade_crc_index):
+            if arcade_crc_index and is_arcade_zip_container(zp, arcade_crc_index):
                 dest = arcade_folder / zp.name
                 if dest.exists():
                     logger.warning(

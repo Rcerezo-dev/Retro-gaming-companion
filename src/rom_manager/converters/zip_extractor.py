@@ -59,11 +59,29 @@ def find_zip_files(directory: Path) -> list[Path]:
     return sorted(directory.rglob("*.zip"))
 
 
+def is_arcade_zip_container(zip_path: Path, arcade_crc_index: dict) -> bool:
+    """DECOMPRESS-ARCADE-GAP-3: True if every entry's CRC is a known arcade ROM.
+
+    Detects an arcade/MAME set by content (CRC32 from the ZIP's own header,
+    no need to extract) instead of trusting the ancestor folder name — a set
+    sitting in an unaudited/misnamed folder still gets caught.
+    """
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            infos = [i for i in zf.infolist() if not i.is_dir()]
+            if not infos:
+                return False
+            return all(f"{info.CRC & 0xFFFFFFFF:08X}" in arcade_crc_index for info in infos)
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
 def extract_zip(
     zip_path: Path,
     *,
     delete_source: bool = False,
     dry_run: bool = True,
+    arcade_crc_index: dict | None = None,
 ) -> ExtractionResult:
     """Extract the contents of *zip_path* to the same directory, member by member.
 
@@ -95,6 +113,17 @@ def extract_zip(
             extracted_files=[],
             success=False,
             skipped_reason="ROM arcade/MAME — no extraer (el ZIP es el ROM)",
+        )
+
+    # DECOMPRESS-ARCADE-GAP-3: misma detección por contenido (CRC real) que ya
+    # usa organize-source — cubre sets arcade sentados en carpetas mal
+    # nombradas o no auditadas que el chequeo de nombre de arriba no ve.
+    if arcade_crc_index and is_arcade_zip_container(zip_path, arcade_crc_index):
+        return ExtractionResult(
+            zip_path=zip_path,
+            extracted_files=[],
+            success=False,
+            skipped_reason="ROM arcade/MAME (detectado por CRC) — no extraer (el ZIP es el ROM)",
         )
 
     try:
@@ -184,11 +213,17 @@ def extract_directory(
     *,
     delete_source: bool = False,
     dry_run: bool = True,
+    arcade_crc_index: dict | None = None,
 ) -> ExtractionSummary:
     """Extract all .zip files under *directory*."""
     summary = ExtractionSummary()
     for zip_path in find_zip_files(directory):
-        result = extract_zip(zip_path, delete_source=delete_source, dry_run=dry_run)
+        result = extract_zip(
+            zip_path,
+            delete_source=delete_source,
+            dry_run=dry_run,
+            arcade_crc_index=arcade_crc_index,
+        )
         summary.results.append(result)
         if result.is_disc_set:
             summary.disc_sets += 1
