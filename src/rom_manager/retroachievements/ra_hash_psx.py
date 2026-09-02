@@ -103,8 +103,8 @@ class _CdImage:
         self.close()
 
 
-def _find_root_file(cd: _CdImage, name: str) -> tuple[int, int] | None:
-    """(sector, size) of *name* in the ISO9660 root directory, or None."""
+def _root_dir_location(cd: _CdImage) -> tuple[int, int, int] | None:
+    """(dir_sector, num_sectors, logical_block_size) of the ISO9660 root directory."""
     pvd = cd.read_sector(16, 2048)
     if len(pvd) < 190:
         return None
@@ -113,7 +113,14 @@ def _find_root_file(cd: _CdImage, name: str) -> tuple[int, int] | None:
     logical_block_size = pvd[128] | (pvd[129] << 8)
     dir_len = root_rec[10] | (root_rec[11] << 8) | (root_rec[12] << 16) | (root_rec[13] << 24)
     num_sectors = 1 if logical_block_size == 0 else max(1, dir_len // logical_block_size)
+    return dir_sector, num_sectors, logical_block_size
 
+
+def _find_entry(
+    cd: _CdImage, dir_sector: int, num_sectors: int, name: str
+) -> tuple[int, int, bool] | None:
+    """(sector, size, is_directory) of *name* inside the directory starting at
+    *dir_sector*, or None."""
     target = name.upper()
     target_len = len(target)
     sector = dir_sector
@@ -130,17 +137,45 @@ def _find_root_file(cd: _CdImage, name: str) -> tuple[int, int] | None:
                 prefix = entry_name[:target_len].decode("ascii", "replace").upper()
                 next_byte = entry_name[target_len : target_len + 1]
                 if (name_len == target_len or next_byte == b";") and prefix == target:
-                    file_sector = buf[pos + 2] | (buf[pos + 3] << 8) | (buf[pos + 4] << 16)
-                    file_size = (
+                    entry_sector = buf[pos + 2] | (buf[pos + 3] << 8) | (buf[pos + 4] << 16)
+                    entry_size = (
                         buf[pos + 10]
                         | (buf[pos + 11] << 8)
                         | (buf[pos + 12] << 16)
                         | (buf[pos + 13] << 24)
                     )
-                    return file_sector, file_size
+                    is_dir = bool(buf[pos + 25] & 0x02)
+                    return entry_sector, entry_size, is_dir
             pos += rec_len
         sector += 1
     return None
+
+
+def _find_root_file(cd: _CdImage, name: str) -> tuple[int, int] | None:
+    """(sector, size) of *name*, resolving ``\\``-separated subdirectory path
+    components first (e.g. "TEKKEN3\\SLUS_004.02") -- a SYSTEM.CNF's BOOT=
+    line may point into a subfolder, not just the ISO9660 root (common on
+    PS1, not an edge case)."""
+    root = _root_dir_location(cd)
+    if root is None:
+        return None
+    dir_sector, num_sectors, logical_block_size = root
+
+    parts = [p for p in name.split("\\") if p]
+    if not parts:
+        return None
+
+    for part in parts[:-1]:
+        entry = _find_entry(cd, dir_sector, num_sectors, part)
+        if entry is None or not entry[2]:
+            return None
+        dir_sector, entry_size, _ = entry
+        num_sectors = 1 if logical_block_size == 0 else max(1, entry_size // logical_block_size)
+
+    entry = _find_entry(cd, dir_sector, num_sectors, parts[-1])
+    if entry is None:
+        return None
+    return entry[0], entry[1]
 
 
 def _parse_boot_exe_name(data: bytes) -> str | None:
