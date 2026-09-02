@@ -131,6 +131,51 @@ están, no revertir.
 
 ---
 
+### ARCADE-DAT-CONTAMINATION — DATs de consola mezclados en el catálogo arcade causan falsos positivos (hallazgo real 2026-09-02, BLOQUEANTE)
+
+**BUG DE SEVERIDAD ALTA** — descubierto en vivo durante un piloto de `organize-source` contra
+`H:\ROMs\amiga`, con datos reales movidos por error (revertido en el momento, sin pérdida).
+
+Causa raíz: `.rommgr/catalogs/arcade/` contiene, junto a los DAT arcade legítimos (MAME,
+"FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"), **15 DAT de FBNeo que son núcleos de
+CONSOLA, no arcade**: `FDS`, `Game Gear`, `Master System`, `SNES`, `Megadrive`, `NES`,
+`PC-Engine`, `ColecoVision`, `Fairchild Channel F`, `MSX 1`, `NeoGeo Pocket`, `Neogeo`,
+`SG-1000`, `SuprGrafx`, `TurboGrafx16`, `ZX Spectrum` — nombrados "(ClrMame Pro XML, X only)"
+pero viviendo en la carpeta `arcade/`, probablemente descargados junto a los DAT arcade sin
+reparar en que FBNeo también emula consolas.
+
+`load_arcade_crc_index()` (`catalog/mame_loader.py:122-150`) lee **todos** los `.dat` de ese
+directorio sin distinguir sistema — indexa cada CRC de cada DAT en un único diccionario
+`crc32 -> {set names}`. `_is_arcade_zip_container()` (`web/inbox_pipeline.py:429-445`), usado por
+el paso 1 del pipeline de Inbox/organize-source para decidir "esto es un set MAME completo, no
+extraer, mover a `arcade/`", solo comprueba si el CRC de cada entrada del ZIP está en ese índice
+contaminado — sin verificar de qué DAT viene.
+
+**Reproducido en real**: `organize-source "H:\ROMs\amiga" --apply` movió 23 ZIPs a `arcade/`.
+Inspeccionados uno a uno (contenido real del ZIP, no el nombre):
+- **4 sí son arcade de verdad** (`batman.zip`, `Hook (Europe)...zip`, `legend.zip`,
+  `Batman (Europe) (Budget - The Hit Squad) (conflicto-inbox 2026-08-13).zip` — sets multi-chip
+  MAME reales) — correctamente en `arcade/`.
+- **19 NO son arcade ni Amiga** — son ROMs de SNES (`.sfc`), Genesis (`.md`) y Master System
+  (`.sms`)/PC Engine (`.pce`) con nombre "estilo Amiga" que mentía sobre el contenido real
+  (`Aladdin (Europe) (AGA).zip` contenía literalmente `Aladdin (USA).sfc`). Revertidos a mano de
+  vuelta a `amiga/` — **siguen mal ubicados ahí** (su plataforma real es SNES/Genesis/SMS/PCE, no
+  Amiga), pendientes de mover a su carpeta correcta una vez ADT-2 esté resuelto.
+
+**Por qué era bloqueante**: `Game Gear`, `Famicom Disk System` y `Master System` — 3 de los 4
+huérfanos pendientes de `LIBRARY-AUDIT-6`/`ANBERNIC-ROMTREE` en `H:\ROMs` — son exactamente
+plataformas cuyo DAT contaminaba el índice. **Resuelto 2026-09-02** (ARCADE-DAT-CONTAMINATION-1 y
+-2): ya es seguro volver a ejecutar `organize-source`/Inbox contra cualquier carpeta.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ARCADE-DAT-CONTAMINATION-1 | **Hecho**: los 16 DAT de núcleos de consola (Neogeo y NeoGeo Pocket contados aparte) movidos de `.rommgr/catalogs/arcade/` a `.rommgr/catalogs/_fbneo_console_unused/` — dato local, no versionado (`.rommgr/catalogs/*` está en `.gitignore`), sin commit necesario para esta parte | `.rommgr/catalogs/arcade/*.dat` | ✅ 2026-09-02 |
+| ARCADE-DAT-CONTAMINATION-2 | **Hecho**: `_is_console_only_dat()` nuevo filtra por nombre de fichero (`"...only)"` que no sea `"Arcade only)"`) en ambos bucles de `load_arcade_crc_index()`/`load_arcade_manifest()` — defensa en profundidad aunque el directorio vuelva a contaminarse. Verificado contra los ficheros reales que causaron el fallo (`Aladdin (Europe) (AGA).zip` ya no vota como arcade, `batman.zip` sigue detectándose bien). Tests: `test_arcade_crc_index_ignores_console_only_fbneo_dats`, `test_arcade_manifest_ignores_console_only_fbneo_dats` | `catalog/mame_loader.py:122-193` | ✅ (`fix/arcade-dat-contamination`) |
+| ARCADE-DAT-CONTAMINATION-3 | Re-clasificar los 19 ZIPs SNES/Genesis/SMS/PCE mal nombrados encontrados en `H:\ROMs\amiga` (nombre "estilo Amiga", contenido real de otra plataforma) — mover cada uno a su carpeta real según extensión interna, posiblemente hay más casos iguales en otras carpetas de ambas bibliotecas | `H:\ROMs\amiga\` (lista completa en Día52.md) | 🔴 pendiente |
+| ARCADE-DAT-CONTAMINATION-4 | Auditar si el mismo patrón (ZIP con nombre de una plataforma pero contenido de otra) existe en más carpetas de `E:\Carpetas anbernic` y `H:\ROMs` — solo se comprobó `amiga/` a fondo hoy | ambas bibliotecas | 🔴 pendiente |
+
+---
+
 ### ARCADE-SETUP — Research arcade ROM config (no code)
 
 | ID | Task | Notes |
