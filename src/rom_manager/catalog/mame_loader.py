@@ -11,6 +11,7 @@ Usage
 
 from __future__ import annotations
 
+import re as _re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -119,6 +120,26 @@ def load_arcade_infra_names(directory: Path) -> set[str]:
     return names
 
 
+_NON_ARCADE_DAT_RE = _re.compile(r"\bonly\)", _re.IGNORECASE)
+_ARCADE_ONLY_DAT_RE = _re.compile(r"\barcade only\)", _re.IGNORECASE)
+
+
+def _is_console_only_dat(filename: str) -> bool:
+    """ARCADE-DAT-CONTAMINATION-2: True si *filename* es un DAT de FBNeo para
+    un núcleo de CONSOLA (p. ej. ``FinalBurn Neo (..., Game Gear only).dat``),
+    no de arcade.
+
+    FBNeo publica DATs "solo esta plataforma" para cada núcleo que emula,
+    arcade incluido — si alguno de los de consola acaba en el mismo
+    directorio que los de arcade (fácil: se descargan del mismo repo), sus
+    CRCs contaminan ``load_arcade_crc_index``/``load_arcade_manifest`` y un
+    ZIP de esa consola puede votar como "set arcade completo". Un DAT
+    termina en "..., X only).dat" para cualquier X — el único que debe
+    contar como arcade es el que dice literalmente "Arcade only)".
+    """
+    return bool(_NON_ARCADE_DAT_RE.search(filename)) and not _ARCADE_ONLY_DAT_RE.search(filename)
+
+
 def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
     """``crc32_upper → {set names}`` de los DAT arcade (Logiqx: ``<rom crc>``).
 
@@ -133,7 +154,7 @@ def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
     if not directory.exists():
         return index
     for f in sorted(directory.iterdir()):
-        if f.suffix.lower() != ".dat":
+        if f.suffix.lower() != ".dat" or _is_console_only_dat(f.name):
             continue
         try:
             for _, elem in ET.iterparse(str(f)):
@@ -164,7 +185,7 @@ def load_arcade_manifest(directory: Path) -> dict[str, list[tuple[str, str, int]
     if not directory.exists():
         return manifest
     for f in sorted(directory.iterdir()):
-        if f.suffix.lower() != ".dat":
+        if f.suffix.lower() != ".dat" or _is_console_only_dat(f.name):
             continue
         try:
             for _, elem in ET.iterparse(str(f)):

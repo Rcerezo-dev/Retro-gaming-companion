@@ -68,6 +68,31 @@ def test_arcade_crc_index_missing_dir_is_empty() -> None:
     assert load_arcade_crc_index(Path("no-existe")) == {}
 
 
+def test_arcade_crc_index_ignores_console_only_fbneo_dats(tmp_path: Path) -> None:
+    """ARCADE-DAT-CONTAMINATION: un DAT "X only" de FBNeo que no sea Arcade
+    (Game Gear, SNES, Master System…) no debe contaminar el índice — un ZIP
+    de esa consola no puede votar como "set arcade completo". Reproducido en
+    real 2026-09-02: 23 ZIPs de Amiga se movieron a arcade/ por esto."""
+    console_dat = """<?xml version="1.0"?>
+<datafile>
+  <game name="sonic">
+    <rom name="sonic.md" size="524288" crc="deadbeef"/>
+  </game>
+</datafile>
+"""
+    (tmp_path / "FinalBurn Neo (ClrMame Pro XML, Megadrive only).dat").write_text(
+        console_dat, encoding="utf-8"
+    )
+    (tmp_path / "FinalBurn Neo (ClrMame Pro XML, Arcade only).dat").write_text(
+        _DAT, encoding="utf-8"
+    )
+
+    index = load_arcade_crc_index(tmp_path)
+
+    assert "DEADBEEF" not in index
+    assert index["AABB0001"] == {"lemmings", "lemmingsj"}
+
+
 def test_arcade_manifest_lists_expected_roms_per_machine(tmp_path: Path) -> None:
     """ARCADE-RECON-1: machine -> roms esperados, para calcular cobertura."""
     (tmp_path / "MAME.dat").write_text(_DAT, encoding="utf-8")
@@ -86,6 +111,25 @@ def test_arcade_manifest_lists_expected_roms_per_machine(tmp_path: Path) -> None
 
 def test_arcade_manifest_missing_dir_is_empty() -> None:
     assert load_arcade_manifest(Path("no-existe")) == {}
+
+
+def test_arcade_manifest_ignores_console_only_fbneo_dats(tmp_path: Path) -> None:
+    """Mismo filtro que load_arcade_crc_index — ARCADE-RECON no debe poder
+    reconstruir un "set arcade" a partir de chips de un DAT de consola."""
+    console_dat = """<?xml version="1.0"?>
+<datafile>
+  <game name="sonic">
+    <rom name="sonic.md" size="524288" crc="deadbeef"/>
+  </game>
+</datafile>
+"""
+    (tmp_path / "FinalBurn Neo (ClrMame Pro XML, Game Gear only).dat").write_text(
+        console_dat, encoding="utf-8"
+    )
+
+    manifest = load_arcade_manifest(tmp_path)
+
+    assert "sonic" not in manifest
 
 
 def test_arcade_manifest_dedupes_same_machine_across_dat_sources(tmp_path: Path) -> None:
