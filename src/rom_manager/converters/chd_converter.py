@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
 
 from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
+from rom_manager.utils.trash import TRASH_DIR_NAME
 
 
 @dataclass(slots=True)
@@ -98,6 +99,20 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
     return bins
 
 
+def _unclaimed_bins(directory: Path) -> list[Path]:
+    """.bin files under *directory* not referenced by any .cue there, and
+    not inside a ``_descartados/`` trash folder -- a file already discarded
+    should never come back as a "recoverable" bare bin."""
+    claimed: set[Path] = set()
+    for cue in find_cue_files(directory):
+        claimed.update(parse_bins_from_cue(cue))
+    return [
+        f
+        for f in sorted(directory.rglob("*.bin"))
+        if f not in claimed and TRASH_DIR_NAME not in f.parts
+    ]
+
+
 def find_bare_bin_files(directory: Path) -> list[Path]:
     """Return .bin files under *directory* not referenced by any .cue there
     -- the common shape in this library, where most PS1 dumps are
@@ -107,17 +122,22 @@ def find_bare_bin_files(directory: Path) -> list[Path]:
     left over from some other multi-track set has no filesystem and is
     silently excluded here, never guessed at.
     """
-    claimed: set[Path] = set()
-    for cue in find_cue_files(directory):
-        claimed.update(parse_bins_from_cue(cue))
+    return [
+        f
+        for f in _unclaimed_bins(directory)
+        if detect_bin_cue_mode(f) is not None and compute_psx_ra_hash(f) is not None
+    ]
 
-    bins = []
-    for f in sorted(directory.rglob("*.bin")):
-        if f in claimed:
-            continue
-        if detect_bin_cue_mode(f) is not None and compute_psx_ra_hash(f) is not None:
-            bins.append(f)
-    return bins
+
+def find_bins_needing_cue(directory: Path) -> list[Path]:
+    """Bare .bin files under *directory* with valid sector geometry but no
+    sidecar .cue -- unlike ``find_bare_bin_files``, this does NOT require a
+    successful RA hash. That gate exists there to protect an irreversible
+    action (CHD conversion + optional source deletion); adding a .cue
+    sidecar is fully reversible, so a disc whose RA hash can't be computed
+    yet (e.g. a boot path RA's hasher doesn't resolve) is still included.
+    """
+    return [f for f in _unclaimed_bins(directory) if detect_bin_cue_mode(f) is not None]
 
 
 def synthesize_cue_text(bin_path: Path) -> str | None:
@@ -127,6 +147,22 @@ def synthesize_cue_text(bin_path: Path) -> str | None:
     if mode is None:
         return None
     return f'FILE "{bin_path.name}" BINARY\nTRACK 01 {mode}\n  INDEX 01 00:00:00\n'
+
+
+def generate_missing_cues(directory: Path, *, dry_run: bool = True) -> list[Path]:
+    """Write a minimal single-track .cue sidecar next to every bare .bin
+    under *directory* with valid sector geometry. Never touches the .bin
+    itself. Returns the .cue paths written (or that would be written, in
+    dry-run mode)."""
+    written = []
+    for bin_path in find_bins_needing_cue(directory):
+        cue_path = bin_path.with_suffix(".cue")
+        if cue_path.exists():
+            continue
+        written.append(cue_path)
+        if not dry_run:
+            cue_path.write_text(synthesize_cue_text(bin_path), encoding="ascii")
+    return written
 
 
 def parse_tracks_from_gdi(gdi_path: Path) -> list[Path]:

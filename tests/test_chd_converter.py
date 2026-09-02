@@ -10,7 +10,9 @@ from rom_manager.converters.chd_converter import (
     convert_bin_to_chd,
     convert_directory,
     find_bare_bin_files,
+    find_bins_needing_cue,
     find_cue_files,
+    generate_missing_cues,
     parse_bins_from_cue,
 )
 from tests.test_ra_hash_psx import _build_psx_image
@@ -148,6 +150,52 @@ def test_find_bare_bin_files_excludes_files_with_no_filesystem(tmp_path: Path) -
     (tmp_path / "not_a_disc.bin").write_bytes(b"just some random bytes, not a cd image")
 
     assert find_bare_bin_files(tmp_path) == []
+
+
+def test_find_bins_needing_cue_includes_geometry_valid_bins_without_ra_hash(
+    tmp_path: Path,
+) -> None:
+    """A real disc whose RA hash can't be computed (e.g. no readable
+    SYSTEM.CNF) must still get a .cue sidecar -- unlike find_bare_bin_files,
+    which requires a verified RA hash before treating a .bin as safe for
+    automatic CHD conversion."""
+    bin_path = tmp_path / "Loose Game (USA).bin"
+    bin_path.write_bytes(b"\x00" * (2352 * 4))  # sector-aligned, no filesystem
+
+    assert find_bare_bin_files(tmp_path) == []
+    assert find_bins_needing_cue(tmp_path) == [bin_path]
+
+
+def test_find_bins_needing_cue_excludes_bins_claimed_by_a_cue(tmp_path: Path) -> None:
+    claimed_bin = tmp_path / "claimed.bin"
+    claimed_bin.write_bytes(b"\x00" * (2352 * 4))
+    _write_cue(tmp_path / "game.cue", [claimed_bin.name])
+
+    assert find_bins_needing_cue(tmp_path) == []
+
+
+def test_generate_missing_cues_dry_run_writes_nothing(tmp_path: Path) -> None:
+    bin_path = tmp_path / "Loose Game (USA).bin"
+    bin_path.write_bytes(b"\x00" * (2352 * 4))
+
+    written = generate_missing_cues(tmp_path, dry_run=True)
+
+    assert written == [bin_path.with_suffix(".cue")]
+    assert not written[0].exists()
+
+
+def test_generate_missing_cues_apply_writes_sidecar_only(tmp_path: Path) -> None:
+    bin_path = tmp_path / "Loose Game (USA).bin"
+    bin_path.write_bytes(b"\x00" * (2352 * 4))
+
+    written = generate_missing_cues(tmp_path, dry_run=False)
+
+    cue_path = bin_path.with_suffix(".cue")
+    assert written == [cue_path]
+    assert cue_path.exists()
+    assert bin_path.exists()
+    assert bin_path.read_bytes() == b"\x00" * (2352 * 4)  # untouched
+    assert 'FILE "Loose Game (USA).bin" BINARY' in cue_path.read_text()
 
 
 @pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")

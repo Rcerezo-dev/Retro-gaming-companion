@@ -316,6 +316,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Actually decompress (default is dry run).",
     )
 
+    gen_cues_parser = subparsers.add_parser(
+        "generate-cues",
+        help=(
+            "Write a minimal .cue sidecar for bare .bin PSX dumps with valid sector "
+            "geometry and no existing .cue. Never touches the .bin. Dry run by default."
+        ),
+    )
+    gen_cues_parser.add_argument(
+        "source_path", type=Path, help="Folder to scan for bare .bin files."
+    )
+    gen_cues_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually write the .cue files (default is dry run).",
+    )
+
     resolve_dup_parser = subparsers.add_parser(
         "resolve-duplicates",
         help=(
@@ -1210,6 +1226,31 @@ def main(argv: list[str] | None = None) -> int:
             )
             if summary.extracted:
                 print("Re-run 'rommgr scan' to update the library database.")
+        return 0
+
+    if args.command == "generate-cues":
+        from rom_manager.converters.chd_converter import generate_missing_cues
+
+        source_path = args.source_path.resolve()
+        if not source_path.exists() or not source_path.is_dir():
+            parser.error(f"Source path does not exist or is not a directory: {source_path}")
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — no files will be changed. Pass --apply to write the .cue files.")
+        print()
+
+        written = generate_missing_cues(source_path, dry_run=dry_run)
+        for cue_path in written:
+            print(f"  [OK]  {cue_path.with_suffix('.bin').name}  ->  {cue_path.name}")
+
+        print()
+        if dry_run:
+            print(f"Se generarían: {len(written)} .cue")
+            if written:
+                print("Run with --apply to write them.")
+        else:
+            print(f"Generados: {len(written)} .cue")
         return 0
 
     if args.command == "resolve-duplicates":

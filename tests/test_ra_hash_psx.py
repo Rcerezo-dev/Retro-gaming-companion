@@ -13,7 +13,7 @@ import hashlib
 import struct
 from pathlib import Path
 
-from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash
+from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
 
 _SECTOR_SIZE = 2352
 _HEADER_SIZE = 24
@@ -198,3 +198,15 @@ def test_compute_psx_ra_hash_missing_system_cnf_returns_none(tmp_path: Path) -> 
     p.write_bytes(bytes(_SECTOR_SIZE * 4))  # all zeros -- no sync pattern, no CD001
 
     assert compute_psx_ra_hash(p) is None
+
+
+def test_detect_bin_cue_mode_rejects_file_with_no_geometry_evidence(tmp_path: Path) -> None:
+    """Regression (found against the real library): an arcade ROM chip dump
+    (e.g. 'mpr-15574.bin', 1048576 bytes -- not a multiple of 2352 or 2336,
+    no sync pattern, no CD001) used to fall through _detect_geometry's final
+    'return 2048, 0, 0' and get reported as a valid PS1 disc geometry with
+    zero positive evidence. Must return None instead."""
+    p = tmp_path / "mpr-15574.bin"
+    p.write_bytes(bytes(1_048_576))
+
+    assert detect_bin_cue_mode(p) is None

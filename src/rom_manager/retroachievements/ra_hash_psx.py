@@ -72,7 +72,11 @@ class _CdImage:
             return 2352, 24, 0
         if size % 2336 == 0:
             return 2336, 8, 0
-        return 2048, 0, 0
+        # No sync pattern, no CD001 signature, size isn't even a multiple of
+        # a known sector size -- there is no positive evidence this is a CD
+        # image at all (e.g. an arcade ROM chip dump). A sentinel outside
+        # _CUE_MODE_BY_GEOMETRY's keys, not a blind MODE1/2048 guess.
+        return 0, 0, 0
 
     def read_sector(self, sector: int, n: int = 2048) -> bytes:
         offset = (sector - self.first_sector) * self.sector_size + self.header_size
