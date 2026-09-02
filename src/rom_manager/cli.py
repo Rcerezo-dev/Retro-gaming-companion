@@ -1148,9 +1148,7 @@ def main(argv: list[str] | None = None) -> int:
         # no queda ni un archivo dentro (nunca se fuerza el borrado).
         remaining_files = [p for p in source_path.rglob("*") if p.is_file()]
         if not remaining_files:
-            for d in sorted(
-                (p for p in source_path.rglob("*") if p.is_dir()), reverse=True
-            ):
+            for d in sorted((p for p in source_path.rglob("*") if p.is_dir()), reverse=True):
                 try:
                     d.rmdir()
                 except OSError:
@@ -1185,7 +1183,9 @@ def main(argv: list[str] | None = None) -> int:
 
         for result in summary.results:
             if result.success:
-                print(f"  [OK]   {result.zip_path.name}  ->  {len(result.extracted_files)} archivo(s)")
+                print(
+                    f"  [OK]   {result.zip_path.name}  ->  {len(result.extracted_files)} archivo(s)"
+                )
             elif result.skipped_reason:
                 print(f"  [SKIP] {result.zip_path.name}  -  {result.skipped_reason}")
             elif result.error:
@@ -1216,9 +1216,7 @@ def main(argv: list[str] | None = None) -> int:
 
         queue = _build_review_queue(repository, repository_android, config)
         arcade_groups = [g for g in queue["groups"] if g.get("platform") in _ARCADE_PLATFORMS]
-        console_groups = [
-            g for g in queue["groups"] if g.get("platform") not in _ARCADE_PLATFORMS
-        ]
+        console_groups = [g for g in queue["groups"] if g.get("platform") not in _ARCADE_PLATFORMS]
         print(
             f"Grupos totales: {len(queue['groups'])}  "
             f"({len(arcade_groups)} arcade excluidos, {len(console_groups)} de consola)"
@@ -1240,7 +1238,9 @@ def main(argv: list[str] | None = None) -> int:
             conflict_groups = [
                 g for g in console_groups if set(g.get("reasons", ())) & {"disk", "collision"}
             ]
-            multi_disc_risk = sum(1 for g in conflict_groups if "multi_disc_risk" in g.get("reasons", ()))
+            multi_disc_risk = sum(
+                1 for g in conflict_groups if "multi_disc_risk" in g.get("reasons", ())
+            )
 
             for group in plain_groups:
                 entries = group.get("entries", [])

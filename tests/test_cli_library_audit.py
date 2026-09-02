@@ -57,9 +57,7 @@ def test_organize_source_dry_run_does_not_move(tmp_path: Path, monkeypatch) -> N
     assert not list(target_root.rglob("game.gba"))
 
 
-def test_organize_source_apply_moves_and_removes_empty_source(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_organize_source_apply_moves_and_removes_empty_source(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     source = tmp_path / "Unknown"
     source.mkdir()
@@ -67,9 +65,7 @@ def test_organize_source_apply_moves_and_removes_empty_source(
     target_root = tmp_path / "library"
     target_root.mkdir()
 
-    ret = main(
-        ["organize-source", str(source), "--target-root", str(target_root), "--apply"]
-    )
+    ret = main(["organize-source", str(source), "--target-root", str(target_root), "--apply"])
 
     assert ret == 0
     moved = list(target_root.rglob("game.gba"))
@@ -169,13 +165,9 @@ def test_resolve_duplicates_resolves_console_but_excludes_arcade(
     repo = LibraryRepository(_db_path(tmp_path))
 
     _seed_game(repo, tmp_path / "gb" / "tetris.gb", platform="Game Boy", sha1="A" * 40)
-    _seed_game(
-        repo, tmp_path / "gb" / "backup" / "tetris.gb", platform="Game Boy", sha1="A" * 40
-    )
+    _seed_game(repo, tmp_path / "gb" / "backup" / "tetris.gb", platform="Game Boy", sha1="A" * 40)
     _seed_game(repo, tmp_path / "mame" / "1943.zip", platform="MAME", sha1="B" * 40)
-    _seed_game(
-        repo, tmp_path / "mame" / "clone" / "1943.zip", platform="MAME", sha1="B" * 40
-    )
+    _seed_game(repo, tmp_path / "mame" / "clone" / "1943.zip", platform="MAME", sha1="B" * 40)
 
     ret = main(["resolve-duplicates", "--apply"])
 
@@ -235,9 +227,7 @@ def test_resolve_duplicates_dry_run_does_not_change_db(tmp_path: Path, monkeypat
     monkeypatch.chdir(tmp_path)
     repo = LibraryRepository(_db_path(tmp_path))
     _seed_game(repo, tmp_path / "gb" / "tetris.gb", platform="Game Boy", sha1="A" * 40)
-    _seed_game(
-        repo, tmp_path / "gb" / "backup" / "tetris.gb", platform="Game Boy", sha1="A" * 40
-    )
+    _seed_game(repo, tmp_path / "gb" / "backup" / "tetris.gb", platform="Game Boy", sha1="A" * 40)
 
     ret = main(["resolve-duplicates"])
 
