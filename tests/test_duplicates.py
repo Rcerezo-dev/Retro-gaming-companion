@@ -109,3 +109,16 @@ def test_canonical_title_preserved(tmp_path: Path) -> None:
 def test_empty_library(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     assert repo.get_duplicate_groups() == []
+
+
+def test_empty_sha1_rows_are_not_grouped_together(tmp_path: Path) -> None:
+    """LIBRARY-AUDIT-1: unrelated unhashed files must never look like duplicates."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path="/roms/unknown/a.zip", sha1="", original_filename="a.zip")
+    _insert_game(repo, source_path="/roms/unknown/b.zip", sha1="", original_filename="b.zip")
+    _insert_game(repo, source_path="/roms/a.gb", sha1=_SHA1_A, canonical_title="Tetris (World)")
+    _insert_game(repo, source_path="/roms/backup/a.gb", sha1=_SHA1_A)
+
+    groups = repo.get_duplicate_groups()
+    assert len(groups) == 1
+    assert groups[0].sha1 == _SHA1_A

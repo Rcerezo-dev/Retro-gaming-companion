@@ -13,15 +13,23 @@ from rom_manager.database.repositories.models import DuplicateEntry, DuplicateGr
 
 class DuplicatesMixin:
     def get_duplicate_groups(self) -> list[DuplicateGroup]:
-        """Return groups of games that share the same SHA1, excluding intentional copies."""
+        """Return groups of games that share the same SHA1, excluding intentional copies.
+
+        LIBRARY-AUDIT-1: rows without a hash yet (``sha1`` NULL/'', e.g. from a
+        ``--quick`` or ADB scan) must never be grouped together — they're not
+        duplicates of each other, just unrelated files pending a real hash.
+        """
         with self.connect() as connection:
             rows = connection.execute(
                 """
                 SELECT id, original_filename, source_path, platform,
                        canonical_title, size_bytes, sha1
                 FROM games
-                WHERE sha1 IN (
-                    SELECT sha1 FROM games GROUP BY sha1 HAVING COUNT(*) > 1
+                WHERE sha1 IS NOT NULL AND sha1 != ''
+                AND sha1 IN (
+                    SELECT sha1 FROM games
+                    WHERE sha1 IS NOT NULL AND sha1 != ''
+                    GROUP BY sha1 HAVING COUNT(*) > 1
                 )
                 AND sha1 NOT IN (SELECT sha1 FROM excluded_duplicates)
                 ORDER BY sha1, source_path
