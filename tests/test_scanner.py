@@ -287,3 +287,25 @@ def test_scan_excludes_os_junk_dirs(tmp_path):
         paths = {r["source_path"] for r in conn.execute("SELECT source_path FROM games").fetchall()}
     assert any(p.endswith("Kept.gba") for p in paths)
     assert not any("Junk" in p for p in paths)
+
+
+def test_scan_backfills_hash_after_quick_scan(tmp_path):
+    """LIBRARY-AUDIT-5: a full scan must re-hash a row a --quick scan (or the
+    ADB device scan) left with sha1='', even if the file's mtime/size haven't
+    changed since — otherwise it stays unhashed forever ("sticky skip" bug)."""
+    rom_dir = tmp_path / "roms"
+    _write(rom_dir, "gba", "Game.gba")
+
+    repo = LibraryRepository(tmp_path / ".rommgr" / "library.db")
+    cfg = load_config()
+    logger = MagicMock()
+
+    scan_library(rom_dir, cfg, repo, logger, quick=True)
+    with repo.connect() as conn:
+        row = conn.execute("SELECT sha1 FROM games WHERE original_filename='Game.gba'").fetchone()
+    assert row["sha1"] == ""
+
+    scan_library(rom_dir, cfg, repo, logger, quick=False)
+    with repo.connect() as conn:
+        row = conn.execute("SELECT sha1 FROM games WHERE original_filename='Game.gba'").fetchone()
+    assert row["sha1"] != ""
