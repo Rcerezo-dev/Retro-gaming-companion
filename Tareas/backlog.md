@@ -198,23 +198,37 @@ extrajo, dejando solo 2-3 chips sueltos por carpeta (un set real necesita bastan
 de hoy registró 16/11/9 archivos extraídos para copias de estos mismos juegos que sí estaban
 protegidas en `arcade/`).
 
-**Alcance real verificado, no es igual de grave en las dos bibliotecas**:
-- `E:\Carpetas anbernic`: `gunbirdj`, `gunbirdk`, `riotw`, `ryujina` tienen copia intacta en
-  `arcade/` (el ZIP original, protegido ahí, no se tocó) — **sin pérdida real**, solo limpieza
-  pendiente de los chips sueltos redundantes en `psx/`. `raystormj`/`raystormo`/`raystormu` no
-  tienen copia en `arcade/`, pero `psx/Raystorm (Japan).zip` (10 MB, no corrupto) sigue intacto —
-  cubre al menos la variante Japan.
-- `H:\ROMs`: **ninguno de los 7 tiene copia intacta en `arcade/` ni ningún ZIP superviviente en
-  `psx/`** — solo quedan los 2-3 chips sueltos por juego. Posible pérdida real de estos 7 sets
-  arcade en esta unidad, salvo que se puedan recuperar copiando desde `E:\Carpetas anbernic\arcade\`
-  (4 de 7 están ahí intactos) o desde otra fuente.
+**Re-verificado a fondo 2026-09-02 (sesión siguiente) — la conclusión de `H:\ROMs` de arriba era
+incorrecta, y `raystormj/o/u` nunca fueron sets completos, en ninguna de las dos bibliotecas**:
 
-No se ha intentado ninguna reparación todavía — decisión pendiente del usuario.
+- **`gunbirdj`, `gunbirdk`, `riotw`, `ryujina` — CERO pérdida real, en las dos bibliotecas.**
+  El backup de ayer solo se había buscado en `E:\arcade\`; en `H:\ROMs\arcade\mame\` también
+  existen los 4 ZIP (`gunbirdj.zip`, `gunbirdk.zip`, `riotw.zip`, `ryujina.zip`), verificados con
+  `unzip -t` (sin errores) y con nombres de chip idénticos a los ficheros sueltos de `psx/`. Los 4
+  de `E:\arcade\` también verificados igual. Los ficheros sueltos en `psx/gunbirdj\`, `gunbirdk\`,
+  `riotw\`, `ryujina\` (ambas bibliotecas) son puro residuo del bug de `decompress` — el ZIP
+  canónico nunca se tocó, ya vive en su sitio correcto (`arcade/`). Solo falta limpieza.
+- **`raystormj`/`raystormo`/`raystormu` — nunca fueron sets jugables completos, independientemente
+  de hoy.** Verificado contra `MAME 0.286 (arcade).dat` (líneas 871105-871196): los 3 son
+  **clones** (`cloneof="raystorm" romof="raystorm"`) de un set base `raystorm` que **no existe en
+  ninguna biblioteca** (`find` sin resultados en `H:\` ni `E:\`, tampoco en `_descartados/`) —
+  sin él faltan siempre `e24-02.1`, `e24-03.2`, `e24-04.27`, `e24-09.14`, `m534002c-14.ic353`,
+  `tt01.ic652`, `tt04` (heredados por `merge=`), así que ningún core arcade puede arrancarlos aun
+  con el ZIP del clon perfecto. Además `raystormo` y `raystormu` ya les faltaba `e24-06.3` (ROM
+  propio del clon, sin `merge=`, dat exige 2 ficheros y solo había 1) **antes** de que `decompress`
+  tocara nada — nunca fueron ni siquiera clones completos. `psx/Raystorm (Japan).zip` (10 MB, en
+  ambas bibliotecas, intacto) **no cubre nada de esto**: es el port comercial de PS1 del juego, un
+  producto distinto, no la ROM MAME (confirmado por tamaño/formato — la ROM MAME real pesaría
+  ~13 MB en varios ficheros `.ic`/`.4`/`.1`, no un único ISO de 10 MB).
+
+No se ha tocado nada en la biblioteca real durante esta re-verificación (solo lectura:
+`ls`/`find`/`unzip -t`/`sha1sum`, y consulta del `.dat`) — decisión de limpieza/descarte pendiente
+del usuario.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| DECOMPRESS-ARCADE-GAP-1 | Decidir qué hacer con los 7 sets arcade dañados en `H:\ROMs\psx\` (copiar desde `E:\arcade\` los 4 recuperables, decidir si `raystormo`/`raystormu` se dan por perdidos o se re-descargan) | `H:\ROMs\psx\gunbirdj\`, `gunbirdk\`, `raystormj\`, `raystormo\`, `raystormu\`, `riotw\`, `ryujina\` | 🔴 pendiente, decisión del usuario |
-| DECOMPRESS-ARCADE-GAP-2 | Limpiar los chips sueltos redundantes de `E:\Carpetas anbernic\psx\` (4 de 7 ya tienen copia intacta en `arcade/`, los chips sueltos no aportan nada) | `E:\Carpetas anbernic\psx\gunbirdj\`, `gunbirdk\`, `riotw\`, `ryujina\` | 🔴 pendiente |
+| DECOMPRESS-ARCADE-GAP-1 | ✅ **Resuelto 2026-09-02**: confirmado cero pérdida real en los 7 sets. Con confirmación del usuario, borrados los 7×2 restos de `psx/` (`gunbirdj`, `gunbirdk`, `riotw`, `ryujina` — ZIP canónico intacto y verificado con `unzip -t` en `arcade/` de LAS DOS bibliotecas; `raystormj/o/u` — nunca fueron sets completos ni antes de hoy, clones de un `raystorm` base inexistente en ninguna biblioteca, `raystormo`/`raystormu` además sin su propio ROM único `e24-06.3`). **Hallazgo adicional en la misma verificación**: un 8º caso no catalogado ayer — 10 chips sueltos de `ryujin` (el set *padre*, no `ryujina`) directamente en la raíz de `psx/` (sin subcarpeta) en ambas bibliotecas, residuo de extraer `psx/Ryujin (Japan) (v1.00).zip` (repack no oficial que bundlea `ryujin`+`ryujina`, aún intacto en `E:\`). Backup canónico verificado íntegro en `H:\ROMs\arcade\mame\ryujin.zip`. Borrados también los 10×2 chips sueltos tras verificar el respaldo. BD refrescada en ambas (`H:\ROMs` 1 huérfano limpiado, `E:\Carpetas anbernic` 27), 0 errores | `H:\ROMs\psx\` y `E:\Carpetas anbernic\psx\` (ya limpio) | ✅ hecho |
+| DECOMPRESS-ARCADE-GAP-2 | ✅ Resuelto junto a GAP-1 — mismo borrado cubrió los restos redundantes de las dos bibliotecas (la nota original solo mencionaba `E:\`, en realidad `H:\` tenía el mismo problema y ya se limpió también) | `E:\Carpetas anbernic\psx\`, `H:\ROMs\psx\` | ✅ hecho |
 | DECOMPRESS-ARCADE-GAP-3 | Fix de raíz: blindar `decompress` con la misma detección por CRC real que ya usa `organize-source` (`_is_arcade_zip_container`), en vez de confiar solo en el nombre de carpeta ancestro — evita que se repita con cualquier otro set arcade mal ubicado que no se haya encontrado todavía | `converters/zip_extractor.py:41-54`, `extract_zip()` | 🔴 pendiente, bloqueante antes de volver a correr `decompress` sobre carpetas no auditadas |
 | DECOMPRESS-ARCADE-GAP-4 | Auditar el resto de carpetas de plataforma (no solo `psx/`) en ambas bibliotecas por si hay más sets arcade mal ubicados fuera de `arcade/` que `decompress` pueda dañar en una futura ejecución | ambas bibliotecas | 🔴 pendiente |
 
@@ -224,9 +238,11 @@ No se ha intentado ninguna reparación todavía — decisión pendiente del usua
 
 | ID | Task | Notas |
 |----|------|-------|
-| PSX-STRUCTURE-1 | `H:\ROMs\psx`: 125 `.cue`, **39 con pista(s) `.bin` faltante** (sets rotos, ya apuntados como "49 sets multi-disco rotos" en el diario del Día52 — 39 es el recuento exacto por `.cue`, la diferencia son juegos con más de un `.cue` roto). Sin tocar — revisión/re-descarga manual | `H:\ROMs\psx\*.cue` | 🔴 pendiente, revisión manual |
-| PSX-STRUCTURE-2 | `E:\Carpetas anbernic\psx`: **0 archivos `.cue` en toda la carpeta** (formato dominante ahí es `.chd`, 214 — correcto) pero **93 `.bin` sueltos sin ningún `.cue` que los referencie** — restos de rips incompletos o de extracciones de sets ya convertidos a CHD cuyo `.bin`/`.cue` original no se limpió. Investigar caso por caso antes de borrar nada (podría haber contenido único no cubierto por el `.chd` equivalente) | `E:\Carpetas anbernic\psx\*.bin` | 🔴 pendiente, investigación |
+| RA-HASH-SUBDIR-1 | **Bug encontrado 2026-09-02** verificando `Tekken 3 (USA).bin` (Anbernic) para reparación cruzada: `ra_hash_psx.py::_find_boot_executable` (línea 178) solo busca el ejecutable de arranque en el directorio raíz ISO9660. `SYSTEM.CNF` de Tekken 3 apunta a `cdrom:\TEKKEN3\SLUS_004.02;1` (subcarpeta) — `_parse_boot_exe_name` (línea 146) solo pela las barras invertidas *iniciales*, así que `exe_name` queda como `"TEKKEN3\SLUS_004.02"` con la barra interna intacta, y `_find_root_file` (línea 106, solo mira la raíz) nunca lo encuentra → `compute_psx_ra_hash` devuelve `None` en silencio para cualquier juego cuyo BOOT= viva en subcarpeta (patrón común en PS1, no es solo Tekken 3). Root cause confirmado leyendo el `SYSTEM.CNF` real del disco, no solo síntoma. Fix: `_find_root_file` necesita recorrer subdirectorios (o `_parse_boot_exe_name` separar carpeta/archivo y bajar el directory record correspondiente antes de buscar el nombre final) | `src/rom_manager/retroachievements/ra_hash_psx.py:106,146,178` | 🔴 pendiente, no implementado esta sesión |
+| PSX-STRUCTURE-1 | **Recuento exacto 2026-09-02** (parseo real de `FILE` en cada `.cue`, no solo conteo): `H:\ROMs\psx` tenía **78 `.cue` que referencian algún `.bin` inexistente**. Tras descartar los que ya tienen un `.chd` con el mismo nombre (cue obsoleto, juego ya convertido — 45 casos) y los que viven en `_descartados/` (copia ya perdedora, 6 casos), quedaban **33 sets realmente rotos/en riesgo**. **2 reparados 2026-09-02** usando `.bin` sanos hallados huérfanos en `E:\Carpetas anbernic\psx` (ver PSX-STRUCTURE-2): `Wild Arms (USA)` (copia directa, encajaba exacto) y `Tekken 3 (USA)` (bin combinado 1 pista en vez de 3 separadas — cue viejo de 3 pistas + `Track 3.bin` movidos a `_descartados/`, cue nuevo de 1 pista MODE2/2352 generado; confirmado disco válido leyendo su `SYSTEM.CNF` real, ver `RA-HASH-SUBDIR-1`). **Curiosidad**: el bin combinado de Tekken 3 ya estaba, idéntico byte a byte (SHA1 igual), dentro de `_descartados/` del propio PC — no hacía falta traerlo de Anbernic, ahora hay un duplicado de 603 MB ahí dentro pendiente de limpiar si se confirma que no sirve para nada más. Quedan **31 sets** sin tocar — revisión/re-descarga manual | `H:\ROMs\psx\*.cue` | 🟡 en progreso, 2/33 reparados |
+| PSX-STRUCTURE-2 | `E:\Carpetas anbernic\psx`: **0 archivos `.cue`** (formato dominante `.chd`, 214 — correcto) y **93 `.bin` sueltos sin ningún `.cue`**. Clasificados 2026-09-02: **~33 no parecen PSX en absoluto** — nombres tipo `u14.bin`, `cs-gp1.bin`, `vram 1 pos f12 27128 version3.bin` (patrón idéntico a los chips de placa arcade del hallazgo de hoy, ver `DECOMPRESS-ARCADE-GAP-4`) — y **60 sí son juegos/demos PSX reales**. De esos 60, investigados a fondo 2026-09-02 (comprobación de tamaño de sector, no solo nombre): **59 son sectores raw MODE2/2352 válidos (tamaño múltiplo exacto de 2352 bytes)** — estructuralmente sanos, solo les falta el `.cue` sidecar, recuperables generando uno mínimo (1 pista). Solo **`D (Europe) (Disc 1).bin` está realmente roto — 1024 bytes**, no es una imagen de disco, pérdida real de ese archivo. Dos casos destacables por tamaño casi de CD completo y coinciden en nombre con sets ya rotos de `H:\ROMs\psx` (PSX-STRUCTURE-1): **`Wild Arms (USA).bin` (607,6 MB)** y **`Tekken 3 (USA).bin` (603,2 MB)** — candidatos fuertes para reparar esos mismos sets en el PC copiando el `.bin` de Anbernic. `Street Fighter Alpha - Warriors' Dreams (USA).bin` (7,7 MB) también coincide de nombre pero es demasiado pequeño para ser el mismo rip que el del PC (que usa pistas separadas) — revisar a mano antes de asumir que sirve | `E:\Carpetas anbernic\psx\*.bin` | 🔴 pendiente, generar `.cue` para los 59 + decidir si se usan Wild Arms/Tekken 3 para reparar `H:\ROMs\psx` |
 | PSX-STRUCTURE-3 | Auditoría de carpetas mal ubicadas por extensión (refrescada tras los cambios de hoy): `H:\ROMs` baja de 94 a **24** (8 carpetas — incluye 6 GBC dentro de una subcarpeta de `gb/`, 2 `.rvz` de GameCube en `gbc/`, 2 NES bootleg de "Crash Bandicoot" en `psx/`, 4 "(Virtual Console)" en `3ds/` de dudosa intención). `E:\Carpetas anbernic` sigue en **605** (sin tocar hoy, mismo desglose que ayer: 3ds 133, amiga 87, gb 71, c64 70, atari2600 51...) — pendiente de decidir si se reclasifica al mismo nivel que `amiga/`/`arcade/` | ambas bibliotecas | 🔴 pendiente, decisión del usuario |
+| PSX-STRUCTURE-4 | **Decisión confirmada 2026-09-02**: subcarpeta por juego para `psx/` (y el resto de `_DISC_SUBFOLDER_PLATFORMS` en `operation_planner.py:19-22` — saturn, dreamcast...), no carpeta plana. Ya es la convención implementada (`move_disc_set_to_subfolder`, `renamer/file_renamer.py:211`; target derivado en `operation_planner.py:159-168`) y ya aplicada parcialmente en `H:\ROMs\psx` (~30 carpetas con `.chd` único ya migradas). Falta migrar: 465 archivos sueltos en `H:\ROMs\psx` (~125 sets `.cue`+`.bin`) y prácticamente los 497 sueltos de `E:\Carpetas anbernic\psx` (0 carpetas reales ahí — ver histórico `PSX-ORPHAN`, las que hubo eran huérfanas de scraper, no ROMs migrados). Motivo: con `.cue`+`.bin` en carpeta plana el riesgo de colisión de nombre de pista entre dos juegos es real, y una carpeta con contenido anómalo (chips arcade sueltos, `.bin` huérfano) se detecta a simple vista solo si cada carpeta = un juego. **No ejecutar `rommgr apply` todavía**: bloqueado por PSX-STRUCTURE-1 (39 sets rotos), PSX-STRUCTURE-2 (93 `.bin` huérfanos sin investigar) y DECOMPRESS-ARCADE-GAP-1 (recuperación arcade pendiente) — migrar con esos casos sin resolver mezclaría sets rotos/huérfanos con la migración real | `H:\ROMs\psx`, `E:\Carpetas anbernic\psx` | 🔴 pendiente, tras resolver PSX-STRUCTURE-1/2 y DECOMPRESS-ARCADE-GAP-1 |
 
 ---
 
