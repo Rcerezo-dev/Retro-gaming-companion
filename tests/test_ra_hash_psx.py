@@ -32,11 +32,12 @@ def _msf_bytes(lba: int) -> bytes:
     return bytes([bcd(minutes), bcd(seconds), bcd(frames)])
 
 
-def _dir_record(name: str, sector: int, size: int) -> bytes:
+def _dir_record(name: str, sector: int, size: int, *, is_dir: bool = False) -> bytes:
     name_bytes = name.encode("ascii")
     rec = bytearray(33 + len(name_bytes))
     rec[2:6] = struct.pack("<I", sector)
     rec[10:14] = struct.pack("<I", size)
+    rec[25] = 0x02 if is_dir else 0x00
     rec[32] = len(name_bytes)
     rec[33:] = name_bytes
     if len(name_bytes) % 2 == 0:
@@ -108,6 +109,76 @@ def test_compute_psx_ra_hash_matches_manual_computation(tmp_path: Path) -> None:
     exe_sector_start = 22 * _SECTOR_SIZE + _HEADER_SIZE
     expected = hashlib.md5()
     expected.update(b"TEST.EXE")
+    expected.update(raw[exe_sector_start : exe_sector_start + 2048])
+
+    assert result == expected.hexdigest()
+
+
+def _build_psx_image_with_subdir_boot(tmp_path: Path) -> Path:
+    """Same layout as ``_build_psx_image``, but ``BOOT=`` points into a
+    subdirectory (``cdrom:\\TEST\\GAME.EXE``) -- the RA-HASH-SUBDIR-1 case:
+    the boot executable does not live in the ISO9660 root, a common PS1
+    pattern (e.g. real-world ``TEKKEN3\\SLUS_004.02``)."""
+    total_sectors = 25
+    data = bytearray(total_sectors * _SECTOR_SIZE)
+
+    def user_data(sector: int) -> memoryview:
+        start = sector * _SECTOR_SIZE + _HEADER_SIZE
+        return memoryview(data)[start : start + 2048]
+
+    def sector_header(sector: int, sync: bool) -> None:
+        start = sector * _SECTOR_SIZE
+        if sync:
+            data[start : start + 12] = bytes([0x00, *([0xFF] * 10), 0x00])
+        data[start + 12 : start + 15] = _msf_bytes(sector)
+
+    sector_header(16, sync=True)
+    pvd = user_data(16)
+    pvd[0] = 1
+    pvd[1:6] = b"CD001"
+    pvd[128:130] = struct.pack("<H", 2048)
+    root_rec = _dir_record(".", 20, 2048)
+    pvd[156 : 156 + len(root_rec)] = root_rec
+
+    # Sector 20: root directory -- SYSTEM.CNF + a "TEST" subdirectory (sector 23)
+    sector_header(20, sync=False)
+    root_dir = user_data(20)
+    system_cnf_content = b"BOOT = cdrom:\\TEST\\GAME.EXE;1\r\n"
+    entries = _dir_record("SYSTEM.CNF;1", 21, len(system_cnf_content)) + _dir_record(
+        "TEST", 23, 2048, is_dir=True
+    )
+    root_dir[: len(entries)] = entries
+
+    sector_header(21, sync=False)
+    user_data(21)[: len(system_cnf_content)] = system_cnf_content
+
+    # Sector 23: "TEST" subdirectory contents -- GAME.EXE (sector 24)
+    sector_header(23, sync=False)
+    sub_dir = user_data(23)
+    sub_entries = _dir_record("GAME.EXE;1", 24, 2048)
+    sub_dir[: len(sub_entries)] = sub_entries
+
+    sector_header(24, sync=False)
+    exe_sector = user_data(24)
+    exe_sector[0:8] = b"PS-X EXE"
+    exe_sector[28:32] = struct.pack("<I", 0)
+
+    bin_path = tmp_path / "game.bin"
+    bin_path.write_bytes(bytes(data))
+    return bin_path
+
+
+def test_compute_psx_ra_hash_boot_in_subdirectory(tmp_path: Path) -> None:
+    """RA-HASH-SUBDIR-1: BOOT= pointing into a subfolder must resolve, not
+    silently return None."""
+    bin_path = _build_psx_image_with_subdir_boot(tmp_path)
+
+    result = compute_psx_ra_hash(bin_path)
+
+    raw = bin_path.read_bytes()
+    exe_sector_start = 24 * _SECTOR_SIZE + _HEADER_SIZE
+    expected = hashlib.md5()
+    expected.update(b"TEST\\GAME.EXE")
     expected.update(raw[exe_sector_start : exe_sector_start + 2048])
 
     assert result == expected.hexdigest()
