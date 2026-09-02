@@ -161,7 +161,7 @@ def generate_missing_cues(directory: Path, *, dry_run: bool = True) -> list[Path
             continue
         written.append(cue_path)
         if not dry_run:
-            cue_path.write_text(synthesize_cue_text(bin_path), encoding="ascii")
+            cue_path.write_text(synthesize_cue_text(bin_path), encoding="utf-8")
     return written
 
 
@@ -230,20 +230,24 @@ def _run_chdman_createcd(staged_cue: Path, chd_path: Path, chdman: str) -> str |
     return None
 
 
-def _verify_ra_hash(source_for_hash: Path, chd_path: Path, chdman: str) -> str | None:
+def _verify_ra_hash(source_for_hash: Path, chd_path: Path, chdman: str) -> tuple[str | None, bool]:
     """Compare the RetroAchievements hash of *source_for_hash* (a .cue or a
     bare .bin -- ``compute_psx_ra_hash`` dispatches on extension) against the
-    freshly-created *chd_path*. Returns an error message on mismatch/failure
-    (and deletes the bad .chd), or None if they match. A disc that had no
-    computable hash to begin with (unsupported disc, no boot exe) is *not*
-    treated as a failure here -- that would have already been caught earlier
-    when the candidate was discovered."""
+    freshly-created *chd_path*. Returns ``(error, verified)``: *error* is set
+    on mismatch/failure (and the bad .chd is deleted), None if they match or
+    if no hash could be computed at all. *verified* is True only when both
+    hashes were computed and matched -- callers must not delete the source
+    unless this is True: a None source hash is not proof of anything, just
+    an unsupported/undetectable disc (e.g. a bin whose geometry looked valid
+    but whose filesystem couldn't be read -- see ``find_bins_needing_cue``,
+    which -- unlike ``find_bare_bin_files`` -- accepts exactly such bins)."""
     source_hash = compute_psx_ra_hash(source_for_hash)
     chd_hash = compute_psx_ra_hash(chd_path, chdman_path=Path(chdman))
     if source_hash is not None and source_hash != chd_hash:
         chd_path.unlink(missing_ok=True)
-        return f"el hash RA no coincide tras la conversión (origen={source_hash}, chd={chd_hash}) — no se toca el original"
-    return None
+        error = f"el hash RA no coincide tras la conversión (origen={source_hash}, chd={chd_hash}) — no se toca el original"
+        return error, False
+    return None, source_hash is not None and source_hash == chd_hash
 
 
 def convert_to_chd(
@@ -306,13 +310,13 @@ def convert_to_chd(
             cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths, success=False, error=error
         )
 
-    error = _verify_ra_hash(cue_path, chd_path, chdman)
+    error, verified = _verify_ra_hash(cue_path, chd_path, chdman)
     if error:
         return ConversionResult(
             cue_path=cue_path, chd_path=chd_path, bin_paths=bin_paths, success=False, error=error
         )
 
-    if delete_source:
+    if delete_source and verified:
         for bin_path in bin_paths:
             bin_path.unlink(missing_ok=True)
         cue_path.unlink(missing_ok=True)
@@ -362,7 +366,7 @@ def convert_bin_to_chd(
         )
 
     staged_cue = bin_path.with_name(f"{bin_path.stem}.staged.cue")
-    staged_cue.write_text(cue_text, encoding="ascii")
+    staged_cue.write_text(cue_text, encoding="utf-8")
     try:
         error = _run_chdman_createcd(staged_cue, chd_path, chdman)
     finally:
@@ -370,11 +374,11 @@ def convert_bin_to_chd(
     if error:
         return ConversionResult(cue_path, chd_path, bin_paths, success=False, error=error)
 
-    error = _verify_ra_hash(bin_path, chd_path, chdman)
+    error, verified = _verify_ra_hash(bin_path, chd_path, chdman)
     if error:
         return ConversionResult(cue_path, chd_path, bin_paths, success=False, error=error)
 
-    if delete_source:
+    if delete_source and verified:
         bin_path.unlink(missing_ok=True)
 
     return ConversionResult(cue_path, chd_path, bin_paths, success=True)

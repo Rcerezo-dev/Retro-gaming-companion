@@ -9,6 +9,7 @@ from rom_manager.converters.chd_converter import (
     ConversionSummary,
     convert_bin_to_chd,
     convert_directory,
+    convert_to_chd,
     find_bare_bin_files,
     find_bins_needing_cue,
     find_cue_files,
@@ -198,6 +199,23 @@ def test_generate_missing_cues_apply_writes_sidecar_only(tmp_path: Path) -> None
     assert 'FILE "Loose Game (USA).bin" BINARY' in cue_path.read_text()
 
 
+def test_generate_missing_cues_apply_handles_non_ascii_filename(tmp_path: Path) -> None:
+    """Regression: No-Intro/Redump canonical names routinely carry accents
+    (e.g. "Pokémon"). Writing the .cue as ascii used to raise
+    UnicodeEncodeError -- but only after Path.write_text had already
+    truncated/created the file, leaving a permanent 0-byte .cue that the
+    cue_path.exists() guard would then skip forever on every re-run."""
+    bin_path = tmp_path / "Pokémon (Europe).bin"
+    bin_path.write_bytes(b"\x00" * (2352 * 4))
+
+    written = generate_missing_cues(tmp_path, dry_run=False)
+
+    cue_path = bin_path.with_suffix(".cue")
+    assert written == [cue_path]
+    assert cue_path.stat().st_size > 0
+    assert 'FILE "Pokémon (Europe).bin" BINARY' in cue_path.read_text(encoding="utf-8")
+
+
 @pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")
 def test_convert_bin_to_chd_end_to_end(tmp_path: Path) -> None:
     _build_psx_image(tmp_path)
@@ -222,6 +240,28 @@ def test_convert_directory_apply_picks_up_bare_bins(tmp_path: Path) -> None:
     assert summary.failed == 0
     assert (tmp_path / "Test Game (USA).chd").exists()
     assert not (tmp_path / "Test Game (USA).bin").exists()
+
+
+@pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")
+def test_convert_to_chd_keeps_source_when_hash_cannot_be_verified(tmp_path: Path) -> None:
+    """Regression: a .cue pointing at a bin with no computable RA hash (e.g.
+    one 'generate-cues' wrote a sidecar for, since it deliberately doesn't
+    require a hash -- see find_bins_needing_cue) must NOT have its source
+    deleted by --delete-source just because chdman could still build a .chd
+    from the raw bytes. Without a verified hash match there is no proof the
+    .chd is a faithful copy, so deleting the only-verified original would be
+    silent, unrecoverable data loss."""
+    bin_path = tmp_path / "Unverifiable Game (USA).bin"
+    bin_path.write_bytes(b"\x00" * (2352 * 4))  # sector-aligned, no real filesystem
+    cue_path = tmp_path / "Unverifiable Game (USA).cue"
+    _write_cue(cue_path, [bin_path.name])
+
+    result = convert_to_chd(cue_path, chdman=str(_CHDMAN), delete_source=True)
+
+    assert result.success, result.error
+    assert result.chd_path.exists()
+    assert bin_path.exists()  # NOT deleted -- hash was never verified
+    assert cue_path.exists()
 
 
 @pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")
