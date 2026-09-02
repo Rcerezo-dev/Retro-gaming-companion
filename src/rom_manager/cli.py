@@ -255,6 +255,81 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show a Windows desktop toast notification when done.",
     )
 
+    organize_source_parser = subparsers.add_parser(
+        "organize-source",
+        help=(
+            "Run the Inbox pipeline against an existing library folder (e.g. "
+            "'Unknown/' or an orphan platform folder) to move already-identified "
+            "files into ROMs/<platform>/. Dry run by default."
+        ),
+    )
+    organize_source_parser.add_argument(
+        "source_path", type=Path, help="Existing folder to organize (any path inside the library)."
+    )
+    organize_source_parser.add_argument(
+        "--target-root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Root to organize into (defaults to config.toml [library] library_root).",
+    )
+    organize_source_parser.add_argument(
+        "--delete-source",
+        action="store_true",
+        help="Delete processed ZIPs instead of archiving them under _processed/ (requires --apply).",
+    )
+    organize_source_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually organize the folder (default is dry run).",
+    )
+    organize_source_parser.add_argument(
+        "--exclude-platform",
+        action="append",
+        default=[],
+        metavar="PLATFORM",
+        help=(
+            "Leave files of this platform (as stored in the games table, e.g. "
+            "'MAME', 'FBNeo') completely untouched by this run — repeat for "
+            "more than one. They are set aside before the pipeline runs and "
+            "restored to their exact original path afterwards, so a fresh "
+            "'rommgr scan' is needed for them to reappear in the database."
+        ),
+    )
+
+    decompress_parser = subparsers.add_parser(
+        "decompress",
+        help=(
+            "Decompress console ZIPs already sitting inside organized platform "
+            "folders (arcade/MAME ZIPs and disc sets are never touched). Dry run by default."
+        ),
+    )
+    decompress_parser.add_argument("source_path", type=Path, help="Folder to scan for ZIPs.")
+    decompress_parser.add_argument(
+        "--delete-source",
+        action="store_true",
+        help="Delete each ZIP after a fully successful extraction (requires --apply).",
+    )
+    decompress_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually decompress (default is dry run).",
+    )
+
+    resolve_dup_parser = subparsers.add_parser(
+        "resolve-duplicates",
+        help=(
+            "Resolve console duplicate ROMs by keeping the RetroAchievements-"
+            "supported copy (same logic as the 'Revisar copias' web tab). "
+            "Arcade/MAME/FBNeo groups are excluded on purpose. Dry run by default."
+        ),
+    )
+    resolve_dup_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually discard the losing copies (default is dry run).",
+    )
+
     subparsers.add_parser(
         "init-config",
         help="Generate a sample config.toml in the current directory.",
@@ -963,6 +1038,258 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
         return 1 if issues else 0
+
+    if args.command == "organize-source":
+        from rom_manager.web.inbox_pipeline import _run_inbox_pipeline
+        from rom_manager.web.jobs.manager import JobManager
+
+        source_path = args.source_path.resolve()
+        if not source_path.exists() or not source_path.is_dir():
+            parser.error(f"Source path does not exist or is not a directory: {source_path}")
+        target_root = args.target_root.resolve() if args.target_root else config.library_root
+
+        exclude_platforms = set(args.exclude_platform)
+
+        if not args.apply:
+            from collections import Counter
+
+            print("DRY RUN — no files will be changed. Pass --apply to organize.")
+            # Same prefix match step 6 (organize) uses live — a recursive DB
+            # query, not a filesystem walk, so it also counts nested folders
+            # (_build_inbox_scan only looks at the top level — a much smaller,
+            # misleading number for a folder like Unknown/ with subfolders).
+            with repository.connect() as conn:
+                rows = conn.execute(
+                    "SELECT platform FROM games WHERE LOWER(source_path) LIKE ?",
+                    (str(source_path).lower() + "%",),
+                ).fetchall()
+            if not rows:
+                print(
+                    f"No hay archivos ya escaneados bajo {source_path} "
+                    "— ejecuta 'rommgr scan' primero."
+                )
+                return 0
+            included = [r for r in rows if (r["platform"] or "") not in exclude_platforms]
+            excluded = [r for r in rows if (r["platform"] or "") in exclude_platforms]
+            by_platform = Counter(row["platform"] or "(sin identificar)" for row in included)
+            print(f"Origen: {source_path}")
+            print(f"Archivos que se organizarían: {len(included)}")
+            for plat, n in by_platform.most_common():
+                print(f"  {plat}: {n}")
+            if excluded:
+                print(f"Excluidos por --exclude-platform (quedan intactos): {len(excluded)}")
+            print("\nRun with --apply to organize.")
+            return 0
+
+        # Files of an excluded platform must never reach the pipeline at all —
+        # step 1 (extraction) already routes complete arcade ZIP sets straight
+        # to the arcade folder by CRC content, independent of step 6's move,
+        # so filtering only the final move would be too late. Set them aside
+        # on disk first and restore them to their exact original path once the
+        # pipeline is done, whether it succeeded or not.
+        _shelved: list[tuple[Path, Path]] = []  # (temp_path, original_path)
+        if exclude_platforms:
+            import shutil as _shutil
+            import tempfile as _tempfile
+
+            with repository.connect() as conn:
+                placeholders = ",".join("?" for _ in exclude_platforms)
+                rows = conn.execute(
+                    f"SELECT source_path FROM games WHERE LOWER(source_path) LIKE ? "
+                    f"AND platform IN ({placeholders})",
+                    (str(source_path).lower() + "%", *exclude_platforms),
+                ).fetchall()
+            if rows:
+                holding_dir = Path(_tempfile.mkdtemp(prefix="rommgr_organize_source_excluded_"))
+                for i, row in enumerate(rows):
+                    original = Path(row["source_path"])
+                    if not original.exists():
+                        continue
+                    temp_path = holding_dir / f"{i}_{original.name}"
+                    _shutil.move(str(original), str(temp_path))
+                    _shelved.append((temp_path, original))
+                print(
+                    f"{len(_shelved)} archivo(s) de {', '.join(sorted(exclude_platforms))} "
+                    "apartados temporalmente, se restauran a su ruta exacta al terminar."
+                )
+
+        try:
+            job_manager = JobManager()
+            _run_inbox_pipeline(
+                str(source_path),
+                str(target_root) if target_root else "",
+                args.delete_source,
+                repository,
+                config,
+                job_manager,
+            )
+            result = job_manager.get_job("inbox")["result"] or {}
+        finally:
+            for temp_path, original in _shelved:
+                original.parent.mkdir(parents=True, exist_ok=True)
+                _shutil.move(str(temp_path), str(original))
+            if _shelved:
+                print(
+                    f"{len(_shelved)} archivo(s) restaurados a su ruta original — "
+                    "ejecuta 'rommgr scan' para que vuelvan a aparecer en la base de datos."
+                )
+
+        if result.get("error"):
+            print(f"Error: {result['error']}")
+            return 1
+        print(f"Organizados:                    {result.get('organized', 0)}")
+        print(f"Duplicados exactos descartados: {result.get('duplicates_removed', 0)}")
+        print(f"Conflictos resueltos por RA:     {result.get('ra_resolved', 0)}")
+        print(f"Conflictos sin resolver:         {result.get('conflicts_unresolved', 0)}")
+        for err in result.get("organize_errors", []):
+            print(f"  ! {err}")
+
+        # ANBERNIC-ROMTREE-2: "mover... y borrar las vacías" — solo si de verdad
+        # no queda ni un archivo dentro (nunca se fuerza el borrado).
+        remaining_files = [p for p in source_path.rglob("*") if p.is_file()]
+        if not remaining_files:
+            for d in sorted((p for p in source_path.rglob("*") if p.is_dir()), reverse=True):
+                try:
+                    d.rmdir()
+                except OSError:
+                    pass
+            try:
+                source_path.rmdir()
+                print(f"Carpeta de origen vacía eliminada: {source_path}")
+            except OSError as exc:
+                print(f"No se pudo eliminar la carpeta de origen ({source_path}): {exc}")
+        else:
+            print(
+                f"Quedan {len(remaining_files)} archivo(s) en el origen "
+                "(conflictos u otros no procesados) — no se borra la carpeta."
+            )
+        return 0
+
+    if args.command == "decompress":
+        from rom_manager.converters.zip_extractor import extract_directory
+
+        source_path = args.source_path.resolve()
+        if not source_path.exists() or not source_path.is_dir():
+            parser.error(f"Source path does not exist or is not a directory: {source_path}")
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — no files will be changed. Pass --apply to decompress.")
+        if args.delete_source and not args.apply:
+            print("Note: --delete-source has no effect without --apply.")
+        print()
+
+        summary = extract_directory(source_path, delete_source=args.delete_source, dry_run=dry_run)
+
+        for result in summary.results:
+            if result.success:
+                print(
+                    f"  [OK]   {result.zip_path.name}  ->  {len(result.extracted_files)} archivo(s)"
+                )
+            elif result.skipped_reason:
+                print(f"  [SKIP] {result.zip_path.name}  -  {result.skipped_reason}")
+            elif result.error:
+                print(f"  [FAIL] {result.zip_path.name}  -  {result.error}")
+
+        print()
+        if dry_run:
+            print(f"Se descomprimirían: {summary.extracted}  |  Se saltarían: {summary.skipped}")
+            if summary.extracted:
+                print("Run with --apply to decompress.")
+        else:
+            print(
+                f"Descomprimidos: {summary.extracted}  |  Saltados: {summary.skipped}  |  "
+                f"Fallidos: {summary.failed}"
+            )
+            if summary.extracted:
+                print("Re-run 'rommgr scan' to update the library database.")
+        return 0
+
+    if args.command == "resolve-duplicates":
+        from rom_manager.services.ra_duplicates_service import apply_all_review_recommendations
+        from rom_manager.web.builders.common import _repo_for_path
+        from rom_manager.web.builders.duplicates import _build_review_queue
+
+        # LIBRARY-AUDIT-4: MAME/FBNeo/Arcade share SHA1s with clones/parent sets
+        # on purpose (docs/arcade-setup.md) — never auto-resolve those groups.
+        _ARCADE_PLATFORMS = {"MAME", "FBNeo", "Arcade"}
+
+        queue = _build_review_queue(repository, repository_android, config)
+        arcade_groups = [g for g in queue["groups"] if g.get("platform") in _ARCADE_PLATFORMS]
+        console_groups = [g for g in queue["groups"] if g.get("platform") not in _ARCADE_PLATFORMS]
+        print(
+            f"Grupos totales: {len(queue['groups'])}  "
+            f"({len(arcade_groups)} arcade excluidos, {len(console_groups)} de consola)"
+        )
+
+        if not args.apply:
+            print("DRY RUN - no files will be changed. Pass --apply to resolve.\n")
+            # Mirror apply_all_review_recommendations' own branching exactly —
+            # a group with a "disk"/"collision" reason never goes through
+            # resolve_duplicate_ra (its "recommended" entry is not what
+            # decides the outcome there), it's deferred to apply_ra_conflicts,
+            # which itself never touches _MULTI_DISC_RISK_PLATFORMS (PSX/PS2/
+            # Saturn/Dreamcast/GameCube/Wii) — showing a plain keep/discard
+            # line for those would wrongly suggest a different disc of a
+            # multi-disc game is "just a duplicate" about to be discarded.
+            plain_groups = [
+                g for g in console_groups if not (set(g.get("reasons", ())) & {"disk", "collision"})
+            ]
+            conflict_groups = [
+                g for g in console_groups if set(g.get("reasons", ())) & {"disk", "collision"}
+            ]
+            multi_disc_risk = sum(
+                1 for g in conflict_groups if "multi_disc_risk" in g.get("reasons", ())
+            )
+
+            for group in plain_groups:
+                entries = group.get("entries", [])
+                recommended = next((e for e in entries if e.get("recommended")), None)
+                if not recommended:
+                    continue
+                discard = [e["filename"] for e in entries if e is not recommended]
+                if not discard:
+                    continue
+                print(
+                    f"  [{group.get('platform')}] conservar: {recommended['filename']}"
+                    f"  ->  descartar: {', '.join(discard)}"
+                )
+            if conflict_groups:
+                print(
+                    f"\n{len(conflict_groups)} grupo(s) con conflicto de nombre (colision al "
+                    "renombrar) se resuelven aparte via apply_ra_conflicts, no por esta lista:"
+                )
+                print(
+                    f"  - {multi_disc_risk} en plataformas con riesgo de multi-disco "
+                    "(PSX/PS2/Saturn/Dreamcast/GameCube/Wii) — nunca se tocan automaticamente"
+                )
+                print(
+                    f"  - {len(conflict_groups) - multi_disc_risk} en el resto de plataformas "
+                    "— se resuelven por logros RA si los hay, si no quedan sin resolver"
+                )
+            print("\nRun with --apply to resolve.")
+            return 0
+
+        for group in arcade_groups:
+            repository.exclude_duplicate_group(group["group_key"], reason="arcade_intentional")
+            if repository_android is not repository:
+                repository_android.exclude_duplicate_group(
+                    group["group_key"], reason="arcade_intentional"
+                )
+
+        # Re-read the queue now that arcade groups are permanently excluded.
+        queue = _build_review_queue(repository, repository_android, config)
+
+        def _get_repo(path_str: str):
+            return _repo_for_path(path_str, repository, repository_android, config)
+
+        result = apply_all_review_recommendations(
+            _get_repo, [repository, repository_android], config, queue
+        )
+        print(f"Resueltos: {result.get('resolved', 0)}")
+        for err in result.get("errors", []):
+            print(f"  ! {err}")
+        return 0
 
     if args.command == "init-config":
         from rom_manager.wizard import run_wizard
