@@ -371,6 +371,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     import sys
 
+    # Nombres de ROM reales pueden traer caracteres fuera del codepage de
+    # consola de Windows (cp1252) — sin esto, cualquier print() con un
+    # nombre de fichero "raro" tira UnicodeEncodeError a mitad de biblioteca.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
