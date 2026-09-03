@@ -846,7 +846,7 @@ def _run_setup_pipeline(
                 for idx, game in enumerate(unresolved, 1):
                     pct = 65 + int((idx / max(total_unresolved, 1)) * 20)
                     _upd("Cruzando con catálogos No-Intro/Redump", 4, pct, game.original_filename)
-                    m = matcher.match(game.sha1, game.original_filename)
+                    m = matcher.match(game.sha1, game.original_filename, game.source_path)
                     if m is not None:
                         repository.update_match(
                             game.source_path,
@@ -1016,7 +1016,7 @@ def _run_inbox_pipeline(
         with repository.batch() as conn:
             for idx, game in enumerate(unresolved, 1):
                 _upd("matching", 3, idx, len(unresolved), game.original_filename)
-                match_result = matcher.match(game.sha1, game.original_filename)
+                match_result = matcher.match(game.sha1, game.original_filename, game.source_path)
                 if match_result is not None:
                     repository.update_match(
                         game.source_path,

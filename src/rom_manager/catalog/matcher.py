@@ -4,10 +4,10 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
+from rom_manager.catalog.catalog_loader import CatalogEntry, load_dat_file
 from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
-from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION
+from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION, detect_platform
 from rom_manager.utils.disc_tag import find_disc_number
 
 _logger = logging.getLogger(__name__)
@@ -143,7 +143,14 @@ class CatalogMatcher:
             return result
         for dat_file in sorted(directory.glob("*.dat")):
             try:
-                entries = load_nointro_dat(dat_file)
+                # CATALOG-MATCH-BUG-1: load_dat_file() auto-detecta XML vs
+                # clrmamepro (texto plano) — load_nointro_dat() a secas solo
+                # sabe XML y descartaba en silencio cualquier DAT clrmamepro
+                # (21/271 nointro, 9/22 redump en la biblioteca real,
+                # incluyendo Game Boy/GBA/NES/SNES/PS1/PS2/GameCube/Wii...),
+                # degradando el match SHA1 exacto a un fallback por título
+                # mucho menos fiable para esas plataformas.
+                entries = load_dat_file(dat_file)
             except Exception:
                 _logger.warning("Failed to load DAT %s, skipping", dat_file, exc_info=True)
                 continue
@@ -193,7 +200,9 @@ class CatalogMatcher:
     # Matching
     # ------------------------------------------------------------------
 
-    def match(self, sha1: str, filename: str | None = None) -> MatchResult | None:
+    def match(
+        self, sha1: str, filename: str | None = None, source_path: str | None = None
+    ) -> MatchResult | None:
         """Return a MatchResult or None.
 
         Parameters
@@ -203,6 +212,12 @@ class CatalogMatcher:
         filename:
             Original filename (with or without extension). Used as fallback
             when the SHA1 is not found in any catalog.
+        source_path:
+            Full path of the file on disk (CATALOG-MATCH-BUG-1). Only used as
+            a platform tiebreaker in `_match_by_title()` when the extension
+            is ambiguous (`.zip`/`.chd`/`.iso`/...) — the caller's real folder
+            (psx/, saturn/, dreamcast/...) is a reliable signal the filename
+            alone can't provide.
         """
         self._load()
         sha1_upper = sha1.upper()
@@ -229,10 +244,10 @@ class CatalogMatcher:
         # nunca llegaba a probarse. Para esos nombres, arcade primero.
         mame_style = filename.lower().endswith(".zip") and "(" not in filename
         if mame_style:
-            return self._match_arcade(filename) or self._match_by_title(filename)
-        return self._match_by_title(filename) or self._match_arcade(filename)
+            return self._match_arcade(filename) or self._match_by_title(filename, source_path)
+        return self._match_by_title(filename, source_path) or self._match_arcade(filename)
 
-    def _match_by_title(self, filename: str) -> MatchResult | None:
+    def _match_by_title(self, filename: str, source_path: str | None = None) -> MatchResult | None:
         """Pass 2 — Name-based fallback (No-Intro / Redump title index)."""
         key = normalize_for_match(filename)
         if not key:
@@ -261,6 +276,22 @@ class CatalogMatcher:
             platform_hits = [h for h in hits if _platform_from_dat_name(h[1]) == ext_platform]
             if platform_hits:
                 candidates = platform_hits
+        elif source_path:
+            # CATALOG-MATCH-BUG-1: extensión ambigua (.zip/.chd/.iso/...) —
+            # ext_platform no puede desambiguar por diseño (un .chd puede ser
+            # PSX/Saturn/Dreamcast/Wii). detect_platform() sí sabe leer la
+            # carpeta contenedora real (psx/, saturn/...), la misma señal ya
+            # usada en el resto de la app — antes esto siempre caía a
+            # hits[0], eligiendo la región/plataforma equivocada cuando el
+            # SHA1 no calzaba exacto (típico de un .chd, que no es el hash
+            # crudo del disco).
+            folder_platform = detect_platform(Path(source_path))
+            if folder_platform:
+                platform_hits = [
+                    h for h in hits if _platform_from_dat_name(h[1]) == folder_platform
+                ]
+                if platform_hits:
+                    candidates = platform_hits
 
         # GAMECUBE-DISC-BUG-1e: normalize_for_match() borra "(Disc N)" junto
         # con el resto de anotaciones, así que un set multi-disco colapsa a

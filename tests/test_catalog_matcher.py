@@ -171,8 +171,8 @@ def test_ambiguous_title_prefers_platform_matching_extension(tmp_path: Path) -> 
 
 
 def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_path: Path) -> None:
-    """Sin extensión que desambigüe (p.ej. .zip), se mantiene el comportamiento
-    previo: el primer hit por orden de carga."""
+    """Sin extensión que desambigüe (p.ej. .zip) NI ruta real (source_path=None),
+    se mantiene el comportamiento previo: el primer hit por orden de carga."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
     nointro.mkdir()
@@ -190,6 +190,42 @@ def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_pa
     assert result is not None
     assert result.ambiguous is True
     assert result.platform == "Nintendo 3DS"
+
+
+def test_ambiguous_extension_prefers_platform_of_containing_folder(tmp_path: Path) -> None:
+    """CATALOG-MATCH-BUG-1 / GBA-MISPLACED-2: cuando el SHA1 no calza (típico de
+    un .chd, que no es el hash crudo del disco) y la extensión es ambigua (no
+    desambigua por sí sola), el fallback por título ya no debe quedarse siempre
+    con el primer hit por orden de carga del .dat — debe preferir la entrada
+    cuya plataforma coincide con la carpeta real del archivo (psx/, saturn/...),
+    la misma señal que ``detect_platform()`` usa en el resto de la app."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        redump / "Sega - Dreamcast.dat",
+        [("Same Title (USA)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        redump / "Sega - Saturn.dat",
+        [("Same Title (USA)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    # Sin source_path: comportamiento previo, gana el primero por orden de carga.
+    result_no_context = matcher.match("0" * 40, "Same Title (USA).chd")
+    assert result_no_context is not None
+    assert result_no_context.platform == "Dreamcast"
+
+    # Con la ruta real en saturn/: debe elegir el DAT de Saturn, no el primero.
+    result_with_context = matcher.match(
+        "0" * 40,
+        "Same Title (USA).chd",
+        source_path="E:/Carpetas anbernic/saturn/Same Title (USA).chd",
+    )
+    assert result_with_context is not None
+    assert result_with_context.platform == "Sega Saturn"
+    assert result_with_context.ambiguous is True
 
 
 def test_multi_disc_title_picks_matching_disc_entry(tmp_path: Path) -> None:
@@ -410,6 +446,30 @@ def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
     )
     matcher = CatalogMatcher(nointro, redump)
     assert "46DF91AD" not in matcher.crc_index()
+
+
+def test_matcher_loads_clrmamepro_format_dat(tmp_path: Path) -> None:
+    """CATALOG-MATCH-BUG-1: varios DAT reales de la biblioteca (Game Boy, NES,
+    PS1...) vienen en formato clrmamepro (texto plano), no XML. El loader
+    anterior (``load_nointro_dat``, solo XML) los descartaba en silencio —
+    degradando el match SHA1 exacto a un fallback por título mucho menos
+    fiable para esas plataformas. ``load_dat_file`` autodetecta el formato."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    sha1 = "AABBCCDDEEFF00112233445566778899AABBCCDD"
+    (nointro / "Sony - PlayStation.dat").write_text(
+        'clrmamepro (\n\tname "No-Intro: Sony - PlayStation"\n)\n\n'
+        'game (\n\tname "Oddworld - Abe\'s Oddysee (USA)"\n'
+        f'\trom ( name "Oddworld - Abe\'s Oddysee (USA).bin" size 622297088 '
+        f"crc f26d7a0b md5 aabbccdd sha1 {sha1} )\n)\n"
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match(sha1)
+    assert result is not None
+    assert result.title == "Oddworld - Abe's Oddysee (USA)"
+    assert result.confidence == "high"
 
 
 def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:

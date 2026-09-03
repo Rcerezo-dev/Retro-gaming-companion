@@ -547,7 +547,7 @@ def _do_match(
                 for game in games:
                     if _cancel.is_set():
                         break
-                    match = matcher.match(game.sha1, game.original_filename)
+                    match = matcher.match(game.sha1, game.original_filename, game.source_path)
                     if match is not None:
                         repository.update_match(
                             game.source_path,

@@ -662,7 +662,7 @@ def main(argv: list[str] | None = None) -> int:
         unmatched = 0
         with repository.batch() as conn:
             for game in games:
-                result = matcher.match(game.sha1, game.original_filename)
+                result = matcher.match(game.sha1, game.original_filename, game.source_path)
                 if result is not None:
                     repository.update_match(
                         game.source_path,
