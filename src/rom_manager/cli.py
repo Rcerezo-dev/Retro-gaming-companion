@@ -1189,6 +1189,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "decompress":
+        from rom_manager.catalog.mame_loader import load_arcade_crc_index
         from rom_manager.converters.zip_extractor import extract_directory
 
         source_path = args.source_path.resolve()
@@ -1202,7 +1203,19 @@ def main(argv: list[str] | None = None) -> int:
             print("Note: --delete-source has no effect without --apply.")
         print()
 
-        summary = extract_directory(source_path, delete_source=args.delete_source, dry_run=dry_run)
+        # DECOMPRESS-ARCADE-GAP-3: misma detección por CRC que organize-source,
+        # no solo el nombre de carpeta ancestro — protege sets arcade en
+        # carpetas mal ubicadas o no auditadas.
+        arcade_crc_index = (
+            load_arcade_crc_index(config.catalogs_arcade_dir) if config.catalogs_arcade_dir else {}
+        )
+
+        summary = extract_directory(
+            source_path,
+            delete_source=args.delete_source,
+            dry_run=dry_run,
+            arcade_crc_index=arcade_crc_index,
+        )
 
         for result in summary.results:
             if result.success:
