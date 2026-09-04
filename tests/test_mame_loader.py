@@ -38,6 +38,19 @@ def test_infra_names_missing_dir_is_empty() -> None:
     assert load_arcade_infra_names(Path("no-existe")) == set()
 
 
+def test_load_mame_xml_reads_game_tag_under_mame_root(tmp_path: Path) -> None:
+    """ARCADE-RENAME-BUG-1a: MAME 2003-Plus.dat real tiene root.tag=='mame'
+    pero hijos <game>, no <machine> -- antes devolvía 0 machines en silencio."""
+    xml = tmp_path / "mame2003plus.dat"
+    xml.write_text(
+        '<?xml version="1.0"?>\n<mame>\n'
+        '  <game name="sf2"><description>Street Fighter II</description></game>\n'
+        "</mame>\n",
+        encoding="utf-8",
+    )
+    assert set(load_mame_xml(xml)) == {"sf2"}
+
+
 _DAT = """<?xml version="1.0"?>
 <datafile>
   <game name="lemmings">

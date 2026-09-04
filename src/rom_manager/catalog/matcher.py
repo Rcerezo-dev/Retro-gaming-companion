@@ -371,14 +371,19 @@ class CatalogMatcher:
         """Pass 3 — Arcade stem lookup (MAME / FBNeo)."""
         if not self._arcade:
             return None
-        arcade_hit = self._arcade.get(Path(filename).stem.lower())
+        stem = Path(filename).stem.lower()
+        arcade_hit = self._arcade.get(stem)
         if not arcade_hit:
             return None
-        title, _year, _mfr, source = arcade_hit
-        # Derive platform from which catalog file it came from
+        _description, _year, _mfr, source = arcade_hit
+        # ARCADE-RENAME-BUG-1b: MAME/FBNeo identifican el set por su nombre
+        # corto (stem, p.ej. "sf2"), no por la descripción del DAT ("Street
+        # Fighter II") -- devolver la descripción aquí renombraba el ZIP a un
+        # nombre que el emulador ya no reconoce. El título canónico de arcade
+        # es el propio stem.
         arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"
         return MatchResult(
-            title=title,
+            title=stem,
             confidence="medium",
             catalog_source=source,
             platform=arcade_platform,

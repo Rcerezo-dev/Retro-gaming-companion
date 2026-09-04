@@ -11,6 +11,7 @@ Usage
 
 from __future__ import annotations
 
+import itertools
 import re as _re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -27,8 +28,12 @@ def load_mame_xml(path: Path) -> dict[str, tuple[str, str, str]]:
     try:
         tree = ET.parse(path)
         root = tree.getroot()
-        # root tag can be <mame> or <datafile>
-        machines = root.iter("machine") if root.tag != "datafile" else root.iter("game")
+        # ARCADE-RENAME-BUG-1a: el tag de hijo real (<machine> vs <game>) no se
+        # puede inferir del tag raíz -- "MAME 2003-Plus.dat" real tiene
+        # root.tag == "mame" con hijos <game>, no <machine>, y el guess
+        # anterior devolvía 0 machines en silencio para ese DAT. Encadenar
+        # ambos iteradores cubre los dos formatos sin adivinar.
+        machines = itertools.chain(root.iter("machine"), root.iter("game"))
         for machine in machines:
             if machine.get("isbios") == "yes" or machine.get("isdevice") == "yes":
                 continue
