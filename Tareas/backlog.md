@@ -356,24 +356,46 @@ vivo: 112 de 241 renombrados propuestos en la sección `PlayStation` de `rommgr 
 re-match) cambian solo la región/tag, mismo patrón que antes del fix (`Alundra 2 (USA)→(Europe)`,
 `Crash Bandicoot (USA)→(Europe)`, `Castlevania - Symphony of the Night (USA)→(France)`...).
 
-**Bloquea `PSX-STRUCTURE-4`** (migración a subcarpeta-por-juego) exactamente igual que antes del fix
-de hoy — la migración usaría estos títulos con región incorrecta como nombre de carpeta destino.
+**Bloqueaba `PSX-STRUCTURE-4`** (migración a subcarpeta-por-juego) — la migración habría usado estos
+títulos con región incorrecta como nombre de carpeta destino.
 
-Posibles caminos (ninguno implementado, requiere decisión de diseño, no solo código):
-- Reutilizar el hash RA de disco ya construido para PSX (`DUP-DISC-RA-1`, `compute_psx_ra_hash`) como
-  señal de desempate adicional cuando el SHA1 de archivo falla pero el juego es PSX — ya identifica el
-  disco real leyendo `SYSTEM.CNF`, sería la señal más fiable disponible hoy, pero es específica de PSX
-  (Saturn/Dreamcast necesitarían su propio hash, ver `DUP-DISC-RA-1c`, todavía sin implementar).
-- Marcar estos casos como `ambiguous=True` + confianza `low` **sin asignar ningún título candidato**
-  (en vez de adivinar `candidates[0]`) cuando hay >1 región distinta entre los candidatos — más
-  conservador, dejaría más ROMs "sin resolver" en vez de mal etiquetados, pero no resuelve el caso.
-- Extraer el CRC32 real de la pista de datos de un `.chd` (`chdman` ya está en `tools/chdman.exe`,
-  usado para conversión) y cruzarlo contra `crc_index()` (ya construido, `matcher.py:165-190`) — más
-  caro (requiere invocar `chdman info`/extraer), pero es una señal de contenido real, no solo de título.
+**Resuelto (2026-09-03)** por el primero de los 3 caminos propuestos (hash RA de disco), pero
+implementado vía el serial de arranque en vez de un hash MD5: `fetch_hash_library` (RA API) solo
+guarda **un** hash por juego, sin variante por región (comprobado contra `ra_hashes_12.json` real —
+"Tekken 3" tiene una sola entrada, un solo hash), así que comparar contra la librería de RA no
+habría desambiguado nada. El Redump PS1 DAT (`Sony - PlayStation.dat`, formato clrmamepro) sí trae
+el serial real por región como atributo del `game (...)` (`serial "SLUS-00402"`, presente en 13.323
+de 13.592 entradas) — mismo dato que `SYSTEM.CNF` en el disco real (`BOOT = cdrom:\SLUS_004.02;1`,
+o `cdrom:\TEKKEN3\SLUS_004.02` con subcarpeta). Comparando ambos normalizados (mayúsculas, sin
+puntuación) se desambigua sin adivinar.
+
+Cambios:
+- `catalog_loader.py:CatalogEntry` — nuevo campo `serial` (solo poblado por `load_clrmamepro_dat`,
+  las entradas XML/No-Intro no lo traen).
+- `retroachievements/ra_hash_psx.py` — nueva `detect_psx_boot_serial()` (reutiliza `_CdImage`,
+  `_find_boot_executable`, `_first_cue_bin`; `.chd` refactorizado a `_extract_chd_to_cue()`
+  compartido con `_hash_chd_file()`).
+- `catalog/matcher.py:_match_by_title()` — cuando la plataforma resuelta es PlayStation y quedan
+  >1 candidatos tras el filtro por carpeta/extensión, lee el serial real del disco y filtra por
+  `entry.serial` normalizado antes de caer a `candidates[0]`; si desambigua a 1, confianza `medium`
+  (contenido real, no adivinado).
+- `CatalogMatcher.__init__` gana `chdman_path` (opcional, `None` desactiva la desambiguación sin
+  romper nada); cableado en `cli.py` (`match`), `web/handlers/scan.py` (`_do_match`) y
+  `web/inbox_pipeline.py` (los dos flujos de Inbox/organize) vía `config.chdman`.
+
+Verificado en vivo contra `E:\Carpetas anbernic\psx\Tekken 3 (USA).cue` (el caso exacto citado
+arriba): antes del fix caía a `Tekken 3 (Europe) (Alt)` con confianza `low`/`ambiguous=True`; con
+el fix resuelve `Tekken 3 (USA)`, confianza `medium`, `ambiguous=False`. Gap conocido: el lector de
+disco (`_find_boot_executable`) no consigue leer todos los `.bin`/`.cue` reales — p. ej.
+`Tekken 3 (Japan) (Rev 1).cue` devuelve `None` ya en `compute_psx_ra_hash` (comportamiento
+preexistente, no introducido por este fix) — esos casos siguen cayendo al `candidates[0]` de
+siempre, no hay regresión pero tampoco mejora ahí. Tests: `test_psx_region_disambiguated_by_real_boot_serial`
+(`test_catalog_matcher.py`), `test_detect_psx_boot_serial` + `test_detect_psx_boot_serial_unsupported_format`
+(`test_ra_hash_psx.py`). 1145/1145 tests en verde, `ruff` limpio.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| CATALOG-MATCH-REGION-1 | Diseñar y arreglar la desambiguación de región cuando el SHA1 de archivo no calza y varios candidatos del mismo título/plataforma difieren solo en región — bloquea `PSX-STRUCTURE-4`. Alcance medido: 112/241 (46%) de los renombrados propuestos en la sección `PlayStation` de `rommgr plan` sobre `E:\Carpetas anbernic` | `catalog/matcher.py:270` (`_match_by_title`, `candidates[0]` sin más criterio) | 🔴 pendiente, decisión de diseño (ver 3 caminos posibles arriba) |
+| CATALOG-MATCH-REGION-1 | Desambiguar región cuando el SHA1 de archivo no calza y varios candidatos del mismo título/plataforma difieren solo en región — bloqueaba `PSX-STRUCTURE-4`. Alcance medido: 112/241 (46%) de los renombrados propuestos en la sección `PlayStation` de `rommgr plan` sobre `E:\Carpetas anbernic` | `catalog/matcher.py:_match_by_title`, `retroachievements/ra_hash_psx.py:detect_psx_boot_serial`, `catalog_loader.py:CatalogEntry.serial` | ✅ arreglado (serial de arranque real vs. `CatalogEntry.serial` de Redump) |
 
 ---
 
