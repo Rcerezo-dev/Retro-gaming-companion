@@ -105,9 +105,7 @@ def save_profile_manifest(
     Returns the full remote path written.
     """
     manifest = export_profile_sources(sources, roms_dir, saves_dir, system_dir)
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".json", delete=False, encoding="utf-8"
-    ) as fh:
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2, ensure_ascii=False)
         tmp_path = Path(fh.name)
     try:

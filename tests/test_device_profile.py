@@ -140,9 +140,7 @@ def test_save_profile_manifest_uploads_tokenized_json(tmp_path: Path) -> None:
         d.mkdir(parents=True)
 
     sources = [
-        SyncSource(
-            name="BIOS / System", local_dir=str(system), remote="dropbox:RetroSync/system"
-        )
+        SyncSource(name="BIOS / System", local_dir=str(system), remote="dropbox:RetroSync/system")
     ]
 
     captured: dict = {}
