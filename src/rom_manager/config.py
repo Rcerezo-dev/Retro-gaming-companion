@@ -591,6 +591,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ".hi",
             ".brmc",
             ".ml1",
+            ".fs",  # FBNeo CPS3 savestate (sfiii3.fs, redearth.fs...)
         ),
     )
 
