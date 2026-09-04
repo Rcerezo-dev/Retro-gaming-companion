@@ -18,6 +18,7 @@ _NON_ALNUM_RE = re.compile(r"[^A-Z0-9]")
 def _normalize_serial(serial: str) -> str:
     return _NON_ALNUM_RE.sub("", serial.upper())
 
+
 _logger = logging.getLogger(__name__)
 
 # INBOX-FIX-2: No-Intro/Redump DAT filenames ("Nintendo - Super Nintendo
@@ -325,7 +326,9 @@ class CatalogMatcher:
             if real_serial:
                 real_norm = _normalize_serial(real_serial)
                 serial_hits = [
-                    h for h in candidates if h[0].serial and _normalize_serial(h[0].serial) == real_norm
+                    h
+                    for h in candidates
+                    if h[0].serial and _normalize_serial(h[0].serial) == real_norm
                 ]
                 if len(serial_hits) == 1:
                     entry, source = serial_hits[0]

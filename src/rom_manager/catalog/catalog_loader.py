@@ -14,7 +14,9 @@ class CatalogEntry:
     md5: str
     crc32: str
     size_bytes: int
-    serial: str = ""  # CATALOG-MATCH-REGION-1: disc serial (Redump clrmamepro DATs only, e.g. "SLUS-00402")
+    serial: str = (
+        ""  # CATALOG-MATCH-REGION-1: disc serial (Redump clrmamepro DATs only, e.g. "SLUS-00402")
+    )
 
 
 def _detect_dat_format(path: Path) -> str:
