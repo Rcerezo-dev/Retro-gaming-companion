@@ -14,8 +14,7 @@ def _make_ra_install(tmp_path: Path, savefile_dir: str, savestate_dir: str) -> P
     (ra_dir / "cores").mkdir(parents=True)
     (ra_dir / "cores" / "fceumm_libretro.dll").touch()
     (ra_dir / "retroarch.cfg").write_text(
-        f'savefile_directory = "{savefile_dir}"\n'
-        f'savestate_directory = "{savestate_dir}"\n',
+        f'savefile_directory = "{savefile_dir}"\nsavestate_directory = "{savestate_dir}"\n',
         encoding="utf-8",
     )
     return ra_dir
@@ -23,7 +22,9 @@ def _make_ra_install(tmp_path: Path, savefile_dir: str, savestate_dir: str) -> P
 
 def test_flags_drift_when_savefile_dir_is_stale(tmp_path: Path) -> None:
     library_root = tmp_path / "Library"
-    ra_dir = _make_ra_install(tmp_path, savefile_dir=str(tmp_path / "Old" / "saves"), savestate_dir="")
+    ra_dir = _make_ra_install(
+        tmp_path, savefile_dir=str(tmp_path / "Old" / "saves"), savestate_dir=""
+    )
 
     cfg = load_config()
     cfg.library_root = library_root
