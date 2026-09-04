@@ -356,6 +356,7 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         "key_cores": {},
         "savefile_dir": "",
         "savestate_dir": "",
+        "savefile_drift": False,
         "esde_ra_path": "",
         "esde_ra_match": None,
         "issues": [],
@@ -381,19 +382,46 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         result["issues"].append(f"retroarch.cfg no encontrado en {ra_dir}")
 
     if cfg.exists():
-        from rom_manager.services.retroarch_cfg_writer import read_key
+        from rom_manager.services.retroarch_cfg_writer import (
+            default_savefile_layout,
+            read_savefile_layout,
+        )
 
         try:
             text = cfg.read_text(encoding="utf-8", errors="replace")
-            for key, field in (
-                ("savefile_directory", "savefile_dir"),
-                ("savestate_directory", "savestate_dir"),
-            ):
-                val = read_key(text, key)
-                if val:
-                    result[field] = val
+            layout = read_savefile_layout(text)
+            result["savefile_dir"] = layout.savefile_dir
+            result["savestate_dir"] = layout.savestate_dir
         except OSError:
-            pass
+            layout = None
+
+        # DEVPROFILE-7: warn when the live cfg no longer matches the D2 sync
+        # convention (library_root/saves + /states) — the most common way
+        # today's saves silently stop syncing (fresh RetroArch install, a
+        # manual edit, a stale path from before DEVPROFILE-2). Free once the
+        # default layout convention exists (DEVPROFILE-2/2d).
+        if layout is not None and config.library_root:
+
+            def _norm(p: str) -> str:
+                return str(Path(p)).lower().rstrip("\\/") if p else ""
+
+            expected = default_savefile_layout(config.library_root)
+            save_drift = _norm(layout.savefile_dir) != _norm(expected.savefile_dir)
+            state_drift = _norm(layout.savestate_dir) != _norm(expected.savestate_dir)
+            result["savefile_drift"] = save_drift or state_drift
+            if save_drift:
+                result["issues"].append(
+                    f"savefile_directory no coincide con el layout de sync (D2): actual "
+                    f"'{layout.savefile_dir or '(no configurado)'}', esperado "
+                    f"'{expected.savefile_dir}' — tus partidas nuevas podrían no estar "
+                    'sincronizándose. Pulsa "Aplicar layout de saves".'
+                )
+            if state_drift:
+                result["issues"].append(
+                    f"savestate_directory no coincide con el layout de sync (D2): actual "
+                    f"'{layout.savestate_dir or '(no configurado)'}', esperado "
+                    f"'{expected.savestate_dir}'."
+                )
 
     cores_dir = ra_dir / "cores"
     result["cores_dir_exists"] = cores_dir.exists()
