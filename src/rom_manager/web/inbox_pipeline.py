@@ -838,6 +838,7 @@ def _run_setup_pipeline(
             matcher = CatalogMatcher(
                 nointro_dir=config.catalogs_nointro_dir,
                 redump_dir=config.catalogs_redump_dir,
+                chdman_path=config.chdman,
             )
             unresolved = repository.get_unresolved_games()
             matched = 0
@@ -1010,6 +1011,7 @@ def _run_inbox_pipeline(
         matcher = CatalogMatcher(
             nointro_dir=config.catalogs_nointro_dir,
             redump_dir=config.catalogs_redump_dir,
+            chdman_path=config.chdman,
         )
         unresolved = repository.get_unresolved_games()
         matched = 0

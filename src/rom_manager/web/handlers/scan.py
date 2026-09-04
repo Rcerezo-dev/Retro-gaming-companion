@@ -540,6 +540,7 @@ def _do_match(
                 nointro_dir=config.catalogs_nointro_dir,
                 redump_dir=config.catalogs_redump_dir,
                 arcade_dir=config.catalogs_arcade_dir,
+                chdman_path=config.chdman,
             )
             games = repository.get_unresolved_games(include_low_confidence=include_low_confidence)
             matched_high = matched_low = unmatched = 0

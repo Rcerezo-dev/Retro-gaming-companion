@@ -472,6 +472,38 @@ def test_matcher_loads_clrmamepro_format_dat(tmp_path: Path) -> None:
     assert result.confidence == "high"
 
 
+def test_psx_region_disambiguated_by_real_boot_serial(tmp_path: Path) -> None:
+    """CATALOG-MATCH-REGION-1: "Tekken (USA)" y "Tekken (Europe)" colapsan a la
+    misma clave de título normalizado, y el SHA1 de un .chd/.bin real nunca
+    calza contra el DAT (hashea la pista cruda). El serial de arranque leído
+    del disco real (SYSTEM.CNF) sí es contenido real -- comparado contra
+    ``CatalogEntry.serial`` (Redump), desambigua sin adivinar candidates[0]."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    (redump / "Sony - PlayStation.dat").write_text(
+        'game (\n\tname "Same Title (USA)"\n\tserial "TEST.EXE"\n'
+        '\trom ( name "a.bin" size 1 crc AA md5 AA sha1 ' + "AA" * 20 + " )\n)\n"
+        'game (\n\tname "Same Title (Europe)"\n\tserial "OTHER.EXE"\n'
+        '\trom ( name "b.bin" size 1 crc BB md5 BB sha1 ' + "BB" * 20 + " )\n)\n"
+    )
+    matcher = CatalogMatcher(nointro, redump)
+
+    psx_dir = tmp_path / "library" / "psx"
+    psx_dir.mkdir(parents=True)
+    bin_path = _build_psx_image(psx_dir)
+    bin_path = bin_path.rename(psx_dir / "Same Title (USA).bin")
+
+    result = matcher.match("0" * 40, bin_path.name, source_path=str(bin_path))
+    assert result is not None
+    assert result.title == "Same Title (USA)"
+    assert result.confidence == "medium"
+    assert result.ambiguous is False
+
+
 def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:
     """INICIO-FIX-1: un DAT real trae <rom size=""> — no debe reventar int('')."""
     from rom_manager.catalog.catalog_loader import load_nointro_dat

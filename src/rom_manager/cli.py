@@ -642,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         matcher = CatalogMatcher(
             nointro_dir=config.catalogs_nointro_dir,
             redump_dir=config.catalogs_redump_dir,
+            chdman_path=config.chdman,
         )
         print("Loading catalogs…", flush=True)
         # Trigger lazy load and report catalog sizes

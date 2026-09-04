@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,7 +9,14 @@ from rom_manager.catalog.catalog_loader import CatalogEntry, load_dat_file
 from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
 from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION, detect_platform
+from rom_manager.retroachievements.ra_hash_psx import detect_psx_boot_serial
 from rom_manager.utils.disc_tag import find_disc_number
+
+_NON_ALNUM_RE = re.compile(r"[^A-Z0-9]")
+
+
+def _normalize_serial(serial: str) -> str:
+    return _NON_ALNUM_RE.sub("", serial.upper())
 
 _logger = logging.getLogger(__name__)
 
@@ -107,10 +115,19 @@ class CatalogMatcher:
     No-Intro is checked before Redump in both passes.
     """
 
-    def __init__(self, nointro_dir: Path, redump_dir: Path, arcade_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        nointro_dir: Path,
+        redump_dir: Path,
+        arcade_dir: Path | None = None,
+        chdman_path: Path | None = None,
+    ) -> None:
         self._nointro_dir = nointro_dir
         self._redump_dir = redump_dir
         self._arcade_dir = arcade_dir
+        # CATALOG-MATCH-REGION-1: needed to extract a .chd's boot serial for
+        # PSX region disambiguation in _match_by_title(). None just disables it.
+        self._chdman_path = chdman_path
         # SHA1 → (CatalogEntry, dat_filename)
         self._nointro: dict[str, tuple[CatalogEntry, str]] = {}
         self._redump: dict[str, tuple[CatalogEntry, str]] = {}
@@ -272,6 +289,7 @@ class CatalogMatcher:
         # diseño), se queda con todos como antes.
         ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
         candidates = hits
+        resolved_platform = ext_platform
         if ext_platform:
             platform_hits = [h for h in hits if _platform_from_dat_name(h[1]) == ext_platform]
             if platform_hits:
@@ -286,12 +304,39 @@ class CatalogMatcher:
             # SHA1 no calzaba exacto (típico de un .chd, que no es el hash
             # crudo del disco).
             folder_platform = detect_platform(Path(source_path))
+            resolved_platform = folder_platform
             if folder_platform:
                 platform_hits = [
                     h for h in hits if _platform_from_dat_name(h[1]) == folder_platform
                 ]
                 if platform_hits:
                     candidates = platform_hits
+
+        # CATALOG-MATCH-REGION-1: la clave normalizada colapsa "Tekken (USA)"
+        # y "Tekken (Europe)" en el mismo título — sin más señal, candidates[0]
+        # solo depende del orden de carga del .dat, no de qué disco es
+        # realmente. El serial de arranque real (SYSTEM.CNF, vía chdman para
+        # un .chd) sí es contenido real del disco: comparado contra el
+        # `serial` que trae cada entrada del DAT de Redump, desambigua sin
+        # adivinar. Solo PSX por ahora (Saturn/Dreamcast necesitarían su
+        # propio lector de disco).
+        if resolved_platform == "PlayStation" and len(candidates) > 1 and source_path:
+            real_serial = detect_psx_boot_serial(Path(source_path), chdman_path=self._chdman_path)
+            if real_serial:
+                real_norm = _normalize_serial(real_serial)
+                serial_hits = [
+                    h for h in candidates if h[0].serial and _normalize_serial(h[0].serial) == real_norm
+                ]
+                if len(serial_hits) == 1:
+                    entry, source = serial_hits[0]
+                    return MatchResult(
+                        title=entry.title,
+                        confidence="medium",
+                        catalog_source=source,
+                        platform=_platform_from_dat_name(source),
+                    )
+                if serial_hits:
+                    candidates = serial_hits
 
         # GAMECUBE-DISC-BUG-1e: normalize_for_match() borra "(Disc N)" junto
         # con el resto de anotaciones, así que un set multi-disco colapsa a
