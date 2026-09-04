@@ -504,6 +504,38 @@ def test_psx_region_disambiguated_by_real_boot_serial(tmp_path: Path) -> None:
     assert result.ambiguous is False
 
 
+def test_psx_region_disambiguated_by_serial_prefix(tmp_path: Path) -> None:
+    """CATALOG-MATCH-REGION-2: el serial del DAT de Redump trae sufijos que el
+    disco real no tiene ("Greatest Hits", disco N, pais de impresion) -- el
+    serial leido del disco (``TEST.EXE`` -> ``TESTEXE`` normalizado) debe
+    calzar por prefijo contra ``TEST.EXEGHA`` (candidato "Greatest Hits"),
+    no solo por igualdad exacta."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    (redump / "Sony - PlayStation.dat").write_text(
+        'game (\n\tname "Same Title (Greatest Hits)"\n\tserial "TEST.EXEGHA"\n'
+        '\trom ( name "a.bin" size 1 crc AA md5 AA sha1 ' + "AA" * 20 + " )\n)\n"
+        'game (\n\tname "Same Title (Europe)"\n\tserial "OTHER.EXE"\n'
+        '\trom ( name "b.bin" size 1 crc BB md5 BB sha1 ' + "BB" * 20 + " )\n)\n"
+    )
+    matcher = CatalogMatcher(nointro, redump)
+
+    psx_dir = tmp_path / "library" / "psx"
+    psx_dir.mkdir(parents=True)
+    bin_path = _build_psx_image(psx_dir)
+    bin_path = bin_path.rename(psx_dir / "Same Title (Greatest Hits).bin")
+
+    result = matcher.match("0" * 40, bin_path.name, source_path=str(bin_path))
+    assert result is not None
+    assert result.title == "Same Title (Greatest Hits)"
+    assert result.confidence == "medium"
+    assert result.ambiguous is False
+
+
 def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:
     """INICIO-FIX-1: un DAT real trae <rom size=""> — no debe reventar int('')."""
     from rom_manager.catalog.catalog_loader import load_nointro_dat
