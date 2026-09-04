@@ -379,7 +379,10 @@ def test_mame_style_zip_prefers_arcade_over_title_fallback(
     matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
     result = matcher.match("00" * 20, filename="flicky.zip")
     assert result is not None
-    assert result.title == "Flicky (128k Version)"
+    # ARCADE-RENAME-BUG-1b: el titulo canonico de arcade es el nombre corto
+    # del set (lo que MAME/FBNeo necesitan para cargarlo), no la descripcion
+    # del DAT -- de lo contrario el rename rompe la carga en el emulador.
+    assert result.title == "flicky"
     assert result.platform == "FBNeo"
 
 
