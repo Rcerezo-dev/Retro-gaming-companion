@@ -52,6 +52,7 @@ def register_system(
         _handle_detect_cloud_folder,
         _handle_device_profile_detect,
         _handle_retroarch_check,
+        _handle_save_device_profile_manifest,
         _handle_system_status,
     )
 
@@ -168,6 +169,11 @@ def register_system(
     @router.get("/api/device-profile-detect")
     def get_device_profile_detect(ctx) -> None:
         ctx._send_json(_handle_device_profile_detect(config))
+
+    # ── POST /api/device-profile-save-manifest ────────────────────────────────
+    @router.post("/api/device-profile-save-manifest")
+    def post_device_profile_save_manifest(ctx) -> None:
+        ctx._send_json(_handle_save_device_profile_manifest(config))
 
     # ── GET /api/generate-es-systems ─────────────────────────────────────────
     @router.get("/api/generate-es-systems")

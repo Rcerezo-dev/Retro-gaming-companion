@@ -98,15 +98,27 @@ antes (o comprobar que los binarios existen y avisar si no).
 
 ## 3. Desglose propuesto
 
-- **5a — Exportar el perfil al remoto** (cierra el hueco de §1). Nueva
-  función en `device_profile.py`, p. ej.
-  `save_profile_manifest(sources, roms_dir, saves_dir, system_dir, transport, remote_path)`:
-  serializa con `export_profile_sources()` (ya existe) a JSON y sube con
-  `RcloneTransport` (necesita un método `copyto` genérico de un solo
-  archivo — `upload()` actual está especializado en routing por extensión
-  saves/states, no sirve tal cual). Disparador: botón manual "Guardar copia
-  del perfil en la nube" en el mismo panel de Settings de DEVPROFILE-4a
-  (PR #272) — decidido en §5.
+- **5a — Exportar el perfil al remoto** — ✅ 2026-09-01 (cierra el hueco de
+  §1). `save_profile_manifest(sources, roms_dir, saves_dir, system_dir,
+  transport, remote_base)` en `device_profile.py`: serializa con
+  `export_profile_sources()` (ya existía) a JSON temporal y sube con
+  `RcloneTransport.upload()` — **no hizo falta un método nuevo**: pasando
+  extensiones vacías + `fallback_remote=remote_base`, `upload()` ya
+  enruta cualquier archivo directo al fallback (`_resolve_remote()`,
+  camino ya cubierto por `test_upload_unknown_ext_falls_back_to_fallback_remote`).
+  Escribe en `<remote_base>/device-profile.json`. Handler
+  `_handle_save_device_profile_manifest()` (`web/handlers/system.py`) +
+  ruta `POST /api/device-profile-save-manifest`
+  (`web/handlers/esde/system.py`) + botón manual "Guardar copia del perfil
+  en la nube" en el panel de Settings de DEVPROFILE-4a (PR #272),
+  `saveDeviceProfileManifest()` en `js/tabs/esde.js`. Sube
+  `config.sync.sync_sources` (lo ya confirmado, no los candidatos sin
+  guardar). 6 tests nuevos (`tests/test_device_profile.py`) — sin mocks
+  para el camino de error real (rclone binario inexistente → `RcloneError`
+  capturado limpio). **No probado contra el remoto real** (Dropbox) —
+  deliberado, ver `feedback_config_toml_manual_testing` en memoria: un
+  test end-to-end habría escrito de verdad en la nube del usuario sin que
+  lo pidiera.
 - **5b — `rommgr restore` (nuevo comando CLI)**: descarga el manifiesto
   (`RcloneTransport.download`, ya existe) → pide `roms_dir`/`saves_dir`/
   `system_dir` de este PC (puede reusar los `_ask()` de `wizard.py`, o
@@ -177,3 +189,9 @@ diseña después de que 5 esté probado en PC, para reusar lo aprendido.
 directorio de prueba (`tmp_path`-style, **nunca contra el `config.toml`
 real** — ver `feedback_config_toml_manual_testing` en memoria) antes de
 tocar el PC real. DEVPROFILE-6 después, reusando lo aprendido de 5.
+
+**5b-5f implementados 2026-09-01** (`rommgr restore` en `cli.py`, ver
+`Tareas/backlog.md` DEVPROFILE-5) — probado contra un `tmp_path` con
+`RcloneTransport._run` fake (`tests/test_cli_restore.py`), nunca contra
+rclone/Dropbox real. **Pendiente de validar en un PC realmente nuevo/vacío**
+antes de darlo por probado en condiciones reales.

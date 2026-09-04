@@ -351,6 +351,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate a sample config.toml in the current directory.",
     )
 
+    restore_parser = subparsers.add_parser(
+        "restore",
+        help=(
+            "Restore a device profile from the cloud onto a new/empty PC "
+            "(DEVPROFILE-5b-5e): downloads device-profile.json, writes config.toml, "
+            "downloads Tier A content, regenerates ES-DE systems and reports missing BIOS."
+        ),
+    )
+    restore_parser.add_argument(
+        "--remote",
+        default=None,
+        metavar="REMOTE",
+        help="rclone remote base where the profile lives (e.g. dropbox:/RetroSync). Prompted if omitted.",
+    )
+    restore_parser.add_argument(
+        "--rclone",
+        default=None,
+        metavar="PATH",
+        help="Path to rclone binary. Auto-detected or prompted if omitted.",
+    )
+    restore_parser.add_argument(
+        "--library-dir",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Root of the ROM+saves library on this PC. Prompted if omitted.",
+    )
+    restore_parser.add_argument(
+        "--retroarch",
+        default=None,
+        metavar="PATH",
+        help="Path to retroarch.exe on this PC. Prompted if omitted (Enter to skip).",
+    )
+    restore_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually download Tier A content and regenerate ES-DE systems. Default is dry-run.",
+    )
+
     serve_parser = subparsers.add_parser(
         "serve",
         help="Start the local web interface.",
@@ -1357,6 +1396,151 @@ def main(argv: list[str] | None = None) -> int:
         from rom_manager.wizard import run_wizard
 
         return run_wizard(Path.cwd())
+
+    if args.command == "restore":
+        import json
+        import tempfile
+
+        from rom_manager.config import write_config_toml
+        from rom_manager.services.device_profile import import_profile_sources
+        from rom_manager.wizard import _ask, _ask_yn, _detect_tool
+
+        project_root = _project_root or Path.cwd()
+        toml_path = project_root / "config.toml"
+        if toml_path.exists():
+            print(f"Ya existe config.toml en {toml_path}")
+            if not _ask_yn("¿Sobreescribir con el perfil restaurado?", default=False):
+                print("Cancelado.")
+                return 0
+
+        print("\n=== Retro Vault — Restaurar perfil de dispositivo ===\n")
+
+        remote_base = (
+            args.remote or _ask("Remote base del perfil (p.ej. dropbox:/RetroSync)", "")
+        ).rstrip("/")
+        if not remote_base:
+            parser.error("Remote base requerido.")
+
+        rclone_bin = (
+            args.rclone
+            or _detect_tool("rclone", project_root)
+            or _ask("Ruta al binario rclone (scripts\\download-tools.ps1 si falta)", "rclone")
+        )
+        transport = RcloneTransport(rclone=rclone_bin)
+
+        tmp_path = Path(tempfile.gettempdir()) / "device-profile.json"
+        try:
+            transport.download("device-profile.json", tmp_path, fallback_remote=remote_base)
+        except RcloneError as exc:
+            print(f"[ERROR] No se pudo descargar el perfil: {exc}")
+            return 1
+        manifest = json.loads(tmp_path.read_text(encoding="utf-8"))
+        tmp_path.unlink(missing_ok=True)
+        print(f"Perfil descargado: {len(manifest)} fuente(s) de sync.\n")
+
+        library_root = (
+            args.library_dir
+            or Path(_ask("Carpeta raíz de tu biblioteca de ROMs", "").strip() or ".")
+        ).resolve()
+        ra_exe = args.retroarch or _ask(
+            "Ruta al ejecutable de RetroArch (retroarch.exe, Enter para omitir)", ""
+        )
+        saves_dir = library_root / "saves"
+        system_dir = Path(ra_exe).parent / "system" if ra_exe else library_root / "system"
+
+        sources = import_profile_sources(
+            manifest, roms_dir=library_root, saves_dir=saves_dir, system_dir=system_dir
+        )
+
+        write_config_toml(
+            project_root,
+            {
+                "library.library_root": str(library_root),
+                "launchers.retroarch": ra_exe,
+                "sync.rclone": rclone_bin,
+                "sync.sources": [
+                    {
+                        "name": s.name,
+                        "local_dir": s.local_dir,
+                        "remote": s.remote,
+                        "sync_all": s.sync_all,
+                    }
+                    for s in sources
+                ],
+            },
+        )
+        print(f"config.toml escrito en {toml_path} con {len(sources)} fuente(s) de sync.\n")
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — no se descargará nada. Pasa --apply para bajar el contenido real.\n")
+
+        config = load_config(project_root)
+        repository = LibraryRepository(config.database_path)
+        for source in sources:
+            local_dir = Path(source.local_dir)
+            local_dir.mkdir(parents=True, exist_ok=True)
+            exts = tuple() if source.sync_all else config.save_extensions
+            try:
+                from rom_manager.sync.delta_cache import DeltaCache
+
+                _delta = DeltaCache(config.data_dir) if not dry_run else None
+                result, decisions = sync_saves(
+                    local_dir,
+                    saves_remote=source.remote,
+                    transport=transport,
+                    repository=repository,
+                    save_extensions=exts,
+                    state_extensions=config.state_extensions if not source.sync_all else tuple(),
+                    states_remote=None,
+                    dry_run=dry_run,
+                    delta_cache=_delta,
+                )
+            except RcloneError as exc:
+                print(f"  [ERROR] {source.name}: {exc}")
+                continue
+            verb = "Bajaría " if dry_run else "Bajado "
+            print(
+                f"  {source.name}: {verb}↓{result.downloaded}  |  ya al día: {result.up_to_date}  "
+                f"|  errores: {result.errors}"
+            )
+
+        if ra_exe:
+            from rom_manager.esde.systems_generator import generate_es_systems_xml
+            from rom_manager.web.handlers.esde.system import _handle_esde_status
+
+            esde_info = _handle_esde_status(config)
+            if esde_info.get("installed"):
+                cores_dir = Path(ra_exe).parent / "cores"
+                output_path = Path(esde_info["install_dir"]) / "custom_systems" / "es_systems.xml"
+                if not dry_run:
+                    gen_result = generate_es_systems_xml(cores_dir, output_path)
+                    print(
+                        f"\nES-DE: es_systems.xml regenerado "
+                        f"({len(gen_result.generated_systems)} sistemas) — {output_path}"
+                    )
+                else:
+                    print("\nES-DE detectado — se regenerará es_systems.xml con --apply.")
+
+        from rom_manager.detection.bios_checker import check_bios
+
+        bios_search_dirs = [library_root, library_root / "bios"]
+        if ra_exe:
+            bios_search_dirs.append(Path(ra_exe).parent / "system")
+        missing_bios = [b for b in check_bios(bios_search_dirs) if b["required"] and not b["found"]]
+        if missing_bios:
+            print(f"\nBIOS requeridas faltantes ({len(missing_bios)}):")
+            for b in missing_bios:
+                print(f"  [FALTA] {b['filename']}  ({b['platform']})")
+        else:
+            print("\nBIOS: todas las requeridas encontradas.")
+
+        print(
+            "\nRestore completo."
+            if not dry_run
+            else "\nDry-run completo. Ejecuta con --apply para bajar el contenido real."
+        )
+        return 0
 
     if args.command == "serve":
         from rom_manager.web.server import InsecureExposureError, serve
