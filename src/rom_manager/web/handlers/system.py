@@ -525,7 +525,12 @@ def _handle_device_profile_detect(config: AppConfig) -> dict:
     existing_dirs = {str(Path(s.local_dir)) for s in existing}
 
     def _as_dict(s):
-        return {"name": s.name, "local_dir": s.local_dir, "remote": s.remote, "sync_all": s.sync_all}
+        return {
+            "name": s.name,
+            "local_dir": s.local_dir,
+            "remote": s.remote,
+            "sync_all": s.sync_all,
+        }
 
     candidates = [
         _as_dict(s)
