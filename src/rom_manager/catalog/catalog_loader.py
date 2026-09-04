@@ -14,6 +14,9 @@ class CatalogEntry:
     md5: str
     crc32: str
     size_bytes: int
+    serial: str = (
+        ""  # CATALOG-MATCH-REGION-1: disc serial (Redump clrmamepro DATs only, e.g. "SLUS-00402")
+    )
 
 
 def _detect_dat_format(path: Path) -> str:
@@ -90,6 +93,7 @@ def load_clrmamepro_dat(path: Path) -> dict[str, CatalogEntry]:
             continue
         game_attrs = _parse_clrmamepro_attrs(_top_level_text(body))
         title = game_attrs.get("name", "").strip()
+        serial = game_attrs.get("serial", "").strip()
         for rom_kw, rom_body in _iter_clrmamepro_blocks(body):
             if rom_kw != "rom":
                 continue
@@ -103,6 +107,7 @@ def load_clrmamepro_dat(path: Path) -> dict[str, CatalogEntry]:
                 md5=r.get("md5", "").strip().upper(),
                 crc32=r.get("crc", "").strip().upper(),
                 size_bytes=int(r.get("size", 0) or 0),
+                serial=serial,
             )
     return entries
 

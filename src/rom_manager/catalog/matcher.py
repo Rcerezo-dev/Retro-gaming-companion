@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
+from rom_manager.catalog.catalog_loader import CatalogEntry, load_dat_file
 from rom_manager.catalog.mame_loader import load_arcade_dir
 from rom_manager.detection.filename_normalizer import normalize_for_match
-from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION
+from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION, detect_platform
+from rom_manager.retroachievements.ra_hash_psx import detect_psx_boot_serial
 from rom_manager.utils.disc_tag import find_disc_number
+
+_NON_ALNUM_RE = re.compile(r"[^A-Z0-9]")
+
+
+def _normalize_serial(serial: str) -> str:
+    return _NON_ALNUM_RE.sub("", serial.upper())
+
 
 _logger = logging.getLogger(__name__)
 
@@ -107,10 +116,19 @@ class CatalogMatcher:
     No-Intro is checked before Redump in both passes.
     """
 
-    def __init__(self, nointro_dir: Path, redump_dir: Path, arcade_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        nointro_dir: Path,
+        redump_dir: Path,
+        arcade_dir: Path | None = None,
+        chdman_path: Path | None = None,
+    ) -> None:
         self._nointro_dir = nointro_dir
         self._redump_dir = redump_dir
         self._arcade_dir = arcade_dir
+        # CATALOG-MATCH-REGION-1: needed to extract a .chd's boot serial for
+        # PSX region disambiguation in _match_by_title(). None just disables it.
+        self._chdman_path = chdman_path
         # SHA1 → (CatalogEntry, dat_filename)
         self._nointro: dict[str, tuple[CatalogEntry, str]] = {}
         self._redump: dict[str, tuple[CatalogEntry, str]] = {}
@@ -143,7 +161,14 @@ class CatalogMatcher:
             return result
         for dat_file in sorted(directory.glob("*.dat")):
             try:
-                entries = load_nointro_dat(dat_file)
+                # CATALOG-MATCH-BUG-1: load_dat_file() auto-detecta XML vs
+                # clrmamepro (texto plano) — load_nointro_dat() a secas solo
+                # sabe XML y descartaba en silencio cualquier DAT clrmamepro
+                # (21/271 nointro, 9/22 redump en la biblioteca real,
+                # incluyendo Game Boy/GBA/NES/SNES/PS1/PS2/GameCube/Wii...),
+                # degradando el match SHA1 exacto a un fallback por título
+                # mucho menos fiable para esas plataformas.
+                entries = load_dat_file(dat_file)
             except Exception:
                 _logger.warning("Failed to load DAT %s, skipping", dat_file, exc_info=True)
                 continue
@@ -193,7 +218,9 @@ class CatalogMatcher:
     # Matching
     # ------------------------------------------------------------------
 
-    def match(self, sha1: str, filename: str | None = None) -> MatchResult | None:
+    def match(
+        self, sha1: str, filename: str | None = None, source_path: str | None = None
+    ) -> MatchResult | None:
         """Return a MatchResult or None.
 
         Parameters
@@ -203,6 +230,12 @@ class CatalogMatcher:
         filename:
             Original filename (with or without extension). Used as fallback
             when the SHA1 is not found in any catalog.
+        source_path:
+            Full path of the file on disk (CATALOG-MATCH-BUG-1). Only used as
+            a platform tiebreaker in `_match_by_title()` when the extension
+            is ambiguous (`.zip`/`.chd`/`.iso`/...) — the caller's real folder
+            (psx/, saturn/, dreamcast/...) is a reliable signal the filename
+            alone can't provide.
         """
         self._load()
         sha1_upper = sha1.upper()
@@ -229,10 +262,10 @@ class CatalogMatcher:
         # nunca llegaba a probarse. Para esos nombres, arcade primero.
         mame_style = filename.lower().endswith(".zip") and "(" not in filename
         if mame_style:
-            return self._match_arcade(filename) or self._match_by_title(filename)
-        return self._match_by_title(filename) or self._match_arcade(filename)
+            return self._match_arcade(filename) or self._match_by_title(filename, source_path)
+        return self._match_by_title(filename, source_path) or self._match_arcade(filename)
 
-    def _match_by_title(self, filename: str) -> MatchResult | None:
+    def _match_by_title(self, filename: str, source_path: str | None = None) -> MatchResult | None:
         """Pass 2 — Name-based fallback (No-Intro / Redump title index)."""
         key = normalize_for_match(filename)
         if not key:
@@ -257,10 +290,56 @@ class CatalogMatcher:
         # diseño), se queda con todos como antes.
         ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
         candidates = hits
+        resolved_platform = ext_platform
         if ext_platform:
             platform_hits = [h for h in hits if _platform_from_dat_name(h[1]) == ext_platform]
             if platform_hits:
                 candidates = platform_hits
+        elif source_path:
+            # CATALOG-MATCH-BUG-1: extensión ambigua (.zip/.chd/.iso/...) —
+            # ext_platform no puede desambiguar por diseño (un .chd puede ser
+            # PSX/Saturn/Dreamcast/Wii). detect_platform() sí sabe leer la
+            # carpeta contenedora real (psx/, saturn/...), la misma señal ya
+            # usada en el resto de la app — antes esto siempre caía a
+            # hits[0], eligiendo la región/plataforma equivocada cuando el
+            # SHA1 no calzaba exacto (típico de un .chd, que no es el hash
+            # crudo del disco).
+            folder_platform = detect_platform(Path(source_path))
+            resolved_platform = folder_platform
+            if folder_platform:
+                platform_hits = [
+                    h for h in hits if _platform_from_dat_name(h[1]) == folder_platform
+                ]
+                if platform_hits:
+                    candidates = platform_hits
+
+        # CATALOG-MATCH-REGION-1: la clave normalizada colapsa "Tekken (USA)"
+        # y "Tekken (Europe)" en el mismo título — sin más señal, candidates[0]
+        # solo depende del orden de carga del .dat, no de qué disco es
+        # realmente. El serial de arranque real (SYSTEM.CNF, vía chdman para
+        # un .chd) sí es contenido real del disco: comparado contra el
+        # `serial` que trae cada entrada del DAT de Redump, desambigua sin
+        # adivinar. Solo PSX por ahora (Saturn/Dreamcast necesitarían su
+        # propio lector de disco).
+        if resolved_platform == "PlayStation" and len(candidates) > 1 and source_path:
+            real_serial = detect_psx_boot_serial(Path(source_path), chdman_path=self._chdman_path)
+            if real_serial:
+                real_norm = _normalize_serial(real_serial)
+                serial_hits = [
+                    h
+                    for h in candidates
+                    if h[0].serial and _normalize_serial(h[0].serial) == real_norm
+                ]
+                if len(serial_hits) == 1:
+                    entry, source = serial_hits[0]
+                    return MatchResult(
+                        title=entry.title,
+                        confidence="medium",
+                        catalog_source=source,
+                        platform=_platform_from_dat_name(source),
+                    )
+                if serial_hits:
+                    candidates = serial_hits
 
         # GAMECUBE-DISC-BUG-1e: normalize_for_match() borra "(Disc N)" junto
         # con el resto de anotaciones, así que un set multi-disco colapsa a

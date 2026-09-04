@@ -13,7 +13,11 @@ import hashlib
 import struct
 from pathlib import Path
 
-from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
+from rom_manager.retroachievements.ra_hash_psx import (
+    compute_psx_ra_hash,
+    detect_bin_cue_mode,
+    detect_psx_boot_serial,
+)
 
 _SECTOR_SIZE = 2352
 _HEADER_SIZE = 24
@@ -112,6 +116,17 @@ def test_compute_psx_ra_hash_matches_manual_computation(tmp_path: Path) -> None:
     expected.update(raw[exe_sector_start : exe_sector_start + 2048])
 
     assert result == expected.hexdigest()
+
+
+def test_detect_psx_boot_serial(tmp_path: Path) -> None:
+    bin_path = _build_psx_image(tmp_path)
+    assert detect_psx_boot_serial(bin_path) == "TEST.EXE"
+
+
+def test_detect_psx_boot_serial_unsupported_format(tmp_path: Path) -> None:
+    pbp = tmp_path / "game.pbp"
+    pbp.write_bytes(b"not a disc")
+    assert detect_psx_boot_serial(pbp) is None
 
 
 def _build_psx_image_with_subdir_boot(tmp_path: Path) -> Path:

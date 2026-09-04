@@ -268,24 +268,29 @@ def _hash_bin_file(bin_path: Path) -> str | None:
         return None
 
 
-def _hash_chd_file(chd_path: Path, chdman_path: Path | None) -> str | None:
+def _extract_chd_to_cue(chd_path: Path, chdman_path: Path | None, tmp_dir: str) -> Path | None:
     # chdman_path may be a bare command name resolved via PATH (not a literal
     # file relative to cwd) -- don't require .exists(), let subprocess itself
     # raise/fail if it truly can't be found.
     if chdman_path is None:
         return None
+    out_cue = Path(tmp_dir) / "out.cue"
+    try:
+        subprocess.run(
+            [str(chdman_path), "extractcd", "-i", str(chd_path), "-o", str(out_cue), "-f"],
+            check=True,
+            capture_output=True,
+            timeout=300,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return None
+    return out_cue if out_cue.exists() else None
+
+
+def _hash_chd_file(chd_path: Path, chdman_path: Path | None) -> str | None:
     with tempfile.TemporaryDirectory(prefix="rommgr_chd_") as tmp:
-        out_cue = Path(tmp) / "out.cue"
-        try:
-            subprocess.run(
-                [str(chdman_path), "extractcd", "-i", str(chd_path), "-o", str(out_cue), "-f"],
-                check=True,
-                capture_output=True,
-                timeout=300,
-            )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
-            return None
-        if not out_cue.exists():
+        out_cue = _extract_chd_to_cue(chd_path, chdman_path, tmp)
+        if out_cue is None:
             return None
         return compute_psx_ra_hash(out_cue)
 
@@ -311,6 +316,46 @@ def detect_bin_cue_mode(bin_path: Path) -> str | None:
             return _CUE_MODE_BY_GEOMETRY.get((cd.sector_size, cd.header_size))
     except OSError:
         return None
+
+
+def _boot_serial_from_bin(bin_path: Path) -> str | None:
+    if not bin_path.exists():
+        return None
+    try:
+        with _CdImage(bin_path) as cd:
+            boot = _find_boot_executable(cd)
+    except OSError:
+        return None
+    if not boot:
+        return None
+    # RA-HASH-SUBDIR-1: BOOT= may point into a subdirectory ("TEKKEN3\SLUS_004.02")
+    # -- the serial itself is only the last path component, unlike the hash's
+    # exe_name (which keeps the full path, that's what RA's own hash uses).
+    return boot[0].rsplit("\\", 1)[-1]
+
+
+def detect_psx_boot_serial(path: Path, *, chdman_path: Path | None = None) -> str | None:
+    """Boot executable name from a PS1 disc's own SYSTEM.CNF (e.g. "SLUS_004.02"),
+    read the same way as ``compute_psx_ra_hash``.
+
+    CATALOG-MATCH-REGION-1: a No-Intro/Redump title-fallback match can't tell
+    "Tekken 3 (USA)" from "Tekken 3 (Europe)" once the region tag is stripped
+    for comparison, and the file's own SHA1 never matches a .chd (the DAT
+    hashes the raw track). The disc's real boot serial does -- normalize it
+    (strip punctuation, uppercase) and compare against each DAT candidate's
+    ``CatalogEntry.serial`` for an exact match, real content instead of a guess.
+    """
+    suffix = path.suffix.lower()
+    if suffix == ".cue":
+        bin_path = _first_cue_bin(path)
+        return _boot_serial_from_bin(bin_path) if bin_path else None
+    if suffix == ".bin":
+        return _boot_serial_from_bin(path)
+    if suffix == ".chd":
+        with tempfile.TemporaryDirectory(prefix="rommgr_chd_serial_") as tmp:
+            out_cue = _extract_chd_to_cue(path, chdman_path, tmp)
+            return _boot_serial_from_bin(_first_cue_bin(out_cue)) if out_cue else None
+    return None
 
 
 def compute_psx_ra_hash(path: Path, *, chdman_path: Path | None = None) -> str | None:

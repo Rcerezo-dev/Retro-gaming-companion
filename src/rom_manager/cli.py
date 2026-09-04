@@ -642,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
         matcher = CatalogMatcher(
             nointro_dir=config.catalogs_nointro_dir,
             redump_dir=config.catalogs_redump_dir,
+            chdman_path=config.chdman,
         )
         print("Loading catalogs…", flush=True)
         # Trigger lazy load and report catalog sizes
@@ -662,7 +663,7 @@ def main(argv: list[str] | None = None) -> int:
         unmatched = 0
         with repository.batch() as conn:
             for game in games:
-                result = matcher.match(game.sha1, game.original_filename)
+                result = matcher.match(game.sha1, game.original_filename, game.source_path)
                 if result is not None:
                     repository.update_match(
                         game.source_path,
