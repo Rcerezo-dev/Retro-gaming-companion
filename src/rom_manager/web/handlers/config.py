@@ -299,6 +299,7 @@ def _save_config(
         "sync.cheats_dir",
         "sync.cheats_remote",
         "sync.playtime_remote",
+        "sync.sources",  # DEVPROFILE-4a: [[sync.sources]] confirmed from "Perfil del dispositivo"
         "screenscraper.user",
         "screenscraper.pass",
         "screenscraper.dev_id",

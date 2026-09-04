@@ -50,6 +50,7 @@ def register_system(
         _get_local_ip,
         _handle_apply_retroarch_savefile_layout,
         _handle_detect_cloud_folder,
+        _handle_device_profile_detect,
         _handle_retroarch_check,
         _handle_system_status,
     )
@@ -162,6 +163,11 @@ def register_system(
     @router.post("/api/retroarch-apply-savefile-layout")
     def post_apply_savefile_layout(ctx) -> None:
         ctx._send_json(_handle_apply_retroarch_savefile_layout(config))
+
+    # ── GET /api/device-profile-detect ────────────────────────────────────────
+    @router.get("/api/device-profile-detect")
+    def get_device_profile_detect(ctx) -> None:
+        ctx._send_json(_handle_device_profile_detect(config))
 
     # ── GET /api/generate-es-systems ─────────────────────────────────────────
     @router.get("/api/generate-es-systems")
