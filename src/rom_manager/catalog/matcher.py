@@ -325,10 +325,16 @@ class CatalogMatcher:
             real_serial = detect_psx_boot_serial(Path(source_path), chdman_path=self._chdman_path)
             if real_serial:
                 real_norm = _normalize_serial(real_serial)
+                # CATALOG-MATCH-REGION-2: el serial del DAT trae sufijos que el
+                # disco real no tiene (variante "Greatest Hits", disco N de un
+                # multi-disco, país de impresión) — SLUS01067 real nunca calza
+                # por igualdad exacta contra SLUS01067GHA del candidato, aunque
+                # sea el mismo disco. Prefijo desambigua igual de bien (el check
+                # de len==1 más abajo sigue protegiendo contra colisiones).
                 serial_hits = [
                     h
                     for h in candidates
-                    if h[0].serial and _normalize_serial(h[0].serial) == real_norm
+                    if h[0].serial and _normalize_serial(h[0].serial).startswith(real_norm)
                 ]
                 if len(serial_hits) == 1:
                     entry, source = serial_hits[0]
