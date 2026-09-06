@@ -7,6 +7,7 @@ Extracted from server.py (Session 19). Progress/state is reported through the
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rom_manager.config import AppConfig
@@ -45,6 +46,69 @@ def _platform_folder_name(platform: str) -> str:
 def _organize_dest_file(target_root: Path, platform: str, filename: str) -> Path:
     """Where *filename* would land if organized — same rule the Step 6 loop uses."""
     return target_root / _platform_folder_name(platform) / filename
+
+
+@dataclass(slots=True)
+class RelocateAction:
+    source: str
+    target: str
+    detected_platform: str
+    outcome: str  # "moved" | "duplicate_discarded" | "conflict"
+
+
+@dataclass(slots=True)
+class RelocateSummary:
+    moved: int = 0
+    duplicates_discarded: int = 0
+    conflicts: int = 0
+    actions: list[RelocateAction] = field(default_factory=list)
+
+
+def relocate_misplaced_files(library_root: Path, *, dry_run: bool = True) -> RelocateSummary:
+    """REPAIR-TOOL-8: acts on ``check_misplaced_extensions_health()`` -- moves
+    each misplaced file (extension that belongs to a different platform than
+    its containing folder) into the platform folder it actually belongs to,
+    without renaming it.
+
+    Never overwrites: a name collision at the target is resolved by content
+    (``_same_content``, same size+SHA1 check the Inbox pipeline uses) -- an
+    exact duplicate sends the source to its own ``_descartados/``, different
+    content is left untouched and reported as a conflict for manual review
+    (``.claude/CLAUDE.md``: "ante duda, no sobrescribir").
+    """
+    import shutil as _shutil
+
+    from rom_manager.utils.health_checker import check_misplaced_extensions_health
+
+    summary = RelocateSummary()
+    for result in check_misplaced_extensions_health(library_root).results:
+        source = Path(result.path)
+        folder_name = _ES_PLATFORM_FOLDERS.get(result.detected_platform)
+        if not folder_name:
+            continue  # sin carpeta ES-DE conocida para esa plataforma -- no tocar
+        target = library_root / folder_name / source.name
+
+        if target.exists():
+            if _same_content(source, target):
+                if not dry_run:
+                    _discard_to_trash(source)
+                summary.duplicates_discarded += 1
+                outcome = "duplicate_discarded"
+            else:
+                summary.conflicts += 1
+                outcome = "conflict"
+        else:
+            if not dry_run:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _shutil.move(str(source), str(target))
+            summary.moved += 1
+            outcome = "moved"
+
+        summary.actions.append(
+            RelocateAction(str(source), str(target), result.detected_platform, outcome)
+        )
+
+    return summary
 
 
 def _resolve_organize_conflict(
@@ -887,11 +951,22 @@ def _run_inbox_pipeline(
     config: AppConfig,
     job_manager,
     extra_result: dict | None = None,
+    exclude_platforms: set[str] | None = None,
 ) -> None:
     """Background job: extract → scan → match → plan → rename → move → cleanup.
 
     *extra_result* (ZIP-ROUTE-4): contadores de las fases previas del zip_router
     que se mezclan en el resultado del job para que la UI los muestre juntos.
+
+    *exclude_platforms* (LIBRARY-AUDIT-EXCLUDE-GAP-1): normalmente
+    ``organize-source`` aparta los archivos de esas plataformas *antes* de
+    llamar aquí consultando ``games.platform`` en la BD -- pero un ZIP sin
+    escanear todavía (``platform IS NULL``) no está en esa consulta, y el
+    paso 1 de aquí lo detecta como set arcade completo por CRC en vivo,
+    independiente de la BD. Si ``MAME``/``FBNeo``/``Arcade`` está en
+    *exclude_platforms*, ese ZIP se deja intacto en vez de moverse a
+    ``arcade/`` -- misma promesa de "dejar arcade sin tocar" que ya cumple
+    el filtro de la BD, extendida a lo no escaneado.
     """
     import shutil as _shutil
 
@@ -941,6 +1016,9 @@ def _run_inbox_pipeline(
         zip_files = find_zip_files(inbox)
         extracted_count = 0
         arcade_zips_routed = 0
+        arcade_zips_excluded = 0
+        _ARCADE_PLATFORMS = {"MAME", "FBNeo", "Arcade"}
+        skip_arcade_routing = bool(exclude_platforms and exclude_platforms & _ARCADE_PLATFORMS)
         source_zips: list[Path] = []
         for idx, zp in enumerate(zip_files, 1):
             # Skip internal folders
@@ -950,6 +1028,15 @@ def _run_inbox_pipeline(
             # INBOX-CFG-4: un ZIP arcade nunca se extrae — el ZIP es el ROM.
             # Extraerlo shredea el set en chips sueltos (incidente Día49).
             if arcade_crc_index and is_arcade_zip_container(zp, arcade_crc_index):
+                if skip_arcade_routing:
+                    arcade_zips_excluded += 1
+                    logger.info(
+                        "Inbox: %s es un set arcade completo pero %s está en "
+                        "--exclude-platform — dejado intacto",
+                        zp.name,
+                        "/".join(sorted(exclude_platforms & _ARCADE_PLATFORMS)),
+                    )
+                    continue
                 dest = arcade_folder / zp.name
                 if dest.exists():
                     logger.warning(
@@ -1197,6 +1284,7 @@ def _run_inbox_pipeline(
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
             "arcade_zips_routed": arcade_zips_routed,
+            "arcade_zips_excluded": arcade_zips_excluded,
             "bios_moved": bios_moved,
             "md_identified": md_identified,
             "arcade_reconstructed": arcade_recon["reconstructed"],
