@@ -5,6 +5,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
 
+from rom_manager.hashing.hash_calculator import calculate_hashes
 from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
 from rom_manager.utils.trash import TRASH_DIR_NAME
 
@@ -154,6 +155,30 @@ def bin_size_is_sector_aligned(size_bytes: int) -> bool:
     mostly flags the rarer MODE2/2336 case as non-standard for extra scrutiny.
     """
     return size_bytes % 2352 == 0 or size_bytes % 2048 == 0
+
+
+def find_bins_matching_arcade_crc(
+    directory: Path, arcade_crc_index: dict[str, set[str]]
+) -> dict[Path, set[str]]:
+    """REPAIR-TOOL-5: cross loose ``.bin`` files under *directory* (no
+    sidecar ``.cue``) against an arcade CRC index (``load_arcade_crc_index``)
+    to catch an arcade chip that ended up in a console platform folder.
+
+    Two separate manual audits (`Día52` section 9, and a later session
+    sections 14-15) were needed to find exactly this by hand -- with the CRC
+    index already built for ZIP routing (ZIP-ROUTE-2), the same lookup works
+    unpacked. Returns only bins with at least one CRC hit, mapped to the
+    candidate arcade set name(s) (a CRC can be shared by parent/clone sets).
+    """
+    hits: dict[Path, set[str]] = {}
+    if not arcade_crc_index:
+        return hits
+    for bin_path in _unclaimed_bins(directory):
+        crc = calculate_hashes(bin_path).crc32
+        sets = arcade_crc_index.get(crc)
+        if sets:
+            hits[bin_path] = sets
+    return hits
 
 
 def find_bins_needing_cue(directory: Path) -> list[Path]:
