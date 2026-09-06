@@ -452,10 +452,11 @@ def main(argv: list[str] | None = None) -> int:
         if not source_path.exists() or not source_path.is_dir():
             parser.error(f"Source path does not exist or is not a directory: {source_path}")
 
-        # REPAIR-TOOL-7: always `repository` (library_pc.db), whatever drive
-        # letter source_path is on -- there is no per-drive database, and
-        # this never touches library_android.db (that one's only written by
-        # the web UI's ADB scan of the physically connected console).
+        # REPAIR-TOOL-7: `rommgr scan` (this CLI command) always writes
+        # `repository` (library_pc.db), whatever drive letter source_path is
+        # on -- unlike the web UI's /api/scan, it never routes by path via
+        # _repo_for_path() (web/builders/common.py), so it never touches
+        # library_android.db.
         result = scan_library(source_path, config, repository, logger, quick=args.quick)
         if args.quick:
             print("Quick scan (no hashes — match and sync will not work until a full scan is run)")

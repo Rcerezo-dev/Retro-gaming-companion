@@ -188,12 +188,18 @@ Dos BDs independientes con el mismo schema (`database/schema.py`):
 **REPAIR-TOOL-7**: el nombre engaña — no son "una BD por unidad de disco".
 `rommgr scan <path>` (CLI) siempre escribe en `library_pc.db`,
 independientemente de qué unidad local sea `<path>` (`E:\`, `H:\`, cualquier
-carpeta montada en este PC) — es la BD de "todo lo escaneado por ruta de
-archivo local", no una BD por letra de unidad. `library_android.db` solo se
-rellena vía `/api/adb-scan` (escaneo ADB del almacenamiento real de la
-consola conectada por USB), nunca desde `rommgr scan`. Confundir ambas ya
-llevó a comparar contra datos de `library_android.db` con 2 meses de
-antigüedad sin darse cuenta (ver `Tareas/backlog.md`, `REPAIR-TOOL-7`).
+carpeta montada en este PC) — es la BD de "todo lo escaneado bajo
+`library_root`", no una BD por letra de unidad. La regla real que decide qué
+BD usar es `_repo_for_path()` (`web/builders/common.py:141-167`): cualquier
+ruta que caiga **fuera** de `config.library_root` va a `library_android.db`,
+sin que tenga que ser una ruta ADB — el `/api/scan` genérico de la web
+(`web/handlers/scan.py:320-325`), `/api/migrate-split-db` y el
+`resolve-duplicates` de la CLI (`cli.py`, `repository_android.
+exclude_duplicate_group`) también escriben ahí si el path cae fuera de
+`library_root`. `/api/adb-scan` es el caso más habitual, no el único.
+Confundir ambas BDs ya llevó a comparar contra datos de `library_android.db`
+con 2 meses de antigüedad sin darse cuenta (ver `Tareas/backlog.md`,
+`REPAIR-TOOL-7`).
 
 | Tabla | Propósito |
 |-------|-----------|

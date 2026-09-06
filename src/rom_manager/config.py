@@ -377,9 +377,13 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     logs_dir = data_dir / "logs"
     # REPAIR-TOOL-7: library_pc.db is *not* per-drive -- `rommgr scan <path>`
     # always writes here regardless of which local unit <path> lives on
-    # (E:\, H:\, anything mounted on this PC). library_android.db is a
-    # completely separate DB, only populated via /api/adb-scan (ADB scan of
-    # the physically connected console) -- never from `rommgr scan`.
+    # (E:\, H:\, anything mounted on this PC), since the CLI never routes by
+    # path. library_android.db is a separate DB selected by
+    # _repo_for_path() (web/builders/common.py) for any path outside
+    # config.library_root -- the web UI's ADB scan is the common case, but
+    # not the only one (the generic /api/scan handler and
+    # /api/migrate-split-db route the same way). `rommgr scan` (the CLI
+    # command specifically) never touches library_android.db.
     database_path = data_dir / "library_pc.db"
     database_path_android = data_dir / "library_android.db"
     catalogs_dir = data_dir / "catalogs"
