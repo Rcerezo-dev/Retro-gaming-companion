@@ -1271,6 +1271,22 @@ histórica.
 
 ---
 
+### CHDMAN-TEST-COMPRESS-1 — `chdman.exe` local falla comprimiendo CHDs de test sintéticos diminutos (hallazgo 2026-09-06)
+
+Investigado tras bloquear el pre-push hook de `feature/anbernic-pick-5-other-category`
+tres sesiones seguidas (Día54, Día55 rondas 1 y 2) con el mismo fallo en
+`tests/test_chd_converter.py::test_convert_bin_to_chd_end_to_end`,
+`test_convert_directory_apply_picks_up_bare_bins` y
+`test_convert_bin_to_chd_rejects_on_ra_hash_mismatch` — siempre dado por
+"preexistente, sin relación con el cambio de turno" pero nunca investigado
+hasta la raíz.
+
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| CHDMAN-TEST-COMPRESS-1 | **Causa raíz confirmada**: los 3 tests comparten la imagen PSX sintética de `_build_psx_image()` (`tests/test_ra_hash_psx.py:53`, 23 sectores / 54.096 bytes — deliberadamente mínima para hashear un solo sector). Reproducido **fuera de Python**, invocando `tools/chdman.exe createcd` directamente sobre el `.cue`/`.bin` sintéticos: `chdman - MAME... 0.251` falla con `Error during compression: Compression error` / `Fatal error occurred: 1` en los 3 codecs por defecto (`cdlz`/`cdzl`/`cdfl`), pero **crea el CHD sin error con `-c none`** (`chdman info` confirma: Hunk Size 19.584 B, 3 hunks, Total Units 24) — es un bug/límite de esta versión de `chdman.exe` comprimiendo discos de un puñado de hunks, no algo en `_run_chdman_createcd()`/`convert_bin_to_chd()` (`converters/chd_converter.py:278-297,399-451`, que ya propaga correctamente el stderr de chdman). **No afecta a la biblioteca real** — ningún juego real tiene un `.bin` de 54 KB, así que el bug nunca se dispara fuera de estos 3 tests. Fix pendiente (uno de dos, a decidir): (a) que el fixture use `-c none`/un chdman de conversión más permisivo solo para estos tests, o (b) hacer `_build_psx_image()` (o una variante) lo bastante grande para no chocar con el límite de compresión de chdman 0.251. Verificar también si una versión de `chdman.exe` más reciente que 0.251 no tiene este límite, como alternativa a tocar el fixture | `tests/test_chd_converter.py`, `tests/test_ra_hash_psx.py:53`, `tools/chdman.exe` (v0.251) | 🔴 pendiente |
+
+---
+
 ### GBA-MISPLACED-1 — Archivos de otras plataformas mal ubicados en `gba/` con metadatos corruptos (hallazgo 2026-08-30)
 
 Origen: al intentar limpiar "duplicados GBA sin RA" (pedido usuario tras DUP-REGION-1),
