@@ -16,6 +16,7 @@ from rom_manager.converters.chd_converter import parse_bins_from_cue
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.utils.disc_tag import find_disc_number
 from rom_manager.utils.paths import is_device_path
+from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
@@ -78,6 +79,47 @@ def _is_broken_disc_entry(source_path: str) -> bool:
     if not path.exists():
         return True
     return any(not b.exists() for b in parse_bins_from_cue(path))
+
+
+def _find_rescue_candidate_in_trash(
+    source_path: str, platform: str | None, library_root
+) -> str | None:
+    """REPAIR-TOOL-3: before a broken disc set (see ``_is_broken_disc_entry``)
+    gets reported as a possible real loss, check whether a healthy copy of
+    the same game is already sitting in ``_descartados/`` — discarded by a
+    previous ``resolve-duplicates`` run, not gone. Checks both the trash
+    folder right next to the broken file and the platform-wide one at the
+    platform's canonical folder root. 11 of 31 real ``PSX-STRUCTURE-1`` cases
+    had exactly this: a sound `.chd` a ``shutil.move`` away from "lost".
+
+    Deliberately uses the *fuzzy* title normalizer (region/rev tags
+    stripped) — unlike the exact-title union in ``_review_groups_for_repo``
+    (see its comment on why fuzzy matching is unsafe for clustering "same
+    game"), here a different region/edition already discarded is exactly
+    the rescue candidate we want to surface, not a false positive to avoid.
+    """
+    from rom_manager.retroachievements.ra_checker import _normalize_title
+
+    path = _Path(source_path)
+    target = _normalize_title(path.stem)
+    search_dirs = [path.parent / TRASH_DIR_NAME]
+    if library_root and platform:
+        slug = _ES_PLATFORM_FOLDERS.get(platform, "")
+        if slug:
+            search_dirs.append(_Path(library_root) / slug / TRASH_DIR_NAME)
+
+    for trash_dir in search_dirs:
+        if not trash_dir.is_dir():
+            continue
+        for candidate in sorted(trash_dir.iterdir()):
+            if not candidate.is_file():
+                continue
+            if _normalize_title(candidate.stem) != target:
+                continue
+            if _is_broken_disc_entry(str(candidate)):
+                continue
+            return str(candidate)
+    return None
 
 
 def _review_entry_sort_key(
@@ -750,6 +792,10 @@ def _review_groups_for_repo(
         entries_list.sort(key=lambda e: _review_entry_sort_key(e, plat, _lib_root))
         for i, entry in enumerate(entries_list):
             entry["recommended"] = i == 0
+            if _is_broken_disc_entry(entry["source_path"]):
+                entry["rescue_candidate"] = _find_rescue_candidate_in_trash(
+                    entry["source_path"], plat, _lib_root
+                )
         wasted = sum(e["size_bytes"] or 0 for e in entries_list[1:])
         result.append(
             {

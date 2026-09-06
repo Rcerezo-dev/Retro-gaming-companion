@@ -8,7 +8,7 @@ from pathlib import Path
 
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.web.builders.duplicates import _build_review_queue
+from rom_manager.web.builders.duplicates import _build_review_queue, _find_rescue_candidate_in_trash
 
 _TS = "2026-01-01T00:00:00"
 
@@ -191,6 +191,108 @@ def test_broken_cue_loses_to_intact_chd(tmp_path: Path) -> None:
     assert result["total_groups"] == 1
     recommended = next(e for e in result["groups"][0]["entries"] if e["recommended"])
     assert recommended["source_path"] == str(chd_path)
+
+
+def test_find_rescue_candidate_in_trash_finds_local_match(tmp_path: Path) -> None:
+    """REPAIR-TOOL-3: a different region/edition already discarded by a
+    previous resolve-duplicates run counts as a rescue candidate -- fuzzy
+    title match (region tag stripped) is intentional here."""
+    broken = tmp_path / "psx" / "Game (Europe).cue"
+    broken.parent.mkdir(parents=True)
+    broken.touch()
+    trash_dir = broken.parent / "_descartados"
+    trash_dir.mkdir()
+    healthy = trash_dir / "Game (USA).chd"
+    healthy.write_bytes(b"fake chd")
+
+    result = _find_rescue_candidate_in_trash(str(broken), "PlayStation", None)
+
+    assert result == str(healthy)
+
+
+def test_find_rescue_candidate_in_trash_finds_platform_wide_match(tmp_path: Path) -> None:
+    """A subfolder-per-game layout (`psx/Game/Game.cue`) has no *local*
+    `_descartados/` sibling with the rescue copy -- it's in the platform
+    root's trash instead."""
+    library_root = tmp_path
+    broken = library_root / "psx" / "Game" / "Game (Europe).cue"
+    broken.parent.mkdir(parents=True)
+    broken.touch()
+    platform_trash = library_root / "psx" / "_descartados"
+    platform_trash.mkdir()
+    healthy = platform_trash / "Game (USA).chd"
+    healthy.write_bytes(b"fake chd")
+
+    result = _find_rescue_candidate_in_trash(str(broken), "PlayStation", library_root)
+
+    assert result == str(healthy)
+
+
+def test_find_rescue_candidate_in_trash_returns_none_without_match(tmp_path: Path) -> None:
+    broken = tmp_path / "psx" / "Game (Europe).cue"
+    broken.parent.mkdir(parents=True)
+    broken.touch()
+
+    assert _find_rescue_candidate_in_trash(str(broken), "PlayStation", None) is None
+
+
+def test_find_rescue_candidate_in_trash_skips_a_candidate_that_is_itself_broken(
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "psx" / "Game (Europe).cue"
+    broken.parent.mkdir(parents=True)
+    broken.touch()
+    trash_dir = broken.parent / "_descartados"
+    trash_dir.mkdir()
+    # Same title in the trash, but it's a broken cue/bin set itself -- not a
+    # real rescue candidate.
+    also_broken = trash_dir / "Game (USA).cue"
+    also_broken.write_text('FILE "Game (USA).bin" BINARY\n', encoding="utf-8")
+
+    assert _find_rescue_candidate_in_trash(str(broken), "PlayStation", None) is None
+
+
+def test_broken_entry_gets_rescue_candidate_via_review_queue(tmp_path: Path) -> None:
+    """End-to-end: _build_review_queue annotates a broken entry with the
+    rescue candidate found in trash; the intact entry is left untouched
+    (no rescue_candidate key at all)."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+
+    broken_cue = tmp_path / "psx" / "Game (Europe).cue"
+    broken_cue.parent.mkdir(parents=True)
+    broken_cue.write_text('FILE "Game (Europe).bin" BINARY\n', encoding="utf-8")
+    # .bin deliberately not created -> broken
+
+    intact = tmp_path / "psx" / "Game (Japan).chd"
+    intact.write_bytes(b"fake chd")
+
+    trash_dir = broken_cue.parent / "_descartados"
+    trash_dir.mkdir()
+    rescue = trash_dir / "Game (USA).chd"
+    rescue.write_bytes(b"fake chd")
+
+    _insert_game(
+        repo,
+        source_path=str(broken_cue),
+        sha1="A" * 40,
+        original_filename="Game (Europe).cue",
+        platform="PlayStation",
+        canonical_title="Game",
+    )
+    _insert_game(
+        repo,
+        source_path=str(intact),
+        sha1="B" * 40,
+        original_filename="Game (Japan).chd",
+        platform="PlayStation",
+        canonical_title="Game",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    entries = {e["source_path"]: e for e in result["groups"][0]["entries"]}
+    assert entries[str(broken_cue)]["rescue_candidate"] == str(rescue)
+    assert "rescue_candidate" not in entries[str(intact)]
 
 
 def test_different_regions_are_not_merged(tmp_path: Path) -> None:

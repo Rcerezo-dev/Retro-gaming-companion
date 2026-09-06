@@ -1282,8 +1282,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "generate-cues":
+        from rom_manager.catalog.mame_loader import load_arcade_crc_index
         from rom_manager.converters.chd_converter import (
             bin_size_is_sector_aligned,
+            find_bins_matching_arcade_crc,
             generate_missing_cues,
         )
 
@@ -1295,6 +1297,19 @@ def main(argv: list[str] | None = None) -> int:
         if dry_run:
             print("DRY RUN — no files will be changed. Pass --apply to write the .cue files.")
         print()
+
+        # REPAIR-TOOL-5: warn about loose .bin files that are actually arcade
+        # chips misplaced in a console folder -- never eligible for a
+        # synthetic disc .cue, so this never conflicts with generate_missing_cues.
+        arcade_crc_index = (
+            load_arcade_crc_index(config.catalogs_arcade_dir) if config.catalogs_arcade_dir else {}
+        )
+        arcade_hits = find_bins_matching_arcade_crc(source_path, arcade_crc_index)
+        if arcade_hits:
+            print(f"[AVISO] {len(arcade_hits)} .bin sueltos coinciden con CRC de sets arcade:")
+            for bin_path, set_names in arcade_hits.items():
+                print(f"  {bin_path.name}  ->  posible set: {', '.join(sorted(set_names))}")
+            print("  (no son discos -- revisar a mano, no se genera .cue para estos)\n")
 
         written = generate_missing_cues(source_path, dry_run=dry_run)
         for cue_path in written:

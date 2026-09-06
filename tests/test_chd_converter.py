@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zlib
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from rom_manager.converters.chd_converter import (
     convert_directory,
     convert_to_chd,
     find_bare_bin_files,
+    find_bins_matching_arcade_crc,
     find_bins_needing_cue,
     find_cue_files,
     find_pre_migration_orphan_cues,
@@ -70,6 +72,39 @@ def test_find_pre_migration_orphan_cues_ignores_cue_already_inside_its_subfolder
     (game_dir / "Game.cue").touch()
 
     assert find_pre_migration_orphan_cues(tmp_path) == []
+
+
+def test_find_bins_matching_arcade_crc_flags_misplaced_arcade_chip(tmp_path: Path) -> None:
+    content = b"arcade rom chip data"
+    bin_path = tmp_path / "stray.bin"
+    bin_path.write_bytes(content)
+    crc = f"{zlib.crc32(content) & 0xFFFFFFFF:08X}"
+
+    hits = find_bins_matching_arcade_crc(tmp_path, {crc: {"pacman"}})
+
+    assert hits == {bin_path: {"pacman"}}
+
+
+def test_find_bins_matching_arcade_crc_ignores_bins_claimed_by_a_cue(tmp_path: Path) -> None:
+    content = b"arcade rom chip data"
+    bin_path = tmp_path / "claimed.bin"
+    bin_path.write_bytes(content)
+    _write_cue(tmp_path / "game.cue", [bin_path.name])
+    crc = f"{zlib.crc32(content) & 0xFFFFFFFF:08X}"
+
+    assert find_bins_matching_arcade_crc(tmp_path, {crc: {"pacman"}}) == {}
+
+
+def test_find_bins_matching_arcade_crc_empty_index_returns_nothing(tmp_path: Path) -> None:
+    (tmp_path / "stray.bin").write_bytes(b"data")
+
+    assert find_bins_matching_arcade_crc(tmp_path, {}) == {}
+
+
+def test_find_bins_matching_arcade_crc_no_hit_returns_nothing(tmp_path: Path) -> None:
+    (tmp_path / "stray.bin").write_bytes(b"data")
+
+    assert find_bins_matching_arcade_crc(tmp_path, {"DEADBEEF": {"other_set"}}) == {}
 
 
 def test_bin_size_is_sector_aligned_2352() -> None:
