@@ -99,6 +99,20 @@ def parse_bins_from_cue(cue_path: Path) -> list[Path]:
     return bins
 
 
+def find_pre_migration_orphan_cues(directory: Path) -> list[Path]:
+    """Return ``.cue`` files sitting loose next to an already-migrated
+    subfolder of the same game (``Game.cue`` next to ``Game/``).
+
+    REPAIR-TOOL-2: after a subfolder-per-game migration
+    (``operation_planner.py:_DISC_SUBFOLDER_PLATFORMS``), a `.cue` left behind
+    at the old flat location is residue from before the migration, not a
+    second "set" — 17 of 31 "sets rotos" audited by hand in one real session
+    were exactly this, inflating any health-check that treats a loose `.cue`
+    as broken.
+    """
+    return [cue for cue in find_cue_files(directory) if (cue.parent / cue.stem).is_dir()]
+
+
 def _unclaimed_bins(directory: Path) -> list[Path]:
     """.bin files under *directory* not referenced by any .cue there, and
     not inside a ``_descartados/`` trash folder -- a file already discarded
@@ -127,6 +141,19 @@ def find_bare_bin_files(directory: Path) -> list[Path]:
         for f in _unclaimed_bins(directory)
         if detect_bin_cue_mode(f) is not None and compute_psx_ra_hash(f) is not None
     ]
+
+
+def bin_size_is_sector_aligned(size_bytes: int) -> bool:
+    """True if *size_bytes* is an exact multiple of a standard CD sector size
+    (2352 raw, 2048 Mode 1 payload).
+
+    REPAIR-TOOL-6: one-line check done by hand to triage loose `.bin` files
+    during `PSX-STRUCTURE-2`/session repairs, worth exposing instead of
+    re-deriving every time. `find_bins_needing_cue()` already requires a
+    *detected* geometry (2352/2048/2336, see `_CUE_MODE_BY_GEOMETRY`), so this
+    mostly flags the rarer MODE2/2336 case as non-standard for extra scrutiny.
+    """
+    return size_bytes % 2352 == 0 or size_bytes % 2048 == 0
 
 
 def find_bins_needing_cue(directory: Path) -> list[Path]:

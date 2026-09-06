@@ -153,6 +153,46 @@ def test_misplaced_duplicate_loses_tie_to_correct_folder(tmp_path: Path) -> None
     assert recommended["source_path"] == correct
 
 
+def test_broken_cue_loses_to_intact_chd(tmp_path: Path) -> None:
+    """REPAIR-TOOL-4: a `.cue` referencing a missing `.bin` must never outrank
+    an intact `.chd` of the same game just because it wins the region/RA/
+    folder tiebreaks — 11 of 31 real PSX-STRUCTURE-1 cases were exactly this.
+    Without the integrity tier, the tie falls through to filename ordering
+    and "(Europe).cue" < "(USA).chd" alphabetically would pick the broken one."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+
+    cue_path = tmp_path / "psx" / "Game (Europe).cue"
+    cue_path.parent.mkdir(parents=True)
+    cue_path.write_text('FILE "Game (Europe).bin" BINARY\n', encoding="utf-8")
+    # .bin deliberately not created -> broken cue/bin set
+
+    chd_path = tmp_path / "psx" / "Game (USA).chd"
+    chd_path.write_bytes(b"fake chd")
+
+    _insert_game(
+        repo,
+        source_path=str(cue_path),
+        sha1="A" * 40,
+        original_filename="Game (Europe).cue",
+        platform="PlayStation",
+        canonical_title="Game",
+    )
+    _insert_game(
+        repo,
+        source_path=str(chd_path),
+        sha1="B" * 40,
+        original_filename="Game (USA).chd",
+        platform="PlayStation",
+        canonical_title="Game",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    recommended = next(e for e in result["groups"][0]["entries"] if e["recommended"])
+    assert recommended["source_path"] == str(chd_path)
+
+
 def test_different_regions_are_not_merged(tmp_path: Path) -> None:
     """Regression (found against a real PSX library, see the multi-disc test
     below for the worse variant): region tags must NOT be stripped when

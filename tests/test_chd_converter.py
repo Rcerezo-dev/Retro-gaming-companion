@@ -7,12 +7,14 @@ import pytest
 import rom_manager.converters.chd_converter as chd_converter
 from rom_manager.converters.chd_converter import (
     ConversionSummary,
+    bin_size_is_sector_aligned,
     convert_bin_to_chd,
     convert_directory,
     convert_to_chd,
     find_bare_bin_files,
     find_bins_needing_cue,
     find_cue_files,
+    find_pre_migration_orphan_cues,
     generate_missing_cues,
     parse_bins_from_cue,
 )
@@ -39,6 +41,56 @@ def test_find_cue_files(tmp_path: Path) -> None:
     found = find_cue_files(tmp_path)
     assert len(found) == 2
     assert all(p.suffix == ".cue" for p in found)
+
+
+def test_find_pre_migration_orphan_cues_flags_cue_with_matching_subfolder(tmp_path: Path) -> None:
+    (tmp_path / "psx" / "Game").mkdir(parents=True)
+    orphan = tmp_path / "psx" / "Game.cue"
+    orphan.touch()
+
+    found = find_pre_migration_orphan_cues(tmp_path)
+    assert found == [orphan]
+
+
+def test_find_pre_migration_orphan_cues_ignores_cue_without_subfolder(tmp_path: Path) -> None:
+    (tmp_path / "psx").mkdir(parents=True)
+    (tmp_path / "psx" / "Game.cue").touch()
+
+    assert find_pre_migration_orphan_cues(tmp_path) == []
+
+
+def test_find_pre_migration_orphan_cues_ignores_cue_already_inside_its_subfolder(
+    tmp_path: Path,
+) -> None:
+    """The normal post-migration shape (`psx/Game/Game.cue`) must not be
+    flagged -- there's no *sibling* `Game/` next to it, `Game.cue` lives
+    inside `Game/` itself."""
+    game_dir = tmp_path / "psx" / "Game"
+    game_dir.mkdir(parents=True)
+    (game_dir / "Game.cue").touch()
+
+    assert find_pre_migration_orphan_cues(tmp_path) == []
+
+
+def test_bin_size_is_sector_aligned_2352() -> None:
+    assert bin_size_is_sector_aligned(2352 * 100) is True
+
+
+def test_bin_size_is_sector_aligned_2048() -> None:
+    assert bin_size_is_sector_aligned(2048 * 50) is True
+
+
+def test_bin_size_is_sector_aligned_rejects_2336_only() -> None:
+    """MODE2/2336 is a geometry `detect_bin_cue_mode` accepts, but 2336 isn't
+    2352 or 2048 -- a size that's only a multiple of 2336 must be flagged as
+    non-standard, not silently treated as aligned."""
+    size = 2336 * 10
+    assert size % 2352 != 0 and size % 2048 != 0
+    assert bin_size_is_sector_aligned(size) is False
+
+
+def test_bin_size_is_sector_aligned_rejects_arbitrary_size() -> None:
+    assert bin_size_is_sector_aligned(12345) is False
 
 
 def test_parse_bins_from_cue(tmp_path: Path) -> None:

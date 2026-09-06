@@ -1282,7 +1282,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "generate-cues":
-        from rom_manager.converters.chd_converter import generate_missing_cues
+        from rom_manager.converters.chd_converter import (
+            bin_size_is_sector_aligned,
+            generate_missing_cues,
+        )
 
         source_path = args.source_path.resolve()
         if not source_path.exists() or not source_path.is_dir():
@@ -1295,7 +1298,13 @@ def main(argv: list[str] | None = None) -> int:
 
         written = generate_missing_cues(source_path, dry_run=dry_run)
         for cue_path in written:
-            print(f"  [OK]  {cue_path.with_suffix('.bin').name}  ->  {cue_path.name}")
+            bin_path = cue_path.with_suffix(".bin")
+            note = (
+                ""
+                if bin_size_is_sector_aligned(bin_path.stat().st_size)
+                else "  [sector no estándar: revisar a mano]"
+            )
+            print(f"  [OK]  {bin_path.name}  ->  {cue_path.name}{note}")
 
         print()
         if dry_run:
