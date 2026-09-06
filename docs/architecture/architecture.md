@@ -185,6 +185,16 @@ en memoria — sin eso los cambios no se aplican hasta reiniciar.
 Dos BDs independientes con el mismo schema (`database/schema.py`):
 `.rommgr/library_pc.db` (PC) y `.rommgr/library_android.db` (consola).
 
+**REPAIR-TOOL-7**: el nombre engaña — no son "una BD por unidad de disco".
+`rommgr scan <path>` (CLI) siempre escribe en `library_pc.db`,
+independientemente de qué unidad local sea `<path>` (`E:\`, `H:\`, cualquier
+carpeta montada en este PC) — es la BD de "todo lo escaneado por ruta de
+archivo local", no una BD por letra de unidad. `library_android.db` solo se
+rellena vía `/api/adb-scan` (escaneo ADB del almacenamiento real de la
+consola conectada por USB), nunca desde `rommgr scan`. Confundir ambas ya
+llevó a comparar contra datos de `library_android.db` con 2 meses de
+antigüedad sin darse cuenta (ver `Tareas/backlog.md`, `REPAIR-TOOL-7`).
+
 | Tabla | Propósito |
 |-------|-----------|
 | `games` | Un registro por ROM: `source_path`, `platform`, `canonical_title`, `sha1/md5/crc32`, `match_confidence`, `play_status`, `user_rating`, `play_count`, `last_played_at` |

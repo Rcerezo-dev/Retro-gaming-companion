@@ -375,6 +375,11 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
     logs_dir = data_dir / "logs"
+    # REPAIR-TOOL-7: library_pc.db is *not* per-drive -- `rommgr scan <path>`
+    # always writes here regardless of which local unit <path> lives on
+    # (E:\, H:\, anything mounted on this PC). library_android.db is a
+    # completely separate DB, only populated via /api/adb-scan (ADB scan of
+    # the physically connected console) -- never from `rommgr scan`.
     database_path = data_dir / "library_pc.db"
     database_path_android = data_dir / "library_android.db"
     catalogs_dir = data_dir / "catalogs"
