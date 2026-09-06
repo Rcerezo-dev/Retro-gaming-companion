@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
-from rom_manager.converters.chd_converter import parse_bins_from_cue
+from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.utils.disc_tag import find_disc_number
 from rom_manager.utils.paths import is_device_path
@@ -72,13 +72,16 @@ def _is_broken_disc_entry(source_path: str) -> bool:
     reference is flagged. A ``.chd`` is not verified here (would need
     ``chdman``, external to this sort key and not always on PATH — see
     ``verify_chd()`` for that check when actually needed).
+
+    DISC-HEALTH-1: the actual "is this cue broken" check now lives in
+    ``converters/chd_converter.py::is_broken_cue_set`` — shared with the
+    standalone health report so there's one definition of "broken", not two
+    drifting in parallel.
     """
     path = _Path(source_path)
     if path.suffix.lower() != ".cue":
         return False
-    if not path.exists():
-        return True
-    return any(not b.exists() for b in parse_bins_from_cue(path))
+    return is_broken_cue_set(path)
 
 
 def _find_rescue_candidate_in_trash(

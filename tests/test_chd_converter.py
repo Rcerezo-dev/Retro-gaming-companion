@@ -18,6 +18,7 @@ from rom_manager.converters.chd_converter import (
     find_cue_files,
     find_pre_migration_orphan_cues,
     generate_missing_cues,
+    is_broken_cue_set,
     parse_bins_from_cue,
 )
 from tests.test_ra_hash_psx import _build_psx_image
@@ -72,6 +73,26 @@ def test_find_pre_migration_orphan_cues_ignores_cue_already_inside_its_subfolder
     (game_dir / "Game.cue").touch()
 
     assert find_pre_migration_orphan_cues(tmp_path) == []
+
+
+def test_is_broken_cue_set_true_when_bin_missing(tmp_path: Path) -> None:
+    cue = tmp_path / "Game (Europe).cue"
+    _write_cue(cue, ["Game (Europe).bin"])  # .bin deliberately not created
+
+    assert is_broken_cue_set(cue) is True
+
+
+def test_is_broken_cue_set_false_when_bin_present(tmp_path: Path) -> None:
+    cue = tmp_path / "Game (USA).cue"
+    bin_path = tmp_path / "Game (USA).bin"
+    bin_path.touch()
+    _write_cue(cue, [bin_path.name])
+
+    assert is_broken_cue_set(cue) is False
+
+
+def test_is_broken_cue_set_true_when_cue_itself_missing(tmp_path: Path) -> None:
+    assert is_broken_cue_set(tmp_path / "does-not-exist.cue") is True
 
 
 def test_find_bins_matching_arcade_crc_flags_misplaced_arcade_chip(tmp_path: Path) -> None:

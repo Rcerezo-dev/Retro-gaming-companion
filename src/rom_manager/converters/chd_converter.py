@@ -114,6 +114,21 @@ def find_pre_migration_orphan_cues(directory: Path) -> list[Path]:
     return [cue for cue in find_cue_files(directory) if (cue.parent / cue.stem).is_dir()]
 
 
+def is_broken_cue_set(cue_path: Path) -> bool:
+    """True if *cue_path* is missing, or references a ``.bin`` missing from
+    disk.
+
+    Shared primitive behind REPAIR-TOOL-4
+    (``web/builders/duplicates.py::_is_broken_disc_entry``) and DISC-HEALTH-1
+    (``utils/health_checker.py::check_disc_set_health``) -- one definition of
+    "broken" for both the duplicate-resolution tiebreak and the standalone
+    health report.
+    """
+    if not cue_path.exists():
+        return True
+    return any(not b.exists() for b in parse_bins_from_cue(cue_path))
+
+
 def _unclaimed_bins(directory: Path) -> list[Path]:
     """.bin files under *directory* not referenced by any .cue there, and
     not inside a ``_descartados/`` trash folder -- a file already discarded
