@@ -54,6 +54,37 @@ def test_resolve_untokenized_path_returned_as_path(tmp_path: Path) -> None:
     assert resolve(raw, roms, saves, system) == Path(raw)
 
 
+def test_tokenize_project_root_when_no_other_root_matches(tmp_path: Path) -> None:
+    roms, saves, system = _roots(tmp_path)
+    catalogs = tmp_path / ".rommgr" / "catalogs"
+    catalogs.mkdir(parents=True)
+
+    token = tokenize(catalogs, roms, saves, system, project_root=tmp_path)
+
+    assert token == "{PROJECT_ROOT}/.rommgr/catalogs"
+    assert resolve(token, roms, saves, system, project_root=tmp_path) == catalogs
+
+
+def test_tokenize_without_project_root_ignores_that_token(tmp_path: Path) -> None:
+    roms, saves, system = _roots(tmp_path)
+    catalogs = tmp_path / ".rommgr" / "catalogs"
+    catalogs.mkdir(parents=True)
+
+    # No project_root passed -> falls back to the plain path, same as before
+    # PROJECT_ROOT existed.
+    assert tokenize(catalogs, roms, saves, system) == str(catalogs)
+
+
+def test_resolve_project_root_uses_target_device_root(tmp_path: Path) -> None:
+    other_root = tmp_path / "other-device"
+
+    resolved = resolve(
+        "{PROJECT_ROOT}/.rommgr/catalogs", tmp_path, tmp_path, tmp_path, project_root=other_root
+    )
+
+    assert resolved == other_root / ".rommgr" / "catalogs"
+
+
 def test_resolve_uses_target_device_roots() -> None:
     # Same token, different device → different absolute path (the whole point).
     pc_roms = Path("E:/ROMs")
