@@ -9,6 +9,51 @@ from rom_manager.hashing.hash_calculator import calculate_hashes
 
 
 @dataclass(slots=True)
+class DiscHealthResult:
+    cue_path: str
+    rescue_candidates: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class DiscHealthSummary:
+    broken: int = 0
+    results: list[DiscHealthResult] = field(default_factory=list)
+
+
+def check_disc_set_health(directory: Path) -> DiscHealthSummary:
+    """DISC-HEALTH-1: recorre *directory* buscando sets ``.cue`` rotos
+    (referencian un ``.bin`` que no existe) y, para cada uno, si ya hay un
+    ``.chd``/``.pbp`` jugable del mismo juego en cualquier otra parte del
+    árbol -- región/edición distinta cuenta (título normalizado).
+
+    Repite el método 100% manual usado en
+    ``Tareas/psx-cue-rotos-2026-08-30.md`` (22 ``.cue`` rotos, 21
+    recuperables sin pérdida real solo comprobando esto a mano) como función
+    reutilizable, mismo espíritu que :func:`check_library_health` pero para
+    integridad de sets multi-archivo en vez de "existe la ruta".
+    """
+    from rom_manager.converters.chd_converter import find_cue_files, is_broken_cue_set
+    from rom_manager.retroachievements.ra_checker import _normalize_title
+
+    summary = DiscHealthSummary()
+    broken_cues = [cue for cue in find_cue_files(directory) if is_broken_cue_set(cue)]
+    if not broken_cues:
+        return summary
+
+    _PLAYABLE_EXTS = {".chd", ".pbp"}
+    candidates_by_title: dict[str, list[Path]] = {}
+    for f in directory.rglob("*"):
+        if f.is_file() and f.suffix.lower() in _PLAYABLE_EXTS:
+            candidates_by_title.setdefault(_normalize_title(f.stem), []).append(f)
+
+    for cue in broken_cues:
+        rescues = sorted(str(p) for p in candidates_by_title.get(_normalize_title(cue.stem), []))
+        summary.broken += 1
+        summary.results.append(DiscHealthResult(cue_path=str(cue), rescue_candidates=rescues))
+    return summary
+
+
+@dataclass(slots=True)
 class HealthResult:
     source_path: str
     stored_sha1: str

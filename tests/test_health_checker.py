@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.utils.health_checker import check_library_health
+from rom_manager.utils.health_checker import check_disc_set_health, check_library_health
 
 
 def _insert_game(repo: LibraryRepository, path: Path, sha1: str) -> None:
@@ -157,3 +157,76 @@ class TestCheckLibraryHealth:
         assert result.stored_sha1 == stored
         assert len(result.computed_sha1) == 40
         assert result.stored_sha1 != result.computed_sha1
+
+
+class TestCheckDiscSetHealth:
+    """DISC-HEALTH-1: repeats the manual method from
+    Tareas/psx-cue-rotos-2026-08-30.md as a reusable function."""
+
+    def test_no_cues_reports_nothing(self, tmp_path: Path) -> None:
+        summary = check_disc_set_health(tmp_path)
+
+        assert summary.broken == 0
+        assert summary.results == []
+
+    def test_intact_cue_is_not_reported(self, tmp_path: Path) -> None:
+        bin_path = tmp_path / "Game (USA).bin"
+        bin_path.touch()
+        (tmp_path / "Game (USA).cue").write_text('FILE "Game (USA).bin" BINARY\n', encoding="utf-8")
+
+        summary = check_disc_set_health(tmp_path)
+
+        assert summary.broken == 0
+
+    def test_broken_cue_with_rescue_candidate_elsewhere(self, tmp_path: Path) -> None:
+        """Same real-world shape as psx-cue-rotos-2026-08-30.md: a broken
+        .cue for one region, an already-playable .chd of another region for
+        the same game living elsewhere in the tree."""
+        broken_cue = tmp_path / "Game (Europe).cue"
+        broken_cue.write_text('FILE "Game (Europe).bin" BINARY\n', encoding="utf-8")
+        # .bin deliberately not created -> broken
+
+        rescue = tmp_path / "converted" / "Game (USA).chd"
+        rescue.parent.mkdir()
+        rescue.write_bytes(b"fake chd")
+
+        summary = check_disc_set_health(tmp_path)
+
+        assert summary.broken == 1
+        result = summary.results[0]
+        assert result.cue_path == str(broken_cue)
+        assert result.rescue_candidates == [str(rescue)]
+
+    def test_broken_cue_lists_multiple_rescue_candidates(self, tmp_path: Path) -> None:
+        broken_cue = tmp_path / "Game (Japan).cue"
+        broken_cue.write_text('FILE "Game (Japan).bin" BINARY\n', encoding="utf-8")
+
+        usa = tmp_path / "Game (USA).chd"
+        usa.write_bytes(b"fake chd")
+        pbp = tmp_path / "Game (Europe).pbp"
+        pbp.write_bytes(b"fake pbp")
+
+        summary = check_disc_set_health(tmp_path)
+
+        assert summary.results[0].rescue_candidates == sorted([str(usa), str(pbp)])
+
+    def test_broken_cue_without_rescue_candidate(self, tmp_path: Path) -> None:
+        broken_cue = tmp_path / "Game (Europe).cue"
+        broken_cue.write_text('FILE "Game (Europe).bin" BINARY\n', encoding="utf-8")
+
+        summary = check_disc_set_health(tmp_path)
+
+        assert summary.broken == 1
+        assert summary.results[0].rescue_candidates == []
+
+    def test_unrelated_chd_is_not_offered_as_rescue(self, tmp_path: Path) -> None:
+        """A .chd of a *different* game must never show up as a rescue
+        candidate for an unrelated broken cue."""
+        broken_cue = tmp_path / "Game A (Europe).cue"
+        broken_cue.write_text('FILE "Game A (Europe).bin" BINARY\n', encoding="utf-8")
+
+        (tmp_path / "Game B (USA).chd").write_bytes(b"fake chd")
+
+        summary = check_disc_set_health(tmp_path)
+
+        assert summary.results[0].rescue_candidates == []
