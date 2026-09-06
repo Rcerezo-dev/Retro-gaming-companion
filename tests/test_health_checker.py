@@ -10,7 +10,11 @@ from pathlib import Path
 import pytest
 
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.utils.health_checker import check_disc_set_health, check_library_health
+from rom_manager.utils.health_checker import (
+    check_disc_set_health,
+    check_library_health,
+    check_misplaced_extensions_health,
+)
 
 
 def _insert_game(repo: LibraryRepository, path: Path, sha1: str) -> None:
@@ -230,3 +234,82 @@ class TestCheckDiscSetHealth:
         summary = check_disc_set_health(tmp_path)
 
         assert summary.results[0].rescue_candidates == []
+
+
+class TestCheckMisplacedExtensionsHealth:
+    """LIB-MISPLACED-1: finds files whose extension belongs to a different
+    platform than the already-organized folder they're sitting in."""
+
+    def test_empty_library_reports_nothing(self, tmp_path: Path) -> None:
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 0
+        assert summary.results == []
+
+    def test_matching_extension_is_not_reported(self, tmp_path: Path) -> None:
+        gba_dir = tmp_path / "gba"
+        gba_dir.mkdir()
+        (gba_dir / "Kirby (USA).gba").touch()
+
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 0
+
+    def test_wrong_platform_extension_is_reported(self, tmp_path: Path) -> None:
+        """Real-world case: a .nes ROM mixed into gba/."""
+        gba_dir = tmp_path / "gba"
+        gba_dir.mkdir()
+        misplaced = gba_dir / "Contra (USA).nes"
+        misplaced.touch()
+
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 1
+        result = summary.results[0]
+        assert result.path == str(misplaced)
+        assert result.folder_platform == "Game Boy Advance"
+        assert result.detected_platform == "NES"
+
+    def test_unrecognized_extension_is_not_reported(self, tmp_path: Path) -> None:
+        """BIOS/assets/unknown chip dumps never get treated as ROMs."""
+        gba_dir = tmp_path / "gba"
+        gba_dir.mkdir()
+        (gba_dir / "boxart.png").touch()
+
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 0
+
+    def test_unrecognized_folder_is_skipped(self, tmp_path: Path) -> None:
+        """saves/, bios/, inbox/ etc. aren't platform folders -- never scanned."""
+        (tmp_path / "saves").mkdir()
+        (tmp_path / "saves" / "Contra (USA).nes").touch()
+
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 0
+
+    def test_nested_misplaced_file_is_found(self, tmp_path: Path) -> None:
+        psx_dir = tmp_path / "psx"
+        nested = psx_dir / "_descartados" / "_descartados"
+        nested.mkdir(parents=True)
+        misplaced = nested / "Sonic (USA).sfc"
+        misplaced.touch()
+
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 1
+        assert summary.results[0].path == str(misplaced)
+        assert summary.results[0].detected_platform == "SNES"
+
+    def test_multiple_misplaced_files_across_folders(self, tmp_path: Path) -> None:
+        gba_dir = tmp_path / "gba"
+        gba_dir.mkdir()
+        (gba_dir / "Sonic (USA).md").touch()
+        (gba_dir / "Contra (USA).nes").touch()
+        (gba_dir / "Pokemon (USA).gba").touch()  # correctly placed, not reported
+
+        summary = check_misplaced_extensions_health(tmp_path)
+
+        assert summary.misplaced == 1
+        assert summary.results[0].detected_platform == "NES"

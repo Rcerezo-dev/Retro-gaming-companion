@@ -4,6 +4,7 @@ library — organize-source, decompress, resolve-duplicates."""
 from __future__ import annotations
 
 import zipfile
+import zlib
 from pathlib import Path
 
 from rom_manager.cli import main
@@ -121,6 +122,97 @@ def test_organize_source_exclude_platform_leaves_files_untouched(
     assert not list(target_root.rglob("arcade.zip"))
     # The console file was organized normally.
     assert list(target_root.rglob("console.gba"))
+
+
+def test_organize_source_exclude_platform_covers_unscanned_arcade_zip(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """LIBRARY-AUDIT-EXCLUDE-GAP-1: an arcade ZIP that was never scanned (no
+    DB row at all) is invisible to the platform-column filter above -- step 1
+    of the pipeline detects it as arcade by live CRC instead, independent of
+    the DB, and used to route it straight to arcade/ regardless of
+    --exclude-platform (the exact incident: 932 unscanned files silently
+    landed in arcade/ during a real run that asked to exclude it). It must
+    no longer be routed into arcade/ -- and, since it's excluded from
+    scanning, it must never be extracted either (INBOX-CFG-4: extracting an
+    arcade set shreds it into loose chips)."""
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "Unknown"
+    source.mkdir()
+
+    chip_a = b"PROGRAM ROM CHIP A"
+    chip_b = b"GRAPHICS ROM CHIP B"
+    crc_a = f"{zlib.crc32(chip_a) & 0xFFFFFFFF:08X}"
+    crc_b = f"{zlib.crc32(chip_b) & 0xFFFFFFFF:08X}"
+    arcade_zip = source / "pacgame.zip"
+    with zipfile.ZipFile(arcade_zip, "w") as zf:
+        zf.writestr("prog.u1", chip_a)
+        zf.writestr("gfx.u2", chip_b)
+    (source / "console.gba").write_bytes(b"\x00" * 64)
+
+    import rom_manager.catalog.mame_loader as mame_loader
+
+    monkeypatch.setattr(
+        mame_loader,
+        "load_arcade_crc_index",
+        lambda *a, **kw: {crc_a: {"pacgame"}, crc_b: {"pacgame"}},
+    )
+
+    target_root = tmp_path / "library"
+    target_root.mkdir()
+
+    ret = main(
+        [
+            "organize-source",
+            str(source),
+            "--target-root",
+            str(target_root),
+            "--exclude-platform",
+            "MAME",
+            "--apply",
+        ]
+    )
+
+    assert ret == 0
+    assert not (target_root / "arcade").exists()
+    # Not shredded into loose chips -- still one intact ZIP, wherever it landed.
+    moved = list(target_root.rglob("pacgame.zip"))
+    assert len(moved) == 1
+    assert not list(target_root.rglob("prog.u1"))
+    assert list(target_root.rglob("console.gba"))
+
+
+# ── relocate-misplaced ──────────────────────────────────────────────────────
+
+
+def test_relocate_misplaced_dry_run_does_not_move(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    library = tmp_path / "library"
+    gba_dir = library / "gba"
+    gba_dir.mkdir(parents=True)
+    misplaced = gba_dir / "Contra (USA).nes"
+    misplaced.write_bytes(b"nes rom")
+
+    ret = main(["relocate-misplaced", str(library)])
+
+    assert ret == 0
+    assert misplaced.exists()
+    assert not (library / "nes").exists()
+
+
+def test_relocate_misplaced_apply_moves_without_renaming(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    library = tmp_path / "library"
+    gba_dir = library / "gba"
+    gba_dir.mkdir(parents=True)
+    misplaced = gba_dir / "Contra (USA).nes"
+    misplaced.write_bytes(b"nes rom")
+
+    ret = main(["relocate-misplaced", str(library), "--apply"])
+
+    assert ret == 0
+    assert not misplaced.exists()
+    assert (library / "nes" / "Contra (USA).nes").read_bytes() == b"nes rom"
 
 
 # ── decompress ───────────────────────────────────────────────────────────────

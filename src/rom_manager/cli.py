@@ -332,6 +332,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Actually write the .cue files (default is dry run).",
     )
 
+    relocate_misplaced_parser = subparsers.add_parser(
+        "relocate-misplaced",
+        help=(
+            "Move files whose extension doesn't match their platform folder "
+            "(e.g. a .nes ROM sitting inside gba/) into the folder they belong "
+            "to, without renaming. A name collision at the target is resolved "
+            "by content: an exact duplicate is discarded, different content is "
+            "left untouched. Dry run by default."
+        ),
+    )
+    relocate_misplaced_parser.add_argument(
+        "library_root", type=Path, help="Library root containing the platform folders."
+    )
+    relocate_misplaced_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually relocate the files (default is dry run).",
+    )
+
     resolve_dup_parser = subparsers.add_parser(
         "resolve-duplicates",
         help=(
@@ -1190,6 +1209,7 @@ def main(argv: list[str] | None = None) -> int:
                 repository,
                 config,
                 job_manager,
+                exclude_platforms=exclude_platforms,
             )
             result = job_manager.get_job("inbox")["result"] or {}
         finally:
@@ -1209,6 +1229,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Duplicados exactos descartados: {result.get('duplicates_removed', 0)}")
         print(f"Conflictos resueltos por RA:     {result.get('ra_resolved', 0)}")
         print(f"Conflictos sin resolver:         {result.get('conflicts_unresolved', 0)}")
+        if result.get("arcade_zips_excluded"):
+            print(
+                f"ZIPs arcade detectados por CRC en vivo y dejados intactos "
+                f"(--exclude-platform): {result['arcade_zips_excluded']}"
+            )
         for err in result.get("organize_errors", []):
             print(f"  ! {err}")
 
@@ -1333,6 +1358,50 @@ def main(argv: list[str] | None = None) -> int:
                 print("Run with --apply to write them.")
         else:
             print(f"Generados: {len(written)} .cue")
+        return 0
+
+    if args.command == "relocate-misplaced":
+        from rom_manager.web.inbox_pipeline import relocate_misplaced_files
+
+        library_root = args.library_root.resolve()
+        if not library_root.exists() or not library_root.is_dir():
+            parser.error(f"Library root does not exist or is not a directory: {library_root}")
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — no files will be changed. Pass --apply to relocate.")
+        print()
+
+        summary = relocate_misplaced_files(library_root, dry_run=dry_run)
+        for action in summary.actions:
+            src_name = Path(action.source).name
+            if action.outcome == "moved":
+                print(f"  [{'MOVERÍA' if dry_run else 'OK'}]  {src_name}  ->  {action.target}")
+            elif action.outcome == "duplicate_discarded":
+                print(
+                    f"  [{'DESCARTARÍA' if dry_run else 'DUP'}]  {src_name}  "
+                    f"-- idéntico a {action.target}"
+                )
+            else:
+                print(
+                    f"  [CONFLICTO]  {src_name}  -- contenido distinto en {action.target}, sin tocar"
+                )
+
+        print()
+        if dry_run:
+            print(
+                f"Se moverían: {summary.moved}  |  Duplicados a descartar: "
+                f"{summary.duplicates_discarded}  |  Conflictos (sin tocar): {summary.conflicts}"
+            )
+            if summary.moved or summary.duplicates_discarded:
+                print("Run with --apply to relocate.")
+        else:
+            print(
+                f"Movidos: {summary.moved}  |  Duplicados descartados: "
+                f"{summary.duplicates_discarded}  |  Conflictos sin resolver: {summary.conflicts}"
+            )
+            if summary.moved:
+                print("Re-run 'rommgr scan' to update the library database.")
         return 0
 
     if args.command == "resolve-duplicates":
