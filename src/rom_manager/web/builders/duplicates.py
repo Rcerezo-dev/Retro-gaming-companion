@@ -12,6 +12,7 @@ from collections import defaultdict
 from pathlib import Path as _Path
 
 from rom_manager.config import AppConfig
+from rom_manager.converters.chd_converter import parse_bins_from_cue
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.utils.disc_tag import find_disc_number
 from rom_manager.utils.paths import is_device_path
@@ -58,10 +59,31 @@ def _in_correct_platform_folder(source_path: str, platform: str | None, library_
     return source_path.startswith(str(_Path(library_root) / slug))
 
 
+def _is_broken_disc_entry(source_path: str) -> bool:
+    """REPAIR-TOOL-4: True if *source_path* is a ``.cue`` that references a
+    ``.bin`` missing from disk (or is itself missing).
+
+    Found by hitting a real PSX library: 11 of 31 ``PSX-STRUCTURE-1`` cases had
+    ``resolve-duplicates`` keep a broken ``.cue``/``.bin`` set over an intact
+    ``.chd`` of another region/dump, purely because the broken side won on
+    RA/folder/filename — none of which say anything about whether the file
+    actually plays. Deliberately narrow: only a ``.cue`` with a dangling
+    reference is flagged. A ``.chd`` is not verified here (would need
+    ``chdman``, external to this sort key and not always on PATH — see
+    ``verify_chd()`` for that check when actually needed).
+    """
+    path = _Path(source_path)
+    if path.suffix.lower() != ".cue":
+        return False
+    if not path.exists():
+        return True
+    return any(not b.exists() for b in parse_bins_from_cue(path))
+
+
 def _review_entry_sort_key(
     entry: dict, platform: str | None = None, library_root=None
-) -> tuple[int, int, int, str]:
-    """Recommendation order shared by every reason: RA support > correct folder > Spanish > filename.
+) -> tuple[int, int, int, int, str]:
+    """Recommendation order shared by every reason: intact > RA support > correct folder > Spanish > filename.
 
     Same criterion the RA-duplicates view already used (before TABS-FIX-6
     generalized it to all 4 review-queue sources). Every entry — including
@@ -81,13 +103,18 @@ def _review_entry_sort_key(
     duplicate sitting outside its canonical platform folder is almost always the
     stale/misplaced one (INBOX-ORPHAN-3/4 incidents), so that check comes before
     the filename tiebreak.
+
+    REPAIR-TOOL-4: integrity comes before all of the above — a broken
+    ``.cue``/``.bin`` set must never be "recommended" over an intact copy just
+    because it happens to win the region/RA/folder tiebreaks.
     """
+    integrity_tier = 1 if _is_broken_disc_entry(entry["source_path"]) else 0
     ra_tier = 0 if entry["ra_supported"] else 1
     folder_tier = (
         0 if _in_correct_platform_folder(entry["source_path"], platform, library_root) else 1
     )
     lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
-    return (ra_tier, folder_tier, lang_tier, entry["filename"])
+    return (integrity_tier, ra_tier, folder_tier, lang_tier, entry["filename"])
 
 
 def _load_ra_hash_map(
