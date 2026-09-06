@@ -945,7 +945,20 @@ terminara un job de Inbox en curso (15.105 ROMs) antes de reiniciar.
 > de aparecer como "extra". Pendiente: `_cat_name()` debería devolver una
 > tercera categoría (`"other"`) para lo que no sea ni save ni ROM reconocido,
 > y `_wanted_name()` debería excluirla salvo que `"assets"`/`"media"` esté en
-> `what` explícitamente | `web/handlers/sync_cable.py:372-382` | 🔴 pendiente |
+> `what` explícitamente | `web/handlers/sync_cable.py:372-382` | ✅ `_cat_name()` ahora
+> resuelve contra `ROM_EXTENSIONS` (`detection/platform_detector.py`, la misma
+> tabla ya fiable del Inbox y de `LIB-MISPLACED-1`) en vez de asumir "rom" por
+> descarte: extensión de save → `"save"`, extensión de ROM reconocida →
+> `"rom"`, cualquier otra cosa → `"other"`. `_wanted_name()` solo considera
+> `"other"` deseado si `"assets"` está explícitamente en `what` — con
+> `what=["roms"]` (el caso real del incidente), carátulas/metadatos ya no
+> cuentan como "extra" ni se copian ni se borran. `_category()` (usado solo
+> para gating de backup de saves) no se tocó — sigue siendo binario
+> save/rom, sin riesgo porque solo protege la rama "save". 3 tests nuevos
+> (`tests/test_sync_cable_other_category.py`): reproduce el incidente exacto
+> (espejo con `what=["roms"]` no borra `.jpg`/`.txt`/`.xml`/`.ini` huérfanos),
+> confirma que el espejo real de ROMs sigue funcionando, y que pedir
+> `"assets"` explícitamente sí permite espejar "other" |
 | ANBERNIC-PICK-8 | **Enviar/eliminar en bloque desde la pestaña Juegos, sin pasar por el tag `anbernic`** (renumerado desde una colision de ID con ANBERNIC-PICK-4 -- ambas ramas reclamaron el mismo numero en paralelo) — complementa ANBERNIC-PICK-1/2 (que exigen marcar antes): dos botones nuevos que actúan directo sobre **el filtro actual** de la pestaña (mismo criterio que "Marcar para Anbernic"), por ADB. `direction="send_selected"` resuelve los juegos del filtro (`get_games_paginated`), dedupea duplicados del mismo juego quedándose con el que tiene más logros RA (`filter_duplicate_winners`, reutilizado de Duplicados de ROM) y hace skip-existing por tamaño antes de empujar. `direction="remove_selected"` copia el save de cada juego al PC (verificado por MD5) **antes** de borrar el ROM — un save nunca se borra ni se pierde si falla la copia — y solo entonces elimina por ADB | `web/handlers/sync_cable.py` (`_do_cable_sync`, ramas `send_selected`/`remove_selected`), `services/ra_duplicates_service.py` (`filter_duplicate_winners` reutilizado), frontend `tabs/games.js` (`sendFilteredToAnbernic`/`removeFilteredFromAnbernic`) + `tab-games.html` | ✅ 6 tests nuevos (`test_cable_sync_send_selected.py`, `test_cable_sync_remove_selected.py`, `test_ra_bulk_send_dedup.py`) |
 
 | ANBERNIC-PICK-6 | **Discoverabilidad (feedback usuario 2026-08-29)**: el usuario no encontró cómo copiar en bulk PC→Anbernic ni cómo marcar juegos para que se retiren de la consola — ambos ya existen (Cable Sync con "solo ROMs marcados" + "Espejo completo" quita de la Anbernic lo no marcado, ANBERNIC-PICK-2/4) pero no están enlazados/explicados desde donde el usuario los buscó (Herramientas). Falta UX de descubrimiento, no código nuevo | `web/static/partials/tab-tools.html`, `tab-cable.html` | ✅ panel nuevo "Enviar archivos a la Anbernic" al principio de Herramientas, con el resumen del flujo (marcar en Juegos → Cable Sync "solo marcados"/"Espejo completo") y dos botones: uno a Juegos (`showTab('games')`) y otro a Cable Sync que además abre y hace scroll a "Sincronización avanzada" (`goToCableSyncAdvanced()`, `tabs/sync.js` — nuevo `id="cable-advanced-details"` en el `<details>`). Sin endpoints nuevos, solo navegación. Verificado sirviendo la página real (`curl` contra `rommgr serve`); no probado clic a clic en navegador (extensión Chrome no disponible en esta sesión) |

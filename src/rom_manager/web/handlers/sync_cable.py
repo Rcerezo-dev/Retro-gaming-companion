@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.detection.platform_detector import ROM_EXTENSIONS
 from rom_manager.sync import cable_engine
 from rom_manager.sync.sync_log import log_sync_event
 from rom_manager.utils.trash import TRASH_DIR_NAME
@@ -397,8 +398,21 @@ def _do_cable_sync(
                 )
 
             def _cat_name(name: str) -> str:
+                # ANBERNIC-PICK-5: antes cualquier extensión que no fuera un
+                # save se clasificaba como "rom" a ciegas — con "Espejo
+                # completo" activo, esto marcaba carátulas/metadatos
+                # (media/*.jpg, .txt, .xml, .ini) como "extra" y los borraba
+                # junto a los ROMs de verdad (nunca están en la BD como
+                # juego, así que nada los protegía). Ahora solo lo que
+                # resuelve a una extensión de ROM real cuenta como "rom";
+                # el resto es "other" y _wanted_name() lo excluye salvo que
+                # se pida "assets" explícitamente.
                 suffix = Path(name).suffix.lower()
-                return "save" if suffix in save_exts else "rom"
+                if suffix in save_exts:
+                    return "save"
+                if suffix in ROM_EXTENSIONS:
+                    return "rom"
+                return "other"
 
             _ASSET_EXTS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
 
@@ -406,7 +420,11 @@ def _do_cable_sync(
                 if name.startswith("."):
                     return False
                 cat = _cat_name(name)
-                return (cat == "save" and "saves" in what) or (cat == "rom" and "roms" in what)
+                if cat == "save":
+                    return "saves" in what
+                if cat == "rom":
+                    return "roms" in what
+                return "assets" in what
 
             def _category(p: Path) -> str:
                 return "save" if p.suffix.lower() in save_exts else "rom"
