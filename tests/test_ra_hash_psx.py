@@ -55,7 +55,10 @@ def _build_psx_image(tmp_path: Path) -> Path:
     (SYSTEM.CNF -> sector 21, TEST.EXE -> sector 22), sector 21 = SYSTEM.CNF
     content, sector 22 = a minimal PS-X EXE header (declared size 0, so the
     hash covers exactly this one 2048-byte sector)."""
-    total_sectors = 23
+    # CHDMAN-TEST-COMPRESS-1: 23 sectores (el mínimo que cubre el layout real)
+    # hace fallar la compresión por defecto de chdman.exe -- 64 da margen de
+    # sobra (el umbral real medido fue 28) sin cambiar nada del contenido.
+    total_sectors = 64
     data = bytearray(total_sectors * _SECTOR_SIZE)
 
     def user_data(sector: int) -> memoryview:
@@ -96,6 +99,14 @@ def _build_psx_image(tmp_path: Path) -> Path:
     exe_sector = user_data(22)
     exe_sector[0:8] = b"PS-X EXE"
     exe_sector[28:32] = struct.pack("<I", 0)
+
+    # CHDMAN-TEST-COMPRESS-1: sectores 23.. son solo relleno con header válido
+    # (sin datos) -- chdman.exe 0.251 falla a comprimir (cdlz/cdzl/cdfl, no a
+    # -c none) discos de menos de ~28 sectores, algo que nunca ocurre con un
+    # .bin real. El hash RA solo lee hasta el sector 22 (tamaño de EXE
+    # declarado 0), así que este relleno no afecta a ningún test de hash.
+    for sector in range(23, total_sectors):
+        sector_header(sector, sync=False)
 
     bin_path = tmp_path / "game.bin"
     bin_path.write_bytes(bytes(data))
