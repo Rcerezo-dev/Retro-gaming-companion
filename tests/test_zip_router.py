@@ -101,6 +101,71 @@ def test_route_collections_by_member_majority(tmp_path: Path) -> None:
     assert any("BIOS/infra" in s for s in counts["route_skipped"])
 
 
+def test_route_arcade_collection_with_subsystem_subfolders_flattens(tmp_path: Path) -> None:
+    """ZIP-ROUTE-6: bestset con subcarpetas por sub-sistema (cps1/neogeo/...)
+    — todo va a arcade\\ plano, sin anidar por la carpeta interna del ZIP."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    _make_zip(
+        unknown / "fbneo_1003_bestset.zip",
+        {
+            "games/cps1/sf2.zip": b"1",
+            "games/cps2/mvsc.zip": b"2",
+            "games/neogeo/mslug.zip": b"3",
+            "games/toaplan_cave_stg/ddonpach.zip": b"4",
+        },
+    )
+
+    scan = _scan(tmp_path)
+    arcade = tmp_path / "arcade"
+    counts = _route_identified(
+        scan,
+        arcade_names={"sf2", "mvsc", "mslug", "ddonpach"},
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        inbox_dir=tmp_path / "Inbox",
+        arcade_folder=arcade,
+    )
+
+    assert counts["collections_extracted"] == 1
+    assert counts["collection_members"] == 4
+    assert (arcade / "sf2.zip").exists()
+    assert (arcade / "mvsc.zip").exists()
+    assert (arcade / "mslug.zip").exists()
+    assert (arcade / "ddonpach.zip").exists()
+    assert not (arcade / "games").exists()  # nunca anidado por la carpeta interna
+    assert not (unknown / "fbneo_1003_bestset.zip").exists()
+
+
+def test_route_arcade_collection_flatten_skips_existing_by_basename(tmp_path: Path) -> None:
+    """El chequeo de "ya existe" también debe mirar el nombre aplanado, no la
+    ruta interna del ZIP (que nunca existirá en un destino plano)."""
+    unknown = tmp_path / "Unknown"
+    unknown.mkdir()
+    _make_zip(
+        unknown / "bestset.zip",
+        {"games/cps1/sf2.zip": b"nuevo", "games/cps2/mvsc.zip": b"nuevo2"},
+    )
+    arcade = tmp_path / "arcade"
+    arcade.mkdir()
+    (arcade / "sf2.zip").write_bytes(b"ya existia")
+
+    scan = _scan(tmp_path)
+    counts = _route_identified(
+        scan,
+        arcade_names={"sf2", "mvsc"},
+        mame_infra_names=set(),
+        known_bios_files=set(),
+        inbox_dir=tmp_path / "Inbox",
+        arcade_folder=arcade,
+    )
+
+    assert counts["collections_extracted"] == 1
+    assert counts["collection_members"] == 1  # solo mvsc.zip, sf2.zip ya existía
+    assert (arcade / "sf2.zip").read_bytes() == b"ya existia"  # nunca sobreescrito
+    assert (arcade / "mvsc.zip").read_bytes() == b"nuevo2"
+
+
 def test_route_console_and_romhacks_go_to_inbox(tmp_path: Path) -> None:
     """Consola identificada y romhacks → al Inbox para el pipeline."""
     unknown = tmp_path / "Unknown"

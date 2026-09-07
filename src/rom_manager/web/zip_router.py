@@ -44,9 +44,26 @@ def _majority(stems: list[str], names: set[str]) -> bool:
     return bool(stems) and hits * 2 >= len(stems)
 
 
-def _extract_collection(zp: Path, dest_dir: Path) -> tuple[int, str]:
+def _extract_collection(zp: Path, dest_dir: Path, *, flatten: bool = False) -> tuple[int, str]:
     """Extrae los miembros (saltando existentes) y borra el contenedor solo si
-    todos quedaron en disco. Devuelve (extraídos, error)."""
+    todos quedaron en disco. Devuelve (extraídos, error).
+
+    *flatten* (ZIP-ROUTE-6): ignora la ruta interna del ZIP y extrae cada
+    miembro directo bajo *dest_dir* por su nombre de archivo — necesario para
+    bestsets arcade con subcarpetas por sub-sistema (p.ej.
+    ``games/<cps1|cps2|cps3|neogeo|fbneo|toaplan_cave_stg>/`` en el
+    `fbneo_1003_bestset` de archive.org). La convención del proyecto
+    (`docs/arcade-setup.md`) es un único `arcade\\` plano — el mismo core
+    FBNeo cubre todos esos subsistemas — así que sin *flatten* el resultado
+    sería `arcade/games/cps1/sf2.zip`, anidando por una carpeta interna del
+    ZIP que no es ninguna plataforma real en vez de ir todos a `arcade\\`.
+    Los demás destinos (Inbox) mantienen la ruta interna sin cambios: ahí
+    ayuda al contexto de carpeta que ya usa la detección de plataforma
+    (ZIP-ROUTE-FIX-3)."""
+
+    def _target(name: str) -> Path:
+        return dest_dir / (Path(name).name if flatten else name)
+
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(zp) as zf:
@@ -57,11 +74,16 @@ def _extract_collection(zp: Path, dest_dir: Path) -> tuple[int, str]:
                 return 0, f"sin espacio en {dest_dir} ({needed / 1024**3:.1f} GB necesarios)"
             extracted = 0
             for m in members:
-                if (dest_dir / m.filename).exists():
+                target = _target(m.filename)
+                if target.exists():
                     continue
-                zf.extract(m, dest_dir)
+                if flatten:
+                    with zf.open(m) as src_f, open(target, "wb") as dst_f:
+                        shutil.copyfileobj(src_f, dst_f)
+                else:
+                    zf.extract(m, dest_dir)
                 extracted += 1
-            missing = sum(1 for m in members if not (dest_dir / m.filename).exists())
+            missing = sum(1 for m in members if not _target(m.filename).exists())
         if missing:
             return extracted, f"{missing} miembros no extraídos"
         from rom_manager.utils.trash import discard_to_trash
@@ -137,8 +159,11 @@ def _route_identified(
             # junto a los ROMs según el core) → decisión del usuario
             counts["route_skipped"].append(f"{src.name}: pack BIOS/infra MAME — revisar a mano")
             continue
-        dest = arcade_folder if _majority(stems, arcade_names) else inbox_dir / src.stem
-        extracted, err = _extract_collection(src, dest)
+        is_arcade = _majority(stems, arcade_names)
+        dest = arcade_folder if is_arcade else inbox_dir / src.stem
+        # ZIP-ROUTE-6: solo aplana en el destino arcade — el Inbox conserva
+        # la ruta interna, la necesita para el contexto de carpeta.
+        extracted, err = _extract_collection(src, dest, flatten=is_arcade)
         counts["collection_members"] += extracted
         if err:
             counts["route_skipped"].append(f"{src.name}: {err}")
