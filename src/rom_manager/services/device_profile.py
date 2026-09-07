@@ -35,6 +35,16 @@ _TIER_A_SUBDIRS = {
     "system": "BIOS / System",
 }
 
+# DEVPROFILE-8: tool-owned data under project_root/.rommgr worth restoring on
+# a new PC. Only "catalogs" fits the existing whole-directory SyncSource model
+# today -- the SQLite DBs (library_pc.db/library_android.db) are single files,
+# which this mechanism doesn't sync (see the ponytail note on _TIER_A_SUBDIRS
+# below); that gap is tracked separately (CHD-CLEANUP-1 sibling: DEVPROFILE-8
+# DB restore, backlog.md).
+_DATA_SUBDIRS = {
+    "catalogs": "Catálogos No-Intro/Redump/Arcade (DATs)",
+}
+
 
 def detect_tier_a_sources(ra_dir: Path, remote_base: str) -> list[SyncSource]:
     """Candidate Tier A ``SyncSource`` entries found under *ra_dir* (the
@@ -60,19 +70,47 @@ def detect_tier_a_sources(ra_dir: Path, remote_base: str) -> list[SyncSource]:
     return sources
 
 
+def detect_data_sources(project_root: Path, remote_base: str) -> list[SyncSource]:
+    """DEVPROFILE-8: candidate ``SyncSource`` entries for tool-owned data
+    under *project_root*/.rommgr (the No-Intro/Redump/Arcade DAT catalogs
+    today) -- avoids re-downloading and re-matching catalogs by hand on a new
+    PC. Independent of RetroArch being configured at all, unlike
+    ``detect_tier_a_sources()``."""
+    sources = []
+    remote_base = remote_base.rstrip("/")
+    data_dir = Path(project_root) / ".rommgr"
+    for subdir, label in _DATA_SUBDIRS.items():
+        local_dir = data_dir / subdir
+        if not local_dir.is_dir():
+            continue
+        sources.append(
+            SyncSource(
+                name=label,
+                local_dir=str(local_dir),
+                remote=f"{remote_base}/{subdir}",
+                sync_all=True,
+            )
+        )
+    return sources
+
+
 def export_profile_sources(
-    sources: list[SyncSource], roms_dir: Path, saves_dir: Path, system_dir: Path
+    sources: list[SyncSource],
+    roms_dir: Path,
+    saves_dir: Path,
+    system_dir: Path,
+    project_root: Path | None = None,
 ) -> list[dict]:
     """Serialize *sources* with ``local_dir`` tokenized ({ROMS}/{SAVES}/
-    {SYSTEM}) so the manifest is portable to another device (DEVPROFILE-4b).
-    Sources outside all three roots (e.g. a standalone emulator's own config
-    dir) keep their local_dir as-is — that pair syncs the same PC+Anbernic,
-    the token substitution doesn't apply to them.
+    {SYSTEM}/{PROJECT_ROOT}) so the manifest is portable to another device
+    (DEVPROFILE-4b). Sources outside all watched roots (e.g. a standalone
+    emulator's own config dir) keep their local_dir as-is — that pair syncs
+    the same PC+Anbernic, the token substitution doesn't apply to them.
     """
     return [
         {
             "name": s.name,
-            "local_dir": tokenize(Path(s.local_dir), roms_dir, saves_dir, system_dir),
+            "local_dir": tokenize(Path(s.local_dir), roms_dir, saves_dir, system_dir, project_root),
             "remote": s.remote,
             "sync_all": s.sync_all,
         }
@@ -90,6 +128,7 @@ def save_profile_manifest(
     system_dir: Path,
     transport: RcloneTransport,
     remote_base: str,
+    project_root: Path | None = None,
 ) -> str:
     """DEVPROFILE-5a: upload the tokenized ``export_profile_sources()`` output
     as ``<remote_base>/device-profile.json`` — the manifest ``rommgr restore``
@@ -104,7 +143,7 @@ def save_profile_manifest(
 
     Returns the full remote path written.
     """
-    manifest = export_profile_sources(sources, roms_dir, saves_dir, system_dir)
+    manifest = export_profile_sources(sources, roms_dir, saves_dir, system_dir, project_root)
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2, ensure_ascii=False)
         tmp_path = Path(fh.name)
@@ -116,7 +155,11 @@ def save_profile_manifest(
 
 
 def import_profile_sources(
-    data: list[dict], roms_dir: Path, saves_dir: Path, system_dir: Path
+    data: list[dict],
+    roms_dir: Path,
+    saves_dir: Path,
+    system_dir: Path,
+    project_root: Path | None = None,
 ) -> list[SyncSource]:
     """Reverse of ``export_profile_sources()``: resolve each entry's
     ``local_dir`` token against *this* device's own roots.
@@ -124,7 +167,9 @@ def import_profile_sources(
     return [
         SyncSource(
             name=entry["name"],
-            local_dir=str(resolve(entry["local_dir"], roms_dir, saves_dir, system_dir)),
+            local_dir=str(
+                resolve(entry["local_dir"], roms_dir, saves_dir, system_dir, project_root)
+            ),
             remote=entry["remote"],
             sync_all=entry.get("sync_all", True),
         )

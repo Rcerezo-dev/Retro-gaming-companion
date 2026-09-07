@@ -530,22 +530,15 @@ def _handle_device_profile_detect(config: AppConfig) -> dict:
 
     Locates RetroArch the same way as ``_handle_retroarch_check`` (next to
     the configured exe) and reuses ``detect_tier_a_sources()``
-    (services/device_profile.py). Candidates already present in
+    (services/device_profile.py), plus ``detect_data_sources()`` (DEVPROFILE-8,
+    tool-owned data under ``.rommgr`` -- catalogs today -- independent of
+    RetroArch being configured at all). Candidates already present in
     ``config.sync.sync_sources`` (by local_dir) are excluded — the screen
     only asks about *new* folders, confirming again on every visit would be
     noise.
     """
-    from rom_manager.services.device_profile import detect_tier_a_sources
+    from rom_manager.services.device_profile import detect_data_sources, detect_tier_a_sources
 
-    ra_exe = (config.retroarch_path or "").strip()
-    if not ra_exe:
-        return {
-            "error": "RetroArch no está configurado en Settings.",
-            "candidates": [],
-            "existing": [],
-        }
-
-    ra_dir = Path(ra_exe).parent
     remote = config.sync.saves_remote or config.sync.states_remote or ""
     remote_base = remote.rsplit("/", 1)[0] if "/" in remote else remote
 
@@ -560,11 +553,18 @@ def _handle_device_profile_detect(config: AppConfig) -> dict:
             "sync_all": s.sync_all,
         }
 
-    candidates = [
-        _as_dict(s)
-        for s in detect_tier_a_sources(ra_dir, remote_base)
-        if str(Path(s.local_dir)) not in existing_dirs
-    ]
+    ra_exe = (config.retroarch_path or "").strip()
+    detected = list(detect_data_sources(config.project_root, remote_base))
+    if ra_exe:
+        detected += detect_tier_a_sources(Path(ra_exe).parent, remote_base)
+    elif not detected:
+        return {
+            "error": "RetroArch no está configurado en Settings.",
+            "candidates": [],
+            "existing": [],
+        }
+
+    candidates = [_as_dict(s) for s in detected if str(Path(s.local_dir)) not in existing_dirs]
     return {
         "candidates": candidates,
         "existing": [_as_dict(s) for s in existing],
@@ -614,6 +614,7 @@ def _handle_save_device_profile_manifest(config: AppConfig) -> dict:
             system_dir=system_dir,
             transport=transport,
             remote_base=remote_base,
+            project_root=config.project_root,
         )
     except RcloneError as exc:
         return {"saved": False, "error": str(exc)}

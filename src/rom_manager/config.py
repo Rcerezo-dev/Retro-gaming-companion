@@ -108,28 +108,41 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "name": "GBA.emu (GBA)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.GbaEmu/files/EmuEx/GBA/saves",
         "states_path": None,
-        "adb_required": True,
+        # GBA-SAVE-PATH-1c: verificado en hardware real (RG556006101273,
+        # 2026-09-06) -- ese árbol EmuEx no existe (app instalada, files/
+        # vacío, nunca escrito). Los saves reales de GBA viven junto a las
+        # ROMs en la SD (SAVES-FRAGMENT-8), ya cubiertos por el Cable Sync de
+        # carpeta normal -- adb_required=False, mismo tratamiento que
+        # RetroArch/PPSSPP, para que este path (que nunca ha sincronizado
+        # nada) deje de intentarse.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "com.explusalpha.GbcEmu": {
         "name": "GBC.emu (GBC)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.GbcEmu/files/EmuEx/GBC/saves",
         "states_path": None,
-        "adb_required": True,
+        # Mismo hallazgo que GbaEmu (GBA-SAVE-PATH-1c) -- árbol EmuEx vacío
+        # en hardware real, misma familia EmuEx.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "com.explusalpha.NesEmu": {
         "name": "NES.emu (NES)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.NesEmu/files/EmuEx/NES/saves",
         "states_path": None,
-        "adb_required": True,
+        # Mismo hallazgo que GbaEmu (GBA-SAVE-PATH-1c) -- árbol EmuEx vacío
+        # en hardware real, misma familia EmuEx.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "com.explusalpha.MdEmu": {
         "name": "MD.emu (Mega Drive)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.MdEmu/files/EmuEx/MD/saves",
         "states_path": None,
-        "adb_required": True,
+        # Mismo hallazgo que GbaEmu (GBA-SAVE-PATH-1c) -- árbol EmuEx vacío
+        # en hardware real, misma familia EmuEx.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "me.magnum.melonds": {

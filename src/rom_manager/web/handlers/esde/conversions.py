@@ -47,22 +47,30 @@ def register_conversions(
                 from rom_manager.converters.chd_converter import (
                     ConversionResult,
                     ConversionSummary,
+                    convert_bin_to_chd,
                     convert_to_chd,
+                    find_bare_bin_files,
                     find_cue_files,
                     parse_bins_from_cue,
                 )
 
                 source = Path(source_path_str).resolve()
                 cue_files = find_cue_files(source)
-                total = len(cue_files)
+                # find_bare_bin_files() gathers PS1 dumps with no sidecar .cue --
+                # the common shape in this library (CHD-CLEANUP-1) -- so they get
+                # converted (and, with delete_source, cleaned up) same as cue sets.
+                bare_bins = find_bare_bin_files(source)
+                total = len(cue_files) + len(bare_bins)
                 job_manager.update_progress(
                     "convert_chd", {"current": 0, "total": total, "current_file": ""}
                 )
 
                 summary = ConversionSummary()
-                for idx, cue_path in enumerate(cue_files, 1):
+                idx = 0
+                for cue_path in cue_files:
                     if _cancel.is_set():
                         break
+                    idx += 1
                     job_manager.update_progress(
                         "convert_chd",
                         {"current": idx, "total": total, "current_file": cue_path.name},
@@ -124,6 +132,52 @@ def register_conversions(
                                 _logger.warning(
                                     "No se pudo marcar set_type tras conversión CHD", exc_info=True
                                 )
+                        elif result.error and "already exists" in result.error:
+                            summary.skipped += 1
+                        else:
+                            summary.failed += 1
+
+                for bin_path in bare_bins:
+                    if _cancel.is_set():
+                        break
+                    idx += 1
+                    job_manager.update_progress(
+                        "convert_chd",
+                        {"current": idx, "total": total, "current_file": bin_path.name},
+                    )
+                    chd_path = bin_path.with_suffix(".chd")
+                    cue_path = bin_path.with_suffix(
+                        ".cue"
+                    )  # synthetic -- never written to disk here
+                    if dry_run:
+                        if chd_path.exists():
+                            summary.skipped += 1
+                            summary.results.append(
+                                ConversionResult(
+                                    cue_path=cue_path,
+                                    chd_path=chd_path,
+                                    bin_paths=[bin_path],
+                                    success=False,
+                                    error="Output .chd already exists — would skip.",
+                                )
+                            )
+                        else:
+                            summary.converted += 1
+                            summary.results.append(
+                                ConversionResult(
+                                    cue_path=cue_path,
+                                    chd_path=chd_path,
+                                    bin_paths=[bin_path],
+                                    success=True,
+                                )
+                            )
+                    else:
+                        result = convert_bin_to_chd(
+                            bin_path, chdman=config.chdman, delete_source=delete_source
+                        )
+                        summary.results.append(result)
+                        if result.success:
+                            summary.converted += 1
                         elif result.error and "already exists" in result.error:
                             summary.skipped += 1
                         else:

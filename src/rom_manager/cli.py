@@ -1547,7 +1547,11 @@ def main(argv: list[str] | None = None) -> int:
         system_dir = Path(ra_exe).parent / "system" if ra_exe else library_root / "system"
 
         sources = import_profile_sources(
-            manifest, roms_dir=library_root, saves_dir=saves_dir, system_dir=system_dir
+            manifest,
+            roms_dir=library_root,
+            saves_dir=saves_dir,
+            system_dir=system_dir,
+            project_root=project_root,
         )
 
         write_config_toml(

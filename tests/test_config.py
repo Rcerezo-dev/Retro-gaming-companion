@@ -149,6 +149,25 @@ def test_get_adb_sync_sources_excludes_duckstation(tmp_path: Path) -> None:
     assert "xyz.aethersx2.android" in packages  # sanity: accessible ones still included
 
 
+def test_get_adb_sync_sources_excludes_emuex_families_with_no_real_path(tmp_path: Path) -> None:
+    """GBA-SAVE-PATH-1c: verificado en hardware real (RG556006101273) que
+    GBA.emu/GBC.emu/NES.emu/MD.emu nunca escriben en su árbol EmuEx
+    (files/EmuEx/ vacío pese a estar instalados) -- sus saves reales viven
+    junto a las ROMs (SAVES-FRAGMENT-8), ya cubiertos por el Cable Sync de
+    carpeta normal. Snes9x EX+ sí tiene datos reales confirmados, debe seguir
+    incluido."""
+    (tmp_path / "config.toml").write_text(
+        f'[library]\nlibrary_root = "{tmp_path.as_posix()}"\n', encoding="utf-8"
+    )
+    cfg = load_config(tmp_path)
+    packages = {src["package"] for src in get_adb_sync_sources(cfg)}
+    assert "com.explusalpha.GbaEmu" not in packages
+    assert "com.explusalpha.GbcEmu" not in packages
+    assert "com.explusalpha.NesEmu" not in packages
+    assert "com.explusalpha.MdEmu" not in packages
+    assert "com.explusalpha.Snes9xPlus" in packages  # sanity: verified-working one stays
+
+
 def test_resolve_tool_path_normalizes_slashes_on_windows() -> None:
     """VAL-FIX-3: CreateProcess rejects '/' in the executable path itself."""
     with patch.object(sys, "platform", "win32"):

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 from rom_manager.config import SyncSource, load_config
 from rom_manager.services.device_profile import (
+    detect_data_sources,
     detect_tier_a_sources,
     export_profile_sources,
     import_profile_sources,
@@ -44,6 +45,47 @@ def test_detect_tier_a_sources_builds_remote_from_base(tmp_path: Path) -> None:
 
 def test_detect_tier_a_sources_empty_when_nothing_exists(tmp_path: Path) -> None:
     assert detect_tier_a_sources(tmp_path / "RetroArch", "dropbox:RetroSync") == []
+
+
+# ── DEVPROFILE-8: services/device_profile.py::detect_data_sources ─────────────
+
+
+def test_detect_data_sources_only_returns_existing_dirs(tmp_path: Path) -> None:
+    (tmp_path / ".rommgr" / "catalogs").mkdir(parents=True)
+
+    sources = detect_data_sources(tmp_path, "dropbox:RetroSync")
+
+    assert len(sources) == 1
+    assert sources[0].local_dir == str(tmp_path / ".rommgr" / "catalogs")
+    assert sources[0].remote == "dropbox:RetroSync/catalogs"
+    assert sources[0].sync_all is True
+
+
+def test_detect_data_sources_empty_when_nothing_exists(tmp_path: Path) -> None:
+    assert detect_data_sources(tmp_path, "dropbox:RetroSync") == []
+
+
+def test_export_import_roundtrips_project_root_token(tmp_path: Path) -> None:
+    """DEVPROFILE-8: a source outside ROMS/SAVES/SYSTEM but under project_root
+    (e.g. .rommgr/catalogs) must still re-root to the *new* device's project
+    root on restore, not stay pinned to the old device's absolute path."""
+    roms = tmp_path / "roms"
+    saves = tmp_path / "roms" / "saves"
+    system = tmp_path / "RetroArch" / "system"
+    catalogs = tmp_path / ".rommgr" / "catalogs"
+    for d in (roms, saves, system, catalogs):
+        d.mkdir(parents=True)
+
+    sources = [
+        SyncSource(name="DATs", local_dir=str(catalogs), remote="dropbox:RetroSync/catalogs")
+    ]
+
+    exported = export_profile_sources(sources, roms, saves, system, project_root=tmp_path)
+    assert exported[0]["local_dir"] == "{PROJECT_ROOT}/.rommgr/catalogs"
+
+    other_root = tmp_path / "other-device"
+    imported = import_profile_sources(exported, roms, saves, system, project_root=other_root)
+    assert imported[0].local_dir == str(other_root / ".rommgr" / "catalogs")
 
 
 def test_export_import_roundtrips_tokenized_paths(tmp_path: Path) -> None:
@@ -92,8 +134,11 @@ def test_export_leaves_paths_outside_roots_untouched(tmp_path: Path) -> None:
 # ── DEVPROFILE-4a: web/handlers/system.py::_handle_device_profile_detect ──────
 
 
-def test_handle_device_profile_detect_no_retroarch_configured() -> None:
-    cfg = load_config()
+def test_handle_device_profile_detect_no_retroarch_configured(tmp_path: Path) -> None:
+    # DEVPROFILE-8: project_root must be an isolated tmp_path, not the real
+    # cwd -- this repo's own .rommgr/catalogs would otherwise be detected and
+    # the "no RetroArch configured" error path would never trigger.
+    cfg = load_config(tmp_path)
     cfg.retroarch_path = ""
 
     result = _handle_device_profile_detect(cfg)
@@ -109,7 +154,7 @@ def test_handle_device_profile_detect_builds_remote_and_excludes_existing(
     (ra_dir / "shaders").mkdir(parents=True)
     (ra_dir / "system").mkdir(parents=True)
 
-    cfg = load_config()
+    cfg = load_config(tmp_path)
     cfg.retroarch_path = str(ra_dir / "retroarch.exe")
     cfg.sync.saves_remote = "dropbox:RetroSync/saves"
     cfg.sync.sync_sources = [
