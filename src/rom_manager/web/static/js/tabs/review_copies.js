@@ -34,6 +34,15 @@ function _jsStr(s) {
 async function loadReviewQueue() {
   const el = document.getElementById('review-queue-content');
   const btnAll = document.getElementById('btn-review-apply-all');
+  // DEDUP-RENAME-2: /api/review-queue siempre combina PC + consola (nunca
+  // sigue el selector global PC/Consola, a diferencia de "1. Renombrar" —
+  // ver organize.js:loadPlan) — banner explícito para no dar a entender que
+  // esta sección también está filtrada al dispositivo activo arriba.
+  const ctxBar = document.getElementById('review-queue-context-bar');
+  if (ctxBar) {
+    ctxBar.innerHTML = `Combinando <span style="color:var(--c-teal)">PC</span> + <span style="color:var(--c-orange)">${window._devName || 'Consola Android'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">cada copia indica su origen con una etiqueta junto al nombre</span>`;
+    ctxBar.classList.remove('hidden');
+  }
   if (!el) return;
   el.innerHTML = '<p class="loading">Cargando…</p>';
   try {

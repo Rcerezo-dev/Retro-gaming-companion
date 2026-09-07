@@ -65,6 +65,11 @@
   <div style="margin-bottom:10px">
     <button id="btn-review-apply-all" class="btn primary hidden" onclick="applyAllReviewRecommendations()">Aplicar todas las recomendaciones</button>
   </div>
+  <!-- DEDUP-RENAME-2: a diferencia de "1. Renombrar" (arriba), esta sección
+       NO sigue el selector global PC/Consola — siempre combina ambos, cada
+       copia con su propia etiqueta de origen. Banner explícito para no dar
+       la impresión de que también está filtrada al dispositivo activo. -->
+  <div class="hidden" id="review-queue-context-bar" style="margin-bottom:10px;padding:7px 12px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted)"></div>
   <div id="review-queue-content"><p class="loading">Cargando…</p></div>
 </div>
 
