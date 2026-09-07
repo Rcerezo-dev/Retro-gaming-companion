@@ -908,6 +908,21 @@ async function runSyncDoctor() {
 // pelear con un cambio manual del usuario en visitas posteriores.
 let _cableModeAutoSelected = false;
 
+// CABLE-ROM-FIX-4: lista estática (_STANDARD_PLATFORM_FOLDERS en el backend)
+// — se carga una sola vez por sesión de pestaña, igual que _cableModeAutoSelected.
+let _cablePlatformFoldersLoaded = false;
+
+async function _loadCablePlatformFolders() {
+  if (_cablePlatformFoldersLoaded) return;
+  const sel = document.getElementById('cable-exclude-platforms');
+  if (!sel) return;
+  try {
+    const d = await apiFetch('/api/platform-folders');
+    sel.innerHTML = (d.folders || []).map(f => `<option value="${_h(f)}">${_h(f)}</option>`).join('');
+    _cablePlatformFoldersLoaded = true;
+  } catch (_) {}
+}
+
 async function loadCableSync() {
   // QoL-14: offline badge for ADB
   apiFetch('/api/system-status').then(st => {
@@ -947,6 +962,7 @@ async function loadCableSync() {
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (!_isAdbMode() && document.getElementById('cable-ab-path')?.value) testCablePath('ab');
     _onCableWhatRomsChange(); // ANBERNIC-PICK-2: por si el navegador recordó "ROMs" marcado
+    _loadCablePlatformFolders(); // CABLE-ROM-FIX-4
 
     // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
     // los controles, no solo actualizarse tras un onchange manual del usuario.
@@ -1064,6 +1080,9 @@ async function doCableSync() {
   const deleteExtra  = direction !== 'newest' && (document.getElementById('cable-mirror')?.checked ?? false);
   // ANBERNIC-PICK-2: solo tiene efecto con roms + pc_to_anbernic (ver _wanted en sync_cable.py)
   const onlyTagged   = wantRoms && (document.getElementById('cable-only-tagged')?.checked ?? false);
+  // CABLE-ROM-FIX-4: allowlist de plataformas a excluir, en ambos lados y para
+  // saves/roms/assets por igual (ver _wanted/_wanted_info en sync_cable.py)
+  const excludePlatformFolders = Array.from(document.getElementById('cable-exclude-platforms')?.selectedOptions || []).map(o => o.value);
 
   let body;
   if (adb) {
@@ -1074,13 +1093,13 @@ async function doCableSync() {
     // CABLE-UX-1: el pre-flight de reloj ahora vive en el backend (bloquea con
     // error en vez de confirm()) — cubre este camino y el auto-sync por igual.
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
-             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged };
+             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged, exclude_platform_folders: excludePlatformFolders };
   } else {
     const abPath = document.getElementById('cable-ab-path')?.value.trim();
     if (!abPath) { alert('Introduce la ruta de la tarjeta SD / consola Android.'); return; }
     // CABLE-UX-10: sin localStorage — config (anbernic_root/library_root en
     // Ajustes) es la única fuente persistente; esto es solo la sesión actual.
-    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged };
+    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged, exclude_platform_folders: excludePlatformFolders };
   }
 
   const btn      = document.getElementById('btn-cable-sync');

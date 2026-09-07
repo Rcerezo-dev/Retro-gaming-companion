@@ -100,6 +100,13 @@ def register_cable(
 
         ctx._send_json(_build_sync_log(repository))
 
+    # ── GET /api/platform-folders (CABLE-ROM-FIX-4) ──────────────────────────
+    @router.get("/api/platform-folders")
+    def get_platform_folders(ctx) -> None:
+        from rom_manager.web.handlers.system import _STANDARD_PLATFORM_FOLDERS
+
+        ctx._send_json({"folders": sorted(_STANDARD_PLATFORM_FOLDERS)})
+
     # ── GET /api/cable-sync-preview ──────────────────────────────────────────
     @router.get("/api/cable-sync-preview")
     def get_cable_sync_preview(ctx) -> None:
@@ -255,6 +262,16 @@ def _do_cable_sync(
         or "/storage/emulated/0"
     )
     only_tagged = bool(data.get("only_tagged", False))
+    # CABLE-ROM-FIX-4: allowlist de carpetas por plataforma. Antes era un
+    # script de orquestación ad-hoc (sesión 2026-08-26, CABLE-ROM-FIX-3) que
+    # apuntaba pc_path/anbernic_path a subcarpetas concretas — esto lo
+    # persiste como opción del propio endpoint, un patrón por corrida en vez
+    # de rehacer la allowlist a mano. Nombres de carpeta en minúscula
+    # (mismos que _ES_PLATFORM_FOLDERS/_STANDARD_PLATFORM_FOLDERS), vacío =
+    # sin exclusión (comportamiento actual sin cambios).
+    exclude_platform_folders = frozenset(
+        str(x).strip().lower() for x in data.get("exclude_platform_folders", []) if str(x).strip()
+    )
 
     # ANBERNIC-BULK-DEL / ANBERNIC-BULK-SEND: modos "eliminar/enviar juegos
     # filtrados" — resuelven un conjunto de juegos por filtro (mismos campos
@@ -330,6 +347,11 @@ def _do_cable_sync(
                 # no lanza error — solo no encuentra nada, y el job termina en
                 # "copied=0, errors=0" como si la sync hubiera ido bien.
                 raise OSError(f"Ruta PC no existe: {pc_path_str}")
+            # CABLE-ROM-FIX-4: declarada ya aquí (no solo en el modo SD, más
+            # abajo) para que _wanted() pueda referenciarla como variable
+            # cerrada en ambos modos sin NameError — en modo ADB se queda en
+            # None y _wanted() simplemente la salta.
+            ab_root: Path | None = None
             save_exts = frozenset(config.save_extensions)
             # REV43-2: backup versionado antes de sobrescribir un save existente
             # (mismo patrón que ya usa el SD-auto daemon, CABLE-UX-9a) — la ruta
@@ -442,7 +464,24 @@ def _do_cable_sync(
                     ).fetchall()
                 _tagged_pc_paths = frozenset(os.path.normpath(r[0]).lower() for r in _rows)
 
+            def _platform_folder_of(p: Path) -> str:
+                # CABLE-ROM-FIX-4: primer componente de la ruta relativa a
+                # pc_root/ab_root en minúscula (p.ej. "psx", "arcade") — sin
+                # depender de qué root le pasaron dentro de plan_direction/
+                # _iter_files, prueba ambos (ab_root es None en modo ADB).
+                for _root in (pc_root, ab_root):
+                    if _root is None:
+                        continue
+                    try:
+                        _parts = p.relative_to(_root).parts
+                    except ValueError:
+                        continue
+                    return _parts[0].lower() if _parts else ""
+                return ""
+
             def _wanted(p: Path) -> bool:
+                if exclude_platform_folders and _platform_folder_of(p) in exclude_platform_folders:
+                    return False
                 if "assets" in what and p.suffix.lower() in _ASSET_EXTS:
                     if "media" in (part.lower() for part in p.parts):
                         return True
@@ -639,17 +678,26 @@ def _do_cable_sync(
                     {"copied": 0, "current_file": "Listando archivos en el dispositivo…"},
                 )
                 ab_adb_files = transport.ls_recursive(android_path)
+                android_prefix = android_path.rstrip("/") + "/"
+
+                def _wanted_info(info) -> bool:
+                    # CABLE-ROM-FIX-4: lado Android — categoría (save/rom/
+                    # asset, ya cubierto por _wanted_name) + carpeta de
+                    # plataforma (primer segmento de la ruta relativa al
+                    # android_path, p.ej. "arcade" en "arcade/foo.zip").
+                    if not _wanted_name(PurePosixPath(info.android_path).name):
+                        return False
+                    if exclude_platform_folders:
+                        _rel = info.android_path.removeprefix(android_prefix)
+                        _idx = _rel.find("/")
+                        _top = _rel[:_idx].lower() if _idx > 0 else ""
+                        if _top in exclude_platform_folders:
+                            return False
+                    return True
+
                 try:
-                    _pre_files = sum(
-                        1
-                        for info in ab_adb_files
-                        if _wanted_name(PurePosixPath(info.android_path).name)
-                    )
-                    _pre_total = sum(
-                        info.size
-                        for info in ab_adb_files
-                        if _wanted_name(PurePosixPath(info.android_path).name)
-                    )
+                    _pre_files = sum(1 for info in ab_adb_files if _wanted_info(info))
+                    _pre_total = sum(info.size for info in ab_adb_files if _wanted_info(info))
                     job_manager.update_progress(
                         "cable_sync",
                         {
@@ -664,7 +712,6 @@ def _do_cable_sync(
                     _logger.debug(
                         "No se pudo actualizar el progreso de cable-sync (ADB)", exc_info=True
                     )
-                android_prefix = android_path.rstrip("/") + "/"
                 # CABLE-ROM-FIX-1: índice del lado remoto por ruta relativa —
                 # ya se recorrió el dispositivo entero para las estadísticas
                 # de arriba (`ab_adb_files`), así que construir el índice no
@@ -674,7 +721,7 @@ def _do_cable_sync(
                 ab_index = {
                     info.android_path.removeprefix(android_prefix): info
                     for info in ab_adb_files
-                    if _wanted_name(PurePosixPath(info.android_path).name)
+                    if _wanted_info(info)
                 }
 
                 def _skip_existing_device(rel_posix: str, local_size: int) -> bool:
@@ -751,8 +798,7 @@ def _do_cable_sync(
                             if _wanted(f)
                         }
                         for _info in ab_adb_files:
-                            _aname = PurePosixPath(_info.android_path).name
-                            if not _wanted_name(_aname):
+                            if not _wanted_info(_info):
                                 continue
                             _arel = _info.android_path.removeprefix(android_prefix)
                             if _arel not in _pc_rels:
@@ -779,7 +825,7 @@ def _do_cable_sync(
                         if cancel_event.is_set():
                             break
                         name = PurePosixPath(info.android_path).name
-                        if not _wanted_name(name):
+                        if not _wanted_info(info):
                             continue
                         rel_posix = info.android_path.removeprefix(android_prefix)
                         if use_sha1 and _cat_name(name) == "rom":
@@ -841,7 +887,7 @@ def _do_cable_sync(
                         _ab_rels = {
                             _i.android_path.removeprefix(android_prefix)
                             for _i in ab_adb_files
-                            if _wanted_name(PurePosixPath(_i.android_path).name)
+                            if _wanted_info(_i)
                         }
                         for _f in _iter_files(pc_root):
                             if not _wanted(_f):
@@ -864,7 +910,7 @@ def _do_cable_sync(
                     ab_index = {
                         info.android_path.removeprefix(android_prefix): info
                         for info in ab_adb_files
-                        if _wanted_name(PurePosixPath(info.android_path).name)
+                        if _wanted_info(info)
                     }
                     pc_index: dict[str, Path] = {}
                     for f in _iter_files(pc_root):
@@ -1164,6 +1210,16 @@ def _do_cable_sync(
                             # (rom/save); "extra" ya sale de comparar contra
                             # _pc_rels, que sí respeta el tag.
                             if not _wanted_name(_f.name):
+                                continue
+                            # CABLE-ROM-FIX-4: mismo espíritu que el comentario
+                            # de arriba — _wanted_name() no mira la carpeta,
+                            # así que la exclusión de plataforma se comprueba
+                            # aparte (no _wanted() completo, por la razón ya
+                            # explicada).
+                            if (
+                                exclude_platform_folders
+                                and _platform_folder_of(_f) in exclude_platform_folders
+                            ):
                                 continue
                             try:
                                 _frel = _f.relative_to(ab_root)

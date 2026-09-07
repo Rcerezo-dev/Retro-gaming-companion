@@ -182,6 +182,17 @@
       </label>
     </div>
 
+    <!-- CABLE-ROM-FIX-4: allowlist de plataformas, persistida en el propio
+         endpoint en vez de un script ad-hoc apuntando pc_path/anbernic_path
+         a una subcarpeta cada vez que la SD no tiene espacio para todo. -->
+    <div style="margin-bottom:16px">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:4px" for="cable-exclude-platforms">
+        Excluir plataformas <span style="color:var(--c-dim)">(opcional — ninguna seleccionada = sincroniza todas)</span>
+      </label>
+      <select id="cable-exclude-platforms" multiple size="6" style="width:100%;max-width:320px;background:var(--c-input);border:1px solid #444;color:var(--c-text);padding:6px 8px;border-radius:4px;font:inherit;font-size:12px"></select>
+      <div style="font-size:11px;color:var(--c-dim);margin-top:4px">Ctrl/Cmd + clic para seleccionar varias. Se salta cualquier archivo (ROM, save o asset) bajo esa carpeta de plataforma, en ambos lados.</div>
+    </div>
+
     <!-- Dirección -->
     <div style="margin-bottom:16px">
       <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dirección</div>
