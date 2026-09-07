@@ -513,3 +513,117 @@ def test_non_disc_platform_collision_not_flagged_as_risk(tmp_path: Path) -> None
 
     group = next(g for g in result["groups"] if "collision" in g["reasons"])
     assert "multi_disc_risk" not in group["reasons"]
+
+
+def test_crossfmt_duplicate_same_disc_different_extension(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-1: a `.zip` and a `.chd` of the same disc never share a
+    sha1 (different container bytes) and the `.zip` side is typically
+    unmatched (no canonical_title) — the fuzzy cross-format title (region
+    tag kept, disc tag stripped) is the only link that can catch this."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Crash Bandicoot (USA).chd"),
+        sha1="A" * 40,
+        original_filename="Crash Bandicoot (USA).chd",
+        canonical_title="Crash Bandicoot (USA)",
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "Crash Bandicoot (USA).zip"),
+        sha1="B" * 40,
+        original_filename="Crash Bandicoot (USA).zip",
+        canonical_title=None,  # nunca emparejado por catálogo, caso real
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "crossfmt" in group["reasons"]
+    assert len(group["entries"]) == 2
+
+
+def test_crossfmt_different_regions_are_not_merged(tmp_path: Path) -> None:
+    """Same guard as the exact-title union (test_different_regions_are_not_merged)
+    but for the fuzzy cross-format link: region tags are kept as tokens, so a
+    USA `.zip` and a Europe `.chd` sharing the rest of the title must NOT be
+    treated as the same disc in two formats."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Crash Bandicoot (Europe).chd"),
+        sha1="A" * 40,
+        original_filename="Crash Bandicoot (Europe).chd",
+        canonical_title="Crash Bandicoot (Europe)",
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "Crash Bandicoot (USA).zip"),
+        sha1="B" * 40,
+        original_filename="Crash Bandicoot (USA).zip",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_multidisc_set_is_not_flagged(tmp_path: Path) -> None:
+    """A `.zip` (Disc 1) and a `.chd` (Disc 2) of a real multi-disc game must
+    not be flagged 'crossfmt' — same _is_disc_set guard the exact-title union
+    already relies on for this."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "Xenogears (Disc 1).zip"),
+        sha1="A" * 40,
+        original_filename="Xenogears (Disc 1).zip",
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Xenogears (Disc 2).chd"),
+        sha1="B" * 40,
+        original_filename="Xenogears (Disc 2).chd",
+        canonical_title="Xenogears (Disc 2)",
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert not any("crossfmt" in g["reasons"] for g in result["groups"])
+
+
+def test_crossfmt_same_extension_not_flagged(tmp_path: Path) -> None:
+    """Two `.zip`s with the exact same fuzzy cross-format title but no
+    canonical_title/sha1 link between them: not a cross-*format* case (both
+    sides are the same container), so no group should surface at all — this
+    is what the sha1/exact-title links are for, not the new fuzzy one."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "Crash Bandicoot (USA) copy1.zip"),
+        sha1="A" * 40,
+        original_filename="Crash Bandicoot (USA).zip",
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown2" / "Crash Bandicoot (USA) copy2.zip"),
+        sha1="B" * 40,
+        original_filename="Crash Bandicoot (USA).zip",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []

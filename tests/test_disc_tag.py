@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from rom_manager.utils.disc_tag import find_disc_number, find_disc_tag, has_disc_tag
+from rom_manager.utils.disc_tag import find_disc_number, find_disc_tag, has_disc_tag, strip_disc_tag
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,13 @@ def test_find_disc_tag_normalizes_to_canonical_form() -> None:
 def test_has_disc_tag() -> None:
     assert has_disc_tag("Final Fantasy VII (Disc 1)") is True
     assert has_disc_tag("Final Fantasy VII (Europe)") is False
+
+
+def test_strip_disc_tag_removes_only_the_disc_tag() -> None:
+    assert strip_disc_tag("Final Fantasy VII (USA) (Disc 1)") == "Final Fantasy VII (USA) "
+    assert strip_disc_tag("Final Fantasy VII Disc1.cue") == "Final Fantasy VII .cue"
+
+
+def test_strip_disc_tag_keeps_region_tags_untouched() -> None:
+    assert strip_disc_tag("Chrono Trigger (USA)") == "Chrono Trigger (USA)"
+    assert strip_disc_tag("Final Fantasy VII.cue") == "Final Fantasy VII.cue"

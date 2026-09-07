@@ -18,6 +18,11 @@ const _REASON_LABELS = {
   ra: { text: 'Logros RA', color: 'var(--c-amber)' },
   disk: { text: 'Colisión de disco', color: 'var(--c-red)' },
   collision: { text: 'Colisión de nombre', color: 'var(--c-orange)' },
+  // DUP-CROSSFMT-1: mismo disco en dos formatos de archivo distintos
+  // (p.ej. .zip vs .chd) — nunca coincide por SHA1 (bytes del contenedor
+  // distintos), se detecta por título (región conservada, sin la etiqueta
+  // de disco) cruzando extensiones.
+  crossfmt: { text: 'Mismo disco, otro formato', color: 'var(--c-purple)' },
 };
 
 const _CONFLICT_REASONS = new Set(['disk', 'collision']);

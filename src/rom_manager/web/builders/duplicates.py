@@ -14,7 +14,7 @@ from pathlib import Path as _Path
 from rom_manager.config import AppConfig
 from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.utils.disc_tag import find_disc_number
+from rom_manager.utils.disc_tag import find_disc_number, strip_disc_tag
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
@@ -38,6 +38,31 @@ def _is_disc_set(members) -> bool:
             return False
         disc_nums.append(num)
     return len(set(disc_nums)) == len(disc_nums)
+
+
+def _normalize_title_cross_format(stem: str) -> str:
+    """DUP-CROSSFMT-1: fuzzy title key for cross-format duplicate detection
+    (e.g. a `.zip` containing the same disc already present as `.chd`) —
+    SHA1 never matches across formats since the container bytes differ.
+
+    Deliberately narrower than ``ra_checker._normalize_title``: only the
+    disc tag (see :func:`strip_disc_tag`) is removed, punctuation is
+    collapsed but never deleted along with its contents. Region/language
+    tags are kept as plain tokens, so "(USA)" and "(Europe)" never collide —
+    the fuzzy region-stripping normalizer already caused exactly that once
+    (see the comment on the exact-``canonical_title`` union in
+    ``_review_groups_for_repo``, 18 regional releases of Final Fantasy VII
+    merged into one false-positive group). Two different discs of the same
+    release DO collide here on purpose (same trade-off ``canonical_title``
+    already accepts) — callers must gate on ``_is_disc_set`` before treating
+    the cluster as an actual duplicate, same as the exact-title union does.
+    """
+    import re as _re
+
+    t = strip_disc_tag(stem).lower()
+    t = _re.sub(r"[^a-z0-9 ]", " ", t)
+    t = _re.sub(r" +", " ", t).strip()
+    return t
 
 
 def _is_spanish_filename(filename: str) -> bool:
@@ -637,9 +662,12 @@ def _review_groups_for_repo(
     excluded_keys: set[str],
 ) -> list[dict]:
     """Union-Find over one repo's ROM rows: two rows are "the same game" if they
-    share a sha1 *or* a (platform, normalized title) — either link is enough,
-    which is what lets a sha1-identical pair with different filenames and a
-    title-only pair with different sha1s both surface as a single group.
+    share a sha1, a (platform, exact canonical_title), or — DUP-CROSSFMT-1 —
+    a (platform, fuzzy cross-format title) across two different extensions.
+    Any single link is enough, which is what lets a sha1-identical pair with
+    different filenames, a title-only pair with different sha1s, and a
+    same-disc-different-container pair (a `.zip` never matched to the same
+    canonical_title as its `.chd` counterpart) all surface as one group.
     Plan conflicts (disk/collision) fold into the same clusters when the file
     is already a tracked row, adding their reason without creating a
     duplicate entry.
@@ -686,6 +714,29 @@ def _review_groups_for_repo(
             title_key = (row["platform"] or "unknown", row["canonical_title"])
             union(idx, first_by_title.setdefault(title_key, idx))
 
+    # DUP-CROSSFMT-1: same disc in two different container formats (a `.zip`
+    # never matched to a canonical_title the same way a `.chd`/`.bin`/`.cue`
+    # of the same content is) — SHA1/canonical_title alone can't catch it,
+    # since a different container means different bytes and often no catalog
+    # match at all for the zipped side. Union only across *different*
+    # extensions sharing the fuzzy cross-format key; same-extension matches
+    # are already covered by the sha1/exact-title links above and unioning
+    # them here too would just be redundant, not additive.
+    crossfmt_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for idx, row in enumerate(rows):
+        stem = _Path(row["original_filename"]).stem
+        cf_title = _normalize_title_cross_format(stem)
+        if cf_title:
+            crossfmt_groups[(row["platform"] or "unknown", cf_title)].append(idx)
+    crossfmt_linked_idxs: set[int] = set()
+    for idxs in crossfmt_groups.values():
+        exts = {_Path(rows[i]["original_filename"]).suffix.lower() for i in idxs}
+        if len(exts) < 2:
+            continue
+        for other in idxs[1:]:
+            union(idxs[0], other)
+        crossfmt_linked_idxs.update(idxs)
+
     # Plan conflicts: fold into the same clusters via the row they belong to
     # (the common case); a "collision" also unions its contenders together —
     # they may not otherwise share a sha1/title link at all.
@@ -727,6 +778,16 @@ def _review_groups_for_repo(
             and any(r["canonical_title"] for r in members)
             and not _is_disc_set(members)
         )
+        # DUP-CROSSFMT-1: only claim it for clusters that actually still span
+        # >1 extension AND aren't a legitimate multi-disc set — a crossfmt
+        # link into a cluster that turns out to be a real disc set (or that a
+        # later sha1/title link already fully explains) shouldn't add a
+        # separate, redundant "different format" claim.
+        has_crossfmt_dup = (
+            any(i in crossfmt_linked_idxs for i in idxs)
+            and len({_Path(r["original_filename"]).suffix.lower() for r in members}) > 1
+            and not _is_disc_set(members)
+        )
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
         hash_map = _load_ra_hash_map(cache_dir, plat, hash_cache) if cache_dir else {}
@@ -744,6 +805,8 @@ def _review_groups_for_repo(
             reasons.add("title")
         if has_ra_mix:
             reasons.add("ra")
+        if has_crossfmt_dup:
+            reasons.add("crossfmt")
         for idx in idxs:
             if idx in extra_reasons:
                 reasons.add(extra_reasons[idx])
