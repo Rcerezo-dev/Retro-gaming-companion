@@ -627,3 +627,70 @@ def test_crossfmt_same_extension_not_flagged(tmp_path: Path) -> None:
     result = _build_review_queue(repo, repo, None)
 
     assert result["groups"] == []
+
+
+def test_crossfmt_multidisc_with_per_disc_siblings_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-2 (patrón 1): un set real de 2 discos donde cada disco
+    tiene también un `.cue` además de su `.chd` (6→4 miembros compartiendo
+    número de disco) no debe tratarse como duplicado — caso real: Parasite
+    Eve II (Spain) Disc 1/Disc 2, cada uno con `.chd`+`.cue`. Antes del fix,
+    `_is_disc_set` exigía un archivo por número de disco y devolvía False
+    aquí, dejando "Aplicar recomendación" recomendar descartar el Disc 2
+    completo."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i, name in enumerate(
+        [
+            "Parasite Eve II (Spain) (Disc 1).chd",
+            "Parasite Eve II (Spain) (Disc 1).cue",
+            "Parasite Eve II (Spain) (Disc 2).chd",
+            "Parasite Eve II (Spain) (Disc 2).cue",
+        ]
+    ):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / name),
+            sha1=chr(ord("A") + i) * 40,
+            original_filename=name,
+            canonical_title=None,
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-2 (patrón 2): un `.cue`+`.bin` hermanos (mismo directorio,
+    mismo nombre base) no son dos copias alternativas del mismo disco — el
+    `.bin` es el fichero de datos que el `.cue` referencia, no un formato
+    autocontenido. Caso real: Wipeout 3 (Japan), Wild Arms (USA), Rayman
+    (Japan) — agrupados como 'crossfmt' y recomendados para descartar el
+    `.cue`, dejando el `.bin` huérfano e ilegible en la mayoría de emuladores."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    cue_path = psx_dir / "Wipeout 3 (Japan).cue"
+    bin_path = psx_dir / "Wipeout 3 (Japan).bin"
+    cue_path.write_text('FILE "Wipeout 3 (Japan).bin" BINARY\n', encoding="utf-8")
+    bin_path.write_bytes(b"\x00" * 16)
+    _insert_game(
+        repo,
+        source_path=str(cue_path),
+        sha1="A" * 40,
+        original_filename=cue_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(bin_path),
+        sha1="B" * 40,
+        original_filename=bin_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []

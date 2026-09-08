@@ -25,19 +25,30 @@ _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
 
 
 def _is_disc_set(members) -> bool:
-    """True if every member is a distinct disc of the same multi-disc game
-    (e.g. "Final Fantasy VII (Disc 1/2/3).cue") — companion discs share the
-    DAT's canonical_title (it doesn't encode the disc number) and would
-    otherwise look exactly like a title-duplicate cluster (TABS-FIX-6: found
-    by hitting a real PSX library — without this guard, "Aplicar recomendación"
-    would discard the other discs as if they were alternate copies)."""
+    """True if the cluster spans more than one distinct disc number of the
+    same multi-disc game (e.g. "Final Fantasy VII (Disc 1/2/3).cue") —
+    companion discs share the DAT's canonical_title (it doesn't encode the
+    disc number) and would otherwise look exactly like a title-duplicate
+    cluster (TABS-FIX-6: found by hitting a real PSX library — without this
+    guard, "Aplicar recomendación" would discard the other discs as if they
+    were alternate copies).
+
+    DUP-CROSSFMT-2: deliberately does NOT require one file per disc number.
+    The common real shape is several files sharing a disc number (a
+    ``.cue``+``.bin``+``.chd`` of the same disc, or the same disc tracked
+    twice) — requiring uniqueness made the guard return False (treated as
+    a title/crossfmt duplicate, safe to discard) on exactly the clusters
+    that most need protecting: a real ``Disc 1``+``Disc 2`` set where each
+    disc also has leftover sibling files. Only a single distinct disc
+    number (every member is the same disc in different copies/formats) is
+    a genuine duplicate, not a disc set — that case still returns False."""
     disc_nums = []
     for r in members:
         num = find_disc_number(r["original_filename"])
         if num is None:
             return False
         disc_nums.append(num)
-    return len(set(disc_nums)) == len(disc_nums)
+    return len(set(disc_nums)) > 1
 
 
 def _normalize_title_cross_format(stem: str) -> str:
@@ -63,6 +74,20 @@ def _normalize_title_cross_format(stem: str) -> str:
     t = _re.sub(r"[^a-z0-9 ]", " ", t)
     t = _re.sub(r" +", " ", t).strip()
     return t
+
+
+def _is_cue_sibling_bin(source_path: str) -> bool:
+    """DUP-CROSSFMT-2: True if *source_path* is a ``.bin`` sitting next to a
+    ``.cue`` with the same stem — that ``.bin`` is the cue's data file, not
+    a self-contained alternate format of the disc. Left in the crossfmt
+    union, a ``.cue``+``.bin`` pair with no other copy anywhere else looked
+    exactly like two independent duplicate formats of the same disc, and
+    "Aplicar recomendación" would discard the ``.cue`` — leaving the ``.bin``
+    orphaned and the disc unplayable in most emulators."""
+    path = _Path(source_path)
+    if path.suffix.lower() != ".bin":
+        return False
+    return (path.parent / f"{path.stem}.cue").exists()
 
 
 def _is_spanish_filename(filename: str) -> bool:
@@ -724,6 +749,8 @@ def _review_groups_for_repo(
     # them here too would just be redundant, not additive.
     crossfmt_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
     for idx, row in enumerate(rows):
+        if _is_cue_sibling_bin(row["source_path"]):
+            continue
         stem = _Path(row["original_filename"]).stem
         cf_title = _normalize_title_cross_format(stem)
         if cf_title:
