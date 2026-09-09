@@ -17,8 +17,11 @@ from __future__ import annotations
 import hashlib
 import shlex
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+from rom_manager.utils.trash import TRASH_DIR_NAME
 
 
 def _md5_local(path: Path) -> str:
@@ -193,6 +196,59 @@ class AdbTransport:
         if self.file_exists(android_path):
             raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
 
+    def purge_trash(self, roots: list[str] | None = None, older_than_days: float = 0) -> dict:
+        """TRASH-FIX-3: Android-side mirror of ``utils.trash.purge_trash()``.
+
+        The host-side trash purge (``trash_roots()``/daemons.py) only ever
+        walked local filesystem paths — nothing purged ``_descartados/`` on
+        the device, so files Cable Sync discards there accumulate forever
+        and get picked up as "duplicates" by anything that scans the ROMs
+        tree recursively (Daijishou, standalone emulators). Deletes files
+        older than *older_than_days* inside any ``_descartados/`` dir under
+        *roots* (default: every mounted storage volume), then removes dirs
+        left empty. Returns ``{"deleted": n, "bytes": freed}``.
+        """
+        if roots is None:
+            out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
+            roots = [
+                r.rstrip("/")
+                for r in out.splitlines()
+                if r.strip() and "/storage/self" not in r
+            ]
+
+        cutoff = time.time() - older_than_days * 86400
+        trash_dirs: set[str] = set()
+        for root in roots:
+            out = self._shell(
+                f"find {shlex.quote(root)} -type d -iname {shlex.quote(TRASH_DIR_NAME)}",
+                timeout=120,
+            )
+            trash_dirs.update(line.strip() for line in out.splitlines() if line.strip())
+
+        deleted = 0
+        freed = 0
+        for trash_dir in trash_dirs:
+            out = self._shell(
+                f"find {shlex.quote(trash_dir)} -maxdepth 1 -type f"
+                " -exec stat -c '%s|%Y|%n' {} +",
+                timeout=120,
+            )
+            for line in out.splitlines():
+                parts = line.strip().split("|", 2)
+                if len(parts) != 3:
+                    continue
+                size_str, mtime_str, path_str = parts
+                try:
+                    size, mtime = int(size_str), float(mtime_str)
+                except ValueError:
+                    continue
+                if mtime <= cutoff:
+                    self._shell(f"rm -f {shlex.quote(path_str)}")
+                    deleted += 1
+                    freed += size
+            self._shell(f"rmdir {shlex.quote(trash_dir)}")  # no-op silencioso si no quedó vacía
+        return {"deleted": deleted, "bytes": freed}
+
     # ── file listing ──────────────────────────────────────────────────────────
 
     def ls_recursive(
@@ -220,7 +276,14 @@ class AdbTransport:
             if len(parts) != 3:
                 continue
             path_str, size_str, mtime_str = parts
-            if exclude_hidden and any(seg.startswith(".") for seg in path_str.split("/")):
+            segments = path_str.split("/")
+            if exclude_hidden and any(seg.startswith(".") for seg in segments):
+                continue
+            # TRASH-FIX-2: mismo guard que cable_engine.py aplica al modo FS —
+            # sin esto, Cable Sync en modo ADB + "Espejo completo" puede volver
+            # a copiar/descartar contenido ya descartado, reanidando
+            # _descartados/_descartados/ en cada pasada.
+            if TRASH_DIR_NAME in segments:
                 continue
             if wanted_extensions is not None:
                 suffix = PurePosixPath(path_str).suffix.lower()
