@@ -35,6 +35,22 @@ _sd_sync_status: dict = {
     "drive": None,
 }
 
+# ── AUD-3/TRASH-FIX-3: última purga de papelera (PC/Android) ──────────────
+_trash_purge_last: dict = {"pc": None, "android": None}
+
+
+def record_trash_purge(side: str, result: dict) -> None:
+    """Guarda ts+resultado de la última purga de *side* ("pc"/"android") para
+    mostrarla en el panel Papelera, sea automática (daemon) o manual (botón)."""
+    import datetime as _dt
+
+    _trash_purge_last[side] = {
+        "ts": _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "deleted": result.get("deleted", 0),
+        "bytes": result.get("bytes", 0),
+    }
+
+
 # ── Tokens efímeros de setup Anbernic (ANBERNIC-UX-3) ──────────────────────
 # Protegen /s y /api/rclone-export-config fuera de loopback. 10 min de vida.
 # ANBERNIC-UX-10: lista (no un slot único) — abrir la pestaña Anbernic en dos

@@ -15,7 +15,7 @@ import {
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
   browseFolder, browseFile, detectRetroArch,
-  loadTrashStatus, emptyTrash,
+  loadTrashStatus, emptyTrash, emptyTrashAndroid,
 } from './tabs/config.js';
 import {
   _onScanAdbChange, detectAdbDevicesForScan,
@@ -279,7 +279,7 @@ Object.assign(window, {
   saveSettings, testNotification, saveOvPaths,
   doMigrateSavesStructure,
   browseFolder, browseFile, detectRetroArch,
-  loadTrashStatus, emptyTrash,
+  loadTrashStatus, emptyTrash, emptyTrashAndroid,
   _onScanAdbChange, detectAdbDevicesForScan,
   doScan, quickScanPC, quickScanAndroid,
   doFixPlatforms, doMatch,

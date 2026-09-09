@@ -139,6 +139,7 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                 from rom_manager.utils.trash import purge_trash, trash_roots
 
                 purged = purge_trash(trash_roots(config), config.trash_purge_days)
+                _state.record_trash_purge("pc", purged)
                 if purged["deleted"]:
                     _logger.info(
                         "Papelera: purgados %d archivos (%.1f MB) con más de %d días",
@@ -157,6 +158,7 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                     transport = resolve_single_device_transport(config.adb)
                     if transport is not None:
                         purged_adb = transport.purge_trash(older_than_days=config.trash_purge_days)
+                        _state.record_trash_purge("android", purged_adb)
                         if purged_adb["deleted"]:
                             _logger.info(
                                 "Papelera Android: purgados %d archivos (%.1f MB) con más de %d días",

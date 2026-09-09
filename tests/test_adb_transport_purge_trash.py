@@ -77,3 +77,28 @@ def test_purge_trash_never_targets_save_paths(monkeypatch) -> None:
     transport.purge_trash(roots=["/sdcard/roms"], older_than_days=30)
 
     assert not any("saves" in p or "states" in p for p in seen_paths)
+
+
+def test_trash_stats_counts_without_deleting(monkeypatch) -> None:
+    """trash_stats() es de solo lectura: cuenta todo lo que hay en la papelera
+    (sin filtro de antigüedad) y nunca llama a rm/rmdir."""
+    transport = AdbTransport("adb.exe", "SERIAL123")
+    rm_calls: list[str] = []
+
+    def _shell(*args, **kwargs):
+        cmd = args[0]
+        if cmd.startswith("rm ") or cmd.startswith("rm -f") or cmd.startswith("rmdir"):
+            rm_calls.append(cmd)
+            return ""
+        if "-iname" in cmd:
+            return "/sdcard/roms/psx/_descartados\n"
+        if "-maxdepth 1 -type f" in cmd:
+            return f"{1000}\n{2000}\n"
+        return ""
+
+    monkeypatch.setattr(transport, "_shell", _shell)
+
+    result = transport.trash_stats(roots=["/sdcard/roms"])
+
+    assert result == {"files": 2, "bytes": 3000}
+    assert rm_calls == []

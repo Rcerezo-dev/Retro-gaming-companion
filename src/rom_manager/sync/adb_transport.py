@@ -196,6 +196,41 @@ class AdbTransport:
         if self.file_exists(android_path):
             raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
 
+    def _trash_dirs(self, roots: list[str] | None) -> set[str]:
+        if roots is None:
+            out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
+            roots = [
+                r.rstrip("/")
+                for r in out.splitlines()
+                if r.strip() and "/storage/self" not in r
+            ]
+        trash_dirs: set[str] = set()
+        for root in roots:
+            out = self._shell(
+                f"find {shlex.quote(root)} -type d -iname {shlex.quote(TRASH_DIR_NAME)}",
+                timeout=120,
+            )
+            trash_dirs.update(line.strip() for line in out.splitlines() if line.strip())
+        return trash_dirs
+
+    def trash_stats(self, roots: list[str] | None = None) -> dict:
+        """Android-side mirror of ``utils.trash.trash_stats()`` — count only,
+        nothing deleted. Used by the Papelera panel to show device totals."""
+        files = 0
+        total = 0
+        for trash_dir in self._trash_dirs(roots):
+            out = self._shell(
+                f"find {shlex.quote(trash_dir)} -maxdepth 1 -type f -exec stat -c '%s' {{}} +",
+                timeout=120,
+            )
+            for line in out.splitlines():
+                try:
+                    total += int(line.strip())
+                    files += 1
+                except ValueError:
+                    continue
+        return {"files": files, "bytes": total}
+
     def purge_trash(self, roots: list[str] | None = None, older_than_days: float = 0) -> dict:
         """TRASH-FIX-3: Android-side mirror of ``utils.trash.purge_trash()``.
 
@@ -208,26 +243,10 @@ class AdbTransport:
         *roots* (default: every mounted storage volume), then removes dirs
         left empty. Returns ``{"deleted": n, "bytes": freed}``.
         """
-        if roots is None:
-            out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
-            roots = [
-                r.rstrip("/")
-                for r in out.splitlines()
-                if r.strip() and "/storage/self" not in r
-            ]
-
         cutoff = time.time() - older_than_days * 86400
-        trash_dirs: set[str] = set()
-        for root in roots:
-            out = self._shell(
-                f"find {shlex.quote(root)} -type d -iname {shlex.quote(TRASH_DIR_NAME)}",
-                timeout=120,
-            )
-            trash_dirs.update(line.strip() for line in out.splitlines() if line.strip())
-
         deleted = 0
         freed = 0
-        for trash_dir in trash_dirs:
+        for trash_dir in self._trash_dirs(roots):
             out = self._shell(
                 f"find {shlex.quote(trash_dir)} -maxdepth 1 -type f"
                 " -exec stat -c '%s|%Y|%n' {} +",
