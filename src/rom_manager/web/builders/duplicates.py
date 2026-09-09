@@ -90,6 +90,26 @@ def _is_cue_sibling_bin(source_path: str) -> bool:
     return (path.parent / f"{path.stem}.cue").exists()
 
 
+def _is_ccd_sibling_data(source_path: str) -> bool:
+    """DUP-CROSSFMT-5: same reasoning as :func:`_is_cue_sibling_bin`, for the
+    CloneCD sidecar format — ``.img``/``.sub`` are the ``.ccd``'s own data,
+    not an independent copy. Found live in the real library (2026-09-09):
+    ``Resident Evil 2 CD1/CD2``, ``Rival Schools Evolution``, ``clocktower2``,
+    ``NEW`` all had their ``.img`` recommended for discard while keeping the
+    ``.ccd`` that needs it — same failure mode DUP-CROSSFMT-2/3 fixed for
+    ``.cue``/``.bin``, never extended to this format."""
+    path = _Path(source_path)
+    if path.suffix.lower() not in (".img", ".sub"):
+        return False
+    return (path.parent / f"{path.stem}.ccd").exists()
+
+
+def _is_disc_data_sibling(source_path: str) -> bool:
+    """True for any sidecar data file (``.cue``'s ``.bin``, ``.ccd``'s
+    ``.img``/``.sub``) that must never be unioned/discarded on its own."""
+    return _is_cue_sibling_bin(source_path) or _is_ccd_sibling_data(source_path)
+
+
 def _is_spanish_filename(filename: str) -> bool:
     import re as _re
 
@@ -725,15 +745,15 @@ def _review_groups_for_repo(
     first_by_sha1: dict[str, int] = {}
     first_by_title: dict[tuple[str, str], int] = {}
     for idx, row in enumerate(rows):
-        # DUP-CROSSFMT-3: a .bin with a .cue sibling is the cue's own data
-        # file, not an independent candidate — same reasoning as
-        # _is_cue_sibling_bin's docstring. The crossfmt union below already
+        # DUP-CROSSFMT-3/5: a .bin/.img/.sub with a .cue/.ccd sibling is that
+        # sibling's own data file, not an independent candidate — see
+        # _is_disc_data_sibling's docstring. The crossfmt union below already
         # skipped these; this exact-title union didn't, so a .cue and its
         # own .bin could still land in one cluster (same canonical_title,
         # different sha1) and get sorted against each other, discarding the
         # .cue and orphaning the .bin. Confirmed live: 26 real PSX games hit
         # this in a resolve-duplicates dry run before this fix.
-        if _is_cue_sibling_bin(row["source_path"]):
+        if _is_disc_data_sibling(row["source_path"]):
             continue
         if row["sha1"]:
             union(idx, first_by_sha1.setdefault(row["sha1"], idx))
@@ -759,7 +779,7 @@ def _review_groups_for_repo(
     # them here too would just be redundant, not additive.
     crossfmt_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
     for idx, row in enumerate(rows):
-        if _is_cue_sibling_bin(row["source_path"]):
+        if _is_disc_data_sibling(row["source_path"]):
             continue
         stem = _Path(row["original_filename"]).stem
         cf_title = _normalize_title_cross_format(stem)

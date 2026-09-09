@@ -697,6 +697,40 @@ def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
     assert result["groups"] == []
 
 
+def test_crossfmt_ccd_img_sibling_pair_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-5: same bug as the .cue/.bin case above, for CloneCD
+    sidecars — `.img` is the `.ccd`'s own data, not an independent copy.
+    Found live 2026-09-09: Resident Evil 2 CD1/CD2, Rival Schools Evolution,
+    clocktower2, NEW all had this exact pattern in the real library."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    ccd_path = psx_dir / "clocktower2.ccd"
+    img_path = psx_dir / "clocktower2.img"
+    ccd_path.write_text("[CloneCD]\nVersion=3\n", encoding="utf-8")
+    img_path.write_bytes(b"\x00" * 16)
+    _insert_game(
+        repo,
+        source_path=str(ccd_path),
+        sha1="A" * 40,
+        original_filename=ccd_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(img_path),
+        sha1="B" * 40,
+        original_filename=img_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
 def test_title_union_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
     """DUP-CROSSFMT-3: same bug as the crossfmt test above, but via the exact
     canonical_title union instead — the catalog matches both the `.cue` and
