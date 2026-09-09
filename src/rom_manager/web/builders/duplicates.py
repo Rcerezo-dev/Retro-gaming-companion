@@ -725,6 +725,16 @@ def _review_groups_for_repo(
     first_by_sha1: dict[str, int] = {}
     first_by_title: dict[tuple[str, str], int] = {}
     for idx, row in enumerate(rows):
+        # DUP-CROSSFMT-3: a .bin with a .cue sibling is the cue's own data
+        # file, not an independent candidate — same reasoning as
+        # _is_cue_sibling_bin's docstring. The crossfmt union below already
+        # skipped these; this exact-title union didn't, so a .cue and its
+        # own .bin could still land in one cluster (same canonical_title,
+        # different sha1) and get sorted against each other, discarding the
+        # .cue and orphaning the .bin. Confirmed live: 26 real PSX games hit
+        # this in a resolve-duplicates dry run before this fix.
+        if _is_cue_sibling_bin(row["source_path"]):
+            continue
         if row["sha1"]:
             union(idx, first_by_sha1.setdefault(row["sha1"], idx))
         # EXACT canonical_title (not RA's fuzzy normalizer) — same key

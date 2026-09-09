@@ -23,6 +23,7 @@ def _insert_game(
     platform: str | None = "Game Boy",
     canonical_title: str | None = None,
     size_bytes: int = 1024,
+    extension: str = ".gb",
 ) -> None:
     repo.upsert_game(
         original_filename=original_filename,
@@ -31,7 +32,7 @@ def _insert_game(
         file_type="rom",
         relative_parent="",
         region="USA",
-        extension=".gb",
+        extension=extension,
         size_bytes=size_bytes,
         mtime=0,
         sha1=sha1,
@@ -689,6 +690,48 @@ def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
         original_filename=bin_path.name,
         canonical_title=None,
         platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_title_union_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-3: same bug as the crossfmt test above, but via the exact
+    canonical_title union instead — the catalog matches both the `.cue` and
+    its own `.bin` sibling to the same canonical_title (real case: the DAT
+    matches a disc by its data track regardless of which sidecar found it).
+    `_is_cue_sibling_bin` only gated the crossfmt union, not this one, so the
+    pair still landed in one cluster (distinct sha1 + same canonical_title)
+    and the alphabetical filename tiebreak always picked the `.bin` over the
+    `.cue`, recommending the `.cue` for discard and orphaning the `.bin`.
+    Confirmed live against the real library: 26 PSX games hit this in a
+    `resolve-duplicates` dry run before this fix."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    cue_path = psx_dir / "Wild Arms (USA).cue"
+    bin_path = psx_dir / "Wild Arms (USA).bin"
+    cue_path.write_text('FILE "Wild Arms (USA).bin" BINARY\n', encoding="utf-8")
+    bin_path.write_bytes(b"\x00" * 16)
+    _insert_game(
+        repo,
+        source_path=str(cue_path),
+        sha1="A" * 40,
+        original_filename=cue_path.name,
+        canonical_title="Wild Arms (USA)",
+        platform="PSX",
+        extension=".cue",
+    )
+    _insert_game(
+        repo,
+        source_path=str(bin_path),
+        sha1="B" * 40,
+        original_filename=bin_path.name,
+        canonical_title="Wild Arms (USA)",
+        platform="PSX",
+        extension=".bin",
     )
 
     result = _build_review_queue(repo, repo, None)
