@@ -41,6 +41,7 @@ def test_resolve_duplicate_ra_skips_group_if_keeper_missing(tmp_path: Path) -> N
     assert not (tmp_path / "_descartados").exists()
     assert _count(repo) == 2  # both DB rows untouched too
 
+
 # TABS-FIX-1's device-path detection only applies on Windows — a bare leading
 # "/" is a normal, verifiable local path on POSIX (see utils/paths.is_device_path).
 _windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows-only device-path detection")

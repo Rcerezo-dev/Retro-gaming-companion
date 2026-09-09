@@ -167,7 +167,9 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                                 config.trash_purge_days,
                             )
                 except Exception:
-                    _logger.debug("No se pudo purgar la papelera del dispositivo Android", exc_info=True)
+                    _logger.debug(
+                        "No se pudo purgar la papelera del dispositivo Android", exc_info=True
+                    )
 
         except Exception as exc:
             _logger.debug("Error en health scheduler: %s", exc)

@@ -314,12 +314,8 @@ def test_collision_ghost_row_never_beats_real_file(tmp_path: Path) -> None:
     md5_real = "h" * 32
 
     repo = LibraryRepository(tmp_path / "lib.sqlite")
-    _insert_game(
-        repo, source_path=ghost_src, md5=md5_ghost, canonical_title="Ghost Hunter (World)"
-    )
-    _insert_game(
-        repo, source_path=real_src, md5=md5_real, canonical_title="Ghost Hunter (World)"
-    )
+    _insert_game(repo, source_path=ghost_src, md5=md5_ghost, canonical_title="Ghost Hunter (World)")
+    _insert_game(repo, source_path=real_src, md5=md5_real, canonical_title="Ghost Hunter (World)")
 
     _write_ra_cache(
         tmp_path,

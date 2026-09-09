@@ -200,9 +200,7 @@ class AdbTransport:
         if roots is None:
             out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
             roots = [
-                r.rstrip("/")
-                for r in out.splitlines()
-                if r.strip() and "/storage/self" not in r
+                r.rstrip("/") for r in out.splitlines() if r.strip() and "/storage/self" not in r
             ]
         trash_dirs: set[str] = set()
         for root in roots:
