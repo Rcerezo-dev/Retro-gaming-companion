@@ -122,13 +122,17 @@ def test_name_fallback_medium_no_extension(catalog_dirs: tuple[Path, Path]) -> N
 
 
 def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
-    """Two titles with the same normalised key → low confidence, ambiguous=True."""
+    """Two titles with the same normalised key → low confidence, ambiguous=True.
+
+    Both live in a DAT recognised as "Game Boy" (CATALOG-MATCH-BUG-2 requires
+    a resolvable platform per candidate to narrow by — an unrecognisable DAT
+    filename wouldn't exercise the ambiguous-region path this test targets)."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
     nointro.mkdir()
     redump.mkdir()
     _write_dat(
-        nointro / "test.dat",
+        nointro / "Nintendo - Game Boy.dat",
         [
             ("Tetris (World)", "AA" * 20, "MD1", "C1", 1024),
             ("Tetris (Japan)", "BB" * 20, "MD2", "C2", 1024),
@@ -226,6 +230,68 @@ def test_ambiguous_extension_prefers_platform_of_containing_folder(tmp_path: Pat
     assert result_with_context is not None
     assert result_with_context.platform == "Sega Saturn"
     assert result_with_context.ambiguous is True
+
+
+# ---------------------------------------------------------------------------
+# CATALOG-MATCH-BUG-2 — a title hit from a DIFFERENT platform's catalog is a
+# coincidence (typically an unlicensed bootleg with no DAT entry of its own),
+# not a signal, when we already know the real platform.
+# ---------------------------------------------------------------------------
+
+
+def test_single_hit_from_wrong_platform_returns_none(tmp_path: Path) -> None:
+    """Caso real (2026-09-09): un bootleg NES sin licencia ("Crash Bandicoot
+    (Unl).nes") no tiene entrada propia en el DAT de NES, pero su título
+    normalizado colisiona con "Crash Bandicoot (USA)" de PlayStation — el
+    único hit del índice. La extensión .nes ya dice la plataforma real; ese
+    único hit, de otra plataforma, no debe aceptarse como si fuera el mismo
+    juego (49 bootlegs así acabaron con platform="PlayStation"/"Wii"/
+    "Sega Saturn" en la BD real antes de este fix)."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        redump / "Sony - PlayStation.dat",
+        [("Crash Bandicoot (USA)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Crash Bandicoot (Unl).nes")
+    assert result is None
+
+
+def test_single_hit_matching_platform_still_returns(catalog_dirs: tuple[Path, Path]) -> None:
+    """El guard de CATALOG-MATCH-BUG-2 no debe tocar el caso normal (único
+    hit, misma plataforma que la extensión) — mismo escenario que
+    test_name_fallback_medium_confidence, cubierto aquí explícitamente
+    contra una regresión del guard nuevo."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "tetris (world).gb")
+    assert result is not None
+    assert result.confidence == "medium"
+    assert result.platform == "Game Boy"
+
+
+def test_multi_hit_all_from_wrong_platform_returns_none(tmp_path: Path) -> None:
+    """Misma causa raíz que el caso de un solo hit, con varios candidatos: si
+    NINGUNO de los títulos que colisionan pertenece a la plataforma real
+    (extensión sin ambigüedad), no hay nada seguro que devolver."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        redump / "Sony - PlayStation.dat",
+        [("Same Title (USA)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        redump / "Sega - Saturn.dat",
+        [("Same Title (Japan)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Same Title (Unl).nes")
+    assert result is None
 
 
 def test_multi_disc_title_picks_matching_disc_entry(tmp_path: Path) -> None:

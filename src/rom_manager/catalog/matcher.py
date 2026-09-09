@@ -275,11 +275,31 @@ class CatalogMatcher:
             return None
         if len(hits) == 1:
             entry, source = hits[0]
+            hit_platform = _platform_from_dat_name(source)
+            # CATALOG-MATCH-BUG-2: even a single title hit can be from the
+            # wrong catalog — typically an unlicensed bootleg with no DAT
+            # entry of its own, whose title happens to collide with a real
+            # game on another platform (found live 2026-09-09: a NES-folder
+            # "Crash Bandicoot (Unl).nes" — no NES DAT entry exists for it —
+            # matched PlayStation's "Crash Bandicoot (USA)" by title alone,
+            # mislabeling the file platform="PlayStation"; 49 such bootlegs
+            # found across nes/). Only refuse the match when we actually know
+            # the real platform (extension, else containing folder) AND it
+            # provably differs — an unresolvable hit_platform or unknown real
+            # platform stays a permissive best-effort guess, unchanged.
+            ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
+            if ext_platform:
+                if hit_platform and hit_platform != ext_platform:
+                    return None
+            elif source_path:
+                folder_platform = detect_platform(Path(source_path))
+                if folder_platform and hit_platform and hit_platform != folder_platform:
+                    return None
             return MatchResult(
                 title=entry.title,
                 confidence="medium",
                 catalog_source=source,
-                platform=_platform_from_dat_name(source),
+                platform=hit_platform,
             )
         # MATCH-FIX-2: la misma clave de título normalizado puede venir de
         # varias plataformas (remakes, Virtual Console, romhacks...) — sin
@@ -292,9 +312,22 @@ class CatalogMatcher:
         candidates = hits
         resolved_platform = ext_platform
         if ext_platform:
+            # CATALOG-MATCH-BUG-2: the extension unambiguously says which
+            # platform this file is, but title matches against titles from
+            # OTHER catalogs share the same normalized key (typically an
+            # unlicensed bootleg not itself in any No-Intro DAT). Falling
+            # through to the unfiltered `hits` here — as before this fix —
+            # confidently mislabels the file with a completely unrelated
+            # platform/canonical_title (found live 2026-09-09: 49 unlicensed
+            # NES bootlegs in `nes/` ended up tagged `platform="PlayStation"`,
+            # `"Wii"`, `"Sega Saturn"`... from titles matching real games on
+            # those platforms). No fallback makes sense here — unlike the
+            # ambiguous-extension branch below, we already know the real
+            # platform and simply have no catalog entry for it.
             platform_hits = [h for h in hits if _platform_from_dat_name(h[1]) == ext_platform]
-            if platform_hits:
-                candidates = platform_hits
+            if not platform_hits:
+                return None
+            candidates = platform_hits
         elif source_path:
             # CATALOG-MATCH-BUG-1: extensión ambigua (.zip/.chd/.iso/...) —
             # ext_platform no puede desambiguar por diseño (un .chd puede ser
@@ -307,11 +340,16 @@ class CatalogMatcher:
             folder_platform = detect_platform(Path(source_path))
             resolved_platform = folder_platform
             if folder_platform:
+                # CATALOG-MATCH-BUG-2: same reasoning as the ext_platform
+                # branch above — the containing folder tells us the real
+                # platform, so a title match against a DIFFERENT platform's
+                # catalog is a coincidence, not a signal.
                 platform_hits = [
                     h for h in hits if _platform_from_dat_name(h[1]) == folder_platform
                 ]
-                if platform_hits:
-                    candidates = platform_hits
+                if not platform_hits:
+                    return None
+                candidates = platform_hits
 
         # CATALOG-MATCH-REGION-1: la clave normalizada colapsa "Tekken (USA)"
         # y "Tekken (Europe)" en el mismo título — sin más señal, candidates[0]

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from rom_manager.detection.filename_normalizer import normalize_for_match, sanitize_filename
+from rom_manager.detection.filename_normalizer import (
+    is_non_canonical_variant,
+    normalize_for_match,
+    sanitize_filename,
+)
 
 
 @pytest.mark.parametrize(
@@ -73,3 +77,44 @@ def test_sanitize_filename(value: str, expected: str) -> None:
 )
 def test_normalize_for_match(name: str, expected: str) -> None:
     assert normalize_for_match(name) == expected
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        # romhacking.net translation-patch tags (found live: 22 Zelda
+        # variants across a dozen languages, 2026-09-09)
+        "Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes",
+        "Legend of Zelda, The (U) (PRG0) [T+Fre.95].nes",
+        "Digital Devil Story - Megami Tensei II (Japan) [T-Eng v1.3].nes",
+        "Phantasy Star Adventure (Japan) [T-En by Aeon Genesis v1.00].gg",
+        # explicit "(hack" tag
+        "growl (hack, spanish).bin",
+        "aladdin (hack, spanish).bin",
+        # ROM hack subset
+        "Wizardry - Proving Grounds of the Mad Overlord [Subset - Item Drops].nes",
+        # No-Intro "hack" flag
+        "Some Game (U) [h1].nes",
+        "Some Game (U) [h].nes",
+    ],
+)
+def test_is_non_canonical_variant_true(filename: str) -> None:
+    assert is_non_canonical_variant(filename) is True
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        # plain region/revision/verified-dump tags must NOT trigger this
+        "Legend of Zelda, The (USA) (Rev A).nes",
+        "Legend of Zelda, The (U) [!].nes",
+        "Tetris (World) [!].gb",
+        "Tetris (W) [b1].gb",
+        "Super Mario Bros. 2 (U) (PRG0) [!].nes",
+        "Growl (USA)(1991)(Taito).bin",
+        "Aladdin (Europe).zip",
+        "",
+    ],
+)
+def test_is_non_canonical_variant_false(filename: str) -> None:
+    assert is_non_canonical_variant(filename) is False

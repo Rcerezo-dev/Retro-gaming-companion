@@ -14,6 +14,7 @@ from pathlib import Path as _Path
 from rom_manager.config import AppConfig
 from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant
 from rom_manager.utils.disc_tag import find_disc_number, strip_disc_tag
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import TRASH_DIR_NAME
@@ -765,7 +766,15 @@ def _review_groups_for_repo(
         # languages) into a single "duplicate" group — exact match is the
         # only safe union key here, a false negative is far cheaper than a
         # false positive that invites bulk-discarding a legitimate release.
-        if row["canonical_title"]:
+        # CATALOG-MATCH-VARIANT-1: a translation patch/hack/subset must never
+        # be treated as interchangeable with the game it's based on, even
+        # when it already carries a (possibly stale, pre-fix) canonical_title
+        # equal to the original's — see is_non_canonical_variant()'s
+        # docstring. Guards here rather than only at match time so already-
+        # mismatched rows are protected immediately, without needing a
+        # re-match. sha1 union above is untouched: two byte-identical copies
+        # of the same hack are still a real duplicate of each other.
+        if row["canonical_title"] and not is_non_canonical_variant(row["original_filename"]):
             title_key = (row["platform"] or "unknown", row["canonical_title"])
             union(idx, first_by_title.setdefault(title_key, idx))
 
@@ -779,7 +788,9 @@ def _review_groups_for_repo(
     # them here too would just be redundant, not additive.
     crossfmt_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
     for idx, row in enumerate(rows):
-        if _is_disc_data_sibling(row["source_path"]):
+        if _is_disc_data_sibling(row["source_path"]) or is_non_canonical_variant(
+            row["original_filename"]
+        ):
             continue
         stem = _Path(row["original_filename"]).stem
         cf_title = _normalize_title_cross_format(stem)

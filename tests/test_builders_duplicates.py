@@ -324,6 +324,63 @@ def test_different_regions_are_not_merged(tmp_path: Path) -> None:
     assert result["groups"] == []
 
 
+def test_title_union_skips_translation_variant(tmp_path: Path) -> None:
+    """CATALOG-MATCH-VARIANT-1, hallazgo real 2026-09-09: un parche de
+    traducción y el original comparten canonical_title (sea porque un fix
+    futuro de matcher.py todavía no ha corregido esa fila, o porque cualquier
+    otro camino se lo asignó) — nunca deben tratarse como el mismo archivo
+    solo por eso. Un solo NES real (Zelda) llegó a tener 22 "duplicados" así.
+    sha1 distinto = contenido realmente distinto, sin relación aparte del
+    título."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "zelda_original.nes"),
+        sha1="A" * 40,
+        original_filename="Legend of Zelda, The (USA).nes",
+        canonical_title="Legend of Zelda, The (USA)",
+        platform="NES",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "zelda_translated.nes"),
+        sha1="B" * 40,
+        original_filename="Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes",
+        canonical_title="Legend of Zelda, The (USA)",
+        platform="NES",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_sha1_union_still_links_identical_variant_copies(tmp_path: Path) -> None:
+    """El guard de CATALOG-MATCH-VARIANT-1 solo bloquea la unión por título —
+    dos copias BYTE-IDÉNTICAS del mismo hack/traducción siguen siendo un
+    duplicado real entre sí y deben seguir agrupándose por sha1."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "growl_hack_1.bin"),
+        sha1="A" * 40,
+        original_filename="growl (hack, spanish).bin",
+        platform="Sega Mega Drive",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "backup" / "growl_hack_1.bin"),
+        sha1="A" * 40,
+        original_filename="growl (hack, spanish).bin",
+        platform="Sega Mega Drive",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    assert result["groups"][0]["reasons"] == ["sha1"]
+
+
 def test_ra_mixed_reason_and_recommendation(tmp_path: Path) -> None:
     """Two dumps of the exact same canonical_title, only one has RA
     achievements -> reason 'ra' added on top of 'title', and the RA-supported
@@ -568,6 +625,36 @@ def test_crossfmt_different_regions_are_not_merged(tmp_path: Path) -> None:
         original_filename="Crash Bandicoot (USA).zip",
         canonical_title=None,
         platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_skips_translation_variant(tmp_path: Path) -> None:
+    """Mismo guard que test_title_union_skips_translation_variant pero para
+    la unión crossfmt (dos extensiones distintas) — un parche de traducción
+    en un formato distinto al original no debe fusionarse con él solo porque
+    el título fuzzy cruzando formatos colapsa igual."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "gamegear" / "Phantasy Star Adventure (Japan).bin"),
+        sha1="A" * 40,
+        original_filename="phantasy star adventure (japan).bin",
+        canonical_title=None,
+        platform="Game Gear",
+    )
+    _insert_game(
+        repo,
+        source_path=str(
+            tmp_path / "gamegear" / "Phantasy Star Adventure (Japan) [T-En by Aeon Genesis].gg"
+        ),
+        sha1="B" * 40,
+        original_filename="Phantasy Star Adventure (Japan) [T-En by Aeon Genesis].gg",
+        canonical_title=None,
+        platform="Game Gear",
     )
 
     result = _build_review_queue(repo, repo, None)
