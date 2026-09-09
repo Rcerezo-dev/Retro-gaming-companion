@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from rom_manager.database.repository import LibraryRepository, MatchedGame
-from rom_manager.detection.filename_normalizer import sanitize_filename
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant, sanitize_filename
 from rom_manager.utils.disc_tag import find_disc_tag, has_disc_tag
 from rom_manager.utils.paths import same_file as _same_file
 
@@ -110,6 +110,17 @@ def _canonical_filename(
     "Disco 2"), not just the strict "(Disc N)" form. *include_disc_tag=False*
     derives the shared game *folder* name, which must stay disc-agnostic.
     """
+    # CATALOG-MATCH-VARIANT-1: a translation patch/hack/subset must never be
+    # renamed into the officially-cataloged game's canonical name — doing so
+    # collides it with the real release sharing the same canonical_title.
+    # Found live 2026-09-09: a single NES game (Zelda) had 22 translation-
+    # patch files all computing the SAME rename target as the untranslated
+    # original, surfacing as "collision" conflicts in the review queue. Keep
+    # its own name — it isn't the cataloged file, regardless of what
+    # canonical_title the title-fallback matcher guessed for metadata.
+    if is_non_canonical_variant(game.original_filename):
+        return game.original_filename
+
     title = game.canonical_title
 
     if include_disc_tag and not has_disc_tag(title):

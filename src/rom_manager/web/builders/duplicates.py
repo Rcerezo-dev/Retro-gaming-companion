@@ -14,6 +14,7 @@ from pathlib import Path as _Path
 from rom_manager.config import AppConfig
 from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant
 from rom_manager.utils.disc_tag import find_disc_number, strip_disc_tag
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import TRASH_DIR_NAME
@@ -25,19 +26,30 @@ _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
 
 
 def _is_disc_set(members) -> bool:
-    """True if every member is a distinct disc of the same multi-disc game
-    (e.g. "Final Fantasy VII (Disc 1/2/3).cue") — companion discs share the
-    DAT's canonical_title (it doesn't encode the disc number) and would
-    otherwise look exactly like a title-duplicate cluster (TABS-FIX-6: found
-    by hitting a real PSX library — without this guard, "Aplicar recomendación"
-    would discard the other discs as if they were alternate copies)."""
+    """True if the cluster spans more than one distinct disc number of the
+    same multi-disc game (e.g. "Final Fantasy VII (Disc 1/2/3).cue") —
+    companion discs share the DAT's canonical_title (it doesn't encode the
+    disc number) and would otherwise look exactly like a title-duplicate
+    cluster (TABS-FIX-6: found by hitting a real PSX library — without this
+    guard, "Aplicar recomendación" would discard the other discs as if they
+    were alternate copies).
+
+    DUP-CROSSFMT-2: deliberately does NOT require one file per disc number.
+    The common real shape is several files sharing a disc number (a
+    ``.cue``+``.bin``+``.chd`` of the same disc, or the same disc tracked
+    twice) — requiring uniqueness made the guard return False (treated as
+    a title/crossfmt duplicate, safe to discard) on exactly the clusters
+    that most need protecting: a real ``Disc 1``+``Disc 2`` set where each
+    disc also has leftover sibling files. Only a single distinct disc
+    number (every member is the same disc in different copies/formats) is
+    a genuine duplicate, not a disc set — that case still returns False."""
     disc_nums = []
     for r in members:
         num = find_disc_number(r["original_filename"])
         if num is None:
             return False
         disc_nums.append(num)
-    return len(set(disc_nums)) == len(disc_nums)
+    return len(set(disc_nums)) > 1
 
 
 def _normalize_title_cross_format(stem: str) -> str:
@@ -63,6 +75,40 @@ def _normalize_title_cross_format(stem: str) -> str:
     t = _re.sub(r"[^a-z0-9 ]", " ", t)
     t = _re.sub(r" +", " ", t).strip()
     return t
+
+
+def _is_cue_sibling_bin(source_path: str) -> bool:
+    """DUP-CROSSFMT-2: True if *source_path* is a ``.bin`` sitting next to a
+    ``.cue`` with the same stem — that ``.bin`` is the cue's data file, not
+    a self-contained alternate format of the disc. Left in the crossfmt
+    union, a ``.cue``+``.bin`` pair with no other copy anywhere else looked
+    exactly like two independent duplicate formats of the same disc, and
+    "Aplicar recomendación" would discard the ``.cue`` — leaving the ``.bin``
+    orphaned and the disc unplayable in most emulators."""
+    path = _Path(source_path)
+    if path.suffix.lower() != ".bin":
+        return False
+    return (path.parent / f"{path.stem}.cue").exists()
+
+
+def _is_ccd_sibling_data(source_path: str) -> bool:
+    """DUP-CROSSFMT-5: same reasoning as :func:`_is_cue_sibling_bin`, for the
+    CloneCD sidecar format — ``.img``/``.sub`` are the ``.ccd``'s own data,
+    not an independent copy. Found live in the real library (2026-09-09):
+    ``Resident Evil 2 CD1/CD2``, ``Rival Schools Evolution``, ``clocktower2``,
+    ``NEW`` all had their ``.img`` recommended for discard while keeping the
+    ``.ccd`` that needs it — same failure mode DUP-CROSSFMT-2/3 fixed for
+    ``.cue``/``.bin``, never extended to this format."""
+    path = _Path(source_path)
+    if path.suffix.lower() not in (".img", ".sub"):
+        return False
+    return (path.parent / f"{path.stem}.ccd").exists()
+
+
+def _is_disc_data_sibling(source_path: str) -> bool:
+    """True for any sidecar data file (``.cue``'s ``.bin``, ``.ccd``'s
+    ``.img``/``.sub``) that must never be unioned/discarded on its own."""
+    return _is_cue_sibling_bin(source_path) or _is_ccd_sibling_data(source_path)
 
 
 def _is_spanish_filename(filename: str) -> bool:
@@ -700,6 +746,16 @@ def _review_groups_for_repo(
     first_by_sha1: dict[str, int] = {}
     first_by_title: dict[tuple[str, str], int] = {}
     for idx, row in enumerate(rows):
+        # DUP-CROSSFMT-3/5: a .bin/.img/.sub with a .cue/.ccd sibling is that
+        # sibling's own data file, not an independent candidate — see
+        # _is_disc_data_sibling's docstring. The crossfmt union below already
+        # skipped these; this exact-title union didn't, so a .cue and its
+        # own .bin could still land in one cluster (same canonical_title,
+        # different sha1) and get sorted against each other, discarding the
+        # .cue and orphaning the .bin. Confirmed live: 26 real PSX games hit
+        # this in a resolve-duplicates dry run before this fix.
+        if _is_disc_data_sibling(row["source_path"]):
+            continue
         if row["sha1"]:
             union(idx, first_by_sha1.setdefault(row["sha1"], idx))
         # EXACT canonical_title (not RA's fuzzy normalizer) — same key
@@ -710,7 +766,15 @@ def _review_groups_for_repo(
         # languages) into a single "duplicate" group — exact match is the
         # only safe union key here, a false negative is far cheaper than a
         # false positive that invites bulk-discarding a legitimate release.
-        if row["canonical_title"]:
+        # CATALOG-MATCH-VARIANT-1: a translation patch/hack/subset must never
+        # be treated as interchangeable with the game it's based on, even
+        # when it already carries a (possibly stale, pre-fix) canonical_title
+        # equal to the original's — see is_non_canonical_variant()'s
+        # docstring. Guards here rather than only at match time so already-
+        # mismatched rows are protected immediately, without needing a
+        # re-match. sha1 union above is untouched: two byte-identical copies
+        # of the same hack are still a real duplicate of each other.
+        if row["canonical_title"] and not is_non_canonical_variant(row["original_filename"]):
             title_key = (row["platform"] or "unknown", row["canonical_title"])
             union(idx, first_by_title.setdefault(title_key, idx))
 
@@ -724,6 +788,10 @@ def _review_groups_for_repo(
     # them here too would just be redundant, not additive.
     crossfmt_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
     for idx, row in enumerate(rows):
+        if _is_disc_data_sibling(row["source_path"]) or is_non_canonical_variant(
+            row["original_filename"]
+        ):
+            continue
         stem = _Path(row["original_filename"]).stem
         cf_title = _normalize_title_cross_format(stem)
         if cf_title:

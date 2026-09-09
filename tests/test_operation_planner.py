@@ -119,6 +119,43 @@ def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
     assert folders == {"Final Fantasy VII (Europe)"}
 
 
+def test_translation_variant_keeps_own_name_no_collision(tmp_path: Path) -> None:
+    """CATALOG-MATCH-VARIANT-1, hallazgo real 2026-09-09: un parche de
+    traducción y el original comparten canonical_title (el fallback por
+    título del matcher los empareja al mismo juego del DAT) — sin este fix,
+    ambos calculan el MISMO target y se marcan como "collision". Un solo NES
+    real (Zelda) llegó a tener 22 archivos así. El parche debe conservar su
+    propio nombre en vez de intentar renombrarse al nombre canónico."""
+    original = tmp_path / "Legend of Zelda, The (USA).nes"
+    original.touch()
+    translated = tmp_path / "Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes"
+    translated.touch()
+    games = [
+        _make_game(
+            id=1,
+            original_filename="Legend of Zelda, The (USA).nes",
+            source_path=str(original),
+            canonical_title="Legend of Zelda, The (USA)",
+            extension=".nes",
+            platform="NES",
+        ),
+        _make_game(
+            id=2,
+            original_filename="Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes",
+            source_path=str(translated),
+            canonical_title="Legend of Zelda, The (USA)",  # mismo título del DAT
+            extension=".nes",
+            platform="NES",
+        ),
+    ]
+    plan = build_plan(_repo_with(games))
+
+    assert len(plan.conflicts) == 0
+    # El original se renombra a su nombre canónico (ya lo tiene -> already_correct).
+    assert len(plan.already_correct) == 2
+    assert len(plan.pending) == 0
+
+
 def test_gamecube_and_ps2_stay_flat_no_subfolder(tmp_path: Path) -> None:
     """INBOX-ORPHAN-3: gamecube/ps2 are single-file platforms — a rematch that
     renames the title must rename the file in place, never move it into (or

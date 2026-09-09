@@ -920,6 +920,12 @@ async function browseFile(inputId, title) {
 }
 
 // ── AUD-3: Papelera unificada ─────────────────────────────────────────────────
+function _fmtLastPurge(lastPurge) {
+  if (!lastPurge) return '';
+  const when = new Date(lastPurge.ts).toLocaleString();
+  return ` <span style="color:var(--c-dim)">— última purga ${when}: ${lastPurge.deleted} archivos, ${fmtSize(lastPurge.bytes)}</span>`;
+}
+
 async function loadTrashStatus() {
   const el = document.getElementById('trash-status-text');
   if (!el) return;
@@ -930,7 +936,23 @@ async function loadTrashStatus() {
     const sizeStr = gb >= 1 ? `${gb.toFixed(2)} GB` : fmtSize(d.bytes);
     el.innerHTML = `Papelera: <strong>${d.files}</strong> archivo${d.files !== 1 ? 's' : ''}, <strong>${sizeStr}</strong>`
       + (d.purge_days > 0 ? ` <span style="color:var(--c-dim)">(purga automática a los ${d.purge_days} días)</span>`
-                          : ' <span style="color:var(--c-yellow)">(purga automática desactivada)</span>');
+                          : ' <span style="color:var(--c-yellow)">(purga automática desactivada)</span>')
+      + _fmtLastPurge(d.last_purge);
+
+    // TRASH-FIX-3: fila Android solo visible con dispositivo conectado
+    const row = document.getElementById('trash-android-row');
+    const elA = document.getElementById('trash-status-text-android');
+    if (row && elA) {
+      if (d.android && d.android.connected) {
+        row.hidden = false;
+        const gbA = d.android.bytes / 1024 / 1024 / 1024;
+        const sizeStrA = gbA >= 1 ? `${gbA.toFixed(2)} GB` : fmtSize(d.android.bytes);
+        elA.innerHTML = `Papelera Android: <strong>${d.android.files}</strong> archivo${d.android.files !== 1 ? 's' : ''}, <strong>${sizeStrA}</strong>`
+          + _fmtLastPurge(d.android.last_purge);
+      } else {
+        row.hidden = true;
+      }
+    }
   } catch (e) {
     el.textContent = 'Error: ' + e.message;
   }
@@ -953,8 +975,26 @@ async function emptyTrash() {
   }
 }
 
+async function emptyTrashAndroid() {
+  if (!confirm('¿Vaciar la papelera del dispositivo Android?\n\nTodos los archivos de las carpetas _descartados/ en la SD se eliminarán DEFINITIVAMENTE. Esta acción no se puede deshacer.')) return;
+  const res = document.getElementById('trash-empty-result-android');
+  const btn = document.getElementById('btn-trash-empty-android');
+  if (btn) btn.disabled = true;
+  if (res) { res.textContent = 'Vaciando…'; _txtCls(res, 'txt-dim'); }
+  try {
+    const d = await apiPost('/api/trash-empty-android', {});
+    if (d.error) throw new Error(d.error);
+    if (res) { res.textContent = `✓ ${d.deleted} archivos eliminados (${fmtSize(d.bytes)})`; _txtCls(res, 'txt-ok'); }
+    loadTrashStatus();
+  } catch (e) {
+    if (res) { res.textContent = '✗ ' + e.message; _txtCls(res, 'txt-err'); }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 export {
-  loadTrashStatus, emptyTrash,
+  loadTrashStatus, emptyTrash, emptyTrashAndroid,
   _onDevicePresetChange,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
   loadLogViewer, downloadLog, loadTools, _setIfEmpty,

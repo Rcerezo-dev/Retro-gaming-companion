@@ -83,10 +83,34 @@ def _discard_file(
         except Exception as exc:
             return False, f"{p.name}: {exc}"
 
+    # DUP-CROSSFMT-4/5: a .cue's .bin track(s) or a .ccd's .img/.sub are that
+    # sheet's own data, not an independent copy — when the sheet loses a
+    # dedup comparison against a *different* winner (e.g. another region's
+    # .chd), the data file isn't part of that cluster and nothing else would
+    # ever move it, leaving an unplayable orphan behind in the active folder.
+    # Parsed before the move (parse_bins_from_cue reads the .cue's own
+    # content; .ccd's sidecars are same-stem by convention, no content to
+    # parse). Device paths aren't real filesystem paths here, so this only
+    # applies on PC.
+    sibling_data_files: list[Path] = []
+    if not is_device_path(source_path):
+        if p.suffix.lower() == ".cue":
+            from rom_manager.converters.chd_converter import parse_bins_from_cue
+
+            sibling_data_files = [b for b in parse_bins_from_cue(p) if b.exists()]
+        elif p.suffix.lower() == ".ccd":
+            sibling_data_files = [
+                s for ext in (".img", ".sub") if (s := p.with_suffix(ext)).exists()
+            ]
+
     dest: Path | None = None
     try:
         dest = discard_to_trash(p)
         _delete_row(repository, source_path)
+        for data_path in sibling_data_files:
+            ok, err = _discard_file(repository, str(data_path), adb_transport)
+            if not ok:
+                _log.warning("No se pudo descartar el hermano de %s: %s", p.name, err)
         return True, None
     except Exception as exc:
         if dest is not None and dest.exists():
@@ -189,6 +213,30 @@ def resolve_duplicate_ra(
     discarded = 0
     failed = 0
     errors: list[str] = []
+
+    # DUP-CROSSFMT-6: never discard the "losers" of a group whose recommended
+    # "winner" doesn't actually exist. Found live 2026-09-09: a stale DB row
+    # (file already gone from a previous manual reorganization) can still win
+    # a duplicate comparison — the recommendation logic never checks the
+    # filesystem — and "resolve-duplicates --apply" then discarded the real,
+    # only working copy of 10 games (7 PSX .chd + 3 Game Gear) with nothing
+    # left to replace them. Recovered from _descartados/ after the fact; this
+    # guard stops the same group shape from ever discarding anything again.
+    keep_p = Path(keep_path)
+    keep_exists = (
+        adb_transport is not None and adb_transport.file_exists(keep_path)
+        if is_device_path(keep_path)
+        else keep_p.exists()
+    )
+    if not keep_exists:
+        return {
+            "discarded": 0,
+            "failed": len(discard_paths),
+            "errors": [
+                f"grupo omitido: el archivo recomendado para conservar "
+                f"({keep_p.name}) no existe — no se ha descartado nada de este grupo"
+            ],
+        }
 
     for src_path_str in discard_paths:
         ok, error = _discard_file(repository, src_path_str, adb_transport)

@@ -23,6 +23,7 @@ def _insert_game(
     platform: str | None = "Game Boy",
     canonical_title: str | None = None,
     size_bytes: int = 1024,
+    extension: str = ".gb",
 ) -> None:
     repo.upsert_game(
         original_filename=original_filename,
@@ -31,7 +32,7 @@ def _insert_game(
         file_type="rom",
         relative_parent="",
         region="USA",
-        extension=".gb",
+        extension=extension,
         size_bytes=size_bytes,
         mtime=0,
         sha1=sha1,
@@ -323,6 +324,63 @@ def test_different_regions_are_not_merged(tmp_path: Path) -> None:
     assert result["groups"] == []
 
 
+def test_title_union_skips_translation_variant(tmp_path: Path) -> None:
+    """CATALOG-MATCH-VARIANT-1, hallazgo real 2026-09-09: un parche de
+    traducción y el original comparten canonical_title (sea porque un fix
+    futuro de matcher.py todavía no ha corregido esa fila, o porque cualquier
+    otro camino se lo asignó) — nunca deben tratarse como el mismo archivo
+    solo por eso. Un solo NES real (Zelda) llegó a tener 22 "duplicados" así.
+    sha1 distinto = contenido realmente distinto, sin relación aparte del
+    título."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "zelda_original.nes"),
+        sha1="A" * 40,
+        original_filename="Legend of Zelda, The (USA).nes",
+        canonical_title="Legend of Zelda, The (USA)",
+        platform="NES",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "zelda_translated.nes"),
+        sha1="B" * 40,
+        original_filename="Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes",
+        canonical_title="Legend of Zelda, The (USA)",
+        platform="NES",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_sha1_union_still_links_identical_variant_copies(tmp_path: Path) -> None:
+    """El guard de CATALOG-MATCH-VARIANT-1 solo bloquea la unión por título —
+    dos copias BYTE-IDÉNTICAS del mismo hack/traducción siguen siendo un
+    duplicado real entre sí y deben seguir agrupándose por sha1."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "growl_hack_1.bin"),
+        sha1="A" * 40,
+        original_filename="growl (hack, spanish).bin",
+        platform="Sega Mega Drive",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "backup" / "growl_hack_1.bin"),
+        sha1="A" * 40,
+        original_filename="growl (hack, spanish).bin",
+        platform="Sega Mega Drive",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    assert result["groups"][0]["reasons"] == ["sha1"]
+
+
 def test_ra_mixed_reason_and_recommendation(tmp_path: Path) -> None:
     """Two dumps of the exact same canonical_title, only one has RA
     achievements -> reason 'ra' added on top of 'title', and the RA-supported
@@ -574,6 +632,36 @@ def test_crossfmt_different_regions_are_not_merged(tmp_path: Path) -> None:
     assert result["groups"] == []
 
 
+def test_crossfmt_skips_translation_variant(tmp_path: Path) -> None:
+    """Mismo guard que test_title_union_skips_translation_variant pero para
+    la unión crossfmt (dos extensiones distintas) — un parche de traducción
+    en un formato distinto al original no debe fusionarse con él solo porque
+    el título fuzzy cruzando formatos colapsa igual."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "gamegear" / "Phantasy Star Adventure (Japan).bin"),
+        sha1="A" * 40,
+        original_filename="phantasy star adventure (japan).bin",
+        canonical_title=None,
+        platform="Game Gear",
+    )
+    _insert_game(
+        repo,
+        source_path=str(
+            tmp_path / "gamegear" / "Phantasy Star Adventure (Japan) [T-En by Aeon Genesis].gg"
+        ),
+        sha1="B" * 40,
+        original_filename="Phantasy Star Adventure (Japan) [T-En by Aeon Genesis].gg",
+        canonical_title=None,
+        platform="Game Gear",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
 def test_crossfmt_multidisc_set_is_not_flagged(tmp_path: Path) -> None:
     """A `.zip` (Disc 1) and a `.chd` (Disc 2) of a real multi-disc game must
     not be flagged 'crossfmt' — same _is_disc_set guard the exact-title union
@@ -622,6 +710,149 @@ def test_crossfmt_same_extension_not_flagged(tmp_path: Path) -> None:
         original_filename="Crash Bandicoot (USA).zip",
         canonical_title=None,
         platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_multidisc_with_per_disc_siblings_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-2 (patrón 1): un set real de 2 discos donde cada disco
+    tiene también un `.cue` además de su `.chd` (6→4 miembros compartiendo
+    número de disco) no debe tratarse como duplicado — caso real: Parasite
+    Eve II (Spain) Disc 1/Disc 2, cada uno con `.chd`+`.cue`. Antes del fix,
+    `_is_disc_set` exigía un archivo por número de disco y devolvía False
+    aquí, dejando "Aplicar recomendación" recomendar descartar el Disc 2
+    completo."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i, name in enumerate(
+        [
+            "Parasite Eve II (Spain) (Disc 1).chd",
+            "Parasite Eve II (Spain) (Disc 1).cue",
+            "Parasite Eve II (Spain) (Disc 2).chd",
+            "Parasite Eve II (Spain) (Disc 2).cue",
+        ]
+    ):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / name),
+            sha1=chr(ord("A") + i) * 40,
+            original_filename=name,
+            canonical_title=None,
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-2 (patrón 2): un `.cue`+`.bin` hermanos (mismo directorio,
+    mismo nombre base) no son dos copias alternativas del mismo disco — el
+    `.bin` es el fichero de datos que el `.cue` referencia, no un formato
+    autocontenido. Caso real: Wipeout 3 (Japan), Wild Arms (USA), Rayman
+    (Japan) — agrupados como 'crossfmt' y recomendados para descartar el
+    `.cue`, dejando el `.bin` huérfano e ilegible en la mayoría de emuladores."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    cue_path = psx_dir / "Wipeout 3 (Japan).cue"
+    bin_path = psx_dir / "Wipeout 3 (Japan).bin"
+    cue_path.write_text('FILE "Wipeout 3 (Japan).bin" BINARY\n', encoding="utf-8")
+    bin_path.write_bytes(b"\x00" * 16)
+    _insert_game(
+        repo,
+        source_path=str(cue_path),
+        sha1="A" * 40,
+        original_filename=cue_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(bin_path),
+        sha1="B" * 40,
+        original_filename=bin_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_ccd_img_sibling_pair_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-5: same bug as the .cue/.bin case above, for CloneCD
+    sidecars — `.img` is the `.ccd`'s own data, not an independent copy.
+    Found live 2026-09-09: Resident Evil 2 CD1/CD2, Rival Schools Evolution,
+    clocktower2, NEW all had this exact pattern in the real library."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    ccd_path = psx_dir / "clocktower2.ccd"
+    img_path = psx_dir / "clocktower2.img"
+    ccd_path.write_text("[CloneCD]\nVersion=3\n", encoding="utf-8")
+    img_path.write_bytes(b"\x00" * 16)
+    _insert_game(
+        repo,
+        source_path=str(ccd_path),
+        sha1="A" * 40,
+        original_filename=ccd_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(img_path),
+        sha1="B" * 40,
+        original_filename=img_path.name,
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_title_union_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-3: same bug as the crossfmt test above, but via the exact
+    canonical_title union instead — the catalog matches both the `.cue` and
+    its own `.bin` sibling to the same canonical_title (real case: the DAT
+    matches a disc by its data track regardless of which sidecar found it).
+    `_is_cue_sibling_bin` only gated the crossfmt union, not this one, so the
+    pair still landed in one cluster (distinct sha1 + same canonical_title)
+    and the alphabetical filename tiebreak always picked the `.bin` over the
+    `.cue`, recommending the `.cue` for discard and orphaning the `.bin`.
+    Confirmed live against the real library: 26 PSX games hit this in a
+    `resolve-duplicates` dry run before this fix."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    cue_path = psx_dir / "Wild Arms (USA).cue"
+    bin_path = psx_dir / "Wild Arms (USA).bin"
+    cue_path.write_text('FILE "Wild Arms (USA).bin" BINARY\n', encoding="utf-8")
+    bin_path.write_bytes(b"\x00" * 16)
+    _insert_game(
+        repo,
+        source_path=str(cue_path),
+        sha1="A" * 40,
+        original_filename=cue_path.name,
+        canonical_title="Wild Arms (USA)",
+        platform="PSX",
+        extension=".cue",
+    )
+    _insert_game(
+        repo,
+        source_path=str(bin_path),
+        sha1="B" * 40,
+        original_filename=bin_path.name,
+        canonical_title="Wild Arms (USA)",
+        platform="PSX",
+        extension=".bin",
     )
 
     result = _build_review_queue(repo, repo, None)

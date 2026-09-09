@@ -284,6 +284,59 @@ def test_collision_conflict(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario 3b — Collision: a ghost DB row (no file on disk) must never
+# outrank a real file, even with a higher RA score (DUP-CROSSFMT-6 audit).
+# ---------------------------------------------------------------------------
+
+
+def test_collision_ghost_row_never_beats_real_file(tmp_path: Path) -> None:
+    """
+    Setup
+    -----
+    ghost.gb  (md5=ggg, 50 RA) → DB row only, file was deleted/moved by hand
+    real_v1.gb (md5=hhh, 5 RA) → real file on disk
+    Both target the same canonical name.
+
+    Expected
+    --------
+    The ghost row is filtered out before scoring (op.source_path.exists()
+    guard in apply_ra_conflicts' collision branch) — it can never win despite
+    its higher RA count, and the real file is never discarded as a "loser".
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    ghost_src = roms / "ghost.gb"  # never written to disk
+    real_src = roms / "real_v1.gb"
+    real_src.write_bytes(b"REAL_GAME")
+
+    md5_ghost = "g" * 32
+    md5_real = "h" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=ghost_src, md5=md5_ghost, canonical_title="Ghost Hunter (World)")
+    _insert_game(repo, source_path=real_src, md5=md5_real, canonical_title="Ghost Hunter (World)")
+
+    _write_ra_cache(
+        tmp_path,
+        [
+            _ra_entry(7, md5_ghost, 50),
+            _ra_entry(8, md5_real, 5),
+        ],
+    )
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    canonical = roms / "Ghost Hunter (World).gb"
+
+    assert canonical.exists(), "real file was not renamed to canonical path"
+    assert canonical.read_bytes() == b"REAL_GAME", "ghost row was treated as the winner"
+    assert not (roms / "_descartados").exists(), "real file was wrongly discarded as a loser"
+    assert response["errors"] == []
+
+
+# ---------------------------------------------------------------------------
 # Scenario 4 — No RA data: both files skipped
 # ---------------------------------------------------------------------------
 

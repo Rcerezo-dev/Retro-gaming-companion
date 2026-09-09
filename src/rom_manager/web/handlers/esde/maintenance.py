@@ -33,18 +33,51 @@ def register_maintenance(
     # ── GET /api/trash-status (AUD-3) ─────────────────────────────────────────
     @router.get("/api/trash-status")
     def get_trash_status(ctx) -> None:
+        import rom_manager.web.state as _state
         from rom_manager.utils.trash import trash_roots, trash_stats
 
         stats = trash_stats(trash_roots(config))
         stats["purge_days"] = config.trash_purge_days
+        stats["last_purge"] = _state._trash_purge_last["pc"]
+
+        # TRASH-FIX-3: mismo dato para el dispositivo Android, si hay uno conectado
+        android: dict = {"connected": False}
+        try:
+            from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+            transport = resolve_single_device_transport(config.adb)
+            if transport is not None:
+                android = transport.trash_stats()
+                android["connected"] = True
+                android["last_purge"] = _state._trash_purge_last["android"]
+        except Exception:
+            _logger.debug("No se pudo consultar la papelera del dispositivo Android", exc_info=True)
+        stats["android"] = android
         ctx._send_json(stats)
 
     # ── POST /api/trash-empty (AUD-3) ─────────────────────────────────────────
     @router.post("/api/trash-empty")
     def post_trash_empty(ctx) -> None:
+        import rom_manager.web.state as _state
         from rom_manager.utils.trash import purge_trash, trash_roots
 
-        ctx._send_json(purge_trash(trash_roots(config), older_than_days=0))
+        result = purge_trash(trash_roots(config), older_than_days=0)
+        _state.record_trash_purge("pc", result)
+        ctx._send_json(result)
+
+    # ── POST /api/trash-empty-android (TRASH-FIX-3) ────────────────────────────
+    @router.post("/api/trash-empty-android")
+    def post_trash_empty_android(ctx) -> None:
+        import rom_manager.web.state as _state
+        from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+        transport = resolve_single_device_transport(config.adb)
+        if transport is None:
+            ctx._send_json({"error": "No hay ningún dispositivo Android conectado"})
+            return
+        result = transport.purge_trash(older_than_days=0)
+        _state.record_trash_purge("android", result)
+        ctx._send_json(result)
 
     # ── POST /api/health-check ────────────────────────────────────────────────
     @router.post("/api/health-check")

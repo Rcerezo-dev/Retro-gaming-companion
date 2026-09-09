@@ -139,12 +139,36 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                 from rom_manager.utils.trash import purge_trash, trash_roots
 
                 purged = purge_trash(trash_roots(config), config.trash_purge_days)
+                _state.record_trash_purge("pc", purged)
                 if purged["deleted"]:
                     _logger.info(
                         "Papelera: purgados %d archivos (%.1f MB) con más de %d días",
                         purged["deleted"],
                         purged["bytes"] / 1e6,
                         config.trash_purge_days,
+                    )
+
+                # TRASH-FIX-3: mismo purgado en el dispositivo Android, si hay
+                # uno conectado — sin esto, _descartados/ en la SD crece sin
+                # límite y cualquier escaneo recursivo (Daijishou, emuladores
+                # standalone) lo lee como "más versiones" del mismo juego.
+                try:
+                    from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+                    transport = resolve_single_device_transport(config.adb)
+                    if transport is not None:
+                        purged_adb = transport.purge_trash(older_than_days=config.trash_purge_days)
+                        _state.record_trash_purge("android", purged_adb)
+                        if purged_adb["deleted"]:
+                            _logger.info(
+                                "Papelera Android: purgados %d archivos (%.1f MB) con más de %d días",
+                                purged_adb["deleted"],
+                                purged_adb["bytes"] / 1e6,
+                                config.trash_purge_days,
+                            )
+                except Exception:
+                    _logger.debug(
+                        "No se pudo purgar la papelera del dispositivo Android", exc_info=True
                     )
 
         except Exception as exc:
