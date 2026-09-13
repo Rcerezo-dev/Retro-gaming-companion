@@ -101,9 +101,20 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     _doc = _build_sync_doctor(
                         config, None, serial, config.sync.auto_sync_android_path, "", quick=True
                     )
-                except Exception:
-                    _logger.debug("Pre-flight de reloj de auto-sync falló", exc_info=True)
-                    _doc = {"skew_exceeded": False}
+                except Exception as exc:
+                    _logger.warning(
+                        "Auto-sync: no se pudo comprobar el reloj de la consola — "
+                        "abortando este ciclo (%s)",
+                        exc,
+                        exc_info=True,
+                    )
+                    _state._auto_sync_status = {
+                        "state": "idle",
+                        "last_device": serial,
+                        "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
+                        "last_error": f"No se pudo comprobar el reloj de la consola: {exc}",
+                    }
+                    continue
                 if _doc.get("skew_exceeded"):
                     _logger.warning(
                         "Auto-sync: reloj desviado %.0fs en %s — sync abortado",
@@ -416,8 +427,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 _state._auto_sync_status["state"] = "waiting"
 
         except Exception as exc:
-            # Never crash the daemon
-            _logger.debug("Auto-sync daemon exception: %s", exc)
+            # Never crash the daemon — pero sí dejar rastro con traceback,
+            # o un fallo repetido en cada ciclo de sondeo queda invisible.
+            _logger.warning("Auto-sync daemon exception: %s", exc, exc_info=True)
             try:
                 _state._auto_sync_status["state"] = "waiting"
             except Exception:
@@ -648,7 +660,7 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 _last_sync_at = now
 
         except Exception as exc:
-            _logger.debug("SD sync daemon exception: %s", exc)
+            _logger.warning("SD sync daemon exception: %s", exc, exc_info=True)
             try:
                 _sd_sync_status["state"] = "waiting"
             except Exception:

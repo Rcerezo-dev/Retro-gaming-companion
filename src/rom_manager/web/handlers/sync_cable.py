@@ -1359,6 +1359,7 @@ def _do_cable_sync(
                     _body += f" ({errors} errores)"
                 notify("Retro Vault — Cable Sync completado", _body)
         except Exception as exc:
+            _logger.exception("Cable Sync error: %s", exc)
             job_result = {"error": str(exc)}
         finally:
             if _log_file is not None:
@@ -1445,6 +1446,7 @@ def _do_tree_diff(ctx, data: dict, config: AppConfig, job_manager: JobManager) -
                 "result_ts": _time.time(),
             }
         except Exception as exc:
+            _logger.exception("Tree diff error: %s", exc)
             job_result = {"error": str(exc)}
         finally:
             job_manager.finish("tree_diff", job_result)

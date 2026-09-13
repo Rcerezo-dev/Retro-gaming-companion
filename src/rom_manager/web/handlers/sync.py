@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
 from rom_manager.web.handlers.cloud_auth import register as register_cloud_auth
 from rom_manager.web.handlers.sync_cable import register_cable
 from rom_manager.web.handlers.sync_cloud import register_cloud
+
+_logger = logging.getLogger(__name__)
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -172,6 +175,7 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                 "result_ts": utc_now(),
             }
         except Exception as exc:
+            _logger.exception("RA check error: %s", exc)
             job_result = {"error": str(exc)}
         finally:
             job_manager.finish("ra_check", job_result)
