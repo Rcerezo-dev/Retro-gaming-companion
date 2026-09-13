@@ -16,6 +16,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from rom_manager.sync.android_paths import canonical_rel_posix
 from rom_manager.utils.trash import TRASH_DIR_NAME
 
 Direction = str  # "pc_to_anbernic" | "anbernic_to_pc" | "newest"
@@ -55,12 +56,16 @@ def plan_direction(
     wanted: Callable[[Path], bool],
     *,
     tolerance_seconds: float = DEFAULT_MTIME_TOLERANCE_S,
+    es_platform_folders: dict[str, str] | None = None,
 ) -> Iterator[CopyPlanItem]:
     """Decide que archivos copiar y en que sentido, sin tocar disco todavia."""
+    _es_folders = es_platform_folders or {}
     if direction == "pc_to_anbernic":
         for src in iter_files(pc_root):
             if wanted(src):
-                yield CopyPlanItem(src, ab_root / src.relative_to(pc_root), "-> Anbernic")
+                rel = src.relative_to(pc_root)
+                dst = ab_root / canonical_rel_posix(rel.as_posix(), _es_folders)
+                yield CopyPlanItem(src, dst, "-> Anbernic")
         return
 
     if direction == "anbernic_to_pc":
@@ -91,7 +96,8 @@ def plan_direction(
                 ab_mt = ab_f.stat().st_mtime
                 diff = pc_mt - ab_mt
                 if diff > tolerance_seconds:
-                    yield CopyPlanItem(pc_f, ab_root / rel, "-> Anbernic (PC mas reciente)")
+                    dst = ab_root / canonical_rel_posix(rel.as_posix(), _es_folders)
+                    yield CopyPlanItem(pc_f, dst, "-> Anbernic (PC mas reciente)")
                 elif diff < -tolerance_seconds:
                     yield CopyPlanItem(ab_f, pc_root / rel, "<- PC (Anbernic mas reciente)")
                 # mtimes iguales (dentro de la tolerancia): nada que hacer, el
@@ -99,7 +105,8 @@ def plan_direction(
                 # redondeo de mtime de FAT32/exFAT (~2s) elegía un "ganador"
                 # arbitrario y podia sobrescribir en silencio la version buena.
             elif pc_f:
-                yield CopyPlanItem(pc_f, ab_root / rel, "-> Anbernic (solo en PC)")
+                dst = ab_root / canonical_rel_posix(rel.as_posix(), _es_folders)
+                yield CopyPlanItem(pc_f, dst, "-> Anbernic (solo en PC)")
             elif ab_f:
                 yield CopyPlanItem(ab_f, pc_root / rel, "<- PC (solo en Anbernic)")
         return

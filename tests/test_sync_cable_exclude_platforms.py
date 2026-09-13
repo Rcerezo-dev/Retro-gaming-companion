@@ -166,6 +166,30 @@ def test_exclude_platform_folders_anbernic_to_pc(tmp_path: Path) -> None:
     assert (pc / "psx" / "game.chd").exists()
 
 
+def test_pc_to_anbernic_filesystem_translates_non_canonical_folder(tmp_path: Path) -> None:
+    """CABLE-ROOT-1d: una carpeta del PC con nombre viejo (p.ej. "PlayStation 2",
+    ver MDFOLDER-FIX-2/MATCH-FIX-5) debe aterrizar en el dispositivo con su
+    slug canónico ("ps2"), no espejada tal cual."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "PlayStation 2", "Dark Cloud (USA).chd")
+    ab.mkdir()
+
+    res = _run_sync(
+        tmp_path,
+        {
+            "pc_path": str(pc),
+            "anbernic_path": str(ab),
+            "what": ["roms"],
+            "direction": "pc_to_anbernic",
+            "dry_run": False,
+        },
+    )
+
+    assert res["copied"] == 1
+    assert (ab / "ps2" / "Dark Cloud (USA).chd").exists()
+    assert not (ab / "PlayStation 2").exists()
+
+
 def test_exclude_platform_folders_with_mirror_does_not_touch_excluded_platform(
     tmp_path: Path,
 ) -> None:

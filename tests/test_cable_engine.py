@@ -55,6 +55,36 @@ def test_plan_pc_to_anbernic(tmp_path: Path) -> None:
     assert items[0].dst == ab / "gba" / "mario.sav"
 
 
+def test_plan_pc_to_anbernic_translates_non_canonical_folder(tmp_path: Path) -> None:
+    """CABLE-ROOT-1d: una carpeta del PC con nombre viejo (sin renombrar aún,
+    ver MDFOLDER-FIX-2/MATCH-FIX-5) no debe espejarse tal cual en Android."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "PlayStation 2", "Dark Cloud (USA).sav")
+
+    items = list(
+        plan_direction(
+            pc,
+            ab,
+            "pc_to_anbernic",
+            _WANTED,
+            es_platform_folders={"PlayStation 2": "ps2"},
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == ab / "ps2" / "Dark Cloud (USA).sav"
+
+
+def test_plan_pc_to_anbernic_without_es_folders_mirrors_as_before(tmp_path: Path) -> None:
+    """Sin es_platform_folders (default), el comportamiento no cambia."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "PlayStation 2", "Dark Cloud (USA).sav")
+
+    items = list(plan_direction(pc, ab, "pc_to_anbernic", _WANTED))
+
+    assert items[0].dst == ab / "PlayStation 2" / "Dark Cloud (USA).sav"
+
+
 def test_plan_newest_picks_newer_side(tmp_path: Path) -> None:
     import os
 
@@ -161,6 +191,50 @@ def test_plan_newest_picks_side_beyond_tolerance(tmp_path: Path) -> None:
 
     assert len(items) == 1
     assert items[0].src == ab_f
+
+
+def test_plan_newest_translates_non_canonical_folder_when_pc_wins(tmp_path: Path) -> None:
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "PlayStation 2", "mario.sav", content=b"NEW")
+    os.utime(pc_f, (100, 100))
+
+    items = list(
+        plan_direction(
+            pc,
+            ab,
+            "newest",
+            _WANTED,
+            es_platform_folders={"PlayStation 2": "ps2"},
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == ab / "ps2" / "mario.sav"
+
+
+def test_plan_newest_translates_non_canonical_folder_when_pc_is_newer(tmp_path: Path) -> None:
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "PlayStation 2", "mario.sav", content=b"NEW")
+    ab_f = _write(ab, "PlayStation 2", "mario.sav", content=b"OLD")
+    os.utime(pc_f, (100, 100))
+    os.utime(ab_f, (0, 0))
+
+    items = list(
+        plan_direction(
+            pc,
+            ab,
+            "newest",
+            _WANTED,
+            es_platform_folders={"PlayStation 2": "ps2"},
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == ab / "ps2" / "mario.sav"
 
 
 def test_copy_item_skip_existing_same_size(tmp_path: Path) -> None:
