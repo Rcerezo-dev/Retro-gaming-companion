@@ -42,7 +42,7 @@ def register_reports(
         qs = ctx._qs
         rpt_path = qs.get("path", [None])[0] or str(config.library_root or "")
         if not rpt_path:
-            ctx._send_json({"error": "path parameter required (or set library_root in config)"})
+            ctx._send_json({"error": "parámetro path requerido (o configura library_root)"})
             return
         _rpt_repo = get_repo_fn(rpt_path)
         rpt = _build_library_report(rpt_path, _rpt_repo, config)
@@ -64,7 +64,7 @@ def register_reports(
             ctx._send(
                 400,
                 "text/plain; charset=utf-8",
-                b"path parameter required (or set library_root in config)",
+                "parámetro path requerido (o configura library_root)".encode(),
             )
             return
         from rom_manager.utils.library_report_html import generate_html_report
@@ -106,7 +106,7 @@ def register_reports(
     def post_export_lpl(ctx) -> None:
         data = ctx._post_data
         if not config.library_root:
-            ctx._send_json({"error": "library_root not configured"})
+            ctx._send_json({"error": "library_root no configurado"})
             return
         from rom_manager.utils.lpl_generator import generate_lpl_playlists
 

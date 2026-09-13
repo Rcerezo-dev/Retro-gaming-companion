@@ -293,17 +293,17 @@ def _do_cable_sync(
         if _auto is None:
             ctx._send_json(
                 {
-                    "error": "adb_serial is required when use_adb is true "
+                    "error": "adb_serial requerido cuando use_adb es true "
                     "(no se detectó un único dispositivo conectado)"
                 }
             )
             return
         adb_serial = _auto.serial
     if not pc_path_str:
-        ctx._send_json({"error": "pc_path is required"})
+        ctx._send_json({"error": "pc_path requerido"})
         return
     if not use_adb and not anbernic_path_str:
-        ctx._send_json({"error": "anbernic_path is required"})
+        ctx._send_json({"error": "anbernic_path requerido"})
         return
 
     # CABLE-UX-1: pre-flight de reloj en el backend (antes solo existía en el

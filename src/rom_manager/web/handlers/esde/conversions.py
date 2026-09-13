@@ -34,7 +34,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         dry_run = data.get("dry_run", True)
         delete_source = data.get("delete_source", False)
@@ -86,7 +86,7 @@ def register_conversions(
                                     chd_path=chd_path,
                                     bin_paths=bin_paths,
                                     success=False,
-                                    error="Output .chd already exists — would skip.",
+                                    error="El .chd de salida ya existe — se omitiría.",
                                 )
                             )
                         else:
@@ -99,7 +99,7 @@ def register_conversions(
                                         chd_path=chd_path,
                                         bin_paths=bin_paths,
                                         success=False,
-                                        error="Bin file(s) not found: "
+                                        error="Archivo(s) .bin no encontrado(s): "
                                         + ", ".join(b.name for b in missing_bins),
                                     )
                                 )
@@ -158,7 +158,7 @@ def register_conversions(
                                     chd_path=chd_path,
                                     bin_paths=[bin_path],
                                     success=False,
-                                    error="Output .chd already exists — would skip.",
+                                    error="El .chd de salida ya existe — se omitiría.",
                                 )
                             )
                         else:
@@ -213,7 +213,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = (data.get("source_path") or "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
 
         _cancel = job_manager.cancel_event("verify_chd")
@@ -267,7 +267,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         delete_source = data.get("delete_source", False)
 
@@ -314,7 +314,7 @@ def register_conversions(
                             {
                                 "file": cso_path.name,
                                 "success": False,
-                                "error": "Output .iso already exists",
+                                "error": "El .iso de salida ya existe",
                             }
                         )
                         continue
@@ -337,7 +337,8 @@ def register_conversions(
                                 {
                                     "file": cso_path.name,
                                     "success": False,
-                                    "error": err or "maxcso failed with non-zero exit",
+                                    "error": err
+                                    or "maxcso terminó con código de salida distinto de cero",
                                 }
                             )
                     except FileNotFoundError:
@@ -346,7 +347,7 @@ def register_conversions(
                             {
                                 "file": cso_path.name,
                                 "success": False,
-                                "error": f"maxcso not found: {maxcso_path}",
+                                "error": f"maxcso no encontrado: {maxcso_path}",
                             }
                         )
                     except subprocess.TimeoutExpired:
@@ -378,7 +379,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         dry_run = bool(data.get("dry_run", True))
         delete_source = bool(data.get("delete_source", False))
@@ -452,7 +453,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         dry_run = bool(data.get("dry_run", True))
         from rom_manager.utils.m3u_generator import generate_m3u_playlists
@@ -481,7 +482,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         from rom_manager.utils.multidisc_verifier import verify_multidisc
 
@@ -509,7 +510,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = (data.get("source_path") or "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
 
         source = Path(source_path_str)
@@ -563,7 +564,7 @@ def register_conversions(
         src = data.get("source_path", "").strip()
         dst = data.get("target_path", "").strip() or None
         if not src:
-            ctx._send_json({"error": "source_path required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         from rom_manager.converters.n64_converter import convert_to_z64
 

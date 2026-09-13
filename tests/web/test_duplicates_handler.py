@@ -154,7 +154,7 @@ def test_exclude_without_sha1_is_400(tmp_path: Path) -> None:
     router, *_ = _setup(tmp_path)
     ctx = _Ctx({})
     router.dispatch("POST", "/api/duplicates/exclude", ctx)
-    assert ctx.error == (400, "sha1 required")
+    assert ctx.error == (400, "sha1 requerido")
 
 
 # ── /api/review-queue (TABS-FIX-6) ────────────────────────────────────────────
@@ -188,7 +188,7 @@ def test_review_queue_exclude_without_group_key_is_400(tmp_path: Path) -> None:
     router, *_ = _setup(tmp_path)
     ctx = _Ctx({})
     router.dispatch("POST", "/api/review-queue/exclude", ctx)
-    assert ctx.error == (400, "group_key required")
+    assert ctx.error == (400, "group_key requerido")
 
 
 def test_review_queue_apply_all_resolves_both_repos(tmp_path: Path) -> None:

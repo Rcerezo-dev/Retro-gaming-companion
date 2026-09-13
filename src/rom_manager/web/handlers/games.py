@@ -219,7 +219,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         source_path = qs.get("path", [None])[0]
         if not source_path:
-            ctx._send_error(400, "path required")
+            ctx._send_error(400, "path requerido")
             return
 
         _dl_repo = get_repo_fn(source_path)
@@ -261,7 +261,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
         else:
             ctx._send_json({"tags": repository.get_tags(int(game_id))})
 
@@ -272,7 +272,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         tag = qs.get("tag", [None])[0]
         if not tag:
-            ctx._send_json({"error": "tag required"})
+            ctx._send_json({"error": "tag requerido"})
             return
         with repository.connect() as conn:
             rows = conn.execute(
@@ -308,7 +308,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -337,7 +337,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -365,7 +365,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -416,7 +416,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         sp = qs.get("source_path", [""])[0]
         if not sp:
-            ctx._send_json({"error": "source_path required"})
+            ctx._send_json({"error": "source_path requerido"})
         else:
             ctx._send_json({"history": repository.get_save_sync_history(sp)})
 
@@ -426,7 +426,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -448,7 +448,7 @@ def register(
                 (int(game_id),),
             ).fetchone()
         if not row:
-            ctx._send_json({"error": "not found"})
+            ctx._send_json({"error": "no encontrado"})
             return
         result = dict(row)
         # RA data lookup from local cache
@@ -485,12 +485,12 @@ def register(
         qs = getattr(ctx, "_qs", {})
         ra_game_id = qs.get("ra_game_id", [None])[0]
         if not ra_game_id:
-            ctx._send_json({"error": "ra_game_id required"})
+            ctx._send_json({"error": "ra_game_id requerido"})
             return
         try:
             ra_game_id = int(ra_game_id)
         except (ValueError, TypeError):
-            ctx._send_json({"error": "ra_game_id must be integer"})
+            ctx._send_json({"error": "ra_game_id debe ser un entero"})
             return
 
         api_key = config.credentials.ra_api_key
@@ -566,7 +566,7 @@ def register(
         game_id = data.get("game_id")
         status = data.get("status") or None
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         _status_repo = get_repo_fn(data.get("source_path", ""))
         _status_repo.set_play_status(int(game_id), status)
@@ -603,7 +603,7 @@ def register(
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         gid = int(game_id)
         _meta_repo = get_repo_fn(data.get("source_path", ""))
@@ -626,7 +626,7 @@ def register(
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         _fav_repo = get_repo_fn(data.get("source_path", ""))
         new_val = _fav_repo.toggle_favorite(int(game_id))
@@ -640,7 +640,7 @@ def register(
         tag = str(data.get("tag", "")).strip()
         action = data.get("action", "add")  # "add" | "remove"
         if not game_id or not tag:
-            ctx._send_json({"error": "game_id and tag required"})
+            ctx._send_json({"error": "game_id y tag requeridos"})
             return
         _tag_repo = get_repo_fn(data.get("source_path", ""))
         if action == "remove":
@@ -659,7 +659,7 @@ def register(
         tag = str(data.get("tag", "")).strip()
         action = data.get("action", "add")
         if not tag:
-            ctx._send_json({"error": "tag required"})
+            ctx._send_json({"error": "tag requerido"})
             return
         root = data.get("root") or None
         _repo = get_repo_fn(root or "")
@@ -694,7 +694,7 @@ def register(
 
         folder_path = ctx._post_data.get("path", "").strip()
         if not folder_path:
-            ctx._send_json({"ok": False, "error": "path required"})
+            ctx._send_json({"ok": False, "error": "path requerido"})
             return
         try:
             p = _os_of.path.abspath(folder_path)
@@ -715,14 +715,14 @@ def register(
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
                 "SELECT source_path, platform FROM games WHERE id = ?", (int(game_id),)
             ).fetchone()
         if not row:
-            ctx._send_json({"error": "game not found"})
+            ctx._send_json({"error": "juego no encontrado"})
             return
         retroarch_exe = config.retroarch_path or ""
         if not retroarch_exe or not Path(retroarch_exe).exists():
@@ -750,7 +750,7 @@ def register(
         backup_path_str = data.get("backup_path", "").strip()
         original_save_str = data.get("original_save", "").strip()
         if not backup_path_str or not original_save_str:
-            ctx._send_json({"error": "backup_path and original_save required"})
+            ctx._send_json({"error": "backup_path y original_save requeridos"})
             return
         from rom_manager.backup.save_backup import restore_backup
 

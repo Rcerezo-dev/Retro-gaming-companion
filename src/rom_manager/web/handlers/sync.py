@@ -57,7 +57,7 @@ def register(
         data = ctx._post_data
         api_key = data.get("api_key", "").strip() or config.credentials.ra_api_key
         if not api_key:
-            ctx._send_json({"error": "RetroAchievements API key not configured"})
+            ctx._send_json({"error": "API key de RetroAchievements no configurada"})
             return
         ctx._send_json(_do_ra_check(api_key, config, repository, job_manager))
 

@@ -178,16 +178,19 @@ def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
 
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
-        return b"# rclone not found on this machine\n", "text/plain; charset=utf-8"
+        return b"# rclone no encontrado en esta maquina\n", "text/plain; charset=utf-8"
     try:
         r = _sp.run([rclone_bin, "config", "file"], capture_output=True, text=True, timeout=8)
         cfg_path = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
         cfg_file = __import__("pathlib").Path(cfg_path)
         if cfg_file.exists():
             return cfg_file.read_bytes(), "text/plain; charset=utf-8"
-        return b"# rclone config file not found\n", "text/plain; charset=utf-8"
+        return b"# archivo de configuracion de rclone no encontrado\n", "text/plain; charset=utf-8"
     except Exception as exc:
-        return f"# error reading rclone config: {exc}\n".encode(), "text/plain; charset=utf-8"
+        return (
+            f"# error al leer la configuracion de rclone: {exc}\n".encode(),
+            "text/plain; charset=utf-8",
+        )
 
 
 def _handle_rclone_status(config: AppConfig) -> dict:
@@ -610,7 +613,9 @@ def _do_migrate_split_db(
     lib_root = str(config.library_root or "").lower().rstrip("/\\")
     if not lib_root:
         ctx._send_json(
-            {"error": "library_root not configured — cannot determine which paths are Android"}
+            {
+                "error": "library_root no configurado — no se puede determinar qué rutas son de Android"
+            }
         )
         return
 

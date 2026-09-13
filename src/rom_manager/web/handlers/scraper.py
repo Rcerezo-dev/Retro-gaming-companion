@@ -78,7 +78,7 @@ def register(
     @router.post("/api/export-pegasus")
     def post_export_pegasus(ctx) -> None:
         if not config.library_root:
-            ctx._send_json({"error": "library_root not configured"})
+            ctx._send_json({"error": "library_root no configurado"})
             return
         try:
             from rom_manager.scraper.pegasus_writer import write_pegasus_metadata
@@ -119,7 +119,7 @@ def _do_scrape(
             from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
 
             if not config.credentials.screenscraper_user:
-                job_result = {"error": "screenscraper credentials not configured"}
+                job_result = {"error": "credenciales de ScreenScraper no configuradas"}
                 return
 
             client = ScreenScraperClient(
@@ -372,7 +372,7 @@ def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRep
     preview = bool(data.get("preview", False))
     download_images = bool(data.get("images", False))
     if not game_id:
-        ctx._send_json({"error": "game_id required"})
+        ctx._send_json({"error": "game_id requerido"})
         return
     if not config.credentials.screenscraper_user:
         ctx._send_json({"error": "Credenciales de ScreenScraper no configuradas"})
@@ -493,7 +493,7 @@ def _do_export_gamelists(ctx, data: dict, config: AppConfig, repository: Library
         else config.library_root
     )
     if output_root is None:
-        ctx._send_json({"error": "library_root not configured"})
+        ctx._send_json({"error": "library_root no configurado"})
         return
     platform_filter = data.get("platform") or None
     platforms = repository.get_scraped_platform_summary()

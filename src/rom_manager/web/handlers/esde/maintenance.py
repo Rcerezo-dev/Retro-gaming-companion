@@ -155,7 +155,7 @@ def register_maintenance(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         source = Path(source_path_str).resolve()
         deleted = failed = 0
@@ -175,7 +175,7 @@ def register_maintenance(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         source = Path(source_path_str).resolve()
         deleted = failed = skipped = 0
@@ -249,7 +249,7 @@ def register_maintenance(
             str(config.library_root) if config.library_root else ""
         )
         if not folder:
-            ctx._send_json({"error": "path required"})
+            ctx._send_json({"error": "path requerido"})
             return
         ctx._send_json(_full_junk_scan(folder))
 
@@ -333,7 +333,7 @@ def register_maintenance(
             str(config.library_root) if config.library_root else ""
         )
         if not folder:
-            ctx._send_json({"error": "path required"})
+            ctx._send_json({"error": "path requerido"})
             return
         from rom_manager.web.zip_router import _run_zip_route_apply
 

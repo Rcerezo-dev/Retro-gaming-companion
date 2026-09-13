@@ -326,7 +326,7 @@ def _save_config(
     }
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
-        ctx._send_json({"error": "No recognised fields to update"})
+        ctx._send_json({"error": "Ningún campo reconocido para actualizar"})
         return
 
     write_config_toml(config.project_root, updates)
