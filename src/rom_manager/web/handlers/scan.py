@@ -289,7 +289,7 @@ def _do_scan(
     if not raw_paths and config.library_root:
         raw_paths = [str(config.library_root)]
     if not raw_paths:
-        ctx._send_error(400, "source_path is required")
+        ctx._send_error(400, "source_path requerido")
         return
     quick = bool(data.get("quick", False))
 
@@ -384,7 +384,7 @@ def _do_adb_scan(
     android_path = data.get("android_path", "/storage/emulated/0").strip().rstrip("/")
 
     if not adb_serial:
-        ctx._send_error(400, "adb_serial is required")
+        ctx._send_error(400, "adb_serial requerido")
         return
 
     import logging
