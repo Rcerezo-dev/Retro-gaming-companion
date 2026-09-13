@@ -12,7 +12,7 @@ import types
 from pathlib import Path
 from unittest import mock
 
-from rom_manager.web.handlers import config as cfg_handler
+from rom_manager.web.handlers import config_dialogs as cfg_handler
 
 
 class _Ctx:

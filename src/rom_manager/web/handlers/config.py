@@ -3,17 +3,17 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from rom_manager.web.handlers.config_dialogs import register_dialogs
+from rom_manager.web.handlers.config_tools import register_tools
 
 _config_lock = threading.Lock()
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
-    from rom_manager.sync.adb_transport import AdbTransport
     from rom_manager.web.router import Router
-
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -30,6 +30,9 @@ def register(
     All handler closures capture *config* and *set_auto_sync_fn* by reference.
     """
     from rom_manager.web.builders.misc import _build_config
+
+    register_tools(router, config=config)
+    register_dialogs(router)
 
     @router.get("/api/config")
     def get_config(ctx) -> None:
@@ -49,10 +52,6 @@ def register(
             }
         )
 
-    @router.get("/api/wizard-detect")
-    def get_wizard_detect(ctx) -> None:
-        ctx._send_json(_detect_wizard(config))
-
     @router.post("/api/config")
     def post_config(ctx) -> None:
         _save_config(ctx, ctx._post_data, config, set_auto_sync_fn)
@@ -64,24 +63,6 @@ def register(
     @router.get("/api/health-schedule")
     def get_health_schedule(ctx) -> None:
         ctx._send_json(_read_health_schedule(config))
-
-    @router.get("/api/test-chdman")
-    def get_test_chdman(ctx) -> None:
-        ctx._send_json(
-            _test_binary_status(
-                str(config.chdman)
-                if config.chdman
-                else str(config.project_root / "tools" / "chdman.exe"),
-            )
-        )
-
-    @router.get("/api/test-maxcso")
-    def get_test_maxcso(ctx) -> None:
-        ctx._send_json(
-            _test_binary_status(
-                str(config.project_root / "tools" / "maxcso.exe"),
-            )
-        )
 
     @router.get("/api/autostart-status")
     def get_autostart_status(ctx) -> None:
@@ -111,172 +92,8 @@ def register(
         except Exception as exc:
             ctx._send_json({"ok": False, "error": str(exc)})
 
-    @router.get("/api/detect-retroarch")
-    def get_detect_retroarch(ctx) -> None:
-        ctx._send_json(_detect_retroarch_install())
-
-    # ── GET /api/detect-android-ra-config-dir (B0-3c) ───────────────────────────
-    @router.get("/api/detect-android-ra-config-dir")
-    def get_detect_android_ra_config_dir(ctx) -> None:
-        from rom_manager.sync.adb_transport import resolve_single_device_transport
-
-        ctx._send_json(
-            _detect_android_ra_config_dir(config, resolve_single_device_transport(config.adb))
-        )
-
-    @router.get("/api/browse-folder")
-    def get_browse_folder(ctx) -> None:
-        _browse_folder(ctx, getattr(ctx, "_qs", {}))
-
-    @router.get("/api/browse-file")
-    def get_browse_file(ctx) -> None:
-        _browse_file(ctx, getattr(ctx, "_qs", {}))
-
 
 # ── Handler logic (moved from server.py) ──────────────────────────────────────
-
-
-def _detect_retroarch_install() -> dict:
-    """Scan common Windows paths for a RetroArch installation.
-
-    Checks common install directories, Steam libraries (including non-default ones
-    via libraryfolders.vdf), and RetroBat. Returns the first ``retroarch.exe`` found
-    plus the ``content_directory`` from its ``retroarch.cfg`` if readable.
-    """
-    import os
-    import re
-
-    candidates: list[Path] = []
-
-    appdata = os.environ.get("APPDATA", "")
-    if appdata:
-        candidates.append(Path(appdata) / "RetroArch")
-
-    for drive in ("C", "D", "E"):
-        candidates += [
-            Path(f"{drive}:\\RetroArch-Win64"),
-            Path(f"{drive}:\\RetroArch"),
-            Path(f"{drive}:\\Program Files\\RetroArch"),
-            Path(f"{drive}:\\Program Files (x86)\\RetroArch"),
-            Path(f"{drive}:\\Program Files (x86)\\Steam\\steamapps\\common\\RetroArch"),
-        ]
-
-    # Steam — additional library folders from libraryfolders.vdf
-    localappdata = os.environ.get("LOCALAPPDATA", "")
-    vdf_paths = [
-        Path(localappdata) / "Steam" / "steamapps" / "libraryfolders.vdf" if localappdata else None,
-        Path("C:\\Program Files (x86)\\Steam\\steamapps\\libraryfolders.vdf"),
-    ]
-    for vdf in vdf_paths:
-        if not vdf or not vdf.exists():
-            continue
-        try:
-            text = vdf.read_text(encoding="utf-8", errors="replace")
-            for m in re.finditer(r'"path"\s+"([^"]+)"', text):
-                lib_path = m.group(1).strip().replace("\\\\", "\\")
-                candidates.append(Path(lib_path) / "steamapps" / "common" / "RetroArch")
-        except OSError:
-            pass
-
-    # RetroBat
-    user_profile = os.environ.get("USERPROFILE", "")
-    if user_profile:
-        candidates.append(Path(user_profile) / "RetroBat" / "emulators" / "retroarch")
-    for drive in ("C", "D", "E"):
-        candidates.append(Path(f"{drive}:\\RetroBat\\emulators\\retroarch"))
-
-    retroarch_path: str | None = None
-    library_root: str | None = None
-    ra_config_dir: str | None = None
-
-    for ra_dir in candidates:
-        exe = ra_dir / "retroarch.exe"
-        if not exe.exists():
-            continue
-        retroarch_path = str(exe)
-        # CFG-PORGAME: config/ es la carpeta estándar de RetroArch junto al
-        # ejecutable (mismo directorio que ya usa _handle_retroarch_check para
-        # cores/ y retroarch.cfg) — de ahí cuelgan los .opt de opciones por core.
-        ra_config_dir = str(ra_dir / "config")
-        cfg_path = ra_dir / "retroarch.cfg"
-        if cfg_path.exists():
-            try:
-                text = cfg_path.read_text(encoding="utf-8", errors="replace")
-                m = re.search(r'^content_directory\s*=\s*"(.+)"', text, re.MULTILINE)
-                if m:
-                    val = m.group(1).strip()
-                    if val not in ("", "default"):
-                        library_root = val
-            except OSError:
-                pass
-        break
-
-    return {
-        "found": retroarch_path is not None,
-        "retroarch_path": retroarch_path,
-        "library_root": library_root,
-        "ra_config_dir": ra_config_dir,
-    }
-
-
-def _detect_android_ra_config_dir(config: AppConfig, adb_transport: AdbTransport | None) -> dict:
-    """Probe the connected Android device for its RetroArch ``config/`` folder (B0-3c).
-
-    Mirrors `_detect_retroarch_install()`'s response shape for the PC side, but
-    there's no filesystem to scan directly here — ADB is the only way to know
-    the folder is really there. Candidate: ``<auto_sync_android_path>/config``,
-    the same RetroArch root already validated in production for this device's
-    saves/states (``config.py`` ``EMULATOR_MAP``); `AdbTransport.test_path()`
-    (already used for the same purpose elsewhere, e.g. cable-sync path checks)
-    confirms it instead of assuming it's there.
-    """
-    if adb_transport is None:
-        return {
-            "found": False,
-            "ra_config_dir": None,
-            "error": "conecta el dispositivo Android por ADB primero",
-        }
-
-    candidate = f"{config.sync.auto_sync_android_path}/config"
-    result = adb_transport.test_path(candidate)
-    if result.get("accessible"):
-        return {"found": True, "ra_config_dir": candidate}
-    return {
-        "found": False,
-        "ra_config_dir": None,
-        "error": result.get("error", f"No se encontró {candidate!r} en el dispositivo"),
-    }
-
-
-def _detect_wizard(config: AppConfig) -> dict:
-    """Auto-detect RetroArch installation and connected ADB devices for the first-run wizard."""
-    ra = _detect_retroarch_install()
-    library_root_suggestion = ra["library_root"] or ra["retroarch_path"]
-
-    # Check ADB for connected devices
-    android_suggestion = None
-    device_display = None
-    adb_ok = False
-    try:
-        from rom_manager.sync.adb_transport import list_devices
-
-        devs = list_devices(config.adb)
-        adb_ok = True
-        ready_devs = [d for d in devs if d.ready]
-        if ready_devs:
-            dev = ready_devs[0]
-            device_display = dev.display or dev.serial
-            android_suggestion = config.anbernic_root or "/storage/emulated/0/RetroArch/roms"
-    except Exception:
-        _logger.debug("Detección de dispositivos ADB falló", exc_info=True)
-
-    return {
-        "library_root_suggestion": library_root_suggestion,
-        "retroarch_path_suggestion": ra["retroarch_path"],
-        "android_suggestion": android_suggestion,
-        "device_display": device_display,
-        "adb_ok": adb_ok,
-    }
 
 
 def _save_config(
@@ -357,15 +174,11 @@ def _save_config(
 def _read_health_schedule(config: AppConfig) -> dict:
     """Return health-check schedule info for GET /api/health-schedule."""
     import datetime as _dt
-    import json as _json
 
-    _INTERVAL_DAYS = 7
-    p = config.data_dir / "health_schedule.json"
-    try:
-        data = _json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        _logger.debug("No se pudo leer health_schedule.json", exc_info=True)
-        data = {}
+    from rom_manager.web.daemons import _HEALTH_CHECK_INTERVAL_DAYS as _INTERVAL_DAYS
+    from rom_manager.web.daemons import _read_health_schedule as _read_raw
+
+    data = _read_raw(config)
 
     last_run_at = data.get("last_run_at")
     next_run_at: str | None = None
@@ -387,99 +200,3 @@ def _read_health_schedule(config: AppConfig) -> dict:
         "last_missing": data.get("last_missing"),
         "overdue": overdue,
     }
-
-
-def _test_binary_status(path_str: str) -> dict:
-    """Return {ok, version, path} for an external binary."""
-    import shutil as _shutil
-    import subprocess as _sp
-
-    p = Path(path_str) if path_str else None
-    if not p or not p.exists():
-        found = _shutil.which(path_str or "")
-        if not found:
-            return {"ok": False, "version": "", "path": path_str}
-        p = Path(found)
-    try:
-        r = _sp.run([str(p), "--version"], capture_output=True, text=True, timeout=5)
-        ver = (r.stdout or r.stderr or "").strip().splitlines()[0][:60]
-        return {"ok": True, "version": ver, "path": str(p)}
-    except Exception:
-        _logger.debug("No se pudo leer la versión del binario %s", p, exc_info=True)
-        return {"ok": True, "version": "", "path": str(p)}
-
-
-def _browse_folder(ctx, qs: dict) -> None:
-    """Open a native OS folder picker and return the selected path.
-
-    Query params:
-      - initial_dir: optional starting directory (falls back to user home)
-      - title: optional dialog title
-    """
-    initial_dir = (qs.get("initial_dir", [None])[0] or "").strip() or None
-    title = (qs.get("title", [None])[0] or "").strip() or "Seleccionar carpeta"
-
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-
-        root = tk.Tk()
-        root.withdraw()  # hide blank root window
-        root.wm_attributes("-topmost", True)  # bring dialog to front on Windows
-        root.lift()
-        folder = filedialog.askdirectory(
-            parent=root,
-            title=title,
-            initialdir=initial_dir or Path.home(),
-            mustexist=False,
-        )
-        root.destroy()
-    except Exception as exc:
-        ctx._send_json({"ok": False, "error": f"No se pudo abrir el selector: {exc}"})
-        return
-
-    if not folder:
-        # User cancelled
-        ctx._send_json({"ok": False, "cancelled": True})
-        return
-
-    # Normalize to OS-native separators
-    ctx._send_json({"ok": True, "path": str(Path(folder))})
-
-
-def _browse_file(ctx, qs: dict) -> None:
-    """Open a native OS file picker and return the selected path.
-
-    HERR-UX-11: the patch manager's ROM picker used to call
-    :func:`_browse_folder` — a *directory* picker — to choose a single ROM
-    *file*, which could only ever return a folder path. Same query params
-    as ``_browse_folder``.
-    """
-    initial_dir = (qs.get("initial_dir", [None])[0] or "").strip() or None
-    title = (qs.get("title", [None])[0] or "").strip() or "Seleccionar archivo"
-
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-
-        root = tk.Tk()
-        root.withdraw()  # hide blank root window
-        root.wm_attributes("-topmost", True)  # bring dialog to front on Windows
-        root.lift()
-        file_path = filedialog.askopenfilename(
-            parent=root,
-            title=title,
-            initialdir=initial_dir or Path.home(),
-        )
-        root.destroy()
-    except Exception as exc:
-        ctx._send_json({"ok": False, "error": f"No se pudo abrir el selector: {exc}"})
-        return
-
-    if not file_path:
-        # User cancelled
-        ctx._send_json({"ok": False, "cancelled": True})
-        return
-
-    # Normalize to OS-native separators
-    ctx._send_json({"ok": True, "path": str(Path(file_path))})
