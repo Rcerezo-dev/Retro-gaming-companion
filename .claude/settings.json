@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(curl -s http://127.0.0.1:7777/*)",
-      "Bash(curl -s -o /dev/null *)"
+      "Bash(curl -s -o /dev/null *)",
+      "Bash(\"/c/Users/Ruben/anaconda3/envs/rom_manager/python.exe\" *)",
+      "Bash(/c/Users/Ruben/anaconda3/envs/rom_manager/python.exe *)"
     ]
   },
   "hooks": {
