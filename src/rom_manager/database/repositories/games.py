@@ -290,6 +290,38 @@ class GamesMixin:
             conn.execute(sql, params)
             conn.commit()
 
+    def clear_match(
+        self, source_path: str, *, connection: sqlite3.Connection | None = None
+    ) -> None:
+        """Reset catalog-match columns to unmatched for a game row.
+
+        MATCH-STALE-1: a matcher fix (a stricter platform check, a filtered
+        catalog...) can turn a previously-wrong match into "no match" on
+        re-run, but the match loop only ever called ``update_match()`` on a
+        *new* hit — a row whose fresh evaluation is ``None`` was silently
+        skipped, leaving the old wrong ``canonical_title``/``catalog_source``
+        in place forever. Found live 2026-09-12 three separate times in the
+        same session (IBM/Xbox-contaminated titles, a folder-detection gap
+        for Mega Drive, then for PS2/GBC/Game Gear) — always the same shape,
+        always requiring a manual one-off cleanup query. ``platform`` is
+        deliberately left untouched: it describes what kind of file this is
+        (from extension/folder), not whether a catalog entry was found.
+        """
+        sql = """
+            UPDATE games
+            SET canonical_title = NULL,
+                match_confidence = NULL,
+                catalog_source    = NULL
+            WHERE source_path = ?
+            """
+        params = (source_path,)
+        if connection is not None:
+            connection.execute(sql, params)
+            return
+        with self.connect() as conn:
+            conn.execute(sql, params)
+            conn.commit()
+
     def get_all_rom_sha1s(self) -> set[str]:
         """Return the set of all non-empty SHA1 hashes for ROM files in the library."""
         with self.connect() as conn:

@@ -375,3 +375,108 @@ def test_rename_never_removes_platform_root(tmp_path: Path) -> None:
 
     assert outcome.success is True
     assert platform.exists()
+
+
+# ── PSX-CUE-DESYNC-1: renaming a .bin/.img must keep sibling .cue/.gdi in sync ──
+
+
+def test_rename_bin_updates_sibling_cue_reference(tmp_path: Path) -> None:
+    """PSX-CUE-DESYNC-1: a real apply batch (2026-03-21) renamed a PSX
+    .bin and its .cue independently, leaving the .cue's internal FILE
+    reference pointing at the old (renamed-away) .bin name forever — 32 of
+    99 real .cue in one library were broken this exact way, invisible until
+    something finally tried to read the .bin the .cue claimed to have."""
+    source = tmp_path / "Game (Europe).bin"
+    source.write_bytes(b"disc data")
+    cue = tmp_path / "Game (Europe).cue"
+    cue.write_text(
+        'FILE "Game (Europe).bin" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n'
+    )
+    target = tmp_path / "Game (USA).bin"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert target.exists()
+    assert 'FILE "Game (USA).bin" BINARY' in cue.read_text()
+
+
+def test_rename_bin_updates_sibling_gdi_reference(tmp_path: Path) -> None:
+    """GDI track lines are unquoted, whitespace-separated fields (same
+    assumption ``parse_tracks_from_gdi`` already makes) -- typical
+    Dreamcast dumps use plain names like track02.img, no embedded spaces."""
+    source = tmp_path / "track02.img"
+    source.write_bytes(b"audio data")
+    gdi = tmp_path / "Game (Europe).gdi"
+    gdi.write_text("2\n1 0 4 2048 track01.bin 0\n2 0 0 2352 track02.img 0\n")
+    target = tmp_path / "track02-renamed.img"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert "track02-renamed.img" in gdi.read_text()
+    assert "track01.bin" in gdi.read_text()  # untouched track
+
+
+def test_rename_bin_leaves_unrelated_cue_untouched(tmp_path: Path) -> None:
+    source = tmp_path / "Game A (Europe).bin"
+    source.write_bytes(b"disc data")
+    other_cue = tmp_path / "Game B (Europe).cue"
+    other_text = 'FILE "Game B (Europe).bin" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n'
+    other_cue.write_text(other_text)
+    target = tmp_path / "Game A (USA).bin"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert other_cue.read_text() == other_text
+
+
+def test_rename_bin_rollback_reverts_cue_reference(tmp_path: Path, monkeypatch) -> None:
+    """A save-rename failure rolls the .bin back to its original name — the
+    .cue reference already updated in Step 1.5 must roll back with it, or
+    the rollback itself leaves the set desynced (the exact failure mode
+    this whole fix exists to prevent)."""
+    import rom_manager.renamer.file_renamer as fr
+
+    source = tmp_path / "Game (Europe).bin"
+    source.write_bytes(b"disc data")
+    cue = tmp_path / "Game (Europe).cue"
+    cue.write_text(
+        'FILE "Game (Europe).bin" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n'
+    )
+    state = tmp_path / "Game (Europe).state"
+    state.write_bytes(b"state data")
+    target = tmp_path / "Game (USA).bin"
+
+    def _flaky_move(src, dst):
+        raise OSError("simulated save move failure")
+
+    monkeypatch.setattr(fr.shutil, "move", _flaky_move)
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".state"}))
+
+    assert outcome.success is False
+    assert source.exists()
+    assert not target.exists()
+    assert 'FILE "Game (Europe).bin" BINARY' in cue.read_text()
+
+
+def test_rename_cue_itself_does_not_need_its_own_content_rewritten(tmp_path: Path) -> None:
+    """Renaming the .cue itself never needs a content rewrite -- its FILE
+    reference to the .bin is unaffected by the .cue's own filename
+    changing. Regression guard: this must stay a no-op, not accidentally
+    rewrite the sheet's own reference to something wrong."""
+    bin_file = tmp_path / "Game (Europe).bin"
+    bin_file.write_bytes(b"disc data")
+    source = tmp_path / "Game (Europe).cue"
+    original_text = (
+        'FILE "Game (Europe).bin" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n'
+    )
+    source.write_text(original_text)
+    target = tmp_path / "Game (USA).cue"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert target.read_text() == original_text

@@ -15,6 +15,7 @@ from rom_manager.config import AppConfig
 from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
+from rom_manager.detection.rom_header import extract_internal_id
 from rom_manager.utils.disc_tag import find_disc_number, strip_disc_tag
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import TRASH_DIR_NAME
@@ -23,6 +24,14 @@ from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 _logger = logging.getLogger(__name__)
 
 _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
+
+# MATCH-HEADER-1: only NDS/GBA carry a short, globally-unique product code
+# (Nintendo-assigned, 4 chars) reliable enough to auto-union without a human
+# looking at it first. GB/GBC only have a 16-char *title* field, which two
+# genuinely different releases (a sequel, a revision with the distinguishing
+# text truncated off) can share — safe as an informational read, not as a
+# blind union key that could feed the "plain, safe-to-auto-discard" bucket.
+_HEADER_EXTENSIONS = frozenset({".nds", ".gba"})
 
 
 def _is_disc_set(members) -> bool:
@@ -805,6 +814,35 @@ def _review_groups_for_repo(
             union(idxs[0], other)
         crossfmt_linked_idxs.update(idxs)
 
+    # MATCH-HEADER-1: No-Intro DATs carry no serial, so a file whose SHA1
+    # isn't in the catalog and whose filename doesn't fuzzy-match anything —
+    # e.g. a translation patch or a bad/incomplete dump — is invisible to
+    # every union above, however clearly it's a copy of a game already in
+    # the library. NDS/GBA carts embed Nintendo's globally-unique 4-char
+    # game code in the ROM itself — read straight from the file, not
+    # guessed from the name. Deliberately NOT skipping
+    # is_non_canonical_variant() filenames here (unlike the crossfmt pass
+    # above): a hack/translation is exactly the case this is meant to catch
+    # and surface for review, not silently ignore. Confirmed live
+    # 2026-09-12: a 128 MiB "(BAHAMUT)" translation patch of "Kirby Super
+    # Star Ultra (Europe)" had no sha1/title link to the real game at all
+    # and never appeared in any group.
+    header_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for idx, row in enumerate(rows):
+        ext = _Path(row["original_filename"]).suffix.lower()
+        if ext not in _HEADER_EXTENSIONS:
+            continue
+        internal_id = extract_internal_id(_Path(row["source_path"]), ext)
+        if internal_id:
+            header_groups[(row["platform"] or "unknown", internal_id)].append(idx)
+    header_linked_idxs: set[int] = set()
+    for idxs in header_groups.values():
+        if len(idxs) < 2:
+            continue
+        for other in idxs[1:]:
+            union(idxs[0], other)
+        header_linked_idxs.update(idxs)
+
     # Plan conflicts: fold into the same clusters via the row they belong to
     # (the common case); a "collision" also unions its contenders together —
     # they may not otherwise share a sha1/title link at all.
@@ -856,14 +894,41 @@ def _review_groups_for_repo(
             and len({_Path(r["original_filename"]).suffix.lower() for r in members}) > 1
             and not _is_disc_set(members)
         )
+        # MATCH-HEADER-1: only claim it when the header link actually added
+        # something — a cluster already fully explained by sha1 or by two
+        # members genuinely sharing the same canonical_title shouldn't get a
+        # second, redundant "same internal ID" claim. Deliberately NOT
+        # reusing has_title_dup here: it only checks that *some* member has
+        # *a* canonical_title, which a header-only link (one matched, one
+        # still None) already satisfies without the two ever agreeing on a
+        # title — that loose check isn't precise enough to gate this on.
+        _title_counts: dict[str, int] = defaultdict(int)
+        for r in members:
+            if r["canonical_title"]:
+                _title_counts[r["canonical_title"]] += 1
+        has_real_title_dup = any(c > 1 for c in _title_counts.values())
+        has_header_dup = any(i in header_linked_idxs for i in idxs) and not (
+            has_sha1_dup or has_real_title_dup
+        )
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
-        hash_map = _load_ra_hash_map(cache_dir, plat, hash_cache) if cache_dir else {}
+        # MATCH-FIX-4: RA hash libraries are per-console (Game Boy and Game
+        # Boy Color are different consoles with different hashes even for a
+        # byte-identical ROM), so each row must be scored against its own
+        # platform's cache — a shared group-level `plat` blinded every
+        # member but the first to its own RA support in cross-platform
+        # (same-content) groups. Confirmed live: 3 GB/GBC groups where the
+        # correctly-named .gbc copy lost the discard tiebreak to a bulk-pack
+        # .gb duplicate because its real achievements were looked up in the
+        # wrong console's cache.
         scored = []
         for r in members:
             md5_lower = (r["md5"] or "").lower()
-            achievements = hash_map.get(md5_lower, -1) if md5_lower else -1
-            scored.append(achievements)
+            if not md5_lower or not cache_dir:
+                scored.append(-1)
+                continue
+            row_hash_map = _load_ra_hash_map(cache_dir, r["platform"] or plat, hash_cache)
+            scored.append(row_hash_map.get(md5_lower, -1))
         has_ra_mix = any(a > 0 for a in scored) and any(a <= 0 for a in scored)
 
         reasons: set[str] = set()
@@ -875,6 +940,8 @@ def _review_groups_for_repo(
             reasons.add("ra")
         if has_crossfmt_dup:
             reasons.add("crossfmt")
+        if has_header_dup:
+            reasons.add("header")
         for idx in idxs:
             if idx in extra_reasons:
                 reasons.add(extra_reasons[idx])

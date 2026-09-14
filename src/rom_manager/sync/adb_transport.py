@@ -29,6 +29,22 @@ def _md5_local(path: Path) -> str:
         return hashlib.file_digest(fh, "md5").hexdigest()
 
 
+def _transfer_timeout(size_bytes: int) -> int:
+    """Timeout budget for an adb push/pull of *size_bytes*, in seconds.
+
+    A ROM file has no reliable size bound (a few KB save up to a multi-GB
+    PS2 ISO) and adb over a real USB cable can be far slower than expected
+    (cable quality, device write speed, other I/O competing for the same
+    disk) — a flat 60s default (meant for quick shell commands, not bulk
+    transfer) silently aborts the whole cable-sync batch on anything past a
+    few hundred MB. Confirmed live 2026-09-13: a 787 MB Dreamcast .cdi hit
+    exactly this. Conservative 2 MB/s floor plus fixed overhead for the
+    mkdir/handshake, so even a slow/contended transfer completes instead of
+    timing out.
+    """
+    return max(120, size_bytes // (2 * 1024 * 1024) + 60)
+
+
 def should_verify(name: str, verify_exts: frozenset[str]) -> bool:
     """CABLE-UX-9e: verify MD5 only for save-type files — ROMs are too big to
     hash on every sync. Shared by manual (`sync_cable.py`) and daemon
@@ -347,7 +363,11 @@ class AdbTransport:
         if not dry_run:
             local_dst.parent.mkdir(parents=True, exist_ok=True)
             target = local_dst.with_name(local_dst.name + ".part") if verify else local_dst
-            r = self._run("pull", android_src, str(target))
+            try:
+                remote_size = int(self._shell(f"stat -c '%s' {shlex.quote(android_src)}").strip())
+            except (ValueError, OSError):
+                remote_size = 0
+            r = self._run("pull", android_src, str(target), timeout=_transfer_timeout(remote_size))
             if r.returncode != 0:
                 target.unlink(missing_ok=True)
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
@@ -403,7 +423,7 @@ class AdbTransport:
             parent = str(PurePosixPath(android_dst).parent)
             self._shell(f"mkdir -p {shlex.quote(parent)}")
             target = f"{android_dst}.part" if verify else android_dst
-            r = self._run("push", str(local_src), target)
+            r = self._run("push", str(local_src), target, timeout=_transfer_timeout(size))
             if r.returncode != 0:
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
                 # Carpetas Android/data/<pkg> con scoped storage (Android 11+):

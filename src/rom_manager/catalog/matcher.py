@@ -160,6 +160,19 @@ class CatalogMatcher:
         if not directory.exists():
             return result
         for dat_file in sorted(directory.glob("*.dat")):
+            # MATCH-FIX-5: nointro_dir/redump_dir can hold DATs for systems
+            # this project doesn't manage at all (PC, Xbox, Macintosh...) —
+            # a bulk "download every No-Intro/Redump DAT" run doesn't filter
+            # by platform. Loading them anyway let their titles win the Pass
+            # 2 title-fallback for real console ROMs whenever no genuine
+            # console DAT had a matching title (confirmed live: 1,373 games
+            # across nearly every platform in the library ended up with a
+            # canonical_title sourced from "IBM - PC compatible" or "Xbox").
+            # _DAT_PLATFORM_KEYWORDS is already the curated allowlist of
+            # platforms this project actually routes to a folder — skip any
+            # DAT it doesn't recognize instead of maintaining a second list.
+            if _platform_from_dat_name(dat_file.name) is None:
+                continue
             try:
                 # CATALOG-MATCH-BUG-1: load_dat_file() auto-detecta XML vs
                 # clrmamepro (texto plano) — load_nointro_dat() a secas solo

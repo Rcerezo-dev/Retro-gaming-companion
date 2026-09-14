@@ -563,6 +563,11 @@ def _do_match(
                         else:
                             matched_low += 1
                     else:
+                        # MATCH-STALE-1: a stale wrong match from before a
+                        # matcher fix must not survive a re-run just
+                        # because the fresh evaluation now correctly finds
+                        # nothing.
+                        repository.clear_match(game.source_path, connection=conn)
                         unmatched += 1
             job_result = {
                 "total": len(games),

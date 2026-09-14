@@ -6,7 +6,7 @@ import re
 import shutil
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from rom_manager.utils.paths import same_file as _same_file
 
@@ -84,6 +84,109 @@ def _collect_companions(
             if rest is not None:
                 companions.append((f, rest))
     return companions
+
+
+# PSX-CUE-DESYNC-1c: a disc-data file (.bin/.img) that a sibling .cue/.gdi
+# sheet references by name. Renaming it must keep that reference in sync.
+_DISC_DATA_EXTENSIONS = frozenset({".bin", ".img"})
+
+
+def _update_disc_sheet_references(old_name: str, new_name: str, directory: Path) -> list[Path]:
+    """Rewrite any ``.cue``/``.gdi`` sheet in *directory* that references
+    *old_name* so it points at *new_name* instead.
+
+    PSX-CUE-DESYNC-1: renaming a ``.bin``/``.img`` data track and its sheet
+    are two independent ``rename_rom_with_saves()`` calls (each track is its
+    own row) — before this fix, neither ever touched the *content* of a
+    ``.cue``/``.gdi``, only filenames. Confirmed live 2026-09-12: a real
+    ``apply`` batch (2026-03-21) renamed a PSX game's ``.bin`` and ``.cue``
+    to the same corrected region tag, leaving the ``.cue``'s internal
+    ``FILE "..."`` line pointing at the old (pre-rename) ``.bin`` name
+    forever — the set silently never loads in a real emulator again.
+    32 of 99 ``.cue`` in one real library were broken this exact way.
+
+    Matches by the referenced file's *basename* only (same trust boundary
+    as ``parse_bins_from_cue``/``parse_tracks_from_gdi`` — a stale absolute
+    path in an old sheet is replaced by a clean relative one too, not just
+    left half-fixed). Best-effort: a sheet that can't be read/written is
+    logged and skipped rather than failing the caller's rename.
+    """
+    from rom_manager.converters.chd_converter import parse_bins_from_cue, parse_tracks_from_gdi
+
+    touched: list[Path] = []
+
+    for cue in directory.glob("*.cue"):
+        try:
+            refs = parse_bins_from_cue(cue)
+        except OSError:
+            continue
+        if not any(r.name == old_name for r in refs):
+            continue
+        try:
+            text = cue.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            _logger.warning("No se pudo leer %s para actualizar su referencia", cue, exc_info=True)
+            continue
+        out_lines = []
+        changed = False
+        for line in text.splitlines(keepends=True):
+            stripped = line.strip()
+            if stripped.upper().startswith("FILE "):
+                m = re.match(r'FILE\s+"([^"]+)"', stripped, re.IGNORECASE) or re.match(
+                    r"FILE\s+(\S+)", stripped, re.IGNORECASE
+                )
+                ref_name = PureWindowsPath(m.group(1)).name if m else None
+                if ref_name == old_name:
+                    newline = "\n" if line.endswith("\n") else ""
+                    rest = re.sub(r'^FILE\s+(?:"[^"]+"|\S+)', "", stripped, flags=re.IGNORECASE)
+                    out_lines.append(f'FILE "{new_name}"{rest}{newline}')
+                    changed = True
+                    continue
+            out_lines.append(line)
+        if not changed:
+            continue
+        try:
+            cue.write_text("".join(out_lines), encoding="utf-8")
+            touched.append(cue)
+        except OSError:
+            _logger.warning(
+                "No se pudo reescribir %s tras renombrar %s -> %s", cue, old_name, new_name
+            )
+
+    for gdi in directory.glob("*.gdi"):
+        try:
+            tracks = parse_tracks_from_gdi(gdi)
+        except OSError:
+            continue
+        if not any(t.name == old_name for t in tracks):
+            continue
+        try:
+            lines = gdi.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+        except OSError:
+            _logger.warning("No se pudo leer %s para actualizar su referencia", gdi, exc_info=True)
+            continue
+        changed = False
+        out_lines = [lines[0]] if lines else []
+        for line in lines[1:]:
+            newline = "\n" if line.endswith("\n") else ""
+            parts = line.strip().split()
+            if len(parts) >= 5 and PureWindowsPath(parts[4]).name == old_name:
+                parts[4] = new_name
+                out_lines.append(" ".join(parts) + newline)
+                changed = True
+            else:
+                out_lines.append(line)
+        if not changed:
+            continue
+        try:
+            gdi.write_text("".join(out_lines), encoding="utf-8")
+            touched.append(gdi)
+        except OSError:
+            _logger.warning(
+                "No se pudo reescribir %s tras renombrar %s -> %s", gdi, old_name, new_name
+            )
+
+    return touched
 
 
 def _cleanup_empty_source_dir(source_dir: Path, target_dir: Path) -> None:
@@ -167,6 +270,15 @@ def rename_rom_with_saves(
     except OSError as exc:
         return RenameOutcome(success=False, source=source, target=target, error=str(exc))
 
+    # Step 1.5 (PSX-CUE-DESYNC-1c): if this was a disc data track, any
+    # sibling .cue/.gdi referencing its old name must follow the rename —
+    # the sheet's *own* filename changing (if it's the one being renamed
+    # here) never needs this, only its internal FILE/track reference to a
+    # renamed .bin/.img sibling does. Best-effort: never blocks the rename
+    # that already succeeded above.
+    if source.suffix.lower() in _DISC_DATA_EXTENSIONS:
+        _update_disc_sheet_references(source.name, target.name, target.parent)
+
     # Step 2: rename each companion save. Same-dir companions follow the ROM
     # to target.parent; central-dir companions keep their directory.
     renamed_saves: list[tuple[Path, Path]] = []  # (new_path, original_path)
@@ -205,6 +317,12 @@ def rename_rom_with_saves(
             os.rename(target, source)
         except OSError as rb_exc:
             rollback_failures.append(f"ROM {target.name} → {source.name}: {rb_exc}")
+        else:
+            # PSX-CUE-DESYNC-1c: a sibling sheet already updated to point at
+            # `target.name` in Step 1.5 must follow the ROM back to
+            # `source.name`, or the rollback itself leaves the set desynced.
+            if source.suffix.lower() in _DISC_DATA_EXTENSIONS:
+                _update_disc_sheet_references(target.name, source.name, source.parent)
         if rollback_failures:
             detail = "; rollback INCOMPLETE — manual fix needed: " + " | ".join(rollback_failures)
         else:

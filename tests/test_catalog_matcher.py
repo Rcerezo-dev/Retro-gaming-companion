@@ -429,8 +429,12 @@ def dirs_with_arcade(tmp_path: Path) -> tuple[Path, Path, Path]:
     nointro.mkdir()
     redump.mkdir()
     arcade.mkdir()
+    # MATCH-FIX-5: the DAT here must be a platform this project actually
+    # recognizes (_DAT_PLATFORM_KEYWORDS) -- an out-of-scope one (the real
+    # incident used "Fujitsu - FM-7", not in that list) is now filtered out
+    # at load time and would never reach the title-fallback pass at all.
     _write_dat(
-        nointro / "Fujitsu - FM-7.dat",
+        nointro / "Commodore - Amiga.dat",
         [("Flicky", "F17A11" * 7, "MD5F", "CRCF", 65536)],
     )
     _write_fbneo_dat(arcade / "FBNeo Arcade.dat", [("flicky", "Flicky (128k Version)")])
@@ -460,7 +464,7 @@ def test_zip_with_region_tag_keeps_title_fallback_first(
     matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
     result = matcher.match("00" * 20, filename="Flicky (Japan).zip")
     assert result is not None
-    assert "FM-7" in result.catalog_source
+    assert "Amiga" in result.catalog_source
 
 
 def test_non_zip_without_region_keeps_title_fallback_first(
@@ -471,7 +475,7 @@ def test_non_zip_without_region_keeps_title_fallback_first(
     matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
     result = matcher.match("00" * 20, filename="Flicky.d77")
     assert result is not None
-    assert "FM-7" in result.catalog_source
+    assert "Amiga" in result.catalog_source
 
 
 def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
@@ -482,7 +486,7 @@ def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
     matcher = CatalogMatcher(nointro, redump)  # sin catálogo arcade
     result = matcher.match("00" * 20, filename="flicky.zip")
     assert result is not None
-    assert "FM-7" in result.catalog_source
+    assert "Amiga" in result.catalog_source
 
 
 # ---------------------------------------------------------------------------
@@ -499,7 +503,7 @@ def test_crc_index_maps_title_dat_and_platform(catalog_dirs: tuple[Path, Path]) 
 
 
 def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
-    """Un CRC reclamado por dos títulos (DAT recopilatorio tipo Evercade) es
+    """Un CRC reclamado por dos títulos en DATs de plataformas distintas es
     ambiguo y se descarta: nunca adivinar la plataforma."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
@@ -509,8 +513,11 @@ def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
         nointro / "Atari - Atari 2600.dat",
         [("Asteroids (USA)", "AA" * 20, "M1", "46DF91AD", 4096)],
     )
+    # MATCH-FIX-5: must be a recognized platform (_DAT_PLATFORM_KEYWORDS) --
+    # the real-world example (Evercade, a multi-system compilation) isn't
+    # in scope for this project and is now filtered out at load time.
     _write_dat(
-        nointro / "Blaze Entertainment - Evercade.dat",
+        nointro / "Commodore - Amiga.dat",
         [("Super Pocket - The Atari Collection (World)", "BB" * 20, "M2", "46DF91AD", 4096)],
     )
     matcher = CatalogMatcher(nointro, redump)

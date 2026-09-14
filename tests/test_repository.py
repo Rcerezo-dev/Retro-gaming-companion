@@ -160,6 +160,30 @@ def test_update_match_and_get_matched(repo):
     assert matched[0].match_confidence == "high"
 
 
+def test_clear_match_resets_to_unmatched(repo):
+    """MATCH-STALE-1: a stale wrong match (e.g. from before a matcher fix)
+    must be resettable to genuinely unmatched, not stuck with old data."""
+    _upsert(repo, source_path="/roms/D.gba", sha1="dd" * 20)
+    repo.update_match(
+        "/roms/D.gba",
+        canonical_title="Wrong Title From Another Platform",
+        match_confidence="low",
+        catalog_source="some-other.dat",
+        platform="Nintendo DS",
+    )
+
+    repo.clear_match("/roms/D.gba")
+
+    matched = repo.get_matched_games()
+    assert matched == []
+    unresolved = repo.get_unresolved_games()
+    assert len(unresolved) == 1
+    assert unresolved[0].source_path == "/roms/D.gba"
+    # platform describes the file itself, not whether a catalog match was
+    # found — clear_match must never touch it.
+    assert unresolved[0].platform == "Nintendo DS"
+
+
 # ── get_duplicate_groups / exclude_duplicate_sha1 ────────────────────────────
 
 

@@ -39,6 +39,19 @@ def _build_tables(user_override: Path | None = None) -> tuple[dict, set, dict]:
     by_ext = {k.lower(): v for k, v in data.get("extensions", {}).items()}
     ambiguous = set(e.lower() for e in data.get("ambiguous", {}).get("extensions", []))
     by_folder = {k.lower(): v for k, v in data.get("folders", {}).items()}
+    # MDFOLDER-FIX-2: this table is keyed by compact slugs ("ps2", "nds",
+    # "gba"), but a library organized with the human-readable canonical name
+    # as the folder itself ("PlayStation 2", "Nintendo DS", "Game Boy
+    # Advance"...) has no entry to match against — found live 2026-09-12
+    # (MDFOLDER-FIX-1) that 7 of 11 real platform folders in one such
+    # library weren't recognized at all, leaving every ambiguous-extension
+    # ROM there (.bin/.cue/.iso/.zip/.chd/.img) with no folder signal to
+    # disambiguate a title-fallback match against the wrong platform's
+    # catalog. A folder literally named after the platform must always
+    # resolve; setdefault so an existing slug entry is never overwritten if
+    # it happens to coincide.
+    for canonical in set(by_folder.values()):
+        by_folder.setdefault(canonical.lower(), canonical)
     return by_ext, ambiguous, by_folder
 
 
@@ -64,7 +77,16 @@ PLATFORM_BY_EXTENSION, AMBIGUOUS_EXTENSIONS, PLATFORM_BY_FOLDER = _build_tables(
 ROM_EXTENSIONS = set(PLATFORM_BY_EXTENSION) | AMBIGUOUS_EXTENSIONS
 
 PLATFORM_CONTEXT_BY_EXTENSION: dict[str, set[str]] = {
-    ".md": {"megadrive", "genesis", "sega genesis", "md"},
+    # MDFOLDER-FIX-1: a library using the official Western product name
+    # ("Sega Mega Drive", two words) instead of a one-word/US-name folder
+    # tokenized to {"sega","mega","drive"} — neither "megadrive" (no space)
+    # nor "genesis"/"sega genesis" is a subset of that, so detect_platform()
+    # silently returned None for every ambiguous-match .md in it. Found live
+    # 2026-09-12: 14 real Mega Drive ROMs mislabeled platform="Game Boy
+    # Advance" (canonical_title pulled from an unrelated GBA title that
+    # happened to share a normalized name) because the ambiguous title-
+    # fallback had no real folder platform to disambiguate against.
+    ".md": {"megadrive", "genesis", "sega genesis", "mega drive", "sega mega drive", "md"},
 }
 
 

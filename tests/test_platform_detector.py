@@ -119,6 +119,16 @@ class TestDetectPlatformMd:
     def test_md_in_md_folder(self) -> None:
         assert detect_platform(Path("/roms/md/game.md")) == "Sega Mega Drive"
 
+    def test_md_in_sega_mega_drive_folder(self) -> None:
+        """MDFOLDER-FIX-1: the official Western product name, two words —
+        real library folder found live 2026-09-12 where this gap caused 14
+        real Mega Drive ROMs to mislabel platform via the title fallback
+        (no folder signal to disambiguate the ambiguous .md extension)."""
+        assert detect_platform(Path("/roms/Sega Mega Drive/Sonic.md")) == "Sega Mega Drive"
+
+    def test_md_in_mega_drive_folder(self) -> None:
+        assert detect_platform(Path("/roms/Mega Drive/Sonic.md")) == "Sega Mega Drive"
+
     def test_md_without_context_returns_none(self) -> None:
         assert detect_platform(Path("/docs/notes.md")) is None
 
@@ -193,6 +203,26 @@ class TestDetectPlatformAmbiguous:
     def test_nested_path_uses_any_ancestor(self) -> None:
         # The platform folder can be anywhere in the path
         assert detect_platform(Path("/library/psx/subdir/game.bin")) == "PlayStation"
+
+    @pytest.mark.parametrize(
+        "folder,expected",
+        [
+            ("PlayStation 2", "PlayStation 2"),
+            ("Nintendo DS", "Nintendo DS"),
+            ("Game Boy Advance", "Game Boy Advance"),
+            ("Game Boy Color", "Game Boy Color"),
+            ("Sega Saturn", "Sega Saturn"),
+            ("Game Gear", "Game Gear"),
+        ],
+    )
+    def test_canonical_display_name_folder_recognized(self, folder: str, expected: str) -> None:
+        """MDFOLDER-FIX-2: a library organized with the human-readable
+        canonical name as the folder itself, not the compact slug — found
+        live 2026-09-12 that 7 of 11 real platform folders in one such
+        library weren't recognized at all (only the .md/Mega-Drive case,
+        MDFOLDER-FIX-1, had been special-cased). A folder literally named
+        after the platform must always resolve."""
+        assert detect_platform(Path(f"/roms/{folder}/game.iso")) == expected
 
 
 # ── Platform consistency: _ES_PLATFORM_FOLDERS aligns with platform_detector ──

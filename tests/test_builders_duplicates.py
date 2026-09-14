@@ -420,6 +420,57 @@ def test_ra_mixed_reason_and_recommendation(tmp_path: Path) -> None:
     assert recommended["source_path"] == path_a
 
 
+def test_ra_cross_platform_group_scores_each_entry_by_its_own_platform(tmp_path: Path) -> None:
+    """MATCH-FIX-4: a byte-identical ROM stranded under two different
+    platform labels (e.g. a Game Boy Color game whose only other copy sits
+    in a stray Game Boy bulk-pack folder) must score each entry's RA support
+    against ITS OWN platform's hash cache. Scoring the whole group with a
+    single shared platform (the first member's) blinded every other
+    member's real RA support -- confirmed live 2026-09-12: 3 GBC games
+    correctly marked/sent to the Anbernic for their achievements lost the
+    discard tiebreak to junk bulk-pack .gb duplicates because the group
+    picked "Game Boy" and looked up the .gbc file's hash there instead of
+    in the Game Boy Color cache where it actually lives."""
+    config = load_config(tmp_path)
+    _write_ra_cache(tmp_path, console_id=6, hashes={"m" * 32: 12})  # Game Boy Color
+    # Game Boy (console 5) has no cache file at all -- same as production,
+    # where the stray bulk-pack copy was never independently RA-verified.
+    repo = LibraryRepository(config.database_path)
+    path_gb = str(tmp_path / "0001_bulk_pack.gb")
+    path_gbc = str(tmp_path / "Tony Hawk's Pro Skater.gbc")
+    _insert_game(
+        repo,
+        source_path=path_gb,
+        sha1="A" * 40,
+        md5="m" * 32,
+        original_filename="0001_bulk_pack.gb",
+        canonical_title="Tony Hawk's Pro Skater (USA, Europe)",
+        platform="Game Boy",
+        extension=".gb",
+    )
+    _insert_game(
+        repo,
+        source_path=path_gbc,
+        sha1="A" * 40,
+        md5="m" * 32,
+        original_filename="Tony Hawk's Pro Skater.gbc",
+        canonical_title="Tony Hawk's Pro Skater (USA, Europe)",
+        platform="Game Boy Color",
+        extension=".gbc",
+    )
+
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    entries_by_path = {e["source_path"]: e for e in group["entries"]}
+    assert entries_by_path[path_gbc]["ra_supported"] is True
+    assert entries_by_path[path_gbc]["ra_achievements"] == 12
+    assert entries_by_path[path_gb]["ra_supported"] is False
+    recommended = next(e for e in group["entries"] if e["recommended"])
+    assert recommended["source_path"] == path_gbc
+
+
 def test_excluded_group_is_hidden(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     _insert_game(repo, source_path="/roms/a.gb", sha1="A" * 40, original_filename="tetris.gb")
@@ -858,3 +909,125 @@ def test_title_union_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
     result = _build_review_queue(repo, repo, None)
 
     assert result["groups"] == []
+
+
+def _write_nds_rom(path: Path, game_code: str, size: int = 1024) -> None:
+    data = bytearray(max(size, 0x10))
+    data[0x0C : 0x0C + len(game_code)] = game_code.encode("ascii")
+    path.write_bytes(bytes(data))
+
+
+def test_header_union_rescues_unmatched_translation_patch(tmp_path: Path) -> None:
+    """MATCH-HEADER-1: a translation patch/bad dump with no sha1/title link
+    to the real game (real case: a 128 MiB "(BAHAMUT)" Spanish patch of
+    "Kirby Super Star Ultra (Europe)") is invisible to every other union —
+    different bytes, different (or no) canonical_title. Reading the NDS
+    header's game code straight from the file links it to its real
+    counterpart anyway, surfacing it in the review queue instead of leaving
+    it silently unmatched forever."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    nds_dir = tmp_path / "nds"
+    nds_dir.mkdir()
+    real_path = nds_dir / "Kirby Super Star Ultra (Europe).nds"
+    patch_path = nds_dir / "4186 - Kirby Super Star Ultra (EU)(M5)(BAHAMUT).nds"
+    _write_nds_rom(real_path, "YKWP", size=134_217_728)
+    _write_nds_rom(patch_path, "YKWP", size=140_000_000)
+    _insert_game(
+        repo,
+        source_path=str(real_path),
+        sha1="A" * 40,
+        original_filename=real_path.name,
+        canonical_title="Kirby Super Star Ultra (Europe)",
+        platform="Nintendo DS",
+        extension=".nds",
+    )
+    _insert_game(
+        repo,
+        source_path=str(patch_path),
+        sha1="B" * 40,
+        original_filename=patch_path.name,
+        canonical_title=None,
+        platform="Nintendo DS",
+        extension=".nds",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "header" in group["reasons"]
+    paths = {e["source_path"] for e in group["entries"]}
+    assert paths == {str(real_path), str(patch_path)}
+
+
+def test_header_union_skips_different_games(tmp_path: Path) -> None:
+    """Two unrelated NDS games (different game codes) must never be unioned
+    just for sharing a platform — the whole point of the game code is that
+    it's specific to one release."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    nds_dir = tmp_path / "nds"
+    nds_dir.mkdir()
+    a_path = nds_dir / "Game A.nds"
+    b_path = nds_dir / "Game B.nds"
+    _write_nds_rom(a_path, "AAAA")
+    _write_nds_rom(b_path, "BBBB")
+    _insert_game(
+        repo,
+        source_path=str(a_path),
+        sha1="A" * 40,
+        original_filename=a_path.name,
+        canonical_title=None,
+        platform="Nintendo DS",
+        extension=".nds",
+    )
+    _insert_game(
+        repo,
+        source_path=str(b_path),
+        sha1="B" * 40,
+        original_filename=b_path.name,
+        canonical_title=None,
+        platform="Nintendo DS",
+        extension=".nds",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_header_union_not_claimed_when_already_explained_by_sha1(tmp_path: Path) -> None:
+    """A group already unioned by an exact sha1 match must not also carry a
+    redundant 'header' reason on top of 'sha1' — the header link added
+    nothing new here."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    nds_dir = tmp_path / "nds"
+    nds_dir.mkdir()
+    a_path = nds_dir / "Game (USA).nds"
+    b_path = nds_dir / "Game (Copy).nds"
+    _write_nds_rom(a_path, "ABCD")
+    _write_nds_rom(b_path, "ABCD")
+    _insert_game(
+        repo,
+        source_path=str(a_path),
+        sha1="SAME" * 10,
+        original_filename=a_path.name,
+        canonical_title="Game (USA)",
+        platform="Nintendo DS",
+        extension=".nds",
+    )
+    _insert_game(
+        repo,
+        source_path=str(b_path),
+        sha1="SAME" * 10,
+        original_filename=b_path.name,
+        canonical_title="Game (USA)",
+        platform="Nintendo DS",
+        extension=".nds",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "sha1" in group["reasons"]
+    assert "header" not in group["reasons"]
