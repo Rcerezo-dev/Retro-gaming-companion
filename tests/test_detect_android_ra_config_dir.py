@@ -7,7 +7,7 @@ probe goes through ADB (AdbTransport.test_path()) instead of the filesystem.
 from __future__ import annotations
 
 from rom_manager.config import load_config
-from rom_manager.web.handlers.config import _detect_android_ra_config_dir
+from rom_manager.web.handlers.config_tools import _detect_android_ra_config_dir
 
 
 class _FakeAdbTransport:

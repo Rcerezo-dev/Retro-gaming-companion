@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rom_manager.web.handlers.config import _detect_retroarch_install
+from rom_manager.web.handlers.config_tools import _detect_retroarch_install
 
 
 def test_found_derives_ra_config_dir_next_to_exe(monkeypatch, tmp_path: Path) -> None:
