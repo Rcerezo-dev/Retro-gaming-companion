@@ -16,10 +16,11 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 | 04 | [04-consolidate-state.md](04-consolidate-state.md) | `refactor/consolidate-state` | **Completado** ✅ | 🟠 P2 |
 | 05 | [05-consolidate-platform-dict.md](05-consolidate-platform-dict.md) | `refactor/consolidate-platform-dict` | **Completado** ✅ | 🟠 P2 |
 | 06 | [06-tests-api-endpoints.md](06-tests-api-endpoints.md) | `tests/api-endpoints` | **Completado** ✅ | 🟠 P2 |
-| 07 | — | `fix/remove-debug-prints` | Sin roadmap | 🟡 P3 |
-| 08 | — | `fix/error-handling` | Sin roadmap | 🟡 P3 |
-| 09 | — | `refactor/config-handler-split` | Sin roadmap | 🟡 P3 |
-| 10 | — | `i18n/translate-remaining-strings` | Sin roadmap | 🟡 P3 |
+| 07 | — | `fix/remove-debug-prints` | **Obsoleto** — verificado 2026-09-13, sin superficie (ver nota) | 🟡 P3 |
+| 08 | [08-fix-error-handling.md](08-fix-error-handling.md) | `fix/error-handling` | Pendiente | 🟠 P2 |
+| 09 | [09-config-handler-split.md](09-config-handler-split.md) | `refactor/config-handler-split` | Pendiente | 🟡 P3 |
+| 10 | [10-i18n-translate-remaining-strings.md](10-i18n-translate-remaining-strings.md) | `i18n/translate-remaining-strings` | Pendiente | 🟡 P3 |
+| 11 | [11-cable-sync-android-root-canonical.md](11-cable-sync-android-root-canonical.md) | `fix/cable-sync-android-root-canonical` | Pendiente | 🔴 P1 |
 
 ---
 
@@ -29,3 +30,17 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 - **En curso** — rama creada, trabajo en progreso
 - **Completado** — PR mergeado a main
 - **Sin roadmap** — entrada en mejoras-por-rama.md pero roadmap no redactado aún
+- **Obsoleto** — verificado contra el código real y el problema original ya no existe (resuelto sin querer por otro cambio, o nunca fue tan extendido como se documentó)
+
+---
+
+## Notas de verificación
+
+**07 — `fix/remove-debug-prints` (2026-09-13):** el problema original de
+`mejoras-por-rama.md` (`server.py:831-835`, 4 `print(f"[DEBUG] ...")`) ya no
+existe — `grep -rn "\[DEBUG\]" src/rom_manager/` no encuentra nada, y
+`grep -rln "print(" src/rom_manager/ --include="*.py"` solo devuelve
+`cli.py`/`wizard.py` (salida de terminal legítima de la CLI, no restos de
+depuración — `web/` no tiene ningún `print()`). Probablemente se resolvió
+durante los refactors de `server.py` (roadmaps 01-05, completados). No se
+creó roadmap para esta rama — no hay nada que implementar.
