@@ -49,7 +49,9 @@ def register(
             or str(config.library_root or "")
         )
         if not inbox_path_str:
-            ctx._send_json({"error": "path parameter required (or set inbox.path in config.toml)"})
+            ctx._send_json(
+                {"error": "parámetro path requerido (o configura inbox.path en config.toml)"}
+            )
         else:
             ctx._send_json(_build_inbox_scan(inbox_path_str, target_root_str))
 
@@ -107,7 +109,7 @@ def register(
         source_path = data.get("source_path", "").strip()
         keep = data.get("keep", "").strip()
         if not source_path or keep not in ("source", "dest"):
-            ctx._send_error(400, "source_path and keep ('source'|'dest') required")
+            ctx._send_error(400, "source_path y keep ('source'|'dest') requeridos")
             return
         ctx._send_json(resolve_inbox_conflict(repository, config, source_path, keep))
 
@@ -126,11 +128,11 @@ def handle_inbox_upload(config: AppConfig, content_type: str, body: bytes, ctx) 
 
     bm = _re.search(r"boundary=([^\s;]+)", content_type)
     if not bm:
-        ctx._send_error(400, "Missing multipart boundary")
+        ctx._send_error(400, "Falta el boundary multipart")
         return
     inbox_path = config.inbox.path
     if not inbox_path:
-        ctx._send_json({"error": "inbox_path not configured"})
+        ctx._send_json({"error": "inbox_path no configurado"})
         return
     inbox_dir = Path(inbox_path)
     inbox_dir.mkdir(parents=True, exist_ok=True)
@@ -172,7 +174,7 @@ def _do_inbox_run(
 
     inbox_path_str = data.get("path", "").strip() or config.inbox.path
     if not inbox_path_str:
-        ctx._send_json({"error": "path is required (or set inbox.path in config.toml)"})
+        ctx._send_json({"error": "path requerido (o configura inbox.path en config.toml)"})
         return
     target_root_str = (
         data.get("target_root", "").strip()
@@ -199,7 +201,7 @@ def _do_setup_run(
         str(config.library_root) if config.library_root else ""
     )
     if not lib_root:
-        ctx._send_json({"error": "library_root is required"})
+        ctx._send_json({"error": "library_root requerido"})
         return
 
     from rom_manager.config import load_config, write_config_toml

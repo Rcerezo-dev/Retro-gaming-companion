@@ -141,7 +141,7 @@ def _do_apply(
                 if not op.source_path.exists():
                     skipped += 1
                     skip_details.append(
-                        f"{op.source_path.name}: source not found (outdated DB entry)"
+                        f"{op.source_path.name}: origen no encontrado (entrada de BD obsoleta)"
                     )
                     continue
                 try:

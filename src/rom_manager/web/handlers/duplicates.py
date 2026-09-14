@@ -127,7 +127,7 @@ def register(
                 repo.exclude_duplicate_sha1(sha1)
             ctx._send_json({"ok": True})
         else:
-            ctx._send_error(400, "sha1 required")
+            ctx._send_error(400, "sha1 requerido")
 
     # ── GET /api/duplicates/exclusions ────────────────────────────────────────
     @router.get("/api/duplicates/exclusions")
@@ -146,7 +146,7 @@ def register(
     def post_remove_duplicate_exclusion(ctx) -> None:
         sha1 = ctx._post_data.get("sha1", "")
         if not sha1:
-            ctx._send_error(400, "sha1 required")
+            ctx._send_error(400, "sha1 requerido")
             return
         for repo in (repository, repo_android):
             repo.remove_excluded_duplicate(sha1)
@@ -169,7 +169,7 @@ def register(
     def post_exclude_review_group(ctx) -> None:
         group_key = (ctx._post_data.get("group_key") or "").strip()
         if not group_key:
-            ctx._send_error(400, "group_key required")
+            ctx._send_error(400, "group_key requerido")
             return
         # El grupo puede tener entries en cualquiera de las dos BDs — excluir en
         # ambas, mismo criterio que la exclusión por sha1 (INSERT OR IGNORE).
@@ -192,7 +192,11 @@ def register(
     def post_ra_discard_no_support(ctx) -> None:
         result = job_manager.get_status()["ra_check_result"]
         if not result:
-            ctx._send_json({"error": "No RA check result available. Run RA check first."})
+            ctx._send_json(
+                {
+                    "error": "No hay resultado de comprobación RA. Ejecuta la comprobación RA primero."
+                }
+            )
             return
         ctx._send_json(
             discard_no_support(repository, result.get("no_support_entries", []), _adb_transport())
@@ -205,7 +209,7 @@ def register(
         keep_path = data.get("keep_path", "").strip()
         discard_paths = data.get("discard_paths", [])
         if not keep_path or not discard_paths:
-            ctx._send_json({"error": "keep_path and discard_paths required"})
+            ctx._send_json({"error": "keep_path y discard_paths requeridos"})
             return
         # El grupo entero vive en un mismo dispositivo → enrutar por keep_path
         ctx._send_json(

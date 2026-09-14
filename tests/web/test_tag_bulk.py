@@ -115,7 +115,7 @@ def test_tag_bulk_requires_tag(tmp_path: Path) -> None:
     ctx = _Ctx({"action": "add", "platform": "Arcade"})
     router.dispatch("POST", "/api/tag-bulk", ctx)
 
-    assert ctx.payload == {"error": "tag required"}
+    assert ctx.payload == {"error": "tag requerido"}
 
 
 def test_add_tag_bulk_and_remove_tag_bulk_repository_methods(tmp_path: Path) -> None:

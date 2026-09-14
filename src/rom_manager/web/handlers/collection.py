@@ -132,13 +132,13 @@ def register(
             assets_repo = get_repo_fn(src_root or "")
             result = _build_assets(assets_repo, source_root=src_root)
             if not result or "stats" not in result:
-                ctx._send_error(500, f"Invalid assets response: {result}")
+                ctx._send_error(500, f"Respuesta de assets inválida: {result}")
                 return
             ctx._send_json(result)
         except Exception as e:
             import traceback
 
-            ctx._send_error(500, f"Asset query failed: {str(e)} | {traceback.format_exc()}")
+            ctx._send_error(500, f"Fallo al consultar assets: {str(e)} | {traceback.format_exc()}")
 
     # ── GET /api/assets/orphans ─────────────────────────────────────────────────
     @router.get("/api/assets/orphans")
@@ -153,7 +153,9 @@ def register(
         except Exception as e:
             import traceback
 
-            ctx._send_error(500, f"Orphan asset query failed: {str(e)} | {traceback.format_exc()}")
+            ctx._send_error(
+                500, f"Fallo al consultar assets huérfanos: {str(e)} | {traceback.format_exc()}"
+            )
 
     # ── GET /api/asset-image ──────────────────────────────────────────────────
     @router.get("/api/asset-image")
@@ -164,7 +166,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("game_id", [None])[0]
         if not game_id:
-            ctx._send_error(400, "game_id required")
+            ctx._send_error(400, "game_id requerido")
             return
         try:
             game_id = int(game_id)
@@ -179,12 +181,12 @@ def register(
             ).fetchone()
 
         if not row or not row["box_art_path"]:
-            ctx._send_error(404, "No asset found")
+            ctx._send_error(404, "No se encontró el asset")
             return
 
         img_path = Path(row["box_art_path"])
         if not img_path.exists():
-            ctx._send_error(404, "Asset file not found")
+            ctx._send_error(404, "Archivo de asset no encontrado")
             return
 
         # Serve the image file
@@ -194,7 +196,7 @@ def register(
             mime_type = mime_type or "application/octet-stream"
             ctx._send(200, mime_type, body)
         except Exception as e:
-            ctx._send_error(500, f"Could not read asset: {e}")
+            ctx._send_error(500, f"No se pudo leer el asset: {e}")
 
     # ── GET /api/export-library ───────────────────────────────────────────────
     @router.get("/api/export-library")
@@ -642,7 +644,7 @@ def register(
         data = ctx._post_data
         sha1 = (data.get("sha1") or "").strip().upper()
         if not sha1:
-            ctx._send_error(400, "sha1 required")
+            ctx._send_error(400, "sha1 requerido")
         elif data.get("remove"):
             repository.remove_wishlist_entry(sha1)
             ctx._send_json({"ok": True, "removed": sha1})
