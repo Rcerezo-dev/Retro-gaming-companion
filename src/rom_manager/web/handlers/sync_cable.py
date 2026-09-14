@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 
 from rom_manager.detection.platform_detector import ROM_EXTENSIONS
 from rom_manager.sync import cable_engine
+from rom_manager.sync.android_paths import canonical_rel_posix
 from rom_manager.sync.sync_log import log_sync_event
 from rom_manager.utils.trash import TRASH_DIR_NAME
+from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
@@ -741,6 +743,34 @@ def _do_cable_sync(
 
                 if direction == "pc_to_anbernic":
                     if not dry_run:
+                        # CABLE-ROOT-1: un android_path que apunte por error al
+                        # almacenamiento interno vacío (en vez de la SD real que
+                        # vigila el launcher) no genera ningún error — el job
+                        # termina con errors=0 igual que un éxito real. Avisa
+                        # (no bloquea) cuando el destino de una plataforma con
+                        # volumen real en el PC aparece sospechosamente vacío.
+                        _pc_platform_counts: dict[str, int] = {}
+                        for _f in _iter_files(pc_root):
+                            if _wanted(_f):
+                                _top = _f.relative_to(pc_root).as_posix().split("/", 1)[0]
+                                _pc_platform_counts[_top] = _pc_platform_counts.get(_top, 0) + 1
+                        _ab_platform_counts: dict[str, int] = {}
+                        for _rel in ab_index:
+                            _top = _rel.split("/", 1)[0]
+                            _ab_platform_counts[_top] = _ab_platform_counts.get(_top, 0) + 1
+                        for _pc_folder, _pc_count in _pc_platform_counts.items():
+                            _slug = canonical_rel_posix(
+                                f"{_pc_folder}/x", _ES_PLATFORM_FOLDERS
+                            ).split("/", 1)[0]
+                            if _pc_count >= 20 and _ab_platform_counts.get(_slug, 0) == 0:
+                                _log(
+                                    "WARN",
+                                    f"{_pc_folder}/ ({_pc_count} archivos en PC)",
+                                    f"{android_path}/{_slug}/ (0 archivos)",
+                                    "destino vacío — revisa que android_path apunte a "
+                                    "la biblioteca real del dispositivo",
+                                )
+
                         # CABLE-ROM-FIX-2: cuánto hace falta de verdad (tras
                         # descontar lo que skip_existing ya se salta) contra
                         # el espacio libre real del dispositivo — antes de
@@ -778,7 +808,7 @@ def _do_cable_sync(
                         if not _wanted(src):
                             continue
                         rel = src.relative_to(pc_root)
-                        rel_posix = rel.as_posix()
+                        rel_posix = canonical_rel_posix(rel.as_posix(), _ES_PLATFORM_FOLDERS)
                         try:
                             local_size = src.stat().st_size
                         except OSError:
@@ -929,13 +959,21 @@ def _do_cable_sync(
                             # "ganador" arbitrario y puede sobrescribir la version buena.
                             diff = pc_f.stat().st_mtime - ab_inf.mtime
                             if diff > cable_engine.DEFAULT_MTIME_TOLERANCE_S:
-                                _adb_copy_to_device(pc_f, rel_posix, "→ ADB (PC más reciente)")
+                                _adb_copy_to_device(
+                                    pc_f,
+                                    canonical_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS),
+                                    "→ ADB (PC más reciente)",
+                                )
                             elif diff < -cable_engine.DEFAULT_MTIME_TOLERANCE_S:
                                 _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
                         elif pc_f:
-                            _adb_copy_to_device(pc_f, rel_posix, "→ ADB (solo en PC)")
+                            _adb_copy_to_device(
+                                pc_f,
+                                canonical_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS),
+                                "→ ADB (solo en PC)",
+                            )
                         elif ab_inf:
                             _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (solo en Anbernic)")
 
@@ -1114,7 +1152,9 @@ def _do_cable_sync(
                                 )
                             continue
                         try:
-                            rel_posix = local_src.relative_to(pc_root).as_posix()
+                            rel_posix = canonical_rel_posix(
+                                local_src.relative_to(pc_root).as_posix(), _ES_PLATFORM_FOLDERS
+                            )
                         except ValueError:
                             if len(details) < 300:
                                 details.append(
@@ -1194,7 +1234,13 @@ def _do_cable_sync(
                     )
 
                 if direction == "pc_to_anbernic":
-                    for item in cable_engine.plan_direction(pc_root, ab_root, direction, _wanted):
+                    for item in cable_engine.plan_direction(
+                        pc_root,
+                        ab_root,
+                        direction,
+                        _wanted,
+                        es_platform_folders=_ES_PLATFORM_FOLDERS,
+                    ):
                         if cancel_event.is_set():
                             break
                         _apply_copy(item)
@@ -1285,7 +1331,13 @@ def _do_cable_sync(
                                     _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
-                    for item in cable_engine.plan_direction(pc_root, ab_root, direction, _wanted):
+                    for item in cable_engine.plan_direction(
+                        pc_root,
+                        ab_root,
+                        direction,
+                        _wanted,
+                        es_platform_folders=_ES_PLATFORM_FOLDERS,
+                    ):
                         if cancel_event.is_set():
                             break
                         _apply_copy(item)
