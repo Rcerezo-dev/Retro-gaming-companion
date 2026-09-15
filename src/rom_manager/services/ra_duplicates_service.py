@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
 
@@ -294,6 +295,9 @@ def get_ra_achievements(config: AppConfig, platform: str, md5: str, cache: dict[
     return entry.achievements if entry else -1
 
 
+_DISC_HASH_CONSOLE_IDS = {12, 16, 20}  # PlayStation, GameCube, Wii -- same set as ra_checker.py
+
+
 def get_ra_achievements_for_path(
     repository: LibraryRepository,
     config: AppConfig,
@@ -301,7 +305,27 @@ def get_ra_achievements_for_path(
     platform: str,
     cache: dict[str, dict],
 ) -> int:
-    """Achievement count for the game stored at *source_path* — -1 if unknown."""
+    """Achievement count for the game stored at *source_path* — -1 if unknown.
+
+    INBOX-RA-HASH-GAP: for PSX/GameCube/Wii, ``games.md5`` is a whole-file
+    hash that never matches RA's own disc-specific hash (see
+    ``ra_hash_psx.py``/``ra_hash_gamecube_wii.py``) -- without this, any
+    conflict between two discs on these platforms always looked like
+    "neither has RA data" and fell back to filename/format tie-breaks
+    instead of the real achievement count."""
+    console_id = get_ra_console_id(platform)
+    if console_id in _DISC_HASH_CONSOLE_IDS:
+        cache_dir = config.project_root / ".rommgr" / "ra_cache"
+        if console_id == 12:
+            from rom_manager.retroachievements.ra_disc_hash_cache import get_psx_disc_hash
+
+            md5 = get_psx_disc_hash(source_path, cache_dir, config.chdman) or ""
+        else:
+            from rom_manager.retroachievements.ra_disc_hash_cache import get_gamecube_wii_disc_hash
+
+            md5 = get_gamecube_wii_disc_hash(source_path, cache_dir, console_id) or ""
+        return get_ra_achievements(config, platform, md5, cache)
+
     try:
         with repository.connect() as conn:
             row = conn.execute(
