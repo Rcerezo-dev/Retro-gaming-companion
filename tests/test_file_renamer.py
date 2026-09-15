@@ -401,6 +401,25 @@ def test_rename_bin_updates_sibling_cue_reference(tmp_path: Path) -> None:
     assert 'FILE "Game (USA).bin" BINARY' in cue.read_text()
 
 
+def test_rename_bin_updates_sibling_cue_reference_case_insensitive(tmp_path: Path) -> None:
+    """NTFS resuelve nombres sin distinguir mayúsculas — si el .cue referencia
+    "Game.BIN" y el archivo real es "Game.bin", la comparación debe seguir
+    detectando la referencia y actualizarla (mismo bug PSX-CUE-DESYNC-1,
+    reintroducido si la comparación fuera sensible a mayúsculas)."""
+    source = tmp_path / "Game (Europe).bin"
+    source.write_bytes(b"disc data")
+    cue = tmp_path / "Game (Europe).cue"
+    cue.write_text(
+        'FILE "Game (Europe).BIN" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n'
+    )
+    target = tmp_path / "Game (USA).bin"
+
+    outcome = rename_rom_with_saves(source, target, frozenset({".srm"}))
+
+    assert outcome.success is True
+    assert 'FILE "Game (USA).bin" BINARY' in cue.read_text()
+
+
 def test_rename_bin_updates_sibling_gdi_reference(tmp_path: Path) -> None:
     """GDI track lines are unquoted, whitespace-separated fields (same
     assumption ``parse_tracks_from_gdi`` already makes) -- typical

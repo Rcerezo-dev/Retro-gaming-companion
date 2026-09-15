@@ -120,7 +120,7 @@ def _update_disc_sheet_references(old_name: str, new_name: str, directory: Path)
             refs = parse_bins_from_cue(cue)
         except OSError:
             continue
-        if not any(r.name == old_name for r in refs):
+        if not any(r.name.lower() == old_name.lower() for r in refs):
             continue
         try:
             text = cue.read_text(encoding="utf-8", errors="replace")
@@ -136,7 +136,7 @@ def _update_disc_sheet_references(old_name: str, new_name: str, directory: Path)
                     r"FILE\s+(\S+)", stripped, re.IGNORECASE
                 )
                 ref_name = PureWindowsPath(m.group(1)).name if m else None
-                if ref_name == old_name:
+                if ref_name is not None and ref_name.lower() == old_name.lower():
                     newline = "\n" if line.endswith("\n") else ""
                     rest = re.sub(r'^FILE\s+(?:"[^"]+"|\S+)', "", stripped, flags=re.IGNORECASE)
                     out_lines.append(f'FILE "{new_name}"{rest}{newline}')
