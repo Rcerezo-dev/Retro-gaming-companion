@@ -1231,19 +1231,32 @@ def _run_inbox_pipeline(
                 continue
 
             try:
-                _shutil.move(str(source_file), str(dest_file))
-                # Update DB path. ZIP-ROUTE-FIX-2: a stale row from an earlier
-                # session can already hold this exact source_path — its file
-                # no longer exists (dest_file.exists() was False above) but
-                # the UNIQUE constraint still blocks the UPDATE. Drop that
-                # ghost row first; the physical move already succeeded either way.
+                # INBOX-ATOMIC-1: BD primero, mover el archivo al final, ambos
+                # dentro del mismo bloque `batch()`. Si el UPDATE falla, la
+                # excepción sale del `with` antes de tocar el disco — nunca se
+                # llega al move. Si el move falla después de un UPDATE en
+                # memoria (sin commitear todavía), la excepción también sale
+                # del `with` y `batch()` hace rollback de la BD — el archivo
+                # nunca llegó a moverse (shutil.move no deja estado parcial
+                # dentro del mismo volumen: falla entero o no falla), así que
+                # la fila vuelve a apuntar a donde el archivo sigue estando de
+                # verdad. Antes (move primero, BD después) un fallo del UPDATE
+                # dejaba el archivo ya en `dest_file` con la fila todavía
+                # apuntando al Inbox, donde el archivo ya no existía —
+                # desincronizado en silencio, la única señal era el mensaje
+                # crudo de excepción SQLite en `organize_errors`.
                 dest_path_str = str(dest_file.resolve())
                 with repository.batch() as conn:
+                    # ZIP-ROUTE-FIX-2: a stale row from an earlier session can
+                    # already hold this exact source_path — its file no
+                    # longer exists (dest_file.exists() was False above) but
+                    # the UNIQUE constraint still blocks the UPDATE below.
                     cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
                     conn.execute(
                         "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
                         (dest_path_str, dest_file.name, game_id),
                     )
+                    _shutil.move(str(source_file), str(dest_file))
                 organized += 1
             except Exception as exc:
                 organize_errors.append(f"{source_file.name}: {exc}")
