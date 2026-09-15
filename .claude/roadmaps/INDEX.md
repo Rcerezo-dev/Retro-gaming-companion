@@ -17,14 +17,14 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 | 05 | [05-consolidate-platform-dict.md](05-consolidate-platform-dict.md) | `refactor/consolidate-platform-dict` | **Completado** ✅ | 🟠 P2 |
 | 06 | [06-tests-api-endpoints.md](06-tests-api-endpoints.md) | `tests/api-endpoints` | **Completado** ✅ | 🟠 P2 |
 | 07 | — | `fix/remove-debug-prints` | **Obsoleto** — verificado 2026-09-13, sin superficie (ver nota) | 🟡 P3 |
-| 08 | [08-fix-error-handling.md](08-fix-error-handling.md) | `fix/error-handling` | Pendiente | 🟠 P2 |
-| 09 | [09-config-handler-split.md](09-config-handler-split.md) | `refactor/config-handler-split` | Pendiente | 🟡 P3 |
-| 10 | [10-i18n-translate-remaining-strings.md](10-i18n-translate-remaining-strings.md) | `i18n/translate-remaining-strings` | Pendiente | 🟡 P3 |
-| 11 | [11-cable-sync-android-root-canonical.md](11-cable-sync-android-root-canonical.md) | `fix/cable-sync-android-root-canonical` | Pendiente | 🔴 P1 |
+| 08 | [08-fix-error-handling.md](08-fix-error-handling.md) | `fix/error-handling` | **Completado** ✅ (mergeado a `develop`, `84b05f7`) | 🟠 P2 |
+| 09 | [09-config-handler-split.md](09-config-handler-split.md) | `refactor/config-handler-split` | **Completado** ✅ (mergeado a `develop`, `6952b37`) | 🟡 P3 |
+| 10 | [10-i18n-translate-remaining-strings.md](10-i18n-translate-remaining-strings.md) | `i18n/translate-remaining-strings` | **Completado** ✅ (mergeado a `develop`, `0e430fb`) | 🟡 P3 |
+| 11 | [11-cable-sync-android-root-canonical.md](11-cable-sync-android-root-canonical.md) | `fix/cable-sync-android-root-canonical` | **Completado** ✅ (mergeado a `develop`, `fc29e09` — checklist y backlog `CABLE-ROOT-1c/1d` seguían diciendo "pendiente de commit", corregido 2026-09-15) | 🔴 P1 |
 | 12 | [12-dual-folder-title-case-slug.md](12-dual-folder-title-case-slug.md) | `fix/dual-folder-title-case-slug` | Pendiente | 🟠 P2 |
-| 13 | [13-match-chdman-robustness.md](13-match-chdman-robustness.md) | `fix/match-chdman-robustness` | Pendiente | 🟠 P2 |
+| 13 | [13-match-chdman-robustness.md](13-match-chdman-robustness.md) | `fix/match-chdman-robustness` | **Completado** ✅ (rama local, 2026-09-15 — pendiente PR a `develop`, ver nota abajo) | 🟠 P2 |
 | 14 | [14-matcher-coverage-gaps.md](14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | Pendiente | 🟡 P3 |
-| 15 | [15-psx-cue-multitrack-integrity.md](15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | Pendiente | 🔴 P1 |
+| 15 | [15-psx-cue-multitrack-integrity.md](15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | **Completado** ✅ (mergeado a `develop`, `5bc4e06` — ver `PSX-CUE-DESYNC-1b` en el backlog) | 🔴 P1 |
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Pendiente | 🟡 P3 |
 | 17 | [17-inbox-pending-features.md](17-inbox-pending-features.md) | `feature/inbox-pending-features` | Pendiente | 🟠 P2 |
 | 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Pendiente | 🟡 P3 |
@@ -44,6 +44,18 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 ---
 
 ## Notas de verificación
+
+**08/09/10/11/15 (2026-09-15):** esta tabla decía "Pendiente" para las cinco,
+pero el código ya estaba mergeado a `develop` desde el 2026-09-13 (08, 09, 10,
+11) y el 2026-09-15 (15) — verificado con `git log --oneline develop` y
+`grep` de los símbolos que cada roadmap introduce, no asumido del propio
+índice. La causa más probable: el checklist de cada roadmap y las filas
+correspondientes de `Tareas/backlog.md` se quedaron con "pendiente de
+commit/PR" después de que el commit y merge sí ocurrieran — la actualización
+de estado dependía de un paso manual que no se hizo. Ver también la nota de
+atribución de `PSX-CUE-DESYNC-1b` (sesión de hoy) — mismo patrón general de
+que el registro puede desincronizarse del código real, razón de más para
+verificar contra `git log`/el código antes de confiar en esta tabla.
 
 **07 — `fix/remove-debug-prints` (2026-09-13):** el problema original de
 `mejoras-por-rama.md` (`server.py:831-835`, 4 `print(f"[DEBUG] ...")`) ya no

@@ -117,10 +117,10 @@ en minutos, no en "más de 30 minutos sin avance" como hoy.
 
 ## Checklist
 
-- [ ] Paso 1 — timeout dedicado para desambiguación (`_extract_chd`)
-- [ ] Paso 2 — progreso por fila en `_do_match`
-- [ ] Paso 3 — cancelación real dentro de la llamada bloqueante
-- [ ] Paso 4 — localizar el `.chd` disparador (si reproducible)
-- [ ] Paso 5 — tests nuevos
-- [ ] Paso 6 — suite completa + ruff limpios
+- [x] Paso 1 — timeout dedicado para desambiguación (`_extract_chd`) — `_BOOT_SERIAL_TIMEOUT = 60`, medido contra la biblioteca real (~22s peor caso observado)
+- [x] Paso 2 — progreso por fila en `_do_match` — `match_progress` en `/api/job-status` + barra en Overview
+- [x] Paso 3 — cancelación real dentro de la llamada bloqueante — resuelto sin tocar el subprocess: el timeout de 60s ya acota la espera máxima por fila
+- [ ] Paso 4 — localizar el `.chd` disparador — no reproducible (la cola original de 7.738 filas ya no existe), no bloqueante según lo previsto
+- [x] Paso 5 — tests nuevos (5, en `test_ra_hash_psx.py`/`test_jobs_manager.py`/`test_handlers_scan.py`)
+- [x] Paso 6 — suite completa (1330 tests) + ruff/format limpios + verificación real (`rommgr match` sobre 6.518 filas, 13.4s, sin cuelgue)
 - [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
