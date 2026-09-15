@@ -124,3 +124,50 @@ def test_filter_duplicate_winners_falls_back_to_dominant_format(tmp_path: Path) 
     assert str(tmp_path / "a.gba") in paths
     assert str(tmp_path / "a.zip") not in paths
     assert len(winners) == 3  # other.gba + another.gba + a.gba
+
+
+def test_filter_duplicate_winners_uses_disc_hash_for_gamecube(tmp_path: Path) -> None:
+    """INBOX-RA-HASH-GAP (hallazgo colateral): GameCube's stored md5 is a
+    whole-file hash that never matches RA's own disc hash -- without the
+    fix, both entries here would score -1 and fall back to the (wrong)
+    format tie-break instead of picking the one RA actually recognizes."""
+    from rom_manager.retroachievements.ra_hash_gamecube_wii import compute_gamecube_ra_hash
+    from tests.test_ra_hash_gamecube_wii import _build_gamecube_image
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+
+    iso_path = _build_gamecube_image(tmp_path)
+    disc_hash = compute_gamecube_ra_hash(iso_path)
+    assert disc_hash is not None
+
+    other_path = tmp_path / "unrecognized.iso"
+    other_path.write_bytes(b"not a real gamecube disc")
+
+    for path, ext in ((iso_path, ".iso"), (other_path, ".iso")):
+        repo.upsert_game(
+            original_filename=path.name,
+            source_path=str(path),
+            platform="GameCube",
+            file_type="rom",
+            relative_parent="",
+            region="USA",
+            extension=ext,
+            size_bytes=path.stat().st_size,
+            mtime=0,
+            sha1=str(path),
+            md5="0" * 32,  # deliberately identical/irrelevant whole-file md5
+            crc32="CCCCCCCC",
+            set_type="single",
+            timestamp="2024-01-01T00:00:00",
+        )
+    with repo.connect() as conn:
+        conn.execute("UPDATE games SET canonical_title = 'Test GC Game'")
+        conn.commit()
+
+    _write_ra_cache(tmp_path, get_ra_console_id("gamecube"), disc_hash)
+
+    config = SimpleNamespace(project_root=tmp_path, chdman=None)
+    games, _total = repo.get_games_paginated(platform="GameCube", limit=100)
+    winners = filter_duplicate_winners(repo, config, games)
+
+    assert [w["source_path"] for w in winners] == [str(iso_path)]

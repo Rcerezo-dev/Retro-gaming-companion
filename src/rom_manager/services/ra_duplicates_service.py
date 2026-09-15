@@ -380,8 +380,22 @@ def filter_duplicate_winners(
             continue
         dom_ext = _dominant_ext(platform)
 
-        def _key(e: dict, _platform: str = platform, _dom_ext: str = dom_ext) -> tuple:
-            ra = get_ra_achievements(config, _platform, e.get("md5") or "", ra_cache)
+        console_id = get_ra_console_id(platform)
+
+        def _key(
+            e: dict, _platform: str = platform, _dom_ext: str = dom_ext, _console_id=console_id
+        ) -> tuple:
+            # INBOX-RA-HASH-GAP: PSX/GameCube/Wii discs never match on the
+            # stored whole-file md5 (see get_ra_achievements_for_path) --
+            # e["md5"] alone would always look "no RA data" here and silently
+            # fall through to the format tie-break, same bug as ra_checker.py
+            # had before that fix.
+            if _console_id in _DISC_HASH_CONSOLE_IDS:
+                ra = get_ra_achievements_for_path(
+                    repository, config, e.get("source_path") or "", _platform, ra_cache
+                )
+            else:
+                ra = get_ra_achievements(config, _platform, e.get("md5") or "", ra_cache)
             same_format = 0 if (e.get("extension") or "") == _dom_ext else 1
             return (-ra, same_format, e.get("original_filename") or "")
 
