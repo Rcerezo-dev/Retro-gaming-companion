@@ -2041,3 +2041,78 @@ afecte a más plataformas (verificar si hay pares `ps2/`+`PlayStation 2/`,
 `psx/`+`PlayStation/`, etc. con contenido real duplicado, no solo `media/`
 vacío como se vio en `psx/`/`ps2/` hoy) |
 
+### PS2-DUAL-FOLDER-1 — `organize-source` crea un segundo `ps2/` en vez de usar `PlayStation 2/` ya existente (hallazgo 2026-09-15, máquina "Ruben", `F:\Juegos Retro`)
+
+Confirma la predicción de `GBA-DUAL-FOLDER-1` ("verificar si hay pares
+`ps2/`+`PlayStation 2/`"). Al organizar 21 juegos de PS2 encontrados sin
+identificar en `Unknown\` (Kingdom Hearts, Kingdom Hearts II, GTA San Andreas,
+Metal Gear Solid 2, Grandia II/III, Gradius V, Dark Cloud, Shadow Hearts, Dead
+or Alive 2, Street Fighter III 3rd Strike — todos con `canonical_title`
+poblado, `platform` seteado a mano vía `CatalogMatcher` directo tras un
+cuelgue del job `match` general, ver más abajo), `rommgr organize-source
+--apply` los movió (y renombró a su nombre canónico) a `F:\Juegos
+Retro\ps2\` — carpeta que hasta hoy solo tenía un `media/` vacío — en vez de
+`PlayStation 2\`, donde ya viven los otros 26 juegos de PS2 del PC.
+
+**Causa raíz, no es un bug**: `web/handlers/system.py:34`
+(`_ES_PLATFORM_FOLDERS["PlayStation 2"] = "ps2"`) es el mapeo que usa
+`inbox_pipeline.py::_platform_folder_name()` (línea 40-43) para decidir dónde
+organiza el Inbox — deliberadamente el slug en minúsculas que reconocen
+RetroArch/EmulationStation (mismo criterio que ya usa `canonical_rel_posix()`
+en el cable-sync tras `CABLE-ROOT-1`). La carpeta `PlayStation 2\` (Title
+Case) con los 26 juegos existentes **no la creó este proyecto** —
+`operation_planner.py::build_plan()` solo renombra el archivo dentro de su
+carpeta actual (`target = source.parent / new_filename`, línea 181), nunca
+mueve entre carpetas de plataforma — así que es una carpeta legada de antes
+de esta herramienta, igual que `Game Boy Advance\` en `GBA-DUAL-FOLDER-1`.
+El Inbox siempre va a preferir el slug Android; cualquier carpeta legada
+Title Case queda huérfana y nunca vuelve a recibir contenido nuevo del
+pipeline salvo consolidación manual.
+
+**Corregido en caliente hoy** (sin cambiar código): los 21 archivos movidos a
+mano de `ps2\` a `PlayStation 2\` (`shutil.move`, sin conflictos de nombre)
+para mantener consistencia con el resto de la biblioteca PS2 del PC, y
+`rommgr scan` re-corrido para actualizar `source_path` en la BD | `ps2\`
+(vacío tras la consolidación, solo queda `media/`) vs `PlayStation 2\` (ahora
+47 juegos) | `web/handlers/system.py:34` (`_ES_PLATFORM_FOLDERS`),
+`web/inbox_pipeline.py:40-43` (`_platform_folder_name`),
+`planner/operation_planner.py:181` (`build_plan`, nunca mueve entre
+carpetas) | 🔴 mismo dilema sin decidir que `GBA-DUAL-FOLDER-1` — mientras no
+se decida una dirección canónica (¿todo a slug Android, o el Inbox debería
+detectar y reutilizar una carpeta Title Case ya existente para ese platform
+antes de crear el slug?), cada uso de `organize-source`/Inbox sobre una
+plataforma con carpeta legada Title Case repetirá este patrón |
+
+### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
+
+Al re-lanzar `POST /api/match` sobre las 7.738 filas sin resolver (tras añadir
+el catálogo arcade), el job se quedó `running=true` más de 30 minutos sin
+avance visible. `Get-Process python` mostró **CPU casi plano** (35,4s → 35,6s
+en 10+ minutos reales) — el proceso Python en sí no estaba calculando nada,
+solo bloqueado esperando un `subprocess.run()`; el trabajo real ocurre en un
+`chdman.exe` hijo cuyo tiempo de CPU no aparece en `Get-Process python`.
+`POST /api/stop-job` (`job_manager.cancel_event`) no lo paró — el bucle de
+`match()` solo comprueba `_cancel.is_set()` entre filas, nunca dentro de una
+llamada bloqueante. Mismo síntoma que la prueba de `.cdi` de hoy
+(`DREAMCAST-FORMAT-MISMATCH-1`): `chdman` puede tardar minutos/no completar
+nunca sobre un archivo concreto sin que el timeout individual (300s en
+`_extract_chd`, `ra_cd_image.py:207`) ayude si hay **varias** filas PSX
+ambiguas en la cola que disparan `detect_psx_boot_serial()` →
+`_extract_chd()` una tras otra — cada una puede consumir hasta 5 min sin que
+el job progrese ni pueda cancelarse antes de que termine la fila actual.
+Recuperado matando el proceso del servidor y reiniciándolo (sin pérdida de
+datos — `update_match` corre dentro de un único `batch()`/transacción por el
+run completo, así que nada se comiteó a medias) | `catalog/matcher.py`
+(`_match_by_title`, dispara `detect_psx_boot_serial` para desambiguar región
+PSX), `retroachievements/ra_hash_psx.py:181-184`
+(`detect_psx_boot_serial`, rama `.chd`), `retroachievements/ra_cd_image.py:207`
+(`_extract_chd`, timeout de 300s por llamada, no por job), `web/handlers/scan.py`
+(`_do_match`, el bucle solo comprueba `_cancel` entre filas) | 🔴 identificado,
+sin arreglar — candidatos: (a) timeout más corto en `_extract_chd` para este
+uso concreto (desambiguación, no conversión — no hace falta esperar 300s),
+(b) que el job `match` reporte progreso (fila actual) como ya hacen
+`download_dats`/`convert_chd`, para poder diagnosticar un cuelgue sin
+adivinar, (c) investigar qué `.chd` concreto de la biblioteca dispara esto
+(no identificado todavía — no hay progreso visible que apunte a la fila
+exacta) |
+
