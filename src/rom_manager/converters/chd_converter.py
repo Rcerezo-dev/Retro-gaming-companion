@@ -338,6 +338,27 @@ def convert_to_chd(
         # B2-2: if delete_source is requested and the .chd already exists from a
         # previous successful conversion, clean up the originals now.
         if delete_source:
+            # CHD-DELETE-NO-VERIFY-1: this .chd wasn't just created by this
+            # run -- unlike the fresh-conversion path below, we have no proof
+            # yet that it actually matches *this* raw set (could be a stale
+            # file from a different revision/region). Verify by RA hash
+            # before deleting the source; never delete the pre-existing .chd
+            # itself on a mismatch (only the fresh-conversion path may do
+            # that -- there the .chd is this run's own disposable output).
+            source_hash = compute_psx_ra_hash(cue_path)
+            chd_hash = compute_psx_ra_hash(chd_path, chdman_path=Path(chdman))
+            if source_hash is None or source_hash != chd_hash:
+                return ConversionResult(
+                    cue_path=cue_path,
+                    chd_path=chd_path,
+                    bin_paths=bin_paths,
+                    success=False,
+                    error=(
+                        "Output .chd already exists but its RA hash could not be "
+                        "verified against the source (or does not match) — not "
+                        "deleting the raw set."
+                    ),
+                )
             for bin_path in bin_paths:
                 bin_path.unlink(missing_ok=True)
             cue_path.unlink(missing_ok=True)
@@ -412,6 +433,23 @@ def convert_bin_to_chd(
 
     if chd_path.exists():
         if delete_source:
+            # CHD-DELETE-NO-VERIFY-1: same gap as convert_to_chd() -- verify
+            # by RA hash before deleting the bare .bin, never touch the
+            # pre-existing .chd itself.
+            source_hash = compute_psx_ra_hash(bin_path)
+            chd_hash = compute_psx_ra_hash(chd_path, chdman_path=Path(chdman))
+            if source_hash is None or source_hash != chd_hash:
+                return ConversionResult(
+                    cue_path,
+                    chd_path,
+                    bin_paths,
+                    success=False,
+                    error=(
+                        "Output .chd already exists but its RA hash could not be "
+                        "verified against the source (or does not match) — not "
+                        "deleting the raw file."
+                    ),
+                )
             bin_path.unlink(missing_ok=True)
             return ConversionResult(cue_path, chd_path, bin_paths, success=True)
         return ConversionResult(

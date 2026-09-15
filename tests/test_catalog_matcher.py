@@ -453,7 +453,11 @@ def test_mame_style_zip_prefers_arcade_over_title_fallback(
     # del set (lo que MAME/FBNeo necesitan para cargarlo), no la descripcion
     # del DAT -- de lo contrario el rename rompe la carga en el emulador.
     assert result.title == "flicky"
-    assert result.platform == "FBNeo"
+    # ARCADE-MATCH-PLATFORM-1: platform=None on purpose -- "FBNeo"/"MAME" are
+    # catalog-source labels, not canonical platforms (platforms.toml only
+    # knows "Arcade"/"Neo Geo"). update_match() leaves the row's existing
+    # platform untouched when this is None.
+    assert result.platform is None
 
 
 def test_zip_with_region_tag_keeps_title_fallback_first(
@@ -476,6 +480,24 @@ def test_non_zip_without_region_keeps_title_fallback_first(
     result = matcher.match("00" * 20, filename="Flicky.d77")
     assert result is not None
     assert "Amiga" in result.catalog_source
+
+
+def test_non_zip_stem_collision_with_arcade_set_does_not_match(tmp_path: Path) -> None:
+    """ARCADE-STEM-COLLISION-1: un archivo de un solo fichero (.nes, .md...)
+    cuyo stem coincide por casualidad con un set arcade nunca debe matchear
+    ese set -- los sets MAME/FBNeo son siempre .zip. "arabian" no existe en
+    ningún catálogo No-Intro/Redump aquí, así que antes del fix el título
+    fallaba y caía igualmente en el pass 3 (arcade)."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    arcade = tmp_path / "arcade"
+    nointro.mkdir()
+    redump.mkdir()
+    arcade.mkdir()
+    _write_fbneo_dat(arcade / "FBNeo Arcade.dat", [("arabian", "Arabian")])
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="Arabian.nes")
+    assert result is None
 
 
 def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(

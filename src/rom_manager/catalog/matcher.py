@@ -92,7 +92,7 @@ class MatchResult:
     confidence: str  # "high" | "medium" | "low"
     catalog_source: str  # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
     ambiguous: bool = False
-    platform: str | None = None  # set by arcade pass ("MAME" or "FBNeo")
+    platform: str | None = None
 
 
 class CatalogMatcher:
@@ -422,6 +422,12 @@ class CatalogMatcher:
         """Pass 3 — Arcade stem lookup (MAME / FBNeo)."""
         if not self._arcade:
             return None
+        # ARCADE-STEM-COLLISION-1: MAME/FBNeo sets are always .zip containers
+        # -- a bare single-file ROM (.nes, .md, .bin...) whose stem happens to
+        # collide with a MAME/FBNeo set name (e.g. "Arabian.nes" vs. the MAME
+        # set "arabian") must never be matched here.
+        if not filename.lower().endswith(".zip"):
+            return None
         stem = Path(filename).stem.lower()
         arcade_hit = self._arcade.get(stem)
         if not arcade_hit:
@@ -432,12 +438,16 @@ class CatalogMatcher:
         # Fighter II") -- devolver la descripción aquí renombraba el ZIP a un
         # nombre que el emulador ya no reconoce. El título canónico de arcade
         # es el propio stem.
-        arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"
+        # ARCADE-MATCH-PLATFORM-1: "MAME"/"FBNeo" son el nombre del catálogo
+        # fuente, no una plataforma canónica (platforms.toml solo conoce
+        # "Arcade"/"Neo Geo") -- platform=None deja que update_match() no
+        # toque la columna, así que el platform ya detectado por carpeta para
+        # esta fila (o el que ponga un fix-platforms/organize-source
+        # posterior) es quien decide.
         return MatchResult(
             title=stem,
             confidence="medium",
             catalog_source=source,
-            platform=arcade_platform,
         )
 
     # ------------------------------------------------------------------
