@@ -26,7 +26,7 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 | 14 | [14-matcher-coverage-gaps.md](14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | Pendiente | 🟡 P3 |
 | 15 | [15-psx-cue-multitrack-integrity.md](15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | **Completado** ✅ (mergeado a `develop`, `5bc4e06` — ver `PSX-CUE-DESYNC-1b` en el backlog) | 🔴 P1 |
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Pendiente | 🟡 P3 |
-| 17 | [17-inbox-pending-features.md](17-inbox-pending-features.md) | `feature/inbox-pending-features` | **En curso** — `INBOX-ATOMIC-1` hecho (rama `feature/inbox-atomic-1`, 2026-09-15), `INBOX-ANBERNIC-1`/`INBOX-RA-HASH-GAP` sin empezar (bloqueadas en su propio diseño/investigación) | 🟠 P2 |
+| 17 | [17-inbox-pending-features.md](17-inbox-pending-features.md) | `feature/inbox-pending-features` | **En curso** — `INBOX-ATOMIC-1` y `INBOX-RA-HASH-GAP` hechos (2026-09-15), `INBOX-ANBERNIC-1` sin empezar (bloqueada en su propio Paso 1 de diseño) | 🟠 P2 |
 | 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Pendiente | 🟡 P3 |
 | 19 | [19-device-profile-loose-data.md](19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Pendiente | 🟡 P3 |
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Pendiente | mixta |

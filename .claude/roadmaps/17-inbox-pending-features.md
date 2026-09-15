@@ -168,7 +168,7 @@ ruff check src/rom_manager/web/inbox_pipeline.py src/rom_manager/hashing/ src/ro
 - [ ] `INBOX-ANBERNIC-1` Paso 3 — tests
 - [x] `INBOX-ATOMIC-1` Paso 4 — orden corregido (2026-09-15, rama `feature/inbox-atomic-1`): BD primero, move al final, ambos dentro del mismo `batch()` — una excepción en cualquier punto revierte la BD, el move nunca se intenta si la BD falla primero
 - [x] `INBOX-ATOMIC-1` Paso 5 — 2 tests nuevos en `test_inbox_pipeline_organize.py`, 1332 tests totales, ruff+format limpios
-- [ ] `INBOX-RA-HASH-GAP` Paso 6 — algoritmo `rc_hash` investigado y documentado
-- [ ] `INBOX-RA-HASH-GAP` Paso 7 — implementación
-- [ ] `INBOX-RA-HASH-GAP` Paso 8 — tests + verificación contra biblioteca real
-- [ ] Commits en rama(s), PR(s) a `develop` — `INBOX-ATOMIC-1` commiteado en `feature/inbox-atomic-1`, pendiente de mergear; `INBOX-ANBERNIC-1`/`INBOX-RA-HASH-GAP` siguen sin empezar (bloqueadas en su propio Paso 1 de diseño/investigación)
+- [x] `INBOX-RA-HASH-GAP` Paso 6 — algoritmo `rc_hash` investigado (fuente real de rcheevos descargada y leída verbatim, no resumida) y documentado en `ra_hash_gamecube_wii.py`
+- [x] `INBOX-RA-HASH-GAP` Paso 7 — implementación: GameCube+Wii en `ra_hash_gamecube_wii.py`, integrado en `ra_checker.py` y `ra_duplicates_service.py::get_ra_achievements_for_path` vía `ra_disc_hash_cache.py`. Alcance acotado a `.iso`/`.gcm` crudos (15/20 juegos reales de `gamecube/`) — `.rvz` (5/20) fuera de alcance, sin herramienta de descompresión disponible
+- [x] `INBOX-RA-HASH-GAP` Paso 8 — 9 tests nuevos + verificación real: 2 `.iso` de la biblioteca (Wind Waker, Metroid Prime 2) hashean exacto al MD5 cacheado en `ra_cache/ra_hashes_16.json`. Wii implementado fiel a la fuente pero sin verificar contra datos reales (0 discos Wii comerciales en esta biblioteca)
+- [ ] Commits en rama(s), PR(s) a `develop` — `INBOX-ATOMIC-1` ya mergeado; `INBOX-RA-HASH-GAP` commiteado en `feature/inbox-ra-hash-gap`, pendiente de mergear; `INBOX-ANBERNIC-1` sigue sin empezar (bloqueada en su propio Paso 1 de diseño)

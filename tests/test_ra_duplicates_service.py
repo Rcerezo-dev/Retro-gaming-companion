@@ -14,6 +14,7 @@ from rom_manager.services.ra_duplicates_service import (
     discard_all_ra_duplicates,
     discard_no_support,
     discard_ra_duplicate,
+    get_ra_achievements_for_path,
     get_ra_hash_lib,
     resolve_duplicate_ra,
 )
@@ -388,6 +389,51 @@ def test_get_ra_hash_lib_uses_fresh_cache(tmp_path: Path) -> None:
 
     assert "m" * 32 in lib
     assert lib["m" * 32].achievements == 10
+
+
+def test_get_ra_achievements_for_path_gamecube_uses_disc_hash(tmp_path: Path) -> None:
+    """INBOX-RA-HASH-GAP: apply_ra_conflicts (via get_ra_achievements_for_path)
+    must use the disc-specific hash for GameCube too, same gap as PSX -- the
+    whole-file games.md5 never matches RA's own hash for a disc image."""
+    from tests.test_ra_hash_gamecube_wii import _build_gamecube_image
+
+    iso_path = _build_gamecube_image(tmp_path)
+    from rom_manager.retroachievements.ra_hash_gamecube_wii import compute_gamecube_ra_hash
+
+    disc_hash = compute_gamecube_ra_hash(iso_path)
+    assert disc_hash is not None
+
+    config = load_config(tmp_path)
+    cache_dir = tmp_path / ".rommgr" / "ra_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / "ra_hashes_16.json").write_text(
+        json.dumps(
+            [{"ID": 1, "Title": "Test GC Game", "NumAchievements": 7, "Hashes": [disc_hash]}]
+        ),
+        encoding="utf-8",
+    )
+
+    repo = LibraryRepository(tmp_path / "library.db")
+    repo.upsert_game(
+        original_filename=iso_path.name,
+        source_path=str(iso_path),
+        platform="GameCube",
+        file_type="rom",
+        relative_parent="",
+        region="",
+        extension=".iso",
+        size_bytes=iso_path.stat().st_size,
+        mtime=0,
+        sha1="a" * 40,
+        md5="thiswillnevermatchanything0000",  # deliberately wrong whole-file hash
+        crc32="deadbeef",
+        set_type="single",
+        timestamp="2026-01-01T00:00:00",
+    )
+
+    achievements = get_ra_achievements_for_path(repo, config, str(iso_path), "GameCube", {})
+
+    assert achievements == 7
 
 
 # ── apply_all_review_recommendations (TABS-FIX-6) ─────────────────────────────

@@ -109,3 +109,37 @@ def test_playstation_uses_disc_hash_not_stored_md5(repo, monkeypatch, tmp_path) 
 
     assert summary.supported == 1
     assert summary.results[0].our_md5 == disc_hash
+
+
+def test_gamecube_uses_disc_hash_not_stored_md5(repo, monkeypatch, tmp_path) -> None:
+    """INBOX-RA-HASH-GAP: same gap as PSX (DUP-DISC-RA-1b) but for GameCube --
+    the stored whole-file md5 never matches RA's disc-specific hash either."""
+    from rom_manager.retroachievements.ra_client import RAGame
+    from tests.test_ra_hash_gamecube_wii import _build_gamecube_image
+
+    iso_path = _build_gamecube_image(tmp_path)
+    from rom_manager.retroachievements.ra_hash_gamecube_wii import compute_gamecube_ra_hash
+
+    disc_hash = compute_gamecube_ra_hash(iso_path)
+    assert disc_hash is not None
+
+    _upsert(
+        repo,
+        source_path=str(iso_path),
+        original_filename=iso_path.name,
+        platform="GameCube",
+        md5="thiswillnevermatchanything0000",
+    )
+
+    monkeypatch.setattr(
+        ra_checker,
+        "fetch_hash_library",
+        lambda *_a, **_k: {
+            disc_hash: RAGame(id=2, title="Test GC Game", achievements=5, leaderboards=0, points=50)
+        },
+    )
+
+    summary = ra_checker.check_library(repo, api_key="fake-key", cache_dir=tmp_path / "ra_cache")
+
+    assert summary.supported == 1
+    assert summary.results[0].our_md5 == disc_hash
