@@ -208,6 +208,15 @@
       <button id="btn-match" class="btn primary" onclick="doMatch()">Identificar (catálogos)</button>
       <span style="color:var(--c-dim);font-size:12px">Asocia los ROMs escaneados a No-Intro / Redump</span>
     </div>
+    <div id="match-progress-wrap" class="prog-wrap hidden">
+      <div class="prog-info">
+        <span id="match-progress-label" style="color:var(--c-muted)"></span>
+        <span id="match-progress-file" class="prog-file"></span>
+      </div>
+      <div class="prog-track">
+        <div id="match-progress-bar" class="prog-bar"></div>
+      </div>
+    </div>
 
     <div class="actions-row">
       <button id="btn-fix-platforms" class="btn" onclick="doFixPlatforms()">Corregir plataformas</button>

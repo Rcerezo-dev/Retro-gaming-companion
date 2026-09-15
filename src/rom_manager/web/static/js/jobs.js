@@ -65,6 +65,25 @@ function _applyJobStatus(s) {
       btnMatch.classList.remove('danger');
     }
   }
+  // MATCH-HANG-CHDMAN-1: progreso fila-a-fila para diagnosticar un cuelgue
+  // real (desambiguación PSX vía chdman) sin tener que adivinar mirando
+  // Get-Process como pasó antes de este fix.
+  const matchProgWrap = document.getElementById('match-progress-wrap');
+  if (matchProgWrap) {
+    if (s.match_running && s.match_progress && s.match_progress.total > 0) {
+      const p = s.match_progress;
+      const pct = Math.round((p.current / p.total) * 100);
+      matchProgWrap.classList.remove('hidden');
+      const lbl  = document.getElementById('match-progress-label');
+      const file = document.getElementById('match-progress-file');
+      const bar  = document.getElementById('match-progress-bar');
+      if (lbl)  lbl.textContent  = `${p.current} / ${p.total} (${pct}%)`;
+      if (file) file.textContent = p.current_file || '';
+      if (bar)  bar.style.width  = pct + '%';
+    } else {
+      matchProgWrap.classList.add('hidden');
+    }
+  }
 
   const btnSyncDry   = document.getElementById('btn-sync-dry');
   const btnSyncApply = document.getElementById('btn-sync-apply');

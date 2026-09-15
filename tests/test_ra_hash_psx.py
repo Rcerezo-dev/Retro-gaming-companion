@@ -140,6 +140,51 @@ def test_detect_psx_boot_serial_unsupported_format(tmp_path: Path) -> None:
     assert detect_psx_boot_serial(pbp) is None
 
 
+def test_detect_psx_boot_serial_chd_uses_short_timeout(tmp_path: Path, monkeypatch) -> None:
+    """MATCH-HANG-CHDMAN-1: disambiguation must bound the chdman call to
+    ``_BOOT_SERIAL_TIMEOUT``, not the 300s used by a real conversion."""
+    import subprocess
+
+    from rom_manager.retroachievements import ra_hash_psx
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(cmd, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    chd = tmp_path / "game.chd"
+    chd.write_bytes(b"not a real chd")
+
+    result = detect_psx_boot_serial(chd, chdman_path=Path("chdman"))
+
+    assert result is None
+    assert captured["timeout"] == ra_hash_psx._BOOT_SERIAL_TIMEOUT
+    assert captured["timeout"] < 300
+
+
+def test_compute_psx_ra_hash_chd_keeps_default_timeout(tmp_path: Path, monkeypatch) -> None:
+    """A real conversion path (full RA hash, not disambiguation) must keep
+    the original 300s budget -- only the boot-serial peek is shortened."""
+    import subprocess
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(cmd, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    chd = tmp_path / "game.chd"
+    chd.write_bytes(b"not a real chd")
+
+    result = compute_psx_ra_hash(chd, chdman_path=Path("chdman"))
+
+    assert result is None
+    assert captured["timeout"] == 300
+
+
 def _build_psx_image_with_subdir_boot(tmp_path: Path) -> Path:
     """Same layout as ``_build_psx_image``, but ``BOOT=`` points into a
     subdirectory (``cdrom:\\TEST\\GAME.EXE``) -- the RA-HASH-SUBDIR-1 case:
