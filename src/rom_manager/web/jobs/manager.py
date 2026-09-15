@@ -181,6 +181,7 @@ class JobManager:
             "ra_progress": _prog("ra_check"),
             "cable_progress": _prog("cable_sync"),
             "scan_progress": _prog("scan"),
+            "match_progress": _prog("match"),
             "apply_progress": _prog("apply"),
             "inbox_progress": _prog("inbox"),
             "setup_progress": _prog("setup"),

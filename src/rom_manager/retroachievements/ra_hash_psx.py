@@ -161,6 +161,15 @@ def _boot_serial_from_bin(bin_path: Path) -> str | None:
     return boot[0].rsplit("\\", 1)[-1]
 
 
+# MATCH-HANG-CHDMAN-1: this path only reads a boot-serial header off track 1,
+# never a full RA hash -- a real .chd (any size PSX makes) extracts in well
+# under 30s (measured: ~22s for a ~580MB single-track disc, ~17s for the
+# largest multi-track disc in a real library), so 60s gives ample margin
+# without letting one ambiguous row stall the `match` job for the full 300s
+# used by an actual conversion.
+_BOOT_SERIAL_TIMEOUT = 60
+
+
 def detect_psx_boot_serial(path: Path, *, chdman_path: Path | None = None) -> str | None:
     """Boot executable name from a PS1 disc's own SYSTEM.CNF (e.g. "SLUS_004.02"),
     read the same way as ``compute_psx_ra_hash``.
@@ -180,7 +189,7 @@ def detect_psx_boot_serial(path: Path, *, chdman_path: Path | None = None) -> st
         return _boot_serial_from_bin(path)
     if suffix == ".chd":
         with tempfile.TemporaryDirectory(prefix="rommgr_chd_serial_") as tmp:
-            out_cue = _extract_chd(path, chdman_path, tmp, "out.cue")
+            out_cue = _extract_chd(path, chdman_path, tmp, "out.cue", timeout=_BOOT_SERIAL_TIMEOUT)
             return _boot_serial_from_bin(_first_cue_bin(out_cue)) if out_cue else None
     return None
 

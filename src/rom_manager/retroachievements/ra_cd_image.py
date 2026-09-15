@@ -187,12 +187,18 @@ def _first_cue_bin(cue_path: Path) -> Path | None:
 
 
 def _extract_chd(
-    chd_path: Path, chdman_path: Path | None, tmp_dir: str, out_name: str
+    chd_path: Path, chdman_path: Path | None, tmp_dir: str, out_name: str, *, timeout: int = 300
 ) -> Path | None:
     """Run ``chdman extractcd`` into *tmp_dir*/*out_name* (".cue" for a
     single-track CD CHD, ".gdi" for a GD-ROM CHD -- chdman picks the sheet
     format from the output extension) and return that path, or None on any
-    failure."""
+    failure.
+
+    MATCH-HANG-CHDMAN-1: *timeout* defaults to 300s (a full conversion can
+    legitimately take that long), but a caller that only needs to peek at the
+    output (e.g. a boot-serial read for match disambiguation) should pass a
+    much shorter value -- this is the one bound that keeps a single call from
+    stalling a whole background job for minutes."""
     # chdman_path may be a bare command name resolved via PATH (not a literal
     # file relative to cwd) -- don't require .exists(), let subprocess itself
     # raise/fail if it truly can't be found.
@@ -204,7 +210,7 @@ def _extract_chd(
             [str(chdman_path), "extractcd", "-i", str(chd_path), "-o", str(out_path), "-f"],
             check=True,
             capture_output=True,
-            timeout=300,
+            timeout=timeout,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return None

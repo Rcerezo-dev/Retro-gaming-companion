@@ -560,10 +560,19 @@ def _do_match(
             )
             games = repository.get_unresolved_games(include_low_confidence=include_low_confidence)
             matched_high = matched_low = unmatched = 0
+            total = len(games)
             with repository.batch() as conn:
-                for game in games:
+                for i, game in enumerate(games, start=1):
                     if _cancel.is_set():
                         break
+                    # MATCH-HANG-CHDMAN-1: fila actual visible en /api/job-status
+                    # antes de la llamada que puede tardar (desambiguación PSX
+                    # vía chdman) -- sin esto, un cuelgue solo se diagnostica
+                    # matando el proceso y mirando qué archivo quedó a medias.
+                    job_manager.update_progress(
+                        "match",
+                        {"current": i, "total": total, "current_file": game.original_filename},
+                    )
                     match = matcher.match(game.sha1, game.original_filename, game.source_path)
                     if match is not None:
                         repository.update_match(

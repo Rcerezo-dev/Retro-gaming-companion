@@ -44,6 +44,18 @@ def test_get_status_shape_has_all_job_names():
         assert f"{name}_running" in status
 
 
+def test_match_progress_exposed_like_scan():
+    """MATCH-HANG-CHDMAN-1: match needs the same progress plumbing as scan
+    so a real hang is diagnosable via /api/job-status instead of Get-Process."""
+    jm = JobManager()
+    assert jm.get_status()["match_progress"] is None
+    jm.update_progress("match", {"current": 2, "total": 5, "current_file": "game.chd"})
+    status = jm.get_status()
+    assert status["match_progress"] == {"current": 2, "total": 5, "current_file": "game.chd"}
+    jm.finish("match", {"total": 5})
+    assert jm.get_status()["match_progress"] is None
+
+
 def test_get_job_default_shape():
     jm = JobManager()
     job = jm.get_job("download_dats")
