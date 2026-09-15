@@ -1538,3 +1538,354 @@ progreso), luego integridad de BD, luego web, luego el resto.
 > INBOX-FIX-*/ZIP-ROUTE-FIX-*/DEVSEL-FIX-*.
 
 ---
+
+## Backlog archivado — 2026-09-15
+
+12 secciones movidas verbatim desde `Tareas/backlog.md` (agrupación en ramas de trabajo del `.claude/roadmaps/`, ver `.claude/roadmaps/INDEX.md` 12-20): completas, sin valor de referencia activa para la máquina/biblioteca actual ("Ruben", `F:\Juegos Retro`) — la mayoría documentan hallazgos ya resueltos en la biblioteca antigua ("rammu", `E:\Carpetas anbernic`/`H:\ROMs`). No se ha tocado el código relacionado, solo se reubica el texto para que `backlog.md` quede legible.
+
+---
+
+### ANBERNIC-ROMTREE — Dos árboles de ROMs conviviendo en la SD (hallazgo 2026-08-29)
+
+`ls` en vivo sobre `/storage/521D-04EA/` confirma que el árbol canónico
+`ROMs/<plataforma-minúscula>/` (41 carpetas, el que usa la app) **convive** con 9 carpetas
+huérfanas en mayúscula/nombre-humano en la raíz de la SD (`Game Boy Advance`, `Game Gear`,
+`Nintendo DS`, `Atari 2600`, `Master System`, `Famicom Disk System`, `Game Boy`,
+`Game Boy Color` + `NGC` sin confirmar hoy) — exactamente lo que ya listaba el pendiente
+§7 de `docs/emulador-canonico-rg556.md` del 2026-08-25, pero **no está parado**: `Game Gear`
+tiene mtime 2026-08-27 y `Game Boy Advance` 2026-08-13, ambas **posteriores** al día en que
+se hizo la migración a `ROMs/`. Algo (Daijishō todavía apuntando a las rutas viejas, o un
+ROM añadido a mano) sigue escribiendo en el árbol huérfano después de la reorganización.
+No es un problema de esta herramienta (el scan/rename de rom_manager ya usa `ROMs/`) sino
+de que el dispositivo tiene dos raíces válidas por SAF y nada impide que caigan ROMs en la
+vieja. Pendiente: identificar qué app escribe ahí (probablemente Daijishō, ver pendiente
+"Re-apuntar Daijishō a `SD:/ROMs/<plataforma>`" en el mismo doc) y mover el contenido de las
+9 carpetas a `ROMs/` antes de borrarlas — revisar primero si hay progreso/ROMs sin duplicar.
+
+| ID | Task | Notes |
+|----|------|-------|
+| ANBERNIC-ROMTREE-1 | Confirmar qué proceso sigue escribiendo en las carpetas huérfanas de la raíz de la SD tras la migración a `ROMs/` (2026-08-25) y cerrar esa fuente antes de mover nada | Hardware + investigación | XS | ⬜ documentado 2026-08-29 |
+| ANBERNIC-ROMTREE-2 | **Hecho 2026-09-02**: `Game Boy Advance`, `Game Boy`, `Game Boy Color` ya no existían (resueltas en sesión anterior, esta fila estaba desactualizada); `NGC` nunca fue un caso real (NTFS/Windows trata `NGC` y `ngc` como la misma carpeta). Las 5 restantes (`Atari 2600`, `Game Gear`, `Nintendo DS`, `Master System`, `Famicom Disk System`) organizadas vía `rommgr organize-source --apply` tras el fix de `ARCADE-DAT-CONTAMINATION` — ninguna tenía ya ROMs sueltos reales (limpiadas por `resolve-duplicates` esa misma mañana o solo `media/`), `Master System` se autoborró al quedar vacía | ver `Día52.md` | ✅ 2026-09-02 |
+
+---
+
+### LIBRARY-AUDIT — Auditoría de biblioteca real: duplicados, ZIPs sin organizar, espacio desperdiciado — → #275
+
+Origen: usuario conectó la Anbernic (`E:\Carpetas anbernic`) y detectó a ojo
+duplicados (varias copias de un mismo juego GBA) y ZIPs mal colocados.
+Auditoría real 2026-09-01 contra `library_pc.db` (scan del mismo día) — sin
+tocar ningún archivo, solo investigación. Detalle completo de cifras y
+metodología en el issue #275; aquí solo las tareas de implementación.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| LIBRARY-AUDIT-1 | **Bug confirmado y arreglado**: `get_duplicate_groups()` (`database/repositories/duplicates.py:15-38`) no filtraba `sha1 IS NULL OR sha1=''` → agrupaba los 750 archivos sin hash de la BD como un único "grupo duplicado" falso (mezcla ROMs de MAME sin relación entre sí). Filtro añadido (`sha1 IS NOT NULL AND sha1 != ''` en ambas partes de la query). Confirmado que era el único método afectado de los 6 puntos de llamada — `_review_groups_for_repo` ("Revisar copias") ya filtraba `if row["sha1"]:` por separado, sin tocar. Test nuevo `test_empty_sha1_rows_are_not_grouped_together` (`tests/test_duplicates.py`) | `database/repositories/duplicates.py:15-38` | ✅ (`feature/library-audit-1-duplicates-null-sha1`) |
+| LIBRARY-AUDIT-2 | **Resuelto sin tocar el pipeline**: `_run_inbox_pipeline()` ya aceptaba cualquier ruta como origen (no atado a `config.inbox.path`). Solo faltaba un punto de entrada headless — nuevo subcomando `rommgr organize-source <path> [--target-root] [--delete-source] [--exclude-platform PLATFORM] [--apply]` (dry-run por defecto, mismo patrón que `convert-chd`) que lo invoca síncronamente con un `JobManager()` propio. `--exclude-platform` (repetible) aparta los archivos de esa plataforma a una carpeta temporal antes de correr el pipeline y los restaura a su ruta exacta al terminar — necesario porque el paso 1 (extracción) ya enruta sets arcade completos por CRC sin pasar por el paso 6, así que filtrar solo el movimiento final llegaría tarde. Añadido tras verificar en vivo contra la biblioteca real que el código actual manda MAME/FBNeo/Arcade a una única carpeta `arcade/`, distinta de las carpetas mame/fbneo/cps1-3 ya existentes — decisión del usuario 2026-09-01: organizar solo consolas por ahora, dejar arcade para decidir aparte. Tras un `--apply` sin archivos restantes, borra la carpeta de origen vacía. Cubre también `LIBRARY-AUDIT-6` (mismo comando, apuntado a las 6 carpetas huérfanas). **Ejecutado en real 2026-09-01** contra `E:\Carpetas anbernic\Unknown` (`--exclude-platform MAME FBNeo Arcade --apply`): 9.058 organizados, 7.493 duplicados exactos descartados, 1 conflicto resuelto por RA, 2.610 conflictos sin resolver (contenido distinto con mismo nombre, sin tocar), 13.803 archivos de arcade apartados y restaurados intactos tal como se pidió. **Hallazgo real durante la ejecución** (ver `LIBRARY-AUDIT-EXCLUDE-GAP` más abajo): 932 archivos sin identificar en la BD también resultaron ser arcade (detección CRC en vivo del paso 1, independiente de `--exclude-platform`) y sí se movieron a `arcade/` — decisión explícita del usuario 2026-09-01: dejarlos donde están, no revertir | `cli.py` (`organize-source`) | ✅ (`feature/library-audit-2-6-organize-source`), ejecutado en real |
+| LIBRARY-AUDIT-3 | Nuevo subcomando `rommgr decompress <path> [--delete-source] [--apply]` (dry-run por defecto, patrón `convert-chd`). Reutiliza `extract_directory()` tal cual — ya excluye arcade por nombre de carpeta y sets multi-disco, no hizo falta tocar el extractor. **Ejecutado en real 2026-09-02** contra `E:\Carpetas anbernic`: 29.643 descomprimidos, 47.132 saltados, 2 fallidos (`Breath of Fire III (USA).zip`, `Spyro 2 - Ripto's Rage! (USA).zip` — ZIP inválido, ficheros dañados preexistentes, no es bug de código, pendiente revisión manual/re-descarga). **Cerrado 2026-09-04** (confirmación del usuario, "bórralos"): `Breath of Fire III (USA).zip` confirmado 0 bytes/`BadZipFile` en `Unknown\_descartados\` — sin contenido recuperable, borrado de verdad (no movido, no había nada que preservar). `Spyro 2 - Ripto's Rage! (USA).zip` ya no existía en disco (limpiado en algún paso posterior sin documentar) — no hacía falta tocar nada, ya hay `.chd` sano en `psx/` en ambas bibliotecas. **Sin tocar**: `E:\Carpetas anbernic\inbox\Breath of Fire III (USA).4RmZ6Eqs.zip.part` (124 MB, pinta a descarga/transferencia interrumpida — no es uno de los 2 zips originales, decisión de qué hacer con él pendiente del usuario) | `cli.py` (`decompress`) | ✅ resuelto |
+| LIBRARY-AUDIT-4 | Nuevo subcomando `rommgr resolve-duplicates [--apply]` (dry-run por defecto). Reutiliza `_build_review_queue`+`apply_all_review_recommendations` (mismo mecanismo que "Revisar copias" en la web) tal cual — el gate de arcade no necesitó lógica nueva: los grupos MAME/FBNeo/Arcade se excluyen con `exclude_duplicate_group(reason="arcade_intentional")`, el mecanismo de "copia intencional" que ya existía, así que también dejan de aparecer en la pestaña web para siempre. **Ejecutado en real 2026-09-02** contra `E:\Carpetas anbernic` (tras el decompress, que generó más duplicados: ZIP + extraído): 18.986 grupos totales (10.403 arcade excluidos, 8.583 de consola, 814 con conflicto de nombre resueltos aparte) → **10.021 archivos descartados** (papelera vía `discard_to_trash`, no borrado permanente), 0 errores | `cli.py` (`resolve-duplicates`) | ✅ (`feature/library-audit-2-6-organize-source`), ejecutado en real |
+| LIBRARY-AUDIT-5 | **Causa raíz encontrada y arreglada**: no era necesaria una nueva detección de "tamaño sospechoso" — la causa real es un bug de "skip pegajoso" en `rom_scanner.py:135-139`: `get_known_roms()` solo comparaba `(mtime, size)`, así que una fila con `sha1=''` (de un scan `--quick` o del scan ADB, que siempre graba `sha1=""`) nunca se re-hasheaba en un scan completo posterior porque su mtime/size no cambian. `get_known_roms()` ahora también expone si la fila ya tiene hash (`database/repositories/games.py:48-62`), y el scan completo ignora el "ya conocido" cuando falta. Una vez re-hasheado de verdad, si el contenido no matchea el catálogo simplemente queda "sin matchear" (mecanismo ya existente, `_unmatched_reason()` con motivo `"no_sha1"` en `web/builders/library.py:472-477`) — no hace falta un estado nuevo en `health_checker.py`. Tests: `test_get_known_roms_flags_missing_sha1` (`tests/test_repository.py`), `test_scan_backfills_hash_after_quick_scan` (`tests/test_scanner.py`) | `scanner/rom_scanner.py:135-144`, `database/repositories/games.py:48-62` | ✅ (`feature/library-audit-5-scanner-stale-hash`) |
+| LIBRARY-AUDIT-6 | **Hecho 2026-09-02** — ver `ANBERNIC-ROMTREE-2` | ver `ANBERNIC-ROMTREE` arriba | ✅ 2026-09-02 |
+| LIBRARY-AUDIT-7 | **Bug real encontrado y arreglado durante la ejecución de LIBRARY-AUDIT-3**: `decompress` crasheaba a mitad de biblioteca (`UnicodeEncodeError`) con nombres de ROM reales que traen caracteres fuera del codepage `cp1252` de la consola de Windows (ej. `├`, dibujo de caja) — Python usa el codepage de consola para `stdout` incluso con la salida redirigida a fichero/log. Fix: `main()` reconfigura `sys.stdout`/`sys.stderr` a UTF-8 con `errors="replace"` al arrancar, una sola vez para todos los subcomandos (no solo `decompress`) | `cli.py:371-378` (`main()`) | ✅ (`develop`, commit directo — fix de una línea bloqueante en el camino crítico de LIBRARY-AUDIT-3) |
+
+---
+
+### LIBRARY-AUDIT-EXCLUDE-GAP — `--exclude-platform` no cubre la detección arcade en vivo del paso 1 (hallazgo real 2026-09-01)
+
+Origen: ejecución real de `organize-source "Unknown/" --exclude-platform MAME FBNeo Arcade --apply`
+contra la biblioteca real. `--exclude-platform` aparta por adelantado los archivos cuya fila en
+`games.platform` ya vale MAME/FBNeo/Arcade (13.803 archivos, correctamente apartados y
+restaurados intactos). Pero el paso 1 del pipeline (`_run_inbox_pipeline`, extracción) hace su
+propia detección de sets arcade completos **por CRC en vivo**, independiente de la columna
+`platform` de la BD (`_is_arcade_zip_container()`, `inbox_pipeline.py`) — así que un archivo sin
+identificar todavía en la BD (`platform IS NULL`, nunca escaneado/matcheado) puede reconocerse
+como arcade *durante la propia ejecución* y moverse a `arcade/` sin que `--exclude-platform` lo
+vea venir. Confirmado en real: **932 archivos** así movidos (verificado con
+`grep -c "es un set arcade completo — movido sin extraer"` sobre el log de la ejecución), 438 más
+detectados pero ya existentes en destino (no tocados, sin riesgo). Sin sobreescrituras ni pérdida
+de datos en ningún caso — los 932 quedaron en una carpeta de plataforma válida (`arcade/`), solo
+no es la que se pedía dejar intacta esta vez. Decisión del usuario 2026-09-01: dejarlos donde
+están, no revertir.
+
+| ID | Task | Notas |
+|----|------|-------|
+| LIBRARY-AUDIT-EXCLUDE-GAP-1 | Si se vuelve a usar `--exclude-platform` sobre una carpeta con archivos sin escanear/matchear todavía, avisar (o aplicar el mismo filtro) también en el paso 1 del pipeline — hoy solo protege lo que la BD ya sabía | `cli.py` (`organize-source`), `web/inbox_pipeline.py` (`_is_arcade_zip_container`) | ✅ implementado 2026-09-06: `_run_inbox_pipeline()` acepta `exclude_platforms`; si `MAME`/`FBNeo`/`Arcade` está excluido, el ZIP detectado como set arcade completo por CRC en vivo ya no se mueve a `arcade/` (ni se extrae — sigue el pipeline genérico como cualquier ROM sin identificar, normalmente termina en `unknown/` intacto en vez de mezclado en `arcade/`). Contador nuevo `arcade_zips_excluded` en el resultado del job, impreso en `organize-source` |
+
+---
+
+### DECOMPRESS-ARCADE-GAP — `decompress` dañó sets arcade mal ubicados fuera de carpetas arcade (hallazgo real 2026-09-02, causado por acciones de esta sesión)
+
+**Encontrado auditando la estructura de `psx/`** a petición del usuario. `decompress`
+(`converters/zip_extractor.py:41-54`, `_ARCADE_FOLDER_NAMES`) solo protege un ZIP arcade si
+alguna carpeta ANCESTRA de su ruta se llama literalmente `mame`/`arcade`/`fbneo`/`fba`/`neogeo`/
+`mame200X`/`mame_libretro` — a diferencia de `organize-source`, que verifica el CRC real
+(`_is_arcade_zip_container`, ya arreglado hoy en `ARCADE-DAT-CONTAMINATION`). Si un ZIP arcade
+está mal ubicado en una carpeta NO-arcade (p. ej. `psx/`, un caso de contaminación histórica
+independiente y anterior a hoy), `decompress` no lo reconoce y lo extrae, destruyendo el
+contenedor multi-chip que el core arcade necesita intacto.
+
+`decompress --apply` se ejecutó hoy contra ambas bibliotecas completas (`E:\Carpetas anbernic` y
+`H:\ROMs`) como parte de `LIBRARY-AUDIT-3`. Ambas tenían, desde antes de hoy, 7 sets arcade
+mal ubicados directamente en `psx/` (mismos 7 juegos en las dos: `gunbirdj`, `gunbirdk`,
+`raystormj`, `raystormo`, `raystormu`, `riotw`, `ryujina` — Gunbird, Raystorm y Ryujin/Riot, todos
+con versión PSX también, probable origen de la confusión de plataforma original). `decompress` los
+extrajo, dejando solo 2-3 chips sueltos por carpeta (un set real necesita bastantes más — el log
+de hoy registró 16/11/9 archivos extraídos para copias de estos mismos juegos que sí estaban
+protegidas en `arcade/`).
+
+**Re-verificado a fondo 2026-09-02 (sesión siguiente) — la conclusión de `H:\ROMs` de arriba era
+incorrecta, y `raystormj/o/u` nunca fueron sets completos, en ninguna de las dos bibliotecas**:
+
+- **`gunbirdj`, `gunbirdk`, `riotw`, `ryujina` — CERO pérdida real, en las dos bibliotecas.**
+  El backup de ayer solo se había buscado en `E:\arcade\`; en `H:\ROMs\arcade\mame\` también
+  existen los 4 ZIP (`gunbirdj.zip`, `gunbirdk.zip`, `riotw.zip`, `ryujina.zip`), verificados con
+  `unzip -t` (sin errores) y con nombres de chip idénticos a los ficheros sueltos de `psx/`. Los 4
+  de `E:\arcade\` también verificados igual. Los ficheros sueltos en `psx/gunbirdj\`, `gunbirdk\`,
+  `riotw\`, `ryujina\` (ambas bibliotecas) son puro residuo del bug de `decompress` — el ZIP
+  canónico nunca se tocó, ya vive en su sitio correcto (`arcade/`). Solo falta limpieza.
+- **`raystormj`/`raystormo`/`raystormu` — nunca fueron sets jugables completos, independientemente
+  de hoy.** Verificado contra `MAME 0.286 (arcade).dat` (líneas 871105-871196): los 3 son
+  **clones** (`cloneof="raystorm" romof="raystorm"`) de un set base `raystorm` que **no existe en
+  ninguna biblioteca** (`find` sin resultados en `H:\` ni `E:\`, tampoco en `_descartados/`) —
+  sin él faltan siempre `e24-02.1`, `e24-03.2`, `e24-04.27`, `e24-09.14`, `m534002c-14.ic353`,
+  `tt01.ic652`, `tt04` (heredados por `merge=`), así que ningún core arcade puede arrancarlos aun
+  con el ZIP del clon perfecto. Además `raystormo` y `raystormu` ya les faltaba `e24-06.3` (ROM
+  propio del clon, sin `merge=`, dat exige 2 ficheros y solo había 1) **antes** de que `decompress`
+  tocara nada — nunca fueron ni siquiera clones completos. `psx/Raystorm (Japan).zip` (10 MB, en
+  ambas bibliotecas, intacto) **no cubre nada de esto**: es el port comercial de PS1 del juego, un
+  producto distinto, no la ROM MAME (confirmado por tamaño/formato — la ROM MAME real pesaría
+  ~13 MB en varios ficheros `.ic`/`.4`/`.1`, no un único ISO de 10 MB).
+
+  **CORRECCIÓN 2026-09-03 (`DECOMPRESS-ARCADE-GAP-4`)**: esta conclusión era incorrecta —
+  `psx/Raystorm (Japan).zip` se descartó solo por tamaño/nombre, sin abrir el ZIP. Inspección real
+  de sus 11 entradas confirma que es un repack no oficial que SÍ contiene el set base `raystorm`
+  completo (`e24-02.1`, `e24-03.2`, `e24-04.27`, `e24-09.14`, `tt04`... exactamente los ficheros que
+  se daban por perdidos) más `raystormj/`, `raystormo/`, `raystormu/` en subcarpetas — mismo patrón
+  que el repack de `Ryujin` ya identificado. El contenido nunca estuvo perdido, solo mal etiquetado;
+  la eliminación de los 7×2 restos sueltos en `DECOMPRESS-ARCADE-GAP-1` no perdió nada real (la copia
+  íntegra seguía en este ZIP), pero la conclusión "nunca recuperable" del punto 14 del `Día52` no era
+  correcta. Ver `ARCADE-DAT-CONTAMINATION-7` — este ZIP se reclasificó junto con el resto del hallazgo.
+
+No se ha tocado nada en la biblioteca real durante esta re-verificación (solo lectura:
+`ls`/`find`/`unzip -t`/`sha1sum`, y consulta del `.dat`) — decisión de limpieza/descarte pendiente
+del usuario.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DECOMPRESS-ARCADE-GAP-1 | ✅ **Resuelto 2026-09-02**: confirmado cero pérdida real en los 7 sets. Con confirmación del usuario, borrados los 7×2 restos de `psx/` (`gunbirdj`, `gunbirdk`, `riotw`, `ryujina` — ZIP canónico intacto y verificado con `unzip -t` en `arcade/` de LAS DOS bibliotecas; `raystormj/o/u` — nunca fueron sets completos ni antes de hoy, clones de un `raystorm` base inexistente en ninguna biblioteca, `raystormo`/`raystormu` además sin su propio ROM único `e24-06.3`). **Hallazgo adicional en la misma verificación**: un 8º caso no catalogado ayer — 10 chips sueltos de `ryujin` (el set *padre*, no `ryujina`) directamente en la raíz de `psx/` (sin subcarpeta) en ambas bibliotecas, residuo de extraer `psx/Ryujin (Japan) (v1.00).zip` (repack no oficial que bundlea `ryujin`+`ryujina`, aún intacto en `E:\`). Backup canónico verificado íntegro en `H:\ROMs\arcade\mame\ryujin.zip`. Borrados también los 10×2 chips sueltos tras verificar el respaldo. BD refrescada en ambas (`H:\ROMs` 1 huérfano limpiado, `E:\Carpetas anbernic` 27), 0 errores | `H:\ROMs\psx\` y `E:\Carpetas anbernic\psx\` (ya limpio) | ✅ hecho |
+| DECOMPRESS-ARCADE-GAP-2 | ✅ Resuelto junto a GAP-1 — mismo borrado cubrió los restos redundantes de las dos bibliotecas (la nota original solo mencionaba `E:\`, en realidad `H:\` tenía el mismo problema y ya se limpió también) | `E:\Carpetas anbernic\psx\`, `H:\ROMs\psx\` | ✅ hecho |
+| DECOMPRESS-ARCADE-GAP-3 | ✅ **Resuelto 2026-09-02**: `is_arcade_zip_container()` (movida de `inbox_pipeline.py` a `zip_extractor.py`, única fuente ahora — `organize-source` la reutiliza vía `_run_inbox_pipeline`) enchufada en `extract_zip()`/`extract_directory()` como parámetro opcional `arcade_crc_index`, chequeada además del nombre de carpeta ancestro. `decompress` (CLI) carga el índice con `load_arcade_crc_index(config.catalogs_arcade_dir)` y lo pasa. Test nuevo `test_arcade_zip_in_unaudited_folder_caught_by_crc` (ZIP arcade en carpeta `psx/`, solo detectable por CRC). 1140/1140 tests en verde, `ruff` limpio | `converters/zip_extractor.py`, `web/inbox_pipeline.py`, `cli.py` | ✅ hecho |
+| DECOMPRESS-ARCADE-GAP-4 | ✅ **Auditoría hecha 2026-09-03**: el riesgo *futuro* ya estaba cerrado por GAP-3 (CRC real, no nombre de carpeta). Auditado si además queda contaminación *histórica* fuera de `arcade/` en `E:\Carpetas anbernic` con voto mayoritario (varias entradas/ficheros de una misma carpeta coincidiendo con el mismo set arcade, no un CRC suelto — un solo hit aislado con un índice de 147.813 CRCs es ruido estadístico esperable, no señal). Resultado: 190 ZIPs intactos + 203 carpetas de residuo ya extraído + 57 ficheros sueltos en raíz de plataforma (`atari5200/`, `intellivision/`, `wonderswan/`) fuera de `Unknown/` (que sola concentra 3.039 ZIPs adicionales, caso aparte — ver `ARCADE-DAT-CONTAMINATION-8`). Ver `ARCADE-DAT-CONTAMINATION-7` para la reclasificación. `H:\ROMs` sin auditar — lector SD no montado, pendiente para otra sesión (`ARCADE-DAT-CONTAMINATION-9`) | `E:\Carpetas anbernic\` (todas las plataformas) | ✅ auditoría |
+
+---
+
+### LIBRARY-REPAIR-TOOLING — Automatizar lo que hoy se hizo a mano reparando `psx/` (2026-09-02)
+
+Reparando `PSX-STRUCTURE-1` a mano (30 de 31 "sets rotos" resultaron ser recuperables, no
+pérdida real) se repitió el mismo puñado de patrones una y otra vez. Documentado a petición
+del usuario mientras se hacía la reparación — son candidatos a lógica reutilizable en
+`rom_manager`, no implementados todavía. Falta crear el issue `epic` en GitHub para esta
+sección (pendiente, ninguna tarea bloquea nada existente).
+
+| ID | Idea | Por qué (evidencia de hoy) |
+|----|------|------|
+| REPAIR-TOOL-1 | Auto-generar `.cue` de 1 pista cuando un `.bin` está sector-alineado (múltiplo exacto de 2352 o 2048 bytes) y no tiene ningún `.cue` que lo referencie | Hecho a mano 6 veces hoy con el mismo patrón exacto (`Hogs of War`, `MediEvil 2`, `Dino Crisis (Spain)`, `Tomb Raider III (Spain)`, `Parasite Eve II (Spain)` Disc 1/2) — mecánico, cero criterio humano real involucrado | ✅ ya implementado desde antes (PR #287, `find_bins_needing_cue`/`generate_missing_cues`/comando `generate-cues` en `chd_converter.py`/`cli.py`) — la idea se documentó sin comprobar que ya existía; confirmado 2026-09-06 con la cobertura de tests ya presente (`test_generate_missing_cues_apply_writes_sidecar_only`) |
+| REPAIR-TOOL-2 | Detectar "`.cue` huérfano pre-migración": un `.cue` suelto en la raíz de una carpeta de plataforma cuyo nombre base coincide con una subcarpeta-por-juego ya existente casi siempre es residuo de antes de `PSX-STRUCTURE-4`, no un set adicional — ofrecer "descartar automáticamente" en vez de contarlo como "set roto" en auditorías | 17 de los 31 casos de hoy eran exactamente esto — infló el recuento de "sets rotos" sin ser pérdida real | ✅ implementado 2026-09-06: `find_pre_migration_orphan_cues()` en `converters/chd_converter.py` |
+| REPAIR-TOOL-3 | Cualquier "health check" de sets rotos debería consultar `_descartados/` (local de la carpeta y global de la plataforma) ANTES de marcar algo como pérdida — buscar copia jugable de otra región/edición ya descartada por `resolve-duplicates` | 11 de los 31 casos de hoy tenían un `.chd` perfectamente sano esperando en `_descartados/`, a un `shutil.move` de distancia, y el diario de ayer los había dado por "posible pérdida real" sin comprobarlo | ✅ implementado 2026-09-06: `_find_rescue_candidate_in_trash()` en `web/builders/duplicates.py`, anota `rescue_candidate` en las entradas rotas de `_build_review_queue` (mismo flujo que usa `resolve-duplicates`) — busca en el `_descartados/` local y en el de la plataforma, con match de título difuso (región/edición distinta cuenta) |
+| REPAIR-TOOL-4 | Root cause real detrás de REPAIR-TOOL-3: el "ganador" en dedup por título (`get_title_duplicate_groups`, `database/repositories/duplicates.py:55-96`, y la lógica que aplica ese resultado) no comprueba integridad del fichero — puede quedarse con un `.cue`+`.bin` roto de una edición y descartar un `.chd` sano de otra solo por criterio región/RA. Añadir un chequeo de integridad (¿el `.cue` referencia ficheros que existen? ¿`chdman verify` pasa?) al criterio de selección evitaría que esto vuelva a pasar | Explica por qué aparecieron 11 casos del mismo patrón en una sola sesión de `resolve-duplicates`, no fueron incidentes aislados | ✅ implementado 2026-09-06: `integrity_tier` en `_review_entry_sort_key` (`web/builders/duplicates.py`), solo chequeo de `.cue`/`.bin` referenciado (sin invocar `chdman`) |
+| REPAIR-TOOL-5 | Cruzar `.bin` sueltos contra el índice CRC de arcade real (`_is_console_only_dat`, ya filtrado) como parte rutinaria de `scan` o de un comando `rommgr doctor`, no solo de auditorías puntuales a mano | Se necesitaron dos pasadas manuales distintas (`Día52` sección 9, y esta sesión secciones 14-15) para encontrar chips arcade sueltos en `psx/` — con el CRC ya indexado, esto podría salir solo | ✅ implementado 2026-09-06: `find_bins_matching_arcade_crc()` en `converters/chd_converter.py`, expuesto como aviso en el comando `generate-cues` (no se creó `rommgr doctor` aparte, se integró en el comando existente que ya recorre `.bin` sueltos) |
+| REPAIR-TOOL-6 | Incluir el sector-alignment (múltiplo de 2352/2048) como campo calculado en cualquier reporte de "`.bin` sueltos sin `.cue`", no solo como paso manual de investigación | Se calculó a mano para clasificar sanos/rotos tanto en `PSX-STRUCTURE-2` (Día52) como en los 4 casos reparados hoy — es una comprobación de una línea, no debería depender de que alguien la piense cada vez | ✅ implementado 2026-09-06: `bin_size_is_sector_aligned()` en `converters/chd_converter.py`, expuesto en `generate-cues` |
+| REPAIR-TOOL-7 | Documentar claramente (código + `docs/`) que `library_pc.db` es la única BD real que usa `scan` para las dos unidades (`E:\` y `H:\`, pese al nombre) — `library_android.db` es una BD distinta, separada, que llevaba desde 2026-07-13 sin actualizarse. El nombre engaña y ya llevó a comparar contra datos de 2 meses de antigüedad sin darse cuenta (sección 6 del documento de revisión manual, corregido después) | `src/rom_manager/config.py:378-379`, `cli.py:391-393` | ✅ implementado 2026-09-06: comentario en `config.py` (donde se definen ambas rutas) y en el comando `scan` de `cli.py`, más nota explícita en `docs/architecture/architecture.md` (sección "Base de datos") |
+| REPAIR-TOOL-8 | Nuevo comando "solo reubicar mal ubicados" (extensión no ambigua ≠ plataforma de carpeta, mover sin renombrar, verificar SHA1 en colisión → mover a `_descartados/` si es duplicado exacto, dejar en su sitio si el contenido difiere) — hecho a mano con script de sesión en `PSX-STRUCTURE-3` porque `organize-source` no cubre este caso: reprocesa/renombra **todo** el contenido de la carpeta (correcto incluido), no solo lo mal ubicado. Reutilizable para la próxima vez que `H:\ROMs` esté montado (mismos 8 casos ya catalogados) y para cualquier carpeta nueva que se contamine | `web/zip_router.py` o nuevo módulo, patrón en script de sesión (no versionado) | ✅ implementado 2026-09-06: `relocate_misplaced_files()` en `web/inbox_pipeline.py` (reutiliza `check_misplaced_extensions_health()` de `LIB-MISPLACED-1` para detectar + `_same_content()`/`_ES_PLATFORM_FOLDERS` ya existentes en el mismo módulo), comando `rommgr relocate-misplaced <library_root> [--apply]` en `cli.py`, dry-run por defecto |
+| REPAIR-TOOL-9 | **Petición del usuario 2026-09-07**: en "Revisar copias", si hay una versión en español y otra sin español pero AMBAS tienen logros RA, quedarse con la española; si solo la versión inglesa tiene logros RA (la española no), quedarse con la inglesa | Pedido explícito como nueva lógica a implementar | ✅ **ya implementado desde antes de hoy** (`_review_entry_sort_key`, `web/builders/duplicates.py:153-187`) — el criterio de "recomendado" es exactamente `integrity_tier > ra_tier > folder_tier > lang_tier(_is_spanish_filename) > filename`: RA siempre pesa más que idioma, así que si ambas tienen RA gana la española (`lang_tier` desempata), y si solo la inglesa tiene RA gana la inglesa sin llegar siquiera a mirar el idioma. **Verificado hoy con 3 casos sintéticos** (`_build_review_queue` real, RA cache sintética vía `_write_ra_cache`): ambas con RA → recomienda `Game (Spain).gba`; solo inglesa con RA → recomienda `Game (USA).gba`; solo española con RA → recomienda `Game (Spain).gba`. Los 3 casos exactos que describe el pedido. No hace falta ningún cambio de código |
+
+---
+
+### CATALOG-MATCH-BUG-1 — Falso positivo de matching entre plataformas distintas (hallazgo 2026-09-02)
+
+Encontrado mientras se investigaba si se podían borrar de forma segura ROMs sin soporte RA que
+tuvieran alternativa ya en la biblioteca (ver más abajo, "borrado de duplicados por RA — no
+seguro"): `E:\Carpetas anbernic\megadrive\deer hunter.bin` tiene `canonical_title`/`platform` en
+la BD emparejados con **"Deer Hunter (USA)" de Game Boy Color** — un juego completamente distinto.
+Verificado con la cabecera real del fichero (`file` detecta "Sega Mega Drive / Genesis ROM image",
+firma `@TomXie 2002.Nov`): es una ROM de Mega Drive genuina, sin relación real con el juego de GBC,
+coincidencia pura de tamaño (1.048.576 bytes, tamaño muy común) y de parte del nombre.
+
+**Causa raíz localizada (2026-09-02)**: `CatalogMatcher._match_by_title()`
+(`catalog/matcher.py:258-263`) solo restringe los candidatos del índice de título a la plataforma
+real del fichero cuando `PLATFORM_BY_EXTENSION.get(extensión)` devuelve algo — pero `.bin`, `.zip`,
+`.chd`, `.md`, `.cue`, `.iso`, `.img`, `.7z`, `.rom`... están todos en `[ambiguous].extensions` de
+`platforms.toml` (necesitan la carpeta para desambiguar), así que para ellos `ext_platform` es
+siempre `None`, el filtro por plataforma (MATCH-FIX-2) nunca se aplica, y `candidates = hits` se
+queda con **todos** los títulos coincidentes de cualquier plataforma — gana el primero por orden
+alfabético de carga de `.dat` (`_load_dir`, `catalog/matcher.py:144`), no el que de verdad coincide
+con la carpeta/extensión real. Con `.bin`, "Nintendo - Game Boy Color..." ordena antes que
+"Sega - Mega Drive - Genesis...", de ahí el caso concreto. `match()` no recibe la ruta/carpeta del
+fichero, solo el nombre — así que esta función no tiene forma de desambiguar una extensión ambigua
+aunque quisiera.
+
+**Alcance real, auditado contra `library_pc.db` (biblioteca `E:\Carpetas anbernic`)**: de las 53.444
+filas con extensión ambigua y `platform` asignada, **1.142 son `confidence=low` (`ambiguous=True`)**
+— el único nivel donde esto puede pasar (medio/alto solo tienen 1 candidato o SHA1 exacto, no hay
+elección arbitraria que hacer). De esas, **428 están fuera de `arcade/`** — plataforma real de
+carpeta vs. `platform` en BD no coincide, confirmado no-arcade: **234 `.bin`, 97 `.zip`, 57 `.chd`,
+29 `.md`, 6 `.cue`, 3 `.iso`** (`.rommgr/library_pc.db`, query ad-hoc, no incluida en el repo). Las
+otras 807 filas de baja confianza caen dentro de `arcade/` — mezcla de matcher confundido y ficheros
+mal ubicados por otras vías, no auditado con el mismo detalle. No se ha tocado `library_android.db`
+(`H:\ROMs`) en detalle: el mismo query solo encontró 0 mismatches ahí (biblioteca más pequeña/limpia,
+menos exposición).
+
+**Nota de riesgo real**: estos matches de baja confianza ya llevaban `ambiguous=True`, pero
+`RA-DEDUP-UNSAFE-1` (más abajo) demuestra que sí llegan a lógica de negocio downstream (revisión de
+duplicados) sin que ese flag los frene — el `canonical_title`/`platform` erróneo puede acabar
+proponiendo un borrado real.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CATALOG-MATCH-BUG-1 | **✅ Parte cross-plataforma arreglada 2026-09-03** — ver `GBA-MISPLACED-2` arriba, mismo fix (`catalog/matcher.py`, rama `fix/catalog-match-ambiguous-extension`), incluye el caso original (`deer hunter.bin` GBC↔Mega Drive) verificado corregido en `library_pc.db` real. **La "evidencia nueva" del `Día53` (Tekken USA→Europe, etc.) resultó ser un bug DISTINTO, no cubierto por este fix** — re-verificado tras aplicarlo y re-matchear: 112/241 en la sección `PlayStation` de `rommgr plan` siguen siendo puro cambio de región. Causa raíz real: `detect_platform(source_path)` da la PLATAFORMA (psx/saturn/...), no la REGIÓN — no puede desambiguar entre "Tekken (USA)" y "Tekken (Europe)", ambos ya PlayStation. Ver `CATALOG-MATCH-REGION-1` (nueva sección) para el seguimiento | `catalog/matcher.py:196-283` | ✅ cross-plataforma arreglado; 🔴 ver `CATALOG-MATCH-REGION-1` para la región |
+
+---
+
+### CATALOG-MATCH-BUG-2 — Extensión NO ambigua sin candidato real cae al mismo fallo cross-plataforma (hallazgo 2026-09-09)
+
+Encontrado investigando por qué `resolve-duplicates --apply` filtrado a `PlayStation` (tarea del día,
+ver `DUP-CROSSFMT-4`) no tenía nada que aplicar: uno de los 5 grupos "PlayStation" con conflicto
+`disk`/`collision` mezclaba `Crash Bandicoot (USA).chd` (PSX real) con
+`Crash Bandicoot (Nice Code Software) (Unl).nes` y `Crash Bandicoot (Unl).nes` — dos bootlegs NES
+sin licencia, físicamente en `E:\Carpetas anbernic\nes\`, pero con `platform='PlayStation'` en
+`library_pc.db`. Auditado con query ad-hoc (no incluida en el repo): **49 filas con extensión `.nes`
+en `nes\` y `platform` distinto de `NES`** (`PlayStation` ×2 — el caso Crash Bandicoot —, `Sega Saturn`,
+`Wii` ×19, `Atari 2600` ×2, `ColecoVision`, `Atari ST`, `FBNeo`, `MAME`, `Nintendo 3DS`, `MSX`,
+`Famicom Disk System`, resto singletons). No solapa con el bulto de `ARCADE-DAT-CONTAMINATION-8`
+(Arcade/Mega Drive/Game Gear/Neo Geo → MAME/FBNeo, ~13.600 filas, ese es esperado por diseño de DAT
+arcade) — este es un residuo mucho más pequeño y no-arcade.
+
+**Causa raíz**: `.nes` SÍ tiene `PLATFORM_BY_EXTENSION` inequívoco (`"NES"`), así que
+`_match_by_title()` entra por la rama de `ext_platform` conocida
+(`catalog/matcher.py:291-297`), no por la rama `elif source_path:` que `CATALOG-MATCH-BUG-1` ya
+arregló con `detect_platform()`. El bug es el mismo patrón pero un caso que ese fix no cubría: si
+`platform_hits` (candidatos cuya plataforma coincide con `ext_platform`) sale **vacío** — normal
+para un bootleg sin licencia, no está en el DAT No-Intro de NES — el `if platform_hits:` de la línea
+296 nunca se cumple y `candidates` se queda tal cual `= hits` (línea 292), es decir **todos** los
+títulos coincidentes de cualquier plataforma sin filtrar. `candidates[0]` (línea 355) gana por orden
+de carga del `.dat`, no por relación real con el archivo. Mismo síntoma downstream que
+`CATALOG-MATCH-BUG-1`: `platform`/`canonical_title` erróneos en BD, que además contaminan
+`_build_review_queue()` (`web/builders/duplicates.py`) — un bootleg NES sin relación real acaba
+agrupado como "duplicado" de un juego real de otra plataforma vía `crossfmt`/`title`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CATALOG-MATCH-BUG-2 | Cuando `platform_hits` (filtro por `ext_platform`) sale vacío, no caer a `candidates = hits` sin filtrar — devolver `None`/mantener `ext_platform` como plataforma con confianza baja en vez de adoptar la plataforma de un título ajeno. Medir alcance también en `library_android.db` antes de tocar código | `catalog/matcher.py` (`_match_by_title`, ramas de un único hit y de varios) | ✅ arreglado 2026-09-09 (rama `fix/catalog-match-noncanonical-variants`) — el guard cubre tanto el caso de un solo hit (el que realmente disparaba el caso real, `len(hits)==1` nunca comprobaba plataforma) como el de varios ya parcialmente protegido. 4 tests nuevos (`tests/test_catalog_matcher.py`). **Medición en `library_android.db` hecha 2026-09-09**: mismo query (`detect_platform()` de la carpeta vs `platform` en BD) sobre las 621 filas con `platform` asignado — **0 mismatches**, biblioteca sin el problema (mucho más pequeña, 665 filas totales, y menos expuesta a bootlegs/contenido sin licencia que `library_pc.db`) |
+
+---
+
+### CATALOG-MATCH-REGION-1 — El fallback por título no puede elegir la región correcta cuando el SHA1 no calza (hallazgo 2026-09-03, separado de `CATALOG-MATCH-BUG-1`)
+
+Descubierto re-verificando el fix de `CATALOG-MATCH-BUG-1`/`GBA-MISPLACED-2` con `rommgr plan` real
+contra `E:\Carpetas anbernic` (backup previo en `.rommgr/backup_catalog_match_fix_2026-09-03/`,
+re-match de las 36.973 filas sin resolver/baja confianza con el matcher ya arreglado). El fix de
+plataforma-por-carpeta **no toca este caso**: `normalize_for_match()` borra el tag de región junto
+con el resto de anotaciones, así que "Tekken (USA)" y "Tekken (Europe)" colapsan a la misma clave de
+título — ambos hits ya son PlayStation, `detect_platform(source_path)` no tiene nada que desempatar
+(da la plataforma, no la región) y `_match_by_title()` sigue cayendo a `candidates[0]` (orden de carga
+del `.dat`). **Causa raíz de fondo**: los formatos de disco reales de la biblioteca (`.chd` sobre todo,
+también `.pbp`/multi-track `.bin`) nunca hacen match SHA1 exacto contra el DAT — el DAT hashea la
+pista cruda sin comprimir, `.chd` es una compresión con cabecera propia, así que el SHA1 del fichero
+en disco jamás coincide con ninguna entrada, y el título es la ÚNICA señal disponible. Verificado en
+vivo: 112 de 241 renombrados propuestos en la sección `PlayStation` de `rommgr plan` (tras el fix y
+re-match) cambian solo la región/tag, mismo patrón que antes del fix (`Alundra 2 (USA)→(Europe)`,
+`Crash Bandicoot (USA)→(Europe)`, `Castlevania - Symphony of the Night (USA)→(France)`...).
+
+**Bloqueaba `PSX-STRUCTURE-4`** (migración a subcarpeta-por-juego) — la migración habría usado estos
+títulos con región incorrecta como nombre de carpeta destino.
+
+**Resuelto (2026-09-03)** por el primero de los 3 caminos propuestos (hash RA de disco), pero
+implementado vía el serial de arranque en vez de un hash MD5: `fetch_hash_library` (RA API) solo
+guarda **un** hash por juego, sin variante por región (comprobado contra `ra_hashes_12.json` real —
+"Tekken 3" tiene una sola entrada, un solo hash), así que comparar contra la librería de RA no
+habría desambiguado nada. El Redump PS1 DAT (`Sony - PlayStation.dat`, formato clrmamepro) sí trae
+el serial real por región como atributo del `game (...)` (`serial "SLUS-00402"`, presente en 13.323
+de 13.592 entradas) — mismo dato que `SYSTEM.CNF` en el disco real (`BOOT = cdrom:\SLUS_004.02;1`,
+o `cdrom:\TEKKEN3\SLUS_004.02` con subcarpeta). Comparando ambos normalizados (mayúsculas, sin
+puntuación) se desambigua sin adivinar.
+
+Cambios:
+- `catalog_loader.py:CatalogEntry` — nuevo campo `serial` (solo poblado por `load_clrmamepro_dat`,
+  las entradas XML/No-Intro no lo traen).
+- `retroachievements/ra_hash_psx.py` — nueva `detect_psx_boot_serial()` (reutiliza `_CdImage`,
+  `_find_boot_executable`, `_first_cue_bin`; `.chd` refactorizado a `_extract_chd_to_cue()`
+  compartido con `_hash_chd_file()`).
+- `catalog/matcher.py:_match_by_title()` — cuando la plataforma resuelta es PlayStation y quedan
+  >1 candidatos tras el filtro por carpeta/extensión, lee el serial real del disco y filtra por
+  `entry.serial` normalizado antes de caer a `candidates[0]`; si desambigua a 1, confianza `medium`
+  (contenido real, no adivinado).
+- `CatalogMatcher.__init__` gana `chdman_path` (opcional, `None` desactiva la desambiguación sin
+  romper nada); cableado en `cli.py` (`match`), `web/handlers/scan.py` (`_do_match`) y
+  `web/inbox_pipeline.py` (los dos flujos de Inbox/organize) vía `config.chdman`.
+
+Verificado en vivo contra `E:\Carpetas anbernic\psx\Tekken 3 (USA).cue` (el caso exacto citado
+arriba): antes del fix caía a `Tekken 3 (Europe) (Alt)` con confianza `low`/`ambiguous=True`; con
+el fix resuelve `Tekken 3 (USA)`, confianza `medium`, `ambiguous=False`. Gap conocido: el lector de
+disco (`_find_boot_executable`) no consigue leer todos los `.bin`/`.cue` reales — p. ej.
+`Tekken 3 (Japan) (Rev 1).cue` devuelve `None` ya en `compute_psx_ra_hash` (comportamiento
+preexistente, no introducido por este fix) — esos casos siguen cayendo al `candidates[0]` de
+siempre, no hay regresión pero tampoco mejora ahí. Tests: `test_psx_region_disambiguated_by_real_boot_serial`
+(`test_catalog_matcher.py`), `test_detect_psx_boot_serial` + `test_detect_psx_boot_serial_unsupported_format`
+(`test_ra_hash_psx.py`). 1145/1145 tests en verde, `ruff` limpio.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CATALOG-MATCH-REGION-1 | Desambiguar región cuando el SHA1 de archivo no calza y varios candidatos del mismo título/plataforma difieren solo en región — bloqueaba `PSX-STRUCTURE-4`. Alcance medido originalmente: 112/241 (46%) de los renombrados propuestos en la sección `PlayStation` de `rommgr plan` sobre `E:\Carpetas anbernic`. **Re-medido 2026-09-04 tras mergear el fix (PR #289)**: `rommgr match` no re-encola filas `match_confidence='low'` (solo `NULL`, ver `MATCH-FIX-2`), así que se necesitó un re-match dirigido (script de sesión, backup previo en `.rommgr/backup_region_remeasure_2026-09-04/`) sobre las 456 filas PSX en `low`: **167/456 (37%) pasan a `medium` con la región correcta** (verificado en vivo: `Tekken 3 (USA).cue` — el caso original — pasa de `canonical_title=Tekken 3 (Europe) (Alt)` a `Tekken 3 (USA)`; mismo patrón confirmado en `Alundra 2` y `Crash Bandicoot`). **Quedan 289/456 sin resolver**, diagnosticado: **140 sin serial legible** (mismo gap conocido del lector de disco, ya documentado — `.bin/.cue` que `compute_psx_ra_hash` tampoco lee) y **149 con serial leído pero que no calza contra ningún `CatalogEntry.serial` de los candidatos** (hallazgo nuevo, sin investigar — ¿formato de serial distinto, disco no cubierto por el Redump DAT?). Ver `CATALOG-MATCH-REGION-2` para el seguimiento | `catalog/matcher.py:_match_by_title`, `retroachievements/ra_hash_psx.py:detect_psx_boot_serial`, `catalog_loader.py:CatalogEntry.serial` | ✅ arreglado y verificado en vivo; 63% de los casos originales siguen sin desambiguar (ver `CATALOG-MATCH-REGION-2`) |
+| CATALOG-MATCH-REGION-2 | **Resuelto (2026-09-04)**: de los 289 casos PSX que `CATALOG-MATCH-REGION-1` no pudo resolver, 149 tenían serial leído del disco que no calzaba contra ningún `CatalogEntry.serial` candidato porque el serial del Redump DAT trae sufijos que el disco real no tiene (`SLES-02997-0`/`SLES-12997-1` por disco de una copia múltiple, `SLUS-00067GHA`/`SCUS-94244CE` por variante "Greatest Hits"/"Collector's Edition", `SLES-01480-P-0` por país de impresión) — la comparación en `_match_by_title` exigía igualdad exacta. Cambiado `_normalize_serial(h[0].serial) == real_norm` por `.startswith(real_norm)`; el check `len(serial_hits) == 1` ya existente sigue protegiendo contra colisiones (no se ha visto ningún caso con dos candidatos compartiendo prefijo). Test nuevo `test_psx_region_disambiguated_by_serial_prefix`. 1146/1146 tests en verde, `ruff` limpio. Gap conocido sin tocar: `Front Mission 2 (Japan)` (`SLPM87331` real vs `SLPS-01000`/`SLPM-87397` candidatos — ningún prefijo calza, hueco real de cobertura del DAT) y los 140/289 sin serial legible en absoluto (gap del lector de disco, ya documentado). **Re-medido en vivo 2026-09-08 contra `library_pc.db` real** (solo lectura, `matcher.match()` sin escribir nada): **291 filas PSX en `match_confidence='low'`** hoy (289 documentadas en 2026-09-04 + 2 de deriva normal de la biblioteca desde entonces) — de esas, **67 (23%) ahora resuelven a confidence≠low** con el fix de prefijo de serial, **224 siguen en `low`**. **Aviso antes de aplicar en bloque**: no todos los 67 son correcciones obviamente limpias — la mayoría sí (p. ej. `Digimon World (Germany)`→`(USA)`, `Castlevania SOTN (France)`→`(USA)`, ambos con el tag de región del propio nombre de archivo confirmando el nuevo match), pero al menos 2 casos huelen a falso positivo del prefijo ampliado y merecen revisión manual antes de persistir: `Oddworld - Abe's Exoddus (USA) (Demo) (Windows).chd` → matchea contra una entrada `(Europe)` (el tag "Demo"/"Windows" sugiere un disco no estándar, no un lanzamiento retail cubierto por Redump) y `Magical Drop III (USA) (NG) (Virtual Console).chd` → matchea contra `Magical Drop III (Europe)... (Disc 1)` (relanzamiento Virtual Console de un juego Neo Geo contra un disco PSX multi-disco europeo, combinación rara). **Aplicado 2026-09-08** (confirmación explícita del usuario: "aplica los limpios, deja los 2 sospechosos sin tocar"), backup previo en `.rommgr/backup_catalog_match_region2_20260908/`: **65 filas actualizadas** (`canonical_title`/`match_confidence`/`catalog_source`) a `library_pc.db` real, los 2 casos sospechosos (`Oddworld - Abe's Exoddus (USA) (Demo) (Windows).chd`, `Magical Drop III (USA) (NG) (Virtual Console).chd`, esta última con 2 filas — de ahí 67-2=65 y no 66) excluidos explícitamente por nombre de archivo. Verificado tras escribir: **226 filas PSX siguen en `match_confidence='low'`** (291-65=226, cuadra). Backup conservado (sí hubo escritura) | `catalog/matcher.py:328-338` (`_match_by_title`), `retroachievements/ra_hash_psx.py:detect_psx_boot_serial`, `tests/test_catalog_matcher.py` | ✅ 65/291 aplicados 2026-09-08, 2 sospechosos + 224 sin serial-match dejados intactos |
+
+---
+
+### JUEGOS-FIX-1 — Vista de galería (grid) de la pestaña Juegos no renderiza tarjetas (hallado en vivo, 2026-08-27)
+
+Al cambiar a vista de galería en Juegos (icono junto a CSV/JSON) con un
+filtro activo ("Mario", 157 resultados), el contador de resultados es
+correcto pero el área de tarjetas queda vacía (solo un emoji 🎮 centrado, sin
+scroll ni error en consola visible). La vista de lista (tabla) sí funciona
+con el mismo filtro. No investigado a fondo — candidatos: `games.js`/`main.js`
+(`_renderGrid`/equivalente) no se dispara al cambiar de vista con un filtro ya
+aplicado, o depende de datos (carátulas) que estas 157 entradas no tienen.
+Pendiente de investigar causa raíz (`archivo:línea`) antes de arreglar. | `web/static/js/tabs/games.js`, `web/static/js/main.js` | ✅ PR [#243](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/243) — causa raíz doble: (1) `.games-grid` sin regla base `display:grid` en `app.css` (solo overrides `@media`), cada `.game-card` caía a ~1200px de alto apiladas; (2) bug separado y más grave: `onclick="openGamePanel(${JSON.stringify(g)...})"` en 6 sitios (galería, tabla, búsqueda global, recientes) solo escapaba `<`/`>`, nunca `"` — el primer `"` de `JSON.stringify` cerraba el atributo, dejando JS inválido. Abrir el panel de detalle estaba roto en toda la app, no solo en la galería. Fix: regla `display:grid` + reutilizar `_h()` (ya escapa comillas) en vez del `.replace` ad-hoc. Verificado en navegador con la biblioteca real
+
+### CLOUD-FIX-1 — Error JS "badge is not defined" filtra al usuario en la pestaña Cloud (hallado en vivo, 2026-08-27)
+
+Al abrir Cloud con Dropbox conectado pero sin remote de sync guardado
+todavía, aparece una caja roja con el texto literal `badge is not defined —
+Comprueba la configuración cloud de esta pestaña (rclone instalado y remote
+conectado).` — es un `ReferenceError` de JS (variable `badge` no definida)
+capturado por un `catch` genérico y mostrado como si fuera un mensaje de
+validación normal, no un fallo del propio código. No investigado a fondo —
+buscar el `catch` que arma ese mensaje y la variable `badge` sin declarar en
+el flujo de estado de Cloud. | `web/static/js/tabs/sync.js` (o el módulo de
+Cloud equivalente) | ✅ PR [#243](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/243) — causa raíz: `sync.js` llama a `badge()` esperando un helper global, pero `games.js` lo define sin `export` (módulos ES, scope propio por archivo). Fix: exportar `badge()` desde `games.js` e importarlo en `sync.js`, mismo patrón ya usado con `_platBadge`. Verificado en navegador: el log de sync ahora renderiza la tabla de 200 eventos con badges en vez del error
+
+### SYNC-FIX-2 — Auto-sync ya no crashea (SYNC-FIX-1) pero reporta "15 errores" reales (hallado en vivo, 2026-08-27)
+
+Tras aplicar SYNC-FIX-1 y reiniciar el servidor, el primer auto-sync que
+corrió sin crashear terminó igualmente con `Ultimo sync: ... | Error: 15
+errores` (visible en Cable Sync). Distinto del bug de aridad: ahora el daemon
+sí se ejecuta y sí llega a intentar copiar/comparar archivos, pero algo falla
+15 veces durante esa sincronización real. No investigado — el detalle de cada
+uno de los 15 errores debería estar en el log de operaciones (botón "Ver log
+de operaciones" en Cable Sync) o en `sync_log` (SQLite). | `sync/adb_transport.py` | ✅ PR [#242](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/242) — los 15 errores eran saves de Redream/AetherSX2 bajo `Android/data/<pkg>/` (scoped storage, Android 11+). `push()`: adb escribe el contenido pero el `fchown` final a la UID de la app falla sin root (exit code != 0 aunque el archivo llegó bien) — antes se borraba el `.part` a ciegas, ahora cae al chequeo MD5 existente y solo falla de verdad si el contenido no coincide. `pull()`: `Permission denied` es un bloqueo de lectura real sin margen de recuperación — mensaje ahora explica que es scoped storage, no un fallo transitorio. 4 tests nuevos
+
+### SYNC-FIX-1 — Auto-sync crasheaba en cada intento por aridad incorrecta de `get_repo_fn` (hallado en vivo, 2026-08-27)
+
+Al abrir la interfaz para las capturas del README apareció el banner de error
+persistente `start_all.<locals>.<lambda>() takes 0 positional arguments but 1
+was given`, visible también en Cable Sync ("Ultimo sync: ... Error: ..."), en
+cada intento de auto-sync desde que arrancó el servidor. Prioridad absoluta
+por ser bug de sync (regla del proyecto). Causa raíz: `start_all()`
+(`web/daemons.py:262`) pasaba `lambda: repository` (0 argumentos) a
+`_auto_sync_loop`/`_sd_card_sync_loop`, pero ambos ya esperan el contrato
+`get_repo_fn(path)` de 1 argumento (`cable_sync_daemon.py:181,474`) que usa el
+resto de la app (`web/builders/common.py::_repo_for_path`) para elegir la BD
+correcta (PC vs Anbernic) — desajuste introducido en algún refactor de
+multi-dispositivo que no llegó a `start_all()`/`serve()`. | `web/daemons.py`,
+`web/server.py` | ✅ PR [#241](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/241) — rama `fix/auto-sync-daemon-get-repo-fn-arity` (worktree). `start_all()` recibe ahora `repository_android` y construye el mismo `get_repo_fn` de 1 argumento que `make_handler()`. 1 test nuevo de regresión (`test_daemons_start_all.py`). 1016/1019 pasan (3 fallos preexistentes no relacionados)
+
+---
+

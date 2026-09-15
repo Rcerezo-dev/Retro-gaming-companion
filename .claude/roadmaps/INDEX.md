@@ -21,6 +21,15 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 | 09 | [09-config-handler-split.md](09-config-handler-split.md) | `refactor/config-handler-split` | Pendiente | 🟡 P3 |
 | 10 | [10-i18n-translate-remaining-strings.md](10-i18n-translate-remaining-strings.md) | `i18n/translate-remaining-strings` | Pendiente | 🟡 P3 |
 | 11 | [11-cable-sync-android-root-canonical.md](11-cable-sync-android-root-canonical.md) | `fix/cable-sync-android-root-canonical` | Pendiente | 🔴 P1 |
+| 12 | [12-dual-folder-title-case-slug.md](12-dual-folder-title-case-slug.md) | `fix/dual-folder-title-case-slug` | Pendiente | 🟠 P2 |
+| 13 | [13-match-chdman-robustness.md](13-match-chdman-robustness.md) | `fix/match-chdman-robustness` | Pendiente | 🟠 P2 |
+| 14 | [14-matcher-coverage-gaps.md](14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | Pendiente | 🟡 P3 |
+| 15 | [15-psx-cue-multitrack-integrity.md](15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | Pendiente | 🔴 P1 |
+| 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Pendiente | 🟡 P3 |
+| 17 | [17-inbox-pending-features.md](17-inbox-pending-features.md) | `feature/inbox-pending-features` | Pendiente | 🟠 P2 |
+| 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Pendiente | 🟡 P3 |
+| 19 | [19-device-profile-loose-data.md](19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Pendiente | 🟡 P3 |
+| 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Pendiente | mixta |
 
 ---
 
