@@ -57,7 +57,15 @@ _LIBRETRO_DAT_CATALOG = [
     {"name": "Microsoft - Xbox", "short": "Xbox", "catalog": "redump"},
     # Arcade → arcade/
     {"name": "FBNeo - Arcade Games", "short": "FBNeo Arcade", "catalog": "fbneo"},
-    {"name": "MAME 2003-Plus", "short": "MAME 2003+", "catalog": "mame"},
+    # ARCADE-DAT-URL-STALE-1: el nombre publicado en libretro-database es
+    # "MAME 2003-Plus XML.xml" (metadat/mame/), no "MAME 2003-Plus.dat" -- sin
+    # "file" el downloader construye una URL que ya no existe (404).
+    {
+        "name": "MAME 2003-Plus",
+        "short": "MAME 2003+",
+        "catalog": "mame",
+        "file": "MAME 2003-Plus XML.xml",
+    },
     # listxml oficial de MAME (asset mameXXXXlx.zip de la última release en
     # GitHub) — única fuente de los flags isbios/isdevice/runnable que usan
     # load_arcade_infra_names y el junk-scan (JUNK-SMART-2). "file" fija el
@@ -73,7 +81,15 @@ _LIBRETRO_DAT_CATALOG = [
 _LIBRETRO_METADAT_BASE = (
     "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
 )
-_CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
+_CATALOG_TO_SOURCE = {
+    "nointro": "no-intro",
+    "redump": "redump",
+    # ARCADE-DAT-URL-STALE-1: libretro-database renombró metadat/fbneo/ ->
+    # metadat/fbneo-split/ (mismo nombre de archivo dentro) -- la URL vieja
+    # devuelve 404.
+    "fbneo": "fbneo-split",
+    "mame": "mame",
+}
 _DAT_TTL_DAYS = 7  # re-download if the local DAT is older than this
 
 if TYPE_CHECKING:

@@ -394,3 +394,81 @@ def test_convert_bin_to_chd_rejects_on_ra_hash_mismatch(tmp_path: Path, monkeypa
     assert "no coincide" in result.error
     assert bin_path.exists()  # original untouched
     assert not result.chd_path.exists()  # bad chd removed
+
+
+@pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")
+def test_convert_bin_to_chd_verifies_before_deleting_pre_existing_chd(tmp_path: Path) -> None:
+    """CHD-DELETE-NO-VERIFY-1 regression: when the .chd was NOT created by
+    this run (it already existed), delete_source=True must still verify the
+    RA hash before deleting the source. Happy path: hashes match -> deleted."""
+    _build_psx_image(tmp_path)
+    bin_path = tmp_path / "Test Game (USA).bin"
+    (tmp_path / "game.bin").rename(bin_path)
+
+    first = convert_bin_to_chd(bin_path, chdman=str(_CHDMAN), delete_source=False)
+    assert first.success, first.error
+    assert bin_path.exists()  # not deleted yet -- delete_source was False
+
+    # Second call hits the chd_path.exists() branch, not the fresh-conversion one.
+    second = convert_bin_to_chd(bin_path, chdman=str(_CHDMAN), delete_source=True)
+
+    assert second.success, second.error
+    assert not bin_path.exists()
+
+
+@pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")
+def test_convert_bin_to_chd_refuses_to_delete_when_pre_existing_chd_mismatches(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """CHD-DELETE-NO-VERIFY-1: a pre-existing .chd that doesn't match the raw
+    source (e.g. a stale file from a different revision) must not cause data
+    loss -- neither the source nor the pre-existing .chd may be deleted. This
+    differs from the fresh-conversion mismatch case: there the .chd is this
+    run's own disposable output; here it's a file that predates this call and
+    might be perfectly good for something else."""
+    _build_psx_image(tmp_path)
+    bin_path = tmp_path / "Test Game (USA).bin"
+    (tmp_path / "game.bin").rename(bin_path)
+    chd_path = bin_path.with_suffix(".chd")
+    chd_path.write_bytes(b"pre-existing chd, unrelated to this bin")
+
+    monkeypatch.setattr(
+        chd_converter,
+        "compute_psx_ra_hash",
+        lambda path, **kw: "different-chd-hash" if str(path).endswith(".chd") else "source-hash",
+    )
+
+    result = convert_bin_to_chd(bin_path, chdman=str(_CHDMAN), delete_source=True)
+
+    assert not result.success
+    assert bin_path.exists()
+    assert chd_path.exists()
+    assert chd_path.read_bytes() == b"pre-existing chd, unrelated to this bin"
+
+
+@pytest.mark.skipif(not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/")
+def test_convert_to_chd_refuses_to_delete_when_pre_existing_chd_mismatches(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Same as test_convert_bin_to_chd_refuses_to_delete_when_pre_existing_chd_mismatches
+    but for the .cue+.bin path (convert_to_chd)."""
+    bin_path = tmp_path / "Unverifiable Game (USA).bin"
+    bin_path.write_bytes(b"\x00" * (2352 * 4))
+    cue_path = tmp_path / "Unverifiable Game (USA).cue"
+    _write_cue(cue_path, [bin_path.name])
+    chd_path = cue_path.with_suffix(".chd")
+    chd_path.write_bytes(b"pre-existing chd, unrelated to this set")
+
+    monkeypatch.setattr(
+        chd_converter,
+        "compute_psx_ra_hash",
+        lambda path, **kw: "different-chd-hash" if str(path).endswith(".chd") else "source-hash",
+    )
+
+    result = convert_to_chd(cue_path, chdman=str(_CHDMAN), delete_source=True)
+
+    assert not result.success
+    assert bin_path.exists()
+    assert cue_path.exists()
+    assert chd_path.exists()
+    assert chd_path.read_bytes() == b"pre-existing chd, unrelated to this set"
