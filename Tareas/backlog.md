@@ -752,9 +752,27 @@ un descuadre real entre disco y BD para ese juego concreto. No es un caso de
 "excepción tragada" (el error llega a la UI), es un **hueco de atomicidad**
 con un mensaje de error que no transmite el riesgo real.
 
+**Arreglado 2026-09-15** — el código ahora invierte el orden y mete el move
+dentro del propio bloque `batch()`:
+
+```python
+try:
+    dest_path_str = str(dest_file.resolve())
+    with repository.batch() as conn:
+        cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
+        conn.execute(
+            "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
+            (dest_path_str, dest_file.name, game_id),
+        )
+        _shutil.move(str(source_file), str(dest_file))
+    organized += 1
+except Exception as exc:
+    organize_errors.append(f"{source_file.name}: {exc}")
+```
+
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| INBOX-ATOMIC-1 | Decidir la política: (a) reintentar el `UPDATE`/`cascade_delete` en un `finally` separado antes de dar el archivo por fallido, (b) revertir el `_shutil.move` (mover el archivo de vuelta al Inbox) si el paso de BD falla, o (c) como mínimo, mejorar el mensaje de `organize_errors` para que nombre explícitamente el riesgo real (`"archivo movido a {dest_file} pero la base de datos no se pudo actualizar — revisar a mano"`) en vez del mensaje crudo de la excepción SQLite. No implementar sin decisión explícita del usuario — cambia el comportamiento del Pilar 2 en el camino de fallo | `web/inbox_pipeline.py` (paso "Move to platform folders") | 🔴 pendiente, sin decidir |
+| INBOX-ATOMIC-1 | Decidir la política: (a) reintentar el `UPDATE`/`cascade_delete` en un `finally` separado antes de dar el archivo por fallido, (b) revertir el `_shutil.move` (mover el archivo de vuelta al Inbox) si el paso de BD falla, o (c) como mínimo, mejorar el mensaje de `organize_errors` para que nombre explícitamente el riesgo real (`"archivo movido a {dest_file} pero la base de datos no se pudo actualizar — revisar a mano"`) en vez del mensaje crudo de la excepción SQLite. No implementar sin decisión explícita del usuario — cambia el comportamiento del Pilar 2 en el camino de fallo | `web/inbox_pipeline.py` (paso "Move to platform folders") | ✅ hecho 2026-09-15, a petición explícita del usuario (rama `feature/inbox-atomic-1`). Variante de (a) más simple que reintentar en un `finally`: se invierte el orden (`UPDATE`/`cascade_delete` primero, `_shutil.move` al final) **dentro del mismo bloque `repository.batch()`** — una excepción en cualquier punto del bloque (incluido el propio move) hace que `batch()` haga rollback de la BD antes de propagar, así que un fallo del move deja la fila tal y como estaba (apuntando a donde el archivo sigue estando de verdad), y un fallo de la BD nunca llega a intentar el move. Único hueco residual no evitable sin una transacción distribuida real: que el `commit()` en sí falle *después* de un move ya exitoso (ej. disco lleno en el commit) — caso mucho más raro que el original (que se disparaba con cualquier fallo de BD tras el move). 2 tests nuevos (`test_inbox_pipeline_organize.py`: fallo del move tras el `UPDATE` revierte la BD; fallo de la BD nunca llega a llamar al move), 1332 tests totales, ruff+format limpios |
 
 ---
 

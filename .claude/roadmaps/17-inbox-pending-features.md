@@ -166,9 +166,9 @@ ruff check src/rom_manager/web/inbox_pipeline.py src/rom_manager/hashing/ src/ro
 - [ ] `INBOX-ANBERNIC-1` Paso 1 — diseño confirmado (global vs. por archivo)
 - [ ] `INBOX-ANBERNIC-1` Paso 2 — checkbox + wiring implementados
 - [ ] `INBOX-ANBERNIC-1` Paso 3 — tests
-- [ ] `INBOX-ATOMIC-1` Paso 4 — orden/manejo de fallo corregido
-- [ ] `INBOX-ATOMIC-1` Paso 5 — tests
+- [x] `INBOX-ATOMIC-1` Paso 4 — orden corregido (2026-09-15, rama `feature/inbox-atomic-1`): BD primero, move al final, ambos dentro del mismo `batch()` — una excepción en cualquier punto revierte la BD, el move nunca se intenta si la BD falla primero
+- [x] `INBOX-ATOMIC-1` Paso 5 — 2 tests nuevos en `test_inbox_pipeline_organize.py`, 1332 tests totales, ruff+format limpios
 - [ ] `INBOX-RA-HASH-GAP` Paso 6 — algoritmo `rc_hash` investigado y documentado
 - [ ] `INBOX-RA-HASH-GAP` Paso 7 — implementación
 - [ ] `INBOX-RA-HASH-GAP` Paso 8 — tests + verificación contra biblioteca real
-- [ ] Commits en rama(s), PR(s) a `develop` — pendiente, requiere confirmación explícita del usuario
+- [ ] Commits en rama(s), PR(s) a `develop` — `INBOX-ATOMIC-1` commiteado en `feature/inbox-atomic-1`, pendiente de mergear; `INBOX-ANBERNIC-1`/`INBOX-RA-HASH-GAP` siguen sin empezar (bloqueadas en su propio Paso 1 de diseño/investigación)
