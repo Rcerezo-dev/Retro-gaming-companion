@@ -130,9 +130,16 @@ confirmar 0 errores, huérfanos limpiados = archivos movidos.
 
 ## Checklist
 
-- [ ] Paso 1 — 5 pares triviales consolidados
-- [ ] Paso 2 — 6 pares con dedup real consolidados
-- [ ] Paso 3 — guard en `_platform_folder_name()`
-- [ ] Paso 4 — tests nuevos
-- [ ] Paso 5 — suite completa + ruff limpios
+- [x] Paso 1 — 5 pares triviales consolidados (2026-09-17)
+- [x] Paso 2 — 6 pares con dedup real consolidados (2026-09-17) — 3 de los 6
+      (Game Boy Color, Nintendo 3DS, Nintendo DS) resultaron no tener
+      duplicados de ROM reales al verificar contra el filesystem (ver
+      Día64: saves huérfanos en `nds/`, plataforma distinta en `3ds/`,
+      contenido único sin solapar en `gbc/`) — fusión directa sin dedup.
+      Los otros 3 (N64/Mega Drive/SNES, 168 archivos) sí usaron
+      `filter_duplicate_winners`/`resolve_duplicate_ra`.
+- [x] Paso 3 — guard en `_platform_folder_name()` (DUALFOLDER-12, avisa por
+      log, nunca bloquea — `target_root` opcional)
+- [x] Paso 4 — 3 tests nuevos en `test_inbox_scan_preview.py`
+- [x] Paso 5 — suite completa (1343/1343) + ruff limpios
 - [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario

@@ -1844,6 +1844,40 @@ filas restantes en una rama aparte (con su propia verificación, no asumir
 que todas son inofensivas sin revisar), y si añadir el mismo guard a
 `filter_duplicate_winners()` para blindaje adicional |
 
+### DUALFOLDER-12 — 11 pares Title Case/slug restantes consolidados + guard en el Inbox (2026-09-17, máquina "Ruben", `F:\Juegos Retro`) → roadmap 12
+
+Plan e implementación completos en
+`.claude/roadmaps/12-dual-folder-title-case-slug.md`. Resuelve la dirección
+que `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` dejaron sin decidir: el slug es
+el canónico también en el PC (misma tabla `_ES_PLATFORM_FOLDERS` que ya usa
+el cable-sync).
+
+5 pares triviales (`Game Boy`→`gb`, `Game Gear`→`gamegear`,
+`Master System`→`mastersystem`, `Neo Geo`→`neogeo`, `PlayStation`→`psx`) +
+6 pares con posible dedup (`Game Boy Color`, `Nintendo 3DS`, `Nintendo 64`,
+`Nintendo DS`, `Sega Mega Drive`, `Super Nintendo`/`snes`). Hallazgo: 3 de
+los 6 últimos no eran duplicados de ROM reales — `nds/` tenía 84 saves `.sav`
+huérfanos + 2 ROMs (no "3 ROMs" como decía la medición de origen) mientras
+los 338 ROMs reales vivían en `Nintendo DS/`; `3ds/Rockman X3...bin` es un
+ROM de SNES mal clasificado, no un duplicado del `.3ds` real; `gbc/` tenía
+13 betas/prototipos únicos sin solapar. Los otros 3 pares (168 archivos)
+usaron `filter_duplicate_winners`/`resolve_duplicate_ra`
+(`services/ra_duplicates_service.py`), el mismo motor que ya usa el sync
+GBA→Anbernic, filtrando primero a solo grupos con **todas** sus entradas
+dentro del par (una pasada inicial incluía por error cientos de grupos que
+tocaban `Unknown/`, fuera de alcance).
+
+Guard nuevo en `_platform_folder_name()` (`web/inbox_pipeline.py:40-43` →
+ahora acepta `target_root` opcional): si el slug de destino tiene junto a él
+una carpeta Title Case legada con contenido real, loguea un warning
+(`DUALFOLDER-12`) sin bloquear — conectado en el Paso 6 real de organización.
+3 tests nuevos en `test_inbox_scan_preview.py` | `web/inbox_pipeline.py`
+(`_platform_folder_name`, `_folder_has_real_content`) |
+🟡 pendiente reclasificar `3ds/Rockman X3 (Unl) [c][!].bin` (SNES mal
+detectado, fuera de alcance de este roadmap). ✅ commit/PR a `develop`
+confirmado por el usuario 2026-09-18, rebasado sobre `develop` (incluye
+`CATALOG-MATCH-SUBSET-1`, sin conflicto real de código) |
+
 ### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
 
 Plan de implementación en `.claude/roadmaps/13-match-chdman-robustness.md`.

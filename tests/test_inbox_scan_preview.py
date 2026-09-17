@@ -84,3 +84,38 @@ def test_scan_missing_target_dir_is_ignored(tmp_path: Path):
 def test_platform_folder_name_unknown_platform():
     assert _platform_folder_name("") == "unknown"
     assert _platform_folder_name("Plataforma Inventada") == "unknown"
+
+
+def test_platform_folder_name_warns_on_legacy_folder_with_real_content(tmp_path, caplog):
+    """DUALFOLDER-12: carpeta Title Case legada con ROMs reales -> aviso, sin bloquear."""
+    legacy = tmp_path / "Game Boy"
+    legacy.mkdir()
+    (legacy / "Super Mario Land.gb").write_bytes(b"\x00")
+
+    with caplog.at_level("WARNING"):
+        slug = _platform_folder_name("Game Boy", tmp_path)
+
+    assert slug == "gb"
+    assert any("DUALFOLDER-12" in r.message for r in caplog.records)
+
+
+def test_platform_folder_name_no_warn_when_legacy_only_has_media(tmp_path, caplog):
+    """Una carpeta legada con solo media/ (sin ROMs) no cuenta como contenido real."""
+    legacy = tmp_path / "Game Boy"
+    (legacy / "media").mkdir(parents=True)
+    (legacy / "media" / "cover.jpg").write_bytes(b"\x00")
+
+    with caplog.at_level("WARNING"):
+        slug = _platform_folder_name("Game Boy", tmp_path)
+
+    assert slug == "gb"
+    assert not any("DUALFOLDER-12" in r.message for r in caplog.records)
+
+
+def test_platform_folder_name_no_warn_when_no_legacy_folder(tmp_path, caplog):
+    """Sin carpeta Title Case legada, no hay nada que avisar."""
+    with caplog.at_level("WARNING"):
+        slug = _platform_folder_name("Game Boy", tmp_path)
+
+    assert slug == "gb"
+    assert not any("DUALFOLDER-12" in r.message for r in caplog.records)
