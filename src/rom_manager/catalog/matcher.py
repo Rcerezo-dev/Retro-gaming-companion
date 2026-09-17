@@ -7,7 +7,7 @@ from pathlib import Path
 
 from rom_manager.catalog.catalog_loader import CatalogEntry, load_dat_file
 from rom_manager.catalog.mame_loader import load_arcade_dir
-from rom_manager.detection.filename_normalizer import normalize_for_match
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant, normalize_for_match
 from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION, detect_platform
 from rom_manager.retroachievements.ra_hash_psx import detect_psx_boot_serial
 from rom_manager.utils.disc_tag import find_disc_number
@@ -280,6 +280,21 @@ class CatalogMatcher:
 
     def _match_by_title(self, filename: str, source_path: str | None = None) -> MatchResult | None:
         """Pass 2 — Name-based fallback (No-Intro / Redump title index)."""
+        # DUALFOLDER-12b: a translation patch/hack/subset never has its own
+        # SHA1 in the catalog, so it always reaches this fallback — and
+        # normalize_for_match() strips its "[Subset - ...]"/"[T+Eng...]" tag
+        # exactly like a benign region/revision tag, letting it title-match
+        # the vanilla release it's based on (found live 2026-09-17: two
+        # "Professor Oak Challenge" GBA hacks got canonical_title'd as the
+        # real Pokemon FireRed/Ruby — the Ruby one already organized into
+        # gba/ under that borrowed title, see DUALFOLDER-12 in backlog.md).
+        # is_non_canonical_variant() is already trusted for this exact
+        # purpose in operation_planner.py (skip the rename) and
+        # web/builders/duplicates.py (skip the duplicate-review grouping) —
+        # applying it here, at the source of canonical_title, closes the gap
+        # instead of only patching it downstream.
+        if is_non_canonical_variant(filename):
+            return None
         key = normalize_for_match(filename)
         if not key:
             return None
