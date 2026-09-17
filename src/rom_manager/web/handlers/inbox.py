@@ -182,10 +182,17 @@ def _do_inbox_run(
         or (str(config.library_root) if config.library_root else "")
     )
     delete_source = bool(data.get("delete_source", config.inbox.delete_source))
+    send_to_anbernic = bool(data.get("send_to_anbernic", False))
 
     def run() -> None:
         _run_inbox_pipeline(
-            inbox_path_str, target_root_str, delete_source, repository, config, job_manager
+            inbox_path_str,
+            target_root_str,
+            delete_source,
+            repository,
+            config,
+            job_manager,
+            send_to_anbernic=send_to_anbernic,
         )
 
     ctx._send_json(job_manager.start("inbox", run))

@@ -943,6 +943,79 @@ def _run_setup_pipeline(
         job_manager.finish("setup", job_result)
 
 
+def _send_organized_to_anbernic(
+    dest_files: list[Path],
+    target_root: Path,
+    save_exts: frozenset[str],
+    repository: LibraryRepository,
+    config: AppConfig,
+    logger: logging.Logger,
+) -> dict:
+    """INBOX-ANBERNIC-1: push recién-organizados a la Anbernic por ADB.
+
+    Checkbox global (confirmado con el usuario): si está activo, se intenta
+    con cualquier dispositivo único ya conectado — sin dispositivo, se avisa
+    y el resto del job de Inbox sigue igual (nunca bloquea la organización
+    en el PC por falta de cable, ya decidido en el roadmap 17).
+    Reutiliza ``AdbTransport.push`` (mismo primitivo que ``send_selected`` en
+    ``sync_cable.py``) en vez de levantar un job de cable-sync aparte — así
+    no hace falta un segundo panel de progreso.
+    """
+    import datetime as _dt
+
+    from rom_manager.sync.adb_transport import resolve_single_device_transport, should_verify
+    from rom_manager.sync.android_paths import canonical_rel_posix
+    from rom_manager.sync.sync_log import log_sync_event
+
+    if not dest_files:
+        return {"sent": 0, "errors": [], "warning": None}
+
+    transport = resolve_single_device_transport(config.adb)
+    if transport is None:
+        return {
+            "sent": 0,
+            "errors": [],
+            "warning": "sin dispositivo Anbernic conectado — organizado solo en el PC",
+        }
+
+    android_root = config.sync.auto_sync_android_path or "/storage/emulated/0"
+    sent = 0
+    errors: list[str] = []
+    for dest_file in dest_files:
+        try:
+            rel_posix = canonical_rel_posix(
+                dest_file.relative_to(target_root).as_posix(), _ES_PLATFORM_FOLDERS
+            )
+            android_dst = android_root.rstrip("/") + "/" + rel_posix
+            verified = should_verify(dest_file.name, save_exts)
+            transport.push(dest_file, android_dst, dry_run=False, verify=verified)
+            try:
+                with repository.connect() as conn:
+                    log_sync_event(
+                        conn,
+                        local_path=str(dest_file),
+                        remote_path=android_dst,
+                        direction="upload",
+                        local_mtime=None,
+                        remote_mtime=None,
+                        result="ok",
+                        message="INBOX-ANBERNIC-1",
+                        created_at=_dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                        verified=True if verified else None,
+                    )
+                    conn.commit()
+            except Exception:
+                logger.debug(
+                    "No se pudo escribir en save_sync_log (inbox->anbernic)", exc_info=True
+                )
+            sent += 1
+        except Exception as exc:
+            # Nunca debe tumbar el job de Inbox — organizar en el PC ya tuvo
+            # éxito, esto es un extra opt-in (roadmap 17, INBOX-ANBERNIC-1).
+            errors.append(f"{dest_file.name}: {exc}")
+    return {"sent": sent, "errors": errors[:20], "warning": None}
+
+
 def _run_inbox_pipeline(
     inbox_path_str: str,
     target_root_str: str,
@@ -952,6 +1025,7 @@ def _run_inbox_pipeline(
     job_manager,
     extra_result: dict | None = None,
     exclude_platforms: set[str] | None = None,
+    send_to_anbernic: bool = False,
 ) -> None:
     """Background job: extract → scan → match → plan → rename → move → cleanup.
 
@@ -967,6 +1041,10 @@ def _run_inbox_pipeline(
     *exclude_platforms*, ese ZIP se deja intacto en vez de moverse a
     ``arcade/`` -- misma promesa de "dejar arcade sin tocar" que ya cumple
     el filtro de la BD, extendida a lo no escaneado.
+
+    *send_to_anbernic* (INBOX-ANBERNIC-1): checkbox global opt-in — al
+    terminar de organizar, empuja por ADB cada archivo recién movido al
+    dispositivo único conectado. Sin dispositivo, solo avisa (no bloquea).
     """
     import shutil as _shutil
 
@@ -1165,6 +1243,7 @@ def _run_inbox_pipeline(
         duplicates_removed = 0
         conflicts_unresolved = 0
         organize_errors: list[str] = []
+        organized_dest_files: list[Path] = []
         _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
@@ -1219,6 +1298,7 @@ def _run_inbox_pipeline(
                     if status == "kept_source":
                         organized += 1
                         ra_resolved += 1
+                        organized_dest_files.append(dest_file)
                     elif status == "kept_dest":
                         ra_resolved += 1
                     else:
@@ -1258,6 +1338,7 @@ def _run_inbox_pipeline(
                     )
                     _shutil.move(str(source_file), str(dest_file))
                 organized += 1
+                organized_dest_files.append(dest_file)
             except Exception as exc:
                 organize_errors.append(f"{source_file.name}: {exc}")
 
@@ -1291,6 +1372,25 @@ def _run_inbox_pipeline(
             except Exception:
                 _logger.debug("No se pudo eliminar la carpeta temporal _extracted", exc_info=True)
 
+        # ── INBOX-ANBERNIC-1: enviar lo organizado a la Anbernic (opt-in) ────
+        anbernic_result = {"sent": 0, "errors": [], "warning": None}
+        if send_to_anbernic:
+            _upd("enviando a la Anbernic", 6, len(organized_dest_files), len(organized_dest_files))
+            try:
+                anbernic_result = _send_organized_to_anbernic(
+                    organized_dest_files, target_root, save_exts, repository, config, logger
+                )
+            except Exception as exc:
+                # Organizar en el PC ya terminó con éxito — un fallo aquí (p.ej.
+                # adb no encontrado) nunca debe reportar el pipeline entero como
+                # fallido (roadmap 17, INBOX-ANBERNIC-1).
+                logger.warning("Envío a la Anbernic tras el Inbox falló: %s", exc, exc_info=True)
+                anbernic_result = {
+                    "sent": 0,
+                    "errors": [],
+                    "warning": f"envío a Anbernic falló: {exc}",
+                }
+
         job_result = {
             **(extra_result or {}),
             "result_ts": utc_now(),
@@ -1313,6 +1413,9 @@ def _run_inbox_pipeline(
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
             "target_root": str(target_root),
+            "anbernic_sent": anbernic_result["sent"],
+            "anbernic_errors": anbernic_result["errors"],
+            "anbernic_warning": anbernic_result["warning"],
         }
 
     except Exception as exc:
