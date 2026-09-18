@@ -1789,6 +1789,61 @@ detectar y reutilizar una carpeta Title Case ya existente para ese platform
 antes de crear el slug?), cada uso de `organize-source`/Inbox sobre una
 plataforma con carpeta legada Title Case repetirá este patrón |
 
+### CATALOG-MATCH-SUBSET-1 — `_match_by_title()` no comprobaba `is_non_canonical_variant()`, asignando el `canonical_title` del original a hacks/parches de traducción (hallazgo 2026-09-17/18, máquina "Ruben", `F:\Juegos Retro`) → rama `fix/catalog-match-subset-hack`
+
+Investigando un aviso del usuario ("Pokemon Fire Red ahora es el Professor
+Oak Challenge, los logros son peores, también en la Anbernic"). Verificado
+por hash MD5 que los `.gba` reales de Fire Red **no estaban tocados** ni en
+PC ni en Anbernic (coinciden con los hashes conocidos del original) — el
+hack nunca llegó al dispositivo, seguía sin organizar en `Unknown\`. El
+Charizard negro en los logros de la Anbernic no se explica por nada de esta
+biblioteca (probable caché de badges del lado RetroArch/RA, fuera del
+alcance de esta herramienta).
+
+Causa raíz real encontrada: `catalog/matcher.py::_match_by_title()` (Pass 2,
+fallback por título cuando el SHA1 no está en el catálogo — el caso de
+cualquier hack/parche, que nunca tiene su propio SHA1 en No-Intro/Redump) no
+llamaba a `is_non_canonical_variant()` (`detection/filename_normalizer.py`),
+el mismo guard que **sí** ya usan `planner/operation_planner.py:121` (evita
+renombrar el hack con el nombre del original) y
+`web/builders/duplicates.py:786,800` (evita agruparlo como duplicado en la
+cola de revisión) — el guard existía pero solo se aplicaba río abajo, no en
+el origen donde se asigna `canonical_title`. `normalize_for_match()` trata
+`[Subset - Professor Oak Challenge]` como una anotación benigna más (igual
+que `(USA)` o `[!]`), así que el hack matcheaba por título contra el
+catálogo del original con confianza "medium".
+
+Efecto ya real en la biblioteca (no solo teórico): `Pokemon - Ruby Version
+[Subset - Professor Oak Challenge].gba` **ya estaba organizado** en `gba\`
+con `canonical_title = "Pokemon - Ruby Version (Europe) (Rev 1)"` — el mismo
+título que el Ruby real, sin organizar en `Unknown\`. El guard de
+renombrado evitó que el hack robara el nombre de archivo del real, pero
+`filter_duplicate_winners()` (`services/ra_duplicates_service.py`, usado por
+el envío GBA→Anbernic y por el dedup de `DUALFOLDER-12`) tampoco comprueba
+`is_non_canonical_variant()` — un futuro dedup de GBA podría confundirlos.
+
+**Arreglado en `fix/catalog-match-subset-hack`**: `_match_by_title()` ahora
+llama a `is_non_canonical_variant()` al principio y devuelve `None` si el
+filename es un hack/parche — no vuelve a pasar con archivos nuevos. Se
+limpió a mano (sin mover/borrar nada) el `canonical_title` de los 4
+registros ya afectados por los hacks de Pokémon (FireRed/Ruby/Emerald
+"Professor Oak Challenge", el Ruby cuenta 2 veces: `Unknown\` + `gba\`).
+
+**Alcance mayor detectado, fuera de esta rama**: al buscar todas las filas
+con `canonical_title` poblado + `is_non_canonical_variant(original_filename)`
+aparecieron **1183 filas** en toda la biblioteca — mayoría parches de
+traducción NES (`[T+Por...]`, `[T-Por]`...), el mismo patrón que ya
+documentó `CATALOG-MATCH-VARIANT-1` (hallazgo de 22 parches de Zelda,
+2026-09-09) sin llegar a limpiarse en la BD. Decisión del usuario
+2026-09-18: dejar esas 1179 filas restantes sin tocar por ahora — no hay
+evidencia de que hayan causado daño real (a diferencia del Ruby, ninguna
+está ya organizada bajo un nombre prestado) | `catalog/matcher.py:281-296`
+(`_match_by_title`), `detection/filename_normalizer.py:65-74`
+(`is_non_canonical_variant`) | 🟡 pendiente decidir si se limpian las 1179
+filas restantes en una rama aparte (con su propia verificación, no asumir
+que todas son inofensivas sin revisar), y si añadir el mismo guard a
+`filter_duplicate_winners()` para blindaje adicional |
+
 ### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
 
 Plan de implementación en `.claude/roadmaps/13-match-chdman-robustness.md`.
