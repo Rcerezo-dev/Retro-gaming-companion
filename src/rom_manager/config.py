@@ -215,6 +215,11 @@ class SyncConfig:
     # JUEGOS-UX-7: playtime logs (.lrtl) — base remote; se usan subcarpetas /pc
     # y /android para que cada origen sea dueño de su contador y nunca se pisen
     playtime_remote: str = ""  # e.g. "dropbox:/RetroSync/playtime"
+    # EMU-SYNC-WATCH-1: nombres de proceso (ver `tasklist`, sin ruta, p. ej.
+    # "retroarch.exe") que disparan un cloud sync real al cerrarse. Vacío =
+    # watcher desactivado (opt-in explícito, sin adivinar qué emuladores usa
+    # el usuario).
+    watch_processes: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -517,6 +522,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             cheats_remote=str(sync.get("cheats_remote", "")),
             playtime_remote=str(sync.get("playtime_remote", "")),
             sync_sources=sync_sources,
+            watch_processes=[str(p) for p in sync.get("watch_processes", [])],
         ),
         inbox=InboxConfig(
             path=str(inbox_cfg.get("path", "")),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as _dt
 import json as _json
 import logging
+import subprocess as _subprocess
 import threading
 import time as _time
 from pathlib import Path
@@ -13,6 +14,7 @@ from rom_manager.database.repository import LibraryRepository
 
 _logger = logging.getLogger(__name__)
 _HEALTH_CHECK_INTERVAL_DAYS = 7
+_EMULATOR_WATCHER_POLL_SECONDS = 10
 
 
 # ── Health-check scheduler (S37-1) ────────────────────────────────────────────
@@ -280,6 +282,68 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
             _logger.debug("Error en inbox watcher: %s", exc)
 
 
+# ── Emulator-close sync watcher (EMU-SYNC-WATCH-1) ────────────────────────────
+
+
+def _list_running_process_names() -> set[str]:
+    """Nombres de proceso en ejecución ahora mismo (lowercase, sin ruta).
+
+    Vía ``tasklist`` (siempre presente en Windows) en vez de una dependencia
+    de runtime nueva (regla del proyecto: solo stdlib) — mismo patrón que ya
+    usa el resto del proyecto para invocar herramientas externas
+    (``adb.exe``/``rclone.exe``/``chdman.exe`` vía ``subprocess``).
+    """
+    try:
+        out = _subprocess.run(
+            ["tasklist", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+    except Exception:
+        _logger.debug("No se pudo listar procesos (tasklist)", exc_info=True)
+        return set()
+    names: set[str] = set()
+    for line in out.stdout.splitlines():
+        first_field = line.split('","', 1)[0].strip('"')
+        if first_field:
+            names.add(first_field.lower())
+    return names
+
+
+def _closed_watched_processes(previous: set[str], current: set[str], watched: set[str]) -> set[str]:
+    """Nombres de *watched* presentes en *previous* que ya no están en *current*."""
+    return (previous - current) & watched
+
+
+def _emulator_sync_watcher_loop(config: AppConfig, repository: LibraryRepository) -> None:
+    """Daemon: lanza el cloud sync (job "sync") cuando un emulador vigilado se cierra.
+
+    ``config.sync.watch_processes`` es opt-in y vacío por defecto — sin
+    entradas, este daemon no arranca (ver ``start_all``). No sustituye al
+    sync manual/periódico ya existente, solo añade un disparador más.
+    """
+    watched = {p.lower() for p in config.sync.watch_processes}
+    previous = _list_running_process_names()
+    while True:
+        try:
+            _time.sleep(_EMULATOR_WATCHER_POLL_SECONDS)
+            current = _list_running_process_names()
+            closed = _closed_watched_processes(previous, current, watched)
+            previous = current
+            if not closed:
+                continue
+            if _state._job_manager.get_status()["sync_running"]:
+                continue
+            _logger.info("Emulador cerrado (%s) — lanzando cloud sync", ", ".join(sorted(closed)))
+            from rom_manager.web.handlers.sync_cloud import run_cloud_sync_job
+
+            run_cloud_sync_job(config, repository, _state._job_manager, dry_run=False)
+        except Exception:
+            _logger.debug("Error en emulator sync watcher", exc_info=True)
+
+
 # ── Punto de entrada único ────────────────────────────────────────────────────
 
 
@@ -335,3 +399,17 @@ def start_all(
     _logger.info(
         "Health check scheduler arrancado (intervalo: %d días)", _HEALTH_CHECK_INTERVAL_DAYS
     )
+
+    if config.sync.watch_processes:
+        t_emu = threading.Thread(
+            target=_emulator_sync_watcher_loop,
+            args=(config, repository),
+            daemon=True,
+        )
+        t_emu.name = "emulator-sync-watcher-daemon"
+        t_emu.start()
+        _logger.info(
+            "Emulator sync watcher arrancado (%d procesos vigilados, polling cada %ds)",
+            len(config.sync.watch_processes),
+            _EMULATOR_WATCHER_POLL_SECONDS,
+        )
