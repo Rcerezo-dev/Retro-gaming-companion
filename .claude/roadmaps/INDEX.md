@@ -26,7 +26,7 @@ Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-ram
 | 14 | [14-matcher-coverage-gaps.md](14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | Pendiente | 🟡 P3 |
 | 15 | [15-psx-cue-multitrack-integrity.md](15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | **Completado** ✅ (mergeado a `develop`, `5bc4e06` — ver `PSX-CUE-DESYNC-1b` en el backlog) | 🔴 P1 |
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Pendiente | 🟡 P3 |
-| 17 | [17-inbox-pending-features.md](17-inbox-pending-features.md) | `feature/inbox-pending-features` | **En curso** — `INBOX-ATOMIC-1` y `INBOX-RA-HASH-GAP` hechos (2026-09-15), `INBOX-ANBERNIC-1` sin empezar (bloqueada en su propio Paso 1 de diseño) | 🟠 P2 |
+| 17 | [17-inbox-pending-features.md](17-inbox-pending-features.md) | `feature/inbox-pending-features` | **Completado** ✅ — las 3 tareas hechas: `INBOX-ATOMIC-1`/`INBOX-RA-HASH-GAP` mergeadas a `develop` (2026-09-15), `INBOX-ANBERNIC-1` implementada 2026-09-17 (pendiente de commit/PR, ver checklist) | 🟠 P2 |
 | 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Pendiente | 🟡 P3 |
 | 19 | [19-device-profile-loose-data.md](19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Pendiente | 🟡 P3 |
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Pendiente | mixta |
@@ -56,6 +56,16 @@ de estado dependía de un paso manual que no se hizo. Ver también la nota de
 atribución de `PSX-CUE-DESYNC-1b` (sesión de hoy) — mismo patrón general de
 que el registro puede desincronizarse del código real, razón de más para
 verificar contra `git log`/el código antes de confiar en esta tabla.
+
+**17 — `feature/inbox-pending-features` (2026-09-17):** mismo patrón que la
+nota de abajo — el checklist de `INBOX-RA-HASH-GAP` decía "pendiente de
+mergear" pero ya estaba en `develop` desde `c6e19f9` (más un hallazgo
+colateral ya mergeado por separado, `241b1ae`), verificado con
+`git log --oneline --all | grep inbox-ra-hash`. `INBOX-ANBERNIC-1` (la única
+tarea real pendiente) se implementó en esta sesión: diseño confirmado con el
+usuario (checkbox global, no persistido), función `_send_organized_to_anbernic()`
+sobre el primitivo `AdbTransport.push()` en vez del job completo de
+cable-sync, 4 tests nuevos.
 
 **07 — `fix/remove-debug-prints` (2026-09-13):** el problema original de
 `mejoras-por-rama.md` (`server.py:831-835`, 4 `print(f"[DEBUG] ...")`) ya no
