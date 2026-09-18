@@ -126,6 +126,38 @@ def test_filter_duplicate_winners_falls_back_to_dominant_format(tmp_path: Path) 
     assert len(winners) == 3  # other.gba + another.gba + a.gba
 
 
+def test_filter_duplicate_winners_never_discards_real_copy_for_hack(tmp_path: Path) -> None:
+    """CATALOG-MATCH-SUBSET-1: a hack/subset row that already carries a
+    (stale, pre-fix) canonical_title borrowed from the real game must not be
+    grouped with it here -- grouping would let the hack "win" on RA
+    achievements and send the real game's file to _descartados/."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert(
+        repo,
+        source_path=str(tmp_path / "Test Game (USA).gba"),
+        canonical_title="Test Game",
+        extension=".gba",
+        md5="A" * 32,
+    )
+    _insert(
+        repo,
+        source_path=str(tmp_path / "Test Game [Subset - Some Hack].gba"),
+        canonical_title="Test Game",
+        extension=".gba",
+        md5="B" * 32,
+    )
+    _write_ra_cache(tmp_path, get_ra_console_id("gba"), "b" * 32)
+
+    config = SimpleNamespace(project_root=tmp_path)
+    games, _total = repo.get_games_paginated(platform="gba", limit=100)
+    winners = filter_duplicate_winners(repo, config, games)
+
+    paths = {w["source_path"] for w in winners}
+    assert str(tmp_path / "Test Game (USA).gba") in paths
+    assert str(tmp_path / "Test Game [Subset - Some Hack].gba") in paths
+    assert len(winners) == 2
+
+
 def test_filter_duplicate_winners_uses_disc_hash_for_gamecube(tmp_path: Path) -> None:
     """INBOX-RA-HASH-GAP (hallazgo colateral): GameCube's stored md5 is a
     whole-file hash that never matches RA's own disc hash -- without the

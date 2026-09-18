@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
@@ -354,7 +355,13 @@ def filter_duplicate_winners(
     singles: list[dict] = []
     for g in games:
         title = g.get("canonical_title")
-        if not title:
+        # CATALOG-MATCH-SUBSET-1: a translation patch/hack/subset must never be
+        # collapsed with the game it's based on just because it carries a
+        # (possibly stale, pre-fix) canonical_title equal to the original's —
+        # same guard as duplicates.py's review-queue grouping and
+        # _match_by_title(); without it, this bulk-push dedup could pick the
+        # hack as "winner" and discard the real game's file.
+        if not title or is_non_canonical_variant(g.get("original_filename") or ""):
             singles.append(g)
             continue
         groups[(g.get("platform") or "", title)].append(g)
