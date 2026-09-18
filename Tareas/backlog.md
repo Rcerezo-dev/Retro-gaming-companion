@@ -30,6 +30,46 @@ grandes de un fichero van **siempre separados**. Flujo completo: `CONTRIBUTING.m
 
 ---
 
+## Índice por rama
+
+Vista rápida de qué rama toca qué tarea(s) de este backlog, para el flujo de trabajo
+descrito en `.claude/roadmaps/INDEX.md` ("Cómo usar este roadmap"). El contenido
+detallado de cada tarea sigue viviendo en su sección de epic más abajo — este índice
+solo enlaza, no duplica. Se mantiene "a demanda": se actualiza cuando se trabaja una
+rama de esta lista, no se re-audita el backlog entero en cada sesión.
+
+**Ramas con roadmap específico pendiente** (`.claude/roadmaps/INDEX.md`, filas 14-20):
+
+| Rama | Roadmap | Tarea(s) en este backlog | Epic |
+|------|---------|---------------------------|------|
+| `fix/matcher-coverage-gaps` | [14](../.claude/roadmaps/14-matcher-coverage-gaps.md) | [MATCH-FIX-3](#match-fix-3-descomprimir-y-rehashear-no-resuelve-las-colisiones-de-nombre-cuando-el-catálogo-tampoco-conoce-el-hash-real-hallazgo-2026-09-12) | Pilar 1 |
+| `fix/cable-sync-format-gaps` | [16](../.claude/roadmaps/16-cable-sync-format-gaps.md) | [CABLE-ROM-FIX](#cable-rom-fix-el-sync-de-roms-por-cable-no-compara-con-el-destino-hallazgo-2026-08-13) | Pilar 3 |
+| `feature/game-blocklist` | [18](../.claude/roadmaps/18-game-blocklist.md) | [GAME-BLOCKLIST](#game-blocklist-eliminar-un-juego-de-ambas-bibliotecas-y-evitar-que-un-sync-lo-recupere-feedback-usuario-2026-08-29) | UX |
+| `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
+| — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
+
+**Ramas mergeadas en esta sesión** (2026-09-18, ya reflejadas en `INDEX.md` filas 12/13/17/21/22):
+`fix/catalog-match-subset-hack` (PR #317), `fix/dup-winners-non-canonical-guard` (PR #318),
+`fix/dual-folder-title-case-slug` (PR #316), `feature/inbox-anbernic-1` (PR #315).
+
+**Sin rama asignada todavía** — hallazgos documentados en el backlog (algunos son
+operaciones directas sobre la biblioteca real, sin código; otros son bugs de código
+sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su sección
+— no verificado línea a línea para este índice, ir a la sección para el detalle real:
+
+| Epic | Tareas abiertas (🟡/🔴) sin rama confirmada |
+|------|-----------------------------------------------|
+| Pilar 1 | `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
+| Pilar 2 | `ZIP-ROUTE` (🟡) |
+| Pilar 3 | `CABLE-ROOT-1` (🟡) |
+| UX | `FTP-PICK` (🔴🔴) |
+| Distribución | Phase 6 (🟡) |
+| RA/Scraper/SAGE | `SAGE` (🟡) |
+| Perfil de dispositivo | `CHDMAN-TEST-COMPRESS-1` (🟡🔴) |
+| Android Sync (nativo, no cable) | Sección completa (786-830) tiene el mayor volumen de 🟡/🔴 del backlog — `feature/android-sync-12-periodic-sync` y PRs #226-237 ya mergeados cubren parte, pero quedan ítems abiertos sin verificar individualmente aquí |
+
+---
+
 ## Debug Playbook
 
 Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
@@ -500,7 +540,7 @@ nunca escribe nada.
 ### PSX-CUE-DESYNC-1 — `rename_rom_with_saves` no reescribe la referencia `FILE` interna del `.cue` al renombrar — corrupción real, silenciosa desde 2026-03-21 (hallazgo CRÍTICO 2026-09-12, durante `convert-chd`)
 
 Plan de implementación para los 11 casos multi-track restantes (`-1b`), junto
-con `PSX-STRUCTURE-4`, en `.claude/roadmaps/15-psx-cue-multitrack-integrity.md`.
+con `PSX-STRUCTURE-4`, en `.claude/roadmaps/archivo/15-psx-cue-multitrack-integrity.md`.
 
 Origen: `convert-chd --apply` sobre `F:\Juegos Retro\PlayStation` reportó
 **33 fallos** de 122 sets con el mismo patrón: `Bin file(s) not found`.
@@ -530,7 +570,7 @@ toque un set PSX multi-archivo puede reproducir esta misma corrupción.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | PSX-CUE-DESYNC-1a | Reparar los `.cue` de un solo track ya rotos: reescribir la línea `FILE "..."` con el nombre real del `.bin` presente en la misma carpeta (candidato único y sin ambigüedad en los 21 casos) | `F:\Juegos Retro\PlayStation\*.cue` (datos, no código) | ✅ hecho 2026-09-12 con confirmación explícita del usuario. Backup del `.cue` original de cada uno en `.rommgr/backup_cue_repair_2026-09-12/` antes de tocar nada. Verificado tras cada reescritura con `parse_bins_from_cue()` (auto-rollback si la verificación fallaba — no hizo falta ningún rollback). 21/21 reparados, 0 omitidos. Sanity check adicional: conversión real con `chdman.exe` sobre uno de ellos ("Chicken Run (China)") |
-| PSX-CUE-DESYNC-1b | **Investigado y parcialmente reparado 2026-09-15** (rama `fix/psx-cue-multitrack-integrity`, roadmap `.claude/roadmaps/15-psx-cue-multitrack-integrity.md`). El diagnóstico original (emparejar `TRACK`↔`.bin` por número) resultó no aplicar tal cual: los `.cue` de estos sets **ya referenciaban el nombre correcto** — lo que faltaba eran los propios ficheros `.bin` de las últimas pistas de audio, no un desajuste de nombre. Encontrados en `_descartados/` **8 archivos huérfanos mal etiquetados como "Frenzy! (Europe) (Track NN).bin"** (un juego que no existe en ninguna otra parte de la biblioteca) — mismo incidente de renombrado masivo del 2026-03-21 que causó `PSX-CUE-DESYNC-1`. Por número de pista, coincidían sin ambigüedad con 5 de los 11 casos: **Darkstalkers (17, 46), Gundam Battle Assault (21), Street Fighter Alpha (51), Super Pang Collection (61)** — restaurados y verificados con `chdman createcd` real (conversión completa sin error, borrada después, solo verificación). **Street Fighter Collection recuperó 2 de sus 5 pistas que faltaban (66, 68)** del mismo lote. **Dino Crisis (Japan)** resultó ser un caso distinto: ya tenía un `.chd` funcional de una sola pista (verificado por coincidencia exacta de frames, `.bin`/2352 = frames del `.chd`) — el `.cue`/`.ccd`/`.img`/`.sub` sueltos eran redundantes, movidos a `_descartados/` (mismo patrón que `PSX-CHD-REDUNDANT-1`). **MediEvil 2 y Dino Crisis 2 igual** (ver fila propia abajo). **No recuperables, sin candidato encontrado en la biblioteca**: Street Fighter Collection (pistas 70 y 72 — además de la 62 ambigua con Mortal Kombat 3, sin asignar), Mortal Kombat 3 (pista 62), Warhammer (pista 6), y la pista 2 (audio) de ambas variantes de Magical Tetris Challenge (Europe/Germany). **Movidos a `_descartados/`** los 5 sets completos (142 archivos: 63 Street Fighter Collection, 61 Mortal Kombat 3, 6 Warhammer, 2+2 Magical Tetris Challenge ×2) — recuperable, no borrado permanente. `rommgr scan` re-corrido: 142 huérfanos limpiados, 0 errores. Acción pedida explícitamente por el usuario en el momento ("borra aquellos juegos que no puedan recuperarse") | `F:\Juegos Retro\PlayStation\*.cue` (datos) | 🟡 5/11 reparados y verificados, 3 casos (Dino Crisis Japan, MediEvil 2, Dino Crisis 2) resueltos como redundantes, 5 sets irrecuperables descartados a papelera a petición del usuario |
+| PSX-CUE-DESYNC-1b | **Investigado y parcialmente reparado 2026-09-15** (rama `fix/psx-cue-multitrack-integrity`, roadmap `.claude/roadmaps/archivo/15-psx-cue-multitrack-integrity.md`). El diagnóstico original (emparejar `TRACK`↔`.bin` por número) resultó no aplicar tal cual: los `.cue` de estos sets **ya referenciaban el nombre correcto** — lo que faltaba eran los propios ficheros `.bin` de las últimas pistas de audio, no un desajuste de nombre. Encontrados en `_descartados/` **8 archivos huérfanos mal etiquetados como "Frenzy! (Europe) (Track NN).bin"** (un juego que no existe en ninguna otra parte de la biblioteca) — mismo incidente de renombrado masivo del 2026-03-21 que causó `PSX-CUE-DESYNC-1`. Por número de pista, coincidían sin ambigüedad con 5 de los 11 casos: **Darkstalkers (17, 46), Gundam Battle Assault (21), Street Fighter Alpha (51), Super Pang Collection (61)** — restaurados y verificados con `chdman createcd` real (conversión completa sin error, borrada después, solo verificación). **Street Fighter Collection recuperó 2 de sus 5 pistas que faltaban (66, 68)** del mismo lote. **Dino Crisis (Japan)** resultó ser un caso distinto: ya tenía un `.chd` funcional de una sola pista (verificado por coincidencia exacta de frames, `.bin`/2352 = frames del `.chd`) — el `.cue`/`.ccd`/`.img`/`.sub` sueltos eran redundantes, movidos a `_descartados/` (mismo patrón que `PSX-CHD-REDUNDANT-1`). **MediEvil 2 y Dino Crisis 2 igual** (ver fila propia abajo). **No recuperables, sin candidato encontrado en la biblioteca**: Street Fighter Collection (pistas 70 y 72 — además de la 62 ambigua con Mortal Kombat 3, sin asignar), Mortal Kombat 3 (pista 62), Warhammer (pista 6), y la pista 2 (audio) de ambas variantes de Magical Tetris Challenge (Europe/Germany). **Movidos a `_descartados/`** los 5 sets completos (142 archivos: 63 Street Fighter Collection, 61 Mortal Kombat 3, 6 Warhammer, 2+2 Magical Tetris Challenge ×2) — recuperable, no borrado permanente. `rommgr scan` re-corrido: 142 huérfanos limpiados, 0 errores. Acción pedida explícitamente por el usuario en el momento ("borra aquellos juegos que no puedan recuperarse") | `F:\Juegos Retro\PlayStation\*.cue` (datos) | 🟡 5/11 reparados y verificados, 3 casos (Dino Crisis Japan, MediEvil 2, Dino Crisis 2) resueltos como redundantes, 5 sets irrecuperables descartados a papelera a petición del usuario |
 | MEDIEVIL2-DINOCRISIS2-RAW-REDUNDANT-1 | Hallazgo 2026-09-15 durante `PSX-CUE-DESYNC-1b`: `MediEvil 2 (Europe) (En,Fr,De).cue` y `Dino Crisis 2 (France) (Xplosiv).cue` referenciaban nombres de otra variante regional (`(Es,It,Pt)`/`(Spain)`) que no existe en ningún sitio de la biblioteca — no reparables. Ambos ya tenían un `.chd` funcional de una sola pista de datos (sin la pista de audio que el `.cue` roto asumía), y el `.bin` suelto coincidía exactamente en número de frames (`tamaño/2352`) con los frames reportados por `chdman info` para cada `.chd` — mismo patrón que `PSX-CHD-REDUNDANT-1`. Movidos `.cue`+`.bin` de ambos a `_descartados/` (recuperable, no borrado) | `F:\Juegos Retro\PlayStation\` | ✅ resuelto 2026-09-15 — raw redundante apartado, `.chd` de cada uno intacto |
 | PSX-CUE-DESYNC-1c | **Arreglar la causa raíz en el código** para que esto no vuelva a pasar: `rename_rom_with_saves`/el planner deben detectar cuándo el archivo a renombrar es un `.cue`/`.gdi` (o uno de sus `.bin`/track referenciados) y reescribir la línea `FILE` correspondiente como parte de la misma operación atómica — mismo patrón que ya protege los saves compañeros, extendido a la referencia interna del sheet | `renamer/file_renamer.py` (`rename_rom_with_saves`), posiblemente `planner/operation_planner.py` | ✅ hecho 2026-09-12, a petición explícita del usuario. Nueva `_update_disc_sheet_references()` en `file_renamer.py` — cuando se renombra un `.bin`/`.img`, busca cualquier `.cue`/`.gdi` de la misma carpeta que lo referencie (por nombre base, no por ruta completa — limpia también rutas absolutas obsoletas de paso) y reescribe esa línea al nuevo nombre. Funciona en cualquier orden (bin-antes-que-cue o al revés, porque busca por contenido, no por nombre del propio `.cue`). Enganchado como "Step 1.5" tras el rename principal, best-effort (nunca bloquea el rename si falla la reescritura del sheet — solo log). El rollback (si falla el renombrado de un save compañero) también revierte la referencia del sheet, para no dejar el set desincronizado ni siquiera en el camino de fallo. 6 tests nuevos (`tests/test_file_renamer.py`): actualiza `.cue`, actualiza `.gdi`, no toca un `.cue` no relacionado, revierte en rollback, y confirma que renombrar el propio `.cue` no necesita (ni debe) reescribir su contenido. 1301 tests totales, ruff+format limpios. **Nota de alcance**: cubre `.bin`/`.img`; los 11 casos multi-track ya rotos (`PSX-CUE-DESYNC-1b`) siguen sin repararse — este fix solo previene que se rompan *nuevos* sets a partir de ahora |
 | PSX-CUE-DESYNC-1e | **Bug encontrado 2026-09-15 revisando `PSX-CUE-DESYNC-1c` en vivo**: `_update_disc_sheet_references()` comparaba `ref_name == old_name`/`r.name == old_name` (case-sensitive) en vez de case-insensitive — en NTFS un `.cue` que referencia `"Game.BIN"` con el archivo real `"Game.bin"` sigue resolviendo bien vía `parse_bins_from_cue()` (NTFS ignora mayúsculas), pero la función nunca detectaba que ese `.cue` necesitaba actualizarse al renombrar el `.bin`, dejándolo apuntando al nombre viejo en silencio — el mismo bug que `PSX-CUE-DESYNC-1c` se escribió para prevenir, reintroducido por un caso sin cubrir. El propio archivo ya usa `same_file()` para el mismo tipo de problema en otras dos comparaciones (líneas 292/302) — aquí no se aplicó. Confirmado que ningún `.cue` reparado en `PSX-CUE-DESYNC-1b` tenía este problema (bug latente, no disparado) | `renamer/file_renamer.py:123,139` (`_update_disc_sheet_references`) | ✅ arreglado 2026-09-15 — `.lower()` en ambas comparaciones (no `same_file()`, que requiere paths existentes en disco; aquí son nombres sueltos). 1 test nuevo (`test_rename_bin_updates_sibling_cue_reference_case_insensitive`), 1326 tests totales, ruff+format limpios |
@@ -702,7 +742,7 @@ en la raíz.
 ### INBOX-ANBERNIC-1 — Checkbox opt-in en el Inbox para enviar el ROM recién organizado a la Anbernic (petición usuario 2026-09-12)
 
 Plan de implementación (junto a `INBOX-ATOMIC-1` e `INBOX-RA-HASH-GAP`) en
-`.claude/roadmaps/17-inbox-pending-features.md`.
+`.claude/roadmaps/archivo/17-inbox-pending-features.md`.
 
 Origen: conversación 2026-09-12 — el usuario preguntó si el Inbox podía pasar
 juegos directamente a la Anbernic. Hoy el Inbox (Pilar 2) solo organiza en el
@@ -721,9 +761,9 @@ la UI del Inbox, no un push silencioso de todo lo que se organiza.
 
 ### INBOX-ATOMIC-1 — Mover el archivo y actualizar la fila de BD no son atómicos en `_organize_matched_games` (hallazgo roadmap 08 `fix/error-handling`, 2026-09-13)
 
-Origen: investigación del roadmap `.claude/roadmaps/08-fix-error-handling.md`
+Origen: investigación del roadmap `.claude/roadmaps/archivo/08-fix-error-handling.md`
 (hallazgo 3, revisión de bloques `except Exception` reales del proyecto).
-Plan de implementación del fix en `.claude/roadmaps/17-inbox-pending-features.md`.
+Plan de implementación del fix en `.claude/roadmaps/archivo/17-inbox-pending-features.md`.
 `inbox_pipeline.py` (paso "Move to platform folders"):
 
 ```python
@@ -1737,16 +1777,19 @@ RA), pero es 11,9 GB de posible redundancia real en el PC sin confirmar si
 `gba/` tiene algo que `Game Boy Advance/` no tenga (173 títulos exclusivos de
 `gba/`, sin verificar si son copias con otro nombre o contenido genuino
 distinto) | `F:\Juegos Retro\gba\` vs `F:\Juegos Retro\Game Boy Advance\` |
-🔴 medido, sin decidir — candidato a limpieza Pilar 1, mismo patrón que el
-`gb\GB official game ROM complete works\A\` de `DUP-CROSSFMT-1`. Probablemente
-afecte a más plataformas (verificar si hay pares `ps2/`+`PlayStation 2/`,
-`psx/`+`PlayStation/`, etc. con contenido real duplicado, no solo `media/`
-vacío como se vio en `psx/`/`ps2/` hoy) |
+✅ limpiado y purgado 2026-09-15 (diario Día63) — reutilizado
+`filter_duplicate_winners()` (mismo motor que el envío GBA→Anbernic) para
+identificar ganador/perdedor: 898 duplicados reales (11,57 GB) descartados a
+`_descartados/` (reversible), y luego purgados de verdad a petición
+explícita del usuario ("purga descartados, ya que son juegos repetidos") —
+900 archivos, 11,58 GB (incluye 2 más antiguos de la misma carpeta). La
+sospecha de que el patrón afectaba a más plataformas se confirmó: ver
+`PS2-DUAL-FOLDER-1` y `DUALFOLDER-12` (11 pares más, resueltos 2026-09-17) |
 
 ### PS2-DUAL-FOLDER-1 — `organize-source` crea un segundo `ps2/` en vez de usar `PlayStation 2/` ya existente (hallazgo 2026-09-15, máquina "Ruben", `F:\Juegos Retro`)
 
 Plan de implementación (medición de las 11 carpetas duplicadas restantes +
-pasos) en `.claude/roadmaps/12-dual-folder-title-case-slug.md`, junto con
+pasos) en `.claude/roadmaps/archivo/12-dual-folder-title-case-slug.md`, junto con
 `GBA-DUAL-FOLDER-1`.
 
 Confirma la predicción de `GBA-DUAL-FOLDER-1` ("verificar si hay pares
@@ -1783,11 +1826,10 @@ para mantener consistencia con el resto de la biblioteca PS2 del PC, y
 47 juegos) | `web/handlers/system.py:34` (`_ES_PLATFORM_FOLDERS`),
 `web/inbox_pipeline.py:40-43` (`_platform_folder_name`),
 `planner/operation_planner.py:181` (`build_plan`, nunca mueve entre
-carpetas) | 🔴 mismo dilema sin decidir que `GBA-DUAL-FOLDER-1` — mientras no
-se decida una dirección canónica (¿todo a slug Android, o el Inbox debería
-detectar y reutilizar una carpeta Title Case ya existente para ese platform
-antes de crear el slug?), cada uso de `organize-source`/Inbox sobre una
-plataforma con carpeta legada Title Case repetirá este patrón |
+carpetas) | ✅ resuelto — decisión tomada 2026-09-15 (el slug Android es el
+canónico también en el PC) y ejecutada en `DUALFOLDER-12` (2026-09-17): los
+11 pares restantes consolidados + guard `_platform_folder_name()` en el
+Inbox para que no vuelva a pasar en silencio con una plataforma futura |
 
 ### CATALOG-MATCH-SUBSET-1 — `_match_by_title()` no comprobaba `is_non_canonical_variant()`, asignando el `canonical_title` del original a hacks/parches de traducción (hallazgo 2026-09-17/18, máquina "Ruben", `F:\Juegos Retro`) → rama `fix/catalog-match-subset-hack`
 
@@ -1865,7 +1907,7 @@ propia en No-Intro/Redump, así que no debe matchear) |
 ### DUALFOLDER-12 — 11 pares Title Case/slug restantes consolidados + guard en el Inbox (2026-09-17, máquina "Ruben", `F:\Juegos Retro`) → roadmap 12
 
 Plan e implementación completos en
-`.claude/roadmaps/12-dual-folder-title-case-slug.md`. Resuelve la dirección
+`.claude/roadmaps/archivo/12-dual-folder-title-case-slug.md`. Resuelve la dirección
 que `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` dejaron sin decidir: el slug es
 el canónico también en el PC (misma tabla `_ES_PLATFORM_FOLDERS` que ya usa
 el cable-sync).
@@ -1898,7 +1940,7 @@ confirmado por el usuario 2026-09-18, rebasado sobre `develop` (incluye
 
 ### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
 
-Plan de implementación en `.claude/roadmaps/13-match-chdman-robustness.md`.
+Plan de implementación en `.claude/roadmaps/archivo/13-match-chdman-robustness.md`.
 
 Al re-lanzar `POST /api/match` sobre las 7.738 filas sin resolver (tras añadir
 el catálogo arcade), el job se quedó `running=true` más de 30 minutos sin

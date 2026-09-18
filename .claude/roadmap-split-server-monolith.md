@@ -1,4 +1,4 @@
-> **Movido a** `.claude/roadmaps/01-split-server-monolith.md`
+> **Movido a** `.claude/roadmaps/archivo/01-split-server-monolith.md`
 
 # Roadmap — `refactor/split-server-monolith`
 
