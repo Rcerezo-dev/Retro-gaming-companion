@@ -1055,6 +1055,45 @@ except Exception as exc:
 Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
 otro, sin miedo a sobrescribir — el valor diferencial real del proyecto.
 
+### EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben" = PC2)
+
+Petición del usuario: quiere sync entre sus 3 dispositivos (PC principal,
+PC2 — esta máquina — y Anbernic). Al revisar el estado real: cable-sync
+PC↔Anbernic y la app Android nativa (`ANDROID-SYNC`) ya están completos en
+código; lo que faltaba en este PC2 era (a) el primer sync real contra
+Dropbox (nunca se había hecho — cuenta correcta pero vacía, confirmado por
+el usuario) y (b) RetroArch, recién instalado a petición del usuario
+(`F:\Emuladores\Retroarch`, build standalone vía instalador gráfico oficial),
+sin `[[sync.sources]]` configuradas todavía.
+
+Hecho: **(1)** primer sync real de este PC2 ejecutado (`rommgr sync --apply`)
+— 6 archivos subidos (Dolphin Wii, DuckStation, PCSX2), 0 errores, verificado
+en Dropbox. **(2)** `[[sync.sources]]` de RetroArch (saves/states) + `[launchers] retroarch`
+añadidas a `config.toml` de este PC2 (gitignored, no en el PR). **(3)**
+`EMU-SYNC-WATCH-1`: petición explícita del usuario de que el sync se dispare
+solo al cerrar RetroArch/PCSX2/DuckStation/Dolphin, no solo manual/al abrir
+la app — daemon nuevo `_emulator_sync_watcher_loop` (`web/daemons.py`), opt-in
+vía `config.sync.watch_processes` (vacío = desactivado), sondea `tasklist`
+cada 10s (stdlib, sin dependencia nueva) y lanza el job `sync` existente al
+detectar que un proceso vigilado pasó de corriendo a cerrado. Refactor previo
+sin cambio de comportamiento: la lógica de `POST /api/sync` (antes un closure
+anónimo en `_do_sync`) se extrajo a `run_cloud_sync_job()`
+(`web/handlers/sync_cloud.py`), compartida ahora por el endpoint web y el
+daemon nuevo.
+
+**Descartado explícitamente**: el mismo patrón para la Anbernic (Android) —
+requeriría un servicio en segundo plano + permiso especial `PACKAGE_USAGE_STATS`
+(concesión manual en Ajustes), justo el patrón de daemon que `ANDROID-SYNC-9/10/11`
+ya descartó a propósito por batería/complejidad. El sync periódico cada 15 min
+que ya existe (`ANDROID-SYNC-12`) cubre el caso de uso sin ese coste | `web/daemons.py`
+(`_emulator_sync_watcher_loop`, `_list_running_process_names`,
+`_closed_watched_processes`), `web/handlers/sync_cloud.py` (`run_cloud_sync_job`,
+extraída de `_do_sync`), `config.py` (`SyncConfig.watch_processes`) | ✅ mergeado
+a `develop` (PR #321, 2026-09-19), 6 tests nuevos, 1355 tests totales. 🟡
+pendiente en este PC2: jugar algo de verdad con RetroArch/PCSX2/DuckStation/Dolphin
+para confirmar el disparo real al cerrar (verificado hasta ahora solo con las
+funciones puras + el sync manual, no con un cierre de proceso real todavía) |
+
 ### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
 
 Petición del usuario: sync de saves lo más automático posible, sin depender
