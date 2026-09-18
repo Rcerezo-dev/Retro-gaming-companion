@@ -81,6 +81,20 @@ def test_sha1_case_insensitive(catalog_dirs: tuple[Path, Path]) -> None:
     assert result.title == "Tetris (World)"
 
 
+def test_subset_hack_does_not_title_match_the_vanilla_release(
+    catalog_dirs: tuple[Path, Path],
+) -> None:
+    """DUALFOLDER-12b: a ROM hack's SHA1 never hits the catalog, so it falls
+    through to the title-fallback pass -- which must not then borrow the
+    vanilla release's canonical_title (found live 2026-09-17: two "Professor
+    Oak Challenge" GBA hacks got canonical_title'd as real Pokemon
+    FireRed/Ruby)."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("00" * 20, filename="Tetris [Subset - Professor Oak Challenge].gb")
+    assert result is None
+
+
 def test_catalog_entry_counts(catalog_dirs: tuple[Path, Path]) -> None:
     nointro, redump = catalog_dirs
     matcher = CatalogMatcher(nointro, redump)
@@ -166,7 +180,7 @@ def test_ambiguous_title_prefers_platform_matching_extension(tmp_path: Path) -> 
         [("Final Fantasy III (Japan) (Virtual Console)", "BB" * 20, "MD2", "C2", 1024)],
     )
     matcher = CatalogMatcher(nointro, redump)
-    result = matcher.match("0" * 40, "Final Fantasy III (J) [T+Eng1.0_ad0220].nes")
+    result = matcher.match("0" * 40, "Final Fantasy III (J).nes")
     assert result is not None
     assert result.ambiguous is True
     assert result.confidence == "low"
@@ -190,7 +204,7 @@ def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_pa
         [("Final Fantasy III (Japan) (Virtual Console)", "BB" * 20, "MD2", "C2", 1024)],
     )
     matcher = CatalogMatcher(nointro, redump)
-    result = matcher.match("0" * 40, "Final Fantasy III (J) [T+Eng1.0_ad0220].zip")
+    result = matcher.match("0" * 40, "Final Fantasy III (J).zip")
     assert result is not None
     assert result.ambiguous is True
     assert result.platform == "Nintendo 3DS"
