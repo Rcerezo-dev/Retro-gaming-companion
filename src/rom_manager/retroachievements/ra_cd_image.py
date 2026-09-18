@@ -14,6 +14,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+
 _SYNC_PATTERN = bytes([0x00, *([0xFF] * 10), 0x00])
 _CUE_FILE_RE = re.compile(r'FILE\s+"([^"]+)"|FILE\s+(\S+)', re.IGNORECASE)
 _MAX_HASH_SIZE = 64 * 1024 * 1024  # rcheevos' MAX_BUFFER_SIZE (rc_hash_internal.h)
@@ -211,7 +213,7 @@ def _extract_chd(
             check=True,
             capture_output=True,
             timeout=timeout,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=NO_WINDOW,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return None

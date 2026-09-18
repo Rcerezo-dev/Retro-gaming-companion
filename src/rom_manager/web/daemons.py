@@ -11,6 +11,7 @@ from pathlib import Path
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.utils.subprocess_flags import NO_WINDOW
 
 _logger = logging.getLogger(__name__)
 _HEALTH_CHECK_INTERVAL_DAYS = 7
@@ -306,7 +307,7 @@ def _list_running_process_names() -> set[str]:
             text=True,
             timeout=10,
             check=True,
-            creationflags=0x08000000,  # CREATE_NO_WINDOW
+            creationflags=NO_WINDOW,
         )
     except Exception:
         _logger.debug("No se pudo listar procesos (tasklist)", exc_info=True)

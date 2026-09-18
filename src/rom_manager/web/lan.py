@@ -7,6 +7,8 @@ import subprocess
 import sys
 import time
 
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+
 
 def get_lan_ip() -> str | None:
     """Return the primary LAN IPv4 address of this machine, or None."""
@@ -80,7 +82,7 @@ def _check_firewall(port: int) -> bool:
                 capture_output=True,
                 text=True,
                 timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=NO_WINDOW,
             )
             out = proc.stdout
             result = ("Permitir" in out or "Allow" in out) and proc.returncode == 0

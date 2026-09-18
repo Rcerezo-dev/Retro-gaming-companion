@@ -7,6 +7,7 @@ from pathlib import Path, PureWindowsPath
 
 from rom_manager.hashing.hash_calculator import calculate_hashes
 from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash, detect_bin_cue_mode
+from rom_manager.utils.subprocess_flags import NO_WINDOW
 from rom_manager.utils.trash import TRASH_DIR_NAME
 
 
@@ -41,7 +42,7 @@ def verify_chd(chd_path: Path, *, chdman: str = "chdman") -> VerifyResult:
             [chdman, "verify", "-i", str(chd_path)],
             capture_output=True,
             timeout=120,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=NO_WINDOW,
         )
         if proc.returncode == 0:
             return VerifyResult(chd_path=chd_path, ok=True)
@@ -284,7 +285,7 @@ def _run_chdman_createcd(staged_cue: Path, chd_path: Path, chdman: str) -> str |
             check=True,
             capture_output=True,
             cwd=str(staged_cue.parent),
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=NO_WINDOW,
         )
     except FileNotFoundError:
         return f"chdman binary not found: {chdman!r}"
