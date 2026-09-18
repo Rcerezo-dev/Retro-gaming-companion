@@ -30,7 +30,9 @@ Dos capas, cada una con su rol — no duplicar contenido entre ellas:
 
 - **GitHub Issues, label `epic`** — roadmap de alto nivel. Un issue por tema/pilar
   (p. ej. "Pilar 2 — Inbox automático", "Distribución / Release"). Se usan para
-  visibilidad y discusión, no para el detalle de implementación.
+  visibilidad y discusión, no para el detalle de implementación — pero el cuerpo
+  del issue lleva una checklist (`- [ ]`/`- [x]`) con los IDs de tarea de su
+  sección del backlog, sincronizada dinámicamente (ver regla de checklist abajo).
 - **`Tareas/backlog.md`** — desglose operativo. Cada epic tiene una sección propia
   con una tabla de tareas con ID (mismo patrón que `PHASE6-*` o `EMULATOR-COMPAT-*`
   ya existentes), y la sección enlaza al issue: `→ #NNN`. Este archivo sigue siendo
@@ -41,9 +43,11 @@ Flujo al surgir un tema nuevo:
 2. Añadir una sección correspondiente en `backlog.md` con tabla de tareas ID-tagged,
    enlazando al número de issue.
 3. Trabajar siempre contra `backlog.md` (rama por tarea, PR a `develop`, como ya
-   se describe abajo). El issue se mantiene como estado agregado: se puede comentar
-   o cerrar cuando todas las tareas de su sección estén ✅, pero no se edita tarea
-   a tarea.
+   se describe abajo). El issue lleva una checklist en el cuerpo con los IDs de
+   tarea de su sección — al marcar una tarea ✅ en el backlog, marca también su
+   checkbox en el issue correspondiente (`gh issue edit NNN --body-file` o la API,
+   nunca a mano en la web). No hace falta comentar cada tarea; se cierra el issue
+   cuando su checklist esté 100% marcada.
 
 No confundir con `.claude/roadmaps/*.md` — esos son roadmaps técnicos paso a paso
 para una rama de refactor concreta (ver `.claude/roadmaps/INDEX.md`), un nivel de
