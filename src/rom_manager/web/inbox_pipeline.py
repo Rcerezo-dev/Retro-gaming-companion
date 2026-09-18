@@ -37,10 +37,38 @@ def _same_content(a: Path, b: Path) -> bool:
         return False
 
 
-def _platform_folder_name(platform: str) -> str:
-    """Carpeta de plataforma para *platform* — la misma regla del paso 6."""
+def _folder_has_real_content(folder: Path) -> bool:
+    """True if *folder* has any file outside its ``media/`` asset subfolder."""
+    for item in folder.rglob("*"):
+        if item.is_file() and "media" not in item.relative_to(folder).parts:
+            return True
+    return False
+
+
+def _platform_folder_name(platform: str, target_root: Path | None = None) -> str:
+    """Carpeta de plataforma para *platform* — la misma regla del paso 6.
+
+    DUALFOLDER-12: si ya existe, junto al slug canónico devuelto, una carpeta
+    Title Case legada (el nombre canónico tal cual, p. ej. "Sega Mega Drive")
+    con contenido real, se avisa por log — nunca bloquea, el slug sigue
+    siendo el destino (decisión ya tomada 2026-09-15: el slug es el canónico
+    también en PC, ver roadmap 12). *target_root* es opcional para no romper
+    llamadas existentes que no necesitan el aviso.
+    """
     canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
-    return _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+    slug = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+    if target_root is not None and canonical:
+        legacy = target_root / canonical
+        if legacy != target_root / slug and legacy.is_dir() and _folder_has_real_content(legacy):
+            _logger.warning(
+                "DUALFOLDER-12: carpeta legada '%s' con contenido real junto al slug "
+                "canónico '%s' bajo %s — limpieza pendiente, el Inbox sigue usando '%s'.",
+                canonical,
+                slug,
+                target_root,
+                slug,
+            )
+    return slug
 
 
 def _organize_dest_file(target_root: Path, platform: str, filename: str) -> Path:
@@ -1260,6 +1288,7 @@ def _run_inbox_pipeline(
             if not source_file.exists():
                 continue
 
+            _platform_folder_name(platform or "", target_root)
             dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
             dest_folder = dest_file.parent
             dest_folder.mkdir(parents=True, exist_ok=True)
