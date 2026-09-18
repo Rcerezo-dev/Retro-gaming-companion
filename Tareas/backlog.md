@@ -1819,8 +1819,13 @@ con `canonical_title = "Pokemon - Ruby Version (Europe) (Rev 1)"` — el mismo
 título que el Ruby real, sin organizar en `Unknown\`. El guard de
 renombrado evitó que el hack robara el nombre de archivo del real, pero
 `filter_duplicate_winners()` (`services/ra_duplicates_service.py`, usado por
-el envío GBA→Anbernic y por el dedup de `DUALFOLDER-12`) tampoco comprueba
+el envío GBA→Anbernic y por el dedup de `DUALFOLDER-12`) tampoco comprobaba
 `is_non_canonical_variant()` — un futuro dedup de GBA podría confundirlos.
+✅ Arreglado en `fix/dup-winners-non-canonical-guard` (2026-09-18): el hack
+ahora se trata como `single` (nunca entra en el grupo por título del
+original), mismo guard que `_match_by_title()` y `duplicates.py`. Test
+`test_filter_duplicate_winners_never_discards_real_copy_for_hack`, 1342
+tests en verde.
 
 **Arreglado en `fix/catalog-match-subset-hack`**: `_match_by_title()` ahora
 llama a `is_non_canonical_variant()` al principio y devuelve `None` si el
@@ -1837,12 +1842,25 @@ documentó `CATALOG-MATCH-VARIANT-1` (hallazgo de 22 parches de Zelda,
 2026-09-09) sin llegar a limpiarse en la BD. Decisión del usuario
 2026-09-18: dejar esas 1179 filas restantes sin tocar por ahora — no hay
 evidencia de que hayan causado daño real (a diferencia del Ruby, ninguna
-está ya organizada bajo un nombre prestado) | `catalog/matcher.py:281-296`
+está ya organizada bajo un nombre prestado). Revertida el mismo día: el
+usuario pidió limpiarlas también | `catalog/matcher.py:281-296`
 (`_match_by_title`), `detection/filename_normalizer.py:65-74`
-(`is_non_canonical_variant`) | 🟡 pendiente decidir si se limpian las 1179
-filas restantes en una rama aparte (con su propia verificación, no asumir
-que todas son inofensivas sin revisar), y si añadir el mismo guard a
-`filter_duplicate_winners()` para blindaje adicional |
+(`is_non_canonical_variant`), `services/ra_duplicates_service.py`
+(`filter_duplicate_winners`) | ✅ guard en `filter_duplicate_winners()`
+arreglado en `fix/dup-winners-non-canonical-guard`. ✅ limpieza de las 1179
+filas ejecutada 2026-09-18 sobre `library_pc.db` (`library_android.db`: 0
+filas afectadas). Backup previo (`library_pc.db.bak-20260918-223238`,
+gitignored). Verificado primero: de las 1179, **1175 eran del fallback por
+título** (`match_confidence` `low`/`medium`, el bug real) y **4 eran matches
+legítimos por SHA1** (`match_confidence high`, No-Intro sí cataloga esos 4
+hacks `[h1]`/`[h3]` por su propio hash) — las 4 se dejaron intactas, solo se
+limpiaron `canonical_title`/`match_confidence`/`catalog_source` (a `NULL`)
+de las 1175 restantes. También verificado: **0 de las 1175 tenían el
+archivo ya renombrado** en disco al nombre prestado (`source_path` basename
+== `original_filename` en todos los casos) — el guard de
+`operation_planner.py` ya las había protegido, a diferencia del caso Ruby.
+Quedan sin `canonical_title` (correcto: un hack/parche no tiene entrada
+propia en No-Intro/Redump, así que no debe matchear) |
 
 ### DUALFOLDER-12 — 11 pares Title Case/slug restantes consolidados + guard en el Inbox (2026-09-17, máquina "Ruben", `F:\Juegos Retro`) → roadmap 12
 
