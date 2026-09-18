@@ -437,6 +437,7 @@ class RcloneTransport:
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
             except FileNotFoundError:
                 raise RcloneError(

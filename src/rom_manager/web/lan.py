@@ -80,6 +80,7 @@ def _check_firewall(port: int) -> bool:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             out = proc.stdout
             result = ("Permitir" in out or "Allow" in out) and proc.returncode == 0

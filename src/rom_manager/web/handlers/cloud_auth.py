@@ -47,6 +47,7 @@ def _rclone(config: AppConfig, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         timeout=30,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -60,6 +61,7 @@ def _run_authorize(rclone_bin: str, provider: str, remote_name: str) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         with _auth_lock:
             _auth_proc = proc
@@ -106,6 +108,7 @@ def register(router: Router, *, config: AppConfig) -> None:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             existing = {r.rstrip(":") for r in proc.stdout.splitlines() if r.strip()}
             providers = [
@@ -208,6 +211,7 @@ def register(router: Router, *, config: AppConfig) -> None:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             if proc.returncode != 0:
                 ctx._send_json({"error": proc.stderr.strip() or "Error al crear el remote"})
@@ -230,6 +234,7 @@ def register(router: Router, *, config: AppConfig) -> None:
                 capture_output=True,
                 text=True,
                 timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             if proc.returncode != 0:
                 ctx._send_json({"error": proc.stderr.strip() or "Error al eliminar el remote"})

@@ -135,6 +135,7 @@ def _chd_verify_ok(path: Path, chdman_path: str) -> bool:
             [chdman_path, "verify", "-i", str(path)],
             capture_output=True,
             timeout=600,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return r.returncode == 0
     except (OSError, subprocess.TimeoutExpired):

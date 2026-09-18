@@ -211,6 +211,7 @@ def _extract_chd(
             check=True,
             capture_output=True,
             timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return None

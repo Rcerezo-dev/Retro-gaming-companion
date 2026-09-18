@@ -324,6 +324,7 @@ def register_conversions(
                             [maxcso_path, "--decompress", f"--output={iso_path}", str(cso_path)],
                             capture_output=True,
                             timeout=300,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
                         )
                         if r.returncode == 0:
                             converted += 1

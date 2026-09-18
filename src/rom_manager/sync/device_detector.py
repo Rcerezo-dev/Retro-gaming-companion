@@ -32,6 +32,7 @@ def is_device_connected(adb_path: str | None, android_root: str | None) -> tuple
                 capture_output=True,
                 text=True,
                 timeout=2,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             # Parse output for connected devices (exclude "daemon started" and headers)
             lines = result.stdout.strip().split("\n")[1:]  # skip "List of attached devices"

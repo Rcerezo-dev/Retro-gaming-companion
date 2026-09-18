@@ -41,6 +41,7 @@ def verify_chd(chd_path: Path, *, chdman: str = "chdman") -> VerifyResult:
             [chdman, "verify", "-i", str(chd_path)],
             capture_output=True,
             timeout=120,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if proc.returncode == 0:
             return VerifyResult(chd_path=chd_path, ok=True)
@@ -283,6 +284,7 @@ def _run_chdman_createcd(staged_cue: Path, chd_path: Path, chdman: str) -> str |
             check=True,
             capture_output=True,
             cwd=str(staged_cue.parent),
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
     except FileNotFoundError:
         return f"chdman binary not found: {chdman!r}"

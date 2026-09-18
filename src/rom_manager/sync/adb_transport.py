@@ -88,6 +88,7 @@ def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
             [adb_path, "devices", "-l"],
             capture_output=True,
             timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"adb no encontrado o no respondió: {exc}") from exc
@@ -148,6 +149,7 @@ class AdbTransport:
             cmd,
             capture_output=True,
             timeout=timeout or self.timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
 
     def _shell(self, *args: str, timeout: int | None = None) -> str:
