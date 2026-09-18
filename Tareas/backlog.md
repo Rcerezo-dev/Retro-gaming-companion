@@ -1089,10 +1089,21 @@ que ya existe (`ANDROID-SYNC-12`) cubre el caso de uso sin ese coste | `web/daem
 (`_emulator_sync_watcher_loop`, `_list_running_process_names`,
 `_closed_watched_processes`), `web/handlers/sync_cloud.py` (`run_cloud_sync_job`,
 extraída de `_do_sync`), `config.py` (`SyncConfig.watch_processes`) | ✅ mergeado
-a `develop` (PR #321, 2026-09-19), 6 tests nuevos, 1355 tests totales. 🟡
-pendiente en este PC2: jugar algo de verdad con RetroArch/PCSX2/DuckStation/Dolphin
-para confirmar el disparo real al cerrar (verificado hasta ahora solo con las
-funciones puras + el sync manual, no con un cierre de proceso real todavía) |
+a `develop` (PR #321, 2026-09-19), 6 tests nuevos, 1355 tests totales. ✅
+**verificado en vivo el mismo día**: partida real de Dragon Ball Budokai 3 en
+PCSX2 → al cerrar el emulador, log `Emulador cerrado (pcsx2-qt.exe) —
+lanzando cloud sync` 3s después → `Mcd001.ps2` subido a Dropbox con el
+timestamp exacto del cierre, 0 errores. **Tarea programada de Windows**
+(`RetroVault-AutoStart`, `pythonw.exe -m rom_manager serve --tray` al inicio
+de sesión) creada y probada (`Start-ScheduledTask`) para que el watcher esté
+vivo sin depender de arrancar `serve` a mano. **12 cores de RetroArch**
+instalados según `platforms.toml` (`[cores.pc]`, primera opción documentada
+por plataforma) directo del buildbot oficial de libretro, sin pasar por el
+Online Updater: `fceumm`/`snes9x`/`mupen64plus_next`/`gambatte`/`mgba`/
+`melonds`/`genesis_plus_gx`/`flycast`/`mame`/`fbneo`/`ppsspp` + `pcsx_rearmed`
+para PSX (`duckstation` ya no existe en el buildbot — el fork activo es
+`swanstation` — se usó la 2ª opción documentada). GameCube/Wii/3DS/PS2
+deliberadamente fuera (usan los standalone ya configurados, no RetroArch) |
 
 ### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
 
