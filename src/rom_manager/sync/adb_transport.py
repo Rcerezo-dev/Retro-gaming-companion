@@ -21,6 +21,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from rom_manager.utils.subprocess_flags import NO_WINDOW
 from rom_manager.utils.trash import TRASH_DIR_NAME
 
 
@@ -88,6 +89,7 @@ def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
             [adb_path, "devices", "-l"],
             capture_output=True,
             timeout=timeout,
+            creationflags=NO_WINDOW,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"adb no encontrado o no respondió: {exc}") from exc
@@ -148,6 +150,7 @@ class AdbTransport:
             cmd,
             capture_output=True,
             timeout=timeout or self.timeout,
+            creationflags=NO_WINDOW,
         )
 
     def _shell(self, *args: str, timeout: int | None = None) -> str:

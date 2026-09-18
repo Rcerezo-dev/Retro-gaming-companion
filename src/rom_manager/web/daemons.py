@@ -11,6 +11,7 @@ from pathlib import Path
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.utils.subprocess_flags import NO_WINDOW
 
 _logger = logging.getLogger(__name__)
 _HEALTH_CHECK_INTERVAL_DAYS = 7
@@ -292,6 +293,12 @@ def _list_running_process_names() -> set[str]:
     de runtime nueva (regla del proyecto: solo stdlib) — mismo patrón que ya
     usa el resto del proyecto para invocar herramientas externas
     (``adb.exe``/``rclone.exe``/``chdman.exe`` vía ``subprocess``).
+
+    ``creationflags=CREATE_NO_WINDOW`` es obligatorio aquí: el proceso padre
+    corre sin consola (``pythonw.exe``, vía la tarea programada de auto-arranque),
+    y sin este flag cada poll (cada 10s) abre una ventana de consola nueva y
+    visible para ``tasklist.exe`` — mismo fix ya aplicado en
+    ``utils/notifier.py`` para el mismo problema.
     """
     try:
         out = _subprocess.run(
@@ -300,6 +307,7 @@ def _list_running_process_names() -> set[str]:
             text=True,
             timeout=10,
             check=True,
+            creationflags=NO_WINDOW,
         )
     except Exception:
         _logger.debug("No se pudo listar procesos (tasklist)", exc_info=True)

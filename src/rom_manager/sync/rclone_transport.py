@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+
 log = logging.getLogger(__name__)
 
 # Retry settings for transient rclone failures (timeouts, network blips)
@@ -437,6 +439,7 @@ class RcloneTransport:
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    creationflags=NO_WINDOW,
                 )
             except FileNotFoundError:
                 raise RcloneError(

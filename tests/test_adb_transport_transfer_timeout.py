@@ -25,7 +25,7 @@ class _RecordingDevice:
         self.files: dict[str, bytes] = {}
         self.timeouts_seen: list[tuple[str, int | None]] = []
 
-    def run(self, cmd, capture_output=True, timeout=None):
+    def run(self, cmd, capture_output=True, timeout=None, **_kwargs):
         rest = cmd[3:]  # strip [adb, -s, serial]
         out = b""
         if rest[0] == "push":

@@ -276,6 +276,8 @@ def register_conversions(
         def run() -> None:
             import subprocess
 
+            from rom_manager.utils.subprocess_flags import NO_WINDOW
+
             job_result = None
             try:
                 source = Path(source_path_str).resolve()
@@ -324,6 +326,7 @@ def register_conversions(
                             [maxcso_path, "--decompress", f"--output={iso_path}", str(cso_path)],
                             capture_output=True,
                             timeout=300,
+                            creationflags=NO_WINDOW,
                         )
                         if r.returncode == 0:
                             converted += 1

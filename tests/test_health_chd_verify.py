@@ -42,7 +42,7 @@ def repo_with_chd(tmp_path):
 
 
 def _fake_chdman(returncode: int):
-    def run(cmd, capture_output=True, timeout=None):
+    def run(cmd, capture_output=True, timeout=None, **_kwargs):
         assert cmd[1] == "verify"
         return subprocess.CompletedProcess(cmd, returncode, stdout=b"", stderr=b"")
 

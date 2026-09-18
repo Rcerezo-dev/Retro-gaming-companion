@@ -130,11 +130,14 @@ def _chd_verify_ok(path: Path, chdman_path: str) -> bool:
     """
     import subprocess
 
+    from rom_manager.utils.subprocess_flags import NO_WINDOW
+
     try:
         r = subprocess.run(
             [chdman_path, "verify", "-i", str(path)],
             capture_output=True,
             timeout=600,
+            creationflags=NO_WINDOW,
         )
         return r.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
