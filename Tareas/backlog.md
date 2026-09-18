@@ -1703,6 +1703,40 @@ histórica.
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: MEJORAS MEJ-1..6, AUD-1..6, TEST-CLEAN-1..3 + TEST-GAP-1, ONB-1..9, REV43-1..53 (calidad de código, onboarding, tests — completas, 2026-07-02 a 2026-07-15).
 
+### SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless (hallazgo usuario 2026-09-19, PC2)
+
+Encontrado en vivo justo al activar el auto-arranque de `rommgr serve --tray`
+vía tarea programada de Windows (`pythonw.exe`, sin consola propia, ver
+`EMU-SYNC-WATCH-1` en Pilar 3). El usuario reportó una ventana abriéndose
+cada 10 segundos.
+
+**Primer intento insuficiente**: se arregló solo `tasklist.exe` (el watcher
+nuevo de `EMU-SYNC-WATCH-1`) — el usuario confirmó que la ventana seguía
+apareciendo. **Causa raíz real**: `adb.exe`/`rclone.exe`/`chdman.exe`/
+`maxcso`/`netsh` se lanzaban sin `creationflags=CREATE_NO_WINDOW` en absolutamente
+ningún sitio del proyecto excepto `utils/notifier.py` — nunca se notó porque
+la app siempre se había ejecutado con una consola visible (`python.exe`); con
+`pythonw.exe` (sin consola), cada llamada de los daemons periódicos (auto-sync
+cada 10s, SD-card cada 8s, verify chd semanal...) abría una consola nueva y
+visible para el proceso hijo.
+
+**Segundo problema, esta vez en CI**: `subprocess.CREATE_NO_WINDOW` no existe
+fuera de Windows — referenciarlo directamente tumbó 30+ tests en el CI (Linux)
+con `AttributeError` antes de que el mock de `subprocess.run` llegara a
+ejecutarse. Arreglado con una constante compartida nueva,
+`utils/subprocess_flags.py::NO_WINDOW` (el flag real en `win32`, `0` en
+cualquier otra plataforma — `0` es el valor por defecto de `creationflags`,
+nunca lanza en POSIX) | `web/daemons.py`, `sync/adb_transport.py` (×2),
+`sync/device_detector.py`, `sync/rclone_transport.py`, `converters/chd_converter.py`
+(×2), `retroachievements/ra_cd_image.py`, `utils/health_checker.py`,
+`utils/notifier.py`, `web/handlers/esde/conversions.py`, `web/lan.py`,
+`web/handlers/cloud_auth.py` (×4), `utils/subprocess_flags.py` (nuevo) |
+✅ mergeado a `develop` (PR #324, 2026-09-19) en 3 iteraciones — 1358 tests
+totales, verificado en vivo por el usuario tras cada iteración. Deliberadamente
+sin tocar: `games.py` (lanza RetroArch para jugar, su ventana debe verse) y
+el `CREATE_NEW_CONSOLE` de `sync_cloud.py` (abre a propósito una consola
+interactiva para `rclone config`) |
+
 ---
 
 ### User actions (no code needed)
