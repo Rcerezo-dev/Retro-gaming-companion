@@ -292,6 +292,12 @@ def _list_running_process_names() -> set[str]:
     de runtime nueva (regla del proyecto: solo stdlib) — mismo patrón que ya
     usa el resto del proyecto para invocar herramientas externas
     (``adb.exe``/``rclone.exe``/``chdman.exe`` vía ``subprocess``).
+
+    ``creationflags=CREATE_NO_WINDOW`` es obligatorio aquí: el proceso padre
+    corre sin consola (``pythonw.exe``, vía la tarea programada de auto-arranque),
+    y sin este flag cada poll (cada 10s) abre una ventana de consola nueva y
+    visible para ``tasklist.exe`` — mismo fix ya aplicado en
+    ``utils/notifier.py`` para el mismo problema.
     """
     try:
         out = _subprocess.run(
@@ -300,6 +306,7 @@ def _list_running_process_names() -> set[str]:
             text=True,
             timeout=10,
             check=True,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
         )
     except Exception:
         _logger.debug("No se pudo listar procesos (tasklist)", exc_info=True)
