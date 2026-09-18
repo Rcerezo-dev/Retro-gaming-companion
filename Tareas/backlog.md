@@ -1847,8 +1847,20 @@ usuario pidió limpiarlas también | `catalog/matcher.py:281-296`
 (`_match_by_title`), `detection/filename_normalizer.py:65-74`
 (`is_non_canonical_variant`), `services/ra_duplicates_service.py`
 (`filter_duplicate_winners`) | ✅ guard en `filter_duplicate_winners()`
-arreglado en `fix/dup-winners-non-canonical-guard`. 🟡 limpieza de las 1179
-filas restantes en curso |
+arreglado en `fix/dup-winners-non-canonical-guard`. ✅ limpieza de las 1179
+filas ejecutada 2026-09-18 sobre `library_pc.db` (`library_android.db`: 0
+filas afectadas). Backup previo (`library_pc.db.bak-20260918-223238`,
+gitignored). Verificado primero: de las 1179, **1175 eran del fallback por
+título** (`match_confidence` `low`/`medium`, el bug real) y **4 eran matches
+legítimos por SHA1** (`match_confidence high`, No-Intro sí cataloga esos 4
+hacks `[h1]`/`[h3]` por su propio hash) — las 4 se dejaron intactas, solo se
+limpiaron `canonical_title`/`match_confidence`/`catalog_source` (a `NULL`)
+de las 1175 restantes. También verificado: **0 de las 1175 tenían el
+archivo ya renombrado** en disco al nombre prestado (`source_path` basename
+== `original_filename` en todos los casos) — el guard de
+`operation_planner.py` ya las había protegido, a diferencia del caso Ruby.
+Quedan sin `canonical_title` (correcto: un hack/parche no tiene entrada
+propia en No-Intro/Redump, así que no debe matchear) |
 
 ### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
 
