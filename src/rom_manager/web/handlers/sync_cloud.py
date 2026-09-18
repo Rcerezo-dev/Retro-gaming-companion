@@ -280,12 +280,23 @@ def _handle_rclone_test_remote(config: AppConfig, remote: str) -> dict:
         return {"ok": False, "remote": remote, "error": str(exc)}
 
 
-def _do_sync(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
-) -> None:
-    from rom_manager.web.builders.common import _utc_now_str
+def run_cloud_sync_job(
+    config: AppConfig,
+    repository: LibraryRepository,
+    job_manager: JobManager,
+    *,
+    dry_run: bool,
+) -> dict[str, str]:
+    """Start the multi-source cloud sync as the "sync" background job.
 
-    dry_run = data.get("dry_run", True)
+    Shared by ``POST /api/sync`` and the emulator-close watcher daemon
+    (``web/daemons.py``) so both entry points behave identically — same
+    backups, conflict policy, playtime ingestion and desktop notification —
+    instead of a second implementation drifting apart from this one.
+    Returns ``{"status": "started"}`` / ``{"status": "already_running"}``
+    (see ``JobManager.start``).
+    """
+    from rom_manager.web.builders.common import _utc_now_str
 
     def run() -> None:
         job_result = None
@@ -576,7 +587,14 @@ def _do_sync(
         finally:
             job_manager.finish("sync", job_result)
 
-    start_result = job_manager.start("sync", run)
+    return job_manager.start("sync", run)
+
+
+def _do_sync(
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
+) -> None:
+    dry_run = data.get("dry_run", True)
+    start_result = run_cloud_sync_job(config, repository, job_manager, dry_run=dry_run)
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 
