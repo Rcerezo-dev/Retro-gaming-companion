@@ -34,6 +34,23 @@ _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
 # blind union key that could feed the "plain, safe-to-auto-discard" bucket.
 _HEADER_EXTENSIONS = frozenset({".nds", ".gba"})
 
+# ANDROID-DUP-1: explicit disc-image format preference for the "which entry
+# wins" tiebreak, per DUP-DISC-RA-2's decision ("usa CHD como formato de
+# PSX") — a single compact file, native to RetroArch/chdman. `.cue`/`.gdi`
+# (needs its `.bin`/track siblings, but is the standard "raw tracks"
+# container) ranks second. Legacy CloneCD (`.ccd`, needs its `.img`/`.sub`)
+# ranks below that — no tool in this project writes it, it only ever shows
+# up as a leftover from before this library existed. Every other extension
+# (including single-file cart formats like `.gba`/`.nes`, where no such
+# project-level format preference has ever been decided) stays at the
+# untouched neutral tier so this never changes their relative order.
+_DISC_FORMAT_TIER = {
+    ".chd": 0,
+    ".cue": 1,
+    ".gdi": 1,
+    ".ccd": 2,
+}
+
 
 def _is_disc_set(members) -> bool:
     """True if the cluster spans more than one distinct disc number of the
@@ -87,38 +104,88 @@ def _normalize_title_cross_format(stem: str) -> str:
     return t
 
 
-def _is_cue_sibling_bin(source_path: str) -> bool:
+def _sibling_path_str(source_path: str, new_suffix: str) -> str:
+    """Swap *source_path*'s extension for *new_suffix* via plain string
+    splitting, never :mod:`pathlib`'s parent/name round-trip.
+
+    ``str(Path("/storage/x/foo.bin").parent / "foo.cue")`` on Windows
+    renders with backslashes (``WindowsPath`` normalizes the separator on
+    ``__str__``), which would never match an ADB-scanned row's
+    ``source_path`` again — those are stored exactly as ``adb shell``
+    returned them, forward-slash POSIX form. This keeps whatever separator
+    style *source_path* already uses.
+    """
+    last_sep = max(source_path.rfind("/"), source_path.rfind("\\"))
+    directory = source_path[: last_sep + 1]
+    filename = source_path[last_sep + 1 :]
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    return f"{directory}{stem}{new_suffix}"
+
+
+def _sibling_exists(source_path: str, new_suffix: str, known_paths: frozenset[str] | None) -> bool:
+    """True if *source_path*'s sibling (same stem, extension *new_suffix*)
+    exists.
+
+    ANDROID-DUP-1: for an ADB-scanned row, ``Path(candidate).exists()`` is
+    unconditionally False — it's a POSIX device path, invisible to the PC's
+    own filesystem (same reasoning as ``is_device_path``'s docstring). Every
+    caller of this went right on treating that as "no sibling", silently
+    disabling the whole disc-sibling protection for the Android repo: a
+    ``.bin``/``.cue``/``.ccd``/``.img``/``.sub`` from the device always
+    looked like an independent, discardable "duplicate format" of its own
+    companion. *known_paths* — every ``source_path`` already scanned into
+    the same repo, lower-cased — is the actual source of truth for a device
+    path; a local PC path keeps using the real filesystem check.
+    """
+    candidate = _sibling_path_str(source_path, new_suffix)
+    if known_paths is not None and is_device_path(source_path):
+        return candidate.lower() in known_paths
+    return _Path(candidate).exists()
+
+
+def _is_cue_sibling_bin(source_path: str, known_paths: frozenset[str] | None = None) -> bool:
     """DUP-CROSSFMT-2: True if *source_path* is a ``.bin`` sitting next to a
     ``.cue`` with the same stem — that ``.bin`` is the cue's data file, not
     a self-contained alternate format of the disc. Left in the crossfmt
     union, a ``.cue``+``.bin`` pair with no other copy anywhere else looked
     exactly like two independent duplicate formats of the same disc, and
     "Aplicar recomendación" would discard the ``.cue`` — leaving the ``.bin``
-    orphaned and the disc unplayable in most emulators."""
+    orphaned and the disc unplayable in most emulators.
+
+    *known_paths*: see ``_sibling_exists`` — required to keep working for an
+    Android-scanned ``.bin`` (ANDROID-DUP-1).
+    """
     path = _Path(source_path)
     if path.suffix.lower() != ".bin":
         return False
-    return (path.parent / f"{path.stem}.cue").exists()
+    return _sibling_exists(source_path, ".cue", known_paths)
 
 
-def _is_ccd_sibling_data(source_path: str) -> bool:
+def _is_ccd_sibling_data(source_path: str, known_paths: frozenset[str] | None = None) -> bool:
     """DUP-CROSSFMT-5: same reasoning as :func:`_is_cue_sibling_bin`, for the
     CloneCD sidecar format — ``.img``/``.sub`` are the ``.ccd``'s own data,
     not an independent copy. Found live in the real library (2026-09-09):
     ``Resident Evil 2 CD1/CD2``, ``Rival Schools Evolution``, ``clocktower2``,
     ``NEW`` all had their ``.img`` recommended for discard while keeping the
     ``.ccd`` that needs it — same failure mode DUP-CROSSFMT-2/3 fixed for
-    ``.cue``/``.bin``, never extended to this format."""
+    ``.cue``/``.bin``, never extended to this format.
+
+    *known_paths*: see ``_sibling_exists`` — required to keep working for an
+    Android-scanned ``.img``/``.sub`` (ANDROID-DUP-1: confirmed live on the
+    RG556, ``Crash Bandicoot [U] [SCUS-94900].ccd/.img/.sub``).
+    """
     path = _Path(source_path)
     if path.suffix.lower() not in (".img", ".sub"):
         return False
-    return (path.parent / f"{path.stem}.ccd").exists()
+    return _sibling_exists(source_path, ".ccd", known_paths)
 
 
-def _is_disc_data_sibling(source_path: str) -> bool:
+def _is_disc_data_sibling(source_path: str, known_paths: frozenset[str] | None = None) -> bool:
     """True for any sidecar data file (``.cue``'s ``.bin``, ``.ccd``'s
     ``.img``/``.sub``) that must never be unioned/discarded on its own."""
-    return _is_cue_sibling_bin(source_path) or _is_ccd_sibling_data(source_path)
+    return _is_cue_sibling_bin(source_path, known_paths) or _is_ccd_sibling_data(
+        source_path, known_paths
+    )
 
 
 def _is_spanish_filename(filename: str) -> bool:
@@ -150,7 +217,7 @@ def _in_correct_platform_folder(source_path: str, platform: str | None, library_
     return source_path.startswith(str(_Path(library_root) / slug))
 
 
-def _is_broken_disc_entry(source_path: str) -> bool:
+def _is_broken_disc_entry(source_path: str, known_paths: frozenset[str] | None = None) -> bool:
     """REPAIR-TOOL-4: True if *source_path* is a ``.cue`` that references a
     ``.bin`` missing from disk (or is itself missing).
 
@@ -167,10 +234,24 @@ def _is_broken_disc_entry(source_path: str) -> bool:
     ``converters/chd_converter.py::is_broken_cue_set`` — shared with the
     standalone health report so there's one definition of "broken", not two
     drifting in parallel.
+
+    ANDROID-DUP-1: ``is_broken_cue_set`` reads the ``.cue``'s own text to
+    resolve which ``.bin``(s) it references — impossible for an ADB-scanned
+    row without pulling the file first. Worse than just failing closed: it
+    called ``cue_path.exists()`` first, always False for a device path, so
+    every Android ``.cue`` was unconditionally reported "broken" regardless
+    of whether its ``.bin`` was sitting right next to it. Falls back to the
+    same same-stem-``.bin``-exists heuristic ``_is_cue_sibling_bin`` already
+    uses for the sibling check — not a content-accurate "broken" verdict
+    (a cue naming a differently-stemmed bin would still pass), but a correct
+    "not obviously missing its data" signal without an ADB round-trip just
+    to rank a duplicate.
     """
     path = _Path(source_path)
     if path.suffix.lower() != ".cue":
         return False
+    if known_paths is not None and is_device_path(source_path):
+        return not _sibling_exists(source_path, ".bin", known_paths)
     return is_broken_cue_set(path)
 
 
@@ -222,8 +303,9 @@ def _review_entry_sort_key(
     *,
     region_tiebreak: bool = False,
     preferred_regions: tuple[str, ...] = (),
-) -> tuple[int, int, int, int, str]:
-    """Recommendation order shared by every reason: intact > RA support > correct folder > Spanish > filename.
+    known_paths: frozenset[str] | None = None,
+) -> tuple[int, int, int, int, int, str]:
+    """Recommendation order shared by every reason: intact > disc format > RA support > correct folder > Spanish > filename.
 
     Same criterion the RA-duplicates view already used (before TABS-FIX-6
     generalized it to all 4 review-queue sources). Every entry — including
@@ -255,8 +337,17 @@ def _review_entry_sort_key(
     ``["Spain", "Europe"]`` keeps a Spanish release over a European one,
     which in turn beats USA/Japan/other, but still falls back down the list
     when a game has no release in the top region.
+
+    ANDROID-DUP-1: *format_tier* (new) enforces ``DUP-DISC-RA-2``'s decision
+    ("usa CHD como formato de PSX") explicitly, instead of leaving it to
+    whatever the filename tiebreak happened to prefer alphabetically — which
+    picked a raw ``.bin`` over a ``.chd`` of the exact same disc purely
+    because "b" sorts before "c". ``known_paths`` (see ``_sibling_exists``)
+    is threaded through to ``_is_broken_disc_entry`` so integrity still
+    works for an Android-scanned ``.cue``.
     """
-    integrity_tier = 1 if _is_broken_disc_entry(entry["source_path"]) else 0
+    integrity_tier = 1 if _is_broken_disc_entry(entry["source_path"], known_paths) else 0
+    format_tier = _DISC_FORMAT_TIER.get(_Path(entry["filename"]).suffix.lower(), 1)
     ra_tier = 0 if entry["ra_supported"] else 1
     folder_tier = (
         0 if _in_correct_platform_folder(entry["source_path"], platform, library_root) else 1
@@ -270,7 +361,7 @@ def _review_entry_sort_key(
         )
     else:
         lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
-    return (integrity_tier, ra_tier, folder_tier, lang_tier, entry["filename"])
+    return (integrity_tier, format_tier, ra_tier, folder_tier, lang_tier, entry["filename"])
 
 
 def _load_ra_hash_map(
@@ -769,6 +860,11 @@ def _review_groups_for_repo(
     if not rows:
         return []
 
+    # ANDROID-DUP-1: the scanned rows themselves are the only source of
+    # truth for "does this sibling exist" on a device path — see
+    # _sibling_exists's docstring for why Path.exists() can't answer that.
+    known_paths = frozenset(row["source_path"].lower() for row in rows if row["source_path"])
+
     path_to_idx = {row["source_path"]: i for i, row in enumerate(rows)}
     parent = list(range(len(rows)))
 
@@ -794,7 +890,7 @@ def _review_groups_for_repo(
         # different sha1) and get sorted against each other, discarding the
         # .cue and orphaning the .bin. Confirmed live: 26 real PSX games hit
         # this in a resolve-duplicates dry run before this fix.
-        if _is_disc_data_sibling(row["source_path"]):
+        if _is_disc_data_sibling(row["source_path"], known_paths):
             continue
         if row["sha1"]:
             union(idx, first_by_sha1.setdefault(row["sha1"], idx))
@@ -828,7 +924,7 @@ def _review_groups_for_repo(
     # them here too would just be redundant, not additive.
     crossfmt_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
     for idx, row in enumerate(rows):
-        if _is_disc_data_sibling(row["source_path"]) or is_non_canonical_variant(
+        if _is_disc_data_sibling(row["source_path"], known_paths) or is_non_canonical_variant(
             row["original_filename"]
         ):
             continue
@@ -876,7 +972,7 @@ def _review_groups_for_repo(
             plat_lower = (row["platform"] or "").lower()
             if plat_lower in _MULTI_DISC_RISK_PLATFORMS:
                 continue
-            if _is_disc_data_sibling(row["source_path"]) or is_non_canonical_variant(
+            if _is_disc_data_sibling(row["source_path"], known_paths) or is_non_canonical_variant(
                 row["original_filename"]
             ):
                 continue
@@ -1088,6 +1184,7 @@ def _review_groups_for_repo(
                 _lib_root,
                 region_tiebreak=_region_tiebreak,
                 preferred_regions=_preferred_regions,
+                known_paths=known_paths,
             )
         )
         for i, entry in enumerate(entries_list):
