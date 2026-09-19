@@ -5,7 +5,7 @@
 **Prioridad:** 🟡 P3 — no bloquea nada activo, es cobertura incompleta ya documentada y acotada, no un bug de comportamiento incorrecto
 **Esfuerzo estimado:** S-M (~2-4 h, casi todo en `catalog/matcher.py`)
 **Riesgo:** Bajo-medio — `MATCH-FIX-3` requiere una decisión de política del usuario antes de tocar código (puede dejar más archivos "sin match" a propósito)
-**Estado (2026-09-19):** 🟢 Pasos 3-4 hechos y verificados (ver `MATCH-FIX-14` en `Tareas/backlog.md`) sin necesitar ninguna decisión de política — Pasos 1-2 (`MATCH-FIX-3`) siguen bloqueados, sin empezar
+**Estado (2026-09-19):** 🟢 Roadmap completo — Pasos 3-4 (ver `MATCH-FIX-14`) y Pasos 1-2 (usuario eligió "sin match si hay ambigüedad real", ver `MATCH-FIX-3`) hechos y verificados. Solo queda la medición real contra la biblioteca de producción (947 archivos), pendiente por ser una escritura real sobre datos en uso — sesión aparte
 
 ---
 
@@ -142,8 +142,12 @@ ruff check src/rom_manager/catalog/matcher.py src/rom_manager/web/builders/dupli
 
 ## Checklist
 
-- [ ] Paso 1 — decisión de política confirmada por el usuario (`MATCH-FIX-3`)
-- [ ] Paso 2 — política implementada y medida contra la biblioteca real
+- [x] Paso 1 — decisión de política confirmada por el usuario (`MATCH-FIX-3`):
+      sin match si hay ambigüedad real, no desambiguar por tamaño
+- [x] Paso 2 — política implementada 2026-09-19 (`catalog/matcher.py::_match_by_title`,
+      devuelve `None` cuando >1 candidato sobrevive todo el filtrado y ningún
+      número de disco distingue). **Medición contra la biblioteca real
+      pendiente** (escritura real sobre producción, sesión aparte)
 - [x] Paso 3 — señal de identidad GB/GBC diseñada e implementada 2026-09-19:
       checksum de cabecera (`0x14D`, sobre `0x134-0x14C`) combinado con el
       título truncado (`detection/rom_header.py::_read_gb_id`), en vez del
@@ -169,4 +173,4 @@ ruff check src/rom_manager/catalog/matcher.py src/rom_manager/web/builders/dupli
       desempate de tamaño prefiere el verificado por catálogo). 1395/1395 en
       verde
 - [x] Paso 6 — suite completa + ruff limpios (Pasos 3-4)
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario (Pasos 1-2 sin empezar, bloqueados por decisión de política)
+- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
