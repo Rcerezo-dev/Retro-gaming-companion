@@ -1184,9 +1184,28 @@ de `libretro-database` para `"FBNeo Arcade"` y `"MAME 2003 Plus"` devuelven
 downloader está roto para arcade además de no estar conectado. No
 investigado si las URLs de No-Intro/Redump (mismo `_BASE`) siguen vivas.
 
+**Corrección importante (encontrada al revisar `/progreso` el mismo día)**:
+el downloader que **sí está conectado y es el que usa el botón real "Descargar
+DAT" de la web** es otro, independiente — `_LIBRETRO_DAT_CATALOG` +
+`_run_dat_download()` en `web/handlers/scan.py`, no `catalog/dat_downloader.py`.
+Ese downloader real ya tuvo su propio bug de URL (`ARCADE-DAT-URL-STALE-1`,
+arreglado 2026-09-15: `metadat/fbneo` → `metadat/fbneo-split`) — pero ese fix
+solo corrigió el **404**, nunca verificó el **contenido**. Comprobado hoy en
+vivo: `metadat/fbneo-split/FBNeo - Arcade Games.dat` responde `200` pero es
+el mismo formato texto plano ClrMamePro (`clrmamepro ( ... )`, `game ( name
+"..." rom (...) )`) que causó este mismo bug — **no es XML, `load_fbneo_dat()`
+seguirá devolviendo 0 entradas aunque se descargue de nuevo desde la web**,
+pese a los dos fixes de hoy. Es decir: **si alguien pulsa "Descargar DAT" →
+FBNeo Arcade desde la pestaña Herramientas, revierte silenciosamente el
+arreglo de hoy** (catálogo 10.212 → 0 entradas FBNeo otra vez, sin ningún
+aviso — mismo patrón exacto de fallo silencioso que el bug original). El
+`.dat` de MAME 2003-Plus sí es XML real y no tiene este problema (`metadat/
+mame/MAME 2003-Plus XML.xml` → `200`, formato correcto). Ver `MATCH-ARCADE-DAT-2`.
+
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | MATCH-ARCADE-DAT-1 | `load_fbneo_dat()` ahora lee description/year/manufacturer como elemento hijo primero (fallback a atributo, mismo patrón que `load_mame_xml()`). Sustituido `.rommgr/catalogs/arcade/FBNeo - Arcade Games.dat` (texto plano, 0 entradas reales) por el `.dat` XML oficial actual descargado de `github.com/libretro/FBNeo/blob/master/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat` (backup del original en `.rommgr/catalogs/arcade_backup_20260919/`). 3 tests nuevos (`tests/test_mame_loader.py`): lee child-element real, fallback a atributo, y el `.dat` texto-plano anterior sigue devolviendo `{}` sin lanzar. 1398/1398 tests, ruff+format limpios | `catalog/mame_loader.py` (`load_fbneo_dat`) | ✅ hecho 2026-09-19. Catálogo arcade cargado: 4.858 → 10.212 entradas. **Re-match ejecutado contra `library_pc.db` real** (backup previo en `.rommgr/db-backup/library_pc.20260919T214730Z.db`, 13.548 filas sin match re-evaluadas): **253 filas nuevas resueltas** vía el catálogo FBNeo ahora real (`match_confidence='medium'`), incluyendo 251/329 de los sets multi-archivo de `MATCH-ZIP-HASH-1`. `dat_downloader.py` sigue sin conectar y con URLs de arcade rotas — no arreglado, candidato a tarea aparte si se decide automatizar la descarga de DATs |
+| MATCH-ARCADE-DAT-2 | 🔴 **BUG CRÍTICO sin arreglar, encontrado 2026-09-20 revisando `/progreso`**: el botón real "Descargar DAT" → FBNeo Arcade (`web/handlers/scan.py::_run_dat_download`, `_LIBRETRO_DAT_CATALOG`) descarga un `.dat` en formato ClrMamePro texto plano desde `metadat/fbneo-split/` — `load_fbneo_dat()` nunca podrá parsearlo (no es XML), así que usar ese botón revierte silenciosamente el arreglo de `MATCH-ARCADE-DAT-1` de hoy (catálogo FBNeo → 0 entradas otra vez). El fix de `ARCADE-DAT-URL-STALE-1` (2026-09-15) solo verificó que la URL respondiera 200, nunca que el contenido fuera parseable — hueco de verificación real, no un bug nuevo de hoy. **Recomendación (sin implementar)**: apuntar esa entrada del catálogo a la fuente XML real ya verificada hoy (`github.com/libretro/FBNeo/blob/master/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat`) en vez de la de `libretro-database`, o añadir un parser ClrMamePro-texto-plano a `mame_loader.py` como alternativa. Mientras no se arregle: **no usar el botón "Descargar DAT" → FBNeo Arcade** en la web | `web/handlers/scan.py:13-92` (`_LIBRETRO_DAT_CATALOG`, `_CATALOG_TO_SOURCE["fbneo"]`) | 🔴 confirmado con evidencia real (`curl` a la URL exacta que usa el botón), sin implementar — decisión del usuario sobre qué camino tomar |
 
 ---
 
