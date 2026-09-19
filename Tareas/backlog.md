@@ -1053,7 +1053,64 @@ no formato de archivo.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| MATCH-FIX-3 | **✅ Decidido y hecho 2026-09-19** (roadmap 14, `fix/matcher-coverage-gaps`): el usuario eligió la opción conservadora — sin match si hay ambigüedad real, en vez de desambiguar por tamaño. `_match_by_title()` ya no devuelve `candidates[0]` a ciegas cuando, tras todo el filtro por plataforma/extensión/carpeta/serial, siguen quedando >1 candidatos y ningún número de disco los distingue — devuelve `None`. El caso donde el número de disco SÍ distingue (`GAMECUBE-DISC-BUG-1e`) sigue devolviendo el match real, sin cambios ahí. 3 tests existentes actualizados (`test_name_fallback_low_confidence_ambiguous`→`..._returns_none_when_genuinely_ambiguous`, `test_ambiguous_title_falls_back_to_first_hit_without_extension_signal`→`..._returns_none_without_extension_signal`, `test_ambiguous_extension_prefers_platform_of_containing_folder`) para reflejar el nuevo comportamiento — el caso con `source_path` real que sí desambigua por carpeta sigue devolviendo match, sin tocar. **Medición real contra la biblioteca de producción (947 archivos) pendiente**: requeriría `rommgr match --apply` real sobre `F:\Juegos Retro`/la BD en uso — no ejecutado en esta sesión por ser una escritura real sobre datos de producción, se lanza en sesión aparte cuando el usuario confirme | `catalog/matcher.py` (`_match_by_title`) | ✅ política decidida e implementada, 🟡 medición real contra la biblioteca de producción pendiente |
+| MATCH-FIX-3 | **✅ Decidido y hecho 2026-09-19** (roadmap 14, `fix/matcher-coverage-gaps`): el usuario eligió la opción conservadora — sin match si hay ambigüedad real, en vez de desambiguar por tamaño. `_match_by_title()` ya no devuelve `candidates[0]` a ciegas cuando, tras todo el filtro por plataforma/extensión/carpeta/serial, siguen quedando >1 candidatos y ningún número de disco los distingue — devuelve `None`. El caso donde el número de disco SÍ distingue (`GAMECUBE-DISC-BUG-1e`) sigue devolviendo el match real, sin cambios ahí. 3 tests existentes actualizados (`test_name_fallback_low_confidence_ambiguous`→`..._returns_none_when_genuinely_ambiguous`, `test_ambiguous_title_falls_back_to_first_hit_without_extension_signal`→`..._returns_none_without_extension_signal`, `test_ambiguous_extension_prefers_platform_of_containing_folder`) para reflejar el nuevo comportamiento — el caso con `source_path` real que sí desambigua por carpeta sigue devolviendo match, sin tocar. **✅ Medido en real 2026-09-19** contra `F:\Juegos Retro`/`library_pc.db` (backup previo en `.rommgr/db-backup/library_pc.20260919T203805Z.db`): `rommgr match` equivalente con `include_low_confidence=True`, 16.176 filas re-evaluadas (9.481 sin match + 6.695 con `low` viejo) en ~26 min (dominado por desambiguación PSX vía `chdman`, que descomprime el disco completo por candidato ambiguo). De las 6.695 `low`: **5.593 (83,5%) eran adivinanzas incorrectas**, ahora correctamente sin match; **1.102 (16,5%) sí estaban bien resueltas** por otra señal real, sin cambios. El total `unmatched` de esas 16.176 filas sube a 13.548 — no es regresión, es visibilidad real de un problema que ya existía oculto tras `match_confidence='low'` | `catalog/matcher.py` (`_match_by_title`) | ✅ política decidida, implementada y medida contra producción |
+
+---
+
+### MATCH-ZIP-HASH-1 — La mayoría de las "adivinanzas corregidas" de `MATCH-FIX-3` son en realidad ZIPs de consola sin descomprimir cuyo SHA1 nunca puede calzar con el catálogo (hallazgo 2026-09-19, durante la medición real de `MATCH-FIX-3`)
+
+Origen: los ejemplos de la medición real de `MATCH-FIX-3` (arriba) eran
+casi todos `.zip` de Game Boy con colisión de región (`(USA)` adivinado como
+`(Europe)`/`(Japan)`). Primera hipótesis — "el catálogo No-Intro de Game Boy
+tiene huecos de cobertura para dumps USA" — **descartada por evidencia
+directa**: verificado que `Nintendo - Game Boy.dat` SÍ tiene una entrada
+`"Addams Family, The (USA)"` real (SHA1 `8710CEECBE3E...`, 131.072 bytes).
+
+**Causa raíz real, confirmada con hashes reales, no supuesta**: en la propia
+biblioteca (`F:\Juegos Retro\gb\`) conviven `Addams Family, The (USA).gb`
+(SHA1 `8710ceecbe3e...` — coincide exacto con el catálogo, `match_confidence
+='high'`) y `Addams Family, The (USA).zip` (SHA1 almacenado
+`4eb0e158519d...`, **completamente distinto**). Verificado abriendo el ZIP:
+contiene un único `Addams Family, The (USA).gb` de 131.072 bytes cuyo SHA1
+**es exactamente `8710ceecbe3e...`** — el mismo juego, byte a byte idéntico
+al ya reconocido. El SHA1 guardado en la BD para el `.zip` es el hash del
+**contenedor ZIP completo**, no del ROM que contiene —
+`hashing/hash_calculator.py::calculate_hashes()` (línea 29-53) abre el
+archivo y hashea sus bytes crudos sin ninguna conciencia de ZIP, a
+diferencia del ruteo arcade (`load_arcade_crc_index()`, `ZIP-ROUTE`) que sí
+lee el CRC32 de cada entrada sin descomprimir. Un ROM de consola guardado
+sin descomprimir (viola la regla del Pilar 1 "ZIPs descomprimidos") **nunca
+puede** matchear por SHA1 exacto contra el catálogo, sin importar lo
+correcto que sea su contenido — antes caía al fallback por título y
+adivinaba mal (el bug de `MATCH-FIX-3`); ahora, correctamente, no matchea
+en absoluto — pero la respuesta *correcta* sería reconocerlo con
+`confidence='high'` iguialmente, no dejarlo sin match.
+
+**Alcance medido (parcial, un ejemplo verificado a fondo + conteo
+agregado)**: de las 13.548 filas sin match tras la medición de
+`MATCH-FIX-3`, **4.256 (31%) son `.zip`** — consistente con que una fracción
+importante (no necesariamente el 100%) de las "adivinanzas corregidas" son
+en realidad este mismo patrón: contenido correcto, contenedor sin
+descomprimir. No verificado a escala si los 4.256 `.zip` tienen todos un
+hermano `.xxx` ya descomprimido con el mismo contenido, o cuántos son
+genuinamente contenido no catalogado.
+
+**Recomendación (sin implementar, dos caminos, no excluyentes)**:
+1. **Descomprimir**: `organize-source` (ya explorado en `ANDROID-ORGANIZE-ADB-1`
+   esta misma sesión) ya sabe extraer ZIPs de consola como parte de su
+   pipeline normal — pasar estas carpetas por él debería resolver una buena
+   parte sin tocar el matcher.
+2. **Matching consciente de ZIP**: para un ZIP de consola de una sola
+   entrada (no arcade), calcular también el SHA1 del contenido interno
+   (barato, ya se abre el ZIP para extraerlo en otros puntos del pipeline)
+   y probarlo contra el catálogo antes de caer al fallback por título —
+   reconocería el contenido sin necesidad de descomprimir primero.
+
+No implementado en esta sesión | `hashing/hash_calculator.py:29-53`
+(`calculate_hashes`, sin conciencia de ZIP), `catalog/matcher.py`
+(`_match_by_title`, pass 1 SHA1 exacto nunca alcanza estos archivos) | 🔴
+confirmado con evidencia real (hash verificado a mano), alcance completo sin
+medir, sin implementar |
 
 ---
 
