@@ -20,7 +20,7 @@ from rom_manager.web.daemons import _closed_watched_processes
 _logger = logging.getLogger(__name__)
 
 
-def _list_running_android_packages(adb_path: str, serial: str) -> set[str]:
+def _list_running_android_packages(adb_path: str, serial: str) -> set[str] | None:
     """Nombres de paquete en ejecución ahora mismo en *serial* (vía ``adb shell ps -A``).
 
     CABLE-SYNC-WATCH-1: mismo patrón que ``daemons._list_running_process_names()``
@@ -30,6 +30,14 @@ def _list_running_android_packages(adb_path: str, serial: str) -> set[str]:
     caso de uso sin cable ya lo cubre el sync periódico de la app Android,
     ``ANDROID-SYNC-12``). El nombre de proceso en Android *es* el paquete
     (última columna de ``ps``), a diferencia de Windows.
+
+    Devuelve ``None`` si el sondeo en sí falló (timeout, error de ADB...) —
+    a propósito distinto de un ``set()`` vacío (se consultó bien y no hay
+    nada corriendo). El caller debe saltar la detección de cierre ese ciclo
+    en vez de tratar el fallo como "todo cerrado": un timeout puntual de
+    ``adb`` no puede hacerse pasar por "el emulador se cerró" y disparar un
+    cable-sync real mientras el emulador sigue abierto con el save sin
+    flushear — justo el riesgo que este proyecto prioriza evitar (Pilar 3).
     """
     try:
         out = _subprocess.run(
@@ -42,13 +50,36 @@ def _list_running_android_packages(adb_path: str, serial: str) -> set[str]:
         )
     except Exception:
         _logger.debug("No se pudo listar procesos Android (adb shell ps)", exc_info=True)
-        return set()
+        return None
     names: set[str] = set()
     for line in out.stdout.splitlines()[1:]:  # skip header row
         parts = line.split()
         if parts:
             names.add(parts[-1])
     return names
+
+
+def _poll_android_watch(
+    adb_path: str,
+    serial: str | None,
+    watched_pkgs: set[str],
+    previous_pkgs: set[str],
+) -> tuple[set[str], set[str]]:
+    """One poll cycle of the CABLE-SYNC-WATCH-1 Android emulator-close watch.
+
+    Returns ``(closed_pkgs, new_previous_pkgs)``. No device connected (``serial``
+    is ``None``) or nothing configured to watch resets tracking to empty. A
+    failed ADB probe leaves *previous_pkgs* untouched and reports no closures —
+    never collapses "could not check this cycle" into "everything closed",
+    which would fire a spurious cable-sync while the emulator is still open.
+    """
+    if not watched_pkgs or serial is None:
+        return set(), set()
+    current_pkgs = _list_running_android_packages(adb_path, serial)
+    if current_pkgs is None:
+        return set(), previous_pkgs
+    closed = _closed_watched_processes(previous_pkgs, current_pkgs, watched_pkgs)
+    return closed, current_pkgs
 
 
 def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
@@ -104,17 +135,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 
             # CABLE-SYNC-WATCH-1: while a device is connected, also watch for a
             # configured Android emulator closing (opt-in, empty by default).
-            watched_pkgs = set(config.sync.watch_android_packages)
-            closed_pkgs: set[str] = set()
             android_watch_serial = next(iter(current_serials)) if current_serials else None
-            if watched_pkgs and android_watch_serial:
-                current_pkgs = _list_running_android_packages(config.adb, android_watch_serial)
-                closed_pkgs = _closed_watched_processes(
-                    _previous_android_pkgs, current_pkgs, watched_pkgs
-                )
-                _previous_android_pkgs = current_pkgs
-            else:
-                _previous_android_pkgs = set()
+            closed_pkgs, _previous_android_pkgs = _poll_android_watch(
+                config.adb,
+                android_watch_serial,
+                set(config.sync.watch_android_packages),
+                _previous_android_pkgs,
+            )
 
             known = config.sync.auto_sync_known_devices
             serial: str | None = None
