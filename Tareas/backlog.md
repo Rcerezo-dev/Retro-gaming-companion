@@ -520,6 +520,248 @@ consultadas), sin implementar — decisión de alcance pendiente del usuario |
 
 ---
 
+### ANDROID-DUP-3 — `famicom/` es una segunda carpeta-plataforma paralela a `nes/` (86% de solapamiento por nombre+tamaño) con un pack de scraper (imágenes/vídeo) tratado como si fuera la librería; `fds/` duplica literalmente el contenido de `Famicom Disk System/` y además arrastra volcados de placa arcade y NES sueltos (hallazgo 2026-09-19, RG556, resuelve el punto 4 pendiente de `ANDROID-DUP-1`)
+
+Origen: verificando el punto 4 de `ANDROID-DUP-1` ("verificar contenido real
+de `fds/` vs `Famicom Disk System/` antes de aplicar `DUALFOLDER-12`"), por
+ADB en vivo contra `/storage/521D-04EA/ROMs/` de la RG556 (misma consola,
+misma sesión que `ANDROID-DUP-1/2`).
+
+**Gotcha de tooling encontrado en el camino**: `adb.exe shell <args...>`
+concatena todos sus argumentos con espacios y reenvía **una sola cadena** al
+shell remoto — las comillas que Git Bash ya consumió al tokenizar no viajan.
+Un comando como `adb.exe shell ls -la "/ruta/con espacios/"` llega partido en
+3 tokens al dispositivo y falla o (peor) apunta a una ruta distinta que
+coincide parcialmente por case-insensitivity de exFAT. Forma correcta:
+pasar el comando remoto completo como **un único argumento** con sus propias
+comillas simples: `adb.exe shell "ls -la 'ruta con espacios'"`. Así fue como
+apareció por accidente el hallazgo de `famicom/` de abajo (un primer intento
+mal citado listó esa carpeta por error, en vez de `Famicom Disk System/`).
+
+**`fds/` vs `Famicom Disk System/` (27 vs 2 entradas)**:
+`Famicom Disk System/` contiene exactamente 2 archivos reales: `Mysterious
+Murasame Castle, The (Korea) (Virtual Console).fds` (131.000 bytes) y `Super
+Mario Bros. 2 (Japan) (En).fds` (65.500 bytes). `fds/` (**26 entradas**,
+recuento corregido — `ANDROID-DUP-1` decía 27 por un `ls` mal contado)
+contiene los mismos 2 `.fds` duplicados, más **10** archivos que no son ROM
+de ninguna plataforma de este proyecto (recuento corregido — se dijeron 7 en
+un primer repaso: `400-a01.fse`, `400-a02.fse`, `400-a04.10l`, `400-a06.15l`,
+`400-e03.5l`, `412-a05.12l`, `412-a07.17l`, `mds-gn chr e.u4`, `mds-gn prg
+e.u7`, `rp2c04-0003.pal`), un `gamelist.xml` de frontend, 5 juegos NES con
+pareja `.zip`+`.nes`, y 2 ZIPs adicionales sin pareja `.nes` visible
+(`Goonies (Japan) (Disk Writer).zip`, `TwinBee (Japan) (En) (Disk
+Writer).zip`).
+
+**Verificación por SHA1 (no solo nombre/tamaño) — sesión de reparación,
+todo el árbol de decisión de abajo confirmado con hash real, cero
+suposiciones**:
+- Los 6 ZIPs "regionales" (`Balloon Fight (Japan) (En) (Proto).zip`, `Ice
+  Climber (Japan) (En) (Disk Writer).zip`, `Metroid (Japan) (Rev 1).zip`,
+  `Super Mario Bros. (Japan) (En).zip`, `Super Mario Bros. 2 (Japan) (En).zip`,
+  `Super Mario Bros. 2 (USA) (Rev 1).zip`) **no son dumps regionales
+  distintos** — cada uno contiene, byte a byte (SHA1 idéntico), el mismo
+  `.nes`/`.fds` que ya está suelto sin comprimir en la misma carpeta `fds/`.
+  Repaquetados redundantes, nombre engañoso (el tag "(Japan)"/"(Proto)" no se
+  corresponde con el contenido real).
+- Los 10 "volcados de chip" **son exactamente el contenido interno,
+  archivo por archivo (SHA1 idéntico), de `Goonies (Japan) (Disk
+  Writer).zip` (3 ficheros: `mds-gn chr e.u4`, `mds-gn prg e.u7`,
+  `rp2c04-0003.pal`) y `TwinBee (Japan) (En) (Disk Writer).zip` (7 ficheros:
+  los `400-*`/`412-*`)** — ambos ZIPs son sets arcade MAME reales de Nintendo
+  VS. System (VS. The Goonies / VS. TwinBee), no juegos de Famicom Disk
+  System pese al tag "(Disk Writer)". Alguna herramienta los extrajo sueltos
+  en `fds/` en algún momento — exactamente el patrón que el propio
+  `CLAUDE.md` ya prohíbe (`ZIP-ROUTE`: "un ZIP arcade nunca se extrae, el ZIP
+  es el ROM").
+- Los 2 `.fds` de `fds/` son SHA1-idénticos a los de `Famicom Disk System/`.
+- Los 5 `.nes` sueltos de `fds/` (`Balloon Fight (USA)`, `Ice Climber (USA,
+  Europe, Korea)`, `Metroid (USA)`, `Super Mario Bros. (World)`, `Super
+  Mario Bros. 2 (USA) (Rev 1)`) son SHA1-idénticos a copias ya existentes en
+  `nes/` — 4 con el mismo nombre exacto, y `Ice Climber` con el mismo hash
+  bajo un tag de región ligeramente distinto ya presente en `nes/`
+  (`Ice Climber (USA, Europe, Asia) (En).nes`). Además, `Ice Climber (Japan)
+  (En) (Disk Writer).nes` existe con SHA1 idéntico **tanto en `nes/` como en
+  `famicom/`** — mismo patrón de duplicado de plataforma completa ya descrito
+  más abajo.
+
+**Conclusión**: `fds/` no tiene ni un solo byte de contenido único —
+absolutamente todo lo que contiene es, o bien un duplicado confirmado por
+hash de algo que ya existe en `Famicom Disk System/`/`nes/`, o bien un
+repaquetado redundante de otro archivo de la misma carpeta, o bien un ZIP
+arcade mal ubicado. No aplica `DUALFOLDER-12` tal cual (no es un par limpio
+tipo `atari2600/`+`Atari 2600/`): hacen falta 3 acciones distintas — (a)
+borrar los 6 ZIPs regionales + los 10 volcados de chip sueltos + los 2 `.fds`
++ los 5 `.nes`, todos con duplicado confirmado por hash, (b) mover
+`Goonies...zip`/`TwinBee...zip` a `arcade/` (son ROM arcade legítimos, mal
+ubicados, no basura), (c) dejar `gamelist.xml` tal cual (metadata de
+frontend, fuera de alcance). Implementado en rama `fix/android-fds-cleanup`
+— ver tarea `ANDROID-FDS-CLEANUP-1` más abajo.
+
+**Hallazgo nuevo, mayor: `famicom/` duplica `nes/` a escala de plataforma
+completa**. `famicom/` tiene **5.184 archivos** — no es solo un pack de ROMs:
+3.092 `.png`, 1.530 `.nes`, 460 `.jpg`, 100 `.mp4`, 1 `.xml`, 1 `.db`, repartidos
+en subcarpetas propias de un scraper de frontend: `media/` (412 `.jpg`),
+`downloaded_images/` (2.992 archivos, el grueso de los `.png`),
+`top100/` (18), más dos packs con nombre de curador: `# DYNAVISION #` (91
+`.nes`) y `# PT-BR #` (199 `.nes`, romhacks de traducción al portugués de
+Brasil, tags `[T-BR] [T-Balboa G-Monkey's Traducoes]` — **legítimos, no
+duplicados**, mismo caso ya señalado en `ANDROID-DUP-1` para parches `[T+...]`).
+De los 1.530 `.nes` de `famicom/` (recursivo), **1.313 (86%) comparten nombre
+exacto con un archivo de `nes/`** (3.336 `.nes` en `nes/`). Muestreo de 3
+coincidencias (`Bases Loaded (USA).nes`, `NFL (USA).nes`, `Championship Rally
+(Europe).nes`) — mismo tamaño byte a byte en ambas carpetas. Las copias de
+`nes/` datan de 2026-03-11 (pasada de renombrado canónico No-Intro de este
+proyecto); las de `famicom/` son todas del mismo instante, 2026-09-09 13:16
+— una única importación posterior en bloque, casi seguro un "pack" de
+scraper para DaijiShō/iSuu que trajo sus propias copias de ROM junto con el
+material gráfico. Como DaijiShō/iSuu normalmente mapean "Famicom" y "NES" al
+mismo core/sistema, esta carpeta paralela completa es una explicación mucho
+más directa de "todos los juegos NES aparecen duplicados" que el matiz de
+nomenclatura legado `[!]`/`(U)` ya documentado — probablemente ambas causas
+se suman.
+
+**Recomendación (sin implementar, a decidir con el usuario)**:
+1. Confirmar por SHA1 los 1.313 candidatos `famicom/`↔`nes/` en cuanto
+   termine el rescan ADB con hash en curso (`ANDROID-DUP-1`/`ANDROID-DUP-2`)
+   — la evidencia de esta sesión es solo nombre+tamaño, no hash.
+2. Decidir con el usuario el tratamiento de `famicom/`: ¿carpeta redundante a
+   fusionar/eliminar tras verificar hash (conservando el material gráfico si
+   aporta valor), o cache activa de DaijiShō/iSuu que debe excluirse
+   explícitamente de cualquier dedup/organize futuro (vía
+   `excluded_directories` en `config.py`, ya usado para BIOS/Android)? No
+   borrar unilateralmente sin confirmar que `media/`/`downloaded_images/`/
+   `top100/` no los gestiona activamente un frontend de terceros.
+3. Los 91 `# DYNAVISION #` y 199 `# PT-BR #` necesitan comparación de
+   contenido (no solo nombre) antes de tocarlos — son candidatos a homebrew/
+   romhacks legítimos, mismo criterio que los parches `[T+...]` de `nes/`.
+4. Extender la recomendación de `DUALFOLDER-12` con un caso "carpeta mixta":
+   ni `fds/`↔`Famicom Disk System/` ni `famicom/`↔`nes/` son pares limpios
+   como `atari2600/`/`Atari 2600/` — ambos arrastran contenido ajeno a la
+   plataforma nominal y necesitan triage antes de fusionar.
+
+**Intento de investigar la config de DaijiShō/iSuu en el dispositivo (opción
+elegida por el usuario para decidir el punto 1)**: bloqueado sin root.
+`adb shell` corre como `shell` (uid 2000, grupo `ext_data_rw` incluido), y
+`Android/data/{com.magneticchen.daijishou,com.iisulauncher}/files/` están
+genuinamente vacías (no es un bloqueo de permisos — el propietario del
+directorio coincide con un grupo al que `shell` pertenece). Ninguna de las
+dos apps es depurable (`run-as` falla con "package not debuggable"), así que
+su almacenamiento interno (`/data/data/<paquete>/databases`, donde
+probablemente vive la config real de "sistemas") no es legible sin root.
+Confirmar si `famicom`/`nes` (o `fds`/`Famicom Disk System`) están dados de
+alta como sistemas duplicados en la propia app requiere mirarlo
+**directamente en el dispositivo**, dentro de la UI de cada launcher — mismo
+límite ya documentado para el caso PS2 en `ANDROID-DUP-1`.
+
+Fds/famicom no implementado en esta sesión salvo lo indicado en
+`ANDROID-FDS-CLEANUP-1` (más abajo) | Evidencia recogida por ADB en vivo
+(`adb shell find/ls/sha1sum` contra `/storage/521D-04EA/ROMs/{fds,Famicom
+Disk System,famicom,nes}/`) | 🟡 `fds/` resuelto y verificado por hash
+(`ANDROID-FDS-CLEANUP-1`); `famicom/` vs `nes/` y la config de
+DaijiShō/iSuu siguen sin decidir — pendiente de que el usuario revise la
+app en el dispositivo |
+
+---
+
+### ANDROID-FDS-CLEANUP-1 — Limpieza de `fds/` verificada por SHA1: 0 bytes de contenido único, todo duplicado o mal ubicado (implementa la conclusión de `ANDROID-DUP-3`) → #TBD
+
+**✅ Ejecutado 2026-09-19** directamente sobre la RG556 vía ADB (`adb shell
+rm`/`mv`, sin pasar por `rommgr plan`/`apply` — no existe hoy un flujo de la
+herramienta para operaciones ad hoc sobre `library_android.db`, ver
+`ANDROID-ORGANIZE-ADB-1`; toda la evidencia de verificación por SHA1 queda
+documentada en `ANDROID-DUP-3`):
+
+1. **Borrados** 6 ZIPs regionales (`Balloon Fight (Japan) (En) (Proto).zip`,
+   `Ice Climber (Japan) (En) (Disk Writer).zip`, `Metroid (Japan) (Rev
+   1).zip`, `Super Mario Bros. (Japan) (En).zip`, `Super Mario Bros. 2
+   (Japan) (En).zip`, `Super Mario Bros. 2 (USA) (Rev 1).zip`) — SHA1
+   idéntico confirmado contra el `.nes`/`.fds` ya suelto en la misma carpeta.
+2. **Borrados** los 10 volcados de chip sueltos (`400-*.fse/.10l/.15l/.5l/.12l/.17l`,
+   `mds-gn chr e.u4`, `mds-gn prg e.u7`, `rp2c04-0003.pal`) — SHA1 idéntico
+   confirmado contra el contenido interno de `Goonies...zip`/`TwinBee...zip`.
+3. **Movidos** `Goonies (Japan) (Disk Writer).zip` y `TwinBee (Japan) (En)
+   (Disk Writer).zip` a `arcade/mame/` — son ROM arcade MAME (Nintendo VS.
+   System) legítimos, no basura ni contenido de FDS. Verificado que no
+   chocaban con nada ya existente (`arcade/fbneo/vsgoonies.zip` es un `.nes`
+   convertido para FBNeo, contenido distinto byte a byte; `arcade/mame/twinbee.zip`
+   es el TwinBee normal no-VS, y `arcade/fbneo/twinbeeb.zip` es otro bootleg
+   parcialmente solapado pero no idéntico — ningún nombre de fichero chocaba)
+   y llegada confirmada con `ls -la` post-mv.
+4. **Borrados** los 2 `.fds` duplicados de `fds/` (quedan en `Famicom Disk
+   System/`, verificado intacto tras el borrado) y los 5 `.nes` duplicados
+   de `fds/` (quedan en `nes/`, verificado intacto tras el borrado) — SHA1
+   idéntico confirmado en ambos casos.
+5. `gamelist.xml` sin tocar (metadata de frontend, fuera de alcance).
+
+**Resultado verificado con `ls -la` tras la limpieza**: `fds/` solo contiene
+`gamelist.xml` (3364 bytes) — 0 contenido propio, tal como predecía el
+análisis. `Famicom Disk System/` conserva sus 2 `.fds`, `nes/` conserva las
+5 copias canónicas, `arcade/mame/` tiene ahora `Goonies...zip` y
+`TwinBee...zip`. 0 pérdida de datos, 23 archivos borrados + 2 movidos.
+
+Pendiente: PR a `develop` con el commit de documentación ya hecho en
+`fix/android-fds-cleanup` (`68a4563`) — confirmar con el usuario antes de
+mergear, como de costumbre | Evidencia SHA1 completa en `ANDROID-DUP-3` |
+✅ ejecutado y verificado 2026-09-19
+
+---
+
+### ANDROID-ORGANIZE-ADB-1 — `organize-source` ya tiene el motor de dedup+ruteo arcade necesario; el hueco real es que no existe transporte de escritura ADB, solo filesystem local → #275
+
+Origen: el usuario preguntó en medio de la limpieza de `fds/`
+(`ANDROID-FDS-CLEANUP-1`) si la función "organize" ya arregla este tipo de
+casos, y si no, que se le añadiera.
+
+**No hace falta construir un motor de dedup nuevo — ya existe y está muy
+probado.** `organize-source` (CLI, `cli.py:258-286` registra el subcomando,
+`cli.py:1133-1280` lo implementa reutilizando `_run_inbox_pipeline` de
+`web/inbox_pipeline.py`) ya hace exactamente lo necesario: detecta ZIPs
+arcade completos por CRC sin extraerlos (`_is_arcade_zip_container`), extrae
+y organiza el resto, deduplica por SHA1/CRC interno, y resuelve conflictos de
+nombre — es el mismo motor que resolvió toda la saga
+`ARCADE-DAT-CONTAMINATION-*`/`PSX-STRUCTURE-*` (cientos de miles de archivos,
+sesiones de 2026-09-02 a 09-04), incluida la propia Anbernic (`E:\Carpetas
+anbernic`, máquina "rammu").
+
+**El límite real es de transporte, no de lógica**: `organize-source` exige
+`source_path.resolve().exists()` (`cli.py:1137-1138`) — un `pathlib.Path`
+real del sistema de archivos. Eso funcionaba contra la Anbernic en la máquina
+"rammu" porque ahí la SD se monta como letra de unidad. En esta máquina
+("Ruben"), la RG556 no se monta como unidad (probable causa: Android
+11+/MTP sin soporte de almacenamiento masivo) — el único acceso es `adb`, y
+`AdbTransport` (`sync/adb_transport.py`) hoy **solo tiene lectura**
+(`ls_recursive`, `sha1_recursive`, `md5_recursive`); no hay `mv`/`rm`/`push`
+genérico. La versión web más simple, `_do_organize_library`
+(`web/handlers/organize.py:410`), tampoco sirve de comparación — ni siquiera
+tiene dedup de contenido, solo mueve por `platform` de la BD, y también
+asume filesystem local (`shutil.move`).
+
+**Dos caminos, sin implementar ninguno todavía**:
+1. **Sin código nuevo**: si se puede extraer la tarjeta SD de la RG556 y
+   leerla con un lector USB (monta como letra de unidad en Windows),
+   `organize-source --apply` funciona hoy mismo tal cual, sin tocar una
+   línea — sería la forma más rápida de limpiar `fds/`/`famicom/` con la
+   herramienta real en vez de comandos `adb` sueltos como en
+   `ANDROID-FDS-CLEANUP-1`.
+2. **Con código nuevo**: añadir transporte de escritura a `AdbTransport`
+   (`push`/`pull`/`mv`/`rm`) y un adaptador para que `organize-source` opere
+   sobre él — o, más barato de construir, un modo "espejo": `adb pull` a un
+   directorio temporal, correr `organize-source --apply` normal ahí (cero
+   cambios a su lógica ya probada), y `adb push`+`adb rm` de vuelta solo de
+   lo que cambió. El coste es red (round-trip de contenido que sí se mueve),
+   no lógica nueva.
+
+**Recomendación**: decidir con el usuario si la opción 1 (lector SD) resuelve
+ya el caso concreto de esta sesión antes de invertir en la opción 2 — que sí
+merecería su propio epic/issue si se decide construirla, dado que es una
+pieza de infraestructura reutilizable (serviría para cualquier limpieza
+futura sobre Android, no solo `fds/famicom`), no solo un fix puntual.
+
+No implementado en esta sesión | `cli.py:1133-1280` (`organize-source`),
+`web/inbox_pipeline.py` (`_run_inbox_pipeline`), `sync/adb_transport.py`
+(solo lectura), `web/handlers/organize.py:410` (`_do_organize_library`, web,
+tampoco sirve) | 🔵 investigado, decisión de alcance pendiente del usuario |
+
 ### GBA-DUAL-FOLDER-1 — `Game Boy Advance/` y `gba/` son dos carpetas activas paralelas con 881 títulos duplicados (hallazgo 2026-09-14, máquina "Ruben", `F:\Juegos Retro`)
 
 Encontrado al preparar el envío de GBA a la Anbernic. `F:\Juegos Retro` tiene
