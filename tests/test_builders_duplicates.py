@@ -296,32 +296,142 @@ def test_broken_entry_gets_rescue_candidate_via_review_queue(tmp_path: Path) -> 
     assert "rescue_candidate" not in entries[str(intact)]
 
 
-def test_different_regions_are_not_merged(tmp_path: Path) -> None:
+def test_different_regions_are_not_merged_on_disc_platforms(tmp_path: Path) -> None:
     """Regression (found against a real PSX library, see the multi-disc test
-    below for the worse variant): region tags must NOT be stripped when
-    deciding "same game" for the union — "Tetris (USA)" and "Tetris (Europe)"
-    are different canonical_title strings and must stay separate groups.
-    Merging them by a fuzzy normalized title merged 18 distinct regional PSX
-    releases of Final Fantasy VII into one "duplicate" group in production
-    data — a false negative here is far cheaper than a false positive that
-    invites bulk-discarding a legitimate release."""
+    below for the worse variant): on _MULTI_DISC_RISK_PLATFORMS, region tags
+    must NOT be stripped when deciding "same game" for the fuzzy region union
+    (DUP-REGION-1) — "Tetris (USA)" and "Tetris (Europe)" are different
+    canonical_title strings and must stay separate groups. Merging them by a
+    fuzzy normalized title merged 18 distinct regional PSX releases of Final
+    Fantasy VII into one "duplicate" group in production data — a false
+    negative here is far cheaper than a false positive that invites
+    bulk-discarding a legitimate release. Single-file cart platforms (Game
+    Boy, GBA, ...) don't carry this risk — see
+    test_same_title_cross_region_flagged_for_review below."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path="/roms/tetris_usa.chd",
+        sha1="A" * 40,
+        canonical_title="Tetris (USA)",
+        platform="PlayStation",
+        original_filename="Tetris (USA).chd",
+        extension=".chd",
+    )
+    _insert_game(
+        repo,
+        source_path="/roms/tetris_eu.chd",
+        sha1="B" * 40,
+        canonical_title="Tetris (Europe)",
+        platform="PlayStation",
+        original_filename="Tetris (Europe).chd",
+        extension=".chd",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_same_title_cross_region_flagged_for_review(tmp_path: Path) -> None:
+    """DUP-REGION-1: on a single-file cart platform, the same game released
+    under different No-Intro regions ("Tetris (USA)" vs "Tetris (Spain)") is
+    flagged as a "region" duplicate group for manual review — never
+    auto-merged or deleted, just surfaced with a recommendation. Per the
+    user's tie-break rule: RA achievements decide first (only one version
+    having achievements wins outright); language is only the fallback when
+    both or neither have achievements."""
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     _insert_game(
         repo,
         source_path="/roms/tetris_usa.gb",
         sha1="A" * 40,
         canonical_title="Tetris (USA)",
+        original_filename="Tetris (USA).gb",
+    )
+    _insert_game(
+        repo,
+        source_path="/roms/tetris_spain.gb",
+        sha1="B" * 40,
+        canonical_title="Tetris (Spain)",
+        original_filename="Tetris (Spain).gb",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert len(result["groups"]) == 1
+    group = result["groups"][0]
+    assert "region" in group["reasons"]
+    entries = {e["filename"]: e for e in group["entries"]}
+    assert entries["Tetris (Spain).gb"]["recommended"] is True
+    assert entries["Tetris (USA).gb"]["recommended"] is False
+
+
+def test_keep_both_regions_config_suppresses_region_groups(tmp_path: Path) -> None:
+    """DUP-REGION-2: config.duplicates.keep_both_regions=True means the user
+    deliberately keeps every region of every game -- the "region" reason must
+    never fire, not even as an unrecommended group."""
+    from types import SimpleNamespace
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path="/roms/tetris_usa.gb",
+        sha1="A" * 40,
+        canonical_title="Tetris (USA)",
+        original_filename="Tetris (USA).gb",
+    )
+    _insert_game(
+        repo,
+        source_path="/roms/tetris_spain.gb",
+        sha1="B" * 40,
+        canonical_title="Tetris (Spain)",
+        original_filename="Tetris (Spain).gb",
+    )
+
+    config = SimpleNamespace(
+        project_root=tmp_path,
+        library_root=tmp_path,
+        duplicates=SimpleNamespace(keep_both_regions=True, preferred_regions=["Spain", "Europe"]),
+    )
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["groups"] == []
+
+
+def test_preferred_regions_config_overrides_default_ranking(tmp_path: Path) -> None:
+    """DUP-REGION-2: preferred_regions is user-configurable, not hardcoded to
+    Spain-then-Europe -- a user who prioritises Europe over Spain gets the
+    European release recommended instead."""
+    from types import SimpleNamespace
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path="/roms/tetris_spain.gb",
+        sha1="A" * 40,
+        canonical_title="Tetris (Spain)",
+        original_filename="Tetris (Spain).gb",
     )
     _insert_game(
         repo,
         source_path="/roms/tetris_eu.gb",
         sha1="B" * 40,
         canonical_title="Tetris (Europe)",
+        original_filename="Tetris (Europe).gb",
     )
 
-    result = _build_review_queue(repo, repo, None)
+    config = SimpleNamespace(
+        project_root=tmp_path,
+        library_root=tmp_path,
+        duplicates=SimpleNamespace(keep_both_regions=False, preferred_regions=["Europe", "Spain"]),
+    )
+    result = _build_review_queue(repo, repo, config)
 
-    assert result["groups"] == []
+    assert len(result["groups"]) == 1
+    entries = {e["filename"]: e for e in result["groups"][0]["entries"]}
+    assert entries["Tetris (Europe).gb"]["recommended"] is True
+    assert entries["Tetris (Spain).gb"]["recommended"] is False
 
 
 def test_title_union_skips_translation_variant(tmp_path: Path) -> None:

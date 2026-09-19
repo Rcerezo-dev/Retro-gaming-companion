@@ -262,6 +262,19 @@ class BackupConfig:
 
 
 @dataclass(slots=True)
+class DuplicatesConfig:
+    """Region-duplicate review preferences (DUP-REGION-2).
+
+    Governs the "region" reason in the review-queue builder
+    (``web/builders/duplicates.py``) — same game, different No-Intro region
+    release (e.g. "Tetris (USA)" vs "Tetris (Spain)").
+    """
+
+    keep_both_regions: bool = False  # True = never flag same-title cross-region groups
+    preferred_regions: list[str] = field(default_factory=lambda: ["Spain", "Europe"])
+
+
+@dataclass(slots=True)
 class AppConfig:
     project_root: Path
     data_dir: Path
@@ -298,6 +311,8 @@ class AppConfig:
     launcher_cores: dict  # platform → libretro core path
     # Save-backup settings (S29 / QoL-11) — see BackupConfig
     backup: BackupConfig
+    # Region-duplicate review preferences (DUP-REGION-2) — see DuplicatesConfig
+    duplicates: DuplicatesConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
     # AUD-3: días que un archivo permanece en _descartados/ antes de la purga automática (0 = nunca)
@@ -422,6 +437,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     android_cfg = toml.get("android", {})
     launchers_cfg = toml.get("launchers", {})
     backup_cfg = toml.get("backup", {})
+    duplicates_cfg = toml.get("duplicates", {})
 
     # Merge emulator path defaults with any user overrides from [[emulator_paths]]
     emulator_paths: dict = {k: dict(v) for k, v in EMULATOR_SAVE_PATHS_DEFAULT.items()}
@@ -539,6 +555,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
             saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
             pre_sync=bool(backup_cfg.get("pre_sync", True)),
+        ),
+        duplicates=DuplicatesConfig(
+            keep_both_regions=bool(duplicates_cfg.get("keep_both_regions", False)),
+            preferred_regions=list(duplicates_cfg.get("preferred_regions", ["Spain", "Europe"])),
         ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
         trash_purge_days=int(lib.get("trash_purge_days", 30)),
