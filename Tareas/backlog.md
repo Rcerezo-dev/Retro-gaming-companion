@@ -1737,6 +1737,42 @@ sin tocar: `games.py` (lanza RetroArch para jugar, su ventana debe verse) y
 el `CREATE_NEW_CONSOLE` de `sync_cloud.py` (abre a propósito una consola
 interactiva para `rclone config`) |
 
+### RETROARCH-THUMBS-1 — Publicar carátulas/capturas ya escaneadas en el árbol `thumbnails/` de RetroArch (petición usuario 2026-09-19, PC2)
+
+Petición del usuario: que RetroArch, ES-DE y la propia app usen las mismas
+imágenes ya scrapeadas sin duplicarlas. Investigación previa en
+`docs/config/retroarch-thumbnails.md` confirmó que ES-DE y la app ya
+comparten un único archivo por juego (`media/images|screenshots/` junto al
+ROM, referenciado directamente en `box_art_path`/`screenshot_path` de
+`game_metadata`) — cero duplicación ahí. RetroArch es el caso distinto: solo
+lee `<RetroArch>/thumbnails/<db_name>/Named_Boxarts|Named_Snaps/<label>.png`,
+solo acepta PNG, y no conoce la carpeta `media/` de ES-DE en absoluto.
+
+Implementado `utils/retroarch_thumbnails.py::publish_retroarch_thumbnails()`:
+origen ya PNG → enlace duro al árbol de RetroArch (mismo inodo, 0 bytes
+duplicados, un rescrape que sobreescribe el origen mantiene el enlace
+sincronizado); origen JPG (RetroArch lo rechaza) → conversión única vía
+PowerShell + `System.Drawing` a una caché por mtime
+(`.rommgr/retroarch_thumbnails_cache/`), evitando duplicar trabajo en cada
+corrida aunque no evita el archivo PNG adicional que RetroArch exige. Corre
+como job en background (patrón `convert_chd`) — a escala real, las
+conversiones JPG→PNG tardan minutos y una llamada síncrona habría podido
+retrasar el watcher de sync (Pilar 3). Botón "Publicar carátulas en
+RetroArch" en la pestaña Formatos | `utils/retroarch_thumbnails.py` (nuevo),
+`utils/lpl_generator.py` (`_platform_db_name` → `platform_db_name`, pública
+al reutilizarse desde dos módulos), `web/handlers/esde/reports.py`
+(`POST /api/publish-retroarch-thumbnails`, `GET
+/api/publish-retroarch-thumbnails-status`), `web/jobs/manager.py`
+(`JOB_NAMES`), `web/static/js/tabs/tools.js` + `tab-formats.html` | ✅
+implementado y verificado en vivo contra la biblioteca real de esta máquina
+(938 juegos con media escaneada) — 9 tests nuevos, 1367 tests totales.
+Hallazgo de la verificación en vivo: el primer intento de conversión falló
+en masa por `PATH` restringido del proceso de pruebas (no del código real),
+documentado en `docs/config/retroarch-thumbnails.md`. Pendiente sin ID
+propio: publicar también `generate_lpl_playlists()` a
+`<RetroArch>/playlists/` (hoy solo escribe a `.rommgr/playlists/`, fuera de
+alcance de esta tarea) |
+
 ---
 
 ### User actions (no code needed)

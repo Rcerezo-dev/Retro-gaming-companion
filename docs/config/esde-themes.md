@@ -1,5 +1,9 @@
 # ES-DE — Temas recomendados y configuración de medias
 
+> Esta media (`media/images|screenshots|wheels/`) es específica de ES-DE.
+> RetroArch usa una convención de carpetas totalmente distinta y solo acepta
+> PNG — ver `docs/config/retroarch-thumbnails.md`.
+
 ## Medias generadas por Retro Vault
 
 El scraper descarga tres tipos de imagen por juego y los exporta al `gamelist.xml`:

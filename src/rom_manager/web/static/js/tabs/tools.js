@@ -430,6 +430,58 @@ export async function doExportLpl() {
   }
 }
 
+// ── Publicar carátulas en RetroArch ─────────────────────────────────────────────
+let _raThumbsPollTimer = null;
+
+export async function doPublishRetroArchThumbnails() {
+  const el = document.getElementById('ra-thumbs-result');
+  const btn = document.getElementById('btn-publish-ra-thumbs');
+  const retroarchRoot = document.getElementById('ra-thumbs-root')?.value.trim() || '';
+  if (el) { el.innerHTML = '<span class="loading">Iniciando…</span>'; el.classList.remove('hidden'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Publicando…'; }
+  try {
+    const d = await apiPost('/api/publish-retroarch-thumbnails', retroarchRoot ? { retroarch_root: retroarchRoot } : {});
+    if (d.error) {
+      if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(d.error)}</span>`;
+      if (btn) { btn.disabled = false; btn.textContent = 'Publicar carátulas'; }
+      return;
+    }
+    clearInterval(_raThumbsPollTimer);
+    _raThumbsPollTimer = setInterval(_pollPublishRetroArchThumbnails, 1000);
+  } catch (e) {
+    if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${e.message}</span>`;
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar carátulas'; }
+  }
+}
+
+async function _pollPublishRetroArchThumbnails() {
+  const el = document.getElementById('ra-thumbs-result');
+  const btn = document.getElementById('btn-publish-ra-thumbs');
+  try {
+    const d = await apiFetch('/api/publish-retroarch-thumbnails-status');
+    if (d.running) {
+      if (el) el.innerHTML = `<span class="loading">Publicando… ${d.current}/${d.total}</span>`;
+      return;
+    }
+    clearInterval(_raThumbsPollTimer);
+    _raThumbsPollTimer = null;
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar carátulas'; }
+    const r = d.result || {};
+    if (r.error) {
+      if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${_h(r.error)}</span>`;
+      return;
+    }
+    const errs = (r.errors || []).length;
+    const errPart = errs ? ` · <span style="color:var(--c-red)">${errs} errores</span>` : '';
+    if (el) el.innerHTML = `<span style="color:var(--c-teal)">✓ ${r.published} publicadas · ${r.converted} convertidas JPG→PNG · ${r.skipped_no_title} sin título canónico${errPart}</span>`;
+  } catch (e) {
+    clearInterval(_raThumbsPollTimer);
+    _raThumbsPollTimer = null;
+    if (btn) { btn.disabled = false; btn.textContent = 'Publicar carátulas'; }
+    if (el) el.innerHTML = `<span style="color:var(--c-red)">✗ ${e.message}</span>`;
+  }
+}
+
 // ── N64 converter ──────────────────────────────────────────────────────────────
 export async function doN64Scan() {
   const path = document.getElementById('n64-path')?.value.trim();

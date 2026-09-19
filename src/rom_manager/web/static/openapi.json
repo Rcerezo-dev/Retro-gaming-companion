@@ -3593,6 +3593,57 @@
         }
       }
     },
+    "/api/publish-retroarch-thumbnails": {
+      "post": {
+        "summary": "Start a background job publishing scraped box art/screenshots into RetroArch's thumbnails/ tree",
+        "tags": [
+          "Gamelists"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "{\"retroarch_root\":\"…\"} (default: parent of configured retroarch_path)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{\"status\": \"started\"|\"already_running\"} or {\"error\": \"...\"}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/publish-retroarch-thumbnails-status": {
+      "get": {
+        "summary": "Poll progress/result of the publish-retroarch-thumbnails job",
+        "tags": [
+          "Gamelists"
+        ],
+        "responses": {
+          "200": {
+            "description": "{\"running\": bool, \"current\": N, \"total\": N, \"result\": {...}|null}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/esde-status": {
       "get": {
         "summary": "ES-DE installation status and gamelist paths",
