@@ -518,6 +518,36 @@ No implementado en esta sesión | `web/handlers/scan.py:494-495`
 Android) | 🔴 confirmado con evidencia real (ADB en vivo, 12 filas GBA
 consultadas), sin implementar — decisión de alcance pendiente del usuario |
 
+**Medición real del punto 1 (2026-09-19, sesión siguiente, tras mergear
+`ANDROID-DUP-2`/PR #330)**: se lanzó el rescan ADB completo con hash real
+(`scan_run_id=6`, 21.608 archivos, mismo comando que ejecuta
+`sha1_recursive`: `adb shell find /storage/521D-04EA/ROMs -type f -exec
+sha1sum {} +`) en background. **Falló por timeout tras exactamente 3600s**
+(el propio límite que `_do_adb_scan` le pasa —
+`web/handlers/scan.py:453`, `transport.sha1_recursive(android_path,
+timeout=3600)` — coincide con el timeout por defecto documentado en el
+docstring de `sha1_recursive`, `sync/adb_transport.py`, que estimaba
+"~100ms/archivo... una biblioteca de 20k archivos queda holgada" — la
+estimación era optimista, el comando real no había terminado a los 3600s
+exactos para 21.608 archivos). **Sin escritura parcial**: `_do_adb_scan`
+solo escribe en `library_android.db` al final, tras completar tanto
+`sha1_recursive` como `md5_recursive` (`web/handlers/scan.py:450-457`) — un
+timeout a mitad de la primera pasada no deja ningún dato aprovechable,
+`scan_run_id=6` se queda con `finished_at=NULL` para siempre. Confirma
+`crc32sum`/reconsiderar el enfoque de `_hash_recursive` antes de relanzar
+sin más: o (a) subir el timeout (con qué margen, sin dato de cuánto faltaba
+para terminar), o (b) trocear el escaneo por subcarpeta de plataforma en
+vez de un único `find` sobre toda la raíz (permite además guardar progreso
+incremental en vez de todo-o-nada), o (c) medir con un subconjunto pequeño
+primero (la recomendación #1 original de esta misma tarea, nunca hecha
+antes de lanzar el escaneo completo — la sesión se saltó ese paso e
+intentó ir directa a la escala completa). **`ANDROID-DUP-3` (famicom/ vs
+nes/, 1.313 candidatos) sigue sin confirmación por SHA1 real** — toda su
+evidencia sigue siendo solo nombre+tamaño, sin cambios | `web/handlers/scan.py:453`,
+`sync/adb_transport.py` (`sha1_recursive`, timeout por defecto optimista) |
+🔴 medido en real, falló — decisión de cómo relanzar pendiente del usuario,
+no relanzado sin más en esta sesión |
+
 ---
 
 ### ANDROID-DUP-3 — `famicom/` es una segunda carpeta-plataforma paralela a `nes/` (86% de solapamiento por nombre+tamaño) con un pack de scraper (imágenes/vídeo) tratado como si fuera la librería; `fds/` duplica literalmente el contenido de `Famicom Disk System/` y además arrastra volcados de placa arcade y NES sueltos (hallazgo 2026-09-19, RG556, resuelve el punto 4 pendiente de `ANDROID-DUP-1`)
