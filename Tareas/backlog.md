@@ -418,8 +418,22 @@ duplicados en PSX.
 5. `PS2` (iSuu) no es un bug de este repo — confirmar en el propio dispositivo
    si iSuu/DaijiShō tiene un sistema PS2 duplicado en su configuración.
 
-No implementado en esta sesión (solo investigación + scrape relanzado a
-petición del usuario) | `web/builders/common.py:141-167`
+**Primer fix en marcha** → rama `fix/duplicates-disc-format-set-integrity`
+(PR #329): las comprobaciones de sibling/integridad (`_is_cue_sibling_bin`,
+`_is_ccd_sibling_data`, `_is_broken_disc_entry`) usaban `Path.exists()` en el
+propio `source_path` — siempre `False` para una fila escaneada por ADB, lo
+que desactivaba en silencio toda la protección de siblings para el repo
+Android. Explica directamente por qué el trío `.ccd`/`.img`/`.sub` de
+`Crash Bandicoot [U] [SCUS-94900]` se agrupaba como si fueran 3 copias
+independientes (recomendando conservar el `.ccd` de 790 bytes y descartar el
+`.img`+`.sub`, los datos reales del disco), y por qué el trío
+`.bin`/`.cue`/`.chd` de `Crash Bandicoot (USA)` caía al desempate
+alfabético, prefiriendo el `.bin` sobre el `.chd` (contradice la decisión ya
+tomada en `DUP-DISC-RA-2`). Corregido pasando un `known_paths` (los
+`source_path` ya escaneados en ese repo) para verificar siblings contra la
+BD en vez del filesystem local, más un tier explícito de formato de disco
+(`.chd` > `.cue`/`.gdi` > `.ccd`). 4 tests nuevos, 1382 tests en verde. Sin
+mergear todavía (esperando CI) | `web/builders/common.py:141-167`
 (`_repo_for_path`), `config.py:423-432` (`database_path_android`),
 `web/builders/duplicates.py:519-537,714,743` (`_review_groups_for_repo`),
 `retroachievements/ra_disc_hash_cache.py` (`DUP-DISC-RA-1b` parte 2
