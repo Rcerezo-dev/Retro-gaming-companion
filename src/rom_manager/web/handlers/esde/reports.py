@@ -2,7 +2,8 @@
 
 Registered onto the shared router by ``register_reports``; the orchestrator in
 ``esde/__init__.py`` calls it. Covers the library report (JSON for the UI),
-the downloadable HTML/JSON/CSV reports and the RetroArch ``.lpl`` playlist export.
+the downloadable HTML/JSON/CSV reports, the RetroArch ``.lpl`` playlist export
+and publishing scraped box art/screenshots into RetroArch's thumbnails/ tree.
 """
 
 from __future__ import annotations
@@ -119,3 +120,56 @@ def register_reports(
             ctx._send_json(result)
         except Exception as exc:
             ctx._send_json({"error": str(exc)})
+
+    # ── POST /api/publish-retroarch-thumbnails ────────────────────────────────
+    # Runs as a background job (like convert_chd/download_dats): at library
+    # scale, converting JPG sources to PNG shells out to powershell.exe once
+    # per file — synchronous would risk blocking the HTTP server for minutes,
+    # starving the sync watcher (Pilar 3, never to be blocked).
+    @router.post("/api/publish-retroarch-thumbnails")
+    def post_publish_retroarch_thumbnails(ctx) -> None:
+        data = ctx._post_data
+        if not config.library_root:
+            ctx._send_json({"error": "library_root no configurado"})
+            return
+        retroarch_root_str = data.get("retroarch_root") or (
+            str(Path(config.retroarch_path).parent) if config.retroarch_path else ""
+        )
+        if not retroarch_root_str:
+            ctx._send_json({"error": "retroarch_path no configurado (pestaña Config)"})
+            return
+
+        def run() -> None:
+            from rom_manager.utils.retroarch_thumbnails import publish_retroarch_thumbnails
+
+            def _progress(current: int, total: int) -> None:
+                job_manager.update_progress(
+                    "publish_retroarch_thumbnails", {"current": current, "total": total}
+                )
+
+            try:
+                result = publish_retroarch_thumbnails(
+                    Path(config.library_root),
+                    repository,
+                    Path(retroarch_root_str),
+                    on_progress=_progress,
+                )
+            except Exception as exc:
+                result = {"error": str(exc)}
+            job_manager.finish("publish_retroarch_thumbnails", result)
+
+        ctx._send_json(job_manager.start("publish_retroarch_thumbnails", run))
+
+    # ── GET /api/publish-retroarch-thumbnails-status ──────────────────────────
+    @router.get("/api/publish-retroarch-thumbnails-status")
+    def get_publish_retroarch_thumbnails_status(ctx) -> None:
+        job = job_manager.get_job("publish_retroarch_thumbnails")
+        progress = job["progress"] or {}
+        ctx._send_json(
+            {
+                "running": job["running"],
+                "current": progress.get("current", 0),
+                "total": progress.get("total", 0),
+                "result": job["result"],
+            }
+        )

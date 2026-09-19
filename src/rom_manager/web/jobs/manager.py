@@ -25,6 +25,7 @@ JOB_NAMES: tuple[str, ...] = (
     "verify_chd",
     "playtime_scan",
     "download_dats",
+    "publish_retroarch_thumbnails",
 )
 
 
