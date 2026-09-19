@@ -665,40 +665,44 @@ app en el dispositivo |
 
 ### ANDROID-FDS-CLEANUP-1 — Limpieza de `fds/` verificada por SHA1: 0 bytes de contenido único, todo duplicado o mal ubicado (implementa la conclusión de `ANDROID-DUP-3`) → #TBD
 
-Acción ejecutada directamente sobre la RG556 vía ADB (sin pasar por
-`rommgr plan`/`apply` — no existe hoy un flujo de la herramienta para
-operaciones ad hoc sobre `library_android.db`; toda la evidencia de
-verificación por SHA1 queda documentada en `ANDROID-DUP-3` y en el historial
-de esta rama):
+**✅ Ejecutado 2026-09-19** directamente sobre la RG556 vía ADB (`adb shell
+rm`/`mv`, sin pasar por `rommgr plan`/`apply` — no existe hoy un flujo de la
+herramienta para operaciones ad hoc sobre `library_android.db`, ver
+`ANDROID-ORGANIZE-ADB-1`; toda la evidencia de verificación por SHA1 queda
+documentada en `ANDROID-DUP-3`):
 
-1. Borrar 6 ZIPs regionales (`Balloon Fight (Japan) (En) (Proto).zip`,
+1. **Borrados** 6 ZIPs regionales (`Balloon Fight (Japan) (En) (Proto).zip`,
    `Ice Climber (Japan) (En) (Disk Writer).zip`, `Metroid (Japan) (Rev
    1).zip`, `Super Mario Bros. (Japan) (En).zip`, `Super Mario Bros. 2
    (Japan) (En).zip`, `Super Mario Bros. 2 (USA) (Rev 1).zip`) — SHA1
    idéntico confirmado contra el `.nes`/`.fds` ya suelto en la misma carpeta.
-2. Borrar los 10 volcados de chip sueltos (`400-*.fse/.10l/.15l/.5l/.12l/.17l`,
+2. **Borrados** los 10 volcados de chip sueltos (`400-*.fse/.10l/.15l/.5l/.12l/.17l`,
    `mds-gn chr e.u4`, `mds-gn prg e.u7`, `rp2c04-0003.pal`) — SHA1 idéntico
    confirmado contra el contenido interno de `Goonies...zip`/`TwinBee...zip`.
-3. Mover `Goonies (Japan) (Disk Writer).zip` y `TwinBee (Japan) (En) (Disk
-   Writer).zip` a `arcade/` — son ROM arcade MAME (Nintendo VS. System)
-   legítimos, no basura ni contenido de FDS. Verificado que no chocan con
-   nada ya existente (`arcade/fbneo/vsgoonies.zip` es un `.nes` convertido
-   para FBNeo, contenido distinto byte a byte; `arcade/mame/twinbee.zip` es
-   el TwinBee normal no-VS, y `arcade/fbneo/twinbeeb.zip` es otro bootleg
-   parcialmente solapado pero no idéntico — ningún nombre de fichero choca).
-4. Borrar los 2 `.fds` duplicados de `fds/` (quedan solo en `Famicom Disk
-   System/`) y los 5 `.nes` duplicados de `fds/` (quedan solo en `nes/`) —
-   SHA1 idéntico confirmado en ambos casos.
+3. **Movidos** `Goonies (Japan) (Disk Writer).zip` y `TwinBee (Japan) (En)
+   (Disk Writer).zip` a `arcade/mame/` — son ROM arcade MAME (Nintendo VS.
+   System) legítimos, no basura ni contenido de FDS. Verificado que no
+   chocaban con nada ya existente (`arcade/fbneo/vsgoonies.zip` es un `.nes`
+   convertido para FBNeo, contenido distinto byte a byte; `arcade/mame/twinbee.zip`
+   es el TwinBee normal no-VS, y `arcade/fbneo/twinbeeb.zip` es otro bootleg
+   parcialmente solapado pero no idéntico — ningún nombre de fichero chocaba)
+   y llegada confirmada con `ls -la` post-mv.
+4. **Borrados** los 2 `.fds` duplicados de `fds/` (quedan en `Famicom Disk
+   System/`, verificado intacto tras el borrado) y los 5 `.nes` duplicados
+   de `fds/` (quedan en `nes/`, verificado intacto tras el borrado) — SHA1
+   idéntico confirmado en ambos casos.
 5. `gamelist.xml` sin tocar (metadata de frontend, fuera de alcance).
 
-`fds/` quedaría vacía salvo `gamelist.xml` tras la limpieza — no tiene
-contenido propio. No se borra la carpeta en sí (la gestiona el frontend).
-**Verificación completa, ejecución sin lanzar todavía** (el usuario desvió la
-sesión a documentar `ANDROID-ORGANIZE-ADB-1` antes de dar la orden final de
-ejecutar) — ver esa tarea para la pregunta de fondo que surgió aquí: ¿se
-podría haber hecho esto con `organize-source` en vez de comandos `adb`
-sueltos? Sin PR todavía | Evidencia SHA1 completa en `ANDROID-DUP-3` | 🟡
-verificado, ejecución pendiente
+**Resultado verificado con `ls -la` tras la limpieza**: `fds/` solo contiene
+`gamelist.xml` (3364 bytes) — 0 contenido propio, tal como predecía el
+análisis. `Famicom Disk System/` conserva sus 2 `.fds`, `nes/` conserva las
+5 copias canónicas, `arcade/mame/` tiene ahora `Goonies...zip` y
+`TwinBee...zip`. 0 pérdida de datos, 23 archivos borrados + 2 movidos.
+
+Pendiente: PR a `develop` con el commit de documentación ya hecho en
+`fix/android-fds-cleanup` (`68a4563`) — confirmar con el usuario antes de
+mergear, como de costumbre | Evidencia SHA1 completa en `ANDROID-DUP-3` |
+✅ ejecutado y verificado 2026-09-19
 
 ---
 
