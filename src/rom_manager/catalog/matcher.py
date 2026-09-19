@@ -419,12 +419,26 @@ class CatalogMatcher:
         # disco. Sin esto siempre ganaba la primera (casi siempre Disc 1),
         # asignando el mismo canonical_title a todos los discos del set.
         entry, source = candidates[0]
+        resolved_by_disc = False
         file_disc = find_disc_number(filename)
         if file_disc is not None:
             for hit_entry, hit_source in candidates:
                 if find_disc_number(hit_entry.title) == file_disc:
                     entry, source = hit_entry, hit_source
+                    resolved_by_disc = True
                     break
+
+        # MATCH-FIX-3: real ambiguity (still >1 candidate here, none of
+        # which share the file's own sha1 — pass 1 already tried it against
+        # the whole catalog, these candidates included) with no signal able
+        # to pick one — confirmed live 2026-09-12: guessing `candidates[0]`
+        # here (previous behavior) gave a wrong canonical_title/platform to
+        # 947 real files, exactly as misleading as leaving them unmatched
+        # would have been, but harder to spot since it *looked* matched.
+        # A disc number that actually disambiguated (resolved_by_disc) is a
+        # real signal, not a guess, and still returns a match below.
+        if len(candidates) > 1 and not resolved_by_disc:
+            return None
         return MatchResult(
             title=entry.title,
             confidence="low",

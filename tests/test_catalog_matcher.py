@@ -135,11 +135,14 @@ def test_name_fallback_medium_no_extension(catalog_dirs: tuple[Path, Path]) -> N
     assert result.confidence == "medium"
 
 
-def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
-    """Two titles with the same normalised key → low confidence, ambiguous=True.
-
-    Both live in a DAT recognised as "Game Boy" (CATALOG-MATCH-BUG-2 requires
-    a resolvable platform per candidate to narrow by — an unrecognisable DAT
+def test_name_fallback_returns_none_when_genuinely_ambiguous(tmp_path: Path) -> None:
+    """MATCH-FIX-3: two titles with the same normalised key and no signal able
+    to pick one (same platform, same extension, no disc number) → no match,
+    not a guess. Confirmed live 2026-09-12: guessing `candidates[0]` here gave
+    a wrong canonical_title to 947 real files — as misleading as leaving them
+    unmatched, but harder to notice since it looked matched. Both entries
+    live in a DAT recognised as "Game Boy" (CATALOG-MATCH-BUG-2 requires a
+    resolvable platform per candidate to narrow by — an unrecognisable DAT
     filename wouldn't exercise the ambiguous-region path this test targets)."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
@@ -155,9 +158,7 @@ def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
     matcher = CatalogMatcher(nointro, redump)
     # Both titles normalize to "tetris", so the filename "tetris.gb" is ambiguous
     result = matcher.match("0" * 40, "tetris.gb")
-    assert result is not None
-    assert result.confidence == "low"
-    assert result.ambiguous is True
+    assert result is None
 
 
 def test_ambiguous_title_prefers_platform_matching_extension(tmp_path: Path) -> None:
@@ -188,9 +189,10 @@ def test_ambiguous_title_prefers_platform_matching_extension(tmp_path: Path) -> 
     assert "Entertainment System" in result.catalog_source
 
 
-def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_path: Path) -> None:
-    """Sin extensión que desambigüe (p.ej. .zip) NI ruta real (source_path=None),
-    se mantiene el comportamiento previo: el primer hit por orden de carga."""
+def test_ambiguous_title_returns_none_without_extension_signal(tmp_path: Path) -> None:
+    """MATCH-FIX-3: sin extensión que desambigüe (p.ej. .zip) NI ruta real
+    (source_path=None), ya no se adivina el primer hit por orden de carga —
+    sin ninguna señal real, es mejor dejarlo sin match que confiado y mal."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
     nointro.mkdir()
@@ -205,9 +207,7 @@ def test_ambiguous_title_falls_back_to_first_hit_without_extension_signal(tmp_pa
     )
     matcher = CatalogMatcher(nointro, redump)
     result = matcher.match("0" * 40, "Final Fantasy III (J).zip")
-    assert result is not None
-    assert result.ambiguous is True
-    assert result.platform == "Nintendo 3DS"
+    assert result is None
 
 
 def test_ambiguous_extension_prefers_platform_of_containing_folder(tmp_path: Path) -> None:
@@ -230,10 +230,10 @@ def test_ambiguous_extension_prefers_platform_of_containing_folder(tmp_path: Pat
         [("Same Title (USA)", "BB" * 20, "MD2", "C2", 1024)],
     )
     matcher = CatalogMatcher(nointro, redump)
-    # Sin source_path: comportamiento previo, gana el primero por orden de carga.
+    # MATCH-FIX-3: sin source_path no hay señal para desambiguar -> sin match,
+    # ya no se adivina el primero por orden de carga.
     result_no_context = matcher.match("0" * 40, "Same Title (USA).chd")
-    assert result_no_context is not None
-    assert result_no_context.platform == "Dreamcast"
+    assert result_no_context is None
 
     # Con la ruta real en saturn/: debe elegir el DAT de Saturn, no el primero.
     result_with_context = matcher.match(

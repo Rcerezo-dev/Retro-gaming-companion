@@ -57,9 +57,21 @@ def load_mame_xml(path: Path) -> dict[str, tuple[str, str, str]]:
 def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
     """Parse an FBNeo / Logiqx DAT file.
 
-    These use ``<game name="sf2" description="Street Fighter II…">`` —
-    we index by the *name* attribute (= ZIP stem), not by ROM SHA1.
+    We index by the ``name`` attribute (= ZIP stem), not by ROM SHA1.
     Returns ``{name: (description, year, manufacturer)}``.
+
+    MATCH-ZIP-HASH-1 follow-up: the official FBNeo dat (github.com/libretro/FBNeo,
+    dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat) carries description/
+    year/manufacturer as **child elements** (``<game name="sf2"><description>...
+    </description></game>``), same as ``load_mame_xml`` -- not as attributes like
+    a hand-rolled Logiqx snippet might. Reading them as attributes silently
+    returned "" for all three on every real FBNeo dat ever loaded (verified:
+    the .dat previously bundled in .rommgr/catalogs/arcade/ wasn't even XML --
+    ClrMamePro plain-text format -- so ET.parse() raised, the exception was
+    swallowed, and this function had contributed exactly 0 entries; a real XML
+    FBNeo dat would still have lost its descriptions to this same bug). Child
+    element checked first, attribute kept as a fallback for any DAT that does
+    use that style.
     """
     result: dict[str, tuple[str, str, str]] = {}
     try:
@@ -69,9 +81,20 @@ def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
             name = game.get("name", "").strip().lower()
             if not name:
                 continue
-            description = (game.get("description") or "").strip() or name
-            year = (game.get("year") or "").strip()
-            manufacturer = (game.get("manufacturer") or "").strip()
+            desc_el = game.find("description")
+            description = (
+                ((desc_el.text or "").strip() if desc_el is not None and desc_el.text else "")
+                or (game.get("description") or "").strip()
+                or name
+            )
+            year_el = game.find("year")
+            year = (
+                (year_el.text or "").strip() if year_el is not None and year_el.text else ""
+            ) or (game.get("year") or "").strip()
+            mfr_el = game.find("manufacturer")
+            manufacturer = (
+                (mfr_el.text or "").strip() if mfr_el is not None and mfr_el.text else ""
+            ) or (game.get("manufacturer") or "").strip()
             result[name] = (description, year, manufacturer)
     except (ET.ParseError, OSError):
         pass

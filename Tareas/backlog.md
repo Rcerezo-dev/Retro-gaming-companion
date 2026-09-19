@@ -1053,7 +1053,140 @@ no formato de archivo.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| MATCH-FIX-3 | Decidir política para ROMs con SHA1 real pero sin entrada en el catálogo que además colisionan por título adivinado: ¿dejarlos sin match (mejor que un match falso) en vez de asignarles el `canonical_title` de otro juego homónimo? Mismo patrón de decisión que `MATCH-FIX-1`/`MATCH-FIX-2`, pero aquí ni el hash real ayuda — necesitaría una señal más fuerte que título+extensión (¿tamaño de archivo? ¿negarse a resolver el fallback cuando hay ambigüedad y el SHA1 no está en catálogo, en vez de devolver `hits[0]`?). No implementar sin decisión explícita del usuario — afecta a 947 archivos reales | `catalog/matcher.py:233-262` (`_match_by_title`) | 🔴 pendiente, sin decidir (medido 2026-09-12, `Tareas/diario/Día61.md`) |
+| MATCH-FIX-3 | **✅ Decidido y hecho 2026-09-19** (roadmap 14, `fix/matcher-coverage-gaps`): el usuario eligió la opción conservadora — sin match si hay ambigüedad real, en vez de desambiguar por tamaño. `_match_by_title()` ya no devuelve `candidates[0]` a ciegas cuando, tras todo el filtro por plataforma/extensión/carpeta/serial, siguen quedando >1 candidatos y ningún número de disco los distingue — devuelve `None`. El caso donde el número de disco SÍ distingue (`GAMECUBE-DISC-BUG-1e`) sigue devolviendo el match real, sin cambios ahí. 3 tests existentes actualizados (`test_name_fallback_low_confidence_ambiguous`→`..._returns_none_when_genuinely_ambiguous`, `test_ambiguous_title_falls_back_to_first_hit_without_extension_signal`→`..._returns_none_without_extension_signal`, `test_ambiguous_extension_prefers_platform_of_containing_folder`) para reflejar el nuevo comportamiento — el caso con `source_path` real que sí desambigua por carpeta sigue devolviendo match, sin tocar. **✅ Medido en real 2026-09-19** contra `F:\Juegos Retro`/`library_pc.db` (backup previo en `.rommgr/db-backup/library_pc.20260919T203805Z.db`): `rommgr match` equivalente con `include_low_confidence=True`, 16.176 filas re-evaluadas (9.481 sin match + 6.695 con `low` viejo) en ~26 min (dominado por desambiguación PSX vía `chdman`, que descomprime el disco completo por candidato ambiguo). De las 6.695 `low`: **5.593 (83,5%) eran adivinanzas incorrectas**, ahora correctamente sin match; **1.102 (16,5%) sí estaban bien resueltas** por otra señal real, sin cambios. El total `unmatched` de esas 16.176 filas sube a 13.548 — no es regresión, es visibilidad real de un problema que ya existía oculto tras `match_confidence='low'` | `catalog/matcher.py` (`_match_by_title`) | ✅ política decidida, implementada y medida contra producción |
+
+---
+
+### MATCH-ZIP-HASH-1 — La mayoría de las "adivinanzas corregidas" de `MATCH-FIX-3` son en realidad ZIPs de consola sin descomprimir cuyo SHA1 nunca puede calzar con el catálogo (hallazgo 2026-09-19, durante la medición real de `MATCH-FIX-3`)
+
+Origen: los ejemplos de la medición real de `MATCH-FIX-3` (arriba) eran
+casi todos `.zip` de Game Boy con colisión de región (`(USA)` adivinado como
+`(Europe)`/`(Japan)`). Primera hipótesis — "el catálogo No-Intro de Game Boy
+tiene huecos de cobertura para dumps USA" — **descartada por evidencia
+directa**: verificado que `Nintendo - Game Boy.dat` SÍ tiene una entrada
+`"Addams Family, The (USA)"` real (SHA1 `8710CEECBE3E...`, 131.072 bytes).
+
+**Causa raíz real, confirmada con hashes reales, no supuesta**: en la propia
+biblioteca (`F:\Juegos Retro\gb\`) conviven `Addams Family, The (USA).gb`
+(SHA1 `8710ceecbe3e...` — coincide exacto con el catálogo, `match_confidence
+='high'`) y `Addams Family, The (USA).zip` (SHA1 almacenado
+`4eb0e158519d...`, **completamente distinto**). Verificado abriendo el ZIP:
+contiene un único `Addams Family, The (USA).gb` de 131.072 bytes cuyo SHA1
+**es exactamente `8710ceecbe3e...`** — el mismo juego, byte a byte idéntico
+al ya reconocido. El SHA1 guardado en la BD para el `.zip` es el hash del
+**contenedor ZIP completo**, no del ROM que contiene —
+`hashing/hash_calculator.py::calculate_hashes()` (línea 29-53) abre el
+archivo y hashea sus bytes crudos sin ninguna conciencia de ZIP, a
+diferencia del ruteo arcade (`load_arcade_crc_index()`, `ZIP-ROUTE`) que sí
+lee el CRC32 de cada entrada sin descomprimir. Un ROM de consola guardado
+sin descomprimir (viola la regla del Pilar 1 "ZIPs descomprimidos") **nunca
+puede** matchear por SHA1 exacto contra el catálogo, sin importar lo
+correcto que sea su contenido — antes caía al fallback por título y
+adivinaba mal (el bug de `MATCH-FIX-3`); ahora, correctamente, no matchea
+en absoluto — pero la respuesta *correcta* sería reconocerlo con
+`confidence='high'` iguialmente, no dejarlo sin match.
+
+**Alcance medido a escala completa (2026-09-19, script de solo lectura sobre
+los 4.257 `.zip` sin match reales)**: abriendo cada ZIP y comparando el SHA1
+de su único archivo interno contra el catálogo No-Intro/Redump ya cargado:
+
+| Categoría | Filas | % |
+|---|---|---|
+| `catalog_match` — contenido interno coincide exacto con el catálogo | 3.245 | 76,2% |
+| `no_match` — contenido genuinamente sin catalogar (hacks/homebrew/BIOS boot ROMs por nombre) | 682 | 16,0% |
+| `multi_entry` — ZIP con >1 archivo (sets arcade, no el caso de este hallazgo) | 329 | 7,7% |
+| `unreadable` (1 archivo corrupto/no-ZIP real) | 1 | ~0% |
+
+**0 casos de "hermano ya reconocido"** — ninguno de estos `.zip` duplica el
+contenido de un archivo ya descomprimido en la biblioteca; son copias
+zip-only genuinas, no basura residual de una extracción a medias.
+
+**Decisión del usuario (2026-09-19)**: los tres caminos NO son excluyentes,
+uno por categoría:
+1. **`catalog_match` (3.245, 76%) → descomprimir vía `rommgr decompress`**.
+   **✅ ejecutado y cerrado 2026-09-20.** `rommgr decompress "F:\Juegos Retro"`
+   (dry-run: 7.419 a descomprimir / 1.430 saltados arcade+multi-disco / 1
+   fallido — `GBA ROMs Pack (Romspack.Com).zip`, ya conocido, no es un ZIP
+   real). `--apply` (sin `--delete-source`): 7.419 descomprimidos, 0 nuevos
+   errores. `rommgr scan "F:\Juegos Retro"`: 30.976 ROMs detectados, 0
+   errores. Re-match (backup previo en `.rommgr/db-backup/`, sobre las
+   15.613 filas sin match tras el scan): 1.798 nuevas filas
+   `match_confidence='high'` + 131 medium/low. **Segunda pasada —
+   `--delete-source`** (dry-run + `--apply`, ambos autorizados explícitamente
+   por el usuario tras el bloqueo inicial del sandbox): movió los 7.419 ZIP
+   ahora redundantes a sus `_descartados/` respectivos vía
+   `discard_to_trash()` (verificado en disco: solo los ZIP de hoy, nada
+   sobrescrito). `rommgr scan` final: **5.131 filas huérfanas podadas**
+   (los `.zip` movidos ya no existen en su ruta original). **Resultado neto
+   verificado en `library_pc.db` real**: total juegos 31.028 → 25.897 (solo
+   limpieza de contenedores redundantes, ningún archivo real perdido); total
+   sin match 13.685 → 9.749; `.zip` sin match 4.004 → **68** (quedan solo
+   sets arcade/multi-disco genuinamente sin catalogar, no contenedores
+   redundantes).
+2. **`multi_entry` (329, 7,7%) → catálogo arcade desactualizado, no un hueco
+   de cobertura real** — ver `MATCH-ARCADE-DAT-1` abajo. **✅ hecho y medido
+   2026-09-19.**
+3. **`no_match` (682, 16%) → fuera de esta tarea**, por diseño No-Intro/Redump
+   no cubren hacks/homebrew/BIOS boot ROMs; el retorno de bajar un DAT
+   adicional de "hacks" sería marginal. Sin implementar, sin decisión de
+   revisitar todavía.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MATCH-ZIP-HASH-1 | Medir a escala + decidir los 3 caminos (arriba) | `hashing/hash_calculator.py:29-53` (`calculate_hashes`, sin conciencia de ZIP — sigue sin tocarse, la vía elegida fue descomprimir, no hashear-sin-descomprimir), `converters/zip_extractor.py` (`extract_zip`/`extract_directory`), `utils/trash.py` (`discard_to_trash`) | ✅ cerrado 2026-09-20. 2/3 caminos hechos y medidos en real (`MATCH-ARCADE-DAT-1` + descompresión/limpieza/rematch); 1/3 (`no_match`) descartado por bajo retorno. `.zip` sin match: 4.004 → 68 |
+
+---
+
+### MATCH-ARCADE-DAT-1 — `load_fbneo_dat()` nunca parseó nada: el catálogo arcade de FBNeo llevaba 0 entradas desde siempre (hallazgo + fix 2026-09-19, durante MATCH-ZIP-HASH-1)
+
+Origen: investigando por qué 329 sets arcade multi-archivo (`captcommb.zip`,
+`19xxd.zip`, `armwar1d.zip`... casi todos en `cps1/`) no matcheaban pese a
+que sus sets *parent* (`captcomm`, `19xx`, `armwar`) sí estaban en el
+catálogo cargado. Verificado a mano con `load_arcade_dir()`: los parents
+venían todos de `"MAME 2003-Plus XML.xml"` — ninguno de `"FBNeo - Arcade
+Games.dat"`, el segundo archivo del directorio `catalogs/arcade/`.
+
+**Causa raíz confirmada**: el `.dat` que llevaba años en
+`.rommgr/catalogs/arcade/FBNeo - Arcade Games.dat` **no era XML** — formato
+texto plano ClrMamePro (`clrmamepro ( name "..." )`, `game ( name "..." rom
+( ... ) )`). `load_fbneo_dat()` (`catalog/mame_loader.py:57-78`) hace
+`ET.parse(path)` directo — con este archivo, lanza `ET.ParseError`,
+capturado en silencio por el `except (ET.ParseError, OSError): pass` y
+devuelve `{}`. Verificado en vivo: `load_fbneo_dat()` sobre el archivo real
+→ **0 entradas**; el total de 4.858 entradas "arcade" que reportaba el
+matcher venía **al 100% de MAME 2003-Plus** (un fork ligero/antiguo de MAME
+usado en handhelds retro, sin buena parte de los clones/bootlegs que sí
+lista el MAME oficial actual o FBNeo). El pass arcade (`_match_arcade()`,
+`catalog/matcher.py:450-480`) llevaba funcionando así desde el origen del
+proyecto sin que nadie lo notara — ni tests ni uso normal lo habrían
+detectado, porque un `{}` es indistinguible de "catálogo vacío mientras
+carga" salvo comparando cuenta de entradas a mano.
+
+**Bug secundario, mismo archivo**: aunque se sustituya por un `.dat` real en
+XML, `load_fbneo_dat()` leía `description`/`year`/`manufacturer` como
+**atributos** del tag `<game>` (`game.get("description")`), pero el `.dat`
+oficial de FBNeo (github.com/libretro/FBNeo, `dats/FinalBurn Neo (ClrMame
+Pro XML, Arcade only).dat`) los lleva como **elementos hijos**
+(`<game><description>...</description></game>`), igual que `load_mame_xml()`
+ya maneja correctamente. Sin el fix, un `.dat` FBNeo real sí habría cargado
+(no habría lanzado excepción) pero con `description=""` para las 8.380
+entradas — degradando el título a solo el stem (`match_confidence='medium'`
+seguiría siendo correcto, pero cualquier UI que muestre el título perdería
+la descripción real).
+
+**Hallazgo aparte, no arreglado hoy**: `catalog/dat_downloader.py`
+(DAT-DL-1/2) ya tiene un downloader completo con mapeo plataforma→URL
+(`libretro-database`) para No-Intro/Redump/FBNeo/MAME — pero **no está
+conectado a ningún comando CLI ni handler web** (verificado: 0 llamadas a
+`download_dat()` fuera de sus propios tests). Probado en vivo hoy: las URLs
+de `libretro-database` para `"FBNeo Arcade"` y `"MAME 2003 Plus"` devuelven
+**404** (el repo debió reestructurar `metadat/fbneo`/`metadat/mame`) — el
+downloader está roto para arcade además de no estar conectado. No
+investigado si las URLs de No-Intro/Redump (mismo `_BASE`) siguen vivas.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MATCH-ARCADE-DAT-1 | `load_fbneo_dat()` ahora lee description/year/manufacturer como elemento hijo primero (fallback a atributo, mismo patrón que `load_mame_xml()`). Sustituido `.rommgr/catalogs/arcade/FBNeo - Arcade Games.dat` (texto plano, 0 entradas reales) por el `.dat` XML oficial actual descargado de `github.com/libretro/FBNeo/blob/master/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat` (backup del original en `.rommgr/catalogs/arcade_backup_20260919/`). 3 tests nuevos (`tests/test_mame_loader.py`): lee child-element real, fallback a atributo, y el `.dat` texto-plano anterior sigue devolviendo `{}` sin lanzar. 1398/1398 tests, ruff+format limpios | `catalog/mame_loader.py` (`load_fbneo_dat`) | ✅ hecho 2026-09-19. Catálogo arcade cargado: 4.858 → 10.212 entradas. **Re-match ejecutado contra `library_pc.db` real** (backup previo en `.rommgr/db-backup/library_pc.20260919T214730Z.db`, 13.548 filas sin match re-evaluadas): **253 filas nuevas resueltas** vía el catálogo FBNeo ahora real (`match_confidence='medium'`), incluyendo 251/329 de los sets multi-archivo de `MATCH-ZIP-HASH-1`. `dat_downloader.py` sigue sin conectar y con URLs de arcade rotas — no arreglado, candidato a tarea aparte si se decide automatizar la descarga de DATs |
 
 ---
 
@@ -1157,6 +1290,7 @@ suposición por nombre.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | MATCH-HEADER-1 | `detection/rom_header.py` (nuevo): `extract_internal_id(path, extension)` lee el header NDS (código en offset `0x0C`), GBA (offset `0xAC`) y GB/GBC (título interno en `0x134`, sin código corto fiable). `_review_groups_for_repo` (`web/builders/duplicates.py`) añade una unión nueva por `(platform, internal_id)` — **solo para `.nds`/`.gba`**: el código de 4 caracteres es fiable para unir sin revisión humana; el título de GB/GBC (16 caracteres, puede truncar el texto que distingue dos juegos reales) se dejó fuera para no arriesgar falsos positivos que alimenten el "auto-resolver sin revisión" de `resolve-duplicates`. Deliberadamente **no** excluye nombres con marca de hack/traducción (`is_non_canonical_variant`) como sí hace la unión crossfmt — son exactamente el caso a rescatar. Razón nueva `"header"` en el grupo, con chequeo separado (`has_real_title_dup`, distinto del `has_title_dup` ya existente, más laxo) para no reclamarla cuando el grupo ya está explicado por sha1 o por título real compartido. **Hallazgo del usuario durante la revisión** ("¿puede ser que en GBA haya juegos de GBC?"): confirmado contra la BD real — 2 filas con `platform='Game Boy Advance'` cuyo `source_path` apunta a un `.md` de Sega Mega Drive real (mismo tipo de problema, aunque no era literalmente GBC). Sin el chequeo, esos bytes ajenos podrían leerse como un "código" válido y colisionar por casualidad. Blindado con dos filtros: GBA valida el byte fijo `0xB2 == 0x96` (constante real de todo cartucho GBA) antes de confiar en el código, y ambos (NDS+GBA) exigen que el código extraído sean 4 caracteres `[A-Z0-9]` — cualquier otra cosa se descarta como basura | `detection/rom_header.py` (nuevo), `web/builders/duplicates.py` | ✅ hecho 2026-09-12. 11 tests (`tests/test_rom_header.py`, incluye el caso real de blindaje), 3 tests (`tests/test_builders_duplicates.py`: rescata un parche sin match, no une juegos distintos, no duplica razón cuando ya hay sha1/título real). 1287 tests, ruff+format limpios. **Verificado contra la biblioteca real** (`F:\Juegos Retro`): 15 grupos nuevos encontrados, invisibles hasta hoy — ej. `"Megaman Zero 1 [E].gba"` ↔ `"Mega Man Zero (USA, Europe).gba"`, `"4832 - Pokemon - Edicion Oro HeartGold (S).nds"` ↔ `"Pokemon - Edicion Oro HeartGold.nds"` — y confirmado que las 2 filas Mega Drive mal etiquetadas ya no producen falso match. Solo agrupa (superficie para revisión/`apply_ra_conflicts`); no fuerza `canonical_title` ni borra nada por sí solo. **Follow-up no implementado**: investigar por qué esas 2 filas tienen `platform` incorrecto en primer lugar (bug de detección aparte, no tocado hoy); extender a GB/GBC con una señal más fuerte que el título truncado; usar el tamaño esperado del DAT como desempate de calidad de dump en `_review_entry_sort_key` |
+| MATCH-FIX-14 | **✅ Hecho 2026-09-19** (roadmap 14, `fix/matcher-coverage-gaps`, solo Pasos 3-4 — Pasos 1-2 de `MATCH-FIX-3` siguen bloqueados por decisión del usuario). Resuelve los 2 follow-ups de arriba: **(a) GB/GBC** — `_read_gb_id` (`detection/rom_header.py`) ahora valida el checksum de cabecera estándar de Game Boy (offset `0x14D`, calculado sobre `0x134-0x14C` — tipo de cartucho, tamaño ROM/RAM, región, versión, licencia) y devuelve `título:checksum` en vez de solo el título truncado; si el checksum no coincide con los propios bytes del fichero, se trata como cabecera no fiable (`None`) — mismo criterio conservador que el byte fijo `0xB2==0x96` de GBA. `.gb`/`.gbc` añadidos a `_HEADER_EXTENSIONS` (`web/builders/duplicates.py`), antes solo `.nds`/`.gba`. **(b) Desempate por tamaño** — en vez de repetir una consulta al catálogo en cada carga de la cola de revisión (obligaría a cachear/instanciar `CatalogMatcher` ahí, sin patrón existente para eso), `_reference_size_bytes()` reutiliza un dato que ya vive en la fila: el tamaño de cualquier miembro del propio grupo con `match_confidence="high"` (un SHA1 exacto ya implica que su tamaño es el correcto) — nuevo `size_tier` en `_review_entry_sort_key`, justo tras `integrity_tier` | `detection/rom_header.py`, `web/builders/duplicates.py` (`_HEADER_EXTENSIONS`, `_reference_size_bytes`, `_review_entry_sort_key`) | ✅ 1395/1395 tests en verde (6 nuevos: 2 en `test_rom_header.py`, 3 en `test_builders_duplicates.py`), ruff+format limpios |
 
 ---
 

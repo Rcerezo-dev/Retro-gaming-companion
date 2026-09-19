@@ -9,6 +9,7 @@ from rom_manager.catalog.mame_loader import (
     load_arcade_crc_index,
     load_arcade_infra_names,
     load_arcade_manifest,
+    load_fbneo_dat,
     load_mame_xml,
 )
 
@@ -63,6 +64,52 @@ _DAT = """<?xml version="1.0"?>
   </game>
 </datafile>
 """
+
+
+def test_load_fbneo_dat_reads_description_as_child_element(tmp_path: Path) -> None:
+    """MATCH-ZIP-HASH-1: el dat oficial de FBNeo (github.com/libretro/FBNeo)
+    trae description/year/manufacturer como elemento hijo, no atributo --
+    leerlos como atributo (comportamiento anterior) devolvía "" para los tres
+    en cualquier dat FBNeo real."""
+    dat = tmp_path / "fbneo.dat"
+    dat.write_text(
+        '<?xml version="1.0"?>\n<datafile>\n'
+        '  <game name="19xxb" cloneof="19xx">\n'
+        "    <description>19XX: The War Against Destiny (Brazil 951218)</description>\n"
+        "    <year>1996</year>\n"
+        "    <manufacturer>Capcom</manufacturer>\n"
+        '    <rom name="19xb.03a" size="524288" crc="341bdf4a"/>\n'
+        "  </game>\n</datafile>\n",
+        encoding="utf-8",
+    )
+    result = load_fbneo_dat(dat)
+    assert result == {"19xxb": ("19XX: The War Against Destiny (Brazil 951218)", "1996", "Capcom")}
+
+
+def test_load_fbneo_dat_falls_back_to_attribute_style(tmp_path: Path) -> None:
+    """Un dat Logiqx que sí use el estilo atributo sigue funcionando."""
+    dat = tmp_path / "fbneo_attr.dat"
+    dat.write_text(
+        '<?xml version="1.0"?>\n<datafile>\n'
+        '  <game name="sf2" description="Street Fighter II" year="1991" '
+        'manufacturer="Capcom"/>\n</datafile>\n',
+        encoding="utf-8",
+    )
+    result = load_fbneo_dat(dat)
+    assert result == {"sf2": ("Street Fighter II", "1991", "Capcom")}
+
+
+def test_load_fbneo_dat_non_xml_file_returns_empty(tmp_path: Path) -> None:
+    """El dat FBNeo previamente incluido en el proyecto no era XML (formato
+    texto plano ClrMamePro) -- ET.parse() debe fallar de forma controlada
+    (dict vacío), no lanzar."""
+    dat = tmp_path / "fbneo_plaintext.dat"
+    dat.write_text(
+        'clrmamepro (\n\tname "FBNeo - Arcade Games"\n)\n\n'
+        'game (\n\tname "sf2"\n\trom ( name sf2.zip size 1 crc 00000000 )\n)\n',
+        encoding="utf-8",
+    )
+    assert load_fbneo_dat(dat) == {}
 
 
 def test_arcade_crc_index_maps_crc_to_sets(tmp_path: Path) -> None:
