@@ -347,6 +347,76 @@ class AdbTransport:
             raise OSError(f"md5sum falló en el dispositivo para {android_path}: {out!r}")
         return token
 
+    def _hash_recursive(
+        self,
+        android_path: str,
+        tool: str,
+        expected_len: int,
+        *,
+        exclude_hidden: bool = True,
+        timeout: int,
+    ) -> dict[str, str]:
+        """*tool* (``sha1sum``/``md5sum``) over every file under *android_path*,
+        computed on the device itself — only the hash crosses USB, never the
+        file bytes, so this stays cheap even for a multi-hundred-MB disc image
+        (ANDROID-DUP-2: measured live on the RG556, 1297 GBA files ~129s in
+        one round trip; a PC-side scan already always computes this, only the
+        ADB-scanned Android repo never did).
+
+        Single round trip via ``find … -exec {tool} {} +`` — same shape as
+        :meth:`ls_recursive`, which batches multiple files per invocation
+        instead of spawning the tool once per file. A file `_hash_recursive`
+        can't reach at all (unreadable, gone mid-scan) just has no entry in
+        the result — the caller (``_do_adb_scan``) already tolerates a
+        missing hash by falling back to ``""``, same as before this existed.
+        """
+        find_cmd = f"find {shlex.quote(android_path)} -type f -exec {tool} {{}} +"
+        out = self._shell(find_cmd, timeout=timeout)
+
+        results: dict[str, str] = {}
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 1)
+            if len(parts) != 2:
+                continue
+            digest, path_str = parts
+            digest = digest.lower()
+            if len(digest) != expected_len or not all(c in "0123456789abcdef" for c in digest):
+                continue
+            segments = path_str.split("/")
+            if exclude_hidden and any(seg.startswith(".") for seg in segments):
+                continue
+            if TRASH_DIR_NAME in segments:
+                continue
+            results[path_str] = digest
+        return results
+
+    def sha1_recursive(
+        self, android_path: str, *, exclude_hidden: bool = True, timeout: int = 3600
+    ) -> dict[str, str]:
+        """SHA1 of every file under *android_path*, ``{android_path: sha1}``.
+
+        See :meth:`_hash_recursive`. Default timeout is generous (1h) — a
+        full ROMs tree scan runs as a background job (``_do_adb_scan``), not
+        on a request/response path, and the measured live rate (~100ms/file
+        for cart-sized ROMs) puts even a 20k-file library well inside it.
+        """
+        return self._hash_recursive(
+            android_path, "sha1sum", 40, exclude_hidden=exclude_hidden, timeout=timeout
+        )
+
+    def md5_recursive(
+        self, android_path: str, *, exclude_hidden: bool = True, timeout: int = 3600
+    ) -> dict[str, str]:
+        """MD5 of every file under *android_path*, ``{android_path: md5}`` —
+        needed alongside :meth:`sha1_recursive` because RetroAchievements
+        hash-cache lookups (``_load_ra_hash_map``) key by MD5, not SHA1."""
+        return self._hash_recursive(
+            android_path, "md5sum", 32, exclude_hidden=exclude_hidden, timeout=timeout
+        )
+
     # ── transfer ──────────────────────────────────────────────────────────────
 
     def pull(

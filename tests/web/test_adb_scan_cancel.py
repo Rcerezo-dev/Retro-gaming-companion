@@ -39,6 +39,12 @@ class _FakeAdbTransport:
     def ls_recursive(self, _android_path: str, **_kwargs) -> list[AdbFileInfo]:
         return self.files
 
+    def sha1_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
+        return {}
+
+    def md5_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
+        return {}
+
 
 @pytest.fixture
 def repo_android(tmp_path: Path) -> LibraryRepository:

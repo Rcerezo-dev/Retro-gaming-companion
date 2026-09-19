@@ -1961,7 +1961,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "description": "{\"android_path\":\"\u2026\"}"
+                "description": "{\"android_path\":\"\u2026\",\"compute_hashes\":true} -- compute_hashes (default true) hashes every file on-device (ANDROID-DUP-2), false for a fast file-listing-only refresh"
               }
             }
           }
