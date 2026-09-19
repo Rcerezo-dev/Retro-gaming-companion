@@ -20,6 +20,11 @@
 > duplicates` (agrupa archivos sin hash como duplicados falsos), 126,4 GB en
 > `Unknown/` sin organizar, 96,4 GB de ZIPs de consola sin descomprimir, ~14,4 GB
 > seguros de recuperar en duplicados de consola (arcade excluido a propósito)
+> 2026-09-19: hallazgo `ANDROID-DUP-1` — duplicados reales confirmados por ADB
+> en vivo contra la RG556 (PSX, GBA) + carpetas Title Case/slug paralelas nunca
+> consolidadas en el dispositivo (patrón `DUALFOLDER-12`, solo aplicado en PC);
+> `library_android.db` desactualizada (último scan 2026-09-12); relanzado el
+> scrape completo (22.840 ROMs pendientes)
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -59,7 +64,7 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 
 | Epic | Tareas abiertas (🟡/🔴) sin rama confirmada |
 |------|-----------------------------------------------|
-| Pilar 1 | `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
+| Pilar 1 | `ANDROID-DUP-1` (🔴 hallazgo nuevo 2026-09-19, duplicados reales en RG556 confirmados por ADB), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
 | Pilar 2 | `ZIP-ROUTE` (🟡) |
 | Pilar 3 | `CABLE-ROOT-1` (🟡) |
 | UX | `FTP-PICK` (🔴🔴) |
@@ -348,6 +353,79 @@ iba a coincidir, independientemente de la lógica de agrupación.
 | DUP-DISC-RA-1e | **Intento de validación real 2026-09-07 bloqueado por gap de formato**: al intentar validar `compute_saturn_ra_hash`/`compute_dreamcast_ra_hash` contra la biblioteca real (`F:\Juegos Retro`, sí montada en esta máquina) se encontró que Saturn no tiene ningún ROM real ahí (solo `saturn\media\images`/`videos`, artefactos del scraper) y que los 5 juegos reales de Dreamcast están **todos en `.cdi`** (`Crazy Taxi 2`, `Dead or Alive 2 (Beta)`, `Legacy of Kain - Soul Reaver`, `Marvel Vs Capcom 2` [además tiene `.A1.bin`, que es un save de VMU, no la imagen del disco], `Sonic Adventure`). `compute_dreamcast_ra_hash()` (`retroachievements/ra_hash_saturn_dreamcast.py:145-162`) solo reconoce `.gdi`/`.cue`/`.bin`/`.chd` — devuelve `None` para `.cdi` sin intentarlo siquiera, así que la validación contra la caché RA real de `DUP-DISC-RA-1c` sigue sin poder hacerse en esta máquina hasta que se añada un parser de `.cdi` (formato DiscJuggler — cabecera y layout de pistas distintos de un `.bin`/`.cue` crudo, no es un simple alias). **Investigado a fondo 2026-09-07 (segunda pasada) y cerrado sin implementar**: se probó primero convertir con `chdman createcd` (la propia herramienta del proyecto) — la conversión se quedó colgada sin avanzar (>15 min, salida de 124 bytes). Investigando la causa en el código fuente real de MAME (`src/tools/chdman.cpp` → `cdrom_file::parse_toc`, `src/lib/util/cdrom.cpp:2966-2990`, descargado con `curl` vía `raw.githubusercontent.com`): **`chdman` tampoco soporta `.cdi`** — el dispatcher por extensión solo reconoce `.gdi`/`.cue`/`.nrg`/`.iso`/`.cdr`/`.toast`; cualquier otra extensión cae al parser de texto genérico CDRDAO `.toc`, que intenta leer el archivo binario `.cdi` como líneas de texto (de ahí el cuelgue, no lentitud). Y **`rcheevos` (la librería de referencia de RA) tampoco soporta `.cdi`**: su propio dispatcher (`src/rhash/cdreader.c:777-788`, ya consultado para `DUP-DISC-RA-1c`) solo reconoce `.cue`/`.gdi` por extensión — cualquier otra cosa (incluido `.cdi`) se abre como `.bin` crudo de una sola pista, lo que daría un hash **silenciosamente incorrecto**, no un "no soportado" limpio. Con ni RA ni chdman soportando el formato, escribir un parser propio de DiscJuggler no tendría ningún oráculo contra el que validar que el hash resultante coincide con el real de RA — el riesgo de dar por buena una implementación que en realidad nunca coincidiría es alto. **Decisión (discutida con el usuario 2026-09-07): no implementar por ahora** — se retoma si aparece una vía de validación independiente (chdman añade soporte `.cdi` en una versión futura, o se publican hashes RA de Dreamcast conocidos de la comunidad) | `retroachievements/ra_hash_saturn_dreamcast.py:145-162` (`compute_dreamcast_ra_hash`) | ⚪ investigado y cerrado sin implementar — ni RA ni chdman soportan `.cdi`, sin oráculo para validar un parser propio; Saturn sigue sin ningún ROM real que validar en esta biblioteca |
 | DUP-DISC-RA-2 | **Implementado y verificado 2026-08-30** (pedido explícito del usuario: "usa chd como formato de psx"). Recomendación confirmada: **CHD**, un archivo por disco, soportado nativamente por RetroArch/`chdman` (ya en `tools/`). Descubierto que ya existía un conversor sin usar (`rommgr convert-chd` / `converters/chd_converter.py`) que solo cubría `.cue`+`.bin` reales — **extendido** en vez de duplicado: (1) `find_bare_bin_files()` descubre `.bin` sueltos sin `.cue` (el caso mayoritario real, ver DUP-DISC-RA-2b) validando con `compute_psx_ra_hash()` que de verdad son un disco legible, no una pista de audio huérfana; (2) `synthesize_cue_text()` genera un `.cue` mínimo de una pista reutilizando `detect_bin_cue_mode()` (nuevo en `ra_hash_psx.py`); (3) `parse_bins_from_cue()` arreglado para resolver solo por nombre base (bug real encontrado: `.cue` con ruta absoluta rota, ver DUP-DISC-RA-2b, hacía que el `cwd=` existente no sirviera de nada); (4) **cada conversión se verifica comparando el hash RA de disco antes/después** (`_verify_ra_hash`) — si no coincide, se borra el `.chd` y el original queda intacto, nunca se sobreescribe a ciegas. `chdman createcd` necesita la palabra `BINARY` en la línea `FILE` del `.cue` sintético (bug propio encontrado y arreglado — sin ella da "Unhandled track type"). 13/13 tests en `test_chd_converter.py` (incluye conversión real de punta a punta con `chdman.exe` y un caso de mismatch de hash forzado). **Dry-run contra la biblioteca PSX real** (`rommgr convert-chd "E:\Carpetas anbernic\psx"`): **181 convertibles** (bare-bin + 0 cue reales, los 18-22 `.cue` reales están todos rotos, ver DUP-DISC-RA-2b), 22 fallos (cue roto), 1 ya convertido. **No ejecutado con `--apply`** contra la biblioteca real — pedido explícito del usuario de construir la herramienta y ejecutarla aparte; nota de rendimiento: un solo disco de ~600MB tardó >10 min con la compresión por defecto de `chdman` en esta máquina, así que los 181 son horas, no minutos — pensar en correrlo en background/durante la noche | `converters/chd_converter.py`, `retroachievements/ra_hash_psx.py` (`detect_bin_cue_mode`), `tests/test_chd_converter.py`, `cli.py` (ayuda actualizada) | ✅ herramienta lista y verificada; ejecución real pendiente, la lanza el usuario |
 | DUP-DISC-RA-2b | **Ya no aplica — verificado 2026-09-08 contra `E:\Carpetas anbernic\psx` real**: los 18-22 `.cue` rotos del hallazgo original (2026-08-30) ya no existen tal cual. Reutilizando `parse_bins_from_cue()` (el mismo parser de `DUP-DISC-RA-2`, solo lectura) sobre los **33 `.cue` reales de hoy: 0 rotos** — confirmado además con `rommgr convert-chd "E:\Carpetas anbernic\psx"` (dry-run): `Would convert: 33 | Would skip: 0`. Los dos casos citados en el hallazgo original (`Chrono Cross (Japan).cue`, `Crash 2.cue`) ni siquiera existen ya en la carpeta — `Chrono Cross` ahora vive como `Chrono Cross (USA, Canada) (Disc 2).chd` (ya convertido). La biblioteca cambió entre el hallazgo y hoy (probable limpieza/conversión de otra sesión, sin diario que lo documente explícitamente) y el problema desapareció como efecto colateral — mismo patrón que `LIBRARY-SYNC-STALE-1d` esta misma sesión. Sin cambios de archivos en esta verificación (solo lectura) | `psx/*.cue` | ✅ verificado 2026-09-08 — ya no hay `.cue` rotos |
+
+---
+
+### ANDROID-DUP-1 — Duplicados reales en la propia Anbernic (DaijiShō/iSuu), nunca comprobados: dedup solo se ha ejecutado contra bibliotecas PC (hallazgo 2026-09-19, RG556 `RG556006101273`, ADB en vivo)
+
+Origen: el usuario reporta duplicados visibles en DaijiShō e iSuu en la RG556
+— PS2 con **todos** los juegos duplicados, y varios títulos sueltos en GBA/PSX
+(ejemplos dados: Crash Bash, Crash 2). Sospecha propia del usuario, confirmada
+por la investigación: **la función de duplicados nunca se ha ejecutado contra
+la biblioteca Android real** — todo el trabajo de `DUP-REGION-1/2`,
+`DUP-DISC-RA-1*`, `GBA-DUAL-FOLDER-1`, `DUALFOLDER-12` se hizo contra
+bibliotecas **PC** (`F:\Juegos Retro` en "Ruben", `E:\Carpetas anbernic` en
+"rammu"). El proyecto sí soporta un repo Android separado
+(`library_android.db`, seleccionado por `_repo_for_path()` en
+`web/builders/common.py:141-167` para cualquier ruta fuera de
+`config.library_root`, documentado en `config.py:423-432`) y
+`_review_groups_for_repo()` (`web/builders/duplicates.py:743`, invocado una
+vez por repo en `web/builders/duplicates.py:519-537,714`) ya sabe iterar sobre
+`repository_android` — pero **`library_android.db` lleva sin re-escanearse
+desde 2026-09-12** (`.rommgr/library_android.db`, mtime confirmado), una
+semana antes de esta sesión y antes de varios syncs recientes (GBA
+2026-09-14, PSX CHD hasta 2026-09-13, PS2 hasta 2026-09-15) — cualquier pasada
+de dedup contra ese snapshot habría estado desactualizada igualmente.
+
+**Verificado en vivo por ADB contra `/storage/521D-04EA/ROMs/` de la RG556**
+(no contra `library_android.db`, directamente contra el dispositivo):
+
+| Plataforma | Hallazgo | Evidencia |
+|---|---|---|
+| **PSX** | El mismo disco coexiste en 2-3 formatos/nomenclaturas a la vez: `.bin`+`.cue` **y** `.chd` del mismo release (la limpieza post-conversión de `DUP-DISC-RA-2` nunca se ejecutó/completó en este dispositivo — esa tarea ya documentaba "ejecución real pendiente, la lanza el usuario"), más un tercer set de volcados **legacy con nombre de serial** (`[SCUS-94900]`, `[SCUS-94570] [bin]`, `[SCUS-94426] [bin]`, 39 entradas `[SCUS/SLUS/SCES/SLES-nnnnn]` en total) que preceden a este proyecto — mtimes de 2003/2006 en varios `.bin`/`.img`. Caso confirmado exacto del usuario: `Crash Bandicoot (USA)` existe como `.bin+.cue`, `.chd`, y carpeta legacy `Crash Bandicoot [U] [SCUS-94900]/` con `.ccd`/`.img`/`.sub` (CloneCD) — el mismo disco 3 veces. `Crash Bash` tiene además `.chd` (Europe) + `.chd` (USA) + carpeta legacy `[SCUS-94570] [bin]`. `Crash Team Racing` tiene `.chd` + carpeta legacy `[SCUS-94426] [bin]` + un tercer `CTR - Crash Team Racing (Europe).zip` sin descomprimir | 1231 entradas en `psx/`: 305 `.chd`, 490 `.bin`, 131 `.cue`, 46 CloneCD (`.img`/`.ccd`/`.sub`), 39 legacy serial, 89 subcarpetas (mayoría sets multi-disco legítimos, al menos 3 confirmadas como duplicados legacy) |
+| **GBA** | Volcados legacy pre-No-Intro (formato `[E]`/`[U]`/[J]`, típico de sets GoodGBA anteriores a este proyecto — mtimes 2015, mucho antes de que existiera `rom_manager`) conviven con las copias renombradas canónicas No-Intro del mismo juego, más `.sav`/`.sgm` huérfanos ligados a esos volcados legacy. Además ZIPs sin descomprimir junto a su `.gba` ya extraído — violación del principio del Pilar 2 (aunque estos son archivos ya existentes en el dispositivo antes del proyecto, nunca pasaron por el Inbox) | 1490 entradas en `gba/`: 1297 `.gba`, 120 `.zip`, 91 con patrón `[E]`/`[U]`/`[J]` legacy, 45 `.sav`/`.sgm` |
+| **Carpetas Title Case + slug paralelas** | Mismo patrón que `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1`/`DUALFOLDER-12`, pero **nunca aplicado a este dispositivo** — esas tareas solo tocaron la máquina "Ruben". En la RG556 conviven `Atari 2600/`+`atari2600/`, `Famicom Disk System/`+`fds/`, `Game Gear/`+`gamegear/`, `Master System/`+`mastersystem/` | `ls /storage/521D-04EA/ROMs/` — 4 pares confirmados |
+| **PS2 ("todos los juegos duplicados" en iSuu)** | **Sin duplicación de archivos** — `ps2/` es una sola carpeta plana, 26 `.iso`/`.chd`, sin nombres repetidos ni carpeta `PlayStation 2/` paralela. La causa no puede estar en los archivos de este proyecto; el síntoma ("todos" los juegos, no solo algunos) apunta a **configuración del propio launcher** (p. ej. dos perfiles de sistema/emulador en iSuu/DaijiShō apuntando ambos a `ROMs/ps2/`) — fuera del alcance de este repo, requiere revisar la config de iSuu en el dispositivo, no el código de `rom_manager` | `ls -la /storage/521D-04EA/ROMs/ps2/` — 26 archivos, sin duplicados |
+| **Hallazgo colateral, sin confirmar del todo** | La carpeta `fds/` del dispositivo contiene un set casi completo de ROMs **`.nes`** (no `.fds`) — solo 2 archivos `.fds` reales viven en `Famicom Disk System/`. Si se aplica el mismo criterio de `DUALFOLDER-12` (slug gana) sin verificar contenido primero, se fusionaría NES real bajo la carpeta `fds` por error | `ls /storage/521D-04EA/ROMs/fds/` vs `Famicom Disk System/` |
+
+**Por qué `DUP-REGION-1/2` y `DUP-DISC-RA-1*` no habrían bastado ni ejecutándose hoy mismo**:
+`DUP-REGION-1` (`web/builders/duplicates.py`) agrupa por título difuso solo
+para plataformas de un archivo, excluyendo PSX explícitamente
+(`_MULTI_DISC_RISK_PLATFORMS`) — nunca iba a agrupar los casos PSX de arriba.
+`DUP-DISC-RA-1b` (hash de disco RA para PSX) sí tiene el motor correcto para
+esto, pero su "parte 2" (agrupar por edición completa en la cola de
+duplicados) sigue **sin implementar**, tal cual quedó documentado en su
+propia fila arriba. Y los volcados legacy con nombre de serial (`[SCUS-xxxx]`)
+casi seguro ni siquiera matchean contra el catálogo por SHA1 (dumps de otra
+fuente) — dependerían del hash de disco RA (`DUP-DISC-RA-1a`, ya implementado
+y verificado) para reconocerse como el mismo juego, otra razón más para
+completar `DUP-DISC-RA-1b` parte 2 antes de fiarse del todo de la cola de
+duplicados en PSX.
+
+**Recomendación (sin implementar, a decidir con el usuario)**:
+1. Escanear `library_android.db` contra la RG556 real (vía ADB, ya que está
+   conectada) para tener un snapshot actual antes de cualquier limpieza.
+2. Completar `DUP-DISC-RA-1b` parte 2 (agrupado por edición vía hash RA en la
+   cola de duplicados) — sin esto, los duplicados de formato/legacy en PSX
+   seguirán invisibles para la herramienta aunque se re-escanee.
+3. Extender `DUP-REGION-2`/la cola de revisión para reconocer volcados legacy
+   pre-No-Intro (`[E]`/`[U]`/`[J]`, `[SCUS-nnnnn]`) como el mismo juego que su
+   contraparte canónica — hoy dependen de que el matcher los reconozca, y no
+   está confirmado que lo haga (`catalog/matcher.py::_match_by_title()`).
+4. Verificar contenido real de `fds/` vs `Famicom Disk System/` antes de
+   aplicar el criterio de `DUALFOLDER-12` a este par — no es un simple
+   duplicado de nombre, puede haber NES mal ubicado.
+5. `PS2` (iSuu) no es un bug de este repo — confirmar en el propio dispositivo
+   si iSuu/DaijiShō tiene un sistema PS2 duplicado en su configuración.
+
+No implementado en esta sesión (solo investigación + scrape relanzado a
+petición del usuario) | `web/builders/common.py:141-167`
+(`_repo_for_path`), `config.py:423-432` (`database_path_android`),
+`web/builders/duplicates.py:519-537,714,743` (`_review_groups_for_repo`),
+`retroachievements/ra_disc_hash_cache.py` (`DUP-DISC-RA-1b` parte 2
+pendiente), `catalog/matcher.py::_match_by_title()` (sin confirmar
+reconocimiento de volcados legacy) | 🔴 confirmado con evidencia real (ADB en
+vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
 
 ---
 
