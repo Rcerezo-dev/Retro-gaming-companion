@@ -140,6 +140,8 @@ def _save_config(
         "backup.saves_enabled",
         "backup.saves_keep_n",
         "notifications.desktop",
+        "duplicates.keep_both_regions",
+        "duplicates.preferred_regions",
     }
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
@@ -166,6 +168,7 @@ def _save_config(
         config.launcher_cores = new_cfg.launcher_cores
         config.backup = new_cfg.backup
         config.notify_desktop = new_cfg.notify_desktop
+        config.duplicates = new_cfg.duplicates
     set_auto_sync_fn(new_cfg.sync.auto_sync_enabled)
 
     ctx._send_json({"saved": list(updates.keys())})

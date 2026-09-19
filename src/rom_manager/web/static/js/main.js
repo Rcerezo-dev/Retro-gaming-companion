@@ -7,6 +7,7 @@ import { showToast } from './components/toast.js';
 import { _showConfirm, _closeConfirm } from './components/modal.js';
 import {
   _onDevicePresetChange,
+  _toggleRegionPicker, _addPreferredRegion, _removePreferredRegion, _movePreferredRegion,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
   loadLogViewer, downloadLog, loadTools, _setIfEmpty,
   doBatchRun, _initToolPath, fillToolPath,
@@ -273,6 +274,7 @@ Object.assign(window, {
   stopJob, openHtmlReport, openHtmlReportAndroid,
   _copyToClipboard, _copyToClipboardFallback,
   _onDevicePresetChange,
+  _toggleRegionPicker, _addPreferredRegion, _removePreferredRegion, _movePreferredRegion,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
   loadLogViewer, downloadLog, loadTools, _setIfEmpty,
   doBatchRun, _initToolPath, fillToolPath,

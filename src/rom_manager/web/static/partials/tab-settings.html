@@ -332,6 +332,26 @@
     </div>
   </div>
 
+  <!-- DUP-REGION-2: preferencias de duplicados por región -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F30D; Duplicados por regi&#xf3;n</h3>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Cuando el mismo juego existe en varias regiones (p. ej. &quot;USA&quot; y &quot;Europe&quot;), la cola de revisi&#xf3;n de duplicados recomienda cu&#xe1;l conservar.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:var(--c-muted);font-size:11px;min-width:220px">Mantener siempre todas las regiones</label>
+      <input type="checkbox" id="cfg-keep-both-regions" style="width:auto;margin:0" onchange="_toggleRegionPicker()">
+      <span class="cfg-saved" id="cfg-check-keep-both-regions">&#x2713; Guardado</span>
+    </div>
+    <div id="cfg-preferred-regions-wrap">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:6px">Regiones favoritas, por orden de preferencia</label>
+      <div class="actions-row" style="margin-bottom:8px">
+        <select id="cfg-region-picker" style="min-width:160px"></select>
+        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="_addPreferredRegion()">+ A&#xf1;adir</button>
+        <span class="cfg-saved" id="cfg-check-preferred-regions">&#x2713; Guardado</span>
+      </div>
+      <div id="cfg-preferred-regions-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px"></div>
+    </div>
+  </div>
+
   <!-- AUD-3: Papelera unificada -->
   <div class="actions-panel" style="margin-top:20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">

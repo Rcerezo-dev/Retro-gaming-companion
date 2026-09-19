@@ -15,6 +15,7 @@ from rom_manager.config import AppConfig
 from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
+from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.rom_header import extract_internal_id
 from rom_manager.utils.disc_tag import find_disc_number, strip_disc_tag
 from rom_manager.utils.paths import is_device_path
@@ -121,10 +122,19 @@ def _is_disc_data_sibling(source_path: str) -> bool:
 
 
 def _is_spanish_filename(filename: str) -> bool:
+    """True if any of *filename*'s parenthetical tags name an exact Spanish release.
+
+    The general review-queue tie-break (sha1/title/crossfmt/header/disk/
+    collision reasons) has only ever preferred an exact Spanish release, and
+    changing that globally was never asked for. The "region" reason (fuzzy
+    cross-region title match, see ``_review_groups_for_repo``) uses the
+    user-configurable ``preferred_regions`` ranking instead — see
+    ``_review_entry_sort_key``.
+    """
     import re as _re
 
     tags = _re.findall(r"\(([^)]+)\)", filename.lower())
-    return any(any(t.strip() == s for s in _SPANISH_TAGS) for tag in tags for t in tag.split(","))
+    return any(any(t.strip() in _SPANISH_TAGS for t in tag.split(",")) for tag in tags)
 
 
 def _in_correct_platform_folder(source_path: str, platform: str | None, library_root) -> bool:
@@ -206,7 +216,12 @@ def _find_rescue_candidate_in_trash(
 
 
 def _review_entry_sort_key(
-    entry: dict, platform: str | None = None, library_root=None
+    entry: dict,
+    platform: str | None = None,
+    library_root=None,
+    *,
+    region_tiebreak: bool = False,
+    preferred_regions: tuple[str, ...] = (),
 ) -> tuple[int, int, int, int, str]:
     """Recommendation order shared by every reason: intact > RA support > correct folder > Spanish > filename.
 
@@ -232,13 +247,29 @@ def _review_entry_sort_key(
     REPAIR-TOOL-4: integrity comes before all of the above — a broken
     ``.cue``/``.bin`` set must never be "recommended" over an intact copy just
     because it happens to win the region/RA/folder tiebreaks.
+
+    DUP-REGION-2: *region_tiebreak* (only passed for the "region" reason —
+    a fuzzy cross-region title match, see ``_review_groups_for_repo``) ranks
+    by the user's own *preferred_regions* priority list (config.duplicates)
+    instead of the plain Spanish-only tier every other reason uses — e.g.
+    ``["Spain", "Europe"]`` keeps a Spanish release over a European one,
+    which in turn beats USA/Japan/other, but still falls back down the list
+    when a game has no release in the top region.
     """
     integrity_tier = 1 if _is_broken_disc_entry(entry["source_path"]) else 0
     ra_tier = 0 if entry["ra_supported"] else 1
     folder_tier = (
         0 if _in_correct_platform_folder(entry["source_path"], platform, library_root) else 1
     )
-    lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
+    if region_tiebreak and preferred_regions:
+        detected = parse_region_from_name(entry["filename"])
+        lang_tier = (
+            preferred_regions.index(detected)
+            if detected in preferred_regions
+            else len(preferred_regions)
+        )
+    else:
+        lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
     return (integrity_tier, ra_tier, folder_tier, lang_tier, entry["filename"])
 
 
@@ -814,6 +845,59 @@ def _review_groups_for_repo(
             union(idxs[0], other)
         crossfmt_linked_idxs.update(idxs)
 
+    # DUP-REGION-1/2: same game across regions -- No-Intro's canonical_title
+    # keeps the region tag ("... (USA)" vs "... (Europe)"), so the
+    # exact-title union above never links them; needs the fuzzy
+    # region-stripped normalizer instead. Deliberately excluded on
+    # _MULTI_DISC_RISK_PLATFORMS -- the exact-title union's own comment
+    # documents why broad fuzzy matching is unsafe there (18 distinct real
+    # PSX Final Fantasy VII discs/languages merged into one false-positive
+    # group the one time this was tried without that guard). GBA/GB/GBC/NES/
+    # SNES/etc. are single-file carts with no disc-number concept, so a
+    # fuzzy title match there really does mean "same game, different
+    # region/revision release" -- confirmed against the real library
+    # (2026-09-15): 94 GBA titles, 188 files, region pairs only, no
+    # different-numbered sequel ever merged (e.g. Final Fantasy V/VI Advance
+    # stayed in separate groups -- the region tag is always a full trailing
+    # "(...)" group, never inside the title itself). DUP-REGION-2: the user
+    # can opt out entirely (config.duplicates.keep_both_regions) when they
+    # deliberately keep every region of every game -- skip detection rather
+    # than detect-and-never-recommend, so those files never show up here at
+    # all.
+    _dup_cfg = getattr(config, "duplicates", None)
+    _keep_both_regions = bool(_dup_cfg.keep_both_regions) if _dup_cfg else False
+    _preferred_regions: tuple[str, ...] = (
+        tuple(_dup_cfg.preferred_regions) if _dup_cfg else ("Spain", "Europe")
+    )
+    region_linked_idxs: set[int] = set()
+    if not _keep_both_regions:
+        region_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+        for idx, row in enumerate(rows):
+            plat_lower = (row["platform"] or "").lower()
+            if plat_lower in _MULTI_DISC_RISK_PLATFORMS:
+                continue
+            if _is_disc_data_sibling(row["source_path"]) or is_non_canonical_variant(
+                row["original_filename"]
+            ):
+                continue
+            if not row["canonical_title"]:
+                continue
+            fuzzy_title = _normalize_title(row["canonical_title"])
+            if fuzzy_title:
+                region_groups[(row["platform"] or "unknown", fuzzy_title)].append(idx)
+        for idxs in region_groups.values():
+            if len(idxs) < 2:
+                continue
+            # Entries that already share the exact canonical_title are the
+            # same release (already unioned above) -- only a genuine
+            # cross-region link if at least two *different* exact titles are
+            # present.
+            if len({rows[i]["canonical_title"] for i in idxs}) < 2:
+                continue
+            for other in idxs[1:]:
+                union(idxs[0], other)
+            region_linked_idxs.update(idxs)
+
     # MATCH-HEADER-1: No-Intro DATs carry no serial, so a file whose SHA1
     # isn't in the catalog and whose filename doesn't fuzzy-match anything —
     # e.g. a translation patch or a bad/incomplete dump — is invisible to
@@ -910,6 +994,10 @@ def _review_groups_for_repo(
         has_header_dup = any(i in header_linked_idxs for i in idxs) and not (
             has_sha1_dup or has_real_title_dup
         )
+        # DUP-REGION-1: same game, different No-Intro region release -- only
+        # claim it for a cluster the fuzzy region_groups link actually built
+        # (real disc sets are pre-excluded when region_linked_idxs is built).
+        has_region_dup = any(i in region_linked_idxs for i in idxs) and not _is_disc_set(members)
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
         # MATCH-FIX-4: RA hash libraries are per-console (Game Boy and Game
@@ -942,6 +1030,8 @@ def _review_groups_for_repo(
             reasons.add("crossfmt")
         if has_header_dup:
             reasons.add("header")
+        if has_region_dup:
+            reasons.add("region")
         for idx in idxs:
             if idx in extra_reasons:
                 reasons.add(extra_reasons[idx])
@@ -990,7 +1080,16 @@ def _review_groups_for_repo(
 
         entries_list = list(entries.values())
         _lib_root = getattr(config, "library_root", None)
-        entries_list.sort(key=lambda e: _review_entry_sort_key(e, plat, _lib_root))
+        _region_tiebreak = "region" in reasons
+        entries_list.sort(
+            key=lambda e: _review_entry_sort_key(
+                e,
+                plat,
+                _lib_root,
+                region_tiebreak=_region_tiebreak,
+                preferred_regions=_preferred_regions,
+            )
+        )
         for i, entry in enumerate(entries_list):
             entry["recommended"] = i == 0
             if _is_broken_disc_entry(entry["source_path"]):

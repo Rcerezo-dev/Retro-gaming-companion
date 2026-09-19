@@ -304,6 +304,29 @@ casos `disk`/`collision` que sí lo hacen.
 
 ---
 
+### DUP-REGION-1/2 — Duplicados por región (mismo juego, distinta release No-Intro) + preferencias configurables (WIP retomado, pausado durante el roadmap 12)
+
+`DUP-DISC-RA-1` (abajo) ya lo cita como origen aunque nunca tuvo sección
+propia — quedó como WIP sin commitear en `git stash` desde antes del Día64
+(roadmap 12 tuvo prioridad), retomado en rama propia a petición del usuario.
+
+En plataformas de un solo archivo (GBA/GB/GBC/NES/SNES/...) el mismo juego
+publicado en varias regiones No-Intro (`Tetris (USA)` vs `Tetris (Spain)`)
+nunca se agrupaba en "Revisar copias" porque `canonical_title` incluye el
+tag de región — son strings distintas, así que la unión por título exacto
+nunca los enlazaba. Deliberadamente **excluido en `_MULTI_DISC_RISK_PLATFORMS`**
+(PSX/Saturn/Dreamcast/Wii...): el propio comentario de la unión por título
+exacto documenta por qué la coincidencia difusa es insegura ahí — la única
+vez que se probó sin ese guard fusionó 18 discos regionales reales de Final
+Fantasy VII en un solo grupo "duplicado" falso positivo.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DUP-REGION-1 | Detectar el grupo (título difuso + plataforma, solo fuera de `_MULTI_DISC_RISK_PLATFORMS`) y añadir el motivo `"region"` a la cola de revisión — nunca auto-fusiona ni borra, solo recomienda cuál conservar (empate: integridad > soporte RA > carpeta correcta > región preferida > nombre) | `web/builders/duplicates.py` (`_review_groups_for_repo`, `region_linked_idxs`, `has_region_dup`) | ✅ implementado — confirmado contra la biblioteca real (2026-09-15, mencionado en el hallazgo original de Día64): 94 títulos GBA / 188 archivos, solo pares de región, ninguna secuela distinta fusionada por error (el tag de región es siempre un grupo `(...)` final, nunca parte del título) |
+| DUP-REGION-2 | El desempate por idioma de `_review_entry_sort_key` era fijo (solo "¿es español?"); para el motivo `"region"` se necesita un ranking configurable por el usuario, no solo español-o-no. Nueva `DuplicatesConfig` (`config.py`): `preferred_regions` (lista ordenada, por defecto `["Spain", "Europe"]`) y `keep_both_regions` (si `True`, el motivo `"region"` no se dispara nunca — el usuario conserva todas las regiones a propósito) | `config.py` (`DuplicatesConfig`), `detection/region_parser.py` (`KNOWN_REGIONS`, para el selector de la UI), `web/builders/duplicates.py` (`_review_entry_sort_key` con `region_tiebreak`/`preferred_regions`), `web/builders/misc.py` (`_build_config`), `web/handlers/config.py` (`_save_config`, campos `duplicates.*`), `web/static/js/tabs/config.js` + `tab-settings.html` (picker de regiones con reordenar/quitar, checkbox "mantener todas") | ✅ implementado con tests (`test_same_title_cross_region_flagged_for_review`, `test_keep_both_regions_config_suppresses_region_groups`, `test_preferred_regions_config_overrides_default_ranking`) — 1370 tests totales, ruff limpio. Retomado en rama `feature/dup-region-2-preferences`; sin PR todavía |
+
+---
+
 ### DUP-DISC-RA-1 — Hash RA de discos (PS1 primero) para poder descartar copias sin logros (pedido usuario 2026-08-30)
 
 Origen: tras DUP-REGION-1, el usuario pidió que las copias duplicadas en
