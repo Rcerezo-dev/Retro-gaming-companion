@@ -398,6 +398,15 @@ def _do_adb_scan(
 ) -> None:
     adb_serial = data.get("adb_serial", "").strip()
     android_path = data.get("android_path", "/storage/emulated/0").strip().rstrip("/")
+    # ANDROID-DUP-2: on by default -- this scan populating sha1="" md5="" for
+    # every row unconditionally is exactly the gap that made a legacy
+    # pre-No-Intro dump (same content, different filename) invisible to
+    # every duplicate-detection path at once (confirmed live on the RG556:
+    # Final Fantasy Tactics [E].gba / Pokemon Pinball RZ [E].gba, both an
+    # exact size match of their canonical counterpart already in the
+    # library). Opt-out kept for a caller that only wants a fast file-listing
+    # refresh and doesn't need hashes this time.
+    compute_hashes = data.get("compute_hashes", True)
 
     if not adb_serial:
         ctx._send_error(400, "adb_serial requerido")
@@ -430,6 +439,20 @@ def _do_adb_scan(
             seen_paths: set[str] = set()
 
             all_files = transport.ls_recursive(android_path, timeout=180)
+
+            # ANDROID-DUP-2: computed on the device itself (see
+            # AdbTransport.sha1_recursive's docstring) -- only the hash
+            # crosses USB, so this stays cheap even for large disc images.
+            # Two round trips (one per tool), each covering the whole tree in
+            # one `find … -exec {tool} {} +` batch, same shape as ls_recursive
+            # above. A generous timeout since this runs as a background job,
+            # not on a request/response path.
+            sha1_map: dict[str, str] = {}
+            md5_map: dict[str, str] = {}
+            if compute_hashes and not _cancel.is_set():
+                sha1_map = transport.sha1_recursive(android_path, timeout=3600)
+            if compute_hashes and not _cancel.is_set():
+                md5_map = transport.md5_recursive(android_path, timeout=3600)
 
             with repo_android.batch() as conn:
                 for fi in all_files:
@@ -491,8 +514,8 @@ def _do_adb_scan(
                                 extension=suffix,
                                 size_bytes=fi.size,
                                 mtime=int(fi.mtime),
-                                sha1="",
-                                md5="",
+                                sha1=sha1_map.get(ap, ""),
+                                md5=md5_map.get(ap, ""),
                                 crc32="",
                                 set_type=detect_set_type(fake_path),
                                 timestamp=timestamp,
@@ -528,6 +551,9 @@ def _do_adb_scan(
                 "source": "adb",
                 "android_path": android_path,
                 "cancelled": _cancel.is_set(),
+                "hashes_computed": compute_hashes,
+                "sha1_hashed": len(sha1_map),
+                "md5_hashed": len(md5_map),
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
