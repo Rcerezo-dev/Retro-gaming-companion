@@ -1128,6 +1128,48 @@ para PSX (`duckstation` ya no existe en el buildbot — el fork activo es
 `swanstation` — se usó la 2ª opción documentada). GameCube/Wii/3DS/PS2
 deliberadamente fuera (usan los standalone ya configurados, no RetroArch) |
 
+### CABLE-SYNC-WATCH-1 — Cable-sync automático al cerrar un emulador en la propia Anbernic (petición usuario 2026-09-19, PC2, con la RG556 conectada)
+
+Petición del usuario: ahora que la Anbernic estaba conectada por USB, ¿el
+mismo patrón de `EMU-SYNC-WATCH-1` pero para el lado Android? La razón por la
+que ese roadmap **descartó explícitamente** un daemon en el propio
+dispositivo (servicio + permiso `PACKAGE_USAGE_STATS`, mismo coste que
+`ANDROID-SYNC-9/10/11` ya rechazó) no aplica aquí: el sondeo lo hace el PC
+por ADB, no un servicio en el móvil — mismo principio que ya usa
+`_auto_sync_loop` para detectar la propia conexión del cable, solo que ahora
+también sondea qué paquete Android sigue vivo. Cero coste cuando el cable
+está desconectado (ahí sigue cubriendo el caso de uso el sync periódico de
+`ANDROID-SYNC-12`).
+
+Extiende `_auto_sync_loop` (`web/cable_sync_daemon.py`, ya sondeaba ADB cada
+10s para detectar conexión) para también sondear `adb shell ps -A` en busca
+de paquetes vigilados (`config.sync.watch_android_packages`, opt-in, vacío =
+desactivado — mismo patrón que `watch_processes`) y lanzar un cable-sync real
+al detectar que uno se cerró, reutilizando `_closed_watched_processes()` de
+`daemons.py` (misma función genérica de `EMU-SYNC-WATCH-1`, sin duplicar
+lógica). `serial`/`reason` generalizados en el bucle para que la conexión y
+el cierre de emulador compartan exactamente el mismo camino de disparo
+(guard de reloj, prompt si auto-sync está desactivado, cooldown...).
+
+**Hallazgo real de paso**: `EMULATOR_SAVE_PATHS_DEFAULT["com.retroarch.aarch64"]`
+(`config.py`) llevaba el paquete equivocado — `docs/emulador-canonico-rg556.md`
+(investigación previa, mismo dispositivo) ya había determinado que el
+RetroArch real en uso es `com.retroarch` (19h28m de partida real frente a 2 min
+del `.aarch64`), pero la tabla nunca se actualizó con esa decisión. Sin este
+fix, la detección por nombre de paquete nunca habría encontrado el proceso
+real. Corregido | `web/cable_sync_daemon.py` (`_list_running_android_packages`,
+`_auto_sync_loop`), `config.py` (`SyncConfig.watch_android_packages`,
+`EMULATOR_SAVE_PATHS_DEFAULT["com.retroarch"]` corregido) | ✅ 4 tests nuevos
+(`test_cable_sync_android_watch.py`), 1374 tests totales, ruff limpio.
+**Verificado en vivo contra la RG556 real** (serial `RG556006101273`, conectada
+por USB): lanzado `com.retroarch` por ADB, confirmado corriendo (`ps -A`),
+cerrado con `am force-stop` — log real: `Auto-sync: emulador Android cerrado
+(com.retroarch) en RG556006101273 — lanzando sync`, cable-sync disparado y
+completado (`cable_sync_ops.log`, `copied=5, errors=11` — los errores son
+carpetas privadas de otras apps sin permiso de lectura vía ADB sin root, ya
+documentado como limitación conocida en varias entradas de `EMULATOR_SAVE_PATHS_DEFAULT`,
+no un fallo de esta feature). Sin PR todavía |
+
 ### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
 
 Petición del usuario: sync de saves lo más automático posible, sin depender

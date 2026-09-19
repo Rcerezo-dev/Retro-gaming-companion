@@ -8,17 +8,85 @@ per-function late imports of ``server`` are no longer needed.
 from __future__ import annotations
 
 import logging
+import subprocess as _subprocess
 from pathlib import Path
 
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
+from rom_manager.utils.subprocess_flags import NO_WINDOW
 from rom_manager.utils.trash import TRASH_DIR_NAME
+from rom_manager.web.daemons import _closed_watched_processes
 
 _logger = logging.getLogger(__name__)
 
 
+def _list_running_android_packages(adb_path: str, serial: str) -> set[str] | None:
+    """Nombres de paquete en ejecución ahora mismo en *serial* (vía ``adb shell ps -A``).
+
+    CABLE-SYNC-WATCH-1: mismo patrón que ``daemons._list_running_process_names()``
+    del lado PC, pero sondeado por el PC vía ADB en vez de un servicio en el
+    propio dispositivo — no requiere ``PACKAGE_USAGE_STATS`` ni corre nada
+    nuevo en la Anbernic, solo funciona mientras el cable está conectado (el
+    caso de uso sin cable ya lo cubre el sync periódico de la app Android,
+    ``ANDROID-SYNC-12``). El nombre de proceso en Android *es* el paquete
+    (última columna de ``ps``), a diferencia de Windows.
+
+    Devuelve ``None`` si el sondeo en sí falló (timeout, error de ADB...) —
+    a propósito distinto de un ``set()`` vacío (se consultó bien y no hay
+    nada corriendo). El caller debe saltar la detección de cierre ese ciclo
+    en vez de tratar el fallo como "todo cerrado": un timeout puntual de
+    ``adb`` no puede hacerse pasar por "el emulador se cerró" y disparar un
+    cable-sync real mientras el emulador sigue abierto con el save sin
+    flushear — justo el riesgo que este proyecto prioriza evitar (Pilar 3).
+    """
+    try:
+        out = _subprocess.run(
+            [adb_path, "-s", serial, "shell", "ps", "-A"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+            creationflags=NO_WINDOW,
+        )
+    except Exception:
+        _logger.debug("No se pudo listar procesos Android (adb shell ps)", exc_info=True)
+        return None
+    names: set[str] = set()
+    for line in out.stdout.splitlines()[1:]:  # skip header row
+        parts = line.split()
+        if parts:
+            names.add(parts[-1])
+    return names
+
+
+def _poll_android_watch(
+    adb_path: str,
+    serial: str | None,
+    watched_pkgs: set[str],
+    previous_pkgs: set[str],
+) -> tuple[set[str], set[str]]:
+    """One poll cycle of the CABLE-SYNC-WATCH-1 Android emulator-close watch.
+
+    Returns ``(closed_pkgs, new_previous_pkgs)``. No device connected (``serial``
+    is ``None``) or nothing configured to watch resets tracking to empty. A
+    failed ADB probe leaves *previous_pkgs* untouched and reports no closures —
+    never collapses "could not check this cycle" into "everything closed",
+    which would fire a spurious cable-sync while the emulator is still open.
+    """
+    if not watched_pkgs or serial is None:
+        return set(), set()
+    current_pkgs = _list_running_android_packages(adb_path, serial)
+    if current_pkgs is None:
+        return set(), previous_pkgs
+    closed = _closed_watched_processes(previous_pkgs, current_pkgs, watched_pkgs)
+    return closed, current_pkgs
+
+
 def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
-    """Daemon thread: polls ADB every 10 s, triggers Cable Sync when a device connects."""
+    """Daemon thread: polls ADB every 10 s, triggers Cable Sync when a device
+    connects, or (CABLE-SYNC-WATCH-1) when a watched Android emulator closes
+    while already connected.
+    """
     import datetime as _dt
     import time as _time
 
@@ -27,6 +95,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
     _POLL_INTERVAL = 10  # seconds between ADB polls
     _COOLDOWN = 30  # seconds to wait after a sync before syncing again
     _last_sync_ts: float = 0.0
+    _previous_android_pkgs: set[str] = set()
 
     while True:
         try:
@@ -64,22 +133,37 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             new_serials = current_serials - _state._auto_sync_last_devices
             _state._auto_sync_last_devices = current_serials
 
-            if not new_serials:
-                continue
+            # CABLE-SYNC-WATCH-1: while a device is connected, also watch for a
+            # configured Android emulator closing (opt-in, empty by default).
+            android_watch_serial = next(iter(current_serials)) if current_serials else None
+            closed_pkgs, _previous_android_pkgs = _poll_android_watch(
+                config.adb,
+                android_watch_serial,
+                set(config.sync.watch_android_packages),
+                _previous_android_pkgs,
+            )
 
-            # If known_devices filter is set, only react to those
             known = config.sync.auto_sync_known_devices
-            if known:
-                new_serials = {s for s in new_serials if s in known}
-            if not new_serials:
-                continue
+            serial: str | None = None
+            reason = ""
+            if new_serials:
+                candidates = {s for s in new_serials if not known or s in known}
+                if candidates:
+                    serial = next(iter(candidates))
+                    reason = "connect"
+            if serial is None and closed_pkgs and (not known or android_watch_serial in known):
+                serial = android_watch_serial
+                reason = f"emulador Android cerrado ({', '.join(sorted(closed_pkgs))})"
 
-            serial = next(iter(new_serials))
+            if serial is None:
+                continue
 
             if not _state._auto_sync_enabled:
                 # Auto-sync disabled: show prompt in UI, let user decide
                 _logger.info(
-                    "Auto-sync: new device %s — auto-sync disabled, showing prompt", serial
+                    "Auto-sync: %s en %s — auto-sync desactivado, mostrando aviso",
+                    reason,
+                    serial,
                 )
                 _state._auto_sync_status = {
                     "state": "device_prompt",
@@ -89,7 +173,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 }
                 continue
 
-            _logger.info("Auto-sync: new device %s — starting sync", serial)
+            _logger.info("Auto-sync: %s en %s — lanzando sync", reason, serial)
 
             # CABLE-UX-1: mismo guard de reloj que el sync manual (AUD-1) — el
             # auto-sync dispara "newest" en cada conexión sin pedir confirmación,
@@ -161,7 +245,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         adb_sources = [
                             {
                                 "name": "RetroArch (legacy)",
-                                "package": "com.retroarch.aarch64",
+                                "package": "com.retroarch",
                                 "android_saves": config.sync.auto_sync_android_path.rstrip("/"),
                                 "android_states": None,
                                 "local_saves": pc_root,

@@ -12,8 +12,12 @@ _logger = logging.getLogger(__name__)
 # Verified live on Anbernic RG556 (serial: RG556006101273).
 # Source: docs/sync/android-save-paths-RG556.md
 # Keys are Android package names. Users can override entries via [[emulator_paths]] in config.toml.
+# RetroArch key corrected 2026-09-19 (CABLE-SYNC-WATCH-1): docs/emulador-canonico-rg556.md
+# already found two RetroArch installs on this device and settled "com.retroarch" as
+# canonical (19h28m of real playtime vs 2min for "com.retroarch.aarch64") — this table
+# just never got updated to match that decision.
 EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
-    "com.retroarch.aarch64": {
+    "com.retroarch": {
         "name": "RetroArch",
         "saves_path": "/storage/emulated/0/RetroArch/saves",
         "states_path": "/storage/emulated/0/RetroArch/states",
@@ -220,6 +224,13 @@ class SyncConfig:
     # watcher desactivado (opt-in explícito, sin adivinar qué emuladores usa
     # el usuario).
     watch_processes: list[str] = field(default_factory=list)
+    # CABLE-SYNC-WATCH-1: mismo patrón que watch_processes pero del lado
+    # Anbernic — paquetes Android (ver `adb shell ps`, p. ej. "com.retroarch")
+    # que disparan un cable-sync real al cerrarse, sondeados por el propio PC
+    # vía ADB mientras el cable esté conectado (sin servicio ni permiso
+    # especial en el dispositivo — ver docstring de _auto_sync_loop). Vacío =
+    # desactivado (opt-in explícito).
+    watch_android_packages: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -539,6 +550,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             playtime_remote=str(sync.get("playtime_remote", "")),
             sync_sources=sync_sources,
             watch_processes=[str(p) for p in sync.get("watch_processes", [])],
+            watch_android_packages=[str(p) for p in sync.get("watch_android_packages", [])],
         ),
         inbox=InboxConfig(
             path=str(inbox_cfg.get("path", "")),
