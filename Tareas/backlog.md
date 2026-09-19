@@ -1104,12 +1104,23 @@ zip-only genuinas, no basura residual de una extracción a medias.
 **Decisión del usuario (2026-09-19)**: los tres caminos NO son excluyentes,
 uno por categoría:
 1. **`catalog_match` (3.245, 76%) → descomprimir vía `rommgr decompress`**.
-   Bloqueado por el sandbox de esta sesión como "Irreversible Local
-   Destruction" (escribe sobre `F:\Juegos Retro`, fuera del repo) — el propio
-   usuario debe ejecutarlo (`rommgr decompress "F:\Juegos Retro"` dry-run,
-   luego `--apply` sin `--delete-source` para mantenerlo reversible vía
-   `_processed/`), y después `rommgr scan` + re-match para que estas filas
-   pasen a `match_confidence='high'`. **Pendiente de ejecución real.**
+   **✅ ejecutado 2026-09-19/20.** `rommgr decompress "F:\Juegos Retro"`
+   (dry-run: 7.419 a descomprimir / 1.430 saltados arcade+multi-disco / 1
+   fallido — `GBA ROMs Pack (Romspack.Com).zip`, ya conocido, no es un ZIP
+   real). `--apply` (sin `--delete-source`): 7.419 descomprimidos, 0 nuevos
+   errores. `rommgr scan "F:\Juegos Retro"`: 30.976 ROMs detectados, 0
+   errores. Re-match (backup previo en `.rommgr/db-backup/`, sobre las
+   15.613 filas sin match tras el scan): **1.798 nuevas filas
+   `match_confidence='high'`** + 131 medium/low. **Nota de corrección**: sin
+   `--delete-source`, el ZIP original queda intacto junto al archivo recién
+   extraído (no se archiva en ningún `_processed/` — eso era comportamiento
+   de `organize-source`, confundido en esta sesión) — quedan ~7.418 `.zip`
+   redundantes en disco. `--delete-source` (que los movería a `_descartados/`
+   vía `discard_to_trash()`, reversible, purga automática en 30 días por
+   `trash_purge_days`) fue bloqueado por el sandbox de esta sesión como
+   "Irreversible Local Destruction" incluso en dry-run — **pendiente de que
+   el usuario lo ejecute él mismo**: `rommgr decompress "F:\Juegos Retro"
+   --delete-source` (dry-run) y luego `--apply`.
 2. **`multi_entry` (329, 7,7%) → catálogo arcade desactualizado, no un hueco
    de cobertura real** — ver `MATCH-ARCADE-DAT-1` abajo. **✅ hecho y medido
    2026-09-19.**
@@ -1120,7 +1131,7 @@ uno por categoría:
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| MATCH-ZIP-HASH-1 | Medir a escala + decidir los 3 caminos (arriba) | `hashing/hash_calculator.py:29-53` (`calculate_hashes`, sin conciencia de ZIP — sigue sin tocarse, la vía elegida fue descomprimir, no hashear-sin-descomprimir) | 🟡 medido y decidido; 1/3 caminos hecho (`MATCH-ARCADE-DAT-1`), 1/3 pendiente de que el usuario ejecute `decompress --apply` fuera de este sandbox, 1/3 descartado por bajo retorno |
+| MATCH-ZIP-HASH-1 | Medir a escala + decidir los 3 caminos (arriba) | `hashing/hash_calculator.py:29-53` (`calculate_hashes`, sin conciencia de ZIP — sigue sin tocarse, la vía elegida fue descomprimir, no hashear-sin-descomprimir), `converters/zip_extractor.py` (`extract_zip`/`extract_directory`), `utils/trash.py` (`discard_to_trash`) | 🟡 2/3 caminos hechos y medidos en real (`MATCH-ARCADE-DAT-1`, descompresión+rematch); 1/3 descartado por bajo retorno. **Queda un cierre pendiente**: `--delete-source` para limpiar los ~7.418 `.zip` ahora redundantes (contenido ya extraído y verificado) — bloqueado por el sandbox, requiere ejecución manual del usuario |
 
 ---
 
