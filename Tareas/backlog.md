@@ -1086,31 +1086,94 @@ adivinaba mal (el bug de `MATCH-FIX-3`); ahora, correctamente, no matchea
 en absoluto — pero la respuesta *correcta* sería reconocerlo con
 `confidence='high'` iguialmente, no dejarlo sin match.
 
-**Alcance medido (parcial, un ejemplo verificado a fondo + conteo
-agregado)**: de las 13.548 filas sin match tras la medición de
-`MATCH-FIX-3`, **4.256 (31%) son `.zip`** — consistente con que una fracción
-importante (no necesariamente el 100%) de las "adivinanzas corregidas" son
-en realidad este mismo patrón: contenido correcto, contenedor sin
-descomprimir. No verificado a escala si los 4.256 `.zip` tienen todos un
-hermano `.xxx` ya descomprimido con el mismo contenido, o cuántos son
-genuinamente contenido no catalogado.
+**Alcance medido a escala completa (2026-09-19, script de solo lectura sobre
+los 4.257 `.zip` sin match reales)**: abriendo cada ZIP y comparando el SHA1
+de su único archivo interno contra el catálogo No-Intro/Redump ya cargado:
 
-**Recomendación (sin implementar, dos caminos, no excluyentes)**:
-1. **Descomprimir**: `organize-source` (ya explorado en `ANDROID-ORGANIZE-ADB-1`
-   esta misma sesión) ya sabe extraer ZIPs de consola como parte de su
-   pipeline normal — pasar estas carpetas por él debería resolver una buena
-   parte sin tocar el matcher.
-2. **Matching consciente de ZIP**: para un ZIP de consola de una sola
-   entrada (no arcade), calcular también el SHA1 del contenido interno
-   (barato, ya se abre el ZIP para extraerlo en otros puntos del pipeline)
-   y probarlo contra el catálogo antes de caer al fallback por título —
-   reconocería el contenido sin necesidad de descomprimir primero.
+| Categoría | Filas | % |
+|---|---|---|
+| `catalog_match` — contenido interno coincide exacto con el catálogo | 3.245 | 76,2% |
+| `no_match` — contenido genuinamente sin catalogar (hacks/homebrew/BIOS boot ROMs por nombre) | 682 | 16,0% |
+| `multi_entry` — ZIP con >1 archivo (sets arcade, no el caso de este hallazgo) | 329 | 7,7% |
+| `unreadable` (1 archivo corrupto/no-ZIP real) | 1 | ~0% |
 
-No implementado en esta sesión | `hashing/hash_calculator.py:29-53`
-(`calculate_hashes`, sin conciencia de ZIP), `catalog/matcher.py`
-(`_match_by_title`, pass 1 SHA1 exacto nunca alcanza estos archivos) | 🔴
-confirmado con evidencia real (hash verificado a mano), alcance completo sin
-medir, sin implementar |
+**0 casos de "hermano ya reconocido"** — ninguno de estos `.zip` duplica el
+contenido de un archivo ya descomprimido en la biblioteca; son copias
+zip-only genuinas, no basura residual de una extracción a medias.
+
+**Decisión del usuario (2026-09-19)**: los tres caminos NO son excluyentes,
+uno por categoría:
+1. **`catalog_match` (3.245, 76%) → descomprimir vía `rommgr decompress`**.
+   Bloqueado por el sandbox de esta sesión como "Irreversible Local
+   Destruction" (escribe sobre `F:\Juegos Retro`, fuera del repo) — el propio
+   usuario debe ejecutarlo (`rommgr decompress "F:\Juegos Retro"` dry-run,
+   luego `--apply` sin `--delete-source` para mantenerlo reversible vía
+   `_processed/`), y después `rommgr scan` + re-match para que estas filas
+   pasen a `match_confidence='high'`. **Pendiente de ejecución real.**
+2. **`multi_entry` (329, 7,7%) → catálogo arcade desactualizado, no un hueco
+   de cobertura real** — ver `MATCH-ARCADE-DAT-1` abajo. **✅ hecho y medido
+   2026-09-19.**
+3. **`no_match` (682, 16%) → fuera de esta tarea**, por diseño No-Intro/Redump
+   no cubren hacks/homebrew/BIOS boot ROMs; el retorno de bajar un DAT
+   adicional de "hacks" sería marginal. Sin implementar, sin decisión de
+   revisitar todavía.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MATCH-ZIP-HASH-1 | Medir a escala + decidir los 3 caminos (arriba) | `hashing/hash_calculator.py:29-53` (`calculate_hashes`, sin conciencia de ZIP — sigue sin tocarse, la vía elegida fue descomprimir, no hashear-sin-descomprimir) | 🟡 medido y decidido; 1/3 caminos hecho (`MATCH-ARCADE-DAT-1`), 1/3 pendiente de que el usuario ejecute `decompress --apply` fuera de este sandbox, 1/3 descartado por bajo retorno |
+
+---
+
+### MATCH-ARCADE-DAT-1 — `load_fbneo_dat()` nunca parseó nada: el catálogo arcade de FBNeo llevaba 0 entradas desde siempre (hallazgo + fix 2026-09-19, durante MATCH-ZIP-HASH-1)
+
+Origen: investigando por qué 329 sets arcade multi-archivo (`captcommb.zip`,
+`19xxd.zip`, `armwar1d.zip`... casi todos en `cps1/`) no matcheaban pese a
+que sus sets *parent* (`captcomm`, `19xx`, `armwar`) sí estaban en el
+catálogo cargado. Verificado a mano con `load_arcade_dir()`: los parents
+venían todos de `"MAME 2003-Plus XML.xml"` — ninguno de `"FBNeo - Arcade
+Games.dat"`, el segundo archivo del directorio `catalogs/arcade/`.
+
+**Causa raíz confirmada**: el `.dat` que llevaba años en
+`.rommgr/catalogs/arcade/FBNeo - Arcade Games.dat` **no era XML** — formato
+texto plano ClrMamePro (`clrmamepro ( name "..." )`, `game ( name "..." rom
+( ... ) )`). `load_fbneo_dat()` (`catalog/mame_loader.py:57-78`) hace
+`ET.parse(path)` directo — con este archivo, lanza `ET.ParseError`,
+capturado en silencio por el `except (ET.ParseError, OSError): pass` y
+devuelve `{}`. Verificado en vivo: `load_fbneo_dat()` sobre el archivo real
+→ **0 entradas**; el total de 4.858 entradas "arcade" que reportaba el
+matcher venía **al 100% de MAME 2003-Plus** (un fork ligero/antiguo de MAME
+usado en handhelds retro, sin buena parte de los clones/bootlegs que sí
+lista el MAME oficial actual o FBNeo). El pass arcade (`_match_arcade()`,
+`catalog/matcher.py:450-480`) llevaba funcionando así desde el origen del
+proyecto sin que nadie lo notara — ni tests ni uso normal lo habrían
+detectado, porque un `{}` es indistinguible de "catálogo vacío mientras
+carga" salvo comparando cuenta de entradas a mano.
+
+**Bug secundario, mismo archivo**: aunque se sustituya por un `.dat` real en
+XML, `load_fbneo_dat()` leía `description`/`year`/`manufacturer` como
+**atributos** del tag `<game>` (`game.get("description")`), pero el `.dat`
+oficial de FBNeo (github.com/libretro/FBNeo, `dats/FinalBurn Neo (ClrMame
+Pro XML, Arcade only).dat`) los lleva como **elementos hijos**
+(`<game><description>...</description></game>`), igual que `load_mame_xml()`
+ya maneja correctamente. Sin el fix, un `.dat` FBNeo real sí habría cargado
+(no habría lanzado excepción) pero con `description=""` para las 8.380
+entradas — degradando el título a solo el stem (`match_confidence='medium'`
+seguiría siendo correcto, pero cualquier UI que muestre el título perdería
+la descripción real).
+
+**Hallazgo aparte, no arreglado hoy**: `catalog/dat_downloader.py`
+(DAT-DL-1/2) ya tiene un downloader completo con mapeo plataforma→URL
+(`libretro-database`) para No-Intro/Redump/FBNeo/MAME — pero **no está
+conectado a ningún comando CLI ni handler web** (verificado: 0 llamadas a
+`download_dat()` fuera de sus propios tests). Probado en vivo hoy: las URLs
+de `libretro-database` para `"FBNeo Arcade"` y `"MAME 2003 Plus"` devuelven
+**404** (el repo debió reestructurar `metadat/fbneo`/`metadat/mame`) — el
+downloader está roto para arcade además de no estar conectado. No
+investigado si las URLs de No-Intro/Redump (mismo `_BASE`) siguen vivas.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MATCH-ARCADE-DAT-1 | `load_fbneo_dat()` ahora lee description/year/manufacturer como elemento hijo primero (fallback a atributo, mismo patrón que `load_mame_xml()`). Sustituido `.rommgr/catalogs/arcade/FBNeo - Arcade Games.dat` (texto plano, 0 entradas reales) por el `.dat` XML oficial actual descargado de `github.com/libretro/FBNeo/blob/master/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat` (backup del original en `.rommgr/catalogs/arcade_backup_20260919/`). 3 tests nuevos (`tests/test_mame_loader.py`): lee child-element real, fallback a atributo, y el `.dat` texto-plano anterior sigue devolviendo `{}` sin lanzar. 1398/1398 tests, ruff+format limpios | `catalog/mame_loader.py` (`load_fbneo_dat`) | ✅ hecho 2026-09-19. Catálogo arcade cargado: 4.858 → 10.212 entradas. **Re-match ejecutado contra `library_pc.db` real** (backup previo en `.rommgr/db-backup/library_pc.20260919T214730Z.db`, 13.548 filas sin match re-evaluadas): **253 filas nuevas resueltas** vía el catálogo FBNeo ahora real (`match_confidence='medium'`), incluyendo 251/329 de los sets multi-archivo de `MATCH-ZIP-HASH-1`. `dat_downloader.py` sigue sin conectar y con URLs de arcade rotas — no arreglado, candidato a tarea aparte si se decide automatizar la descarga de DATs |
 
 ---
 
