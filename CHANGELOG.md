@@ -1,5 +1,117 @@
 # Changelog — Retro Vault
 
+## [1.2.0] — 2026-09-19 (borrador, pendiente de confirmar el tag)
+
+Release grande: ~100 PRs mergeadas desde v1.1.0 (2026-07-23 → hoy, poco menos
+de dos meses). Resumen orientado a usuario, agrupado por capacidad y no por
+commit; el detalle línea por línea vive en `Tareas/backlog.md` y en el
+historial de Git.
+
+### ✨ Nuevas funcionalidades
+
+- **App Android nativa de sync de saves**: instalable directamente en la
+  Anbernic, sincroniza saves/states con Dropbox sin depender de que el PC
+  esté encendido — permisos de almacenamiento, escaneo, autenticación OAuth
+  de Dropbox, resolución de conflictos por fecha, sync manual y periódico
+  cada 15 min desde una pantalla de Ajustes propia.
+- **Perfil del dispositivo**: catálogo único de cores y BIOS por plataforma,
+  escritura automática de las carpetas de saves/savestates en
+  `retroarch.cfg`, manifiesto exportable + restauración, y detección de
+  cuándo el layout real de saves se ha desviado de lo esperado.
+- **Editor de overrides de RetroArch por juego** (`.opt`): auto-detección,
+  listado, edición y copia entre PC y Android sin tocar archivos a mano.
+- **Envío/eliminación en bloque a la Anbernic**: marcar juegos con una
+  etiqueta reutilizable, filtrar el Cable Sync para que solo copie lo
+  marcado, y dos botones nuevos en Juegos para enviar o retirar por lote
+  directamente sobre el filtro activo (con copia de seguridad del save antes
+  de borrar el ROM).
+- **Sync automático al cerrar un emulador** — ya no hace falta sincronizar a
+  mano ni esperar al ciclo periódico: al cerrar RetroArch/PCSX2/DuckStation/
+  Dolphin en el PC se dispara un cloud sync real en segundos, y **hoy mismo**
+  se extendió a la propia Anbernic (cerrar un emulador ahí, con el cable
+  puesto, dispara un cable-sync igual de inmediato) — ambos opt-in y
+  verificados en vivo con partidas reales.
+- **El Inbox puede enviar a la Anbernic lo que acaba de organizar**,
+  checkbox opt-in, sin pasar por un cable-sync completo aparte.
+- **Carátulas y capturas ya scrapeadas, también en RetroArch**: un botón
+  publica la misma imagen que ya usan ES-DE y la propia app en la carpeta
+  que RetroArch necesita, sin volver a descargar nada — enlace directo si el
+  formato ya es compatible, conversión automática y cacheada si no.
+- **Duplicados por región** (p. ej. "USA" vs "Spain" del mismo juego) ahora
+  se detectan y se recomiendan con criterio configurable (regiones
+  favoritas, o la opción de no tocarlos nunca).
+- **Duplicados que cruzan formato de archivo** (mismo juego en `.zip` y sin
+  comprimir, o en formatos distintos) se agrupan igual que los duplicados
+  normales.
+- **Hash real de RetroAchievements para más consolas de disco** (Saturn,
+  Dreamcast, GameCube, Wii, además de PSX) — permite descartar copias
+  duplicadas sin logros con la misma fiabilidad que ya tenía PSX.
+- **Chequeo repetible de sets de disco rotos**, para detectar `.cue`/`.bin`
+  dañados antes de que den problemas al jugar.
+- **Detección y reubicación de ROMs mal ubicados**, y exclusión de
+  plataformas enteras al hacer Cable Sync.
+- **Reconstrucción de sets arcade sueltos** por cobertura de CRC, cuando los
+  chips de un mismo juego están repartidos sin organizar.
+- **Filtro alfabético en Juegos** para bibliotecas grandes por plataforma.
+- **Informe del Inbox** con duplicados descartados y conflictos sin resolver
+  contados aparte, no solo mezclados en el log.
+- **Escáner de fragmentación de saves**: detecta cuando el mismo juego tiene
+  copias de save divergentes repartidas por distintos nombres/carpetas.
+- **Consolidación de carpetas duplicadas** (Title Case legado vs. slug
+  canónico Android) en 11 plataformas, más un aviso automático si el mismo
+  patrón vuelve a aparecer con una plataforma nueva.
+- Comandos CLI nuevos: generar `.cue` para PSX sueltos sanos,
+  `organize-source`/`decompress`/`resolve-duplicates`.
+- Se guardan géneros completos y número de jugadores de ScreenScraper (antes
+  solo el primer género).
+
+### 🐛 Bugs corregidos
+
+- **Ventanas de consola parpadeando cada 8-10 segundos** con el auto-arranque
+  en segundo plano — ninguna herramienta externa (`adb`/`rclone`/`chdman`...)
+  pasaba el flag para ocultar su consola salvo una.
+- **Traducciones y parches heredaban el título del juego original** en el
+  catálogo, contaminando tanto el matching como la detección de duplicados.
+- El Cable Sync en modo "espejo completo" podía **borrar carátulas/metadatos
+  o archivos no marcados** que no debía tocar.
+- El hash de RetroAchievements para PSX/GameCube/Wii usa ahora el disco real
+  en vez del archivo completo, evitando falsos "sin logros".
+- El paso "mover archivo + actualizar base de datos" del Inbox ya es
+  atómico — un fallo a mitad ya no deja el archivo movido sin reflejar en la
+  BD.
+- El job de emparejamiento (`match`) podía colgarse decenas de minutos con un
+  CHD de PSX ambiguo; ahora tiene timeout corto y progreso visible.
+- Varios fixes de precisión en el matching de plataforma/arcade (nombre de
+  set corto vs. descriptivo, catálogos de núcleo filtrados del índice
+  arcade, resolución de rutas de arranque en subcarpetas...).
+- El daemon de auto-sync y el de SD-sync se caían por una función interna
+  con la firma equivocada.
+- Mejor tolerancia de ADB al almacenamiento con permisos restringidos de
+  Android 11+.
+- El Cable Sync copiaba por error la propia papelera de descartes,
+  anidándola dentro del destino.
+- Un fallo de exportación rompía la pestaña Cloud con un error en consola.
+- El primer sync de una cuenta o carpeta de Dropbox nueva siempre fallaba.
+- La NVRAM de arcade nunca se sincronizaba desde la app Android.
+- Sincronización de savestates `.fs` de FBNeo/CPS3, antes ignorados.
+- Varios fixes de extracción/CRC/enrutado de ZIPs sueltos en el Inbox.
+
+### 🔧 Mejoras técnicas
+
+- Manejo de errores y logging con traceback real en los jobs del Pilar 3
+  (sync de saves) — antes algunos fallos quedaban silenciosos.
+- División de `web/handlers/config.py` por responsabilidad.
+- Optimización de los workflows de GitHub Actions.
+- Guard reutilizado (`is_non_canonical_variant`) tanto en el matching por
+  título como en la resolución de duplicados, para no repetir el mismo tipo
+  de contaminación en dos sitios distintos.
+
+### ⚠️ Pendiente de probar en hardware
+
+- El resto de la matriz de compatibilidad de saves PC↔Android
+  (`EMULATOR-COMPAT-2/3/4`) sigue con verificaciones puntuales pendientes,
+  ver `Tareas/backlog.md`.
+
 ## [1.1.0] — 2026-07-23
 
 Release grande: 78 PRs mergeadas desde v1.0.0. Resumen orientado a usuario;
