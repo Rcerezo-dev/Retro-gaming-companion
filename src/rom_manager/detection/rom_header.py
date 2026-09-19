@@ -51,15 +51,38 @@ def _read_gba_id(data: bytes) -> str | None:
     return code if code and _GAME_CODE_RE.match(code) else None
 
 
+def _gb_header_checksum(data: bytes) -> int:
+    """Standard Game Boy header checksum over 0x134-0x14C (title, licensee
+    codes, cart type, ROM/RAM size, destination, mask ROM version).
+
+    Real hardware halts at boot if this doesn't match its own header bytes,
+    so every genuine dump — and every correctly-patched hack/translation,
+    which must recompute it to stay bootable — carries a valid one. A file
+    with a garbage/mismatched checksum here is either corrupt or not really
+    a GB/GBC ROM at all (matches ``_read_gba_id``'s ``0xB2 == 0x96`` check).
+    """
+    x = 0
+    for byte in data[0x134:0x14D]:
+        x = (x - byte - 1) & 0xFF
+    return x
+
+
 def _read_gb_id(data: bytes) -> str | None:
     # GB/GBC header: 0x134-0x143 title (16 bytes, last byte doubles as the
-    # CGB flag on GBC carts) — no separate short code on this generation,
-    # so the (truncated) title itself is the best available signal.
-    if len(data) < 0x144:
+    # CGB flag on GBC carts) — MATCH-FIX-14: the truncated title alone is too
+    # weak a signal (two unrelated games can share it), so it's combined with
+    # the header checksum at 0x14D, which folds in cart type/ROM+RAM size/
+    # region/version too and doubles as a validity check.
+    if len(data) < 0x14E:
         return None
     raw = data[0x134:0x144]
     title = raw.split(b"\x00")[0].decode("ascii", errors="replace").strip()
-    return title or None
+    if not title:
+        return None
+    checksum = data[0x14D]
+    if _gb_header_checksum(data) != checksum:
+        return None
+    return f"{title}:{checksum:02x}"
 
 
 _READERS = {

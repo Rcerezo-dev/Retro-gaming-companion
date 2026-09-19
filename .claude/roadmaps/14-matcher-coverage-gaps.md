@@ -5,6 +5,7 @@
 **Prioridad:** 🟡 P3 — no bloquea nada activo, es cobertura incompleta ya documentada y acotada, no un bug de comportamiento incorrecto
 **Esfuerzo estimado:** S-M (~2-4 h, casi todo en `catalog/matcher.py`)
 **Riesgo:** Bajo-medio — `MATCH-FIX-3` requiere una decisión de política del usuario antes de tocar código (puede dejar más archivos "sin match" a propósito)
+**Estado (2026-09-19):** 🟢 Pasos 3-4 hechos y verificados (ver `MATCH-FIX-14` en `Tareas/backlog.md`) sin necesitar ninguna decisión de política — Pasos 1-2 (`MATCH-FIX-3`) siguen bloqueados, sin empezar
 
 ---
 
@@ -143,8 +144,29 @@ ruff check src/rom_manager/catalog/matcher.py src/rom_manager/web/builders/dupli
 
 - [ ] Paso 1 — decisión de política confirmada por el usuario (`MATCH-FIX-3`)
 - [ ] Paso 2 — política implementada y medida contra la biblioteca real
-- [ ] Paso 3 — señal de identidad GB/GBC diseñada e implementada
-- [ ] Paso 4 — desempate por tamaño de DAT
-- [ ] Paso 5 — tests nuevos
-- [ ] Paso 6 — suite completa + ruff limpios
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+- [x] Paso 3 — señal de identidad GB/GBC diseñada e implementada 2026-09-19:
+      checksum de cabecera (`0x14D`, sobre `0x134-0x14C`) combinado con el
+      título truncado (`detection/rom_header.py::_read_gb_id`), en vez del
+      checksum solo — el checksum ya incorpora tipo de cartucho/tamaño ROM+RAM/
+      región/versión, así que title+checksum juntos distinguen dos juegos
+      reales que truncan al mismo título. `.gb`/`.gbc` añadidos a
+      `_HEADER_EXTENSIONS` (`web/builders/duplicates.py:36`) — antes solo
+      leían el header como dato informativo, nunca se usaban para unir
+      duplicados.
+- [x] Paso 4 — desempate por tamaño de DAT 2026-09-19: sin migración de
+      esquema (evita el enfoque original de persistir `expected_size_bytes`
+      en `games`, que habría exigido tocar `catalog/matcher.py`, el
+      repositorio y un backfill) — `_reference_size_bytes()`
+      (`web/builders/duplicates.py`) usa el tamaño de cualquier miembro del
+      propio grupo con `match_confidence == "high"` (un hit SHA1 exacto YA
+      implica que su tamaño es el que el catálogo espera) como talla de
+      referencia; nuevo `size_tier` en `_review_entry_sort_key`, justo tras
+      `integrity_tier` como proponía este roadmap.
+- [x] Paso 5 — tests nuevos (parcial, solo Pasos 3-4): `test_rom_header.py`
+      (rechazo de checksum inválido, mismo título+distinta config→id
+      distinto), `test_builders_duplicates.py` (unión header GB rescata
+      patch/hack sin match, dos juegos con mismo título truncado NO se unen,
+      desempate de tamaño prefiere el verificado por catálogo). 1395/1395 en
+      verde
+- [x] Paso 6 — suite completa + ruff limpios (Pasos 3-4)
+- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario (Pasos 1-2 sin empezar, bloqueados por decisión de política)

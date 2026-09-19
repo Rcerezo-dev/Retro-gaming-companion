@@ -22,9 +22,18 @@ def _write_gba(path: Path, title: bytes, code: bytes, *, fixed_byte: int = 0x96)
     path.write_bytes(bytes(data))
 
 
-def _write_gb(path: Path, title: bytes) -> None:
+def _gb_checksum(data: bytes) -> int:
+    x = 0
+    for byte in data[0x134:0x14D]:
+        x = (x - byte - 1) & 0xFF
+    return x
+
+
+def _write_gb(path: Path, title: bytes, *, valid_checksum: bool = True) -> None:
     data = bytearray(0x200)
     data[0x134 : 0x134 + len(title)] = title
+    if valid_checksum:
+        data[0x14D] = _gb_checksum(bytes(data))
     path.write_bytes(bytes(data))
 
 
@@ -43,13 +52,51 @@ def test_gba_header_reads_game_code(tmp_path: Path) -> None:
 def test_gb_header_reads_internal_title(tmp_path: Path) -> None:
     p = tmp_path / "game.gb"
     _write_gb(p, b"TETRIS")
-    assert extract_internal_id(p, ".gb") == "TETRIS"
+    internal_id = extract_internal_id(p, ".gb")
+    assert internal_id is not None
+    assert internal_id.startswith("TETRIS:")
 
 
 def test_gbc_uses_same_reader_as_gb(tmp_path: Path) -> None:
     p = tmp_path / "game.gbc"
     _write_gb(p, b"POKEMON GOLD")
-    assert extract_internal_id(p, ".gbc") == "POKEMON GOLD"
+    internal_id = extract_internal_id(p, ".gbc")
+    assert internal_id is not None
+    assert internal_id.startswith("POKEMON GOLD:")
+
+
+def test_gb_rejects_invalid_checksum(tmp_path: Path) -> None:
+    """MATCH-FIX-14: a corrupt dump or a misclassified non-GB/GBC file could
+    coincidentally have a plausible-looking title but real hardware would
+    refuse to boot it if the header checksum doesn't match — same
+    conservative treatment as the GBA fixed-byte check."""
+    p = tmp_path / "game.gb"
+    _write_gb(p, b"TETRIS", valid_checksum=False)
+    assert extract_internal_id(p, ".gb") is None
+
+
+def test_gb_same_title_different_config_gets_different_id(tmp_path: Path) -> None:
+    """The checksum folds in cart type/ROM+RAM size/region/version, not just
+    the title -- two different games that happen to share a truncated title
+    but differ in any of those fields must not collide on the same id."""
+    p1 = tmp_path / "a.gb"
+    data1 = bytearray(0x200)
+    data1[0x134 : 0x134 + len(b"SAME TITLE")] = b"SAME TITLE"
+    data1[0x148] = 0x00  # ROM size field
+    data1[0x14D] = _gb_checksum(bytes(data1))
+    p1.write_bytes(bytes(data1))
+
+    p2 = tmp_path / "b.gb"
+    data2 = bytearray(0x200)
+    data2[0x134 : 0x134 + len(b"SAME TITLE")] = b"SAME TITLE"
+    data2[0x148] = 0x05  # different ROM size field -> different checksum
+    data2[0x14D] = _gb_checksum(bytes(data2))
+    p2.write_bytes(bytes(data2))
+
+    id1 = extract_internal_id(p1, ".gb")
+    id2 = extract_internal_id(p2, ".gb")
+    assert id1 is not None and id2 is not None
+    assert id1 != id2
 
 
 def test_unsupported_extension_returns_none(tmp_path: Path) -> None:
