@@ -4,11 +4,18 @@ and plan conflicts into a single queue grouped by game."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+
+import pytest
 
 from rom_manager.config import load_config
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.web.builders.duplicates import _build_review_queue, _find_rescue_candidate_in_trash
+from rom_manager.web.builders.duplicates import (
+    _build_review_queue,
+    _find_rescue_candidate_in_trash,
+    _is_broken_disc_entry,
+)
 
 _TS = "2026-01-01T00:00:00"
 
@@ -977,6 +984,104 @@ def test_crossfmt_ccd_img_sibling_pair_not_flagged(tmp_path: Path) -> None:
     result = _build_review_queue(repo, repo, None)
 
     assert result["groups"] == []
+
+
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="is_device_path's bare '/' heuristic only applies on Windows -- see test_paths.py",
+)
+def test_android_device_ccd_img_sub_trio_not_flagged(tmp_path: Path) -> None:
+    """ANDROID-DUP-1: same as test_crossfmt_ccd_img_sibling_pair_not_flagged
+    above, but for an ADB-scanned row (no real file on this PC's disk to
+    call .exists() on -- see is_device_path) and the real 3-file CloneCD
+    shape (.ccd+.img+.sub, not just .ccd+.img). Confirmed live on the RG556
+    (Crash Bandicoot [U] [SCUS-94900]): Path.exists() being unconditionally
+    False for a /storage/... path disabled the sibling guard entirely, and
+    the tool recommended keeping the 790-byte .ccd cue sheet while
+    discarding the .img (632 MB, the actual disc data) and .sub (25.8 MB)."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    base = "/storage/521D-04EA/ROMs/psx/Crash Bandicoot [U] [SCUS-94900]"
+    for ext, size in ((".ccd", 790), (".img", 632083536), (".sub", 25799328)):
+        _insert_game(
+            repo,
+            source_path=f"{base}{ext}",
+            sha1="",
+            original_filename=f"Crash Bandicoot [U] [SCUS-94900]{ext}",
+            canonical_title=None,
+            platform="PlayStation",
+            size_bytes=size,
+            extension=ext,
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="is_device_path's bare '/' heuristic only applies on Windows -- see test_paths.py",
+)
+def test_android_device_bin_cue_chd_prefers_chd_not_alphabetical(tmp_path: Path) -> None:
+    """ANDROID-DUP-1: an ADB-scanned .bin+.cue+.chd trio of the same PSX disc
+    used to (1) never exclude the .bin as the .cue's own sibling (same
+    Path.exists() gap as the CCD case above), landing all three in one
+    group, and (2) fall through every tier to a plain alphabetical filename
+    sort, which picked the raw .bin over the project's own chosen canonical
+    PSX format (DUP-DISC-RA-2: "usa CHD como formato de PSX") -- confirmed
+    live: Crash Bandicoot (USA) recommended keeping the .bin and discarding
+    the .chd."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    base = "/storage/521D-04EA/ROMs/psx/Crash Bandicoot (USA)"
+    for ext, sha1 in ((".bin", "A" * 40), (".cue", "B" * 40), (".chd", "C" * 40)):
+        _insert_game(
+            repo,
+            source_path=f"{base}{ext}",
+            sha1=sha1,
+            original_filename=f"Crash Bandicoot (USA){ext}",
+            canonical_title="Crash Bandicoot (USA)",
+            platform="PlayStation",
+            extension=ext,
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert len(result["groups"]) == 1
+    group = result["groups"][0]
+    paths = {e["source_path"] for e in group["entries"]}
+    # the .bin must never appear as an independent candidate -- it's the
+    # .cue's own data, not an alternate copy
+    assert f"{base}.bin" not in paths
+    assert paths == {f"{base}.cue", f"{base}.chd"}
+    winner = next(e for e in group["entries"] if e["recommended"])
+    assert winner["source_path"] == f"{base}.chd"
+
+
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="is_device_path's bare '/' heuristic only applies on Windows -- see test_paths.py",
+)
+def test_is_broken_disc_entry_device_cue_with_sibling_bin_not_broken() -> None:
+    """ANDROID-DUP-1: is_broken_cue_set() reads the .cue's own text to find
+    which .bin(s) it references -- impossible for an ADB-scanned row -- and
+    its own cue_path.exists() check made every Android .cue 'broken'
+    unconditionally, regardless of whether its .bin sat right next to it."""
+    known = frozenset(
+        {
+            "/storage/521d-04ea/roms/psx/wild arms (usa).cue",
+            "/storage/521d-04ea/roms/psx/wild arms (usa).bin",
+        }
+    )
+    assert _is_broken_disc_entry("/storage/521D-04EA/ROMs/psx/Wild Arms (USA).cue", known) is False
+
+
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="is_device_path's bare '/' heuristic only applies on Windows -- see test_paths.py",
+)
+def test_is_broken_disc_entry_device_cue_without_sibling_bin_is_broken() -> None:
+    known = frozenset({"/storage/521d-04ea/roms/psx/wild arms (usa).cue"})
+    assert _is_broken_disc_entry("/storage/521D-04EA/ROMs/psx/Wild Arms (USA).cue", known) is True
 
 
 def test_title_union_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
