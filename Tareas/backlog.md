@@ -64,7 +64,7 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 
 | Epic | Tareas abiertas (🟡/🔴) sin rama confirmada |
 |------|-----------------------------------------------|
-| Pilar 1 | `ANDROID-DUP-1` (🔴 hallazgo nuevo 2026-09-19, duplicados reales en RG556 confirmados por ADB), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
+| Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
 | Pilar 2 | `ZIP-ROUTE` (🟡) |
 | Pilar 3 | `CABLE-ROOT-1` (🟡) |
 | UX | `FTP-PICK` (🔴🔴) |
@@ -433,13 +433,90 @@ tomada en `DUP-DISC-RA-2`). Corregido pasando un `known_paths` (los
 `source_path` ya escaneados en ese repo) para verificar siblings contra la
 BD en vez del filesystem local, más un tier explícito de formato de disco
 (`.chd` > `.cue`/`.gdi` > `.ccd`). 4 tests nuevos, 1382 tests en verde. Sin
-mergear todavía (esperando CI) | `web/builders/common.py:141-167`
+✅ mergeado 2026-09-19 (PR #329, squash, rama borrada) | `web/builders/common.py:141-167`
 (`_repo_for_path`), `config.py:423-432` (`database_path_android`),
 `web/builders/duplicates.py:519-537,714,743` (`_review_groups_for_repo`),
 `retroachievements/ra_disc_hash_cache.py` (`DUP-DISC-RA-1b` parte 2
 pendiente), `catalog/matcher.py::_match_by_title()` (sin confirmar
 reconocimiento de volcados legacy) | 🔴 confirmado con evidencia real (ADB en
 vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
+
+---
+
+### ANDROID-DUP-2 — El escaneo ADB nunca calcula SHA1/MD5: matcher nunca corre sobre `library_android.db`, duplicados legacy same-extension invisibles (hallazgo 2026-09-19, RG556, continuación de `ANDROID-DUP-1`)
+
+Origen: comprobando por qué GBA solo tenía 1 grupo `crossfmt` detectado (91
+volcados legacy `[E]`/`[U]` encontrados por ADB) pese al ejemplo del usuario
+(`Final Fantasy Tactics [E].gba`, `Pokemon Pinball RZ [E].gba`, ambos con el
+mismo `size_bytes` que su contraparte canónica No-Intro ya presente —
+`Final Fantasy Tactics Advance (Europe)...gba` y
+`Pokemon Pinball - Ruby & Sapphire (Europe)...gba`, 16.777.216 bytes cada
+par — casi con toda seguridad el mismo dump, distinto nombre).
+
+Causa raíz: `_do_adb_scan()` (`web/handlers/scan.py:494-495`) escribe
+**`sha1=""` y `md5=""` incondicionalmente** para cada fila — el escaneo ADB
+solo lee metadata (`ls_recursive`: nombre/tamaño/mtime), nunca contenido.
+Confirmado contra `library_android.db` real: las 12 filas de GBA
+consultadas (Pokemon/Final Fantasy Tactics) tienen `sha1`/`md5` vacíos **y**
+`canonical_title = NULL` en el 100% de los casos — el matcher de catálogo
+nunca se ha ejecutado contra este repo en ninguna sesión.
+
+Efecto en cascada, tres roturas distintas del mismo origen:
+1. **Unión por SHA1** (`_review_groups_for_repo`) nunca enlaza nada en
+   Android — cadena vacía siempre.
+2. **Unión por `canonical_title` exacto** tampoco — nunca hay título que
+   comparar.
+3. **`crossfmt`** (la única vía que sí detecta algo hoy) exige **dos
+   extensiones distintas** compartiendo el título normalizado — un volcado
+   legacy `[E].gba` duplicando un `.gba` canónico comparte la *misma*
+   extensión, así que ni siquiera esa vía lo alcanza. Resultado: un volcado
+   legacy same-extension es invisible a los tres mecanismos de detección a
+   la vez, pese a ser, en apariencia (mismo tamaño exacto), el caso más
+   fácil de detectar de todos.
+
+Efecto colateral, no confundir con el "iSuu dice que no hay logros pero el
+emulador sí los da" que reportó el usuario (ese es el propio hash-check de
+iSuu, una app de terceros en el dispositivo, fuera del alcance de este
+repo) — pero **nuestra propia** lógica de "qué copia tiene soporte RA"
+(`ra_supported`, vía `_load_ra_hash_map(...).get(md5_lower, ...)` en
+`web/builders/duplicates.py`) también queda permanentemente `False` para
+cualquier fila Android, porque el `md5` del que depende nunca se calcula —
+el desempate por RA en el ranking de duplicados (`_review_entry_sort_key`)
+es un no-op silencioso ahí mismo.
+
+**Por qué no es trivial arreglarlo sin criterio**: calcular SHA1/MD5 real
+requiere leer el contenido — para un `.gba`/`.nes`/`.snes` (unos pocos MB)
+es barato; para un `.iso`/`.chd` de PS2/PSX (GBs) traerlo por ADB solo para
+hashear sería lentísimo (ya documentado en `DUP-DISC-RA-2`: un solo disco
+de PSX tarda minutos solo para `chdman`, sin contar la transferencia ADB
+completa). Alternativa más barata: la mayoría de builds de Android traen
+`sha1sum`/`md5sum` en el propio dispositivo (`adb shell sha1sum <ruta>`,
+hash calculado en el propio teléfono, sin transferir el archivo) — viable
+para el `AdbTransport` existente, pero sigue sin ser gratis a escala
+(13.554 ROMs detectados en el último scan) y no se ha medido el coste real
+en esta sesión.
+
+**Recomendación (sin implementar, a decidir con el usuario)**:
+1. Medir coste real de `adb shell sha1sum` sobre una muestra de plataformas
+   cart-based (GBA/NES/SNES/GBC — archivos pequeños) antes de decidir si
+   hashear todo o solo por debajo de un umbral de tamaño.
+2. Si se activa el hash on-device, correr el matcher de catálogo contra
+   `library_android.db` al menos una vez para poblar `canonical_title` —
+   hoy nunca se ha ejecutado.
+3. Alternativa más barata a corto plazo, sin tocar el transporte ADB:
+   extender la unión `crossfmt` (`_review_groups_for_repo`,
+   `web/builders/duplicates.py`) para que el título normalizado también
+   enlace **misma extensión** cuando ambos lados carecen de SHA1 — con más
+   riesgo de falso positivo que la vía actual (exige distinta extensión
+   precisamente para evitar eso), necesitaría su propio guard cuidadoso
+   antes de recomendar borrado automático.
+
+No implementado en esta sesión | `web/handlers/scan.py:494-495`
+(`_do_adb_scan`, hardcodea sha1/md5 vacíos), `web/builders/duplicates.py`
+(`_review_groups_for_repo` — unión por sha1/título/crossfmt, `_load_ra_hash_map`
++ `_review_entry_sort_key` — desempate RA silenciosamente inactivo en
+Android) | 🔴 confirmado con evidencia real (ADB en vivo, 12 filas GBA
+consultadas), sin implementar — decisión de alcance pendiente del usuario |
 
 ---
 
