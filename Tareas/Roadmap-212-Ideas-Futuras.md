@@ -2,27 +2,22 @@
 
 > Roadmap general de lo que queda vivo en la épica #212. Sirve de base para
 > trocear en roadmaps por día — no es un plan día a día en sí mismo.
-> Estado a 2026-08-17: `GHA-OPT-1` y `STORAGE-MGR` (diseño+código) ya ✅ en
-> `Tareas/backlog.md`. `CFG-PORGAME` ya tiene alcance decidido (B0 resuelto
-> con el usuario) y está en implementación (CFG-PORGAME-5 arrancado). Frente
-> A (validación STORAGE-MGR) **en pausa — sin RG556 a mano**, checklist
-> queda listo para cuando haya consola disponible. Quedan 3 frentes: cerrar
-> la validación de `STORAGE-MGR` (pausado), implementar `CFG-PORGAME` (en
-> curso), e investigar/diseñar `MODS-AUTO` (sin empezar).
+> **Actualizado 2026-09-20** — `GHA-OPT-1`, `STORAGE-MGR` (diseño+código+
+> validación en hardware) y `CFG-PORGAME` (implementación completa, PR #223)
+> ya ✅ en `Tareas/backlog.md`. Frente A cerrado (validado en hardware
+> 2026-08-14/2026-08-29). De Frente B solo queda `CFG-PORGAME-10`
+> (validación en RG556 real, bloqueado hasta tener el dispositivo a mano).
+> Único frente realmente vivo: `MODS-AUTO` (Frente C, sin empezar).
 
 ---
 
 ## Frente A — Cerrar STORAGE-MGR (validación en hardware)
 
-**⏸ En pausa (2026-08-17): sin RG556 a mano.** Retomar cuando haya consola
-conectada — no requiere nada más de diseño ni código, solo ejecutar el
-checklist.
+**✅ Completado — validado en hardware real entre 2026-08-14 y 2026-08-29**
+(ver `Tareas/backlog.md`, sección STORAGE-MGR). No queda nada pendiente en
+este frente.
 
-Lo único que falta del feature ya implementado (PR #213, mergeado
-2026-08-17): probarlo contra la RG556 real antes de confiar en el borrado
-Android (irreversible, sin papelera — decisión de diseño ya tomada).
-
-Checklist paso a paso listo para ejecutar: `Tareas/Validacion-STORAGE-MGR.md`
+Checklist ejecutado: `Tareas/Validacion-STORAGE-MGR.md`
 (comandos ADB, selectores de UI y criterios de éxito/fallo por cada punto,
 generado contra el código real).
 
@@ -158,14 +153,10 @@ desglosa en el roadmap del día que toque empezar este frente.
 
 ## Orden recomendado para trocear en días
 
-1. **Frente A** (STORAGE-MGR-VAL-1..4) — 1 sesión corta, cierra trabajo ya
-   hecho, requiere la RG556 conectada.
-2. **Frente B0** — ✅ resuelto 2026-08-17, no requiere sesión propia.
-3. **Frente B1→B2** — listo para trocear en días de implementación
-   siguiendo el orden de las tablas (B1 primero, es diseño ligero; B2 es
-   donde está el grueso del trabajo, empezando por CFG-PORGAME-5 ya que
-   todo lo demás depende de tener las rutas resueltas).
-4. **Frente C0** — investigación pura, sin hardware, se puede hacer en
-   paralelo a B en cualquier momento.
-5. **Frente C1+** — se planifica cuando C0 tenga resultado y tú decidas el
+1. **Frente A** — ✅ completado y validado en hardware (2026-08-14/2026-08-29).
+2. **Frente B0→B2** — ✅ completado (PR #223). Solo queda `CFG-PORGAME-10`
+   (validación en RG556 real), bloqueado hasta tener el dispositivo a mano.
+3. **Frente C0** — investigación pura, sin hardware, único frente vivo —
+   empezar por GameCube/Wii vía Dolphin (`MODS-AUTO-1`).
+4. **Frente C1+** — se planifica cuando C0 tenga resultado y tú decidas el
    alcance de v1 (MODS-AUTO-5).

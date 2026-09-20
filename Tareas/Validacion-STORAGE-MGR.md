@@ -1,6 +1,10 @@
 # Validación en hardware: STORAGE-MGR (borrado en bloque PC/Android)
 
-PR #213 (2026-08-17), pendiente de probar contra Anbernic RG556 antes de confiar
+> **✅ Validado en hardware real (2026-08-14/2026-08-29)** — ver
+> `Tareas/backlog.md`, sección STORAGE-MGR. Checklist conservado como
+> referencia del procedimiento, no como pendiente.
+
+PR #213 (2026-08-17), probado contra Anbernic RG556 antes de confiar
 en él para uso real. Vive dentro del panel "Comparar" de la pestaña Colección
 (no es pestaña nueva) — reutiliza `_build_library_diff()` con `size_bytes` +
 totales, y añade borrado en bloque vía `POST /api/storage/delete-bulk`.

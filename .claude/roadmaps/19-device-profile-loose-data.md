@@ -13,7 +13,8 @@
 `DEVPROFILE-8b`/`DEVPROFILE-9` (`Tareas/backlog.md`, epic "Perfil de
 dispositivo — provisioning con un botón" → #238). El diseño completo de la
 feature ya está hecho y en su mayoría implementado — ver
-`Tareas/Roadmap-DEVPROFILE-1-4.md` y `Tareas/Roadmap-DEVPROFILE-5-6.md`
+`Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md` y
+`Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md`
 (convención de roadmap distinta a `.claude/roadmaps/`, específica de esta
 feature, con su propio detalle de diseño ya verificado contra el código
 real). Este roadmap NO repite ese diseño — cubre solo el hueco pequeño que

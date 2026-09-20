@@ -149,9 +149,9 @@ discos en Android no compense las 3+ horas frente a priorizar otro trabajo.
 
 ## Checklist
 
-- [ ] Fase 1 — 9 plataformas cartucho escaneadas con hash real, `_build_review_queue` corrida, hallazgos reportados
-- [ ] Fase 1 — casos conocidos (Final Fantasy Tactics/Pokemon Pinball GBA) confirmados agrupados
-- [ ] Fase 2 — arcade escaneado con hash real, hallazgos reportados
+- [x] Fase 1 — 9 plataformas cartucho escaneadas con hash real, `_build_review_queue` corrida, hallazgos reportados (2026-09-20: 29.657 archivos, 0 errores, 3.270 grupos sha1)
+- [x] Fase 1 — casos conocidos (Final Fantasy Tactics/Pokemon Pinball GBA) confirmados agrupados
+- [x] Fase 2 — arcade escaneado con hash real, hallazgos reportados (2026-09-20: 388 ROMs reconocidas, 0 grupos duplicados)
 - [ ] Decisión del usuario: ¿merece la pena Fase 3 (discos, 3+ horas) tras ver Fases 1-2?
 - [ ] Fase 3 (si se decide seguir) — psx/ps2/nds/gamecube/dreamcast/3ds/psp escaneados uno a uno, con verificación de conexión ADB antes de cada uno
-- [ ] Actualizar `ANDROID-DUP-2` en `Tareas/backlog.md` con el resultado final (éxito o nuevo hallazgo) tras cada fase
+- [x] Actualizar `ANDROID-DUP-2` en `Tareas/backlog.md` con el resultado final (éxito o nuevo hallazgo) tras cada fase

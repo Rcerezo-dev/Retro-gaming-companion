@@ -11,6 +11,7 @@
 | [guia-pruebas.md](guia-pruebas.md) | Instalación desde cero y verificación de cada función — para probar en un PC nuevo |
 | [arcade-setup.md](arcade-setup.md) | Configuración de ROMs arcade: MAME/FBNeo, cores y DATs |
 | [emulator-compat.md](emulator-compat.md) | Matriz de compatibilidad de saves PC ↔ Android por emulador |
+| [emulador-canonico-rg556.md](emulador-canonico-rg556.md) | Emulador canónico por plataforma en la RG556 (referencia usada por `emulator-compat.md`) |
 
 ## Desarrollo
 
@@ -37,6 +38,7 @@
 | [Rutas-Referencia.md](config/Rutas-Referencia.md) | Rutas absolutas de plataformas en PC y consola |
 | [Configuración-ES-DE.md](config/Configuración-ES-DE.md) | Guía de configuración de EmulationStation DE |
 | [esde-themes.md](config/esde-themes.md) | Temas y personalización de ES-DE |
+| [retroarch-thumbnails.md](config/retroarch-thumbnails.md) | Configuración de thumbnails/carátulas en RetroArch |
 
 ## Sincronización
 
@@ -66,3 +68,4 @@ Documentos obsoletos o supersedidos, conservados como referencia histórica.
 | [retroarch-saves-anbernic.md](_archive/retroarch-saves-anbernic.md) | Supersedido por `android-save-paths-RG556.md` |
 | [android-sync.md](_archive/android-sync.md) | Supersedido por `Guia-Termux-Anbernic.md` |
 | [guia-consola-android.md](_archive/guia-consola-android.md) | Supersedido por `Guia-Termux-Anbernic.md` |
+| [feedback-2026-08-29.md](_archive/feedback-2026-08-29.md) | Feedback crudo de sesión (ruta original `Feedback/29/8.md` mal formada); mayormente accionado en commits posteriores de esa misma sesión |

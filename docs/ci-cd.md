@@ -39,6 +39,11 @@ pytest -q
 > **Los 3 check names exactos** (importan para branch protection):
 > `Lint (ruff)`, `Tests (pytest) (3.11)`, `Tests (pytest) (3.12)`
 
+### Otros workflows (no forman parte de los checks de branch protection)
+
+- **`.github/workflows/claude.yml`** — dispara Claude Code cuando alguien menciona `@claude` en un comentario/review/issue. Se agrupa por PR/issue sin `cancel-in-progress` (cada mención es una petición distinta, se encolan).
+- **`.github/workflows/claude-code-review.yml`** — revisión automática de Claude sobre cada PR (`opened`/`synchronize`/`ready_for_review`/`reopened`), ignorando PRs que solo tocan `Tareas/**`/`*.md` y mientras el PR sigue en borrador. `cancel-in-progress: true` — un push nuevo cancela la revisión en curso.
+
 ---
 
 ## 3. Configuración de ruff
@@ -51,7 +56,7 @@ src = ["src", "tests"]
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "S110", "S112"]
 ignore = ["E501"]            # el largo de línea lo gestiona el FORMATTER, no el linter
 
 [tool.ruff.lint.isort]
@@ -59,7 +64,7 @@ known-first-party = ["rom_manager"]
 ```
 
 - **`E501` está deliberadamente ignorado en el linter**: el formatter (`ruff format`) controla el largo de línea; las líneas que deja largas son intencionales (strings/comentarios no rompibles) y no deben re-marcarse. NO quitar este ignore.
-- Reglas activas: `E` (pycodestyle), `F` (pyflakes), `I` (isort), `UP` (pyupgrade).
+- Reglas activas: `E` (pycodestyle), `F` (pyflakes), `I` (isort), `UP` (pyupgrade), `S110`/`S112` (bandit — prohíbe `try/except: pass`/`continue` que traga excepciones en silencio, añadido en `OBS-1c`).
 
 ---
 

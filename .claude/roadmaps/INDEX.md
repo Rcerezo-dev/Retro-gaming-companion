@@ -2,7 +2,7 @@
 
 Índice de planes de trabajo por rama. Cada archivo tiene el roadmap completo con pasos, código de ejemplo, commits y criterios de verificación.
 
-Referencia de mejoras: ver [`../.claude/mejoras-por-rama.md`](../mejoras-por-rama.md)
+Referencia de mejoras (histórico, análisis de 2026-06-15 — las 10 ramas propuestas ya están completadas, ver tabla de abajo): [`../.claude/mejoras-por-rama.md`](../mejoras-por-rama.md)
 
 ---
 
@@ -47,7 +47,8 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Pendiente | mixta |
 | 21 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/catalog-match-subset-hack` | **Completado** ✅ (mergeado a `develop`, PR #317, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🔴 P1 |
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | **Completado** ✅ (mergeado a `develop`, PR #318, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🟠 P2 |
-| 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Pendiente | 🟠 P2 |
+| 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | **Fases 1-2 completadas** ✅ (2026-09-20 — ver `ANDROID-DUP-2` en `Tareas/backlog.md`); Fase 3 (discos) pendiente de decisión del usuario | 🟠 P2 |
+| 24 | [24-docs-audit-followups.md](24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Pendiente | 🟡 P3 |
 
 ---
 
