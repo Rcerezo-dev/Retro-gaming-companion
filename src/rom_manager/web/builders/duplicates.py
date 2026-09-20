@@ -26,13 +26,14 @@ _logger = logging.getLogger(__name__)
 
 _SPANISH_TAGS = {"spain", "es", "spa", "español", "spanish", "s"}
 
-# MATCH-HEADER-1: only NDS/GBA carry a short, globally-unique product code
+# MATCH-HEADER-1: NDS/GBA carry a short, globally-unique product code
 # (Nintendo-assigned, 4 chars) reliable enough to auto-union without a human
 # looking at it first. GB/GBC only have a 16-char *title* field, which two
 # genuinely different releases (a sequel, a revision with the distinguishing
-# text truncated off) can share — safe as an informational read, not as a
-# blind union key that could feed the "plain, safe-to-auto-discard" bucket.
-_HEADER_EXTENSIONS = frozenset({".nds", ".gba"})
+# text truncated off) could share on its own — MATCH-FIX-14 combines it with
+# the header checksum (folds in cart type/ROM+RAM size/region/version, see
+# ``rom_header._read_gb_id``) before trusting it as a union key.
+_HEADER_EXTENSIONS = frozenset({".nds", ".gba", ".gb", ".gbc"})
 
 # ANDROID-DUP-1: explicit disc-image format preference for the "which entry
 # wins" tiebreak, per DUP-DISC-RA-2's decision ("usa CHD como formato de
@@ -296,6 +297,17 @@ def _find_rescue_candidate_in_trash(
     return None
 
 
+def _reference_size_bytes(entries: list[dict]) -> int | None:
+    """MATCH-FIX-14: the size of a group member the catalog matched with
+    `confidence == "high"` (an exact SHA1 hit) — that entry's own size IS the
+    DAT's expected size for this release, no separate catalog lookup needed.
+    `None` if no member of the group has a high-confidence match."""
+    for e in entries:
+        if e.get("match_confidence") == "high":
+            return e["size_bytes"]
+    return None
+
+
 def _review_entry_sort_key(
     entry: dict,
     platform: str | None = None,
@@ -304,8 +316,9 @@ def _review_entry_sort_key(
     region_tiebreak: bool = False,
     preferred_regions: tuple[str, ...] = (),
     known_paths: frozenset[str] | None = None,
-) -> tuple[int, int, int, int, int, str]:
-    """Recommendation order shared by every reason: intact > disc format > RA support > correct folder > Spanish > filename.
+    reference_size_bytes: int | None = None,
+) -> tuple[int, int, int, int, int, int, str]:
+    """Recommendation order shared by every reason: intact > catalog size > disc format > RA support > correct folder > Spanish > filename.
 
     Same criterion the RA-duplicates view already used (before TABS-FIX-6
     generalized it to all 4 review-queue sources). Every entry — including
@@ -345,8 +358,20 @@ def _review_entry_sort_key(
     because "b" sorts before "c". ``known_paths`` (see ``_sibling_exists``)
     is threaded through to ``_is_broken_disc_entry`` so integrity still
     works for an Android-scanned ``.cue``.
+
+    MATCH-FIX-14: *size_tier* — a dump whose size doesn't match the group's
+    catalog-verified reference size (see ``_reference_size_bytes``) is a
+    strong sign of a bad/incomplete/hacked dump, so it ranks right after
+    integrity and before disc format/RA — a size mismatch is itself an
+    integrity signal, just one that needs the rest of the group to detect
+    (unlike ``_is_broken_disc_entry``, which spots a single broken file on
+    its own). A neutral 0 for every entry when the group has no
+    high-confidence member to reference against.
     """
     integrity_tier = 1 if _is_broken_disc_entry(entry["source_path"], known_paths) else 0
+    size_tier = (
+        1 if reference_size_bytes is not None and entry["size_bytes"] != reference_size_bytes else 0
+    )
     format_tier = _DISC_FORMAT_TIER.get(_Path(entry["filename"]).suffix.lower(), 1)
     ra_tier = 0 if entry["ra_supported"] else 1
     folder_tier = (
@@ -361,7 +386,15 @@ def _review_entry_sort_key(
         )
     else:
         lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
-    return (integrity_tier, format_tier, ra_tier, folder_tier, lang_tier, entry["filename"])
+    return (
+        integrity_tier,
+        size_tier,
+        format_tier,
+        ra_tier,
+        folder_tier,
+        lang_tier,
+        entry["filename"],
+    )
 
 
 def _load_ra_hash_map(
@@ -727,7 +760,8 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
 
     with repository.connect() as conn:
         rows = conn.execute(
-            "SELECT id, original_filename, source_path, platform, md5, canonical_title, size_bytes "
+            "SELECT id, original_filename, source_path, platform, md5, canonical_title,"
+            " size_bytes, match_confidence "
             "FROM games WHERE file_type = 'rom' ORDER BY platform, original_filename"
         ).fetchall()
 
@@ -757,6 +791,7 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
                 "platform": row["platform"],
                 "md5": row["md5"],
                 "size_bytes": int(row["size_bytes"]),
+                "match_confidence": row["match_confidence"],
             }
         )
 
@@ -782,7 +817,12 @@ def _build_ra_duplicates(repository: LibraryRepository, config: AppConfig) -> di
             continue
 
         _lib_root = getattr(config, "library_root", None)
-        annotated.sort(key=lambda e: _review_entry_sort_key(e, e.get("platform"), _lib_root))
+        _ref_size = _reference_size_bytes(annotated)
+        annotated.sort(
+            key=lambda e: _review_entry_sort_key(
+                e, e.get("platform"), _lib_root, reference_size_bytes=_ref_size
+            )
+        )
         wasted = sum(a["size_bytes"] for a in annotated if not a["ra_supported"])
         result_groups.append(
             {
@@ -855,7 +895,7 @@ def _review_groups_for_repo(
     with repo.connect() as conn:
         rows = conn.execute(
             "SELECT original_filename, source_path, platform, md5, sha1,"
-            " canonical_title, size_bytes FROM games WHERE file_type = 'rom'"
+            " canonical_title, size_bytes, match_confidence FROM games WHERE file_type = 'rom'"
         ).fetchall()
     if not rows:
         return []
@@ -1160,6 +1200,7 @@ def _review_groups_for_repo(
                 "filename": r["original_filename"],
                 "size_bytes": int(r["size_bytes"]),
                 "sha1": r["sha1"],
+                "match_confidence": r["match_confidence"],
                 "ra_achievements": achievements if achievements >= 0 else None,
                 "ra_supported": achievements > 0,
                 "is_device": is_device_path(r["source_path"]),
@@ -1177,6 +1218,7 @@ def _review_groups_for_repo(
         entries_list = list(entries.values())
         _lib_root = getattr(config, "library_root", None)
         _region_tiebreak = "region" in reasons
+        _ref_size = _reference_size_bytes(entries_list)
         entries_list.sort(
             key=lambda e: _review_entry_sort_key(
                 e,
@@ -1185,6 +1227,7 @@ def _review_groups_for_repo(
                 region_tiebreak=_region_tiebreak,
                 preferred_regions=_preferred_regions,
                 known_paths=known_paths,
+                reference_size_bytes=_ref_size,
             )
         )
         for i, entry in enumerate(entries_list):

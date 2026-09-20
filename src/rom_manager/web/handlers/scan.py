@@ -56,7 +56,22 @@ _LIBRETRO_DAT_CATALOG = [
     # Microsoft → redump/
     {"name": "Microsoft - Xbox", "short": "Xbox", "catalog": "redump"},
     # Arcade → arcade/
-    {"name": "FBNeo - Arcade Games", "short": "FBNeo Arcade", "catalog": "fbneo"},
+    # MATCH-ARCADE-DAT-2: metadat/fbneo-split/ en libretro-database es
+    # ClrMamePro texto plano, que load_fbneo_dat() (mame_loader.py, el
+    # parser real que usa load_arcade_dir para cualquier .dat en
+    # catalogs_arcade_dir) no sabe leer -- ET.parse() lanza, se traga la
+    # excepción, catálogo FBNeo a 0 entradas en silencio. "url" apunta en su
+    # lugar al DAT XML oficial de FBNeo (mismo dialecto que MAME listxml:
+    # <game><description>/<year>/<manufacturer> como hijos), verificado hoy.
+    {
+        "name": "FBNeo - Arcade Games",
+        "short": "FBNeo Arcade",
+        "catalog": "fbneo",
+        "url": (
+            "https://raw.githubusercontent.com/libretro/FBNeo/master/dats/"
+            "FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"
+        ),
+    },
     # ARCADE-DAT-URL-STALE-1: el nombre publicado en libretro-database es
     # "MAME 2003-Plus XML.xml" (metadat/mame/), no "MAME 2003-Plus.dat" -- sin
     # "file" el downloader construye una URL que ya no existe (404).
@@ -676,6 +691,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig, job_manager: JobMa
     import urllib.request as _urlreq
 
     from rom_manager.catalog.catalog_loader import load_dat_file
+    from rom_manager.catalog.mame_loader import load_fbneo_dat, load_mame_xml
 
     downloaded: list[str] = []
     skipped: list[str] = []
@@ -709,15 +725,33 @@ def _run_dat_download(systems: list[dict], config: AppConfig, job_manager: JobMa
                 downloaded.append(name)
             continue
 
-        source = _CATALOG_TO_SOURCE.get(catalog, "no-intro")
-        url = f"{_LIBRETRO_METADAT_BASE}/{source}/{urllib.parse.quote(filename)}"
+        if "url" in entry:
+            # MATCH-ARCADE-DAT-2: override total en vez de {base}/{source}/{filename}
+            # -- fuente ajena a libretro-database, distinta convención de URL.
+            url = urllib.parse.quote(entry["url"], safe=":/")
+        else:
+            source = _CATALOG_TO_SOURCE.get(catalog, "no-intro")
+            url = f"{_LIBRETRO_METADAT_BASE}/{source}/{urllib.parse.quote(filename)}"
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
             with _urlreq.urlopen(url, timeout=30) as resp:  # noqa: S310 — URL is a hardcoded constant
                 data = resp.read()
             dest_file.write_bytes(data)
             try:
-                entries = load_dat_file(dest_file)
+                # MATCH-ARCADE-DAT-2: validar con el parser REAL que usará
+                # load_arcade_dir() sobre este mismo archivo (dispatcha por
+                # extensión, no por catálogo) -- load_dat_file() es para
+                # nointro/redump (SHA1-keyed) y validaba "parseable" con un
+                # parser distinto al que de verdad consume el catálogo
+                # arcade, dejando pasar DATs que luego dan 0 entradas.
+                if catalog in ("fbneo", "mame"):
+                    entries = (
+                        load_mame_xml(dest_file)
+                        if dest_file.suffix.lower() == ".xml"
+                        else load_fbneo_dat(dest_file)
+                    )
+                else:
+                    entries = load_dat_file(dest_file)
             except Exception:
                 entries = {}
             if not entries:

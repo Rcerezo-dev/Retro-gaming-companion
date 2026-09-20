@@ -178,6 +178,78 @@ class TestRunDatDownloadTtl:
         assert entry["name"] in jobs.get_job("download_dats")["result"]["downloaded"]
 
 
+# ── FBNeo arcade DAT (MATCH-ARCADE-DAT-2) ─────────────────────────────────────
+
+
+class TestFbneoArcadeDatDownload:
+    """load_arcade_dir() only ever calls load_fbneo_dat() (XML) on a .dat file
+    in catalogs_arcade_dir -- it has no ClrMamePro-plain-text fallback. The
+    download must therefore (a) fetch from the "url" override, not the
+    libretro-database metadat path, and (b) validate with that exact parser,
+    not the generic catalog_loader one which also accepts ClrMamePro text.
+    """
+
+    def _cfg(self, tmp_path: Path):
+        cfg = _make_config(tmp_path)
+        cfg.catalogs_arcade_dir = tmp_path / "arcade"
+        return cfg
+
+    def _fbneo_entry(self):
+        from rom_manager.web.handlers.scan import _LIBRETRO_DAT_CATALOG
+
+        return next(e for e in _LIBRETRO_DAT_CATALOG if e["catalog"] == "fbneo")
+
+    def _fake_urlopen(self, payload: bytes):
+        resp = MagicMock()
+        resp.read.return_value = payload
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = MagicMock(return_value=False)
+        return resp
+
+    def test_fetches_from_url_override_not_metadat_base(self, tmp_path: Path) -> None:
+        from rom_manager.web.handlers.scan import _run_dat_download
+
+        cfg = self._cfg(tmp_path)
+        entry = self._fbneo_entry()
+        xml = (
+            b'<?xml version="1.0"?><datafile><game name="sf2">'
+            b"<description>Street Fighter II</description><year>1991</year>"
+            b"<manufacturer>Capcom</manufacturer>"
+            b'<rom name="sf2.01" size="1" crc="deadbeef"/></game></datafile>'
+        )
+        jobs = JobManager()
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(xml)) as mock_open:
+            _run_dat_download([entry], cfg, jobs)
+
+        requested_url = mock_open.call_args[0][0]
+        assert requested_url.startswith("https://raw.githubusercontent.com/libretro/FBNeo/")
+        assert "libretro-database" not in requested_url
+        assert entry["name"] in jobs.get_job("download_dats")["result"]["downloaded"]
+
+    def test_clrmamepro_plain_text_payload_rejected(self, tmp_path: Path) -> None:
+        """Regression for MATCH-ARCADE-DAT-2: a ClrMamePro-text DAT (what
+        metadat/fbneo-split/ actually serves) parses fine under the generic
+        catalog_loader validator but yields 0 entries under load_fbneo_dat --
+        the real loader. Must be reported as an error, not "downloaded".
+        """
+        from rom_manager.web.handlers.scan import _run_dat_download
+
+        cfg = self._cfg(tmp_path)
+        entry = self._fbneo_entry()
+        clrmamepro_text = (
+            b'clrmamepro (\n\tname "test"\n)\n'
+            b'game (\n\tname "sf2"\n\trom ( name "sf2.01" size 1 crc deadbeef )\n)\n'
+        )
+        jobs = JobManager()
+        with patch("urllib.request.urlopen", return_value=self._fake_urlopen(clrmamepro_text)):
+            _run_dat_download([entry], cfg, jobs)
+
+        result = jobs.get_job("download_dats")["result"]
+        assert entry["name"] not in result["downloaded"]
+        assert any(e["name"] == entry["name"] for e in result["errors"])
+        assert not (cfg.catalogs_arcade_dir / f"{entry['name']}.dat").exists()
+
+
 # ── MAME listxml (catalog "mame_xml") ─────────────────────────────────────────
 
 

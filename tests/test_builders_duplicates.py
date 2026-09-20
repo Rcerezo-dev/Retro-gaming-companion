@@ -1246,3 +1246,139 @@ def test_header_union_not_claimed_when_already_explained_by_sha1(tmp_path: Path)
     group = result["groups"][0]
     assert "sha1" in group["reasons"]
     assert "header" not in group["reasons"]
+
+
+def _gb_checksum(data: bytes) -> int:
+    x = 0
+    for byte in data[0x134:0x14D]:
+        x = (x - byte - 1) & 0xFF
+    return x
+
+
+def _write_gb_rom(path: Path, title: str, size: int = 1024, *, rom_size_field: int = 0) -> None:
+    data = bytearray(max(size, 0x14E))
+    data[0x134 : 0x134 + len(title)] = title.encode("ascii")
+    data[0x148] = rom_size_field
+    data[0x14D] = _gb_checksum(bytes(data))
+    path.write_bytes(bytes(data))
+
+
+def test_gb_header_union_rescues_unmatched_translation_patch(tmp_path: Path) -> None:
+    """MATCH-FIX-14: same rescue as NDS/GBA (see
+    test_header_union_rescues_unmatched_translation_patch), now for GB/GBC —
+    the title+checksum combination is a strong enough signal to auto-union."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    gb_dir = tmp_path / "gb"
+    gb_dir.mkdir()
+    real_path = gb_dir / "Pokemon Red (USA).gb"
+    patch_path = gb_dir / "Pokemon Red (Randomizer Hack).gb"
+    _write_gb_rom(real_path, "POKEMON RED")
+    _write_gb_rom(patch_path, "POKEMON RED")
+    _insert_game(
+        repo,
+        source_path=str(real_path),
+        sha1="A" * 40,
+        original_filename=real_path.name,
+        canonical_title="Pokemon Red (USA)",
+        platform="Game Boy",
+        extension=".gb",
+    )
+    _insert_game(
+        repo,
+        source_path=str(patch_path),
+        sha1="B" * 40,
+        original_filename=patch_path.name,
+        canonical_title=None,
+        platform="Game Boy",
+        extension=".gb",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "header" in group["reasons"]
+    paths = {e["source_path"] for e in group["entries"]}
+    assert paths == {str(real_path), str(patch_path)}
+
+
+def test_gb_header_union_skips_same_truncated_title_different_game(tmp_path: Path) -> None:
+    """Two GB games that happen to share the same (truncated) 16-char title
+    but differ in cart config (ROM size field here) must NOT be unioned —
+    the whole point of MATCH-FIX-14 is that the title alone isn't trusted,
+    only title+checksum together."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    gb_dir = tmp_path / "gb"
+    gb_dir.mkdir()
+    a_path = gb_dir / "Game A.gb"
+    b_path = gb_dir / "Game B.gb"
+    _write_gb_rom(a_path, "SAME TITLE", rom_size_field=0x00)
+    _write_gb_rom(b_path, "SAME TITLE", rom_size_field=0x05)
+    _insert_game(
+        repo,
+        source_path=str(a_path),
+        sha1="A" * 40,
+        original_filename=a_path.name,
+        canonical_title=None,
+        platform="Game Boy",
+        extension=".gb",
+    )
+    _insert_game(
+        repo,
+        source_path=str(b_path),
+        sha1="B" * 40,
+        original_filename=b_path.name,
+        canonical_title=None,
+        platform="Game Boy",
+        extension=".gb",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_size_tier_prefers_catalog_verified_size_over_bad_dump(tmp_path: Path) -> None:
+    """MATCH-FIX-14: within a group already united by canonical_title, an
+    entry whose size doesn't match the size of the group's sha1-verified
+    (match_confidence="high") member is very likely a bad/incomplete dump —
+    it must not be recommended over the catalog-verified one."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    gb_dir = tmp_path / "gb"
+    gb_dir.mkdir()
+    good_path = gb_dir / "Zzz Bad Name (USA).gb"  # sorts after on filename alone
+    bad_path = gb_dir / "Aaa Good Name (USA).gb"  # would win the filename tiebreak
+    _insert_game(
+        repo,
+        source_path=str(good_path),
+        sha1="GOOD" * 10,
+        original_filename=good_path.name,
+        canonical_title="Same Game (USA)",
+        platform="Game Boy",
+        extension=".gb",
+        size_bytes=32_768,
+    )
+    _insert_game(
+        repo,
+        source_path=str(bad_path),
+        sha1="BAD1" * 10,
+        original_filename=bad_path.name,
+        canonical_title=None,
+        platform="Game Boy",
+        extension=".gb",
+        size_bytes=16_384,
+    )
+    # Fuzzy title fallback match (no sha1 verification) -- unlike the "good"
+    # entry above, its size was never checked against the catalog.
+    repo.update_match(
+        str(bad_path),
+        canonical_title="Same Game (USA)",
+        match_confidence="medium",
+        catalog_source="test.dat",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert group["entries"][0]["source_path"] == str(good_path)

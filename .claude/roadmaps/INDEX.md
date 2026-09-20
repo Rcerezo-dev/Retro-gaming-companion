@@ -47,6 +47,7 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Pendiente | mixta |
 | 21 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/catalog-match-subset-hack` | **Completado** ✅ (mergeado a `develop`, PR #317, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🔴 P1 |
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | **Completado** ✅ (mergeado a `develop`, PR #318, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🟠 P2 |
+| 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Pendiente | 🟠 P2 |
 
 ---
 
