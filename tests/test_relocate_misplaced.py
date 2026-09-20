@@ -109,6 +109,23 @@ def test_different_content_at_target_is_left_untouched(tmp_path: Path) -> None:
     assert existing.read_bytes() == b"different existing version"
 
 
+def test_file_already_in_trash_is_skipped_not_renested(tmp_path: Path) -> None:
+    """LIB-MISPLACED-2: re-running --apply must not nest _descartados/_descartados."""
+    gba_dir = tmp_path / "gba"
+    trashed = gba_dir / "_descartados" / "Contra (USA).nes"
+    trashed.parent.mkdir(parents=True)
+    trashed.write_bytes(b"already discarded")
+
+    summary = relocate_misplaced_files(tmp_path, dry_run=False)
+
+    assert summary.actions == []
+    assert summary.moved == 0
+    assert summary.duplicates_discarded == 0
+    assert summary.conflicts == 0
+    assert trashed.exists()  # left exactly where it was
+    assert not (gba_dir / "_descartados" / "_descartados").exists()
+
+
 def test_dry_run_never_touches_disk_on_collision(tmp_path: Path) -> None:
     gba_dir = tmp_path / "gba"
     gba_dir.mkdir()

@@ -14,6 +14,7 @@ from rom_manager.config import AppConfig
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
@@ -103,6 +104,14 @@ def relocate_misplaced_files(library_root: Path, *, dry_run: bool = True) -> Rel
     exact duplicate sends the source to its own ``_descartados/``, different
     content is left untouched and reported as a conflict for manual review
     (``.claude/CLAUDE.md``: "ante duda, no sobrescribir").
+
+    LIB-MISPLACED-2: a file already sitting inside a ``_descartados/`` folder
+    is skipped outright, never moved or re-discarded. ``check_misplaced_
+    extensions_health()`` deliberately still reports it (LIB-MISPLACED-1's own
+    test expects trash content to stay auditable), but discarding an
+    already-discarded file created ``_descartados/_descartados/...`` nested
+    arbitrarily deep on a second run -- trash is a decided outcome, not
+    something for this pass to reorganize.
     """
     import shutil as _shutil
 
@@ -111,6 +120,8 @@ def relocate_misplaced_files(library_root: Path, *, dry_run: bool = True) -> Rel
     summary = RelocateSummary()
     for result in check_misplaced_extensions_health(library_root).results:
         source = Path(result.path)
+        if TRASH_DIR_NAME in source.parts:
+            continue
         folder_name = _ES_PLATFORM_FOLDERS.get(result.detected_platform)
         if not folder_name:
             continue  # sin carpeta ES-DE conocida para esa plataforma -- no tocar
