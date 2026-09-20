@@ -538,9 +538,18 @@ completo, o variante región `(USA)`/`(USA, Australia)`). **No se ha
 aplicado nada** (`resolve-duplicates --apply`) — pendiente de decisión
 explícita del usuario, mismo criterio de todo el backlog. NES (1.581) y
 Game Boy Color (1.268) concentran la inmensa mayoría, casi toda explicada
-por la carpeta anidada | 🟡 hash real implementado y Fase 1 medida en vivo,
-Fase 2 (arcade) y Fase 3 (discos) del roadmap 23 pendientes — sin aplicar
-dedup todavía |
+por la carpeta anidada | ✅ **Fase 2 completada 2026-09-20**: escaneo ADB con hash real sobre
+`/storage/521D-04EA/ROMs/arcade` — 10.616 archivos vistos (la mayoría chips
+sueltos de sets MAME sin comprimir, no ROMs independientes), **388 ROMs
+reconocidas**, hash SHA1/MD5 calculado en las 388, 0 errores.
+`_build_review_queue`-equivalente (unión por SHA1 exacto) contra
+`library_android.db`: **0 grupos duplicados** — resultado limpio, coincide
+con que el catálogo FBNeo se arregló y 67 sets se renombraron en este mismo
+dispositivo el mismo día (`MATCH-ARCADE-DAT-2`/`ARCADE-RENAME-BUG-1f`).
+Fase 3 (discos, 382 GB, 3+ horas) sigue pendiente de decisión explícita del
+usuario — no lanzada | 🟡 Fases 1-2 del roadmap 23 completadas y sin
+duplicados nuevos que aplicar; Fase 3 (discos) pendiente de decidir si
+merece la pena |
 
 ---
 
