@@ -578,8 +578,11 @@ intentó ir directa a la escala completa). **`ANDROID-DUP-3` (famicom/ vs
 nes/, 1.313 candidatos) sigue sin confirmación por SHA1 real** — toda su
 evidencia sigue siendo solo nombre+tamaño, sin cambios | `web/handlers/scan.py:453`,
 `sync/adb_transport.py` (`sha1_recursive`, timeout por defecto optimista) |
-🔴 medido en real, falló — decisión de cómo relanzar pendiente del usuario,
-no relanzado sin más en esta sesión |
+✅ **decisión tomada y ejecutada 2026-09-20** — opción (b) de las tres
+listadas arriba: trocear el escaneo por plataforma. Ver roadmap
+`.claude/roadmaps/23-android-hash-rescan-dedup.md` y el resultado real
+(Fases 1-2 completadas) en el párrafo `✅ Fase 2 completada 2026-09-20` más
+arriba en esta misma tarea |
 
 ---
 
