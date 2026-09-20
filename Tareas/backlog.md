@@ -515,8 +515,32 @@ No implementado en esta sesión | `web/handlers/scan.py:494-495`
 (`_do_adb_scan`, hardcodea sha1/md5 vacíos), `web/builders/duplicates.py`
 (`_review_groups_for_repo` — unión por sha1/título/crossfmt, `_load_ra_hash_map`
 + `_review_entry_sort_key` — desempate RA silenciosamente inactivo en
-Android) | 🔴 confirmado con evidencia real (ADB en vivo, 12 filas GBA
-consultadas), sin implementar — decisión de alcance pendiente del usuario |
+Android) | ✅ **implementado 2026-09-19** (PR #330, `AdbTransport.sha1_recursive`/`md5_recursive`,
+hash calculado en el propio dispositivo — ver commit `7be90a7`). ✅ **Fase 1 del
+roadmap 23 ejecutada 2026-09-20** (rescan con hash real, 9 plataformas
+cartucho — `gba`/`megadrive`/`gb`/`nes`/`famicom`/`gbc`/`gamegear`/`snes`/`n64`,
+29.657 archivos, 0 errores; troceado por plataforma tras un primer intento
+fallido de escanear todo `/storage/521D-04EA/ROMs` de una vez que murió a los
+3600s exactos por timeout, sin dejar nada aprovechable — ver
+`.claude/roadmaps/23-android-hash-rescan-dedup.md`). `_build_review_queue`
+contra `library_android.db` real: **3.270 grupos `sha1` reales en esas 9
+plataformas** (antes 0, ningún matcher corría con hash vacío), **4,23 GB
+desperdiciados**. Confirmados agrupados los 2 casos que motivaron el
+hallazgo (`Final Fantasy Tactics [E].gba`/`Final Fantasy Tactics Advance
+(Europe)...gba`, `Pokemon Pinball RZ [E].gba`/`Pokemon Pinball - Ruby &
+Sapphire (Europe)...gba`, ambos razón `sha1`). De los 3.270: **1.279 son la
+misma causa ya conocida** (`gb\GB official game ROM complete works\` —
+subcarpeta que duplica el contenido de `gb\`/`gbc\` un nivel más adentro,
+mismo patrón que `DUP-CROSSFMT-1` en PC, aquí también presente en la
+Anbernic); **1.991 son duplicados genuinos distintos** (mismo contenido,
+convención de nombre distinta — volcado legacy `[E]`/`(U)` vs No-Intro
+completo, o variante región `(USA)`/`(USA, Australia)`). **No se ha
+aplicado nada** (`resolve-duplicates --apply`) — pendiente de decisión
+explícita del usuario, mismo criterio de todo el backlog. NES (1.581) y
+Game Boy Color (1.268) concentran la inmensa mayoría, casi toda explicada
+por la carpeta anidada | 🟡 hash real implementado y Fase 1 medida en vivo,
+Fase 2 (arcade) y Fase 3 (discos) del roadmap 23 pendientes — sin aplicar
+dedup todavía |
 
 ---
 
@@ -937,10 +961,16 @@ una carpeta Title Case legada con contenido real, loguea un warning
 (`DUALFOLDER-12`) sin bloquear — conectado en el Paso 6 real de organización.
 3 tests nuevos en `test_inbox_scan_preview.py` | `web/inbox_pipeline.py`
 (`_platform_folder_name`, `_folder_has_real_content`) |
-🟡 pendiente reclasificar `3ds/Rockman X3 (Unl) [c][!].bin` (SNES mal
-detectado, fuera de alcance de este roadmap). ✅ commit/PR a `develop`
-confirmado por el usuario 2026-09-18, rebasado sobre `develop` (incluye
-`CATALOG-MATCH-SUBSET-1`, sin conflicto real de código) |
+✅ commit/PR a `develop` confirmado por el usuario 2026-09-18, rebasado sobre
+`develop` (incluye `CATALOG-MATCH-SUBSET-1`, sin conflicto real de código).
+**Corrección 2026-09-20**: el hallazgo original decía "SNES mal detectado"
+para `3ds/Rockman X3 (Unl) [c][!].bin` — verificado a mano (tabla de
+vectores 68k en offset 0x0 + firma `"SEGA"` en offset 0x100, tamaño 2 MiB),
+en realidad es una ROM de **Sega Genesis/Mega Drive** (bootleg no
+licenciado), no de SNES. Reclasificado y movido a `megadrive/` (carpeta
+canónica, sin colisión de nombre), rescaneadas ambas carpetas (`3ds/`,
+`megadrive/`) para que SQLite refleje la nueva ubicación. Fuera de alcance
+del matcher (`(Unl)` sin `canonical_title` en el DAT, no renombrable) |
 
 ### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
 
@@ -2668,6 +2698,7 @@ Cuatro huecos concretos, ninguno cubierto hoy por ninguna feature existente:
 | MDFOLDER-FIX-2 | `.smd` (Mega Drive, formato interleaved) no está en `PLATFORM_BY_EXTENSION`/`platforms.toml` — `organize-source` nunca detecta estos archivos, se quedan invisibles en el Inbox sin error ni aviso. Hallazgo de `INBOX-STALE-2` (2026-09-20): 2 archivos reales bloqueados por esto (`Aleste - Full Metal Fighter Ellinor (J) [!].smd`, `NHL93.SMD`), ambos probablemente ya duplicados en `megadrive/` con otro formato/nombre (`Aleste...bin` mismo tamaño SHA1 distinto; `NHL93.SMD` 512 bytes más grande que `NHLPA Hockey 93 (USA, Europe).md`, diferencia típica de cabecera interleaved) — sin verificar por hash todavía. Fix esperable: añadir `".smd" = "Sega Mega Drive"` en `src/rom_manager/detection/platforms.toml` (junto a `.gen`/`.68k`/`.sgd`, línea ~69) + test de regresión en el spirit de `MDFOLDER-FIX-1` | `detection/platforms.toml`, `detection/platform_detector.py` | 🔴 documentado 2026-09-20, sin implementar — solo 2 archivos afectados hoy, prioridad baja |
 | DISC-HEALTH-1 | No existe un chequeo repetible de "sets de disco rotos" — `Tareas/psx-cue-rotos-2026-08-30.md` fue investigación 100% manual (parsear `.cue`, comprobar que el `FILE` referenciado existe, y si no, buscar si ya hay un `.chd`/`.pbp` del mismo juego en la biblioteca). Convertir esto en una función reutilizable (mismo espíritu que `check_library_health`, pero para integridad de sets multi-archivo, no solo "existe la ruta") | `utils/health_checker.py` (candidato) o módulo nuevo | ✅ implementado 2026-09-06: `check_disc_set_health()` en `utils/health_checker.py`; extraída `is_broken_cue_set()` a `converters/chd_converter.py` como primitiva compartida con REPAIR-TOOL-4 (`_is_broken_disc_entry` ahora delega ahí, una sola definición de "roto") |
 | LIB-MISPLACED-1 | El Inbox solo audita archivos **nuevos** que entran — nada revisa archivos ya sueltos dentro de una carpeta de plataforma ya organizada. Hoy mismo aparecieron chips de MAME sueltos en `gba/` (TMNT, `963-*.*`) y ROMs de otra plataforma (`.md`, `.nes`) mezclados en `gba/`, más una carpeta `_descartados/_descartados` con chips de arcade sueltos dentro de `psx/` — todo encontrado a mano antes de cada Cable Sync. Falta un escaneo de salud que recorra las carpetas de plataforma ya organizadas buscando extensiones que no pertenecen a esa plataforma (reutilizar `detect_platform()`/`PLATFORM_BY_EXTENSION`, ya fiables) | `scanner/rom_scanner.py` o `utils/health_checker.py` (punto de entrada exacto por confirmar) | ✅ implementado 2026-09-06: `check_misplaced_extensions_health()` en `utils/health_checker.py`, mismo espíritu que `check_disc_set_health()` (función reutilizable, aún sin wiring a CLI/web). Limitación conocida documentada en el docstring: extensiones ambiguas (`.zip`, `.bin`...) se resuelven por contexto de carpeta en `detect_platform()`, así que no detectan mezcla de contenido arcade dentro de `psx/` — solo extensiones no ambiguas de otra plataforma (caso real cubierto: `.nes`/`.sfc` sueltos en `gba/`) |
+| LIB-MISPLACED-2 | **Confirmación a mucha mayor escala, 2026-09-20** (sesión de reclasificar `DUALFOLDER-12`, mientras se verificaba que ya no quedaran pendientes ese tipo). Ya existe un comando CLI (`rommgr relocate-misplaced <root>`, dry-run por defecto) que sí resuelve el "sin wiring a CLI/web" que `LIB-MISPLACED-1` daba como pendiente en 2026-09-06 — no está documentado en ese hallazgo, parece haberse implementado después sin actualizar el registro. Dry-run contra `F:\Juegos Retro` real: **1.500 archivos moverían de carpeta** (extensión no coincide con su carpeta de plataforma), **5 duplicados exactos a descartar**, **1 conflicto** (`Antz Racing (Europe)...gbc`, contenido distinto al ya existente en `gbc/`, no tocado). El grueso viene de `gb/`, que además de sus ~1.581 `.gb` legítimos en la raíz contiene subcarpetas basura nunca procesadas por el Inbox: `GB official game ROM complete works/` (2.650 archivos: 1.342 `.gbc` + 1.307 `.gb` + 1 `.zip` — **la misma subcarpeta que `LIBRARY-CLEANUP-GAPS-1`/`DUP-CROSSFMT-1` ya había encontrado el 2026-09-07** duplicando `gb/` un nivel más adentro, 5.590 archivos/3,22 GB en esa medición — no es un hallazgo nuevo, es la misma basura sin limpiar 13 días después), `Classic Game/` (165 `.gb`), `Featured Games/` (19 `.gb`), `backup/` (1 `.xml`), `_descartados/` (812 archivos: 493 `.zip` + 319 `.gb`, nombre sugiere descartes ya decididos por el usuario en otra sesión, sin confirmar). **No se ha ejecutado `--apply`** — solo lectura, decisión pendiente del usuario: (a) si aplicar `relocate-misplaced --apply` tal cual (mueve por extensión, no toca las subcarpetas basura en sí), y (b) qué hacer con las subcarpetas — probablemente candidatas a `organize-source`/limpieza manual antes, no después, para no mezclar más contenido en `gbc/`/`mastersystem/` sin revisar duplicados primero | `F:\Juegos Retro\gb\` (`GB official game ROM complete works/`, `Classic Game/`, `Featured Games/`, `backup/`, `_descartados/`) | 🔴 documentado 2026-09-20, sin aplicar — pendiente decisión del usuario antes de `--apply` o de tocar las subcarpetas |
 
 ### PSX-CATALOG-MISSING-1 — Falta el datfile Redump de PlayStation: 872/885 juegos (98%) sin `canonical_title` (hallazgo 2026-09-14, máquina "Ruben", `F:\Juegos Retro`)
 
