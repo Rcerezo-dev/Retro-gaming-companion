@@ -144,6 +144,40 @@ def test_adb_scan_compute_hashes_false_skips_hashing(monkeypatch, repo_android, 
     assert hashes[path] == ("", "")
 
 
+def test_adb_scan_classifies_vmu_save_bin_as_save_not_rom(
+    monkeypatch, repo_android, config
+) -> None:
+    """ANDROID-DUP-2 collateral finding (2026-09-21): Dreamcast VMU images
+    (Flycast/Redream convention, vmu_save_<port><slot>.bin) share the .bin
+    extension with real disc dumps, so they can't go in save_extensions --
+    caught by filename instead. Confirmed live on the RG556: without this,
+    vmu_save_A1.bin/A2.bin landed as file_type='rom' and showed up as a
+    false "duplicate ROM" in the review queue."""
+    rom_path = "/storage/521D-04EA/ROMs/dreamcast/Sonic Adventure (World).cdi"
+    vmu_path = "/storage/521D-04EA/ROMs/dreamcast/data/vmu_save_A1.bin"
+    _FakeAdbTransport.files = [
+        AdbFileInfo(android_path=rom_path, size=1024, mtime=0.0),
+        AdbFileInfo(android_path=vmu_path, size=131072, mtime=0.0),
+    ]
+    _FakeAdbTransport.sha1_map = {}
+    _FakeAdbTransport.md5_map = {}
+
+    result = _run_scan(
+        monkeypatch,
+        repo_android,
+        config,
+        {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"},
+    )
+
+    assert result["saves_detected"] == 1
+    assert result["roms_detected"] == 1
+    with repo_android.connect() as conn:
+        game_paths = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+        save_paths = {r["original_path"] for r in conn.execute("SELECT original_path FROM saves")}
+    assert game_paths == {rom_path}
+    assert save_paths == {vmu_path}
+
+
 def test_adb_scan_missing_hash_falls_back_to_empty_string(
     monkeypatch, repo_android, config
 ) -> None:
