@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from rom_manager.detection.platform_detector import ROM_EXTENSIONS
 from rom_manager.sync import cable_engine
-from rom_manager.sync.android_paths import canonical_rel_posix
+from rom_manager.sync.android_paths import canonical_rel_posix, reconcile_newest_by_name
 from rom_manager.sync.sync_log import log_sync_event
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
@@ -972,38 +972,21 @@ def _do_cable_sync(
                                     _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
-                    # CABLE-SYNC-NEWEST-CANON-1: reusa el ab_index/ab_by_name ya
-                    # construidos arriba (mismo problema que
-                    # CABLE-SYNC-SAVES-PREFIX-1/2 — el dispositivo mezcla
-                    # convenios, una ruta exacta no basta) en vez de reconstruir
-                    # su propio índice sin el fallback por nombre.
+                    # CABLE-SYNC-NEWEST-CANON-1/2: reusa el ab_index ya
+                    # construido arriba y reconcile_newest_by_name() (mismo
+                    # problema que CABLE-SYNC-SAVES-PREFIX-1/2 — el
+                    # dispositivo mezcla convenios, una ruta exacta no basta).
                     pc_index: dict[str, Path] = {}
                     for f in _iter_files(pc_root):
                         if _wanted(f):
                             pc_index[f.relative_to(pc_root).as_posix()] = f
-                    pc_by_name: dict[str, list[Path]] = {}
-                    for _rel, _f in pc_index.items():
-                        pc_by_name.setdefault(PurePosixPath(_rel).name, []).append(_f)
 
-                    def _match_ab(rel_posix: str) -> tuple[str, object] | None:
-                        ab_inf = ab_index.get(rel_posix)
-                        if ab_inf is not None:
-                            return rel_posix, ab_inf
-                        cands = ab_by_name.get(PurePosixPath(rel_posix).name, ())
-                        if len(cands) == 1:
-                            _ab_rel = next(k for k, v in ab_index.items() if v is cands[0])
-                            return _ab_rel, cands[0]
-                        return None  # sin candidato único: trátalo como distinto
-
-                    matched_ab_keys: set[str] = set()
-                    for rel_posix in sorted(pc_index):
+                    for rel_posix, pc_f, ab_rel, ab_inf in reconcile_newest_by_name(
+                        pc_index, ab_index
+                    ):
                         if cancel_event.is_set():
                             break
-                        pc_f = pc_index[rel_posix]
-                        match = _match_ab(rel_posix)
-                        if match is not None:
-                            ab_rel, ab_inf = match
-                            matched_ab_keys.add(ab_rel)
+                        if pc_f is not None and ab_inf is not None:
                             # REV43-4: misma tolerancia que cable_engine.plan_direction
                             # — sin ella, el redondeo de mtime de FAT32/exFAT elige un
                             # "ganador" arbitrario y puede sobrescribir la version buena.
@@ -1018,17 +1001,13 @@ def _do_cable_sync(
                                 _adb_copy_to_pc(ab_inf, ab_rel, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
-                        else:
+                        elif pc_f is not None:
                             _adb_copy_to_device(
                                 pc_f,
                                 canonical_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS),
                                 "→ ADB (solo en PC)",
                             )
-
-                    for ab_rel, ab_inf in ab_index.items():
-                        if cancel_event.is_set():
-                            break
-                        if ab_rel not in matched_ab_keys:
+                        elif ab_inf is not None:
                             _adb_copy_to_pc(ab_inf, ab_rel, "← ADB (solo en Anbernic)")
 
                 # ANBERNIC-BULK-DEL: elimina ROMs seleccionados por filtro de

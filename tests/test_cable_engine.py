@@ -193,6 +193,39 @@ def test_plan_newest_picks_side_beyond_tolerance(tmp_path: Path) -> None:
     assert items[0].src == ab_f
 
 
+def test_plan_newest_matches_by_name_under_different_prefix(tmp_path: Path) -> None:
+    """CABLE-SYNC-NEWEST-CANON-2: el mismo save vive bajo saves/gba/ en el
+    lado Android y gba/ en el PC (mapeo real de CABLE-SYNC-SAVES-PREFIX-1)
+    — antes se trataba como dos archivos distintos y se copiaba en ambas
+    direcciones; con mtimes iguales, ahora debe reconocerse como el mismo
+    archivo y no copiarse en ningún sentido."""
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "gba", "mario.sav", content=b"A")
+    ab_f = _write(ab, "saves", "gba", "mario.sav", content=b"B")
+    os.utime(pc_f, (50, 50))
+    os.utime(ab_f, (50, 50))
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert items == []
+
+
+def test_plan_newest_ambiguous_name_collision_treated_as_distinct(tmp_path: Path) -> None:
+    """Dos plataformas distintas comparten nombre de archivo por coincidencia
+    — sin un único candidato, el fallback por nombre no debe adivinar; cada
+    lado se trata como si le faltara al otro (comportamiento seguro previo)."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "gba", "save.sav")
+    _write(ab, "saves", "gba", "save.sav")
+    _write(ab, "saves", "snes", "save.sav")
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert len(items) == 3
+
+
 def test_plan_newest_translates_non_canonical_folder_when_pc_wins(tmp_path: Path) -> None:
     import os
 

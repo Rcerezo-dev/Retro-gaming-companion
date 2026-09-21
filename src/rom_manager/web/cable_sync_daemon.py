@@ -229,6 +229,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 import os
                 from pathlib import PurePosixPath
 
+                from rom_manager.sync.android_paths import reconcile_newest_by_name
+
                 _log_file = None
                 job_result: dict | None = None
                 try:
@@ -443,19 +445,26 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                     if _wanted_src(lf.name):
                                         pc_idx[lf.relative_to(local_root_p).as_posix()] = lf
 
-                                for rel_posix in sorted(set(pc_idx) | set(ab_idx)):
-                                    pc_f = pc_idx.get(rel_posix)
-                                    ab_f = ab_idx.get(rel_posix)
-                                    if pc_f and ab_f:
+                                # CABLE-SYNC-NEWEST-CANON-2: el dispositivo puede
+                                # tener el mismo archivo bajo otro prefijo
+                                # (saves/<plataforma>/, saves/<core>/) — sin esto,
+                                # la fuente "RetroArch (legacy)" (activa cuando no
+                                # hay emulator_paths configurado) trataba cada lado
+                                # como archivo distinto y sincronizaba en ambas
+                                # direcciones sin necesidad.
+                                for _pc_rel, pc_f, _ab_rel, ab_f in reconcile_newest_by_name(
+                                    pc_idx, ab_idx
+                                ):
+                                    if pc_f is not None and ab_f is not None:
                                         if pc_f.stat().st_mtime > ab_f.mtime:
                                             _adb_copy_to_device(pc_f, local_root_p, android_root)
                                         elif ab_f.mtime > pc_f.stat().st_mtime:
                                             _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
                                         else:
                                             skipped += 1
-                                    elif pc_f:
+                                    elif pc_f is not None:
                                         _adb_copy_to_device(pc_f, local_root_p, android_root)
-                                    elif ab_f:
+                                    elif ab_f is not None:
                                         _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
 
                     ts1 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

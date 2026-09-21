@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from rom_manager.sync.android_paths import canonical_rel_posix
+from rom_manager.sync.android_paths import canonical_rel_posix, reconcile_newest_by_name
 from rom_manager.utils.trash import TRASH_DIR_NAME
 
 Direction = str  # "pc_to_anbernic" | "anbernic_to_pc" | "newest"
@@ -79,36 +79,38 @@ def plan_direction(
         return
 
     if direction == "newest":
-        pc_files = {f.relative_to(pc_root): f for f in iter_files(pc_root) if wanted(f)}
-        ab_files: dict[Path, Path] = {}
+        pc_files = {
+            f.relative_to(pc_root).as_posix(): f for f in iter_files(pc_root) if wanted(f)
+        }
+        ab_files: dict[str, Path] = {}
         for f in iter_files(ab_root):
             if wanted(f):
                 try:
-                    ab_files[f.relative_to(ab_root)] = f
+                    ab_files[f.relative_to(ab_root).as_posix()] = f
                 except ValueError:
                     pass
 
-        for rel in sorted(set(pc_files) | set(ab_files), key=str):
-            pc_f = pc_files.get(rel)
-            ab_f = ab_files.get(rel)
-            if pc_f and ab_f:
-                pc_mt = pc_f.stat().st_mtime
-                ab_mt = ab_f.stat().st_mtime
-                diff = pc_mt - ab_mt
+        # CABLE-SYNC-NEWEST-CANON-2: el lado Android puede tener el mismo
+        # archivo bajo un prefijo distinto (saves/<plataforma>/, saves/<core>/
+        # — ver CABLE-SYNC-SAVES-PREFIX-1/2) — reconcile_newest_by_name()
+        # empareja por nombre antes de tratarlo como "solo en un lado".
+        for rel_posix, pc_f, ab_rel, ab_f in reconcile_newest_by_name(pc_files, ab_files):
+            if pc_f is not None and ab_f is not None:
+                diff = pc_f.stat().st_mtime - ab_f.stat().st_mtime
                 if diff > tolerance_seconds:
-                    dst = ab_root / canonical_rel_posix(rel.as_posix(), _es_folders)
+                    dst = ab_root / canonical_rel_posix(rel_posix, _es_folders)
                     yield CopyPlanItem(pc_f, dst, "-> Anbernic (PC mas reciente)")
                 elif diff < -tolerance_seconds:
-                    yield CopyPlanItem(ab_f, pc_root / rel, "<- PC (Anbernic mas reciente)")
+                    yield CopyPlanItem(ab_f, pc_root / Path(ab_rel), "<- PC (Anbernic mas reciente)")
                 # mtimes iguales (dentro de la tolerancia): nada que hacer, el
                 # caller cuenta esto como skip. REV43-4: sin esta tolerancia, el
                 # redondeo de mtime de FAT32/exFAT (~2s) elegía un "ganador"
                 # arbitrario y podia sobrescribir en silencio la version buena.
-            elif pc_f:
-                dst = ab_root / canonical_rel_posix(rel.as_posix(), _es_folders)
+            elif pc_f is not None:
+                dst = ab_root / canonical_rel_posix(rel_posix, _es_folders)
                 yield CopyPlanItem(pc_f, dst, "-> Anbernic (solo en PC)")
-            elif ab_f:
-                yield CopyPlanItem(ab_f, pc_root / rel, "<- PC (solo en Anbernic)")
+            elif ab_f is not None:
+                yield CopyPlanItem(ab_f, pc_root / Path(ab_rel), "<- PC (solo en Anbernic)")
         return
 
     raise ValueError(f"direccion desconocida: {direction!r}")
