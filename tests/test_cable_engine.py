@@ -44,6 +44,21 @@ def test_iter_files_skips_descartados(tmp_path: Path) -> None:
     assert found == {"game.chd"}
 
 
+def test_iter_files_skips_emulator_saves(tmp_path: Path) -> None:
+    """CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es contabilidad
+    interna del PC (saves por-emulador bajados vía ADB, get_adb_sync_sources()
+    en config.py) -- nunca debe subirse al dispositivo tal cual. Sin esta
+    exclusión, un sync con pc_root = raíz de biblioteca la mezclaba dentro del
+    árbol RetroArch/ en Android (54 archivos reales confirmados en un
+    dispositivo)."""
+    _write(tmp_path, "psx", "game.chd")
+    _write(tmp_path, "emulator_saves", "com.example.emu", "save.mcr")
+
+    found = {p.name for p in iter_files(tmp_path)}
+
+    assert found == {"game.chd"}
+
+
 def test_plan_pc_to_anbernic(tmp_path: Path) -> None:
     pc, ab = tmp_path / "pc", tmp_path / "ab"
     _write(pc, "gba", "mario.sav")

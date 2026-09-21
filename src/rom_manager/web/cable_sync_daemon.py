@@ -12,7 +12,7 @@ import subprocess as _subprocess
 from pathlib import Path
 
 import rom_manager.web.state as _state
-from rom_manager.config import AppConfig
+from rom_manager.config import EMULATOR_SAVES_DIR_NAME, AppConfig
 from rom_manager.utils.subprocess_flags import NO_WINDOW
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.daemons import _closed_watched_processes
@@ -424,11 +424,16 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                 if not local_root_p.exists():
                                     return
                                 for dp, dirs, files in os.walk(local_root_p):
-                                    # TRASH-FIX-1: no volver a subir/bajar lo ya descartado
+                                    # TRASH-FIX-1: no volver a subir/bajar lo ya descartado.
+                                    # CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es
+                                    # contabilidad interna del PC -- solo relevante cuando
+                                    # local_root_p es la biblioteca entera (fuente
+                                    # "RetroArch (legacy)"); nunca debe subirse al dispositivo.
                                     dirs[:] = [
                                         d
                                         for d in dirs
-                                        if not d.startswith(".") and d != TRASH_DIR_NAME
+                                        if not d.startswith(".")
+                                        and d not in (TRASH_DIR_NAME, EMULATOR_SAVES_DIR_NAME)
                                     ]
                                     for fname in files:
                                         yield Path(dp) / fname

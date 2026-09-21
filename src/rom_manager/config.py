@@ -658,6 +658,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     )
 
 
+EMULATOR_SAVES_DIR_NAME = "emulator_saves"  # contabilidad interna del PC, nunca sync al dispositivo
+
+
 def get_adb_sync_sources(config: AppConfig) -> list[dict]:
     """Return ADB sync source descriptors derived from config.emulator_paths.
 
@@ -693,7 +696,7 @@ def get_adb_sync_sources(config: AppConfig) -> list[dict]:
         if not saves_path and not states_path:
             continue  # no known path yet (Mupen64Plus FZ etc.)
 
-        local_root = config.library_root / "emulator_saves" / pkg
+        local_root = config.library_root / EMULATOR_SAVES_DIR_NAME / pkg
         raw_save_ext = info.get("save_extensions")
         raw_state_ext = info.get("state_extensions")
 

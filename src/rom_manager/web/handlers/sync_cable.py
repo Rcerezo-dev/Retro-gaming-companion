@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rom_manager.config import EMULATOR_SAVES_DIR_NAME
 from rom_manager.detection.platform_detector import ROM_EXTENSIONS
 from rom_manager.sync import cable_engine
 from rom_manager.sync.android_paths import (
@@ -509,7 +510,15 @@ def _do_cable_sync(
                     # contenido de _descartados/ (ya descartado) al otro lado,
                     # aterrizando dentro de SU _descartados/ — repetido varias
                     # veces anida _descartados/_descartados/... indefinidamente.
-                    dirs[:] = [d for d in dirs if not d.startswith(".") and d != TRASH_DIR_NAME]
+                    # CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es
+                    # contabilidad interna del PC (saves por-emulador bajados
+                    # vía ADB), nunca debe subirse al dispositivo tal cual.
+                    dirs[:] = [
+                        d
+                        for d in dirs
+                        if not d.startswith(".")
+                        and d not in (TRASH_DIR_NAME, EMULATOR_SAVES_DIR_NAME)
+                    ]
                     for fname in files:
                         yield Path(dirpath) / fname
 

@@ -16,6 +16,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from rom_manager.config import EMULATOR_SAVES_DIR_NAME
 from rom_manager.sync.android_paths import (
     canonical_download_rel_posix,
     canonical_rel_posix,
@@ -32,16 +33,27 @@ Direction = str  # "pc_to_anbernic" | "anbernic_to_pc" | "newest"
 DEFAULT_MTIME_TOLERANCE_S = 2
 
 
+_EXCLUDED_DIR_NAMES = frozenset({TRASH_DIR_NAME, EMULATOR_SAVES_DIR_NAME})
+
+
 def iter_files(root: Path) -> Iterator[Path]:
-    """Recorre *root* recursivamente, saltando dotfiles y ``_descartados/``.
+    """Recorre *root* recursivamente, saltando dotfiles, ``_descartados/`` y
+    ``emulator_saves/``.
 
     TRASH-FIX-1: sin excluir la papelera, cada sync repetida vuelve a copiar
     lo ya descartado al otro lado, aterrizando dentro de SU ``_descartados/``
     — repetido varias veces anida ``_descartados/_descartados/...`` sin fin
     (hallado en un dispositivo real con hasta 7 niveles).
+
+    CABLE-SYNC-EMULATOR-SAVES-LEAK-1: ``emulator_saves/`` es contabilidad
+    interna del PC (``get_adb_sync_sources()`` en ``config.py``, saves
+    por-emulador bajados vía ADB) — nunca debe subirse al dispositivo tal
+    cual. Sin esta exclusión, un sync con ``pc_root`` = raíz de la
+    biblioteca la mezclaba dentro del árbol de RetroArch en Android
+    (confirmados 54 archivos reales en un dispositivo).
     """
     for dirpath, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d != TRASH_DIR_NAME]
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in _EXCLUDED_DIR_NAMES]
         for fname in files:
             yield Path(dirpath) / fname
 

@@ -258,6 +258,32 @@ def test_newest_direction_skips_file_under_different_device_prefix_same_mtime(
     assert res["errors"] == 0
 
 
+def test_pc_to_anbernic_never_uploads_emulator_saves_folder(tmp_path, monkeypatch):
+    """CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es contabilidad
+    interna del PC (saves por-emulador bajados vía ADB) -- nunca debe
+    subirse al dispositivo, ni siquiera con pc_path=library_root."""
+    (tmp_path / "pc").mkdir()
+    (tmp_path / "pc" / "gba").mkdir()
+    (tmp_path / "pc" / "gba" / "mario.sav").write_bytes(b"x" * 10)
+    (tmp_path / "pc" / "emulator_saves" / "com.example.emu").mkdir(parents=True)
+    (tmp_path / "pc" / "emulator_saves" / "com.example.emu" / "leak.sav").write_bytes(b"y" * 10)
+
+    monkeypatch.setattr(AdbTransport, "ls_recursive", lambda self, *a, **k: [])
+    pushed = []
+    monkeypatch.setattr(
+        AdbTransport,
+        "push",
+        lambda self, local_src, dst, **k: pushed.append(local_src.name) or 10,
+    )
+
+    res = _run_sync(
+        tmp_path, {"direction": "pc_to_anbernic", "dry_run": True, "what": ["saves"]}
+    )
+
+    assert pushed == ["mario.sav"]
+    assert res["copied"] == 1
+
+
 def test_disk_space_guard_blocks_real_run_when_insufficient(tmp_path, monkeypatch):
     (tmp_path / "pc").mkdir()
     (tmp_path / "pc" / "big.gba").write_bytes(b"x" * 2048)
