@@ -608,6 +608,18 @@ un set multi-disco | ✅ Fases 1-2 completas; Fase 3 100% (7/7 plataformas,
 testeado; hallazgo nuevo `_is_disc_set` documentado sin implementar,
 bloquea aplicar duplicados en PSX/PS2 sin revisión manual |
 
+**Re-verificado 2026-09-21 (Día68), tras `DUP-DISC-SET-1` y el primer lote
+aplicado (ver `ANDROID-DUP-2 Fase 3 — aplicado...` más abajo)**: consulta
+directa de `_build_review_queue` contra `library_android.db` en solitario
+(no vía CLI/servidor) confirma de nuevo `disc_hash: 0` para PSX/PS2
+puramente Android — mismo motivo ya documentado arriba (rutas
+`/storage/...` no legibles desde Windows). Estado tras el apply de hoy:
+**99 grupos, 36,36 GB "desperdiciados"** (54 `sha1` + 59 `crossfmt`) — cifra
+más alta que la original (19,6 GB) porque incluye deliberadamente sin
+aplicar los 6 grupos de alto riesgo de `DUP-DISC-SET-2` (varios GB cada
+uno, ej. `Final Fantasy VIII` con 4 discos) y ~46 sospechosos de
+`DUP-DISC-TRACK-1`, no porque haya crecido el problema real.
+
 **Medición real del punto 1 (2026-09-19, sesión siguiente, tras mergear
 `ANDROID-DUP-2`/PR #330)**: se lanzó el rescan ADB completo con hash real
 (`scan_run_id=6`, 21.608 archivos, mismo comando que ejecuta
