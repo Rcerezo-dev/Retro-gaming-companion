@@ -916,6 +916,37 @@ def test_crossfmt_multidisc_with_per_disc_siblings_not_flagged(tmp_path: Path) -
     assert result["groups"] == []
 
 
+def test_crossfmt_untagged_regional_edition_in_multidisc_set_not_flagged(
+    tmp_path: Path,
+) -> None:
+    """DUP-DISC-SET-1: caso real encontrado en `library_android.db` (PSX vía
+    ADB, 2026-09-21) — `Xenogears (Japan).chd` (edición japonesa, un solo
+    disco, sin tag `(Disc N)`) se unió por crossfmt/sha1 a
+    `Xenogears (USA) (Disc 1).chd`/`(Disc 2).chd`. Antes del fix, el miembro
+    sin tag hacía que `_is_disc_set` devolviera False de inmediato, tratando
+    el set completo de 3 discos distintos como duplicados descartables."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i, name in enumerate(
+        [
+            "Xenogears (Japan).chd",
+            "Xenogears (USA) (Disc 1).chd",
+            "Xenogears (USA) (Disc 2).chd",
+        ]
+    ):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / name),
+            sha1=chr(ord("A") + i) * 40,
+            original_filename=name,
+            canonical_title="Xenogears",
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
 def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
     """DUP-CROSSFMT-2 (patrón 2): un `.cue`+`.bin` hermanos (mismo directorio,
     mismo nombre base) no son dos copias alternativas del mismo disco — el

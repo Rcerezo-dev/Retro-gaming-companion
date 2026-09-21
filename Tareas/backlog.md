@@ -665,16 +665,18 @@ edición multi-disco vía `crossfmt`/`sha1` — el guard nunca llega a
 evaluarse como "sí es un set multi-disco" porque el miembro sin tag rompe
 la condición `for r in members: if num is None: return False`.
 
-**Sin implementar** — necesita diseño, no un parche a ciegas (tocar la
-protección de integridad de sets multi-disco es el área de mayor riesgo
-de duplicados): posible fix es no devolver `False` de inmediato ante un
-miembro sin número, sino comprobar si el resto de miembros SÍ tienen ≥2
-números de disco distintos entre sí (en cuyo caso el conjunto sigue siendo
-un set multi-disco real, con o sin la edición sin-tag presente).
+**Implementado (2026-09-21, Día68)**: `_is_disc_set()` ya no descarta el
+guard de golpe ante un miembro sin número de disco parseable — ahora
+excluye ese miembro del cómputo y sigue exigiendo ≥2 números distintos
+*entre los miembros que sí llevan tag*. Test de regresión con el caso real
+exacto (`Xenogears (Japan).chd` + `(USA) (Disc 1/2).chd`, mismo
+`canonical_title`) confirmado en rojo contra el código anterior y en verde
+tras el fix. Suite completa (1423 tests) sin regresiones nuevas (3 fallos
+ambientales preexistentes, dispositivo ADB conectado).
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| DUP-DISC-SET-1 | Arreglar `_is_disc_set()` para no perder la protección de set multi-disco cuando un miembro del clúster no lleva tag de disco (edición regional single-disc mezclada con discos sueltos de otra edición) | `web/builders/duplicates.py:56-80` (`_is_disc_set`) | 🔴 confirmado con datos reales (`Xenogears`, `library_android.db`), sin implementar — **bloquea aplicar `resolve-duplicates --apply` sobre los 149 grupos psx/ps2 encontrados en `ANDROID-DUP-2` Fase 3 sin revisión manual** hasta que se arregle |
+| DUP-DISC-SET-1 | Arreglar `_is_disc_set()` para no perder la protección de set multi-disco cuando un miembro del clúster no lleva tag de disco (edición regional single-disc mezclada con discos sueltos de otra edición) | `web/builders/duplicates.py:56-84` (`_is_disc_set`), `tests/test_builders_duplicates.py` | ✅ hecho 2026-09-21 — desbloquea aplicar `resolve-duplicates --apply` sobre los 149 grupos psx/ps2 de `ANDROID-DUP-2` Fase 3 (revisión manual sigue recomendada antes de aplicar, no es automático) |
 
 ---
 

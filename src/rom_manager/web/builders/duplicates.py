@@ -71,12 +71,21 @@ def _is_disc_set(members) -> bool:
     disc also has leftover sibling files. Only a single distinct disc
     number (every member is the same disc in different copies/formats) is
     a genuine duplicate, not a disc set — that case still returns False."""
-    disc_nums = []
-    for r in members:
-        num = find_disc_number(r["original_filename"])
-        if num is None:
-            return False
-        disc_nums.append(num)
+    # DUP-DISC-SET-1: a member without a parseable disc number (e.g. a
+    # single-disc regional edition with no "(Disc N)" tag, like a Japanese
+    # release sharing a cluster with a USA "(Disc 1)"/"(Disc 2)" pair) used
+    # to zero out the guard entirely — real case: Xenogears (Japan).chd
+    # unioned with Xenogears (USA) (Disc 1/2).chd via crossfmt/sha1, and the
+    # untagged member made this return False, so "Aplicar recomendación"
+    # would have discarded a disc of the USA set. An untagged member is
+    # simply excluded from the count instead: the guard now looks only at
+    # the members that DO carry a disc tag, and still requires ≥2 distinct
+    # numbers among those to call it a real multi-disc set.
+    disc_nums = [
+        num
+        for num in (find_disc_number(r["original_filename"]) for r in members)
+        if num is not None
+    ]
     return len(set(disc_nums)) > 1
 
 
