@@ -2411,6 +2411,48 @@ sin tocarlos — CLAUDE.md "Investigar antes de arreglar"):
 
 ---
 
+### CABLE-SYNC-EMULATOR-SAVES-LEAK-1 — `emulator_saves/` (carpeta interna del PC) se filtra al dispositivo (rammu, 2026-09-21)
+
+Investigando por qué `Pokemon - Edicion Plata SoulSilver (Spain).sav`
+aparecía como conflicto en `CABLE-SYNC-LEGACY-DUPS-1` (una copia de 0
+bytes con el mtime más reciente de las 3): **no es un conflicto real de
+partidas**. El save de verdad está en `nds/Pokemon - Edicion Plata
+SoulSilver (Spain).sav` (512KB, el que usa el core normal de RetroArch).
+La copia sospechosa vive en
+`/storage/emulated/0/RetroArch/emulator_saves/me.magnum.melonds/saves/...`
+— y `emulator_saves/<package>/` es una carpeta que `get_adb_sync_sources()`
+(`config.py`) usa **solo en el PC** para bajar saves por-emulador vía
+ADB; nunca debería existir tal cual dentro del árbol `RetroArch/` del
+dispositivo.
+
+**Confirmado que no es un caso aislado**: hay **54 archivos** bajo
+`/storage/emulated/0/RetroArch/emulator_saves/` en el dispositivo real
+(toda la carpeta de estados de DuckStation incluida), todos con mtime a
+pocos segundos entre sí — una única subida masiva, no uso real de la app.
+
+**Causa raíz**: cuando `get_adb_sync_sources()` devuelve una lista vacía
+(`adb_sources`), el daemon de auto-sync (`web/cable_sync_daemon.py`,
+`_run_auto_sync`) cae al fallback `"RetroArch (legacy)"` con
+`local_saves = config.library_root` (la biblioteca **entera**) contra
+`android_saves = config.sync.auto_sync_android_path` — sin excluir
+`emulator_saves/`, que es puramente contabilidad interna del propio
+proyecto, no algo que ningún core de RetroArch en Android reconozca. El
+mismo problema aplica al endpoint manual `/api/cable-sync`
+(`web/handlers/sync_cable.py`) cuando `pc_path=library_root`: `_iter_files`
+solo excluye dotfiles y `_descartados/`, no `emulator_saves/`. El archivo
+de origen en el PC ya estaba a 0 bytes (melonDS nunca llegó a guardar esa
+partida concreta — se jugó con otro core), así que la copia subida
+también salió vacía; sin pérdida de progreso real, pero explica varios de
+los 289 grupos de `CABLE-SYNC-LEGACY-DUPS-1` (al menos los 54 confirmados
++ los que generaron por round-trip de vuelta al PC, como el `saves/saves/`
+doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-EMULATOR-SAVES-LEAK-1 | Excluir `emulator_saves/` del árbol que camina `pc_to_anbernic`/`newest` cuando `pc_path`/`local_saves` es la raíz de la biblioteca — mismo patrón que la exclusión ya existente de `_descartados/` en `_iter_files`/`cable_engine.iter_files` | `web/handlers/sync_cable.py` (`_iter_files`), `sync/cable_engine.py` (`iter_files`), `web/cable_sync_daemon.py` (walk de `_iter_local` en el fallback legacy) | 🔴 pendiente, sin decidir |
+
+---
+
 ## UX — Auditorías por pestaña — → #206
 
 Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
