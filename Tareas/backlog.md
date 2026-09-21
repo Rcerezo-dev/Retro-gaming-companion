@@ -2275,7 +2275,42 @@ correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado (`RetroArch/<plataforma>/*.nv` plano y `RetroArch/<plataforma>/<core>/*.nv` anidado) una vez confirmado por fecha cuál copia es la correcta — no bloquea el cable-sync normal, solo deja basura residual. **Alcance revisado 2026-09-21** (ver mapeo en `CABLE-SYNC-SAVES-PREFIX-1`): no son 8 archivos, el solapamiento plano/`saves/` es de decenas por plataforma y ambas copias tienen actividad reciente en algunos casos — el cable-sync normal ya no depende de resolver esto (`CABLE-SYNC-SAVES-PREFIX-2` hecho 2026-09-21, matchea por nombre sin importar dónde viva el archivo) — sigue siendo limpieza cosmética pura, qué copia es "la correcta" puede no ser universal, puede depender de qué core se usó la última vez | — (limpieza manual en el dispositivo, sin tocar código) | 🔴 pendiente, baja prioridad |
+**Mapeo completo + backup hechos 2026-09-21** (rammu, con la Anbernic real
+por ADB) — **no se borró nada del dispositivo**, decisión del usuario
+("informe + backup, sin borrar todavía"). 823 archivos de save/state en el
+dispositivo, **289 nombres duplicados en rutas legado (706 archivos
+implicados)** — mucho mayor que la estimación original de 8. Clasificados
+en `.rommgr/legacy_dups_report_2026-09-21.csv` (gitignored, local):
+
+| Clasificación | Grupos | Criterio |
+|---|---|---|
+| `junk_zero_bytes` | 14 | Todas las copias son 0 bytes — basura, sin riesgo de pérdida |
+| `safe_same_copy_event` | 145 | Mismo tamaño, mtimes a ≤60s entre sí — típico de una migración puntual (mismo patrón que `CABLE-SYNC-SAVES-PREFIX-1`: "Advance Wars 2 [E].sav", 2s de diferencia) |
+| `review_time_gap` | 123 | Mismo tamaño pero mtimes separados >60s — mismo tamaño no garantiza mismo contenido, revisar caso a caso antes de decidir |
+| `CONFLICT_diff_size` | 7 | Tamaño distinto entre copias — divergencia real de contenido, **nunca borrar automáticamente** |
+
+**Por qué no se automatizó el borrado ni con criterio "más reciente":**
+uno de los 7 grupos conflictivos (`Pokemon - Edicion Plata SoulSilver
+(Spain).sav`) tiene 3 copias — dos idénticas de 512KB (`nds/` y
+`saves/nds/`, duplicado real y seguro) y una tercera de **0 bytes** en
+`emulator_saves/me.magnum.melonds/saves/` con el mtime más reciente
+(2026-08-28). Un criterio ciego de "quedarse con la copia más nueva por
+fecha" habría elegido el archivo vacío y descartado la partida real de
+512KB — la razón por la que esta tarea sigue sin automatizar el borrado
+(Pilar 3: "cualquier bug aquí es prioridad absoluta, pérdida de progreso").
+Los otros 6 grupos conflictivos son el mismo patrón: saves antiguos del
+core `VBA Next` (abandonado) junto a saves mucho más recientes del core
+`gba` actual — casi seguro seguros de borrar, pero no decidido
+automáticamente sin revisión humana.
+
+**Backup completo**: los 706 archivos de los 289 grupos (TODAS las
+copias, no solo las "candidatas a borrar") están en
+`.rommgr/legacy_dups_backup_2026-09-21/` (gitignored, local, misma
+estructura relativa que el dispositivo) — 706/706 ok, 0 errores.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | 🟡 informe + backup hechos 2026-09-21, sin borrar — pendiente decidir con el usuario si automatizar el borrado de `junk_zero_bytes`/`safe_same_copy_event` (269 grupos, bajo riesgo) o revisar entero a mano |
 | CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
 
 ---
