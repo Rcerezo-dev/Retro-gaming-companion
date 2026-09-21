@@ -81,6 +81,22 @@ def test_list_local_saves_empty_dir(tmp_path: Path) -> None:
     assert list_local_saves(tmp_path, _SAVE_EXTS) == []
 
 
+def test_list_local_saves_include_glob_scopes_dolphin_wii_nand(tmp_path: Path) -> None:
+    # SYNC-WII-SCOPE-1: only title/*/*/data/ is a real save; content/ is
+    # installed-app/system data that must never leave the PC.
+    game = tmp_path / "title" / "00010000" / "52334d50"
+    (game / "content").mkdir(parents=True)
+    (game / "content" / "title.tmd").write_bytes(b"\x00" * 4)
+    (game / "data").mkdir()
+    (game / "data" / "save.bin").write_bytes(b"\x00" * 8)
+    (tmp_path / "shared1").mkdir()
+    (tmp_path / "shared1" / "system.app").write_bytes(b"\x00" * 4)
+
+    saves = list_local_saves(tmp_path, (), include_glob="title/*/*/data/**/*")
+    relatives = {s.relative for s in saves}
+    assert relatives == {"title/00010000/52334d50/data/save.bin"}
+
+
 # ---------------------------------------------------------------------------
 # sync_saves — dry run
 # ---------------------------------------------------------------------------

@@ -185,6 +185,7 @@ class SyncSource:
     sync_all: bool = (
         False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
     )
+    include_glob: str = "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
 
 
 @dataclass(slots=True)
@@ -477,6 +478,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
                     local_dir=str(s["local_dir"]),
                     remote=str(s["remote"]),
                     sync_all=bool(s.get("sync_all", False)),
+                    include_glob=str(s.get("include_glob", "**/*")),
                 )
             )
     # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote

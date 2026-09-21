@@ -48,15 +48,21 @@ class SyncResult:
         )
 
 
-def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[LocalSave]:
+def list_local_saves(
+    saves_dir: Path, save_extensions: tuple[str, ...], include_glob: str = "**/*"
+) -> list[LocalSave]:
     """Walk *saves_dir* and return all files whose extension is in *save_extensions*.
 
     Pass an empty tuple to include every file regardless of extension (useful for
     emulators like PPSSPP/Dolphin whose save directories contain only save data).
+
+    *include_glob* narrows which subtree of *saves_dir* is walked (e.g. Dolphin's
+    Wii NAND has real saves only under ``title/*/*/data/`` — the rest is emulated
+    system content that shouldn't leave the PC).
     """
     saves: list[LocalSave] = []
     ext_set = {e.lower() for e in save_extensions} if save_extensions else None
-    for path in saves_dir.rglob("*"):
+    for path in saves_dir.glob(include_glob):
         if not path.is_file():
             continue
         if ext_set is not None and path.suffix.lower() not in ext_set:
@@ -82,6 +88,7 @@ def sync_saves(
     backup_keep_n: int = 5,
     delta_cache: DeltaCache | None = None,
     conflict_policy: str = "newest",
+    include_glob: str = "**/*",
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *saves_remote* and *states_remote* using rclone.
 
@@ -96,7 +103,7 @@ def sync_saves(
 
     # Gather both sides.
     local_saves: dict[str, LocalSave] = {
-        s.relative: s for s in list_local_saves(saves_dir, save_extensions)
+        s.relative: s for s in list_local_saves(saves_dir, save_extensions, include_glob)
     }
     try:
         # List from both remotes (combine results)
