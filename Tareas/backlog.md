@@ -2275,7 +2275,7 @@ correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los 8 saves duplicados en rutas legado (`RetroArch/<plataforma>/*.nv` plano y `RetroArch/<plataforma>/<core>/*.nv` anidado) una vez confirmado por fecha cuál copia es la correcta — no bloquea el cable-sync normal, solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | 🔴 pendiente, baja prioridad |
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado (`RetroArch/<plataforma>/*.nv` plano y `RetroArch/<plataforma>/<core>/*.nv` anidado) una vez confirmado por fecha cuál copia es la correcta — no bloquea el cable-sync normal, solo deja basura residual. **Alcance revisado 2026-09-21** (ver mapeo en `CABLE-SYNC-SAVES-PREFIX-1`): no son 8 archivos, el solapamiento plano/`saves/` es de decenas por plataforma y ambas copias tienen actividad reciente en algunos casos — antes de limpiar nada hay que decidir primero el diseño de `CABLE-SYNC-SAVES-PREFIX-2` (qué copia es "la correcta" puede no ser universal, puede depender de qué core se usó la última vez) | — (limpieza manual en el dispositivo, sin tocar código) | 🔴 pendiente, baja prioridad, bloqueada por CABLE-SYNC-SAVES-PREFIX-2 |
 | CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
 
 ---
@@ -2316,10 +2316,50 @@ lo tienen en Android. Necesita diseño, no un parche a ciegas, en el pilar
 de mayor riesgo del proyecto ("cualquier bug aquí es prioridad absoluta",
 CLAUDE.md).
 
+**Mapeo real completado (rammu, 2026-09-21, `adb shell find`/`stat` sobre la
+Anbernic conectada)** — el problema es mucho más grande que los "8
+duplicados" estimados en `CABLE-SYNC-LEGACY-DUPS-1`: hay carpeta plana
+(`RetroArch/<plataforma>/`) Y carpeta `saves/` para prácticamente todas las
+plataformas probadas, con solapamiento de nombre de archivo casi total y
+**ambas copias con actividad reciente** (no es basura histórica de una
+migración puntual — algunos juegos escriben en un lado, otros en el otro,
+en la misma sesión de uso):
+
+| Plataforma | Archivos en plano | Archivos en `saves/` | Mismo nombre en ambos |
+|---|---|---|---|
+| mame | 25 | 24 | 24 |
+| gba | 47 | 115 | 46 |
+| psx | 7 | 9 | 6 |
+| snes | 4 | 3 | 3 |
+| nes | 2 | 3 | 1 |
+| cps1 | 3 | 2 | 2 |
+| cps2 | 2 | 1 | 1 |
+
+Verificado con `stat` en `Advance Wars 2 [E].sav` (gba): mismo tamaño
+(65536 B) en plano y en `saves/`, mtimes a 2 segundos de diferencia
+(2025-03-09) — copia puntual antigua, no reescritura activa de ese archivo
+concreto. Pero `ls -t` muestra archivos con mtime reciente en **ambas**
+ubicaciones (`Pokémon Rojo fuego [E].sav` en plano, `Pokemon WaterBlue.srm`
+y `Final Fantasy Tactics [E].srm` en `saves/gba`) — confirma que hoy en
+día se sigue escribiendo en los dos sitios según qué core/config se use
+por partida, no es solo arrastre histórico.
+
+**El nombre de la subcarpeta bajo `saves/` no es consistente**: a veces es
+el nombre canónico de plataforma ya reconocido por `PLATFORM_BY_FOLDER`
+(`saves/gba`, `saves/psx`, `saves/snes`, `saves/mame`, y por coincidencia
+`saves/cps1`/`saves/cps2`/`saves/fbneo`, que están en `platforms.toml`
+como alias de "Arcade"), y a veces es el nombre del core de RetroArch tal
+cual, que **no** está en `PLATFORM_BY_FOLDER` (`saves/mame2003`,
+`saves/bsnes2014`, `saves/Snes9x`, `saves/Snes9x 2005 Plus`,
+`saves/VBA Next`, `saves/FCEUmm`, `saves/mGBA`, `saves/PPSSPP`,
+`saves/Citra`, `saves/LRPS2`, `saves/Beetle PSX`). No hay mapeo core→plataforma
+completo hoy en el código — haría falta construirlo y mantenerlo para
+poder confiar en el segundo segmento de la ruta.
+
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma (probablemente depende de si cada core respeta `sort_files_by_content_enable`, ajuste que en Android puede estar per-core o no aplicado) — sin este mapeo no se puede diseñar una normalización de ruta segura | — (investigación en el dispositivo real, sin tocar código) | 🔴 pendiente, sin decidir |
-| CABLE-SYNC-SAVES-PREFIX-2 | Diseñar el matching correcto tras el mapeo — candidato: en vez de comparar por ruta relativa exacta, matchear por `(plataforma, nombre de archivo)` ignorando subcarpetas intermedias tipo `saves/`/`<core>/`, o reusar comparación por SHA1 (patrón ya existente en `ra_duplicates_service.py`) en vez de por ruta | `web/handlers/sync_cable.py`, `sync/android_paths.py` | 🔴 pendiente, depende de CABLE-SYNC-SAVES-PREFIX-1 |
+| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma | — (investigación en el dispositivo real, sin tocar código) | ✅ hecho 2026-09-21 — ver tabla y hallazgos arriba |
+| CABLE-SYNC-SAVES-PREFIX-2 | Diseñar el matching correcto — dado que el segundo segmento bajo `saves/` no es fiable (a veces plataforma, a veces core sin mapear), la ruta relativa exacta no sirve como clave. Candidato recomendado: matchear por `(plataforma, nombre de archivo)` ignorando todos los segmentos intermedios (`saves/`, nombre de core, subcarpetas `nvram`/`hi`/`cfg`/`states`) — la plataforma ya se puede inferir del lado PC (estructura D2 organizada) y basta con localizar el archivo del mismo nombre en cualquier profundidad bajo la rama Android que le corresponda; evita depender de completar un mapeo core→plataforma. Alternativa si hay colisiones de nombre entre plataformas: comparar también por tamaño o SHA1 (patrón ya existente en `ra_duplicates_service.py`) | `web/handlers/sync_cable.py`, `sync/android_paths.py` | 🔴 pendiente, diseño listo para implementar — desbloqueado por CABLE-SYNC-SAVES-PREFIX-1 |
 
 ---
 
