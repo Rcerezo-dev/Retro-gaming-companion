@@ -680,6 +680,114 @@ ambientales preexistentes, dispositivo ADB conectado).
 
 ---
 
+### DUP-DISC-SET-2 — `has_sha1_dup` no está protegido por `_is_disc_set()`: un duplicado real dentro de un clúster arrastra discos legítimos de un set multi-disco al mismo grupo "descartar" (hallazgo 2026-09-21, Día68, al aplicar `resolve-duplicates` real sobre los 149 grupos psx/ps2 recién desbloqueados)
+
+Origen: tras `DUP-DISC-SET-1`, al inspeccionar el grupo real `Xenogears`
+contra `library_android.db` (`_build_review_queue`), seguía recomendando
+descartar `Xenogears (USA) (Disc 2).chd` — un disco real, no un duplicado.
+Causa: `Xenogears (Japan).chd` y `Xenogears (USA) (Disc 1).chd` son
+literalmente byte-idénticos (mismo SHA1, probable mal etiquetado regional)
+— duplicado real y correcto de detectar. Pero `has_sha1_dup`
+(`web/builders/duplicates.py:1151`) no está gateado por `_is_disc_set()`
+como sí lo están `has_title_dup`/`has_crossfmt_dup`/`has_region_dup`/
+`has_disc_hash_dup` — así que el union-find ya mezcló Disc 1 y Disc 2 en el
+mismo componente (vía `crossfmt`, correctamente ignorado como *razón* por
+el guard, pero el `union()` en sí ya ocurrió antes de que se evalúe
+`_is_disc_set`), y el motor de recomendación elige UN solo "conservar"
+para todo el componente, marcando Disc 2 como "descartar" pese a no ser
+duplicado de nada.
+
+**Medido en real (Día68)**: 6 de 156 grupos psx/ps2 tienen este patrón
+compuesto (`Xenogears`, `Final Fantasy VIII`, `Parasite Eve` — perderían
+Disc 2/3/4 reales — más 3 clústeres de pistas `.bin` sueltas sin tag de
+disco, ver `DUP-DISC-TRACK-1`). **Excluidos manualmente del apply de hoy**
+(`repository.exclude_duplicate_group` no usado — se filtraron fuera de la
+`queue` pasada a `apply_all_review_recommendations`, ver
+`DUP-DISC-SET-1`/Día68 para el detalle). Sin arreglar en el motor — la
+detección de `_is_disc_set` necesita aplicarse también a la selección de
+qué entradas puede marcar "descartar" dentro de un componente, no solo a
+qué *razón* se etiqueta.
+
+**Sin implementar** — mismo criterio que `DUP-DISC-SET-1`: tocar el motor
+de recomendación de duplicados es alto riesgo, tres juegos reales
+confirmados con discos que se perderían si se aplica a ciegas.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DUP-DISC-SET-2 | Arreglar el motor de recomendación para que un componente que mezcla un duplicado SHA1 real con discos legítimos de un set multi-disco no marque esos discos como "descartar" — probablemente separar sub-clústeres por número de disco antes de elegir "recomendado" | `web/builders/duplicates.py:1146-1290` (construcción de `entries`/`recommended` dentro de `_review_groups_for_repo`) | 🔴 confirmado con 3 juegos reales (`Xenogears`, `Final Fantasy VIII`, `Parasite Eve`), sin implementar — excluidos manualmente del apply de Día68 |
+
+---
+
+### DUP-DISC-TRACK-1 — Pistas de audio CD silenciosas/genéricas en `.bin` sueltos (sin `.cue`/contexto de set) producen SHA1 idéntico entre juegos completamente distintos, falso positivo de duplicado (hallazgo 2026-09-21, Día68, mismo repaso que `DUP-DISC-SET-2`)
+
+Origen: al revisar (muestreo manual, 35 de 146 grupos) los candidatos a
+`resolve-duplicates --apply` antes de ejecutarlo, aparecieron varios
+grupos donde dos **juegos sin relación** comparten SHA1 en un único
+archivo `.bin` con sufijo `(Track N)` — ej. `Ninja - Shadow of Darkness
+(Europe) (Track 44).bin` == `Ultraman Zearth (Japan).bin`; `Guilty Gear
+(Europe) (Track 2).bin` == `Guilty Gear (USA) (Rev 1).bin` (aquí sí
+mismo juego pero probablemente solo la pista coincide, no el disco
+completo); `Magical World of Disney...(Track 3).bin` ==
+`Nestle Disney Demo (Europe).bin`. Estos son volcados PSX multi-pista
+donde cada pista de audio se trackeó como archivo independiente (sin
+`.cue` que las agrupe) — una pista de audio silenciosa o genérica
+(intro/logo) puede ser byte-idéntica entre discos de juegos distintos sin
+que el contenido real (los datos del juego) tenga nada que ver.
+
+**Medido en real (Día68)**: 46 de 146 grupos candidatos (~31%) tenían al
+menos un miembro `.bin`; de esos, 39 llevaban sufijo `(Track N)` (patrón de
+pista suelta, alto riesgo) y 7 eran `.bin` de archivo completo sin sufijo
+de pista (mismo título que su `.chd`/`.cue` — esos sí se verificaron uno a
+uno y se aplicaron). **Ninguno de los 46 se aplicó hoy** — se excluyeron
+todos por precaución hasta diseñar una regla fiable.
+
+**Sin implementar** — posible enfoque: nunca unir por SHA1 dos archivos
+`.bin` con `(Track N)` en el nombre a menos que compartan ya un link de
+`crossfmt`/`canonical_title` (mismo juego confirmado por otra vía), o
+excluir pistas de audio del union-find de duplicados por completo (el
+dato real que importa es la pista de datos/Track 1, no las de audio).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DUP-DISC-TRACK-1 | Evitar que un SHA1 compartido entre pistas de audio CD sueltas (`.bin` con `(Track N)`, sin `.cue` de contexto) una en el mismo clúster de duplicados a juegos sin relación | `web/builders/duplicates.py` (union por sha1, ~línea 944) | 🔴 confirmado con datos reales (46/146 grupos candidatos afectados o sospechosos), sin implementar — excluidos manualmente del apply de Día68 |
+
+---
+
+### ANDROID-DUP-2 Fase 3 — aplicado el primer lote seguro de duplicados psx/ps2/Dreamcast contra la Anbernic real (Día68, 2026-09-21)
+
+Tras `DUP-DISC-SET-1`, revisión manual completa de los 149 grupos psx/ps2 +
+7 Dreamcast desbloqueados: excluidos los 6 de `DUP-DISC-SET-2`, el grupo
+`disc_hash` de Resident Evil 3 (pendiente decisión del usuario, Día67 punto
+9), los 2 `vmu_save_*.bin` (necesitan rescan tras el fix de clasificación
+de hoy), `Dead or Alive 2`/`Legacy of Kain` (nombres de región ambiguos,
+mismo contenido pero el "recomendado" automático no siempre elige el
+nombre correcto) y los 46 de `DUP-DISC-TRACK-1`. De los 108 grupos
+restantes (105 PlayStation + 3 Dreamcast, todo `.chd`/`.cue`/`.ccd`
+completos o duplicados literales byte-idénticos, verificados con 2
+muestreos aleatorios de 15+20 grupos), se aplicó vía `apply_all_review_
+recommendations` con `AdbTransport` real (cola filtrada a mano, sin pasar
+por el endpoint web/CLI genérico para no tocar los ~1850 grupos restantes
+de la biblioteca PC, fuera de alcance de hoy) — backup previo de
+`library_pc.db`/`library_android.db`.
+
+**Resultado**: 132 archivos borrados en la Anbernic, 13,02 GB liberados, 0
+errores. Verificado por dos vías independientes (resultado de la función +
+diff directo de `library_android.db` antes/después): ambas coinciden
+exactamente en 132 archivos / 13,02 GB. Los 6 grupos de `DUP-DISC-SET-2`
+confirmados intactos tras la operación (7/9 entradas cada uno, sin tocar).
+
+**Pendiente**: quedan ~40 pares adicionales mismo-título `.chd`+`.bin`
+(ej. `Vagrant Story`, `Crash Bandicoot`, `Tony Hawk's Pro Skater 2/4`) sin
+aplicar — excluidos por el filtro conservador de hoy (cualquier grupo con
+un miembro `.bin` quedó fuera salvo los 7 revisados a mano), candidatos
+para una revisión uno-a-uno en otra sesión.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | 🟡 pendiente, baja urgencia — candidatos de pinta segura, sin verificar individualmente |
+
+---
+
 ### ANDROID-STVERSIONS-1 — `saves/.stversions/<core>/` (carpeta de versionado de Syncthing) se trata como save real, contamina la detección de duplicados legado (hallazgo 2026-09-21, `CABLE-SYNC-LEGACY-DUPS-1`)
 
 Origen: al resolver por contenido (SHA1) los 130 grupos restantes de
