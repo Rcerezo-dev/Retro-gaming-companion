@@ -218,6 +218,46 @@ def test_anbernic_to_pc_skips_file_under_different_device_prefix_same_name_and_s
     assert res["skipped"] == 1
 
 
+def test_newest_direction_skips_file_under_different_device_prefix_same_mtime(
+    tmp_path, monkeypatch
+):
+    """CABLE-SYNC-NEWEST-CANON-1: antes, un save bajo saves/gba/ en el
+    dispositivo y gba/ en el PC se trataba como DOS archivos distintos
+    (solo-en-PC + solo-en-Anbernic), copiando en ambas direcciones sin
+    necesidad. Con el fallback por nombre debe reconocerse como el mismo
+    archivo y respetar la tolerancia de mtime como cualquier otro match."""
+    (tmp_path / "pc").mkdir()
+    (tmp_path / "pc" / "gba").mkdir()
+    save = tmp_path / "pc" / "gba" / "mario.sav"
+    save.write_bytes(b"x" * 1024)
+    now = time.time()
+
+    monkeypatch.setattr(
+        AdbTransport,
+        "ls_recursive",
+        lambda self, *a, **k: [
+            AdbFileInfo(
+                android_path="/storage/emulated/0/Roms/saves/gba/mario.sav",
+                size=1024,
+                mtime=now,
+            )
+        ],
+    )
+
+    def _boom(self, *a, **k):
+        raise AssertionError("mismo archivo bajo otro prefijo — no debe copiarse en ningún sentido")
+
+    monkeypatch.setattr(AdbTransport, "push", _boom)
+    monkeypatch.setattr(AdbTransport, "pull", _boom)
+
+    res = _run_sync(
+        tmp_path, {"direction": "newest", "dry_run": True, "what": ["saves"]}
+    )
+    assert res["copied"] == 0
+    assert res["skipped"] == 1
+    assert res["errors"] == 0
+
+
 def test_disk_space_guard_blocks_real_run_when_insufficient(tmp_path, monkeypatch):
     (tmp_path / "pc").mkdir()
     (tmp_path / "pc" / "big.gba").write_bytes(b"x" * 2048)

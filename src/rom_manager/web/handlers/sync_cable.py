@@ -972,23 +972,38 @@ def _do_cable_sync(
                                     _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
-                    ab_index = {
-                        info.android_path.removeprefix(android_prefix): info
-                        for info in ab_adb_files
-                        if _wanted_info(info)
-                    }
+                    # CABLE-SYNC-NEWEST-CANON-1: reusa el ab_index/ab_by_name ya
+                    # construidos arriba (mismo problema que
+                    # CABLE-SYNC-SAVES-PREFIX-1/2 — el dispositivo mezcla
+                    # convenios, una ruta exacta no basta) en vez de reconstruir
+                    # su propio índice sin el fallback por nombre.
                     pc_index: dict[str, Path] = {}
                     for f in _iter_files(pc_root):
                         if _wanted(f):
                             pc_index[f.relative_to(pc_root).as_posix()] = f
+                    pc_by_name: dict[str, list[Path]] = {}
+                    for _rel, _f in pc_index.items():
+                        pc_by_name.setdefault(PurePosixPath(_rel).name, []).append(_f)
 
-                    all_rels = sorted(set(pc_index) | set(ab_index))
-                    for rel_posix in all_rels:
+                    def _match_ab(rel_posix: str) -> tuple[str, object] | None:
+                        ab_inf = ab_index.get(rel_posix)
+                        if ab_inf is not None:
+                            return rel_posix, ab_inf
+                        cands = ab_by_name.get(PurePosixPath(rel_posix).name, ())
+                        if len(cands) == 1:
+                            _ab_rel = next(k for k, v in ab_index.items() if v is cands[0])
+                            return _ab_rel, cands[0]
+                        return None  # sin candidato único: trátalo como distinto
+
+                    matched_ab_keys: set[str] = set()
+                    for rel_posix in sorted(pc_index):
                         if cancel_event.is_set():
                             break
-                        pc_f = pc_index.get(rel_posix)
-                        ab_inf = ab_index.get(rel_posix)
-                        if pc_f and ab_inf:
+                        pc_f = pc_index[rel_posix]
+                        match = _match_ab(rel_posix)
+                        if match is not None:
+                            ab_rel, ab_inf = match
+                            matched_ab_keys.add(ab_rel)
                             # REV43-4: misma tolerancia que cable_engine.plan_direction
                             # — sin ella, el redondeo de mtime de FAT32/exFAT elige un
                             # "ganador" arbitrario y puede sobrescribir la version buena.
@@ -1000,17 +1015,21 @@ def _do_cable_sync(
                                     "→ ADB (PC más reciente)",
                                 )
                             elif diff < -cable_engine.DEFAULT_MTIME_TOLERANCE_S:
-                                _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
+                                _adb_copy_to_pc(ab_inf, ab_rel, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
-                        elif pc_f:
+                        else:
                             _adb_copy_to_device(
                                 pc_f,
                                 canonical_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS),
                                 "→ ADB (solo en PC)",
                             )
-                        elif ab_inf:
-                            _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (solo en Anbernic)")
+
+                    for ab_rel, ab_inf in ab_index.items():
+                        if cancel_event.is_set():
+                            break
+                        if ab_rel not in matched_ab_keys:
+                            _adb_copy_to_pc(ab_inf, ab_rel, "← ADB (solo en Anbernic)")
 
                 # ANBERNIC-BULK-DEL: elimina ROMs seleccionados por filtro de
                 # la consola. El save de cada juego se copia primero al PC
