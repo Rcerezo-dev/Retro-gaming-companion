@@ -229,7 +229,11 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 import os
                 from pathlib import PurePosixPath
 
-                from rom_manager.sync.android_paths import reconcile_newest_by_name
+                from rom_manager.sync.android_paths import (
+                    canonical_download_rel_posix,
+                    reconcile_newest_by_name,
+                )
+                from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
                 _log_file = None
                 job_result: dict | None = None
@@ -329,7 +333,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         nonlocal copied, errors, copied_bytes
                         name = PurePosixPath(adb_info.android_path).name
                         rel_posix = adb_info.android_path.removeprefix(android_prefix)
-                        local_dst = local_root / Path(rel_posix.replace("/", os.sep))
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: rel_posix puede llevar
+                        # saves/<plataforma>/ de más (fuente "RetroArch (legacy)",
+                        # activa sin emulator_paths configurado) — aterriza en su
+                        # ubicación canónica, no en un mirror literal.
+                        canon_rel = canonical_download_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS)
+                        local_dst = local_root / Path(canon_rel.replace("/", os.sep))
                         try:
                             size = transport.pull(
                                 adb_info.android_path,

@@ -16,7 +16,11 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from rom_manager.sync.android_paths import canonical_rel_posix, reconcile_newest_by_name
+from rom_manager.sync.android_paths import (
+    canonical_download_rel_posix,
+    canonical_rel_posix,
+    reconcile_newest_by_name,
+)
 from rom_manager.utils.trash import TRASH_DIR_NAME
 
 Direction = str  # "pc_to_anbernic" | "anbernic_to_pc" | "newest"
@@ -75,7 +79,11 @@ def plan_direction(
                     rel = src.relative_to(ab_root)
                 except ValueError:
                     continue
-                yield CopyPlanItem(src, pc_root / rel, "<- PC")
+                # CABLE-SYNC-DOWNLOAD-DEST-1: rel puede llevar saves/<plataforma>/
+                # de más (mapeo real en CABLE-SYNC-SAVES-PREFIX-1) — aterriza en
+                # su ubicación canónica del PC, no en un mirror literal.
+                dst_rel = canonical_download_rel_posix(rel.as_posix(), _es_folders)
+                yield CopyPlanItem(src, pc_root / Path(dst_rel), "<- PC")
         return
 
     if direction == "newest":
@@ -101,7 +109,10 @@ def plan_direction(
                     dst = ab_root / canonical_rel_posix(rel_posix, _es_folders)
                     yield CopyPlanItem(pc_f, dst, "-> Anbernic (PC mas reciente)")
                 elif diff < -tolerance_seconds:
-                    yield CopyPlanItem(ab_f, pc_root / Path(ab_rel), "<- PC (Anbernic mas reciente)")
+                    dst_rel = canonical_download_rel_posix(ab_rel, _es_folders)
+                    yield CopyPlanItem(
+                        ab_f, pc_root / Path(dst_rel), "<- PC (Anbernic mas reciente)"
+                    )
                 # mtimes iguales (dentro de la tolerancia): nada que hacer, el
                 # caller cuenta esto como skip. REV43-4: sin esta tolerancia, el
                 # redondeo de mtime de FAT32/exFAT (~2s) elegía un "ganador"
@@ -110,7 +121,8 @@ def plan_direction(
                 dst = ab_root / canonical_rel_posix(rel_posix, _es_folders)
                 yield CopyPlanItem(pc_f, dst, "-> Anbernic (solo en PC)")
             elif ab_f is not None:
-                yield CopyPlanItem(ab_f, pc_root / Path(ab_rel), "<- PC (solo en Anbernic)")
+                dst_rel = canonical_download_rel_posix(ab_rel, _es_folders)
+                yield CopyPlanItem(ab_f, pc_root / Path(dst_rel), "<- PC (solo en Anbernic)")
         return
 
     raise ValueError(f"direccion desconocida: {direction!r}")

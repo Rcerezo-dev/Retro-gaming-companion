@@ -4,7 +4,11 @@ para no espejar carpetas todavía sin renombrar (ver MDFOLDER-FIX-2/MATCH-FIX-5)
 
 from __future__ import annotations
 
-from rom_manager.sync.android_paths import canonical_rel_posix, reconcile_newest_by_name
+from rom_manager.sync.android_paths import (
+    canonical_download_rel_posix,
+    canonical_rel_posix,
+    reconcile_newest_by_name,
+)
 
 _ES_FOLDERS = {"PlayStation 2": "ps2", "Game Boy Advance": "gba"}
 
@@ -61,3 +65,38 @@ def test_reconcile_pc_only_and_ab_only_entries() -> None:
     assert ("gba/new.sav", "pc", None, None) in pairs
     assert (None, None, "psx/old.sav", "ab") in pairs
     assert len(pairs) == 2
+
+
+# ---------------------------------------------------------------------------
+# canonical_download_rel_posix — CABLE-SYNC-DOWNLOAD-DEST-1
+# ---------------------------------------------------------------------------
+
+
+def test_download_strips_saves_prefix_when_platform_recognized() -> None:
+    assert (
+        canonical_download_rel_posix("saves/gba/mario.sav", _ES_FOLDERS) == "gba/mario.sav"
+    )
+
+
+def test_download_strips_states_prefix_when_platform_recognized() -> None:
+    assert (
+        canonical_download_rel_posix("states/gba/mario.state", _ES_FOLDERS) == "gba/mario.state"
+    )
+
+
+def test_download_leaves_unrecognized_core_folder_untouched() -> None:
+    """saves/mame2003/... -- "mame2003" no es una plataforma reconocida (es un
+    core), así que no se puede inferir con seguridad dónde va -- se deja tal
+    cual en vez de arriesgar una ubicación incorrecta."""
+    assert (
+        canonical_download_rel_posix("saves/mame2003/nvram/foo.nv", _ES_FOLDERS)
+        == "saves/mame2003/nvram/foo.nv"
+    )
+
+
+def test_download_without_wrapper_prefix_behaves_like_canonical_rel_posix() -> None:
+    assert canonical_download_rel_posix("gba/mario.sav", _ES_FOLDERS) == "gba/mario.sav"
+    assert (
+        canonical_download_rel_posix("PlayStation 2/Dark Cloud (USA).iso", _ES_FOLDERS)
+        == "ps2/Dark Cloud (USA).iso"
+    )

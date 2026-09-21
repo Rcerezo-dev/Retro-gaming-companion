@@ -147,6 +147,33 @@ def test_plan_anbernic_to_pc(tmp_path: Path) -> None:
     assert items[0].arrow == "<- PC"
 
 
+def test_plan_anbernic_to_pc_strips_saves_prefix_for_known_platform(tmp_path: Path) -> None:
+    """CABLE-SYNC-DOWNLOAD-DEST-1: muchos cores de RetroArch en Android
+    guardan el save bajo saves/<plataforma>/ -- la descarga debe aterrizar
+    en su ubicación canónica del PC, no en un mirror literal de esa ruta."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(ab, "saves", "gba", "mario.sav")
+
+    items = list(
+        plan_direction(pc, ab, "anbernic_to_pc", _WANTED, es_platform_folders={"gba": "gba"})
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == pc / "gba" / "mario.sav"
+
+
+def test_plan_anbernic_to_pc_leaves_unrecognized_core_folder_untouched(tmp_path: Path) -> None:
+    """saves/mame2003/... -- "mame2003" no es una plataforma reconocida (es
+    un core), no se puede inferir con seguridad, se deja tal cual."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(ab, "saves", "mame2003", "foo.sav")
+
+    items = list(plan_direction(pc, ab, "anbernic_to_pc", _WANTED))
+
+    assert len(items) == 1
+    assert items[0].dst == pc / "saves" / "mame2003" / "foo.sav"
+
+
 def test_plan_newest_skips_equal_mtimes(tmp_path: Path) -> None:
     import os
 

@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING
 
 from rom_manager.detection.platform_detector import ROM_EXTENSIONS
 from rom_manager.sync import cable_engine
-from rom_manager.sync.android_paths import canonical_rel_posix, reconcile_newest_by_name
+from rom_manager.sync.android_paths import (
+    canonical_download_rel_posix,
+    canonical_rel_posix,
+    reconcile_newest_by_name,
+)
 from rom_manager.sync.sync_log import log_sync_event
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
@@ -598,7 +602,12 @@ def _do_cable_sync(
                     if cancel_event.is_set():
                         return
                     name = PurePosixPath(adb_info.android_path).name
-                    local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                    # CABLE-SYNC-DOWNLOAD-DEST-1: rel_posix es la ruta cruda del
+                    # dispositivo (puede llevar saves/<plataforma>/ de más) — la
+                    # descarga aterriza en su ubicación canónica del PC, no en
+                    # un mirror literal de esa estructura.
+                    canon_rel = canonical_download_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS)
+                    local_dst = pc_root / Path(canon_rel.replace("/", os.sep))
                     is_save = should_verify(name, save_exts)
                     try:
                         if _bk_root is not None and not dry_run and is_save and local_dst.exists():
@@ -949,8 +958,14 @@ def _do_cable_sync(
                             _adb_copy_to_pc(info, rel_posix, "← ADB")
 
                     if delete_extra and not cancel_event.is_set():
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: canonicaliza igual que el
+                        # destino real de la descarga — si no, un archivo recién
+                        # bajado a su ruta canónica se lee como "extra en PC" (no
+                        # está en la ruta cruda del dispositivo) y se borra.
                         _ab_rels = {
-                            _i.android_path.removeprefix(android_prefix)
+                            canonical_download_rel_posix(
+                                _i.android_path.removeprefix(android_prefix), _ES_PLATFORM_FOLDERS
+                            )
                             for _i in ab_adb_files
                             if _wanted_info(_i)
                         }
@@ -1339,13 +1354,22 @@ def _do_cable_sync(
                         _apply_copy(item)
 
                     if delete_extra and not cancel_event.is_set():
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: canonicaliza igual que el
+                        # destino real de la descarga (plan_direction) — si no,
+                        # un archivo recién bajado a su ruta canónica se lee
+                        # como "extra en PC" (no está en la ruta cruda de la SD)
+                        # y se borra.
                         _ab_rels: set[Path] = set()
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
                                 try:
-                                    _ab_rels.add(_f.relative_to(ab_root))
+                                    _rel = _f.relative_to(ab_root)
                                 except ValueError:
-                                    pass
+                                    continue
+                                _dst_rel = canonical_download_rel_posix(
+                                    _rel.as_posix(), _ES_PLATFORM_FOLDERS
+                                )
+                                _ab_rels.add(Path(_dst_rel))
                         for _f in _iter_files(pc_root):
                             if not _wanted(_f):
                                 continue

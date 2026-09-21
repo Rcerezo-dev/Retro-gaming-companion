@@ -65,3 +65,36 @@ def canonical_rel_posix(rel_posix: str, es_platform_folders: dict[str, str]) -> 
     canonical = PLATFORM_BY_FOLDER.get(folder.lower(), folder)
     slug = es_platform_folders.get(canonical, folder)
     return f"{slug}/{rest}"
+
+
+_DEVICE_WRAPPER_FOLDERS = frozenset({"saves", "states"})
+
+
+def _is_known_platform_folder(folder: str, es_platform_folders: dict[str, str]) -> bool:
+    lowered = folder.lower()
+    if lowered in PLATFORM_BY_FOLDER:
+        return True
+    return lowered in {v.lower() for v in es_platform_folders.values()}
+
+
+def canonical_download_rel_posix(rel_posix: str, es_platform_folders: dict[str, str]) -> str:
+    """Traduce la ruta relativa de Android (para una *descarga*) a su destino
+    canónico en el PC.
+
+    CABLE-SYNC-DOWNLOAD-DEST-1: a diferencia de ``canonical_rel_posix()``
+    (usado al subir, que solo traduce el primer segmento), muchos cores de
+    RetroArch en Android anteponen ``saves/``/``states/`` antes de la
+    plataforma (ver mapeo real en CABLE-SYNC-SAVES-PREFIX-1). Si el segmento
+    siguiente SÍ es una plataforma reconocida, se descarta ese prefijo y se
+    usa la plataforma real. Si no se reconoce (p. ej. ``saves/<core sin
+    mapear>/...``), no se puede inferir con seguridad — se deja la ruta tal
+    cual, mejor un archivo mal organizado que uno en el sitio equivocado.
+    """
+    parts = rel_posix.split("/", 1)
+    if len(parts) == 2:
+        folder, rest = parts
+        if folder.lower() in _DEVICE_WRAPPER_FOLDERS:
+            inner = rest.split("/", 1)
+            if len(inner) == 2 and _is_known_platform_folder(inner[0], es_platform_folders):
+                rel_posix = f"{inner[0]}/{inner[1]}"
+    return canonical_rel_posix(rel_posix, es_platform_folders)
