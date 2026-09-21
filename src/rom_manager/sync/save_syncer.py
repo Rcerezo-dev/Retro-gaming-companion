@@ -210,7 +210,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "upload")
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.uploaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -260,7 +260,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "download")
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.downloaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -366,7 +366,7 @@ def sync_saves(
                         created_at=timestamp,
                         verified=True,
                     )
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.conflicts += 1
                 except RcloneError as exc:
                     if delta_cache is not None:

@@ -206,6 +206,46 @@ def test_upload_failure_on_first_file_does_not_raise_unbound(tmp_path: Path) -> 
     assert result.uploaded == 0
 
 
+def test_apply_upload_with_matching_game_does_not_deadlock(tmp_path: Path) -> None:
+    """Regression: record_play_session() must reuse sync_saves()'s open ``conn``
+    (REV43-38 added the ``connection=`` param for exactly this) instead of
+    opening its own — sync_saves() only commits ``conn`` once at the end of
+    the loop, so a second writer connection to the same file self-deadlocks
+    until sqlite's busy_timeout expires and raises "database is locked".
+    Only reproduces when a games row actually matches the save's stem —
+    other tests never insert one, so record_play_session's UPDATE (and thus
+    the second connection) was never exercised."""
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    save_file = saves_dir / "tetris.sav"
+    save_file.write_bytes(b"\x00" * 8)
+
+    transport = _mock_transport([])
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    with repo.batch() as conn:
+        conn.execute(
+            "INSERT INTO games (source_path, original_filename, file_type, extension, "
+            "size_bytes, mtime, sha1, md5, crc32, set_type, created_at, updated_at) "
+            "VALUES (?, ?, 'rom', '.gb', 0, 0, ?, ?, 'x', 'single', ?, ?)",
+            ("/roms/tetris.gb", "tetris.gb", "aa" * 20, "bb" * 16, "2024-01-01", "2024-01-01"),
+        )
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+    )
+
+    assert result.uploaded == 1
+    assert result.errors == 0
+    with repo.connect() as conn:
+        row = conn.execute("SELECT play_count FROM games").fetchone()
+    assert row["play_count"] == 1
+
+
 def test_apply_download_calls_transport(tmp_path: Path) -> None:
     saves_dir = tmp_path / "saves"
     saves_dir.mkdir()
