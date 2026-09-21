@@ -2201,6 +2201,128 @@ entre PC y Anbernic y cambia al renombrar) que el scan/inbox/match respete.
 
 ---
 
+### SYNC-WII-SCOPE-1 — `SyncSource` no puede acotar solo los saves reales de Dolphin (Wii) (hallazgo rammu, 2026-09-21)
+
+Al reestructurar `sync.sources` en rammu siguiendo `Tareas/Estructura-Estandarizada-Sync.md`
+(convenio `dropbox:/RetroSync/saves/<emulador>/<tipo>` de PC2, `dolphin/gc` +
+`dolphin/wii`), la fuente `Dolphin (Wii)` con `local_dir` apuntando a la
+carpeta `Wii/` completa (`sync_all=true`) empezó a subir el NAND emulado
+entero (`title/<tipo>/<id>/content/` = IOS, System Menu, apps de canales
+instalados — `.app`, certificados `.pem`, `fst.bin`), no solo los saves.
+Medido en rammu: **96 MB en `Wii/` total, de los que solo 0.29 MB son saves
+reales** (`title/*/*/data/`, el equivalente NAND del save real por juego —
+`title/00010000/<gameid-hex>/data/`). `SyncSource` solo soporta un
+`local_dir` plano (sin include/exclude), así que no hay forma de acotar hoy
+a "todas las subcarpetas `data/` bajo `title/*/*`" sin sincronizar también
+`content/` (las apps instaladas). Parado a mitad de sync real (`--apply`)
+antes de subir más basura; fuente `Dolphin (Wii)` desactivada en
+`config.toml` (comentada, con la medición) hasta que se diseñe bien.
+**GC no tiene este problema** — su carpeta ya es 100% saves (`.gci` +
+`.raw`), se dejó activa. **Limpieza pendiente**: revisar
+`dropbox:/RetroSync/saves/dolphin/wii` — puede tener algunos `.app`/`.pem`
+subidos antes de parar el proceso (no es sensible ni gran volumen, pero es
+basura que no debería estar ahí).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SYNC-WII-SCOPE-1 | Diseñar cómo sincronizar solo `title/*/*/data/` de Dolphin (Wii) — opciones: (a) extender `SyncSource` con un patrón include/exclude que `sync_saves()`/`list_local_saves()` respeten, (b) generar automáticamente una entrada `SyncSource` por cada `title/*/*/data/` detectado (similar a como `device_profile.py` ya genera entradas dinámicas para DATs), (c) symlink/junction local que solo enlace las carpetas `data/` reales y usar eso como `local_dir`. Reactivar la fuente en `config.toml` de rammu y PC2 una vez resuelto | `config.py` (`SyncSource`), `sync/save_syncer.py` (`list_local_saves`) | 🔴 pendiente, sin diseñar |
+| SYNC-WII-SCOPE-2 | Limpiar `dropbox:/RetroSync/saves/dolphin/wii` de archivos de sistema subidos por error antes de detectar SYNC-WII-SCOPE-1 (`.app`, `.pem`, `fst.bin` — no saves) | — (limpieza manual en Dropbox o vía `rclone delete`) | ✅ hecho 2026-09-21 — `tools/rclone.exe purge` sobre la carpeta entera, confirmado vacía (53 archivos, 17.4 MB, 0 saves reales entre ellos) |
+
+---
+
+### CABLE-SYNC-DUP-PATHS-1 — investigación cable-sync ADB con la Anbernic real (rammu, 2026-09-21) — cerrada, no era un bug
+
+Con la Anbernic conectada por USB (autorizada, `adb devices` → `device`), se
+probó `POST /api/cable-sync` (`direction=pc_to_anbernic`, `use_adb=true`,
+`dry_run=true`). Primer intento con `pc_path=E:\Carpetas anbernic` (raíz de
+la biblioteca): **528/528 marcados para copiar, 0 ya coincidentes** —
+sospecha inicial de bug real de matching, **descartada tras seguir la
+cadena hasta la causa raíz** (regla "Investigar antes de arreglar",
+CLAUDE.md):
+
+1. **Error de test #1 — `pc_path` incorrecto**: se pasó la raíz de la
+   biblioteca (`E:\Carpetas anbernic`) en vez de la carpeta de saves
+   (`E:\Carpetas anbernic\saves`). En Android, RetroArch guarda los saves
+   planos junto a la plataforma (`RetroArch/mame/fixeight.nv`), sin
+   subcarpeta `saves/` — con `pc_path` mal puesto, TODAS las rutas
+   relativas quedaban desalineadas por ese segmento de más. Repetido con
+   `pc_path=.../saves`: bajó a 229/229 copiar, seguía en 0 skipped.
+2. **Error de test #2 — falta `skip_existing: true`**: `_skip_existing_device()`
+   (`web/handlers/sync_cable.py:729`) devuelve `False` sin comprobar nada
+   si `skip_existing` no viene en el payload — **por defecto es `false`**,
+   así que cualquier dry-run sin ese flag marca todo como "a copiar" aunque
+   ya exista igual en el dispositivo. No es un bug, es un parámetro opt-in
+   de la propia API (ver `openapi.json` — no aparece en el ejemplo de
+   payload, por eso se me pasó la primera vez). Con
+   `pc_path=.../saves` + `skip_existing=true`: **123 ya coinciden (mismo
+   tamaño), 106 realmente faltan, 0 errores** — número coherente, cierra
+   la investigación.
+
+**Hallazgo secundario real, menor**: 8 nombres de save duplicados en 2-3
+rutas distintas del dispositivo (19 de 288 archivos totales) — restos de un
+`savefile_directory` mal configurado en el pasado en la Anbernic (mismo
+patrón de drift que `retroarch_cfg_writer.py` en PC, ver commit `ac9e905`
+de hoy), ejemplo verificado con `adb shell find ... -iname 'punisher.nv'`:
+`RetroArch/saves/cps1/punisher.nv` (convenio nuevo) +
+`RetroArch/cps1/punisher.nv` + `RetroArch/cps1/fbneo/punisher.nv`
+(legado). Solo 19 archivos, no bloquea nada — separado en su propia tarea.
+
+**No se ejecutó ningún `--apply` real** en esta sesión (quedó todo en
+dry-run) — 106 archivos / ~230 MB reales pendientes de subir a la
+Anbernic, listos para aplicar en la próxima sesión con los parámetros ya
+correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
+`skip_existing=true`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los 8 saves duplicados en rutas legado (`RetroArch/<plataforma>/*.nv` plano y `RetroArch/<plataforma>/<core>/*.nv` anidado) una vez confirmado por fecha cuál copia es la correcta — no bloquea el cable-sync normal, solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | 🔴 pendiente, baja prioridad |
+| CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
+
+---
+
+### CABLE-SYNC-SAVES-PREFIX-1 — cable-sync ADB no reconoce el convenio D2 `saves/` del PC — afecta a la UI real, no solo al test de arriba (rammu, 2026-09-21)
+
+Al ejecutar `CABLE-SYNC-APPLY-1` con `pc_path` apuntando **directamente** a
+`E:\Carpetas anbernic\saves` (no a la raíz de la biblioteca) tuvo que
+usarse a propósito para que el matching funcionara. Pero **la UI real
+(`sync.js:940`, `_setIfEmpty('cable-pc-path', ... cfg.library_root ...)`)
+por defecto pone `pc_path = library_root`** (la raíz completa, no
+`.../saves`) — necesario porque el mismo campo también sirve para
+sincronizar ROMs, no solo saves. Con ese valor por defecto, cualquier
+usuario que haya centralizado sus saves con el convenio D2
+(`savefile_directory = library_root/saves`, el mismo botón "Aplicar
+layout de saves" arreglado hoy en `ac9e905`) sufriría el mismo problema
+que el primer intento de `CABLE-SYNC-DUP-PATHS-1`: **todos los saves se
+marcarían como "nuevos"** en vez de detectarse como ya sincronizados,
+porque la ruta relativa del lado PC lleva el prefijo `saves/` y la del
+lado Android no.
+
+**Causa raíz confirmada en código**: `canonical_rel_posix()`
+(`sync/android_paths.py`) traduce el primer segmento (carpeta de
+plataforma) usando `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, pero por
+diseño explícito (su propio docstring) **no toca segmentos que no
+reconoce como plataforma — y `saves` es uno de ellos**: `"no inventa una
+carpeta nueva para algo que no reconoce (p. ej. carpetas de sistema como
+BIOS/ o saves/)"`.
+
+**No es un fix trivial de una línea** — verificado en el dispositivo real
+(`adb shell find`/`ls_recursive` sin filtro) que **el propio Android
+mezcla convenios según el core**: algunos escriben el save plano junto a
+la plataforma (`RetroArch/mame/fixeight.nv`), otros ya usan su propia
+subcarpeta `saves/<core>/` (`RetroArch/saves/mame2003/nvram/mk3.nv`,
+`RetroArch/saves/bsnes2014/Earthbound (1).srm`) — quitar sin más el
+prefijo `saves/` del lado PC rompería el matching para los cores que sí
+lo tienen en Android. Necesita diseño, no un parche a ciegas, en el pilar
+de mayor riesgo del proyecto ("cualquier bug aquí es prioridad absoluta",
+CLAUDE.md).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma (probablemente depende de si cada core respeta `sort_files_by_content_enable`, ajuste que en Android puede estar per-core o no aplicado) — sin este mapeo no se puede diseñar una normalización de ruta segura | — (investigación en el dispositivo real, sin tocar código) | 🔴 pendiente, sin decidir |
+| CABLE-SYNC-SAVES-PREFIX-2 | Diseñar el matching correcto tras el mapeo — candidato: en vez de comparar por ruta relativa exacta, matchear por `(plataforma, nombre de archivo)` ignorando subcarpetas intermedias tipo `saves/`/`<core>/`, o reusar comparación por SHA1 (patrón ya existente en `ra_duplicates_service.py`) en vez de por ruta | `web/handlers/sync_cable.py`, `sync/android_paths.py` | 🔴 pendiente, depende de CABLE-SYNC-SAVES-PREFIX-1 |
+
+---
+
 ## UX — Auditorías por pestaña — → #206
 
 Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
