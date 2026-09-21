@@ -725,21 +725,56 @@ def _do_cable_sync(
                     for info in ab_adb_files
                     if _wanted_info(info)
                 }
+                # CABLE-SYNC-SAVES-PREFIX-2: el dispositivo mezcla convenios para
+                # el mismo save — plano junto a la plataforma, saves/<plataforma>/
+                # o saves/<core del RetroArch Android>/ (mapeo real en
+                # Tareas/backlog.md, CABLE-SYNC-SAVES-PREFIX-1) — así que una ruta
+                # relativa exacta no basta para saber si "falta". Antes de darlo
+                # por ausente, busca por nombre de archivo ignorando la carpeta
+                # intermedia; mismo tamaño = ya sincronizado, esté donde esté.
+                ab_by_name: dict[str, list] = {}
+                for _rel, _info in ab_index.items():
+                    ab_by_name.setdefault(PurePosixPath(_rel).name, []).append(_info)
 
                 def _skip_existing_device(rel_posix: str, local_size: int) -> bool:
                     if not skip_existing:
                         return False
                     ab_inf = ab_index.get(rel_posix)
-                    return ab_inf is not None and ab_inf.size == local_size
+                    if ab_inf is not None and ab_inf.size == local_size:
+                        return True
+                    return any(
+                        cand.size == local_size
+                        for cand in ab_by_name.get(PurePosixPath(rel_posix).name, ())
+                    )
+
+                _pc_by_name_cache: dict[str, list[Path]] | None = None
+
+                def _pc_by_name() -> dict[str, list[Path]]:
+                    nonlocal _pc_by_name_cache
+                    if _pc_by_name_cache is None:
+                        _pc_by_name_cache = {}
+                        for _f in _iter_files(pc_root):
+                            if _wanted(_f):
+                                _pc_by_name_cache.setdefault(_f.name, []).append(_f)
+                    return _pc_by_name_cache
 
                 def _skip_existing_pc(rel_posix: str, remote_size: int) -> bool:
                     if not skip_existing:
                         return False
                     pc_f = pc_root / Path(rel_posix.replace("/", os.sep))
                     try:
-                        return pc_f.stat().st_size == remote_size
+                        if pc_f.stat().st_size == remote_size:
+                            return True
                     except OSError:
-                        return False
+                        pass
+                    name = PurePosixPath(rel_posix).name
+                    for cand in _pc_by_name().get(name, ()):
+                        try:
+                            if cand.stat().st_size == remote_size:
+                                return True
+                        except OSError:
+                            continue
+                    return False
 
                 if direction == "pc_to_anbernic":
                     if not dry_run:

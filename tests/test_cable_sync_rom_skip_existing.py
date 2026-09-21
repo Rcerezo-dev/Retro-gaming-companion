@@ -151,6 +151,73 @@ def test_anbernic_to_pc_skips_file_already_on_pc_with_same_size(tmp_path, monkey
     assert res["skipped"] == 1
 
 
+def test_pc_to_anbernic_skips_file_under_different_device_prefix_same_name_and_size(
+    tmp_path, monkeypatch
+):
+    """CABLE-SYNC-SAVES-PREFIX-2: el mismo save vive en el dispositivo bajo
+    saves/gba/ en vez de la ruta canónica gba/ — no debe re-subirse."""
+    (tmp_path / "pc").mkdir()
+    (tmp_path / "pc" / "gba").mkdir()
+    (tmp_path / "pc" / "gba" / "mario.sav").write_bytes(b"x" * 1024)
+
+    monkeypatch.setattr(
+        AdbTransport,
+        "ls_recursive",
+        lambda self, *a, **k: [
+            AdbFileInfo(
+                android_path="/storage/emulated/0/Roms/saves/gba/mario.sav",
+                size=1024,
+                mtime=time.time(),
+            )
+        ],
+    )
+
+    def _boom_push(self, *a, **k):
+        raise AssertionError("ya existe en el dispositivo bajo otro prefijo, no debe re-subirse")
+
+    monkeypatch.setattr(AdbTransport, "push", _boom_push)
+
+    res = _run_sync(
+        tmp_path,
+        {"direction": "pc_to_anbernic", "skip_existing": True, "dry_run": True, "what": ["saves"]},
+    )
+    assert res["copied"] == 0
+    assert res["skipped"] == 1
+    assert res["errors"] == 0
+
+
+def test_anbernic_to_pc_skips_file_under_different_device_prefix_same_name_and_size(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "pc").mkdir()
+    (tmp_path / "pc" / "gba").mkdir()
+    (tmp_path / "pc" / "gba" / "mario.sav").write_bytes(b"x" * 1024)
+
+    monkeypatch.setattr(
+        AdbTransport,
+        "ls_recursive",
+        lambda self, *a, **k: [
+            AdbFileInfo(
+                android_path="/storage/emulated/0/Roms/saves/gba/mario.sav",
+                size=1024,
+                mtime=time.time(),
+            )
+        ],
+    )
+
+    def _boom_pull(self, *a, **k):
+        raise AssertionError("ya existe en el PC bajo otro prefijo, no debe re-descargarse")
+
+    monkeypatch.setattr(AdbTransport, "pull", _boom_pull)
+
+    res = _run_sync(
+        tmp_path,
+        {"direction": "anbernic_to_pc", "skip_existing": True, "dry_run": True, "what": ["saves"]},
+    )
+    assert res["copied"] == 0
+    assert res["skipped"] == 1
+
+
 def test_disk_space_guard_blocks_real_run_when_insufficient(tmp_path, monkeypatch):
     (tmp_path / "pc").mkdir()
     (tmp_path / "pc" / "big.gba").write_bytes(b"x" * 2048)
