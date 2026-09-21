@@ -1382,3 +1382,85 @@ def test_size_tier_prefers_catalog_verified_size_over_bad_dump(tmp_path: Path) -
     assert result["total_groups"] == 1
     group = result["groups"][0]
     assert group["entries"][0]["source_path"] == str(good_path)
+
+
+def test_disc_hash_union_links_legacy_dump_with_no_catalog_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DUP-DISC-RA-1b parte 2: a legacy CloneCD-style dump (serial in the
+    name, never catalog-matched -> no canonical_title, no crossfmt title
+    overlap with the canonical release) is still the same disc release as
+    the canonical .chd once RA's disc hash agrees -- ANDROID-DUP-1's real
+    "Crash Bandicoot (USA)" case (3 formats, only one had a title match)."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "rom_manager.retroachievements.ra_disc_hash_cache.get_psx_disc_hash",
+        lambda source_path, cache_dir, chdman_path: "SAMEDISCHASH",
+    )
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    canonical = str(tmp_path / "psx" / "Crash Bandicoot (USA).chd")
+    legacy = str(tmp_path / "psx" / "Crash Bandicoot [U] [SCUS-94900]" / "track.img")
+    _insert_game(
+        repo,
+        source_path=canonical,
+        sha1="A" * 40,
+        original_filename="Crash Bandicoot (USA).chd",
+        canonical_title="Crash Bandicoot (USA)",
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=legacy,
+        sha1="B" * 40,
+        original_filename="track.img",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    config = SimpleNamespace(project_root=tmp_path, library_root=tmp_path)
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "disc_hash" in group["reasons"]
+    assert {e["source_path"] for e in group["entries"]} == {canonical, legacy}
+
+
+def test_disc_hash_union_skips_when_hashes_differ(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Different real discs must never be merged just for sharing a
+    platform -- only an actual matching RA disc hash links them."""
+    from types import SimpleNamespace
+
+    def _fake_hash(source_path, cache_dir, chdman_path):
+        return "HASH_A" if "a.chd" in source_path else "HASH_B"
+
+    monkeypatch.setattr(
+        "rom_manager.retroachievements.ra_disc_hash_cache.get_psx_disc_hash", _fake_hash
+    )
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "a.chd"),
+        sha1="A" * 40,
+        original_filename="a.chd",
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "b.chd"),
+        sha1="B" * 40,
+        original_filename="b.chd",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    config = SimpleNamespace(project_root=tmp_path, library_root=tmp_path)
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["groups"] == []

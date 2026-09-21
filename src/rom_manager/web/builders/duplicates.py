@@ -1034,6 +1034,47 @@ def _review_groups_for_repo(
                 union(idxs[0], other)
             region_linked_idxs.update(idxs)
 
+    # DUP-DISC-RA-1b parte 2: same disc release dumped in different
+    # container formats/tools never shares a sha1 (different bytes) and
+    # often not even a canonical_title (a legacy CloneCD/serial-named dump
+    # rarely catalog-matches) -- but RA's disc hash (boot executable, not
+    # file bytes) is identical across containers. Only PSX/GameCube/Wii have
+    # a cached hash function today (ra_checker._DISC_HASH_CONSOLE_IDS);
+    # Saturn/Dreamcast/PS2 fall through untouched, same as before. Confirmed
+    # need: ANDROID-DUP-1's "Crash Bandicoot (USA)" existing as .bin+.cue,
+    # .chd, and a legacy CloneCD folder simultaneously -- three sha1s, no
+    # shared canonical_title on the CloneCD copy.
+    from rom_manager.retroachievements.ra_checker import _DISC_HASH_CONSOLE_IDS
+    from rom_manager.retroachievements.ra_disc_hash_cache import (
+        get_gamecube_wii_disc_hash,
+        get_psx_disc_hash,
+    )
+    from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+
+    disc_hash_linked_idxs: set[int] = set()
+    if cache_dir is not None:
+        _chdman = getattr(config, "chdman", None) if config else None
+        chdman_path = _Path(_chdman) if _chdman else None
+        disc_hash_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+        for idx, row in enumerate(rows):
+            if _is_disc_data_sibling(row["source_path"], known_paths):
+                continue
+            console_id = get_ra_console_id(row["platform"] or "")
+            if console_id not in _DISC_HASH_CONSOLE_IDS:
+                continue
+            if console_id == 12:
+                disc_hash = get_psx_disc_hash(row["source_path"], cache_dir, chdman_path)
+            else:
+                disc_hash = get_gamecube_wii_disc_hash(row["source_path"], cache_dir, console_id)
+            if disc_hash:
+                disc_hash_groups[(row["platform"] or "unknown", disc_hash)].append(idx)
+        for idxs in disc_hash_groups.values():
+            if len(idxs) < 2:
+                continue
+            for other in idxs[1:]:
+                union(idxs[0], other)
+            disc_hash_linked_idxs.update(idxs)
+
     # MATCH-HEADER-1: No-Intro DATs carry no serial, so a file whose SHA1
     # isn't in the catalog and whose filename doesn't fuzzy-match anything —
     # e.g. a translation patch or a bad/incomplete dump — is invisible to
@@ -1134,6 +1175,14 @@ def _review_groups_for_repo(
         # claim it for a cluster the fuzzy region_groups link actually built
         # (real disc sets are pre-excluded when region_linked_idxs is built).
         has_region_dup = any(i in region_linked_idxs for i in idxs) and not _is_disc_set(members)
+        # DUP-DISC-RA-1b parte 2: only claim it for a cluster the disc-hash
+        # link actually built and that isn't already a legitimate multi-disc
+        # set (a real 2-disc release also shares... nothing here, since each
+        # disc has its own distinct RA hash -- _is_disc_set stays as a
+        # defensive match with the other reasons' pattern).
+        has_disc_hash_dup = any(i in disc_hash_linked_idxs for i in idxs) and not _is_disc_set(
+            members
+        )
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
         # MATCH-FIX-4: RA hash libraries are per-console (Game Boy and Game
@@ -1168,6 +1217,8 @@ def _review_groups_for_repo(
             reasons.add("header")
         if has_region_dup:
             reasons.add("region")
+        if has_disc_hash_dup:
+            reasons.add("disc_hash")
         for idx in idxs:
             if idx in extra_reasons:
                 reasons.add(extra_reasons[idx])
