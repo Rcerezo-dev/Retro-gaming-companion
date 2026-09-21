@@ -349,7 +349,7 @@ iba a coincidir, independientemente de la lógica de agrupación.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | DUP-DISC-RA-1a | **Implementado y verificado 2026-08-30**: reimplementación en Python del algoritmo de hash PSX de RetroAchievements (`rc_hash_psx`, fuente consultada directamente en github.com/RetroAchievements/rcheevos `src/rhash/hash_disc.c`+`cdreader.c` — no es un port del C, pero fiel byte a byte, incluyendo sus particularidades case-sensitive en "BOOT"/"cdrom:", porque una reimplementación "más limpia" daría un hash *distinto* que nunca coincidiría con el de RA). Soporta `.bin` suelto, `.cue`+`.bin` (primer FILE) y `.chd` (vía `chdman extractcd`, `tools/chdman.exe` ya en el proyecto). **Validado contra caché RA real, no solo con datos sintéticos**: de 259 archivos `.bin`/`.cue` reales de la biblioteca PSX, 124 coincidieron EXACTAMENTE con un hash ya presente en `ra_hashes_12.json` (47,9%) — prueba directa de que el algoritmo es correcto. CHD también probado en vivo (3/15 de una muestra, el resto son juegos fuera del caché de 1.318 o casos sin `SYSTEM.CNF` estándar) — más lento (~7s/archivo, `chdman` descomprime el CHD entero a un `.bin` temporal cada vez, sin caché todavía). Test unitario con imagen ISO9660 sintética mínima construida a mano (`tests/test_ra_hash_psx.py`, 3/3) — no depende de archivos reales | `retroachievements/ra_hash_psx.py` (nuevo), `tests/test_ra_hash_psx.py` (nuevo) | ✅ algoritmo implementado y verificado contra datos reales |
-| DUP-DISC-RA-1b | **Parte 1 implementada 2026-08-30**: `ra_checker.check_library()` ya usa el hash de disco (vía `ra_disc_hash_cache.get_psx_disc_hash`, cacheado en `.rommgr/ra_cache/psx_disc_hashes.json` por `(source_path, mtime, size)`) en vez de `row["md5"]` para consolas con `console_id in _DISC_HASH_CONSOLE_IDS` (por ahora solo PSX, 12). Wireado hasta `/api/ra-check` (`web/handlers/sync.py`, pasa `config.chdman`). Test `test_playstation_uses_disc_hash_not_stored_md5`. **Parte 2 (agrupado por edición completa en la cola de duplicados) sigue pendiente** — sin implementar todavía, alcance medido: 71 juegos PSX/Dreamcast/Saturn/Wii con ≥2 ediciones regionales completas en `library_pc.db` | `retroachievements/ra_checker.py`, `retroachievements/ra_disc_hash_cache.py` (nuevo), `web/handlers/sync.py` | 🟡 hash-check hecho, agrupado por edición pendiente |
+| DUP-DISC-RA-1b | **Parte 1 implementada 2026-08-30**: `ra_checker.check_library()` ya usa el hash de disco (vía `ra_disc_hash_cache.get_psx_disc_hash`, cacheado en `.rommgr/ra_cache/psx_disc_hashes.json` por `(source_path, mtime, size)`) en vez de `row["md5"]` para consolas con `console_id in _DISC_HASH_CONSOLE_IDS` (por ahora solo PSX, 12). Wireado hasta `/api/ra-check` (`web/handlers/sync.py`, pasa `config.chdman`). Test `test_playstation_uses_disc_hash_not_stored_md5`. **Parte 2 implementada 2026-09-21** (rammu): nueva pasada de unión en `_review_groups_for_repo` (mismo patrón que `crossfmt`/`region`, pero uniendo por hash de disco RA en vez de título difuso) — dos filas de la cola de duplicados con el mismo hash de disco RA se tratan como la misma edición aunque no compartan SHA1 ni `canonical_title`. Alcance real: `_DISC_HASH_CONSOLE_IDS` (`ra_checker.py`) ya trae hash cacheado para PSX **y también GameCube/Wii** (`get_gamecube_wii_disc_hash`, más completo de lo que decía esta fila — Saturn/Dreamcast siguen sin cache wireada, `DUP-DISC-RA-1c` dejó explícitamente esa parte fuera). Nuevo motivo `"disc_hash"` en la cola (`reasons`), etiqueta añadida en `review_copies.js` (`_REASON_LABELS`). Cubre exactamente el caso real de `ANDROID-DUP-1` (`Crash Bandicoot (USA)` en `.bin+.cue`/`.chd`/carpeta CloneCD legacy con nombre de serial, sin `canonical_title` en la copia legacy — invisible a `sha1`/`title`/`crossfmt` hasta ahora). 2 tests nuevos (`test_disc_hash_union_links_legacy_dump_with_no_catalog_match`, `test_disc_hash_union_skips_when_hashes_differ`), suite completa 1424 tests (3 fallos son los ambientales ya conocidos de ADB conectado). **Validado contra `library_pc.db` real 2026-09-21** (345 PlayStation + 59 GameCube + 118 Wii, la biblioteca real de `E:\Carpetas anbernic`): 3 min de ejecución (la caché de hashes ya cubría casi todo), 1829 grupos totales en la cola, **1 grupo nuevo vía `disc_hash`** — `Resident Evil 3 - Nemesis (USA, Canada).chd` enlazado con `resident evil 3.chd` (nombre no canónico), confirmando que el hash de disco RA funciona en producción sin errores. **Matiz**: el escenario que motivó la tarea (`ANDROID-DUP-1` — volcado legacy CloneCD con nombre de serial `[SCUS-nnnnn]`, invisible a sha1/title/crossfmt) vive en la RG556 vía ADB (`/storage/521D-04EA/ROMs/`), un medio físico distinto de `E:\Carpetas anbernic` — validar ese caso exacto requeriría copiar esos archivos legacy localmente primero (el hash de disco RA necesita leer el archivo directo, ADB no sirve sin montar el dispositivo), sesión aparte, sin hacer todavía | `retroachievements/ra_checker.py`, `retroachievements/ra_disc_hash_cache.py`, `web/handlers/sync.py`, `web/builders/duplicates.py` (`_review_groups_for_repo`, parte 2 nueva), `web/static/js/tabs/review_copies.js` | ✅ hash-check + agrupado por edición implementados y validados contra datos reales; caso legacy CloneCD de la RG556 (ADB) sigue sin validar |
 | DUP-DISC-RA-1c | **Implementado 2026-09-07**: mismo algoritmo pero para Saturn/Dreamcast — Wii sigue sin aplicar (no es un CD, RA lo hashea distinto, formato propio). Investigado directamente en la fuente de rcheevos (`github.com/RetroAchievements/rcheevos`, `src/rhash/hash_disc.c` — `rc_hash_sega_cd()` para Saturn, `rc_hash_dreamcast()` para Dreamcast — y `cdreader.c`, fetch directo con `curl`). Hallazgo que simplificó bastante el trabajo: Saturn NO hace boot-exe lookup como PSX — RA solo hashea el header crudo de 512 bytes al principio de la pista 1 (comentario propio de rcheevos: "hashing the volume and ROM headers is sufficient"), sin tocar el sistema de archivos. Dreamcast sí es más parecido a PSX: hashea 256 bytes de IP.BIN (pista 3, no la 1 — GD-ROM) + el ejecutable de arranque (nombre en el offset 96 de IP.BIN), localizado por el mismo lookup ISO9660 genérico que ya usaba PSX (confirmado en la fuente: `rc_cd_find_file_sector` es la misma función para todas las consolas, PSX incluida — nunca fue específica de PSX). **Refactor previo sin cambio de comportamiento**: el lector de sectores CD + el buscador ISO9660 (antes solo en `ra_hash_psx.py`) se extrajeron a `retroachievements/ra_cd_image.py` nuevo, compartido — evita triplicar la misma lógica ya que las tres consolas usan literalmente el mismo algoritmo de lectura de sectores/geometría. 7 tests de `ra_hash_psx` siguen en verde tras la extracción. Módulo nuevo `retroachievements/ra_hash_saturn_dreamcast.py`: `compute_saturn_ra_hash()` (`.bin`/`.cue`/`.chd`) y `compute_dreamcast_ra_hash()` (`.bin`/`.cue`/`.chd`/`.gdi` — parser propio de `.gdi` para resolver la pista 3 por número, ya que en GD-ROM cada pista es normalmente su propio archivo). 7 tests nuevos con imágenes sintéticas (mismo patrón que `test_ra_hash_psx.py`) — a diferencia de PSX, **sin verificar todavía contra caché RA real** (sin biblioteca Saturn/Dreamcast en esta máquina): la corrección del parseo de bytes está probada, la fidelidad al hash real de RA no. Wireado hasta `ra_checker.py`/`ra_disc_hash_cache.py` (equivalente a la "parte 1" de `DUP-DISC-RA-1b` para PSX) queda **fuera de esta tarea a propósito** — el pedido original decía "mismo algoritmo", no el wiring; candidato natural para una `DUP-DISC-RA-1d` si se quiere activar en la comprobación RA real. Suite completa 1235/1235 | `retroachievements/ra_cd_image.py` (nuevo), `retroachievements/ra_hash_saturn_dreamcast.py` (nuevo), `retroachievements/ra_hash_psx.py` (refactorizado, sin cambio de comportamiento), `tests/test_ra_hash_saturn_dreamcast.py` (nuevo) | ✅ algoritmo implementado y probado con datos sintéticos; sin verificar contra caché RA real ni wireado a `ra_checker.py` todavía |
 | DUP-DISC-RA-1e | **Intento de validación real 2026-09-07 bloqueado por gap de formato**: al intentar validar `compute_saturn_ra_hash`/`compute_dreamcast_ra_hash` contra la biblioteca real (`F:\Juegos Retro`, sí montada en esta máquina) se encontró que Saturn no tiene ningún ROM real ahí (solo `saturn\media\images`/`videos`, artefactos del scraper) y que los 5 juegos reales de Dreamcast están **todos en `.cdi`** (`Crazy Taxi 2`, `Dead or Alive 2 (Beta)`, `Legacy of Kain - Soul Reaver`, `Marvel Vs Capcom 2` [además tiene `.A1.bin`, que es un save de VMU, no la imagen del disco], `Sonic Adventure`). `compute_dreamcast_ra_hash()` (`retroachievements/ra_hash_saturn_dreamcast.py:145-162`) solo reconoce `.gdi`/`.cue`/`.bin`/`.chd` — devuelve `None` para `.cdi` sin intentarlo siquiera, así que la validación contra la caché RA real de `DUP-DISC-RA-1c` sigue sin poder hacerse en esta máquina hasta que se añada un parser de `.cdi` (formato DiscJuggler — cabecera y layout de pistas distintos de un `.bin`/`.cue` crudo, no es un simple alias). **Investigado a fondo 2026-09-07 (segunda pasada) y cerrado sin implementar**: se probó primero convertir con `chdman createcd` (la propia herramienta del proyecto) — la conversión se quedó colgada sin avanzar (>15 min, salida de 124 bytes). Investigando la causa en el código fuente real de MAME (`src/tools/chdman.cpp` → `cdrom_file::parse_toc`, `src/lib/util/cdrom.cpp:2966-2990`, descargado con `curl` vía `raw.githubusercontent.com`): **`chdman` tampoco soporta `.cdi`** — el dispatcher por extensión solo reconoce `.gdi`/`.cue`/`.nrg`/`.iso`/`.cdr`/`.toast`; cualquier otra extensión cae al parser de texto genérico CDRDAO `.toc`, que intenta leer el archivo binario `.cdi` como líneas de texto (de ahí el cuelgue, no lentitud). Y **`rcheevos` (la librería de referencia de RA) tampoco soporta `.cdi`**: su propio dispatcher (`src/rhash/cdreader.c:777-788`, ya consultado para `DUP-DISC-RA-1c`) solo reconoce `.cue`/`.gdi` por extensión — cualquier otra cosa (incluido `.cdi`) se abre como `.bin` crudo de una sola pista, lo que daría un hash **silenciosamente incorrecto**, no un "no soportado" limpio. Con ni RA ni chdman soportando el formato, escribir un parser propio de DiscJuggler no tendría ningún oráculo contra el que validar que el hash resultante coincide con el real de RA — el riesgo de dar por buena una implementación que en realidad nunca coincidiría es alto. **Decisión (discutida con el usuario 2026-09-07): no implementar por ahora** — se retoma si aparece una vía de validación independiente (chdman añade soporte `.cdi` en una versión futura, o se publican hashes RA de Dreamcast conocidos de la comunidad) | `retroachievements/ra_hash_saturn_dreamcast.py:145-162` (`compute_dreamcast_ra_hash`) | ⚪ investigado y cerrado sin implementar — ni RA ni chdman soportan `.cdi`, sin oráculo para validar un parser propio; Saturn sigue sin ningún ROM real que validar en esta biblioteca |
 | DUP-DISC-RA-2 | **Implementado y verificado 2026-08-30** (pedido explícito del usuario: "usa chd como formato de psx"). Recomendación confirmada: **CHD**, un archivo por disco, soportado nativamente por RetroArch/`chdman` (ya en `tools/`). Descubierto que ya existía un conversor sin usar (`rommgr convert-chd` / `converters/chd_converter.py`) que solo cubría `.cue`+`.bin` reales — **extendido** en vez de duplicado: (1) `find_bare_bin_files()` descubre `.bin` sueltos sin `.cue` (el caso mayoritario real, ver DUP-DISC-RA-2b) validando con `compute_psx_ra_hash()` que de verdad son un disco legible, no una pista de audio huérfana; (2) `synthesize_cue_text()` genera un `.cue` mínimo de una pista reutilizando `detect_bin_cue_mode()` (nuevo en `ra_hash_psx.py`); (3) `parse_bins_from_cue()` arreglado para resolver solo por nombre base (bug real encontrado: `.cue` con ruta absoluta rota, ver DUP-DISC-RA-2b, hacía que el `cwd=` existente no sirviera de nada); (4) **cada conversión se verifica comparando el hash RA de disco antes/después** (`_verify_ra_hash`) — si no coincide, se borra el `.chd` y el original queda intacto, nunca se sobreescribe a ciegas. `chdman createcd` necesita la palabra `BINARY` en la línea `FILE` del `.cue` sintético (bug propio encontrado y arreglado — sin ella da "Unhandled track type"). 13/13 tests en `test_chd_converter.py` (incluye conversión real de punta a punta con `chdman.exe` y un caso de mismatch de hash forzado). **Dry-run contra la biblioteca PSX real** (`rommgr convert-chd "E:\Carpetas anbernic\psx"`): **181 convertibles** (bare-bin + 0 cue reales, los 18-22 `.cue` reales están todos rotos, ver DUP-DISC-RA-2b), 22 fallos (cue roto), 1 ya convertido. **No ejecutado con `--apply`** contra la biblioteca real — pedido explícito del usuario de construir la herramienta y ejecutarla aparte; nota de rendimiento: un solo disco de ~600MB tardó >10 min con la compresión por defecto de `chdman` en esta máquina, así que los 181 son horas, no minutos — pensar en correrlo en background/durante la noche | `converters/chd_converter.py`, `retroachievements/ra_hash_psx.py` (`detect_bin_cue_mode`), `tests/test_chd_converter.py`, `cli.py` (ayuda actualizada) | ✅ herramienta lista y verificada; ejecución real pendiente, la lanza el usuario |
@@ -548,9 +548,65 @@ reconocidas**, hash SHA1/MD5 calculado en las 388, 0 errores.
 con que el catálogo FBNeo se arregló y 67 sets se renombraron en este mismo
 dispositivo el mismo día (`MATCH-ARCADE-DAT-2`/`ARCADE-RENAME-BUG-1f`).
 Fase 3 (discos, 382 GB, 3+ horas) sigue pendiente de decisión explícita del
-usuario — no lanzada | 🟡 Fases 1-2 del roadmap 23 completadas y sin
-duplicados nuevos que aplicar; Fase 3 (discos) pendiente de decidir si
-merece la pena |
+usuario — no lanzada | ✅ **Fase 3 parcial completada 2026-09-21**: las 5
+plataformas de disco medianas (`nds` 480 archivos/385 ROMs, `gamecube` 19,
+`dreamcast` 61, `3ds` 37, `psp` 7 — 971 archivos, 0 errores, hash real
+calculado vía `POST /api/adb-scan` una llamada por plataforma) escaneadas
+contra la RG556 real. `_build_review_queue` contra `library_android.db`:
+**7 grupos duplicados reales, todos en Dreamcast, 4,79 GB desperdiciados**
+(nds/gamecube/3ds/psp salieron limpios) — coincide con los 5 juegos
+Dreamcast ya confirmados en `.cdi` por `DUP-DISC-RA-1e`. Ejemplos: `Dead or
+Alive 2 (Europe).cdi` duplicado literal (mismo nombre, 2 copias, +1 variante
+Beta); `Legacy of Kain - Soul Reaver` con la copia `(USA).cdi` byte-idéntica
+a `(Europe).cdi` (mismo SHA1 — probable mal etiquetado de región, no una
+versión distinta real); `Crazy Taxi 2`/`Sonic Adventure (XBLA)`/`D2 (USA)`
+duplicados literales por nombre. **Hallazgo colateral — implementado 2026-09-21**:
+`vmu_save_A1.bin`/`vmu_save_A2.bin` (saves de memory card Dreamcast) se
+clasificaban como ROM, no como save — `.bin` no está en `save_extensions`
+(`config.py:606-629`, correcto para no romper discos reales `.bin`), así
+que `_do_adb_scan` (`web/handlers/scan.py`, rama `else`) los trataba como
+ROM por descarte. Arreglado con una rama nueva por nombre (`suffix ==
+".bin" and name.lower().startswith("vmu_save_")` → `upsert_save`, antes de
+la rama de asset/ROM), caso estrecho a propósito (solo Dreamcast usa esta
+convención) sin tocar `save_extensions` global. Test nuevo
+`test_adb_scan_classifies_vmu_save_bin_as_save_not_rom` en
+`tests/web/test_adb_scan_hashing.py`.
+
+**Fase 3 completada al 100% (7/7 plataformas) 2026-09-21**: `psx` (215G) —
+1746 archivos, 1685 ROMs, 0 errores. `ps2` (89,5G) — 27 archivos, 26 ROMs,
+0 errores. `_build_review_queue` contra `library_android.db` completo:
+**149 grupos duplicados en psx/ps2, 19,6 GB desperdiciados** (motivos: 94
+`crossfmt`, 67 `sha1`, solapados). Casos reales: `Xenogears`,
+`Metal Gear Solid`, `Final Fantasy VIII`, `Suikoden II`, `Parasite Eve`,
+`Final Fantasy Tactics` (mismo disco en `.chd`+`.cue`+`.bin`+`.pbp`, o
+regiones distintas mezcladas con crossfmt). **`disc_hash` no aportó nada
+aquí** — a diferencia de la validación contra `library_pc.db` (rutas
+Windows reales de la SD montada por lector de tarjetas), las filas de
+`library_android.db` tienen rutas Android (`/storage/521D-04EA/...`) que
+`get_psx_disc_hash` no puede leer desde esta máquina Windows
+(`Path(source_path).stat()` falla en silencio, `None` para cada fila) —
+esperado, no un bug; el caso `ANDROID-DUP-1` (CloneCD legacy) seguiría sin
+validarse sin copiar esos archivos localmente primero.
+
+**Hallazgo nuevo, real y sin implementar (riesgo real al aplicar la cola de
+duplicados en PSX)**: en el grupo `Xenogears`, `_is_disc_set()`
+(`web/builders/duplicates.py:56-80`) no protegió un set multi-disco real —
+`Xenogears (Japan).chd` (edición japonesa, un solo disco, **sin** tag
+`(Disc N)` en el nombre) quedó unido en el mismo clúster que
+`Xenogears (USA) (Disc 1).chd`/`(Disc 2).chd`. Causa raíz: `_is_disc_set`
+devuelve `False` (guard desactivado, se trata como duplicado normal) en
+cuanto **un solo miembro** no tiene número de disco parseable
+(`find_disc_number` → `None`, línea 77-78) — protege sets donde todos los
+miembros llevan tag de disco, pero no cuando una edición regional
+single-disc (sin tag) se mezcla con los discos individuales de una edición
+multi-disco. Con datos reales de PSX vía ADB por primera vez este patrón
+aparece en varios juegos reales de la biblioteca — **no aplicar
+`resolve-duplicates --apply` sobre los grupos PSX/PS2 sin revisión manual**
+hasta que esto se arregle, riesgo real de descartar un disco necesario de
+un set multi-disco | ✅ Fases 1-2 completas; Fase 3 100% (7/7 plataformas,
+149 grupos psx/ps2, 19,6 GB); hallazgo colateral `vmu_save` arreglado y
+testeado; hallazgo nuevo `_is_disc_set` documentado sin implementar,
+bloquea aplicar duplicados en PSX/PS2 sin revisión manual |
 
 **Medición real del punto 1 (2026-09-19, sesión siguiente, tras mergear
 `ANDROID-DUP-2`/PR #330)**: se lanzó el rescan ADB completo con hash real
@@ -584,6 +640,64 @@ listadas arriba: trocear el escaneo por plataforma. Ver roadmap
 `.claude/roadmaps/23-android-hash-rescan-dedup.md` y el resultado real
 (Fases 1-2 completadas) en el párrafo `✅ Fase 2 completada 2026-09-20` más
 arriba en esta misma tarea |
+
+---
+
+### DUP-DISC-SET-1 — `_is_disc_set()` no protege un set multi-disco cuando una edición regional sin tag `(Disc N)` se mezcla con los discos sueltos de otra edición (hallazgo 2026-09-21, datos PSX reales vía ADB, Fase 3 de `ANDROID-DUP-2`)
+
+Origen: al correr `_build_review_queue` contra `library_android.db` con
+hash real de PSX/PS2 por primera vez, el grupo `Xenogears` unió
+`Xenogears (Japan).chd` (edición japonesa, un solo disco, sin tag `(Disc
+N)` en el nombre) con `Xenogears (USA) (Disc 1).chd` y `(Disc 2).chd` —
+tres discos con contenido distinto tratados como "duplicados", con riesgo
+real de que "Aplicar recomendación" descarte un disco necesario del set
+USA. Mismo patrón visto en `Metal Gear Solid`/`Final Fantasy VIII`/
+`Parasite Eve` (149 grupos psx/ps2 en total, 94 `crossfmt` + 67 `sha1`).
+
+Causa raíz confirmada: `_is_disc_set()` (`web/builders/duplicates.py:56-80`)
+devuelve `False` (guard desactivado, el clúster se trata como duplicado
+normal) en cuanto **un solo miembro** del clúster no tiene número de disco
+parseable (`find_disc_number()` → `None`, línea 77-78). Protege bien un
+set donde *todos* los miembros llevan tag de disco (`(Disc 1)`/`(Disc 2)`),
+pero no cuando una edición regional single-disc (sin tag, p. ej. la
+japonesa) queda unida al mismo clúster que los discos individuales de una
+edición multi-disco vía `crossfmt`/`sha1` — el guard nunca llega a
+evaluarse como "sí es un set multi-disco" porque el miembro sin tag rompe
+la condición `for r in members: if num is None: return False`.
+
+**Sin implementar** — necesita diseño, no un parche a ciegas (tocar la
+protección de integridad de sets multi-disco es el área de mayor riesgo
+de duplicados): posible fix es no devolver `False` de inmediato ante un
+miembro sin número, sino comprobar si el resto de miembros SÍ tienen ≥2
+números de disco distintos entre sí (en cuyo caso el conjunto sigue siendo
+un set multi-disco real, con o sin la edición sin-tag presente).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| DUP-DISC-SET-1 | Arreglar `_is_disc_set()` para no perder la protección de set multi-disco cuando un miembro del clúster no lleva tag de disco (edición regional single-disc mezclada con discos sueltos de otra edición) | `web/builders/duplicates.py:56-80` (`_is_disc_set`) | 🔴 confirmado con datos reales (`Xenogears`, `library_android.db`), sin implementar — **bloquea aplicar `resolve-duplicates --apply` sobre los 149 grupos psx/ps2 encontrados en `ANDROID-DUP-2` Fase 3 sin revisión manual** hasta que se arregle |
+
+---
+
+### ANDROID-STVERSIONS-1 — `saves/.stversions/<core>/` (carpeta de versionado de Syncthing) se trata como save real, contamina la detección de duplicados legado (hallazgo 2026-09-21, `CABLE-SYNC-LEGACY-DUPS-1`)
+
+Origen: al resolver por contenido (SHA1) los 130 grupos restantes de
+`CABLE-SYNC-LEGACY-DUPS-1`, 2 grupos (`Metroid - Zero Mission [E].srm`,
+`Sonic Advance 2 [E].srm`) tenían una copia bajo
+`saves/.stversions/<core>/` — la carpeta de versionado automático de
+Syncthing (herramienta de terceros instalada en el dispositivo, no creada
+por este proyecto). No es un save real que el usuario gestione, es un
+artefacto de sincronización ajeno a `rom_manager` — mismo tipo de ruido que
+ya se excluyó para `_descartados/` (`TRASH_DIR_NAME`) y `emulator_saves/`
+(`EMULATOR_SAVES_DIR_NAME`, `CABLE-SYNC-EMULATOR-SAVES-LEAK-1`).
+
+**Sin implementar** — no bloquea nada hoy (los archivos `.stversions/` de
+estos 2 grupos concretos no se tocaron, quedaron como contenido "único" al
+diferir del resto). Alcance real (cuántos archivos/cuánto espacio hay bajo
+`.stversions/` en todo el dispositivo) sin medir todavía.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ANDROID-STVERSIONS-1 | Medir el alcance real de `saves/.stversions/` en la Anbernic (ADB) y, si procede, excluirlo del cable-sync/escaneo de duplicados igual que `_descartados/`/`emulator_saves/` | `web/handlers/sync_cable.py`, `sync/cable_engine.py`, `web/cable_sync_daemon.py` (mismos 3 sitios que excluyen `TRASH_DIR_NAME`/`EMULATOR_SAVES_DIR_NAME`) | 🔴 hallazgo confirmado (2 grupos afectados), alcance completo sin medir, sin implementar |
 
 ---
 
@@ -2310,7 +2424,7 @@ estructura relativa que el dispositivo) — 706/706 ok, 0 errores.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | 🟡 informe + backup hechos 2026-09-21, sin borrar — pendiente decidir con el usuario si automatizar el borrado de `junk_zero_bytes`/`safe_same_copy_event` (269 grupos, bajo riesgo) o revisar entero a mano |
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | ✅ **completo 2026-09-21**. Primera pasada (bajo riesgo, tamaño/fecha): 159 grupos/240 archivos (`junk_zero_bytes` + `safe_same_copy_event`) borrados, backup previo intacto, 0 errores — ver detalle abajo. **Segunda pasada (los 130 grupos restantes, `review_time_gap` + `CONFLICT_diff_size`) resuelta por contenido real**: en vez de decidir por tamaño/fecha (arriesgado — el `size_bytes` de un save GBA de tamaño fijo no dice nada del contenido), se calculó el SHA1 real de cada copia contra el backup local ya hecho (sin tocar el dispositivo, que estaba ocupado con el rescan `ps2` de `ANDROID-DUP-2`). Resultado: de 321 archivos en esos 130 grupos, **174 eran copias byte-idénticas de verdad** (mismo contenido exacto, solo cambiaba la ruta/fecha) — borradas vía `adb shell rm`, 0 errores, verificado post-borrado que las 147 rutas canónicas conservadas (una por cada contenido realmente distinto) siguen intactas. **Ningún archivo de contenido único se tocó** — incluye casos con saves reales de un core distinto (p. ej. `Metroid - Zero Mission [E].srm` tiene un save propio bajo `saves/mGBA/` además del de `VBA Next`/`gba`), que quedan sin resolver a propósito, decisión del usuario si alguna vez hace falta. **Hallazgo colateral nuevo, sin implementar**: 2 grupos tenían copias bajo `saves/.stversions/<core>/` — carpeta de versionado de Syncthing (herramienta de terceros en el dispositivo, no creada por este proyecto), debería excluirse del escaneo/legacy-dup igual que `_descartados/`/`emulator_saves/`, no se ha tocado. Backup completo de las 3 pasadas sigue en `.rommgr/legacy_dups_backup_2026-09-21/` |
 | CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
 
 ---
