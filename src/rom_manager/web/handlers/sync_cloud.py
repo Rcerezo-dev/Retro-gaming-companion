@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
@@ -9,8 +10,47 @@ from rom_manager.utils.paths import is_device_path
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
+    from rom_manager.sync.conflict_resolver import SyncDecision
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+def _decision_payload(d: SyncDecision, repository: LibraryRepository) -> dict:
+    """Build the ``/api/sync`` payload for one decision.
+
+    SAVES-CONFLICT-CTX-1: a conflict gets extra context beyond the bare
+    filename — mtimes, sizes and playtime per side, matched best-effort by
+    filename stem against ``games`` (a save and its ROM share a stem, same
+    assumption ``GET /api/save-backups`` already relies on). A lookup
+    failure or no match must never break sync — it just omits the field.
+    """
+    payload: dict = {"action": d.action, "relative": d.relative}
+    if d.action != "conflict":
+        return payload
+    payload["local_mtime"] = d.local_mtime.isoformat() if d.local_mtime else None
+    payload["remote_mtime"] = d.remote_mtime.isoformat() if d.remote_mtime else None
+    payload["local_size"] = d.local_size
+    payload["remote_size"] = d.remote_size
+    stem = Path(d.relative).stem
+    try:
+        with repository.connect() as conn:
+            rows = conn.execute(
+                "SELECT source_path, playtime_minutes_pc, playtime_minutes_android "
+                "FROM games WHERE source_path LIKE ?",
+                (f"%{stem}%",),
+            ).fetchall()
+        for row in rows:
+            if Path(row["source_path"]).stem == stem:
+                payload["playtime_minutes_pc"] = row["playtime_minutes_pc"]
+                payload["playtime_minutes_android"] = row["playtime_minutes_android"]
+                break
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).debug(
+            "Playtime lookup failed for conflict context (non-fatal)", exc_info=True
+        )
+    return payload
 
 
 def register_cloud(
@@ -402,7 +442,7 @@ def run_cloud_sync_job(
                             "errors": result.errors,
                             "delta_skipped": result.delta_skipped,
                             "decisions": [
-                                {"action": d.action, "relative": d.relative}
+                                _decision_payload(d, repository)
                                 for d in decisions
                                 if d.action != "up_to_date"
                             ],
@@ -496,7 +536,7 @@ def run_cloud_sync_job(
                             "errors": result.errors,
                             "delta_skipped": result.delta_skipped,
                             "decisions": [
-                                {"action": d.action, "relative": d.relative}
+                                _decision_payload(d, repository)
                                 for d in decisions
                                 if d.action != "up_to_date"
                             ],

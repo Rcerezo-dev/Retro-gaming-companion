@@ -166,6 +166,10 @@ def sync_saves(
                 remote_mtime=remote.mtime if remote else None,
                 last_sync_at=last_sync,
             )
+            # SAVES-CONFLICT-CTX-1: tamaño de cada lado como contexto extra
+            # al resolver un conflicto (decide() solo conoce mtimes).
+            decision.local_size = local.size if local else None
+            decision.remote_size = remote.size if remote else None
             decisions.append(decision)
 
             if decision.action == "up_to_date":

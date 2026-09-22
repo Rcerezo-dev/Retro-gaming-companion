@@ -32,6 +32,11 @@ def _set_mtime(path: Path, seconds_offset: float) -> None:
 def _make_config(tmp_path: Path, pc_root: Path, ab_root: Path, direction: str):
     cfg = load_config()
     cfg.project_root = tmp_path
+    # roadmap 25 Paso 2: el backup ahora pasa por `backup_save(item.dst,
+    # config.data_dir)` — data_dir no se recalcula al pisar project_root
+    # arriba, así que hay que fijarlo también o los tests escribirían fuera
+    # de tmp_path (en el .rommgr real del repo).
+    cfg.data_dir = tmp_path / ".rommgr"
     cfg.library_root = pc_root
     cfg.anbernic_root = str(ab_root)
     cfg.sync.auto_sync_direction = direction
@@ -142,8 +147,13 @@ def test_overwrite_backs_up_destination_first(tmp_path: Path) -> None:
 
     _run(_make_config(tmp_path, pc, ab, "pc_to_anbernic"))
 
-    backup_root = tmp_path / ".rommgr" / "cable_sync_backups"
-    backups = list(backup_root.glob("*/anbernic/gba/mario.sav"))
+    # roadmap 25 Paso 2 (2026-09-22): el backup ya no va a la carpeta ad-hoc
+    # `.rommgr/cable_sync_backups/<fecha>/` — usa el sistema unificado
+    # `save_backup.py` (mismo que Cloud Sync y el Cable Sync manual), para
+    # que también aparezca en la UI de historial de saves de la ficha de
+    # juego (`GET /api/save-backups`).
+    backup_root = tmp_path / ".rommgr" / "saves-backup" / "gba" / "mario"
+    backups = list(backup_root.glob("*.sav"))
     assert len(backups) == 1
     assert backups[0].read_bytes() == b"OLDDATA"
     assert (ab / "gba" / "mario.sav").read_bytes() == b"NEWDATA"

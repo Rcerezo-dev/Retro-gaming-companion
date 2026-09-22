@@ -25,6 +25,17 @@
 > consolidadas en el dispositivo (patrón `DUALFOLDER-12`, solo aplicado en PC);
 > `library_android.db` desactualizada (último scan 2026-09-12); relanzado el
 > scrape completo (22.840 ROMs pendientes)
+> 2026-09-22: 8 ideas de mejora propuestas por el usuario añadidas como tareas
+> nuevas (SAVES-UX, INBOX-UX, LIBRARY-UX, MOBILE-UI, RA-LIVE en sus epics de
+> pilar existentes → #202/#203/#204/#206/#208) + nuevo epic "Estandarización de
+> biblioteca multi-launcher" (→ #337, ESDE-FOLDER-STD-1 fusiona
+> ROADMAP-IDEAS/ESDE-CONFIG-CHECK, ROMHACK-ORG-1 nuevo). Ninguna implementada
+> todavía — todas ⬜ sin diseñar. Roadmap por rama creado (`.claude/roadmaps/
+> INDEX.md`, 6 ramas nuevas 25-30, fases 1-6). Añadida 9ª tarea
+> `SYNC-CONFLICT-MANUAL-1` (revisión manual de conflictos de Cloud Sync) tras
+> verificar contra el código real que hoy se auto-resuelve siempre por policy
+> global — agrupada en la rama `feature/saves-ux-history-context` (roadmap 25)
+> por compartir fichero con `SAVES-CONFLICT-CTX-1`, no rama nueva
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -53,6 +64,12 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 | `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
 | — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](#docs-audit-1-seguimiento-de-la-auditoría-de-documentación-2026-09-20) | Transversal |
+| `feature/library-ux-dashboard-duplicates` | [27](../.claude/roadmaps/27-library-ux-dashboard-duplicates.md) | `LIBRARY-HEALTH-DASH-1`, `DUP-VISUAL-UI-1` | Pilar 1 — fase 1 de 6 (ver "Fases" en `INDEX.md`) |
+| `feature/library-folder-standardization` | [28](../.claude/roadmaps/28-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
+| `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 |
+| `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 |
+| `feature/mobile-responsive-ui` | [29](../.claude/roadmaps/29-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
+| `feature/ra-achievements-live-progress` | [30](../.claude/roadmaps/30-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
 
 **Ramas mergeadas en esta sesión** (2026-09-18, ya reflejadas en `INDEX.md` filas 12/13/17/21/22):
 `fix/catalog-match-subset-hack` (PR #317), `fix/dup-winners-non-canonical-guard` (PR #318),
@@ -1358,6 +1375,15 @@ previsto en el propio roadmap |
 
 ---
 
+### LIBRARY-UX — Dashboard de salud y duplicados visuales (idea usuario 2026-09-22)
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| LIBRARY-HEALTH-DASH-1 | Vista única de salud de biblioteca (% organizada, GB en duplicados, huérfanos, ZIPs sin descomprimir) en vez de reportes sueltos por pestaña | `web/builders/folders.py`, `web/handlers/junk.py`, pestaña Inicio | ⬜ sin diseñar |
+| DUP-VISUAL-UI-1 | Resolución de duplicados con portada side-by-side + flag de RA (reutiliza `ra_duplicates_service.py`) en vez de solo tabla de texto | `web/static/js/tabs/duplicates.js`, `services/ra_duplicates_service.py` | ⬜ sin diseñar |
+
+---
+
 ## Pilar 2 — Inbox automático — → #203
 
 Soltar un juego sin organizar y que la app lo detecte, empareje con catálogo
@@ -1996,6 +2022,15 @@ except Exception as exc:
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | INBOX-ATOMIC-1 | Decidir la política: (a) reintentar el `UPDATE`/`cascade_delete` en un `finally` separado antes de dar el archivo por fallido, (b) revertir el `_shutil.move` (mover el archivo de vuelta al Inbox) si el paso de BD falla, o (c) como mínimo, mejorar el mensaje de `organize_errors` para que nombre explícitamente el riesgo real (`"archivo movido a {dest_file} pero la base de datos no se pudo actualizar — revisar a mano"`) en vez del mensaje crudo de la excepción SQLite. No implementar sin decisión explícita del usuario — cambia el comportamiento del Pilar 2 en el camino de fallo | `web/inbox_pipeline.py` (paso "Move to platform folders") | ✅ hecho 2026-09-15, a petición explícita del usuario (rama `feature/inbox-atomic-1`). Variante de (a) más simple que reintentar en un `finally`: se invierte el orden (`UPDATE`/`cascade_delete` primero, `_shutil.move` al final) **dentro del mismo bloque `repository.batch()`** — una excepción en cualquier punto del bloque (incluido el propio move) hace que `batch()` haga rollback de la BD antes de propagar, así que un fallo del move deja la fila tal y como estaba (apuntando a donde el archivo sigue estando de verdad), y un fallo de la BD nunca llega a intentar el move. Único hueco residual no evitable sin una transacción distribuida real: que el `commit()` en sí falle *después* de un move ya exitoso (ej. disco lleno en el commit) — caso mucho más raro que el original (que se disparaba con cualquier fallo de BD tras el move). 2 tests nuevos (`test_inbox_pipeline_organize.py`: fallo del move tras el `UPDATE` revierte la BD; fallo de la BD nunca llega a llamar al move), 1332 tests totales, ruff+format limpios |
+
+---
+
+### INBOX-UX — Cierre visible de sesión y metadata al vuelo (idea usuario 2026-09-22)
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-SESSION-SUMMARY-1 | Resumen visible al terminar un job de Inbox/organize (N organizados, N con conflicto, N sin match) en vez de tener que revisar logs | `web/inbox_pipeline.py`, `web/static/js/jobs.js` | ⬜ sin diseñar |
+| INBOX-METADATA-INLINE-1 | Confirmar si portada/metadata ya se aplican automáticamente al organizar desde el Inbox (el scraper existe pero no está claro si dispara en el mismo job); si no, integrarlo | `web/inbox_pipeline.py`, `web/handlers/scraper.py` | ⬜ sin verificar contra el código real |
 
 ---
 
@@ -2769,6 +2804,20 @@ doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
 
 ---
 
+### SAVES-UX — Historial de saves y contexto en resolución de conflictos (idea usuario 2026-09-22)
+
+Reducir el "miedo a sobrescribir" del pilar 3 más allá del backup-antes-de-
+sobrescribir ya existente: dejar ver y restaurar versiones anteriores, y dar
+más contexto que solo el timestamp al resolver un conflicto.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SAVES-HISTORY-1 | **Replanteada tras investigar (2026-09-22)**: el historial+restauración ya existía y funcionaba (`rom_manager/backup/save_backup.py`, `GET /api/save-backups`, `POST /api/restore-backup`, UI en la ficha de juego `games.js:877-885,1090-1113`) para Cloud Sync, Cable Sync manual y renombrado. El gap real era el daemon SD auto-sync (`CABLE-UX-9a`), que usaba un segundo sistema aislado (`.rommgr/cable_sync_backups/<fecha>/`) invisible en esa UI | `web/cable_sync_daemon.py` (`_run_sd_auto_sync`), `rom_manager/backup/save_backup.py` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): daemon migrado a `backup_save()`, mismo patrón que `sync_cable.py`. Verificado contra el sistema de archivos real: `.rommgr/cable_sync_backups/` no existía (el daemon nunca disparó esa rama en la práctica) — nada que migrar. 1430 tests pass (3 ambientales), ruff+format limpios |
+| SAVES-CONFLICT-CTX-1 | Al resolver un conflicto de sync, mostrar contexto además del timestamp (playtime asociado, tamaño). Solo Cloud Sync (Cable Sync no detecta conflictos hoy) | `sync/conflict_resolver.py`, `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `SyncDecision` con tamaños, `_decision_payload()` añade mtime/tamaño/playtime best-effort (match por stem contra `games`) solo para conflictos, UI pinta la línea de contexto bajo cada fila. 4 tests nuevos, 1434 pass, ruff+format limpios |
+| SYNC-CONFLICT-MANUAL-1 | Revisión manual de conflictos de Cloud Sync desde la UI antes de sincronizar — por archivo, elegir PC/Consola/omitir en vez de que `conflict_policy` global decida siempre por todos. Verificado contra el código real: hoy `save_syncer.py:286-377` auto-resuelve todo por policy global, la vista de plan (`sync.js` `_renderSyncDecisions`) solo muestra los conflictos, no deja elegir. No aplica a Cable Sync (sin detección de conflictos hoy) | `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ⬜ sin diseñar — idea usuario 2026-09-22 |
+
+---
+
 ## UX — Auditorías por pestaña — → #206
 
 Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
@@ -2814,6 +2863,17 @@ combina con búsqueda/género/año como un filtro más.
 |----|------|-----------|--------|
 | GAMES-ALPHA-FILTER-1 | `get_games_paginated(initial=...)` filtra por la primera letra de `canonical_title` (o `original_filename` si no hay match), `"#"` agrupa lo que no empieza por A-Z | `database/repositories/games.py`, `web/builders/library.py`, `web/handlers/games.py` (`/api/games` + `/api/tag-bulk`) | ✅ 2 tests (`test_games_initial_filter.py`) |
 | GAMES-ALPHA-FILTER-2 | Barra de botones A-Z/# sobre la tabla/galería, toggle (click de nuevo quita el filtro), se respeta en "Marcar para Anbernic" | `web/static/js/tabs/games.js` (`setInitialFilter`, `_renderAlphaBar`), `tab-games.html` | ✅ |
+
+---
+
+### MOBILE-UI — UI usable desde el móvil (idea usuario 2026-09-22)
+
+Gestionar la biblioteca desde el móvil en la misma red — hoy el layout está
+pensado para desktop.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MOBILE-UI-1 | Layout responsive (sidebar colapsable, tablas con scroll horizontal, controles táctiles) para las pestañas de uso más frecuente | `web/static/css/app.css`, `web/static/templates/*.html` | ⬜ sin diseñar |
 
 ## Distribución / Release — → #207
 
@@ -2864,7 +2924,54 @@ fase 2 (embeddings). Contexto adicional: `docs/ideas/propuestas-recomendador-nlp
 
 ---
 
+### RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22)
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| RA-PROGRESS-UI-1 | Mostrar progreso de logros (desbloqueados/totales) en la ficha de cada juego | `ra_client.py`, `web/static/js/tabs/games.js` | ⬜ bloqueado por la validación pendiente de la API key real (ver memoria `phases.md`) |
+
+---
+
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: JUEGOS-UX-1..9 (logros individuales por juego + playtime automático PC/Anbernic — completo, 2026-07-13).
+
+---
+
+## Estandarización de biblioteca multi-launcher (ES-DE + ROM hacks/fan projects) — → #337
+
+Carpeta y convención de nombres única para PC/Anbernic que también sea
+compatible con ES-DE (no solo RetroArch) y que sepa colocar ROM hacks/fan
+projects (parchean una ROM oficial pero no matchean ningún hash No-Intro/
+Redump — ej. "Twilight Princess - Dusklight" sobre la ROM base de Wii/
+GameCube) en su plataforma real en vez de caer en `Unknown/`. Fusiona la idea
+abierta `ESDE-CONFIG-CHECK` de `Roadmap-212-Ideas-Futuras.md` (movida aquí).
+
+### ESDE-FOLDER-STD-1 — Confirmar y cerrar el hueco real de integración ES-DE (idea usuario 2026-09-22)
+
+El proyecto ya genera `gamelist.xml` (`scraper/gamelist_writer.py`), metadata
+Pegasus (`scraper/pegasus_writer.py`) y sistemas/cores
+(`esde/systems_generator.py`, en uso hoy para iiSU vía `IISU-CONFIG-1`) — la
+suposición de que "no hay nada" (ROADMAP-IDEAS, 2026-08-29) era incorrecta.
+Falta decidir con el usuario qué hueco concreto queda: ¿`es_systems.cfg`/
+rutas específicas de ES-DE en Android? (ver `DEVPROFILE-4`, marcado "sin
+cambio" en su momento) ¿o ya está cerrado y solo falta documentarlo?
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ESDE-FOLDER-STD-1 | Sesión de decisión con el usuario: listar qué genera hoy el proyecto para ES-DE contra lo que ES-DE necesita realmente en Android/PC, y cerrar la brecha si la hay | `scraper/gamelist_writer.py`, `scraper/pegasus_writer.py`, `esde/systems_generator.py` | ⬜ pendiente, decisión del usuario primero |
+
+### ROMHACK-ORG-1 — Organizar ROM hacks / fan projects que no matchean catálogo oficial (idea usuario 2026-09-22)
+
+Origen: `E:\Juegos nativos` contiene proyectos como "Twilight Princess -
+Dusklight", un hack de fans sobre la ROM base de Wii/GameCube — no es un
+dump oficial, no tiene entrada en No-Intro/Redump, así que no matchea por
+hash. El usuario confirma que **no** quiere un catálogo propio de hacks
+(demasiados proyectos de fans para mantenerlo) — el alcance real es que la
+herramienta reconozca "esto no matchea pero tampoco es basura" y lo organice
+en la carpeta de su plataforma real en vez de dejarlo en `Unknown/`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ROMHACK-ORG-1 | Definir heurística para detectar ROM hacks sin catálogo (¿extensión+tamaño de la plataforma base, nombre, carpeta de origen?) y decidir destino: ¿misma carpeta de plataforma que el juego base, o subcarpeta `<plataforma>/hacks/`? Sin matching por hash — solo organización | `catalog/matcher.py`, `web/inbox_pipeline.py` | ⬜ sin diseñar — decisión de convención pendiente con el usuario antes de tocar código |
 
 ---
 
@@ -2957,7 +3064,7 @@ en sesiones por día: `Tareas/Roadmap-212-Ideas-Futuras.md`.
 | GHA-OPT-1 | Optimizar el flujo de Claude Code GitHub Actions (`claude.yml` / `claude-code-review.yml`, instalados 2026-08-14 vía `/install-github-app`) | Repo público → minutos de runner gratis y autentica con `CLAUDE_CODE_OAUTH_TOKEN` (consume cuota Pro/Max, no API pay-as-you-go) — el coste real a acotar es esa cuota, no dinero. ✅ implementado (rama `chore/gha-opt-1-optimize-claude-workflows`, 2026-08-17): evidencia real antes de tocar nada — `claude-code-review.yml` se había disparado 5 veces seguidas sobre la misma rama en una sola sesión (2026-08-14, cada `synchronize` relanzaba la revisión sin cancelar la anterior). (a) `concurrency` por nº de PR + `cancel-in-progress: true` en `claude-code-review.yml`; (b) `paths-ignore` (`Tareas/**`, `**.md`) para no revisar PRs de solo-backlog, y `if: draft == false` para no revisar mientras el PR sigue en borrador; (c) `--max-turns 30` en `claude_args`; (d) mismo `concurrency` en `claude.yml` pero con `cancel-in-progress: false` (cada mención `@claude` es una petición distinta del usuario, se encola en vez de perderse) + `--max-turns 50` propio (más holgado que la revisión: puede implicar tareas más largas); (e) `CLAUDE.md` revisado — 145 líneas / ~7 KB, ya conciso, sin cambios |
 | RA-DL-LINK | En el informe de RA (juegos sin logros en tu versión pero sí en otra), botón "copiar link de descarga" por juego, pensado para pegarlo en JDownloader | Idea del usuario 2026-08-29; el propio usuario advierte que meter un LLM local para generar el link sería costoso y poco fiable — valorar alternativa sin LLM (¿el link ya es derivable del nombre canónico + fuente conocida?) antes de descartarlo |
 | TRUST-MODE | Simplificar el flujo de primera vez: aplicar todo de golpe y luego dejar que el usuario navegue las tabs revisando (o confiando sin revisar) los cambios ya hechos, en vez de plan→revisión manual→apply | Idea del usuario 2026-08-29; **tensión con INBOX-FIX-4** (`archivo.md`): decisión ya tomada 2026-07-23 de NO auto-aplicar y mantener `rommgr plan` siempre antes de `apply` — replantear con el usuario antes de diseñar, no revertir esa decisión sin más |
-| ESDE-CONFIG-CHECK | Confirmar con el usuario qué falta exactamente de integración con ES-DE — el proyecto ya genera `gamelist.xml` (`scraper/gamelist_writer.py`), metadata Pegasus (`scraper/pegasus_writer.py`) y sistemas/cores (`esde/systems_generator.py`, usado hoy para iiSU en IISU-CONFIG-1) | Idea del usuario 2026-08-29 asumía que no existía nada — puede que el hueco real sea solo `es_systems.cfg`/rutas de ES-DE específicas (ver DEVPROFILE-4, "sin cambio") |
+| ESDE-CONFIG-CHECK | **Movida** a `ESDE-FOLDER-STD-1`, sección "Estandarización de biblioteca multi-launcher" (→ #337), 2026-09-22 — misma idea, fusionada con la propuesta de carpetas estandarizadas del usuario | — |
 | LIBRARY-MANAGER-UI | Pantalla única "gestionar ambas bibliotecas a discreción" — copiar y borrar PC↔Anbernic con control fino, en vez de repartido entre Cable Sync (copiar), `ANBERNIC-PICK` (marcar) y `STORAGE-MGR` (borrar en bloque, archivado). El usuario pide explícitamente esto tras no encontrar cómo hacerlo hoy (2026-08-29) | Fusiona 3 mecanismos ya existentes en una sola UI — no es una feature nueva de backend, es una consolidación de UX; valorar junto con `ANBERNIC-PICK-7` (sync guiado) y `GAME-BLOCKLIST` (borrado permanente) antes de diseñar, pueden compartir la misma pantalla |
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: STORAGE-MGR-1..5 (gestor de almacenamiento PC/Android, borrado en bloque — completo y validado en hardware, 2026-08-14/2026-08-29).
