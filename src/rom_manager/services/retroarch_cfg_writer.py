@@ -34,7 +34,7 @@ def _set_key(text: str, key: str, value: str) -> str:
     line = f'{key} = "{value}"'
     pattern = re.compile(rf'^{re.escape(key)}\s*=\s*".*"\s*$', re.MULTILINE)
     if pattern.search(text):
-        return pattern.sub(line, text, count=1)
+        return pattern.sub(lambda _m: line, text, count=1)
     sep = "" if text == "" or text.endswith("\n") else "\n"
     return f"{text}{sep}{line}\n"
 

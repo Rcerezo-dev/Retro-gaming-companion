@@ -1055,6 +1055,51 @@ def _send_organized_to_anbernic(
     return {"sent": sent, "errors": errors[:20], "warning": None}
 
 
+def _scrape_organized_games(
+    game_ids: list[int],
+    config: AppConfig,
+    repository: LibraryRepository,
+    progress_cb=None,
+) -> tuple[int, list[str]]:
+    """INBOX-METADATA-INLINE-1: scrape metadata/portada para juegos recién organizados.
+
+    Opt-in (``config.inbox.scrape_on_organize``) — apagado por defecto, red/
+    rate-limit de ScreenScraper no debe ralentizar una organización masiva sin
+    que el usuario lo pida. Reutiliza el mismo lookup+apply que un juego
+    individual en Colección (``services/scrape_service.py``), con un único
+    ``ScreenScraperClient`` para todo el lote (el throttle ``min_interval`` es
+    por instancia — un cliente nuevo por juego lo saltaría entero). Un fallo
+    puntual nunca se propaga: los archivos ya se movieron, esto solo intenta
+    enriquecerlos.
+
+    Returns ``(scraped_count, error_messages)``. No-op — ``(0, [])`` — si el
+    opt-in está apagado, no hay juegos que procesar, o faltan credenciales.
+    """
+    if not (game_ids and config.inbox.scrape_on_organize and config.credentials.screenscraper_user):
+        return 0, []
+
+    from rom_manager.scraper.screenscraper import ScreenScraperClient
+    from rom_manager.services.scrape_service import scrape_game_metadata
+
+    client = ScreenScraperClient(
+        user=config.credentials.screenscraper_user,
+        password=config.credentials.screenscraper_pass,
+        dev_id=config.credentials.screenscraper_dev_id,
+        dev_password=config.credentials.screenscraper_dev_pass,
+    )
+    scraped = 0
+    errors: list[str] = []
+    for idx, gid in enumerate(game_ids, 1):
+        if progress_cb is not None:
+            progress_cb(idx, len(game_ids))
+        res = scrape_game_metadata(gid, config, repository, download_images=True, client=client)
+        if res.get("applied"):
+            scraped += 1
+        elif res.get("error"):
+            errors.append(f"game_id={gid}: {res['error']}")
+    return scraped, errors[:20]
+
+
 def _run_inbox_pipeline(
     inbox_path_str: str,
     target_root_str: str,
@@ -1283,6 +1328,8 @@ def _run_inbox_pipeline(
         conflicts_unresolved = 0
         organize_errors: list[str] = []
         organized_dest_files: list[Path] = []
+        organized_game_ids: list[int] = []  # INBOX-METADATA-INLINE-1
+        unmatched = 0  # INBOX-SESSION-SUMMARY-1: sin platform -> cayó en Unknown/
         _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
@@ -1298,6 +1345,8 @@ def _run_inbox_pipeline(
             source_file = Path(source_path_str_db)
             if not source_file.exists():
                 continue
+            if not platform:
+                unmatched += 1
 
             _platform_folder_name(platform or "", target_root)
             dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
@@ -1339,6 +1388,7 @@ def _run_inbox_pipeline(
                         organized += 1
                         ra_resolved += 1
                         organized_dest_files.append(dest_file)
+                        organized_game_ids.append(game_id)
                     elif status == "kept_dest":
                         ra_resolved += 1
                     else:
@@ -1379,8 +1429,17 @@ def _run_inbox_pipeline(
                     _shutil.move(str(source_file), str(dest_file))
                 organized += 1
                 organized_dest_files.append(dest_file)
+                organized_game_ids.append(game_id)
             except Exception as exc:
                 organize_errors.append(f"{source_file.name}: {exc}")
+
+        # ── Step 6b: scrape metadata for newly organized games (opt-in) ────────
+        scraped, scrape_errors = _scrape_organized_games(
+            organized_game_ids,
+            config,
+            repository,
+            progress_cb=lambda idx, total: _upd("scraping metadata", 6, idx, total),
+        )
 
         # ── Cleanup ───────────────────────────────────────────────────────────
         # B6-5: always move processed ZIPs out of the active inbox area so they
@@ -1450,8 +1509,11 @@ def _run_inbox_pipeline(
             "ra_resolved": ra_resolved,
             "duplicates_removed": duplicates_removed,
             "conflicts_unresolved": conflicts_unresolved,
+            "unmatched": unmatched,
+            "scraped": scraped,
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
+            "scrape_errors": scrape_errors[:20],
             "target_root": str(target_root),
             "anbernic_sent": anbernic_result["sent"],
             "anbernic_errors": anbernic_result["errors"],

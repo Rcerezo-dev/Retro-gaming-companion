@@ -497,6 +497,25 @@ def _do_adb_scan(
                                 connection=conn,
                             )
                             saves += 1
+                        elif suffix == ".bin" and name.lower().startswith("vmu_save_"):
+                            # ANDROID-DUP-2: Dreamcast VMU memory card image
+                            # (Flycast/Redream convention, vmu_save_<port><slot>.bin)
+                            # -- .bin can't go in save_extensions without
+                            # misclassifying every real disc dump that also
+                            # uses it, so this narrow filename pattern is
+                            # checked by name instead. Confirmed live on the
+                            # RG556: without this, vmu_save_A1.bin/A2.bin
+                            # landed in `games` as file_type='rom' and showed
+                            # up as a false "duplicate ROM" in the review queue.
+                            repo_android.upsert_save(
+                                original_path=ap,
+                                relative_parent=rel_parent,
+                                extension=suffix,
+                                size_bytes=fi.size,
+                                timestamp=timestamp,
+                                connection=conn,
+                            )
+                            saves += 1
                         elif suffix in asset_exts or name.lower() == "gamelist.xml":
                             assets += 1
                         elif (

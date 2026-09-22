@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rom_manager.web.state as _state
@@ -9,8 +10,47 @@ from rom_manager.utils.paths import is_device_path
 if TYPE_CHECKING:
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
+    from rom_manager.sync.conflict_resolver import SyncDecision
     from rom_manager.web.jobs.manager import JobManager
     from rom_manager.web.router import Router
+
+
+def _decision_payload(d: SyncDecision, repository: LibraryRepository) -> dict:
+    """Build the ``/api/sync`` payload for one decision.
+
+    SAVES-CONFLICT-CTX-1: a conflict gets extra context beyond the bare
+    filename — mtimes, sizes and playtime per side, matched best-effort by
+    filename stem against ``games`` (a save and its ROM share a stem, same
+    assumption ``GET /api/save-backups`` already relies on). A lookup
+    failure or no match must never break sync — it just omits the field.
+    """
+    payload: dict = {"action": d.action, "relative": d.relative}
+    if d.action != "conflict":
+        return payload
+    payload["local_mtime"] = d.local_mtime.isoformat() if d.local_mtime else None
+    payload["remote_mtime"] = d.remote_mtime.isoformat() if d.remote_mtime else None
+    payload["local_size"] = d.local_size
+    payload["remote_size"] = d.remote_size
+    stem = Path(d.relative).stem
+    try:
+        with repository.connect() as conn:
+            rows = conn.execute(
+                "SELECT source_path, playtime_minutes_pc, playtime_minutes_android "
+                "FROM games WHERE source_path LIKE ?",
+                (f"%{stem}%",),
+            ).fetchall()
+        for row in rows:
+            if Path(row["source_path"]).stem == stem:
+                payload["playtime_minutes_pc"] = row["playtime_minutes_pc"]
+                payload["playtime_minutes_android"] = row["playtime_minutes_android"]
+                break
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).debug(
+            "Playtime lookup failed for conflict context (non-fatal)", exc_info=True
+        )
+    return payload
 
 
 def register_cloud(
@@ -286,6 +326,7 @@ def run_cloud_sync_job(
     job_manager: JobManager,
     *,
     dry_run: bool,
+    conflict_overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Start the multi-source cloud sync as the "sync" background job.
 
@@ -295,6 +336,12 @@ def run_cloud_sync_job(
     instead of a second implementation drifting apart from this one.
     Returns ``{"status": "started"}`` / ``{"status": "already_running"}``
     (see ``JobManager.start``).
+
+    *conflict_overrides* (SYNC-CONFLICT-MANUAL-1): per-file resolution
+    chosen by the user in the dry-run plan (``keep_local``/``keep_remote``/
+    ``skip``), keyed by relative path — forwarded as-is to every
+    ``sync_saves()`` call below. The watcher daemon never passes this
+    (background syncs always follow the global policy).
     """
     from rom_manager.web.builders.common import _utc_now_str
 
@@ -388,6 +435,8 @@ def run_cloud_sync_job(
                         backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
+                        include_glob=source.include_glob,
+                        conflict_overrides=conflict_overrides,
                     )
                     all_results.append(
                         {
@@ -401,7 +450,7 @@ def run_cloud_sync_job(
                             "errors": result.errors,
                             "delta_skipped": result.delta_skipped,
                             "decisions": [
-                                {"action": d.action, "relative": d.relative}
+                                _decision_payload(d, repository)
                                 for d in decisions
                                 if d.action != "up_to_date"
                             ],
@@ -482,6 +531,7 @@ def run_cloud_sync_job(
                         backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
+                        conflict_overrides=conflict_overrides,
                     )
                     all_results.append(
                         {
@@ -495,7 +545,7 @@ def run_cloud_sync_job(
                             "errors": result.errors,
                             "delta_skipped": result.delta_skipped,
                             "decisions": [
-                                {"action": d.action, "relative": d.relative}
+                                _decision_payload(d, repository)
                                 for d in decisions
                                 if d.action != "up_to_date"
                             ],
@@ -594,7 +644,17 @@ def _do_sync(
     ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
     dry_run = data.get("dry_run", True)
-    start_result = run_cloud_sync_job(config, repository, job_manager, dry_run=dry_run)
+    # SYNC-CONFLICT-MANUAL-1: overrides elegidos por el usuario en el plan
+    # de dry-run, {relative: "keep_local"|"keep_remote"|"skip"} — opcional,
+    # sin ellos el comportamiento es idéntico al de antes.
+    conflict_overrides = data.get("conflict_overrides") or None
+    start_result = run_cloud_sync_job(
+        config,
+        repository,
+        job_manager,
+        dry_run=dry_run,
+        conflict_overrides=conflict_overrides,
+    )
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 

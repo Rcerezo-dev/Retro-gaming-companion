@@ -3,17 +3,25 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
+from rom_manager.config import EMULATOR_SAVES_DIR_NAME
 from rom_manager.detection.platform_detector import ROM_EXTENSIONS
 from rom_manager.sync import cable_engine
-from rom_manager.sync.android_paths import canonical_rel_posix
+from rom_manager.sync.android_paths import (
+    canonical_download_rel_posix,
+    canonical_rel_posix,
+    reconcile_newest_by_name,
+)
 from rom_manager.sync.sync_log import log_sync_event
+from rom_manager.utils.disc_tag import normalize_title_cross_format
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -21,6 +29,35 @@ if TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+
+# CABLE-ROM-FIX-6: a disc dumped as .chd on one side and .cue/.bin (or
+# .gdi/.ccd) on the other is the same game in a different container — never
+# a genuine "extra" the mirror should delete. Scoped to disc-image formats
+# only: cross-format title matching is fuzzy (normalize_title_cross_format
+# strips the disc-number tag), safe to use here only because the failure
+# mode is "don't delete" (conservative), never "delete something real".
+_DISC_IMAGE_EXTENSIONS = frozenset({".chd", ".cue", ".gdi", ".ccd", ".iso"})
+
+
+def _cross_format_stems(names: Iterable[str]) -> set[str]:
+    """Normalized cross-format title key for every disc-image *names* (plain
+    filenames, not full paths) — see :func:`normalize_title_cross_format`."""
+    stems: set[str] = set()
+    for name in names:
+        p = PurePosixPath(name)
+        if p.suffix.lower() in _DISC_IMAGE_EXTENSIONS:
+            stems.add(normalize_title_cross_format(p.stem))
+    return stems
+
+
+def _is_cross_format_equivalent(name: str, other_side_stems: set[str]) -> bool:
+    """True if *name* (plain filename) is a disc image whose cross-format
+    title already exists on the other side of the mirror, in any disc
+    format — see ``_DISC_IMAGE_EXTENSIONS``'s docstring."""
+    p = PurePosixPath(name)
+    if p.suffix.lower() not in _DISC_IMAGE_EXTENSIONS:
+        return False
+    return normalize_title_cross_format(p.stem) in other_side_stems
 
 
 def register_cable(
@@ -505,7 +542,15 @@ def _do_cable_sync(
                     # contenido de _descartados/ (ya descartado) al otro lado,
                     # aterrizando dentro de SU _descartados/ — repetido varias
                     # veces anida _descartados/_descartados/... indefinidamente.
-                    dirs[:] = [d for d in dirs if not d.startswith(".") and d != TRASH_DIR_NAME]
+                    # CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es
+                    # contabilidad interna del PC (saves por-emulador bajados
+                    # vía ADB), nunca debe subirse al dispositivo tal cual.
+                    dirs[:] = [
+                        d
+                        for d in dirs
+                        if not d.startswith(".")
+                        and d not in (TRASH_DIR_NAME, EMULATOR_SAVES_DIR_NAME)
+                    ]
                     for fname in files:
                         yield Path(dirpath) / fname
 
@@ -598,7 +643,12 @@ def _do_cable_sync(
                     if cancel_event.is_set():
                         return
                     name = PurePosixPath(adb_info.android_path).name
-                    local_dst = pc_root / Path(rel_posix.replace("/", os.sep))
+                    # CABLE-SYNC-DOWNLOAD-DEST-1: rel_posix es la ruta cruda del
+                    # dispositivo (puede llevar saves/<plataforma>/ de más) — la
+                    # descarga aterriza en su ubicación canónica del PC, no en
+                    # un mirror literal de esa estructura.
+                    canon_rel = canonical_download_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS)
+                    local_dst = pc_root / Path(canon_rel.replace("/", os.sep))
                     is_save = should_verify(name, save_exts)
                     try:
                         if _bk_root is not None and not dry_run and is_save and local_dst.exists():
@@ -725,21 +775,56 @@ def _do_cable_sync(
                     for info in ab_adb_files
                     if _wanted_info(info)
                 }
+                # CABLE-SYNC-SAVES-PREFIX-2: el dispositivo mezcla convenios para
+                # el mismo save — plano junto a la plataforma, saves/<plataforma>/
+                # o saves/<core del RetroArch Android>/ (mapeo real en
+                # Tareas/backlog.md, CABLE-SYNC-SAVES-PREFIX-1) — así que una ruta
+                # relativa exacta no basta para saber si "falta". Antes de darlo
+                # por ausente, busca por nombre de archivo ignorando la carpeta
+                # intermedia; mismo tamaño = ya sincronizado, esté donde esté.
+                ab_by_name: dict[str, list] = {}
+                for _rel, _info in ab_index.items():
+                    ab_by_name.setdefault(PurePosixPath(_rel).name, []).append(_info)
 
                 def _skip_existing_device(rel_posix: str, local_size: int) -> bool:
                     if not skip_existing:
                         return False
                     ab_inf = ab_index.get(rel_posix)
-                    return ab_inf is not None and ab_inf.size == local_size
+                    if ab_inf is not None and ab_inf.size == local_size:
+                        return True
+                    return any(
+                        cand.size == local_size
+                        for cand in ab_by_name.get(PurePosixPath(rel_posix).name, ())
+                    )
+
+                _pc_by_name_cache: dict[str, list[Path]] | None = None
+
+                def _pc_by_name() -> dict[str, list[Path]]:
+                    nonlocal _pc_by_name_cache
+                    if _pc_by_name_cache is None:
+                        _pc_by_name_cache = {}
+                        for _f in _iter_files(pc_root):
+                            if _wanted(_f):
+                                _pc_by_name_cache.setdefault(_f.name, []).append(_f)
+                    return _pc_by_name_cache
 
                 def _skip_existing_pc(rel_posix: str, remote_size: int) -> bool:
                     if not skip_existing:
                         return False
                     pc_f = pc_root / Path(rel_posix.replace("/", os.sep))
                     try:
-                        return pc_f.stat().st_size == remote_size
+                        if pc_f.stat().st_size == remote_size:
+                            return True
                     except OSError:
-                        return False
+                        pass
+                    name = PurePosixPath(rel_posix).name
+                    for cand in _pc_by_name().get(name, ()):
+                        try:
+                            if cand.stat().st_size == remote_size:
+                                return True
+                        except OSError:
+                            continue
+                    return False
 
                 if direction == "pc_to_anbernic":
                     if not dry_run:
@@ -827,11 +912,20 @@ def _do_cable_sync(
                             for f in _iter_files(pc_root)
                             if _wanted(f)
                         }
+                        # CABLE-ROM-FIX-6: a device .cue/.bin whose disc already
+                        # exists on the PC as a .chd (or vice versa) is the same
+                        # game, not an extra to delete.
+                        _pc_cross_stems = _cross_format_stems(
+                            f.name for f in _iter_files(pc_root) if _wanted(f)
+                        )
                         for _info in ab_adb_files:
                             if not _wanted_info(_info):
                                 continue
                             _arel = _info.android_path.removeprefix(android_prefix)
-                            if _arel not in _pc_rels:
+                            _aname = PurePosixPath(_info.android_path).name
+                            if _arel not in _pc_rels and not _is_cross_format_equivalent(
+                                _aname, _pc_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         transport._shell("rm", _info.android_path, timeout=30)
@@ -914,16 +1008,30 @@ def _do_cable_sync(
                             _adb_copy_to_pc(info, rel_posix, "← ADB")
 
                     if delete_extra and not cancel_event.is_set():
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: canonicaliza igual que el
+                        # destino real de la descarga — si no, un archivo recién
+                        # bajado a su ruta canónica se lee como "extra en PC" (no
+                        # está en la ruta cruda del dispositivo) y se borra.
                         _ab_rels = {
-                            _i.android_path.removeprefix(android_prefix)
+                            canonical_download_rel_posix(
+                                _i.android_path.removeprefix(android_prefix), _ES_PLATFORM_FOLDERS
+                            )
                             for _i in ab_adb_files
                             if _wanted_info(_i)
                         }
+                        # CABLE-ROM-FIX-6: see the pc_to_anbernic branch above.
+                        _ab_cross_stems = _cross_format_stems(
+                            PurePosixPath(_i.android_path).name
+                            for _i in ab_adb_files
+                            if _wanted_info(_i)
+                        )
                         for _f in _iter_files(pc_root):
                             if not _wanted(_f):
                                 continue
                             _frel = _f.relative_to(pc_root).as_posix()
-                            if _frel not in _ab_rels:
+                            if _frel not in _ab_rels and not _is_cross_format_equivalent(
+                                _f.name, _ab_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         _discard_to_trash(_f)  # AUD-3: soft-discard
@@ -937,23 +1045,21 @@ def _do_cable_sync(
                                     _log("DEL?", str(_f), "", "espejo: extra en PC (dry run)")
 
                 elif direction == "newest":
-                    ab_index = {
-                        info.android_path.removeprefix(android_prefix): info
-                        for info in ab_adb_files
-                        if _wanted_info(info)
-                    }
+                    # CABLE-SYNC-NEWEST-CANON-1/2: reusa el ab_index ya
+                    # construido arriba y reconcile_newest_by_name() (mismo
+                    # problema que CABLE-SYNC-SAVES-PREFIX-1/2 — el
+                    # dispositivo mezcla convenios, una ruta exacta no basta).
                     pc_index: dict[str, Path] = {}
                     for f in _iter_files(pc_root):
                         if _wanted(f):
                             pc_index[f.relative_to(pc_root).as_posix()] = f
 
-                    all_rels = sorted(set(pc_index) | set(ab_index))
-                    for rel_posix in all_rels:
+                    for rel_posix, pc_f, ab_rel, ab_inf in reconcile_newest_by_name(
+                        pc_index, ab_index
+                    ):
                         if cancel_event.is_set():
                             break
-                        pc_f = pc_index.get(rel_posix)
-                        ab_inf = ab_index.get(rel_posix)
-                        if pc_f and ab_inf:
+                        if pc_f is not None and ab_inf is not None:
                             # REV43-4: misma tolerancia que cable_engine.plan_direction
                             # — sin ella, el redondeo de mtime de FAT32/exFAT elige un
                             # "ganador" arbitrario y puede sobrescribir la version buena.
@@ -965,17 +1071,17 @@ def _do_cable_sync(
                                     "→ ADB (PC más reciente)",
                                 )
                             elif diff < -cable_engine.DEFAULT_MTIME_TOLERANCE_S:
-                                _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (Anbernic más reciente)")
+                                _adb_copy_to_pc(ab_inf, ab_rel, "← ADB (Anbernic más reciente)")
                             else:
                                 skipped += 1
-                        elif pc_f:
+                        elif pc_f is not None:
                             _adb_copy_to_device(
                                 pc_f,
                                 canonical_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS),
                                 "→ ADB (solo en PC)",
                             )
-                        elif ab_inf:
-                            _adb_copy_to_pc(ab_inf, rel_posix, "← ADB (solo en Anbernic)")
+                        elif ab_inf is not None:
+                            _adb_copy_to_pc(ab_inf, ab_rel, "← ADB (solo en Anbernic)")
 
                 # ANBERNIC-BULK-DEL: elimina ROMs seleccionados por filtro de
                 # la consola. El save de cada juego se copia primero al PC
@@ -1249,6 +1355,10 @@ def _do_cable_sync(
                         _pc_rels = {
                             f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)
                         }
+                        # CABLE-ROM-FIX-6: see the ADB pc_to_anbernic branch above.
+                        _pc_cross_stems = _cross_format_stems(
+                            f.name for f in _iter_files(pc_root) if _wanted(f)
+                        )
                         for _f in _iter_files(ab_root):
                             # ANBERNIC-PICK-4: _wanted() siempre da por bueno un
                             # archivo del lado Anbernic (necesario para no romper
@@ -1271,7 +1381,9 @@ def _do_cable_sync(
                                 _frel = _f.relative_to(ab_root)
                             except ValueError:
                                 continue
-                            if _frel not in _pc_rels:
+                            if _frel not in _pc_rels and not _is_cross_format_equivalent(
+                                _f.name, _pc_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         _discard_to_trash(_f)  # AUD-3: soft-discard
@@ -1306,18 +1418,33 @@ def _do_cable_sync(
                         _apply_copy(item)
 
                     if delete_extra and not cancel_event.is_set():
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: canonicaliza igual que el
+                        # destino real de la descarga (plan_direction) — si no,
+                        # un archivo recién bajado a su ruta canónica se lee
+                        # como "extra en PC" (no está en la ruta cruda de la SD)
+                        # y se borra.
                         _ab_rels: set[Path] = set()
                         for _f in _iter_files(ab_root):
                             if _wanted(_f):
                                 try:
-                                    _ab_rels.add(_f.relative_to(ab_root))
+                                    _rel = _f.relative_to(ab_root)
                                 except ValueError:
-                                    pass
+                                    continue
+                                _dst_rel = canonical_download_rel_posix(
+                                    _rel.as_posix(), _ES_PLATFORM_FOLDERS
+                                )
+                                _ab_rels.add(Path(_dst_rel))
+                        # CABLE-ROM-FIX-6: see the ADB pc_to_anbernic branch above.
+                        _ab_cross_stems = _cross_format_stems(
+                            f.name for f in _iter_files(ab_root) if _wanted(f)
+                        )
                         for _f in _iter_files(pc_root):
                             if not _wanted(_f):
                                 continue
                             _frel = _f.relative_to(pc_root)
-                            if _frel not in _ab_rels:
+                            if _frel not in _ab_rels and not _is_cross_format_equivalent(
+                                _f.name, _ab_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         _discard_to_trash(_f)  # AUD-3: soft-discard

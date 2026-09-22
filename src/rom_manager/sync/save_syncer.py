@@ -48,15 +48,21 @@ class SyncResult:
         )
 
 
-def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[LocalSave]:
+def list_local_saves(
+    saves_dir: Path, save_extensions: tuple[str, ...], include_glob: str = "**/*"
+) -> list[LocalSave]:
     """Walk *saves_dir* and return all files whose extension is in *save_extensions*.
 
     Pass an empty tuple to include every file regardless of extension (useful for
     emulators like PPSSPP/Dolphin whose save directories contain only save data).
+
+    *include_glob* narrows which subtree of *saves_dir* is walked (e.g. Dolphin's
+    Wii NAND has real saves only under ``title/*/*/data/`` — the rest is emulated
+    system content that shouldn't leave the PC).
     """
     saves: list[LocalSave] = []
     ext_set = {e.lower() for e in save_extensions} if save_extensions else None
-    for path in saves_dir.rglob("*"):
+    for path in saves_dir.glob(include_glob):
         if not path.is_file():
             continue
         if ext_set is not None and path.suffix.lower() not in ext_set:
@@ -82,12 +88,20 @@ def sync_saves(
     backup_keep_n: int = 5,
     delta_cache: DeltaCache | None = None,
     conflict_policy: str = "newest",
+    include_glob: str = "**/*",
+    conflict_overrides: dict[str, str] | None = None,
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *saves_remote* and *states_remote* using rclone.
 
     Files are routed to the correct remote based on extension:
     - state_extensions → states_remote
     - save_extensions → saves_remote
+
+    *conflict_overrides* (SYNC-CONFLICT-MANUAL-1): per-file resolution for
+    conflicts, keyed by relative path, value one of
+    ``"keep_local"``/``"keep_pc"``, ``"keep_remote"``/``"keep_android"`` or
+    ``"skip"``. Wins over *conflict_policy* only for the files listed —
+    every other conflict still follows the global policy unchanged.
 
     Returns a SyncResult and the full list of decisions (for status display).
     """
@@ -96,7 +110,7 @@ def sync_saves(
 
     # Gather both sides.
     local_saves: dict[str, LocalSave] = {
-        s.relative: s for s in list_local_saves(saves_dir, save_extensions)
+        s.relative: s for s in list_local_saves(saves_dir, save_extensions, include_glob)
     }
     try:
         # List from both remotes (combine results)
@@ -159,6 +173,10 @@ def sync_saves(
                 remote_mtime=remote.mtime if remote else None,
                 last_sync_at=last_sync,
             )
+            # SAVES-CONFLICT-CTX-1: tamaño de cada lado como contexto extra
+            # al resolver un conflicto (decide() solo conoce mtimes).
+            decision.local_size = local.size if local else None
+            decision.remote_size = remote.size if remote else None
             decisions.append(decision)
 
             if decision.action == "up_to_date":
@@ -210,7 +228,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "upload")
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.uploaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -260,7 +278,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "download")
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.downloaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -277,7 +295,27 @@ def sync_saves(
                     result.errors += 1
 
             elif decision.action == "conflict":
-                # P4: auto-resolve conflict using configured policy
+                # SYNC-CONFLICT-MANUAL-1: an explicit per-file choice wins over
+                # the auto-resolve policy — "skip" leaves both sides untouched
+                # (no backup needed, nothing is being overwritten).
+                override = (conflict_overrides or {}).get(relative)
+                if override == "skip":
+                    log_sync_event(
+                        conn,
+                        local_path=str(local_path),
+                        remote_path=remote_path,
+                        direction="conflict",
+                        local_mtime=decision.local_mtime,
+                        remote_mtime=decision.remote_mtime,
+                        result="skipped",
+                        message="Conflict skipped by user override",
+                        created_at=timestamp,
+                    )
+                    result.conflicts += 1
+                    continue
+
+                # P4: auto-resolve conflict using configured policy, unless
+                # overridden per-file above
                 if backup_root and local_path.exists():
                     try:
                         from rom_manager.backup.save_backup import backup_save
@@ -293,7 +331,13 @@ def sync_saves(
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
 
                 # Determine winner
-                if conflict_policy in ("keep_pc", "keep_local"):
+                if override in ("keep_pc", "keep_local"):
+                    local_wins = True
+                    policy_reason = "override=keep_local"
+                elif override in ("keep_android", "keep_remote"):
+                    local_wins = False
+                    policy_reason = "override=keep_remote"
+                elif conflict_policy in ("keep_pc", "keep_local"):
                     local_wins = True
                     policy_reason = "policy=keep_local"
                 elif conflict_policy in ("keep_android", "keep_remote"):
@@ -366,7 +410,7 @@ def sync_saves(
                         created_at=timestamp,
                         verified=True,
                     )
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.conflicts += 1
                 except RcloneError as exc:
                     if delta_cache is not None:

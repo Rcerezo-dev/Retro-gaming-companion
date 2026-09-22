@@ -40,14 +40,25 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "notes": (
             "Permission denied via ADB on Android 11+ scoped storage without root — "
             "in DuckStation, change Settings > Memory Cards > Directory to a public "
-            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable"
+            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable. "
+            "SAVES-FRAGMENT-8b (2026-09-22): the SD card's public "
+            "/storage/521D-04EA/saves/psx/ folder already carries .srm/.mcd files "
+            "(likely a launcher, not this app, mirroring saves there) and is covered "
+            "by a plain Cable Sync 'newest' pass against that root — not by this "
+            "per-package entry, whose own path is still unreadable."
         ),
         "accessible": False,
     },
     "xyz.aethersx2.android": {
         "name": "AetherSX2 / NetherSX2 (PS2)",
-        "saves_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/memcards",
-        "states_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/sstates",
+        # SAVES-FRAGMENT-8b (2026-09-22): the app-private path below is
+        # unreadable via non-root ADB (confirmed daily in the auto-sync log,
+        # 18 "sin permiso de lectura" errors) — redirected to the public SD
+        # location the same save data (Mcd001.ps2/Mcd002.ps2, matching
+        # (*).p2s state files, same names) is also accessible from, same
+        # workaround already documented for DuckStation above.
+        "saves_path": "/storage/521D-04EA/saves/memcards",
+        "states_path": "/storage/521D-04EA/saves/sstates",
         "adb_required": True,
         "save_extensions": [".ps2"],
         "state_extensions": [".p2s", ".p2s.backup"],
@@ -185,6 +196,7 @@ class SyncSource:
     sync_all: bool = (
         False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
     )
+    include_glob: str = "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
 
 
 @dataclass(slots=True)
@@ -261,6 +273,11 @@ class InboxConfig:
     target_root: str = ""  # where to place organized files (defaults to library_root)
     auto_process: bool = False  # auto-process when files detected
     delete_source: bool = False  # delete original ZIP after organizing
+    # INBOX-METADATA-INLINE-1: opt-in — scrapea portada/metadata al organizar
+    # (mismo mecanismo que un juego individual en Colección). Apagado por
+    # defecto: red/rate-limit de ScreenScraper no debe ralentizar una
+    # organización masiva sin que el usuario lo pida explícitamente.
+    scrape_on_organize: bool = False
 
 
 @dataclass(slots=True)
@@ -477,6 +494,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
                     local_dir=str(s["local_dir"]),
                     remote=str(s["remote"]),
                     sync_all=bool(s.get("sync_all", False)),
+                    include_glob=str(s.get("include_glob", "**/*")),
                 )
             )
     # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote
@@ -557,6 +575,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             target_root=str(inbox_cfg.get("target_root", "")),
             auto_process=bool(inbox_cfg.get("auto_process", False)),
             delete_source=bool(inbox_cfg.get("delete_source", False)),
+            scrape_on_organize=bool(inbox_cfg.get("scrape_on_organize", False)),
         ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         esde_path=str(launchers_cfg.get("esde", "")),
@@ -656,6 +675,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     )
 
 
+EMULATOR_SAVES_DIR_NAME = "emulator_saves"  # contabilidad interna del PC, nunca sync al dispositivo
+
+
 def get_adb_sync_sources(config: AppConfig) -> list[dict]:
     """Return ADB sync source descriptors derived from config.emulator_paths.
 
@@ -691,7 +713,7 @@ def get_adb_sync_sources(config: AppConfig) -> list[dict]:
         if not saves_path and not states_path:
             continue  # no known path yet (Mupen64Plus FZ etc.)
 
-        local_root = config.library_root / "emulator_saves" / pkg
+        local_root = config.library_root / EMULATOR_SAVES_DIR_NAME / pkg
         raw_save_ext = info.get("save_extensions")
         raw_state_ext = info.get("state_extensions")
 

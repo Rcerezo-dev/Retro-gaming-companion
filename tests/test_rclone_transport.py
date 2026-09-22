@@ -191,3 +191,22 @@ class TestUploadDownloadRouting:
         t = self._transport_capturing_run()
         with pytest.raises(ValueError, match="no suitable remote configured"):
             t.download("Genesis/game.bin", tmp_path / "game.bin")
+
+
+# ── list_remote against the real rclone binary ─────────────────────────────
+# All the tests above mock RcloneTransport._run, so a CLI flag rclone doesn't
+# actually support (e.g. the removed --no-modtime-truncate) would never be
+# caught here. rclone treats a bare filesystem path as a "local" remote, so
+# this exercises the real flag list without needing cloud credentials.
+
+_RCLONE_EXE = Path(__file__).parent.parent / "tools" / "rclone.exe"
+
+
+@pytest.mark.skipif(not _RCLONE_EXE.exists(), reason="tools/rclone.exe not present")
+def test_list_remote_against_real_rclone_binary(tmp_path: Path) -> None:
+    (tmp_path / "save.sav").write_bytes(b"\x00" * 8)
+
+    t = RcloneTransport(rclone=str(_RCLONE_EXE))
+    entries = t.list_remote(str(tmp_path))
+
+    assert [e.relative for e in entries] == ["save.sav"]

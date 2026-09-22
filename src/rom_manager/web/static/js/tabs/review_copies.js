@@ -23,6 +23,10 @@ const _REASON_LABELS = {
   // distintos), se detecta por título (región conservada, sin la etiqueta
   // de disco) cruzando extensiones.
   crossfmt: { text: 'Mismo disco, otro formato', color: 'var(--c-purple)' },
+  // DUP-DISC-RA-1b parte 2: mismo hash de disco RA (PSX/GameCube/Wii) en
+  // formatos/dumps distintos que crossfmt no detecta por título (p.ej. un
+  // volcado legacy con nombre de serial, sin canonical_title reconocible).
+  disc_hash: { text: 'Mismo disco (hash RA)', color: 'var(--c-purple)' },
 };
 
 const _CONFLICT_REASONS = new Set(['disk', 'collision']);
