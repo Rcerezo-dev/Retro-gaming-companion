@@ -838,14 +838,43 @@ artefacto de sincronización ajeno a `rom_manager` — mismo tipo de ruido que
 ya se excluyó para `_descartados/` (`TRASH_DIR_NAME`) y `emulator_saves/`
 (`EMULATOR_SAVES_DIR_NAME`, `CABLE-SYNC-EMULATOR-SAVES-LEAK-1`).
 
-**Sin implementar** — no bloquea nada hoy (los archivos `.stversions/` de
-estos 2 grupos concretos no se tocaron, quedaron como contenido "único" al
-diferir del resto). Alcance real (cuántos archivos/cuánto espacio hay bajo
-`.stversions/` en todo el dispositivo) sin medir todavía.
+**Re-verificado 2026-09-22 (Día69), contra el código real, no contra
+suposiciones**: los 3 sitios señalados como candidatos ya excluyen
+`.stversions/` hoy — no falta ningún guard nuevo.
+
+- Los 3 walks **locales** (`cable_engine.py:56` `iter_files`,
+  `cable_sync_daemon.py:432-437` `_iter_local`, `sync_cable.py:516-521`
+  `_iter_files`) ya filtran `not d.startswith(".")` antes de mirar
+  `TRASH_DIR_NAME`/`EMULATOR_SAVES_DIR_NAME` — cualquier directorio oculto,
+  `.stversions` incluido, nunca entra.
+- El lado **Android** (`sync/adb_transport.py`, `ls_recursive()` y
+  `_hash_recursive()`/`sha1_recursive()`/`md5_recursive()`, usados por
+  `cable_sync_daemon.py:421` y por `_do_adb_scan` en `web/handlers/scan.py:456`
+  — el mismo scan que alimenta `library_android.db` para
+  `DUP-DISC-SET-2`/`DUP-DISC-TRACK-1` arriba) ya excluye por defecto
+  (`exclude_hidden=True`) cualquier segmento de ruta que empiece por `.`, y
+  `.stversions` empieza por punto. Confirmado con `git log`: el filtro de
+  `ls_recursive` existe desde marzo 2026 (`ebd9f54`) y el de
+  `_hash_recursive` desde el 2026-09-19 (`7be90a7`, `ANDROID-DUP-2`) —
+  **ambos ya estaban en el código antes** de que se encontrara el leak el
+  2026-09-21, así que ningún camino de sync/escaneo persistente de este
+  proyecto pudo haberlo producido.
+- Causa real de los 2 casos encontrados: la comparación SHA1 de
+  `CABLE-SYNC-LEGACY-DUPS-1` fue un script ad-hoc de esa sesión (no hay
+  ningún endpoint/feature `legacy-dup*` en el código — la propia entrada de
+  `CABLE-SYNC-LEGACY-DUPS-1` dice "limpieza manual en el dispositivo, sin
+  tocar código"), que aparentemente sí leyó `.stversions/` sin pasar por
+  `AdbTransport`. No es un gap del cable-sync/escaneo real.
+
+**Obsoleto — sin fix de código que hacer** (mismo patrón que la rama 07 del
+roadmap general, `.claude/roadmaps/INDEX.md`): el problema tal como está
+descrito ya no existe en el cable-sync/escaneo persistente. Si se repite un
+script ad-hoc de comparación de saves en el futuro, aplicar el mismo filtro
+`exclude_hidden`/`startswith(".")` que ya usa el resto del proyecto.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| ANDROID-STVERSIONS-1 | Medir el alcance real de `saves/.stversions/` en la Anbernic (ADB) y, si procede, excluirlo del cable-sync/escaneo de duplicados igual que `_descartados/`/`emulator_saves/` | `web/handlers/sync_cable.py`, `sync/cable_engine.py`, `web/cable_sync_daemon.py` (mismos 3 sitios que excluyen `TRASH_DIR_NAME`/`EMULATOR_SAVES_DIR_NAME`) | 🔴 hallazgo confirmado (2 grupos afectados), alcance completo sin medir, sin implementar |
+| ANDROID-STVERSIONS-1 | Medir el alcance real de `saves/.stversions/` en la Anbernic (ADB) y, si procede, excluirlo del cable-sync/escaneo de duplicados igual que `_descartados/`/`emulator_saves/` | `web/handlers/sync_cable.py`, `sync/cable_engine.py`, `web/cable_sync_daemon.py`, `sync/adb_transport.py` | ⚪ **obsoleto, verificado 2026-09-22** — los 3 sitios y `AdbTransport` ya excluyen directorios ocultos (`.stversions` incluido); el leak de Día67 vino de un script ad-hoc fuera del código persistente, no de un gap real |
 
 ---
 
