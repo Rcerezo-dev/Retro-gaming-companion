@@ -67,7 +67,7 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 | `feature/library-ux-dashboard-duplicates` | [27](../.claude/roadmaps/27-library-ux-dashboard-duplicates.md) | `LIBRARY-HEALTH-DASH-1`, `DUP-VISUAL-UI-1` | Pilar 1 — fase 1 de 6 (ver "Fases" en `INDEX.md`) |
 | `feature/library-folder-standardization` | [28](../.claude/roadmaps/28-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
 | `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 |
-| `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 |
+| `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
 | `feature/mobile-responsive-ui` | [29](../.claude/roadmaps/29-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
 | `feature/ra-achievements-live-progress` | [30](../.claude/roadmaps/30-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
 
