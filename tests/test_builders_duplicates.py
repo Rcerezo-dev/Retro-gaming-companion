@@ -947,6 +947,46 @@ def test_crossfmt_untagged_regional_edition_in_multidisc_set_not_flagged(
     assert result["groups"] == []
 
 
+def test_disc_set_with_real_sha1_dup_only_flags_the_dup_pair(tmp_path: Path) -> None:
+    """DUP-DISC-SET-2: caso real (Día68, 2026-09-21) — dentro de un set
+    multi-disco legítimo, `Xenogears (Japan).chd` resulta ser byte-idéntico
+    (mismo sha1, mal etiquetado regionalmente) a `(USA) (Disc 1).chd`. Antes
+    del fix, `has_sha1_dup` no estaba protegido por `_is_disc_set()` como el
+    resto de razones — el union-find ya había fusionado los 3 discos en un
+    solo clúster (vía crossfmt/título), así que el motor elegía UN solo
+    "recomendado" para todo el grupo y marcaba `(USA) (Disc 2).chd` —un
+    disco real, no un duplicado— para descartar.
+
+    Comportamiento correcto: solo Japan+Disc1 (el par realmente
+    byte-idéntico) debe aparecer como grupo de duplicado; Disc 2, con sha1
+    propio y único, no debe aparecer en ningún grupo en absoluto."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    dup_sha1 = "A" * 40
+    for name, sha1 in [
+        ("Xenogears (Japan).chd", dup_sha1),
+        ("Xenogears (USA) (Disc 1).chd", dup_sha1),
+        ("Xenogears (USA) (Disc 2).chd", "B" * 40),
+    ]:
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / name),
+            sha1=sha1,
+            original_filename=name,
+            canonical_title="Xenogears",
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert len(result["groups"]) == 1
+    group = result["groups"][0]
+    assert group["reasons"] == ["sha1"]
+    entry_names = {Path(e["filename"]).name for e in group["entries"]}
+    assert entry_names == {"Xenogears (Japan).chd", "Xenogears (USA) (Disc 1).chd"}
+    recommended = [e for e in group["entries"] if e["recommended"]]
+    assert len(recommended) == 1
+
+
 def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
     """DUP-CROSSFMT-2 (patrón 2): un `.cue`+`.bin` hermanos (mismo directorio,
     mismo nombre base) no son dos copias alternativas del mismo disco — el

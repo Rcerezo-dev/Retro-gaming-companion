@@ -720,13 +720,29 @@ detección de `_is_disc_set` necesita aplicarse también a la selección de
 qué entradas puede marcar "descartar" dentro de un componente, no solo a
 qué *razón* se etiqueta.
 
-**Sin implementar** — mismo criterio que `DUP-DISC-SET-1`: tocar el motor
-de recomendación de duplicados es alto riesgo, tres juegos reales
-confirmados con discos que se perderían si se aplica a ciegas.
+**Implementado (2026-09-22, Día69)**: cuando un clúster es un set multi-disco
+real (`_is_disc_set()` True) Y además tiene un `has_sha1_dup` real, ya no se
+trata el clúster entero como un único grupo de revisión. En su lugar se
+agrupan los miembros por SHA1 dentro del propio clúster — solo los
+subconjuntos con SHA1 realmente compartido (≥2 archivos) se emiten como su
+propio grupo de duplicado (razón `sha1`, `group_key` con sufijo por SHA1 para
+no colisionar); un miembro con SHA1 único dentro del set (un disco legítimo
+sin duplicado) no entra en ningún grupo — nunca puede ser "recomendado
+descartar". Refactor: la construcción de `entries`/`recommended`/`wasted`
+(antes ~55 líneas inline por clúster) se extrajo a una función anidada
+`emit_group()`, reutilizada tanto por el camino normal como por cada
+sub-grupo SHA1 de un set multi-disco — evita duplicar esa lógica ya probada.
+Test de regresión con el caso real exacto (Xenogears Japan+Disc1 mismo SHA1,
+Disc2 SHA1 propio): confirmado en rojo contra el código anterior (`git
+stash`) y en verde tras el fix — el grupo resultante contiene solo
+Japan+Disc1, Disc2 no aparece en ningún grupo. Suite completa (1427 tests):
+0 regresiones. `Final Fantasy VIII`/`Parasite Eve` (mismo patrón, sin caso de
+test dedicado) quedan cubiertos por la misma lógica genérica, no por un fix
+específico de Xenogears.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| DUP-DISC-SET-2 | Arreglar el motor de recomendación para que un componente que mezcla un duplicado SHA1 real con discos legítimos de un set multi-disco no marque esos discos como "descartar" — probablemente separar sub-clústeres por número de disco antes de elegir "recomendado" | `web/builders/duplicates.py:1146-1290` (construcción de `entries`/`recommended` dentro de `_review_groups_for_repo`) | 🔴 confirmado con 3 juegos reales (`Xenogears`, `Final Fantasy VIII`, `Parasite Eve`), sin implementar — excluidos manualmente del apply de Día68 |
+| DUP-DISC-SET-2 | Arreglar el motor de recomendación para que un componente que mezcla un duplicado SHA1 real con discos legítimos de un set multi-disco no marque esos discos como "descartar" — probablemente separar sub-clústeres por número de disco antes de elegir "recomendado" | `web/builders/duplicates.py` (`_review_groups_for_repo`, `emit_group` nuevo, rama `is_disc_set and has_sha1_dup`), `tests/test_builders_duplicates.py` | ✅ hecho 2026-09-22 — desbloquea revisar/aplicar `Xenogears`/`Final Fantasy VIII`/`Parasite Eve` sin riesgo de perder un disco real (revisión manual sigue recomendada antes de aplicar) |
 
 ---
 

@@ -1149,10 +1149,15 @@ def _review_groups_for_repo(
                 sha1_counts[r["sha1"]] += 1
         distinct_sha1 = {r["sha1"] for r in members if r["sha1"]}
         has_sha1_dup = any(c > 1 for c in sha1_counts.values())
+        # DUP-DISC-SET-2: computed once and reused below — a real multi-disc
+        # set (Disc 1/Disc 2/...) whose cluster also contains a genuine
+        # byte-identical duplicate (e.g. a mislabeled regional release) needs
+        # different handling than a plain duplicate cluster, see below.
+        is_disc_set = _is_disc_set(members)
         has_title_dup = (
             len(distinct_sha1) > 1
             and any(r["canonical_title"] for r in members)
-            and not _is_disc_set(members)
+            and not is_disc_set
         )
         # DUP-CROSSFMT-1: only claim it for clusters that actually still span
         # >1 extension AND aren't a legitimate multi-disc set — a crossfmt
@@ -1162,7 +1167,7 @@ def _review_groups_for_repo(
         has_crossfmt_dup = (
             any(i in crossfmt_linked_idxs for i in idxs)
             and len({_Path(r["original_filename"]).suffix.lower() for r in members}) > 1
-            and not _is_disc_set(members)
+            and not is_disc_set
         )
         # MATCH-HEADER-1: only claim it when the header link actually added
         # something — a cluster already fully explained by sha1 or by two
@@ -1183,15 +1188,13 @@ def _review_groups_for_repo(
         # DUP-REGION-1: same game, different No-Intro region release -- only
         # claim it for a cluster the fuzzy region_groups link actually built
         # (real disc sets are pre-excluded when region_linked_idxs is built).
-        has_region_dup = any(i in region_linked_idxs for i in idxs) and not _is_disc_set(members)
+        has_region_dup = any(i in region_linked_idxs for i in idxs) and not is_disc_set
         # DUP-DISC-RA-1b parte 2: only claim it for a cluster the disc-hash
         # link actually built and that isn't already a legitimate multi-disc
         # set (a real 2-disc release also shares... nothing here, since each
         # disc has its own distinct RA hash -- _is_disc_set stays as a
         # defensive match with the other reasons' pattern).
-        has_disc_hash_dup = any(i in disc_hash_linked_idxs for i in idxs) and not _is_disc_set(
-            members
-        )
+        has_disc_hash_dup = any(i in disc_hash_linked_idxs for i in idxs) and not is_disc_set
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
         # MATCH-FIX-4: RA hash libraries are per-console (Game Boy and Game
@@ -1212,6 +1215,108 @@ def _review_groups_for_repo(
             row_hash_map = _load_ra_hash_map(cache_dir, r["platform"] or plat, hash_cache)
             scored.append(row_hash_map.get(md5_lower, -1))
         has_ra_mix = any(a > 0 for a in scored) and any(a <= 0 for a in scored)
+        score_by_idx = dict(zip(idxs, scored, strict=True))
+
+        def emit_group(
+            group_idxs: list[int], group_reasons: set[str], key_suffix: str = ""
+        ) -> None:
+            sample_title = next(
+                (rows[i]["canonical_title"] for i in group_idxs if rows[i]["canonical_title"]),
+                rows[group_idxs[0]]["original_filename"],
+            )
+            group_key = f"{plat}::{_normalize_title(sample_title)}{key_suffix}"
+            if group_key in excluded_keys:
+                return
+
+            entries: dict[str, dict] = {}
+            for idx in group_idxs:
+                r = rows[idx]
+                achievements = score_by_idx.get(idx, -1)
+                entry = {
+                    "source_path": r["source_path"],
+                    "filename": r["original_filename"],
+                    "size_bytes": int(r["size_bytes"]),
+                    "sha1": r["sha1"],
+                    "match_confidence": r["match_confidence"],
+                    "ra_achievements": achievements if achievements >= 0 else None,
+                    "ra_supported": achievements > 0,
+                    "is_device": is_device_path(r["source_path"]),
+                }
+                extra = extra_fields.get(idx)
+                if extra:
+                    entry["conflict_role"] = extra["ra_role"]
+                    if extra["reason"] == "disk":
+                        # The blocking file itself isn't a tracked games row, so it
+                        # can't be a second entry of its own — just extra context here.
+                        entry["target_name"] = extra["target_name"]
+                        entry["ra_target_achievements"] = extra["ra_target_achievements"]
+                entries[entry["source_path"]] = entry
+
+            entries_list = list(entries.values())
+            _lib_root = getattr(config, "library_root", None)
+            _region_tiebreak = "region" in group_reasons
+            _ref_size = _reference_size_bytes(entries_list)
+            entries_list.sort(
+                key=lambda e: _review_entry_sort_key(
+                    e,
+                    plat,
+                    _lib_root,
+                    region_tiebreak=_region_tiebreak,
+                    preferred_regions=_preferred_regions,
+                    known_paths=known_paths,
+                    reference_size_bytes=_ref_size,
+                )
+            )
+            for i, entry in enumerate(entries_list):
+                entry["recommended"] = i == 0
+                if _is_broken_disc_entry(entry["source_path"]):
+                    entry["rescue_candidate"] = _find_rescue_candidate_in_trash(
+                        entry["source_path"], plat, _lib_root
+                    )
+            wasted = sum(e["size_bytes"] or 0 for e in entries_list[1:])
+            result.append(
+                {
+                    "platform": plat,
+                    "canonical_title": sample_title,
+                    "group_key": group_key,
+                    "reasons": sorted(group_reasons),
+                    "wasted_bytes": wasted,
+                    "entries": entries_list,
+                }
+            )
+
+        if is_disc_set and has_sha1_dup:
+            # DUP-DISC-SET-2: a real multi-disc set (>=2 distinct disc
+            # numbers) whose cluster also contains a genuine byte-identical
+            # duplicate (e.g. a mislabeled regional release sharing sha1 with
+            # one specific disc) must never let the whole cluster compete as
+            # one group -- that picks a single "recommended" survivor and
+            # discards every other disc as if it were an alternate copy.
+            # Confirmed live: Xenogears (Japan).chd == (USA) (Disc 1).chd by
+            # sha1, but (USA) (Disc 2).chd is a real, undupe'd disc that the
+            # old single-group logic still marked "descartar". Instead, only
+            # the actual sha1-duplicate subsets become their own review
+            # group; a disc with a unique sha1 in the cluster is a genuine,
+            # non-duplicate file and never enters any group at all.
+            dup_sha1_idxs: dict[str, list[int]] = defaultdict(list)
+            for i in idxs:
+                s = rows[i]["sha1"]
+                if s:
+                    dup_sha1_idxs[s].append(i)
+            for sha1_val, sub_idxs in dup_sha1_idxs.items():
+                if len(sub_idxs) < 2:
+                    continue
+                sub_reasons: set[str] = {"sha1"}
+                for i in sub_idxs:
+                    if i in extra_reasons:
+                        sub_reasons.add(extra_reasons[i])
+                if (
+                    sub_reasons & {"disk", "collision"}
+                    and plat.lower() in _MULTI_DISC_RISK_PLATFORMS
+                ):
+                    sub_reasons.add("multi_disc_risk")
+                emit_group(sub_idxs, sub_reasons, key_suffix=f"#{sha1_val[:8]}")
+            continue
 
         reasons: set[str] = set()
         if has_sha1_dup:
@@ -1244,69 +1349,7 @@ def _review_groups_for_repo(
             # and no other signal) — don't invent a false positive.
             continue
 
-        sample_title = next(
-            (r["canonical_title"] for r in members if r["canonical_title"]),
-            members[0]["original_filename"],
-        )
-        group_key = f"{plat}::{_normalize_title(sample_title)}"
-        if group_key in excluded_keys:
-            continue
-
-        entries: dict[str, dict] = {}
-        for idx, achievements in zip(idxs, scored, strict=True):
-            r = rows[idx]
-            entry = {
-                "source_path": r["source_path"],
-                "filename": r["original_filename"],
-                "size_bytes": int(r["size_bytes"]),
-                "sha1": r["sha1"],
-                "match_confidence": r["match_confidence"],
-                "ra_achievements": achievements if achievements >= 0 else None,
-                "ra_supported": achievements > 0,
-                "is_device": is_device_path(r["source_path"]),
-            }
-            extra = extra_fields.get(idx)
-            if extra:
-                entry["conflict_role"] = extra["ra_role"]
-                if extra["reason"] == "disk":
-                    # The blocking file itself isn't a tracked games row, so it
-                    # can't be a second entry of its own — just extra context here.
-                    entry["target_name"] = extra["target_name"]
-                    entry["ra_target_achievements"] = extra["ra_target_achievements"]
-            entries[entry["source_path"]] = entry
-
-        entries_list = list(entries.values())
-        _lib_root = getattr(config, "library_root", None)
-        _region_tiebreak = "region" in reasons
-        _ref_size = _reference_size_bytes(entries_list)
-        entries_list.sort(
-            key=lambda e: _review_entry_sort_key(
-                e,
-                plat,
-                _lib_root,
-                region_tiebreak=_region_tiebreak,
-                preferred_regions=_preferred_regions,
-                known_paths=known_paths,
-                reference_size_bytes=_ref_size,
-            )
-        )
-        for i, entry in enumerate(entries_list):
-            entry["recommended"] = i == 0
-            if _is_broken_disc_entry(entry["source_path"]):
-                entry["rescue_candidate"] = _find_rescue_candidate_in_trash(
-                    entry["source_path"], plat, _lib_root
-                )
-        wasted = sum(e["size_bytes"] or 0 for e in entries_list[1:])
-        result.append(
-            {
-                "platform": plat,
-                "canonical_title": sample_title,
-                "group_key": group_key,
-                "reasons": sorted(reasons),
-                "wasted_bytes": wasted,
-                "entries": entries_list,
-            }
-        )
+        emit_group(idxs, reasons)
 
     for crow in orphan_conflicts:
         plat = "unknown"

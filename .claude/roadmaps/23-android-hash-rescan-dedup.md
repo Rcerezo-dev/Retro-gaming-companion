@@ -152,6 +152,6 @@ discos en Android no compense las 3+ horas frente a priorizar otro trabajo.
 - [x] Fase 1 — 9 plataformas cartucho escaneadas con hash real, `_build_review_queue` corrida, hallazgos reportados (2026-09-20: 29.657 archivos, 0 errores, 3.270 grupos sha1)
 - [x] Fase 1 — casos conocidos (Final Fantasy Tactics/Pokemon Pinball GBA) confirmados agrupados
 - [x] Fase 2 — arcade escaneado con hash real, hallazgos reportados (2026-09-20: 388 ROMs reconocidas, 0 grupos duplicados)
-- [ ] Decisión del usuario: ¿merece la pena Fase 3 (discos, 3+ horas) tras ver Fases 1-2?
-- [ ] Fase 3 (si se decide seguir) — psx/ps2/nds/gamecube/dreamcast/3ds/psp escaneados uno a uno, con verificación de conexión ADB antes de cada uno
+- [x] Decisión del usuario: sí, mereció la pena — Fase 3 lanzada 2026-09-20/21 (psx/ps2/dreamcast; nds/gamecube/3ds/psp/gamecube quedan sin escanear, no bloqueante)
+- [x] Fase 3 — psx/ps2/dreamcast escaneados con hash real; `DUP-DISC-SET-1` (bloqueante) arreglado 2026-09-21; primer lote seguro aplicado contra la Anbernic real (108 grupos, 132 archivos, 13,02 GB, 0 errores, Día68). Pendiente: `DUP-DISC-SET-2`, `DUP-DISC-TRACK-1` (motor de recomendación, alto riesgo) y `ANDROID-DUP-2-APPLY-1` (~40 pares restantes, revisión manual) — ver `Tareas/backlog.md`
 - [x] Actualizar `ANDROID-DUP-2` en `Tareas/backlog.md` con el resultado final (éxito o nuevo hallazgo) tras cada fase
