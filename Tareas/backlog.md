@@ -66,7 +66,7 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 | — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](#docs-audit-1-seguimiento-de-la-auditoría-de-documentación-2026-09-20) | Transversal |
 | `feature/library-ux-dashboard-duplicates` | [27](../.claude/roadmaps/27-library-ux-dashboard-duplicates.md) | `LIBRARY-HEALTH-DASH-1`, `DUP-VISUAL-UI-1` | Pilar 1 — fase 1 de 6 (ver "Fases" en `INDEX.md`) |
 | `feature/library-folder-standardization` | [28](../.claude/roadmaps/28-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
-| `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 |
+| `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 — ✅ completo, PR pendiente de abrir |
 | `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
 | `feature/mobile-responsive-ui` | [29](../.claude/roadmaps/29-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
 | `feature/ra-achievements-live-progress` | [30](../.claude/roadmaps/30-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
@@ -2029,8 +2029,8 @@ except Exception as exc:
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| INBOX-SESSION-SUMMARY-1 | Resumen visible al terminar un job de Inbox/organize (N organizados, N con conflicto, N sin match) en vez de tener que revisar logs | `web/inbox_pipeline.py`, `web/static/js/jobs.js` | ⬜ sin diseñar |
-| INBOX-METADATA-INLINE-1 | Confirmar si portada/metadata ya se aplican automáticamente al organizar desde el Inbox (el scraper existe pero no está claro si dispara en el mismo job); si no, integrarlo | `web/inbox_pipeline.py`, `web/handlers/scraper.py` | ⬜ sin verificar contra el código real |
+| INBOX-SESSION-SUMMARY-1 | Resumen visible al terminar un job de Inbox/organize (N organizados, N con conflicto, N sin match) en vez de tener que revisar logs | `web/inbox_pipeline.py`, `web/static/js/tabs/inbox.js` | ✅ hecho 2026-09-22 (rama `feature/inbox-ux-summary-metadata`) — investigado primero: el panel de resumen (`_renderInboxResult`) y casi todos los contadores ya existían; solo faltaba destacar "sin match" (`unmatched`, juegos organizados sin `platform`), añadido junto a `scraped` |
+| INBOX-METADATA-INLINE-1 | Confirmar si portada/metadata ya se aplican automáticamente al organizar desde el Inbox (el scraper existe pero no está claro si dispara en el mismo job); si no, integrarlo | `services/scrape_service.py` (nuevo), `web/inbox_pipeline.py`, `web/handlers/scraper.py`, `config.py` | ✅ hecho 2026-09-22 — confirmado que no se aplicaba automáticamente. `_do_scrape_single` extraído a `scrape_game_metadata()` (servicio reutilizable, sin `ctx` HTTP) y enganchado al organize vía `_scrape_organized_games()`, opt-in (`config.inbox.scrape_on_organize`, apagado por defecto). Un solo `ScreenScraperClient` para todo el lote (su throttle es por instancia). 12 tests nuevos, 1452 pass, ruff+format limpios |
 
 ---
 

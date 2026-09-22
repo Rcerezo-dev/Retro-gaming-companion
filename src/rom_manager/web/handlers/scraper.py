@@ -368,120 +368,23 @@ def _do_scrape(
 
 
 def _do_scrape_single(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:
+    # INBOX-METADATA-INLINE-1: la búsqueda+aplicación real vive en
+    # services/scrape_service.py — el Inbox reutiliza la misma función.
+    from rom_manager.services.scrape_service import scrape_game_metadata
+
     game_id = data.get("game_id")
     preview = bool(data.get("preview", False))
     download_images = bool(data.get("images", False))
     if not game_id:
         ctx._send_json({"error": "game_id requerido"})
         return
-    if not config.credentials.screenscraper_user:
-        ctx._send_json({"error": "Credenciales de ScreenScraper no configuradas"})
-        return
-    try:
-        from rom_manager.scanner.rom_scanner import utc_now
-        from rom_manager.scraper.platform_ids import get_system_id
-        from rom_manager.scraper.screenscraper import ScreenScraperClient, download_image
-
-        with repository.connect() as _conn:
-            _grow = _conn.execute(
-                "SELECT g.id, g.original_filename, g.source_path, g.platform, "
-                "g.crc32, g.md5, g.sha1, g.size_bytes, g.canonical_title "
-                "FROM games g WHERE g.id = ?",
-                (int(game_id),),
-            ).fetchone()
-        if not _grow:
-            ctx._send_json({"error": "Juego no encontrado"})
-            return
-        _game = dict(_grow)
-        _client = ScreenScraperClient(
-            user=config.credentials.screenscraper_user,
-            password=config.credentials.screenscraper_pass,
-            dev_id=config.credentials.screenscraper_dev_id,
-            dev_password=config.credentials.screenscraper_dev_pass,
-        )
-        _sys_id = get_system_id(_game["platform"])
-        _result = _client.search(
-            crc32=_game["crc32"],
-            md5=_game["md5"],
-            sha1=_game["sha1"],
-            filename=_game["original_filename"],
-            size_bytes=_game["size_bytes"],
-            system_id=_sys_id,
-        )
-        if _result is None:
-            _name_hint = _game.get("canonical_title") or _game["original_filename"]
-            _result = _client.search_by_name(_name_hint, system_id=_sys_id)
-        if _client.last_quota:
-            _state._ss_last_quota.update(_client.last_quota)
-        if _result is None:
-            ctx._send_json({"found": False, "error": "No encontrado en ScreenScraper"})
-            return
-        _preview_data = {
-            "found": True,
-            "ss_game_id": _result.ss_game_id,
-            "title": _result.title,
-            "year": _result.year,
-            "genre": _result.genre,
-            "publisher": _result.publisher,
-            "developer": _result.developer,
-            "description": _result.description,
-            "rating": _result.rating,
-            "box_art_url": _result.box_art_url,
-        }
-        if preview:
-            ctx._send_json(_preview_data)
-            return
-        _box_art_path = _screenshot_path = _wheel_path = ""
-        if download_images:
-            _src_parent = Path(_game["source_path"]).parent
-            _stem = Path(_game["original_filename"]).stem
-            if _result.box_art_url:
-                _ext = ".png" if ".png" in _result.box_art_url.lower() else ".jpg"
-                _dest = _src_parent / "media" / "images" / f"{_stem}{_ext}"
-                download_image(_result.box_art_url, _dest)
-                _box_art_path = str(_dest)
-            if _result.screenshot_url:
-                _ext = ".png" if ".png" in _result.screenshot_url.lower() else ".jpg"
-                _dest = _src_parent / "media" / "screenshots" / f"{_stem}{_ext}"
-                try:
-                    download_image(_result.screenshot_url, _dest)
-                    _screenshot_path = str(_dest)
-                except Exception:
-                    _logger.warning(
-                        "Descarga de captura falló: %s", _result.screenshot_url, exc_info=True
-                    )
-            if _result.wheel_url:
-                _ext = ".png" if ".png" in _result.wheel_url.lower() else ".jpg"
-                _dest = _src_parent / "media" / "wheels" / f"{_stem}{_ext}"
-                try:
-                    download_image(_result.wheel_url, _dest)
-                    _wheel_path = str(_dest)
-                except Exception:
-                    _logger.warning("Descarga de wheel falló: %s", _result.wheel_url, exc_info=True)
-        with repository.batch() as _bconn:
-            repository.upsert_metadata(
-                game_id=int(game_id),
-                ss_game_id=_result.ss_game_id,
-                title=_result.title,
-                year=_result.year,
-                genre=_result.genre,
-                publisher=_result.publisher,
-                developer=_result.developer,
-                description=_result.description,
-                rating=_result.rating,
-                box_art_url=_result.box_art_url,
-                box_art_path=_box_art_path,
-                screenshot_path=_screenshot_path,
-                wheel_path=_wheel_path,
-                genres_list=_result.genres_list,
-                players=_result.players,
-                scraped_at=utc_now(),
-                connection=_bconn,
-            )
-            repository.mark_metadata_scraped(int(game_id), _bconn)  # DB-1: mark as checked
-        ctx._send_json({**_preview_data, "applied": True})
-    except Exception as _exc:
-        ctx._send_json({"error": str(_exc)})
+    result = scrape_game_metadata(
+        int(game_id), config, repository, preview=preview, download_images=download_images
+    )
+    last_quota = result.pop("last_quota", None)
+    if last_quota:
+        _state._ss_last_quota.update(last_quota)
+    ctx._send_json(result)
 
 
 def _do_export_gamelists(ctx, data: dict, config: AppConfig, repository: LibraryRepository) -> None:

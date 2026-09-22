@@ -246,6 +246,7 @@ function _applyInboxProgress(s) {
     'planning':   'Paso 4/6: Planificando renames',
     'renaming':   'Paso 5/6: Renombrando',
     'organizing': 'Paso 6/6: Organizando por plataforma',
+    'scraping metadata': 'Paso 6/6: Scrapeando metadata/portadas',
     'done':       'Completado',
   };
 
@@ -293,6 +294,8 @@ function _renderInboxResult(r) {
   html += 'Duplicados descartados: <strong>' + (r.duplicates_removed || 0) + '</strong> &nbsp;';
   html += 'Resueltos por RA: <strong>' + (r.ra_resolved || 0) + '</strong>';
   if (r.conflicts_unresolved > 0) html += ' &nbsp;<span style="color:var(--c-yellow)">Conflictos sin resolver: <strong>' + r.conflicts_unresolved + '</strong></span>';
+  if (r.unmatched > 0) html += ' &nbsp;<span style="color:var(--c-yellow)">Sin match de catálogo: <strong>' + r.unmatched + '</strong></span>';
+  if (r.scraped > 0) html += ' &nbsp;Metadata scrapeada: <strong>' + r.scraped + '</strong>';
   if (r.anbernic_sent > 0) html += ' &nbsp;Enviados a la Anbernic: <strong>' + r.anbernic_sent + '</strong>';
   if (r.anbernic_warning) html += '<br><span style="color:var(--c-yellow)">' + window._h(r.anbernic_warning) + '</span>';
   if (r.target_root) html += '<br><span style="color:var(--c-dim);font-size:11px">Destino: ' + r.target_root + '</span>';
@@ -309,6 +312,11 @@ function _renderInboxResult(r) {
   if ((r.anbernic_errors || []).length > 0) {
     html += '<details style="margin-top:4px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.anbernic_errors.length + ' errores al enviar a la Anbernic</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
     r.anbernic_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
+    html += '</ul></details>';
+  }
+  if ((r.scrape_errors || []).length > 0) {
+    html += '<details style="margin-top:4px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.scrape_errors.length + ' errores al scrapear metadata</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
+    r.scrape_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
   el.innerHTML = html;

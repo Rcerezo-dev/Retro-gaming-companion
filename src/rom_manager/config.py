@@ -273,6 +273,11 @@ class InboxConfig:
     target_root: str = ""  # where to place organized files (defaults to library_root)
     auto_process: bool = False  # auto-process when files detected
     delete_source: bool = False  # delete original ZIP after organizing
+    # INBOX-METADATA-INLINE-1: opt-in — scrapea portada/metadata al organizar
+    # (mismo mecanismo que un juego individual en Colección). Apagado por
+    # defecto: red/rate-limit de ScreenScraper no debe ralentizar una
+    # organización masiva sin que el usuario lo pida explícitamente.
+    scrape_on_organize: bool = False
 
 
 @dataclass(slots=True)
@@ -570,6 +575,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             target_root=str(inbox_cfg.get("target_root", "")),
             auto_process=bool(inbox_cfg.get("auto_process", False)),
             delete_source=bool(inbox_cfg.get("delete_source", False)),
+            scrape_on_organize=bool(inbox_cfg.get("scrape_on_organize", False)),
         ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         esde_path=str(launchers_cfg.get("esde", "")),
