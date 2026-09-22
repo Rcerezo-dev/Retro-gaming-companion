@@ -40,14 +40,25 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "notes": (
             "Permission denied via ADB on Android 11+ scoped storage without root — "
             "in DuckStation, change Settings > Memory Cards > Directory to a public "
-            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable"
+            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable. "
+            "SAVES-FRAGMENT-8b (2026-09-22): the SD card's public "
+            "/storage/521D-04EA/saves/psx/ folder already carries .srm/.mcd files "
+            "(likely a launcher, not this app, mirroring saves there) and is covered "
+            "by a plain Cable Sync 'newest' pass against that root — not by this "
+            "per-package entry, whose own path is still unreadable."
         ),
         "accessible": False,
     },
     "xyz.aethersx2.android": {
         "name": "AetherSX2 / NetherSX2 (PS2)",
-        "saves_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/memcards",
-        "states_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/sstates",
+        # SAVES-FRAGMENT-8b (2026-09-22): the app-private path below is
+        # unreadable via non-root ADB (confirmed daily in the auto-sync log,
+        # 18 "sin permiso de lectura" errors) — redirected to the public SD
+        # location the same save data (Mcd001.ps2/Mcd002.ps2, matching
+        # (*).p2s state files, same names) is also accessible from, same
+        # workaround already documented for DuckStation above.
+        "saves_path": "/storage/521D-04EA/saves/memcards",
+        "states_path": "/storage/521D-04EA/saves/sstates",
         "adb_required": True,
         "save_extensions": [".ps2"],
         "state_extensions": [".p2s", ".p2s.backup"],
