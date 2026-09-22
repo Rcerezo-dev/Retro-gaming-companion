@@ -82,6 +82,23 @@ def test_sha1_duplicate_group(tmp_path: Path) -> None:
     assert len(group["entries"]) == 2
 
 
+def test_sha1_duplicate_group_entries_carry_game_id(tmp_path: Path) -> None:
+    """DUP-VISUAL-UI-1: cada entry necesita su `id` de `games` para pedir la
+    portada a /api/asset-image?game_id=... en la vista side-by-side."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path="/roms/a.gb", sha1="A" * 40, original_filename="tetris.gb")
+    _insert_game(
+        repo, source_path="/roms/backup/a.gb", sha1="A" * 40, original_filename="tetris.gb"
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    entries = result["groups"][0]["entries"]
+    assert len(entries) == 2
+    assert all(isinstance(e["id"], int) for e in entries)
+    assert entries[0]["id"] != entries[1]["id"]
+
+
 def test_no_duplicates_no_groups(tmp_path: Path) -> None:
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     _insert_game(repo, source_path="/roms/a.gb", sha1="A" * 40)
