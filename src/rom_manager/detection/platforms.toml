@@ -69,6 +69,7 @@
 ".gen" = "Sega Mega Drive"
 ".68k" = "Sega Mega Drive"
 ".sgd" = "Sega Mega Drive"
+".smd" = "Sega Mega Drive"
 ".32x" = "Sega 32X"
 ".cdi" = "Dreamcast"
 ".gdi" = "Dreamcast"
