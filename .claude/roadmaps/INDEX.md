@@ -40,7 +40,7 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 | 13 | [archivo/13-match-chdman-robustness.md](archivo/13-match-chdman-robustness.md) | `fix/match-chdman-robustness` | **Completado** ✅ (mergeado a `develop`, `fcf83b1`) | 🟠 P2 |
 | 14 | [archivo/14-matcher-coverage-gaps.md](archivo/14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | **Completado** ✅ (mergeado a `develop`, `853131b7` PR #333 — checklist decía "pendiente PR", corregido 2026-09-22) | 🟡 P3 |
 | 15 | [archivo/15-psx-cue-multitrack-integrity.md](archivo/15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | **Completado** ✅ (mergeado a `develop`, `5bc4e06` — ver `PSX-CUE-DESYNC-1b` en el backlog) | 🔴 P1 |
-| 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Pendiente | 🟡 P3 |
+| 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | **En curso** — código (Pasos 2-4) hecho y en `develop` 2026-09-22; falta Paso 1 (sync de `gamecube`) y verificación real contra el dispositivo, ambos requieren ADB conectado | 🟡 P3 |
 | 17 | [archivo/17-inbox-pending-features.md](archivo/17-inbox-pending-features.md) | `feature/inbox-pending-features` | **Completado** ✅ — las 3 tareas mergeadas a `develop`: `INBOX-ATOMIC-1`/`INBOX-RA-HASH-GAP` (2026-09-15), `INBOX-ANBERNIC-1` (PR #315, 2026-09-18) | 🟠 P2 |
 | 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Pendiente | 🟡 P3 |
 | 19 | [19-device-profile-loose-data.md](19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Pendiente | 🟡 P3 |

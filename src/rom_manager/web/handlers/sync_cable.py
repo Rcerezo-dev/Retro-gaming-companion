@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from rom_manager.config import EMULATOR_SAVES_DIR_NAME
@@ -15,10 +15,13 @@ from rom_manager.sync.android_paths import (
     reconcile_newest_by_name,
 )
 from rom_manager.sync.sync_log import log_sync_event
+from rom_manager.utils.disc_tag import normalize_title_cross_format
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from rom_manager.config import AppConfig
     from rom_manager.database.repository import LibraryRepository
     from rom_manager.web.jobs.manager import JobManager
@@ -26,6 +29,35 @@ if TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+
+# CABLE-ROM-FIX-6: a disc dumped as .chd on one side and .cue/.bin (or
+# .gdi/.ccd) on the other is the same game in a different container — never
+# a genuine "extra" the mirror should delete. Scoped to disc-image formats
+# only: cross-format title matching is fuzzy (normalize_title_cross_format
+# strips the disc-number tag), safe to use here only because the failure
+# mode is "don't delete" (conservative), never "delete something real".
+_DISC_IMAGE_EXTENSIONS = frozenset({".chd", ".cue", ".gdi", ".ccd", ".iso"})
+
+
+def _cross_format_stems(names: Iterable[str]) -> set[str]:
+    """Normalized cross-format title key for every disc-image *names* (plain
+    filenames, not full paths) — see :func:`normalize_title_cross_format`."""
+    stems: set[str] = set()
+    for name in names:
+        p = PurePosixPath(name)
+        if p.suffix.lower() in _DISC_IMAGE_EXTENSIONS:
+            stems.add(normalize_title_cross_format(p.stem))
+    return stems
+
+
+def _is_cross_format_equivalent(name: str, other_side_stems: set[str]) -> bool:
+    """True if *name* (plain filename) is a disc image whose cross-format
+    title already exists on the other side of the mirror, in any disc
+    format — see ``_DISC_IMAGE_EXTENSIONS``'s docstring."""
+    p = PurePosixPath(name)
+    if p.suffix.lower() not in _DISC_IMAGE_EXTENSIONS:
+        return False
+    return normalize_title_cross_format(p.stem) in other_side_stems
 
 
 def register_cable(
@@ -880,11 +912,20 @@ def _do_cable_sync(
                             for f in _iter_files(pc_root)
                             if _wanted(f)
                         }
+                        # CABLE-ROM-FIX-6: a device .cue/.bin whose disc already
+                        # exists on the PC as a .chd (or vice versa) is the same
+                        # game, not an extra to delete.
+                        _pc_cross_stems = _cross_format_stems(
+                            f.name for f in _iter_files(pc_root) if _wanted(f)
+                        )
                         for _info in ab_adb_files:
                             if not _wanted_info(_info):
                                 continue
                             _arel = _info.android_path.removeprefix(android_prefix)
-                            if _arel not in _pc_rels:
+                            _aname = PurePosixPath(_info.android_path).name
+                            if _arel not in _pc_rels and not _is_cross_format_equivalent(
+                                _aname, _pc_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         transport._shell("rm", _info.android_path, timeout=30)
@@ -978,11 +1019,19 @@ def _do_cable_sync(
                             for _i in ab_adb_files
                             if _wanted_info(_i)
                         }
+                        # CABLE-ROM-FIX-6: see the pc_to_anbernic branch above.
+                        _ab_cross_stems = _cross_format_stems(
+                            PurePosixPath(_i.android_path).name
+                            for _i in ab_adb_files
+                            if _wanted_info(_i)
+                        )
                         for _f in _iter_files(pc_root):
                             if not _wanted(_f):
                                 continue
                             _frel = _f.relative_to(pc_root).as_posix()
-                            if _frel not in _ab_rels:
+                            if _frel not in _ab_rels and not _is_cross_format_equivalent(
+                                _f.name, _ab_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         _discard_to_trash(_f)  # AUD-3: soft-discard
@@ -1306,6 +1355,10 @@ def _do_cable_sync(
                         _pc_rels = {
                             f.relative_to(pc_root) for f in _iter_files(pc_root) if _wanted(f)
                         }
+                        # CABLE-ROM-FIX-6: see the ADB pc_to_anbernic branch above.
+                        _pc_cross_stems = _cross_format_stems(
+                            f.name for f in _iter_files(pc_root) if _wanted(f)
+                        )
                         for _f in _iter_files(ab_root):
                             # ANBERNIC-PICK-4: _wanted() siempre da por bueno un
                             # archivo del lado Anbernic (necesario para no romper
@@ -1328,7 +1381,9 @@ def _do_cable_sync(
                                 _frel = _f.relative_to(ab_root)
                             except ValueError:
                                 continue
-                            if _frel not in _pc_rels:
+                            if _frel not in _pc_rels and not _is_cross_format_equivalent(
+                                _f.name, _pc_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         _discard_to_trash(_f)  # AUD-3: soft-discard
@@ -1379,11 +1434,17 @@ def _do_cable_sync(
                                     _rel.as_posix(), _ES_PLATFORM_FOLDERS
                                 )
                                 _ab_rels.add(Path(_dst_rel))
+                        # CABLE-ROM-FIX-6: see the ADB pc_to_anbernic branch above.
+                        _ab_cross_stems = _cross_format_stems(
+                            f.name for f in _iter_files(ab_root) if _wanted(f)
+                        )
                         for _f in _iter_files(pc_root):
                             if not _wanted(_f):
                                 continue
                             _frel = _f.relative_to(pc_root)
-                            if _frel not in _ab_rels:
+                            if _frel not in _ab_rels and not _is_cross_format_equivalent(
+                                _f.name, _ab_cross_stems
+                            ):
                                 if not dry_run:
                                     try:
                                         _discard_to_trash(_f)  # AUD-3: soft-discard

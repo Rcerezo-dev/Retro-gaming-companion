@@ -18,7 +18,10 @@ from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
 from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.rom_header import extract_internal_id
-from rom_manager.utils.disc_tag import find_disc_number, strip_disc_tag
+from rom_manager.utils.disc_tag import (
+    find_disc_number,
+    normalize_title_cross_format,
+)
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
@@ -102,31 +105,6 @@ def _is_disc_set(members) -> bool:
         if num is not None
     ]
     return len(set(disc_nums)) > 1
-
-
-def _normalize_title_cross_format(stem: str) -> str:
-    """DUP-CROSSFMT-1: fuzzy title key for cross-format duplicate detection
-    (e.g. a `.zip` containing the same disc already present as `.chd`) —
-    SHA1 never matches across formats since the container bytes differ.
-
-    Deliberately narrower than ``ra_checker._normalize_title``: only the
-    disc tag (see :func:`strip_disc_tag`) is removed, punctuation is
-    collapsed but never deleted along with its contents. Region/language
-    tags are kept as plain tokens, so "(USA)" and "(Europe)" never collide —
-    the fuzzy region-stripping normalizer already caused exactly that once
-    (see the comment on the exact-``canonical_title`` union in
-    ``_review_groups_for_repo``, 18 regional releases of Final Fantasy VII
-    merged into one false-positive group). Two different discs of the same
-    release DO collide here on purpose (same trade-off ``canonical_title``
-    already accepts) — callers must gate on ``_is_disc_set`` before treating
-    the cluster as an actual duplicate, same as the exact-title union does.
-    """
-    import re as _re
-
-    t = strip_disc_tag(stem).lower()
-    t = _re.sub(r"[^a-z0-9 ]", " ", t)
-    t = _re.sub(r" +", " ", t).strip()
-    return t
 
 
 def _sibling_path_str(source_path: str, new_suffix: str) -> str:
@@ -993,7 +971,7 @@ def _review_groups_for_repo(
         ):
             continue
         stem = _Path(row["original_filename"]).stem
-        cf_title = _normalize_title_cross_format(stem)
+        cf_title = normalize_title_cross_format(stem)
         if cf_title:
             crossfmt_groups[(row["platform"] or "unknown", cf_title)].append(idx)
     crossfmt_linked_idxs: set[int] = set()

@@ -48,3 +48,28 @@ def strip_disc_tag(text: str) -> str:
     keeps two different regional releases from colliding here.
     """
     return _DISC_TAG_RE.sub("", text)
+
+
+def normalize_title_cross_format(stem: str) -> str:
+    """DUP-CROSSFMT-1: fuzzy title key for cross-format duplicate detection
+    (e.g. a `.zip` containing the same disc already present as `.chd`) —
+    SHA1 never matches across formats since the container bytes differ.
+
+    Deliberately narrower than ``ra_checker._normalize_title``: only the
+    disc tag (see :func:`strip_disc_tag`) is removed, punctuation is
+    collapsed but never deleted along with its contents. Region/language
+    tags are kept as plain tokens, so "(USA)" and "(Europe)" never collide —
+    the fuzzy region-stripping normalizer already caused exactly that once
+    (see the comment on the exact-``canonical_title`` union in
+    ``web/builders/duplicates.py::_review_groups_for_repo``, 18 regional
+    releases of Final Fantasy VII merged into one false-positive group). Two
+    different discs of the same release DO collide here on purpose (same
+    trade-off ``canonical_title`` already accepts) — callers must gate on
+    disc-set awareness (see ``_is_disc_set``/CABLE-ROM-FIX-6) before treating
+    a match as an actual duplicate/equivalent, same as the exact-title union
+    does.
+    """
+    t = strip_disc_tag(stem).lower()
+    t = re.sub(r"[^a-z0-9 ]", " ", t)
+    t = re.sub(r" +", " ", t).strip()
+    return t
