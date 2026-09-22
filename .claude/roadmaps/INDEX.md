@@ -38,7 +38,7 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 | 11 | [archivo/11-cable-sync-android-root-canonical.md](archivo/11-cable-sync-android-root-canonical.md) | `fix/cable-sync-android-root-canonical` | **Completado** ✅ (mergeado a `develop`, `fc29e09` — checklist y backlog `CABLE-ROOT-1c/1d` seguían diciendo "pendiente de commit", corregido 2026-09-15) | 🔴 P1 |
 | 12 | [archivo/12-dual-folder-title-case-slug.md](archivo/12-dual-folder-title-case-slug.md) | `fix/dual-folder-title-case-slug` | **Completado** ✅ (mergeado a `develop`, PR #316, 2026-09-18) | 🟠 P2 |
 | 13 | [archivo/13-match-chdman-robustness.md](archivo/13-match-chdman-robustness.md) | `fix/match-chdman-robustness` | **Completado** ✅ (mergeado a `develop`, `fcf83b1`) | 🟠 P2 |
-| 14 | [14-matcher-coverage-gaps.md](14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | Pendiente | 🟡 P3 |
+| 14 | [archivo/14-matcher-coverage-gaps.md](archivo/14-matcher-coverage-gaps.md) | `fix/matcher-coverage-gaps` | **Completado** ✅ (mergeado a `develop`, `853131b7` PR #333 — checklist decía "pendiente PR", corregido 2026-09-22) | 🟡 P3 |
 | 15 | [archivo/15-psx-cue-multitrack-integrity.md](archivo/15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | **Completado** ✅ (mergeado a `develop`, `5bc4e06` — ver `PSX-CUE-DESYNC-1b` en el backlog) | 🔴 P1 |
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Pendiente | 🟡 P3 |
 | 17 | [archivo/17-inbox-pending-features.md](archivo/17-inbox-pending-features.md) | `feature/inbox-pending-features` | **Completado** ✅ — las 3 tareas mergeadas a `develop`: `INBOX-ATOMIC-1`/`INBOX-RA-HASH-GAP` (2026-09-15), `INBOX-ANBERNIC-1` (PR #315, 2026-09-18) | 🟠 P2 |
