@@ -987,6 +987,39 @@ def test_disc_set_with_real_sha1_dup_only_flags_the_dup_pair(tmp_path: Path) -> 
     assert len(recommended) == 1
 
 
+def test_loose_track_bins_never_flagged_as_duplicate_across_games(tmp_path: Path) -> None:
+    """DUP-DISC-TRACK-1: caso real (Día68, 2026-09-21) — una pista de audio CD
+    suelta (sufijo `(Track N)`, sin `.cue` que la agrupe con sus hermanas)
+    puede ser byte-idéntica (silencio/intro genérica) entre dos **juegos sin
+    relación**: `Ninja - Shadow of Darkness (Europe) (Track 44).bin` ==
+    `Ultraman Zearth (Japan).bin`. Antes del fix, el union por sha1 no
+    distinguía estos ficheros, así que ambos juegos acababan en el mismo
+    clúster de "duplicado" pese a no compartir nada más que una pista de
+    audio genérica."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    shared_sha1 = "A" * 40
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Ninja - Shadow of Darkness (Europe) (Track 44).bin"),
+        sha1=shared_sha1,
+        original_filename="Ninja - Shadow of Darkness (Europe) (Track 44).bin",
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Ultraman Zearth (Japan).bin"),
+        sha1=shared_sha1,
+        original_filename="Ultraman Zearth (Japan).bin",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
 def test_crossfmt_cue_bin_sibling_pair_not_flagged(tmp_path: Path) -> None:
     """DUP-CROSSFMT-2 (patrón 2): un `.cue`+`.bin` hermanos (mismo directorio,
     mismo nombre base) no son dos copias alternativas del mismo disco — el

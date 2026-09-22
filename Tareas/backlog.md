@@ -769,15 +769,25 @@ de pista (mismo título que su `.chd`/`.cue` — esos sí se verificaron uno a
 uno y se aplicaron). **Ninguno de los 46 se aplicó hoy** — se excluyeron
 todos por precaución hasta diseñar una regla fiable.
 
-**Sin implementar** — posible enfoque: nunca unir por SHA1 dos archivos
-`.bin` con `(Track N)` en el nombre a menos que compartan ya un link de
-`crossfmt`/`canonical_title` (mismo juego confirmado por otra vía), o
-excluir pistas de audio del union-find de duplicados por completo (el
-dato real que importa es la pista de datos/Track 1, no las de audio).
+**Implementado (2026-09-22, Día69)**: se eligió el segundo enfoque propuesto
+(excluir pistas de audio del union-find por completo) por ser el más simple
+y seguro — reordenar para exigir un link `crossfmt`/`canonical_title` previo
+habría requerido mover el union por SHA1 después de esas pasadas, más riesgo
+para el mismo resultado. Cualquier fichero cuyo nombre lleve un tag
+`(Track N)` (`_is_loose_track_file()`, regex `\(track\s*\d+\)`) nunca entra
+en el union por SHA1 (`web/builders/duplicates.py`, pase inicial de
+`first_by_sha1`) — ni como primer miembro ni como candidato a unirse a otro.
+No distingue Track 1 (dato) de Track N>1 (audio) porque el N por sí solo no
+es fiable como señal (ver ejemplos reales arriba, algunos con Track bajo);
+la protección se aplica a cualquier `(Track N)`. Test de regresión con el
+caso real exacto (`Ninja - Shadow of Darkness (Track 44).bin` ==
+`Ultraman Zearth (Japan).bin`, mismo SHA1): confirmado en rojo contra el
+código anterior (`git stash`) y en verde tras el fix. Suite completa (1428
+tests): 0 regresiones.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| DUP-DISC-TRACK-1 | Evitar que un SHA1 compartido entre pistas de audio CD sueltas (`.bin` con `(Track N)`, sin `.cue` de contexto) una en el mismo clúster de duplicados a juegos sin relación | `web/builders/duplicates.py` (union por sha1, ~línea 944) | 🔴 confirmado con datos reales (46/146 grupos candidatos afectados o sospechosos), sin implementar — excluidos manualmente del apply de Día68 |
+| DUP-DISC-TRACK-1 | Evitar que un SHA1 compartido entre pistas de audio CD sueltas (`.bin` con `(Track N)`, sin `.cue` de contexto) una en el mismo clúster de duplicados a juegos sin relación | `web/builders/duplicates.py` (`_is_loose_track_file`, union por sha1), `tests/test_builders_duplicates.py` | ✅ hecho 2026-09-22 — desbloquea revisar los 46 grupos excluidos en Día68 sin riesgo de falso positivo entre juegos sin relación (revisión manual sigue recomendada antes de aplicar) |
 
 ---
 

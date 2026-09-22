@@ -8,6 +8,7 @@ from __future__ import annotations
 import json as _json
 import logging
 import os as _os
+import re
 from collections import defaultdict
 from pathlib import Path as _Path
 
@@ -51,6 +52,20 @@ _DISC_FORMAT_TIER = {
     ".gdi": 1,
     ".ccd": 2,
 }
+
+# DUP-DISC-TRACK-1: a loose CD audio track (no ``.cue``/set grouping it with
+# its siblings) can be byte-identical — a silent or generic intro/logo
+# sting — across two completely unrelated games. Confirmed live (Día68,
+# 2026-09-21): "Ninja - Shadow of Darkness (Europe) (Track 44).bin" ==
+# "Ultraman Zearth (Japan).bin"; "Nestle Disney Demo (Europe).bin" ==
+# "Magical World of Disney...(Track 3).bin". A track-tagged file never
+# reliably identifies its game by content alone, so it's excluded from the
+# sha1 union entirely rather than trusted as a duplicate signal.
+_TRACK_TAG_RE = re.compile(r"\(track\s*\d+\)", re.IGNORECASE)
+
+
+def _is_loose_track_file(filename: str) -> bool:
+    return bool(_TRACK_TAG_RE.search(filename))
 
 
 def _is_disc_set(members) -> bool:
@@ -941,7 +956,7 @@ def _review_groups_for_repo(
         # this in a resolve-duplicates dry run before this fix.
         if _is_disc_data_sibling(row["source_path"], known_paths):
             continue
-        if row["sha1"]:
+        if row["sha1"] and not _is_loose_track_file(row["original_filename"]):
             union(idx, first_by_sha1.setdefault(row["sha1"], idx))
         # EXACT canonical_title (not RA's fuzzy normalizer) — same key
         # get_title_duplicate_groups() already used. Tried the fuzzy
