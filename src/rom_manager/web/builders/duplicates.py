@@ -873,6 +873,31 @@ def _build_review_queue(
     }
 
 
+# DUP-CROSSFMT-10: extensions the crossfmt union in _review_groups_for_repo
+# trusts as real disc/ROM containers. A MAME split-ROM chip dump ("ggw.01")
+# has no real extension — its numeric/device-label suffix must never satisfy
+# the "differing extensions" check on its own.
+_CROSSFMT_CONTAINER_EXTS = frozenset(
+    {
+        ".zip",
+        ".7z",
+        ".chd",
+        ".bin",
+        ".cue",
+        ".img",
+        ".ccd",
+        ".sub",
+        ".mdf",
+        ".mds",
+        ".gdi",
+        ".cdi",
+        ".iso",
+        ".nrg",
+        ".cso",
+    }
+)
+
+
 def _review_groups_for_repo(
     repo: LibraryRepository,
     config: AppConfig,
@@ -977,6 +1002,14 @@ def _review_groups_for_repo(
     crossfmt_linked_idxs: set[int] = set()
     for idxs in crossfmt_groups.values():
         exts = {_Path(rows[i]["original_filename"]).suffix.lower() for i in idxs}
+        # DUP-CROSSFMT-10: MAME split-ROM chip dumps ("ggw.01", "ggw.05",
+        # "atdp.u32"...) share Path.stem once the chip suffix is treated as
+        # an extension, so they satisfy len(exts) >= 2 below despite being
+        # unrelated chips (different sha1 each) — not the same disc in two
+        # container formats. Require every "extension" in the group to be a
+        # real disc/ROM container before treating the match as cross-format.
+        if not exts <= _CROSSFMT_CONTAINER_EXTS:
+            continue
         if len(exts) < 2:
             continue
         for other in idxs[1:]:

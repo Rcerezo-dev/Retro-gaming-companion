@@ -772,6 +772,36 @@ def test_crossfmt_duplicate_same_disc_different_extension(tmp_path: Path) -> Non
     assert len(group["entries"]) == 2
 
 
+def test_crossfmt_mame_split_rom_chips_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-10: MAME split-ROM chip dumps ("ggw.01", "ggw.05") share
+    Path.stem ("ggw") once the chip suffix is read as an extension, and each
+    "extension" (.01, .05) differs — satisfying the old len(exts) >= 2 check
+    despite being unrelated chips (different sha1, no real container format).
+    Must NOT be flagged crossfmt: applying the recommendation would delete a
+    real chip from the arcade set, not a redundant container."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "ggw.01"),
+        sha1="A" * 40,
+        original_filename="ggw.01",
+        canonical_title=None,
+        platform=None,
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "ggw.05"),
+        sha1="B" * 40,
+        original_filename="ggw.05",
+        canonical_title=None,
+        platform=None,
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 0
+
+
 def test_crossfmt_different_regions_are_not_merged(tmp_path: Path) -> None:
     """Same guard as the exact-title union (test_different_regions_are_not_merged)
     but for the fuzzy cross-format link: region tags are kept as tokens, so a
