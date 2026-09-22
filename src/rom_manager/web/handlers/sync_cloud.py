@@ -326,6 +326,7 @@ def run_cloud_sync_job(
     job_manager: JobManager,
     *,
     dry_run: bool,
+    conflict_overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Start the multi-source cloud sync as the "sync" background job.
 
@@ -335,6 +336,12 @@ def run_cloud_sync_job(
     instead of a second implementation drifting apart from this one.
     Returns ``{"status": "started"}`` / ``{"status": "already_running"}``
     (see ``JobManager.start``).
+
+    *conflict_overrides* (SYNC-CONFLICT-MANUAL-1): per-file resolution
+    chosen by the user in the dry-run plan (``keep_local``/``keep_remote``/
+    ``skip``), keyed by relative path — forwarded as-is to every
+    ``sync_saves()`` call below. The watcher daemon never passes this
+    (background syncs always follow the global policy).
     """
     from rom_manager.web.builders.common import _utc_now_str
 
@@ -429,6 +436,7 @@ def run_cloud_sync_job(
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
                         include_glob=source.include_glob,
+                        conflict_overrides=conflict_overrides,
                     )
                     all_results.append(
                         {
@@ -523,6 +531,7 @@ def run_cloud_sync_job(
                         backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
+                        conflict_overrides=conflict_overrides,
                     )
                     all_results.append(
                         {
@@ -635,7 +644,17 @@ def _do_sync(
     ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
 ) -> None:
     dry_run = data.get("dry_run", True)
-    start_result = run_cloud_sync_job(config, repository, job_manager, dry_run=dry_run)
+    # SYNC-CONFLICT-MANUAL-1: overrides elegidos por el usuario en el plan
+    # de dry-run, {relative: "keep_local"|"keep_remote"|"skip"} — opcional,
+    # sin ellos el comportamiento es idéntico al de antes.
+    conflict_overrides = data.get("conflict_overrides") or None
+    start_result = run_cloud_sync_job(
+        config,
+        repository,
+        job_manager,
+        dry_run=dry_run,
+        conflict_overrides=conflict_overrides,
+    )
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 

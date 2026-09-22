@@ -133,51 +133,57 @@ que ya se muestra hoy", el payload solo mandaba `{action, relative}`.
   playtime si hay datos) — sin tocar la lógica de decisión, solo más
   información visible.
 
-### Paso 5 — `SYNC-CONFLICT-MANUAL-1`: exponer datos suficientes por conflicto
+### Paso 5 — ✅ Ya satisfecho por el Paso 4 (2026-09-22)
 
-`web/handlers/sync_cloud.py:404-408` hoy solo manda `{action, relative}` por
-decisión al frontend — añadir `local_mtime`/`remote_mtime` (ya están en el
-`SyncDecision` del Paso 4, `conflict_resolver.py`) y, si el Paso 4 ya está
-hecho, el playtime/tamaño. Solo para `action == "conflict"`, para no inflar
-el payload en el caso común.
+`_decision_payload()` (Paso 4) ya expone `local_mtime`/`remote_mtime`/
+`local_size`/`remote_size`/playtime para `action == "conflict"` — el Paso 4
+terminó cubriendo exactamente lo que este paso pedía. Sin trabajo adicional.
 
-### Paso 6 — `sync_saves`/`save_syncer.py`: aceptar overrides por archivo
+### Paso 6 — ✅ Hecho (2026-09-22): `sync_saves`/`save_syncer.py` acepta overrides por archivo
 
-`save_syncer.py:286-377` (rama `decision.action == "conflict"`) decide hoy
-solo con `conflict_policy` global. Añadir un parámetro opcional
-`conflict_overrides: dict[str, str]` (`relative → "keep_local"|"keep_remote"|"skip"`)
-que, si trae una entrada para ese `relative`, gana sobre `conflict_policy`
-para ese archivo — el resto de conflictos sin entrada en el dict siguen la
-política global sin cambios. Mismo backup-antes-de-sobrescribir que ya hace
-el código existente (`sync_saves`, línea ~296).
+`sync_saves()` gana el parámetro `conflict_overrides: dict[str, str] | None`
+(`relative → "keep_local"|"keep_remote"|"skip"`). Dentro de la rama
+`decision.action == "conflict"`: un override `"skip"` sale por `continue`
+antes de tocar backup/transport — no se sobrescribe nada, se registra
+`log_sync_event(..., result="skipped")` (no cuenta como watermark `ok`, así
+que el conflicto se re-evalúa en el próximo sync si sigue sin resolver) y
+`result.conflicts += 1`. Un override `keep_local`/`keep_remote` se comprueba
+**antes** que `conflict_policy` en la cadena de decisión del ganador — gana
+solo para ese archivo, el resto de conflictos sin entrada en el dict siguen
+la política global sin cambios. Mismo backup-antes-de-sobrescribir que ya
+hacía el código (`sync_saves`, línea ~296) para los casos no-skip.
 
-### Paso 7 — UI: revisión antes de sincronizar
+### Paso 7 — ✅ Hecho (2026-09-22): UI de revisión antes de sincronizar
 
-En `_renderSyncDecisions` (`sync.js`): cuando el dry-run trae conflictos,
-cada fila `action === 'conflict'` gana un selector inline (PC / Consola /
-Omitir), por defecto sin seleccionar (= sigue la política global si no se
-toca). El botón "Sincronizar" recopila las elecciones hechas y las manda
-como `conflict_overrides` en el body de `/api/sync`. Sin overrides
-seleccionados, el comportamiento es idéntico al actual (no rompe el flujo
-existente para quien no quiera revisar nada).
+`_renderSyncDecisions` (`sync.js`): cada fila de conflicto gana un
+`<select>` (Auto / Mantener PC / Mantener consola / Omitir) — **solo
+quando `result.dry_run` es true** (el plan, no el resultado ya aplicado).
+Nueva `_collectConflictOverrides()` lee todos los `.conflict-override-select`
+tocados al pulsar "Sincronizar" (`doSync(false)`) y los manda como
+`conflict_overrides` en el body de `/api/sync`; sin overrides, el body es
+idéntico al de antes (no rompe el flujo para quien no revisa nada). Backend:
+`_do_sync()` los lee de `data.get("conflict_overrides")` y los reenvía a
+`run_cloud_sync_job()` → las dos llamadas a `sync_saves()` (fuentes
+explícitas y remotes implícitos D2). El watcher de emuladores
+(`web/daemons.py`) nunca los pasa — sigue resolviendo solo por política,
+como antes.
 
-### Paso 8 — Tests
+### Paso 8 — ✅ Tests (2026-09-22)
 
-- El daemon SD auto-sync crea el backup vía `backup_save()` (mismo layout
-  que Cloud/Cable manual) en vez de la carpeta ad-hoc por fecha — y esos
-  backups aparecen en `list_backups()`/`GET /api/save-backups` igual que
-  los de cualquier otra vía.
-- El payload de conflicto incluye playtime/tamaño cuando hay datos, y no
-  rompe el flujo cuando no los hay (ej. juego sin `.lrtl`).
-- `conflict_overrides` con una entrada fuerza esa dirección para ese
-  archivo aunque `conflict_policy` global diga lo contrario; un conflicto
-  sin entrada en el dict sigue la política global sin cambios.
+- `tests/test_cable_sync_daemon.py`: backup del daemon SD vía `backup_save()`
+  en el layout unificado (Paso 2).
+- `tests/test_sync_cloud_conflict_ctx.py`: payload de conflicto con/sin
+  playtime, sin romper el flujo sin match (Paso 4/5).
+- `tests/test_save_syncer.py`: override gana sobre política global;
+  `"skip"` no toca ningún lado (ni transport ni backup); un conflicto sin
+  entrada en el dict sigue la política global sin cambios (Paso 6).
 
-### Paso 9 — Verificación
+### Paso 9 — ✅ Verificación (2026-09-22)
 
 ```bash
-python -m pytest tests/ -q
-ruff check src/rom_manager/sync/ src/rom_manager/web/handlers/sync_cable.py src/rom_manager/web/handlers/sync_cloud.py
+python -m pytest tests/ -q     # 1437 pass, 3 fallos ambientales preexistentes (ADB conectado)
+ruff check src/rom_manager/sync/ src/rom_manager/web/handlers/sync_cloud.py   # limpio
+ruff format --check ...                                                       # limpio
 ```
 
 ---
@@ -201,9 +207,9 @@ ruff check src/rom_manager/sync/ src/rom_manager/web/handlers/sync_cable.py src/
 - [x] Paso 2 — migrar el daemon SD auto-sync a `backup_save()` (2026-09-22)
 - [x] Paso 3 — verificado: no había backups históricos que migrar (2026-09-22)
 - [x] Paso 4 — contexto (playtime/tamaño) en conflictos (2026-09-22)
-- [ ] Paso 5 — payload de conflicto expone mtimes/contexto
-- [ ] Paso 6 — `conflict_overrides` por archivo en `save_syncer.py`
-- [ ] Paso 7 — UI de revisión manual antes de sincronizar
-- [ ] Paso 8 — tests nuevos
-- [ ] Paso 9 — suite completa + ruff limpios
+- [x] Paso 5 — payload de conflicto expone mtimes/contexto (ya cubierto por el Paso 4)
+- [x] Paso 6 — `conflict_overrides` por archivo en `save_syncer.py` (2026-09-22)
+- [x] Paso 7 — UI de revisión manual antes de sincronizar (2026-09-22)
+- [x] Paso 8 — tests nuevos (2026-09-22)
+- [x] Paso 9 — suite completa + ruff limpios (2026-09-22)
 - [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario

@@ -89,12 +89,19 @@ def sync_saves(
     delta_cache: DeltaCache | None = None,
     conflict_policy: str = "newest",
     include_glob: str = "**/*",
+    conflict_overrides: dict[str, str] | None = None,
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *saves_remote* and *states_remote* using rclone.
 
     Files are routed to the correct remote based on extension:
     - state_extensions → states_remote
     - save_extensions → saves_remote
+
+    *conflict_overrides* (SYNC-CONFLICT-MANUAL-1): per-file resolution for
+    conflicts, keyed by relative path, value one of
+    ``"keep_local"``/``"keep_pc"``, ``"keep_remote"``/``"keep_android"`` or
+    ``"skip"``. Wins over *conflict_policy* only for the files listed —
+    every other conflict still follows the global policy unchanged.
 
     Returns a SyncResult and the full list of decisions (for status display).
     """
@@ -288,7 +295,27 @@ def sync_saves(
                     result.errors += 1
 
             elif decision.action == "conflict":
-                # P4: auto-resolve conflict using configured policy
+                # SYNC-CONFLICT-MANUAL-1: an explicit per-file choice wins over
+                # the auto-resolve policy — "skip" leaves both sides untouched
+                # (no backup needed, nothing is being overwritten).
+                override = (conflict_overrides or {}).get(relative)
+                if override == "skip":
+                    log_sync_event(
+                        conn,
+                        local_path=str(local_path),
+                        remote_path=remote_path,
+                        direction="conflict",
+                        local_mtime=decision.local_mtime,
+                        remote_mtime=decision.remote_mtime,
+                        result="skipped",
+                        message="Conflict skipped by user override",
+                        created_at=timestamp,
+                    )
+                    result.conflicts += 1
+                    continue
+
+                # P4: auto-resolve conflict using configured policy, unless
+                # overridden per-file above
                 if backup_root and local_path.exists():
                     try:
                         from rom_manager.backup.save_backup import backup_save
@@ -304,7 +331,13 @@ def sync_saves(
                 backup_suffix = f".conflict-{timestamp.replace(':', '')}"
 
                 # Determine winner
-                if conflict_policy in ("keep_pc", "keep_local"):
+                if override in ("keep_pc", "keep_local"):
+                    local_wins = True
+                    policy_reason = "override=keep_local"
+                elif override in ("keep_android", "keep_remote"):
+                    local_wins = False
+                    policy_reason = "override=keep_remote"
+                elif conflict_policy in ("keep_pc", "keep_local"):
                     local_wins = True
                     policy_reason = "policy=keep_local"
                 elif conflict_policy in ("keep_android", "keep_remote"):

@@ -1706,6 +1706,16 @@ async function doSaveFragmentation() {
   }
 }
 
+// SYNC-CONFLICT-MANUAL-1: lee los selectores por-conflicto pintados en el
+// plan de dry-run — vacío si nadie tocó nada (comportamiento sin cambios).
+function _collectConflictOverrides() {
+  const overrides = {};
+  document.querySelectorAll('.conflict-override-select').forEach(sel => {
+    if (sel.value) overrides[sel.dataset.relative] = sel.value;
+  });
+  return Object.keys(overrides).length ? overrides : undefined;
+}
+
 async function doSync(dryRun) {
   const btnDry   = document.getElementById('btn-sync-dry');
   const btnApply = document.getElementById('btn-sync-apply');
@@ -1720,7 +1730,12 @@ async function doSync(dryRun) {
     }
   }
   try {
-    const d = await apiPost('/api/sync', { dry_run: dryRun });
+    const body = { dry_run: dryRun };
+    if (!dryRun) {
+      const overrides = _collectConflictOverrides();
+      if (overrides) body.conflict_overrides = overrides;
+    }
+    const d = await apiPost('/api/sync', body);
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
       resultEl.textContent = 'Ya hay un sync en curso…';
@@ -1780,9 +1795,21 @@ function _renderSyncDecisions(result) {
     const rows = decs.map(d => {
       const [icon, color] = ICONS[d.action] || ['&#x2022;', 'var(--c-muted)'];
       const hl = d.action === 'conflict' ? ';background:var(--rv-tint-amber-bg)' : '';
-      const ctx = d.action === 'conflict'
-        ? `<div style="margin:1px 0 3px 24px;color:var(--c-dim);font-size:10px">${_conflictContext(d)}</div>`
-        : '';
+      let ctx = '';
+      if (d.action === 'conflict') {
+        // SYNC-CONFLICT-MANUAL-1: solo en el plan (dry-run) — elegir por
+        // archivo antes de pulsar Sincronizar. Sin tocar, sigue la política
+        // global (mismo comportamiento que antes de este selector).
+        const picker = result.dry_run
+          ? `<select class="conflict-override-select" data-relative="${_h(d.relative)}" style="font-size:10px;margin-left:8px;background:var(--c-panel);color:var(--c-text);border:1px solid var(--c-soft);border-radius:3px">
+              <option value="">Auto (política)</option>
+              <option value="keep_local">Mantener PC</option>
+              <option value="keep_remote">Mantener consola</option>
+              <option value="skip">Omitir</option>
+            </select>`
+          : '';
+        ctx = `<div style="margin:1px 0 3px 24px;color:var(--c-dim);font-size:10px;display:flex;align-items:center">${_conflictContext(d)}${picker}</div>`;
+      }
       return `<div style="padding:1px 0;color:var(--c-muted)${hl}"><span style="color:${color};margin-right:8px">${icon}</span>${_h(d.relative)}</div>${ctx}`;
     }).join('');
     const conflictTag = conflicts ? ` <span style="color:var(--c-amber)">&#x26A0; ${conflicts} conflicto${conflicts !== 1 ? 's' : ''}</span>` : '';
