@@ -124,9 +124,9 @@ como "a borrar" en el plan.
 
 ## Checklist
 
-- [ ] Paso 1 — sync de `gamecube` completado
-- [ ] Paso 2 — decisión de diseño confirmada por el usuario
-- [ ] Paso 3 — opción decidida implementada
-- [ ] Paso 4 — tests nuevos (si aplica)
-- [ ] Paso 5 — suite completa + ruff limpios + verificación real contra el dispositivo
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+- [ ] Paso 1 — sync de `gamecube` completado — sin código, pendiente de sesión con ADB conectado
+- [x] Paso 2 — decisión de diseño confirmada por el usuario 2026-09-22: opción (b), comparación cross-formato
+- [x] Paso 3 — opción (b) implementada 2026-09-22 — ver `CABLE-ROM-FIX-6` en `Tareas/backlog.md`
+- [x] Paso 4 — 2 tests nuevos (`tests/test_sync_cable_cross_format.py`), rojo→verde confirmado
+- [x] Paso 5 — suite completa (1430 tests) + ruff/format limpios. Verificación real contra el dispositivo sigue pendiente (requiere ADB conectado)
+- [x] Commit en `develop` directamente (mismo flujo que el resto de la sesión, sin rama propia)

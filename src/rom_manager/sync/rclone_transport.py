@@ -161,7 +161,7 @@ class RcloneTransport:
 
     def list_remote(self, remote_root: str) -> list[RemoteEntry]:
         """Return all files under *remote_root* as RemoteEntry objects."""
-        result = self._run(["lsjson", "--recursive", "--no-modtime-truncate", remote_root])
+        result = self._run(["lsjson", "--recursive", remote_root])
         entries: list[RemoteEntry] = []
         for item in json.loads(result):
             if item.get("IsDir"):

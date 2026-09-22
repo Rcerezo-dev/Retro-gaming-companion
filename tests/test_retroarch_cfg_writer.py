@@ -111,3 +111,22 @@ def test_default_savefile_layout_matches_d2_sync_convention(tmp_path: Path) -> N
     layout = default_savefile_layout(tmp_path)
     assert layout.savefile_dir == str(tmp_path / "saves")
     assert layout.savestate_dir == str(tmp_path / "states")
+
+
+def test_apply_handles_windows_backslash_paths(tmp_path: Path) -> None:
+    """Regression: re.sub(line, ...) treats backslashes in `line` as escape
+    sequences (e.g. \\C in an existing key's value crashes with a
+    PatternError) since `line` is used as the *replacement* string, not
+    matched text — real Windows library_root paths are backslash-separated."""
+    cfg = tmp_path / "retroarch.cfg"
+    cfg.write_text('savefile_directory = "default"\n', encoding="utf-8")
+
+    result = apply_savefile_layout(
+        cfg, savefile_dir=r"E:\Carpetas anbernic\saves", savestate_dir=r"E:\Carpetas anbernic\states"
+    )
+
+    assert result.applied
+    assert result.error == ""
+    new_text = cfg.read_text(encoding="utf-8")
+    assert read_key(new_text, "savefile_directory") == r"E:\Carpetas anbernic\saves"
+    assert read_key(new_text, "savestate_directory") == r"E:\Carpetas anbernic\states"

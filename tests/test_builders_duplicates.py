@@ -772,6 +772,36 @@ def test_crossfmt_duplicate_same_disc_different_extension(tmp_path: Path) -> Non
     assert len(group["entries"]) == 2
 
 
+def test_crossfmt_mame_split_rom_chips_not_flagged(tmp_path: Path) -> None:
+    """DUP-CROSSFMT-10: MAME split-ROM chip dumps ("ggw.01", "ggw.05") share
+    Path.stem ("ggw") once the chip suffix is read as an extension, and each
+    "extension" (.01, .05) differs — satisfying the old len(exts) >= 2 check
+    despite being unrelated chips (different sha1, no real container format).
+    Must NOT be flagged crossfmt: applying the recommendation would delete a
+    real chip from the arcade set, not a redundant container."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "ggw.01"),
+        sha1="A" * 40,
+        original_filename="ggw.01",
+        canonical_title=None,
+        platform=None,
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "Unknown" / "ggw.05"),
+        sha1="B" * 40,
+        original_filename="ggw.05",
+        canonical_title=None,
+        platform=None,
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 0
+
+
 def test_crossfmt_different_regions_are_not_merged(tmp_path: Path) -> None:
     """Same guard as the exact-title union (test_different_regions_are_not_merged)
     but for the fuzzy cross-format link: region tags are kept as tokens, so a
@@ -910,6 +940,110 @@ def test_crossfmt_multidisc_with_per_disc_siblings_not_flagged(tmp_path: Path) -
             canonical_title=None,
             platform="PSX",
         )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_crossfmt_untagged_regional_edition_in_multidisc_set_not_flagged(
+    tmp_path: Path,
+) -> None:
+    """DUP-DISC-SET-1: caso real encontrado en `library_android.db` (PSX vía
+    ADB, 2026-09-21) — `Xenogears (Japan).chd` (edición japonesa, un solo
+    disco, sin tag `(Disc N)`) se unió por crossfmt/sha1 a
+    `Xenogears (USA) (Disc 1).chd`/`(Disc 2).chd`. Antes del fix, el miembro
+    sin tag hacía que `_is_disc_set` devolviera False de inmediato, tratando
+    el set completo de 3 discos distintos como duplicados descartables."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    for i, name in enumerate(
+        [
+            "Xenogears (Japan).chd",
+            "Xenogears (USA) (Disc 1).chd",
+            "Xenogears (USA) (Disc 2).chd",
+        ]
+    ):
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / name),
+            sha1=chr(ord("A") + i) * 40,
+            original_filename=name,
+            canonical_title="Xenogears",
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["groups"] == []
+
+
+def test_disc_set_with_real_sha1_dup_only_flags_the_dup_pair(tmp_path: Path) -> None:
+    """DUP-DISC-SET-2: caso real (Día68, 2026-09-21) — dentro de un set
+    multi-disco legítimo, `Xenogears (Japan).chd` resulta ser byte-idéntico
+    (mismo sha1, mal etiquetado regionalmente) a `(USA) (Disc 1).chd`. Antes
+    del fix, `has_sha1_dup` no estaba protegido por `_is_disc_set()` como el
+    resto de razones — el union-find ya había fusionado los 3 discos en un
+    solo clúster (vía crossfmt/título), así que el motor elegía UN solo
+    "recomendado" para todo el grupo y marcaba `(USA) (Disc 2).chd` —un
+    disco real, no un duplicado— para descartar.
+
+    Comportamiento correcto: solo Japan+Disc1 (el par realmente
+    byte-idéntico) debe aparecer como grupo de duplicado; Disc 2, con sha1
+    propio y único, no debe aparecer en ningún grupo en absoluto."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    dup_sha1 = "A" * 40
+    for name, sha1 in [
+        ("Xenogears (Japan).chd", dup_sha1),
+        ("Xenogears (USA) (Disc 1).chd", dup_sha1),
+        ("Xenogears (USA) (Disc 2).chd", "B" * 40),
+    ]:
+        _insert_game(
+            repo,
+            source_path=str(tmp_path / "psx" / name),
+            sha1=sha1,
+            original_filename=name,
+            canonical_title="Xenogears",
+            platform="PSX",
+        )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert len(result["groups"]) == 1
+    group = result["groups"][0]
+    assert group["reasons"] == ["sha1"]
+    entry_names = {Path(e["filename"]).name for e in group["entries"]}
+    assert entry_names == {"Xenogears (Japan).chd", "Xenogears (USA) (Disc 1).chd"}
+    recommended = [e for e in group["entries"] if e["recommended"]]
+    assert len(recommended) == 1
+
+
+def test_loose_track_bins_never_flagged_as_duplicate_across_games(tmp_path: Path) -> None:
+    """DUP-DISC-TRACK-1: caso real (Día68, 2026-09-21) — una pista de audio CD
+    suelta (sufijo `(Track N)`, sin `.cue` que la agrupe con sus hermanas)
+    puede ser byte-idéntica (silencio/intro genérica) entre dos **juegos sin
+    relación**: `Ninja - Shadow of Darkness (Europe) (Track 44).bin` ==
+    `Ultraman Zearth (Japan).bin`. Antes del fix, el union por sha1 no
+    distinguía estos ficheros, así que ambos juegos acababan en el mismo
+    clúster de "duplicado" pese a no compartir nada más que una pista de
+    audio genérica."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    shared_sha1 = "A" * 40
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Ninja - Shadow of Darkness (Europe) (Track 44).bin"),
+        sha1=shared_sha1,
+        original_filename="Ninja - Shadow of Darkness (Europe) (Track 44).bin",
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "Ultraman Zearth (Japan).bin"),
+        sha1=shared_sha1,
+        original_filename="Ultraman Zearth (Japan).bin",
+        canonical_title=None,
+        platform="PSX",
+    )
 
     result = _build_review_queue(repo, repo, None)
 
@@ -1382,3 +1516,85 @@ def test_size_tier_prefers_catalog_verified_size_over_bad_dump(tmp_path: Path) -
     assert result["total_groups"] == 1
     group = result["groups"][0]
     assert group["entries"][0]["source_path"] == str(good_path)
+
+
+def test_disc_hash_union_links_legacy_dump_with_no_catalog_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DUP-DISC-RA-1b parte 2: a legacy CloneCD-style dump (serial in the
+    name, never catalog-matched -> no canonical_title, no crossfmt title
+    overlap with the canonical release) is still the same disc release as
+    the canonical .chd once RA's disc hash agrees -- ANDROID-DUP-1's real
+    "Crash Bandicoot (USA)" case (3 formats, only one had a title match)."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "rom_manager.retroachievements.ra_disc_hash_cache.get_psx_disc_hash",
+        lambda source_path, cache_dir, chdman_path: "SAMEDISCHASH",
+    )
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    canonical = str(tmp_path / "psx" / "Crash Bandicoot (USA).chd")
+    legacy = str(tmp_path / "psx" / "Crash Bandicoot [U] [SCUS-94900]" / "track.img")
+    _insert_game(
+        repo,
+        source_path=canonical,
+        sha1="A" * 40,
+        original_filename="Crash Bandicoot (USA).chd",
+        canonical_title="Crash Bandicoot (USA)",
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=legacy,
+        sha1="B" * 40,
+        original_filename="track.img",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    config = SimpleNamespace(project_root=tmp_path, library_root=tmp_path)
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "disc_hash" in group["reasons"]
+    assert {e["source_path"] for e in group["entries"]} == {canonical, legacy}
+
+
+def test_disc_hash_union_skips_when_hashes_differ(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Different real discs must never be merged just for sharing a
+    platform -- only an actual matching RA disc hash links them."""
+    from types import SimpleNamespace
+
+    def _fake_hash(source_path, cache_dir, chdman_path):
+        return "HASH_A" if "a.chd" in source_path else "HASH_B"
+
+    monkeypatch.setattr(
+        "rom_manager.retroachievements.ra_disc_hash_cache.get_psx_disc_hash", _fake_hash
+    )
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "a.chd"),
+        sha1="A" * 40,
+        original_filename="a.chd",
+        canonical_title=None,
+        platform="PSX",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "psx" / "b.chd"),
+        sha1="B" * 40,
+        original_filename="b.chd",
+        canonical_title=None,
+        platform="PSX",
+    )
+
+    config = SimpleNamespace(project_root=tmp_path, library_root=tmp_path)
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["groups"] == []

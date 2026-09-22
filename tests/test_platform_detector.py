@@ -83,6 +83,7 @@ class TestDetectPlatformUnambiguous:
             (".sms", "Master System"),
             (".gg", "Game Gear"),
             (".gen", "Sega Mega Drive"),
+            (".smd", "Sega Mega Drive"),
             (".cdi", "Dreamcast"),
             (".gdi", "Dreamcast"),
             (".pbp", "PlayStation"),

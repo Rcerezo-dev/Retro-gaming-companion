@@ -12,7 +12,7 @@ import subprocess as _subprocess
 from pathlib import Path
 
 import rom_manager.web.state as _state
-from rom_manager.config import AppConfig
+from rom_manager.config import EMULATOR_SAVES_DIR_NAME, AppConfig
 from rom_manager.utils.subprocess_flags import NO_WINDOW
 from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.daemons import _closed_watched_processes
@@ -229,6 +229,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 import os
                 from pathlib import PurePosixPath
 
+                from rom_manager.sync.android_paths import (
+                    canonical_download_rel_posix,
+                    reconcile_newest_by_name,
+                )
+                from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
+
                 _log_file = None
                 job_result: dict | None = None
                 try:
@@ -327,7 +333,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         nonlocal copied, errors, copied_bytes
                         name = PurePosixPath(adb_info.android_path).name
                         rel_posix = adb_info.android_path.removeprefix(android_prefix)
-                        local_dst = local_root / Path(rel_posix.replace("/", os.sep))
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: rel_posix puede llevar
+                        # saves/<plataforma>/ de más (fuente "RetroArch (legacy)",
+                        # activa sin emulator_paths configurado) — aterriza en su
+                        # ubicación canónica, no en un mirror literal.
+                        canon_rel = canonical_download_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS)
+                        local_dst = local_root / Path(canon_rel.replace("/", os.sep))
                         try:
                             size = transport.pull(
                                 adb_info.android_path,
@@ -413,11 +424,16 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                 if not local_root_p.exists():
                                     return
                                 for dp, dirs, files in os.walk(local_root_p):
-                                    # TRASH-FIX-1: no volver a subir/bajar lo ya descartado
+                                    # TRASH-FIX-1: no volver a subir/bajar lo ya descartado.
+                                    # CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es
+                                    # contabilidad interna del PC -- solo relevante cuando
+                                    # local_root_p es la biblioteca entera (fuente
+                                    # "RetroArch (legacy)"); nunca debe subirse al dispositivo.
                                     dirs[:] = [
                                         d
                                         for d in dirs
-                                        if not d.startswith(".") and d != TRASH_DIR_NAME
+                                        if not d.startswith(".")
+                                        and d not in (TRASH_DIR_NAME, EMULATOR_SAVES_DIR_NAME)
                                     ]
                                     for fname in files:
                                         yield Path(dp) / fname
@@ -443,19 +459,26 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                     if _wanted_src(lf.name):
                                         pc_idx[lf.relative_to(local_root_p).as_posix()] = lf
 
-                                for rel_posix in sorted(set(pc_idx) | set(ab_idx)):
-                                    pc_f = pc_idx.get(rel_posix)
-                                    ab_f = ab_idx.get(rel_posix)
-                                    if pc_f and ab_f:
+                                # CABLE-SYNC-NEWEST-CANON-2: el dispositivo puede
+                                # tener el mismo archivo bajo otro prefijo
+                                # (saves/<plataforma>/, saves/<core>/) — sin esto,
+                                # la fuente "RetroArch (legacy)" (activa cuando no
+                                # hay emulator_paths configurado) trataba cada lado
+                                # como archivo distinto y sincronizaba en ambas
+                                # direcciones sin necesidad.
+                                for _pc_rel, pc_f, _ab_rel, ab_f in reconcile_newest_by_name(
+                                    pc_idx, ab_idx
+                                ):
+                                    if pc_f is not None and ab_f is not None:
                                         if pc_f.stat().st_mtime > ab_f.mtime:
                                             _adb_copy_to_device(pc_f, local_root_p, android_root)
                                         elif ab_f.mtime > pc_f.stat().st_mtime:
                                             _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
                                         else:
                                             skipped += 1
-                                    elif pc_f:
+                                    elif pc_f is not None:
                                         _adb_copy_to_device(pc_f, local_root_p, android_root)
-                                    elif ab_f:
+                                    elif ab_f is not None:
                                         _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
 
                     ts1 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -526,8 +549,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
     """Run a filesystem Cable Sync triggered by SD card insertion."""
     import datetime as _dt2
-    import shutil
 
+    from rom_manager.backup.save_backup import backup_save
     from rom_manager.sync import cable_engine
     from rom_manager.sync.sync_log import log_sync_event
 
@@ -562,12 +585,14 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
         def _wanted(p: Path) -> bool:
             return p.suffix.lower() in save_exts
 
-        # CABLE-UX-9a: backup del destino antes de sobrescribirlo — el SD
-        # auto-sync no tenía red de seguridad (regla "ante duda, no
-        # sobreescribir").
-        backup_dir = (
-            config.project_root / ".rommgr" / "cable_sync_backups" / _dt2.date.today().isoformat()
-        )
+        # CABLE-UX-9a / roadmap 25 Paso 2 (2026-09-22): backup del destino
+        # antes de sobrescribirlo — el SD auto-sync no tenía red de
+        # seguridad. Antes escribía a una carpeta propia por fecha
+        # (`.rommgr/cable_sync_backups/<fecha>/`), invisible para la UI de
+        # historial de saves; unificado al mismo `backup_save()` versionado
+        # que ya usan Cloud Sync y el Cable Sync manual (`sync_cable.py`),
+        # para que estos backups también aparezcan ahí.
+        _bk_root = config.data_dir if config.backup.saves_enabled else None
 
         # CABLE-UX-9c: motor compartido (CABLE-UX-9b) en vez de walk+compare+
         # copy propios.
@@ -612,13 +637,10 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
                     _sql_log(item, "ok")
 
         for item in items:
-            if item.dst.exists():
-                side = "anbernic" if item.dst.is_relative_to(ab_root) else "pc"
-                rel = item.dst.relative_to(ab_root if side == "anbernic" else pc_root)
-                backup_path = backup_dir / side / rel
-                backup_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item.dst, backup_path)
-                _log_file.write(f"BACKUP {side} {rel} -> {backup_path}\n")
+            if _bk_root is not None and item.dst.exists():
+                backup_path = backup_save(item.dst, _bk_root)
+                if backup_path is not None:
+                    _log_file.write(f"BACKUP {item.dst} -> {backup_path}\n")
             tag, size = cable_engine.copy_item(item, policy, on_event=_on_event)
             if tag == "COPY":
                 copied += 1

@@ -86,7 +86,11 @@ def test_empty_when_no_games() -> None:
 def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
     """TABS-FIX-6-DISC: canonical_title identical across discs (DAT has no disc
     number) must not collide — each disc keeps its "(Disc N)" tag from the
-    original filename, and the shared game folder stays disc-agnostic."""
+    original filename, and the shared game folder stays disc-agnostic.
+
+    GAMECUBE-DISC-BUG-1f: platform is "PlayStation" (the real catalog display
+    name games.platform stores in production), not the "psx" folder slug —
+    only the display name is matched against _DISC_SUBFOLDER_CATALOG_PLATFORMS."""
     psx_dir = tmp_path / "psx"
     psx_dir.mkdir()
     games = []
@@ -101,7 +105,7 @@ def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
                 source_path=str(src),
                 canonical_title="Final Fantasy VII (Europe)",  # same for all discs, no disc tag
                 extension=".cue",
-                platform="psx",
+                platform="PlayStation",
             )
         )
     plan = build_plan(_repo_with(games))
@@ -156,6 +160,37 @@ def test_translation_variant_keeps_own_name_no_collision(tmp_path: Path) -> None
     assert len(plan.pending) == 0
 
 
+def test_real_catalog_platform_name_gets_subfoldered(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1f: games.platform in production stores the catalog
+    display name ("PlayStation", "Sega Saturn"), never the short folder slug
+    ("psx", "saturn") — before this fix, _DISC_SUBFOLDER_PLATFORMS only
+    contained slugs, so real PSX/Saturn games never moved into their own
+    per-game subfolder despite the code intending to (only Dreamcast/Wii
+    happened to match, since their display name equals their folder slug)."""
+    for platform, folder, ext in (
+        ("PlayStation", "psx", ".cue"),
+        ("Sega Saturn", "saturn", ".cue"),
+    ):
+        plat_dir = tmp_path / folder
+        plat_dir.mkdir()
+        src = plat_dir / f"old-name{ext}"
+        src.touch()
+        game = _make_game(
+            original_filename=src.name,
+            source_path=str(src),
+            canonical_title="New Title (USA)",
+            extension=ext,
+            platform=platform,
+        )
+        plan = build_plan(_repo_with([game]))
+
+        assert len(plan.pending) == 1, platform
+        op = plan.pending[0]
+        assert op.target_path.parent == plat_dir / "New Title (USA)", (
+            f"{platform}: expected a per-game subfolder, got {op.target_path.parent}"
+        )
+
+
 def test_gamecube_and_ps2_stay_flat_no_subfolder(tmp_path: Path) -> None:
     """INBOX-ORPHAN-3: gamecube/ps2 are single-file platforms — a rematch that
     renames the title must rename the file in place, never move it into (or
@@ -202,7 +237,7 @@ def test_multidisc_set_messy_tags_do_not_collide(tmp_path: Path) -> None:
                 source_path=str(src),
                 canonical_title="Final Fantasy VII (Europe)",
                 extension=".cue",
-                platform="psx",
+                platform="PlayStation",
             )
         )
     plan = build_plan(_repo_with(games))

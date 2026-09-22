@@ -1038,6 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
                     states_remote=None,
                     dry_run=dry_run,
                     delta_cache=_delta,
+                    include_glob=source.include_glob,
                 )
             except RcloneError as exc:
                 print(f"  [ERROR] {source.name}: {exc}")
@@ -1601,6 +1602,7 @@ def main(argv: list[str] | None = None) -> int:
                     states_remote=None,
                     dry_run=dry_run,
                     delta_cache=_delta,
+                    include_glob=source.include_glob,
                 )
             except RcloneError as exc:
                 print(f"  [ERROR] {source.name}: {exc}")
