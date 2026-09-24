@@ -129,6 +129,14 @@ function _renderReviewEntry(e, g, isConflictGroup) {
       ? `<span style="color:var(--c-amber);font-size:10px">🏆 ${e.ra_achievements}</span>`
       : '';
   const sizeLabel = e.size_bytes != null ? window.fmtSize(e.size_bytes) : '';
+  // DUP-VISUAL-UI-1: portada por fila — /api/asset-image resuelve contra la
+  // BD del PC, así que una copia de la consola (is_device) nunca tiene
+  // imagen; onerror quita el <img> y la fila cae al layout de solo texto
+  // de siempre (sin metadata scrapeada tampoco hay portada que mostrar).
+  const cover =
+    !e.is_device && e.id != null
+      ? `<img src="/api/asset-image?game_id=${e.id}" alt="" style="width:28px;height:28px;object-fit:cover;border-radius:3px;flex-shrink:0" onerror="this.remove()">`
+      : '';
   let actionCell;
   if (isConflictGroup) {
     // disk/collision: informativo — se resuelven en bloque con "Resolver con RA",
@@ -150,6 +158,7 @@ function _renderReviewEntry(e, g, isConflictGroup) {
     : '';
   return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">
     <span style="min-width:90px">${actionCell}</span>
+    ${cover}
     ${devBadge}
     <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${window._h(e.source_path)}">${window._h(e.filename)}</span>
     ${raBadge}
