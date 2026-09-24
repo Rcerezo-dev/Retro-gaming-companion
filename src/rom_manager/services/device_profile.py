@@ -170,7 +170,7 @@ def save_profile_manifest(
     as ``<remote_base>/device-profile.json`` — the manifest ``rommgr restore``
     (DEVPROFILE-5b+) reads to bootstrap a new device. Closes the gap where
     export/import existed as pure functions with no production caller (see
-    Tareas/Roadmap-DEVPROFILE-5-6.md §1).
+    Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md §1).
 
     Reuses ``RcloneTransport.upload()``'s existing fallback-remote routing
     (empty extension tuples → always routes to *fallback_remote*, already

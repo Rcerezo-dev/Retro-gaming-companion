@@ -25,8 +25,8 @@ from rom_manager.detection.platform_detector import pc_cores_by_system
 # ── System catalogue ──────────────────────────────────────────────────────────
 # Each entry defines one ES-DE system. Candidate core DLL prefixes (ordered,
 # first found on disk wins) live in platforms.toml's [cores.pc], keyed by
-# `name` below — DEVPROFILE-1d, see Roadmap-DEVPROFILE-1-4.md §2 for why that
-# table isn't keyed by canonical platform name instead (mame/fbneo collision).
+# `name` below — DEVPROFILE-1d, see Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md
+# §2 for why that table isn't keyed by canonical platform name instead (mame/fbneo collision).
 
 _SYSTEMS: list[dict] = [
     {

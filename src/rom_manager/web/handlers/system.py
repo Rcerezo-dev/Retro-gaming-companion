@@ -490,7 +490,7 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
 def _handle_apply_retroarch_savefile_layout(config: AppConfig) -> dict:
     """DEVPROFILE-2d: manual trigger for apply_savefile_layout() from Settings.
 
-    Botón manual, no automático (Tareas/Roadmap-DEVPROFILE-1-4.md §3) —
+    Botón manual, no automático (Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md §3) —
     reescribe un .cfg del usuario, así que solo se dispara si lo pide.
     Localiza retroarch.cfg igual que ``_handle_retroarch_check`` (junto al
     exe configurado, no ``_detect_retroarch_install()``) y usa
@@ -581,7 +581,7 @@ def _handle_save_device_profile_manifest(config: AppConfig) -> dict:
     detect candidates — only what the user actually saved) as
     ``<remote_base>/device-profile.json``, closing the gap where
     DEVPROFILE-4's export/import functions had no production caller (see
-    Tareas/Roadmap-DEVPROFILE-5-6.md §1). ``rommgr restore`` (DEVPROFILE-5b+)
+    Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md §1). ``rommgr restore`` (DEVPROFILE-5b+)
     is the future reader of this file.
     """
     from rom_manager.services.device_profile import save_profile_manifest

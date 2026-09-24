@@ -67,7 +67,7 @@ def pc_cores_by_system() -> dict[str, list[str]]:
 
     Keyed by the ES-DE system name (e.g. "mame", "fbneo"), not the canonical
     platform name — some ES-DE systems share a platform but need different
-    core candidates (see Roadmap-DEVPROFILE-1-4.md §2)."""
+    core candidates (see Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md §2)."""
     return _load_toml().get("cores", {}).get("pc", {})
 
 
