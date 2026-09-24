@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -20,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.retrovault.android.ui.components.StatusBadge
+import com.retrovault.android.ui.components.StatusTone
 import com.retrovault.android.ui.theme.RetroVaultSyncTheme
 
 /**
@@ -53,17 +56,21 @@ fun SettingsScreen(
         modifier = modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(text = "Ajustes")
+        Text(text = "Ajustes", style = MaterialTheme.typography.titleLarge)
 
         if (!isDropboxConfigured) {
-            Text(text = "Sin App Key de Dropbox configurada — ver android/local.properties.example")
+            Text(
+                text = "Sin App Key de Dropbox configurada — ver android/local.properties.example",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         } else if (isDropboxConnected) {
-            Text(text = "✓ Dropbox conectado")
+            StatusBadge(text = "Conectado", tone = StatusTone.Success)
             OutlinedButton(onClick = onDisconnectDropbox) {
                 Text("Desconectar Dropbox")
             }
         } else {
-            Text(text = "Dropbox no conectado")
+            StatusBadge(text = "No conectado", tone = StatusTone.Danger)
             Button(onClick = onConnectDropbox) {
                 Text("Conectar Dropbox")
             }
@@ -90,12 +97,14 @@ fun SettingsScreen(
                 Text(if (isSyncing) "Sincronizando…" else "Sincronizar ahora")
             }
             if (isSyncing) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
-            lastSyncSummary?.let { Text(text = it) }
+            lastSyncSummary?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Sync automático (cada 15 min)")
+                Text(text = "Sync automático (cada 15 min)", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = autoSyncEnabled, onCheckedChange = onAutoSyncToggle)
             }
         }

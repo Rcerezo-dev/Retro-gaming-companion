@@ -2,7 +2,6 @@ package com.retrovault.android.ui.pick
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,10 +38,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.retrovault.android.sync.PcApiClient
 import com.retrovault.android.sync.RemoteGame
+import com.retrovault.android.ui.components.StatusBadge
+import com.retrovault.android.ui.components.StatusTone
 import com.retrovault.android.ui.theme.RetroVaultSyncTheme
 import com.retrovault.android.ui.theme.RvMonoData
-import com.retrovault.android.ui.theme.RvSuccessDark
-import com.retrovault.android.ui.theme.RvSuccessLight
+import com.retrovault.android.ui.theme.rvSuccessColor
 import com.retrovault.android.util.formatBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -211,7 +211,9 @@ private fun PickScreenConnectForm(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (connecting) StatusBadge(text = "Buscando PC…", tone = StatusTone.Info, pulsing = true)
         errorMessage?.let {
+            StatusBadge(text = "Sin conexión", tone = StatusTone.Danger)
             Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
         }
         Button(onClick = onConnect, enabled = !connecting) {
@@ -383,12 +385,6 @@ private fun PlatformTag(label: String) {
                 .padding(horizontal = 6.dp, vertical = 3.dp),
     )
 }
-
-/** `success` isn't part of Material3's ColorScheme — RetroVault's tokens keep
- * it as a fourth semantic color alongside primary/secondary/error. One-line
- * lookup rather than a CompositionLocal: it's used in two places today. */
-@Composable
-private fun rvSuccessColor() = if (isSystemInDarkTheme()) RvSuccessDark else RvSuccessLight
 
 @Preview(showBackground = true)
 @Composable
