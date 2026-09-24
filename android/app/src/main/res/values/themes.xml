@@ -1,0 +1,5 @@
+<resources>
+    <!-- Tema base de la Activity (previo a que Compose tome el contenido).
+         El theming real (colores, tipografía) vive en ui/theme/Theme.kt. -->
+    <style name="Theme.RetroVaultSync" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

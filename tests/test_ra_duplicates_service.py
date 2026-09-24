@@ -14,9 +14,34 @@ from rom_manager.services.ra_duplicates_service import (
     discard_all_ra_duplicates,
     discard_no_support,
     discard_ra_duplicate,
+    get_ra_achievements_for_path,
     get_ra_hash_lib,
     resolve_duplicate_ra,
 )
+
+# ── DUP-CROSSFMT-6: never discard losers if the "winner" doesn't exist ────────
+
+
+def test_resolve_duplicate_ra_skips_group_if_keeper_missing(tmp_path: Path) -> None:
+    """Incident 2026-09-09: a stale DB row (file already gone) won a duplicate
+    comparison against a real, live file — resolve_duplicate_ra discarded the
+    real file with nothing left to replace it. The keeper's existence must be
+    verified before any loser in the group is touched."""
+    ghost_keep = str(tmp_path / "Ghost Winner (Europe).bin")  # never created
+    real_loser = tmp_path / "Real Loser (Europe).chd"
+    real_loser.write_bytes(b"actual game data")
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_rom(repo, source_path=ghost_keep, sha1="A" * 40)
+    _insert_rom(repo, source_path=str(real_loser), sha1="B" * 40)
+
+    result = resolve_duplicate_ra(repo, ghost_keep, [str(real_loser)])
+
+    assert result["discarded"] == 0
+    assert result["failed"] == 1
+    assert real_loser.exists()  # never touched
+    assert not (tmp_path / "_descartados").exists()
+    assert _count(repo) == 2  # both DB rows untouched too
+
 
 # TABS-FIX-1's device-path detection only applies on Windows — a bare leading
 # "/" is a normal, verifiable local path on POSIX (see utils/paths.is_device_path).
@@ -114,6 +139,92 @@ def test_discard_ra_duplicate_device_path_with_adb_transport_deletes_via_adb(
     # Windows — the "note" is a pre-existing quirk unrelated to this fix.
     assert result["ok"] is True
     assert adb.removed == [device_path]
+    assert _count(repo) == 0
+
+
+# ── DUP-CROSSFMT-4: discarding a .cue must carry its .bin along ───────────────
+
+
+def _insert_rom(repo: LibraryRepository, *, source_path: str, sha1: str) -> None:
+    repo.upsert_game(
+        original_filename=Path(source_path).name,
+        source_path=source_path,
+        platform="PlayStation",
+        file_type="rom",
+        relative_parent="",
+        region="USA",
+        extension=Path(source_path).suffix,
+        size_bytes=1024,
+        mtime=0,
+        sha1=sha1,
+        md5="M" * 32,
+        crc32="CCCCCCCC",
+        set_type="single",
+        timestamp=_TS,
+    )
+
+
+def test_discard_ra_duplicate_cue_takes_its_sibling_bin_with_it(tmp_path: Path) -> None:
+    """A discarded .cue is data-less without its .bin — leaving the .bin behind
+    (the original DUP-CROSSFMT-4 bug) orphans an unplayable file on disk."""
+    cue = tmp_path / "Game (Europe).cue"
+    bin_ = tmp_path / "Game (Europe).bin"
+    cue.write_text('FILE "Game (Europe).bin" BINARY\n  TRACK 01 MODE2/2352\n')
+    bin_.write_bytes(b"data")
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_rom(repo, source_path=str(cue), sha1="A" * 40)
+    _insert_rom(repo, source_path=str(bin_), sha1="B" * 40)
+
+    result = discard_ra_duplicate(repo, str(cue))
+
+    assert result == {"ok": True}
+    assert not cue.exists()
+    assert not bin_.exists()
+    assert (tmp_path / "_descartados" / "Game (Europe).cue").exists()
+    assert (tmp_path / "_descartados" / "Game (Europe).bin").exists()
+    assert _count(repo) == 0
+
+
+def test_discard_ra_duplicate_cue_without_bin_on_disk_still_succeeds(tmp_path: Path) -> None:
+    """The referenced .bin no longer exists (already moved/deleted elsewhere) —
+    discarding the .cue must not fail because of it."""
+    cue = tmp_path / "Game (Europe).cue"
+    cue.write_text('FILE "Game (Europe).bin" BINARY\n  TRACK 01 MODE2/2352\n')
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_rom(repo, source_path=str(cue), sha1="A" * 40)
+
+    result = discard_ra_duplicate(repo, str(cue))
+
+    assert result == {"ok": True}
+    assert not cue.exists()
+    assert (tmp_path / "_descartados" / "Game (Europe).cue").exists()
+
+
+# ── DUP-CROSSFMT-5: discarding a .ccd must carry its .img/.sub along ──────────
+
+
+def test_discard_ra_duplicate_ccd_takes_its_img_and_sub_with_it(tmp_path: Path) -> None:
+    """Same failure mode as the .cue/.bin case, for CloneCD sidecars — found
+    live 2026-09-09 (Resident Evil 2 CD1/CD2, Rival Schools Evolution,
+    clocktower2, NEW all had this exact pattern in the real library)."""
+    ccd = tmp_path / "clocktower2.ccd"
+    img = tmp_path / "clocktower2.img"
+    sub = tmp_path / "clocktower2.sub"
+    ccd.write_text("[CloneCD]\nVersion=3\n")
+    img.write_bytes(b"data")
+    sub.write_bytes(b"subchannel")
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_rom(repo, source_path=str(ccd), sha1="A" * 40)
+    _insert_rom(repo, source_path=str(img), sha1="B" * 40)
+    _insert_rom(repo, source_path=str(sub), sha1="C" * 40)
+
+    result = discard_ra_duplicate(repo, str(ccd))
+
+    assert result == {"ok": True}
+    assert not ccd.exists() and not img.exists() and not sub.exists()
+    assert (tmp_path / "_descartados" / "clocktower2.ccd").exists()
+    assert (tmp_path / "_descartados" / "clocktower2.img").exists()
+    assert (tmp_path / "_descartados" / "clocktower2.sub").exists()
     assert _count(repo) == 0
 
 
@@ -278,6 +389,51 @@ def test_get_ra_hash_lib_uses_fresh_cache(tmp_path: Path) -> None:
 
     assert "m" * 32 in lib
     assert lib["m" * 32].achievements == 10
+
+
+def test_get_ra_achievements_for_path_gamecube_uses_disc_hash(tmp_path: Path) -> None:
+    """INBOX-RA-HASH-GAP: apply_ra_conflicts (via get_ra_achievements_for_path)
+    must use the disc-specific hash for GameCube too, same gap as PSX -- the
+    whole-file games.md5 never matches RA's own hash for a disc image."""
+    from tests.test_ra_hash_gamecube_wii import _build_gamecube_image
+
+    iso_path = _build_gamecube_image(tmp_path)
+    from rom_manager.retroachievements.ra_hash_gamecube_wii import compute_gamecube_ra_hash
+
+    disc_hash = compute_gamecube_ra_hash(iso_path)
+    assert disc_hash is not None
+
+    config = load_config(tmp_path)
+    cache_dir = tmp_path / ".rommgr" / "ra_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / "ra_hashes_16.json").write_text(
+        json.dumps(
+            [{"ID": 1, "Title": "Test GC Game", "NumAchievements": 7, "Hashes": [disc_hash]}]
+        ),
+        encoding="utf-8",
+    )
+
+    repo = LibraryRepository(tmp_path / "library.db")
+    repo.upsert_game(
+        original_filename=iso_path.name,
+        source_path=str(iso_path),
+        platform="GameCube",
+        file_type="rom",
+        relative_parent="",
+        region="",
+        extension=".iso",
+        size_bytes=iso_path.stat().st_size,
+        mtime=0,
+        sha1="a" * 40,
+        md5="thiswillnevermatchanything0000",  # deliberately wrong whole-file hash
+        crc32="deadbeef",
+        set_type="single",
+        timestamp="2026-01-01T00:00:00",
+    )
+
+    achievements = get_ra_achievements_for_path(repo, config, str(iso_path), "GameCube", {})
+
+    assert achievements == 7
 
 
 # ── apply_all_review_recommendations (TABS-FIX-6) ─────────────────────────────

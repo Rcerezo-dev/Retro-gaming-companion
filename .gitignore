@@ -25,6 +25,9 @@ Thumbs.db
 # Archivos de registro
 *.log
 
+# BD sueltas en la raíz (artefacto accidental — la BD real vive en .rommgr/)
+/*.db
+
 
 # Ignore the .env file which may contain sensitive information
 .env
@@ -42,3 +45,14 @@ build/
 dist/
 installer/output/
 installer/bundled_dats/
+
+# Android app (ANDROID-SYNC, android/) — Gradle/Android Studio local state
+android/local.properties
+android/.gradle/
+android/app/release/
+android/captures/
+*.apk
+
+# Keystore de release (ANDROID-RELEASE-1) — nunca versionado, ver local.properties
+android/keystore/
+*.aab

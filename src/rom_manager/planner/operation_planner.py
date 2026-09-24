@@ -5,17 +5,66 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from rom_manager.database.repository import LibraryRepository, MatchedGame
-from rom_manager.detection.filename_normalizer import sanitize_filename
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant, sanitize_filename
+from rom_manager.utils.disc_tag import find_disc_tag, has_disc_tag
 from rom_manager.utils.paths import same_file as _same_file
 
-# Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
-# Also used as the heuristic to detect whether source is flat (parent.name in this set)
-# or already in a subfolder (parent.name not in this set).
+# On-disk folder slugs used only to detect whether a source file is already
+# flat in the platform root (parent.name in this set) or already moved into
+# its own per-game subfolder (parent.name not in this set) — matched against
+# the real directory name on disk, which is always the short slug
+# ("psx"/"saturn"), never the catalog display name.
+# INBOX-ORPHAN-3: gamecube/ps2 dumps in this library are single-file
+# (.iso/.rvz/.chd/.zip) — a per-game subfolder buys nothing, and a rematch
+# that changes canonical_title moves the file into a new folder without ever
+# cleaning up the now-empty old one, leaving an orphan behind.
 _DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset(
     {
         "psx",
         "saturn",
-        "ps2",
+        "dreamcast",
+        "wii",
+    }
+)
+
+# GAMECUBE-DISC-BUG-1f: disc-based platforms where each game gets its own
+# subfolder (e.g. psx/Game/Game.cue), matched against ``game.platform.lower()``
+# — the catalog *display* name from platforms.toml ("PlayStation", "Sega
+# Saturn"), same domain as _MULTI_DISC_RISK_PLATFORMS above, deliberately a
+# separate set from _DISC_SUBFOLDER_PLATFORMS (on-disk folder slugs): reusing
+# that one here silently never matched real PlayStation/Sega Saturn games
+# (only Dreamcast/Wii happened to match because their display name equals
+# their folder slug) — every PSX/Saturn game in a real library stayed flat
+# forever despite the code intending to subfolder it. Excludes PlayStation 2
+# and GameCube on purpose, same reasoning as _DISC_SUBFOLDER_PLATFORMS above
+# (single-file dumps in this library, INBOX-ORPHAN-3).
+_DISC_SUBFOLDER_CATALOG_PLATFORMS: frozenset[str] = frozenset(
+    {
+        "playstation",
+        "sega saturn",
+        "dreamcast",
+        "wii",
+    }
+)
+
+# GAMECUBE-DISC-BUG-1a/1d: platforms that can have real multi-disc sets, used
+# by apply_ra_conflicts() to skip auto-discard on "disk"/"collision"
+# conflicts — a separate concept from _DISC_SUBFOLDER_PLATFORMS above (folder
+# layout, matched against actual on-disk folder names like "psx"/"gamecube").
+# This set is matched against ``MatchedGame.platform.lower()``, which is the
+# catalog *display* name from platforms.toml (e.g. "PlayStation", "Sega
+# Saturn"), not the short folder code — using folder-code strings here
+# ("psx", "saturn") silently never matched real PlayStation/Sega Saturn/
+# PlayStation 2 games (only GameCube/Dreamcast/Wii happened to match because
+# their display name equals their folder code). GameCube dumps are
+# single-file (no subfolder, see _DISC_SUBFOLDER_PLATFORMS) but still ship
+# multi-disc titles (Twin Snakes, Resident Evil 0/1/4), so it's included here
+# even though it's excluded from _DISC_SUBFOLDER_PLATFORMS.
+_MULTI_DISC_RISK_PLATFORMS: frozenset[str] = frozenset(
+    {
+        "playstation",
+        "playstation 2",
+        "sega saturn",
         "dreamcast",
         "gamecube",
         "wii",
@@ -32,9 +81,6 @@ _REGION_RE = re.compile(
 
 # Annotations de revisión: (Rev 1), (Rev A), (v1.0), (v1.1), etc.
 _REVISION_RE = re.compile(r"\s*\((Rev [A-Z0-9]+|v\d[\d.]*)\)", re.IGNORECASE)
-
-# TABS-FIX-6-DISC: tag de disco al estilo No-Intro/Redump, p.ej. "(Disc 2)".
-_DISC_TAG_RE = re.compile(r"\(disc\s*\d+\)", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -78,18 +124,31 @@ def _canonical_filename(
     Component order: [platform - ]title[ (Disc N)][ (region)][ (revision)][ [sha]]
 
     TABS-FIX-6-DISC: No-Intro/Redump often share one canonical_title across
-    every disc of a multi-disc set (no disc number in the DAT) — without the
-    real "(Disc N)" tag from the source filename, every disc computes the
+    every disc of a multi-disc set (no disc number in the DAT) — without a
+    disc tag recovered from the source filename, every disc computes the
     same target filename, collides, and "Resolver con RA" can discard Disc
-    2/3 thinking they're alternate copies. *include_disc_tag=False* derives
-    the shared game *folder* name, which must stay disc-agnostic.
+    2/3 thinking they're alternate copies. ``find_disc_tag`` (DUP-RA-COLLISION-1)
+    also catches messy real-world tags without parentheses ("Disc1", "cd2",
+    "Disco 2"), not just the strict "(Disc N)" form. *include_disc_tag=False*
+    derives the shared game *folder* name, which must stay disc-agnostic.
     """
+    # CATALOG-MATCH-VARIANT-1: a translation patch/hack/subset must never be
+    # renamed into the officially-cataloged game's canonical name — doing so
+    # collides it with the real release sharing the same canonical_title.
+    # Found live 2026-09-09: a single NES game (Zelda) had 22 translation-
+    # patch files all computing the SAME rename target as the untranslated
+    # original, surfacing as "collision" conflicts in the review queue. Keep
+    # its own name — it isn't the cataloged file, regardless of what
+    # canonical_title the title-fallback matcher guessed for metadata.
+    if is_non_canonical_variant(game.original_filename):
+        return game.original_filename
+
     title = game.canonical_title
 
-    if include_disc_tag and not _DISC_TAG_RE.search(title):
-        disc_match = _DISC_TAG_RE.search(game.original_filename)
-        if disc_match:
-            title = f"{title} {disc_match.group(0)}"
+    if include_disc_tag and not has_disc_tag(title):
+        disc_tag = find_disc_tag(game.original_filename)
+        if disc_tag:
+            title = f"{title} {disc_tag}"
 
     if opts is not None:
         if not opts.include_region:
@@ -133,7 +192,7 @@ def build_plan(
         # Disc platforms: each game lives in its own subfolder (psx/Game/Game.cue).
         # TABS-FIX-6-DISC: the folder is shared by every disc of a set, so it must
         # be derived disc-agnostic even though new_filename now carries the tag.
-        if game.platform and game.platform.lower() in _DISC_SUBFOLDER_PLATFORMS:
+        if game.platform and game.platform.lower() in _DISC_SUBFOLDER_CATALOG_PLATFORMS:
             folder_name = Path(_canonical_filename(game, opts, include_disc_tag=False)).stem
             target = (
                 source.parent.parent / folder_name / new_filename

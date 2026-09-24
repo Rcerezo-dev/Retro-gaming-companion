@@ -133,7 +133,15 @@ def scan_library(
                     stat = path.stat()
                     path_str = str(path.resolve())
                     known = known_roms.get(path_str)
-                    if known and known == (int(stat.st_mtime), stat.st_size):
+                    # LIBRARY-AUDIT-5: a full scan must not skip a row that was
+                    # written without a hash (--quick / ADB) just because its
+                    # mtime/size are unchanged — quick mode still skips it,
+                    # since it wouldn't compute a hash anyway.
+                    if (
+                        known
+                        and known[:2] == (int(stat.st_mtime), stat.st_size)
+                        and (quick or known[2])
+                    ):
                         result.roms_skipped += 1
                         result.roms_detected += 1
                         continue

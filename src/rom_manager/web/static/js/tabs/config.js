@@ -14,6 +14,58 @@ const _txtCls = (el, cls) => {
 };
 const fmtSize = (n) => n == null ? '?' : n < 1024 * 1024 ? (n / 1024).toFixed(0) + 'KB' : (n / 1024 / 1024).toFixed(1) + 'MB';
 
+// ── DUP-REGION-2: preferencias de duplicados por región ─────────────────────────
+let _preferredRegions = [];
+let _knownRegions = [];
+
+function _toggleRegionPicker() {
+  const keepBothEl = document.getElementById('cfg-keep-both-regions');
+  const wrap = document.getElementById('cfg-preferred-regions-wrap');
+  if (wrap) wrap.classList.toggle('hidden', keepBothEl?.checked === true);
+}
+
+function _populateRegionPicker() {
+  const sel = document.getElementById('cfg-region-picker');
+  if (!sel) return;
+  sel.innerHTML = _knownRegions
+    .filter(r => !_preferredRegions.includes(r))
+    .map(r => `<option value="${r}">${r}</option>`).join('');
+}
+
+function _renderPreferredRegionsList() {
+  const list = document.getElementById('cfg-preferred-regions-list');
+  if (!list) return;
+  list.innerHTML = _preferredRegions.map((r, i) => `
+    <div class="actions-row" style="gap:6px">
+      <span style="color:var(--c-muted);font-size:11px;min-width:16px">${i + 1}.</span>
+      <span style="font-size:12px;flex:1">${r}</span>
+      <button class="btn" style="font-size:11px;padding:2px 6px" onclick="_movePreferredRegion(${i},-1)" ${i === 0 ? 'disabled' : ''}>&#x2191;</button>
+      <button class="btn" style="font-size:11px;padding:2px 6px" onclick="_movePreferredRegion(${i},1)" ${i === _preferredRegions.length - 1 ? 'disabled' : ''}>&#x2193;</button>
+      <button class="btn" style="font-size:11px;padding:2px 6px" onclick="_removePreferredRegion(${i})">&#x2715;</button>
+    </div>`).join('');
+  _populateRegionPicker();
+}
+
+function _addPreferredRegion() {
+  const sel = document.getElementById('cfg-region-picker');
+  const region = sel?.value;
+  if (!region || _preferredRegions.includes(region)) return;
+  _preferredRegions.push(region);
+  _renderPreferredRegionsList();
+}
+
+function _removePreferredRegion(index) {
+  _preferredRegions.splice(index, 1);
+  _renderPreferredRegionsList();
+}
+
+function _movePreferredRegion(index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= _preferredRegions.length) return;
+  [_preferredRegions[index], _preferredRegions[target]] = [_preferredRegions[target], _preferredRegions[index]];
+  _renderPreferredRegionsList();
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 function _onDevicePresetChange() {
   const sel    = document.getElementById('cfg-device-preset');
@@ -80,6 +132,12 @@ async function loadSettings() {
     if (bkKeepNEl)   bkKeepNEl.value     = cfg.backup_saves_keep_n ?? 5;
     const notifyEl = document.getElementById('cfg-notify-desktop');
     if (notifyEl) notifyEl.checked = cfg.notify_desktop !== false;
+    const keepBothEl = document.getElementById('cfg-keep-both-regions');
+    if (keepBothEl) keepBothEl.checked = cfg.keep_both_regions === true;
+    _knownRegions = Array.isArray(cfg.known_regions) ? cfg.known_regions : [];
+    _preferredRegions = Array.isArray(cfg.preferred_regions) ? cfg.preferred_regions.slice() : [];
+    _renderPreferredRegionsList();
+    _toggleRegionPicker();
     const _raKeyEl = document.getElementById('cfg-ra-api-key');
     if (_raKeyEl) { _raKeyEl.value = ''; _raKeyEl.placeholder = cfg.ra_api_key_set ? '••••••••' : ''; }
     const raUserEl = document.getElementById('cfg-ra-username');
@@ -671,6 +729,9 @@ async function saveSettings() {
   if (bkKeepNEl && bkKeepNEl.value) updates['backup.saves_keep_n'] = parseInt(bkKeepNEl.value, 10);
   const notifyDesktopEl = document.getElementById('cfg-notify-desktop');
   if (notifyDesktopEl) updates['notifications.desktop'] = notifyDesktopEl.checked;
+  const keepBothEl = document.getElementById('cfg-keep-both-regions');
+  if (keepBothEl) updates['duplicates.keep_both_regions'] = keepBothEl.checked;
+  updates['duplicates.preferred_regions'] = _preferredRegions;
   if (Object.keys(updates).length === 0) {
     resultEl.className = 'job-result visible error-r';
     resultEl.textContent = 'Nada que guardar — rellena al menos un campo.';
@@ -713,6 +774,8 @@ async function saveSettings() {
         'backup.saves_enabled':       'cfg-check-backup-enabled',
         'backup.saves_keep_n':        'cfg-check-backup-keep-n',
         'notifications.desktop':      'cfg-check-notify-desktop',
+        'duplicates.keep_both_regions': 'cfg-check-keep-both-regions',
+        'duplicates.preferred_regions': 'cfg-check-preferred-regions',
       };
       d.saved.forEach(key => {
         const id = _CFG_CHECK[key];
@@ -850,6 +913,13 @@ async function detectRetroArch() {
           msg += '  ·  Biblioteca: ' + d.library_root;
         }
       }
+      if (d.ra_config_dir) {
+        const raCfgInput = document.getElementById('cfg-ra-config-dir');
+        if (raCfgInput && !raCfgInput.value.trim()) {
+          raCfgInput.value = d.ra_config_dir;
+          msg += '  ·  Config: ' + d.ra_config_dir;
+        }
+      }
       if (resultEl) { resultEl.textContent = msg; resultEl.style.color = 'var(--c-teal)'; }
     } else {
       if (resultEl) { resultEl.textContent = '✗ No encontrado — introduce la ruta manualmente.'; resultEl.style.color = 'var(--c-red)'; }
@@ -913,6 +983,12 @@ async function browseFile(inputId, title) {
 }
 
 // ── AUD-3: Papelera unificada ─────────────────────────────────────────────────
+function _fmtLastPurge(lastPurge) {
+  if (!lastPurge) return '';
+  const when = new Date(lastPurge.ts).toLocaleString();
+  return ` <span style="color:var(--c-dim)">— última purga ${when}: ${lastPurge.deleted} archivos, ${fmtSize(lastPurge.bytes)}</span>`;
+}
+
 async function loadTrashStatus() {
   const el = document.getElementById('trash-status-text');
   if (!el) return;
@@ -923,7 +999,23 @@ async function loadTrashStatus() {
     const sizeStr = gb >= 1 ? `${gb.toFixed(2)} GB` : fmtSize(d.bytes);
     el.innerHTML = `Papelera: <strong>${d.files}</strong> archivo${d.files !== 1 ? 's' : ''}, <strong>${sizeStr}</strong>`
       + (d.purge_days > 0 ? ` <span style="color:var(--c-dim)">(purga automática a los ${d.purge_days} días)</span>`
-                          : ' <span style="color:var(--c-yellow)">(purga automática desactivada)</span>');
+                          : ' <span style="color:var(--c-yellow)">(purga automática desactivada)</span>')
+      + _fmtLastPurge(d.last_purge);
+
+    // TRASH-FIX-3: fila Android solo visible con dispositivo conectado
+    const row = document.getElementById('trash-android-row');
+    const elA = document.getElementById('trash-status-text-android');
+    if (row && elA) {
+      if (d.android && d.android.connected) {
+        row.hidden = false;
+        const gbA = d.android.bytes / 1024 / 1024 / 1024;
+        const sizeStrA = gbA >= 1 ? `${gbA.toFixed(2)} GB` : fmtSize(d.android.bytes);
+        elA.innerHTML = `Papelera Android: <strong>${d.android.files}</strong> archivo${d.android.files !== 1 ? 's' : ''}, <strong>${sizeStrA}</strong>`
+          + _fmtLastPurge(d.android.last_purge);
+      } else {
+        row.hidden = true;
+      }
+    }
   } catch (e) {
     el.textContent = 'Error: ' + e.message;
   }
@@ -946,9 +1038,28 @@ async function emptyTrash() {
   }
 }
 
+async function emptyTrashAndroid() {
+  if (!confirm('¿Vaciar la papelera del dispositivo Android?\n\nTodos los archivos de las carpetas _descartados/ en la SD se eliminarán DEFINITIVAMENTE. Esta acción no se puede deshacer.')) return;
+  const res = document.getElementById('trash-empty-result-android');
+  const btn = document.getElementById('btn-trash-empty-android');
+  if (btn) btn.disabled = true;
+  if (res) { res.textContent = 'Vaciando…'; _txtCls(res, 'txt-dim'); }
+  try {
+    const d = await apiPost('/api/trash-empty-android', {});
+    if (d.error) throw new Error(d.error);
+    if (res) { res.textContent = `✓ ${d.deleted} archivos eliminados (${fmtSize(d.bytes)})`; _txtCls(res, 'txt-ok'); }
+    loadTrashStatus();
+  } catch (e) {
+    if (res) { res.textContent = '✗ ' + e.message; _txtCls(res, 'txt-err'); }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 export {
-  loadTrashStatus, emptyTrash,
+  loadTrashStatus, emptyTrash, emptyTrashAndroid,
   _onDevicePresetChange,
+  _toggleRegionPicker, _addPreferredRegion, _removePreferredRegion, _movePreferredRegion,
   loadSettings, migrateSplitDb, testChdman, testMaxcso, testAdbBinary,
   loadLogViewer, downloadLog, loadTools, _setIfEmpty,
   doBatchRun, _initToolPath, fillToolPath,

@@ -5,6 +5,7 @@ import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { _showConfirm } from '../components/modal.js';
 import { getActiveDevice, getDevName } from '../state.js';
+import { badge } from './games.js';
 
 const _txtCls = (el, cls) => {
   if (!el) return;
@@ -663,12 +664,30 @@ function _isAdbMode() {
   return document.querySelector('input[name="cable-ab-mode"]:checked')?.value === 'adb';
 }
 
+// ANBERNIC-PICK-6: acceso directo desde Herramientas a la sincronización
+// avanzada (ya existía, pero plegada y sin enlace desde donde el usuario la buscaba)
+function goToCableSyncAdvanced() {
+  showTab('cable');
+  const details = document.getElementById('cable-advanced-details');
+  if (details) {
+    details.open = true;
+    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function _onCableModeChange() {
   const adb = _isAdbMode();
   const fsEl  = document.getElementById('cable-fs-section');
   const adbEl = document.getElementById('cable-adb-section');
   if (fsEl)  fsEl.classList.toggle('hidden', adb);
   if (adbEl) adbEl.classList.toggle('hidden', !(adb));
+}
+
+// ANBERNIC-PICK-2: el checkbox "solo marcados" solo tiene sentido si se van a
+// sincronizar ROMs — se oculta si esa casilla no está marcada.
+function _onCableWhatRomsChange() {
+  const wrap = document.getElementById('cable-only-tagged-wrap');
+  if (wrap) wrap.style.display = document.getElementById('cable-what-roms')?.checked ? '' : 'none';
 }
 
 function _onCableDryRunChange() {
@@ -764,6 +783,26 @@ async function detectAdbDevices() {
     }
   } catch(e) {
     if (status) { _txtCls(status, 'txt-err'); status.textContent = '✗ ' + e.message; }
+  }
+}
+
+// B0-3d: confirma por ADB que <ruta Android>/config existe — el candidato que
+// list_overrides()/read_override() (CFG-PORGAME-6/7/8) asumen para leer y
+// escribir overrides del lado Android. No requiere ningún campo nuevo: la
+// ruta candidata sale de auto-sync-android-path, ya guardado en config.toml.
+async function detectAndroidRaConfigDir() {
+  const resultEl = document.getElementById('android-ra-config-detect-result');
+  if (resultEl) { _txtCls(resultEl, 'txt-dim'); resultEl.textContent = 'Buscando…'; }
+  try {
+    const d = await apiFetch('/api/detect-android-ra-config-dir');
+    if (d.found) {
+      if (resultEl) { _txtCls(resultEl, 'txt-ok'); resultEl.textContent = '✓ Encontrado: ' + d.ra_config_dir; }
+    } else if (resultEl) {
+      _txtCls(resultEl, 'txt-err');
+      resultEl.textContent = '✗ ' + (d.error || 'No encontrado');
+    }
+  } catch (e) {
+    if (resultEl) { _txtCls(resultEl, 'txt-err'); resultEl.textContent = '✗ Error: ' + e.message; }
   }
 }
 
@@ -869,6 +908,21 @@ async function runSyncDoctor() {
 // pelear con un cambio manual del usuario en visitas posteriores.
 let _cableModeAutoSelected = false;
 
+// CABLE-ROM-FIX-4: lista estática (_STANDARD_PLATFORM_FOLDERS en el backend)
+// — se carga una sola vez por sesión de pestaña, igual que _cableModeAutoSelected.
+let _cablePlatformFoldersLoaded = false;
+
+async function _loadCablePlatformFolders() {
+  if (_cablePlatformFoldersLoaded) return;
+  const sel = document.getElementById('cable-exclude-platforms');
+  if (!sel) return;
+  try {
+    const d = await apiFetch('/api/platform-folders');
+    sel.innerHTML = (d.folders || []).map(f => `<option value="${_h(f)}">${_h(f)}</option>`).join('');
+    _cablePlatformFoldersLoaded = true;
+  } catch (_) {}
+}
+
 async function loadCableSync() {
   // QoL-14: offline badge for ADB
   apiFetch('/api/system-status').then(st => {
@@ -907,6 +961,8 @@ async function loadCableSync() {
 
     if (document.getElementById('cable-pc-path')?.value) testCablePath('pc');
     if (!_isAdbMode() && document.getElementById('cable-ab-path')?.value) testCablePath('ab');
+    _onCableWhatRomsChange(); // ANBERNIC-PICK-2: por si el navegador recordó "ROMs" marcado
+    _loadCablePlatformFolders(); // CABLE-ROM-FIX-4
 
     // CABLE-UX-6: los avisos condicionales deben reflejar el estado inicial de
     // los controles, no solo actualizarse tras un onchange manual del usuario.
@@ -1022,6 +1078,11 @@ async function doCableSync() {
   const safeMode     = document.getElementById('cable-safe-mode')?.checked ?? true;
   const skipSha1Dups = direction === 'anbernic_to_pc' && (document.getElementById('cable-skip-sha1')?.checked ?? false);
   const deleteExtra  = direction !== 'newest' && (document.getElementById('cable-mirror')?.checked ?? false);
+  // ANBERNIC-PICK-2: solo tiene efecto con roms + pc_to_anbernic (ver _wanted en sync_cable.py)
+  const onlyTagged   = wantRoms && (document.getElementById('cable-only-tagged')?.checked ?? false);
+  // CABLE-ROM-FIX-4: allowlist de plataformas a excluir, en ambos lados y para
+  // saves/roms/assets por igual (ver _wanted/_wanted_info en sync_cable.py)
+  const excludePlatformFolders = Array.from(document.getElementById('cable-exclude-platforms')?.selectedOptions || []).map(o => o.value);
 
   let body;
   if (adb) {
@@ -1032,13 +1093,13 @@ async function doCableSync() {
     // CABLE-UX-1: el pre-flight de reloj ahora vive en el backend (bloquea con
     // error en vez de confirm()) — cubre este camino y el auto-sync por igual.
     body = { pc_path: pcPath, use_adb: true, adb_serial: serial, android_path: androidPath,
-             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
+             what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged, exclude_platform_folders: excludePlatformFolders };
   } else {
     const abPath = document.getElementById('cable-ab-path')?.value.trim();
     if (!abPath) { alert('Introduce la ruta de la tarjeta SD / consola Android.'); return; }
     // CABLE-UX-10: sin localStorage — config (anbernic_root/library_root en
     // Ajustes) es la única fuente persistente; esto es solo la sesión actual.
-    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra };
+    body = { pc_path: pcPath, anbernic_path: abPath, what, direction, dry_run: dryRun, skip_existing: skipExisting, skip_sha1_dups: skipSha1Dups, safe_mode: safeMode, delete_extra: deleteExtra, only_tagged: onlyTagged, exclude_platform_folders: excludePlatformFolders };
   }
 
   const btn      = document.getElementById('btn-cable-sync');
@@ -1087,7 +1148,7 @@ function _renderCableSyncResult(r) {
 
   const verb   = r.dry_run ? 'Copiaría' : 'Copiados';
   const _dn = getDevName();
-  const dirMap = { pc_to_anbernic: `PC → ${_dn}`, anbernic_to_pc: `${_dn} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_dn}`, device_to_pc: `${_dn} → PC` };
+  const dirMap = { pc_to_anbernic: `PC → ${_dn}`, anbernic_to_pc: `${_dn} → PC`, newest: 'Más reciente gana', pc_to_device: `PC → ${_dn}`, device_to_pc: `${_dn} → PC`, remove_selected: `Eliminados de ${_dn} (saves preservados)` };
   const dirStr = dirMap[r.direction] || r.direction;
   const dryTag = r.dry_run ? ' [DRY RUN — nada fue copiado]' : '';
   const sha1Msg     = r.sha1_skipped > 0 ? `  |  Dups SHA1: ${r.sha1_skipped}` : '';
@@ -1096,7 +1157,10 @@ function _renderCableSyncResult(r) {
   const safeMsg     = r.safe_mode_skipped_overwrites > 0
     ? `  |  <span title="Modo seguro: archivos existentes no sobreescritos" style="color:var(--c-amber)">&#x26A0; Modo seguro: ${r.safe_mode_skipped_overwrites} no sobreescritos</span>` : '';
   const mirrorMsg   = r.deleted_extra > 0
-    ? `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>` : '';
+    ? (r.direction === 'remove_selected'
+        ? `  |  <span title="Juegos eliminados de la consola (saves preservados en el PC)" style="color:var(--c-softred)">&#x1F5D1; ${r.deleted_extra} juego${r.deleted_extra !== 1 ? 's' : ''} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>`
+        : `  |  <span title="Espejo: archivos extra eliminados del destino" style="color:var(--c-softred)">&#x1F5D1; Espejo: ${r.deleted_extra} eliminado${r.deleted_extra !== 1 ? 's' : ''}</span>`)
+    : '';
 
   const needsScan = !r.dry_run && r.copied > 0 && (r.direction === 'anbernic_to_pc' || r.direction === 'newest');
   // D8-6: file count display
@@ -1592,6 +1656,56 @@ async function doLibraryDiff() {
   }
 }
 
+// SAVE-CONSOLIDATOR-1: agrupa saves por juego (ignora carpeta por-core y
+// extensión), marca plantillas en blanco por contenido, y reporta grupos
+// divergentes sin tocar nada — nunca fusiona ni borra automáticamente.
+async function doSaveFragmentation() {
+  const summaryEl = document.getElementById('save-frag-summary');
+  const resultEl = document.getElementById('save-frag-result');
+  if (summaryEl) summaryEl.textContent = 'Analizando…';
+  if (resultEl) resultEl.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/save-fragmentation');
+    if (d.error) {
+      if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--c-pink)">' + d.error + '</span>';
+      return;
+    }
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const { summary, groups, roots } = d;
+    const missing = roots.filter(r => !r.exists).map(r => r.name);
+    if (summaryEl) {
+      const parts = [];
+      if (summary.divergent) parts.push('<span style="color:var(--c-pink)">' + summary.divergent + ' divergente' + (summary.divergent !== 1 ? 's' : '') + ' (necesitan tu decisión)</span>');
+      if (summary.blank) parts.push('<span style="color:var(--c-amber)">' + summary.blank + ' solo-plantilla (seguro descartar)</span>');
+      if (summary.identical) parts.push('<span style="color:#a6e3a1">' + summary.identical + ' idénticos (seguro deduplicar)</span>');
+      if (!parts.length) parts.push('<span style="color:#a6e3a1">✓ Sin fragmentación detectada</span>');
+      if (missing.length) parts.push('<span style="color:var(--c-dim)">(' + missing.join(', ') + ' no existe)</span>');
+      summaryEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+    }
+    if (!resultEl) return;
+    if (!groups.length) { resultEl.innerHTML = ''; return; }
+    const statusLabel = { divergent: 'Divergente', blank: 'Solo plantilla', identical: 'Idéntico' };
+    const statusColor = { divergent: 'var(--c-pink)', blank: 'var(--c-amber)', identical: '#a6e3a1' };
+    let html = '<div style="overflow-x:auto"><table><thead><tr><th>Estado</th><th>Juego</th><th>Copias</th></tr></thead><tbody>';
+    html += groups.map((g, i) => {
+      const rows = g.entries.map(e =>
+        '<tr style="border-bottom:1px solid #1a1a2a"><td colspan="3" style="padding:2px 4px 2px 20px;font-size:11px;color:var(--c-dim)">'
+        + esc(e.relative) + ' &middot; ' + e.size + ' B &middot; ' + esc(e.mtime.replace('T', ' ').slice(0, 16))
+        + (e.is_blank ? ' &middot; <span style="color:var(--c-amber)">plantilla en blanco</span>' : '')
+        + '</td></tr>'
+      ).join('');
+      return '<tr><td style="color:' + statusColor[g.status] + '">' + statusLabel[g.status] + '</td>'
+        + '<td>' + esc(g.stem) + ' <span style="color:var(--c-dim);font-size:11px">(' + esc(g.root) + ')</span></td>'
+        + '<td>' + g.entries.length + '</td></tr>' + rows;
+    }).join('');
+    html += '</tbody></table></div>';
+    resultEl.innerHTML = html;
+  } catch (e) {
+    if (summaryEl) summaryEl.textContent = '';
+    if (resultEl) resultEl.innerHTML = '<p style="color:var(--c-pink)">Error: ' + String(e.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+  }
+}
+
 async function doSync(dryRun) {
   const btnDry   = document.getElementById('btn-sync-dry');
   const btnApply = document.getElementById('btn-sync-apply');
@@ -1884,6 +1998,7 @@ export {
   // Save comparison & library diff
   loadSaveComparison,
   doLibraryDiff,
+  doSaveFragmentation,
   doSync,
   _renderSyncResult,
   // Cloud Sync
@@ -1920,13 +2035,16 @@ export {
   backupNow,
   loadManualBackups,
   // Cable Sync
+  goToCableSyncAdvanced,
   _isAdbMode,
   _onCableModeChange,
   _onCableDryRunChange,
+  _onCableWhatRomsChange,
   _onCableDirectionChange,
   testCablePath,
   detectDrives,
   detectAdbDevices,
+  detectAndroidRaConfigDir,
   testAdbPath,
   loadCableSync,
   loadCableSyncPreview,

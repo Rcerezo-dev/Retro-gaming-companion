@@ -88,4 +88,27 @@ def test_library_extras_cached_by_ttl(tmp_path: Path) -> None:
 
 def test_library_extras_missing_root(tmp_path: Path) -> None:
     result = _dispatch(_make_router(tmp_path), {"root": [str(tmp_path / "no-existe")]})
-    assert result == {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0}
+    assert result == {
+        "bios": 0,
+        "mame_infra": 0,
+        "junk_files": 0,
+        "junk_bytes": 0,
+        "misplaced_zips": 0,
+    }
+
+
+def test_library_extras_misplaced_zips(tmp_path: Path) -> None:
+    """LIBRARY-HEALTH-DASH-1: un ZIP arcade suelto (identificado, jugable, pero
+    sin mover a su carpeta de plataforma) cuenta como misplaced_zips — la
+    tarjeta "ZIPs sin organizar" del panel de salud (Inicio)."""
+    config = load_config(project_root=tmp_path)
+    config.catalogs_arcade_dir.mkdir(parents=True)
+    (config.catalogs_arcade_dir / "mame.xml").write_text(
+        '<mame><machine name="mslug" runnable="yes"/></mame>'
+    )
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "mslug.zip").write_bytes(b"x")  # suelto, fuera de arcade/ → misplaced
+
+    result = _dispatch(_make_router(tmp_path), {"root": [str(lib)]})
+    assert result["misplaced_zips"] == 1

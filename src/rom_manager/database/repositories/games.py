@@ -45,16 +45,23 @@ def cascade_delete_games_by_source_path(
 
 
 class GamesMixin:
-    def get_known_roms(self) -> dict[str, tuple[int, int]]:
-        """Return {source_path: (mtime, size_bytes)} for all games with a stored mtime.
+    def get_known_roms(self) -> dict[str, tuple[int, int, bool]]:
+        """Return {source_path: (mtime, size_bytes, has_sha1)} for all games with a stored mtime.
 
         Used by the scanner to skip files that have not changed since the last scan.
+        LIBRARY-AUDIT-5: ``has_sha1`` lets a full (non ``--quick``) scan re-hash a
+        row that was previously written without one (``--quick`` scan or the ADB
+        device scan, both of which always store ``sha1=""``) even when its
+        mtime/size haven't changed — otherwise it stays unhashed forever.
         """
         with self.connect() as connection:
             rows = connection.execute(
-                "SELECT source_path, mtime, size_bytes FROM games WHERE mtime IS NOT NULL"
+                "SELECT source_path, mtime, size_bytes, sha1 FROM games WHERE mtime IS NOT NULL"
             ).fetchall()
-        return {row["source_path"]: (int(row["mtime"]), int(row["size_bytes"])) for row in rows}
+        return {
+            row["source_path"]: (int(row["mtime"]), int(row["size_bytes"]), bool(row["sha1"]))
+            for row in rows
+        }
 
     def upsert_game(
         self,
@@ -133,14 +140,27 @@ class GamesMixin:
             conn.execute(sql, params)
             conn.commit()
 
-    def get_unresolved_games(self) -> list[UnresolvedGame]:
-        """Return all games that have not yet been matched against a catalog."""
+    def get_unresolved_games(self, include_low_confidence: bool = False) -> list[UnresolvedGame]:
+        """Return games that have not yet been matched against a catalog.
+
+        MATCH-FIX-2: ``include_low_confidence=True`` also re-queues rows already
+        matched with ``match_confidence = 'low'`` (ambiguous title, possibly
+        wrong platform) so a matcher fix can correct them on re-run — otherwise
+        they're invisible here forever once ``match_confidence`` is non-NULL.
+
+        GAME-BLOCKLIST-2: a blocked sha1 is excluded even if it reappears as a
+        fresh, still-unmatched row (new game_id after a sync/adb pull) — it
+        must never re-enter the matching/organize pipeline on its own.
+        """
+        where = "match_confidence IS NULL"
+        if include_low_confidence:
+            where += " OR match_confidence = 'low'"
         with self.connect() as connection:
             rows = connection.execute(
-                """
+                f"""
                 SELECT original_filename, source_path, platform, region, sha1
                 FROM games
-                WHERE match_confidence IS NULL
+                WHERE ({where}) AND sha1 NOT IN (SELECT sha1 FROM blocklist)
                 ORDER BY platform, original_filename
                 """
             ).fetchall()
@@ -156,7 +176,11 @@ class GamesMixin:
         ]
 
     def get_matched_games(self) -> list[MatchedGame]:
-        """Return all games that have been matched against a catalog."""
+        """Return all games that have been matched against a catalog.
+
+        GAME-BLOCKLIST-2: excludes blocked sha1s so a blocked game never
+        shows up as a pending rename/organize operation in ``build_plan``.
+        """
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -164,6 +188,7 @@ class GamesMixin:
                        canonical_title, match_confidence, sha1
                 FROM games
                 WHERE canonical_title IS NOT NULL
+                  AND sha1 NOT IN (SELECT sha1 FROM blocklist)
                 ORDER BY platform, canonical_title
                 """
             ).fetchall()
@@ -267,6 +292,38 @@ class GamesMixin:
                 WHERE source_path = ?
                 """
             params = (canonical_title, match_confidence, catalog_source, source_path)
+        if connection is not None:
+            connection.execute(sql, params)
+            return
+        with self.connect() as conn:
+            conn.execute(sql, params)
+            conn.commit()
+
+    def clear_match(
+        self, source_path: str, *, connection: sqlite3.Connection | None = None
+    ) -> None:
+        """Reset catalog-match columns to unmatched for a game row.
+
+        MATCH-STALE-1: a matcher fix (a stricter platform check, a filtered
+        catalog...) can turn a previously-wrong match into "no match" on
+        re-run, but the match loop only ever called ``update_match()`` on a
+        *new* hit — a row whose fresh evaluation is ``None`` was silently
+        skipped, leaving the old wrong ``canonical_title``/``catalog_source``
+        in place forever. Found live 2026-09-12 three separate times in the
+        same session (IBM/Xbox-contaminated titles, a folder-detection gap
+        for Mega Drive, then for PS2/GBC/Game Gear) — always the same shape,
+        always requiring a manual one-off cleanup query. ``platform`` is
+        deliberately left untouched: it describes what kind of file this is
+        (from extension/folder), not whether a catalog entry was found.
+        """
+        sql = """
+            UPDATE games
+            SET canonical_title = NULL,
+                match_confidence = NULL,
+                catalog_source    = NULL
+            WHERE source_path = ?
+            """
+        params = (source_path,)
         if connection is not None:
             connection.execute(sql, params)
             return
@@ -442,6 +499,7 @@ class GamesMixin:
         genre: str | None = None,
         year: str | None = None,
         region: str | None = None,
+        initial: str | None = None,
         sort_by: str | None = None,
     ) -> tuple[list[dict], int]:
         """Return a paginated list of games and the total count matching the filters.
@@ -492,6 +550,13 @@ class GamesMixin:
         if region:
             conditions.append("region = ?")
             params.append(region)
+        if initial:
+            _first_char = "UPPER(SUBSTR(COALESCE(canonical_title, original_filename), 1, 1))"
+            if initial == "#":
+                conditions.append(f"({_first_char} < 'A' OR {_first_char} > 'Z')")
+            else:
+                conditions.append(f"{_first_char} = ?")
+                params.append(initial[0].upper())
 
         # genre / year require JOIN with game_metadata
         need_meta = bool(genre or year)
@@ -513,6 +578,7 @@ class GamesMixin:
                 else c.replace("file_type", "g.file_type")
                 .replace("platform", "g.platform")
                 .replace("canonical_title", "g.canonical_title")
+                .replace("original_filename", "g.original_filename")
                 .replace("source_path", "g.source_path")
                 .replace("play_status", "g.play_status")
                 .replace("is_favorite", "g.is_favorite")
@@ -527,6 +593,7 @@ class GamesMixin:
             {
                 "year": "gm.year DESC, g.platform, g.canonical_title, g.original_filename",
                 "last_played": "g.last_played_at DESC, g.platform, g.canonical_title",
+                "added": "g.created_at DESC, g.platform, g.canonical_title",
                 "title": "g.canonical_title, g.original_filename",
                 "platform": "g.platform, g.canonical_title, g.original_filename",
             }.get(sort_by or "", "g.platform, g.canonical_title, g.original_filename")
@@ -534,6 +601,7 @@ class GamesMixin:
             else {
                 "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, canonical_title",
                 "last_played": "last_played_at DESC, platform, canonical_title",
+                "added": "created_at DESC, platform, canonical_title",
                 "title": "canonical_title, original_filename",
                 "platform": "platform, canonical_title, original_filename",
             }.get(sort_by or "", "platform, canonical_title, original_filename")
@@ -547,7 +615,8 @@ class GamesMixin:
                 " g.extension, g.size_bytes, g.sha1, g.md5, g.canonical_title,"
                 " g.match_confidence, g.catalog_source, g.play_status, g.last_played_at,"
                 f" g.is_favorite, g.notes, g.user_rating, g.play_count, g.first_played_at,"
-                " g.playtime_minutes_pc, g.playtime_minutes_android,"
+                " g.playtime_minutes_pc, g.playtime_minutes_android, g.created_at,"
+                " EXISTS(SELECT 1 FROM game_tags WHERE game_id = g.id AND tag = 'anbernic') AS is_anbernic,"
                 " gm.genre, gm.year AS meta_year, gm.publisher"
                 f" FROM {table_expr} " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
@@ -557,7 +626,8 @@ class GamesMixin:
                 " extension, size_bytes, sha1, md5, canonical_title,"
                 " match_confidence, catalog_source, play_status, last_played_at,"
                 " is_favorite, notes, user_rating, play_count, first_played_at,"
-                " playtime_minutes_pc, playtime_minutes_android"
+                " playtime_minutes_pc, playtime_minutes_android, created_at,"
+                " EXISTS(SELECT 1 FROM game_tags WHERE game_id = games.id AND tag = 'anbernic') AS is_anbernic"
                 " FROM games " + where_sql + f" ORDER BY {_order} LIMIT ? OFFSET ?"
             )
         )
@@ -591,6 +661,8 @@ class GamesMixin:
                 "user_rating": row["user_rating"],
                 "play_count": row["play_count"] or 0,
                 "first_played_at": row["first_played_at"],
+                "created_at": row["created_at"],
+                "is_anbernic": bool(row["is_anbernic"]),
                 **(
                     {"genre": row["genre"], "year": row["meta_year"], "publisher": row["publisher"]}
                     if "genre" in _keys

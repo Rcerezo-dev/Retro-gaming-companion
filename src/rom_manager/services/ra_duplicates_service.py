@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant
+from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
 
@@ -83,10 +85,34 @@ def _discard_file(
         except Exception as exc:
             return False, f"{p.name}: {exc}"
 
+    # DUP-CROSSFMT-4/5: a .cue's .bin track(s) or a .ccd's .img/.sub are that
+    # sheet's own data, not an independent copy — when the sheet loses a
+    # dedup comparison against a *different* winner (e.g. another region's
+    # .chd), the data file isn't part of that cluster and nothing else would
+    # ever move it, leaving an unplayable orphan behind in the active folder.
+    # Parsed before the move (parse_bins_from_cue reads the .cue's own
+    # content; .ccd's sidecars are same-stem by convention, no content to
+    # parse). Device paths aren't real filesystem paths here, so this only
+    # applies on PC.
+    sibling_data_files: list[Path] = []
+    if not is_device_path(source_path):
+        if p.suffix.lower() == ".cue":
+            from rom_manager.converters.chd_converter import parse_bins_from_cue
+
+            sibling_data_files = [b for b in parse_bins_from_cue(p) if b.exists()]
+        elif p.suffix.lower() == ".ccd":
+            sibling_data_files = [
+                s for ext in (".img", ".sub") if (s := p.with_suffix(ext)).exists()
+            ]
+
     dest: Path | None = None
     try:
         dest = discard_to_trash(p)
         _delete_row(repository, source_path)
+        for data_path in sibling_data_files:
+            ok, err = _discard_file(repository, str(data_path), adb_transport)
+            if not ok:
+                _log.warning("No se pudo descartar el hermano de %s: %s", p.name, err)
         return True, None
     except Exception as exc:
         if dest is not None and dest.exists():
@@ -190,6 +216,30 @@ def resolve_duplicate_ra(
     failed = 0
     errors: list[str] = []
 
+    # DUP-CROSSFMT-6: never discard the "losers" of a group whose recommended
+    # "winner" doesn't actually exist. Found live 2026-09-09: a stale DB row
+    # (file already gone from a previous manual reorganization) can still win
+    # a duplicate comparison — the recommendation logic never checks the
+    # filesystem — and "resolve-duplicates --apply" then discarded the real,
+    # only working copy of 10 games (7 PSX .chd + 3 Game Gear) with nothing
+    # left to replace them. Recovered from _descartados/ after the fact; this
+    # guard stops the same group shape from ever discarding anything again.
+    keep_p = Path(keep_path)
+    keep_exists = (
+        adb_transport is not None and adb_transport.file_exists(keep_path)
+        if is_device_path(keep_path)
+        else keep_p.exists()
+    )
+    if not keep_exists:
+        return {
+            "discarded": 0,
+            "failed": len(discard_paths),
+            "errors": [
+                f"grupo omitido: el archivo recomendado para conservar "
+                f"({keep_p.name}) no existe — no se ha descartado nada de este grupo"
+            ],
+        }
+
     for src_path_str in discard_paths:
         ok, error = _discard_file(repository, src_path_str, adb_transport)
         if ok:
@@ -246,6 +296,9 @@ def get_ra_achievements(config: AppConfig, platform: str, md5: str, cache: dict[
     return entry.achievements if entry else -1
 
 
+_DISC_HASH_CONSOLE_IDS = {12, 16, 20}  # PlayStation, GameCube, Wii -- same set as ra_checker.py
+
+
 def get_ra_achievements_for_path(
     repository: LibraryRepository,
     config: AppConfig,
@@ -253,7 +306,27 @@ def get_ra_achievements_for_path(
     platform: str,
     cache: dict[str, dict],
 ) -> int:
-    """Achievement count for the game stored at *source_path* — -1 if unknown."""
+    """Achievement count for the game stored at *source_path* — -1 if unknown.
+
+    INBOX-RA-HASH-GAP: for PSX/GameCube/Wii, ``games.md5`` is a whole-file
+    hash that never matches RA's own disc-specific hash (see
+    ``ra_hash_psx.py``/``ra_hash_gamecube_wii.py``) -- without this, any
+    conflict between two discs on these platforms always looked like
+    "neither has RA data" and fell back to filename/format tie-breaks
+    instead of the real achievement count."""
+    console_id = get_ra_console_id(platform)
+    if console_id in _DISC_HASH_CONSOLE_IDS:
+        cache_dir = config.project_root / ".rommgr" / "ra_cache"
+        if console_id == 12:
+            from rom_manager.retroachievements.ra_disc_hash_cache import get_psx_disc_hash
+
+            md5 = get_psx_disc_hash(source_path, cache_dir, config.chdman) or ""
+        else:
+            from rom_manager.retroachievements.ra_disc_hash_cache import get_gamecube_wii_disc_hash
+
+            md5 = get_gamecube_wii_disc_hash(source_path, cache_dir, console_id) or ""
+        return get_ra_achievements(config, platform, md5, cache)
+
     try:
         with repository.connect() as conn:
             row = conn.execute(
@@ -267,6 +340,77 @@ def get_ra_achievements_for_path(
     return get_ra_achievements(config, platform, (row["md5"] or ""), cache)
 
 
+def filter_duplicate_winners(
+    repository: LibraryRepository, config: AppConfig, games: list[dict]
+) -> list[dict]:
+    """Collapse same-title duplicates within *games* to one winner each — used
+    before a bulk push to the Anbernic so the tiny SD card never gets two
+    copies of the same game. Same (platform, canonical_title) exact match as
+    ``duplicates.py`` (region variants must never merge). Winner order: most
+    RetroAchievements achievements, then whichever extension already
+    dominates that platform in the library (keeps the collection's own
+    format instead of introducing a one-off), then filename for stability.
+    """
+    groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    singles: list[dict] = []
+    for g in games:
+        title = g.get("canonical_title")
+        # CATALOG-MATCH-SUBSET-1: a translation patch/hack/subset must never be
+        # collapsed with the game it's based on just because it carries a
+        # (possibly stale, pre-fix) canonical_title equal to the original's —
+        # same guard as duplicates.py's review-queue grouping and
+        # _match_by_title(); without it, this bulk-push dedup could pick the
+        # hack as "winner" and discard the real game's file.
+        if not title or is_non_canonical_variant(g.get("original_filename") or ""):
+            singles.append(g)
+            continue
+        groups[(g.get("platform") or "", title)].append(g)
+
+    ra_cache: dict[str, dict] = {}
+    ext_cache: dict[str, str] = {}
+
+    def _dominant_ext(platform: str) -> str:
+        if platform not in ext_cache:
+            with repository.connect() as conn:
+                row = conn.execute(
+                    "SELECT extension FROM games WHERE platform = ? AND file_type = 'rom' "
+                    "GROUP BY extension ORDER BY COUNT(*) DESC LIMIT 1",
+                    (platform,),
+                ).fetchone()
+            ext_cache[platform] = (row["extension"] or "") if row else ""
+        return ext_cache[platform]
+
+    winners: list[dict] = list(singles)
+    for (platform, _title), entries in groups.items():
+        if len(entries) == 1:
+            winners.append(entries[0])
+            continue
+        dom_ext = _dominant_ext(platform)
+
+        console_id = get_ra_console_id(platform)
+
+        def _key(
+            e: dict, _platform: str = platform, _dom_ext: str = dom_ext, _console_id=console_id
+        ) -> tuple:
+            # INBOX-RA-HASH-GAP: PSX/GameCube/Wii discs never match on the
+            # stored whole-file md5 (see get_ra_achievements_for_path) --
+            # e["md5"] alone would always look "no RA data" here and silently
+            # fall through to the format tie-break, same bug as ra_checker.py
+            # had before that fix.
+            if _console_id in _DISC_HASH_CONSOLE_IDS:
+                ra = get_ra_achievements_for_path(
+                    repository, config, e.get("source_path") or "", _platform, ra_cache
+                )
+            else:
+                ra = get_ra_achievements(config, _platform, e.get("md5") or "", ra_cache)
+            same_format = 0 if (e.get("extension") or "") == _dom_ext else 1
+            return (-ra, same_format, e.get("original_filename") or "")
+
+        entries.sort(key=_key)
+        winners.append(entries[0])
+    return winners
+
+
 def apply_ra_conflicts(
     repository: LibraryRepository, config: AppConfig, adb_transport: AdbTransport | None = None
 ) -> dict:
@@ -277,9 +421,15 @@ def apply_ra_conflicts(
                    Compare source vs target RA; discard the loser, rename winner to target.
     - "collision": two pending ops share the same target path (two ROMs → same canonical name).
                    Group by target, compare all sources' RA; discard all but the winner.
+
+    DUP-RA-COLLISION-1: conflicts on disc-based platforms (``_MULTI_DISC_RISK_PLATFORMS``)
+    are never auto-resolved here — a conflict there may be two distinct discs of one
+    multi-disc set colliding on the same untagged canonical name, not duplicate copies,
+    and RA achievement count is not a valid signal to pick which disc to keep. They are
+    counted in ``skipped_multi_disc`` and left untouched for manual review.
     """
     from rom_manager.planner import build_plan
-    from rom_manager.planner.operation_planner import FormatOptions
+    from rom_manager.planner.operation_planner import _MULTI_DISC_RISK_PLATFORMS, FormatOptions
     from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
 
     opts = FormatOptions()
@@ -288,6 +438,7 @@ def apply_ra_conflicts(
 
     resolved = 0
     skipped_no_ra = 0
+    skipped_multi_disc = 0
     errors: list[str] = []
 
     cache_dir = config.project_root / ".rommgr" / "ra_cache"
@@ -306,6 +457,15 @@ def apply_ra_conflicts(
         if not op.source_path.exists():
             continue
         plat = op.game.platform or ""
+        if plat.lower() in _MULTI_DISC_RISK_PLATFORMS:
+            # DUP-RA-COLLISION-1: on disc-based platforms (psx/saturn/ps2/dreamcast/
+            # gamecube/wii) a "disk" conflict here can be two *different* discs of the
+            # same multi-disc set whose canonical filenames collide because the source
+            # never carried a "(Disc N)" tag (see TABS-FIX-6-DISC in operation_planner).
+            # RA achievement count says nothing about which disc is "better" — discarding
+            # the loser could delete a real, needed disc. Skip for manual review instead.
+            skipped_multi_disc += 1
+            continue
         src_ra = _ra_for_path(op.source_path, plat)
         tgt_ra = _ra_for_path(op.target_path, plat)
 
@@ -354,6 +514,12 @@ def apply_ra_conflicts(
 
     for _target_str, ops in collision_groups.items():
         plat = ops[0].game.platform or ""
+        if plat.lower() in _MULTI_DISC_RISK_PLATFORMS:
+            # DUP-RA-COLLISION-1: same reasoning as the "disk" branch above — a
+            # collision on a disc platform may be distinct discs of one set, not
+            # duplicate copies. Never auto-discard; leave for manual review.
+            skipped_multi_disc += len(ops)
+            continue
         scored = [(op, _ra_for_path(op.source_path, plat)) for op in ops if op.source_path.exists()]
         if not scored:
             continue
@@ -420,6 +586,7 @@ def apply_ra_conflicts(
     return {
         "resolved": resolved,
         "skipped_no_ra": skipped_no_ra,
+        "skipped_multi_disc": skipped_multi_disc,
         "errors": errors[:10],
         "no_cache": not cache_files_exist,
         "debug_samples": debug_samples,

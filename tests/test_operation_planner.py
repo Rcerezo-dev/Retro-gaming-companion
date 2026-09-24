@@ -86,7 +86,11 @@ def test_empty_when_no_games() -> None:
 def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
     """TABS-FIX-6-DISC: canonical_title identical across discs (DAT has no disc
     number) must not collide — each disc keeps its "(Disc N)" tag from the
-    original filename, and the shared game folder stays disc-agnostic."""
+    original filename, and the shared game folder stays disc-agnostic.
+
+    GAMECUBE-DISC-BUG-1f: platform is "PlayStation" (the real catalog display
+    name games.platform stores in production), not the "psx" folder slug —
+    only the display name is matched against _DISC_SUBFOLDER_CATALOG_PLATFORMS."""
     psx_dir = tmp_path / "psx"
     psx_dir.mkdir()
     games = []
@@ -101,7 +105,7 @@ def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
                 source_path=str(src),
                 canonical_title="Final Fantasy VII (Europe)",  # same for all discs, no disc tag
                 extension=".cue",
-                platform="psx",
+                platform="PlayStation",
             )
         )
     plan = build_plan(_repo_with(games))
@@ -117,6 +121,134 @@ def test_multidisc_set_does_not_collide(tmp_path: Path) -> None:
     # All three discs share the same game folder
     folders = {op.target_path.parent.name for op in plan.pending}
     assert folders == {"Final Fantasy VII (Europe)"}
+
+
+def test_translation_variant_keeps_own_name_no_collision(tmp_path: Path) -> None:
+    """CATALOG-MATCH-VARIANT-1, hallazgo real 2026-09-09: un parche de
+    traducción y el original comparten canonical_title (el fallback por
+    título del matcher los empareja al mismo juego del DAT) — sin este fix,
+    ambos calculan el MISMO target y se marcan como "collision". Un solo NES
+    real (Zelda) llegó a tener 22 archivos así. El parche debe conservar su
+    propio nombre en vez de intentar renombrarse al nombre canónico."""
+    original = tmp_path / "Legend of Zelda, The (USA).nes"
+    original.touch()
+    translated = tmp_path / "Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes"
+    translated.touch()
+    games = [
+        _make_game(
+            id=1,
+            original_filename="Legend of Zelda, The (USA).nes",
+            source_path=str(original),
+            canonical_title="Legend of Zelda, The (USA)",
+            extension=".nes",
+            platform="NES",
+        ),
+        _make_game(
+            id=2,
+            original_filename="Legend of Zelda, The (U) [T-Spa1.2v_Firionel].nes",
+            source_path=str(translated),
+            canonical_title="Legend of Zelda, The (USA)",  # mismo título del DAT
+            extension=".nes",
+            platform="NES",
+        ),
+    ]
+    plan = build_plan(_repo_with(games))
+
+    assert len(plan.conflicts) == 0
+    # El original se renombra a su nombre canónico (ya lo tiene -> already_correct).
+    assert len(plan.already_correct) == 2
+    assert len(plan.pending) == 0
+
+
+def test_real_catalog_platform_name_gets_subfoldered(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1f: games.platform in production stores the catalog
+    display name ("PlayStation", "Sega Saturn"), never the short folder slug
+    ("psx", "saturn") — before this fix, _DISC_SUBFOLDER_PLATFORMS only
+    contained slugs, so real PSX/Saturn games never moved into their own
+    per-game subfolder despite the code intending to (only Dreamcast/Wii
+    happened to match, since their display name equals their folder slug)."""
+    for platform, folder, ext in (
+        ("PlayStation", "psx", ".cue"),
+        ("Sega Saturn", "saturn", ".cue"),
+    ):
+        plat_dir = tmp_path / folder
+        plat_dir.mkdir()
+        src = plat_dir / f"old-name{ext}"
+        src.touch()
+        game = _make_game(
+            original_filename=src.name,
+            source_path=str(src),
+            canonical_title="New Title (USA)",
+            extension=ext,
+            platform=platform,
+        )
+        plan = build_plan(_repo_with([game]))
+
+        assert len(plan.pending) == 1, platform
+        op = plan.pending[0]
+        assert op.target_path.parent == plat_dir / "New Title (USA)", (
+            f"{platform}: expected a per-game subfolder, got {op.target_path.parent}"
+        )
+
+
+def test_gamecube_and_ps2_stay_flat_no_subfolder(tmp_path: Path) -> None:
+    """INBOX-ORPHAN-3: gamecube/ps2 are single-file platforms — a rematch that
+    renames the title must rename the file in place, never move it into (or
+    out of) a per-game subfolder, since that's what left orphaned empty
+    folders behind."""
+    for platform, ext in (("gamecube", ".rvz"), ("ps2", ".iso")):
+        plat_dir = tmp_path / platform
+        plat_dir.mkdir()
+        src = plat_dir / f"old-name{ext}"
+        src.touch()
+        game = _make_game(
+            original_filename=src.name,
+            source_path=str(src),
+            canonical_title="New Title (USA)",
+            extension=ext,
+            platform=platform,
+        )
+        plan = build_plan(_repo_with([game]))
+
+        assert len(plan.pending) == 1, platform
+        op = plan.pending[0]
+        assert op.target_path.parent == plat_dir, (
+            f"{platform}: target must stay flat in {plat_dir}, got {op.target_path.parent}"
+        )
+        assert op.target_path.name == f"New Title (USA){ext}"
+
+
+def test_multidisc_set_messy_tags_do_not_collide(tmp_path: Path) -> None:
+    """DUP-RA-COLLISION-1: real-world dumps often skip the strict "(Disc N)"
+    form No-Intro/Redump uses. ``find_disc_tag`` also recognizes "Disc1"
+    (no parens/space) and "cd2" so these don't collide either — the same
+    guarantee as the strict-form case in ``test_multidisc_set_does_not_collide``."""
+    psx_dir = tmp_path / "psx"
+    psx_dir.mkdir()
+    names = {1: "Final Fantasy VII Disc1.cue", 2: "Final Fantasy VII-cd2.cue"}
+    games = []
+    for n, filename in names.items():
+        src = psx_dir / filename
+        src.touch()
+        games.append(
+            _make_game(
+                id=n,
+                original_filename=filename,
+                source_path=str(src),
+                canonical_title="Final Fantasy VII (Europe)",
+                extension=".cue",
+                platform="PlayStation",
+            )
+        )
+    plan = build_plan(_repo_with(games))
+
+    assert len(plan.conflicts) == 0
+    assert len(plan.pending) == 2
+    filenames = {op.target_path.name for op in plan.pending}
+    assert filenames == {
+        "Final Fantasy VII (Europe) (Disc 1).cue",
+        "Final Fantasy VII (Europe) (Disc 2).cue",
+    }
 
 
 def test_mixed_statuses(tmp_path: Path) -> None:

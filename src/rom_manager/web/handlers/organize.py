@@ -129,7 +129,7 @@ def _do_apply(
                 ]
 
             total = len(pending_ops)
-            renamed = failed = skipped = saves_renamed = 0
+            renamed = failed = skipped = saves_renamed = zips_extracted = 0
             skip_details: list[str] = []
             timestamp = utc_now()
             job_manager.update_progress("apply", {"current": 0, "total": total, "current_file": ""})
@@ -141,7 +141,7 @@ def _do_apply(
                 if not op.source_path.exists():
                     skipped += 1
                     skip_details.append(
-                        f"{op.source_path.name}: source not found (outdated DB entry)"
+                        f"{op.source_path.name}: origen no encontrado (entrada de BD obsoleta)"
                     )
                     continue
                 try:
@@ -183,6 +183,19 @@ def _do_apply(
                     )
                     renamed += 1
                     saves_renamed += outcome.saves_renamed
+                    if op.target_path.suffix.lower() == ".zip":
+                        from rom_manager.converters.zip_extractor import extract_zip
+
+                        # INBOX-FIX-6: colocar un .zip de consola en su carpeta
+                        # de plataforma no lo hace jugable — extraer aquí mismo
+                        # (extract_zip ya se auto-excluye para carpetas arcade/MAME).
+                        zip_result = extract_zip(op.target_path, delete_source=True, dry_run=False)
+                        if zip_result.success:
+                            zips_extracted += 1
+                        elif zip_result.error:
+                            skip_details.append(
+                                f"{op.target_path.name}: ZIP sin extraer — {zip_result.error}"
+                            )
                 else:
                     err_lower = outcome.error.lower()
                     if "not found" in err_lower or "no such file" in err_lower:
@@ -196,6 +209,7 @@ def _do_apply(
                 "failed": failed,
                 "skipped": skipped,
                 "saves_renamed": saves_renamed,
+                "zips_extracted": zips_extracted,
                 "conflicts": len(plan.conflicts),
                 "skip_details": skip_details[:20],
                 "error_details": skip_details[:50],
@@ -327,7 +341,12 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
     also_android = bool(data.get("also_android"))
     android_root_str = config.anbernic_root or None
 
-    def _create_tree(root: Path) -> tuple[list[str], list[str]]:
+    def _create_tree(root: Path, *, roms_subdir: str = "") -> tuple[list[str], list[str]]:
+        """HERR-FIX-3: en la Anbernic las plataformas van bajo <raíz SD>/ROMs/
+        (convención confirmada en DEVICE-DUP-1, `archivo.md`), no sueltas en la
+        raíz como en el PC. saves/media/configs/bios/inbox/screenshots se
+        quedan en la raíz de la SD en ambos casos — decisión del usuario, sin
+        evidencia de que deban anidarse bajo ROMs/ también."""
         created: list[str] = []
         skipped: list[str] = []
 
@@ -345,9 +364,12 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
         _ensure(root / "bios" / "wii", "bios/wii")
         _ensure(root / "bios" / "shaders", "bios/shaders")
 
+        roms_root = (root / roms_subdir) if roms_subdir else root
+
         # 2. Rutas por plataforma
         for folder in std_folders:
-            _ensure(root / folder, folder)
+            roms_label = f"{roms_subdir}/{folder}" if roms_subdir else folder
+            _ensure(roms_root / folder, roms_label)
             _ensure(root / "saves" / folder, f"saves/{folder}")
             _ensure(root / "saves" / folder / "states", f"saves/{folder}/states")
             _ensure(root / "media" / folder / "images", f"media/{folder}/images")
@@ -363,7 +385,7 @@ def _do_create_library_structure(ctx, data: dict, config: AppConfig) -> None:
     if also_android and android_root_str:
         android_root = Path(android_root_str)
         if android_root.exists():
-            ab_created, ab_skipped = _create_tree(android_root)
+            ab_created, ab_skipped = _create_tree(android_root, roms_subdir="ROMs")
             android_result = {
                 "root": str(android_root),
                 "created": ab_created,

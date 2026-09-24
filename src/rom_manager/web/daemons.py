@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as _dt
 import json as _json
 import logging
+import subprocess as _subprocess
 import threading
 import time as _time
 from pathlib import Path
@@ -10,9 +11,11 @@ from pathlib import Path
 import rom_manager.web.state as _state
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.utils.subprocess_flags import NO_WINDOW
 
 _logger = logging.getLogger(__name__)
 _HEALTH_CHECK_INTERVAL_DAYS = 7
+_EMULATOR_WATCHER_POLL_SECONDS = 10
 
 
 # ── Health-check scheduler (S37-1) ────────────────────────────────────────────
@@ -139,12 +142,36 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
                 from rom_manager.utils.trash import purge_trash, trash_roots
 
                 purged = purge_trash(trash_roots(config), config.trash_purge_days)
+                _state.record_trash_purge("pc", purged)
                 if purged["deleted"]:
                     _logger.info(
                         "Papelera: purgados %d archivos (%.1f MB) con más de %d días",
                         purged["deleted"],
                         purged["bytes"] / 1e6,
                         config.trash_purge_days,
+                    )
+
+                # TRASH-FIX-3: mismo purgado en el dispositivo Android, si hay
+                # uno conectado — sin esto, _descartados/ en la SD crece sin
+                # límite y cualquier escaneo recursivo (Daijishou, emuladores
+                # standalone) lo lee como "más versiones" del mismo juego.
+                try:
+                    from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+                    transport = resolve_single_device_transport(config.adb)
+                    if transport is not None:
+                        purged_adb = transport.purge_trash(older_than_days=config.trash_purge_days)
+                        _state.record_trash_purge("android", purged_adb)
+                        if purged_adb["deleted"]:
+                            _logger.info(
+                                "Papelera Android: purgados %d archivos (%.1f MB) con más de %d días",
+                                purged_adb["deleted"],
+                                purged_adb["bytes"] / 1e6,
+                                config.trash_purge_days,
+                            )
+                except Exception:
+                    _logger.debug(
+                        "No se pudo purgar la papelera del dispositivo Android", exc_info=True
                     )
 
         except Exception as exc:
@@ -158,7 +185,11 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
 
 def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> None:
     """Daemon: vigila la carpeta inbox y lanza el pipeline cuando hay archivos."""
-    from rom_manager.web.inbox_pipeline import _run_inbox_pipeline, _watcher_now
+    from rom_manager.web.inbox_pipeline import (
+        _route_orphan_saves,
+        _run_inbox_pipeline,
+        _watcher_now,
+    )
 
     while True:
         try:
@@ -184,10 +215,19 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 )
                 continue
 
+            try:
+                _route_orphan_saves(inbox, repository, config, _logger)
+            except Exception:
+                _logger.debug("Error reuniendo saves huérfanos del Inbox", exc_info=True)
+
+            save_exts = frozenset(config.save_extensions)
             pending = [
                 e
                 for e in inbox.iterdir()
-                if e.is_file() and not e.name.startswith(".") and not e.name.startswith("_")
+                if e.is_file()
+                and not e.name.startswith(".")
+                and not e.name.startswith("_")
+                and e.suffix.lower() not in save_exts
             ]
             _state._inbox_watcher_status.update(
                 {
@@ -202,15 +242,6 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                     "Inbox watcher: %d archivos detectados, lanzando pipeline", len(pending)
                 )
                 _state._inbox_watcher_status["trigger_ts"] = _time.time()
-                if config.notify_desktop:
-                    from rom_manager.utils.notifier import notify
-
-                    _n = len(pending)
-                    _plural = "archivo" if _n == 1 else "archivos"
-                    notify(
-                        "Retro Vault — Inbox",
-                        f"📥 {_n} {_plural} detectado{'' if _n == 1 else 's'}, procesando…",
-                    )
                 target_root_str = config.inbox.target_root or (
                     str(config.library_root) if config.library_root else ""
                 )
@@ -224,6 +255,27 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                         config,
                         _state._job_manager,
                     )
+                    if not config.notify_desktop:
+                        return
+                    from rom_manager.utils.notifier import notify
+
+                    result = _state._job_manager.get_status().get("inbox_result") or {}
+                    if result.get("error"):
+                        notify(
+                            "Retro Vault — Inbox", f"⚠ Error procesando el Inbox: {result['error']}"
+                        )
+                        return
+                    organized = result.get("organized", 0)
+                    n_errors = len(result.get("organize_errors", [])) + len(
+                        result.get("rename_errors", [])
+                    )
+                    if n_errors:
+                        notify(
+                            "Retro Vault — Inbox",
+                            f"✓ {organized} organizados — ⚠ {n_errors} con error, revisar",
+                        )
+                    else:
+                        notify("Retro Vault — Inbox", f"✓ {organized} juegos organizados")
 
                 _state._job_manager.start("inbox", _watcher_run)
 
@@ -231,17 +283,96 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
             _logger.debug("Error en inbox watcher: %s", exc)
 
 
+# ── Emulator-close sync watcher (EMU-SYNC-WATCH-1) ────────────────────────────
+
+
+def _list_running_process_names() -> set[str]:
+    """Nombres de proceso en ejecución ahora mismo (lowercase, sin ruta).
+
+    Vía ``tasklist`` (siempre presente en Windows) en vez de una dependencia
+    de runtime nueva (regla del proyecto: solo stdlib) — mismo patrón que ya
+    usa el resto del proyecto para invocar herramientas externas
+    (``adb.exe``/``rclone.exe``/``chdman.exe`` vía ``subprocess``).
+
+    ``creationflags=CREATE_NO_WINDOW`` es obligatorio aquí: el proceso padre
+    corre sin consola (``pythonw.exe``, vía la tarea programada de auto-arranque),
+    y sin este flag cada poll (cada 10s) abre una ventana de consola nueva y
+    visible para ``tasklist.exe`` — mismo fix ya aplicado en
+    ``utils/notifier.py`` para el mismo problema.
+    """
+    try:
+        out = _subprocess.run(
+            ["tasklist", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+            creationflags=NO_WINDOW,
+        )
+    except Exception:
+        _logger.debug("No se pudo listar procesos (tasklist)", exc_info=True)
+        return set()
+    names: set[str] = set()
+    for line in out.stdout.splitlines():
+        first_field = line.split('","', 1)[0].strip('"')
+        if first_field:
+            names.add(first_field.lower())
+    return names
+
+
+def _closed_watched_processes(previous: set[str], current: set[str], watched: set[str]) -> set[str]:
+    """Nombres de *watched* presentes en *previous* que ya no están en *current*."""
+    return (previous - current) & watched
+
+
+def _emulator_sync_watcher_loop(config: AppConfig, repository: LibraryRepository) -> None:
+    """Daemon: lanza el cloud sync (job "sync") cuando un emulador vigilado se cierra.
+
+    ``config.sync.watch_processes`` es opt-in y vacío por defecto — sin
+    entradas, este daemon no arranca (ver ``start_all``). No sustituye al
+    sync manual/periódico ya existente, solo añade un disparador más.
+    """
+    watched = {p.lower() for p in config.sync.watch_processes}
+    previous = _list_running_process_names()
+    while True:
+        try:
+            _time.sleep(_EMULATOR_WATCHER_POLL_SECONDS)
+            current = _list_running_process_names()
+            closed = _closed_watched_processes(previous, current, watched)
+            previous = current
+            if not closed:
+                continue
+            if _state._job_manager.get_status()["sync_running"]:
+                continue
+            _logger.info("Emulador cerrado (%s) — lanzando cloud sync", ", ".join(sorted(closed)))
+            from rom_manager.web.handlers.sync_cloud import run_cloud_sync_job
+
+            run_cloud_sync_job(config, repository, _state._job_manager, dry_run=False)
+        except Exception:
+            _logger.debug("Error en emulator sync watcher", exc_info=True)
+
+
 # ── Punto de entrada único ────────────────────────────────────────────────────
 
 
-def start_all(config: AppConfig, repository: LibraryRepository) -> None:
+def start_all(
+    config: AppConfig,
+    repository: LibraryRepository,
+    repository_android: LibraryRepository | None = None,
+) -> None:
     """Arranca todos los daemons de background. Llamado desde serve()."""
+    from rom_manager.web.builders.common import _repo_for_path
     from rom_manager.web.cable_sync_daemon import _auto_sync_loop, _sd_card_sync_loop
+
+    _repo_android = repository_android if repository_android is not None else repository
+
+    def _get_repo(path_str: str) -> LibraryRepository:
+        return _repo_for_path(path_str, repository, _repo_android, config)
 
     if config.sync.auto_sync_enabled:
         t = threading.Thread(
             target=_auto_sync_loop,
-            args=(config, lambda: repository),
+            args=(config, _get_repo),
             daemon=True,
         )
         t.name = "auto-sync-daemon"
@@ -250,7 +381,7 @@ def start_all(config: AppConfig, repository: LibraryRepository) -> None:
 
     t_sd = threading.Thread(
         target=_sd_card_sync_loop,
-        args=(config, lambda: repository),
+        args=(config, _get_repo),
         daemon=True,
     )
     t_sd.name = "sd-sync-daemon"
@@ -276,3 +407,17 @@ def start_all(config: AppConfig, repository: LibraryRepository) -> None:
     _logger.info(
         "Health check scheduler arrancado (intervalo: %d días)", _HEALTH_CHECK_INTERVAL_DAYS
     )
+
+    if config.sync.watch_processes:
+        t_emu = threading.Thread(
+            target=_emulator_sync_watcher_loop,
+            args=(config, repository),
+            daemon=True,
+        )
+        t_emu.name = "emulator-sync-watcher-daemon"
+        t_emu.start()
+        _logger.info(
+            "Emulator sync watcher arrancado (%d procesos vigilados, polling cada %ds)",
+            len(config.sync.watch_processes),
+            _EMULATOR_WATCHER_POLL_SECONDS,
+        )

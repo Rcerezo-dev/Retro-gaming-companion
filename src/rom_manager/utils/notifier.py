@@ -10,6 +10,8 @@ import logging
 import subprocess
 import sys
 
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+
 _logger = logging.getLogger(__name__)
 
 # PowerShell script template — two text lines (title + body)
@@ -57,7 +59,7 @@ def notify(title: str, body: str) -> None:
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=0x08000000,  # CREATE_NO_WINDOW
+            creationflags=NO_WINDOW,
         )
     except Exception:
         # notifications are best-effort

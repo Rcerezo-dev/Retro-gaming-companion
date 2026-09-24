@@ -8,16 +8,85 @@ per-function late imports of ``server`` are no longer needed.
 from __future__ import annotations
 
 import logging
+import subprocess as _subprocess
 from pathlib import Path
 
 import rom_manager.web.state as _state
-from rom_manager.config import AppConfig
+from rom_manager.config import EMULATOR_SAVES_DIR_NAME, AppConfig
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+from rom_manager.utils.trash import TRASH_DIR_NAME
+from rom_manager.web.daemons import _closed_watched_processes
 
 _logger = logging.getLogger(__name__)
 
 
+def _list_running_android_packages(adb_path: str, serial: str) -> set[str] | None:
+    """Nombres de paquete en ejecución ahora mismo en *serial* (vía ``adb shell ps -A``).
+
+    CABLE-SYNC-WATCH-1: mismo patrón que ``daemons._list_running_process_names()``
+    del lado PC, pero sondeado por el PC vía ADB en vez de un servicio en el
+    propio dispositivo — no requiere ``PACKAGE_USAGE_STATS`` ni corre nada
+    nuevo en la Anbernic, solo funciona mientras el cable está conectado (el
+    caso de uso sin cable ya lo cubre el sync periódico de la app Android,
+    ``ANDROID-SYNC-12``). El nombre de proceso en Android *es* el paquete
+    (última columna de ``ps``), a diferencia de Windows.
+
+    Devuelve ``None`` si el sondeo en sí falló (timeout, error de ADB...) —
+    a propósito distinto de un ``set()`` vacío (se consultó bien y no hay
+    nada corriendo). El caller debe saltar la detección de cierre ese ciclo
+    en vez de tratar el fallo como "todo cerrado": un timeout puntual de
+    ``adb`` no puede hacerse pasar por "el emulador se cerró" y disparar un
+    cable-sync real mientras el emulador sigue abierto con el save sin
+    flushear — justo el riesgo que este proyecto prioriza evitar (Pilar 3).
+    """
+    try:
+        out = _subprocess.run(
+            [adb_path, "-s", serial, "shell", "ps", "-A"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+            creationflags=NO_WINDOW,
+        )
+    except Exception:
+        _logger.debug("No se pudo listar procesos Android (adb shell ps)", exc_info=True)
+        return None
+    names: set[str] = set()
+    for line in out.stdout.splitlines()[1:]:  # skip header row
+        parts = line.split()
+        if parts:
+            names.add(parts[-1])
+    return names
+
+
+def _poll_android_watch(
+    adb_path: str,
+    serial: str | None,
+    watched_pkgs: set[str],
+    previous_pkgs: set[str],
+) -> tuple[set[str], set[str]]:
+    """One poll cycle of the CABLE-SYNC-WATCH-1 Android emulator-close watch.
+
+    Returns ``(closed_pkgs, new_previous_pkgs)``. No device connected (``serial``
+    is ``None``) or nothing configured to watch resets tracking to empty. A
+    failed ADB probe leaves *previous_pkgs* untouched and reports no closures —
+    never collapses "could not check this cycle" into "everything closed",
+    which would fire a spurious cable-sync while the emulator is still open.
+    """
+    if not watched_pkgs or serial is None:
+        return set(), set()
+    current_pkgs = _list_running_android_packages(adb_path, serial)
+    if current_pkgs is None:
+        return set(), previous_pkgs
+    closed = _closed_watched_processes(previous_pkgs, current_pkgs, watched_pkgs)
+    return closed, current_pkgs
+
+
 def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
-    """Daemon thread: polls ADB every 10 s, triggers Cable Sync when a device connects."""
+    """Daemon thread: polls ADB every 10 s, triggers Cable Sync when a device
+    connects, or (CABLE-SYNC-WATCH-1) when a watched Android emulator closes
+    while already connected.
+    """
     import datetime as _dt
     import time as _time
 
@@ -26,6 +95,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
     _POLL_INTERVAL = 10  # seconds between ADB polls
     _COOLDOWN = 30  # seconds to wait after a sync before syncing again
     _last_sync_ts: float = 0.0
+    _previous_android_pkgs: set[str] = set()
 
     while True:
         try:
@@ -63,22 +133,37 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
             new_serials = current_serials - _state._auto_sync_last_devices
             _state._auto_sync_last_devices = current_serials
 
-            if not new_serials:
-                continue
+            # CABLE-SYNC-WATCH-1: while a device is connected, also watch for a
+            # configured Android emulator closing (opt-in, empty by default).
+            android_watch_serial = next(iter(current_serials)) if current_serials else None
+            closed_pkgs, _previous_android_pkgs = _poll_android_watch(
+                config.adb,
+                android_watch_serial,
+                set(config.sync.watch_android_packages),
+                _previous_android_pkgs,
+            )
 
-            # If known_devices filter is set, only react to those
             known = config.sync.auto_sync_known_devices
-            if known:
-                new_serials = {s for s in new_serials if s in known}
-            if not new_serials:
-                continue
+            serial: str | None = None
+            reason = ""
+            if new_serials:
+                candidates = {s for s in new_serials if not known or s in known}
+                if candidates:
+                    serial = next(iter(candidates))
+                    reason = "connect"
+            if serial is None and closed_pkgs and (not known or android_watch_serial in known):
+                serial = android_watch_serial
+                reason = f"emulador Android cerrado ({', '.join(sorted(closed_pkgs))})"
 
-            serial = next(iter(new_serials))
+            if serial is None:
+                continue
 
             if not _state._auto_sync_enabled:
                 # Auto-sync disabled: show prompt in UI, let user decide
                 _logger.info(
-                    "Auto-sync: new device %s — auto-sync disabled, showing prompt", serial
+                    "Auto-sync: %s en %s — auto-sync desactivado, mostrando aviso",
+                    reason,
+                    serial,
                 )
                 _state._auto_sync_status = {
                     "state": "device_prompt",
@@ -88,7 +173,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 }
                 continue
 
-            _logger.info("Auto-sync: new device %s — starting sync", serial)
+            _logger.info("Auto-sync: %s en %s — lanzando sync", reason, serial)
 
             # CABLE-UX-1: mismo guard de reloj que el sync manual (AUD-1) — el
             # auto-sync dispara "newest" en cada conexión sin pedir confirmación,
@@ -100,9 +185,20 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     _doc = _build_sync_doctor(
                         config, None, serial, config.sync.auto_sync_android_path, "", quick=True
                     )
-                except Exception:
-                    _logger.debug("Pre-flight de reloj de auto-sync falló", exc_info=True)
-                    _doc = {"skew_exceeded": False}
+                except Exception as exc:
+                    _logger.warning(
+                        "Auto-sync: no se pudo comprobar el reloj de la consola — "
+                        "abortando este ciclo (%s)",
+                        exc,
+                        exc_info=True,
+                    )
+                    _state._auto_sync_status = {
+                        "state": "idle",
+                        "last_device": serial,
+                        "last_sync_at": _state._auto_sync_status.get("last_sync_at"),
+                        "last_error": f"No se pudo comprobar el reloj de la consola: {exc}",
+                    }
+                    continue
                 if _doc.get("skew_exceeded"):
                     _logger.warning(
                         "Auto-sync: reloj desviado %.0fs en %s — sync abortado",
@@ -133,6 +229,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 import os
                 from pathlib import PurePosixPath
 
+                from rom_manager.sync.android_paths import (
+                    canonical_download_rel_posix,
+                    reconcile_newest_by_name,
+                )
+                from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
+
                 _log_file = None
                 job_result: dict | None = None
                 try:
@@ -149,7 +251,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         adb_sources = [
                             {
                                 "name": "RetroArch (legacy)",
-                                "package": "com.retroarch.aarch64",
+                                "package": "com.retroarch",
                                 "android_saves": config.sync.auto_sync_android_path.rstrip("/"),
                                 "android_states": None,
                                 "local_saves": pc_root,
@@ -231,7 +333,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         nonlocal copied, errors, copied_bytes
                         name = PurePosixPath(adb_info.android_path).name
                         rel_posix = adb_info.android_path.removeprefix(android_prefix)
-                        local_dst = local_root / Path(rel_posix.replace("/", os.sep))
+                        # CABLE-SYNC-DOWNLOAD-DEST-1: rel_posix puede llevar
+                        # saves/<plataforma>/ de más (fuente "RetroArch (legacy)",
+                        # activa sin emulator_paths configurado) — aterriza en su
+                        # ubicación canónica, no en un mirror literal.
+                        canon_rel = canonical_download_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS)
+                        local_dst = local_root / Path(canon_rel.replace("/", os.sep))
                         try:
                             size = transport.pull(
                                 adb_info.android_path,
@@ -317,7 +424,17 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                 if not local_root_p.exists():
                                     return
                                 for dp, dirs, files in os.walk(local_root_p):
-                                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                                    # TRASH-FIX-1: no volver a subir/bajar lo ya descartado.
+                                    # CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es
+                                    # contabilidad interna del PC -- solo relevante cuando
+                                    # local_root_p es la biblioteca entera (fuente
+                                    # "RetroArch (legacy)"); nunca debe subirse al dispositivo.
+                                    dirs[:] = [
+                                        d
+                                        for d in dirs
+                                        if not d.startswith(".")
+                                        and d not in (TRASH_DIR_NAME, EMULATOR_SAVES_DIR_NAME)
+                                    ]
                                     for fname in files:
                                         yield Path(dp) / fname
 
@@ -342,19 +459,26 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                     if _wanted_src(lf.name):
                                         pc_idx[lf.relative_to(local_root_p).as_posix()] = lf
 
-                                for rel_posix in sorted(set(pc_idx) | set(ab_idx)):
-                                    pc_f = pc_idx.get(rel_posix)
-                                    ab_f = ab_idx.get(rel_posix)
-                                    if pc_f and ab_f:
+                                # CABLE-SYNC-NEWEST-CANON-2: el dispositivo puede
+                                # tener el mismo archivo bajo otro prefijo
+                                # (saves/<plataforma>/, saves/<core>/) — sin esto,
+                                # la fuente "RetroArch (legacy)" (activa cuando no
+                                # hay emulator_paths configurado) trataba cada lado
+                                # como archivo distinto y sincronizaba en ambas
+                                # direcciones sin necesidad.
+                                for _pc_rel, pc_f, _ab_rel, ab_f in reconcile_newest_by_name(
+                                    pc_idx, ab_idx
+                                ):
+                                    if pc_f is not None and ab_f is not None:
                                         if pc_f.stat().st_mtime > ab_f.mtime:
                                             _adb_copy_to_device(pc_f, local_root_p, android_root)
                                         elif ab_f.mtime > pc_f.stat().st_mtime:
                                             _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
                                         else:
                                             skipped += 1
-                                    elif pc_f:
+                                    elif pc_f is not None:
                                         _adb_copy_to_device(pc_f, local_root_p, android_root)
-                                    elif ab_f:
+                                    elif ab_f is not None:
                                         _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
 
                     ts1 = _dt2.datetime.now(tz=_dt2.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -410,8 +534,9 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 _state._auto_sync_status["state"] = "waiting"
 
         except Exception as exc:
-            # Never crash the daemon
-            _logger.debug("Auto-sync daemon exception: %s", exc)
+            # Never crash the daemon — pero sí dejar rastro con traceback,
+            # o un fallo repetido en cada ciclo de sondeo queda invisible.
+            _logger.warning("Auto-sync daemon exception: %s", exc, exc_info=True)
             try:
                 _state._auto_sync_status["state"] = "waiting"
             except Exception:
@@ -642,7 +767,7 @@ def _sd_card_sync_loop(config: AppConfig, get_repo_fn) -> None:
                 _last_sync_at = now
 
         except Exception as exc:
-            _logger.debug("SD sync daemon exception: %s", exc)
+            _logger.warning("SD sync daemon exception: %s", exc, exc_info=True)
             try:
                 _sd_sync_status["state"] = "waiting"
             except Exception:

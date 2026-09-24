@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from rom_manager.catalog.catalog_loader import CatalogEntry, load_nointro_dat
+from rom_manager.catalog.catalog_loader import CatalogEntry, load_dat_file
 from rom_manager.catalog.mame_loader import load_arcade_dir
-from rom_manager.detection.filename_normalizer import normalize_for_match
+from rom_manager.detection.filename_normalizer import is_non_canonical_variant, normalize_for_match
+from rom_manager.detection.platform_detector import PLATFORM_BY_EXTENSION, detect_platform
+from rom_manager.retroachievements.ra_hash_psx import detect_psx_boot_serial
+from rom_manager.utils.disc_tag import find_disc_number
+
+_NON_ALNUM_RE = re.compile(r"[^A-Z0-9]")
+
+
+def _normalize_serial(serial: str) -> str:
+    return _NON_ALNUM_RE.sub("", serial.upper())
+
 
 _logger = logging.getLogger(__name__)
 
@@ -81,7 +92,7 @@ class MatchResult:
     confidence: str  # "high" | "medium" | "low"
     catalog_source: str  # DAT filename, e.g. "Nintendo - Game Boy (20240101).dat"
     ambiguous: bool = False
-    platform: str | None = None  # set by arcade pass ("MAME" or "FBNeo")
+    platform: str | None = None
 
 
 class CatalogMatcher:
@@ -105,10 +116,19 @@ class CatalogMatcher:
     No-Intro is checked before Redump in both passes.
     """
 
-    def __init__(self, nointro_dir: Path, redump_dir: Path, arcade_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        nointro_dir: Path,
+        redump_dir: Path,
+        arcade_dir: Path | None = None,
+        chdman_path: Path | None = None,
+    ) -> None:
         self._nointro_dir = nointro_dir
         self._redump_dir = redump_dir
         self._arcade_dir = arcade_dir
+        # CATALOG-MATCH-REGION-1: needed to extract a .chd's boot serial for
+        # PSX region disambiguation in _match_by_title(). None just disables it.
+        self._chdman_path = chdman_path
         # SHA1 → (CatalogEntry, dat_filename)
         self._nointro: dict[str, tuple[CatalogEntry, str]] = {}
         self._redump: dict[str, tuple[CatalogEntry, str]] = {}
@@ -140,8 +160,28 @@ class CatalogMatcher:
         if not directory.exists():
             return result
         for dat_file in sorted(directory.glob("*.dat")):
+            # MATCH-FIX-5: nointro_dir/redump_dir can hold DATs for systems
+            # this project doesn't manage at all (PC, Xbox, Macintosh...) —
+            # a bulk "download every No-Intro/Redump DAT" run doesn't filter
+            # by platform. Loading them anyway let their titles win the Pass
+            # 2 title-fallback for real console ROMs whenever no genuine
+            # console DAT had a matching title (confirmed live: 1,373 games
+            # across nearly every platform in the library ended up with a
+            # canonical_title sourced from "IBM - PC compatible" or "Xbox").
+            # _DAT_PLATFORM_KEYWORDS is already the curated allowlist of
+            # platforms this project actually routes to a folder — skip any
+            # DAT it doesn't recognize instead of maintaining a second list.
+            if _platform_from_dat_name(dat_file.name) is None:
+                continue
             try:
-                entries = load_nointro_dat(dat_file)
+                # CATALOG-MATCH-BUG-1: load_dat_file() auto-detecta XML vs
+                # clrmamepro (texto plano) — load_nointro_dat() a secas solo
+                # sabe XML y descartaba en silencio cualquier DAT clrmamepro
+                # (21/271 nointro, 9/22 redump en la biblioteca real,
+                # incluyendo Game Boy/GBA/NES/SNES/PS1/PS2/GameCube/Wii...),
+                # degradando el match SHA1 exacto a un fallback por título
+                # mucho menos fiable para esas plataformas.
+                entries = load_dat_file(dat_file)
             except Exception:
                 _logger.warning("Failed to load DAT %s, skipping", dat_file, exc_info=True)
                 continue
@@ -191,7 +231,9 @@ class CatalogMatcher:
     # Matching
     # ------------------------------------------------------------------
 
-    def match(self, sha1: str, filename: str | None = None) -> MatchResult | None:
+    def match(
+        self, sha1: str, filename: str | None = None, source_path: str | None = None
+    ) -> MatchResult | None:
         """Return a MatchResult or None.
 
         Parameters
@@ -201,6 +243,12 @@ class CatalogMatcher:
         filename:
             Original filename (with or without extension). Used as fallback
             when the SHA1 is not found in any catalog.
+        source_path:
+            Full path of the file on disk (CATALOG-MATCH-BUG-1). Only used as
+            a platform tiebreaker in `_match_by_title()` when the extension
+            is ambiguous (`.zip`/`.chd`/`.iso`/...) — the caller's real folder
+            (psx/, saturn/, dreamcast/...) is a reliable signal the filename
+            alone can't provide.
         """
         self._load()
         sha1_upper = sha1.upper()
@@ -227,25 +275,170 @@ class CatalogMatcher:
         # nunca llegaba a probarse. Para esos nombres, arcade primero.
         mame_style = filename.lower().endswith(".zip") and "(" not in filename
         if mame_style:
-            return self._match_arcade(filename) or self._match_by_title(filename)
-        return self._match_by_title(filename) or self._match_arcade(filename)
+            return self._match_arcade(filename) or self._match_by_title(filename, source_path)
+        return self._match_by_title(filename, source_path) or self._match_arcade(filename)
 
-    def _match_by_title(self, filename: str) -> MatchResult | None:
+    def _match_by_title(self, filename: str, source_path: str | None = None) -> MatchResult | None:
         """Pass 2 — Name-based fallback (No-Intro / Redump title index)."""
+        # DUALFOLDER-12b: a translation patch/hack/subset never has its own
+        # SHA1 in the catalog, so it always reaches this fallback — and
+        # normalize_for_match() strips its "[Subset - ...]"/"[T+Eng...]" tag
+        # exactly like a benign region/revision tag, letting it title-match
+        # the vanilla release it's based on (found live 2026-09-17: two
+        # "Professor Oak Challenge" GBA hacks got canonical_title'd as the
+        # real Pokemon FireRed/Ruby — the Ruby one already organized into
+        # gba/ under that borrowed title, see DUALFOLDER-12 in backlog.md).
+        # is_non_canonical_variant() is already trusted for this exact
+        # purpose in operation_planner.py (skip the rename) and
+        # web/builders/duplicates.py (skip the duplicate-review grouping) —
+        # applying it here, at the source of canonical_title, closes the gap
+        # instead of only patching it downstream.
+        if is_non_canonical_variant(filename):
+            return None
         key = normalize_for_match(filename)
         if not key:
             return None
         hits = self._title_index.get(key)
         if not hits:
             return None
-        entry, source = hits[0]
         if len(hits) == 1:
+            entry, source = hits[0]
+            hit_platform = _platform_from_dat_name(source)
+            # CATALOG-MATCH-BUG-2: even a single title hit can be from the
+            # wrong catalog — typically an unlicensed bootleg with no DAT
+            # entry of its own, whose title happens to collide with a real
+            # game on another platform (found live 2026-09-09: a NES-folder
+            # "Crash Bandicoot (Unl).nes" — no NES DAT entry exists for it —
+            # matched PlayStation's "Crash Bandicoot (USA)" by title alone,
+            # mislabeling the file platform="PlayStation"; 49 such bootlegs
+            # found across nes/). Only refuse the match when we actually know
+            # the real platform (extension, else containing folder) AND it
+            # provably differs — an unresolvable hit_platform or unknown real
+            # platform stays a permissive best-effort guess, unchanged.
+            ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
+            if ext_platform:
+                if hit_platform and hit_platform != ext_platform:
+                    return None
+            elif source_path:
+                folder_platform = detect_platform(Path(source_path))
+                if folder_platform and hit_platform and hit_platform != folder_platform:
+                    return None
             return MatchResult(
                 title=entry.title,
                 confidence="medium",
                 catalog_source=source,
-                platform=_platform_from_dat_name(source),
+                platform=hit_platform,
             )
+        # MATCH-FIX-2: la misma clave de título normalizado puede venir de
+        # varias plataformas (remakes, Virtual Console, romhacks...) — sin
+        # esto se quedaba con hits[0], que solo depende del orden alfabético
+        # de carga de los .dat (catalog/matcher.py:142), no de qué plataforma
+        # es realmente el archivo. Preferir los hits cuya plataforma coincide
+        # con la extensión real; si ninguno coincide (p.ej. .zip, ambiguo por
+        # diseño), se queda con todos como antes.
+        ext_platform = PLATFORM_BY_EXTENSION.get(Path(filename).suffix.lower())
+        candidates = hits
+        resolved_platform = ext_platform
+        if ext_platform:
+            # CATALOG-MATCH-BUG-2: the extension unambiguously says which
+            # platform this file is, but title matches against titles from
+            # OTHER catalogs share the same normalized key (typically an
+            # unlicensed bootleg not itself in any No-Intro DAT). Falling
+            # through to the unfiltered `hits` here — as before this fix —
+            # confidently mislabels the file with a completely unrelated
+            # platform/canonical_title (found live 2026-09-09: 49 unlicensed
+            # NES bootlegs in `nes/` ended up tagged `platform="PlayStation"`,
+            # `"Wii"`, `"Sega Saturn"`... from titles matching real games on
+            # those platforms). No fallback makes sense here — unlike the
+            # ambiguous-extension branch below, we already know the real
+            # platform and simply have no catalog entry for it.
+            platform_hits = [h for h in hits if _platform_from_dat_name(h[1]) == ext_platform]
+            if not platform_hits:
+                return None
+            candidates = platform_hits
+        elif source_path:
+            # CATALOG-MATCH-BUG-1: extensión ambigua (.zip/.chd/.iso/...) —
+            # ext_platform no puede desambiguar por diseño (un .chd puede ser
+            # PSX/Saturn/Dreamcast/Wii). detect_platform() sí sabe leer la
+            # carpeta contenedora real (psx/, saturn/...), la misma señal ya
+            # usada en el resto de la app — antes esto siempre caía a
+            # hits[0], eligiendo la región/plataforma equivocada cuando el
+            # SHA1 no calzaba exacto (típico de un .chd, que no es el hash
+            # crudo del disco).
+            folder_platform = detect_platform(Path(source_path))
+            resolved_platform = folder_platform
+            if folder_platform:
+                # CATALOG-MATCH-BUG-2: same reasoning as the ext_platform
+                # branch above — the containing folder tells us the real
+                # platform, so a title match against a DIFFERENT platform's
+                # catalog is a coincidence, not a signal.
+                platform_hits = [
+                    h for h in hits if _platform_from_dat_name(h[1]) == folder_platform
+                ]
+                if not platform_hits:
+                    return None
+                candidates = platform_hits
+
+        # CATALOG-MATCH-REGION-1: la clave normalizada colapsa "Tekken (USA)"
+        # y "Tekken (Europe)" en el mismo título — sin más señal, candidates[0]
+        # solo depende del orden de carga del .dat, no de qué disco es
+        # realmente. El serial de arranque real (SYSTEM.CNF, vía chdman para
+        # un .chd) sí es contenido real del disco: comparado contra el
+        # `serial` que trae cada entrada del DAT de Redump, desambigua sin
+        # adivinar. Solo PSX por ahora (Saturn/Dreamcast necesitarían su
+        # propio lector de disco).
+        if resolved_platform == "PlayStation" and len(candidates) > 1 and source_path:
+            real_serial = detect_psx_boot_serial(Path(source_path), chdman_path=self._chdman_path)
+            if real_serial:
+                real_norm = _normalize_serial(real_serial)
+                # CATALOG-MATCH-REGION-2: el serial del DAT trae sufijos que el
+                # disco real no tiene (variante "Greatest Hits", disco N de un
+                # multi-disco, país de impresión) — SLUS01067 real nunca calza
+                # por igualdad exacta contra SLUS01067GHA del candidato, aunque
+                # sea el mismo disco. Prefijo desambigua igual de bien (el check
+                # de len==1 más abajo sigue protegiendo contra colisiones).
+                serial_hits = [
+                    h
+                    for h in candidates
+                    if h[0].serial and _normalize_serial(h[0].serial).startswith(real_norm)
+                ]
+                if len(serial_hits) == 1:
+                    entry, source = serial_hits[0]
+                    return MatchResult(
+                        title=entry.title,
+                        confidence="medium",
+                        catalog_source=source,
+                        platform=_platform_from_dat_name(source),
+                    )
+                if serial_hits:
+                    candidates = serial_hits
+
+        # GAMECUBE-DISC-BUG-1e: normalize_for_match() borra "(Disc N)" junto
+        # con el resto de anotaciones, así que un set multi-disco colapsa a
+        # una sola clave y `candidates` puede traer una entrada del DAT por
+        # disco. Sin esto siempre ganaba la primera (casi siempre Disc 1),
+        # asignando el mismo canonical_title a todos los discos del set.
+        entry, source = candidates[0]
+        resolved_by_disc = False
+        file_disc = find_disc_number(filename)
+        if file_disc is not None:
+            for hit_entry, hit_source in candidates:
+                if find_disc_number(hit_entry.title) == file_disc:
+                    entry, source = hit_entry, hit_source
+                    resolved_by_disc = True
+                    break
+
+        # MATCH-FIX-3: real ambiguity (still >1 candidate here, none of
+        # which share the file's own sha1 — pass 1 already tried it against
+        # the whole catalog, these candidates included) with no signal able
+        # to pick one — confirmed live 2026-09-12: guessing `candidates[0]`
+        # here (previous behavior) gave a wrong canonical_title/platform to
+        # 947 real files, exactly as misleading as leaving them unmatched
+        # would have been, but harder to spot since it *looked* matched.
+        # A disc number that actually disambiguated (resolved_by_disc) is a
+        # real signal, not a guess, and still returns a match below.
+        if len(candidates) > 1 and not resolved_by_disc:
+            return None
         return MatchResult(
             title=entry.title,
             confidence="low",
@@ -258,17 +451,32 @@ class CatalogMatcher:
         """Pass 3 — Arcade stem lookup (MAME / FBNeo)."""
         if not self._arcade:
             return None
-        arcade_hit = self._arcade.get(Path(filename).stem.lower())
+        # ARCADE-STEM-COLLISION-1: MAME/FBNeo sets are always .zip containers
+        # -- a bare single-file ROM (.nes, .md, .bin...) whose stem happens to
+        # collide with a MAME/FBNeo set name (e.g. "Arabian.nes" vs. the MAME
+        # set "arabian") must never be matched here.
+        if not filename.lower().endswith(".zip"):
+            return None
+        stem = Path(filename).stem.lower()
+        arcade_hit = self._arcade.get(stem)
         if not arcade_hit:
             return None
-        title, _year, _mfr, source = arcade_hit
-        # Derive platform from which catalog file it came from
-        arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"
+        _description, _year, _mfr, source = arcade_hit
+        # ARCADE-RENAME-BUG-1b: MAME/FBNeo identifican el set por su nombre
+        # corto (stem, p.ej. "sf2"), no por la descripción del DAT ("Street
+        # Fighter II") -- devolver la descripción aquí renombraba el ZIP a un
+        # nombre que el emulador ya no reconoce. El título canónico de arcade
+        # es el propio stem.
+        # ARCADE-MATCH-PLATFORM-1: "MAME"/"FBNeo" son el nombre del catálogo
+        # fuente, no una plataforma canónica (platforms.toml solo conoce
+        # "Arcade"/"Neo Geo") -- platform=None deja que update_match() no
+        # toque la columna, así que el platform ya detectado por carpeta para
+        # esta fila (o el que ponga un fix-platforms/organize-source
+        # posterior) es quien decide.
         return MatchResult(
-            title=title,
+            title=stem,
             confidence="medium",
             catalog_source=source,
-            platform=arcade_platform,
         )
 
     # ------------------------------------------------------------------

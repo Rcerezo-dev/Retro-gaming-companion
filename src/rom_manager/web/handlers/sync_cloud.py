@@ -178,16 +178,19 @@ def _handle_rclone_export_config(config: AppConfig) -> tuple[bytes, str]:
 
     rclone_bin = config.rclone_binary or "rclone"
     if not _sh.which(rclone_bin) and not __import__("pathlib").Path(rclone_bin).exists():
-        return b"# rclone not found on this machine\n", "text/plain; charset=utf-8"
+        return b"# rclone no encontrado en esta maquina\n", "text/plain; charset=utf-8"
     try:
         r = _sp.run([rclone_bin, "config", "file"], capture_output=True, text=True, timeout=8)
         cfg_path = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
         cfg_file = __import__("pathlib").Path(cfg_path)
         if cfg_file.exists():
             return cfg_file.read_bytes(), "text/plain; charset=utf-8"
-        return b"# rclone config file not found\n", "text/plain; charset=utf-8"
+        return b"# archivo de configuracion de rclone no encontrado\n", "text/plain; charset=utf-8"
     except Exception as exc:
-        return f"# error reading rclone config: {exc}\n".encode(), "text/plain; charset=utf-8"
+        return (
+            f"# error al leer la configuracion de rclone: {exc}\n".encode(),
+            "text/plain; charset=utf-8",
+        )
 
 
 def _handle_rclone_status(config: AppConfig) -> dict:
@@ -277,12 +280,23 @@ def _handle_rclone_test_remote(config: AppConfig, remote: str) -> dict:
         return {"ok": False, "remote": remote, "error": str(exc)}
 
 
-def _do_sync(
-    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
-) -> None:
-    from rom_manager.web.builders.common import _utc_now_str
+def run_cloud_sync_job(
+    config: AppConfig,
+    repository: LibraryRepository,
+    job_manager: JobManager,
+    *,
+    dry_run: bool,
+) -> dict[str, str]:
+    """Start the multi-source cloud sync as the "sync" background job.
 
-    dry_run = data.get("dry_run", True)
+    Shared by ``POST /api/sync`` and the emulator-close watcher daemon
+    (``web/daemons.py``) so both entry points behave identically — same
+    backups, conflict policy, playtime ingestion and desktop notification —
+    instead of a second implementation drifting apart from this one.
+    Returns ``{"status": "started"}`` / ``{"status": "already_running"}``
+    (see ``JobManager.start``).
+    """
+    from rom_manager.web.builders.common import _utc_now_str
 
     def run() -> None:
         job_result = None
@@ -293,7 +307,7 @@ def _do_sync(
 
             from rom_manager.config import build_cloud_sync_sources
             from rom_manager.sync.rclone_transport import RcloneTransport
-            from rom_manager.sync.save_syncer import sync_saves
+            from rom_manager.sync.save_syncer import sync_saves, sync_single_file
 
             sources = build_cloud_sync_sources(config)
             # JUEGOS-UX-7: reused below to ingest .lrtl after a real sync.
@@ -337,7 +351,7 @@ def _do_sync(
             all_results = []
             for source in sources:
                 saves_dir = _Path(source.local_dir)
-                if not saves_dir.exists():
+                if not saves_dir.exists() and not source.single_file:
                     all_results.append(
                         {
                             "name": source.name,
@@ -353,28 +367,34 @@ def _do_sync(
                         }
                     )
                     continue
-                exts = tuple() if source.sync_all else config.save_extensions
                 try:
-                    _bk_root = config.data_dir if config.backup.saves_enabled else None
-                    from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
+                    if source.single_file:
+                        result, decisions = sync_single_file(
+                            saves_dir, source.remote, transport=transport, dry_run=dry_run
+                        )
+                    else:
+                        _bk_root = config.data_dir if config.backup.saves_enabled else None
+                        from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
 
-                    _delta = _DeltaCache(config.data_dir) if not dry_run else None
-                    result, decisions = sync_saves(
-                        saves_dir,
-                        saves_remote=source.remote,
-                        transport=transport,
-                        repository=repository,
-                        save_extensions=exts,
-                        state_extensions=config.state_extensions
-                        if not source.sync_all
-                        else tuple(),
-                        states_remote=None,
-                        dry_run=dry_run,
-                        backup_root=_bk_root,
-                        backup_keep_n=config.backup.saves_keep_n,
-                        delta_cache=_delta,
-                        conflict_policy=config.sync.conflict_policy,
-                    )
+                        exts = tuple() if source.sync_all else config.save_extensions
+                        _delta = _DeltaCache(config.data_dir) if not dry_run else None
+                        result, decisions = sync_saves(
+                            saves_dir,
+                            saves_remote=source.remote,
+                            transport=transport,
+                            repository=repository,
+                            save_extensions=exts,
+                            state_extensions=config.state_extensions
+                            if not source.sync_all
+                            else tuple(),
+                            states_remote=None,
+                            dry_run=dry_run,
+                            backup_root=_bk_root,
+                            backup_keep_n=config.backup.saves_keep_n,
+                            delta_cache=_delta,
+                            conflict_policy=config.sync.conflict_policy,
+                            include_glob=source.include_glob,
+                        )
                     all_results.append(
                         {
                             "name": source.name,
@@ -573,7 +593,14 @@ def _do_sync(
         finally:
             job_manager.finish("sync", job_result)
 
-    start_result = job_manager.start("sync", run)
+    return job_manager.start("sync", run)
+
+
+def _do_sync(
+    ctx, data: dict, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
+) -> None:
+    dry_run = data.get("dry_run", True)
+    start_result = run_cloud_sync_job(config, repository, job_manager, dry_run=dry_run)
     ctx._send_json({**start_result, "dry_run": dry_run})
 
 
@@ -610,7 +637,9 @@ def _do_migrate_split_db(
     lib_root = str(config.library_root or "").lower().rstrip("/\\")
     if not lib_root:
         ctx._send_json(
-            {"error": "library_root not configured — cannot determine which paths are Android"}
+            {
+                "error": "library_root no configurado — no se puede determinar qué rutas son de Android"
+            }
         )
         return
 

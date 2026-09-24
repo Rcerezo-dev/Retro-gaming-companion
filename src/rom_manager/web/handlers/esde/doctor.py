@@ -37,7 +37,7 @@ def register_doctor(
         data = ctx._post_data
         paths = data.get("paths", [])
         if not paths:
-            ctx._send_json({"error": "paths list is required"})
+            ctx._send_json({"error": "lista de paths requerida"})
             return
         deleted = failed = 0
         freed_bytes = 0
@@ -58,19 +58,19 @@ def register_doctor(
         save_path = data.get("save_path", "").strip()
         game_path = data.get("game_path", "").strip()
         if not save_path or not game_path:
-            ctx._send_json({"error": "save_path and game_path are required"})
+            ctx._send_json({"error": "save_path y game_path requeridos"})
             return
         save_file = Path(save_path)
         game_file = Path(game_path)
         if not save_file.exists():
-            ctx._send_json({"error": f"Save file not found: {save_path}"})
+            ctx._send_json({"error": f"Save no encontrado: {save_path}"})
             return
         if not game_file.parent.exists():
-            ctx._send_json({"error": f"Game directory not found: {game_file.parent}"})
+            ctx._send_json({"error": f"Carpeta del juego no encontrada: {game_file.parent}"})
             return
         target = game_file.parent / (game_file.stem + save_file.suffix)
         if target.exists():
-            ctx._send_json({"error": f"Target already exists: {target.name}"})
+            ctx._send_json({"error": f"El destino ya existe: {target.name}"})
             return
         try:
             shutil.move(str(save_file), str(target))
@@ -86,17 +86,17 @@ def register_doctor(
         paths = data.get("paths", [])
         library_root = data.get("library_root", "").strip()
         if not paths:
-            ctx._send_json({"error": "paths list is required"})
+            ctx._send_json({"error": "lista de paths requerida"})
             return
         if not library_root:
-            ctx._send_json({"error": "library_root is required"})
+            ctx._send_json({"error": "library_root requerido"})
             return
 
         archive_dir = Path(library_root) / "_huerfanos"
         try:
             archive_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            ctx._send_json({"error": f"Could not create _huerfanos folder: {exc}"})
+            ctx._send_json({"error": f"No se pudo crear la carpeta _huerfanos: {exc}"})
             return
 
         moved = failed = 0

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from rom_manager.database.repositories.assets import AssetsMixin
 from rom_manager.database.repositories.base import _RepositoryBase
+from rom_manager.database.repositories.blocklist import BlocklistMixin
 from rom_manager.database.repositories.duplicates import DuplicatesMixin
 from rom_manager.database.repositories.games import GamesMixin
 from rom_manager.database.repositories.metadata import MetadataMixin
@@ -40,6 +41,7 @@ class LibraryRepository(
     AssetsMixin,
     DuplicatesMixin,
     PlayHistoryMixin,
+    BlocklistMixin,
     _RepositoryBase,
 ):
     """Assemble the per-aggregate mixins into the public repository class."""

@@ -24,6 +24,46 @@ Todo lo demás (RA checker, scraper, health check, duplicados, informes) es secu
 
 ---
 
+## Gestión de tareas: Issues (roadmap) + Backlog (detalle)
+
+Dos capas, cada una con su rol — no duplicar contenido entre ellas:
+
+- **GitHub Issues, label `epic`** — roadmap de alto nivel. Un issue por tema/pilar
+  (p. ej. "Pilar 2 — Inbox automático", "Distribución / Release"). Se usan para
+  visibilidad y discusión, no para el detalle de implementación — pero el cuerpo
+  del issue lleva una checklist (`- [ ]`/`- [x]`) con los IDs de tarea de su
+  sección del backlog, sincronizada dinámicamente (ver regla de checklist abajo).
+- **`Tareas/backlog.md`** — desglose operativo. Cada epic tiene una sección propia
+  con una tabla de tareas con ID (mismo patrón que `PHASE6-*` o `EMULATOR-COMPAT-*`
+  ya existentes), y la sección enlaza al issue: `→ #NNN`. Este archivo sigue siendo
+  la fuente de verdad para el trabajo del día a día.
+
+Flujo al surgir un tema nuevo:
+1. Crear el issue en GitHub con label `epic` (alto nivel, sin desglosar).
+2. Añadir una sección correspondiente en `backlog.md` con tabla de tareas ID-tagged,
+   enlazando al número de issue.
+3. Trabajar siempre contra `backlog.md` (rama por tarea, PR a `develop`, como ya
+   se describe abajo). El issue lleva una checklist en el cuerpo con los IDs de
+   tarea de su sección — al marcar una tarea ✅ en el backlog, marca también su
+   checkbox en el issue correspondiente (`gh issue edit NNN --body-file` o la API,
+   nunca a mano en la web). No hace falta comentar cada tarea; se cierra el issue
+   cuando su checklist esté 100% marcada.
+
+No confundir con `.claude/roadmaps/*.md` — esos son roadmaps técnicos paso a paso
+para una rama de refactor concreta (ver `.claude/roadmaps/INDEX.md`), un nivel de
+detalle distinto y con su propio índice.
+
+**Una sola fuente de estado**: `Tareas/backlog.md` es el único sitio que dice si
+una tarea está hecha o pendiente. `.claude/roadmaps/*.md` es solo el plan (pasos,
+código, criterios de verificación) — no lleva checklist de estado propio; cuando
+ya no le queda nada pendiente en el backlog, se archiva a `.claude/roadmaps/archivo/`.
+`.claude/roadmaps/INDEX.md` solo distingue Activo/Archivado/Obsoleto por rama, sin
+repetir el detalle. Evita el patrón visto varias veces (roadmaps 08-11, 14, 17):
+el mismo hecho actualizado en 2-3 sitios, y basta con que uno se quede atrás para
+que el registro mienta.
+
+---
+
 ## Reglas de trabajo
 
 - `rommgr plan` siempre antes de `rommgr apply`

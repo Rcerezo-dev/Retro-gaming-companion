@@ -176,8 +176,10 @@ async function runInbox() {
   if (!inboxPath) { showToast('Introduce la carpeta Inbox primero', 'err'); return; }
   const targetEl = document.getElementById('inbox-target');
   const delEl    = document.getElementById('inbox-delete-source');
+  const anbernicEl = document.getElementById('inbox-send-anbernic');
   const targetPath   = targetEl ? targetEl.value.trim() : '';
   const deleteSource = delEl ? delEl.checked : false;
+  const sendToAnbernic = anbernicEl ? anbernicEl.checked : false;
 
   // INBOX-UX-1: única acción masiva de la app — confirmar siempre, con un
   // recuento fresco (el análisis es un listado local, tarda milisegundos).
@@ -194,23 +196,24 @@ async function runInbox() {
     if (scan.unrecognized > 0) body += '<br>· ' + scan.unrecognized + ' no reconocido(s) no se tocarán.';
     if (conflicts > 0) body += '<br>· <span style="color:var(--c-yellow)">' + conflicts + ' ya existen en destino</span> — si el contenido difiere irán a Conflictos pendientes.';
     if (deleteSource) body += '<br>· <span style="color:var(--c-yellow)">Los ZIPs originales se eliminarán</span> tras organizar.';
+    if (sendToAnbernic) body += '<br>· <span style="color:var(--c-yellow)">Se enviarán a la Anbernic</span> por ADB tras organizar.';
     body += '<br><span style="color:var(--c-dim);font-size:11px">Destino: ' + window._h(targetPath || 'library_root') + '</span>';
-    _showConfirm('¿Organizar el Inbox?', body, 'Organizar', () => _launchInbox(inboxPath, targetPath, deleteSource));
+    _showConfirm('¿Organizar el Inbox?', body, 'Organizar', () => _launchInbox(inboxPath, targetPath, deleteSource, sendToAnbernic));
     return;
   }
   // Si el análisis previo falla, no bloquear la acción — confirmar sin recuento
   _showConfirm('¿Organizar el Inbox?',
     'Se van a extraer, renombrar y mover todos los archivos del Inbox a sus carpetas de plataforma.',
-    'Organizar', () => _launchInbox(inboxPath, targetPath, deleteSource));
+    'Organizar', () => _launchInbox(inboxPath, targetPath, deleteSource, sendToAnbernic));
 }
 
-async function _launchInbox(inboxPath, targetPath, deleteSource) {
+async function _launchInbox(inboxPath, targetPath, deleteSource, sendToAnbernic) {
   const btn = document.getElementById('btn-inbox-run');
   if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
   const resultEl = document.getElementById('inbox-result');
   if (resultEl) { resultEl.className = 'job-result'; resultEl.textContent = ''; }
   try {
-    const d = await apiPost('/api/inbox-run', { path: inboxPath, target_root: targetPath, delete_source: deleteSource });
+    const d = await apiPost('/api/inbox-run', { path: inboxPath, target_root: targetPath, delete_source: deleteSource, send_to_anbernic: sendToAnbernic });
     if (d.status === 'already_running') {
       showToast('Ya hay un proceso Inbox en curso…', 'ok');
       window.startPolling();
@@ -234,7 +237,10 @@ function _applyInboxProgress(s) {
   const btn    = document.getElementById('btn-inbox-run');
 
   const _STEP_LABELS = {
-    'extracting': 'Paso 1/6: Extrayendo ZIPs',
+    'extracting':                       'Paso 1/6: Extrayendo ZIPs',
+    'intercepting bios':                'Paso 1/6: Interceptando BIOS conocidas',
+    'identificando .md por CRC':        'Paso 1/6: Identificando .md por CRC',
+    'reconstruyendo sets arcade sueltos': 'Paso 1/6: Reconstruyendo sets arcade sueltos',
     'scanning':   'Paso 2/6: Escaneando archivos',
     'matching':   'Paso 3/6: Cotejando catálogos',
     'planning':   'Paso 4/6: Planificando renames',
@@ -279,10 +285,16 @@ function _renderInboxResult(r) {
   const zipNote  = archived > 0 ? ` <span style="color:var(--c-muted);font-size:11px">(${archived} movidos a _processed/)</span>` : '';
   html += 'ZIPs extraidos: <strong>' + (r.zips_extracted || 0) + '</strong>' + zipNote + ' &nbsp;';
   if (r.md_identified > 0) html += '.md identificados por CRC: <strong>' + r.md_identified + '</strong> &nbsp;';
+  if (r.arcade_reconstructed > 0) html += 'Sets arcade reconstruidos: <strong>' + r.arcade_reconstructed + '</strong> <span style="color:var(--c-muted);font-size:11px">(' + (r.arcade_chips_used || 0) + ' chips)</span> &nbsp;';
   html += 'ROMs escaneados: <strong>' + (r.roms_scanned || 0) + '</strong> &nbsp;';
   html += 'Cotejados: <strong>' + (r.matched || 0) + '</strong> &nbsp;';
   html += 'Renombrados: <strong>' + (r.renamed || 0) + '</strong> &nbsp;';
-  html += 'Organizados: <strong>' + (r.organized || 0) + '</strong>';
+  html += 'Organizados: <strong>' + (r.organized || 0) + '</strong> &nbsp;';
+  html += 'Duplicados descartados: <strong>' + (r.duplicates_removed || 0) + '</strong> &nbsp;';
+  html += 'Resueltos por RA: <strong>' + (r.ra_resolved || 0) + '</strong>';
+  if (r.conflicts_unresolved > 0) html += ' &nbsp;<span style="color:var(--c-yellow)">Conflictos sin resolver: <strong>' + r.conflicts_unresolved + '</strong></span>';
+  if (r.anbernic_sent > 0) html += ' &nbsp;Enviados a la Anbernic: <strong>' + r.anbernic_sent + '</strong>';
+  if (r.anbernic_warning) html += '<br><span style="color:var(--c-yellow)">' + window._h(r.anbernic_warning) + '</span>';
   if (r.target_root) html += '<br><span style="color:var(--c-dim);font-size:11px">Destino: ' + r.target_root + '</span>';
   if ((r.rename_errors || []).length > 0) {
     html += '<details style="margin-top:8px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.rename_errors.length + ' errores de rename</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
@@ -294,8 +306,23 @@ function _renderInboxResult(r) {
     r.organize_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
+  if ((r.anbernic_errors || []).length > 0) {
+    html += '<details style="margin-top:4px"><summary style="color:var(--c-yellow);cursor:pointer">' + r.anbernic_errors.length + ' errores al enviar a la Anbernic</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
+    r.anbernic_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
+    html += '</ul></details>';
+  }
+  // GAME-BLOCKLIST-2: sha1 bloqueado reaparecido en el Inbox — no se organiza,
+  // se avisa una vez aquí y queda para revisión manual.
+  if ((r.blocked_found || []).length > 0) {
+    html += '<details open style="margin-top:4px"><summary style="color:var(--c-red)">&#x1F6AB; ' + r.blocked_found.length + ' bloqueados encontrados, no organizados</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
+    r.blocked_found.forEach(name => { html += '<li>' + window._h(name) + '</li>'; });
+    html += '</ul></details>';
+  }
   el.innerHTML = html;
   showToast('Inbox: ' + (r.organized || 0) + ' juegos organizados', 'ok');
+  if ((r.blocked_found || []).length > 0) {
+    showToast(r.blocked_found.length + ' archivo(s) bloqueado(s) encontrados — revisión manual', 'err', 6000);
+  }
 }
 
 // ── RA-CONFLICT-2: review/resolve organize conflicts from the UI ─────────────

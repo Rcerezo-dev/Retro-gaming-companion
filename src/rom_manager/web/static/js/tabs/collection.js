@@ -4,6 +4,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 const _txtCls = (el, cls) => {
   if (!el) return;
@@ -17,7 +18,7 @@ let _collectionPlatforms = [];
 // COLECCION-UX-5: paneles-acordeón exclusivos — abrir uno cierra los demás
 const _ANALYSIS_PANELS = [
   'col-stats-panel', 'col-completeness-panel', 'col-disk-panel',
-  'col-diff-panel', 'missing-section',
+  'col-diff-panel', 'col-overrides-panel', 'missing-section',
 ];
 
 function _showOnlyPanel(id) {
@@ -290,7 +291,7 @@ async function loadLibraryDiff() {
     document.getElementById('diff-conf-count').textContent = d.conflicts.length;
 
     const syncIcon = d.parity ? '✓ Sincronizadas' : `${d.only_pc.length + d.only_android.length + d.conflicts.length} diferencias`;
-    sumEl.innerHTML = `PC: <b style="color:var(--c-strong)">${d.total_pc}</b> ROMs &nbsp;|&nbsp; Android: <b style="color:var(--c-strong)">${d.total_android}</b> ROMs &nbsp;|&nbsp; En ambas: <b style="color:var(--c-strong)">${d.in_both.length}</b> &nbsp;|&nbsp; <span class="${d.parity ? 'txt-ok' : 'txt-warn'}">${syncIcon}</span>`;
+    sumEl.innerHTML = `PC: <b style="color:var(--c-strong)">${d.total_pc}</b> ROMs (${_fmtBytes(d.total_pc_bytes)}) &nbsp;|&nbsp; Android: <b style="color:var(--c-strong)">${d.total_android}</b> ROMs (${_fmtBytes(d.total_android_bytes)}) &nbsp;|&nbsp; En ambas: <b style="color:var(--c-strong)">${d.in_both.length}</b> &nbsp;|&nbsp; <span class="${d.parity ? 'txt-ok' : 'txt-warn'}">${syncIcon}</span>`;
 
     pcEl.innerHTML   = _renderDiffTable(d.only_pc,      'pc');
     andEl.innerHTML  = _renderDiffTable(d.only_android, 'android');
@@ -349,6 +350,214 @@ async function _syncAllSide(side) {
     if (statusEl) statusEl.textContent = '';
     showToast(`Error: ${e.message}`, 'err');
   }
+}
+
+// ── RetroArch overrides por juego (CFG-PORGAME-6) ──────────────────────────────
+function toggleOverrides() {
+  const panel = document.getElementById('col-overrides-panel');
+  if (panel.classList.contains('hidden')) {
+    _showOnlyPanel('col-overrides-panel');
+    loadOverrides();
+  } else {
+    panel.classList.add('hidden');
+    closeOverrideEditor();
+  }
+}
+
+let _overridesSharedCores = []; // CFG-PORGAME-3: cores donde "Copiar" tiene sentido
+
+async function loadOverrides() {
+  closeOverrideEditor();
+  const pcEl   = document.getElementById('overrides-pc-list');
+  const andEl  = document.getElementById('overrides-android-list');
+  const bothEl = document.getElementById('overrides-both-list');
+  const pcWarnEl  = document.getElementById('overrides-pc-warning');
+  const andWarnEl = document.getElementById('overrides-android-warning');
+  [pcEl, andEl, bothEl].forEach(el => { if (el) el.innerHTML = '<p class="loading">Cargando…</p>'; });
+
+  try {
+    const d = await apiFetch('/api/retroarch-overrides');
+    document.getElementById('overrides-pc-count').textContent = d.only_pc.length;
+    document.getElementById('overrides-android-count').textContent = d.only_android.length;
+    document.getElementById('overrides-both-count').textContent = d.in_both.length;
+
+    if (pcWarnEl) pcWarnEl.classList.toggle('hidden', d.pc_configured);
+    if (andWarnEl) andWarnEl.textContent = d.android_message || '';
+    _overridesSharedCores = d.shared_cores || [];
+
+    pcEl.innerHTML   = _renderOverridesList(d.only_pc, 'cores', 'pc');
+    andEl.innerHTML  = _renderOverridesList(d.only_android, 'cores', 'android');
+    bothEl.innerHTML = _renderOverridesBoth(d.in_both);
+  } catch (e) {
+    [pcEl, andEl, bothEl].forEach(el => { if (el) el.innerHTML = `<p class="error-msg">${window._h(e.message)}</p>`; });
+  }
+}
+
+// Escapa para incrustar en un atributo onclick='...' de comilla simple.
+const _jsAttrEsc = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+function _coreLinks(rom, cores, side) {
+  return cores
+    .map(c => {
+      let html = `<a href="#" onclick="openOverrideEditor('${_jsAttrEsc(rom)}','${_jsAttrEsc(c)}','${side}');return false" style="color:var(--c-blue);text-decoration:none">${window._h(c)}</a>`;
+      if (_overridesSharedCores.includes(c)) {
+        const direction = side === 'pc' ? 'pc_to_android' : 'android_to_pc';
+        const label = side === 'pc' ? 'Copiar a Android' : 'Copiar a PC';
+        html += ` <a href="#" onclick="copyOverride('${_jsAttrEsc(rom)}','${_jsAttrEsc(c)}','${direction}');return false" title="${label}" style="color:var(--c-teal);text-decoration:none">&#x21C4;</a>`;
+      }
+      return html;
+    })
+    .join('<span style="display:inline-block;width:10px"></span>');
+}
+
+async function copyOverride(rom, core, direction) {
+  const srcLabel  = direction === 'pc_to_android' ? 'PC' : 'Android';
+  const destLabel = direction === 'pc_to_android' ? 'Android' : 'PC';
+  const body = `<p>¿Copiar el override de <b>${window._h(rom)}</b> (${window._h(core)}) de ${srcLabel} a ${destLabel}?</p>`
+    + `<p style="color:var(--c-muted);font-size:12px">El rendimiento puede no ser el mismo en cada lado. Si ${destLabel} ya tiene un override para este juego, se guarda una copia de seguridad antes de sobrescribirlo.</p>`;
+
+  _showConfirm('Copiar override', body, 'Copiar', async () => {
+    try {
+      const r = await apiPost('/api/retroarch-override/copy', { rom, core, direction });
+      const msg = r.backed_up
+        ? `✓ Copiado a ${destLabel} (override anterior guardado como backup)`
+        : `✓ Copiado a ${destLabel}`;
+      showToast(msg, 'ok');
+      await loadOverrides();
+    } catch (e) {
+      showToast(`Error copiando: ${e.message}`, 'err');
+    }
+  });
+}
+
+function _renderOverridesList(entries, coresKey, side) {
+  if (!entries.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin overrides.</p>';
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr style="color:var(--c-dim);font-size:11px;border-bottom:1px solid #222">'
+    + '<th style="padding:3px 6px;text-align:left">Juego</th>'
+    + '<th style="padding:3px 6px;text-align:left">Core</th>'
+    + '</tr></thead><tbody>';
+  for (const e of entries) {
+    html += '<tr style="border-bottom:1px solid #1a1a1a">';
+    html += `<td style="padding:3px 6px;color:var(--c-strong);word-break:break-word">${window._h(e.rom)}</td>`;
+    html += `<td style="padding:3px 6px;white-space:nowrap">${_coreLinks(e.rom, e[coresKey], side)}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function _renderOverridesBoth(entries) {
+  if (!entries.length) return '<p style="color:var(--c-dim);font-size:11px;padding:4px">Sin overrides en ambos lados.</p>';
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr style="color:var(--c-dim);font-size:11px;border-bottom:1px solid #222">'
+    + '<th style="padding:3px 6px;text-align:left">Juego</th>'
+    + '<th style="padding:3px 6px;text-align:left">Core PC</th>'
+    + '<th style="padding:3px 6px;text-align:left">Core Android</th>'
+    + '</tr></thead><tbody>';
+  for (const e of entries) {
+    const rowColor = e.core_match ? 'var(--c-strong)' : 'var(--c-amber)';
+    const title = e.core_match ? '' : 'title="Cores distintos — un override de un lado no es aplicable al otro"';
+    html += `<tr style="border-bottom:1px solid #1a1a1a" ${title}>`;
+    html += `<td style="padding:3px 6px;color:${rowColor};word-break:break-word">${window._h(e.rom)}</td>`;
+    html += `<td style="padding:3px 6px;white-space:nowrap">${_coreLinks(e.rom, e.pc_cores, 'pc')}</td>`;
+    html += `<td style="padding:3px 6px;white-space:nowrap">${_coreLinks(e.rom, e.android_cores, 'android')}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+// ── Editor de un .opt (CFG-PORGAME-7) ───────────────────────────────────────────
+let _overrideEditorTarget = null; // { rom, core, side }
+
+async function openOverrideEditor(rom, core, side) {
+  const panel = document.getElementById('override-editor');
+  const titleEl = document.getElementById('override-editor-title');
+  const contentEl = document.getElementById('override-editor-content');
+  const statusEl = document.getElementById('override-editor-status');
+  _overrideEditorTarget = { rom, core, side };
+  const sideLabel = side === 'pc' ? 'PC' : 'Android';
+  titleEl.textContent = `${rom} — ${core} (${sideLabel})`;
+  contentEl.value = 'Cargando…';
+  statusEl.textContent = '';
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    const params = new URLSearchParams({ rom, core, side });
+    const d = await apiFetch('/api/retroarch-override?' + params);
+    contentEl.value = d.content;
+  } catch (e) {
+    contentEl.value = '';
+    statusEl.textContent = `Error: ${e.message}`;
+    _txtCls(statusEl, 'txt-err');
+  }
+}
+
+function closeOverrideEditor() {
+  document.getElementById('override-editor').classList.add('hidden');
+  _overrideEditorTarget = null;
+}
+
+async function saveOverrideEditor() {
+  if (!_overrideEditorTarget) return;
+  const contentEl = document.getElementById('override-editor-content');
+  const statusEl = document.getElementById('override-editor-status');
+  statusEl.textContent = 'Guardando…';
+  _txtCls(statusEl, 'txt-muted');
+  try {
+    await apiPost('/api/retroarch-override', {
+      ..._overrideEditorTarget,
+      content: contentEl.value,
+    });
+    statusEl.textContent = '✓ Guardado';
+    _txtCls(statusEl, 'txt-ok');
+    showToast('Override guardado', 'ok');
+  } catch (e) {
+    statusEl.textContent = `Error: ${e.message}`;
+    _txtCls(statusEl, 'txt-err');
+    showToast(`Error guardando: ${e.message}`, 'err');
+  }
+}
+
+// ── STORAGE-MGR-4: delete selected diff items ─────────────────────────────────
+// Mismo texto que review_copies.js (_TRASH_NOTE) para el lado PC — nunca "no
+// se puede deshacer" cuando sí va a _descartados/. El lado Android no tiene
+// papelera (decisión 2026-08-14: costaría espacio en la SD) — se avisa aparte.
+const _STORAGE_TRASH_NOTE = 'Los archivos de <b>PC</b> se moverán a <code>_descartados/</code> (se purgan a los 30 días).';
+const _STORAGE_DEVICE_NOTE = '<span style="color:var(--c-pink)">Los archivos de <b>Android</b> se borran directamente del dispositivo — no hay papelera ahí, no se pueden recuperar.</span>';
+
+async function deleteSelectedStorage() {
+  const checks = document.querySelectorAll('#col-diff-panel .diff-sel:checked');
+  if (!checks.length) {
+    showToast('Selecciona al menos un juego', 'warn');
+    return;
+  }
+  const items = Array.from(checks).map(cb => ({ sha1: cb.dataset.sha1, location: cb.dataset.side }));
+  const hasPc = items.some(i => i.location === 'pc');
+  const hasAndroid = items.some(i => i.location === 'android');
+
+  const notes = [];
+  if (hasPc) notes.push(_STORAGE_TRASH_NOTE);
+  if (hasAndroid) notes.push(_STORAGE_DEVICE_NOTE);
+  const body = `<p>¿Borrar ${items.length} archivo(s) seleccionado(s)?</p>${notes.map(n => `<p>${n}</p>`).join('')}`;
+
+  _showConfirm('Borrar seleccionados', body, 'Borrar', async () => {
+    const statusEl = document.getElementById('diff-sync-status');
+    if (statusEl) statusEl.textContent = `Borrando ${items.length} archivo(s)…`;
+    try {
+      const r = await apiPost('/api/storage/delete-bulk', { items });
+      const msg = `✓ ${r.trashed} a papelera` + (r.deleted_device ? ` · ${r.deleted_device} borrado(s) en Android` : '') + (r.errors.length ? ` · ${r.errors.length} error(es)` : '');
+      if (statusEl) statusEl.textContent = msg;
+      showToast(msg, r.errors.length ? 'warn' : 'ok');
+      if (r.errors.length) console.error('Storage delete errors:', r.errors);
+      if (r.trashed || r.deleted_device) await loadLibraryDiff();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = '';
+      showToast(`Error: ${e.message}`, 'err');
+    }
+  });
 }
 
 function _renderDiffConflicts(conflicts) {
@@ -512,8 +721,11 @@ export {
   toggleWishlist,
   exportWishlist,
   loadCollectionStatsV2, toggleColStats,
-  toggleDiff, loadLibraryDiff, syncSelected, syncConflict,
+  toggleDiff, loadLibraryDiff, syncSelected, syncConflict, deleteSelectedStorage,
   _diffToggleAll, _syncAllSide,
   toggleDiskUsage, loadDiskUsage,
   toggleCompleteness,
+  toggleOverrides, loadOverrides,
+  openOverrideEditor, closeOverrideEditor, saveOverrideEditor,
+  copyOverride,
 };

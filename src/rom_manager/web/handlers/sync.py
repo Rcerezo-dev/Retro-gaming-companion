@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
 from rom_manager.web.handlers.cloud_auth import register as register_cloud_auth
 from rom_manager.web.handlers.sync_cable import register_cable
 from rom_manager.web.handlers.sync_cloud import register_cloud
+
+_logger = logging.getLogger(__name__)
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -44,13 +47,20 @@ def register(
         job_manager=job_manager,
     )
 
+    # ── GET /api/save-fragmentation ──────────────────────────────────────────
+    @router.get("/api/save-fragmentation")
+    def get_save_fragmentation(ctx) -> None:
+        from rom_manager.web.builders.save_consolidator import _build_save_fragmentation_report
+
+        ctx._send_json(_build_save_fragmentation_report(config))
+
     # ── POST /api/ra-check ───────────────────────────────────────────────────
     @router.post("/api/ra-check")
     def post_ra_check(ctx) -> None:
         data = ctx._post_data
         api_key = data.get("api_key", "").strip() or config.credentials.ra_api_key
         if not api_key:
-            ctx._send_json({"error": "RetroAchievements API key not configured"})
+            ctx._send_json({"error": "API key de RetroAchievements no configurada"})
             return
         ctx._send_json(_do_ra_check(api_key, config, repository, job_manager))
 
@@ -77,8 +87,16 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                 if _cancel.is_set():
                     raise InterruptedError("RA check cancelled")
 
+            from pathlib import Path as _Path
+
             try:
-                summary = check_library(repository, api_key, cache_dir=cache_dir, progress_cb=_prog)
+                summary = check_library(
+                    repository,
+                    api_key,
+                    cache_dir=cache_dir,
+                    chdman_path=_Path(config.chdman) if config.chdman else None,
+                    progress_cb=_prog,
+                )
             except InterruptedError:
                 job_result = {
                     "cancelled": True,
@@ -141,6 +159,10 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                     for r in summary.results
                     if r.status == "no_support_alternative" and r.alternative
                 ],
+                # HERR-FIX-1: solo los juegos que SÍ tienen una alternativa con
+                # logros RA en la biblioteca son seguros de descartar — un
+                # "no_support" sin alternativa es la única copia que hay de
+                # ese juego, descartarlo sería perderlo sin sustituto.
                 "no_support_entries": [
                     {
                         "source_path": r.source_path,
@@ -148,11 +170,12 @@ def _do_ra_check(api_key: str, config, repository, job_manager) -> dict:
                         "platform": r.platform,
                     }
                     for r in summary.results
-                    if r.status == "no_support"
+                    if r.status == "no_support_alternative"
                 ],
                 "result_ts": utc_now(),
             }
         except Exception as exc:
+            _logger.exception("RA check error: %s", exc)
             job_result = {"error": str(exc)}
         finally:
             job_manager.finish("ra_check", job_result)

@@ -56,8 +56,31 @@ _LIBRETRO_DAT_CATALOG = [
     # Microsoft → redump/
     {"name": "Microsoft - Xbox", "short": "Xbox", "catalog": "redump"},
     # Arcade → arcade/
-    {"name": "FBNeo - Arcade Games", "short": "FBNeo Arcade", "catalog": "fbneo"},
-    {"name": "MAME 2003-Plus", "short": "MAME 2003+", "catalog": "mame"},
+    # MATCH-ARCADE-DAT-2: metadat/fbneo-split/ en libretro-database es
+    # ClrMamePro texto plano, que load_fbneo_dat() (mame_loader.py, el
+    # parser real que usa load_arcade_dir para cualquier .dat en
+    # catalogs_arcade_dir) no sabe leer -- ET.parse() lanza, se traga la
+    # excepción, catálogo FBNeo a 0 entradas en silencio. "url" apunta en su
+    # lugar al DAT XML oficial de FBNeo (mismo dialecto que MAME listxml:
+    # <game><description>/<year>/<manufacturer> como hijos), verificado hoy.
+    {
+        "name": "FBNeo - Arcade Games",
+        "short": "FBNeo Arcade",
+        "catalog": "fbneo",
+        "url": (
+            "https://raw.githubusercontent.com/libretro/FBNeo/master/dats/"
+            "FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"
+        ),
+    },
+    # ARCADE-DAT-URL-STALE-1: el nombre publicado en libretro-database es
+    # "MAME 2003-Plus XML.xml" (metadat/mame/), no "MAME 2003-Plus.dat" -- sin
+    # "file" el downloader construye una URL que ya no existe (404).
+    {
+        "name": "MAME 2003-Plus",
+        "short": "MAME 2003+",
+        "catalog": "mame",
+        "file": "MAME 2003-Plus XML.xml",
+    },
     # listxml oficial de MAME (asset mameXXXXlx.zip de la última release en
     # GitHub) — única fuente de los flags isbios/isdevice/runnable que usan
     # load_arcade_infra_names y el junk-scan (JUNK-SMART-2). "file" fija el
@@ -73,7 +96,15 @@ _LIBRETRO_DAT_CATALOG = [
 _LIBRETRO_METADAT_BASE = (
     "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat"
 )
-_CATALOG_TO_SOURCE = {"nointro": "no-intro", "redump": "redump", "fbneo": "fbneo", "mame": "mame"}
+_CATALOG_TO_SOURCE = {
+    "nointro": "no-intro",
+    "redump": "redump",
+    # ARCADE-DAT-URL-STALE-1: libretro-database renombró metadat/fbneo/ ->
+    # metadat/fbneo-split/ (mismo nombre de archivo dentro) -- la URL vieja
+    # devuelve 404.
+    "fbneo": "fbneo-split",
+    "mame": "mame",
+}
 _DAT_TTL_DAYS = 7  # re-download if the local DAT is older than this
 
 if TYPE_CHECKING:
@@ -159,7 +190,7 @@ def register(
     # ── POST /api/match ───────────────────────────────────────────────────────
     @router.post("/api/match")
     def post_match(ctx) -> None:
-        _do_match(ctx, config, repository, job_manager)
+        _do_match(ctx, config, repository, job_manager, ctx._post_data or {})
 
     # ── POST /api/stop-job ────────────────────────────────────────────────────
     @router.post("/api/stop-job")
@@ -289,7 +320,7 @@ def _do_scan(
     if not raw_paths and config.library_root:
         raw_paths = [str(config.library_root)]
     if not raw_paths:
-        ctx._send_error(400, "source_path is required")
+        ctx._send_error(400, "source_path requerido")
         return
     quick = bool(data.get("quick", False))
 
@@ -382,9 +413,18 @@ def _do_adb_scan(
 ) -> None:
     adb_serial = data.get("adb_serial", "").strip()
     android_path = data.get("android_path", "/storage/emulated/0").strip().rstrip("/")
+    # ANDROID-DUP-2: on by default -- this scan populating sha1="" md5="" for
+    # every row unconditionally is exactly the gap that made a legacy
+    # pre-No-Intro dump (same content, different filename) invisible to
+    # every duplicate-detection path at once (confirmed live on the RG556:
+    # Final Fantasy Tactics [E].gba / Pokemon Pinball RZ [E].gba, both an
+    # exact size match of their canonical counterpart already in the
+    # library). Opt-out kept for a caller that only wants a fast file-listing
+    # refresh and doesn't need hashes this time.
+    compute_hashes = data.get("compute_hashes", True)
 
     if not adb_serial:
-        ctx._send_error(400, "adb_serial is required")
+        ctx._send_error(400, "adb_serial requerido")
         return
 
     import logging
@@ -415,6 +455,20 @@ def _do_adb_scan(
 
             all_files = transport.ls_recursive(android_path, timeout=180)
 
+            # ANDROID-DUP-2: computed on the device itself (see
+            # AdbTransport.sha1_recursive's docstring) -- only the hash
+            # crosses USB, so this stays cheap even for large disc images.
+            # Two round trips (one per tool), each covering the whole tree in
+            # one `find … -exec {tool} {} +` batch, same shape as ls_recursive
+            # above. A generous timeout since this runs as a background job,
+            # not on a request/response path.
+            sha1_map: dict[str, str] = {}
+            md5_map: dict[str, str] = {}
+            if compute_hashes and not _cancel.is_set():
+                sha1_map = transport.sha1_recursive(android_path, timeout=3600)
+            if compute_hashes and not _cancel.is_set():
+                md5_map = transport.md5_recursive(android_path, timeout=3600)
+
             with repo_android.batch() as conn:
                 for fi in all_files:
                     if _cancel.is_set():
@@ -434,6 +488,25 @@ def _do_adb_scan(
 
                     try:
                         if suffix in save_exts:
+                            repo_android.upsert_save(
+                                original_path=ap,
+                                relative_parent=rel_parent,
+                                extension=suffix,
+                                size_bytes=fi.size,
+                                timestamp=timestamp,
+                                connection=conn,
+                            )
+                            saves += 1
+                        elif suffix == ".bin" and name.lower().startswith("vmu_save_"):
+                            # ANDROID-DUP-2: Dreamcast VMU memory card image
+                            # (Flycast/Redream convention, vmu_save_<port><slot>.bin)
+                            # -- .bin can't go in save_extensions without
+                            # misclassifying every real disc dump that also
+                            # uses it, so this narrow filename pattern is
+                            # checked by name instead. Confirmed live on the
+                            # RG556: without this, vmu_save_A1.bin/A2.bin
+                            # landed in `games` as file_type='rom' and showed
+                            # up as a false "duplicate ROM" in the review queue.
                             repo_android.upsert_save(
                                 original_path=ap,
                                 relative_parent=rel_parent,
@@ -475,8 +548,8 @@ def _do_adb_scan(
                                 extension=suffix,
                                 size_bytes=fi.size,
                                 mtime=int(fi.mtime),
-                                sha1="",
-                                md5="",
+                                sha1=sha1_map.get(ap, ""),
+                                md5=md5_map.get(ap, ""),
                                 crc32="",
                                 set_type=detect_set_type(fake_path),
                                 timestamp=timestamp,
@@ -512,6 +585,9 @@ def _do_adb_scan(
                 "source": "adb",
                 "android_path": android_path,
                 "cancelled": _cancel.is_set(),
+                "hashes_computed": compute_hashes,
+                "sha1_hashed": len(sha1_map),
+                "md5_hashed": len(md5_map),
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
@@ -522,9 +598,14 @@ def _do_adb_scan(
 
 
 def _do_match(
-    ctx, config: AppConfig, repository: LibraryRepository, job_manager: JobManager
+    ctx,
+    config: AppConfig,
+    repository: LibraryRepository,
+    job_manager: JobManager,
+    data: dict | None = None,
 ) -> None:
     _cancel = job_manager.cancel_event("match")
+    include_low_confidence = bool((data or {}).get("include_low_confidence"))
 
     def run() -> None:
         job_result = None
@@ -535,14 +616,24 @@ def _do_match(
                 nointro_dir=config.catalogs_nointro_dir,
                 redump_dir=config.catalogs_redump_dir,
                 arcade_dir=config.catalogs_arcade_dir,
+                chdman_path=config.chdman,
             )
-            games = repository.get_unresolved_games()
+            games = repository.get_unresolved_games(include_low_confidence=include_low_confidence)
             matched_high = matched_low = unmatched = 0
+            total = len(games)
             with repository.batch() as conn:
-                for game in games:
+                for i, game in enumerate(games, start=1):
                     if _cancel.is_set():
                         break
-                    match = matcher.match(game.sha1, game.original_filename)
+                    # MATCH-HANG-CHDMAN-1: fila actual visible en /api/job-status
+                    # antes de la llamada que puede tardar (desambiguación PSX
+                    # vía chdman) -- sin esto, un cuelgue solo se diagnostica
+                    # matando el proceso y mirando qué archivo quedó a medias.
+                    job_manager.update_progress(
+                        "match",
+                        {"current": i, "total": total, "current_file": game.original_filename},
+                    )
+                    match = matcher.match(game.sha1, game.original_filename, game.source_path)
                     if match is not None:
                         repository.update_match(
                             game.source_path,
@@ -557,6 +648,11 @@ def _do_match(
                         else:
                             matched_low += 1
                     else:
+                        # MATCH-STALE-1: a stale wrong match from before a
+                        # matcher fix must not survive a re-run just
+                        # because the fresh evaluation now correctly finds
+                        # nothing.
+                        repository.clear_match(game.source_path, connection=conn)
                         unmatched += 1
             job_result = {
                 "total": len(games),
@@ -614,6 +710,7 @@ def _run_dat_download(systems: list[dict], config: AppConfig, job_manager: JobMa
     import urllib.request as _urlreq
 
     from rom_manager.catalog.catalog_loader import load_dat_file
+    from rom_manager.catalog.mame_loader import load_fbneo_dat, load_mame_xml
 
     downloaded: list[str] = []
     skipped: list[str] = []
@@ -647,15 +744,33 @@ def _run_dat_download(systems: list[dict], config: AppConfig, job_manager: JobMa
                 downloaded.append(name)
             continue
 
-        source = _CATALOG_TO_SOURCE.get(catalog, "no-intro")
-        url = f"{_LIBRETRO_METADAT_BASE}/{source}/{urllib.parse.quote(filename)}"
+        if "url" in entry:
+            # MATCH-ARCADE-DAT-2: override total en vez de {base}/{source}/{filename}
+            # -- fuente ajena a libretro-database, distinta convención de URL.
+            url = urllib.parse.quote(entry["url"], safe=":/")
+        else:
+            source = _CATALOG_TO_SOURCE.get(catalog, "no-intro")
+            url = f"{_LIBRETRO_METADAT_BASE}/{source}/{urllib.parse.quote(filename)}"
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
             with _urlreq.urlopen(url, timeout=30) as resp:  # noqa: S310 — URL is a hardcoded constant
                 data = resp.read()
             dest_file.write_bytes(data)
             try:
-                entries = load_dat_file(dest_file)
+                # MATCH-ARCADE-DAT-2: validar con el parser REAL que usará
+                # load_arcade_dir() sobre este mismo archivo (dispatcha por
+                # extensión, no por catálogo) -- load_dat_file() es para
+                # nointro/redump (SHA1-keyed) y validaba "parseable" con un
+                # parser distinto al que de verdad consume el catálogo
+                # arcade, dejando pasar DATs que luego dan 0 entradas.
+                if catalog in ("fbneo", "mame"):
+                    entries = (
+                        load_mame_xml(dest_file)
+                        if dest_file.suffix.lower() == ".xml"
+                        else load_fbneo_dat(dest_file)
+                    )
+                else:
+                    entries = load_dat_file(dest_file)
             except Exception:
                 entries = {}
             if not entries:

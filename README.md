@@ -21,6 +21,14 @@ http://127.0.0.1:7777
 
 ---
 
+## Capturas
+
+| Análisis | Juegos | Herramientas |
+|---|---|---|
+| [![Análisis](docs/screenshots/analisis.png)](docs/screenshots/analisis.png) | [![Juegos](docs/screenshots/juegos.png)](docs/screenshots/juegos.png) | [![Herramientas](docs/screenshots/herramientas.png)](docs/screenshots/herramientas.png) |
+
+---
+
 ## ¿Qué hace?
 
 ### El flujo habitual
@@ -100,6 +108,15 @@ Colección en todos tus dispositivos
 - Política de conflictos: el archivo más reciente gana; ante ambigüedad, se guardan ambas versiones con sufijo timestamp
 - Soporte para Dropbox, OneDrive, Google Drive y cualquier remoto rclone
 - Log de operaciones de sync almacenado en SQLite
+
+### App Android nativa (en desarrollo)
+- Kotlin + Jetpack Compose en `android/` — sync de saves en segundo plano, sin depender de Termux ni de tener el PC encendido
+- Conexión a Dropbox por OAuth PKCE, credenciales en `EncryptedSharedPreferences`
+- Motor de sync propio (mismo `ConflictResolver` que el resto de la app: newest-wins con tolerancia de 2s y backup de conflicto) con watermark en Room
+- Pantalla de Ajustes: conectar/desconectar Dropbox, paths remotos, sync manual
+- Sync periódico vía `WorkManager` (`CoroutineWorker`, mínimo 15 min, solo con red) con interruptor en Ajustes
+- En progreso: sync instantáneo por `FileObserver` al detectar un save nuevo, servicio en primer plano, arranque tras reboot
+- Detalle técnico y estado de cada pieza: sección **ANDROID-SYNC** en [`Tareas/backlog.md`](Tareas/backlog.md)
 
 ### Cable Sync (USB directo)
 - Copia ROMs y/o saves entre PC y consola Android por USB, sin WiFi
@@ -328,6 +345,7 @@ src/rom_manager/
   scraper/                   # ScreenScraper, gamelist.xml, Pegasus
   retroachievements/         # RA API client + MD5 checker
   web/                       # ThreadingHTTPServer + SPA HTML/JS
+android/                     # App Android nativa (Kotlin/Compose) — sync de saves en segundo plano
 scripts/
   rommgr.cmd / rommgr.ps1   # Lanzadores Windows
 tools/
@@ -369,6 +387,7 @@ scripts\rommgr.cmd pytest tests/ -v
 | 7 | Wizard unificado · Sync Anbernic TV · Cloud (Termux+rclone) · Galería con ratings · DAT auto-download · Progreso RA personal | ✅ |
 | 8 | PyInstaller exe · instalador Windows · auto-update · PIN de acceso | ✅ |
 | 9 | ZIP-ROUTE · JUNK-SMART · pantalla "Revisar copias" unificada · deshacer apply · backup automático de BD · playtime real · recomendador de juego · auditorías UX de casi toda la interfaz | ✅ |
+| 10 | App Android nativa (Kotlin/Compose): permisos, escaneo local, Dropbox OAuth + sync engine propio, pantalla de Ajustes, sync periódico vía WorkManager | 🚧 en progreso |
 
 Última release: [**v1.1.0**](https://github.com/Rcerezo-dev/Retro-gaming-companion/releases/latest) — ver [`CHANGELOG.md`](CHANGELOG.md).
 Ver [`Tareas/backlog.md`](Tareas/backlog.md) para el detalle de tareas activas.

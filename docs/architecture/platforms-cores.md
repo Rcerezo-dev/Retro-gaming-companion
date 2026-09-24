@@ -3,6 +3,14 @@
 > Referencia para saber qué emulador/core usar en cada sistema y qué configurar para calidad óptima.
 > En PC se usa EmulationStation como frontend (`~/.emulationstation/es_systems.cfg`).
 > En la Anbernic se usa RetroArch con los mismos cores que en PC donde sea posible.
+>
+> **DEVPROFILE-1 (2026-08-31)**: los cores PC candidatos (columna "Emulador /
+> Core" de la tabla de abajo) y el BIOS requerido por plataforma ya no viven
+> solo aquí — la fuente real que usa el código es
+> `src/rom_manager/detection/platforms.toml` (`[cores.pc]` / `[[bios]]`). Esta
+> página sigue siendo una guía humana (incluye la columna Android, que el
+> código todavía no consume), pero si algo no coincide con el TOML, manda el
+> TOML.
 
 ---
 
@@ -65,6 +73,67 @@
 | Arcade | **MAME 2003 Plus** | Usa romset 0.78; para sets modernos usar MAME actual |
 | Atari 2600 | **Stella 2023** | — |
 | Neo Geo | **FBNeo** | El mejor core para Neo Geo en Android |
+
+---
+
+## Overrides por juego en Retro Vault (CFG-PORGAME)
+
+Retro Vault detecta, edita y copia entre PC/Android las opciones de core que
+RetroArch guarda **por juego** — nunca importa ni autora configs de una
+fuente externa; "verificado" siempre significa que el propio usuario las
+guardó jugando (decisión de diseño, ver `Tareas/Roadmap-212-Ideas-Futuras.md`
+frente B).
+
+### Cómo las genera RetroArch
+
+RetroArch permite guardar las opciones de un core (Quick Menu → Options) en
+tres niveles de especificidad crecientes, todos bajo la misma carpeta
+`config/<core>/`:
+
+| Nivel | Acción en el menú | Archivo | Alcance |
+|-------|-------------------|---------|---------|
+| Core | Save Core Options | `config/<core>/<core>.opt` | Todos los juegos que usan ese core |
+| Carpeta de contenido | Save Content Directory Options | `config/<core>/<carpeta rom>.opt` | Todos los juegos en esa carpeta |
+| Juego | **Save Game Options** | `config/<core>/<nombre rom>.opt` | Solo ese juego — **el que gestiona Retro Vault** |
+
+(Referencia: `docs.libretro.com/guides/overrides/` — documenta el mecanismo
+hermano de "Overrides" en `.cfg` con la misma jerarquía de 3 niveles;
+RetroArch aplica la misma jerarquía a "Options" con extensión `.opt`.)
+
+Retro Vault solo lee/escribe/copia el tercer nivel (por juego) — nunca toca
+`<core>.opt` (nivel core) ni interpreta ninguna clave dentro del archivo: lo
+trata como texto opaco de principio a fin (`retroarch_overrides_service.py`).
+
+### Formato del archivo
+
+Texto plano `clave = "valor"`, una por línea — mismo formato que un `.cfg`
+de RetroArch, sin comentarios propios. Ejemplo real (`Gambatte/Tetris.opt`):
+```
+input_max_users = "2"
+gfx_ctx_scaling = "1"
+```
+Retro Vault nunca genera ni valida estas claves — cualquier contenido que
+RetroArch haya escrito se respeta tal cual.
+
+### Dónde vive por plataforma
+
+- **PC**: `<ra_config_dir>/<core>/<rom>.opt`, con `ra_config_dir`
+  auto-detectado o configurado en Settings (normalmente `<carpeta
+  RetroArch>/config/`).
+- **Android (RG556)**: `<auto_sync_android_path>/config/<core>/<rom>.opt` —
+  mismo patrón, leído/escrito vía ADB (auto-detectado, B0-3c).
+
+### Nombre de core: por qué importa
+
+`<core>` es el nombre de carpeta que usa RetroArch (p. ej. `Gambatte`,
+`Snes9x 2010`) — **no** el nombre de la plataforma. PC y Android pueden usar
+cores distintos para la misma plataforma (ver tablas arriba); Retro Vault
+solo permite copiar un override entre PC/Android cuando el core es
+**exactamente el mismo en ambos lados** (mismo nombre de carpeta) — los 8
+casos documentados en `SHARED_CORES`
+(`src/rom_manager/services/retroarch_overrides_service.py`): FCEUmm,
+Gambatte, mGBA, melonDS, Genesis Plus GX, Yaba Sanshiro 2 Pro, PPSSPP,
+Stella 2023.
 
 ---
 

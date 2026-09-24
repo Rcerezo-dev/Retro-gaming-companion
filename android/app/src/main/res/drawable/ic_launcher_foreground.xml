@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Placeholder: nube estilizada (sync a la nube). Sustituir por el
+         icono final de marca cuando exista. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,26 C41,26 31,35 29,47 C21,48 15,55 15,63 C15,72 22,79 31,79 L77,79 C86,79 93,72 93,63 C93,56 88,50 81,48 C79,36 68,26 54,26 Z" />
+</vector>

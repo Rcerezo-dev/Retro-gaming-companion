@@ -189,6 +189,20 @@
     <div id="lpl-result" style="margin-top:12px"></div>
   </div>
 
+  <!-- ── Publicar carátulas en RetroArch ── -->
+  <div class="actions-panel" style="margin-bottom:20px">
+    <h3>Publicar carátulas en RetroArch</h3>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Copia (enlace duro si es PNG, sin duplicar bytes) o convierte (JPG&#8594;PNG) las carátulas y capturas ya escaneadas a la carpeta <code>thumbnails/</code> de RetroArch, con su nomenclatura por t&#xed;tulo. Mismo origen que usan ES-DE y esta app &#8212; nada se vuelve a scrapear.</p>
+    <div class="actions-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <div style="flex:1;min-width:200px">
+        <label>Carpeta de RetroArch (vac&#xed;o = detectada de la ruta configurada)</label>
+        <input id="ra-thumbs-root" type="text" placeholder="Dejar vac&#xed;o para usar retroarch_path de Config">
+      </div>
+      <button id="btn-publish-ra-thumbs" class="btn primary" onclick="doPublishRetroArchThumbnails()">Publicar carátulas</button>
+    </div>
+    <div id="ra-thumbs-result" style="margin-top:12px"></div>
+  </div>
+
   <!-- ── Análisis de carpeta ── -->
   <div class="actions-panel" style="margin-bottom:20px">
     <h3>An&#xe1;lisis de carpeta</h3>

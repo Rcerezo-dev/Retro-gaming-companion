@@ -475,6 +475,25 @@ def make_handler(
             body = _json_response({"error": message})
             self._send(code, "application/json; charset=utf-8", body)
 
+        def _send_file(self, path, download_name: str) -> None:
+            """Descarga en streaming (nunca carga el archivo entero en RAM —
+            los ROMs de PS2/GameCube pueden pesar varios GB, a diferencia de
+            `_send()`, pensado para respuestas pequeñas como JSON/imágenes)."""
+            import mimetypes as _mimetypes
+            import shutil as _shutil
+            import urllib.parse as _urllib_parse
+
+            size = path.stat().st_size
+            mime_type, _ = _mimetypes.guess_type(download_name)
+            quoted_name = _urllib_parse.quote(download_name)
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type or "application/octet-stream")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quoted_name}")
+            self.end_headers()
+            with path.open("rb") as fh:
+                _shutil.copyfileobj(fh, self.wfile, length=1024 * 1024)
+
     return Handler
 
 
@@ -516,7 +535,7 @@ def serve(
     user_platforms = config.data_dir / "platforms.toml"
     reload_platforms(user_platforms if user_platforms.exists() else None)
 
-    _start_all_daemons(config, repository)
+    _start_all_daemons(config, repository, repository_android=repository_android)
 
     # PHASE6-3a: check GitHub for a newer release in the background
     from rom_manager import __version__
@@ -539,24 +558,29 @@ def serve(
                     from pathlib import Path as _Path
 
                     from rom_manager.sync.rclone_transport import RcloneTransport
-                    from rom_manager.sync.save_syncer import sync_saves
+                    from rom_manager.sync.save_syncer import sync_saves, sync_single_file
 
                     transport = RcloneTransport(rclone=config.rclone_binary)
                     for src in sources:
                         saves_dir = _Path(src.local_dir)
-                        if not saves_dir.exists():
+                        if not saves_dir.exists() and not src.single_file:
                             continue
                         try:
-                            sync_saves(
-                                saves_dir,
-                                saves_remote=src.remote,
-                                transport=transport,
-                                repository=repository,
-                                save_extensions=config.save_extensions,
-                                state_extensions=config.state_extensions,
-                                states_remote=None,
-                                dry_run=False,
-                            )
+                            if src.single_file:
+                                sync_single_file(
+                                    saves_dir, src.remote, transport=transport, dry_run=False
+                                )
+                            else:
+                                sync_saves(
+                                    saves_dir,
+                                    saves_remote=src.remote,
+                                    transport=transport,
+                                    repository=repository,
+                                    save_extensions=config.save_extensions,
+                                    state_extensions=config.state_extensions,
+                                    states_remote=None,
+                                    dry_run=False,
+                                )
                         except Exception:
                             _logger.warning(
                                 "Sync automático tras setup (saves) falló", exc_info=True

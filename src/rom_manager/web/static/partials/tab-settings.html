@@ -249,7 +249,9 @@
     <div class="actions-row" style="margin-top:4px">
       <button onclick="loadRetroArchCheck()" style="font-size:11px;padding:4px 12px">&#x1F50D; Diagnosticar</button>
       <span class="hidden" id="ra-check-spinner" style="color:var(--c-muted);font-size:11px;margin-left:8px">Comprobando&#x2026;</span>
+      <button id="btn-ra-apply-layout" onclick="applyRetroArchSavefileLayout()" style="font-size:11px;padding:4px 12px;margin-left:6px">&#x1F4BE; Aplicar layout de saves</button>
     </div>
+    <div id="ra-apply-layout-result" style="font-size:11px;min-height:14px;margin-top:6px"></div>
     <div class="hidden" id="ra-check-result" style="margin-top:12px">
       <div id="ra-check-status" style="font-size:12px;font-weight:bold;margin-bottom:8px"></div>
       <table style="width:100%;border-collapse:collapse;font-size:11px">
@@ -261,6 +263,19 @@
         <div id="ra-check-cores-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
       </div>
     </div>
+  </div>
+
+  <!-- DEVPROFILE-4a: Perfil del dispositivo — Tier A backup a la nube -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F4C2; Perfil del dispositivo</h3>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Detecta carpetas de configuraci&#xf3;n de RetroArch (mandos, shaders, BIOS) junto al ejecutable de arriba y, tras confirmarlas, las a&#xf1;ade al sync a la nube junto a las ya configuradas.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <button onclick="loadDeviceProfileDetect()" style="font-size:11px;padding:4px 12px">&#x1F50D; Detectar fuentes</button>
+      <span class="hidden" id="devprofile-spinner" style="color:var(--c-muted);font-size:11px;margin-left:8px">Detectando&#x2026;</span>
+      <button onclick="saveDeviceProfileManifest()" style="font-size:11px;padding:4px 12px;margin-left:6px">&#x2601;&#xFE0F; Guardar copia del perfil en la nube</button>
+    </div>
+    <div id="devprofile-result" style="font-size:11px"></div>
+    <div id="devprofile-manifest-result" style="font-size:11px;min-height:14px;margin-top:6px"></div>
   </div>
 
   <!-- ES-DE path -->
@@ -317,6 +332,26 @@
     </div>
   </div>
 
+  <!-- DUP-REGION-2: preferencias de duplicados por región -->
+  <div class="actions-panel" style="margin-top:20px">
+    <h3>&#x1F30D; Duplicados por regi&#xf3;n</h3>
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:12px">Cuando el mismo juego existe en varias regiones (p. ej. &quot;USA&quot; y &quot;Europe&quot;), la cola de revisi&#xf3;n de duplicados recomienda cu&#xe1;l conservar.</p>
+    <div class="actions-row" style="margin-bottom:8px">
+      <label style="color:var(--c-muted);font-size:11px;min-width:220px">Mantener siempre todas las regiones</label>
+      <input type="checkbox" id="cfg-keep-both-regions" style="width:auto;margin:0" onchange="_toggleRegionPicker()">
+      <span class="cfg-saved" id="cfg-check-keep-both-regions">&#x2713; Guardado</span>
+    </div>
+    <div id="cfg-preferred-regions-wrap">
+      <label style="color:var(--c-muted);font-size:11px;display:block;margin-bottom:6px">Regiones favoritas, por orden de preferencia</label>
+      <div class="actions-row" style="margin-bottom:8px">
+        <select id="cfg-region-picker" style="min-width:160px"></select>
+        <button class="btn" style="font-size:12px;padding:4px 10px" onclick="_addPreferredRegion()">+ A&#xf1;adir</button>
+        <span class="cfg-saved" id="cfg-check-preferred-regions">&#x2713; Guardado</span>
+      </div>
+      <div id="cfg-preferred-regions-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px"></div>
+    </div>
+  </div>
+
   <!-- AUD-3: Papelera unificada -->
   <div class="actions-panel" style="margin-top:20px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
@@ -333,6 +368,12 @@
       <button class="btn danger" id="btn-trash-empty" onclick="emptyTrash()" style="font-size:12px;padding:4px 12px;margin-left:auto">Vaciar ahora</button>
     </div>
     <div id="trash-empty-result" style="font-size:12px;min-height:16px;margin-top:6px"></div>
+
+    <div id="trash-android-row" class="actions-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--c-border)" hidden>
+      <span id="trash-status-text-android" style="font-size:13px;color:var(--c-muted)"></span>
+      <button class="btn danger" id="btn-trash-empty-android" onclick="emptyTrashAndroid()" style="font-size:12px;padding:4px 12px;margin-left:auto">Vaciar en Android</button>
+    </div>
+    <div id="trash-empty-result-android" style="font-size:12px;min-height:16px;margin-top:6px"></div>
   </div>
 
   <!-- S37: Notificaciones de escritorio -->

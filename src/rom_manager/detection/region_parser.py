@@ -57,6 +57,11 @@ _GOODTOOLS_CODES: dict[str, str] = {
     "no": "Norway",
 }
 
+# Canonical region names, for UI pickers (e.g. DUP-REGION-2's preferred_regions).
+KNOWN_REGIONS: tuple[str, ...] = tuple(
+    dict.fromkeys(_NOINTRO_REGIONS.values())  # dedup, preserve declaration order
+)
+
 _PAREN_PATTERN = re.compile(r"\(([^)]+)\)")
 _BRACKET_PATTERN = re.compile(r"\[([^\]]+)\]")
 

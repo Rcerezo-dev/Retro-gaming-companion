@@ -162,6 +162,7 @@ export const api = {
   raCheck:           (body)   => _post('/api/ra-check', body),
   raDiscardNoSupport:()       => _post('/api/ra-check/discard-no-support'),
   retroarchCheck:    ()       => _get('/api/retroarch-check'),
+  retroarchApplySavefileLayout: () => _post('/api/retroarch-apply-savefile-layout'),
 
   // ── ES-DE / Gamelists ─────────────────────────────────────────────────────
   esdeStatus:        ()       => _get('/api/esde-status'),

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Acceso recursivo en background a saves/ y states/ de RetroArch.
+         API 30+: permiso especial (redirect a Ajustes). API 26-29: legacy
+         storage clásico (permisos de abajo + requestLegacyExternalStorage).
+         Ver Tareas/Roadmap-Android-Sync.md §3. Implementado en ANDROID-SYNC-2. -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- Notificaciones (runtime prompt solo en API 33+). Sin uso hoy — el
+         modo instantáneo que la necesitaba (ANDROID-SYNC-9/10) se descartó
+         (2026-08-18, la app es complemento del PC, no un daemon en segundo
+         plano); se mantiene el permiso porque el flujo de solicitud ya
+         existe (ANDROID-SYNC-2) y sirve para una futura notificación de
+         resultado de sync. FOREGROUND_SERVICE/FOREGROUND_SERVICE_DATA_SYNC/
+         RECEIVE_BOOT_COMPLETED (servicio foreground + relanzo tras reboot,
+         ANDROID-SYNC-10/11) se retiran: WorkManager persiste y re-programa
+         el trabajo periódico solo, sin necesitar ninguno de los dos. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Llamadas a la API de Dropbox + constraint de red de WorkManager. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- FTP-PICK-2: usesCleartextTraffic habilita el HTTP plano (no HTTPS) del
+         servidor local (`rommgr serve`, `PcApiClient.kt`) — solo LAN de
+         confianza, mismo modelo de confianza que `allow_lan` en config.toml. -->
+    <application
+        android:name=".RetroVaultApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:requestLegacyExternalStorage="true"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.RetroVaultSync">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.RetroVaultSync">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- AuthActivity del SDK de Dropbox (ANDROID-SYNC-5) — captura el
+             redirect del navegador tras el login PKCE. El scheme
+             "db-<APP_KEY>" se resuelve vía manifestPlaceholders
+             (app/build.gradle.kts, léido de local.properties). Con la App
+             Key vacía (sin configurar todavía) el scheme queda "db-" — no
+             rompe el build, solo no captura ningún redirect real. -->
+        <activity
+            android:name="com.dropbox.core.android.AuthActivity"
+            android:configChanges="orientation|keyboard"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="db-${dropboxAppKey}" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

@@ -9,6 +9,100 @@ from rom_manager.hashing.hash_calculator import calculate_hashes
 
 
 @dataclass(slots=True)
+class DiscHealthResult:
+    cue_path: str
+    rescue_candidates: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class DiscHealthSummary:
+    broken: int = 0
+    results: list[DiscHealthResult] = field(default_factory=list)
+
+
+def check_disc_set_health(directory: Path) -> DiscHealthSummary:
+    """DISC-HEALTH-1: recorre *directory* buscando sets ``.cue`` rotos
+    (referencian un ``.bin`` que no existe) y, para cada uno, si ya hay un
+    ``.chd``/``.pbp`` jugable del mismo juego en cualquier otra parte del
+    árbol -- región/edición distinta cuenta (título normalizado).
+
+    Repite el método 100% manual usado en
+    ``Tareas/psx-cue-rotos-2026-08-30.md`` (22 ``.cue`` rotos, 21
+    recuperables sin pérdida real solo comprobando esto a mano) como función
+    reutilizable, mismo espíritu que :func:`check_library_health` pero para
+    integridad de sets multi-archivo en vez de "existe la ruta".
+    """
+    from rom_manager.converters.chd_converter import find_cue_files, is_broken_cue_set
+    from rom_manager.retroachievements.ra_checker import _normalize_title
+
+    summary = DiscHealthSummary()
+    broken_cues = [cue for cue in find_cue_files(directory) if is_broken_cue_set(cue)]
+    if not broken_cues:
+        return summary
+
+    _PLAYABLE_EXTS = {".chd", ".pbp"}
+    candidates_by_title: dict[str, list[Path]] = {}
+    for f in directory.rglob("*"):
+        if f.is_file() and f.suffix.lower() in _PLAYABLE_EXTS:
+            candidates_by_title.setdefault(_normalize_title(f.stem), []).append(f)
+
+    for cue in broken_cues:
+        rescues = sorted(str(p) for p in candidates_by_title.get(_normalize_title(cue.stem), []))
+        summary.broken += 1
+        summary.results.append(DiscHealthResult(cue_path=str(cue), rescue_candidates=rescues))
+    return summary
+
+
+@dataclass(slots=True)
+class MisplacedExtensionResult:
+    path: str
+    folder_platform: str
+    detected_platform: str
+
+
+@dataclass(slots=True)
+class MisplacedExtensionsSummary:
+    misplaced: int = 0
+    results: list[MisplacedExtensionResult] = field(default_factory=list)
+
+
+def check_misplaced_extensions_health(directory: Path) -> MisplacedExtensionsSummary:
+    """LIB-MISPLACED-1: recorre las carpetas de plataforma ya organizadas bajo
+    *directory* (``psx/``, ``gba/``, etc. -- nombres de ``PLATFORM_BY_FOLDER``)
+    buscando archivos cuya extensión pertenece a otra plataforma distinta a la
+    de su carpeta (reutiliza ``detect_platform()``/``PLATFORM_BY_EXTENSION``,
+    ya fiables en el Inbox). El Inbox solo audita lo que entra nuevo; esto
+    cubre lo que ya lleva tiempo mal colocado dentro de una carpeta organizada
+    (encontrado a mano: chips MAME y ROMs ``.md``/``.nes`` sueltos en ``gba/``).
+
+    Limitación conocida: las extensiones ambiguas (``.zip``, ``.bin``,
+    ``.cue``...) se resuelven por contexto de carpeta en ``detect_platform()``,
+    así que un ``.zip`` de arcade dentro de ``psx/`` nunca choca -- para eso
+    hace falta inspección de contenido (ver ``zip_router.py``), fuera del
+    alcance de este chequeo.
+    """
+    from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER, detect_platform
+
+    summary = MisplacedExtensionsSummary()
+    for folder in sorted(p for p in directory.iterdir() if p.is_dir()):
+        expected = PLATFORM_BY_FOLDER.get(folder.name.lower())
+        if expected is None:
+            continue
+        for f in folder.rglob("*"):
+            if not f.is_file():
+                continue
+            actual = detect_platform(f)
+            if actual is not None and actual != expected:
+                summary.misplaced += 1
+                summary.results.append(
+                    MisplacedExtensionResult(
+                        path=str(f), folder_platform=expected, detected_platform=actual
+                    )
+                )
+    return summary
+
+
+@dataclass(slots=True)
 class HealthResult:
     source_path: str
     stored_sha1: str
@@ -36,11 +130,14 @@ def _chd_verify_ok(path: Path, chdman_path: str) -> bool:
     """
     import subprocess
 
+    from rom_manager.utils.subprocess_flags import NO_WINDOW
+
     try:
         r = subprocess.run(
             [chdman_path, "verify", "-i", str(path)],
             capture_output=True,
             timeout=600,
+            creationflags=NO_WINDOW,
         )
         return r.returncode == 0
     except (OSError, subprocess.TimeoutExpired):

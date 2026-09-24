@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport, RemoteEntry
-from rom_manager.sync.save_syncer import list_local_saves, sync_saves
+from rom_manager.sync.save_syncer import list_local_saves, sync_saves, sync_single_file
 from rom_manager.sync.sync_log import log_sync_event
 
 _SAVE_EXTS = (".sav", ".state")
@@ -79,6 +79,22 @@ def test_list_local_saves_finds_saves(tmp_path: Path) -> None:
 
 def test_list_local_saves_empty_dir(tmp_path: Path) -> None:
     assert list_local_saves(tmp_path, _SAVE_EXTS) == []
+
+
+def test_list_local_saves_include_glob_scopes_dolphin_wii_nand(tmp_path: Path) -> None:
+    # SYNC-WII-SCOPE-1: only title/*/*/data/ is a real save; content/ is
+    # installed-app/system data that must never leave the PC.
+    game = tmp_path / "title" / "00010000" / "52334d50"
+    (game / "content").mkdir(parents=True)
+    (game / "content" / "title.tmd").write_bytes(b"\x00" * 4)
+    (game / "data").mkdir()
+    (game / "data" / "save.bin").write_bytes(b"\x00" * 8)
+    (tmp_path / "shared1").mkdir()
+    (tmp_path / "shared1" / "system.app").write_bytes(b"\x00" * 4)
+
+    saves = list_local_saves(tmp_path, (), include_glob="title/*/*/data/**/*")
+    relatives = {s.relative for s in saves}
+    assert relatives == {"title/00010000/52334d50/data/save.bin"}
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +220,46 @@ def test_upload_failure_on_first_file_does_not_raise_unbound(tmp_path: Path) -> 
 
     assert result.errors == 1
     assert result.uploaded == 0
+
+
+def test_apply_upload_with_matching_game_does_not_deadlock(tmp_path: Path) -> None:
+    """Regression: record_play_session() must reuse sync_saves()'s open ``conn``
+    (REV43-38 added the ``connection=`` param for exactly this) instead of
+    opening its own — sync_saves() only commits ``conn`` once at the end of
+    the loop, so a second writer connection to the same file self-deadlocks
+    until sqlite's busy_timeout expires and raises "database is locked".
+    Only reproduces when a games row actually matches the save's stem —
+    other tests never insert one, so record_play_session's UPDATE (and thus
+    the second connection) was never exercised."""
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    save_file = saves_dir / "tetris.sav"
+    save_file.write_bytes(b"\x00" * 8)
+
+    transport = _mock_transport([])
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    with repo.batch() as conn:
+        conn.execute(
+            "INSERT INTO games (source_path, original_filename, file_type, extension, "
+            "size_bytes, mtime, sha1, md5, crc32, set_type, created_at, updated_at) "
+            "VALUES (?, ?, 'rom', '.gb', 0, 0, ?, ?, 'x', 'single', ?, ?)",
+            ("/roms/tetris.gb", "tetris.gb", "aa" * 20, "bb" * 16, "2024-01-01", "2024-01-01"),
+        )
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+    )
+
+    assert result.uploaded == 1
+    assert result.errors == 0
+    with repo.connect() as conn:
+        row = conn.execute("SELECT play_count FROM games").fetchone()
+    assert row["play_count"] == 1
 
 
 def test_apply_download_calls_transport(tmp_path: Path) -> None:
@@ -372,3 +428,94 @@ def test_backup_failure_does_not_block_download(tmp_path: Path, monkeypatch) -> 
     transport.download.assert_called_once()
     assert result.downloaded == 1
     assert result.errors == 0
+
+
+# ---------------------------------------------------------------------------
+# sync_single_file (DEVPROFILE-8b/9) -- restore-style sync for one whole file
+# (a SQLite DB, a RetroArch playlist), not a directory of many.
+# ---------------------------------------------------------------------------
+
+
+def test_sync_single_file_uploads_when_only_local_exists(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = []
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert result.uploaded == 1
+    assert decisions[0].action == "upload"
+    transport.upload.assert_called_once_with(
+        local, "library_pc.db", fallback_remote="dropbox:RetroSync/data"
+    )
+    transport.download.assert_not_called()
+
+
+def test_sync_single_file_downloads_when_only_remote_exists(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"  # never created — first restore on a new PC
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = [_remote_entry("library_pc.db")]
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert result.downloaded == 1
+    assert decisions[0].action == "download"
+    transport.download.assert_called_once_with(
+        "library_pc.db", local, fallback_remote="dropbox:RetroSync/data"
+    )
+
+
+def test_sync_single_file_newest_wins_without_conflict(tmp_path: Path) -> None:
+    """Unlike sync_saves(), this never returns a 'conflict' decision -- there's
+    only one file, so newest simply wins (decide() with last_sync_at=None)."""
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    _set_mtime(local, _NOW + timedelta(seconds=10))
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = [_remote_entry("library_pc.db")]
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert decisions[0].action == "upload"
+    assert result.conflicts == 0
+    transport.upload.assert_called_once()
+    transport.download.assert_not_called()
+
+
+def test_sync_single_file_up_to_date_within_tolerance(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    _set_mtime(local, _NOW)
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = [_remote_entry("library_pc.db")]
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert decisions[0].action == "up_to_date"
+    assert result.up_to_date == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()
+
+
+def test_sync_single_file_dry_run_does_not_call_transport(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = []
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=True
+    )
+
+    assert result.uploaded == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()

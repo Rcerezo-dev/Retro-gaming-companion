@@ -18,6 +18,15 @@ const _REASON_LABELS = {
   ra: { text: 'Logros RA', color: 'var(--c-amber)' },
   disk: { text: 'Colisión de disco', color: 'var(--c-red)' },
   collision: { text: 'Colisión de nombre', color: 'var(--c-orange)' },
+  // DUP-CROSSFMT-1: mismo disco en dos formatos de archivo distintos
+  // (p.ej. .zip vs .chd) — nunca coincide por SHA1 (bytes del contenedor
+  // distintos), se detecta por título (región conservada, sin la etiqueta
+  // de disco) cruzando extensiones.
+  crossfmt: { text: 'Mismo disco, otro formato', color: 'var(--c-purple)' },
+  // DUP-DISC-RA-1b parte 2: mismo hash de disco RA (PSX/GameCube/Wii) en
+  // formatos/dumps distintos que crossfmt no detecta por título (p.ej. un
+  // volcado legacy con nombre de serial, sin canonical_title reconocible).
+  disc_hash: { text: 'Mismo disco (hash RA)', color: 'var(--c-purple)' },
 };
 
 const _CONFLICT_REASONS = new Set(['disk', 'collision']);
@@ -29,6 +38,15 @@ function _jsStr(s) {
 async function loadReviewQueue() {
   const el = document.getElementById('review-queue-content');
   const btnAll = document.getElementById('btn-review-apply-all');
+  // DEDUP-RENAME-2: /api/review-queue siempre combina PC + consola (nunca
+  // sigue el selector global PC/Consola, a diferencia de "1. Renombrar" —
+  // ver organize.js:loadPlan) — banner explícito para no dar a entender que
+  // esta sección también está filtrada al dispositivo activo arriba.
+  const ctxBar = document.getElementById('review-queue-context-bar');
+  if (ctxBar) {
+    ctxBar.innerHTML = `Combinando <span style="color:var(--c-teal)">PC</span> + <span style="color:var(--c-orange)">${window._devName || 'Consola Android'}</span> &nbsp;·&nbsp; <span style="color:var(--c-dim)">cada copia indica su origen con una etiqueta junto al nombre</span>`;
+    ctxBar.classList.remove('hidden');
+  }
   if (!el) return;
   el.innerHTML = '<p class="loading">Cargando…</p>';
   try {
@@ -64,25 +82,38 @@ function _renderReviewQueue(groups, wastedBytes) {
 
 function _renderReviewGroup(g) {
   const isConflictGroup = g.reasons.some((r) => _CONFLICT_REASONS.has(r));
+  const isMultiDiscRisk = g.reasons.includes('multi_disc_risk');
   const badges = g.reasons
+    .filter((r) => r !== 'multi_disc_risk') // se explica con su propia insignia + nota, no como badge genérico
     .map((r) => {
       const info = _REASON_LABELS[r] || { text: r, color: 'var(--c-muted)' };
       return `<span class="badge" style="background:transparent;border:1px solid ${info.color};color:${info.color};font-size:10px;margin-left:4px">${info.text}</span>`;
     })
     .join('');
   const wastedLabel = g.wasted_bytes > 0 ? ` · ${window.fmtSize(g.wasted_bytes)} recuperables` : '';
-  const actions = isConflictGroup
-    ? `<button class="btn" style="font-size:11px;padding:3px 10px;border-color:var(--c-purple);color:var(--c-purple)" onclick="doResolveRaConflicts()">Resolver con RA (todos los conflictos del plan)</button>`
-    : `<button class="btn primary" style="font-size:11px;padding:3px 10px" onclick="applyReviewGroup('${_jsStr(g.group_key)}')">Aplicar recomendación</button>
+  // GAMECUBE-DISC-BUG-1a/1d/UX: en plataformas con multi-disco real
+  // (PSX/PS2/Saturn/Dreamcast/GameCube/Wii), "Resolver con RA" nunca actúa
+  // sobre este grupo (apply_ra_conflicts lo salta a propósito, ver
+  // ra_duplicates_service.py) — explicarlo en vez de ofrecer un botón que no
+  // hace nada, y dar una salida real: marcarlo revisado tras comprobarlo.
+  const multiDiscNote = isMultiDiscRisk
+    ? `<div style="font-size:11px;color:var(--c-amber);margin-bottom:6px">⚠ Puede que sean discos distintos del mismo set (Disc 1/Disc 2…), no copias duplicadas — no se descartan automáticamente. Comprueba manualmente antes de decidir.</div>`
+    : '';
+  const actions = isMultiDiscRisk
+    ? `<button class="btn" style="font-size:11px;padding:3px 10px;color:var(--c-muted)" onclick="markReviewGroupIntentional('${_jsStr(g.group_key)}')">Ya lo he revisado</button>`
+    : isConflictGroup
+      ? `<button class="btn" style="font-size:11px;padding:3px 10px;border-color:var(--c-purple);color:var(--c-purple)" onclick="doResolveRaConflicts()">Resolver con RA (todos los conflictos del plan)</button>`
+      : `<button class="btn primary" style="font-size:11px;padding:3px 10px" onclick="applyReviewGroup('${_jsStr(g.group_key)}')">Aplicar recomendación</button>
        <button class="btn" style="font-size:11px;padding:3px 10px;color:var(--c-muted)" onclick="markReviewGroupIntentional('${_jsStr(g.group_key)}')">Copia intencional</button>`;
   return `<details class="dup-group" style="margin-bottom:10px" open>
     <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:6px 0">
       <span>${window._h(g.canonical_title || '(sin título)')}
-        <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${window._h(g.platform || 'Unknown')}</span>${badges}
+        <span style="color:var(--c-dim);font-size:11px;margin-left:8px">${window._h(g.platform || 'Unknown')}</span>${isMultiDiscRisk ? `<span class="badge" style="background:transparent;border:1px solid var(--c-amber);color:var(--c-amber);font-size:10px;margin-left:4px">Posible multi-disco</span>` : ''}${badges}
       </span>
       <span style="color:var(--c-dim);font-size:11px">${g.entries.length} copia${g.entries.length !== 1 ? 's' : ''}${wastedLabel}</span>
     </summary>
     <div style="padding:6px 4px 4px">
+      ${multiDiscNote}
       ${g.entries.map((e) => _renderReviewEntry(e, g, isConflictGroup)).join('')}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>
     </div>
@@ -98,6 +129,14 @@ function _renderReviewEntry(e, g, isConflictGroup) {
       ? `<span style="color:var(--c-amber);font-size:10px">🏆 ${e.ra_achievements}</span>`
       : '';
   const sizeLabel = e.size_bytes != null ? window.fmtSize(e.size_bytes) : '';
+  // DUP-VISUAL-UI-1: portada por fila — /api/asset-image resuelve contra la
+  // BD del PC, así que una copia de la consola (is_device) nunca tiene
+  // imagen; onerror quita el <img> y la fila cae al layout de solo texto
+  // de siempre (sin metadata scrapeada tampoco hay portada que mostrar).
+  const cover =
+    !e.is_device && e.id != null
+      ? `<img src="/api/asset-image?game_id=${e.id}" alt="" style="width:28px;height:28px;object-fit:cover;border-radius:3px;flex-shrink:0" onerror="this.remove()">`
+      : '';
   let actionCell;
   if (isConflictGroup) {
     // disk/collision: informativo — se resuelven en bloque con "Resolver con RA",
@@ -119,6 +158,7 @@ function _renderReviewEntry(e, g, isConflictGroup) {
     : '';
   return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">
     <span style="min-width:90px">${actionCell}</span>
+    ${cover}
     ${devBadge}
     <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${window._h(e.source_path)}">${window._h(e.filename)}</span>
     ${raBadge}
@@ -257,7 +297,7 @@ async function doResolveRaConflicts() {
               'info'
             );
           }
-        } else if (d.resolved === 0 && d.skipped_no_ra > 0) {
+        } else if (d.resolved === 0 && d.skipped_no_ra > 0 && !d.skipped_multi_disc) {
           showToast(
             d.skipped_no_ra + ' conflictos sin datos RA (versión no reconocida o plataforma sin soporte)',
             'info'
@@ -267,7 +307,10 @@ async function doResolveRaConflicts() {
             '✓ RA resuelto: ' +
               d.resolved +
               ' conflictos' +
-              (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : ''),
+              (d.skipped_no_ra > 0 ? ' · ' + d.skipped_no_ra + ' sin datos RA' : '') +
+              (d.skipped_multi_disc > 0
+                ? ' · ' + d.skipped_multi_disc + ' de sets multi-disco (revisión manual — no se descartan automáticamente)'
+                : ''),
             d.resolved > 0 ? 'ok' : 'info'
           );
           await loadReviewQueue();

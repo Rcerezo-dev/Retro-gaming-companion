@@ -17,13 +17,33 @@ from __future__ import annotations
 import hashlib
 import shlex
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+from rom_manager.utils.trash import TRASH_DIR_NAME
 
 
 def _md5_local(path: Path) -> str:
     with open(path, "rb") as fh:
         return hashlib.file_digest(fh, "md5").hexdigest()
+
+
+def _transfer_timeout(size_bytes: int) -> int:
+    """Timeout budget for an adb push/pull of *size_bytes*, in seconds.
+
+    A ROM file has no reliable size bound (a few KB save up to a multi-GB
+    PS2 ISO) and adb over a real USB cable can be far slower than expected
+    (cable quality, device write speed, other I/O competing for the same
+    disk) — a flat 60s default (meant for quick shell commands, not bulk
+    transfer) silently aborts the whole cable-sync batch on anything past a
+    few hundred MB. Confirmed live 2026-09-13: a 787 MB Dreamcast .cdi hit
+    exactly this. Conservative 2 MB/s floor plus fixed overhead for the
+    mkdir/handshake, so even a slow/contended transfer completes instead of
+    timing out.
+    """
+    return max(120, size_bytes // (2 * 1024 * 1024) + 60)
 
 
 def should_verify(name: str, verify_exts: frozenset[str]) -> bool:
@@ -69,6 +89,7 @@ def list_devices(adb_path: str, *, timeout: int = 10) -> list[AdbDevice]:
             [adb_path, "devices", "-l"],
             capture_output=True,
             timeout=timeout,
+            creationflags=NO_WINDOW,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"adb no encontrado o no respondió: {exc}") from exc
@@ -129,6 +150,7 @@ class AdbTransport:
             cmd,
             capture_output=True,
             timeout=timeout or self.timeout,
+            creationflags=NO_WINDOW,
         )
 
     def _shell(self, *args: str, timeout: int | None = None) -> str:
@@ -149,6 +171,24 @@ class AdbTransport:
             "accessible": False,
             "error": f"La ruta {android_path!r} no existe en el dispositivo",
         }
+
+    def free_bytes(self, android_path: str) -> int:
+        """Free space in bytes on the filesystem holding *android_path* (CABLE-ROM-FIX-2).
+
+        Uses ``df -k`` (POSIX-portable, unlike ``df -B1`` which some Android
+        toybox builds reject) and scales the "Available" column (KiB) up.
+        """
+        out = self._shell("df", "-k", shlex.quote(android_path), timeout=10).strip()
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        if len(lines) < 2:
+            raise RuntimeError(f"No se pudo leer el espacio libre en {android_path!r}: {out!r}")
+        fields = lines[-1].split()
+        if len(fields) < 4:
+            raise RuntimeError(f"Salida de 'df' inesperada para {android_path!r}: {out!r}")
+        try:
+            return int(fields[3]) * 1024
+        except ValueError as exc:
+            raise RuntimeError(f"No se pudo leer el espacio libre en {android_path!r}") from exc
 
     def device_epoch(self) -> int:
         """Return the device clock as a unix timestamp (``date +%s``). AUD-1."""
@@ -174,6 +214,76 @@ class AdbTransport:
         self._shell(f"rm -f {shlex.quote(android_path)}")
         if self.file_exists(android_path):
             raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
+
+    def _trash_dirs(self, roots: list[str] | None) -> set[str]:
+        if roots is None:
+            out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
+            roots = [
+                r.rstrip("/") for r in out.splitlines() if r.strip() and "/storage/self" not in r
+            ]
+        trash_dirs: set[str] = set()
+        for root in roots:
+            out = self._shell(
+                f"find {shlex.quote(root)} -type d -iname {shlex.quote(TRASH_DIR_NAME)}",
+                timeout=120,
+            )
+            trash_dirs.update(line.strip() for line in out.splitlines() if line.strip())
+        return trash_dirs
+
+    def trash_stats(self, roots: list[str] | None = None) -> dict:
+        """Android-side mirror of ``utils.trash.trash_stats()`` — count only,
+        nothing deleted. Used by the Papelera panel to show device totals."""
+        files = 0
+        total = 0
+        for trash_dir in self._trash_dirs(roots):
+            out = self._shell(
+                f"find {shlex.quote(trash_dir)} -maxdepth 1 -type f -exec stat -c '%s' {{}} +",
+                timeout=120,
+            )
+            for line in out.splitlines():
+                try:
+                    total += int(line.strip())
+                    files += 1
+                except ValueError:
+                    continue
+        return {"files": files, "bytes": total}
+
+    def purge_trash(self, roots: list[str] | None = None, older_than_days: float = 0) -> dict:
+        """TRASH-FIX-3: Android-side mirror of ``utils.trash.purge_trash()``.
+
+        The host-side trash purge (``trash_roots()``/daemons.py) only ever
+        walked local filesystem paths — nothing purged ``_descartados/`` on
+        the device, so files Cable Sync discards there accumulate forever
+        and get picked up as "duplicates" by anything that scans the ROMs
+        tree recursively (Daijishou, standalone emulators). Deletes files
+        older than *older_than_days* inside any ``_descartados/`` dir under
+        *roots* (default: every mounted storage volume), then removes dirs
+        left empty. Returns ``{"deleted": n, "bytes": freed}``.
+        """
+        cutoff = time.time() - older_than_days * 86400
+        deleted = 0
+        freed = 0
+        for trash_dir in self._trash_dirs(roots):
+            out = self._shell(
+                f"find {shlex.quote(trash_dir)} -maxdepth 1 -type f"
+                " -exec stat -c '%s|%Y|%n' {} +",
+                timeout=120,
+            )
+            for line in out.splitlines():
+                parts = line.strip().split("|", 2)
+                if len(parts) != 3:
+                    continue
+                size_str, mtime_str, path_str = parts
+                try:
+                    size, mtime = int(size_str), float(mtime_str)
+                except ValueError:
+                    continue
+                if mtime <= cutoff:
+                    self._shell(f"rm -f {shlex.quote(path_str)}")
+                    deleted += 1
+                    freed += size
+            self._shell(f"rmdir {shlex.quote(trash_dir)}")  # no-op silencioso si no quedó vacía
+        return {"deleted": deleted, "bytes": freed}
 
     # ── file listing ──────────────────────────────────────────────────────────
 
@@ -202,7 +312,14 @@ class AdbTransport:
             if len(parts) != 3:
                 continue
             path_str, size_str, mtime_str = parts
-            if exclude_hidden and any(seg.startswith(".") for seg in path_str.split("/")):
+            segments = path_str.split("/")
+            if exclude_hidden and any(seg.startswith(".") for seg in segments):
+                continue
+            # TRASH-FIX-2: mismo guard que cable_engine.py aplica al modo FS —
+            # sin esto, Cable Sync en modo ADB + "Espejo completo" puede volver
+            # a copiar/descartar contenido ya descartado, reanidando
+            # _descartados/_descartados/ en cada pasada.
+            if TRASH_DIR_NAME in segments:
                 continue
             if wanted_extensions is not None:
                 suffix = PurePosixPath(path_str).suffix.lower()
@@ -230,6 +347,76 @@ class AdbTransport:
             raise OSError(f"md5sum falló en el dispositivo para {android_path}: {out!r}")
         return token
 
+    def _hash_recursive(
+        self,
+        android_path: str,
+        tool: str,
+        expected_len: int,
+        *,
+        exclude_hidden: bool = True,
+        timeout: int,
+    ) -> dict[str, str]:
+        """*tool* (``sha1sum``/``md5sum``) over every file under *android_path*,
+        computed on the device itself — only the hash crosses USB, never the
+        file bytes, so this stays cheap even for a multi-hundred-MB disc image
+        (ANDROID-DUP-2: measured live on the RG556, 1297 GBA files ~129s in
+        one round trip; a PC-side scan already always computes this, only the
+        ADB-scanned Android repo never did).
+
+        Single round trip via ``find … -exec {tool} {} +`` — same shape as
+        :meth:`ls_recursive`, which batches multiple files per invocation
+        instead of spawning the tool once per file. A file `_hash_recursive`
+        can't reach at all (unreadable, gone mid-scan) just has no entry in
+        the result — the caller (``_do_adb_scan``) already tolerates a
+        missing hash by falling back to ``""``, same as before this existed.
+        """
+        find_cmd = f"find {shlex.quote(android_path)} -type f -exec {tool} {{}} +"
+        out = self._shell(find_cmd, timeout=timeout)
+
+        results: dict[str, str] = {}
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 1)
+            if len(parts) != 2:
+                continue
+            digest, path_str = parts
+            digest = digest.lower()
+            if len(digest) != expected_len or not all(c in "0123456789abcdef" for c in digest):
+                continue
+            segments = path_str.split("/")
+            if exclude_hidden and any(seg.startswith(".") for seg in segments):
+                continue
+            if TRASH_DIR_NAME in segments:
+                continue
+            results[path_str] = digest
+        return results
+
+    def sha1_recursive(
+        self, android_path: str, *, exclude_hidden: bool = True, timeout: int = 3600
+    ) -> dict[str, str]:
+        """SHA1 of every file under *android_path*, ``{android_path: sha1}``.
+
+        See :meth:`_hash_recursive`. Default timeout is generous (1h) — a
+        full ROMs tree scan runs as a background job (``_do_adb_scan``), not
+        on a request/response path, and the measured live rate (~100ms/file
+        for cart-sized ROMs) puts even a 20k-file library well inside it.
+        """
+        return self._hash_recursive(
+            android_path, "sha1sum", 40, exclude_hidden=exclude_hidden, timeout=timeout
+        )
+
+    def md5_recursive(
+        self, android_path: str, *, exclude_hidden: bool = True, timeout: int = 3600
+    ) -> dict[str, str]:
+        """MD5 of every file under *android_path*, ``{android_path: md5}`` —
+        needed alongside :meth:`sha1_recursive` because RetroAchievements
+        hash-cache lookups (``_load_ra_hash_map``) key by MD5, not SHA1."""
+        return self._hash_recursive(
+            android_path, "md5sum", 32, exclude_hidden=exclude_hidden, timeout=timeout
+        )
+
     # ── transfer ──────────────────────────────────────────────────────────────
 
     def pull(
@@ -249,10 +436,23 @@ class AdbTransport:
         if not dry_run:
             local_dst.parent.mkdir(parents=True, exist_ok=True)
             target = local_dst.with_name(local_dst.name + ".part") if verify else local_dst
-            r = self._run("pull", android_src, str(target))
+            try:
+                remote_size = int(self._shell(f"stat -c '%s' {shlex.quote(android_src)}").strip())
+            except (ValueError, OSError):
+                remote_size = 0
+            r = self._run("pull", android_src, str(target), timeout=_transfer_timeout(remote_size))
             if r.returncode != 0:
                 target.unlink(missing_ok=True)
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
+                if "permission denied" in err.lower():
+                    # Lectura bloqueada por scoped storage (Android 11+): el
+                    # archivo es privado de otra app y ni el shell de adb puede
+                    # leerlo sin root. No hay forma de solucionarlo desde aquí.
+                    raise OSError(
+                        f"{android_src}: sin permiso de lectura en este dispositivo "
+                        "(carpeta privada de la app, scoped storage de Android — "
+                        "requiere root o que la app guarde en almacenamiento público)"
+                    )
                 raise OSError(f"adb pull falló: {err}")
             if verify:
                 try:
@@ -296,12 +496,20 @@ class AdbTransport:
             parent = str(PurePosixPath(android_dst).parent)
             self._shell(f"mkdir -p {shlex.quote(parent)}")
             target = f"{android_dst}.part" if verify else android_dst
-            r = self._run("push", str(local_src), target)
+            r = self._run("push", str(local_src), target, timeout=_transfer_timeout(size))
             if r.returncode != 0:
-                if verify:
-                    self._shell(f"rm -f {shlex.quote(target)}")
                 err = (r.stderr or r.stdout or b"").decode(errors="replace").strip()
-                raise OSError(f"adb push falló: {err}")
+                # Carpetas Android/data/<pkg> con scoped storage (Android 11+):
+                # adb SÍ escribe el contenido pero el fchown final a la UID de
+                # la app falla sin root — el archivo queda en el dispositivo
+                # pese al exit code != 0. En vez de descartarlo a ciegas, cae
+                # al chequeo MD5 de abajo: si el contenido llegó bien, se
+                # continúa; si no, la limpieza/raise de esa rama actúa igual.
+                benign_fchown_only = verify and "fchown failed" in err
+                if not benign_fchown_only:
+                    if verify:
+                        self._shell(f"rm -f {shlex.quote(target)}")
+                    raise OSError(f"adb push falló: {err}")
             if verify:
                 try:
                     local_md5 = _md5_local(local_src)

@@ -8,6 +8,8 @@ from pathlib import Path
 from rom_manager.catalog.mame_loader import (
     load_arcade_crc_index,
     load_arcade_infra_names,
+    load_arcade_manifest,
+    load_fbneo_dat,
     load_mame_xml,
 )
 
@@ -37,6 +39,19 @@ def test_infra_names_missing_dir_is_empty() -> None:
     assert load_arcade_infra_names(Path("no-existe")) == set()
 
 
+def test_load_mame_xml_reads_game_tag_under_mame_root(tmp_path: Path) -> None:
+    """ARCADE-RENAME-BUG-1a: MAME 2003-Plus.dat real tiene root.tag=='mame'
+    pero hijos <game>, no <machine> -- antes devolvía 0 machines en silencio."""
+    xml = tmp_path / "mame2003plus.dat"
+    xml.write_text(
+        '<?xml version="1.0"?>\n<mame>\n'
+        '  <game name="sf2"><description>Street Fighter II</description></game>\n'
+        "</mame>\n",
+        encoding="utf-8",
+    )
+    assert set(load_mame_xml(xml)) == {"sf2"}
+
+
 _DAT = """<?xml version="1.0"?>
 <datafile>
   <game name="lemmings">
@@ -49,6 +64,52 @@ _DAT = """<?xml version="1.0"?>
   </game>
 </datafile>
 """
+
+
+def test_load_fbneo_dat_reads_description_as_child_element(tmp_path: Path) -> None:
+    """MATCH-ZIP-HASH-1: el dat oficial de FBNeo (github.com/libretro/FBNeo)
+    trae description/year/manufacturer como elemento hijo, no atributo --
+    leerlos como atributo (comportamiento anterior) devolvía "" para los tres
+    en cualquier dat FBNeo real."""
+    dat = tmp_path / "fbneo.dat"
+    dat.write_text(
+        '<?xml version="1.0"?>\n<datafile>\n'
+        '  <game name="19xxb" cloneof="19xx">\n'
+        "    <description>19XX: The War Against Destiny (Brazil 951218)</description>\n"
+        "    <year>1996</year>\n"
+        "    <manufacturer>Capcom</manufacturer>\n"
+        '    <rom name="19xb.03a" size="524288" crc="341bdf4a"/>\n'
+        "  </game>\n</datafile>\n",
+        encoding="utf-8",
+    )
+    result = load_fbneo_dat(dat)
+    assert result == {"19xxb": ("19XX: The War Against Destiny (Brazil 951218)", "1996", "Capcom")}
+
+
+def test_load_fbneo_dat_falls_back_to_attribute_style(tmp_path: Path) -> None:
+    """Un dat Logiqx que sí use el estilo atributo sigue funcionando."""
+    dat = tmp_path / "fbneo_attr.dat"
+    dat.write_text(
+        '<?xml version="1.0"?>\n<datafile>\n'
+        '  <game name="sf2" description="Street Fighter II" year="1991" '
+        'manufacturer="Capcom"/>\n</datafile>\n',
+        encoding="utf-8",
+    )
+    result = load_fbneo_dat(dat)
+    assert result == {"sf2": ("Street Fighter II", "1991", "Capcom")}
+
+
+def test_load_fbneo_dat_non_xml_file_returns_empty(tmp_path: Path) -> None:
+    """El dat FBNeo previamente incluido en el proyecto no era XML (formato
+    texto plano ClrMamePro) -- ET.parse() debe fallar de forma controlada
+    (dict vacío), no lanzar."""
+    dat = tmp_path / "fbneo_plaintext.dat"
+    dat.write_text(
+        'clrmamepro (\n\tname "FBNeo - Arcade Games"\n)\n\n'
+        'game (\n\tname "sf2"\n\trom ( name sf2.zip size 1 crc 00000000 )\n)\n',
+        encoding="utf-8",
+    )
+    assert load_fbneo_dat(dat) == {}
 
 
 def test_arcade_crc_index_maps_crc_to_sets(tmp_path: Path) -> None:
@@ -65,6 +126,89 @@ def test_arcade_crc_index_maps_crc_to_sets(tmp_path: Path) -> None:
 
 def test_arcade_crc_index_missing_dir_is_empty() -> None:
     assert load_arcade_crc_index(Path("no-existe")) == {}
+
+
+def test_arcade_crc_index_ignores_console_only_fbneo_dats(tmp_path: Path) -> None:
+    """ARCADE-DAT-CONTAMINATION: un DAT "X only" de FBNeo que no sea Arcade
+    (Game Gear, SNES, Master System…) no debe contaminar el índice — un ZIP
+    de esa consola no puede votar como "set arcade completo". Reproducido en
+    real 2026-09-02: 23 ZIPs de Amiga se movieron a arcade/ por esto."""
+    console_dat = """<?xml version="1.0"?>
+<datafile>
+  <game name="sonic">
+    <rom name="sonic.md" size="524288" crc="deadbeef"/>
+  </game>
+</datafile>
+"""
+    (tmp_path / "FinalBurn Neo (ClrMame Pro XML, Megadrive only).dat").write_text(
+        console_dat, encoding="utf-8"
+    )
+    (tmp_path / "FinalBurn Neo (ClrMame Pro XML, Arcade only).dat").write_text(
+        _DAT, encoding="utf-8"
+    )
+
+    index = load_arcade_crc_index(tmp_path)
+
+    assert "DEADBEEF" not in index
+    assert index["AABB0001"] == {"lemmings", "lemmingsj"}
+
+
+def test_arcade_manifest_lists_expected_roms_per_machine(tmp_path: Path) -> None:
+    """ARCADE-RECON-1: machine -> roms esperados, para calcular cobertura."""
+    (tmp_path / "MAME.dat").write_text(_DAT, encoding="utf-8")
+
+    manifest = load_arcade_manifest(tmp_path)
+
+    assert manifest["lemmings"] == [
+        ("lem_01.bin", "AABB0001", 1024),
+        ("lem_02.bin", "AABB0002", 1024),
+    ]
+    assert manifest["lemmingsj"] == [
+        ("lem_01.bin", "AABB0001", 1024),
+        ("lem_03.bin", "AABB0003", 1024),
+    ]
+
+
+def test_arcade_manifest_missing_dir_is_empty() -> None:
+    assert load_arcade_manifest(Path("no-existe")) == {}
+
+
+def test_arcade_manifest_ignores_console_only_fbneo_dats(tmp_path: Path) -> None:
+    """Mismo filtro que load_arcade_crc_index — ARCADE-RECON no debe poder
+    reconstruir un "set arcade" a partir de chips de un DAT de consola."""
+    console_dat = """<?xml version="1.0"?>
+<datafile>
+  <game name="sonic">
+    <rom name="sonic.md" size="524288" crc="deadbeef"/>
+  </game>
+</datafile>
+"""
+    (tmp_path / "FinalBurn Neo (ClrMame Pro XML, Game Gear only).dat").write_text(
+        console_dat, encoding="utf-8"
+    )
+
+    manifest = load_arcade_manifest(tmp_path)
+
+    assert "sonic" not in manifest
+
+
+def test_arcade_manifest_dedupes_same_machine_across_dat_sources(tmp_path: Path) -> None:
+    """Un mismo set (p.ej. rtype2) puede definirse tanto en el DAT de MAME
+    como en el de FBNeo, con roms idénticos — no debe contarse dos veces
+    (bloquearía ARCADE-RECON exigiendo dos copias físicas del mismo chip)."""
+    dat = """<?xml version="1.0"?>
+<datafile>
+  <game name="rtype2">
+    <rom name="ic5" size="279" crc="21ede612"/>
+  </game>
+</datafile>
+"""
+    (tmp_path / "MAME.dat").write_text(dat, encoding="utf-8")
+    (tmp_path / "FBNeo.dat").write_text(dat, encoding="utf-8")
+
+    manifest = load_arcade_manifest(tmp_path)
+
+    assert manifest["rtype2"] == [("ic5", "21EDE612", 279)]
 
 
 def test_infra_names_memoized_until_files_change(tmp_path: Path, monkeypatch) -> None:

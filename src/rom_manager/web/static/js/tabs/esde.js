@@ -3,6 +3,7 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 // ── Local helper ──────────────────────────────────────────────────────────────
 const _h = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -135,6 +136,120 @@ export async function loadRetroArchCheck() {
     rows.innerHTML = '';
     issues.innerHTML = '';
     coresWrap.classList.add('hidden');
+  }
+}
+
+// DEVPROFILE-2d: manual "apply savefile layout" trigger
+export async function applyRetroArchSavefileLayout() {
+  const el  = document.getElementById('ra-apply-layout-result');
+  const btn = document.getElementById('btn-ra-apply-layout');
+  if (!el) return;
+  if (btn) btn.disabled = true;
+  el.textContent = 'Aplicando…'; el.style.color = 'var(--c-dim)';
+  try {
+    const d = await apiPost('/api/retroarch-apply-savefile-layout');
+    if (!d.applied) {
+      el.textContent = '✗ ' + (d.error || 'No se pudo aplicar.');
+      el.style.color = 'var(--c-softred)';
+      return;
+    }
+    const changed = Object.keys(d.changed_keys || {});
+    el.innerHTML = changed.length
+      ? `✓ Layout aplicado (${_h(d.savefile_dir)}) — backup en <code>${_h(d.backup_path)}</code>`
+      : '✓ Ya estaba correcto, nada que cambiar.';
+    el.style.color = 'var(--c-teal)';
+    loadRetroArchCheck();
+  } catch(e) {
+    el.textContent = '✗ Error: ' + e.message;
+    el.style.color = 'var(--c-softred)';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── DEVPROFILE-4a: Perfil del dispositivo (Tier A backup a la nube) ───────────
+let _devProfileCandidates = [];
+let _devProfileExisting = [];
+
+export async function loadDeviceProfileDetect() {
+  const spinner = document.getElementById('devprofile-spinner');
+  const el = document.getElementById('devprofile-result');
+  if (!el) return;
+  if (spinner) spinner.classList.remove('hidden');
+  el.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/device-profile-detect');
+    if (spinner) spinner.classList.add('hidden');
+    if (d.error) { el.innerHTML = `<p style="color:var(--c-softred)">${_h(d.error)}</p>`; return; }
+    _devProfileCandidates = d.candidates || [];
+    _devProfileExisting = d.existing || [];
+
+    let html = '';
+    if (_devProfileExisting.length) {
+      const names = _devProfileExisting.map(s => `<span style="color:var(--c-teal)">${_h(s.name)}</span>`).join(', ');
+      html += `<div style="color:var(--c-dim);margin-bottom:8px">Ya configuradas: ${names}</div>`;
+    }
+    if (!_devProfileCandidates.length) {
+      html += `<p style="color:var(--c-dim)">${_devProfileExisting.length ? 'No hay carpetas nuevas que añadir.' : 'No se encontró ninguna carpeta Tier A junto a RetroArch.'}</p>`;
+      el.innerHTML = html;
+      return;
+    }
+    html += '<table style="width:100%;border-collapse:collapse"><tbody>';
+    _devProfileCandidates.forEach((s, i) => {
+      html += `<tr>
+        <td style="padding:3px 6px 3px 0"><input type="checkbox" id="devprofile-chk-${i}" checked></td>
+        <td style="padding:3px 6px 3px 0;color:var(--c-text);white-space:nowrap">${_h(s.name)}</td>
+        <td style="padding:3px 6px 3px 0"><code style="color:var(--c-orange)">${_h(s.local_dir)}</code></td>
+        <td style="padding:3px 0"><input type="text" id="devprofile-remote-${i}" value="${_h(s.remote)}" style="width:100%;font-size:11px" placeholder="remoto:RetroSync/carpeta"></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    html += '<button onclick="saveDeviceProfileSources()" style="font-size:11px;padding:4px 12px;margin-top:10px">&#x1F4BE; Guardar selecci&#xf3;n</button>';
+    html += '<div id="devprofile-save-result" style="min-height:14px;margin-top:6px"></div>';
+    el.innerHTML = html;
+  } catch(e) {
+    if (spinner) spinner.classList.add('hidden');
+    el.innerHTML = `<p style="color:var(--c-softred)">Error: ${_h(e.message)}</p>`;
+  }
+}
+
+export async function saveDeviceProfileSources() {
+  const resEl = document.getElementById('devprofile-save-result');
+  const merged = [..._devProfileExisting];
+  _devProfileCandidates.forEach((s, i) => {
+    const chk = document.getElementById(`devprofile-chk-${i}`);
+    if (!chk?.checked) return;
+    const remoteInput = document.getElementById(`devprofile-remote-${i}`);
+    merged.push({ name: s.name, local_dir: s.local_dir, remote: (remoteInput?.value || '').trim() || s.remote, sync_all: s.sync_all, single_file: s.single_file });
+  });
+  if (resEl) { resEl.textContent = 'Guardando…'; resEl.style.color = 'var(--c-dim)'; }
+  try {
+    await apiPost('/api/config', { 'sync.sources': merged });
+    if (resEl) { resEl.textContent = ''; }
+    showToast('Fuentes guardadas — se sincronizarán junto al resto', 'ok');
+    loadDeviceProfileDetect();
+  } catch(e) {
+    if (resEl) { resEl.textContent = '✗ Error: ' + e.message; resEl.style.color = 'var(--c-softred)'; }
+  }
+}
+
+// DEVPROFILE-5a: upload the confirmed sync_sources as a portable manifest
+export async function saveDeviceProfileManifest() {
+  const el = document.getElementById('devprofile-manifest-result');
+  if (!el) return;
+  el.textContent = 'Guardando en la nube…'; el.style.color = 'var(--c-dim)';
+  try {
+    const d = await apiPost('/api/device-profile-save-manifest');
+    if (!d.saved) {
+      el.textContent = '✗ ' + (d.error || 'No se pudo guardar.');
+      el.style.color = 'var(--c-softred)';
+      return;
+    }
+    el.innerHTML = `✓ Perfil guardado en <code>${_h(d.remote_path)}</code> (${d.sources} fuentes)`;
+    el.style.color = 'var(--c-teal)';
+  } catch(e) {
+    el.textContent = '✗ Error: ' + e.message;
+    el.style.color = 'var(--c-softred)';
   }
 }
 
@@ -281,7 +396,7 @@ function _renderRaPage() {
       ${noMd5 > 0 ? `<span style="color:var(--c-muted);margin-left:8px">? ${noMd5} sin MD5</span>` : ''}
     </div>
     <div style="display:flex;gap:6px">
-      ${noSupport > 0 ? `<button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="window.discardRaNoSupport()" title="Mover ${noSupport} juegos sin soporte a _descartados/">Descartar sin soporte</button>` : ''}
+      ${alternative > 0 ? `<button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="window.discardRaNoSupport()" title="Mover ${alternative} juegos sin logros que SÍ tienen una alternativa con logros en tu biblioteca a _descartados/">Descartar con alternativa RA</button>` : ''}
       ${platformFilter ? `<button class="btn" style="padding:3px 8px;font-size:11px" onclick="window.clearRaFilter()">✕ Limpiar filtro</button>` : ''}
     </div>
   </div>`;
@@ -389,59 +504,51 @@ function _raStatusColor(status) {
 }
 
 export async function discardRaNoSupport() {
-  const noSupportGames = _raResults.filter(r => r.status === 'no_support');
+  // HERR-FIX-1: solo descarta juegos con alternativa RA disponible (esos son
+  // seguros — ya hay una copia mejor en la biblioteca). "no_support" a secas
+  // (sin alternativa) nunca se toca aquí: sería la única copia del juego.
+  const discardable = _raResults.filter(r => r.status === 'no_support_alternative');
 
-  if (!noSupportGames.length) {
-    showToast('No hay juegos sin soporte RA para descartar.', 'info');
+  if (!discardable.length) {
+    showToast('No hay juegos con alternativa RA disponible para descartar.', 'info');
     return;
   }
 
-  // Show confirmation dialog
-  if (!window._showConfirm) {
-    // Fallback if confirm component not available
-    const confirmed = confirm(`¿Descartar ${noSupportGames.length} juegos sin soporte RA?\n\nLos archivos se moverán a una carpeta _descartados en su ubicación actual.\nEsta acción se registrará en la base de datos.`);
-    if (!confirmed) return;
-  } else {
-    // Use confirm modal if available
-    const confirmed = await new Promise(resolve => {
-      const origCallback = window._confirmCallback;
-      window._confirmCallback = (result) => {
-        window._confirmCallback = origCallback;
-        resolve(result);
-      };
-      window._showConfirm(
-        `¿Descartar ${noSupportGames.length} juegos sin soporte RA?`,
-        'Los archivos se moverán a _descartados/. Haz una copia de seguridad si es tu primera vez.'
-      );
-    });
-    if (!confirmed) return;
-  }
+  // HERR-FIX-1: la integración anterior usaba window._confirmCallback, que
+  // _showConfirm() (components/modal.js) nunca llama — el botón "Confirmar"
+  // no hacía nada (_confirmOkHandler quedaba undefined). _showConfirm recibe
+  // el callback como 4º argumento, igual que el resto de la app.
+  _showConfirm(
+    `¿Descartar ${discardable.length} juegos sin logros con alternativa?`,
+    'Los archivos se moverán a _descartados/ (recuperable). Se conserva la alternativa con logros RA de cada uno.',
+    'Descartar',
+    async () => {
+      try {
+        const d = await apiPost('/api/ra-check/discard-no-support', {});
+        if (d.error) {
+          showToast('Error: ' + d.error, 'err');
+          return;
+        }
 
-  try {
-    const d = await apiPost('/api/ra-check/discard-no-support', {});
-    if (d.error) {
-      showToast('Error: ' + d.error, 'err');
-      return;
-    }
+        const { discarded, failed, errors } = d;
+        const msg = `✓ ${discarded} descartados`;
+        showToast(msg + (failed > 0 ? ` (${failed} fallos)` : ''), failed > 0 ? 'warn' : 'ok');
 
-    const { discarded, failed, errors } = d;
-    const msg = `✓ ${discarded} descartados`;
-    showToast(msg + (failed > 0 ? ` (${failed} fallos)` : ''), failed > 0 ? 'warn' : 'ok');
+        // Remove discarded games from results
+        _raResults = _raResults.filter(r => r.status !== 'no_support_alternative');
+        _raPage = 0;
+        _renderRaPage();
 
-    // Remove discarded games from results
-    _raResults = _raResults.filter(r => r.status !== 'no_support');
-    _raPage = 0;
-    _renderRaPage();
-
-    // Show error details if any
-    if (errors && errors.length > 0) {
-      console.warn('RA discard errors:', errors);
-      const errMsg = errors.slice(0, 3).join('\n');
-      showToast(`⚠ Algunos errores: ${errors.length > 3 ? '...' : ''}`, 'warn');
-    }
-  } catch(e) {
-    showToast('Error al descartar juegos: ' + e.message, 'err');
-  }
+        // Show error details if any
+        if (errors && errors.length > 0) {
+          console.warn('RA discard errors:', errors);
+          showToast(`⚠ Algunos errores: ${errors.length > 3 ? '...' : ''}`, 'warn');
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message, 'err');
+      }
+    },
+  );
 }
 
 export function _raSelectAlternative(idx) {

@@ -10,7 +10,7 @@ from pathlib import Path
 _DEFAULT_CORE = "DETECT"
 
 
-def _platform_db_name(platform: str) -> str:
+def platform_db_name(platform: str) -> str:
     """Return the canonical RetroArch db_name for a platform (e.g. 'Sony - PlayStation.lpl')."""
     # Best-effort mapping — covers the most common platforms
     _MAP = {
@@ -85,7 +85,7 @@ def generate_lpl_playlists(
 
     total_games = 0
     for platform, games in by_platform.items():
-        db_name = _platform_db_name(platform) + ".lpl"
+        db_name = platform_db_name(platform) + ".lpl"
         items = []
         for game in games:
             label = game["canonical_title"] or Path(game["original_filename"]).stem

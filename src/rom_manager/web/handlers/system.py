@@ -356,6 +356,7 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         "key_cores": {},
         "savefile_dir": "",
         "savestate_dir": "",
+        "savefile_drift": False,
         "esde_ra_path": "",
         "esde_ra_match": None,
         "issues": [],
@@ -381,19 +382,46 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         result["issues"].append(f"retroarch.cfg no encontrado en {ra_dir}")
 
     if cfg.exists():
+        from rom_manager.services.retroarch_cfg_writer import (
+            default_savefile_layout,
+            read_savefile_layout,
+        )
+
         try:
             text = cfg.read_text(encoding="utf-8", errors="replace")
-            for key, field in (
-                ("savefile_directory", "savefile_dir"),
-                ("savestate_directory", "savestate_dir"),
-            ):
-                m = re.search(rf'^{key}\s*=\s*"(.+)"', text, re.MULTILINE)
-                if m:
-                    val = m.group(1).strip()
-                    if val not in ("", "default"):
-                        result[field] = val
+            layout = read_savefile_layout(text)
+            result["savefile_dir"] = layout.savefile_dir
+            result["savestate_dir"] = layout.savestate_dir
         except OSError:
-            pass
+            layout = None
+
+        # DEVPROFILE-7: warn when the live cfg no longer matches the D2 sync
+        # convention (library_root/saves + /states) — the most common way
+        # today's saves silently stop syncing (fresh RetroArch install, a
+        # manual edit, a stale path from before DEVPROFILE-2). Free once the
+        # default layout convention exists (DEVPROFILE-2/2d).
+        if layout is not None and config.library_root:
+
+            def _norm(p: str) -> str:
+                return str(Path(p)).lower().rstrip("\\/") if p else ""
+
+            expected = default_savefile_layout(config.library_root)
+            save_drift = _norm(layout.savefile_dir) != _norm(expected.savefile_dir)
+            state_drift = _norm(layout.savestate_dir) != _norm(expected.savestate_dir)
+            result["savefile_drift"] = save_drift or state_drift
+            if save_drift:
+                result["issues"].append(
+                    f"savefile_directory no coincide con el layout de sync (D2): actual "
+                    f"'{layout.savefile_dir or '(no configurado)'}', esperado "
+                    f"'{expected.savefile_dir}' — tus partidas nuevas podrían no estar "
+                    'sincronizándose. Pulsa "Aplicar layout de saves".'
+                )
+            if state_drift:
+                result["issues"].append(
+                    f"savestate_directory no coincide con el layout de sync (D2): actual "
+                    f"'{layout.savestate_dir or '(no configurado)'}', esperado "
+                    f"'{expected.savestate_dir}'."
+                )
 
     cores_dir = ra_dir / "cores"
     result["cores_dir_exists"] = cores_dir.exists()
@@ -457,3 +485,139 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
         and len(result["issues"]) == 0
     )
     return result
+
+
+def _handle_apply_retroarch_savefile_layout(config: AppConfig) -> dict:
+    """DEVPROFILE-2d: manual trigger for apply_savefile_layout() from Settings.
+
+    Botón manual, no automático (Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md §3) —
+    reescribe un .cfg del usuario, así que solo se dispara si lo pide.
+    Localiza retroarch.cfg igual que ``_handle_retroarch_check`` (junto al
+    exe configurado, no ``_detect_retroarch_install()``) y usa
+    ``library_root/saves`` + ``library_root/states`` como destino, el mismo
+    convenio que ya asume el sync a la nube (D2, ``sync.saves_remote``).
+    """
+    from rom_manager.services.retroarch_cfg_writer import (
+        apply_savefile_layout,
+        default_savefile_layout,
+    )
+
+    ra_exe = (config.retroarch_path or "").strip()
+    if not ra_exe:
+        return {"applied": False, "error": "RetroArch no está configurado en Settings."}
+    if not config.library_root:
+        return {"applied": False, "error": "library_root no está configurado en Settings."}
+
+    cfg = Path(ra_exe).parent / "retroarch.cfg"
+    if not cfg.exists():
+        return {"applied": False, "error": f"retroarch.cfg no encontrado en {cfg.parent}"}
+
+    layout = default_savefile_layout(config.library_root)
+    result = apply_savefile_layout(cfg, layout.savefile_dir, layout.savestate_dir)
+    return {
+        "applied": result.applied,
+        "backup_path": result.backup_path,
+        "changed_keys": result.changed_keys,
+        "error": result.error,
+        "savefile_dir": layout.savefile_dir,
+        "savestate_dir": layout.savestate_dir,
+    }
+
+
+def _handle_device_profile_detect(config: AppConfig) -> dict:
+    """DEVPROFILE-4a UI: Tier A source candidates for the "Perfil del
+    dispositivo" confirm screen in Settings.
+
+    Locates RetroArch the same way as ``_handle_retroarch_check`` (next to
+    the configured exe) and reuses ``detect_tier_a_sources()``
+    (services/device_profile.py), plus ``detect_data_sources()`` (DEVPROFILE-8,
+    tool-owned data under ``.rommgr`` -- catalogs today -- independent of
+    RetroArch being configured at all). Candidates already present in
+    ``config.sync.sync_sources`` (by local_dir) are excluded — the screen
+    only asks about *new* folders, confirming again on every visit would be
+    noise.
+    """
+    from rom_manager.services.device_profile import detect_data_sources, detect_tier_a_sources
+
+    remote = config.sync.saves_remote or config.sync.states_remote or ""
+    remote_base = remote.rsplit("/", 1)[0] if "/" in remote else remote
+
+    existing = config.sync.sync_sources
+    existing_dirs = {str(Path(s.local_dir)) for s in existing}
+
+    def _as_dict(s):
+        return {
+            "name": s.name,
+            "local_dir": s.local_dir,
+            "remote": s.remote,
+            "sync_all": s.sync_all,
+            "single_file": s.single_file,
+        }
+
+    ra_exe = (config.retroarch_path or "").strip()
+    detected = list(detect_data_sources(config.project_root, remote_base))
+    if ra_exe:
+        detected += detect_tier_a_sources(Path(ra_exe).parent, remote_base)
+    elif not detected:
+        return {
+            "error": "RetroArch no está configurado en Settings.",
+            "candidates": [],
+            "existing": [],
+        }
+
+    candidates = [_as_dict(s) for s in detected if str(Path(s.local_dir)) not in existing_dirs]
+    return {
+        "candidates": candidates,
+        "existing": [_as_dict(s) for s in existing],
+        "remote_base": remote_base,
+    }
+
+
+def _handle_save_device_profile_manifest(config: AppConfig) -> dict:
+    """DEVPROFILE-5a: manual "save profile to the cloud" trigger from the
+    same "Perfil del dispositivo" panel.
+
+    Uploads the already-confirmed ``config.sync.sync_sources`` (not the
+    detect candidates — only what the user actually saved) as
+    ``<remote_base>/device-profile.json``, closing the gap where
+    DEVPROFILE-4's export/import functions had no production caller (see
+    Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md §1). ``rommgr restore`` (DEVPROFILE-5b+)
+    is the future reader of this file.
+    """
+    from rom_manager.services.device_profile import save_profile_manifest
+    from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
+
+    if not config.library_root:
+        return {"saved": False, "error": "library_root no está configurado en Settings."}
+    if not config.sync.sync_sources:
+        return {
+            "saved": False,
+            "error": 'No hay fuentes de sync confirmadas todavía — usa "Guardar selección" primero.',
+        }
+
+    remote = config.sync.saves_remote or config.sync.states_remote or ""
+    remote_base = remote.rsplit("/", 1)[0] if "/" in remote else remote
+    if not remote_base:
+        return {
+            "saved": False,
+            "error": "No hay remoto de sync configurado (saves_remote/states_remote).",
+        }
+
+    ra_exe = (config.retroarch_path or "").strip()
+    system_dir = Path(ra_exe).parent / "system" if ra_exe else config.library_root / "system"
+
+    transport = RcloneTransport(rclone=config.rclone_binary)
+    try:
+        remote_path = save_profile_manifest(
+            config.sync.sync_sources,
+            roms_dir=config.library_root,
+            saves_dir=config.library_root / "saves",
+            system_dir=system_dir,
+            transport=transport,
+            remote_base=remote_base,
+            project_root=config.project_root,
+        )
+    except RcloneError as exc:
+        return {"saved": False, "error": str(exc)}
+
+    return {"saved": True, "remote_path": remote_path, "sources": len(config.sync.sync_sources)}

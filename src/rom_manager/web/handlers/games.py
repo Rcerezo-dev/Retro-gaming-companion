@@ -176,6 +176,7 @@ def register(
         genre_filter = qs.get("genre", [None])[0] or None
         year_filter = qs.get("year", [None])[0] or None
         region_filter = qs.get("region", [None])[0] or None
+        initial_filter = qs.get("initial", [None])[0] or None
         sort_by = qs.get("sort_by", [None])[0] or None
         _games_repo = get_repo_fn(root or "")
         _result = _build_games(
@@ -193,6 +194,7 @@ def register(
             genre=genre_filter,
             year=year_filter,
             region=region_filter,
+            initial=initial_filter,
             sort_by=sort_by,
         )
         _enrich_games_with_ra(_result["games"], config)
@@ -202,6 +204,46 @@ def register(
             sum(1 for f in _ni.iterdir() if f.suffix.lower() == ".dat") if _ni.exists() else 0
         ) + (sum(1 for f in _rd.iterdir() if f.suffix.lower() == ".dat") if _rd.exists() else 0)
         ctx._send_json(_result)
+
+    # ── GET /api/download-rom ────────────────────────────────────────────────
+    @router.get("/api/download-rom")
+    def get_download_rom(ctx) -> None:
+        """FTP-PICK (rediseñado 2026-08-29): descarga un ROM desde el navegador
+        de la Anbernic — reutiliza el servidor HTTP ya existente en vez de un
+        protocolo nuevo. Solo sirve rutas que ya están en la BD como ROM (no
+        cualquier archivo del disco) y, además, que resuelvan dentro de
+        library_root/anbernic_root (mismo patrón de path traversal que
+        REV43-16, `post_restore_backup`)."""
+        from pathlib import Path as _Path
+
+        qs = getattr(ctx, "_qs", {})
+        source_path = qs.get("path", [None])[0]
+        if not source_path:
+            ctx._send_error(400, "path requerido")
+            return
+
+        _dl_repo = get_repo_fn(source_path)
+        with _dl_repo.connect() as conn:
+            row = conn.execute(
+                "SELECT original_filename FROM games WHERE source_path = ? AND file_type = 'rom'",
+                (source_path,),
+            ).fetchone()
+        if not row:
+            ctx._send_error(404, "ROM no encontrada en la biblioteca")
+            return
+
+        target = _Path(source_path).resolve()
+        allowed_roots = [
+            _Path(r).resolve() for r in (config.library_root, config.anbernic_root) if r
+        ]
+        if not any(target.is_relative_to(root) for root in allowed_roots):
+            ctx._send_error(403, "Ruta fuera de la biblioteca")
+            return
+        if not target.is_file():
+            ctx._send_error(404, "Archivo no encontrado en disco")
+            return
+
+        ctx._send_file(target, row["original_filename"])
 
     # ── GET /api/games/filter-options ────────────────────────────────────────
     @router.get("/api/games/filter-options")
@@ -219,7 +261,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
         else:
             ctx._send_json({"tags": repository.get_tags(int(game_id))})
 
@@ -230,7 +272,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         tag = qs.get("tag", [None])[0]
         if not tag:
-            ctx._send_json({"error": "tag required"})
+            ctx._send_json({"error": "tag requerido"})
             return
         with repository.connect() as conn:
             rows = conn.execute(
@@ -266,7 +308,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -295,7 +337,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -323,7 +365,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -374,7 +416,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         sp = qs.get("source_path", [""])[0]
         if not sp:
-            ctx._send_json({"error": "source_path required"})
+            ctx._send_json({"error": "source_path requerido"})
         else:
             ctx._send_json({"history": repository.get_save_sync_history(sp)})
 
@@ -384,7 +426,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("id", [None])[0]
         if not game_id:
-            ctx._send_json({"error": "id required"})
+            ctx._send_json({"error": "id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
@@ -406,7 +448,7 @@ def register(
                 (int(game_id),),
             ).fetchone()
         if not row:
-            ctx._send_json({"error": "not found"})
+            ctx._send_json({"error": "no encontrado"})
             return
         result = dict(row)
         # RA data lookup from local cache
@@ -443,12 +485,12 @@ def register(
         qs = getattr(ctx, "_qs", {})
         ra_game_id = qs.get("ra_game_id", [None])[0]
         if not ra_game_id:
-            ctx._send_json({"error": "ra_game_id required"})
+            ctx._send_json({"error": "ra_game_id requerido"})
             return
         try:
             ra_game_id = int(ra_game_id)
         except (ValueError, TypeError):
-            ctx._send_json({"error": "ra_game_id must be integer"})
+            ctx._send_json({"error": "ra_game_id debe ser un entero"})
             return
 
         api_key = config.credentials.ra_api_key
@@ -524,7 +566,7 @@ def register(
         game_id = data.get("game_id")
         status = data.get("status") or None
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         _status_repo = get_repo_fn(data.get("source_path", ""))
         _status_repo.set_play_status(int(game_id), status)
@@ -561,7 +603,7 @@ def register(
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         gid = int(game_id)
         _meta_repo = get_repo_fn(data.get("source_path", ""))
@@ -584,7 +626,7 @@ def register(
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         _fav_repo = get_repo_fn(data.get("source_path", ""))
         new_val = _fav_repo.toggle_favorite(int(game_id))
@@ -598,7 +640,7 @@ def register(
         tag = str(data.get("tag", "")).strip()
         action = data.get("action", "add")  # "add" | "remove"
         if not game_id or not tag:
-            ctx._send_json({"error": "game_id and tag required"})
+            ctx._send_json({"error": "game_id y tag requeridos"})
             return
         _tag_repo = get_repo_fn(data.get("source_path", ""))
         if action == "remove":
@@ -606,6 +648,43 @@ def register(
         else:
             _tag_repo.add_tag(int(game_id), tag)
         ctx._send_json({"ok": True, "tags": _tag_repo.get_tags(int(game_id))})
+
+    # ── POST /api/tag-bulk ───────────────────────────────────────────────────
+    @router.post("/api/tag-bulk")
+    def post_tag_bulk(ctx) -> None:
+        """ANBERNIC-PICK-1: aplica/quita un tag a todos los juegos que cumplan el
+        filtro actual de la pestaña Juegos (mismos parámetros que /api/games),
+        sin paginar en el frontend. Reutiliza get_games_paginated tal cual."""
+        data = ctx._post_data
+        tag = str(data.get("tag", "")).strip()
+        action = data.get("action", "add")
+        if not tag:
+            ctx._send_json({"error": "tag requerido"})
+            return
+        root = data.get("root") or None
+        _repo = get_repo_fn(root or "")
+        games, _total = _repo.get_games_paginated(
+            offset=0,
+            limit=100000,
+            platform=data.get("platform") or None,
+            status=data.get("status") or None,
+            source_root=root,
+            file_type=data.get("filetype") or "rom",
+            search=data.get("search") or None,
+            play_status=data.get("play_status") or None,
+            favorite=bool(data.get("favorite")),
+            tag=data.get("existing_tag") or None,
+            genre=data.get("genre") or None,
+            year=data.get("year") or None,
+            region=data.get("region") or None,
+            initial=data.get("initial") or None,
+        )
+        ids = [g["id"] for g in games]
+        if action == "remove":
+            count = _repo.remove_tag_bulk(ids, tag)
+        else:
+            count = _repo.add_tag_bulk(ids, tag)
+        ctx._send_json({"ok": True, "count": count, "tag": tag.lower()})
 
     # ── POST /api/open-folder ────────────────────────────────────────────────
     @router.post("/api/open-folder")
@@ -615,7 +694,7 @@ def register(
 
         folder_path = ctx._post_data.get("path", "").strip()
         if not folder_path:
-            ctx._send_json({"ok": False, "error": "path required"})
+            ctx._send_json({"ok": False, "error": "path requerido"})
             return
         try:
             p = _os_of.path.abspath(folder_path)
@@ -636,14 +715,14 @@ def register(
         data = ctx._post_data
         game_id = data.get("game_id")
         if not game_id:
-            ctx._send_json({"error": "game_id required"})
+            ctx._send_json({"error": "game_id requerido"})
             return
         with repository.connect() as conn:
             row = conn.execute(
                 "SELECT source_path, platform FROM games WHERE id = ?", (int(game_id),)
             ).fetchone()
         if not row:
-            ctx._send_json({"error": "game not found"})
+            ctx._send_json({"error": "juego no encontrado"})
             return
         retroarch_exe = config.retroarch_path or ""
         if not retroarch_exe or not Path(retroarch_exe).exists():
@@ -671,7 +750,7 @@ def register(
         backup_path_str = data.get("backup_path", "").strip()
         original_save_str = data.get("original_save", "").strip()
         if not backup_path_str or not original_save_str:
-            ctx._send_json({"error": "backup_path and original_save required"})
+            ctx._send_json({"error": "backup_path y original_save requeridos"})
             return
         from rom_manager.backup.save_backup import restore_backup
 

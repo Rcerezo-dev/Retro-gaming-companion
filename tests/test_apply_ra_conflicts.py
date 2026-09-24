@@ -284,6 +284,59 @@ def test_collision_conflict(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario 3b — Collision: a ghost DB row (no file on disk) must never
+# outrank a real file, even with a higher RA score (DUP-CROSSFMT-6 audit).
+# ---------------------------------------------------------------------------
+
+
+def test_collision_ghost_row_never_beats_real_file(tmp_path: Path) -> None:
+    """
+    Setup
+    -----
+    ghost.gb  (md5=ggg, 50 RA) → DB row only, file was deleted/moved by hand
+    real_v1.gb (md5=hhh, 5 RA) → real file on disk
+    Both target the same canonical name.
+
+    Expected
+    --------
+    The ghost row is filtered out before scoring (op.source_path.exists()
+    guard in apply_ra_conflicts' collision branch) — it can never win despite
+    its higher RA count, and the real file is never discarded as a "loser".
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    ghost_src = roms / "ghost.gb"  # never written to disk
+    real_src = roms / "real_v1.gb"
+    real_src.write_bytes(b"REAL_GAME")
+
+    md5_ghost = "g" * 32
+    md5_real = "h" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(repo, source_path=ghost_src, md5=md5_ghost, canonical_title="Ghost Hunter (World)")
+    _insert_game(repo, source_path=real_src, md5=md5_real, canonical_title="Ghost Hunter (World)")
+
+    _write_ra_cache(
+        tmp_path,
+        [
+            _ra_entry(7, md5_ghost, 50),
+            _ra_entry(8, md5_real, 5),
+        ],
+    )
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    canonical = roms / "Ghost Hunter (World).gb"
+
+    assert canonical.exists(), "real file was not renamed to canonical path"
+    assert canonical.read_bytes() == b"REAL_GAME", "ghost row was treated as the winner"
+    assert not (roms / "_descartados").exists(), "real file was wrongly discarded as a loser"
+    assert response["errors"] == []
+
+
+# ---------------------------------------------------------------------------
 # Scenario 4 — No RA data: both files skipped
 # ---------------------------------------------------------------------------
 
@@ -315,3 +368,164 @@ def test_no_ra_data_skips_conflict(tmp_path: Path) -> None:
 
     assert response["resolved"] == 0
     assert response["skipped_no_ra"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Scenario 5 — DUP-RA-COLLISION-1: multi-disc set collision is never auto-resolved
+# ---------------------------------------------------------------------------
+
+
+def test_collision_on_disc_platform_is_never_auto_resolved(tmp_path: Path) -> None:
+    """Two *different* discs of one PSX set can collide on the same canonical
+    target when neither source filename carries any recognizable disc tag at
+    all (see TABS-FIX-6-DISC / DUP-RA-COLLISION-1 — ``find_disc_tag`` catches
+    "Disc1", "cd2", "Disco 2"..., but a completely opaque filename still slips
+    through). They must NEVER be resolved via RA winner-take-all — doing so
+    would discard a real, distinct disc, not a duplicate copy.
+
+    GAMECUBE-DISC-BUG-1d: platform is "PlayStation" (the real catalog display
+    name games.platform holds in production, from platforms.toml), not the
+    short folder code "psx" — using the short code here used to pass only
+    because the guard was (wrongly) matching against short codes too.
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    disc1 = roms / "Final Fantasy VII Media A.cue"
+    disc2 = roms / "Final Fantasy VII Media B.cue"
+    disc1.write_bytes(b"DISC_ONE_CONTENT")
+    disc2.write_bytes(b"DISC_TWO_CONTENT")
+
+    md5_disc1 = "1" * 32
+    md5_disc2 = "2" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=disc1,
+        md5=md5_disc1,
+        canonical_title="Final Fantasy VII (USA)",
+        platform="PlayStation",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2,
+        md5=md5_disc2,
+        canonical_title="Final Fantasy VII (USA)",
+        platform="PlayStation",
+    )
+
+    # Only Disc 1 has RA achievement data — the exact scenario that used to
+    # make the "winner" logic discard Disc 2.
+    _write_ra_cache(
+        tmp_path,
+        [_ra_entry(7, md5_disc1, 40)],
+    )
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    # Both discs must remain exactly where they were — nothing discarded, nothing renamed.
+    assert disc1.exists(), "Disc 1 was moved/renamed"
+    assert disc2.exists(), "Disc 2 was incorrectly discarded"
+    assert not (roms / "_descartados").exists(), "_descartados created for a real disc"
+
+    assert response["resolved"] == 0
+    assert response["skipped_multi_disc"] == 2
+    assert response["errors"] == []
+
+
+def test_collision_on_gamecube_multi_disc_is_never_auto_resolved(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1a regression: GameCube was excluded from
+    _DISC_SUBFOLDER_PLATFORMS (single-file dumps, INBOX-ORPHAN-3) and that same
+    exclusion used to also disable the multi-disc collision guard here, letting
+    real sets (Twin Snakes, Resident Evil 0/1/4) get RA-winner-resolved as if
+    they were duplicate copies — discarding a real, needed disc.
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    disc1 = roms / "Metal Gear Solid - The Twin Snakes Media A.rvz"
+    disc2 = roms / "Metal Gear Solid - The Twin Snakes Media B.rvz"
+    disc1.write_bytes(b"DISC_ONE_CONTENT")
+    disc2.write_bytes(b"DISC_TWO_CONTENT")
+
+    md5_disc1 = "1" * 32
+    md5_disc2 = "2" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=disc1,
+        md5=md5_disc1,
+        canonical_title="Metal Gear Solid - The Twin Snakes (USA)",
+        platform="gamecube",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2,
+        md5=md5_disc2,
+        canonical_title="Metal Gear Solid - The Twin Snakes (USA)",
+        platform="gamecube",
+    )
+
+    _write_ra_cache(tmp_path, [_ra_entry(7, md5_disc1, 40)])
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    assert disc1.exists(), "Disc 1 was moved/renamed"
+    assert disc2.exists(), "Disc 2 was incorrectly discarded"
+    assert not (roms / "_descartados").exists(), "_descartados created for a real disc"
+
+    assert response["resolved"] == 0
+    assert response["skipped_multi_disc"] == 2
+    assert response["errors"] == []
+
+
+def test_collision_on_ps2_multi_disc_is_never_auto_resolved(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1d regression: the multi-disc guard compared
+    ``platform.lower()`` against short folder codes ("psx", "saturn", "ps2"),
+    but games.platform in production holds the catalog display name
+    ("PlayStation", "Sega Saturn", "PlayStation 2") — so PS2 (and PSX/Saturn)
+    were silently never protected. Real case: Shadow Hearts - Covenant.
+    """
+    roms = tmp_path / "roms"
+    roms.mkdir()
+
+    disc1 = roms / "Shadow Hearts - Covenant Media A.zip"
+    disc2 = roms / "Shadow Hearts - Covenant Media B.zip"
+    disc1.write_bytes(b"DISC_ONE_CONTENT")
+    disc2.write_bytes(b"DISC_TWO_CONTENT")
+
+    md5_disc1 = "1" * 32
+    md5_disc2 = "2" * 32
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=disc1,
+        md5=md5_disc1,
+        canonical_title="Shadow Hearts - Covenant (USA)",
+        platform="PlayStation 2",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2,
+        md5=md5_disc2,
+        canonical_title="Shadow Hearts - Covenant (USA)",
+        platform="PlayStation 2",
+    )
+
+    _write_ra_cache(tmp_path, [_ra_entry(7, md5_disc1, 40)])
+
+    config = _FakeConfig(project_root=tmp_path)
+    response = apply_ra_conflicts(repo, config)
+
+    assert disc1.exists(), "Disc 1 was moved/renamed"
+    assert disc2.exists(), "Disc 2 was incorrectly discarded"
+    assert not (roms / "_descartados").exists(), "_descartados created for a real disc"
+
+    assert response["resolved"] == 0
+    assert response["skipped_multi_disc"] == 2
+    assert response["errors"] == []

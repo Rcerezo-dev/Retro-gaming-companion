@@ -29,7 +29,7 @@ class _FakeDevice:
         self.corrupt_pull = False  # truncate bytes written to the PC
         self.corrupt_push = False  # truncate bytes stored on the device
 
-    def run(self, cmd, capture_output=True, timeout=None):
+    def run(self, cmd, capture_output=True, timeout=None, **_kwargs):
         rest = cmd[3:]  # strip [adb, -s, serial]
         out = b""
         rc = 0

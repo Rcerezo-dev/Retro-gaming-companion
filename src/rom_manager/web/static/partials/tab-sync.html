@@ -141,6 +141,17 @@
     <div id="save-comparison-content"></div>
   </div>
 
+  <!-- SAVE-CONSOLIDATOR-1: FRAGMENTACIÓN DE SAVES -->
+  <div class="actions-panel" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <h3 style="margin:0">&#x1F9E9; Fragmentaci&#xf3;n de saves</h3>
+      <button class="btn" onclick="doSaveFragmentation()" style="font-size:11px;padding:3px 12px">Analizar</button>
+    </div>
+    <p style="color:var(--c-dim);font-size:12px;margin-bottom:10px">Agrupa saves del mismo juego repartidos entre carpetas por-core y por-plataforma. Solo informa — nunca fusiona ni borra nada.</p>
+    <div id="save-frag-summary" style="font-size:13px;margin-bottom:10px"></div>
+    <div id="save-frag-result"></div>
+  </div>
+
   <!-- S29: BACKUP DE SAVES -->
   <div class="actions-panel" style="margin-top:20px">
     <h3>&#x1F9F2; Backup de saves</h3>

@@ -48,15 +48,21 @@ class SyncResult:
         )
 
 
-def list_local_saves(saves_dir: Path, save_extensions: tuple[str, ...]) -> list[LocalSave]:
+def list_local_saves(
+    saves_dir: Path, save_extensions: tuple[str, ...], include_glob: str = "**/*"
+) -> list[LocalSave]:
     """Walk *saves_dir* and return all files whose extension is in *save_extensions*.
 
     Pass an empty tuple to include every file regardless of extension (useful for
     emulators like PPSSPP/Dolphin whose save directories contain only save data).
+
+    *include_glob* narrows which subtree of *saves_dir* is walked (e.g. Dolphin's
+    Wii NAND has real saves only under ``title/*/*/data/`` — the rest is emulated
+    system content that shouldn't leave the PC).
     """
     saves: list[LocalSave] = []
     ext_set = {e.lower() for e in save_extensions} if save_extensions else None
-    for path in saves_dir.rglob("*"):
+    for path in saves_dir.glob(include_glob):
         if not path.is_file():
             continue
         if ext_set is not None and path.suffix.lower() not in ext_set:
@@ -82,6 +88,7 @@ def sync_saves(
     backup_keep_n: int = 5,
     delta_cache: DeltaCache | None = None,
     conflict_policy: str = "newest",
+    include_glob: str = "**/*",
 ) -> tuple[SyncResult, list[SyncDecision]]:
     """Synchronise local *saves_dir* with *saves_remote* and *states_remote* using rclone.
 
@@ -96,7 +103,7 @@ def sync_saves(
 
     # Gather both sides.
     local_saves: dict[str, LocalSave] = {
-        s.relative: s for s in list_local_saves(saves_dir, save_extensions)
+        s.relative: s for s in list_local_saves(saves_dir, save_extensions, include_glob)
     }
     try:
         # List from both remotes (combine results)
@@ -210,7 +217,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "upload")
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.uploaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -260,7 +267,7 @@ def sync_saves(
                     )
                     if delta_cache is not None:
                         delta_cache.mark_synced(relative, local_path, "download")
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.downloaded += 1
                 except RcloneError as exc:
                     log_sync_event(
@@ -366,7 +373,7 @@ def sync_saves(
                         created_at=timestamp,
                         verified=True,
                     )
-                    repository.record_play_session(local_path, timestamp)
+                    repository.record_play_session(local_path, timestamp, connection=conn)
                     result.conflicts += 1
                 except RcloneError as exc:
                     if delta_cache is not None:
@@ -388,3 +395,65 @@ def sync_saves(
             conn.commit()
 
     return result, decisions
+
+
+def sync_single_file(
+    local_path: Path,
+    remote: str,
+    *,
+    transport: RcloneTransport,
+    dry_run: bool = True,
+) -> tuple[SyncResult, list[SyncDecision]]:
+    """DEVPROFILE-8b/9: restore-style sync for a single file (a whole SQLite
+    DB, a RetroArch playlist) -- unlike ``sync_saves()``, there's only one
+    file, so per-file merge/conflict tracking doesn't apply: newest mtime
+    wins. Reuses ``decide()`` with ``last_sync_at=None``, which never returns
+    "conflict" -- exactly the "restore, don't merge" behaviour this needs.
+
+    *remote* is the full remote path to the file itself (not a directory),
+    e.g. ``"dropbox:RetroSync/data/library_pc.db"``.
+
+    # ponytail: no audit log (sync_log)/delta_cache here, unlike sync_saves --
+    # add if Sync Doctor needs per-file-source history for these too.
+    """
+    result = SyncResult()
+    remote = remote.rstrip("/")
+    remote_dir, _, filename = remote.rpartition("/")
+
+    remote_mtime = None
+    try:
+        for entry in transport.list_remote(remote_dir):
+            if entry.relative == filename:
+                remote_mtime = entry.mtime
+                break
+    except RcloneError:
+        pass  # remote dir may not exist yet
+
+    local_mtime = (
+        datetime.fromtimestamp(local_path.stat().st_mtime, tz=UTC) if local_path.exists() else None
+    )
+    decision = decide(filename, local_mtime, remote_mtime, last_sync_at=None)
+
+    if decision.action == "upload":
+        result.uploaded += 1
+    elif decision.action == "download":
+        result.downloaded += 1
+    else:
+        result.up_to_date += 1
+
+    if decision.action == "up_to_date" or dry_run:
+        return result, [decision]
+
+    try:
+        if decision.action == "upload":
+            transport.upload(local_path, filename, fallback_remote=remote_dir)
+        else:
+            transport.download(filename, local_path, fallback_remote=remote_dir)
+    except RcloneError:
+        if decision.action == "upload":
+            result.uploaded -= 1
+        else:
+            result.downloaded -= 1
+        result.errors += 1
+
+    return result, [decision]

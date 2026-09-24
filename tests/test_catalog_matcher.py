@@ -81,6 +81,20 @@ def test_sha1_case_insensitive(catalog_dirs: tuple[Path, Path]) -> None:
     assert result.title == "Tetris (World)"
 
 
+def test_subset_hack_does_not_title_match_the_vanilla_release(
+    catalog_dirs: tuple[Path, Path],
+) -> None:
+    """DUALFOLDER-12b: a ROM hack's SHA1 never hits the catalog, so it falls
+    through to the title-fallback pass -- which must not then borrow the
+    vanilla release's canonical_title (found live 2026-09-17: two "Professor
+    Oak Challenge" GBA hacks got canonical_title'd as real Pokemon
+    FireRed/Ruby)."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("00" * 20, filename="Tetris [Subset - Professor Oak Challenge].gb")
+    assert result is None
+
+
 def test_catalog_entry_counts(catalog_dirs: tuple[Path, Path]) -> None:
     nointro, redump = catalog_dirs
     matcher = CatalogMatcher(nointro, redump)
@@ -121,14 +135,21 @@ def test_name_fallback_medium_no_extension(catalog_dirs: tuple[Path, Path]) -> N
     assert result.confidence == "medium"
 
 
-def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
-    """Two titles with the same normalised key → low confidence, ambiguous=True."""
+def test_name_fallback_returns_none_when_genuinely_ambiguous(tmp_path: Path) -> None:
+    """MATCH-FIX-3: two titles with the same normalised key and no signal able
+    to pick one (same platform, same extension, no disc number) → no match,
+    not a guess. Confirmed live 2026-09-12: guessing `candidates[0]` here gave
+    a wrong canonical_title to 947 real files — as misleading as leaving them
+    unmatched, but harder to notice since it looked matched. Both entries
+    live in a DAT recognised as "Game Boy" (CATALOG-MATCH-BUG-2 requires a
+    resolvable platform per candidate to narrow by — an unrecognisable DAT
+    filename wouldn't exercise the ambiguous-region path this test targets)."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
     nointro.mkdir()
     redump.mkdir()
     _write_dat(
-        nointro / "test.dat",
+        nointro / "Nintendo - Game Boy.dat",
         [
             ("Tetris (World)", "AA" * 20, "MD1", "C1", 1024),
             ("Tetris (Japan)", "BB" * 20, "MD2", "C2", 1024),
@@ -137,9 +158,184 @@ def test_name_fallback_low_confidence_ambiguous(tmp_path: Path) -> None:
     matcher = CatalogMatcher(nointro, redump)
     # Both titles normalize to "tetris", so the filename "tetris.gb" is ambiguous
     result = matcher.match("0" * 40, "tetris.gb")
+    assert result is None
+
+
+def test_ambiguous_title_prefers_platform_matching_extension(tmp_path: Path) -> None:
+    """MATCH-FIX-2: caso real (Final Fantasy III) — el mismo título normalizado
+    existe en el DAT de NES y en el de Nintendo 3DS (Virtual Console). Sin el
+    fix, siempre ganaba el primer hit por orden alfabético del .dat ("3DS" <
+    "Entertainment System"), asignando la plataforma equivocada a un .nes real."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    # Mismo orden alfabético que reproduce el bug real: "3DS" antes que
+    # "Entertainment System" en sorted(directory.glob("*.dat")).
+    _write_dat(
+        nointro / "Nintendo - Nintendo 3DS (Digital) (CDN).dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        nointro / "Nintendo - Nintendo Entertainment System.dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Final Fantasy III (J).nes")
     assert result is not None
-    assert result.confidence == "low"
     assert result.ambiguous is True
+    assert result.confidence == "low"
+    assert result.platform == "NES"
+    assert "Entertainment System" in result.catalog_source
+
+
+def test_ambiguous_title_returns_none_without_extension_signal(tmp_path: Path) -> None:
+    """MATCH-FIX-3: sin extensión que desambigüe (p.ej. .zip) NI ruta real
+    (source_path=None), ya no se adivina el primer hit por orden de carga —
+    sin ninguna señal real, es mejor dejarlo sin match que confiado y mal."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        nointro / "Nintendo - Nintendo 3DS (Digital) (CDN).dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        nointro / "Nintendo - Nintendo Entertainment System.dat",
+        [("Final Fantasy III (Japan) (Virtual Console)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Final Fantasy III (J).zip")
+    assert result is None
+
+
+def test_ambiguous_extension_prefers_platform_of_containing_folder(tmp_path: Path) -> None:
+    """CATALOG-MATCH-BUG-1 / GBA-MISPLACED-2: cuando el SHA1 no calza (típico de
+    un .chd, que no es el hash crudo del disco) y la extensión es ambigua (no
+    desambigua por sí sola), el fallback por título ya no debe quedarse siempre
+    con el primer hit por orden de carga del .dat — debe preferir la entrada
+    cuya plataforma coincide con la carpeta real del archivo (psx/, saturn/...),
+    la misma señal que ``detect_platform()`` usa en el resto de la app."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        redump / "Sega - Dreamcast.dat",
+        [("Same Title (USA)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        redump / "Sega - Saturn.dat",
+        [("Same Title (USA)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    # MATCH-FIX-3: sin source_path no hay señal para desambiguar -> sin match,
+    # ya no se adivina el primero por orden de carga.
+    result_no_context = matcher.match("0" * 40, "Same Title (USA).chd")
+    assert result_no_context is None
+
+    # Con la ruta real en saturn/: debe elegir el DAT de Saturn, no el primero.
+    result_with_context = matcher.match(
+        "0" * 40,
+        "Same Title (USA).chd",
+        source_path="E:/Carpetas anbernic/saturn/Same Title (USA).chd",
+    )
+    assert result_with_context is not None
+    assert result_with_context.platform == "Sega Saturn"
+    assert result_with_context.ambiguous is True
+
+
+# ---------------------------------------------------------------------------
+# CATALOG-MATCH-BUG-2 — a title hit from a DIFFERENT platform's catalog is a
+# coincidence (typically an unlicensed bootleg with no DAT entry of its own),
+# not a signal, when we already know the real platform.
+# ---------------------------------------------------------------------------
+
+
+def test_single_hit_from_wrong_platform_returns_none(tmp_path: Path) -> None:
+    """Caso real (2026-09-09): un bootleg NES sin licencia ("Crash Bandicoot
+    (Unl).nes") no tiene entrada propia en el DAT de NES, pero su título
+    normalizado colisiona con "Crash Bandicoot (USA)" de PlayStation — el
+    único hit del índice. La extensión .nes ya dice la plataforma real; ese
+    único hit, de otra plataforma, no debe aceptarse como si fuera el mismo
+    juego (49 bootlegs así acabaron con platform="PlayStation"/"Wii"/
+    "Sega Saturn" en la BD real antes de este fix)."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        redump / "Sony - PlayStation.dat",
+        [("Crash Bandicoot (USA)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Crash Bandicoot (Unl).nes")
+    assert result is None
+
+
+def test_single_hit_matching_platform_still_returns(catalog_dirs: tuple[Path, Path]) -> None:
+    """El guard de CATALOG-MATCH-BUG-2 no debe tocar el caso normal (único
+    hit, misma plataforma que la extensión) — mismo escenario que
+    test_name_fallback_medium_confidence, cubierto aquí explícitamente
+    contra una regresión del guard nuevo."""
+    nointro, redump = catalog_dirs
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "tetris (world).gb")
+    assert result is not None
+    assert result.confidence == "medium"
+    assert result.platform == "Game Boy"
+
+
+def test_multi_hit_all_from_wrong_platform_returns_none(tmp_path: Path) -> None:
+    """Misma causa raíz que el caso de un solo hit, con varios candidatos: si
+    NINGUNO de los títulos que colisionan pertenece a la plataforma real
+    (extensión sin ambigüedad), no hay nada seguro que devolver."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        redump / "Sony - PlayStation.dat",
+        [("Same Title (USA)", "AA" * 20, "MD1", "C1", 1024)],
+    )
+    _write_dat(
+        redump / "Sega - Saturn.dat",
+        [("Same Title (Japan)", "BB" * 20, "MD2", "C2", 1024)],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match("0" * 40, "Same Title (Unl).nes")
+    assert result is None
+
+
+def test_multi_disc_title_picks_matching_disc_entry(tmp_path: Path) -> None:
+    """GAMECUBE-DISC-BUG-1e: caso real (Metal Gear Solid - The Twin Snakes,
+    GameCube). normalize_for_match() borra "(Disc N)" junto con el resto de
+    anotaciones, así que Disc 1 y Disc 2 colapsan a la misma clave del índice
+    de títulos y ambos hits son de la misma plataforma (el desempate por
+    extensión no los separa). Sin el fix, el Disc 2 real habría heredado el
+    canonical_title del Disc 1 (siempre gana el primero en orden de carga),
+    causando una colisión de nombre que hacía parecer duplicados a dos discos
+    distintos."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    _write_dat(
+        nointro / "Nintendo - GameCube.dat",
+        [
+            ("Metal Gear Solid - The Twin Snakes (USA) (Disc 1)", "AA" * 20, "MD1", "C1", 1024),
+            ("Metal Gear Solid - The Twin Snakes (USA) (Disc 2)", "BB" * 20, "MD2", "C2", 1024),
+        ],
+    )
+    matcher = CatalogMatcher(nointro, redump)
+
+    result_disc1 = matcher.match("0" * 40, "Metal Gear Solid - The Twin Snakes (USA) (Disc 1).rvz")
+    result_disc2 = matcher.match("0" * 40, "Metal Gear Solid - The Twin Snakes (USA) (Disc 2).rvz")
+
+    assert result_disc1 is not None and result_disc2 is not None
+    assert result_disc1.title == "Metal Gear Solid - The Twin Snakes (USA) (Disc 1)"
+    assert result_disc2.title == "Metal Gear Solid - The Twin Snakes (USA) (Disc 2)"
 
 
 def test_name_fallback_no_hit_returns_none(catalog_dirs: tuple[Path, Path]) -> None:
@@ -247,8 +443,12 @@ def dirs_with_arcade(tmp_path: Path) -> tuple[Path, Path, Path]:
     nointro.mkdir()
     redump.mkdir()
     arcade.mkdir()
+    # MATCH-FIX-5: the DAT here must be a platform this project actually
+    # recognizes (_DAT_PLATFORM_KEYWORDS) -- an out-of-scope one (the real
+    # incident used "Fujitsu - FM-7", not in that list) is now filtered out
+    # at load time and would never reach the title-fallback pass at all.
     _write_dat(
-        nointro / "Fujitsu - FM-7.dat",
+        nointro / "Commodore - Amiga.dat",
         [("Flicky", "F17A11" * 7, "MD5F", "CRCF", 65536)],
     )
     _write_fbneo_dat(arcade / "FBNeo Arcade.dat", [("flicky", "Flicky (128k Version)")])
@@ -263,8 +463,15 @@ def test_mame_style_zip_prefers_arcade_over_title_fallback(
     matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
     result = matcher.match("00" * 20, filename="flicky.zip")
     assert result is not None
-    assert result.title == "Flicky (128k Version)"
-    assert result.platform == "FBNeo"
+    # ARCADE-RENAME-BUG-1b: el titulo canonico de arcade es el nombre corto
+    # del set (lo que MAME/FBNeo necesitan para cargarlo), no la descripcion
+    # del DAT -- de lo contrario el rename rompe la carga en el emulador.
+    assert result.title == "flicky"
+    # ARCADE-MATCH-PLATFORM-1: platform=None on purpose -- "FBNeo"/"MAME" are
+    # catalog-source labels, not canonical platforms (platforms.toml only
+    # knows "Arcade"/"Neo Geo"). update_match() leaves the row's existing
+    # platform untouched when this is None.
+    assert result.platform is None
 
 
 def test_zip_with_region_tag_keeps_title_fallback_first(
@@ -275,7 +482,7 @@ def test_zip_with_region_tag_keeps_title_fallback_first(
     matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
     result = matcher.match("00" * 20, filename="Flicky (Japan).zip")
     assert result is not None
-    assert "FM-7" in result.catalog_source
+    assert "Amiga" in result.catalog_source
 
 
 def test_non_zip_without_region_keeps_title_fallback_first(
@@ -286,7 +493,25 @@ def test_non_zip_without_region_keeps_title_fallback_first(
     matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
     result = matcher.match("00" * 20, filename="Flicky.d77")
     assert result is not None
-    assert "FM-7" in result.catalog_source
+    assert "Amiga" in result.catalog_source
+
+
+def test_non_zip_stem_collision_with_arcade_set_does_not_match(tmp_path: Path) -> None:
+    """ARCADE-STEM-COLLISION-1: un archivo de un solo fichero (.nes, .md...)
+    cuyo stem coincide por casualidad con un set arcade nunca debe matchear
+    ese set -- los sets MAME/FBNeo son siempre .zip. "arabian" no existe en
+    ningún catálogo No-Intro/Redump aquí, así que antes del fix el título
+    fallaba y caía igualmente en el pass 3 (arcade)."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    arcade = tmp_path / "arcade"
+    nointro.mkdir()
+    redump.mkdir()
+    arcade.mkdir()
+    _write_fbneo_dat(arcade / "FBNeo Arcade.dat", [("arabian", "Arabian")])
+    matcher = CatalogMatcher(nointro, redump, arcade_dir=arcade)
+    result = matcher.match("00" * 20, filename="Arabian.nes")
+    assert result is None
 
 
 def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
@@ -297,7 +522,7 @@ def test_mame_style_zip_falls_back_to_title_index_when_not_in_arcade(
     matcher = CatalogMatcher(nointro, redump)  # sin catálogo arcade
     result = matcher.match("00" * 20, filename="flicky.zip")
     assert result is not None
-    assert "FM-7" in result.catalog_source
+    assert "Amiga" in result.catalog_source
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +539,7 @@ def test_crc_index_maps_title_dat_and_platform(catalog_dirs: tuple[Path, Path]) 
 
 
 def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
-    """Un CRC reclamado por dos títulos (DAT recopilatorio tipo Evercade) es
+    """Un CRC reclamado por dos títulos en DATs de plataformas distintas es
     ambiguo y se descarta: nunca adivinar la plataforma."""
     nointro = tmp_path / "nointro"
     redump = tmp_path / "redump"
@@ -324,12 +549,103 @@ def test_crc_index_drops_cross_dat_collisions(tmp_path: Path) -> None:
         nointro / "Atari - Atari 2600.dat",
         [("Asteroids (USA)", "AA" * 20, "M1", "46DF91AD", 4096)],
     )
+    # MATCH-FIX-5: must be a recognized platform (_DAT_PLATFORM_KEYWORDS) --
+    # the real-world example (Evercade, a multi-system compilation) isn't
+    # in scope for this project and is now filtered out at load time.
     _write_dat(
-        nointro / "Blaze Entertainment - Evercade.dat",
+        nointro / "Commodore - Amiga.dat",
         [("Super Pocket - The Atari Collection (World)", "BB" * 20, "M2", "46DF91AD", 4096)],
     )
     matcher = CatalogMatcher(nointro, redump)
     assert "46DF91AD" not in matcher.crc_index()
+
+
+def test_matcher_loads_clrmamepro_format_dat(tmp_path: Path) -> None:
+    """CATALOG-MATCH-BUG-1: varios DAT reales de la biblioteca (Game Boy, NES,
+    PS1...) vienen en formato clrmamepro (texto plano), no XML. El loader
+    anterior (``load_nointro_dat``, solo XML) los descartaba en silencio —
+    degradando el match SHA1 exacto a un fallback por título mucho menos
+    fiable para esas plataformas. ``load_dat_file`` autodetecta el formato."""
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    sha1 = "AABBCCDDEEFF00112233445566778899AABBCCDD"
+    (nointro / "Sony - PlayStation.dat").write_text(
+        'clrmamepro (\n\tname "No-Intro: Sony - PlayStation"\n)\n\n'
+        'game (\n\tname "Oddworld - Abe\'s Oddysee (USA)"\n'
+        f'\trom ( name "Oddworld - Abe\'s Oddysee (USA).bin" size 622297088 '
+        f"crc f26d7a0b md5 aabbccdd sha1 {sha1} )\n)\n"
+    )
+    matcher = CatalogMatcher(nointro, redump)
+    result = matcher.match(sha1)
+    assert result is not None
+    assert result.title == "Oddworld - Abe's Oddysee (USA)"
+    assert result.confidence == "high"
+
+
+def test_psx_region_disambiguated_by_real_boot_serial(tmp_path: Path) -> None:
+    """CATALOG-MATCH-REGION-1: "Tekken (USA)" y "Tekken (Europe)" colapsan a la
+    misma clave de título normalizado, y el SHA1 de un .chd/.bin real nunca
+    calza contra el DAT (hashea la pista cruda). El serial de arranque leído
+    del disco real (SYSTEM.CNF) sí es contenido real -- comparado contra
+    ``CatalogEntry.serial`` (Redump), desambigua sin adivinar candidates[0]."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    (redump / "Sony - PlayStation.dat").write_text(
+        'game (\n\tname "Same Title (USA)"\n\tserial "TEST.EXE"\n'
+        '\trom ( name "a.bin" size 1 crc AA md5 AA sha1 ' + "AA" * 20 + " )\n)\n"
+        'game (\n\tname "Same Title (Europe)"\n\tserial "OTHER.EXE"\n'
+        '\trom ( name "b.bin" size 1 crc BB md5 BB sha1 ' + "BB" * 20 + " )\n)\n"
+    )
+    matcher = CatalogMatcher(nointro, redump)
+
+    psx_dir = tmp_path / "library" / "psx"
+    psx_dir.mkdir(parents=True)
+    bin_path = _build_psx_image(psx_dir)
+    bin_path = bin_path.rename(psx_dir / "Same Title (USA).bin")
+
+    result = matcher.match("0" * 40, bin_path.name, source_path=str(bin_path))
+    assert result is not None
+    assert result.title == "Same Title (USA)"
+    assert result.confidence == "medium"
+    assert result.ambiguous is False
+
+
+def test_psx_region_disambiguated_by_serial_prefix(tmp_path: Path) -> None:
+    """CATALOG-MATCH-REGION-2: el serial del DAT de Redump trae sufijos que el
+    disco real no tiene ("Greatest Hits", disco N, pais de impresion) -- el
+    serial leido del disco (``TEST.EXE`` -> ``TESTEXE`` normalizado) debe
+    calzar por prefijo contra ``TEST.EXEGHA`` (candidato "Greatest Hits"),
+    no solo por igualdad exacta."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    nointro = tmp_path / "nointro"
+    redump = tmp_path / "redump"
+    nointro.mkdir()
+    redump.mkdir()
+    (redump / "Sony - PlayStation.dat").write_text(
+        'game (\n\tname "Same Title (Greatest Hits)"\n\tserial "TEST.EXEGHA"\n'
+        '\trom ( name "a.bin" size 1 crc AA md5 AA sha1 ' + "AA" * 20 + " )\n)\n"
+        'game (\n\tname "Same Title (Europe)"\n\tserial "OTHER.EXE"\n'
+        '\trom ( name "b.bin" size 1 crc BB md5 BB sha1 ' + "BB" * 20 + " )\n)\n"
+    )
+    matcher = CatalogMatcher(nointro, redump)
+
+    psx_dir = tmp_path / "library" / "psx"
+    psx_dir.mkdir(parents=True)
+    bin_path = _build_psx_image(psx_dir)
+    bin_path = bin_path.rename(psx_dir / "Same Title (Greatest Hits).bin")
+
+    result = matcher.match("0" * 40, bin_path.name, source_path=str(bin_path))
+    assert result is not None
+    assert result.title == "Same Title (Greatest Hits)"
+    assert result.confidence == "medium"
+    assert result.ambiguous is False
 
 
 def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:

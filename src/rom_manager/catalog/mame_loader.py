@@ -11,6 +11,8 @@ Usage
 
 from __future__ import annotations
 
+import itertools
+import re as _re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -26,8 +28,12 @@ def load_mame_xml(path: Path) -> dict[str, tuple[str, str, str]]:
     try:
         tree = ET.parse(path)
         root = tree.getroot()
-        # root tag can be <mame> or <datafile>
-        machines = root.iter("machine") if root.tag != "datafile" else root.iter("game")
+        # ARCADE-RENAME-BUG-1a: el tag de hijo real (<machine> vs <game>) no se
+        # puede inferir del tag raíz -- "MAME 2003-Plus.dat" real tiene
+        # root.tag == "mame" con hijos <game>, no <machine>, y el guess
+        # anterior devolvía 0 machines en silencio para ese DAT. Encadenar
+        # ambos iteradores cubre los dos formatos sin adivinar.
+        machines = itertools.chain(root.iter("machine"), root.iter("game"))
         for machine in machines:
             if machine.get("isbios") == "yes" or machine.get("isdevice") == "yes":
                 continue
@@ -51,9 +57,21 @@ def load_mame_xml(path: Path) -> dict[str, tuple[str, str, str]]:
 def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
     """Parse an FBNeo / Logiqx DAT file.
 
-    These use ``<game name="sf2" description="Street Fighter II…">`` —
-    we index by the *name* attribute (= ZIP stem), not by ROM SHA1.
+    We index by the ``name`` attribute (= ZIP stem), not by ROM SHA1.
     Returns ``{name: (description, year, manufacturer)}``.
+
+    MATCH-ZIP-HASH-1 follow-up: the official FBNeo dat (github.com/libretro/FBNeo,
+    dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat) carries description/
+    year/manufacturer as **child elements** (``<game name="sf2"><description>...
+    </description></game>``), same as ``load_mame_xml`` -- not as attributes like
+    a hand-rolled Logiqx snippet might. Reading them as attributes silently
+    returned "" for all three on every real FBNeo dat ever loaded (verified:
+    the .dat previously bundled in .rommgr/catalogs/arcade/ wasn't even XML --
+    ClrMamePro plain-text format -- so ET.parse() raised, the exception was
+    swallowed, and this function had contributed exactly 0 entries; a real XML
+    FBNeo dat would still have lost its descriptions to this same bug). Child
+    element checked first, attribute kept as a fallback for any DAT that does
+    use that style.
     """
     result: dict[str, tuple[str, str, str]] = {}
     try:
@@ -63,9 +81,20 @@ def load_fbneo_dat(path: Path) -> dict[str, tuple[str, str, str]]:
             name = game.get("name", "").strip().lower()
             if not name:
                 continue
-            description = (game.get("description") or "").strip() or name
-            year = (game.get("year") or "").strip()
-            manufacturer = (game.get("manufacturer") or "").strip()
+            desc_el = game.find("description")
+            description = (
+                ((desc_el.text or "").strip() if desc_el is not None and desc_el.text else "")
+                or (game.get("description") or "").strip()
+                or name
+            )
+            year_el = game.find("year")
+            year = (
+                (year_el.text or "").strip() if year_el is not None and year_el.text else ""
+            ) or (game.get("year") or "").strip()
+            mfr_el = game.find("manufacturer")
+            manufacturer = (
+                (mfr_el.text or "").strip() if mfr_el is not None and mfr_el.text else ""
+            ) or (game.get("manufacturer") or "").strip()
             result[name] = (description, year, manufacturer)
     except (ET.ParseError, OSError):
         pass
@@ -119,6 +148,26 @@ def load_arcade_infra_names(directory: Path) -> set[str]:
     return names
 
 
+_NON_ARCADE_DAT_RE = _re.compile(r"\bonly\)", _re.IGNORECASE)
+_ARCADE_ONLY_DAT_RE = _re.compile(r"\barcade only\)", _re.IGNORECASE)
+
+
+def _is_console_only_dat(filename: str) -> bool:
+    """ARCADE-DAT-CONTAMINATION-2: True si *filename* es un DAT de FBNeo para
+    un núcleo de CONSOLA (p. ej. ``FinalBurn Neo (..., Game Gear only).dat``),
+    no de arcade.
+
+    FBNeo publica DATs "solo esta plataforma" para cada núcleo que emula,
+    arcade incluido — si alguno de los de consola acaba en el mismo
+    directorio que los de arcade (fácil: se descargan del mismo repo), sus
+    CRCs contaminan ``load_arcade_crc_index``/``load_arcade_manifest`` y un
+    ZIP de esa consola puede votar como "set arcade completo". Un DAT
+    termina en "..., X only).dat" para cualquier X — el único que debe
+    contar como arcade es el que dice literalmente "Arcade only)".
+    """
+    return bool(_NON_ARCADE_DAT_RE.search(filename)) and not _ARCADE_ONLY_DAT_RE.search(filename)
+
+
 def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
     """``crc32_upper → {set names}`` de los DAT arcade (Logiqx: ``<rom crc>``).
 
@@ -133,7 +182,7 @@ def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
     if not directory.exists():
         return index
     for f in sorted(directory.iterdir()):
-        if f.suffix.lower() != ".dat":
+        if f.suffix.lower() != ".dat" or _is_console_only_dat(f.name):
             continue
         try:
             for _, elem in ET.iterparse(str(f)):
@@ -148,6 +197,50 @@ def load_arcade_crc_index(directory: Path) -> dict[str, set[str]]:
         except (ET.ParseError, OSError):
             pass
     return index
+
+
+def load_arcade_manifest(directory: Path) -> dict[str, list[tuple[str, str, int]]]:
+    """``machine_name → [(rom_name, crc32_upper, size_bytes), …]`` de los DAT arcade.
+
+    ARCADE-RECON-1: complementa a ``load_arcade_crc_index()`` (que solo dice
+    "este CRC vive en estos sets") con la lista completa de roms esperados
+    por máquina — necesaria para calcular cobertura (¿están TODOS los chips
+    de un set entre los sueltos del Inbox, no solo uno?). Mismo recorrido
+    que ``load_arcade_crc_index``; se deja como función aparte porque cada
+    caller normalmente solo necesita una de las dos vistas.
+    """
+    manifest: dict[str, list[tuple[str, str, int]]] = {}
+    if not directory.exists():
+        return manifest
+    for f in sorted(directory.iterdir()):
+        if f.suffix.lower() != ".dat" or _is_console_only_dat(f.name):
+            continue
+        try:
+            for _, elem in ET.iterparse(str(f)):
+                if elem.tag in ("game", "machine"):
+                    name = elem.get("name", "").strip().lower()
+                    if name:
+                        roms = []
+                        for rom in elem.findall("rom"):
+                            crc = (rom.get("crc") or "").strip().upper()
+                            if not crc:
+                                continue
+                            roms.append((rom.get("name", ""), crc, int(rom.get("size") or 0)))
+                        if roms:
+                            # Un mismo nombre de máquina puede aparecer en varios DAT
+                            # (MAME propio + FBNeo "Arcade only" se solapan mucho) —
+                            # sin deduplicar, un chip compartido cuenta dos veces y
+                            # ARCADE-RECON exigiría dos copias físicas del mismo chip.
+                            existing = manifest.setdefault(name, [])
+                            seen = set(existing)
+                            for rom in roms:
+                                if rom not in seen:
+                                    existing.append(rom)
+                                    seen.add(rom)
+                    elem.clear()
+        except (ET.ParseError, OSError):
+            pass
+    return manifest
 
 
 def load_arcade_dir(directory: Path) -> dict[str, tuple[str, str, str, str]]:

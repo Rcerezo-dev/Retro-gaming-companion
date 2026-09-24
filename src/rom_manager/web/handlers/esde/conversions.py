@@ -34,7 +34,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         dry_run = data.get("dry_run", True)
         delete_source = data.get("delete_source", False)
@@ -47,22 +47,30 @@ def register_conversions(
                 from rom_manager.converters.chd_converter import (
                     ConversionResult,
                     ConversionSummary,
+                    convert_bin_to_chd,
                     convert_to_chd,
+                    find_bare_bin_files,
                     find_cue_files,
                     parse_bins_from_cue,
                 )
 
                 source = Path(source_path_str).resolve()
                 cue_files = find_cue_files(source)
-                total = len(cue_files)
+                # find_bare_bin_files() gathers PS1 dumps with no sidecar .cue --
+                # the common shape in this library (CHD-CLEANUP-1) -- so they get
+                # converted (and, with delete_source, cleaned up) same as cue sets.
+                bare_bins = find_bare_bin_files(source)
+                total = len(cue_files) + len(bare_bins)
                 job_manager.update_progress(
                     "convert_chd", {"current": 0, "total": total, "current_file": ""}
                 )
 
                 summary = ConversionSummary()
-                for idx, cue_path in enumerate(cue_files, 1):
+                idx = 0
+                for cue_path in cue_files:
                     if _cancel.is_set():
                         break
+                    idx += 1
                     job_manager.update_progress(
                         "convert_chd",
                         {"current": idx, "total": total, "current_file": cue_path.name},
@@ -78,7 +86,7 @@ def register_conversions(
                                     chd_path=chd_path,
                                     bin_paths=bin_paths,
                                     success=False,
-                                    error="Output .chd already exists — would skip.",
+                                    error="El .chd de salida ya existe — se omitiría.",
                                 )
                             )
                         else:
@@ -91,7 +99,7 @@ def register_conversions(
                                         chd_path=chd_path,
                                         bin_paths=bin_paths,
                                         success=False,
-                                        error="Bin file(s) not found: "
+                                        error="Archivo(s) .bin no encontrado(s): "
                                         + ", ".join(b.name for b in missing_bins),
                                     )
                                 )
@@ -129,6 +137,52 @@ def register_conversions(
                         else:
                             summary.failed += 1
 
+                for bin_path in bare_bins:
+                    if _cancel.is_set():
+                        break
+                    idx += 1
+                    job_manager.update_progress(
+                        "convert_chd",
+                        {"current": idx, "total": total, "current_file": bin_path.name},
+                    )
+                    chd_path = bin_path.with_suffix(".chd")
+                    cue_path = bin_path.with_suffix(
+                        ".cue"
+                    )  # synthetic -- never written to disk here
+                    if dry_run:
+                        if chd_path.exists():
+                            summary.skipped += 1
+                            summary.results.append(
+                                ConversionResult(
+                                    cue_path=cue_path,
+                                    chd_path=chd_path,
+                                    bin_paths=[bin_path],
+                                    success=False,
+                                    error="El .chd de salida ya existe — se omitiría.",
+                                )
+                            )
+                        else:
+                            summary.converted += 1
+                            summary.results.append(
+                                ConversionResult(
+                                    cue_path=cue_path,
+                                    chd_path=chd_path,
+                                    bin_paths=[bin_path],
+                                    success=True,
+                                )
+                            )
+                    else:
+                        result = convert_bin_to_chd(
+                            bin_path, chdman=config.chdman, delete_source=delete_source
+                        )
+                        summary.results.append(result)
+                        if result.success:
+                            summary.converted += 1
+                        elif result.error and "already exists" in result.error:
+                            summary.skipped += 1
+                        else:
+                            summary.failed += 1
+
                 job_result = {
                     "dry_run": dry_run,
                     "converted": summary.converted,
@@ -159,7 +213,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = (data.get("source_path") or "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
 
         _cancel = job_manager.cancel_event("verify_chd")
@@ -213,7 +267,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         delete_source = data.get("delete_source", False)
 
@@ -221,6 +275,8 @@ def register_conversions(
 
         def run() -> None:
             import subprocess
+
+            from rom_manager.utils.subprocess_flags import NO_WINDOW
 
             job_result = None
             try:
@@ -260,7 +316,7 @@ def register_conversions(
                             {
                                 "file": cso_path.name,
                                 "success": False,
-                                "error": "Output .iso already exists",
+                                "error": "El .iso de salida ya existe",
                             }
                         )
                         continue
@@ -270,6 +326,7 @@ def register_conversions(
                             [maxcso_path, "--decompress", f"--output={iso_path}", str(cso_path)],
                             capture_output=True,
                             timeout=300,
+                            creationflags=NO_WINDOW,
                         )
                         if r.returncode == 0:
                             converted += 1
@@ -283,7 +340,8 @@ def register_conversions(
                                 {
                                     "file": cso_path.name,
                                     "success": False,
-                                    "error": err or "maxcso failed with non-zero exit",
+                                    "error": err
+                                    or "maxcso terminó con código de salida distinto de cero",
                                 }
                             )
                     except FileNotFoundError:
@@ -292,7 +350,7 @@ def register_conversions(
                             {
                                 "file": cso_path.name,
                                 "success": False,
-                                "error": f"maxcso not found: {maxcso_path}",
+                                "error": f"maxcso no encontrado: {maxcso_path}",
                             }
                         )
                     except subprocess.TimeoutExpired:
@@ -324,7 +382,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         dry_run = bool(data.get("dry_run", True))
         delete_source = bool(data.get("delete_source", False))
@@ -398,7 +456,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         dry_run = bool(data.get("dry_run", True))
         from rom_manager.utils.m3u_generator import generate_m3u_playlists
@@ -427,7 +485,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         from rom_manager.utils.multidisc_verifier import verify_multidisc
 
@@ -455,7 +513,7 @@ def register_conversions(
         data = ctx._post_data
         source_path_str = (data.get("source_path") or "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
 
         source = Path(source_path_str)
@@ -509,7 +567,7 @@ def register_conversions(
         src = data.get("source_path", "").strip()
         dst = data.get("target_path", "").strip() or None
         if not src:
-            ctx._send_json({"error": "source_path required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         from rom_manager.converters.n64_converter import convert_to_z64
 

@@ -508,7 +508,7 @@ export async function loadOverview() {
         const last = games[0];
         if (heroEl) {
           heroEl.classList.remove('hidden');
-          heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${JSON.stringify(last).replace(/</g,'\\u003c')})">
+          heroEl.innerHTML = `<div class="hero-game" style="border-left-color:${_platHex(last.platform)};cursor:pointer" onclick="openGamePanel(${_h(JSON.stringify(last))})">
             <img src="/api/asset-image?game_id=${last.id}" onerror="this.classList.add('hidden')" alt="">
             <div class="hg-body">
               <div class="hg-label">Continuar jugando</div>
@@ -520,7 +520,7 @@ export async function loadOverview() {
         if (contScroll && contSection) {
           contSection.classList.remove('hidden');
           contScroll.innerHTML = games.slice(0, 6).map(g => {
-            const gj = JSON.stringify(g).replace(/</g,'\\u003c');
+            const gj = _h(JSON.stringify(g));
             return `<div class="continue-card" onclick="openGamePanel(${gj})" title="${_h(g.canonical_title||g.original_filename)}">
               <div class="cc-cover">
                 <img src="/api/asset-image?game_id=${g.id}" onerror="this.parentElement.innerHTML='&#127918;'" alt="">
@@ -534,7 +534,7 @@ export async function loadOverview() {
         }
         if (recentEl) recentEl.innerHTML = games.map(g => {
           const title = g.canonical_title || g.original_filename;
-          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--c-panel);font-size:12px;cursor:pointer" onclick="openGamePanel(${JSON.stringify(g).replace(/</g,'\\u003c')})">
+          return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--c-panel);font-size:12px;cursor:pointer" onclick="openGamePanel(${_h(JSON.stringify(g))})">
             <span>${_platBadge(g.platform)} <span style="color:var(--c-text)">${_h(title)}</span></span>
             <span style="color:var(--c-dim)">${_relTime(g.last_played_at)}</span>
           </div>`;
@@ -594,6 +594,9 @@ export async function loadOverview() {
       try { _renderPlatformGrid(pcPath); } catch(_) { /* silent */ }
     }
 
+    // LIBRARY-HEALTH-DASH-1: panel de salud (% organizada, duplicados, huérfanos, ZIPs sin mover)
+    try { _loadLibraryHealth(d, pcPath); } catch(e) { console.error('Health dash error:', e); }
+
     // INICIO-UX-5 / Fase 3: qué hay en la biblioteca además de juegos
     try { _loadLibraryExtras(d, pcPath); } catch(e) { console.error('Extras error:', e); }
 
@@ -609,6 +612,42 @@ export async function loadOverview() {
   } catch(e) {
     const pcCardsEl = document.getElementById('ov-pc-cards');
     if (pcCardsEl) pcCardsEl.innerHTML = _errRetry(e.message);
+  }
+}
+
+// ── Salud de la biblioteca (LIBRARY-HEALTH-DASH-1) ────────────────────────────
+// Agrega en frontend datos que /api/library-doctor, /api/status y
+// /api/library-extras ya calculan por separado — sin endpoint nuevo (roadmap
+// 27 paso 2: preferir composición en frontend, ninguna llamada es costosa;
+// library-extras además tiene caché de 15 min en el backend).
+export async function _loadLibraryHealth(status, pcPath) {
+  const el = document.getElementById('ov-health-dash');
+  if (!el) return;
+  if (!pcPath) { el.innerHTML = '<p style="color:var(--c-dim);font-size:12px">Configura la carpeta de biblioteca para ver su salud.</p>'; return; }
+  try {
+    const [doctor, extras] = await Promise.all([
+      apiFetch('/api/library-doctor'),
+      apiFetch('/api/library-extras?root=' + encodeURIComponent(pcPath)),
+    ]);
+    const totalGames = status?.total_games || 0;
+    const misplaced  = doctor.by_type?.misplaced_rom || 0;
+    const orphanDirs = doctor.by_type?.empty_dir || 0;
+    const pctOrganized = totalGames > 0 ? Math.round((totalGames - misplaced) / totalGames * 100) : null;
+    const wastedGb = fmtSize(status?.wasted_bytes || 0);
+    const toTools = () => showTab('tools');
+    const toPlan  = () => showTab('plan');
+    el.innerHTML =
+      card('Organizada', pctOrganized !== null ? pctOrganized + '%' : '—',
+        misplaced > 0 ? misplaced + ' ROM(s) mal ubicados' : 'todo en su carpeta',
+        misplaced > 0 ? toTools : null, misplaced > 0 ? 'orange' : '') +
+      card('Duplicados', wastedGb, (status?.duplicate_groups || 0) + ' grupos',
+        (status?.duplicate_groups || 0) > 0 ? toPlan : null, (status?.duplicate_groups || 0) > 0 ? 'red' : '') +
+      card('Carpetas huérfanas', orphanDirs, orphanDirs > 0 ? 'vacías, revisables' : 'ninguna',
+        orphanDirs > 0 ? toTools : null, orphanDirs > 0 ? 'orange' : '') +
+      card('ZIPs sin organizar', extras.misplaced_zips || 0, extras.misplaced_zips > 0 ? 'identificados, sin mover' : 'ninguno',
+        (extras.misplaced_zips || 0) > 0 ? toTools : null, (extras.misplaced_zips || 0) > 0 ? 'orange' : '');
+  } catch(e) {
+    el.innerHTML = _errRetry(e.message);
   }
 }
 

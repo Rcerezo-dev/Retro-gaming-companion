@@ -29,7 +29,7 @@ def _build_library_diff(
         result: dict[str, dict] = {}
         with repo.connect() as conn:
             query = (
-                "SELECT sha1, platform, canonical_title, original_filename, source_path "
+                "SELECT sha1, platform, canonical_title, original_filename, source_path, size_bytes "
                 "FROM games WHERE file_type = 'rom' AND sha1 IS NOT NULL AND sha1 != ''"
             )
             if platform:
@@ -38,11 +38,12 @@ def _build_library_diff(
             else:
                 rows = conn.execute(query).fetchall()
         for row in rows:
-            sha1, plat, title, fname, spath = row
+            sha1, plat, title, fname, spath, size_bytes = row
             result[sha1] = {
                 "platform": plat or "",
                 "title": title or fname or "",
                 "source_path": spath or "",
+                "size_bytes": size_bytes or 0,
             }
         return result
 
@@ -126,5 +127,8 @@ def _build_library_diff(
         "conflicts": conflicts,
         "total_pc": len(pc_roms),
         "total_android": len(and_roms),
+        # STORAGE-MGR-2/5: totales de tamaño para la cabecera "PC: X GB · Android: Y GB"
+        "total_pc_bytes": sum(r["size_bytes"] for r in pc_roms.values()),
+        "total_android_bytes": sum(r["size_bytes"] for r in and_roms.values()),
         "parity": len(only_pc) == 0 and len(only_and) == 0 and len(conflicts) == 0,
     }

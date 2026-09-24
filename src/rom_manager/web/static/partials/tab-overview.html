@@ -83,6 +83,12 @@
     </div>
   </div>
 
+  <!-- LIBRARY-HEALTH-DASH-1: salud de la biblioteca de un vistazo -->
+  <div style="margin-bottom:20px">
+    <h4 style="color:var(--c-muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Salud de la biblioteca</h4>
+    <div id="ov-health-dash" class="cards" style="margin-bottom:0"><p class="loading" style="font-size:12px">Cargando…</p></div>
+  </div>
+
   <!-- INICIO-UX-5 / Fase 3: qué hay en la biblioteca además de juegos -->
   <div class="hidden" id="ov-extras" style="margin-bottom:20px">
     <details id="ov-extras-details" open>
@@ -207,6 +213,15 @@
     <div class="actions-row">
       <button id="btn-match" class="btn primary" onclick="doMatch()">Identificar (catálogos)</button>
       <span style="color:var(--c-dim);font-size:12px">Asocia los ROMs escaneados a No-Intro / Redump</span>
+    </div>
+    <div id="match-progress-wrap" class="prog-wrap hidden">
+      <div class="prog-info">
+        <span id="match-progress-label" style="color:var(--c-muted)"></span>
+        <span id="match-progress-file" class="prog-file"></span>
+      </div>
+      <div class="prog-track">
+        <div id="match-progress-bar" class="prog-bar"></div>
+      </div>
     </div>
 
     <div class="actions-row">

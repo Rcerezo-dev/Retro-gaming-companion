@@ -3,9 +3,11 @@
 
 import { apiFetch, apiPost } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { _showConfirm } from '../components/modal.js';
 
 // ── Games pagination state ────────────────────────────────────────────────────
-export let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null };
+export let gamesState = { offset: 0, limit: 100, total: 0, platform: '', status: '', root: null, initial: '' };
+let _alphaBarBuilt = false;
 export let _gamesViewMode = localStorage.getItem('games_view_mode') || 'list'; // 'list' | 'grid'
 export let platformsLoaded = false;
 
@@ -48,12 +50,16 @@ export function applyColVisibility() {
   show('gcol-match',  prefs.match);
   show('gcol-size',   prefs.size);
   show('gcol-sha1',   prefs.sha1);
-  // Update row cells (col index: 0=platform,1=title,2=filename,3=region,4=match,5=size,6=sha1)
-  const COL = { region: 3, match: 4, size: 5, sha1: 6 };
+  // JUEGOS-FIX-3: los índices de celda hardcodeados (`tr.cells[N]`) se
+  // desincronizaban cada vez que se añadía/quitaba una columna a la tabla
+  // (p.ej. el 📦 de Anbernic) — con una preferencia guardada de ocultar
+  // "Identificación" acababa ocultando el Título en su lugar. `data-col`
+  // en el `<td>` (fijado en el template de la fila) hace esto inmune al
+  // orden real de columnas.
   document.querySelectorAll('#games-tbody tr').forEach(tr => {
-    Object.entries(COL).forEach(([key, idx]) => {
-      const td = tr.cells[idx];
-      if (td) td.classList.toggle('hidden', !(prefs[key]));
+    Object.entries(prefs).forEach(([key, visible]) => {
+      const td = tr.querySelector(`[data-col="${key}"]`);
+      if (td) td.classList.toggle('hidden', !visible);
     });
   });
 }
@@ -91,6 +97,8 @@ export let _gpGameId = null;
 
 // source_path del juego abierto en el panel — enruta a la BD correcta (DEVSEL-FIX-2)
 const _gpSrc = () => document.getElementById('game-panel')?.dataset.sourcePath || '';
+// GAME-BLOCKLIST-1: sha1 del juego abierto — identidad estable para el bloqueo
+const _gpSha1 = () => document.getElementById('game-panel')?.dataset.sha1 || '';
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
 
@@ -138,9 +146,39 @@ export async function loadFilterOptions() {
       items.forEach(v => { const o = document.createElement('option'); o.value = v; o.text = v; sel.add(o); });
       if (cur) sel.value = cur;
     };
-    _populate('games-genre', r.genres || []);
-    _populate('games-year',  r.years  || []);
+    _populate('games-genre',    r.genres    || []);
+    _populate('games-year',     r.years     || []);
+    // Bug real: el desplegable de plataforma solo se rellenaba con las
+    // plataformas presentes en la página actual de resultados (loadGames,
+    // máx. 100 filas) — con la biblioteca ordenada por plataforma, esa
+    // primera página cae entera en una sola plataforma (o "Unknown"),
+    // dejando el filtro casi inútil. filter-options ya devuelve la lista
+    // completa y distinta de la BD, igual que genre/year.
+    _populate('games-platform', r.platforms || []);
+    platformsLoaded = true;
   } catch (_) {}
+}
+
+// Letra inicial del título (subdivisión "por consola" — el desplegable de
+// plataforma ya hace ese primer nivel; esto acota dentro de la plataforma
+// elegida, junto con búsqueda y género).
+function _renderAlphaBar() {
+  const bar = document.getElementById('games-alpha-bar');
+  if (!bar) return;
+  const letters = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+  bar.innerHTML = letters.map(l =>
+    `<button class="alpha-btn" data-letter="${l}" onclick="setInitialFilter('${l}')" style="background:var(--c-panel);border:1px solid #444;color:var(--c-muted);padding:3px 7px;border-radius:3px;font:inherit;font-size:12px;cursor:pointer;min-width:24px">${l}</button>`
+  ).join('');
+}
+
+export function setInitialFilter(letter) {
+  gamesState.initial = gamesState.initial === letter ? '' : letter;
+  document.querySelectorAll('#games-alpha-bar .alpha-btn').forEach(btn => {
+    const active = btn.dataset.letter === gamesState.initial;
+    btn.style.borderColor = active ? 'var(--c-orange)' : '#444';
+    _txtCls(btn, active ? null : 'txt-muted');
+  });
+  loadGames(0);
 }
 
 export function toggleFavoritesFilter() {
@@ -163,6 +201,122 @@ export async function _refreshTagFilter() {
   } catch (_) {}
 }
 
+// ANBERNIC-PICK-1: marca/desmarca con el tag "anbernic" TODOS los juegos que
+// cumplen el filtro actual de la pestaña (mismos parámetros que loadGames),
+// no solo la página visible — el backend recalcula el conjunto server-side.
+export function markFilteredForAnbernic(unmark) {
+  const q = document.getElementById('games-search')?.value.trim() || '';
+  const body = { tag: 'anbernic', action: unmark ? 'remove' : 'add' };
+  if (gamesState.platform) body.platform = gamesState.platform;
+  if (gamesState.status)   body.status   = gamesState.status;
+  if (q)                   body.search   = q;
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') body.filetype = ft;
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) body.play_status = ps;
+  if (gamesState.favorite) body.favorite = true;
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) body.existing_tag = tagF;
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) body.genre = genreF;
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) body.year = yearF;
+  if (gamesState.initial) body.initial = gamesState.initial;
+  const root = gamesState.root || _deviceRoot();
+  if (root) body.root = root;
+
+  const verb = unmark ? 'Desmarcar' : 'Marcar';
+  _showConfirm(
+    `${verb} para la Anbernic`,
+    `¿${verb.toLowerCase()} para la Anbernic <b>todos los juegos que cumplen el filtro actual</b> (${gamesState.total} en total)?`,
+    verb,
+    async () => {
+      const r = await apiPost('/api/tag-bulk', body);
+      if (r.error) { showToast(r.error, 'error'); return; }
+      showToast(`${r.count} juego${r.count !== 1 ? 's' : ''} ${unmark ? 'desmarcados' : 'marcados'} para la Anbernic`, 'success');
+      _refreshTagFilter();
+      loadGames(gamesState.offset);
+    },
+  );
+}
+
+// ANBERNIC-BULK-DEL: elimina de la consola (por ADB) todos los juegos que
+// cumplen el filtro actual — mismo criterio de selección que
+// markFilteredForAnbernic, reutiliza /api/cable-sync (job "cable_sync") en
+// vez de un endpoint nuevo. Los saves se copian al PC antes de borrar cada
+// ROM (nunca se borra un save) — ver direction="remove_selected" en
+// sync_cable.py.
+export function removeFilteredFromAnbernic() {
+  const q = document.getElementById('games-search')?.value.trim() || '';
+  const body = { direction: 'remove_selected', use_adb: true, what: ['roms'], dry_run: false };
+  if (gamesState.platform) body.platform = gamesState.platform;
+  if (gamesState.status)   body.status   = gamesState.status;
+  if (q)                   body.search   = q;
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') body.filetype = ft;
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) body.play_status = ps;
+  if (gamesState.favorite) body.favorite = true;
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) body.existing_tag = tagF;
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) body.genre = genreF;
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) body.year = yearF;
+  const root = gamesState.root || _deviceRoot();
+  if (root) body.root = root;
+
+  _showConfirm(
+    'Eliminar de la Anbernic',
+    `¿Eliminar de la Anbernic (por ADB) <b>todos los juegos que cumplen el filtro actual</b> (${gamesState.total} en total)? Los saves se copian al PC antes de borrar cada ROM y nunca se eliminan.`,
+    'Eliminar',
+    async () => {
+      const r = await apiPost('/api/cable-sync', body);
+      if (r.error) { showToast(r.error, 'error'); return; }
+      if (r.status === 'already_running') { showToast('Ya hay una sincronización en curso', 'error'); return; }
+      showToast('Eliminando de la Anbernic en segundo plano (ver pestaña Sync)…', 'success');
+      if (typeof window.startPolling === 'function') window.startPolling();
+    },
+  );
+}
+
+// ANBERNIC-BULK-SEND: contraparte de removeFilteredFromAnbernic — envía por
+// ADB todos los juegos que cumplen el filtro actual (mismo criterio de
+// selección), reutiliza /api/cable-sync con direction="send_selected".
+export function sendFilteredToAnbernic() {
+  const q = document.getElementById('games-search')?.value.trim() || '';
+  const body = { direction: 'send_selected', use_adb: true, what: ['roms'], dry_run: false, skip_existing: true };
+  if (gamesState.platform) body.platform = gamesState.platform;
+  if (gamesState.status)   body.status   = gamesState.status;
+  if (q)                   body.search   = q;
+  const ft = document.getElementById('games-filetype')?.value;
+  if (ft !== undefined && ft !== 'all') body.filetype = ft;
+  const ps = document.getElementById('games-play-status')?.value;
+  if (ps) body.play_status = ps;
+  if (gamesState.favorite) body.favorite = true;
+  const tagF = document.getElementById('games-tag-filter')?.value;
+  if (tagF) body.existing_tag = tagF;
+  const genreF = document.getElementById('games-genre')?.value;
+  if (genreF) body.genre = genreF;
+  const yearF = document.getElementById('games-year')?.value;
+  if (yearF) body.year = yearF;
+  const root = gamesState.root || _deviceRoot();
+  if (root) body.root = root;
+
+  _showConfirm(
+    'Enviar a la Anbernic',
+    `¿Enviar a la Anbernic (por ADB) <b>todos los juegos que cumplen el filtro actual</b> (${gamesState.total} en total)? Los que ya estén en la consola con el mismo tamaño se saltan. Si hay duplicados del mismo juego, se envía solo la copia con más logros RA (o la del formato habitual de la biblioteca).`,
+    'Enviar',
+    async () => {
+      const r = await apiPost('/api/cable-sync', body);
+      if (r.error) { showToast(r.error, 'error'); return; }
+      if (r.status === 'already_running') { showToast('Ya hay una sincronización en curso', 'error'); return; }
+      showToast('Enviando a la Anbernic en segundo plano (ver pestaña Sync)…', 'success');
+      if (typeof window.startPolling === 'function') window.startPolling();
+    },
+  );
+}
+
 export async function toggleRowFavorite(gameId, btn) {
   try {
     const r = await apiPost('/api/toggle-favorite', { game_id: gameId, source_path: btn.dataset.path || '' });
@@ -175,6 +329,102 @@ export async function toggleRowFavorite(gameId, btn) {
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 
+// ANBERNIC-PICK-7: marcar/desmarcar un juego suelto (selector individual),
+// mismo tag 'anbernic' que markFilteredForAnbernic pero sin depender del filtro.
+export async function toggleRowAnbernic(gameId, btn) {
+  const isSet = btn.classList.contains('active');
+  try {
+    const r = await apiPost('/api/tag', {
+      game_id: gameId,
+      tag: 'anbernic',
+      action: isSet ? 'remove' : 'add',
+      source_path: btn.dataset.path || '',
+    });
+    const nowSet = (r.tags || []).includes('anbernic');
+    btn.classList.toggle('active', nowSet);
+    btn.title = nowSet ? 'Quitar de Anbernic' : 'Marcar para Anbernic';
+    if (document.getElementById('games-tag-filter')?.value === 'anbernic') loadGames(gamesState.offset);
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+// ── ANBERNIC-PICK-7: asistente guiado "¿qué te llevas a la Anbernic?" ──────────
+// ponytail: umbral fijo para "pequeña" vs "grande" — ajustar si 2 GiB no encaja
+// con el tamaño real de SD del usuario.
+const _WIZARD_SMALL_THRESHOLD_BYTES = 2 * 1024 ** 3;
+
+export async function openAnbernicWizard() {
+  const modal = document.getElementById('anbernic-wizard-modal');
+  const body = document.getElementById('anbernic-wizard-body');
+  if (!modal || !body) return;
+  modal.classList.remove('hidden');
+  body.innerHTML = '<p class="loading">Cargando plataformas…</p>';
+  try {
+    const d = await apiFetch('/api/platform-stats');
+    _renderAnbernicWizard(d.platforms || []);
+  } catch(e) {
+    body.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+export function closeAnbernicWizard() {
+  document.getElementById('anbernic-wizard-modal')?.classList.add('hidden');
+}
+
+function _renderAnbernicWizard(platforms) {
+  const body = document.getElementById('anbernic-wizard-body');
+  if (!body) return;
+  const small = platforms.filter(p => p.total_size <= _WIZARD_SMALL_THRESHOLD_BYTES);
+  const large = platforms.filter(p => p.total_size > _WIZARD_SMALL_THRESHOLD_BYTES);
+
+  const row = (p, actionHtml) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--c-border)">
+      <div style="flex:1;min-width:0">
+        <div style="color:var(--c-text);font-size:13px">${_h(p.platform)}</div>
+        <div style="color:var(--c-dim);font-size:11px">${p.total_games} juego${p.total_games !== 1 ? 's' : ''} · ${fmtSize(p.total_size)} · ${p.tagged_count}/${p.total_games} marcados</div>
+      </div>
+      ${actionHtml}
+    </div>`;
+
+  const smallHtml = small.map(p => {
+    const done = p.tagged_count >= p.total_games && p.total_games > 0;
+    return row(p, done
+      ? `<span style="color:var(--c-teal);font-size:12px">&#x2713; Toda marcada</span>`
+      : `<button class="btn" style="font-size:12px" onclick="wizardMarkPlatform('${_h(p.platform).replace(/'/g, "\\'")}', this)">Marcar toda</button>`);
+  }).join('') || '<p class="empty" style="font-size:12px">Ninguna.</p>';
+
+  const largeHtml = large.map(p => row(p,
+    `<button class="btn" style="font-size:12px;border-color:var(--c-teal);color:var(--c-teal)" onclick="wizardPickIndividually('${_h(p.platform).replace(/'/g, "\\'")}')">Elegir juego a juego &#x2192;</button>`
+  )).join('') || '<p class="empty" style="font-size:12px">Ninguna.</p>';
+
+  body.innerHTML = `
+    <p style="color:var(--c-muted);font-size:12px;margin-bottom:10px">
+      Plataformas pequeñas: llévatelas enteras de un clic. Plataformas grandes: elige juego a juego
+      en Juegos (usa el 📦 por fila, o filtra y busca ahí).
+    </p>
+    <div style="margin-bottom:6px;color:var(--c-teal);font-size:11px;text-transform:uppercase;letter-spacing:1px">Pequeñas — llévatelas enteras (&le; ${fmtSize(_WIZARD_SMALL_THRESHOLD_BYTES)})</div>
+    ${smallHtml}
+    <div style="margin:14px 0 6px;color:var(--c-orange);font-size:11px;text-transform:uppercase;letter-spacing:1px">Grandes — elige juego a juego</div>
+    ${largeHtml}
+  `;
+}
+
+export async function wizardMarkPlatform(platform, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Marcando…'; }
+  try {
+    const r = await apiPost('/api/tag-bulk', { platform, tag: 'anbernic', action: 'add' });
+    if (r.error) { showToast(r.error, 'err'); return; }
+    showToast(`${r.count} juego${r.count !== 1 ? 's' : ''} de ${platform} marcados para la Anbernic`, 'ok');
+    openAnbernicWizard(); // re-render with fresh tagged_count
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+export function wizardPickIndividually(platform) {
+  closeAnbernicWizard();
+  goToGames(null, '', 'rom', platform);
+  const sortSel = document.getElementById('games-sort-by');
+  if (sortSel) sortSel.value = 'added';
+}
+
 // ── Platform helpers (duplicated for module scope) ────────────────────────────
 export function fmtSize(n) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -183,7 +433,7 @@ export function fmtSize(n) {
   return n.toFixed(1) + ' ' + units[i];
 }
 
-function badge(cls, text, title) {
+export function badge(cls, text, title) {
   const t = title ? ` title="${window._h(title)}"` : '';
   return `<span class="badge ${cls}"${t}>${text}</span>`;
 }
@@ -251,8 +501,9 @@ function _emptyState(icon, title, sub, ctaLabel, ctaFn) {
 // ── Core load / render ────────────────────────────────────────────────────────
 export async function loadGames(offset) {
   gamesState.offset = offset ?? 0;
+  if (!_alphaBarBuilt) { _renderAlphaBar(); _alphaBarBuilt = true; }
   const tbody = document.getElementById('games-tbody');
-  tbody.innerHTML = '<tr><td colspan="9" class="loading">Cargando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="10" class="loading">Cargando…</td></tr>';
   // Apply view mode visibility on each load
   const _listV = document.getElementById('games-list-view');
   const _gridV = document.getElementById('games-grid-view');
@@ -293,6 +544,7 @@ export async function loadGames(offset) {
   if (genreF) params.set('genre', genreF);
   const yearF = document.getElementById('games-year')?.value;
   if (yearF) params.set('year', yearF);
+  if (gamesState.initial) params.set('initial', gamesState.initial);
   const sortBy = document.getElementById('games-sort-by')?.value;
   if (sortBy) params.set('sort_by', sortBy);
   const _gamesRoot = gamesState.root || _deviceRoot();
@@ -366,17 +618,20 @@ export async function loadGames(offset) {
         </select>`;
         const accentColor = _platHex(g.platform);
         const favActive = g.is_favorite ? ' active' : '';
-        return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${JSON.stringify(g).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})">
+        return `<tr style="cursor:pointer;border-left:2px solid ${accentColor}20" onclick="openGamePanel(${_h(JSON.stringify(g))})">
           <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${favActive}" data-fav-id="${g.id}" data-path="${_h(g.source_path || '')}" onclick="toggleRowFavorite(${g.id},this)" title="${g.is_favorite ? 'Quitar favorito' : 'Marcar favorito'}">&#x2605;</button></td>
+          <td style="padding:4px 6px;text-align:center" onclick="event.stopPropagation()"><button class="fav-star${g.is_anbernic ? ' active' : ''}" data-path="${_h(g.source_path || '')}" onclick="toggleRowAnbernic(${g.id},this)" title="${g.is_anbernic ? 'Quitar de Anbernic' : 'Marcar para Anbernic'}">&#x1F4E6;</button></td>
           <td style="padding:4px 6px">${thumb}</td>
           <td>${_platBadge(g.platform)}</td>
           <td title="${_h(g.canonical_title || '')}">${g.canonical_title || '<span style="color:var(--c-ghost)">—</span>'}</td>
-          <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}</td>
+          <td class="mono" title="${_h(g.original_filename)}" style="color:var(--c-lblue);font-size:12px">${_h(g.original_filename)}
+            <a href="/api/download-rom?path=${encodeURIComponent(g.source_path || '')}" onclick="event.stopPropagation()" title="Descargar este ROM" style="margin-left:6px;text-decoration:none">&#x2B07;</a>
+          </td>
           <td style="white-space:nowrap" onclick="event.stopPropagation()">${statusSel}</td>
-          <td><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
-          <td>${matchBadge(g.match_confidence)}</td>
-          <td style="color:var(--c-hint);font-size:12px">${fmtSize(g.size_bytes)}</td>
-          <td class="mono" style="color:var(--c-ghost);font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
+          <td data-col="region"><span style="font-size:11px;color:var(--c-muted)">${_h(g.region || '')}</span></td>
+          <td data-col="match">${matchBadge(g.match_confidence)}</td>
+          <td data-col="size" style="color:var(--c-hint);font-size:12px">${fmtSize(g.size_bytes)}</td>
+          <td data-col="sha1" class="mono" style="color:var(--c-ghost);font-size:11px">${(g.sha1 || '').slice(0, 10)}…</td>
         </tr>`;
       }).join('');
       applyColVisibility();
@@ -385,7 +640,7 @@ export async function loadGames(offset) {
 
     renderPagination();
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="9" class="error-msg">${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="error-msg">${e.message}</td></tr>`;
   }
 }
 
@@ -443,7 +698,7 @@ export function _renderGamesGrid(games) {
     const statusBadge = (g.play_status && statusIcon[g.play_status])
       ? `<span class="gc-status-badge" title="${g.play_status}">${statusIcon[g.play_status]}</span>` : '';
     const favBadge = g.is_favorite ? `<span class="gc-fav-badge" title="Favorito">★</span>` : '';
-    return `<div class="game-card" style="border-top:2px solid ${accentGc}40" onclick="openGamePanel(${JSON.stringify(g).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')})">
+    return `<div class="game-card" style="border-top:2px solid ${accentGc}40" onclick="openGamePanel(${_h(JSON.stringify(g))})">
       <div class="gc-thumb">${thumb}${statusBadge}${favBadge}</div>
       <div class="gc-body">
         <div class="gc-title" title="${title}">${title}</div>
@@ -609,6 +864,7 @@ export function openGamePanel(g) {
   const _savesInfo = document.getElementById('gp-saves-info');
   if (_savesInfo) _savesInfo.classList.add('hidden');
   document.getElementById('game-panel').dataset.sourcePath = g.source_path || '';
+  document.getElementById('game-panel').dataset.sha1 = g.sha1 || '';
   // Reset asset info
   const _assetInfo = document.getElementById('gp-asset-info');
   if (_assetInfo) _assetInfo.classList.add('hidden');
@@ -812,6 +1068,32 @@ export async function gpRemoveTag(tag) {
     const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove', source_path: _gpSrc() });
     _gpRenderTags(r.tags || []);
     _refreshTagFilter();
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+// GAME-BLOCKLIST-1: bloqueo permanente por sha1 + borrado en PC y Android a la vez.
+export async function gpBlockAndDelete() {
+  if (!_gpGameId) return;
+  const sha1 = _gpSha1();
+  if (!sha1) { showToast('Este juego no tiene sha1 todavía (sin escanear) — no se puede bloquear', 'err'); return; }
+  const title = document.getElementById('gp-title')?.textContent || 'este juego';
+  if (!confirm(
+    `¿Eliminar "${title}" de ambas bibliotecas (PC y Anbernic) y bloquearlo para siempre?\n\n` +
+    'Esto lo manda a la papelera _descartados/ en PC y lo borra de la consola si está ' +
+    'conectada. Ningún sync futuro lo volverá a traer de vuelta.'
+  )) return;
+  try {
+    const r = await apiPost('/api/blocklist/block', { sha1, canonical_title: title });
+    const parts = [];
+    if (r.trashed) parts.push('PC');
+    if (r.deleted_device) parts.push('consola');
+    showToast(
+      parts.length ? `Bloqueado y eliminado de ${parts.join(' y ')}` : 'Bloqueado (no se encontró archivo en ninguna biblioteca)',
+      'ok'
+    );
+    if ((r.errors || []).length) showToast(r.errors.join(' · '), 'err', 6000);
+    closeGamePanel();
+    if (document.getElementById('tab-games')?.classList.contains('active')) loadGames(gamesState.offset);
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 

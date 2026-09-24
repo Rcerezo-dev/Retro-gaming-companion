@@ -7,12 +7,14 @@ Extracted from server.py (Session 19). Progress/state is reported through the
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
+from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
@@ -36,15 +38,116 @@ def _same_content(a: Path, b: Path) -> bool:
         return False
 
 
-def _platform_folder_name(platform: str) -> str:
-    """Carpeta de plataforma para *platform* — la misma regla del paso 6."""
+def _folder_has_real_content(folder: Path) -> bool:
+    """True if *folder* has any file outside its ``media/`` asset subfolder."""
+    for item in folder.rglob("*"):
+        if item.is_file() and "media" not in item.relative_to(folder).parts:
+            return True
+    return False
+
+
+def _platform_folder_name(platform: str, target_root: Path | None = None) -> str:
+    """Carpeta de plataforma para *platform* — la misma regla del paso 6.
+
+    DUALFOLDER-12: si ya existe, junto al slug canónico devuelto, una carpeta
+    Title Case legada (el nombre canónico tal cual, p. ej. "Sega Mega Drive")
+    con contenido real, se avisa por log — nunca bloquea, el slug sigue
+    siendo el destino (decisión ya tomada 2026-09-15: el slug es el canónico
+    también en PC, ver roadmap 12). *target_root* es opcional para no romper
+    llamadas existentes que no necesitan el aviso.
+    """
     canonical = PLATFORM_BY_FOLDER.get((platform or "").lower(), platform or "")
-    return _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+    slug = _ES_PLATFORM_FOLDERS.get(canonical, "unknown")
+    if target_root is not None and canonical:
+        legacy = target_root / canonical
+        if legacy != target_root / slug and legacy.is_dir() and _folder_has_real_content(legacy):
+            _logger.warning(
+                "DUALFOLDER-12: carpeta legada '%s' con contenido real junto al slug "
+                "canónico '%s' bajo %s — limpieza pendiente, el Inbox sigue usando '%s'.",
+                canonical,
+                slug,
+                target_root,
+                slug,
+            )
+    return slug
 
 
 def _organize_dest_file(target_root: Path, platform: str, filename: str) -> Path:
     """Where *filename* would land if organized — same rule the Step 6 loop uses."""
     return target_root / _platform_folder_name(platform) / filename
+
+
+@dataclass(slots=True)
+class RelocateAction:
+    source: str
+    target: str
+    detected_platform: str
+    outcome: str  # "moved" | "duplicate_discarded" | "conflict"
+
+
+@dataclass(slots=True)
+class RelocateSummary:
+    moved: int = 0
+    duplicates_discarded: int = 0
+    conflicts: int = 0
+    actions: list[RelocateAction] = field(default_factory=list)
+
+
+def relocate_misplaced_files(library_root: Path, *, dry_run: bool = True) -> RelocateSummary:
+    """REPAIR-TOOL-8: acts on ``check_misplaced_extensions_health()`` -- moves
+    each misplaced file (extension that belongs to a different platform than
+    its containing folder) into the platform folder it actually belongs to,
+    without renaming it.
+
+    Never overwrites: a name collision at the target is resolved by content
+    (``_same_content``, same size+SHA1 check the Inbox pipeline uses) -- an
+    exact duplicate sends the source to its own ``_descartados/``, different
+    content is left untouched and reported as a conflict for manual review
+    (``.claude/CLAUDE.md``: "ante duda, no sobrescribir").
+
+    LIB-MISPLACED-2: a file already sitting inside a ``_descartados/`` folder
+    is skipped outright, never moved or re-discarded. ``check_misplaced_
+    extensions_health()`` deliberately still reports it (LIB-MISPLACED-1's own
+    test expects trash content to stay auditable), but discarding an
+    already-discarded file created ``_descartados/_descartados/...`` nested
+    arbitrarily deep on a second run -- trash is a decided outcome, not
+    something for this pass to reorganize.
+    """
+    import shutil as _shutil
+
+    from rom_manager.utils.health_checker import check_misplaced_extensions_health
+
+    summary = RelocateSummary()
+    for result in check_misplaced_extensions_health(library_root).results:
+        source = Path(result.path)
+        if TRASH_DIR_NAME in source.parts:
+            continue
+        folder_name = _ES_PLATFORM_FOLDERS.get(result.detected_platform)
+        if not folder_name:
+            continue  # sin carpeta ES-DE conocida para esa plataforma -- no tocar
+        target = library_root / folder_name / source.name
+
+        if target.exists():
+            if _same_content(source, target):
+                if not dry_run:
+                    _discard_to_trash(source)
+                summary.duplicates_discarded += 1
+                outcome = "duplicate_discarded"
+            else:
+                summary.conflicts += 1
+                outcome = "conflict"
+        else:
+            if not dry_run:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _shutil.move(str(source), str(target))
+            summary.moved += 1
+            outcome = "moved"
+
+        summary.actions.append(
+            RelocateAction(str(source), str(target), result.detected_platform, outcome)
+        )
+
+    return summary
 
 
 def _resolve_organize_conflict(
@@ -426,6 +529,186 @@ def _resolve_ambiguous_md(inbox: Path, config: AppConfig, logger) -> int:
     return identified
 
 
+def _reconstruct_loose_arcade_sets(
+    inbox: Path, target_root: Path, config: AppConfig, logger: logging.Logger
+) -> dict:
+    """ARCADE-RECON — reconstruye sets MAME sueltos por cobertura CRC.
+
+    Un chip suelto (``01.u12``, ``.epr``…) no dice a qué máquina pertenece
+    por sí solo — su CRC puede vivir en varias (parent/clones comparten
+    roms). Pero un set completo sí es inequívoco: solo se reclama una
+    máquina cuando el 100% de sus roms esperados (manifest del DAT) están
+    presentes entre los sueltos. Se procesan las máquinas con más roms
+    primero para que un set grande completo no pierda chips ante una
+    máquina más pequeña que también los reclama. Nunca se sobreescribe un
+    ZIP ya existente en destino; los sueltos solo van a la papelera
+    (AUD-3, nunca borrado directo) tras confirmar el ZIP final en su sitio.
+    """
+    import shutil as _shutil
+    import zipfile
+    import zlib
+
+    from rom_manager.catalog.mame_loader import load_arcade_crc_index, load_arcade_manifest
+    from rom_manager.detection import FileCategory, classify_path
+
+    arcade_dir = config.catalogs_arcade_dir
+    result = {"reconstructed": 0, "chips_used": 0}
+    if not arcade_dir:
+        return result
+
+    candidates = [
+        p
+        for p in sorted(inbox.iterdir())
+        if p.is_file()
+        and not p.name.startswith((".", "_"))
+        and classify_path(p, config, inbox) is FileCategory.UNKNOWN
+    ]
+    if not candidates:
+        return result
+
+    # crc -> archivos del pool con ese contenido (normalmente 1, a veces más
+    # si un mismo chip aparece duplicado en la carpeta)
+    pool: dict[str, list[Path]] = {}
+    for p in candidates:
+        try:
+            crc = 0
+            with open(p, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    crc = zlib.crc32(chunk, crc)
+            pool.setdefault(f"{crc & 0xFFFFFFFF:08X}", []).append(p)
+        except OSError:
+            continue
+
+    crc_index = load_arcade_crc_index(arcade_dir)
+    manifest = load_arcade_manifest(arcade_dir)
+
+    candidate_machines: set[str] = set()
+    for crc in pool:
+        candidate_machines.update(crc_index.get(crc, ()))
+
+    # sets grandes primero: consumen sus chips antes de que se los dispute
+    # una máquina más pequeña con roms compartidos
+    ordered = sorted(
+        (m for m in candidate_machines if manifest.get(m)),
+        key=lambda m: len(manifest[m]),
+        reverse=True,
+    )
+
+    arcade_folder = target_root / _ES_PLATFORM_FOLDERS.get("Arcade", "arcade")
+    staging = inbox / "_arcade_staging"
+
+    for machine in ordered:
+        roms = manifest[machine]
+        dest = arcade_folder / f"{machine}.zip"
+        if dest.exists():
+            logger.info("Arcade-recon: %s ya existe en %s — no se toca el pool", machine, dest)
+            continue
+
+        picks: list[tuple[str, str, Path]] = []  # (rom_name, crc, source_file)
+        reserved: set[Path] = set()
+        ok = True
+        for rom_name, crc, size in roms:
+            option = next(
+                (f for f in pool.get(crc, []) if f not in reserved and f.stat().st_size == size),
+                None,
+            )
+            if option is None:
+                ok = False
+                break
+            reserved.add(option)
+            picks.append((rom_name, crc, option))
+        if not ok:
+            continue
+
+        staging.mkdir(parents=True, exist_ok=True)
+        staged_zip = staging / f"{machine}.zip"
+        try:
+            with zipfile.ZipFile(staged_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+                for rom_name, _crc, src in picks:
+                    zf.write(src, arcname=rom_name)
+            with zipfile.ZipFile(staged_zip) as zf:
+                if set(zf.namelist()) != {rom_name for rom_name, _crc, _src in picks}:
+                    raise OSError("zip incompleto tras escribir")
+        except OSError as exc:
+            logger.warning("Arcade-recon: fallo empaquetando %s — %s", machine, exc)
+            staged_zip.unlink(missing_ok=True)
+            continue
+
+        arcade_folder.mkdir(parents=True, exist_ok=True)
+        try:
+            _shutil.move(str(staged_zip), str(dest))
+        except OSError as exc:
+            logger.warning("Arcade-recon: fallo moviendo %s a %s — %s", machine, dest, exc)
+            continue
+
+        for _rom_name, crc, src in picks:
+            pool[crc].remove(src)
+            _discard_to_trash(src)  # AUD-3: soft-discard
+            result["chips_used"] += 1
+        result["reconstructed"] += 1
+        logger.info("Arcade-recon: %s reconstruido (%d chips) -> %s", machine, len(picks), dest)
+
+    if staging.exists():
+        try:
+            staging.rmdir()
+        except OSError:
+            pass
+
+    return result
+
+
+def _route_orphan_saves(
+    inbox: Path, repository: LibraryRepository, config: AppConfig, logger: logging.Logger
+) -> int:
+    """Reúne saves sueltos en la raíz del Inbox con su ROM ya organizado en la biblioteca.
+
+    Un save sin ROM acompañante en el mismo lote (p. ej. copiado suelto desde
+    la Anbernic) se empareja por coincidencia EXACTA de stem contra `games`
+    (fuera del propio Inbox). Solo se mueve si hay un único match y el
+    destino no existe ya — nunca se sobreescribe, nunca se descarta el save
+    si no hay match: se deja intacto para revisión manual antes que arriesgar
+    perder la única copia.
+    """
+    save_exts = frozenset(config.save_extensions)
+    candidates = [
+        p
+        for p in sorted(inbox.iterdir())
+        if p.is_file() and not p.name.startswith((".", "_")) and p.suffix.lower() in save_exts
+    ]
+    if not candidates:
+        return 0
+
+    inbox_str_lower = str(inbox).lower()
+    with repository.connect() as conn:
+        rows = conn.execute(
+            "SELECT source_path FROM games WHERE LOWER(source_path) NOT LIKE ?",
+            (inbox_str_lower + "%",),
+        ).fetchall()
+    by_stem: dict[str, list[Path]] = {}
+    for (source_path_str,) in rows:
+        p = Path(source_path_str)
+        by_stem.setdefault(p.stem.lower(), []).append(p)
+
+    moved = 0
+    for save in candidates:
+        matches = [p for p in by_stem.get(save.stem.lower(), []) if p.exists()]
+        if len(matches) != 1:
+            continue
+        dest = matches[0].parent / save.name
+        if dest.exists():
+            logger.warning("Inbox: save %s ya existe junto a su ROM — no se toca", save.name)
+            continue
+        try:
+            import shutil as _shutil_saves
+
+            _shutil_saves.move(str(save), str(dest))
+            moved += 1
+            logger.info("Inbox: save huérfano %s reunido con su ROM en %s", save.name, dest.parent)
+        except OSError as exc:
+            logger.warning("Inbox: fallo moviendo save huérfano %s — %s", save.name, exc)
+    return moved
+
+
 def _build_inbox_scan(inbox_path_str: str, target_root_str: str = "") -> dict:
     """Scan the inbox folder and return summary + file list.
 
@@ -658,6 +941,7 @@ def _run_setup_pipeline(
             matcher = CatalogMatcher(
                 nointro_dir=config.catalogs_nointro_dir,
                 redump_dir=config.catalogs_redump_dir,
+                chdman_path=config.chdman,
             )
             unresolved = repository.get_unresolved_games()
             matched = 0
@@ -666,7 +950,7 @@ def _run_setup_pipeline(
                 for idx, game in enumerate(unresolved, 1):
                     pct = 65 + int((idx / max(total_unresolved, 1)) * 20)
                     _upd("Cruzando con catálogos No-Intro/Redump", 4, pct, game.original_filename)
-                    m = matcher.match(game.sha1, game.original_filename)
+                    m = matcher.match(game.sha1, game.original_filename, game.source_path)
                     if m is not None:
                         repository.update_match(
                             game.source_path,
@@ -698,6 +982,79 @@ def _run_setup_pipeline(
         job_manager.finish("setup", job_result)
 
 
+def _send_organized_to_anbernic(
+    dest_files: list[Path],
+    target_root: Path,
+    save_exts: frozenset[str],
+    repository: LibraryRepository,
+    config: AppConfig,
+    logger: logging.Logger,
+) -> dict:
+    """INBOX-ANBERNIC-1: push recién-organizados a la Anbernic por ADB.
+
+    Checkbox global (confirmado con el usuario): si está activo, se intenta
+    con cualquier dispositivo único ya conectado — sin dispositivo, se avisa
+    y el resto del job de Inbox sigue igual (nunca bloquea la organización
+    en el PC por falta de cable, ya decidido en el roadmap 17).
+    Reutiliza ``AdbTransport.push`` (mismo primitivo que ``send_selected`` en
+    ``sync_cable.py``) en vez de levantar un job de cable-sync aparte — así
+    no hace falta un segundo panel de progreso.
+    """
+    import datetime as _dt
+
+    from rom_manager.sync.adb_transport import resolve_single_device_transport, should_verify
+    from rom_manager.sync.android_paths import canonical_rel_posix
+    from rom_manager.sync.sync_log import log_sync_event
+
+    if not dest_files:
+        return {"sent": 0, "errors": [], "warning": None}
+
+    transport = resolve_single_device_transport(config.adb)
+    if transport is None:
+        return {
+            "sent": 0,
+            "errors": [],
+            "warning": "sin dispositivo Anbernic conectado — organizado solo en el PC",
+        }
+
+    android_root = config.sync.auto_sync_android_path or "/storage/emulated/0"
+    sent = 0
+    errors: list[str] = []
+    for dest_file in dest_files:
+        try:
+            rel_posix = canonical_rel_posix(
+                dest_file.relative_to(target_root).as_posix(), _ES_PLATFORM_FOLDERS
+            )
+            android_dst = android_root.rstrip("/") + "/" + rel_posix
+            verified = should_verify(dest_file.name, save_exts)
+            transport.push(dest_file, android_dst, dry_run=False, verify=verified)
+            try:
+                with repository.connect() as conn:
+                    log_sync_event(
+                        conn,
+                        local_path=str(dest_file),
+                        remote_path=android_dst,
+                        direction="upload",
+                        local_mtime=None,
+                        remote_mtime=None,
+                        result="ok",
+                        message="INBOX-ANBERNIC-1",
+                        created_at=_dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+                        verified=True if verified else None,
+                    )
+                    conn.commit()
+            except Exception:
+                logger.debug(
+                    "No se pudo escribir en save_sync_log (inbox->anbernic)", exc_info=True
+                )
+            sent += 1
+        except Exception as exc:
+            # Nunca debe tumbar el job de Inbox — organizar en el PC ya tuvo
+            # éxito, esto es un extra opt-in (roadmap 17, INBOX-ANBERNIC-1).
+            errors.append(f"{dest_file.name}: {exc}")
+    return {"sent": sent, "errors": errors[:20], "warning": None}
+
+
 def _run_inbox_pipeline(
     inbox_path_str: str,
     target_root_str: str,
@@ -706,16 +1063,37 @@ def _run_inbox_pipeline(
     config: AppConfig,
     job_manager,
     extra_result: dict | None = None,
+    exclude_platforms: set[str] | None = None,
+    send_to_anbernic: bool = False,
 ) -> None:
     """Background job: extract → scan → match → plan → rename → move → cleanup.
 
     *extra_result* (ZIP-ROUTE-4): contadores de las fases previas del zip_router
     que se mezclan en el resultado del job para que la UI los muestre juntos.
+
+    *exclude_platforms* (LIBRARY-AUDIT-EXCLUDE-GAP-1): normalmente
+    ``organize-source`` aparta los archivos de esas plataformas *antes* de
+    llamar aquí consultando ``games.platform`` en la BD -- pero un ZIP sin
+    escanear todavía (``platform IS NULL``) no está en esa consulta, y el
+    paso 1 de aquí lo detecta como set arcade completo por CRC en vivo,
+    independiente de la BD. Si ``MAME``/``FBNeo``/``Arcade`` está en
+    *exclude_platforms*, ese ZIP se deja intacto en vez de moverse a
+    ``arcade/`` -- misma promesa de "dejar arcade sin tocar" que ya cumple
+    el filtro de la BD, extendida a lo no escaneado.
+
+    *send_to_anbernic* (INBOX-ANBERNIC-1): checkbox global opt-in — al
+    terminar de organizar, empuja por ADB cada archivo recién movido al
+    dispositivo único conectado. Sin dispositivo, solo avisa (no bloquea).
     """
     import shutil as _shutil
 
+    from rom_manager.catalog.mame_loader import load_arcade_crc_index
     from rom_manager.catalog.matcher import CatalogMatcher
-    from rom_manager.converters.zip_extractor import extract_zip, find_zip_files
+    from rom_manager.converters.zip_extractor import (
+        extract_zip,
+        find_zip_files,
+        is_arcade_zip_container,
+    )
     from rom_manager.planner import build_plan
     from rom_manager.planner.operation_planner import FormatOptions
     from rom_manager.renamer.file_renamer import rename_rom_with_saves
@@ -748,14 +1126,49 @@ def _run_inbox_pipeline(
     try:
         # ── Step 1: Extract ZIPs ─────────────────────────────────────────────
         _upd("extracting", 1)
+        arcade_crc_index = (
+            load_arcade_crc_index(config.catalogs_arcade_dir) if config.catalogs_arcade_dir else {}
+        )
+        arcade_folder = target_root / _ES_PLATFORM_FOLDERS.get("Arcade", "arcade")
         zip_files = find_zip_files(inbox)
         extracted_count = 0
+        arcade_zips_routed = 0
+        arcade_zips_excluded = 0
+        _ARCADE_PLATFORMS = {"MAME", "FBNeo", "Arcade"}
+        skip_arcade_routing = bool(exclude_platforms and exclude_platforms & _ARCADE_PLATFORMS)
         source_zips: list[Path] = []
         for idx, zp in enumerate(zip_files, 1):
             # Skip internal folders
             if any(part.startswith("_") for part in zp.relative_to(inbox).parts[:-1]):
                 continue
             _upd("extracting", 1, idx, len(zip_files), zp.name)
+            # INBOX-CFG-4: un ZIP arcade nunca se extrae — el ZIP es el ROM.
+            # Extraerlo shredea el set en chips sueltos (incidente Día49).
+            if arcade_crc_index and is_arcade_zip_container(zp, arcade_crc_index):
+                if skip_arcade_routing:
+                    arcade_zips_excluded += 1
+                    logger.info(
+                        "Inbox: %s es un set arcade completo pero %s está en "
+                        "--exclude-platform — dejado intacto",
+                        zp.name,
+                        "/".join(sorted(exclude_platforms & _ARCADE_PLATFORMS)),
+                    )
+                    continue
+                dest = arcade_folder / zp.name
+                if dest.exists():
+                    logger.warning(
+                        "Inbox: %s es un set arcade pero ya existe en %s — no se toca",
+                        zp.name,
+                        dest,
+                    )
+                    continue
+                arcade_folder.mkdir(parents=True, exist_ok=True)
+                _shutil.move(str(zp), str(dest))
+                arcade_zips_routed += 1
+                logger.info(
+                    "Inbox: %s es un set arcade completo — movido sin extraer -> %s", zp.name, dest
+                )
+                continue
             result = extract_zip(zp, delete_source=False, dry_run=False)
             if result.success:
                 extracted_count += 1
@@ -772,6 +1185,14 @@ def _run_inbox_pipeline(
         # ── Step 1.7: .md ambiguos por CRC (AUD-4) ───────────────────────────
         _upd("identificando .md por CRC", 1)
         md_identified = _resolve_ambiguous_md(inbox, config, logger)
+
+        # ── Step 1.8: reconstruir sets MAME sueltos por cobertura CRC ────────
+        _upd("reconstruyendo sets arcade sueltos", 1)
+        arcade_recon = _reconstruct_loose_arcade_sets(inbox, target_root, config, logger)
+
+        # ── Step 1.9: reunir saves huérfanos con su ROM ya organizado ────────
+        _upd("reuniendo saves huérfanos", 1)
+        saves_reunited = _route_orphan_saves(inbox, repository, config, logger)
 
         # ── Step 2: Scan inbox ───────────────────────────────────────────────
         _upd("scanning", 2)
@@ -794,13 +1215,14 @@ def _run_inbox_pipeline(
         matcher = CatalogMatcher(
             nointro_dir=config.catalogs_nointro_dir,
             redump_dir=config.catalogs_redump_dir,
+            chdman_path=config.chdman,
         )
         unresolved = repository.get_unresolved_games()
         matched = 0
         with repository.batch() as conn:
             for idx, game in enumerate(unresolved, 1):
                 _upd("matching", 3, idx, len(unresolved), game.original_filename)
-                match_result = matcher.match(game.sha1, game.original_filename)
+                match_result = matcher.match(game.sha1, game.original_filename, game.source_path)
                 if match_result is not None:
                     repository.update_match(
                         game.source_path,
@@ -857,23 +1279,40 @@ def _run_inbox_pipeline(
         _upd("organizing", 6, 0, 0)
         organized = 0
         ra_resolved = 0
+        duplicates_removed = 0
+        conflicts_unresolved = 0
         organize_errors: list[str] = []
+        organized_dest_files: list[Path] = []
+        blocked_found: list[str] = []
         _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
         with repository.connect() as conn:
             rows = conn.execute(
-                "SELECT id, source_path, platform, original_filename FROM games "
+                "SELECT id, source_path, platform, original_filename, sha1 FROM games "
                 "WHERE LOWER(source_path) LIKE ?",
                 (inbox_str_lower + "%",),
             ).fetchall()
 
         for idx, row in enumerate(rows, 1):
-            game_id, source_path_str_db, platform, orig_name = row
+            game_id, source_path_str_db, platform, orig_name, sha1 = row
             source_file = Path(source_path_str_db)
             if not source_file.exists():
                 continue
 
+            # GAME-BLOCKLIST-2: a blocked sha1 reappearing in the Inbox (e.g.
+            # after an android_to_pc sync or a manual adb pull that dropped it
+            # here) is never auto-organized — left in place, warned once via
+            # job_result, no silent auto-discard (decisión usuario 2026-09-24).
+            if repository.is_blocked(sha1):
+                blocked_found.append(orig_name)
+                logger.warning(
+                    "Inbox: %s tiene un SHA1 bloqueado — no se organiza, revisar a mano",
+                    orig_name,
+                )
+                continue
+
+            _platform_folder_name(platform or "", target_root)
             dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
             dest_folder = dest_file.parent
             dest_folder.mkdir(parents=True, exist_ok=True)
@@ -889,6 +1328,7 @@ def _run_inbox_pipeline(
                     try:
                         _discard_to_trash(source_file)  # AUD-3: soft-discard
                         repository.delete_game(game_id)
+                        duplicates_removed += 1
                         logger.info(
                             "Inbox: removed exact duplicate %s (already in %s)",
                             source_file.name,
@@ -911,9 +1351,11 @@ def _run_inbox_pipeline(
                     if status == "kept_source":
                         organized += 1
                         ra_resolved += 1
+                        organized_dest_files.append(dest_file)
                     elif status == "kept_dest":
                         ra_resolved += 1
                     else:
+                        conflicts_unresolved += 1
                         detail = f" ({err})" if err else ""
                         organize_errors.append(
                             f"{source_file.name}: mismo nombre en {dest_folder} pero contenido "
@@ -922,20 +1364,34 @@ def _run_inbox_pipeline(
                 continue
 
             try:
-                _shutil.move(str(source_file), str(dest_file))
-                # Update DB path. ZIP-ROUTE-FIX-2: a stale row from an earlier
-                # session can already hold this exact source_path — its file
-                # no longer exists (dest_file.exists() was False above) but
-                # the UNIQUE constraint still blocks the UPDATE. Drop that
-                # ghost row first; the physical move already succeeded either way.
+                # INBOX-ATOMIC-1: BD primero, mover el archivo al final, ambos
+                # dentro del mismo bloque `batch()`. Si el UPDATE falla, la
+                # excepción sale del `with` antes de tocar el disco — nunca se
+                # llega al move. Si el move falla después de un UPDATE en
+                # memoria (sin commitear todavía), la excepción también sale
+                # del `with` y `batch()` hace rollback de la BD — el archivo
+                # nunca llegó a moverse (shutil.move no deja estado parcial
+                # dentro del mismo volumen: falla entero o no falla), así que
+                # la fila vuelve a apuntar a donde el archivo sigue estando de
+                # verdad. Antes (move primero, BD después) un fallo del UPDATE
+                # dejaba el archivo ya en `dest_file` con la fila todavía
+                # apuntando al Inbox, donde el archivo ya no existía —
+                # desincronizado en silencio, la única señal era el mensaje
+                # crudo de excepción SQLite en `organize_errors`.
                 dest_path_str = str(dest_file.resolve())
                 with repository.batch() as conn:
+                    # ZIP-ROUTE-FIX-2: a stale row from an earlier session can
+                    # already hold this exact source_path — its file no
+                    # longer exists (dest_file.exists() was False above) but
+                    # the UNIQUE constraint still blocks the UPDATE below.
                     cascade_delete_games_by_source_path(conn, dest_path_str, exclude_id=game_id)
                     conn.execute(
                         "UPDATE games SET source_path=?, original_filename=? WHERE id=?",
                         (dest_path_str, dest_file.name, game_id),
                     )
+                    _shutil.move(str(source_file), str(dest_file))
                 organized += 1
+                organized_dest_files.append(dest_file)
             except Exception as exc:
                 organize_errors.append(f"{source_file.name}: {exc}")
 
@@ -969,21 +1425,51 @@ def _run_inbox_pipeline(
             except Exception:
                 _logger.debug("No se pudo eliminar la carpeta temporal _extracted", exc_info=True)
 
+        # ── INBOX-ANBERNIC-1: enviar lo organizado a la Anbernic (opt-in) ────
+        anbernic_result = {"sent": 0, "errors": [], "warning": None}
+        if send_to_anbernic:
+            _upd("enviando a la Anbernic", 6, len(organized_dest_files), len(organized_dest_files))
+            try:
+                anbernic_result = _send_organized_to_anbernic(
+                    organized_dest_files, target_root, save_exts, repository, config, logger
+                )
+            except Exception as exc:
+                # Organizar en el PC ya terminó con éxito — un fallo aquí (p.ej.
+                # adb no encontrado) nunca debe reportar el pipeline entero como
+                # fallido (roadmap 17, INBOX-ANBERNIC-1).
+                logger.warning("Envío a la Anbernic tras el Inbox falló: %s", exc, exc_info=True)
+                anbernic_result = {
+                    "sent": 0,
+                    "errors": [],
+                    "warning": f"envío a Anbernic falló: {exc}",
+                }
+
         job_result = {
             **(extra_result or {}),
             "result_ts": utc_now(),
             "zips_extracted": extracted_count,
             "zips_archived": len(source_zips),
+            "arcade_zips_routed": arcade_zips_routed,
+            "arcade_zips_excluded": arcade_zips_excluded,
             "bios_moved": bios_moved,
             "md_identified": md_identified,
+            "arcade_reconstructed": arcade_recon["reconstructed"],
+            "arcade_chips_used": arcade_recon["chips_used"],
+            "saves_reunited": saves_reunited,
             "roms_scanned": scan_result.roms_detected,
             "matched": matched,
             "renamed": renamed,
             "organized": organized,
             "ra_resolved": ra_resolved,
+            "duplicates_removed": duplicates_removed,
+            "conflicts_unresolved": conflicts_unresolved,
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
+            "blocked_found": blocked_found[:20],
             "target_root": str(target_root),
+            "anbernic_sent": anbernic_result["sent"],
+            "anbernic_errors": anbernic_result["errors"],
+            "anbernic_warning": anbernic_result["warning"],
         }
 
     except Exception as exc:

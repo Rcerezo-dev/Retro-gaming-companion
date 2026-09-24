@@ -12,8 +12,12 @@ _logger = logging.getLogger(__name__)
 # Verified live on Anbernic RG556 (serial: RG556006101273).
 # Source: docs/sync/android-save-paths-RG556.md
 # Keys are Android package names. Users can override entries via [[emulator_paths]] in config.toml.
+# RetroArch key corrected 2026-09-19 (CABLE-SYNC-WATCH-1): docs/emulador-canonico-rg556.md
+# already found two RetroArch installs on this device and settled "com.retroarch" as
+# canonical (19h28m of real playtime vs 2min for "com.retroarch.aarch64") — this table
+# just never got updated to match that decision.
 EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
-    "com.retroarch.aarch64": {
+    "com.retroarch": {
         "name": "RetroArch",
         "saves_path": "/storage/emulated/0/RetroArch/saves",
         "states_path": "/storage/emulated/0/RetroArch/states",
@@ -36,14 +40,25 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "notes": (
             "Permission denied via ADB on Android 11+ scoped storage without root — "
             "in DuckStation, change Settings > Memory Cards > Directory to a public "
-            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable"
+            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable. "
+            "SAVES-FRAGMENT-8b (2026-09-22): the SD card's public "
+            "/storage/521D-04EA/saves/psx/ folder already carries .srm/.mcd files "
+            "(likely a launcher, not this app, mirroring saves there) and is covered "
+            "by a plain Cable Sync 'newest' pass against that root — not by this "
+            "per-package entry, whose own path is still unreadable."
         ),
         "accessible": False,
     },
     "xyz.aethersx2.android": {
         "name": "AetherSX2 / NetherSX2 (PS2)",
-        "saves_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/memcards",
-        "states_path": "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/sstates",
+        # SAVES-FRAGMENT-8b (2026-09-22): the app-private path below is
+        # unreadable via non-root ADB (confirmed daily in the auto-sync log,
+        # 18 "sin permiso de lectura" errors) — redirected to the public SD
+        # location the same save data (Mcd001.ps2/Mcd002.ps2, matching
+        # (*).p2s state files, same names) is also accessible from, same
+        # workaround already documented for DuckStation above.
+        "saves_path": "/storage/521D-04EA/saves/memcards",
+        "states_path": "/storage/521D-04EA/saves/sstates",
         "adb_required": True,
         "save_extensions": [".ps2"],
         "state_extensions": [".p2s", ".p2s.backup"],
@@ -108,28 +123,41 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "name": "GBA.emu (GBA)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.GbaEmu/files/EmuEx/GBA/saves",
         "states_path": None,
-        "adb_required": True,
+        # GBA-SAVE-PATH-1c: verificado en hardware real (RG556006101273,
+        # 2026-09-06) -- ese árbol EmuEx no existe (app instalada, files/
+        # vacío, nunca escrito). Los saves reales de GBA viven junto a las
+        # ROMs en la SD (SAVES-FRAGMENT-8), ya cubiertos por el Cable Sync de
+        # carpeta normal -- adb_required=False, mismo tratamiento que
+        # RetroArch/PPSSPP, para que este path (que nunca ha sincronizado
+        # nada) deje de intentarse.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "com.explusalpha.GbcEmu": {
         "name": "GBC.emu (GBC)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.GbcEmu/files/EmuEx/GBC/saves",
         "states_path": None,
-        "adb_required": True,
+        # Mismo hallazgo que GbaEmu (GBA-SAVE-PATH-1c) -- árbol EmuEx vacío
+        # en hardware real, misma familia EmuEx.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "com.explusalpha.NesEmu": {
         "name": "NES.emu (NES)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.NesEmu/files/EmuEx/NES/saves",
         "states_path": None,
-        "adb_required": True,
+        # Mismo hallazgo que GbaEmu (GBA-SAVE-PATH-1c) -- árbol EmuEx vacío
+        # en hardware real, misma familia EmuEx.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "com.explusalpha.MdEmu": {
         "name": "MD.emu (Mega Drive)",
         "saves_path": "/storage/emulated/0/Android/data/com.explusalpha.MdEmu/files/EmuEx/MD/saves",
         "states_path": None,
-        "adb_required": True,
+        # Mismo hallazgo que GbaEmu (GBA-SAVE-PATH-1c) -- árbol EmuEx vacío
+        # en hardware real, misma familia EmuEx.
+        "adb_required": False,
         "state_extensions": [".frz"],
     },
     "me.magnum.melonds": {
@@ -168,6 +196,14 @@ class SyncSource:
     sync_all: bool = (
         False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
     )
+    include_glob: str = (
+        "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
+    )
+    # DEVPROFILE-8b/9: True → local_dir is a single FILE (a SQLite DB, a .lpl
+    # playlist), not a directory. Routed to sync_single_file() instead of
+    # sync_saves() -- "newest wins" restore, no per-file merge/conflict
+    # tracking (there's only one file, so that machinery doesn't apply).
+    single_file: bool = False
 
 
 @dataclass(slots=True)
@@ -202,6 +238,18 @@ class SyncConfig:
     # JUEGOS-UX-7: playtime logs (.lrtl) — base remote; se usan subcarpetas /pc
     # y /android para que cada origen sea dueño de su contador y nunca se pisen
     playtime_remote: str = ""  # e.g. "dropbox:/RetroSync/playtime"
+    # EMU-SYNC-WATCH-1: nombres de proceso (ver `tasklist`, sin ruta, p. ej.
+    # "retroarch.exe") que disparan un cloud sync real al cerrarse. Vacío =
+    # watcher desactivado (opt-in explícito, sin adivinar qué emuladores usa
+    # el usuario).
+    watch_processes: list[str] = field(default_factory=list)
+    # CABLE-SYNC-WATCH-1: mismo patrón que watch_processes pero del lado
+    # Anbernic — paquetes Android (ver `adb shell ps`, p. ej. "com.retroarch")
+    # que disparan un cable-sync real al cerrarse, sondeados por el propio PC
+    # vía ADB mientras el cable esté conectado (sin servicio ni permiso
+    # especial en el dispositivo — ver docstring de _auto_sync_loop). Vacío =
+    # desactivado (opt-in explícito).
+    watch_android_packages: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -244,6 +292,19 @@ class BackupConfig:
 
 
 @dataclass(slots=True)
+class DuplicatesConfig:
+    """Region-duplicate review preferences (DUP-REGION-2).
+
+    Governs the "region" reason in the review-queue builder
+    (``web/builders/duplicates.py``) — same game, different No-Intro region
+    release (e.g. "Tetris (USA)" vs "Tetris (Spain)").
+    """
+
+    keep_both_regions: bool = False  # True = never flag same-title cross-region groups
+    preferred_regions: list[str] = field(default_factory=lambda: ["Spain", "Europe"])
+
+
+@dataclass(slots=True)
 class AppConfig:
     project_root: Path
     data_dir: Path
@@ -280,6 +341,8 @@ class AppConfig:
     launcher_cores: dict  # platform → libretro core path
     # Save-backup settings (S29 / QoL-11) — see BackupConfig
     backup: BackupConfig
+    # Region-duplicate review preferences (DUP-REGION-2) — see DuplicatesConfig
+    duplicates: DuplicatesConfig
     # Desktop notifications (S37)
     notify_desktop: bool  # True = show Windows toast on sync/health/inbox completion
     # AUD-3: días que un archivo permanece en _descartados/ antes de la purga automática (0 = nunca)
@@ -375,6 +438,15 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     root = (project_root or Path.cwd()).resolve()
     data_dir = root / ".rommgr"
     logs_dir = data_dir / "logs"
+    # REPAIR-TOOL-7: library_pc.db is *not* per-drive -- `rommgr scan <path>`
+    # always writes here regardless of which local unit <path> lives on
+    # (E:\, H:\, anything mounted on this PC), since the CLI never routes by
+    # path. library_android.db is a separate DB selected by
+    # _repo_for_path() (web/builders/common.py) for any path outside
+    # config.library_root -- the web UI's ADB scan is the common case, but
+    # not the only one (the generic /api/scan handler and
+    # /api/migrate-split-db route the same way). `rommgr scan` (the CLI
+    # command specifically) never touches library_android.db.
     database_path = data_dir / "library_pc.db"
     database_path_android = data_dir / "library_android.db"
     catalogs_dir = data_dir / "catalogs"
@@ -395,6 +467,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     android_cfg = toml.get("android", {})
     launchers_cfg = toml.get("launchers", {})
     backup_cfg = toml.get("backup", {})
+    duplicates_cfg = toml.get("duplicates", {})
 
     # Merge emulator path defaults with any user overrides from [[emulator_paths]]
     emulator_paths: dict = {k: dict(v) for k, v in EMULATOR_SAVE_PATHS_DEFAULT.items()}
@@ -423,6 +496,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
                     local_dir=str(s["local_dir"]),
                     remote=str(s["remote"]),
                     sync_all=bool(s.get("sync_all", False)),
+                    include_glob=str(s.get("include_glob", "**/*")),
+                    single_file=bool(s.get("single_file", False)),
                 )
             )
     # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote
@@ -495,6 +570,8 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             cheats_remote=str(sync.get("cheats_remote", "")),
             playtime_remote=str(sync.get("playtime_remote", "")),
             sync_sources=sync_sources,
+            watch_processes=[str(p) for p in sync.get("watch_processes", [])],
+            watch_android_packages=[str(p) for p in sync.get("watch_android_packages", [])],
         ),
         inbox=InboxConfig(
             path=str(inbox_cfg.get("path", "")),
@@ -511,6 +588,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             saves_enabled=bool(backup_cfg.get("saves_enabled", True)),
             saves_keep_n=int(backup_cfg.get("saves_keep_n", 5)),
             pre_sync=bool(backup_cfg.get("pre_sync", True)),
+        ),
+        duplicates=DuplicatesConfig(
+            keep_both_regions=bool(duplicates_cfg.get("keep_both_regions", False)),
+            preferred_regions=list(duplicates_cfg.get("preferred_regions", ["Spain", "Europe"])),
         ),
         notify_desktop=bool(toml.get("notifications", {}).get("desktop", True)),
         trash_purge_days=int(lib.get("trash_purge_days", 30)),
@@ -591,8 +672,12 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             ".hi",
             ".brmc",
             ".ml1",
+            ".fs",  # FBNeo CPS3 savestate (sfiii3.fs, redearth.fs...)
         ),
     )
+
+
+EMULATOR_SAVES_DIR_NAME = "emulator_saves"  # contabilidad interna del PC, nunca sync al dispositivo
 
 
 def get_adb_sync_sources(config: AppConfig) -> list[dict]:
@@ -630,7 +715,7 @@ def get_adb_sync_sources(config: AppConfig) -> list[dict]:
         if not saves_path and not states_path:
             continue  # no known path yet (Mupen64Plus FZ etc.)
 
-        local_root = config.library_root / "emulator_saves" / pkg
+        local_root = config.library_root / EMULATOR_SAVES_DIR_NAME / pkg
         raw_save_ext = info.get("save_extensions")
         raw_state_ext = info.get("state_extensions")
 

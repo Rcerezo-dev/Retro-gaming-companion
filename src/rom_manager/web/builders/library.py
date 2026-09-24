@@ -359,6 +359,7 @@ def _build_games(
     genre: str | None = None,
     year: str | None = None,
     region: str | None = None,
+    initial: str | None = None,
     sort_by: str | None = None,
 ) -> dict:
     games, total = repository.get_games_paginated(
@@ -375,6 +376,7 @@ def _build_games(
         genre=genre,
         year=year,
         region=region,
+        initial=initial,
         sort_by=sort_by,
     )
     return {

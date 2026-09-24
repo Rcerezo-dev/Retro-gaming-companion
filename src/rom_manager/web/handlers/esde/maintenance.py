@@ -33,18 +33,51 @@ def register_maintenance(
     # ── GET /api/trash-status (AUD-3) ─────────────────────────────────────────
     @router.get("/api/trash-status")
     def get_trash_status(ctx) -> None:
+        import rom_manager.web.state as _state
         from rom_manager.utils.trash import trash_roots, trash_stats
 
         stats = trash_stats(trash_roots(config))
         stats["purge_days"] = config.trash_purge_days
+        stats["last_purge"] = _state._trash_purge_last["pc"]
+
+        # TRASH-FIX-3: mismo dato para el dispositivo Android, si hay uno conectado
+        android: dict = {"connected": False}
+        try:
+            from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+            transport = resolve_single_device_transport(config.adb)
+            if transport is not None:
+                android = transport.trash_stats()
+                android["connected"] = True
+                android["last_purge"] = _state._trash_purge_last["android"]
+        except Exception:
+            _logger.debug("No se pudo consultar la papelera del dispositivo Android", exc_info=True)
+        stats["android"] = android
         ctx._send_json(stats)
 
     # ── POST /api/trash-empty (AUD-3) ─────────────────────────────────────────
     @router.post("/api/trash-empty")
     def post_trash_empty(ctx) -> None:
+        import rom_manager.web.state as _state
         from rom_manager.utils.trash import purge_trash, trash_roots
 
-        ctx._send_json(purge_trash(trash_roots(config), older_than_days=0))
+        result = purge_trash(trash_roots(config), older_than_days=0)
+        _state.record_trash_purge("pc", result)
+        ctx._send_json(result)
+
+    # ── POST /api/trash-empty-android (TRASH-FIX-3) ────────────────────────────
+    @router.post("/api/trash-empty-android")
+    def post_trash_empty_android(ctx) -> None:
+        import rom_manager.web.state as _state
+        from rom_manager.sync.adb_transport import resolve_single_device_transport
+
+        transport = resolve_single_device_transport(config.adb)
+        if transport is None:
+            ctx._send_json({"error": "No hay ningún dispositivo Android conectado"})
+            return
+        result = transport.purge_trash(older_than_days=0)
+        _state.record_trash_purge("android", result)
+        ctx._send_json(result)
 
     # ── POST /api/health-check ────────────────────────────────────────────────
     @router.post("/api/health-check")
@@ -122,7 +155,7 @@ def register_maintenance(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         source = Path(source_path_str).resolve()
         deleted = failed = 0
@@ -142,7 +175,7 @@ def register_maintenance(
         data = ctx._post_data
         source_path_str = data.get("source_path", "").strip()
         if not source_path_str:
-            ctx._send_json({"error": "source_path is required"})
+            ctx._send_json({"error": "source_path requerido"})
             return
         source = Path(source_path_str).resolve()
         deleted = failed = skipped = 0
@@ -216,7 +249,7 @@ def register_maintenance(
             str(config.library_root) if config.library_root else ""
         )
         if not folder:
-            ctx._send_json({"error": "path required"})
+            ctx._send_json({"error": "path requerido"})
             return
         ctx._send_json(_full_junk_scan(folder))
 
@@ -244,7 +277,7 @@ def register_maintenance(
         folder = ctx._qs.get("root", [""])[0] or (
             str(config.library_root) if config.library_root else ""
         )
-        empty = {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0}
+        empty = {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0, "misplaced_zips": 0}
         if not folder or not Path(folder).is_dir():
             ctx._send_json(empty)
             return
@@ -258,6 +291,10 @@ def register_maintenance(
         mame_infra = 0
         junk_files = 0
         junk_bytes = 0
+        # LIBRARY-HEALTH-DASH-1: ZIPs sueltos ya identificados (ROM de consola/
+        # arcade/romhack) pero aún sin mover a su carpeta de plataforma — la
+        # BIOS ya tiene su propio contador, no se duplica aquí.
+        misplaced_zips = 0
         for cat in scan.get("categories", []):
             if cat["category"] == _ZIP_CAT_BIOS:
                 bios += cat["count"]
@@ -266,6 +303,8 @@ def register_maintenance(
             elif cat["confidence"] == "safe_delete":
                 junk_files += cat["count"]
                 junk_bytes += cat["total_bytes"]
+            elif cat["confidence"] == "misplaced":
+                misplaced_zips += cat["count"]
         # El junk-scan solo ve ZIPs *sueltos* (dentro de carpeta de plataforma
         # los salta): la infra ya colocada en arcade\/mame\/… se cuenta aparte
         # cruzando los stems con las bios/devices del XML de MAME.
@@ -284,6 +323,7 @@ def register_maintenance(
             "mame_infra": mame_infra,
             "junk_files": junk_files,
             "junk_bytes": junk_bytes,
+            "misplaced_zips": misplaced_zips,
         }
         _extras_cache[folder] = (time.time(), payload)
         ctx._send_json(payload)
@@ -300,7 +340,7 @@ def register_maintenance(
             str(config.library_root) if config.library_root else ""
         )
         if not folder:
-            ctx._send_json({"error": "path required"})
+            ctx._send_json({"error": "path requerido"})
             return
         from rom_manager.web.zip_router import _run_zip_route_apply
 

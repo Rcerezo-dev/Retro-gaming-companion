@@ -92,6 +92,41 @@ class TestFindDiscGroups:
     def test_empty_directory(self, tmp_path: Path) -> None:
         assert find_disc_groups(tmp_path) == []
 
+    def test_trailing_tag_after_disc_number_still_grouped(self, tmp_path: Path) -> None:
+        """PSX-ORPHAN-3: '(Disc N)' followed by another tag, e.g. '(Rev 1)',
+        was never matched before — the old regex required it to be the last tag."""
+        _make_disc(tmp_path, "psx/Game (Disc 1) (Rev 1).chd")
+        _make_disc(tmp_path, "psx/Game (Disc 2) (Rev 1).chd")
+        groups = find_disc_groups(tmp_path)
+        assert len(groups) == 1
+        assert len(groups[0].discs) == 2
+
+    def test_track_files_still_excluded_with_trailing_tag_support(self, tmp_path: Path) -> None:
+        """Relaxing the end anchor for PSX-ORPHAN-3 must not resurrect the
+        track-file false positive the original anchor was there to prevent."""
+        _make_disc(tmp_path, "psx/Game (Disc 1) (Track 1).bin")
+        _make_disc(tmp_path, "psx/Game (Disc 1) (Track 2).bin")
+        groups = find_disc_groups(tmp_path)
+        assert groups == []
+
+    def test_non_disc_extension_never_grouped(self, tmp_path: Path) -> None:
+        """PSX-ORPHAN-3: a save sharing the '(Disc N)' naming (e.g. from a
+        renamed-with-saves ROM) must never be treated as part of a disc set —
+        real case: a stray .srm produced a false 'Metal Gear Solid' group."""
+        _make_disc(tmp_path, "psx/Metal Gear Solid (USA) (Disc 1).srm")
+        _make_disc(tmp_path, "psx/Metal Gear Solid (USA) (Disc 2).srm")
+        groups = find_disc_groups(tmp_path)
+        assert groups == []
+
+    def test_disc_image_and_save_do_not_cross_contaminate(self, tmp_path: Path) -> None:
+        """A real 2-disc set alongside same-named saves: only the images group."""
+        _make_disc(tmp_path, "psx/Metal Gear Solid (USA) (Disc 1).chd")
+        _make_disc(tmp_path, "psx/Metal Gear Solid (USA) (Disc 2).chd")
+        _make_disc(tmp_path, "psx/Metal Gear Solid (USA) (Disc 1).srm")
+        groups = find_disc_groups(tmp_path)
+        assert len(groups) == 1
+        assert all(d.suffix == ".chd" for d in groups[0].discs)
+
 
 class TestWriteM3u:
     def test_dry_run_returns_true_no_file_created(self, tmp_path: Path) -> None:

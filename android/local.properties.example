@@ -1,0 +1,18 @@
+# Copia este archivo a "local.properties" (ignorado por git) y ajusta la ruta
+# al SDK de Android de tu máquina. Android Studio lo genera solo si abres
+# este proyecto directamente desde el IDE.
+sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
+
+# App Key de Dropbox App Console (https://www.dropbox.com/developers/apps).
+# Solo la App Key — con el flujo OAuth PKCE (ANDROID-SYNC-5) no hace falta
+# el App Secret. Sin esta línea, la app compila igual pero el botón
+# "Conectar Dropbox" queda deshabilitado en runtime.
+dropbox.appKey=
+
+# Firma del APK de release (ANDROID-RELEASE-1). Sin estas 4 líneas, `assembleRelease`
+# compila igual pero sin firmar (no instalable) — solo hacen falta para generar el
+# APK que se publica. El .jks nunca se versiona (android/keystore/, gitignored).
+release.storeFile=keystore/retrovault-release.jks
+release.storePassword=
+release.keyAlias=retrovault
+release.keyPassword=

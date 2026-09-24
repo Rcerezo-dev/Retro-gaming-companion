@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from rom_manager.utils.subprocess_flags import NO_WINDOW
+
 log = logging.getLogger(__name__)
 
 # Retry settings for transient rclone failures (timeouts, network blips)
@@ -159,7 +161,7 @@ class RcloneTransport:
 
     def list_remote(self, remote_root: str) -> list[RemoteEntry]:
         """Return all files under *remote_root* as RemoteEntry objects."""
-        result = self._run(["lsjson", "--recursive", "--no-modtime-truncate", remote_root])
+        result = self._run(["lsjson", "--recursive", remote_root])
         entries: list[RemoteEntry] = []
         for item in json.loads(result):
             if item.get("IsDir"):
@@ -437,6 +439,7 @@ class RcloneTransport:
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    creationflags=NO_WINDOW,
                 )
             except FileNotFoundError:
                 raise RcloneError(

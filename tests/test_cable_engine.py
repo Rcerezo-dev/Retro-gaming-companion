@@ -14,7 +14,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rom_manager.sync.cable_engine import CopyPlanItem, CopyPolicy, copy_item, plan_direction
+from rom_manager.sync.cable_engine import (
+    CopyPlanItem,
+    CopyPolicy,
+    copy_item,
+    iter_files,
+    plan_direction,
+)
 
 _WANTED = lambda p: p.suffix == ".sav"  # noqa: E731
 
@@ -26,6 +32,33 @@ def _write(root: Path, *parts: str, content: bytes = b"x") -> Path:
     return p
 
 
+def test_iter_files_skips_descartados(tmp_path: Path) -> None:
+    """TRASH-FIX-1: la papelera nunca debe volver a entrar en un plan de sync
+    (si no, cada sync repetida anida _descartados/_descartados/... sin fin)."""
+    _write(tmp_path, "psx", "game.chd")
+    _write(tmp_path, "psx", "_descartados", "old_game.bin")
+    _write(tmp_path, ".hidden", "junk.txt")
+
+    found = {p.name for p in iter_files(tmp_path)}
+
+    assert found == {"game.chd"}
+
+
+def test_iter_files_skips_emulator_saves(tmp_path: Path) -> None:
+    """CABLE-SYNC-EMULATOR-SAVES-LEAK-1: emulator_saves/ es contabilidad
+    interna del PC (saves por-emulador bajados vía ADB, get_adb_sync_sources()
+    en config.py) -- nunca debe subirse al dispositivo tal cual. Sin esta
+    exclusión, un sync con pc_root = raíz de biblioteca la mezclaba dentro del
+    árbol RetroArch/ en Android (54 archivos reales confirmados en un
+    dispositivo)."""
+    _write(tmp_path, "psx", "game.chd")
+    _write(tmp_path, "emulator_saves", "com.example.emu", "save.mcr")
+
+    found = {p.name for p in iter_files(tmp_path)}
+
+    assert found == {"game.chd"}
+
+
 def test_plan_pc_to_anbernic(tmp_path: Path) -> None:
     pc, ab = tmp_path / "pc", tmp_path / "ab"
     _write(pc, "gba", "mario.sav")
@@ -35,6 +68,36 @@ def test_plan_pc_to_anbernic(tmp_path: Path) -> None:
 
     assert len(items) == 1
     assert items[0].dst == ab / "gba" / "mario.sav"
+
+
+def test_plan_pc_to_anbernic_translates_non_canonical_folder(tmp_path: Path) -> None:
+    """CABLE-ROOT-1d: una carpeta del PC con nombre viejo (sin renombrar aún,
+    ver MDFOLDER-FIX-2/MATCH-FIX-5) no debe espejarse tal cual en Android."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "PlayStation 2", "Dark Cloud (USA).sav")
+
+    items = list(
+        plan_direction(
+            pc,
+            ab,
+            "pc_to_anbernic",
+            _WANTED,
+            es_platform_folders={"PlayStation 2": "ps2"},
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == ab / "ps2" / "Dark Cloud (USA).sav"
+
+
+def test_plan_pc_to_anbernic_without_es_folders_mirrors_as_before(tmp_path: Path) -> None:
+    """Sin es_platform_folders (default), el comportamiento no cambia."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "PlayStation 2", "Dark Cloud (USA).sav")
+
+    items = list(plan_direction(pc, ab, "pc_to_anbernic", _WANTED))
+
+    assert items[0].dst == ab / "PlayStation 2" / "Dark Cloud (USA).sav"
 
 
 def test_plan_newest_picks_newer_side(tmp_path: Path) -> None:
@@ -99,6 +162,33 @@ def test_plan_anbernic_to_pc(tmp_path: Path) -> None:
     assert items[0].arrow == "<- PC"
 
 
+def test_plan_anbernic_to_pc_strips_saves_prefix_for_known_platform(tmp_path: Path) -> None:
+    """CABLE-SYNC-DOWNLOAD-DEST-1: muchos cores de RetroArch en Android
+    guardan el save bajo saves/<plataforma>/ -- la descarga debe aterrizar
+    en su ubicación canónica del PC, no en un mirror literal de esa ruta."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(ab, "saves", "gba", "mario.sav")
+
+    items = list(
+        plan_direction(pc, ab, "anbernic_to_pc", _WANTED, es_platform_folders={"gba": "gba"})
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == pc / "gba" / "mario.sav"
+
+
+def test_plan_anbernic_to_pc_leaves_unrecognized_core_folder_untouched(tmp_path: Path) -> None:
+    """saves/mame2003/... -- "mame2003" no es una plataforma reconocida (es
+    un core), no se puede inferir con seguridad, se deja tal cual."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(ab, "saves", "mame2003", "foo.sav")
+
+    items = list(plan_direction(pc, ab, "anbernic_to_pc", _WANTED))
+
+    assert len(items) == 1
+    assert items[0].dst == pc / "saves" / "mame2003" / "foo.sav"
+
+
 def test_plan_newest_skips_equal_mtimes(tmp_path: Path) -> None:
     import os
 
@@ -143,6 +233,83 @@ def test_plan_newest_picks_side_beyond_tolerance(tmp_path: Path) -> None:
 
     assert len(items) == 1
     assert items[0].src == ab_f
+
+
+def test_plan_newest_matches_by_name_under_different_prefix(tmp_path: Path) -> None:
+    """CABLE-SYNC-NEWEST-CANON-2: el mismo save vive bajo saves/gba/ en el
+    lado Android y gba/ en el PC (mapeo real de CABLE-SYNC-SAVES-PREFIX-1)
+    — antes se trataba como dos archivos distintos y se copiaba en ambas
+    direcciones; con mtimes iguales, ahora debe reconocerse como el mismo
+    archivo y no copiarse en ningún sentido."""
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "gba", "mario.sav", content=b"A")
+    ab_f = _write(ab, "saves", "gba", "mario.sav", content=b"B")
+    os.utime(pc_f, (50, 50))
+    os.utime(ab_f, (50, 50))
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert items == []
+
+
+def test_plan_newest_ambiguous_name_collision_treated_as_distinct(tmp_path: Path) -> None:
+    """Dos plataformas distintas comparten nombre de archivo por coincidencia
+    — sin un único candidato, el fallback por nombre no debe adivinar; cada
+    lado se trata como si le faltara al otro (comportamiento seguro previo)."""
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    _write(pc, "gba", "save.sav")
+    _write(ab, "saves", "gba", "save.sav")
+    _write(ab, "saves", "snes", "save.sav")
+
+    items = list(plan_direction(pc, ab, "newest", _WANTED))
+
+    assert len(items) == 3
+
+
+def test_plan_newest_translates_non_canonical_folder_when_pc_wins(tmp_path: Path) -> None:
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "PlayStation 2", "mario.sav", content=b"NEW")
+    os.utime(pc_f, (100, 100))
+
+    items = list(
+        plan_direction(
+            pc,
+            ab,
+            "newest",
+            _WANTED,
+            es_platform_folders={"PlayStation 2": "ps2"},
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == ab / "ps2" / "mario.sav"
+
+
+def test_plan_newest_translates_non_canonical_folder_when_pc_is_newer(tmp_path: Path) -> None:
+    import os
+
+    pc, ab = tmp_path / "pc", tmp_path / "ab"
+    pc_f = _write(pc, "PlayStation 2", "mario.sav", content=b"NEW")
+    ab_f = _write(ab, "PlayStation 2", "mario.sav", content=b"OLD")
+    os.utime(pc_f, (100, 100))
+    os.utime(ab_f, (0, 0))
+
+    items = list(
+        plan_direction(
+            pc,
+            ab,
+            "newest",
+            _WANTED,
+            es_platform_folders={"PlayStation 2": "ps2"},
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].dst == ab / "ps2" / "mario.sav"
 
 
 def test_copy_item_skip_existing_same_size(tmp_path: Path) -> None:

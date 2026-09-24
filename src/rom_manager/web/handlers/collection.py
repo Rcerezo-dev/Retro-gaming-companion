@@ -23,35 +23,55 @@ def register(
     get_repo_fn,
 ) -> None:
     """Register collection / library-data routes on *router*."""
+    from rom_manager.services.storage_service import delete_storage_items
+    from rom_manager.sync.adb_transport import resolve_single_device_transport
     from rom_manager.web.builders.diff import _build_library_diff
     from rom_manager.web.builders.misc import _build_assets
+    from rom_manager.web.builders.overrides import _build_overrides
 
     _logger.debug("Starting registration, router=%s", router)
+
+    def _adb_transport():
+        # TABS-FIX-1a: resuelto por request (no cacheado) — el dispositivo puede
+        # conectarse/desconectarse entre cargar el diff y pulsar "Borrar".
+        return resolve_single_device_transport(config.adb)
 
     # ── GET /api/platform-stats ───────────────────────────────────────────────
     @router.get("/api/platform-stats")
     def get_platform_stats(ctx) -> None:
+        # ANBERNIC-PICK-7: size_bytes/tagged_cnt añadidos para el asistente
+        # guiado — reutiliza esta misma agregación en vez de una nueva.
         qs = getattr(ctx, "_qs", {})
         src_root = qs.get("root", [None])[0] or None
         ps_repo = get_repo_fn(src_root or "")
+        tagged_sql = (
+            "SUM(CASE WHEN id IN (SELECT game_id FROM game_tags WHERE tag = 'anbernic')"
+            " THEN 1 ELSE 0 END) AS tagged_cnt"
+        )
         with ps_repo.connect() as conn:
             if src_root:
                 rows = conn.execute(
-                    "SELECT platform, COUNT(*) AS cnt FROM games "
-                    "WHERE source_path LIKE ? AND file_type = 'rom' "
+                    f"SELECT platform, COUNT(*) AS cnt, SUM(size_bytes) AS total_size, {tagged_sql}"
+                    " FROM games WHERE source_path LIKE ? AND file_type = 'rom' "
                     "GROUP BY platform ORDER BY cnt DESC",
                     [src_root.rstrip("/\\") + "%"],
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT platform, COUNT(*) AS cnt FROM games "
-                    "WHERE file_type = 'rom' "
+                    f"SELECT platform, COUNT(*) AS cnt, SUM(size_bytes) AS total_size, {tagged_sql}"
+                    " FROM games WHERE file_type = 'rom' "
                     "GROUP BY platform ORDER BY cnt DESC"
                 ).fetchall()
         ctx._send_json(
             {
                 "platforms": [
-                    {"platform": r["platform"] or "?", "total_games": r["cnt"]} for r in rows
+                    {
+                        "platform": r["platform"] or "?",
+                        "total_games": r["cnt"],
+                        "total_size": r["total_size"] or 0,
+                        "tagged_count": r["tagged_cnt"] or 0,
+                    }
+                    for r in rows
                 ]
             }
         )
@@ -112,13 +132,13 @@ def register(
             assets_repo = get_repo_fn(src_root or "")
             result = _build_assets(assets_repo, source_root=src_root)
             if not result or "stats" not in result:
-                ctx._send_error(500, f"Invalid assets response: {result}")
+                ctx._send_error(500, f"Respuesta de assets inválida: {result}")
                 return
             ctx._send_json(result)
         except Exception as e:
             import traceback
 
-            ctx._send_error(500, f"Asset query failed: {str(e)} | {traceback.format_exc()}")
+            ctx._send_error(500, f"Fallo al consultar assets: {str(e)} | {traceback.format_exc()}")
 
     # ── GET /api/assets/orphans ─────────────────────────────────────────────────
     @router.get("/api/assets/orphans")
@@ -133,7 +153,9 @@ def register(
         except Exception as e:
             import traceback
 
-            ctx._send_error(500, f"Orphan asset query failed: {str(e)} | {traceback.format_exc()}")
+            ctx._send_error(
+                500, f"Fallo al consultar assets huérfanos: {str(e)} | {traceback.format_exc()}"
+            )
 
     # ── GET /api/asset-image ──────────────────────────────────────────────────
     @router.get("/api/asset-image")
@@ -144,7 +166,7 @@ def register(
         qs = getattr(ctx, "_qs", {})
         game_id = qs.get("game_id", [None])[0]
         if not game_id:
-            ctx._send_error(400, "game_id required")
+            ctx._send_error(400, "game_id requerido")
             return
         try:
             game_id = int(game_id)
@@ -159,12 +181,12 @@ def register(
             ).fetchone()
 
         if not row or not row["box_art_path"]:
-            ctx._send_error(404, "No asset found")
+            ctx._send_error(404, "No se encontró el asset")
             return
 
         img_path = Path(row["box_art_path"])
         if not img_path.exists():
-            ctx._send_error(404, "Asset file not found")
+            ctx._send_error(404, "Archivo de asset no encontrado")
             return
 
         # Serve the image file
@@ -174,7 +196,7 @@ def register(
             mime_type = mime_type or "application/octet-stream"
             ctx._send(200, mime_type, body)
         except Exception as e:
-            ctx._send_error(500, f"Could not read asset: {e}")
+            ctx._send_error(500, f"No se pudo leer el asset: {e}")
 
     # ── GET /api/export-library ───────────────────────────────────────────────
     @router.get("/api/export-library")
@@ -312,6 +334,171 @@ def register(
         platform = qs.get("platform", [None])[0] or None
         ctx._send_json(_build_library_diff(repository, repo_android, config, platform=platform))
 
+    # ── GET /api/retroarch-overrides (CFG-PORGAME-6) ──────────────────────────
+    @router.get("/api/retroarch-overrides")
+    def get_retroarch_overrides(ctx) -> None:
+        ctx._send_json(_build_overrides(config, _adb_transport()))
+
+    def _override_side_config(side: str) -> tuple[str, object] | None:
+        """(config_dir, adb_transport) for 'pc'/'android', or None if *side* is invalid."""
+        if side == "pc":
+            return config.sync.ra_config_dir, None
+        if side == "android":
+            return f"{config.sync.auto_sync_android_path}/config", _adb_transport()
+        return None
+
+    # ── GET /api/retroarch-override (CFG-PORGAME-7) ────────────────────────────
+    @router.get("/api/retroarch-override")
+    def get_retroarch_override(ctx) -> None:
+        from rom_manager.services.retroarch_overrides_service import read_override
+
+        qs = getattr(ctx, "_qs", {})
+        rom = qs.get("rom", [None])[0] or ""
+        core = qs.get("core", [None])[0] or ""
+        side = qs.get("side", [None])[0] or ""
+
+        resolved = _override_side_config(side)
+        if resolved is None:
+            ctx._send_error(400, "side debe ser 'pc' o 'android'")
+            return
+        config_dir, adb_transport = resolved
+        if side == "android" and adb_transport is None:
+            ctx._send_error(400, "conecta el dispositivo Android por ADB primero")
+            return
+
+        try:
+            content = read_override(config_dir, rom, core, adb_transport=adb_transport)
+        except ValueError as exc:
+            ctx._send_error(400, str(exc))
+        except FileNotFoundError:
+            ctx._send_error(404, f"No existe override para {rom!r} ({core})")
+        except OSError as exc:
+            ctx._send_error(500, f"Error leyendo override: {exc}")
+        else:
+            ctx._send_json({"rom": rom, "core": core, "side": side, "content": content})
+
+    # ── POST /api/retroarch-override (CFG-PORGAME-7) ───────────────────────────
+    @router.post("/api/retroarch-override")
+    def post_retroarch_override(ctx) -> None:
+        from rom_manager.services.retroarch_overrides_service import write_override
+
+        data = ctx._post_data or {}
+        rom = data.get("rom") or ""
+        core = data.get("core") or ""
+        side = data.get("side") or ""
+        content = data.get("content")
+        if content is None:
+            ctx._send_error(400, "content requerido")
+            return
+
+        resolved = _override_side_config(side)
+        if resolved is None:
+            ctx._send_error(400, "side debe ser 'pc' o 'android'")
+            return
+        config_dir, adb_transport = resolved
+        if side == "android" and adb_transport is None:
+            ctx._send_error(400, "conecta el dispositivo Android por ADB primero")
+            return
+
+        try:
+            write_override(config_dir, rom, core, content, adb_transport=adb_transport)
+        except ValueError as exc:
+            ctx._send_error(400, str(exc))
+        except OSError as exc:
+            ctx._send_error(500, f"Error guardando override: {exc}")
+        else:
+            ctx._send_json({"ok": True})
+
+    # ── POST /api/retroarch-override/copy (CFG-PORGAME-8) ──────────────────────
+    @router.post("/api/retroarch-override/copy")
+    def post_retroarch_override_copy(ctx) -> None:
+        from rom_manager.services.retroarch_overrides_service import SHARED_CORES, copy_override
+
+        data = ctx._post_data or {}
+        rom = data.get("rom") or ""
+        core = data.get("core") or ""
+        direction = data.get("direction") or ""
+
+        sides = {
+            "pc_to_android": ("pc", "android"),
+            "android_to_pc": ("android", "pc"),
+        }.get(direction)
+        if sides is None:
+            ctx._send_error(400, "direction debe ser 'pc_to_android' o 'android_to_pc'")
+            return
+        source_side, dest_side = sides
+
+        # Comprobar el core antes de resolver ADB: un core no compartido es
+        # inválido pase lo que pase con el dispositivo, y así no pedimos
+        # conectarlo para una copia que nunca iba a tener sentido.
+        if core not in SHARED_CORES:
+            ctx._send_error(
+                400,
+                f"{core!r} no es un core compartido entre PC y Android — "
+                "copiar este override no tiene sentido en el otro lado",
+            )
+            return
+
+        source_resolved = _override_side_config(source_side)
+        dest_resolved = _override_side_config(dest_side)
+        source_config_dir, source_adb = source_resolved
+        dest_config_dir, dest_adb = dest_resolved
+        if (source_side == "android" and source_adb is None) or (
+            dest_side == "android" and dest_adb is None
+        ):
+            ctx._send_error(400, "conecta el dispositivo Android por ADB primero")
+            return
+
+        try:
+            result = copy_override(
+                rom,
+                core,
+                source_config_dir=source_config_dir,
+                source_adb_transport=source_adb,
+                dest_config_dir=dest_config_dir,
+                dest_adb_transport=dest_adb,
+            )
+        except ValueError as exc:
+            ctx._send_error(400, str(exc))
+        except FileNotFoundError:
+            ctx._send_error(404, f"No existe override de origen para {rom!r} ({core})")
+        except OSError as exc:
+            ctx._send_error(500, f"Error copiando override: {exc}")
+        else:
+            ctx._send_json({"ok": True, **result})
+
+    # ── POST /api/storage/delete-bulk (STORAGE-MGR-3) ────────────────────────
+    @router.post("/api/storage/delete-bulk")
+    def post_storage_delete_bulk(ctx) -> None:
+        items = (ctx._post_data or {}).get("items", [])
+        if not items:
+            ctx._send_json({"trashed": 0, "deleted_device": 0, "errors": []})
+            return
+        ctx._send_json(
+            delete_storage_items(repository, repo_android, items, adb_transport=_adb_transport())
+        )
+
+    # ── POST /api/blocklist/block (GAME-BLOCKLIST-1) ─────────────────────────
+    @router.post("/api/blocklist/block")
+    def post_blocklist_block(ctx) -> None:
+        from rom_manager.services.storage_service import block_and_delete_game
+
+        data = ctx._post_data or {}
+        sha1 = (data.get("sha1") or "").strip()
+        if not sha1:
+            ctx._send_error(400, "sha1 requerido")
+            return
+        ctx._send_json(
+            block_and_delete_game(
+                repository,
+                repo_android,
+                sha1,
+                canonical_title=data.get("canonical_title") or "",
+                reason=data.get("reason") or "",
+                adb_transport=_adb_transport(),
+            )
+        )
+
     # ── POST /api/sync-roms (B3-4) ───────────────────────────────────────────
     @router.post("/api/sync-roms")
     def post_sync_roms(ctx) -> None:
@@ -350,6 +537,14 @@ def register(
                 continue
             try:
                 if direction == "pc_to_android":
+                    if repo_android.is_blocked(sha1):
+                        errors.append(
+                            {
+                                "sha1": sha1,
+                                "error": "bloqueado en la biblioteca Android — revisión manual",
+                            }
+                        )
+                        continue
                     with repository.connect() as conn:
                         row = conn.execute(
                             "SELECT source_path, platform FROM games "
@@ -371,6 +566,14 @@ def register(
                     synced += 1
 
                 elif direction == "android_to_pc":
+                    if repository.is_blocked(sha1):
+                        errors.append(
+                            {
+                                "sha1": sha1,
+                                "error": "bloqueado en la biblioteca PC — revisión manual",
+                            }
+                        )
+                        continue
                     with repo_android.connect() as conn:
                         row = conn.execute(
                             "SELECT source_path, platform FROM games "
@@ -478,7 +681,7 @@ def register(
         data = ctx._post_data
         sha1 = (data.get("sha1") or "").strip().upper()
         if not sha1:
-            ctx._send_error(400, "sha1 required")
+            ctx._send_error(400, "sha1 requerido")
         elif data.get("remove"):
             repository.remove_wishlist_entry(sha1)
             ctx._send_json({"ok": True, "removed": sha1})

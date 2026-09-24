@@ -10,6 +10,7 @@ from pathlib import Path
 
 from rom_manager.config import AppConfig
 from rom_manager.database.repository import LibraryRepository
+from rom_manager.detection.region_parser import KNOWN_REGIONS as _KNOWN_REGIONS
 
 
 def _build_assets(repository: LibraryRepository, source_root: str | None = None) -> dict:
@@ -55,7 +56,13 @@ def _build_config(config: AppConfig) -> dict:
         "inbox_auto_process": config.inbox.auto_process,
         "inbox_delete_source": config.inbox.delete_source,
         "sync_sources": [
-            {"name": s.name, "local_dir": s.local_dir, "remote": s.remote, "sync_all": s.sync_all}
+            {
+                "name": s.name,
+                "local_dir": s.local_dir,
+                "remote": s.remote,
+                "sync_all": s.sync_all,
+                "single_file": s.single_file,
+            }
             for s in config.sync.sync_sources
         ],
         "retroarch_path": config.retroarch_path or "",
@@ -71,6 +78,9 @@ def _build_config(config: AppConfig) -> dict:
         "cheats_dir": config.sync.cheats_dir or "",
         "cheats_remote": config.sync.cheats_remote or "",
         "playtime_remote": config.sync.playtime_remote or "",
+        "keep_both_regions": config.duplicates.keep_both_regions,
+        "preferred_regions": list(config.duplicates.preferred_regions),
+        "known_regions": list(_KNOWN_REGIONS),
     }
 
 
