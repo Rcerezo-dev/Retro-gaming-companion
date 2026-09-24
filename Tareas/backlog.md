@@ -49,7 +49,6 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 |------|---------|---------------------------|------|
 | `fix/matcher-coverage-gaps` | [14](../.claude/roadmaps/14-matcher-coverage-gaps.md) | [MATCH-FIX-3](#match-fix-3-descomprimir-y-rehashear-no-resuelve-las-colisiones-de-nombre-cuando-el-catálogo-tampoco-conoce-el-hash-real-hallazgo-2026-09-12) | Pilar 1 |
 | `fix/cable-sync-format-gaps` | [16](../.claude/roadmaps/16-cable-sync-format-gaps.md) | [CABLE-ROM-FIX](#cable-rom-fix-el-sync-de-roms-por-cable-no-compara-con-el-destino-hallazgo-2026-08-13) | Pilar 3 |
-| `feature/game-blocklist` | [18](../.claude/roadmaps/18-game-blocklist.md) | [GAME-BLOCKLIST](#game-blocklist-eliminar-un-juego-de-ambas-bibliotecas-y-evitar-que-un-sync-lo-recupere-feedback-usuario-2026-08-29) | UX |
 | `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
 | — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](#docs-audit-1-seguimiento-de-la-auditoría-de-documentación-2026-09-20) | Transversal |
