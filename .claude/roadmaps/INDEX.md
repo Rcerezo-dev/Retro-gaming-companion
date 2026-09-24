@@ -46,7 +46,7 @@ abierto o ya se archivó.
 | 15 | [archivo/15-psx-cue-multitrack-integrity.md](archivo/15-psx-cue-multitrack-integrity.md) | `fix/psx-cue-multitrack-integrity` | Archivado | 🔴 P1 |
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Activo | 🟡 P3 |
 | 17 | [archivo/17-inbox-pending-features.md](archivo/17-inbox-pending-features.md) | `feature/inbox-pending-features` | Archivado | 🟠 P2 |
-| 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Activo | 🟡 P3 |
+| 18 | [archivo/18-game-blocklist.md](archivo/18-game-blocklist.md) | `feature/game-blocklist` | Archivado | 🟡 P3 |
 | 19 | [archivo/19-device-profile-loose-data.md](archivo/19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Archivado | 🟡 P3 |
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Activo | mixta |
 | 21 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/catalog-match-subset-hack` | Archivado | 🔴 P1 |

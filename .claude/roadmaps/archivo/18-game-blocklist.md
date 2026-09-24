@@ -120,14 +120,6 @@ ruff check src/rom_manager/services/storage_service.py src/rom_manager/database/
 - Desbloqueo/reversión de la marca — no mencionado en el pedido original del
   usuario; si hace falta, es una extensión pequeña sobre el mismo diseño.
 
----
-
-## Checklist
-
-- [x] Paso 1 — diseño de la marca persistente confirmado (tabla dedicada `blocklist`, decisión usuario 2026-09-24)
-- [x] Paso 2 — acción "Eliminar de ambas bibliotecas" implementada (`block_and_delete_game`)
-- [x] Paso 3 — UI (botón en el panel de juego + confirmación explícita)
-- [x] Paso 4 — scan/match/Inbox respetan la marca (avisa una vez, decisión usuario 2026-09-24)
-- [x] Paso 5 — tests nuevos (`tests/test_blocklist.py`, 8 tests: marca+borrado, reaparición, renombrado)
-- [x] Paso 6 — suite completa (1451 tests) + ruff check/format limpios
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+Estado de implementación (hecho/pendiente): ver `GAME-BLOCKLIST-1`/`GAME-BLOCKLIST-2`
+en `Tareas/backlog.md` — única fuente de estado, este roadmap no lleva checklist
+propia (`.claude/CLAUDE.md`).
