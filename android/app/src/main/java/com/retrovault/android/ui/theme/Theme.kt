@@ -10,26 +10,54 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme =
+private val RvDarkColorScheme =
     darkColorScheme(
-        primary = Purple80,
-        secondary = PurpleGrey80,
-        tertiary = Pink80,
+        primary = RvAccentDark,
+        onPrimary = RvAccentOnDark,
+        secondary = RvInfoDark,
+        onSecondary = RvAccentOnDark,
+        tertiary = RvWarningDark,
+        onTertiary = RvAccentOnDark,
+        error = RvDangerDark,
+        onError = RvAccentOnDark,
+        background = RvBgBaseDark,
+        onBackground = RvTextPrimaryDark,
+        surface = RvBgPanelDark,
+        onSurface = RvTextPrimaryDark,
+        surfaceVariant = RvBgInputDark,
+        onSurfaceVariant = RvTextSecondaryDark,
+        outline = RvBorderStrongDark,
+        outlineVariant = RvBorderDark,
     )
 
-private val LightColorScheme =
+private val RvLightColorScheme =
     lightColorScheme(
-        primary = Purple40,
-        secondary = PurpleGrey40,
-        tertiary = Pink40,
+        primary = RvAccentLight,
+        onPrimary = RvAccentOnLight,
+        secondary = RvInfoLight,
+        onSecondary = RvAccentOnLight,
+        tertiary = RvWarningLight,
+        onTertiary = RvAccentOnLight,
+        error = RvDangerLight,
+        onError = RvAccentOnLight,
+        background = RvBgBaseLight,
+        onBackground = RvTextPrimaryLight,
+        surface = RvBgPanelLight,
+        onSurface = RvTextPrimaryLight,
+        surfaceVariant = RvBgInputLight,
+        onSurfaceVariant = RvTextSecondaryLight,
+        outline = RvBorderStrongLight,
+        outlineVariant = RvBorderLight,
     )
 
 @Composable
 fun RetroVaultSyncTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color (Material You) solo existe desde API 31 — con
-    // minSdk 26, este flag debe seguir comprobando la versión en runtime.
-    dynamicColor: Boolean = true,
+    // DESIGN-1: Material You (wallpaper-derived color) defaults OFF —
+    // RetroVault ported its own brand palette from the PC app; letting the
+    // OS wallpaper override it on API 31+ would defeat the point. Left as
+    // an explicit opt-in rather than removed, in case that's ever wanted.
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme =
@@ -38,13 +66,13 @@ fun RetroVaultSyncTheme(
                 val context = LocalContext.current
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             }
-            darkTheme -> DarkColorScheme
-            else -> LightColorScheme
+            darkTheme -> RvDarkColorScheme
+            else -> RvLightColorScheme
         }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = RvTypography,
         content = content,
     )
 }
