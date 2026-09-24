@@ -173,6 +173,14 @@
       <div id="gp-playtime-detail" style="font-size:11px;color:var(--c-muted);margin-top:2px"></div>
     </div>
     <div class="gp-desc hidden" id="gp-desc"></div>
+    <!-- GAME-BLOCKLIST-1: zona de borrado permanente -->
+    <div style="margin-top:16px;padding-top:10px;border-top:1px solid #222">
+      <button onclick="gpBlockAndDelete()" title="Marca este juego para siempre y lo borra de PC y Anbernic"
+        style="width:100%;background:none;border:1px solid var(--c-red);color:var(--c-red);padding:6px 10px;border-radius:4px;font:inherit;font-size:12px;cursor:pointer;opacity:.75"
+        onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
+        &#x1F6AB; Eliminar de ambas bibliotecas
+      </button>
+    </div>
   </div>
 </div>
 </body>

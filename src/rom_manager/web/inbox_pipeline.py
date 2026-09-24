@@ -1283,20 +1283,33 @@ def _run_inbox_pipeline(
         conflicts_unresolved = 0
         organize_errors: list[str] = []
         organized_dest_files: list[Path] = []
+        blocked_found: list[str] = []
         _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
         with repository.connect() as conn:
             rows = conn.execute(
-                "SELECT id, source_path, platform, original_filename FROM games "
+                "SELECT id, source_path, platform, original_filename, sha1 FROM games "
                 "WHERE LOWER(source_path) LIKE ?",
                 (inbox_str_lower + "%",),
             ).fetchall()
 
         for idx, row in enumerate(rows, 1):
-            game_id, source_path_str_db, platform, orig_name = row
+            game_id, source_path_str_db, platform, orig_name, sha1 = row
             source_file = Path(source_path_str_db)
             if not source_file.exists():
+                continue
+
+            # GAME-BLOCKLIST-2: a blocked sha1 reappearing in the Inbox (e.g.
+            # after an android_to_pc sync or a manual adb pull that dropped it
+            # here) is never auto-organized — left in place, warned once via
+            # job_result, no silent auto-discard (decisión usuario 2026-09-24).
+            if repository.is_blocked(sha1):
+                blocked_found.append(orig_name)
+                logger.warning(
+                    "Inbox: %s tiene un SHA1 bloqueado — no se organiza, revisar a mano",
+                    orig_name,
+                )
                 continue
 
             _platform_folder_name(platform or "", target_root)
@@ -1452,6 +1465,7 @@ def _run_inbox_pipeline(
             "conflicts_unresolved": conflicts_unresolved,
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
+            "blocked_found": blocked_found[:20],
             "target_root": str(target_root),
             "anbernic_sent": anbernic_result["sent"],
             "anbernic_errors": anbernic_result["errors"],
