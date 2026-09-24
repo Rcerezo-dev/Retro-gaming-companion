@@ -49,6 +49,7 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | **Completado** ✅ (mergeado a `develop`, PR #318, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🟠 P2 |
 | 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | **Fases 1-2 completadas** ✅ (2026-09-20 — ver `ANDROID-DUP-2` en `Tareas/backlog.md`); Fase 3 (discos) pendiente de decisión del usuario | 🟠 P2 |
 | 24 | [24-docs-audit-followups.md](24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Pendiente | 🟡 P3 |
+| 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | **Completado** ✅ (PR #340 abierta a `develop`, 2026-09-24) | 🟡 P3 |
 
 ---
 

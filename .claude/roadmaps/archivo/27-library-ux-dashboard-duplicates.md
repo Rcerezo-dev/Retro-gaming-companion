@@ -111,4 +111,4 @@ ruff check src/rom_manager/web/builders/folders.py src/rom_manager/web/handlers/
       (`tests/web/test_library_extras.py::test_library_extras_misplaced_zips`,
       `tests/test_builders_duplicates.py::test_sha1_duplicate_group_entries_carry_game_id`)
 - [x] Paso 6 — suite completa (1435 passed) + ruff limpios en los archivos tocados
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+- [x] Commit en rama, PR a `develop` — PR #340 abierta 2026-09-24
