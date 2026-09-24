@@ -196,7 +196,9 @@ class SyncSource:
     sync_all: bool = (
         False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
     )
-    include_glob: str = "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
+    include_glob: str = (
+        "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
+    )
 
 
 @dataclass(slots=True)

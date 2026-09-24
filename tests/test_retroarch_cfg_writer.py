@@ -122,7 +122,9 @@ def test_apply_handles_windows_backslash_paths(tmp_path: Path) -> None:
     cfg.write_text('savefile_directory = "default"\n', encoding="utf-8")
 
     result = apply_savefile_layout(
-        cfg, savefile_dir=r"E:\Carpetas anbernic\saves", savestate_dir=r"E:\Carpetas anbernic\states"
+        cfg,
+        savefile_dir=r"E:\Carpetas anbernic\saves",
+        savestate_dir=r"E:\Carpetas anbernic\states",
     )
 
     assert result.applied
