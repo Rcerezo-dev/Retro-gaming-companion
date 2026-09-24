@@ -1039,7 +1039,9 @@ def main(argv: list[str] | None = None) -> int:
                         transport=transport,
                         repository=repository,
                         save_extensions=exts,
-                        state_extensions=config.state_extensions if not source.sync_all else tuple(),
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
                         states_remote=None,
                         dry_run=dry_run,
                         delta_cache=_delta,
@@ -1611,7 +1613,9 @@ def main(argv: list[str] | None = None) -> int:
                         transport=transport,
                         repository=repository,
                         save_extensions=exts,
-                        state_extensions=config.state_extensions if not source.sync_all else tuple(),
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
                         states_remote=None,
                         dry_run=dry_run,
                         delta_cache=_delta,

@@ -196,7 +196,9 @@ class SyncSource:
     sync_all: bool = (
         False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
     )
-    include_glob: str = "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
+    include_glob: str = (
+        "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
+    )
     # DEVPROFILE-8b/9: True → local_dir is a single FILE (a SQLite DB, a .lpl
     # playlist), not a directory. Routed to sync_single_file() instead of
     # sync_saves() -- "newest wins" restore, no per-file merge/conflict

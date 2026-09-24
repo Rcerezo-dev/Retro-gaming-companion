@@ -1358,6 +1358,21 @@ previsto en el propio roadmap |
 
 ---
 
+### LIBRARY-HEALTH-DASH-1 / DUP-VISUAL-UI-1 — Panel de salud + duplicados side-by-side (idea usuario 2026-09-22)
+
+Consolidar en Inicio los números ya calculados en pestañas sueltas (% organizada,
+GB en duplicados, carpetas huérfanas, ZIPs sin organizar) y mostrar los grupos de
+duplicados con portada + flag RA en vez de solo tabla de texto. Roadmap:
+`.claude/roadmaps/27-library-ux-dashboard-duplicates.md`, rama
+`feature/library-ux-dashboard-duplicates`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| LIBRARY-HEALTH-DASH-1 | Panel de salud en Inicio: % organizada, GB duplicados, carpetas huérfanas, ZIPs sin organizar — cada tarjeta enlaza a su reporte existente | `web/handlers/esde/maintenance.py` (`misplaced_zips` nuevo en `/api/library-extras`), `web/static/partials/tab-overview.html` (`ov-health-dash`), `web/static/js/tabs/overview.js` (`_loadLibraryHealth`) | ✅ hecho 2026-09-22 — sin endpoint agregado nuevo, compone `/api/status` + `/api/library-doctor` + `/api/library-extras` en frontend; test `tests/web/test_library_extras.py::test_library_extras_misplaced_zips` |
+| DUP-VISUAL-UI-1 | Vista side-by-side de duplicados con portada + flag RA (fallback a tabla de texto sin portada) | `web/static/js/tabs/review_copies.js` (`_renderReviewEntry` — la vista real de duplicados desde TABS-FIX-6, `duplicates.js` quedó solo como selector PC/Android), `web/builders/duplicates.py` (`id` nuevo en entries del review-queue) | ✅ hecho 2026-09-22 — el roadmap apuntaba a `duplicates.js` (desactualizado); flag RA ya existía, solo faltaba la portada. Sin portada en copias de la consola (limitación preexistente de `/api/asset-image`, solo resuelve contra la BD del PC) |
+
+---
+
 ## Pilar 2 — Inbox automático — → #203
 
 Soltar un juego sin organizar y que la app lo detecte, empareje con catálogo

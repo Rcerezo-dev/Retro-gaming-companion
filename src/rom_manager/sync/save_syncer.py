@@ -430,9 +430,7 @@ def sync_single_file(
         pass  # remote dir may not exist yet
 
     local_mtime = (
-        datetime.fromtimestamp(local_path.stat().st_mtime, tz=UTC)
-        if local_path.exists()
-        else None
+        datetime.fromtimestamp(local_path.stat().st_mtime, tz=UTC) if local_path.exists() else None
     )
     decision = decide(filename, local_mtime, remote_mtime, last_sync_at=None)
 

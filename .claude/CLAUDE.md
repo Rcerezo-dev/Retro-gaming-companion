@@ -53,6 +53,15 @@ No confundir con `.claude/roadmaps/*.md` — esos son roadmaps técnicos paso a 
 para una rama de refactor concreta (ver `.claude/roadmaps/INDEX.md`), un nivel de
 detalle distinto y con su propio índice.
 
+**Una sola fuente de estado**: `Tareas/backlog.md` es el único sitio que dice si
+una tarea está hecha o pendiente. `.claude/roadmaps/*.md` es solo el plan (pasos,
+código, criterios de verificación) — no lleva checklist de estado propio; cuando
+ya no le queda nada pendiente en el backlog, se archiva a `.claude/roadmaps/archivo/`.
+`.claude/roadmaps/INDEX.md` solo distingue Activo/Archivado/Obsoleto por rama, sin
+repetir el detalle. Evita el patrón visto varias veces (roadmaps 08-11, 14, 17):
+el mismo hecho actualizado en 2-3 sitios, y basta con que uno se quede atrás para
+que el registro mienta.
+
 ---
 
 ## Reglas de trabajo

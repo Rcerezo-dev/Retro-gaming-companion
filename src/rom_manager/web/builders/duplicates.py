@@ -921,7 +921,7 @@ def _review_groups_for_repo(
 
     with repo.connect() as conn:
         rows = conn.execute(
-            "SELECT original_filename, source_path, platform, md5, sha1,"
+            "SELECT id, original_filename, source_path, platform, md5, sha1,"
             " canonical_title, size_bytes, match_confidence FROM games WHERE file_type = 'rom'"
         ).fetchall()
     if not rows:
@@ -1259,6 +1259,7 @@ def _review_groups_for_repo(
                 r = rows[idx]
                 achievements = score_by_idx.get(idx, -1)
                 entry = {
+                    "id": r["id"],
                     "source_path": r["source_path"],
                     "filename": r["original_filename"],
                     "size_bytes": int(r["size_bytes"]),
