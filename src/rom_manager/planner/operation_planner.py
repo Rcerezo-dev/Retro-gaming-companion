@@ -9,9 +9,11 @@ from rom_manager.detection.filename_normalizer import is_non_canonical_variant, 
 from rom_manager.utils.disc_tag import find_disc_tag, has_disc_tag
 from rom_manager.utils.paths import same_file as _same_file
 
-# Disc-based platforms where each game gets its own subfolder (e.g. psx/Game/Game.cue).
-# Also used as the heuristic to detect whether source is flat (parent.name in this set)
-# or already in a subfolder (parent.name not in this set).
+# On-disk folder slugs used only to detect whether a source file is already
+# flat in the platform root (parent.name in this set) or already moved into
+# its own per-game subfolder (parent.name not in this set) — matched against
+# the real directory name on disk, which is always the short slug
+# ("psx"/"saturn"), never the catalog display name.
 # INBOX-ORPHAN-3: gamecube/ps2 dumps in this library are single-file
 # (.iso/.rvz/.chd/.zip) — a per-game subfolder buys nothing, and a rematch
 # that changes canonical_title moves the file into a new folder without ever
@@ -20,6 +22,26 @@ _DISC_SUBFOLDER_PLATFORMS: frozenset[str] = frozenset(
     {
         "psx",
         "saturn",
+        "dreamcast",
+        "wii",
+    }
+)
+
+# GAMECUBE-DISC-BUG-1f: disc-based platforms where each game gets its own
+# subfolder (e.g. psx/Game/Game.cue), matched against ``game.platform.lower()``
+# — the catalog *display* name from platforms.toml ("PlayStation", "Sega
+# Saturn"), same domain as _MULTI_DISC_RISK_PLATFORMS above, deliberately a
+# separate set from _DISC_SUBFOLDER_PLATFORMS (on-disk folder slugs): reusing
+# that one here silently never matched real PlayStation/Sega Saturn games
+# (only Dreamcast/Wii happened to match because their display name equals
+# their folder slug) — every PSX/Saturn game in a real library stayed flat
+# forever despite the code intending to subfolder it. Excludes PlayStation 2
+# and GameCube on purpose, same reasoning as _DISC_SUBFOLDER_PLATFORMS above
+# (single-file dumps in this library, INBOX-ORPHAN-3).
+_DISC_SUBFOLDER_CATALOG_PLATFORMS: frozenset[str] = frozenset(
+    {
+        "playstation",
+        "sega saturn",
         "dreamcast",
         "wii",
     }
@@ -170,7 +192,7 @@ def build_plan(
         # Disc platforms: each game lives in its own subfolder (psx/Game/Game.cue).
         # TABS-FIX-6-DISC: the folder is shared by every disc of a set, so it must
         # be derived disc-agnostic even though new_filename now carries the tag.
-        if game.platform and game.platform.lower() in _DISC_SUBFOLDER_PLATFORMS:
+        if game.platform and game.platform.lower() in _DISC_SUBFOLDER_CATALOG_PLATFORMS:
             folder_name = Path(_canonical_filename(game, opts, include_disc_tag=False)).stem
             target = (
                 source.parent.parent / folder_name / new_filename

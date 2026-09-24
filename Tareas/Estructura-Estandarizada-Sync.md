@@ -78,28 +78,41 @@ Así `rommgr sync-saves`, la app Android y el daemon de `sync.sources` leen
 del mismo sitio en Dropbox sin divergir — sin tocar el código Kotlin de la
 app. **Aplicar esto en ambas máquinas** (PC2 y rammu), no solo en rammu.
 
-## Checklist para rammu (cuando haya acceso, "pasado mañana")
+## Checklist para rammu — ejecutado 2026-09-22 (Día68, petición del usuario)
 
-1. [ ] `cat config.toml` — confirmar `library_root` actual y si ya tiene
-   `[[sync.sources]]` configuradas o solo `saves_remote`/`states_remote`
-   (o ninguno de los dos).
-2. [ ] Confirmar slugs de plataforma en minúscula bajo `library_root` (ya
-   debería cumplirse — solo verificar, no debería hacer falta mover nada).
-3. [ ] `POST /api/retroarch-check` (o el equivalente en la UI, pestaña
-   Settings) — comprobar si `DEVPROFILE-7` reporta `savefile_drift` de
-   nuevo. Si sí, pulsar "Aplicar layout de saves".
-4. [ ] Añadir/editar `[[sync.sources]]` en el `config.toml` de rammu con los
-   `local_dir` reales de cada emulador ahí instalado, pero **la misma
-   convención de `remote` que la sección 3 de arriba** — mismos nombres de
-   emulador/tipo que en PC2.
-5. [ ] Rellenar `sync.saves_remote`/`sync.states_remote` igual que en la
-   sección 4 (mismo valor en ambas máquinas).
-6. [ ] `rommgr sync-status` (dry-run) en rammu — revisar que no proponga
-   nada inesperado antes de `--apply`.
-7. [ ] Con la Anbernic conectada a rammu: confirmar que `POST /api/sync`
-   (o su botón en la web) sube/baja contra los mismos remotos que ya usa
-   PC2 — un archivo subido desde PC2 debería aparecer como "ya sincronizado"
-   (no como conflicto) al comprobar desde rammu, y viceversa.
+1. [x] `cat config.toml` — `library_root=E:\Carpetas anbernic`, ya tenía
+   `[[sync.sources]]` (7 entradas) **y** `saves_remote`/`states_remote`,
+   ambos ya con la convención `dropbox:/RetroSync/saves/<emulador>/<tipo>`
+   pedida en la sección 3/4 de arriba — aplicado en algún momento sin
+   marcar este checklist.
+2. [x] Slugs de plataforma en minúscula bajo `library_root` — confirmado
+   hoy mismo en la sesión (psx, gba, nds, gb... todo minúscula, verificado
+   contra el dispositivo real vía ADB).
+3. [x] `GET /api/retroarch-check` — **sí había `savefile_drift: true`**:
+   `savestate_directory` roto (`":\states"`, sin unidad/ruta — probable
+   corrupción o edición manual accidental de `retroarch.cfg`). Aplicado
+   "Aplicar layout de saves" (`POST /api/retroarch-apply-savefile-layout`,
+   backup automático en `retroarch.cfg.bak`) — corregido a
+   `E:\Carpetas anbernic\states`. **Hallazgo real**: con la ruta rota,
+   RetroArch llevaba desde marzo escribiendo savestates en su propio
+   fallback (`E:\Emuladores\Retroarch\states\`, 9 subcarpetas por core,
+   actividad hasta el día anterior) — nunca sincronizados. Migrados
+   (copiados, sin borrar el origen) a la ruta correcta.
+4. [x] `[[sync.sources]]` ya usaba la convención correcta (ver punto 1) —
+   sin cambios necesarios, salvo retirar `MelonDS (NDS)` (`local_dir`
+   apuntaba a una carpeta inexistente en este PC, melonDS no está
+   instalado aquí — confirmado por el usuario, entrada eliminada).
+5. [x] `saves_remote`/`states_remote` ya coincidían con la sección 4 (ver
+   punto 1).
+6. [x] `rommgr sync --quiet` (dry-run) — limpio tras el fix: 0 errores
+   (antes 2: el directorio de states inexistente y MelonDS).
+7. [x] **Aplicado en real** (confirmado por el usuario): `rommgr sync
+   --apply` — 14 archivos subidos a Dropbox (incluye los savestates de
+   RetroArch nunca respaldados), 0 descargados, 0 conflictos, 0 errores.
+   Re-verificado tras retirar MelonDS: 255 archivos ya al día, 0
+   pendientes, 0 errores. **Punto 7 original (comparar contra PC2/Ruben)
+   sin hacer** — no hay acceso a esa máquina desde aquí, pendiente de
+   validar cuando se pueda comparar ambos lados.
 
 ## Pendiente de decidir después (fuera de alcance de este documento)
 

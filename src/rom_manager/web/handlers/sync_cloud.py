@@ -388,6 +388,7 @@ def run_cloud_sync_job(
                         backup_keep_n=config.backup.saves_keep_n,
                         delta_cache=_delta,
                         conflict_policy=config.sync.conflict_policy,
+                        include_glob=source.include_glob,
                     )
                     all_results.append(
                         {

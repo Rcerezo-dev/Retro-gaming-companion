@@ -5,7 +5,12 @@
 **Prioridad:** 🟡 P3 — no bloquea nada activo, es cobertura incompleta ya documentada y acotada, no un bug de comportamiento incorrecto
 **Esfuerzo estimado:** S-M (~2-4 h, casi todo en `catalog/matcher.py`)
 **Riesgo:** Bajo-medio — `MATCH-FIX-3` requiere una decisión de política del usuario antes de tocar código (puede dejar más archivos "sin match" a propósito)
-**Estado (2026-09-19):** 🟢 Roadmap completo — Pasos 3-4 (ver `MATCH-FIX-14`) y Pasos 1-2 (usuario eligió "sin match si hay ambigüedad real", ver `MATCH-FIX-3`) hechos y verificados. Solo queda la medición real contra la biblioteca de producción (947 archivos), pendiente por ser una escritura real sobre datos en uso — sesión aparte
+**Estado (2026-09-22, Día69):** ✅ **Completado** — Pasos 1-2 (`MATCH-FIX-3`,
+commit `853131b7`, PR #333) y Pasos 3-4 (`MATCH-FIX-14`, mismo commit) hechos,
+mergeados a `develop` y verificados con `git merge-base --is-ancestor`. La
+medición real contra producción (16.176 filas re-evaluadas, `F:\Juegos
+Retro`) también se hizo el 2026-09-19 — ver `MATCH-FIX-3` en
+`Tareas/backlog.md`. No queda código pendiente de este roadmap.
 
 ---
 
@@ -173,4 +178,4 @@ ruff check src/rom_manager/catalog/matcher.py src/rom_manager/web/builders/dupli
       desempate de tamaño prefiere el verificado por catálogo). 1395/1395 en
       verde
 - [x] Paso 6 — suite completa + ruff limpios (Pasos 3-4)
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+- [x] Commit en rama, PR a `develop` — hecho, `853131b7` (PR #333) mergeado 2026-09-20
