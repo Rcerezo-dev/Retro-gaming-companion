@@ -131,10 +131,26 @@ ruff check src/rom_manager/services/device_profile.py src/rom_manager/sync/
 
 ## Checklist
 
-- [ ] Paso 1 — decisión de diseño confirmada por el usuario
-- [ ] Paso 2 — mecanismo implementado
-- [ ] Paso 3 — tokenización de rutas para los archivos nuevos
-- [ ] Paso 4 — wiring en detección/restore
-- [ ] Paso 5 — tests nuevos
-- [ ] Paso 6 — suite completa + ruff limpios
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+- [x] Paso 1 — decisión de diseño confirmada por el usuario: (a) single-file
+      source kind nuevo (`SyncSource.single_file`)
+- [x] Paso 2 — mecanismo implementado: `sync_single_file()`
+      (`sync/save_syncer.py`) — reutiliza `decide()` con `last_sync_at=None`
+      (nunca da "conflict") y `transport.upload()/download()` con
+      `fallback_remote` (mismo patrón que `save_profile_manifest`/`restore`),
+      sin motor de sync nuevo
+- [x] Paso 3 — tokenización de rutas: sin cambios — `tokenize()`/`resolve()`
+      (`path_tokenizer.py`) ya eran agnósticos a archivo/carpeta
+- [x] Paso 4 — wiring: `detect_data_sources()` (library_pc.db/
+      library_android.db) y `detect_tier_a_sources()` (content_history.lpl/
+      content_favorites.lpl — `.lrtl` ya cubierto por JUEGOS-UX-7, no se toca)
+      marcan `single_file=True`; los 4 bucles que iteran `SyncSource` y llaman
+      `sync_saves()` (`cli.py` sync/restore, `web/handlers/sync_cloud.py`,
+      `web/server.py` tray) despachan a `sync_single_file()` cuando
+      corresponde; el campo viaja por export/import del manifiesto,
+      `config.toml` (`write_config_toml` ya es genérico) y el frontend
+      (`esde.js`)
+- [x] Paso 5 — tests nuevos: detección (`test_device_profile.py`) y
+      comportamiento de `sync_single_file()` (`test_save_syncer.py` — upload,
+      download, newest-gana-sin-conflicto, empate, dry-run)
+- [x] Paso 6 — suite completa (1441 passed) + ruff limpios
+- [x] Commit en rama, PR a `develop`

@@ -220,7 +220,7 @@ export async function saveDeviceProfileSources() {
     const chk = document.getElementById(`devprofile-chk-${i}`);
     if (!chk?.checked) return;
     const remoteInput = document.getElementById(`devprofile-remote-${i}`);
-    merged.push({ name: s.name, local_dir: s.local_dir, remote: (remoteInput?.value || '').trim() || s.remote, sync_all: s.sync_all });
+    merged.push({ name: s.name, local_dir: s.local_dir, remote: (remoteInput?.value || '').trim() || s.remote, sync_all: s.sync_all, single_file: s.single_file });
   });
   if (resEl) { resEl.textContent = 'Guardando…'; resEl.style.color = 'var(--c-dim)'; }
   try {

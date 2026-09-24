@@ -65,6 +65,68 @@ def test_detect_data_sources_empty_when_nothing_exists(tmp_path: Path) -> None:
     assert detect_data_sources(tmp_path, "dropbox:RetroSync") == []
 
 
+def test_detect_data_sources_includes_dbs_as_single_file(tmp_path: Path) -> None:
+    """DEVPROFILE-8b: library_pc.db/library_android.db are single files under
+    .rommgr, unlike "catalogs" (a whole directory) -- detected the same way
+    but marked single_file=True so they route to sync_single_file()."""
+    (tmp_path / ".rommgr").mkdir(parents=True)
+    (tmp_path / ".rommgr" / "library_pc.db").write_bytes(b"")
+    (tmp_path / ".rommgr" / "library_android.db").write_bytes(b"")
+
+    sources = detect_data_sources(tmp_path, "dropbox:RetroSync")
+
+    by_name = {s.name: s for s in sources}
+    pc_db = by_name["Base de datos PC (library_pc.db)"]
+    assert pc_db.single_file is True
+    assert pc_db.remote == "dropbox:RetroSync/library_pc.db"
+    assert by_name["Base de datos Android (library_android.db)"].single_file is True
+
+
+def test_detect_tier_a_sources_includes_playlists_as_single_file(tmp_path: Path) -> None:
+    """DEVPROFILE-9: RetroArch's recent/favorites playlists -- only the ones
+    that actually exist are returned, same rule as the whole-directory
+    sources above."""
+    ra_dir = tmp_path / "RetroArch"
+    (ra_dir / "playlists").mkdir(parents=True)
+    (ra_dir / "playlists" / "content_history.lpl").write_bytes(b"")
+
+    sources = detect_tier_a_sources(ra_dir, "dropbox:RetroSync")
+
+    by_name = {s.name: s for s in sources}
+    recientes = by_name["RetroArch Recientes"]
+    assert recientes.single_file is True
+    assert recientes.remote == "dropbox:RetroSync/content_history.lpl"
+    assert "RetroArch Favoritos" not in by_name  # content_favorites.lpl not created
+
+
+def test_export_import_roundtrips_single_file_flag(tmp_path: Path) -> None:
+    roms = tmp_path / "roms"
+    saves = tmp_path / "roms" / "saves"
+    system = tmp_path / "RetroArch" / "system"
+    db = tmp_path / ".rommgr" / "library_pc.db"
+    for d in (roms, saves, system, db.parent):
+        d.mkdir(parents=True)
+    db.write_bytes(b"")
+
+    sources = [
+        SyncSource(
+            name="Base de datos PC",
+            local_dir=str(db),
+            remote="dropbox:RetroSync/library_pc.db",
+            single_file=True,
+        )
+    ]
+
+    exported = export_profile_sources(sources, roms, saves, system, project_root=tmp_path)
+    assert exported[0]["single_file"] is True
+    assert exported[0]["local_dir"] == "{PROJECT_ROOT}/.rommgr/library_pc.db"
+
+    other_root = tmp_path / "other-device"
+    imported = import_profile_sources(exported, roms, saves, system, project_root=other_root)
+    assert imported[0].single_file is True
+    assert imported[0].local_dir == str(other_root / ".rommgr" / "library_pc.db")
+
+
 def test_export_import_roundtrips_project_root_token(tmp_path: Path) -> None:
     """DEVPROFILE-8: a source outside ROMS/SAVES/SYSTEM but under project_root
     (e.g. .rommgr/catalogs) must still re-root to the *new* device's project
@@ -214,6 +276,7 @@ def test_save_profile_manifest_uploads_tokenized_json(tmp_path: Path) -> None:
             "local_dir": "{SYSTEM}",
             "remote": "dropbox:RetroSync/system",
             "sync_all": False,
+            "single_file": False,
         }
     ]
 

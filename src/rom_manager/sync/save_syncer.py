@@ -395,3 +395,65 @@ def sync_saves(
             conn.commit()
 
     return result, decisions
+
+
+def sync_single_file(
+    local_path: Path,
+    remote: str,
+    *,
+    transport: RcloneTransport,
+    dry_run: bool = True,
+) -> tuple[SyncResult, list[SyncDecision]]:
+    """DEVPROFILE-8b/9: restore-style sync for a single file (a whole SQLite
+    DB, a RetroArch playlist) -- unlike ``sync_saves()``, there's only one
+    file, so per-file merge/conflict tracking doesn't apply: newest mtime
+    wins. Reuses ``decide()`` with ``last_sync_at=None``, which never returns
+    "conflict" -- exactly the "restore, don't merge" behaviour this needs.
+
+    *remote* is the full remote path to the file itself (not a directory),
+    e.g. ``"dropbox:RetroSync/data/library_pc.db"``.
+
+    # ponytail: no audit log (sync_log)/delta_cache here, unlike sync_saves --
+    # add if Sync Doctor needs per-file-source history for these too.
+    """
+    result = SyncResult()
+    remote = remote.rstrip("/")
+    remote_dir, _, filename = remote.rpartition("/")
+
+    remote_mtime = None
+    try:
+        for entry in transport.list_remote(remote_dir):
+            if entry.relative == filename:
+                remote_mtime = entry.mtime
+                break
+    except RcloneError:
+        pass  # remote dir may not exist yet
+
+    local_mtime = (
+        datetime.fromtimestamp(local_path.stat().st_mtime, tz=UTC) if local_path.exists() else None
+    )
+    decision = decide(filename, local_mtime, remote_mtime, last_sync_at=None)
+
+    if decision.action == "upload":
+        result.uploaded += 1
+    elif decision.action == "download":
+        result.downloaded += 1
+    else:
+        result.up_to_date += 1
+
+    if decision.action == "up_to_date" or dry_run:
+        return result, [decision]
+
+    try:
+        if decision.action == "upload":
+            transport.upload(local_path, filename, fallback_remote=remote_dir)
+        else:
+            transport.download(filename, local_path, fallback_remote=remote_dir)
+    except RcloneError:
+        if decision.action == "upload":
+            result.uploaded -= 1
+        else:
+            result.downloaded -= 1
+        result.errors += 1
+
+    return result, [decision]

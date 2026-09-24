@@ -47,7 +47,7 @@ abierto o ya se archivó.
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | Activo | 🟡 P3 |
 | 17 | [archivo/17-inbox-pending-features.md](archivo/17-inbox-pending-features.md) | `feature/inbox-pending-features` | Archivado | 🟠 P2 |
 | 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Activo | 🟡 P3 |
-| 19 | [19-device-profile-loose-data.md](19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Activo | 🟡 P3 |
+| 19 | [archivo/19-device-profile-loose-data.md](archivo/19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Archivado | 🟡 P3 |
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Activo | mixta |
 | 21 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/catalog-match-subset-hack` | Archivado | 🔴 P1 |
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | Archivado | 🟠 P2 |

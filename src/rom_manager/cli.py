@@ -15,7 +15,7 @@ from rom_manager.planner import build_plan
 from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.scanner import scan_library
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
-from rom_manager.sync.save_syncer import sync_saves
+from rom_manager.sync.save_syncer import sync_saves, sync_single_file
 
 _logger = logging.getLogger(__name__)
 
@@ -1018,28 +1018,35 @@ def main(argv: list[str] | None = None) -> int:
 
         for source in sources:
             saves_dir = Path(source.local_dir)
-            if not saves_dir.exists():
+            if not saves_dir.exists() and not source.single_file:
                 print(f"  [ERROR] {source.name}: directorio no encontrado: {source.local_dir}")
                 any_error = True
                 continue
 
-            exts = tuple() if source.sync_all else config.save_extensions
             try:
-                from rom_manager.sync.delta_cache import DeltaCache
+                if source.single_file:
+                    result, decisions = sync_single_file(
+                        saves_dir, source.remote, transport=transport, dry_run=dry_run
+                    )
+                else:
+                    from rom_manager.sync.delta_cache import DeltaCache
 
-                _delta = DeltaCache(config.data_dir) if not dry_run else None
-                result, decisions = sync_saves(
-                    saves_dir,
-                    saves_remote=source.remote,
-                    transport=transport,
-                    repository=repository,
-                    save_extensions=exts,
-                    state_extensions=config.state_extensions if not source.sync_all else tuple(),
-                    states_remote=None,
-                    dry_run=dry_run,
-                    delta_cache=_delta,
-                    include_glob=source.include_glob,
-                )
+                    exts = tuple() if source.sync_all else config.save_extensions
+                    _delta = DeltaCache(config.data_dir) if not dry_run else None
+                    result, decisions = sync_saves(
+                        saves_dir,
+                        saves_remote=source.remote,
+                        transport=transport,
+                        repository=repository,
+                        save_extensions=exts,
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
+                        states_remote=None,
+                        dry_run=dry_run,
+                        delta_cache=_delta,
+                        include_glob=source.include_glob,
+                    )
             except RcloneError as exc:
                 print(f"  [ERROR] {source.name}: {exc}")
                 any_error = True
@@ -1571,6 +1578,7 @@ def main(argv: list[str] | None = None) -> int:
                         "local_dir": s.local_dir,
                         "remote": s.remote,
                         "sync_all": s.sync_all,
+                        "single_file": s.single_file,
                     }
                     for s in sources
                 ],
@@ -1586,24 +1594,33 @@ def main(argv: list[str] | None = None) -> int:
         repository = LibraryRepository(config.database_path)
         for source in sources:
             local_dir = Path(source.local_dir)
-            local_dir.mkdir(parents=True, exist_ok=True)
-            exts = tuple() if source.sync_all else config.save_extensions
+            (local_dir.parent if source.single_file else local_dir).mkdir(
+                parents=True, exist_ok=True
+            )
             try:
-                from rom_manager.sync.delta_cache import DeltaCache
+                if source.single_file:
+                    result, decisions = sync_single_file(
+                        local_dir, source.remote, transport=transport, dry_run=dry_run
+                    )
+                else:
+                    from rom_manager.sync.delta_cache import DeltaCache
 
-                _delta = DeltaCache(config.data_dir) if not dry_run else None
-                result, decisions = sync_saves(
-                    local_dir,
-                    saves_remote=source.remote,
-                    transport=transport,
-                    repository=repository,
-                    save_extensions=exts,
-                    state_extensions=config.state_extensions if not source.sync_all else tuple(),
-                    states_remote=None,
-                    dry_run=dry_run,
-                    delta_cache=_delta,
-                    include_glob=source.include_glob,
-                )
+                    exts = tuple() if source.sync_all else config.save_extensions
+                    _delta = DeltaCache(config.data_dir) if not dry_run else None
+                    result, decisions = sync_saves(
+                        local_dir,
+                        saves_remote=source.remote,
+                        transport=transport,
+                        repository=repository,
+                        save_extensions=exts,
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
+                        states_remote=None,
+                        dry_run=dry_run,
+                        delta_cache=_delta,
+                        include_glob=source.include_glob,
+                    )
             except RcloneError as exc:
                 print(f"  [ERROR] {source.name}: {exc}")
                 continue

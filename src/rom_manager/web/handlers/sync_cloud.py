@@ -307,7 +307,7 @@ def run_cloud_sync_job(
 
             from rom_manager.config import build_cloud_sync_sources
             from rom_manager.sync.rclone_transport import RcloneTransport
-            from rom_manager.sync.save_syncer import sync_saves
+            from rom_manager.sync.save_syncer import sync_saves, sync_single_file
 
             sources = build_cloud_sync_sources(config)
             # JUEGOS-UX-7: reused below to ingest .lrtl after a real sync.
@@ -351,7 +351,7 @@ def run_cloud_sync_job(
             all_results = []
             for source in sources:
                 saves_dir = _Path(source.local_dir)
-                if not saves_dir.exists():
+                if not saves_dir.exists() and not source.single_file:
                     all_results.append(
                         {
                             "name": source.name,
@@ -367,29 +367,34 @@ def run_cloud_sync_job(
                         }
                     )
                     continue
-                exts = tuple() if source.sync_all else config.save_extensions
                 try:
-                    _bk_root = config.data_dir if config.backup.saves_enabled else None
-                    from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
+                    if source.single_file:
+                        result, decisions = sync_single_file(
+                            saves_dir, source.remote, transport=transport, dry_run=dry_run
+                        )
+                    else:
+                        _bk_root = config.data_dir if config.backup.saves_enabled else None
+                        from rom_manager.sync.delta_cache import DeltaCache as _DeltaCache
 
-                    _delta = _DeltaCache(config.data_dir) if not dry_run else None
-                    result, decisions = sync_saves(
-                        saves_dir,
-                        saves_remote=source.remote,
-                        transport=transport,
-                        repository=repository,
-                        save_extensions=exts,
-                        state_extensions=config.state_extensions
-                        if not source.sync_all
-                        else tuple(),
-                        states_remote=None,
-                        dry_run=dry_run,
-                        backup_root=_bk_root,
-                        backup_keep_n=config.backup.saves_keep_n,
-                        delta_cache=_delta,
-                        conflict_policy=config.sync.conflict_policy,
-                        include_glob=source.include_glob,
-                    )
+                        exts = tuple() if source.sync_all else config.save_extensions
+                        _delta = _DeltaCache(config.data_dir) if not dry_run else None
+                        result, decisions = sync_saves(
+                            saves_dir,
+                            saves_remote=source.remote,
+                            transport=transport,
+                            repository=repository,
+                            save_extensions=exts,
+                            state_extensions=config.state_extensions
+                            if not source.sync_all
+                            else tuple(),
+                            states_remote=None,
+                            dry_run=dry_run,
+                            backup_root=_bk_root,
+                            backup_keep_n=config.backup.saves_keep_n,
+                            delta_cache=_delta,
+                            conflict_policy=config.sync.conflict_policy,
+                            include_glob=source.include_glob,
+                        )
                     all_results.append(
                         {
                             "name": source.name,

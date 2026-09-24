@@ -551,6 +551,7 @@ def _handle_device_profile_detect(config: AppConfig) -> dict:
             "local_dir": s.local_dir,
             "remote": s.remote,
             "sync_all": s.sync_all,
+            "single_file": s.single_file,
         }
 
     ra_exe = (config.retroarch_path or "").strip()
