@@ -5,7 +5,7 @@ device. ``tokenize()`` turns it into ``{ROMS}/nes/game.zip`` when saving a
 profile; ``resolve()`` turns it back using the *target* device's own roots
 when restoring. Pure functions, no I/O — the manifest (DEVPROFILE-4) is the
 only caller, at export/import time between different devices (see
-``Tareas/Roadmap-DEVPROFILE-1-4.md`` §4).
+``Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md`` §4).
 """
 
 from __future__ import annotations
