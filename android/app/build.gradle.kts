@@ -43,6 +43,24 @@ android {
         manifestPlaceholders["dropboxAppKey"] = dropboxAppKey
     }
 
+    // Keystore de release (ANDROID-RELEASE-1) — igual que dropbox.appKey: se lee
+    // de local.properties (ignorado por git), nunca hardcodeado ni versionado.
+    // Sin esas claves, `release` compila igual pero sin signingConfig (APK sin
+    // firmar, no instalable) — así CI/otras máquinas sin el keystore no rompen.
+    val releaseStoreFile = localProperties.getProperty("release.storeFile", "")
+    val hasReleaseSigning = releaseStoreFile.isNotBlank() && rootProject.file(releaseStoreFile).exists()
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = localProperties.getProperty("release.storePassword", "")
+                keyAlias = localProperties.getProperty("release.keyAlias", "")
+                keyPassword = localProperties.getProperty("release.keyPassword", "")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -50,6 +68,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
 

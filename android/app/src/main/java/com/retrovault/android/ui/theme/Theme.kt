@@ -76,3 +76,8 @@ fun RetroVaultSyncTheme(
         content = content,
     )
 }
+
+/** `success` isn't part of Material3's `ColorScheme` — RetroVault's tokens
+ * keep it as a fourth semantic color alongside primary/secondary/error. */
+@Composable
+fun rvSuccessColor() = if (isSystemInDarkTheme()) RvSuccessDark else RvSuccessLight

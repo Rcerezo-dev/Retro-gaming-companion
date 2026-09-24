@@ -52,4 +52,7 @@ android/.gradle/
 android/app/release/
 android/captures/
 *.apk
+
+# Keystore de release (ANDROID-RELEASE-1) — nunca versionado, ver local.properties
+android/keystore/
 *.aab
