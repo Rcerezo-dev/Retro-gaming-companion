@@ -97,6 +97,8 @@ export let _gpGameId = null;
 
 // source_path del juego abierto en el panel — enruta a la BD correcta (DEVSEL-FIX-2)
 const _gpSrc = () => document.getElementById('game-panel')?.dataset.sourcePath || '';
+// GAME-BLOCKLIST-1: sha1 del juego abierto — identidad estable para el bloqueo
+const _gpSha1 = () => document.getElementById('game-panel')?.dataset.sha1 || '';
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
 
@@ -862,6 +864,7 @@ export function openGamePanel(g) {
   const _savesInfo = document.getElementById('gp-saves-info');
   if (_savesInfo) _savesInfo.classList.add('hidden');
   document.getElementById('game-panel').dataset.sourcePath = g.source_path || '';
+  document.getElementById('game-panel').dataset.sha1 = g.sha1 || '';
   // Reset asset info
   const _assetInfo = document.getElementById('gp-asset-info');
   if (_assetInfo) _assetInfo.classList.add('hidden');
@@ -1065,6 +1068,32 @@ export async function gpRemoveTag(tag) {
     const r = await apiPost('/api/tag', { game_id: _gpGameId, tag, action: 'remove', source_path: _gpSrc() });
     _gpRenderTags(r.tags || []);
     _refreshTagFilter();
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+}
+
+// GAME-BLOCKLIST-1: bloqueo permanente por sha1 + borrado en PC y Android a la vez.
+export async function gpBlockAndDelete() {
+  if (!_gpGameId) return;
+  const sha1 = _gpSha1();
+  if (!sha1) { showToast('Este juego no tiene sha1 todavía (sin escanear) — no se puede bloquear', 'err'); return; }
+  const title = document.getElementById('gp-title')?.textContent || 'este juego';
+  if (!confirm(
+    `¿Eliminar "${title}" de ambas bibliotecas (PC y Anbernic) y bloquearlo para siempre?\n\n` +
+    'Esto lo manda a la papelera _descartados/ en PC y lo borra de la consola si está ' +
+    'conectada. Ningún sync futuro lo volverá a traer de vuelta.'
+  )) return;
+  try {
+    const r = await apiPost('/api/blocklist/block', { sha1, canonical_title: title });
+    const parts = [];
+    if (r.trashed) parts.push('PC');
+    if (r.deleted_device) parts.push('consola');
+    showToast(
+      parts.length ? `Bloqueado y eliminado de ${parts.join(' y ')}` : 'Bloqueado (no se encontró archivo en ninguna biblioteca)',
+      'ok'
+    );
+    if ((r.errors || []).length) showToast(r.errors.join(' · '), 'err', 6000);
+    closeGamePanel();
+    if (document.getElementById('tab-games')?.classList.contains('active')) loadGames(gamesState.offset);
   } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 

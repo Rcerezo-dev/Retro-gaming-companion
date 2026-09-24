@@ -124,10 +124,10 @@ ruff check src/rom_manager/services/storage_service.py src/rom_manager/database/
 
 ## Checklist
 
-- [ ] Paso 1 — diseño de la marca persistente confirmado
-- [ ] Paso 2 — acción "Eliminar de ambas bibliotecas" implementada
-- [ ] Paso 3 — UI
-- [ ] Paso 4 — scan/match/Inbox respetan la marca
-- [ ] Paso 5 — tests nuevos
-- [ ] Paso 6 — suite completa + ruff limpios
+- [x] Paso 1 — diseño de la marca persistente confirmado (tabla dedicada `blocklist`, decisión usuario 2026-09-24)
+- [x] Paso 2 — acción "Eliminar de ambas bibliotecas" implementada (`block_and_delete_game`)
+- [x] Paso 3 — UI (botón en el panel de juego + confirmación explícita)
+- [x] Paso 4 — scan/match/Inbox respetan la marca (avisa una vez, decisión usuario 2026-09-24)
+- [x] Paso 5 — tests nuevos (`tests/test_blocklist.py`, 8 tests: marca+borrado, reaparición, renombrado)
+- [x] Paso 6 — suite completa (1451 tests) + ruff check/format limpios
 - [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario

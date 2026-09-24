@@ -478,6 +478,27 @@ def register(
             delete_storage_items(repository, repo_android, items, adb_transport=_adb_transport())
         )
 
+    # ── POST /api/blocklist/block (GAME-BLOCKLIST-1) ─────────────────────────
+    @router.post("/api/blocklist/block")
+    def post_blocklist_block(ctx) -> None:
+        from rom_manager.services.storage_service import block_and_delete_game
+
+        data = ctx._post_data or {}
+        sha1 = (data.get("sha1") or "").strip()
+        if not sha1:
+            ctx._send_error(400, "sha1 requerido")
+            return
+        ctx._send_json(
+            block_and_delete_game(
+                repository,
+                repo_android,
+                sha1,
+                canonical_title=data.get("canonical_title") or "",
+                reason=data.get("reason") or "",
+                adb_transport=_adb_transport(),
+            )
+        )
+
     # ── POST /api/sync-roms (B3-4) ───────────────────────────────────────────
     @router.post("/api/sync-roms")
     def post_sync_roms(ctx) -> None:
@@ -516,6 +537,14 @@ def register(
                 continue
             try:
                 if direction == "pc_to_android":
+                    if repo_android.is_blocked(sha1):
+                        errors.append(
+                            {
+                                "sha1": sha1,
+                                "error": "bloqueado en la biblioteca Android — revisión manual",
+                            }
+                        )
+                        continue
                     with repository.connect() as conn:
                         row = conn.execute(
                             "SELECT source_path, platform FROM games "
@@ -537,6 +566,14 @@ def register(
                     synced += 1
 
                 elif direction == "android_to_pc":
+                    if repository.is_blocked(sha1):
+                        errors.append(
+                            {
+                                "sha1": sha1,
+                                "error": "bloqueado en la biblioteca PC — revisión manual",
+                            }
+                        )
+                        continue
                     with repo_android.connect() as conn:
                         row = conn.execute(
                             "SELECT source_path, platform FROM games "

@@ -311,8 +311,18 @@ function _renderInboxResult(r) {
     r.anbernic_errors.forEach(e => { html += '<li>' + window._h(e) + '</li>'; });
     html += '</ul></details>';
   }
+  // GAME-BLOCKLIST-2: sha1 bloqueado reaparecido en el Inbox — no se organiza,
+  // se avisa una vez aquí y queda para revisión manual.
+  if ((r.blocked_found || []).length > 0) {
+    html += '<details open style="margin-top:4px"><summary style="color:var(--c-red)">&#x1F6AB; ' + r.blocked_found.length + ' bloqueados encontrados, no organizados</summary><ul style="margin:4px 0;padding-left:16px;font-size:11px;color:var(--c-muted)">';
+    r.blocked_found.forEach(name => { html += '<li>' + window._h(name) + '</li>'; });
+    html += '</ul></details>';
+  }
   el.innerHTML = html;
   showToast('Inbox: ' + (r.organized || 0) + ' juegos organizados', 'ok');
+  if ((r.blocked_found || []).length > 0) {
+    showToast(r.blocked_found.length + ' archivo(s) bloqueado(s) encontrados — revisión manual', 'err', 6000);
+  }
 }
 
 // ── RA-CONFLICT-2: review/resolve organize conflicts from the UI ─────────────

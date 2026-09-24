@@ -147,6 +147,10 @@ class GamesMixin:
         matched with ``match_confidence = 'low'`` (ambiguous title, possibly
         wrong platform) so a matcher fix can correct them on re-run — otherwise
         they're invisible here forever once ``match_confidence`` is non-NULL.
+
+        GAME-BLOCKLIST-2: a blocked sha1 is excluded even if it reappears as a
+        fresh, still-unmatched row (new game_id after a sync/adb pull) — it
+        must never re-enter the matching/organize pipeline on its own.
         """
         where = "match_confidence IS NULL"
         if include_low_confidence:
@@ -156,7 +160,7 @@ class GamesMixin:
                 f"""
                 SELECT original_filename, source_path, platform, region, sha1
                 FROM games
-                WHERE {where}
+                WHERE ({where}) AND sha1 NOT IN (SELECT sha1 FROM blocklist)
                 ORDER BY platform, original_filename
                 """
             ).fetchall()
@@ -172,7 +176,11 @@ class GamesMixin:
         ]
 
     def get_matched_games(self) -> list[MatchedGame]:
-        """Return all games that have been matched against a catalog."""
+        """Return all games that have been matched against a catalog.
+
+        GAME-BLOCKLIST-2: excludes blocked sha1s so a blocked game never
+        shows up as a pending rename/organize operation in ``build_plan``.
+        """
         with self.connect() as connection:
             rows = connection.execute(
                 """
@@ -180,6 +188,7 @@ class GamesMixin:
                        canonical_title, match_confidence, sha1
                 FROM games
                 WHERE canonical_title IS NOT NULL
+                  AND sha1 NOT IN (SELECT sha1 FROM blocklist)
                 ORDER BY platform, canonical_title
                 """
             ).fetchall()
