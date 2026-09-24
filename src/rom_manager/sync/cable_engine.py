@@ -99,9 +99,7 @@ def plan_direction(
         return
 
     if direction == "newest":
-        pc_files = {
-            f.relative_to(pc_root).as_posix(): f for f in iter_files(pc_root) if wanted(f)
-        }
+        pc_files = {f.relative_to(pc_root).as_posix(): f for f in iter_files(pc_root) if wanted(f)}
         ab_files: dict[str, Path] = {}
         for f in iter_files(ab_root):
             if wanted(f):
