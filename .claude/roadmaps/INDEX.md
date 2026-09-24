@@ -43,7 +43,7 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 | 16 | [16-cable-sync-format-gaps.md](16-cable-sync-format-gaps.md) | `fix/cable-sync-format-gaps` | **En curso** — código (Pasos 2-4) hecho y en `develop` 2026-09-22; falta Paso 1 (sync de `gamecube`) y verificación real contra el dispositivo, ambos requieren ADB conectado | 🟡 P3 |
 | 17 | [archivo/17-inbox-pending-features.md](archivo/17-inbox-pending-features.md) | `feature/inbox-pending-features` | **Completado** ✅ — las 3 tareas mergeadas a `develop`: `INBOX-ATOMIC-1`/`INBOX-RA-HASH-GAP` (2026-09-15), `INBOX-ANBERNIC-1` (PR #315, 2026-09-18) | 🟠 P2 |
 | 18 | [18-game-blocklist.md](18-game-blocklist.md) | `feature/game-blocklist` | Pendiente | 🟡 P3 |
-| 19 | [19-device-profile-loose-data.md](19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | Pendiente | 🟡 P3 |
+| 19 | [archivo/19-device-profile-loose-data.md](archivo/19-device-profile-loose-data.md) | `feature/device-profile-loose-data` | **Completado** ✅ (DEVPROFILE-8b/9, ver `Tareas/backlog.md`) | 🟡 P3 |
 | 20 | [20-rammu-machine-pending.md](20-rammu-machine-pending.md) | — (acciones manuales/hardware, sin rama única) | Pendiente | mixta |
 | 21 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/catalog-match-subset-hack` | **Completado** ✅ (mergeado a `develop`, PR #317, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🔴 P1 |
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | **Completado** ✅ (mergeado a `develop`, PR #318, 2026-09-18 — ver `CATALOG-MATCH-SUBSET-1` en `Tareas/backlog.md`) | 🟠 P2 |

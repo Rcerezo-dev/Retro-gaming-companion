@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from rom_manager.database.repository import LibraryRepository
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport, RemoteEntry
-from rom_manager.sync.save_syncer import list_local_saves, sync_saves
+from rom_manager.sync.save_syncer import list_local_saves, sync_saves, sync_single_file
 from rom_manager.sync.sync_log import log_sync_event
 
 _SAVE_EXTS = (".sav", ".state")
@@ -428,3 +428,94 @@ def test_backup_failure_does_not_block_download(tmp_path: Path, monkeypatch) -> 
     transport.download.assert_called_once()
     assert result.downloaded == 1
     assert result.errors == 0
+
+
+# ---------------------------------------------------------------------------
+# sync_single_file (DEVPROFILE-8b/9) -- restore-style sync for one whole file
+# (a SQLite DB, a RetroArch playlist), not a directory of many.
+# ---------------------------------------------------------------------------
+
+
+def test_sync_single_file_uploads_when_only_local_exists(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = []
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert result.uploaded == 1
+    assert decisions[0].action == "upload"
+    transport.upload.assert_called_once_with(
+        local, "library_pc.db", fallback_remote="dropbox:RetroSync/data"
+    )
+    transport.download.assert_not_called()
+
+
+def test_sync_single_file_downloads_when_only_remote_exists(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"  # never created — first restore on a new PC
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = [_remote_entry("library_pc.db")]
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert result.downloaded == 1
+    assert decisions[0].action == "download"
+    transport.download.assert_called_once_with(
+        "library_pc.db", local, fallback_remote="dropbox:RetroSync/data"
+    )
+
+
+def test_sync_single_file_newest_wins_without_conflict(tmp_path: Path) -> None:
+    """Unlike sync_saves(), this never returns a 'conflict' decision -- there's
+    only one file, so newest simply wins (decide() with last_sync_at=None)."""
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    _set_mtime(local, _NOW + timedelta(seconds=10))
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = [_remote_entry("library_pc.db")]
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert decisions[0].action == "upload"
+    assert result.conflicts == 0
+    transport.upload.assert_called_once()
+    transport.download.assert_not_called()
+
+
+def test_sync_single_file_up_to_date_within_tolerance(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    _set_mtime(local, _NOW)
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = [_remote_entry("library_pc.db")]
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=False
+    )
+
+    assert decisions[0].action == "up_to_date"
+    assert result.up_to_date == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()
+
+
+def test_sync_single_file_dry_run_does_not_call_transport(tmp_path: Path) -> None:
+    local = tmp_path / "library_pc.db"
+    local.write_bytes(b"data")
+    transport = MagicMock(spec=RcloneTransport)
+    transport.list_remote.return_value = []
+
+    result, decisions = sync_single_file(
+        local, "dropbox:RetroSync/data/library_pc.db", transport=transport, dry_run=True
+    )
+
+    assert result.uploaded == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()

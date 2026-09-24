@@ -197,6 +197,11 @@ class SyncSource:
         False  # True → sync every file (no extension filter); use for PPSSPP/Dolphin etc.
     )
     include_glob: str = "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
+    # DEVPROFILE-8b/9: True → local_dir is a single FILE (a SQLite DB, a .lpl
+    # playlist), not a directory. Routed to sync_single_file() instead of
+    # sync_saves() -- "newest wins" restore, no per-file merge/conflict
+    # tracking (there's only one file, so that machinery doesn't apply).
+    single_file: bool = False
 
 
 @dataclass(slots=True)
@@ -490,6 +495,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
                     remote=str(s["remote"]),
                     sync_all=bool(s.get("sync_all", False)),
                     include_glob=str(s.get("include_glob", "**/*")),
+                    single_file=bool(s.get("single_file", False)),
                 )
             )
     # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote

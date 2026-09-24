@@ -26,23 +26,34 @@ if TYPE_CHECKING:
     from rom_manager.sync.rclone_transport import RcloneTransport
 
 # name → (subfolder under the RetroArch install dir, human label)
-# ponytail: retroarch-core-options.cfg (a single file, not a folder) isn't
-# covered here — SyncSource syncs directories. Add a single-file source kind
-# if/when that file turns out to matter in practice.
 _TIER_A_SUBDIRS = {
     "autoconfig": "RetroArch Autoconfig (mandos)",
     "shaders": "RetroArch Shaders",
     "system": "BIOS / System",
 }
 
+# DEVPROFILE-9: RetroArch's own recent/favorites playlists -- single files
+# under <RetroArch dir>/playlists, restored via SyncSource(single_file=True)
+# (see sync_single_file()). Playtime (.lrtl) already syncs on its own via
+# build_cloud_sync_sources() (JUEGOS-UX-7) -- not repeated here. RA
+# credentials (cheevos_*) stay out of scope: their accessibility without
+# root on Android is unconfirmed (roadmap 19 "Fuera de alcance").
+_TIER_A_SINGLE_FILES = {
+    "playlists/content_history.lpl": "RetroArch Recientes",
+    "playlists/content_favorites.lpl": "RetroArch Favoritos",
+}
+
 # DEVPROFILE-8: tool-owned data under project_root/.rommgr worth restoring on
-# a new PC. Only "catalogs" fits the existing whole-directory SyncSource model
-# today -- the SQLite DBs (library_pc.db/library_android.db) are single files,
-# which this mechanism doesn't sync (see the ponytail note on _TIER_A_SUBDIRS
-# below); that gap is tracked separately (CHD-CLEANUP-1 sibling: DEVPROFILE-8
-# DB restore, backlog.md).
+# a new PC.
 _DATA_SUBDIRS = {
     "catalogs": "Catálogos No-Intro/Redump/Arcade (DATs)",
+}
+
+# DEVPROFILE-8b: the SQLite DBs are single files, not directories -- restored
+# via SyncSource(single_file=True) the same way as _TIER_A_SINGLE_FILES.
+_DATA_SINGLE_FILES = {
+    "library_pc.db": "Base de datos PC (library_pc.db)",
+    "library_android.db": "Base de datos Android (library_android.db)",
 }
 
 
@@ -65,6 +76,18 @@ def detect_tier_a_sources(ra_dir: Path, remote_base: str) -> list[SyncSource]:
                 local_dir=str(local_dir),
                 remote=f"{remote_base}/{subdir}",
                 sync_all=True,
+            )
+        )
+    for relative, label in _TIER_A_SINGLE_FILES.items():
+        local_file = Path(ra_dir) / relative
+        if not local_file.is_file():
+            continue
+        sources.append(
+            SyncSource(
+                name=label,
+                local_dir=str(local_file),
+                remote=f"{remote_base}/{Path(relative).name}",
+                single_file=True,
             )
         )
     return sources
@@ -91,6 +114,18 @@ def detect_data_sources(project_root: Path, remote_base: str) -> list[SyncSource
                 sync_all=True,
             )
         )
+    for filename, label in _DATA_SINGLE_FILES.items():
+        local_file = data_dir / filename
+        if not local_file.is_file():
+            continue
+        sources.append(
+            SyncSource(
+                name=label,
+                local_dir=str(local_file),
+                remote=f"{remote_base}/{filename}",
+                single_file=True,
+            )
+        )
     return sources
 
 
@@ -113,6 +148,7 @@ def export_profile_sources(
             "local_dir": tokenize(Path(s.local_dir), roms_dir, saves_dir, system_dir, project_root),
             "remote": s.remote,
             "sync_all": s.sync_all,
+            "single_file": s.single_file,
         }
         for s in sources
     ]
@@ -172,6 +208,7 @@ def import_profile_sources(
             ),
             remote=entry["remote"],
             sync_all=entry.get("sync_all", True),
+            single_file=entry.get("single_file", False),
         )
         for entry in data
     ]
