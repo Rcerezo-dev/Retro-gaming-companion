@@ -250,9 +250,7 @@ def test_newest_direction_skips_file_under_different_device_prefix_same_mtime(
     monkeypatch.setattr(AdbTransport, "push", _boom)
     monkeypatch.setattr(AdbTransport, "pull", _boom)
 
-    res = _run_sync(
-        tmp_path, {"direction": "newest", "dry_run": True, "what": ["saves"]}
-    )
+    res = _run_sync(tmp_path, {"direction": "newest", "dry_run": True, "what": ["saves"]})
     assert res["copied"] == 0
     assert res["skipped"] == 1
     assert res["errors"] == 0
@@ -276,9 +274,7 @@ def test_pc_to_anbernic_never_uploads_emulator_saves_folder(tmp_path, monkeypatc
         lambda self, local_src, dst, **k: pushed.append(local_src.name) or 10,
     )
 
-    res = _run_sync(
-        tmp_path, {"direction": "pc_to_anbernic", "dry_run": True, "what": ["saves"]}
-    )
+    res = _run_sync(tmp_path, {"direction": "pc_to_anbernic", "dry_run": True, "what": ["saves"]})
 
     assert pushed == ["mario.sav"]
     assert res["copied"] == 1

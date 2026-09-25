@@ -73,15 +73,11 @@ def test_reconcile_pc_only_and_ab_only_entries() -> None:
 
 
 def test_download_strips_saves_prefix_when_platform_recognized() -> None:
-    assert (
-        canonical_download_rel_posix("saves/gba/mario.sav", _ES_FOLDERS) == "gba/mario.sav"
-    )
+    assert canonical_download_rel_posix("saves/gba/mario.sav", _ES_FOLDERS) == "gba/mario.sav"
 
 
 def test_download_strips_states_prefix_when_platform_recognized() -> None:
-    assert (
-        canonical_download_rel_posix("states/gba/mario.state", _ES_FOLDERS) == "gba/mario.state"
-    )
+    assert canonical_download_rel_posix("states/gba/mario.state", _ES_FOLDERS) == "gba/mario.state"
 
 
 def test_download_leaves_unrecognized_core_folder_untouched() -> None:
