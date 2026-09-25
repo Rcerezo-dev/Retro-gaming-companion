@@ -56,7 +56,6 @@ class MainActivity : ComponentActivity() {
     private var hasNotificationAccess by mutableStateOf(false)
     private var selectedTab by mutableStateOf(AppTab.SCAN)
     private var isDropboxConnected by mutableStateOf(false)
-    private var isSyncing by mutableStateOf(false)
     private var lastSyncSummary by mutableStateOf<String?>(null)
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
@@ -129,6 +128,10 @@ class MainActivity : ComponentActivity() {
                                         .collectAsState(initial = false)
                                     val historyFlow = remember { syncHistoryDao.recent() }
                                     val syncHistory by historyFlow.collectAsState(initial = emptyList())
+                                    // Refleja el estado real de SyncOrchestrator (manual, periódico
+                                    // o instantáneo) en vez de un booleano local solo para el manual —
+                                    // así la UI no depende de inferir por ADB si algo está sincronizando.
+                                    val isSyncing by SyncOrchestrator.isSyncing.collectAsState()
                                     SettingsScreen(
                                         isDropboxConfigured = authManager.isAppKeyConfigured(),
                                         isDropboxConnected = isDropboxConnected,
@@ -204,11 +207,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun syncNow() {
-        isSyncing = true
         lifecycleScope.launch {
             val result = SyncOrchestrator.runFullSync(this@MainActivity, SyncTrigger.MANUAL)
             lastSyncSummary = if (result != null) summarize(result) else "Dropbox no conectado"
-            isSyncing = false
         }
     }
 

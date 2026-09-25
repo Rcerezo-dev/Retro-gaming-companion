@@ -14,6 +14,7 @@ import com.retrovault.android.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -36,7 +37,15 @@ class SyncForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startForeground(NOTIFICATION_ID, buildNotification(syncing = false))
+        // Estado real de la notificación en vez de un texto fijo — cubre
+        // syncs disparados por este mismo servicio Y por el periódico (12)
+        // o el manual, ya que los tres pasan por el mismo SyncOrchestrator.
+        scope.launch {
+            SyncOrchestrator.isSyncing.collectLatest { syncing ->
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(syncing))
+            }
+        }
         observerManager =
             SaveFileObserverManager(
                 roots = listOf(File(RetroArchPaths.SAVES), File(RetroArchPaths.STATES)),
@@ -60,14 +69,15 @@ class SyncForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(syncing: Boolean): Notification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "Sync instantáneo", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
+        val text = if (syncing) "Sincronizando…" else "Vigilando saves y states para sincronizar al instante"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Retro Vault Sync")
-            .setContentText("Vigilando saves y states para sincronizar al instante")
+            .setContentText(text)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .build()

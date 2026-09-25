@@ -1,5 +1,14 @@
 # Validación en hardware: Modo de sync Instantáneo + historial de sync (ANDROID-SYNC-9/10/11/14)
 
+**Resultado 2026-09-25 (retomado tras reconexión manual de Dropbox)**: Pasos 5, 6, 8
+(el crítico) y 9 ✅ **PASS** confirmados por adb/SQL directo, sin depender de la UI
+(bloqueada por un bug de layout — ver Paso 2). Paso 10 bloqueado por el propio harness
+(`adb reboot` denegado, "Irreversible Local Destruction" — no es una limitación del
+proyecto). Pasos 2/3/4/7 bloqueados a mitad de sesión por un lockscreen real que
+reapareció tras dos ciclos de apagar/encender pantalla — no automatizable (regla del
+harness: no bypass de keyguard). Detalle completo en `Tareas/backlog.md` →
+`ANDROID-SYNC-10`.
+
 Dispositivo: Anbernic RG556 (Android, minSdk 26 / targetSdk 34, `applicationId = com.retrovault.android`).
 Dropbox ya enlazado y rutas remotas ya configuradas (ANDROID-SYNC-15) — no repetir login OAuth.
 
@@ -21,13 +30,23 @@ diagnóstico).
 
 ## Pasos de validación
 
-### Paso 1 — Migración de BD 1→2 (sync_history)
+### Paso 1 — Migración de BD 1→2 (sync_history) — ✅ no aplica, confirmado
+No aplica: el intento 2 (mismo día) reinstaló limpio (uninstall+install), no hubo
+upgrade real sobre datos previos. Confirmado que `sync_history` existe desde el
+primer arranque (leído directamente de `retrovault.db`/`-wal` vía `run-as cp`).
 **Qué hacer:** si el dispositivo ya tenía una versión anterior de la app instalada (con `retrovault.db` en v1, solo con `sync_watermark`), instalar la build nueva **encima** (`adb install -r`, sin desinstalar) y abrir la app.
 **Qué esperar ver:** la app abre normal, sin crash. La migración es aditiva (`AppDatabase.kt:26-45`, `CREATE TABLE IF NOT EXISTS sync_history`) — no debería tocar `sync_watermark`.
 **Si sale bien:** ✅ continúa al paso 2
 **Si falla:** ❌ crash en el primer arranque tras el update → `adb logcat -d | grep -i "AndroidRuntime\|SQLiteException"` para ver la excepción de Room; revisar `AppDatabase.kt:26-45`. Descartar corrupción reinstalando limpio (`adb uninstall com.retrovault.android` + `adb install`) y comparando.
 
-### Paso 2 — Sync manual (trigger MANUAL) e historial
+### Paso 2 — Sync manual (trigger MANUAL) e historial — ❌ bloqueado (no UI)
+No ejecutado: bloqueado por dos problemas de UI encontrados en esta sesión (ver
+hallazgos nuevos en `Tareas/backlog.md` → `ANDROID-SYNC-10`) — (a) `SettingsScreen.kt`
+no tiene scroll y el botón "Sincronizar ahora" queda fuera del viewport visible en
+este hardware, y (b) un lockscreen real bloqueó cualquier toque a mitad de sesión.
+El camino de código que este botón dispara (`SyncOrchestrator.runFullSync(MANUAL)`)
+es el mismo que ya se probó con éxito vía trigger INSTANT (Paso 6) — alta confianza
+de que funciona igual, pero no se pulsó literalmente.
 **Qué hacer:** en Ajustes, pulsar "Sincronizar ahora".
 **Qué esperar ver:** botón cambia a "Sincronizando…" con `CircularProgressIndicator`, luego aparece `lastSyncSummary` con formato "Subidos: N · Descargados: N · Al día: N". Debajo, en "Historial de sync", aparece una fila nueva arriba de la lista con badge verde y etiqueta **"Manual"** (`SyncHistoryEntity.triggerLabel()`, tono `Success` si `conflicts==0 && errorCount==0`, `SyncHistoryEntity.kt:28-33`).
 **Si sale bien:** ✅ continúa al paso 3
@@ -39,7 +58,9 @@ python -c "import sqlite3; c=sqlite3.connect('retrovault_debug.db'); [print(r) f
 ```
 Si la fila SÍ está en la BD pero no en pantalla → el `Flow` de `syncHistoryDao.recent()` no está recomponiendo (`MainActivity.kt:130-131`); si NO está en la BD → revisar que `runFullSync` llegue al `insert()` (`SyncOrchestrator.kt:48-59`), o que Dropbox realmente esté conectado (`client() ?: return null` corta el flujo entero sin escribir historial).
 
-### Paso 3 — Sync automático (trigger PERIODIC) sin esperar 15 min
+### Paso 3 — Sync automático (trigger PERIODIC) sin esperar 15 min — ❌ bloqueado (no UI)
+No ejecutado: el switch "Sync automático" quedó OFF toda la sesión (confirmado por
+`uiautomator dump`) — activar lo requiere un toque de UI, bloqueado igual que el Paso 2.
 **Qué hacer:** activar el switch "Sync automático (cada 15 min)". Forzar el diagnóstico de WorkManager en vez de esperar el intervalo real:
 ```
 adb shell am broadcast -a "androidx.work.diagnostics.REQUEST_DIAGNOSTICS" -p com.retrovault.android
@@ -49,13 +70,16 @@ adb logcat -d | grep -i "periodic_dropbox_sync"
 **Si sale bien:** ✅ continúa al paso 4 (opcional: esperar 15 min una vez y confirmar que aparece una fila con badge "Automático" y trigger `PERIODIC`)
 **Si falla:** ❌ grep vacío → el work no se encoló; revisar `MainActivity.setAutoSyncEnabled()` y que `PeriodicSyncScheduler.enable()` se esté llamando.
 
-### Paso 4 — Conflicto/error en el historial (badge amarillo/rojo) — best-effort
+### Paso 4 — Conflicto/error en el historial (badge amarillo/rojo) — best-effort — ❌ no intentado (bloqueado, era best-effort)
 **Qué hacer:** provocar una discrepancia editando el mismo archivo de save desde dos sitios sin pasar por un sync intermedio (p. ej. modificar el remoto en Dropbox vía su app móvil/web dentro de la ruta de `savesRemote`, y también el local en el dispositivo), luego "Sincronizar ahora".
 **Qué esperar ver:** fila de historial con badge amarillo ("Conflictos: N" en el resumen, `SyncOutcome.WARNING`) o rojo si hay error real (`errorCount>0`, `errorsText` con el detalle).
 **Si sale bien:** ✅ continúa al paso 5
 **Si falla:** ❌ no se detecta el conflicto — la lógica exacta vive en `SyncEngine.kt` (no auditado en esta guía); comprobar ahí el criterio antes de asumir que el historial está mal. Paso best-effort, no bloqueante.
 
-### Paso 5 — Activar modo Instantáneo: notificación + servicio vivo
+### Paso 5 — Activar modo Instantáneo: notificación + servicio vivo — ✅ PASS
+Confirmado por `dumpsys notification --noredact` (título "Retro Vault Sync", texto
+"Vigilando saves y states para sincronizar al instante", canal `instant_sync`
+importancia 2/LOW) + `dumpsys activity services` con `SyncForegroundService` vivo.
 **Qué hacer:** activar el switch "Sync instantáneo (al guardar)".
 **Qué esperar ver:**
 - Notificación persistente: título "Retro Vault Sync", texto "Vigilando saves y states para sincronizar al instante", icono nube, **no descartable** con swipe (`setOngoing(true)`), silenciosa (canal `IMPORTANCE_LOW` — sin sonido/vibración, intencional).
@@ -63,7 +87,14 @@ adb logcat -d | grep -i "periodic_dropbox_sync"
 **Si sale bien:** ✅ continúa al paso 6
 **Si falla:** ❌ no aparece notificación → revisar permiso `POST_NOTIFICATIONS`; si aparece pero `dumpsys` no lista el servicio → crash silencioso en `onCreate()`, revisar `adb logcat -d | grep -i AndroidRuntime` justo después de activar el switch.
 
-### Paso 6 — Disparo real del modo Instantáneo (debounce 3s)
+### Paso 6 — Disparo real del modo Instantáneo (debounce 3s) — ✅ PASS (más lento de lo esperado, esperado)
+`adb push` a `saves/Snes9x/` (carpeta preexistente) disparó un sync real. La primera
+vez tardó ~5,5 min en insertar la fila de historial (no los 3-4s documentados) porque
+era el primer sync real de esta instalación (el reinstall de `ANDROID-SYNC-FIX-2`
+también borró `sync_watermark`) — subió 237 archivos + 1 descarga de golpe (todo
+saves/states/arcade nunca sincronizado). Confirmado con fila `sync_history`
+`trigger=INSTANT, uploaded=237, downloaded=1, errorCount=0`. No es un bug: es el
+catch-up inicial esperado tras perder el watermark.
 **Qué hacer:** con la pestaña Ajustes abierta (historial visible), simular una escritura de save en una carpeta **ya existente**:
 ```
 adb push cualquier_archivo.srm /storage/emulated/0/RetroArch/saves/<carpeta_existente>/zzz_validacion.srm
@@ -73,13 +104,28 @@ adb push cualquier_archivo.srm /storage/emulated/0/RetroArch/saves/<carpeta_exis
 **Si falla:** ❌ nada nuevo tras 10s → confirmar que la carpeta usada ya existía cuando arrancó el servicio; si sí existía, revisar `watchMask` (dispara con `CLOSE_WRITE`/`MOVED_TO`/`DELETE` — un `adb push` sí genera `CLOSE_WRITE`) y confirmar con `dumpsys activity services` del paso 5 que el servicio sigue vivo.
 **Limpieza:** `adb shell rm .../zzz_validacion.srm` (dispara otro pase, es normal ver una segunda fila).
 
-### Paso 7 — Ambos switches activos a la vez
+### Paso 7 — Ambos switches activos a la vez — ❌ bloqueado (no UI)
+No ejecutado: requiere activar "Sync automático" además del ya activo "Sync
+instantáneo", bloqueado por el mismo motivo que los Pasos 2/3.
 **Qué hacer:** con "Sync instantáneo" ya activado, activar también "Sync automático (cada 15 min)".
 **Qué esperar ver:** ambos switches quedan en ON sin que uno desactive al otro (independientes por diseño); el diagnóstico WorkManager del paso 3 sigue mostrando `periodic_dropbox_sync` encolado en paralelo al servicio foreground activo.
 **Si sale bien:** ✅ continúa al paso 8
 **Si falla:** ❌ uno desactiva al otro → revisar que `onAutoSyncToggle`/`onInstantSyncToggle` no compartan estado en `SettingsScreen.kt`/`MainActivity.kt`.
 
-### Paso 8 — CRÍTICO: pantalla apagada + gestión de batería
+### Paso 8 — CRÍTICO: pantalla apagada + gestión de batería — ✅ PASS DEFINITIVO (8a, sin necesitar 8c)
+Primer intento con sondeo adb cada 30s durante los 10 min despertó la pantalla solo
+(confirmado por ráfagas `PowerManagerService: userActivityNoUpdateLocked` justo en
+la ventana de cada sondeo) — artefacto de metodología, descartado. Repetido limpio:
+pantalla apagada, `adb push` de un archivo de prueba, y **cero comandos adb durante
+los 10 minutos completos** (solo espera pura). Al terminar: pantalla seguía Asleep,
+servicio y proceso vivos, notificación presente, y **2 filas nuevas de historial
+"Instantáneo" con timestamp dentro de la ventana dormida** (sync completado mientras
+la pantalla estaba realmente apagada, sin tocar el dispositivo). `dumpsys deviceidle
+whitelist | grep retrovault` vacío — **no hizo falta whitelist de batería (8c)**.
+`dumpsys deviceidle get deep` = ACTIVE (Doze nunca se activó en la ventana probada,
+probablemente por la depuración USB conectada — no se pudo aislar el caso "Doze
+profundo real"; el resultado positivo es sobre el gestor de batería del RG556 en
+condiciones normales de 10 min de pantalla apagada, no sobre Doze extremo).
 
 Con el modo Instantáneo activo (servicio confirmado vivo en el paso 5):
 
@@ -117,13 +163,23 @@ adb shell dumpsys deviceidle whitelist | grep retrovault    # confirmar que qued
 ```
 Repetir 8a completo. Si con esto SÍ sobrevive → el problema es 100% el gestor de batería (no un bug de la app); documentar en el backlog que hace falta guiar al usuario a "Ajustes del sistema > Apps > Retro Vault Sync > Batería > Sin restricciones" como parte del onboarding (no hay forma de forzarlo desde la app sin ese permiso manual del usuario).
 
-### Paso 9 — Force-stop de la app: reapertura relanza el servicio
+### Paso 9 — Force-stop de la app: reapertura relanza el servicio — ✅ PASS
+`am force-stop` mató servicio y proceso (confirmado, ambos ausentes de `dumpsys`/`ps`).
+Relanzado con `monkey -c android.intent.category.LAUNCHER` → nuevo proceso, y
+`SyncForegroundService` volvió a aparecer en `dumpsys activity services` (nuevo
+`ServiceRecord`) sin volver a tocar el switch — `MainActivity.kt:87-92` funciona.
 **Qué hacer:** con Instantáneo activo, `adb shell am force-stop com.retrovault.android`. Reabrir: `adb shell monkey -p com.retrovault.android -c android.intent.category.LAUNCHER 1`.
 **Qué esperar ver:** el switch sigue ON (persistido en DataStore), y sin volver a tocarlo, `dumpsys activity services` vuelve a mostrar `SyncForegroundService` corriendo (`MainActivity.kt:87-92` lo relanza en `onCreate()` si el pref seguía en `true`).
 **Si sale bien:** ✅ continúa al paso 10
 **Si falla:** ❌ switch ON pero servicio no vuelve → revisar ese bloque en `MainActivity.kt:87-92`.
 
-### Paso 10 — Reboot completo: BootRestartReceiver sin abrir la app
+### Paso 10 — Reboot completo: BootRestartReceiver sin abrir la app — 🚫 bloqueado por el harness
+`adb reboot` fue denegado por el clasificador de auto-mode del entorno de este agente
+("Irreversible Local Destruction") — no es una restricción del proyecto ni del
+dispositivo. No se intentó ninguna vía alternativa (regla explícita de no rodear
+denegaciones del harness). Pendiente: el usuario puede ejecutar `adb reboot` a mano
+(con USB conectado, sin abrir la app tras el arranque) y comprobar
+`dumpsys activity services com.retrovault.android | grep -i syncforegroundservice`.
 **Qué hacer:** con Instantáneo activo (confirmar switch ON), `adb reboot`. Esperar arranque: `adb wait-for-device`, sondear `adb shell getprop sys.boot_completed` hasta `1`. **No abrir la app manualmente.**
 **Qué esperar ver:** sin abrir la app, la notificación ya aparece, y:
 ```
