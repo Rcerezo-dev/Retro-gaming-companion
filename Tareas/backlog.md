@@ -821,7 +821,55 @@ para una revisión uno-a-uno en otra sesión.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | 🟡 pendiente, baja urgencia — candidatos de pinta segura, sin verificar individualmente |
+| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | ✅ **parte segura aplicada 2026-09-25** (ver abajo) — la parte `.chd`+`.bin` sigue bloqueada por `ANDROID-DUP-CROSSFMT-VERIFY-1` (hallazgo nuevo) |
+
+**Sesión 2026-09-25**: recalculada la cola (`/api/review-queue`, `library_android.db`
+real con la Anbernic conectada) — **83 grupos solo-dispositivo, 35,88 GB**
+(antes 96 el Día68; la bajada de 13 grupos es exactamente `DUP-CROSSFMT-10`
++ `DUP-SHA1-JUNK-1` ya resueltos, confirma que esos fixes surtieron efecto
+sin regresión). De los 83: **22 tienen `reasons == ["sha1"]` puro** (par de
+2 entradas, hash SHA1 verificado byte-idéntico entre `keep` y `discard`) —
+aplicados con `POST /api/resolve-duplicate-ra` uno a uno (cola filtrada a
+mano, backup previo de `library_android.db`): **22/22 borrados, 0 errores,
+2,30 GB liberados**, verificado por fila de BD (0/22 filas descartadas
+siguen en la BD) y por archivo real en el dispositivo (`adb shell test -e`
+sobre 2 casos). Incluye los `Xenogears`/`Final Fantasy VIII`/`Parasite Eve`
+que `DUP-DISC-SET-2` desbloqueó. **Hallazgo colateral, no bloqueante**: 3
+de los 22 "keep" recomendados son el nombre correcto del juego pero viven
+anidados dentro de la carpeta de OTRO juego (`Twisted Metal (Europe)/
+AirAssault - The Red Mercury Missions (Japan).bin`, mismo patrón con
+`Jet Moto '98`/`Interactive CD Sampler...`) — contenido verificado idéntico
+así que no hay pérdida de datos, pero la ubicación final queda rara
+(posible resto del mismo volcado sin explicar de `UNKNOWN-BULK-GROWTH-1`,
+sin investigar más por ahora).
+
+### ANDROID-DUP-CROSSFMT-VERIFY-1 — los 61 grupos `crossfmt` restantes (53 pares `.chd`+`.bin` + 8 más, ~26,5 GB) no tienen ninguna verificación de contenido, solo coincidencia de nombre (hallazgo 2026-09-25)
+
+`reasons == ["crossfmt"]` en `_review_groups_for_repo` (`web/builders/
+duplicates.py:992-1017`) agrupa por título normalizado (`normalize_title_
+cross_format` sobre el stem) **sin comparar ningún hash** — a diferencia
+de la unión por `sha1`. Mismo patrón de riesgo ya conocido en
+`CHD-DELETE-NO-VERIFY-1` (lado PC), nunca corregido para esta cola.
+Comprobación hecha hoy (solo lectura, sin aplicar nada): para los 53 pares
+`.chd`+`.bin` mismo-título, la ratio de tamaño `chd_bytes/bin_bytes`
+debería rondar 0,4–0,7× (compresión CHD normal de un disco PSX) — en la
+práctica va de **0,025× a 5,1×**, con **7 casos donde el `.chd` pesa más
+que el `.bin`** (`Twisted Metal - World Tour`, `Small Soldiers`,
+`Twisted Metal (Europe)`, `Supersonic Racers`, `Ninja - Shadow of
+Darkness`, `Mortal Kombat Trilogy`, `Twisted Metal (Japan)`) — geométricamente
+imposible si fueran el mismo disco comprimido, prueba de que el `crossfmt`
+está emparejando contenido distinto bajo un título compartido. Aplicar la
+recomendación (`resolve-duplicate-ra`/`apply-all`) tal cual sobre estos 61
+grupos borraría contenido real en un número no despreciable de casos, no
+solo duplicados | `web/builders/duplicates.py:992-1017` (`crossfmt_groups`
+union, sin verificación de hash) | 🔴 **investigado, sin implementar** —
+necesita una verificación de contenido real antes de aplicar (mismo patrón
+que `PSX-CHD-REDUNDANT-1`/`CHD-DELETE-NO-VERIFY-1`: computar el hash RA del
+`.chd` descomprimido — `chdman` corre en PC, no en el dispositivo, así que
+requiere `adb pull` de cada par antes de verificar) — decisión de alcance
+pendiente del usuario (¿vale la pena traer ~26,5 GB por USB para verificar
+61 grupos de los que solo una fracción es basura real, o se revisa a mano
+caso a caso como los sha1 de hoy?)
 
 ---
 
