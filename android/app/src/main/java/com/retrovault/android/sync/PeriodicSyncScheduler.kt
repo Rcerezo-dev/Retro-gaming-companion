@@ -12,8 +12,11 @@ import java.util.concurrent.TimeUnit
  * Enciende/apaga el sync periódico (ANDROID-SYNC-12) — 15 min es el mínimo
  * que WorkManager admite para trabajo periódico. WorkManager persiste el
  * trabajo encolado en su propia BD y lo re-programa solo tras un reboot, sin
- * necesitar un `BroadcastReceiver` propio (a diferencia del modo instantáneo
- * descartado, que sí lo habría necesitado).
+ * necesitar un `BroadcastReceiver` propio (a diferencia del modo Instantáneo,
+ * ANDROID-SYNC-9/10/11, que sí necesita el suyo — [BootRestartReceiver] —
+ * porque un `Service` no persiste como el trabajo encolado de WorkManager).
+ * Sigue activo aunque el modo Instantáneo esté encendido: red de seguridad
+ * si el servicio foreground muere por gestión de batería agresiva.
  */
 object PeriodicSyncScheduler {
     private const val UNIQUE_WORK_NAME = "periodic_dropbox_sync"

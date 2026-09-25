@@ -21,9 +21,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.retrovault.android.data.db.SyncHistoryEntity
+import com.retrovault.android.data.db.SyncOutcome
+import com.retrovault.android.data.db.outcome
+import com.retrovault.android.data.db.summary
+import com.retrovault.android.data.db.triggerLabel
 import com.retrovault.android.ui.components.StatusBadge
 import com.retrovault.android.ui.components.StatusTone
 import com.retrovault.android.ui.theme.RetroVaultSyncTheme
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Ajustes (ANDROID-SYNC-8): conectar/desconectar Dropbox, paths remotos de
@@ -42,11 +50,14 @@ fun SettingsScreen(
     isSyncing: Boolean,
     lastSyncSummary: String?,
     autoSyncEnabled: Boolean,
+    instantSyncEnabled: Boolean = false,
+    syncHistory: List<SyncHistoryEntity> = emptyList(),
     onConnectDropbox: () -> Unit,
     onDisconnectDropbox: () -> Unit,
     onSaveRemotes: (saves: String, states: String) -> Unit,
     onSyncNow: () -> Unit,
     onAutoSyncToggle: (Boolean) -> Unit,
+    onInstantSyncToggle: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -107,7 +118,42 @@ fun SettingsScreen(
                 Text(text = "Sync automático (cada 15 min)", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = autoSyncEnabled, onCheckedChange = onAutoSyncToggle)
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "Sync instantáneo (al guardar)", style = MaterialTheme.typography.bodyLarge)
+                Switch(checked = instantSyncEnabled, onCheckedChange = onInstantSyncToggle)
+            }
+
+            if (syncHistory.isNotEmpty()) {
+                Text(text = "Historial de sync", style = MaterialTheme.typography.titleMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    syncHistory.forEach { event -> SyncHistoryRow(event) }
+                }
+            }
         }
+    }
+}
+
+private val historyTimestampFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM HH:mm")
+
+private fun SyncOutcome.toTone(): StatusTone =
+    when (this) {
+        SyncOutcome.SUCCESS -> StatusTone.Success
+        SyncOutcome.WARNING -> StatusTone.Warning
+        SyncOutcome.ERROR -> StatusTone.Danger
+    }
+
+@Composable
+private fun SyncHistoryRow(event: SyncHistoryEntity) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatusBadge(text = event.triggerLabel(), tone = event.outcome().toTone())
+            Text(
+                text = Instant.ofEpochMilli(event.timestampMillis).atZone(ZoneId.systemDefault()).format(historyTimestampFormat),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(text = event.summary(), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
