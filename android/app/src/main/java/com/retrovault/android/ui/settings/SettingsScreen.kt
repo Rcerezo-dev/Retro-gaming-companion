@@ -47,6 +47,7 @@ import java.time.format.DateTimeFormatter
 fun SettingsScreen(
     isDropboxConfigured: Boolean,
     isDropboxConnected: Boolean,
+    dropboxAccountLabel: String? = null,
     savesRemote: String,
     statesRemote: String,
     isSyncing: Boolean,
@@ -79,6 +80,9 @@ fun SettingsScreen(
             )
         } else if (isDropboxConnected) {
             StatusBadge(text = "Conectado", tone = StatusTone.Success)
+            dropboxAccountLabel?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             OutlinedButton(onClick = onDisconnectDropbox) {
                 Text("Desconectar Dropbox")
             }

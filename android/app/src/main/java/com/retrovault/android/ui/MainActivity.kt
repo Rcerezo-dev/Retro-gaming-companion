@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private var hasNotificationAccess by mutableStateOf(false)
     private var selectedTab by mutableStateOf(AppTab.SCAN)
     private var isDropboxConnected by mutableStateOf(false)
+    private var dropboxAccountLabel by mutableStateOf<String?>(null)
     private var lastSyncSummary by mutableStateOf<String?>(null)
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
@@ -135,6 +136,7 @@ class MainActivity : ComponentActivity() {
                                     SettingsScreen(
                                         isDropboxConfigured = authManager.isAppKeyConfigured(),
                                         isDropboxConnected = isDropboxConnected,
+                                        dropboxAccountLabel = dropboxAccountLabel,
                                         savesRemote = savesRemote,
                                         statesRemote = statesRemote,
                                         isSyncing = isSyncing,
@@ -175,6 +177,10 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshDropboxState() {
         isDropboxConnected = authManager.isSignedIn()
+        dropboxAccountLabel = null
+        if (isDropboxConnected) {
+            lifecycleScope.launch { dropboxAccountLabel = authManager.fetchAccountLabel() }
+        }
     }
 
     private fun requestStorageAccess() {
