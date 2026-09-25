@@ -39,14 +39,13 @@ primer arranque (leído directamente de `retrovault.db`/`-wal` vía `run-as cp`)
 **Si sale bien:** ✅ continúa al paso 2
 **Si falla:** ❌ crash en el primer arranque tras el update → `adb logcat -d | grep -i "AndroidRuntime\|SQLiteException"` para ver la excepción de Room; revisar `AppDatabase.kt:26-45`. Descartar corrupción reinstalando limpio (`adb uninstall com.retrovault.android` + `adb install`) y comparando.
 
-### Paso 2 — Sync manual (trigger MANUAL) e historial — ❌ bloqueado (no UI)
-No ejecutado: bloqueado por dos problemas de UI encontrados en esta sesión (ver
-hallazgos nuevos en `Tareas/backlog.md` → `ANDROID-SYNC-10`) — (a) `SettingsScreen.kt`
-no tiene scroll y el botón "Sincronizar ahora" queda fuera del viewport visible en
-este hardware, y (b) un lockscreen real bloqueó cualquier toque a mitad de sesión.
-El camino de código que este botón dispara (`SyncOrchestrator.runFullSync(MANUAL)`)
-es el mismo que ya se probó con éxito vía trigger INSTANT (Paso 6) — alta confianza
-de que funciona igual, pero no se pulsó literalmente.
+### Paso 2 — Sync manual (trigger MANUAL) e historial — ✅ PASS (2026-09-25, retomado tras desbloquear pantalla)
+Retomado tras arreglar `ANDROID-SYNC-FIX-3` (scroll en `SettingsScreen`) y desbloquear
+la pantalla — con eso, `uiautomator` sí llega al botón real por coordenadas normales
+(sin toques ciegos). `input tap` sobre "Sincronizar ahora": la notificación cambió a
+"Sincronizando…" en vivo (`dumpsys notification`, confirma el indicador de estado
+nuevo) y apareció la fila "Manual" 25/09 14:33 (`Subidos: 0 · Descargados: 0 · Al
+día: 282`) en el historial de la propia UI (`uiautomator dump`, no solo BD).
 **Qué hacer:** en Ajustes, pulsar "Sincronizar ahora".
 **Qué esperar ver:** botón cambia a "Sincronizando…" con `CircularProgressIndicator`, luego aparece `lastSyncSummary` con formato "Subidos: N · Descargados: N · Al día: N". Debajo, en "Historial de sync", aparece una fila nueva arriba de la lista con badge verde y etiqueta **"Manual"** (`SyncHistoryEntity.triggerLabel()`, tono `Success` si `conflicts==0 && errorCount==0`, `SyncHistoryEntity.kt:28-33`).
 **Si sale bien:** ✅ continúa al paso 3
@@ -58,9 +57,11 @@ python -c "import sqlite3; c=sqlite3.connect('retrovault_debug.db'); [print(r) f
 ```
 Si la fila SÍ está en la BD pero no en pantalla → el `Flow` de `syncHistoryDao.recent()` no está recomponiendo (`MainActivity.kt:130-131`); si NO está en la BD → revisar que `runFullSync` llegue al `insert()` (`SyncOrchestrator.kt:48-59`), o que Dropbox realmente esté conectado (`client() ?: return null` corta el flujo entero sin escribir historial).
 
-### Paso 3 — Sync automático (trigger PERIODIC) sin esperar 15 min — ❌ bloqueado (no UI)
-No ejecutado: el switch "Sync automático" quedó OFF toda la sesión (confirmado por
-`uiautomator dump`) — activar lo requiere un toque de UI, bloqueado igual que el Paso 2.
+### Paso 3 — Sync automático (trigger PERIODIC) sin esperar 15 min — ✅ PASS (2026-09-25)
+Switch activado por `input tap` (confirmado `checked="true"` en `uiautomator dump`).
+El diagnóstico de WorkManager devolvió el work `periodic_dropbox_sync` en estado
+`RUNNING` (no solo `ENQUEUED` — probablemente por el `runAttemptCount` inicial al
+activar el switch), tag `com.retrovault.android.sync.SyncWorker` correcto.
 **Qué hacer:** activar el switch "Sync automático (cada 15 min)". Forzar el diagnóstico de WorkManager en vez de esperar el intervalo real:
 ```
 adb shell am broadcast -a "androidx.work.diagnostics.REQUEST_DIAGNOSTICS" -p com.retrovault.android
@@ -104,9 +105,11 @@ adb push cualquier_archivo.srm /storage/emulated/0/RetroArch/saves/<carpeta_exis
 **Si falla:** ❌ nada nuevo tras 10s → confirmar que la carpeta usada ya existía cuando arrancó el servicio; si sí existía, revisar `watchMask` (dispara con `CLOSE_WRITE`/`MOVED_TO`/`DELETE` — un `adb push` sí genera `CLOSE_WRITE`) y confirmar con `dumpsys activity services` del paso 5 que el servicio sigue vivo.
 **Limpieza:** `adb shell rm .../zzz_validacion.srm` (dispara otro pase, es normal ver una segunda fila).
 
-### Paso 7 — Ambos switches activos a la vez — ❌ bloqueado (no UI)
-No ejecutado: requiere activar "Sync automático" además del ya activo "Sync
-instantáneo", bloqueado por el mismo motivo que los Pasos 2/3.
+### Paso 7 — Ambos switches activos a la vez — ✅ PASS (2026-09-25)
+Confirmado por `uiautomator dump`: los dos `Switch` (`bounds=[539,448][663,562]`
+"Sync automático" y `bounds=[520,600][644,714]` "Sync instantáneo") quedaron
+`checked="true"` simultáneamente tras activar el primero sin tocar el segundo —
+ninguno desactivó al otro.
 **Qué hacer:** con "Sync instantáneo" ya activado, activar también "Sync automático (cada 15 min)".
 **Qué esperar ver:** ambos switches quedan en ON sin que uno desactive al otro (independientes por diseño); el diagnóstico WorkManager del paso 3 sigue mostrando `periodic_dropbox_sync` encolado en paralelo al servicio foreground activo.
 **Si sale bien:** ✅ continúa al paso 8
@@ -173,13 +176,22 @@ Relanzado con `monkey -c android.intent.category.LAUNCHER` → nuevo proceso, y
 **Si sale bien:** ✅ continúa al paso 10
 **Si falla:** ❌ switch ON pero servicio no vuelve → revisar ese bloque en `MainActivity.kt:87-92`.
 
-### Paso 10 — Reboot completo: BootRestartReceiver sin abrir la app — 🚫 bloqueado por el harness
-`adb reboot` fue denegado por el clasificador de auto-mode del entorno de este agente
-("Irreversible Local Destruction") — no es una restricción del proyecto ni del
-dispositivo. No se intentó ninguna vía alternativa (regla explícita de no rodear
-denegaciones del harness). Pendiente: el usuario puede ejecutar `adb reboot` a mano
-(con USB conectado, sin abrir la app tras el arranque) y comprobar
-`dumpsys activity services com.retrovault.android | grep -i syncforegroundservice`.
+### Paso 10 — Reboot completo: BootRestartReceiver sin abrir la app — ✅ PASS (2026-09-25, autorizado explícitamente por el usuario)
+`adb reboot` ejecutado con autorización explícita del usuario. Tras `boot_completed=1`,
+el servicio **no** aparecía todavía (`dumpsys activity services`/`ps -A` vacíos) y
+`run-as com.retrovault.android` fallaba con `couldn't stat /data/user/0/...` — no un
+bug: `dumpsys user` confirmó `State: RUNNING_LOCKED` (almacenamiento cifrado del
+usuario 0 sin desbloquear tras el reboot). En Android, un `BroadcastReceiver` normal
+(no direct-boot-aware) no recibe `BOOT_COMPLETED` hasta el primer desbloqueo real de
+pantalla tras el arranque — coincide con el mismo tipo de barrera física ya conocida
+(gestos `input`/`wm dismiss-keyguard` no sirven). En cuanto el usuario desbloqueó la
+pantalla a mano (`dumpsys user` → `RUNNING_UNLOCKED`), `SyncForegroundService`
+apareció solo en `dumpsys activity services` con `code:BOOT_COMPLETED` en su
+`infoAllowStartForeground` — confirma que `BootRestartReceiver` lo arrancó, sin abrir
+la app. **Hallazgo para la tabla de problemas conocidos**: en un reboot real, el
+modo Instantáneo no queda operativo hasta el primer desbloqueo de pantalla del
+usuario — coherente con el modelo de seguridad de Android (FBE/CE storage), no
+arreglable desde la app.
 **Qué hacer:** con Instantáneo activo (confirmar switch ON), `adb reboot`. Esperar arranque: `adb wait-for-device`, sondear `adb shell getprop sys.boot_completed` hasta `1`. **No abrir la app manualmente.**
 **Qué esperar ver:** sin abrir la app, la notificación ya aparece, y:
 ```
@@ -211,10 +223,11 @@ lista el servicio corriendo — confirma que `BootRestartReceiver` recibió `BOO
 | Crash en el primer arranque tras update de versión | Migración 1→2 sobre una BD ya corrupta, o confusión con instalación limpia | Reinstalar limpio (`adb uninstall` + `adb install`) para aislar si es problema de migración |
 | Badge no pasa a amarillo/rojo pese a forzar discrepancia | Criterio de conflicto/error vive en `SyncEngine.kt` (no auditado en esta guía) | Revisar `SyncEngine.kt` antes de reportar como bug del historial |
 | `run-as` falla al copiar la BD | Build no es `debuggable` (release sin `debuggable=true`) | Usar la build `debug` para todo este checklist, no `release` |
+| `run-as`/servicio no arrancan tras un reboot real (`couldn't stat /data/user/0/...`) | Usuario 0 en `RUNNING_LOCKED` — almacenamiento cifrado (CE) sin desbloquear tras el arranque; `BOOT_COMPLETED` no llega a receivers normales hasta el primer desbloqueo real de pantalla | No es un bug: pedir al usuario que desbloquee la pantalla; confirmar con `adb shell dumpsys user` (`State: RUNNING_UNLOCKED`) |
 
 ## Resultado esperado al finalizar
 
-Con Dropbox conectado, ambos switches ("Sync automático" y "Sync instantáneo") pueden encenderse de forma independiente y simultánea. Con Instantáneo activo aparece una notificación persistente y silenciosa que sobrevive a cerrar la app, a un force-stop (se relanza al reabrir) y a un reboot completo (se relanza solo, sin intervención). Cualquier escritura en una carpeta de saves/states ya vigilada dispara, ~3s después, un pase de sync registrado en el historial de Ajustes con la etiqueta "Instantáneo" y un badge coherente con el resultado — el historial se ve en vivo, hasta 10 eventos, mezclando libremente triggers Manual/Automático/Instantáneo. El único punto abierto real es si el servicio sobrevive minutos con la pantalla apagada en este hardware sin necesidad de whitelist manual de batería — si el Paso 8a falla incluso con la whitelist del Paso 8c, el modo Instantáneo debe documentarse como "mejor esfuerzo, con red de seguridad del sync periódico" en vez de "garantizado", y anotarse como hallazgo en `Tareas/backlog.md` bajo ANDROID-SYNC-9.
+**Confirmado en hardware real 2026-09-25 — todos los pasos bloqueantes en verde.** Con Dropbox conectado, ambos switches ("Sync automático" y "Sync instantáneo") se encendieron de forma independiente y simultánea (Paso 7). Con Instantáneo activo aparece una notificación persistente y silenciosa que sobrevive a cerrar la app, a un force-stop (se relanza al reabrir, Paso 9) y a un reboot completo (se relanza solo tras el primer desbloqueo de pantalla, sin abrir la app, Paso 10). Cualquier escritura en una carpeta de saves/states ya vigilada dispara un pase de sync registrado en el historial de Ajustes con la etiqueta "Instantáneo" (Paso 6), igual que el trigger Manual (Paso 2) y el Periódico (Paso 3) — el historial se ve en vivo en la propia UI, con badge coherente. **El punto crítico (Paso 8, pantalla apagada + batería) pasó de forma definitiva**: el servicio sobrevive 10 minutos reales con la pantalla apagada en la RG556 de fábrica, sin whitelist de batería. Único paso no ejecutado: Paso 4 (conflicto/error), marcado desde el diseño como best-effort/no bloqueante — sigue pendiente si se quiere cerrar por completitud.
 
 ## Archivos leídos para generar este checklist
 
