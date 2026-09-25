@@ -2,21 +2,27 @@ package com.retrovault.android.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.retrovault.android.R
 
-// ponytail: the design system pairs Space Mono (display/data) with Inter
-// (body) — both Google Fonts. Bundling the real .ttf files is the correct
-// long-term move (README already calls for res/font/, since these
-// handhelds are often offline until they reach the PC's Wi-Fi and can't
-// rely on a downloadable-font fetch), but that's binary assets this
-// change doesn't carry. FontFamily.Monospace/Default are the closest
-// always-available system stand-ins — same weights/sizes/spacing, just
-// not the exact typeface. Upgrade path: add Space Mono + Inter under
-// res/font/, swap the two FontFamily values below, nothing else changes.
-private val RvDisplayFont = FontFamily.Monospace
-private val RvBodyFont = FontFamily.Default
+// Space Mono (display/data) + Inter (body) — real .ttf files under
+// res/font/, same Google Fonts the PC app loads (web/static/index.html).
+// Offline-safe: these handhelds are often disconnected until they reach
+// the PC's Wi-Fi, so a downloadable-font fetch isn't an option.
+private val RvDisplayFont =
+    FontFamily(
+        Font(R.font.space_mono_regular, FontWeight.Normal),
+        Font(R.font.space_mono_bold, FontWeight.Bold),
+    )
+private val RvBodyFont =
+    FontFamily(
+        Font(R.font.inter_regular, FontWeight.Normal),
+        Font(R.font.inter_medium, FontWeight.Medium),
+        Font(R.font.inter_semibold, FontWeight.SemiBold),
+    )
 
 /** `mono-data` from the design system — file sizes, percentages, speeds.
  * No Material3 slot fits this (it's used inline next to labels, not as a
