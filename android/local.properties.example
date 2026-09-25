@@ -8,3 +8,11 @@ sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
 # el App Secret. Sin esta línea, la app compila igual pero el botón
 # "Conectar Dropbox" queda deshabilitado en runtime.
 dropbox.appKey=
+
+# Firma del APK de release (ANDROID-RELEASE-1). Sin estas 4 líneas, `assembleRelease`
+# compila igual pero sin firmar (no instalable) — solo hacen falta para generar el
+# APK que se publica. El .jks nunca se versiona (android/keystore/, gitignored).
+release.storeFile=keystore/retrovault-release.jks
+release.storePassword=
+release.keyAlias=retrovault
+release.keyPassword=

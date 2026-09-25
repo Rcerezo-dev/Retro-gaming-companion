@@ -1,6 +1,7 @@
 package com.retrovault.android.data.auth
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.dropbox.core.oauth.DbxCredential
@@ -17,7 +18,23 @@ class DropboxCredentialStore(context: Context) {
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-    private val prefs =
+    private val prefs = createPrefs(context)
+
+    // ANDROID-SYNC-FIX-2: si el blob cifrado en disco no cuadra con la clave
+    // de Keystore disponible (reinstall con otra firma release/debug,
+    // restore de `allowBackup`), Cipher.doFinal() lanza
+    // `AEADBadTagException` sin capturar y la Activity nunca llega a
+    // `setContent{}` — crash-loop permanente sin recuperación visible para
+    // el usuario. Se pierde solo el token OAuth (hay que reconectar
+    // Dropbox), no saves ni states, así que borrar y recrear es seguro.
+    private fun createPrefs(context: Context): SharedPreferences =
+        runCatching { buildEncryptedPrefs(context) }
+            .getOrElse {
+                context.deleteSharedPreferences(PREFS_NAME)
+                buildEncryptedPrefs(context)
+            }
+
+    private fun buildEncryptedPrefs(context: Context): SharedPreferences =
         EncryptedSharedPreferences.create(
             context,
             PREFS_NAME,

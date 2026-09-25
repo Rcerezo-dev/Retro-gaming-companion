@@ -24,6 +24,9 @@ class SettingsRepository(context: Context) {
     /** ANDROID-SYNC-12: sync automático cada 15 min vía WorkManager, off por defecto. */
     val autoSyncEnabled: Flow<Boolean> = dataStore.data.map { it[AUTO_SYNC_ENABLED_KEY] ?: false }
 
+    /** ANDROID-SYNC-9/10/11: modo Instantáneo (servicio foreground + `FileObserver`), off por defecto. */
+    val instantSyncEnabled: Flow<Boolean> = dataStore.data.map { it[INSTANT_SYNC_ENABLED_KEY] ?: false }
+
     // FTP-PICK-2 (rediseñado a HTTP): IP:puerto del PC (`rommgr serve`) y
     // carpeta destino de los ROMs elegidos.
     val pcHost: Flow<String> = dataStore.data.map { it[PC_HOST_KEY] ?: "" }
@@ -49,10 +52,15 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[AUTO_SYNC_ENABLED_KEY] = value }
     }
 
+    suspend fun setInstantSyncEnabled(value: Boolean) {
+        dataStore.edit { it[INSTANT_SYNC_ENABLED_KEY] = value }
+    }
+
     companion object {
         private val SAVES_REMOTE_KEY = stringPreferencesKey("saves_remote")
         private val STATES_REMOTE_KEY = stringPreferencesKey("states_remote")
         private val AUTO_SYNC_ENABLED_KEY = booleanPreferencesKey("auto_sync_enabled")
+        private val INSTANT_SYNC_ENABLED_KEY = booleanPreferencesKey("instant_sync_enabled")
         private val PC_HOST_KEY = stringPreferencesKey("pc_host")
         private val ROMS_DEST_KEY = stringPreferencesKey("roms_dest_path")
         const val DEFAULT_SAVES_REMOTE = "/RetroSync/saves"
