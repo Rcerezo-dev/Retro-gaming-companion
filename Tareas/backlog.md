@@ -821,7 +821,7 @@ para una revisión uno-a-uno en otra sesión.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | ✅ **parte segura aplicada 2026-09-25** (ver abajo) — la parte `.chd`+`.bin` sigue bloqueada por `ANDROID-DUP-CROSSFMT-VERIFY-1` (hallazgo nuevo) |
+| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | ✅ **hecho 2026-09-25** — 68 grupos aplicados en total (22 sha1 puro + 46 `.chd`+`.bin` verificados por hash RA real), 25,08 GB liberados, 0 errores. 5 MISMATCH reales y 2 no-hasheables sin tocar, ver `ANDROID-DUP-CROSSFMT-VERIFY-1` |
 
 **Sesión 2026-09-25**: recalculada la cola (`/api/review-queue`, `library_android.db`
 real con la Anbernic conectada) — **83 grupos solo-dispositivo, 35,88 GB**
@@ -850,26 +850,52 @@ duplicates.py:992-1017`) agrupa por título normalizado (`normalize_title_
 cross_format` sobre el stem) **sin comparar ningún hash** — a diferencia
 de la unión por `sha1`. Mismo patrón de riesgo ya conocido en
 `CHD-DELETE-NO-VERIFY-1` (lado PC), nunca corregido para esta cola.
-Comprobación hecha hoy (solo lectura, sin aplicar nada): para los 53 pares
-`.chd`+`.bin` mismo-título, la ratio de tamaño `chd_bytes/bin_bytes`
-debería rondar 0,4–0,7× (compresión CHD normal de un disco PSX) — en la
-práctica va de **0,025× a 5,1×**, con **7 casos donde el `.chd` pesa más
-que el `.bin`** (`Twisted Metal - World Tour`, `Small Soldiers`,
-`Twisted Metal (Europe)`, `Supersonic Racers`, `Ninja - Shadow of
-Darkness`, `Mortal Kombat Trilogy`, `Twisted Metal (Japan)`) — geométricamente
-imposible si fueran el mismo disco comprimido, prueba de que el `crossfmt`
-está emparejando contenido distinto bajo un título compartido. Aplicar la
-recomendación (`resolve-duplicate-ra`/`apply-all`) tal cual sobre estos 61
-grupos borraría contenido real en un número no despreciable de casos, no
-solo duplicados | `web/builders/duplicates.py:992-1017` (`crossfmt_groups`
-union, sin verificación de hash) | 🔴 **investigado, sin implementar** —
-necesita una verificación de contenido real antes de aplicar (mismo patrón
-que `PSX-CHD-REDUNDANT-1`/`CHD-DELETE-NO-VERIFY-1`: computar el hash RA del
-`.chd` descomprimido — `chdman` corre en PC, no en el dispositivo, así que
-requiere `adb pull` de cada par antes de verificar) — decisión de alcance
-pendiente del usuario (¿vale la pena traer ~26,5 GB por USB para verificar
-61 grupos de los que solo una fracción es basura real, o se revisa a mano
-caso a caso como los sha1 de hoy?)
+Comprobación (solo lectura): para los 53 pares `.chd`+`.bin` mismo-título,
+la ratio de tamaño `chd_bytes/bin_bytes` debería rondar 0,4–0,7× (compresión
+CHD normal de un disco PSX) — en la práctica iba de **0,025× a 5,1×**, con
+7 casos donde el `.chd` pesaba más que el `.bin` — geométricamente imposible
+si fueran el mismo disco comprimido, indicio de que `crossfmt` empareja
+contenido distinto bajo un título compartido | `web/builders/duplicates.py:
+992-1017` (`crossfmt_groups` union, sin verificación de hash) | 🟡 **código
+sin arreglar** (el bug de fondo sigue ahí para el resto de la biblioteca),
+pero **los 53 pares ya verificados y resueltos con datos reales** — ver
+abajo |
+
+**Verificación real ejecutada 2026-09-25**: descargados los 53 pares completos
+vía ADB (42 GB, ~17 min a 42 MB/s) y calculado el hash RA real
+(`compute_psx_ra_hash`, el mismo que usa `PSX-CHD-REDUNDANT-1`/
+`CHD-DELETE-NO-VERIFY-1` en PC) de cada `.chd` y cada `.bin` por separado,
+comparados byte a byte (no solo tamaño):
+
+- **46 coinciden de verdad** (hash RA idéntico) — aplicados con
+  `resolve-duplicate-ra` (confirmación explícita del usuario antes de
+  ejecutar, bloqueo del clasificador de modo automático por ser borrado
+  irreversible en lote): **46/46 borrados, 0 errores, 22,78 GB liberados**,
+  verificado por fila de BD (0/46 filas descartadas siguen en `library_
+  android.db`). Sumado a los 22 del lote sha1 puro de hoy: **68 grupos
+  aplicados, 25,08 GB liberados en total en la sesión de hoy.**
+- **5 MISMATCH real** (hash RA distinto, contenido genuinamente distinto
+  pese al nombre compartido) — **no tocados**: `Tenchu 2 - Birth of the
+  Stealth Assassins (USA)`, `Spider-Man (USA)`, `Tony Hawk's Pro Skater 3
+  (USA)`, `Legacy of Kain - Soul Reaver (USA)`, `Resident Evil (USA)`.
+  Confirma que el riesgo era real, no teórico — un `apply-all` genérico sin
+  esta verificación habría borrado contenido único en estos 5 casos.
+- **2 no hasheables** (`compute_psx_ra_hash` devolvió `None`) —
+  `Crash Bash (USA).chd` (el `.chd` no se pudo hashear; su `.bin` sí) y
+  `Twisted Metal (Japan).bin` (el `.bin` no se pudo hashear; su `.chd` sí).
+  **Hallazgo colateral en este segundo caso**: el hash del `.chd` de
+  "Japan" (`31a6328a...`) es **idéntico** al de `Twisted Metal (Europe).chd`
+  (par #48, ya confirmado `match` en el lote de arriba) — el archivo
+  etiquetado "Japan" es casi con toda seguridad una copia mal nombrada del
+  disco Europe, no una región real. Ninguno de los 2 se ha tocado.
+
+**Alcance no cerrado**: el bug de fondo (`crossfmt` sin verificación de
+hash) sigue sin arreglarse en `web/builders/duplicates.py` — los 8 grupos
+`crossfmt`-only restantes (no `.chd`+`.bin`: `Guilty Gear (Europe).chd`,
+`Driver (Europe).img`, `New (Slovakia) (Art Assets).img`, `Mortal Kombat 3
+(Europe).bin` + otros del lado PC, ~1.828 grupos solo-PC nunca auditados
+con este método) quedan pendientes de la misma verificación real antes de
+cualquier apply.
 
 ---
 
