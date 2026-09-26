@@ -25,6 +25,11 @@
 > consolidadas en el dispositivo (patrón `DUALFOLDER-12`, solo aplicado en PC);
 > `library_android.db` desactualizada (último scan 2026-09-12); relanzado el
 > scrape completo (22.840 ROMs pendientes)
+> 2026-09-26: `NATIVE-SAVE-SYNC-1` — biblioteca, emuladores y juegos nativos
+> consolidados en `E:\RetroVault\` (`ROMS`/`EMULADORES`/`JUEGOS NATIVOS`);
+> 129.654 filas reescritas en `library_pc.db`; sync de saves extendido a
+> juegos nativos (Dusklight/Twilight Princess) reutilizando `sync_sources`
+> sin código nuevo
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -2094,6 +2099,80 @@ except Exception as exc:
 Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
 otro, sin miedo a sobrescribir — el valor diferencial real del proyecto.
 
+### NATIVE-SAVE-SYNC-1 — Estructura RetroVault en E:\ + sync de saves de juegos nativos (petición usuario 2026-09-26)
+
+Petición del usuario: unificar en `E:\RetroVault\` la biblioteca, los
+emuladores, ES-DE y los "juegos nativos" (ports PC hechos por la comunidad
+de juegos de consola — p. ej. Twilight Princess vía **Dusklight**, que lee
+el ISO original en vivo en vez de traer sus propios assets), y sincronizar
+también las partidas de esos juegos nativos a Dropbox, no solo las de
+RetroArch/DuckStation/PCSX2/Dolphin.
+
+Al investigar antes de mover nada se descubrió que **no era crear carpetas
+vacías**: `E:\Carpetas anbernic` era el `library_root` real en uso
+(36.271 ROMs en BD), `E:\Emuladores` tenía las instalaciones reales de
+RetroArch/Dolphin/DuckStation/PCSX2/etc., y `E:\Emulation Station` resultó
+ser un build de 2014 de EmulationStation (Aloshi) abandonado — el ES-DE real
+está instalado en `C:\Program Files\ES-DE` (fuera de alcance de este move,
+con datos de usuario en `C:\Users\rammu\ES-DE\`), pendiente de decidir con
+el usuario si esa carpeta vieja se borra o se deja.
+
+Hecho: **(1)** `E:\Carpetas anbernic` → `E:\RetroVault\ROMS`,
+`E:\Emuladores` → `E:\RetroVault\EMULADORES`, `E:\Juegos nativos` →
+`E:\RetroVault\JUEGOS NATIVOS` (move a nivel de archivo vía
+`robocopy /MOVE`, con backup previo de `library_pc.db`/`library_android.db`/
+`config.toml`/`retroarch.cfg` en `.rommgr/backup_pre_retrovault_move/`).
+Bloqueante real durante el move: **Dusklight** tenía abierto en vivo
+`gamecube\Legend of Zelda, The - Twilight Princess (Europe)...iso` — el
+`robocopy` movió todo lo demás y dejó ese único archivo atrás hasta que el
+usuario cerró el juego. **(2)** Reescritas 129.654 filas en `library_pc.db`
+(`games.source_path`, `saves.original_path`, `assets.source_path`,
+`file_operations.source_path/target_path`, `save_sync_log.local_path`,
+`scan_runs.source_root`, `game_metadata.box_art_path/wheel_path`) con el
+prefijo `E:\Carpetas anbernic` → `E:\RetroVault\ROMS`, en una única
+transacción con verificación de 0 filas restantes antes del commit +
+comprobación de que las rutas migradas existen en disco. **(3)** Reescritas
+las rutas absolutas en `config.toml` (`library_root`, `inbox.path`,
+`launchers.retroarch`, `sync.sources` de RetroArch) y en las configs propias
+de cada emulador/frontend: `C:\Users\rammu\ES-DE\settings\es_settings.xml`
+(`ROMDirectory`), `retroarch.cfg` (`savefile_directory`/`savestate_directory`),
+`DuckStation\settings.ini` (4 rutas), `PCSX2\inis\PCSX2.ini` (4 rutas),
+`ppsspp.ini` (`CurrentDirectory`), `Dolphin.ini` (3× `ISOPath*` +
+`MemcardAPath`) — ninguna de ellas se detecta ni se corrige sola, cada
+emulador guarda su propia copia de la ruta absoluta. **(4)** Nueva entrada
+`[[sync.sources]]` para Dusklight: `local_dir` apunta a
+`%APPDATA%\TwilitRealm\Dusklight\EUR` (el `.gci` de memory card,
+`EUR\Card A\01-GZ2P-gczelda2.gci`, mismo patrón que las memcards de Dolphin
+GC), `remote = "dropbox:/RetroSync/saves/native/dusklight"`,
+`sync_all = true` — reutiliza el motor de sync existente (`save_syncer.py`)
+sin código nuevo, exactamente igual que cualquier otra fuente de la lista.
+
+**Pendiente / hallazgo para otra sesión**: no hay UI todavía para añadir
+`[[sync.sources]]` — `sync.js` ya avisa que el modo multi-fuente es
+"avanzado, vía config.toml" (línea 74). Añadir un juego nativo nuevo hoy
+significa (a) localizar a mano su carpeta de save (varía por juego:
+`Documents\My Games\...`, `%APPDATA%\<Estudio>\<Juego>\...`, junto al .exe)
+y (b) editar `config.toml`. Sería razonable un formulario en la pestaña Sync
+para esto — no implementado, sin ID de tarea todavía. **(5)** `E:\Emulation
+Station\` (el EmulationStation 2014 abandonado, sin relación con el ES-DE
+real) — borrado a petición del usuario, no aportaba nada y confundía el
+nombre con la carpeta `ES-DE` real (`C:\Users\rammu\ES-DE\`).
+
+**(6)** Petición de seguimiento del usuario: aplicar lo mismo a la otra
+máquina y que la app cree esta estructura sola. `wizard.py`
+(`_ensure_retrovault_structure`, llamada desde `run_wizard` tras pedir la
+carpeta raíz) ahora crea `<carpeta elegida>` + hermanas `EMULADORES`/
+`JUEGOS NATIVOS` bajo el mismo padre en cualquier instalación nueva (`rommgr
+init-config`) — cubre el caso "primera vez" en una máquina nueva, con test
+(`tests/test_wizard_retrovault.py`). Para una máquina que **ya** tiene
+biblioteca (el caso real de la otra máquina, PC2 "Ruben" con RetroArch en
+`F:\Emuladores\Retroarch`), el wizard no aplica — se generalizó el
+procedimiento manual de este hallazgo en `scripts/migrate_to_retrovault.py`
+(backup, `robocopy /MOVE`, reescritura de `library_pc.db` + `config.toml` +
+las mismas 6 configs de emulador, dry-run por defecto) para que se ejecute
+allí sin repetir la investigación a mano — no se ha ejecutado contra esa
+máquina porque esta sesión no tiene acceso a ella.
+
 ### EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben" = PC2)
 
 Petición del usuario: quiere sync entre sus 3 dispositivos (PC principal,
@@ -2300,6 +2379,10 @@ de prueba limpiados. Detalle paso a paso en
 **Diagnóstico añadido permanentemente**: `DropboxAuthManager.fetchAccountLabel()` (nuevo) llama a `users/get_current_account` y `SettingsScreen` muestra `email · account_id` bajo el badge "Conectado" — para comparar sin ambigüedad la próxima vez, en vez de asumir por el nombre de la cuenta. Requirió añadir el scope `account_info.read` a `SCOPES` en `DropboxAuthManager` (las credenciales ya emitidas no lo tenían — hace falta reconectar una vez más tras este cambio para que el diagnóstico funcione; confirmado con logging temporal in-session que la llamada fallaba con `missing_scope` antes del fix, retirado antes de commitear).
 
 **Causa raíz 2 (sin arreglar, más profunda): la app de Dropbox de Android es de tipo "App folder", no "Full Dropbox".** Confirmado empíricamente: tras corregir la cuenta, un archivo subido a `savesRemote="/RetroSync/saves"` aterrizó realmente en `Aplicaciones/Retrovault/RetroSync/saves/...` (carpeta sandbox de la app, con nombre localizado al idioma de la cuenta — "Aplicaciones" en vez de "Apps") — invisible para `rclone`/`rommgr` en el PC, que usan una app "Full Dropbox" y leen/escriben directamente en la raíz real `/RetroSync/...`. **Con esto, incluso con la cuenta ya correcta, el móvil y el PC nunca comparten el mismo árbol de carpetas** — el pilar 3 (sync de saves, "cualquier bug aquí es prioridad absoluta") sigue sin cumplirse de verdad hasta arreglar esto. Pendiente decidir en la Dropbox App Console si el tipo de acceso de la app existente se puede cambiar a Full Dropbox (no confirmado si es editable post-creación para scoped apps) o si hace falta registrar una app nueva con ese tipo y actualizar `dropbox.appKey` en `local.properties` + reconectar. Hasta entonces, cualquier sync validado hoy en la RG556 (incluyendo el Paso 8 del checklist) es real y funcional **dentro del sandbox de la app**, pero no representa todavía el sync cruzado con el PC que promete el pilar 3.
+
+**Recurrencia 2026-09-26**: al retomar la sesión, Ajustes mostraba "No conectado" (la sesión OAuth de la app se había perdido). Al pulsar "Conectar Dropbox" en la RG556, Dropbox volvió a devolver "This app has reached its user limit" en el mismo paso (`dropbox.com/1/connect_submit`) — el tope de usuarios de la app en modo Desarrollo se llena de nuevo con cada ciclo de reconexión/prueba, no es un evento aislado. El usuario liberó cuentas y reconectó con éxito (`r.cerezo26@gmail.com`, `dbid:AACD3NTx...` — coincide con `rclone`).
+
+**Causa raíz 3 (encontrada 2026-09-26, distinta de la 1 y la 2): a la app Dropbox le faltan scopes de archivo en la pestaña Permissions de la App Console.** Tras reconectar con la cuenta correcta, "Sincronizar ahora" en la RG556 dio **Subidos: 0 · Descargados: 0 · Al día: 0 · Errores: 8** — 8 fallos de `files/list_folder` (uno por carpeta local con actividad). Confirmado leyendo `errorsText` directo del Room DB del dispositivo (`adb exec-out run-as com.retrovault.android cat databases/retrovault.db[-wal]`, tabla `sync_history`, sin modificar nada — solo lectura): mensaje real de la API de Dropbox: *"Your app (ID: 8660947) is not permitted to access this endpoint because it does not have the required scope 'files.metadata.read'. The owner of the app can enable the scope for the app using the Permissions tab on the App Console."* Coincide con la pantalla de consentimiento OAuth vista en el navegador, que solo pedía "Visualizar la información básica de tu cuenta" (`account_info.read`) — ningún permiso de archivos. `DropboxAuthManager.SCOPES` (`android/app/src/main/java/com/retrovault/android/data/auth/DropboxAuthManager.kt:75`) ya pide `files.metadata.read`/`files.content.read`/`files.content.write`/`account_info.read`, pero Dropbox solo concede los scopes que la app tiene habilitados en su pestaña Permissions — ahí solo está marcado `account_info.read`. **Fix pendiente (usuario, fuera de esta sesión)**: marcar los 3 scopes de archivo en Permissions → Submit → desconectar/reconectar Dropbox en la app (los scopes nuevos solo aplican a un token emitido después del cambio). Con esto resuelto, queda pendiente repetir el test de causa raíz 2 (App folder vs Full Dropbox) para confirmar si el usuario ya lo dejó en Full Dropbox como cree.
 
 ---
 
@@ -2937,6 +3020,61 @@ doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
 
 ---
 
+### ANDROID-APP-PRIVATE-STORAGE-1 — DuckStation y AetherSX2 guardan en `Android/data/<paquete>/` (RG556): ni ADB ni rclone/Termux pueden leerlo ni escribirlo, sin root (hallazgo 2026-09-26, RG556 `RG556006101273`, ADB en vivo)
+
+Origen: petición del usuario de traer a PC los saves de PS2 (AetherSX2) y
+PSX (DuckStation) de la Anbernic, y de llevar de vuelta un savestate de
+*Prince of Persia: Warrior Within* (`SLES-52822 (105CC366)`, confirmado por
+el serial embebido en el ISO) más reciente en PC (PCSX2 standalone,
+`.01.p2s` del 2025-07-20) que en Android (AetherSX2, mismo archivo del
+2025-07-11).
+
+**Causa raíz confirmada en ambas direcciones**: `xyz.aethersx2.android` y
+`com.github.stenzek.duckstation` guardan memcards/savestates bajo
+`/storage/emulated/0/Android/data/<paquete>/files/` — protegido por scoped
+storage de Android (SELinux), no por permisos Unix (`ls -la` engaña: se ve
+`drwxrwxrwx`, pero el contenido es ilegible/inescribible igualmente).
+Confirmado con 4 pruebas en vivo, todas con el mismo resultado:
+- `adb pull` de un archivo → `remote open failed: Permission denied`.
+- `adb shell cp` (leer con el propio UID `shell`) → `Permission denied`
+  igual, no es una limitación del protocolo sync de `adb pull` en concreto.
+- `adb push` de un archivo de prueba → reporta "1 file pushed" pero
+  **falla silenciosamente**: `remote fchown failed: Operation not
+  permitted`, y el archivo no llega a existir en destino (verificado con
+  `ls`/`cat` después — limpiado, no quedó rastro).
+- `adb shell run-as <paquete> id` → `package not debuggable` en ambas apps
+  (sin esto, ni siquiera vale para depurar, mucho menos para copiar).
+- `adb backup -f ... <paquete>` → no falla al momento (a diferencia de una
+  app con `allowBackup=false`), imprime "Now unlock your device and
+  confirm..." y se queda esperando un diálogo en pantalla — probado 2 veces
+  con la consola desbloqueada, el diálogo **nunca llegó a aparecer en
+  pantalla** (posible fallo de la actividad de confirmación en esta ROM/
+  versión de Android). Sin repro de éxito, descartado como vía fiable.
+- Sin root: `su` no existe (`inaccessible or not found`).
+
+Pista real para la vía de reconfiguración: existe
+`/storage/emulated/0/duckstation/` (almacenamiento público, **fuera** de
+`Android/data`) con solo `bios/`+`inputprofiles/` — carpeta obsoleta que
+sugiere que DuckStation **ya estuvo alguna vez** configurado en modo
+"carpeta de datos personalizada" (pública) y volvió al valor por defecto
+(`Android/data`) tras una reinstalación/actualización. Si esa opción de
+ajustes sigue existiendo en la app, es la vía de arreglo sin fork ni root.
+
+Rechazado explícitamente por el usuario: copiar a mano con el explorador de
+archivos del dispositivo cada vez — rompe el objetivo del proyecto (Pilar 3:
+sync sin intervención manual). Un movimiento manual puntual para
+*reconfigurar* la carpeta de datos (una vez) es aceptable; una rutina manual
+recurrente por cada sync no lo es.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ANDROID-APP-PRIVATE-STORAGE-1a | Comprobar en los Ajustes de DuckStation y AetherSX2 (en la propia Anbernic) si existe una opción de "carpeta de datos"/modo portable que apunte a almacenamiento público en vez de `Android/data` — requiere tocar la consola, no verificable por ADB | UI de cada app en el dispositivo | 🔵 **DuckStation: confirmado por el usuario 2026-09-26 en el dispositivo real — no existe esa opción en sus Ajustes.** La carpeta pública obsoleta `/storage/emulated/0/duckstation/` (`bios/`+`inputprofiles/`) debía venir de una versión antigua de la app que sí la tenía, o de un método distinto (variable de entorno/flag de lanzamiento ya no soportado) — no de un ajuste accesible hoy. AetherSX2 sin comprobar todavía. Con DuckStation descartada, la única vía que queda para ambas es `ANDROID-APP-PRIVATE-STORAGE-1c` (root) |
+| ANDROID-APP-PRIVATE-STORAGE-1b | Si 1a confirma la opción: migrar (copia única) los memcards/savestates actuales de `Android/data/<paquete>/files/` a la carpeta pública elegida antes de cambiar el ajuste, para no perder progreso | Manual, una vez | 🔴 bloqueado por 1a |
+| ANDROID-APP-PRIVATE-STORAGE-1c | Si 1a no ofrece esa opción para alguna de las dos apps: única alternativa real es rootear la RG556 (Magisk) — decisión del usuario, fuera de alcance de este proyecto | — | 🔴 pendiente decisión usuario |
+| ANDROID-APP-PRIVATE-STORAGE-1d | *Prince of Persia: Warrior Within* (`SLES-52822`) sigue con el savestate más nuevo solo en PC (`C:\Users\rammu\Documents\PCSX2\sstates\`) — llevarlo a la Anbernic depende de 1a/1b/1c. Aviso aparte: el tamaño difiere entre el `.p2s` de PC (16,3 MB) y el de Android (15,08 MB) para el mismo serial — posible divergencia de versión de motor entre PCSX2 desktop y AetherSX2 móvil, confirmar que carga antes de asumir compatibilidad total | — | 🔴 pendiente, depende de 1a-1c |
+
+---
+
 ## UX — Auditorías por pestaña — → #206
 
 Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
@@ -2969,6 +3107,7 @@ Origen: feedback del usuario tras probar el buscador — "no puedo filtrar por p
 | JUEGOS-FIX-2 | **El desplegable "Plataforma" de Juegos solo se rellena con las plataformas presentes en la página actual de resultados** (`loadGames()`, `games.js:452-460` aprox., máx. 100 filas) — con el orden por defecto (`platform, canonical_title, original_filename`) y una biblioteca de 28k+ juegos con muchos sin plataforma (`NULL` ordena primero en SQLite), **la primera página cae entera en "Unknown"** — verificado en vivo: `/api/games?limit=100` real devuelve una única plataforma distinta (`Unknown`) en sus 100 filas, así que el filtro no ofrecía ninguna otra opción. `GET /api/games/filter-options` ya devuelve las 43 plataformas reales distintas de la BD (usado para género/año, `games.py` repositorio, consulta `SELECT DISTINCT platform...`) pero `loadFilterOptions()` (`games.js:129-145`) nunca lo usaba para rellenar `games-platform` | `web/static/js/tabs/games.js:129-145` (`loadFilterOptions`) | ✅ `loadFilterOptions()` rellena también `games-platform` desde `r.platforms` (mismo endpoint ya usado para género/año, sin llamada nueva) y marca `platformsLoaded=true` para que el muestreo antiguo de `loadGames()` no lo pise; ese muestreo queda como fallback solo si `filter-options` fallara. Verificado contra la biblioteca real: `filter-options` devuelve las 43 plataformas reales (Amiga, Arcade, Atari 2600...). No verificado en navegador (extensión Chrome no disponible esta sesión) |
 
 | JUEGOS-FIX-3 | **"El nombre del juego no aparece en la tabla del frontend"** (feedback usuario 2026-08-29, tras confirmar que no era caché de navegador). Causa raíz real: `applyColVisibility()` (`games.js`, columnas opcionales Región/Identificación/Tamaño/SHA1 del selector ⚙) ocultaba celdas por **índice fijo** (`tr.cells[3..6]`, comentario "0=platform,1=title,2=filename..." — ya desactualizado antes de esta sesión, no contaba ni con la ★ favorito ni con la miniatura). Al añadir hoy la columna 📦 Anbernic (`ANBERNIC-PICK-7`), cada índice se desplazó una posición más: `COL.match=4` pasó de apuntar al badge de Identificación a apuntar directamente a la celda de **Título canónico** — con la preferencia de columnas del usuario guardada en `localStorage` (p.ej. "Identificación" desmarcado en algún momento), `applyColVisibility()` ocultaba el título en cada render sin que nada más pareciera roto | `web/static/js/tabs/games.js` (`applyColVisibility`, fila de la tabla) | ✅ cada `<td>` opcional lleva ahora `data-col="region\|match\|size\|sha1"` fijo en el propio template de la fila; `applyColVisibility()` selecciona por ese atributo (`tr.querySelector('[data-col=...]')`) en vez de por índice — inmune a que se añadan o quiten columnas en el futuro. De paso confirmado con los valores por defecto (`size:false, sha1:false`) que el bug de índice YA escondía "Archivo original"/"Estado" en vez de "Tamaño"/"SHA1" para todo el mundo, no solo para quien tocara el selector ⚙ — corregido igual. 1037 pass |
+| JUEGOS-FIX-4 | **El nombre no aparece porque la página 1 (orden por defecto) cae entera en juegos sin `canonical_title`** (feedback usuario 2026-09-26, verificado en vivo contra `library_pc.db` real vía navegador). Causa raíz distinta de `JUEGOS-FIX-3` (ese ya está resuelto): el orden por defecto "Título" (`database/repositories/games.py:597,605,607` — `ORDER BY canonical_title, original_filename` / fallback `platform, canonical_title, original_filename`) no usa `COALESCE`, y SQLite ordena `NULL` **primero** en `ASC` — con 3.994 ROMs sin match de 36.271 (`canonical_title IS NULL`), la tabla/galería muestra "—" en Título canónico durante varias páginas antes de llegar al primer juego identificado. Se agrava con un hallazgo de higiene de datos aparte: 7 de esas filas (`$I1P4IQH.iso`, `$I4LFZWH.iso`, `$I5BX7IZ.iso`, `$I8W3737.iso`, `$IDIVEYU.iso`, `$IGMP334.bin`, `$IU7H240.cue`, `platform=NULL`) son restos de la Papelera de Windows (`source_path` bajo `E:\$RECYCLE.BIN\S-1-5-21-...\`), probablemente de un scan antiguo de `E:\` completo hecho antes de fijar `library_root` a `E:\Carpetas anbernic` — el guard `_EXCLUDED_DIR_NAMES` (`scanner/rom_scanner.py:27-28`, ya incluye `"$recycle.bin"`) evita que un scan futuro los vuelva a indexar, pero un scan con `source_path=library_root` nunca visita ni poda filas fuera de esa raíz, así que las 7 quedan huérfanas para siempre | `database/repositories/games.py:592-607` (todas las claves `_order`, con y sin `need_meta`) | 🔵 investigado, sin implementar — dos fixes independientes a decidir: (1) `COALESCE(canonical_title, original_filename)` en el `ORDER BY` de "Título" (y como desempate en el resto de órdenes) para que lo no identificado no tape lo identificado; (2) borrar (o añadir a un `DELETE ... WHERE source_path LIKE '%$RECYCLE.BIN%'` de mantenimiento) las 7 filas huérfanas — mismo patrón que `INBOX-ORPHAN-4/5` |
 
 ### GAMES-ALPHA-FILTER — Filtro por letra inicial en la pestaña Juegos
 

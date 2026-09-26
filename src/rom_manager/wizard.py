@@ -8,11 +8,25 @@ import sys
 from pathlib import Path
 
 _COMMON_LIBRARY_ROOTS = [
+    Path("E:/RetroVault/ROMS"),
+    Path("D:/RetroVault/ROMS"),
     Path("D:/ROMs"),
     Path("E:/ROMs"),
     Path.home() / "ROMs",
     Path.home() / "Documents" / "ROMs",
 ]
+
+# Carpetas hermanas de ROMS bajo el mismo padre (E:\RetroVault\{ROMS,EMULADORES,
+# JUEGOS NATIVOS,...}) — misma estructura en todas las máquinas, ver
+# Tareas/backlog.md NATIVE-SAVE-SYNC-1.
+_RETROVAULT_SIBLINGS = ("EMULADORES", "JUEGOS NATIVOS")
+
+
+def _ensure_retrovault_structure(library_root: Path) -> None:
+    """Create *library_root* plus its RetroVault sibling folders if missing."""
+    library_root.mkdir(parents=True, exist_ok=True)
+    for sibling in _RETROVAULT_SIBLINGS:
+        (library_root.parent / sibling).mkdir(parents=True, exist_ok=True)
 
 _EMULATOR_PRESETS = [
     {
@@ -96,8 +110,12 @@ def run_wizard(project_root: Path) -> int:
 
     # ── 1. Biblioteca ─────────────────────────────────────────────────────────
     print("1. Biblioteca de ROMs")
-    default_lib = next((str(p) for p in _COMMON_LIBRARY_ROOTS if p.exists()), "")
+    default_lib = next(
+        (str(p) for p in _COMMON_LIBRARY_ROOTS if p.exists()), str(_COMMON_LIBRARY_ROOTS[0])
+    )
     library_root = _ask("   Carpeta raíz de ROMs", default_lib)
+    _ensure_retrovault_structure(Path(library_root))
+    print(f"   Creado {library_root} + carpetas hermanas {', '.join(_RETROVAULT_SIBLINGS)}")
     print()
 
     # ── 2. Herramientas ───────────────────────────────────────────────────────
