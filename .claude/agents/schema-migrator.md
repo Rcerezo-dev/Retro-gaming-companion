@@ -21,8 +21,8 @@ Read `src/rom_manager/database/schema.py`. Show the user the current state of th
 Propose:
 - The SQL ALTER TABLE or CREATE TABLE statement
 - Where to add it in `_GAMES_MIGRATIONS`, `_ASSETS_MIGRATIONS`, or a new migration list
-- Any new methods needed in `repository.py`
-- Any new endpoints needed in `server.py`
+- Any new methods needed in `repository.py` / `database/repositories/*.py`
+- Any new endpoints needed in `web/handlers/*.py`
 
 Show this plan to the user before touching any file.
 

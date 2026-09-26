@@ -2,12 +2,22 @@ Ejecuta un test del pipeline completo (scan → match → plan) sobre una biblio
 
 Pasos:
 1. Crea una carpeta temporal en el sistema: usa `import tempfile, os` en Python para crear `tmp_lib/Game Boy Advance/` con 3 ficheros `.gba` ficticios (nombres realistas: `Metroid Fusion (USA).gba`, `Pokemon - Fire Red Version (USA).gba`, `Castlevania - Aria of Sorrow (USA).gba`)
-2. Ejecuta el scanner sobre esa carpeta con el comando:
-   `C:\Users\rammu\anaconda3\envs\rom_manager\python.exe -m rom_manager scan <tmp_path> --quick`
-   Captura stdout/stderr. Verifica que reporta exactamente 3 ROMs detectados y 0 errores.
-3. Comprueba que los 3 archivos aparecen en la BD temporal ejecutando una consulta SQLite directa sobre `.rommgr/library_pc.db` en la carpeta del proyecto.
-4. Ejecuta `rommgr plan` sobre la carpeta temporal y verifica que devuelve JSON válido con `total >= 0`.
-5. Verifica que `prune_stale_entries` funciona: borra uno de los ficheros ficticios, lanza el scan de nuevo, y comprueba que el registro desaparece de la BD.
+2. Ejecuta el scanner vía import de Python contra una BD de prueba aislada — **nunca uses el CLI `rommgr scan`**, que siempre escribe en `config.database_path` (la BD real de producción, `.rommgr/library_pc.db`, sin flag para aislarlo — ver `cli.py:466`):
+   ```python
+   from rom_manager.config import load_config
+   from rom_manager.database.repository import LibraryRepository
+   from rom_manager.scanner.rom_scanner import scan_library
+   import logging
+   from pathlib import Path
+
+   cfg = load_config()
+   repo = LibraryRepository(Path(tmp_path) / "test.db")
+   result = scan_library(Path(tmp_path), cfg, repo, logging.getLogger("test"), quick=True)
+   ```
+   Verifica que `result.roms_detected == 3` y `result.errors == 0`.
+3. Comprueba que los 3 archivos aparecen consultando esa BD de prueba (`Path(tmp_path) / "test.db"`), nunca `.rommgr/library_pc.db`.
+4. Ejecuta `build_plan(repo, FormatOptions())` (import directo, mismo `repo` de prueba del paso 2 — `rommgr plan` por CLI tiene el mismo problema que `rommgr scan`, ver `cli.py:1594`) y verifica que no lanza excepción y que `plan.total >= 0`.
+5. Verifica que el pruning funciona: borra uno de los ficheros ficticios, vuelve a llamar a `scan_library(...)` con el mismo `repo`, y comprueba que el registro desaparece de la BD de prueba.
 6. Limpia la carpeta temporal al terminar.
 
 Presenta los resultados como una tabla:

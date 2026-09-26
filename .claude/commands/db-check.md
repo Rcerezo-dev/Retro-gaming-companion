@@ -2,8 +2,8 @@ Verifica que el schema de la base de datos y el código de acceso están sincron
 
 Lee estos archivos:
 - `src/rom_manager/database/schema.py`
-- `src/rom_manager/database/repository.py`
-- `src/rom_manager/web/server.py` (solo las queries SQL directas con `conn.execute`)
+- `src/rom_manager/database/repository.py` y `src/rom_manager/database/repositories/*.py`
+- `src/rom_manager/web/handlers/*.py` (solo las queries SQL directas con `conn.execute`)
 - `src/rom_manager/scanner/rom_scanner.py` (queries directas)
 
 Comprueba los siguientes puntos:
