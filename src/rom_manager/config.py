@@ -30,33 +30,30 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "states_path": "/storage/emulated/0/PSP/PPSSPP_STATE",
         "adb_required": False,
     },
-    "com.github.stenzek.duckstation": {
-        "name": "DuckStation (PS1)",
-        "saves_path": "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/memcards",
-        "states_path": "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/savestates",
+    "com.nanodata.armsx": {
+        "name": "ARMSX1 (PS1)",
+        # ANDROID-APP-PRIVATE-STORAGE-1 (2026-09-26): switched from DuckStation
+        # (com.github.stenzek.duckstation, scoped storage only, no custom-folder
+        # setting) to ARMSX1 — same devs as ARMSX2, has a real "Custom folder"
+        # option (SAF, no root needed). Pointed it at the same public SD path
+        # already used for the DuckStation workaround below — same save data
+        # (per-game .mcd memcards, SCES/SLES/SLUS *_resume.sav states), confirmed
+        # readable via plain `adb shell ls` (no root).
+        "saves_path": "/storage/521D-04EA/saves/psx/memcards",
+        "states_path": "/storage/521D-04EA/saves/psx/savestates",
         "adb_required": True,
         "save_extensions": [".mcd", ".mcr", ".srm"],
         "state_extensions": [".sav"],
-        "notes": (
-            "Permission denied via ADB on Android 11+ scoped storage without root — "
-            "in DuckStation, change Settings > Memory Cards > Directory to a public "
-            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable. "
-            "SAVES-FRAGMENT-8b (2026-09-22): the SD card's public "
-            "/storage/521D-04EA/saves/psx/ folder already carries .srm/.mcd files "
-            "(likely a launcher, not this app, mirroring saves there) and is covered "
-            "by a plain Cable Sync 'newest' pass against that root — not by this "
-            "per-package entry, whose own path is still unreadable."
-        ),
-        "accessible": False,
     },
-    "xyz.aethersx2.android": {
-        "name": "AetherSX2 / NetherSX2 (PS2)",
-        # SAVES-FRAGMENT-8b (2026-09-22): the app-private path below is
-        # unreadable via non-root ADB (confirmed daily in the auto-sync log,
-        # 18 "sin permiso de lectura" errors) — redirected to the public SD
-        # location the same save data (Mcd001.ps2/Mcd002.ps2, matching
-        # (*).p2s state files, same names) is also accessible from, same
-        # workaround already documented for DuckStation above.
+    "com.armsx2": {
+        "name": "ARMSX2 (PS2)",
+        # ANDROID-APP-PRIVATE-STORAGE-1 (2026-09-26): switched from AetherSX2
+        # (xyz.aethersx2.android, no custom-folder setting, scoped storage
+        # only) to ARMSX2, which has a real "Custom folder" option for its
+        # data dir (grants SAF all-files access). Pointed it at the same
+        # public SD path already used for the AetherSX2 workaround below —
+        # same save data (Mcd001.ps2/Mcd002.ps2, matching (*).p2s state
+        # files), confirmed readable via plain `adb shell ls` (no root).
         "saves_path": "/storage/521D-04EA/saves/memcards",
         "states_path": "/storage/521D-04EA/saves/sstates",
         "adb_required": True,
