@@ -1513,11 +1513,18 @@ paths de `safe_delete` (extraídos del propio `paths` de cada categoría del
 junk-scan, no de `files` — ese último viene truncado a 50 por categoría
 para la respuesta) → `{"deleted": 3659, "failed": 0, "freed_bytes":
 4925918329, "dry_run": true, "errors": []}`. Coincide exacto con lo medido
-(3.659 archivos, 4,93 GB), 0 fallos. **Sigue sin ejecutarse el borrado real**
-(`dry_run: false`) — pendiente de tu confirmación explícita antes de tocar
-ningún archivo.
+(3.659 archivos, 4,93 GB), 0 fallos.
 
-No se ha tocado ni un archivo real todavía — esta sesión fue solo medir.
+**Borrado real ejecutado (2026-09-28), con confirmación explícita del
+usuario**: mismo payload con `dry_run: false` → `{"deleted": 3659,
+"failed": 0, "freed_bytes": 4925918329, "errors": []}`, idéntico al
+dry-run. Verificado: `discard_to_trash()` (`utils/trash.py:29`) mueve cada
+archivo a una carpeta `_descartados/` **hermana** (junto a su propio
+padre, no un único directorio en la raíz) — soft-discard, deshacible
+~30 días (`library.trash_purge_days`, `purge_trash()`). 4,93 GB
+liberados de `safe_delete`. Quedan `misplaced` (2.176 archivos/13,87 GB,
+mover con el motor de `ZIP-ROUTE-1`/`-3`) y `review` (237/16,18 GB) sin
+tocar — ver arriba.
 
 ---
 
