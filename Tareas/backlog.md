@@ -1486,6 +1486,15 @@ confianza):
    colecciones reales que `ZIP-ROUTE-4`/`_route_identified()` ya sabe
    extraer al Inbox.
 
+**Dry-run de `POST /api/junk-delete` confirmado (2026-09-28)**: los 3.659
+paths de `safe_delete` (extraídos del propio `paths` de cada categoría del
+junk-scan, no de `files` — ese último viene truncado a 50 por categoría
+para la respuesta) → `{"deleted": 3659, "failed": 0, "freed_bytes":
+4925918329, "dry_run": true, "errors": []}`. Coincide exacto con lo medido
+(3.659 archivos, 4,93 GB), 0 fallos. **Sigue sin ejecutarse el borrado real**
+(`dry_run: false`) — pendiente de tu confirmación explícita antes de tocar
+ningún archivo.
+
 No se ha tocado ni un archivo real todavía — esta sesión fue solo medir.
 
 ---
