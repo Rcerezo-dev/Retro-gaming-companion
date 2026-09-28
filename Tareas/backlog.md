@@ -1566,12 +1566,18 @@ Tom (Japan).bin`, `Twinkle Tale (Japan).bin`).
 | `misplaced` | 2.176 / 13,87 GB | 1.650 / 10,52 GB | -526, organizados entre `apply` + `zip-route-apply` |
 | `review` | 237 / 16,18 GB | **237 / 16,18 GB — exactamente igual** | confirma que estos 237 no eran resolubles por CRC/contenido con el catálogo ya cargado, la hipótesis original de "candidato a ZIP-ROUTE-1" no se sostuvo con datos reales |
 
-**Total: 6.072/34,97 GB → 5.586/31,65 GB.** Los 3.699 `safe_delete`
-actuales (incluye los 40 nuevos) siguen sin borrar — pendiente de decidir
-si se repite el mismo `junk-delete` o se deja para otra sesión. `review`
-(237/16,18 GB) sigue exactamente igual que la medición original,
-genuinamente necesita revisión manual caso a caso — no hay más
-automatización disponible con el catálogo actual.
+**Total: 6.072/34,97 GB → 5.586/31,65 GB.**
+
+**Segunda ronda de `safe_delete` aplicada (2026-09-28), con confirmación
+explícita del usuario**: los 3.699 `safe_delete` de después de
+`zip-route-apply` (incluye los 40 nuevos expuestos por las extracciones) —
+dry-run (`{"deleted": 3699, "failed": 0, "freed_bytes": 4949875483}`) seguido
+del borrado real, idéntico (`dry_run: false`), 0 fallos. **4,95 GB
+adicionales liberados** (soft-discard, mismo mecanismo que la primera
+ronda). `review` (237/16,18 GB) sigue exactamente igual que la medición
+original — genuinamente necesita revisión manual caso a caso, no hay más
+automatización disponible con el catálogo actual. **Total acumulado de
+`safe_delete` borrado hoy: 7.358 archivos, ~9,88 GB.**
 
 **Hallazgo colateral real: `SAGE-1` murió con `"database is locked"`**
 mientras `zip-route-apply` corría en paralelo (ambos escriben en
