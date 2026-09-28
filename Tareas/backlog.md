@@ -72,11 +72,16 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 | Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴), `JUNK-SCAN-RUBEN-1` (🟡 medido 2026-09-28, 6.072 archivos/34,97 GB sin clasificar, nada aplicado todavía) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
 | Pilar 2 | `ZIP-ROUTE` (🟡) |
 | Pilar 3 | `CABLE-ROOT-1` (🟡) |
-| UX | `FTP-PICK` (🔴🔴) |
 | Distribución | Phase 6 (🟡) |
 | RA/Scraper/SAGE | `SAGE` (🟡) |
 | Perfil de dispositivo | `CHDMAN-TEST-COMPRESS-1` (🟡🔴) |
 | Android Sync (nativo, no cable) | Sección completa (786-830) tiene el mayor volumen de 🟡/🔴 del backlog — `feature/android-sync-12-periodic-sync` y PRs #226-237 ya mergeados cubren parte, pero quedan ítems abiertos sin verificar individualmente aquí |
+
+**2026-09-28**: fila `UX | FTP-PICK (🔴🔴)` retirada de esta tabla —
+desincronizada, `FTP-PICK-1`/`-2` ya están ✅ desde el 2026-08-29 (ver
+`ROADMAP-IDEAS`, sección "Pilar 3"); solo queda validación manual en
+hardware, que no es un 🔴/🟡 de código pendiente. Mismo patrón de
+desincronización ya documentado en `.claude/roadmaps/INDEX.md`.
 
 ---
 
