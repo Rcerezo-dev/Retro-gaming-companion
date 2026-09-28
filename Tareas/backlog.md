@@ -74,14 +74,17 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 | Pilar 3 | `CABLE-ROOT-1` (🟡) |
 | Distribución | Phase 6 (🟡) |
 | RA/Scraper/SAGE | `SAGE` (🟡) |
-| Perfil de dispositivo | `CHDMAN-TEST-COMPRESS-1` (🟡🔴) |
 | Android Sync (nativo, no cable) | Sección completa (786-830) tiene el mayor volumen de 🟡/🔴 del backlog — `feature/android-sync-12-periodic-sync` y PRs #226-237 ya mergeados cubren parte, pero quedan ítems abiertos sin verificar individualmente aquí |
 
 **2026-09-28**: fila `UX | FTP-PICK (🔴🔴)` retirada de esta tabla —
 desincronizada, `FTP-PICK-1`/`-2` ya están ✅ desde el 2026-08-29 (ver
 `ROADMAP-IDEAS`, sección "Pilar 3"); solo queda validación manual en
-hardware, que no es un 🔴/🟡 de código pendiente. Mismo patrón de
-desincronización ya documentado en `.claude/roadmaps/INDEX.md`.
+hardware, que no es un 🔴/🟡 de código pendiente. También retirada
+`Perfil de dispositivo | CHDMAN-TEST-COMPRESS-1 (🟡🔴)` — `CHDMAN-TEST-COMPRESS-1`
+ya está ✅ desde el 2026-09-06 (causa raíz confirmada: bug de `chdman.exe`
+comprimiendo discos sintéticos diminutos, fix vive solo en el fixture de
+test, no en el código del proyecto). Mismo patrón de desincronización ya
+documentado en `.claude/roadmaps/INDEX.md`.
 
 ---
 
