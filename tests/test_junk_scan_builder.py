@@ -438,3 +438,20 @@ def test_junk_scan_skips_saves_bios_android_trees(tmp_path: Path) -> None:
     result = _build_junk_scan(str(tmp_path))
     assert result["total_junk_files"] == 1
     assert result["categories"][0]["category"] == "PDFs"
+
+
+def test_junk_scan_skips_descartados_trees(tmp_path: Path) -> None:
+    """JUNK-SCAN-EXCLUDE-TRASH-1: _descartados/ es la papelera del propio
+    junk-scan (utils/trash.py) — sin excluirla, cada scan re-cuenta su
+    propio contenido descartado como basura activa (confirmado en la
+    biblioteca real: 94/120 archivos de un bucket "review" ya estaban
+    descartados en sesiones anteriores)."""
+    (tmp_path / "gba" / "_descartados").mkdir(parents=True)
+    (tmp_path / "gba" / "_descartados" / "viejo.pdf").write_bytes(b"x")
+    (tmp_path / "_descartados").mkdir()
+    (tmp_path / "_descartados" / "otro.pdf").write_bytes(b"x")
+    (tmp_path / "gba" / "doc.pdf").write_bytes(b"x")  # fuera de _descartados → sí
+    result = _build_junk_scan(str(tmp_path))
+    assert result["total_junk_files"] == 1
+    assert result["categories"][0]["category"] == "PDFs"
+    assert result["categories"][0]["paths"] == [str(tmp_path / "gba" / "doc.pdf")]
