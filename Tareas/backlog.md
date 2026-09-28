@@ -1480,11 +1480,25 @@ confianza):
    — mover/renombrar a su carpeta de plataforma real. Sin riesgo de
    pérdida (son ROMs identificadas, no basura), pero sí mueve 2.176
    archivos de sitio.
-3. `review` (16,18 GB): requiere mirar caso a caso — los "7-Zips" en
-   particular son un hueco real no cubierto por `ZIP-ROUTE`/`extract_zip`
-   hoy (solo `.zip`, no `.7z`); las "ZIPs no-ROM" probablemente son
-   colecciones reales que `ZIP-ROUTE-4`/`_route_identified()` ya sabe
-   extraer al Inbox.
+3. `review` (16,18 GB): requiere mirar caso a caso — **revisados los
+   nombres reales de ambos sub-buckets (2026-09-28), no son lo que
+   parecían**:
+   - **120 "ZIPs no-ROM" NO son colecciones** — son ZIPs de un solo juego
+     con nombre canónico No-Intro/Redump ya puesto (`Crash Bandicoot 2 -
+     Cortex Strikes Back (USA).zip`, `Bushido Blade (USA).zip`, `Jet Set
+     Radio (Europe).zip`...), todos sueltos en `Unknown\` — candidato
+     directo para `ZIP-ROUTE-1` (identificación por CRC32 del header, sin
+     descomprimir), no para `ZIP-ROUTE-4` (extraer colección). El junk-scan
+     los cuenta como "no-ROM" porque su extensión (`.zip`) no delata la
+     plataforma por sí sola, no porque sean contenedores multi-juego.
+   - **8 "7-Zips" confirmado hueco real**: `converters/zip_extractor.py`
+     solo importa `zipfile` (stdlib) — cero soporte de `.7z`, y no hay
+     ningún `7z*.exe` en `tools/` (solo `adb.exe`/`chdman.exe`/`rclone.exe`).
+     Con la regla del proyecto de "sin dependencias externas de runtime
+     (solo stdlib)", la vía correcta sería bundlear `7za.exe` (freeware,
+     mismo patrón que `chdman.exe`) e invocarlo por `subprocess`, no una
+     librería Python (`py7zr` violaría la regla) — sin implementar,
+     documentado como hueco.
 
 **Dry-run de `POST /api/junk-delete` confirmado (2026-09-28)**: los 3.659
 paths de `safe_delete` (extraídos del propio `paths` de cada categoría del
@@ -1496,6 +1510,65 @@ para la respuesta) → `{"deleted": 3659, "failed": 0, "freed_bytes":
 ningún archivo.
 
 No se ha tocado ni un archivo real todavía — esta sesión fue solo medir.
+
+---
+
+### HEALTH-CHECK-RUBEN-1 — El Health Check semanal marcó 2 "corrupted" que en realidad son falsos positivos: el `sha1` guardado en BD es el de otra variante regional, el archivo real está bien (hallazgo 2026-09-28, máquina "Ruben", `F:\Juegos Retro`)
+
+Origen: el daemon de Health Check (semanal, `web/daemons.py`) ya estaba
+corriendo al empezar esta sesión (no lanzado a propósito). Resultado real:
+**24.527 OK, 0 missing, 2 "corrupted"**:
+
+- `gbc/Mr. Driller (Japan).gbc` — `stored_sha1=3BFDA5EDB7D1...`, `computed_sha1=B0D725DACEA7...`
+- `gbc/Ultimate Fighting Championship (Europe).gbc` — `stored_sha1=8A02015E399A...`, `computed_sha1=5036626B9723...`
+
+`check_library_health()` (`utils/health_checker.py:201-223`) etiqueta
+`"corrupted"` cualquier fila donde `computed_sha1 != stored_sha1` — no
+distingue "el archivo está dañado de verdad" de "la BD tiene guardado el
+hash equivocado". Investigado a fondo (solo lectura, sin tocar nada):
+
+1. **El contenido real de ambos archivos está perfecto**, no corrupto. La
+   cabecera interna del cartucho de `Mr. Driller (Japan).gbc` dice
+   literalmente `"MR. DRILLERBMDJ"` (coincide con su propio nombre de
+   archivo) y su `sha1` **real** (`B0D725DACEA7...`) coincide EXACTO con la
+   entrada `"Mr. Driller (Japan)"` del DAT No-Intro real
+   (`.rommgr/catalogs/nointro/Nintendo - Game Boy Color.dat`, cargado con
+   `catalog_loader.load_dat_file()`, 1.427 entradas). Mismo patrón exacto
+   para `Ultimate Fighting Championship (Europe).gbc` — su `sha1` real
+   coincide con la entrada `"Ultimate Fighting Championship (Europe)"`.
+2. **El `sha1` guardado en `games.sha1` para ambas filas no es basura
+   aleatoria — es el `sha1` real de la variante "(USA)" del mismo juego**:
+   `3BFDA5EDB7D1...` = `"Mr. Driller (USA)"` en el DAT; `8A02015E399A...` =
+   `"Ultimate Fighting Championship (USA)"` en el DAT. Confirmado cruzando
+   las 5 entradas del DAT para ambos títulos (JPN/USA/EUR) — no es una
+   coincidencia, apunta a un bug real de asignación cruzada entre variantes
+   regionales del mismo juego, no a corrupción de disco.
+3. `file_operations` (BD) **no tiene ninguna fila para ninguno de los dos
+   `game_id`** (43070, 43556) — lo que pasó no fue a través del pipeline de
+   rename/organize de la app (que sí registra cada operación,
+   `INBOX-ATOMIC-1`/regla del proyecto "Toda operación sobre archivos se
+   registra en SQLite"). Causa raíz real **sin determinar** — candidatos sin
+   confirmar: un bug de scanner/upsert que cruzó el `sha1` de dos filas
+   cercanas al escribir, o un import/migración de datos anterior a esta
+   sesión que ya traía el dato mal.
+4. `canonical_title`/`match_confidence` son `NULL` en ambas filas pese a que
+   el `sha1` guardado SÍ tiene match en el catálogo (la entrada "(USA)") —
+   el matcher nunca llegó a correr sobre estas dos filas con ese hash, otra
+   pista de que el dato llegó así desde fuera del flujo normal de
+   scan→match.
+
+**Conclusión**: no hay corrupción real ni riesgo de pérdida de datos — son
+2 falsos positivos del Health Check. Sin arreglar a propósito (regla del
+proyecto: documentar con archivo:línea, no implementar en la misma sesión
+salvo petición explícita). Posible fix futuro de dos partes independientes:
+(a) re-escanear/re-hashear estas 2 filas para que el `sha1` guardado
+vuelva a ser el real (arregla el síntoma, dispara el match automático) y
+(b) investigar si el bug de asignación cruzada es sistémico (otras filas
+con el mismo patrón silenciosas porque su "sha1 equivocado" no dispara
+"corrupted" por casualidad) — candidato a un chequeo tipo "¿el `sha1`
+guardado coincide con OTRA entrada del catálogo bajo un título distinto al
+propio `canonical_title`/nombre de archivo?" en vez de solo comparar
+`computed == stored`.
 
 ---
 
