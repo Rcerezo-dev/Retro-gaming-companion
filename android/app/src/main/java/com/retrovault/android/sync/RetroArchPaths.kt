@@ -12,6 +12,16 @@ object RetroArchPaths {
     const val STATES = "$ROOT/states"
 
     /**
+     * DEVPROFILE-6: carpetas Tier A accesibles sin root en almacenamiento
+     * público (confirmado en hardware real, DEVPROFILE-0) — destino de
+     * [DeviceProfileRestore] para el botón "Restaurar este dispositivo".
+     */
+    const val AUTOCONFIG = "$ROOT/autoconfig"
+    const val SHADERS = "$ROOT/shaders"
+    const val SYSTEM = "$ROOT/system"
+    const val PLAYLISTS = "$ROOT/playlists"
+
+    /**
      * EMULATOR-COMPAT-5: el NVRAM de arcade (`.nv`) no vive en `saves/` ni
      * `states/` — vive junto a las propias ROMs en `$ROOT/<carpeta>`
      * (verificado en hardware real: RetroArch/mame con extension .nv,

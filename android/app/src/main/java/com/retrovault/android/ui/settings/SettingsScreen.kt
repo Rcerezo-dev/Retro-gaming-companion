@@ -55,12 +55,15 @@ fun SettingsScreen(
     autoSyncEnabled: Boolean,
     instantSyncEnabled: Boolean = false,
     syncHistory: List<SyncHistoryEntity> = emptyList(),
+    isRestoringDevice: Boolean = false,
+    restoreDeviceSummary: String? = null,
     onConnectDropbox: () -> Unit,
     onDisconnectDropbox: () -> Unit,
     onSaveRemotes: (saves: String, states: String) -> Unit,
     onSyncNow: () -> Unit,
     onAutoSyncToggle: (Boolean) -> Unit,
     onInstantSyncToggle: (Boolean) -> Unit = {},
+    onRestoreDevice: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -127,6 +130,22 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "Sync instantáneo (al guardar)", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = instantSyncEnabled, onCheckedChange = onInstantSyncToggle)
+            }
+
+            Text(text = "Perfil del dispositivo", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Restaura mandos (autoconfig), shaders y BIOS desde el perfil que el PC sube a la nube. Core options/remaps todavía no viajan en el perfil.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = onRestoreDevice, enabled = !isRestoringDevice) {
+                Text(if (isRestoringDevice) "Restaurando…" else "Restaurar este dispositivo")
+            }
+            if (isRestoringDevice) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+            restoreDeviceSummary?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             if (syncHistory.isNotEmpty()) {
