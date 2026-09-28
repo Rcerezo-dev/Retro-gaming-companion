@@ -1546,6 +1546,44 @@ falta. **Los 4.119 conflictos siguen sin resolver** — requieren revisión
 caso a caso (mismo destino propuesto por 2+ orígenes o colisión con
 contenido distinto), no automatizable con este mecanismo.
 
+**`review` — intentado con `zip-route-apply`, real y verificado contra un
+segundo junk-scan (2026-09-28), con confirmación explícita del usuario**:
+`POST /api/zip-route-apply` (job "inbox", extract→match→renombrar→
+organizar→limpiar) → `{"zips_to_inbox": 2172, "roms_scanned": 4341,
+"matched": 3980, "renamed": 1136, "organized": 3301,
+"duplicates_removed": 1036, "conflicts_unresolved": 4}`. Solo 2
+`route_skipped` (`Hook.zip`/`Tetris.zip`, ya existían en `arcade\`, no
+sobreescritos) y 4 `organize_errors` reales (mismo nombre/carpeta,
+contenido distinto — intactos, revisar a mano: `Pokemon - Emerald Version
+(USA, Europe).gba`, `Premier Manager 97 (Europe).bin`, `Snow Bros. - Nick &
+Tom (Japan).bin`, `Twinkle Tale (Japan).bin`).
+
+**Efecto real, medido con un junk-scan de después contra el de antes**:
+
+| Bucket | Antes | Después | |
+|---|---|---|---|
+| `safe_delete` | 3.659 / 4,93 GB | 3.699 / 4,95 GB | +40 archivos nuevos (residuos expuestos por las extracciones) |
+| `misplaced` | 2.176 / 13,87 GB | 1.650 / 10,52 GB | -526, organizados entre `apply` + `zip-route-apply` |
+| `review` | 237 / 16,18 GB | **237 / 16,18 GB — exactamente igual** | confirma que estos 237 no eran resolubles por CRC/contenido con el catálogo ya cargado, la hipótesis original de "candidato a ZIP-ROUTE-1" no se sostuvo con datos reales |
+
+**Total: 6.072/34,97 GB → 5.586/31,65 GB.** Los 3.699 `safe_delete`
+actuales (incluye los 40 nuevos) siguen sin borrar — pendiente de decidir
+si se repite el mismo `junk-delete` o se deja para otra sesión. `review`
+(237/16,18 GB) sigue exactamente igual que la medición original,
+genuinamente necesita revisión manual caso a caso — no hay más
+automatización disponible con el catálogo actual.
+
+**Hallazgo colateral real: `SAGE-1` murió con `"database is locked"`**
+mientras `zip-route-apply` corría en paralelo (ambos escriben en
+`library_pc.db` — el pipeline de organizar hace escrituras masivas,
+choque de concurrencia SQLite). Progreso real antes de morir: cobertura
+de descripciones 27,78%→38,36% (no se perdió, quedó guardado). Relanzado
+tras terminar el job pesado, corriendo limpio de nuevo. **Candidato a
+backlog aparte** si se repite: serializar jobs de escritura pesada
+(`scrape`/`apply`/`inbox`) en vez de permitirlos en paralelo, o que
+`_do_scrape` reintente en vez de abortar ante `sqlite3.OperationalError:
+database is locked`.
+
 ---
 
 ### HEALTH-CHECK-RUBEN-1 — El Health Check semanal marcó 2 "corrupted" que en realidad son falsos positivos: el `sha1` guardado en BD es el de otra variante regional, el archivo real está bien (hallazgo 2026-09-28, máquina "Ruben", `F:\Juegos Retro`)
@@ -3470,6 +3508,25 @@ roadmap de producto. Mayoría ya completada; se mantiene como referencia
 histórica.
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: MEJORAS MEJ-1..6, AUD-1..6, TEST-CLEAN-1..3 + TEST-GAP-1, ONB-1..9, REV43-1..53 (calidad de código, onboarding, tests — completas, 2026-07-02 a 2026-07-15).
+
+### JOBS-SQLITE-LOCK-1 — Dos jobs de escritura pesada en paralelo (`scrape` + `apply`/`inbox`) chocan por `database is locked` (hallazgo 2026-09-28, máquina "Ruben")
+
+Origen: durante `JUNK-SCAN-RUBEN-1`, el scrape de `SAGE-1` (muchas
+escrituras pequeñas, una por juego) y `zip-route-apply`/Inbox (escrituras
+masivas: 3.301 archivos organizados) corrieron **a la vez** contra el mismo
+`library_pc.db` — el scrape murió con `{"error": "database is locked"}` a
+mitad de cola. No hubo pérdida de datos (lo ya escrito quedó guardado,
+cobertura real subió de 27,78% a 38,36% antes de morir) y el job se
+relanzó sin problema tras terminar el job pesado — pero es un fallo
+silencioso: ningún otro job avisa "hay otro job pesado corriendo, esto
+puede fallar", el usuario solo ve `scrape_running: false` sin explicación
+si no revisa `scrape_result.error` a mano.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JOBS-SQLITE-LOCK-1 | Ningún job de escritura (`scrape`, `apply`, `inbox`, `zip-route-apply`) comprueba si ya hay otro corriendo antes de empezar — `job_manager` sí lleva un flag `_running` por nombre de job, pero no hay coordinación **entre** jobs distintos. Dos caminos posibles, sin decidir: (a) que `_do_scrape`/otros escritores reintenten con backoff ante `sqlite3.OperationalError: database is locked` en vez de abortar (SQLite ya soporta `PRAGMA busy_timeout`, comprobar si `LibraryRepository.connect()` ya lo fija); (b) un guard simple "no lances un job de escritura pesada si `apply`/`inbox`/`scrape` ya están corriendo", igual que ya existe para el mismo job (`job_manager.cancel_event`) pero cruzado entre nombres | `web/jobs/manager.py`, `database/repository.py` (`connect()`), `web/handlers/scraper.py` (`_do_scrape`) | 🔴 hallazgo documentado, sin implementar |
+
+---
 
 ### DOCS-AUDIT-1 — Seguimiento de la auditoría de documentación (2026-09-20)
 
