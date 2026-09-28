@@ -1616,13 +1616,26 @@ llegar a los archivos en sí:**
    (Disc Keys), PlayStation (SBI Subchannels), PlayStation 3 (Disc Keys
    ×2) — **arreglado y mergeado hoy** (`fix/catalog-bom-detection`,
    `encoding="utf-8-sig"`, test `test_detects_xml_with_leading_bom`, 9
-   catálogos verificados con entradas reales tras el fix). **Sin
-   re-aplicar todavía contra `library_pc.db`** — hace falta reiniciar
-   `rommgr serve` (para cargar el código nuevo) y correr un `match`/re-scan
-   real; no se hizo en esta sesión porque `SAGE-1` seguía corriendo en el
-   mismo servidor y reiniciar lo habría cortado a mitad. Probable que
-   varios de los 108 "chips arcade sin match" también se resuelvan solos
-   una vez el catálogo Naomi/Naomi2/Triforce cargue de verdad.
+   catálogos verificados con entradas reales tras el fix).
+
+   **Re-aplicado contra la biblioteca real (2026-09-28), con confirmación
+   explícita del usuario**: `rommgr serve` reiniciado (parado el proceso
+   viejo, `python -m rom_manager serve` de nuevo — necesario para cargar
+   el código nuevo) y `POST /api/match` real sobre los 11.532 juegos sin
+   resolver → `{"total": 11532, "matched_high": 0, "matched_low": 2,
+   "unmatched": 11530}`. **Confirmado con datos reales**: `Jet Set Radio
+   (Europe).zip` (una de las ZIPs Dreamcast activas del bucket "review")
+   pasó de `canonical_title=NULL` a `canonical_title="Jet Set Radio
+   (Europe)"`, `match_confidence="medium"` — el catálogo Dreamcast
+   arreglado sí funciona en producción. Rendimiento modesto en esta pasada
+   (solo 2 matches nuevos de 11.532): la mayoría de la cola restante
+   parece genuinamente difícil de identificar (hacks, dumps no estándar,
+   sin equivalente en ningún DAT) — sesiones anteriores ya habían agotado
+   los matches fáciles antes de que este catálogo existiera de verdad, así
+   que el fix no iba a desbloquear miles de golpe, pero sí corrige la
+   identificación de cualquier contenido Dreamcast/Naomi/Naomi2/Triforce
+   futuro de forma permanente. `SAGE-1` relanzado tras el `match` (cola
+   17.634→16.937→15.681, sin errores).
 
 `review` recontado sin `_descartados/`: **142 archivos reales (~15,1 GB)**
 de los cuales una parte desconocida (Dreamcast + arcade Naomi/Naomi2/
