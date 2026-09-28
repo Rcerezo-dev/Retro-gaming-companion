@@ -591,20 +591,20 @@ class GamesMixin:
 
         _order = (
             {
-                "year": "gm.year DESC, g.platform, g.canonical_title, g.original_filename",
-                "last_played": "g.last_played_at DESC, g.platform, g.canonical_title",
-                "added": "g.created_at DESC, g.platform, g.canonical_title",
-                "title": "g.canonical_title, g.original_filename",
-                "platform": "g.platform, g.canonical_title, g.original_filename",
-            }.get(sort_by or "", "g.platform, g.canonical_title, g.original_filename")
+                "year": "gm.year DESC, g.platform, COALESCE(g.canonical_title, g.original_filename)",
+                "last_played": "g.last_played_at DESC, g.platform, COALESCE(g.canonical_title, g.original_filename)",
+                "added": "g.created_at DESC, g.platform, COALESCE(g.canonical_title, g.original_filename)",
+                "title": "COALESCE(g.canonical_title, g.original_filename)",
+                "platform": "g.platform, COALESCE(g.canonical_title, g.original_filename)",
+            }.get(sort_by or "", "g.platform, COALESCE(g.canonical_title, g.original_filename)")
             if need_meta
             else {
-                "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, canonical_title",
-                "last_played": "last_played_at DESC, platform, canonical_title",
-                "added": "created_at DESC, platform, canonical_title",
-                "title": "canonical_title, original_filename",
-                "platform": "platform, canonical_title, original_filename",
-            }.get(sort_by or "", "platform, canonical_title, original_filename")
+                "year": "(SELECT year FROM game_metadata WHERE game_id=id) DESC, platform, COALESCE(canonical_title, original_filename)",
+                "last_played": "last_played_at DESC, platform, COALESCE(canonical_title, original_filename)",
+                "added": "created_at DESC, platform, COALESCE(canonical_title, original_filename)",
+                "title": "COALESCE(canonical_title, original_filename)",
+                "platform": "platform, COALESCE(canonical_title, original_filename)",
+            }.get(sort_by or "", "platform, COALESCE(canonical_title, original_filename)")
         )
 
         id_col = "g.id" if need_meta else "id"
