@@ -140,6 +140,12 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     testImplementation("junit:junit:4.13.2")
+    // DEVPROFILE-6: org.json en unit tests JVM usa el stub de android.jar
+    // (lanza en cada llamada) salvo que se aporte una implementación real
+    // para el classpath de test -- PcApiClient.kt ya usaba org.json en
+    // producción sin ningún test que ejercitara el parseo; DeviceProfileRestoreTest
+    // es el primero que lo necesita.
+    testImplementation("org.json:json:20240303")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

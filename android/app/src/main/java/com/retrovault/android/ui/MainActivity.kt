@@ -27,12 +27,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.retrovault.android.data.auth.DropboxAuthManager
+import com.retrovault.android.data.auth.DropboxClientProvider
 import com.retrovault.android.data.auth.DropboxCredentialStore
 import com.retrovault.android.data.db.AppDatabase
 import com.retrovault.android.data.prefs.SettingsRepository
 import com.retrovault.android.permissions.StoragePermissionManager
 import com.retrovault.android.permissions.StoragePermissionPolicy
+import com.retrovault.android.sync.DeviceProfileRestore
+import com.retrovault.android.sync.DropboxTransport
 import com.retrovault.android.sync.PeriodicSyncScheduler
+import com.retrovault.android.sync.SyncEngine
 import com.retrovault.android.sync.SyncForegroundService
 import com.retrovault.android.sync.SyncOrchestrator
 import com.retrovault.android.sync.SyncResult
@@ -58,11 +62,14 @@ class MainActivity : ComponentActivity() {
     private var isDropboxConnected by mutableStateOf(false)
     private var dropboxAccountLabel by mutableStateOf<String?>(null)
     private var lastSyncSummary by mutableStateOf<String?>(null)
+    private var isRestoringDevice by mutableStateOf(false)
+    private var restoreDeviceSummary by mutableStateOf<String?>(null)
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
     private val authManager by lazy { DropboxAuthManager(this, credentialStore) }
     private val settingsRepository by lazy { SettingsRepository(this) }
     private val syncHistoryDao by lazy { AppDatabase.getInstance(this).syncHistoryDao() }
+    private val syncWatermarkDao by lazy { AppDatabase.getInstance(this).syncWatermarkDao() }
 
     private val manageStorageSettingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -144,12 +151,15 @@ class MainActivity : ComponentActivity() {
                                         autoSyncEnabled = autoSyncEnabled,
                                         instantSyncEnabled = instantSyncEnabled,
                                         syncHistory = syncHistory,
+                                        isRestoringDevice = isRestoringDevice,
+                                        restoreDeviceSummary = restoreDeviceSummary,
                                         onConnectDropbox = authManager::startAuth,
                                         onDisconnectDropbox = ::disconnectDropbox,
                                         onSaveRemotes = ::saveRemotes,
                                         onSyncNow = ::syncNow,
                                         onAutoSyncToggle = ::setAutoSyncEnabled,
                                         onInstantSyncToggle = ::setInstantSyncEnabled,
+                                        onRestoreDevice = ::restoreDevice,
                                     )
                                 }
                             }
@@ -219,6 +229,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restoreDevice() {
+        val client = DropboxClientProvider(credentialStore).client()
+        if (client == null) {
+            restoreDeviceSummary = "Dropbox no conectado"
+            return
+        }
+        lifecycleScope.launch {
+            isRestoringDevice = true
+            try {
+                val transport = DropboxTransport(client)
+                val engine = SyncEngine(transport, syncWatermarkDao)
+                val remoteBase = DeviceProfileRestore.remoteBaseFrom(settingsRepository.savesRemote.first())
+                val result = DeviceProfileRestore.restore(transport, engine, remoteBase)
+                restoreDeviceSummary = summarizeRestore(result)
+            } finally {
+                isRestoringDevice = false
+            }
+        }
+    }
+
     private fun setAutoSyncEnabled(enabled: Boolean) {
         if (enabled) PeriodicSyncScheduler.enable(this) else PeriodicSyncScheduler.disable(this)
         lifecycleScope.launch { settingsRepository.setAutoSyncEnabled(enabled) }
@@ -235,6 +265,16 @@ class MainActivity : ComponentActivity() {
             buildString {
                 if (result.conflicts > 0) append(" · Conflictos: ${result.conflicts}")
                 if (result.errors.isNotEmpty()) append(" · Errores: ${result.errors.size}")
+            }
+        return base + extra
+    }
+
+    private fun summarizeRestore(result: DeviceProfileRestore.RestoreResult): String {
+        result.error?.let { return "Error: $it" }
+        val base = "Restaurado: ${result.applied.joinToString(", ").ifEmpty { "nada" }} · Descargados: ${result.sync.downloaded}"
+        val extra =
+            buildString {
+                if (result.sync.errors.isNotEmpty()) append(" · Errores: ${result.sync.errors.size}")
             }
         return base + extra
     }
