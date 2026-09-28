@@ -3609,8 +3609,8 @@ en disco y falsea cualquier medición de junk-scan futura.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| JUNK-SCAN-EXCLUDE-TRASH-1a | Añadir `_descartados` a `_excluded_dirs` en `_build_junk_scan()` — mismo patrón de una línea que `saves`/`bios`/`android` | `web/builders/folders.py:321` | 🔴 hallazgo documentado, sin implementar |
-| JUNK-SCAN-EXCLUDE-TRASH-1b | Limpiar las 111 carpetas `_descartados/_descartados/` ya existentes — mover su contenido un nivel arriba (al `_descartados/` padre) antes de que `purge_trash()` pueda verlas, o extender `purge_trash()`/`_iter_trash_files()` para que si encuentra un `_descartados` anidado lo trate como parte del mismo padre en vez de ignorarlo | `utils/trash.py` o script de sesión (dato, no código) | 🔴 hallazgo documentado, sin implementar |
+| JUNK-SCAN-EXCLUDE-TRASH-1a | Añadir `_descartados` a `_excluded_dirs` en `_build_junk_scan()` — mismo patrón de una línea que `saves`/`bios`/`android` | `web/builders/folders.py:321` | ✅ arreglado 2026-09-28 — referencia `utils/trash.TRASH_DIR_NAME` en vez de hardcodear el string; test nuevo `test_junk_scan_skips_descartados_trees`. Suite completa 1457/1457, ruff+format limpios |
+| JUNK-SCAN-EXCLUDE-TRASH-1b | Limpiar las 111 carpetas `_descartados/_descartados/` ya existentes — mover su contenido un nivel arriba (al `_descartados/` padre) antes de que `purge_trash()` pueda verlas, o extender `purge_trash()`/`_iter_trash_files()` para que si encuentra un `_descartados` anidado lo trate como parte del mismo padre en vez de ignorarlo | `utils/trash.py` o script de sesión (dato, no código) | ✅ hecho 2026-09-28 — script de sesión (no productizado): recorridas las 111 carpetas anidadas (más profundas primero, por si había más de un nivel), movido cada archivo al `_descartados/` padre con el mismo criterio de colisión que `discard_to_trash()` (sufijo numérico si el destino ya existe). **3.661 archivos recuperados, 0 colisiones, 111 carpetas anidadas eliminadas** (verificado: `find` real confirma 0 `_descartados/_descartados` restantes). Ahora sí visibles para `purge_trash()` |
 
 ---
 
