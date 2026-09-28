@@ -28,6 +28,7 @@ def _ensure_retrovault_structure(library_root: Path) -> None:
     for sibling in _RETROVAULT_SIBLINGS:
         (library_root.parent / sibling).mkdir(parents=True, exist_ok=True)
 
+
 _EMULATOR_PRESETS = [
     {
         "name": "RetroArch",
