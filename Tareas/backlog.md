@@ -69,7 +69,7 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 
 | Epic | Tareas abiertas (🟡/🔴) sin rama confirmada |
 |------|-----------------------------------------------|
-| Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
+| Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴), `JUNK-SCAN-RUBEN-1` (🟡 medido 2026-09-28, 6.072 archivos/34,97 GB sin clasificar, nada aplicado todavía) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
 | Pilar 2 | `ZIP-ROUTE` (🟡) |
 | Pilar 3 | `CABLE-ROOT-1` (🟡) |
 | UX | `FTP-PICK` (🔴🔴) |
@@ -1448,6 +1448,45 @@ duplicados con portada + flag RA en vez de solo tabla de texto. Roadmap:
 |----|------|-----------|--------|
 | LIBRARY-HEALTH-DASH-1 | Panel de salud en Inicio: % organizada, GB duplicados, carpetas huérfanas, ZIPs sin organizar — cada tarjeta enlaza a su reporte existente | `web/handlers/esde/maintenance.py` (`misplaced_zips` nuevo en `/api/library-extras`), `web/static/partials/tab-overview.html` (`ov-health-dash`), `web/static/js/tabs/overview.js` (`_loadLibraryHealth`) | ✅ hecho 2026-09-22 — sin endpoint agregado nuevo, compone `/api/status` + `/api/library-doctor` + `/api/library-extras` en frontend; test `tests/web/test_library_extras.py::test_library_extras_misplaced_zips` |
 | DUP-VISUAL-UI-1 | Vista side-by-side de duplicados con portada + flag RA (fallback a tabla de texto sin portada) | `web/static/js/tabs/review_copies.js` (`_renderReviewEntry` — la vista real de duplicados desde TABS-FIX-6, `duplicates.js` quedó solo como selector PC/Android), `web/builders/duplicates.py` (`id` nuevo en entries del review-queue) | ✅ hecho 2026-09-22 — el roadmap apuntaba a `duplicates.js` (desactualizado); flag RA ya existía, solo faltaba la portada. Sin portada en copias de la consola (limitación preexistente de `/api/asset-image`, solo resuelve contra la BD del PC) |
+
+---
+
+### JUNK-SCAN-RUBEN-1 — Primer junk-scan real de esta máquina: 6.072 archivos / 34,97 GB sin clasificar (hallazgo 2026-09-28, máquina "Ruben", `F:\Juegos Retro`)
+
+**Por qué se lanzó**: durante `JUEGOS-FIX-4`/`SAGE-1` de hoy se vio que esta
+máquina diverge fuerte de los números que ya tenía el backlog (cobertura de
+scraper real 27,78% vs. 75-90% esperado; los 7 huérfanos de `$RECYCLE.BIN`
+de `JUEGOS-FIX-4` resultaron ser de otra máquina, 0 aquí). Sospecha: esta
+biblioteca nunca pasó por el junk-scan/limpieza inicial de Pilar 1 que sí
+tuvieron otras (`JUNK-SMART-1/2/3`, `JUNK-REVIEW-1`, Día39 — todo eso corrió
+contra bibliotecas de otras máquinas). Se lanzó `POST /api/junk-scan` real
+(solo lectura, sin borrar/mover nada) para confirmarlo antes de asumir nada.
+
+**Resultado real** (`F:\Juegos Retro`, 291 categorías agrupadas por
+confianza):
+
+| Confianza | Archivos | Tamaño | Qué es |
+|---|---|---|---|
+| `safe_delete` | 3.659 | 4,93 GB | Basura real: chips sueltos sin match, extensiones no-ROM residuales (`.app`, `.tmd`, `.tik`, numéricas sueltas tipo `.03`/`.04`...) — mismo patrón que Día39 |
+| `misplaced` | 2.176 | 13,87 GB | ROMs identificadas por CRC pero en la carpeta equivocada — **1.825** por match directo de catálogo ("ROMs de consola identificadas"), **347** por extensión interna de romhack — mismo mecanismo ya construido en `ZIP-ROUTE-1`/`ZIP-ROUTE-3`, sin ejecutar nunca aquí |
+| `review` | 237 | 16,18 GB | Necesita decisión: **120 "ZIPs no-ROM" (10,24 GB)** — probablemente colecciones reales (zip-de-zips), mismo caso que `ZIP-ROUTE-4`; **8 "7-Zips" (5,27 GB)** sin manejar por el pipeline actual (solo entiende `.zip`); **108 chips arcade sin match de catálogo**; 1 set arcade de otra versión (0,62 GB) |
+| **Total** | **6.072** | **34,97 GB** | |
+
+**Siguiente paso propuesto (sin ejecutar todavía, pendiente de tu confirmación)**:
+1. `safe_delete` (4,93 GB): dry-run de `/api/junk-delete` primero, igual que
+   Día39/`JUNK-REVIEW-1` — reporta qué borraría, confirmas, luego real
+   (va a `_descartados/`, deshacible ~30 días, no es un borrado directo).
+2. `misplaced` (13,87 GB): mismo motor de `ZIP-ROUTE-1`/`-3` ya construido
+   — mover/renombrar a su carpeta de plataforma real. Sin riesgo de
+   pérdida (son ROMs identificadas, no basura), pero sí mueve 2.176
+   archivos de sitio.
+3. `review` (16,18 GB): requiere mirar caso a caso — los "7-Zips" en
+   particular son un hueco real no cubierto por `ZIP-ROUTE`/`extract_zip`
+   hoy (solo `.zip`, no `.7z`); las "ZIPs no-ROM" probablemente son
+   colecciones reales que `ZIP-ROUTE-4`/`_route_identified()` ya sabe
+   extraer al Inbox.
+
+No se ha tocado ni un archivo real todavía — esta sesión fue solo medir.
 
 ---
 
