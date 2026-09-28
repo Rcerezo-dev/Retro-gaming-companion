@@ -1574,10 +1574,61 @@ explícita del usuario**: los 3.699 `safe_delete` de después de
 dry-run (`{"deleted": 3699, "failed": 0, "freed_bytes": 4949875483}`) seguido
 del borrado real, idéntico (`dry_run: false`), 0 fallos. **4,95 GB
 adicionales liberados** (soft-discard, mismo mecanismo que la primera
-ronda). `review` (237/16,18 GB) sigue exactamente igual que la medición
-original — genuinamente necesita revisión manual caso a caso, no hay más
-automatización disponible con el catálogo actual. **Total acumulado de
-`safe_delete` borrado hoy: 7.358 archivos, ~9,88 GB.**
+ronda). **Total acumulado de `safe_delete` borrado hoy: 7.358 archivos,
+~9,88 GB.**
+
+**`review` investigado a mano (2026-09-28), 2 hallazgos reales antes de
+llegar a los archivos en sí:**
+
+1. **Bug real en el propio junk-scan: no excluye `_descartados/`**
+   (`web/builders/folders.py:321`, `_excluded_dirs = {"saves", "bios",
+   "android", "system volume information"}` — falta `_descartados`).
+   `utils/trash.py` sí se protege contra esto (`_iter_trash_files()`, línea
+   65-66, corta el `os.walk` con el comentario `# no anidar` en cuanto entra
+   en una carpeta `_descartados`), pero esa misma protección nunca se aplicó
+   al walker del junk-scan. Consecuencia real, verificada: **94 de los 120
+   "ZIPs no-ROM" ya estaban dentro de alguna `_descartados/`** (descartados
+   en sesiones anteriores), re-contados como basura activa en cada scan —
+   por eso el bucket `review` salió "exactamente igual" antes/después de
+   `zip-route-apply`, nada de eso era realmente tocable. Peor: repetir
+   `junk-delete`/extracciones sobre contenido ya descartado crea
+   `_descartados/_descartados/` anidado (**111 carpetas así confirmadas
+   hoy en la biblioteca real**) — esos archivos quedan **invisibles para
+   `purge_trash()`** (mismo corte de `os.walk` que los protege de
+   re-listarse también les impide ser vistos si están un nivel más
+   adentro), huérfanos para siempre sin limpiarse solos. Sin pérdida de
+   datos (nada se borra de verdad), pero desperdicia espacio en disco.
+   Recuento real filtrando `_descartados/` de las 4 categorías: **142
+   archivos activos de verdad, no 237** (26 ZIPs no-ROM activos, 8
+   7-Zips, 108 chips arcade, 0 del set arcade "otra versión" — ese único
+   ítem también estaba ya en `_descartados`). Sin arreglar el walker
+   todavía — documentado, candidato a tarea propia (`JUNK-SCAN-EXCLUDE-TRASH-1`
+   o similar).
+2. **Causa raíz real de por qué las 26 ZIPs Dreamcast activas nunca
+   matcheaban**: no eran basura sin catalogar — **el catálogo entero de
+   Dreamcast cargaba 0 entradas** por un bug de BOM en
+   `_detect_dat_format()` (`catalog/catalog_loader.py:22-28`): abría con
+   `encoding="utf-8"`, un BOM inicial (común en exports de Redump) quedaba
+   pegado a `<?xml`, así que `startswith("<")` daba `False` y el DAT XML
+   real se clasificaba como clrmamepro, sin ningún error visible. Afectaba
+   a **9 catálogos reales** (18 archivos, `nointro/`+`redump/`): Dreamcast
+   (1.420 juegos), Naomi, Naomi 2, Triforce, PC (SBI Subchannels), Wii U
+   (Disc Keys), PlayStation (SBI Subchannels), PlayStation 3 (Disc Keys
+   ×2) — **arreglado y mergeado hoy** (`fix/catalog-bom-detection`,
+   `encoding="utf-8-sig"`, test `test_detects_xml_with_leading_bom`, 9
+   catálogos verificados con entradas reales tras el fix). **Sin
+   re-aplicar todavía contra `library_pc.db`** — hace falta reiniciar
+   `rommgr serve` (para cargar el código nuevo) y correr un `match`/re-scan
+   real; no se hizo en esta sesión porque `SAGE-1` seguía corriendo en el
+   mismo servidor y reiniciar lo habría cortado a mitad. Probable que
+   varios de los 108 "chips arcade sin match" también se resuelvan solos
+   una vez el catálogo Naomi/Naomi2/Triforce cargue de verdad.
+
+`review` recontado sin `_descartados/`: **142 archivos reales (~15,1 GB)**
+de los cuales una parte desconocida (Dreamcast + arcade Naomi/Naomi2/
+Triforce) probablemente se resuelva sola en el próximo `match` con el
+catálogo ya arreglado. Los 8 `.7z` siguen siendo el único hueco confirmado
+sin solución disponible (formato no soportado).
 
 **Hallazgo colateral real: `SAGE-1` murió con `"database is locked"`**
 mientras `zip-route-apply` corría en paralelo (ambos escriben en
@@ -3531,6 +3582,35 @@ si no revisa `scrape_result.error` a mano.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | JOBS-SQLITE-LOCK-1 | Ningún job de escritura (`scrape`, `apply`, `inbox`, `zip-route-apply`) comprueba si ya hay otro corriendo antes de empezar — `job_manager` sí lleva un flag `_running` por nombre de job, pero no hay coordinación **entre** jobs distintos. Dos caminos posibles, sin decidir: (a) que `_do_scrape`/otros escritores reintenten con backoff ante `sqlite3.OperationalError: database is locked` en vez de abortar (SQLite ya soporta `PRAGMA busy_timeout`, comprobar si `LibraryRepository.connect()` ya lo fija); (b) un guard simple "no lances un job de escritura pesada si `apply`/`inbox`/`scrape` ya están corriendo", igual que ya existe para el mismo job (`job_manager.cancel_event`) pero cruzado entre nombres | `web/jobs/manager.py`, `database/repository.py` (`connect()`), `web/handlers/scraper.py` (`_do_scrape`) | 🔴 hallazgo documentado, sin implementar |
+
+---
+
+### JUNK-SCAN-EXCLUDE-TRASH-1 — El junk-scan re-escanea su propia papelera `_descartados/` como basura activa (hallazgo 2026-09-28, máquina "Ruben", durante `JUNK-SCAN-RUBEN-1`)
+
+`utils/trash.py::_iter_trash_files()` (línea 64-66) se protege explícitamente
+contra re-procesar contenido ya descartado — en cuanto el `os.walk` entra en
+una carpeta `_descartados`, corta `dirnames[:] = []` con el comentario
+`# no anidar`. Esa misma protección **nunca se aplicó** al walker del
+junk-scan (`web/builders/folders.py:321`, `_excluded_dirs = {"saves", "bios",
+"android", "system volume information"}` — falta `_descartados`).
+
+**Consecuencia real, verificada contra la biblioteca real**: 94 de 120
+archivos del bucket "review" de `JUNK-SCAN-RUBEN-1` ya estaban dentro de
+alguna `_descartados/` — re-contados como basura activa en cada scan, sin
+poder resolverse nunca (`zip-route-apply` no toca contenido ya descartado,
+así que el bucket parece "atascado" sin estarlo de verdad). Peor: repetir
+`junk-delete`/extracciones sobre contenido ya en `_descartados` crea
+`_descartados/_descartados/` anidado — **111 carpetas así confirmadas hoy**
+en la biblioteca real — y esos archivos quedan **invisibles para
+`purge_trash()`** (el mismo corte de `os.walk` que protege contra
+re-listarlos también impide verlos un nivel más adentro), huérfanos para
+siempre sin limpiarse solos. Sin pérdida de datos, pero desperdicia espacio
+en disco y falsea cualquier medición de junk-scan futura.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JUNK-SCAN-EXCLUDE-TRASH-1a | Añadir `_descartados` a `_excluded_dirs` en `_build_junk_scan()` — mismo patrón de una línea que `saves`/`bios`/`android` | `web/builders/folders.py:321` | 🔴 hallazgo documentado, sin implementar |
+| JUNK-SCAN-EXCLUDE-TRASH-1b | Limpiar las 111 carpetas `_descartados/_descartados/` ya existentes — mover su contenido un nivel arriba (al `_descartados/` padre) antes de que `purge_trash()` pueda verlas, o extender `purge_trash()`/`_iter_trash_files()` para que si encuentra un `_descartados` anidado lo trate como parte del mismo padre en vez de ignorarlo | `utils/trash.py` o script de sesión (dato, no código) | 🔴 hallazgo documentado, sin implementar |
 
 ---
 
