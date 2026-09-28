@@ -56,7 +56,6 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 | `fix/cable-sync-format-gaps` | [16](../.claude/roadmaps/16-cable-sync-format-gaps.md) | [CABLE-ROM-FIX](#cable-rom-fix-el-sync-de-roms-por-cable-no-compara-con-el-destino-hallazgo-2026-08-13) | Pilar 3 |
 | `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
-| — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](#docs-audit-1-seguimiento-de-la-auditoría-de-documentación-2026-09-20) | Transversal |
 
 **Ramas mergeadas en esta sesión** (2026-09-18, ya reflejadas en `INDEX.md` filas 12/13/17/21/22):
 `fix/catalog-match-subset-hack` (PR #317), `fix/dup-winners-non-canonical-guard` (PR #318),
@@ -3317,7 +3316,8 @@ histórica.
 
 ### DOCS-AUDIT-1 — Seguimiento de la auditoría de documentación (2026-09-20)
 
-Plan en `.claude/roadmaps/24-docs-audit-followups.md`. Surgido de una
+Plan en `.claude/roadmaps/archivo/24-docs-audit-followups.md` (roadmap
+archivado — ambas tareas cerradas). Surgido de una
 auditoría completa de la documentación del proyecto: se corrigieron ya los
 hallazgos "rompe confianza"/"desactualizado" (roadmap 23, `docs/ci-cd.md`,
 `Roadmap-212-Ideas-Futuras.md`, `Validacion-STORAGE-MGR.md`) y se archivaron
@@ -3327,7 +3327,7 @@ de solo corregir un dato:
 
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
-| DOCS-AUDIT-1a | Decidir convención de archivo para informes puntuales sueltos en `Tareas/` (`zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) — ¿carpeta `Tareas/archivo/` nueva, o nota de cierre en cabecera igual que `Validacion-STORAGE-MGR.md`? Aplicar retroactivamente y documentar en regla 5 de `.claude/roadmaps/INDEX.md` | XS | 🔴 pendiente, decisión del usuario |
+| DOCS-AUDIT-1a | Decidir convención de archivo para informes puntuales sueltos en `Tareas/` (`zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) — ¿carpeta `Tareas/archivo/` nueva, o nota de cierre en cabecera igual que `Validacion-STORAGE-MGR.md`? Aplicar retroactivamente y documentar en regla 5 de `.claude/roadmaps/INDEX.md` | XS | ✅ hecho (2026-09-28) — decisión del usuario: nota de cierre en cabecera, sin carpeta nueva. Aplicada a los 2 archivos existentes (`zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) y documentada en la regla 5 de `.claude/roadmaps/INDEX.md` |
 | DOCS-AUDIT-1b | Actualizar 8 comentarios de código que citan la ruta vieja de `Roadmap-DEVPROFILE-1-4.md`/`-5-6.md` (movidos a `Tareas/diario/archivo/*-completado.md` el 2026-09-20) — `esde/systems_generator.py:28`, `detection/platform_detector.py:70`, `detection/platforms.toml:242`, `web/handlers/system.py:493,583`, `services/device_profile.py:137`, `services/path_tokenizer.py:8`, `services/retroarch_cfg_writer.py:5` | XS | ✅ hecho (2026-09-24) — 8/8 comentarios apuntan ahora a `Tareas/diario/archivo/Roadmap-DEVPROFILE-{1-4,5-6}-completado.md`; 1451 tests + ruff limpios |
 
 ### SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless (hallazgo usuario 2026-09-19, PC2)

@@ -14,7 +14,7 @@ Este archivo es el **roadmap general** — el punto de entrada de cada sesión d
 2. **Lee el roadmap específico de esa rama** (`.claude/roadmaps/NN-nombre.md`, o `archivo/NN-nombre.md` si ya está archivada y solo quieres contexto histórico) — tiene el plan paso a paso, código de ejemplo y criterios de verificación. No lleva su propio checklist de estado.
 3. **Crea `Tareas/diario/DíaXX.md`** para la sesión de hoy **solo si el trabajo no cabe entero en el roadmap específico** (p. ej. si aparece un hallazgo colateral no previsto, o si la sesión toca más de una rama). Si el roadmap específico ya tiene todo el detalle necesario, no hace falta diario aparte.
 4. **Al completar una tarea**, márcala hecha en un único sitio: `Tareas/backlog.md` (fuente de verdad). Si la tarea tiene issue de GitHub asociado, marca también su checkbox ahí. El roadmap específico y esta tabla no llevan estado propio que sincronizar.
-5. **Archiva los archivos sin tareas pendientes**: cuando ya no quede ninguna tarea sin ✅ en `Tareas/backlog.md` para esa rama, mueve el roadmap específico a `.claude/roadmaps/archivo/`, actualiza el enlace en la tabla de abajo y pon su fila en "Archivado". Un diario de una sesión ya cerrada se mueve igual a `Tareas/diario/archivo/`.
+5. **Archiva los archivos sin tareas pendientes**: cuando ya no quede ninguna tarea sin ✅ en `Tareas/backlog.md` para esa rama, mueve el roadmap específico a `.claude/roadmaps/archivo/`, actualiza el enlace en la tabla de abajo y pon su fila en "Archivado". Un diario de una sesión ya cerrada se mueve igual a `Tareas/diario/archivo/`. **Un informe puntual suelto en `Tareas/`** (investigación de una sola sesión que no es roadmap ni diario, p. ej. `zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) **no se mueve** al cerrarse — se le añade una nota de cierre en la cabecera (mismo patrón que `Validacion-STORAGE-MGR.md`: bloque `> ✅ ...` con la fecha de cierre y el enlace a la sección de `Tareas/backlog.md` que tiene el estado real) y se queda donde está, como referencia (decidido en `DOCS-AUDIT-1a`, 2026-09-28).
 6. **Documenta lo que quede pendiente** en `Tareas/backlog.md` — es el único sitio que necesita reflejarlo.
 
 **Hallazgos en vivo (bug encontrado investigando, no planificado)**: no necesitan roadmap propio en esta tabla — se documentan directamente en `Tareas/backlog.md` (sección del epic correspondiente), como ya se hace. Si el hallazgo termina en una rama con commit real, se añade una fila aquí a posteriori (ver filas 21/22) para que el registro de ramas quede completo, pero no hace falta planificarlo de antemano en un archivo `NN-nombre.md`.
@@ -52,7 +52,7 @@ abierto o ya se archivó.
 | 21 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/catalog-match-subset-hack` | Archivado | 🔴 P1 |
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | Archivado | 🟠 P2 |
 | 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Activo (parcial) | 🟠 P2 |
-| 24 | [24-docs-audit-followups.md](24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Activo | 🟡 P3 |
+| 24 | [archivo/24-docs-audit-followups.md](archivo/24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Archivado | 🟡 P3 |
 | 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | Archivado | 🟡 P3 |
 
 ---
