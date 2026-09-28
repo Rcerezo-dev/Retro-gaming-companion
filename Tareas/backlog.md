@@ -1526,6 +1526,26 @@ liberados de `safe_delete`. Quedan `misplaced` (2.176 archivos/13,87 GB,
 mover con el motor de `ZIP-ROUTE-1`/`-3`) y `review` (237/16,18 GB) sin
 tocar — ver arriba.
 
+**`misplaced` aplicado (2026-09-28), con confirmación explícita del
+usuario**: el mecanismo real disponible no es `ZIP-ROUTE`/`zip-route-apply`
+(eso es solo arcade + colecciones) sino el `plan`/`apply` general de la app
+(`GET /api/plan` → `POST /api/apply`) — bastante más amplio de lo
+documentado arriba: **13.298 juegos matched en total** (no solo los 2.176
+de `Unknown\`), de los cuales **1.555 "pending"** (movibles solos, sin
+ambigüedad) y **4.119 "conflicts"** (mismo destino propuesto por 2+
+orígenes, o destino ya ocupado con contenido distinto — `_do_apply()`,
+`web/handlers/organize.py:124`, **nunca los toca**, solo procesa
+`plan.pending`). Decisión del usuario: aplicar solo lo sin conflicto.
+`POST /api/apply` real (con backup automático de `library_pc.db` antes de
+tocar nada, `apply_repo.backup_database()`) → `{"renamed": 1554, "failed":
+0, "skipped": 1, "saves_renamed": 8, "zips_extracted": 1, "conflicts":
+4119}`. El único `skipped` fue una fila de BD obsoleta (`Digimon World 3
+[U] [SLUS-01436].sub`, el archivo de origen ya no existe en disco — no es
+un fallo real). Reversible vía `POST /api/undo-last-apply` si hiciera
+falta. **Los 4.119 conflictos siguen sin resolver** — requieren revisión
+caso a caso (mismo destino propuesto por 2+ orígenes o colisión con
+contenido distinto), no automatizable con este mecanismo.
+
 ---
 
 ### HEALTH-CHECK-RUBEN-1 — El Health Check semanal marcó 2 "corrupted" que en realidad son falsos positivos: el `sha1` guardado en BD es el de otra variante regional, el archivo real está bien (hallazgo 2026-09-28, máquina "Ruben", `F:\Juegos Retro`)
