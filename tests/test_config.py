@@ -144,7 +144,9 @@ def test_get_adb_sync_sources_excludes_duckstation(tmp_path: Path) -> None:
     )
     cfg = load_config(tmp_path)
     packages = {src["package"] for src in get_adb_sync_sources(cfg)}
-    assert "com.github.stenzek.duckstation" not in packages  # replaced by ARMSX1, no longer in defaults
+    assert (
+        "com.github.stenzek.duckstation" not in packages
+    )  # replaced by ARMSX1, no longer in defaults
     assert "org.dolphinemu.dolphinemu" not in packages
     assert "com.armsx2" in packages  # sanity: accessible ones still included
 
