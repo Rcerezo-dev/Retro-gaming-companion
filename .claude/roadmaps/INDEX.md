@@ -54,6 +54,7 @@ abierto o ya se archivó.
 | 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Activo (parcial) | 🟠 P2 |
 | 24 | [archivo/24-docs-audit-followups.md](archivo/24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Archivado | 🟡 P3 |
 | 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | Archivado | 🟡 P3 |
+| 28 | [28-android-gdrive-provider.md](28-android-gdrive-provider.md) | sin asignar (se corta al arrancar la Fase 1) | Activo | 🟡 P3 |
 
 ---
 
