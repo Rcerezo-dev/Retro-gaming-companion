@@ -66,7 +66,7 @@ object DeviceProfileRestore {
     }
 
     suspend fun restore(
-        transport: DropboxTransport,
+        transport: CloudTransport,
         engine: SyncEngine,
         remoteBase: String,
     ): RestoreResult {

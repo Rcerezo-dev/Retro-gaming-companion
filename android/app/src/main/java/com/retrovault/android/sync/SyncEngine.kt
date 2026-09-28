@@ -37,7 +37,7 @@ data class SyncResult(
  * invoca dos veces (saves + states) y suma los resultados.
  */
 class SyncEngine(
-    private val transport: DropboxTransport,
+    private val transport: CloudTransport,
     private val watermarkDao: SyncWatermarkDao,
 ) {
     // withContext(IO): listFolderRecursive/upload/download son llamadas de
