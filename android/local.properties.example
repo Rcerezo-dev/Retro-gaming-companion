@@ -9,6 +9,14 @@ sdk.dir=C\:\\Users\\TU_USUARIO\\AppData\\Local\\Android\\Sdk
 # "Conectar Dropbox" queda deshabilitado en runtime.
 dropbox.appKey=
 
+# Client ID OAuth de Google Cloud Console (roadmap 28, Fase 0/2 — proveedor
+# Google Drive alternativo). Requiere un proyecto con la Drive API habilitada
+# y un cliente OAuth "Android" registrado con el SHA-1 del keystore (debug
+# y release). Sin esta línea, la app compila igual pero el selector de
+# proveedor Drive queda deshabilitado en runtime. Ver
+# .claude/roadmaps/28-android-gdrive-provider.md.
+gdrive.clientId=
+
 # Firma del APK de release (ANDROID-RELEASE-1). Sin estas 4 líneas, `assembleRelease`
 # compila igual pero sin firmar (no instalable) — solo hacen falta para generar el
 # APK que se publica. El .jks nunca se versiona (android/keystore/, gitignored).

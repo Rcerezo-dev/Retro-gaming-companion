@@ -20,6 +20,13 @@ val localProperties =
     }
 val dropboxAppKey: String = localProperties.getProperty("dropbox.appKey", "")
 
+// Roadmap 28 (Fase 0/2) — Client ID OAuth de Google para el proveedor Drive
+// alternativo. Mismo patrón que dropbox.appKey: se lee de local.properties
+// (ignorado por git), clave "gdrive.clientId" — sin ella, la app compila
+// igual (Google Sign-In deshabilitado en runtime, ver
+// GoogleDriveAuthManager.isClientIdConfigured() cuando exista, Fase 2).
+val gdriveClientId: String = localProperties.getProperty("gdrive.clientId", "")
+
 android {
     namespace = "com.retrovault.android"
     compileSdk = 34
@@ -41,6 +48,7 @@ android {
         // AuthActivity del SDK de Dropbox necesita el scheme "db-<APP_KEY>"
         // declarado en el manifest — ver AndroidManifest.xml.
         manifestPlaceholders["dropboxAppKey"] = dropboxAppKey
+        buildConfigField("String", "GDRIVE_CLIENT_ID", "\"$gdriveClientId\"")
     }
 
     // Keystore de release (ANDROID-RELEASE-1) — igual que dropbox.appKey: se lee
