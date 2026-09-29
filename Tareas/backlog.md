@@ -2531,6 +2531,8 @@ no un fallo de esta feature). Sin PR todavía |
 
 ### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
 
+→ #374
+
 Petición del usuario: sync de saves lo más automático posible, sin depender
 de que el PC esté encendido. Decisión: app Android nativa instalada en la
 propia Anbernic que sincroniza directamente con Dropbox (sustituye al script
