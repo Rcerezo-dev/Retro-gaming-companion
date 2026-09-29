@@ -966,7 +966,7 @@ def _run_setup_pipeline(
         # ── Step 5: Build plan ───────────────────────────────────────────────
         _upd("Preparando plan de renombrado", 5, 90)
         opts = FormatOptions()
-        plan = build_plan(repository, opts)
+        plan = build_plan(repository, opts, library_root=config.library_root)
         result["plan_pending"] = len(plan.pending)
 
         _upd("Completado", 5, 100)
@@ -1256,7 +1256,7 @@ def _run_inbox_pipeline(
         # ── Step 4: Build plan ───────────────────────────────────────────────
         _upd("planning", 4)
         opts = FormatOptions()
-        plan = build_plan(repository, opts)
+        plan = build_plan(repository, opts, library_root=config.library_root)
         inbox_str_lower = str(inbox).lower()
         pending_ops = [
             op for op in plan.pending if str(op.source_path).lower().startswith(inbox_str_lower)

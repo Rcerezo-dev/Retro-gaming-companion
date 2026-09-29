@@ -526,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "plan":
-        plan = build_plan(repository)
+        plan = build_plan(repository, library_root=config.library_root)
         if plan.total == 0:
             print("No matched games found. Run 'rommgr match' first.")
             return 0
@@ -560,7 +560,7 @@ def main(argv: list[str] | None = None) -> int:
         from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
         from rom_manager.scanner.rom_scanner import utc_now
 
-        plan = build_plan(repository)
+        plan = build_plan(repository, library_root=config.library_root)
         if not plan.pending:
             print("Nothing to apply.")
             if plan.conflicts:

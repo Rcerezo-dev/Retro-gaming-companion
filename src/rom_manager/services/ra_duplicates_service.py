@@ -433,7 +433,12 @@ def apply_ra_conflicts(
     from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
 
     opts = FormatOptions()
-    plan = build_plan(repository, opts)
+    # GDI-ORGANIZE-1: safe unconditionally -- build_plan() only applies
+    # library_root to a game whose source actually lives under it (PC repo),
+    # any Android-repo game here falls back to the old heuristic per-game.
+    # getattr guards fake config stubs in tests that don't implement the
+    # full AppConfig interface.
+    plan = build_plan(repository, opts, library_root=getattr(config, "library_root", None))
     extra_save_dirs = central_save_dirs(config)
 
     resolved = 0

@@ -407,7 +407,12 @@ def _build_plan(
     library_root: str | None = None,
     config=None,
 ) -> dict:
-    plan = build_plan(repository, opts)
+    # GDI-ORGANIZE-1: library_root was already threaded through as a
+    # parameter here but never forwarded -- build_plan() needs the real
+    # Path (not the str this function receives) to correctly place a
+    # subfolder-platform game that isn't already sitting where the old
+    # relative-navigation heuristic assumes.
+    plan = build_plan(repository, opts, library_root=Path(library_root) if library_root else None)
     if plan.total == 0:
         return {
             "total": 0,
