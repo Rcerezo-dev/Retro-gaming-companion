@@ -316,6 +316,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Actually decompress (default is dry run).",
     )
 
+    clean_chd_parser = subparsers.add_parser(
+        "clean-redundant-chd",
+        help=(
+            "Find PSX .cue/.bin sets on a connected Android device that already have a "
+            "same-name .chd converted, verify by RA hash, and remove the redundant raw "
+            "copy. Dry run by default. GDI-ORGANIZE-1: found live 2026-09-29 -- 195 "
+            "titles on a real Anbernic with this exact leftover shape."
+        ),
+    )
+    clean_chd_parser.add_argument(
+        "android_path", help='Remote folder to scan, e.g. "/storage/521D-04EA/ROMs/psx".'
+    )
+    clean_chd_parser.add_argument(
+        "--serial",
+        default=None,
+        metavar="SERIAL",
+        help="ADB device serial. Auto-detected if only one device is connected.",
+    )
+    clean_chd_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually remove verified-redundant raw files (default is dry run).",
+    )
+
     gen_cues_parser = subparsers.add_parser(
         "generate-cues",
         help=(
@@ -1352,6 +1376,61 @@ def main(argv: list[str] | None = None) -> int:
                     f"7z — descomprimidos: {sevenzip_summary.extracted}  |  "
                     f"saltados: {sevenzip_summary.skipped}  |  fallidos: {sevenzip_summary.failed}"
                 )
+        return 0
+
+    if args.command == "clean-redundant-chd":
+        import tempfile
+
+        from rom_manager.converters.chd_cleanup import (
+            find_redundant_chd_sources,
+            verify_and_clean_one,
+        )
+        from rom_manager.sync.adb_transport import AdbTransport, resolve_single_device_transport
+
+        if args.serial:
+            transport = AdbTransport(config.adb, args.serial)
+        else:
+            transport = resolve_single_device_transport(config.adb)
+            if transport is None:
+                parser.error("No se detectó un único dispositivo ADB conectado -- usa --serial.")
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — no se borrará nada. Pasa --apply para borrar de verdad.")
+        print()
+
+        files = [f.android_path for f in transport.ls_recursive(args.android_path)]
+        candidates = find_redundant_chd_sources(files)
+        print(f"{len(candidates)} candidato(s) (.cue con .chd del mismo nombre) encontrados.\n")
+
+        verified = failed = 0
+        freed_bytes = 0
+        with tempfile.TemporaryDirectory(prefix="rommgr_chd_cleanup_") as tmp:
+            for i, candidate in enumerate(candidates):
+                pull_to = Path(tmp) / str(i)
+                result = verify_and_clean_one(
+                    candidate,
+                    pull_to=pull_to,
+                    chdman=config.chdman,
+                    remove_remote=transport.remove,
+                    pull_file=lambda src, dst: transport.pull(src, dst),
+                    dry_run=dry_run,
+                )
+                name = Path(candidate.cue_path).stem
+                if result.verified:
+                    verified += 1
+                    freed_bytes += result.freed_bytes
+                    verb = "se borraría" if dry_run else "borrado"
+                    print(f"  [OK]   {name}  -  {verb} ({result.freed_bytes / 1e6:.1f} MB)")
+                else:
+                    failed += 1
+                    print(f"  [SKIP] {name}  -  {result.error}")
+
+        print()
+        print(
+            f"Verificados: {verified}  |  Sin verificar/saltados: {failed}  |  "
+            f"{'Se liberarían' if dry_run else 'Liberados'}: {freed_bytes / 1e9:.2f} GB"
+        )
         return 0
 
     if args.command == "generate-cues":
