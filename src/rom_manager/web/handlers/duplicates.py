@@ -12,6 +12,7 @@ from rom_manager.services.ra_duplicates_service import (
     apply_ra_conflicts,
     discard_no_support,
     resolve_duplicate_ra,
+    verify_group_by_disc_hash,
 )
 
 if TYPE_CHECKING:
@@ -214,4 +215,23 @@ def register(
         # El grupo entero vive en un mismo dispositivo → enrutar por keep_path
         ctx._send_json(
             resolve_duplicate_ra(get_repo_fn(keep_path), keep_path, discard_paths, _adb_transport())
+        )
+
+    # ── POST /api/verify-duplicate-hash ──────────────────────────────────────
+    @router.post("/api/verify-duplicate-hash")
+    def post_verify_duplicate_hash(ctx) -> None:
+        # ANDROID-DUP-CROSSFMT-VERIFY-1: a "crossfmt" group is only linked by
+        # normalized title, never by content -- verify by real disc hash
+        # before the frontend offers to discard anything. Read-only, never
+        # touches the filesystem or the DB.
+        data = ctx._post_data
+        keep_path = data.get("keep_path", "").strip()
+        discard_paths = data.get("discard_paths", [])
+        if not keep_path or not discard_paths:
+            ctx._send_json({"error": "keep_path y discard_paths requeridos"})
+            return
+        ctx._send_json(
+            verify_group_by_disc_hash(
+                keep_path, discard_paths, chdman=config.chdman, adb_transport=_adb_transport()
+            )
         )

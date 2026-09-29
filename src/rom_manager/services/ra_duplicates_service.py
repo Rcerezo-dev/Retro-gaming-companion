@@ -11,6 +11,7 @@ from __future__ import annotations
 import json as _json
 import logging
 import shutil
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -250,6 +251,108 @@ def resolve_duplicate_ra(
                 errors.append(error)
 
     return {"discarded": discarded, "failed": failed, "errors": errors[:10]}
+
+
+def verify_group_by_disc_hash(
+    keep_path: str,
+    discard_paths: list[str],
+    *,
+    chdman: str,
+    adb_transport: AdbTransport | None = None,
+) -> dict:
+    """ANDROID-DUP-CROSSFMT-VERIFY-1: verify a "crossfmt" PSX duplicate group
+    by real disc content hash before anything is discarded.
+
+    ``crossfmt`` (``_review_groups_for_repo``) only links entries by
+    normalized title across container extensions -- it never compares
+    content. Two genuinely different discs that share a mis-resolved
+    catalog name land in the same "duplicate" group just as readily as a
+    real .chd/.cue/.bin pair of the same disc. Found live 2026-09-29 on a
+    real Anbernic: three different Metal Gear Solid discs (a stray "(World)
+    (4B4E083C) (Addon)" plus two Spanish-set discs) all carried that exact
+    same unresolved catalog name.
+
+    Pulls *keep_path* and each of *discard_paths* to a private temp dir
+    (device paths via *adb_transport*, PC paths copied directly) and
+    computes the RA disc hash for each with ``compute_psx_ra_hash`` --
+    container format doesn't matter, that's the whole point of a crossfmt
+    group. Never deletes anything itself; the caller re-runs
+    ``resolve_duplicate_ra`` with only ``safe_discard_paths``.
+
+    Only PSX is supported today (the platform every real crossfmt-only
+    group found live is on) -- any path ``compute_psx_ra_hash`` can't read
+    (unsupported extension, a broken .cue referencing a missing .bin, a
+    stale DB row for a file already gone) lands in ``unverifiable_paths``,
+    never in ``safe_discard_paths``.
+    """
+    from rom_manager.converters.chd_converter import parse_bins_from_cue
+    from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash
+
+    def _fetch(source_path: str, dst: Path) -> bool:
+        try:
+            if is_device_path(source_path):
+                if adb_transport is None:
+                    return False
+                adb_transport.pull(source_path, dst)
+            else:
+                shutil.copyfile(source_path, dst)
+            return True
+        except OSError:
+            return False
+
+    def _pull_and_hash(source_path: str, staging: Path) -> str | None:
+        local = staging / Path(source_path).name
+        if not _fetch(source_path, local):
+            return None
+        if local.suffix.lower() == ".cue":
+            try:
+                bin_names = [b.name for b in parse_bins_from_cue(local)]
+            except OSError:
+                return None
+            for bin_name in bin_names:
+                local_bin = staging / bin_name
+                if local_bin.exists():
+                    continue
+                bin_source = str(Path(source_path).parent / bin_name)
+                if is_device_path(source_path):
+                    bin_source = bin_source.replace("\\", "/")
+                if not _fetch(bin_source, local_bin):
+                    return None
+        try:
+            return compute_psx_ra_hash(local, chdman_path=Path(chdman))
+        except Exception:
+            return None
+
+    with tempfile.TemporaryDirectory(prefix="rommgr_hash_verify_") as tmp:
+        staging = Path(tmp)
+        keep_hash = _pull_and_hash(keep_path, staging)
+        if keep_hash is None:
+            return {
+                "keep_hash": None,
+                "safe_discard_paths": [],
+                "mismatched_paths": [],
+                "unverifiable_paths": list(discard_paths),
+                "error": "No se pudo calcular el hash del archivo recomendado -- ningún candidato se ha verificado.",
+            }
+
+        safe_discard_paths: list[str] = []
+        mismatched_paths: list[str] = []
+        unverifiable_paths: list[str] = []
+        for discard_path in discard_paths:
+            h = _pull_and_hash(discard_path, staging)
+            if h is None:
+                unverifiable_paths.append(discard_path)
+            elif h == keep_hash:
+                safe_discard_paths.append(discard_path)
+            else:
+                mismatched_paths.append(discard_path)
+
+    return {
+        "keep_hash": keep_hash,
+        "safe_discard_paths": safe_discard_paths,
+        "mismatched_paths": mismatched_paths,
+        "unverifiable_paths": unverifiable_paths,
+    }
 
 
 def get_ra_hash_lib(config: AppConfig, platform: str, cache: dict[str, dict]) -> dict:

@@ -206,7 +206,50 @@ async function applyReviewGroup(groupKey) {
     .filter((e) => e.source_path !== recommended.source_path)
     .map((e) => e.source_path);
   if (discardPaths.length === 0) return;
+  // ANDROID-DUP-CROSSFMT-VERIFY-1: PSX groups can be linked purely by
+  // normalized title (crossfmt/title reasons) -- found live: 3 genuinely
+  // different discs sharing one mis-resolved catalog name in the same
+  // "duplicate" group. Verify by real disc hash before discarding anything;
+  // every other platform keeps the direct apply (no known false-positive
+  // pattern there).
+  if (group.platform === 'PlayStation') {
+    await _verifyThenResolve(recommended.source_path, discardPaths);
+    return;
+  }
   await _resolveReviewGroup(recommended.source_path, discardPaths);
+}
+
+async function _verifyThenResolve(keepPath, discardPaths) {
+  showToast('Verificando contenido real por hash de disco…', 'info');
+  let result;
+  try {
+    result = await apiPost('/api/verify-duplicate-hash', {
+      keep_path: keepPath,
+      discard_paths: discardPaths,
+    });
+  } catch (e) {
+    showToast('Error verificando: ' + e.message, 'err');
+    return;
+  }
+  if (result.error) {
+    showToast(result.error, 'err');
+    return;
+  }
+  const safe = result.safe_discard_paths || [];
+  const mismatched = result.mismatched_paths || [];
+  const unverifiable = result.unverifiable_paths || [];
+  if (safe.length === 0) {
+    showToast(
+      `Ningún candidato coincide por hash real de disco — ${mismatched.length} con contenido distinto, ${unverifiable.length} sin poder verificar. No se ha borrado nada.`,
+      'err'
+    );
+    return;
+  }
+  let msg = `${safe.length} de ${discardPaths.length} copia(s) verificada(s) por hash real de disco.`;
+  if (mismatched.length) msg += ` ${mismatched.length} con contenido distinto (no se toca).`;
+  if (unverifiable.length) msg += ` ${unverifiable.length} sin poder verificar (no se toca).`;
+  showToast(msg, mismatched.length || unverifiable.length ? 'warn' : 'ok');
+  await _resolveReviewGroup(keepPath, safe);
 }
 
 async function chooseReviewEntry(groupKey, keepPath) {
@@ -216,6 +259,10 @@ async function chooseReviewEntry(groupKey, keepPath) {
     .filter((e) => e.source_path !== keepPath)
     .map((e) => e.source_path);
   if (discardPaths.length === 0) return;
+  if (group.platform === 'PlayStation') {
+    await _verifyThenResolve(keepPath, discardPaths);
+    return;
+  }
   await _resolveReviewGroup(keepPath, discardPaths);
 }
 
