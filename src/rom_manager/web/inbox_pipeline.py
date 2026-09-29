@@ -1089,6 +1089,7 @@ def _run_inbox_pipeline(
 
     from rom_manager.catalog.mame_loader import load_arcade_crc_index
     from rom_manager.catalog.matcher import CatalogMatcher
+    from rom_manager.converters.sevenzip_extractor import extract_7z, find_7z_files
     from rom_manager.converters.zip_extractor import (
         extract_zip,
         find_zip_files,
@@ -1176,6 +1177,24 @@ def _run_inbox_pipeline(
             else:
                 logger.info(
                     "Inbox: skipped ZIP %s — %s", zp.name, result.skipped_reason or result.error
+                )
+
+        # ── Step 1.1: Extract .7z archives ───────────────────────────────────
+        # No arcade CRC-based routing here (unlike ZIPs above, is_arcade_zip_container
+        # is ZIP-specific) — only the same by-folder-name/disc-set guards extract_7z()
+        # already applies. A 7z sitting under an arcade/MAME folder is still skipped.
+        sevenzip_files = find_7z_files(inbox)
+        for idx, sp in enumerate(sevenzip_files, 1):
+            if any(part.startswith("_") for part in sp.relative_to(inbox).parts[:-1]):
+                continue
+            _upd("extracting", 1, idx, len(sevenzip_files), sp.name)
+            result = extract_7z(sp, sevenzip=config.sevenzip, delete_source=False, dry_run=False)
+            if result.success:
+                extracted_count += 1
+                source_zips.append(sp)
+            else:
+                logger.info(
+                    "Inbox: skipped 7z %s — %s", sp.name, result.skipped_reason or result.error
                 )
 
         # ── Step 1.5: Intercept BIOS files ───────────────────────────────────

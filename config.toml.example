@@ -88,6 +88,7 @@ sync_all = true
 # Binarios externos. Si se omiten se usan los bundled en tools/ (o el PATH).
 chdman = "tools\\chdman.exe"   # mamedev.org/tools — conversión a CHD
 adb = "tools\\adb.exe"         # Android Platform Tools — Cable Sync por USB
+sevenzip = "tools\\7z.exe"     # 7-zip.org — extraer .7z en el Inbox
 
 # ──────────────────────────────────────────────────────────────────────────────
 [web]
