@@ -1145,7 +1145,12 @@ def _review_groups_for_repo(
     extra_reasons: dict[int, str] = {}
     extra_fields: dict[int, dict] = {}
     orphan_conflicts: list[dict] = []  # conflict row with no matching games row (rare)
-    plan = build_plan(repo)
+    # GDI-ORGANIZE-1: safe unconditionally -- build_plan() only applies
+    # library_root to a game whose source actually lives under it (PC repo),
+    # any Android-repo game here (this function runs once per repo) falls
+    # back to the old heuristic per-game. getattr guards *config* being None
+    # or a fake stub in some tests despite the type hint.
+    plan = build_plan(repo, library_root=getattr(config, "library_root", None))
     if plan.conflicts:
         conflict_rows = _annotate_conflicts_with_ra(plan.conflicts, repo, config)
         collision_idxs: dict[str, list[int]] = defaultdict(list)
