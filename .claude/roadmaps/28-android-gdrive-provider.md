@@ -259,8 +259,18 @@ de proveedor.
 ## Checklist
 
 - [ ] Fase 0 — prerrequisito manual (Google Cloud Console, `GDRIVE_CLIENT_ID` en `local.properties`) completado por el usuario
-- [ ] Fase 1 — `CloudTransport` extraído, `DropboxTransport` lo implementa, cero regresiones
+- [x] Fase 1 — `CloudTransport` extraído, `DropboxTransport` lo implementa, cero regresiones (PR #357)
 - [ ] Fase 2 — `GoogleDriveAuthManager`/`GoogleDriveCredentialStore` (Sign-In + Picker)
+  - [x] Sign-In (`GoogleDriveCredentialStore`, `GoogleDriveAuthManager.signInIntent()`/`handleSignInResult()`, dependencia `play-services-auth`) — compila y `testDebugUnitTest` en verde; **no verificable de extremo a extremo sin Fase 0** (`GDRIVE_CLIENT_ID` real)
+  - [ ] Picker para elegir la carpeta `RetroSync/` ya existente (`GoogleDriveCredentialStore.folderId()` sigue siempre `null` hasta esto) — pendiente, ver nota de complejidad abajo
 - [ ] Fase 3 — `GoogleDriveTransport` (resolución de carpetas + BFS + upload/download)
 - [ ] Fase 4 — selector de proveedor en Ajustes + `SyncOrchestrator` genérico
 - [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto
+
+**Nota 2026-09-29 sobre el Picker**: la API nativa de Picker de Drive vía
+`play-services-drive` está deprecada por Google desde 2022 — la alternativa
+vigente es el *Drive Picker* embebido en WebView (JS + puente `postMessage`),
+que además de `GDRIVE_CLIENT_ID` necesita una API key de Drive separada. Se
+implementa como su propio incremento, no a ciegas sin poder probarlo contra
+una cuenta real — decisión pendiente de retomar cuando la Fase 0 esté
+completa.
