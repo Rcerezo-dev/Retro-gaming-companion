@@ -92,6 +92,29 @@ def test_arcade_folder_7z_is_never_extracted(tmp_path: Path) -> None:
 
 
 @_skip_no_7z
+def test_gdi_disc_set_is_not_extracted(tmp_path: Path) -> None:
+    """A single-disc Dreamcast GDI set has no "(Disc N)" in its filename but
+    is still a multi-track set that needs the CHD converter, not a raw unzip
+    -- real case found in this library's Unknown/ (JUNK-7Z-SUPPORT-1)."""
+    archive = tmp_path / "Jet Set Radio (Europe).7z"
+    _make_7z(
+        archive,
+        {
+            "Jet Set Radio (Europe) (Track 1).bin": b"t1",
+            "Jet Set Radio (Europe) (Track 2).bin": b"t2",
+            "Jet Set Radio (Europe).gdi": b"gdi",
+        },
+    )
+
+    result = extract_7z(archive, sevenzip=str(_SEVENZIP), dry_run=False, delete_source=True)
+
+    assert not result.success
+    assert result.skipped_reason
+    assert archive.exists()
+    assert not (tmp_path / "Jet Set Radio (Europe).gdi").exists()
+
+
+@_skip_no_7z
 def test_nested_directory_members_extracted(tmp_path: Path) -> None:
     archive = tmp_path / "collection.7z"
     _make_7z(archive, {"sub/inner.rom": b"nested"})

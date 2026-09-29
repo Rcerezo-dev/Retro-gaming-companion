@@ -4,7 +4,11 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from rom_manager.converters.zip_extractor import _ARCADE_FOLDER_NAMES, _DISC_RE
+from rom_manager.converters.zip_extractor import (
+    _ARCADE_FOLDER_NAMES,
+    _DISC_RE,
+    _DISC_SET_EXTENSIONS,
+)
 from rom_manager.utils.subprocess_flags import NO_WINDOW
 
 
@@ -113,6 +117,18 @@ def extract_7z(
             extracted_files=[],
             success=False,
             error=f"No se pudo listar el .7z (¿{sevenzip!r} no encontrado o archivo corrupto?)",
+        )
+
+    # Same content check as extract_zip(): a .cue/.gdi among the members means
+    # this is a multi-track disc set (sibling BIN/raw tracks) that needs
+    # set-aware handling, not a plain extraction -- catches sets whose
+    # filename alone doesn't say "(Disc N)" (e.g. a single-disc Dreamcast GDI).
+    if any(Path(n).suffix.lower() in _DISC_SET_EXTENSIONS for n in members):
+        return SevenZipExtractionResult(
+            archive_path=archive_path,
+            extracted_files=[],
+            success=False,
+            skipped_reason="Set multi-disco (.cue/.gdi) — usa el conversor CHD",
         )
 
     dest_dir = archive_path.parent
