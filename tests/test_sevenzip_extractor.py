@@ -173,3 +173,50 @@ def test_extract_7z_reports_error_when_binary_missing(tmp_path: Path) -> None:
 
     assert not result.success
     assert result.error
+
+
+@_skip_no_7z
+def test_size_mismatch_never_writes_partial_file_and_keeps_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: a truncated/incomplete member (real cause: 7z killed by a
+    timeout, disk full, or a CRC error mid-write) must never land at the real
+    target path, and the now-not-actually-redundant source must survive --
+    the staging + size-verification in extract_7z() is what guarantees this,
+    simulated here by making the archive's own listing lie about a member's
+    size so the post-extraction check always fails it."""
+    from rom_manager.converters import sevenzip_extractor as mod
+
+    archive = tmp_path / "collection.7z"
+    _make_7z(archive, {"a.rom": b"a"})
+
+    real_list_entries = mod._list_7z_entries
+
+    def _lying_entries(path: Path, *, sevenzip: str = "7z"):
+        entries = real_list_entries(path, sevenzip=sevenzip)
+        assert entries is not None
+        return [(name, size + 999, is_dir) for name, size, is_dir in entries]
+
+    monkeypatch.setattr(mod, "_list_7z_entries", _lying_entries)
+
+    result = extract_7z(archive, sevenzip=str(_SEVENZIP), dry_run=False, delete_source=True)
+
+    assert not result.success
+    assert not (tmp_path / "a.rom").exists()  # no partial write at the real target
+    assert archive.exists()  # source not deleted -- verification failed
+
+
+@_skip_no_7z
+def test_non_ascii_member_names_extract_correctly(tmp_path: Path) -> None:
+    """Regression: without -sccUTF-8, 7-Zip on Windows pipes non-ASCII names
+    in the console/OEM codepage, they decode as U+FFFD here, and the
+    extraction can never find the file it just wrote at that mismatched
+    name -- it gets reported as a missing member on every retry."""
+    archive = tmp_path / "collection.7z"
+    _make_7z(archive, {"Pokémon Amarillo.gb": b"data"})
+
+    result = extract_7z(archive, sevenzip=str(_SEVENZIP), dry_run=False, delete_source=True)
+
+    assert result.success
+    assert (tmp_path / "Pokémon Amarillo.gb").read_bytes() == b"data"
+    assert not archive.exists()
