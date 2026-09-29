@@ -1643,6 +1643,10 @@ Triforce) probablemente se resuelva sola en el próximo `match` con el
 catálogo ya arreglado. Los 8 `.7z` siguen siendo el único hueco confirmado
 sin solución disponible (formato no soportado).
 
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JUNK-7Z-SUPPORT-1 | **Soporte `.7z` en el Inbox** — `converters/zip_extractor.py` solo importa `zipfile` (stdlib), cero soporte de `.7z`; sin `7z*.exe` en `tools/` | `src/rom_manager/converters/sevenzip_extractor.py` (nuevo), `config.py` (campo `sevenzip`, mismo patrón `_default_tool`/`_resolve_tool_path` que `chdman`/`adb`), `web/inbox_pipeline.py` (`_run_inbox_pipeline`, extracción junto a los `.zip`), `cli.py` (`rommgr decompress` extrae también `.7z`), `scripts/download-tools.ps1` (descarga 7-Zip desde GitHub `ip7z/7zip`, extrae el `.msi` con `msiexec /a` sin necesitar 7z para desempaquetarlo — sin huevo-o-gallina) | ✅ implementado 2026-09-29 — `extract_7z()`/`find_7z_files()`/`list_7z_members()` (parseo de `7z l -slt`), mismas garantías que `extract_zip()`: nunca sobreescribe (`-aos`), solo borra el origen si todos los miembros quedan confirmados en disco. 9 tests nuevos (`tests/test_sevenzip_extractor.py`, contra el `7z.exe` real de `tools/`, skip si no está presente). Suite completa 1469/1469, ruff+format limpios. **Sin arcade-CRC-detection para `.7z`** (a diferencia de `is_arcade_zip_container` para ZIP) — solo el guard por nombre de carpeta (`mame`/`arcade`/...), documentado como límite conocido. **No probado todavía contra los 8 `.7z` reales de esta biblioteca** — viven sueltos en la biblioteca, no en el Inbox; pendiente decidir cómo aplicarlo (moverlos al Inbox, o `rommgr decompress <carpeta> --apply` directo sobre su ubicación real) |
+
 **Hallazgo colateral real: `SAGE-1` murió con `"database is locked"`**
 mientras `zip-route-apply` corría en paralelo (ambos escriben en
 `library_pc.db` — el pipeline de organizar hace escrituras masivas,

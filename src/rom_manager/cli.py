@@ -1272,6 +1272,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "decompress":
         from rom_manager.catalog.mame_loader import load_arcade_crc_index
+        from rom_manager.converters.sevenzip_extractor import extract_7z_directory
         from rom_manager.converters.zip_extractor import extract_directory
 
         source_path = args.source_path.resolve()
@@ -1321,6 +1322,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             if summary.extracted:
                 print("Re-run 'rommgr scan' to update the library database.")
+
+        sevenzip_summary = extract_7z_directory(
+            source_path,
+            sevenzip=config.sevenzip,
+            delete_source=args.delete_source,
+            dry_run=dry_run,
+        )
+        if sevenzip_summary.results:
+            print()
+            for result in sevenzip_summary.results:
+                if result.success:
+                    print(
+                        f"  [OK]   {result.archive_path.name}  ->  "
+                        f"{len(result.extracted_files)} archivo(s)"
+                    )
+                elif result.skipped_reason:
+                    print(f"  [SKIP] {result.archive_path.name}  -  {result.skipped_reason}")
+                elif result.error:
+                    print(f"  [FAIL] {result.archive_path.name}  -  {result.error}")
+            print()
+            if dry_run:
+                print(
+                    f"7z — se descomprimirían: {sevenzip_summary.extracted}  |  "
+                    f"se saltarían: {sevenzip_summary.skipped}"
+                )
+            else:
+                print(
+                    f"7z — descomprimidos: {sevenzip_summary.extracted}  |  "
+                    f"saltados: {sevenzip_summary.skipped}  |  fallidos: {sevenzip_summary.failed}"
+                )
         return 0
 
     if args.command == "generate-cues":
