@@ -206,6 +206,14 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_wishlist_platform ON wishlist (platform)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS blocklist (
+        sha1            TEXT NOT NULL PRIMARY KEY,
+        canonical_title TEXT,
+        reason          TEXT,
+        created_at      TEXT NOT NULL
+    )
+    """,
 )
 
 # Columns added after the initial schema that may be missing in existing databases.

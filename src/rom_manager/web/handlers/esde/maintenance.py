@@ -277,7 +277,7 @@ def register_maintenance(
         folder = ctx._qs.get("root", [""])[0] or (
             str(config.library_root) if config.library_root else ""
         )
-        empty = {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0}
+        empty = {"bios": 0, "mame_infra": 0, "junk_files": 0, "junk_bytes": 0, "misplaced_zips": 0}
         if not folder or not Path(folder).is_dir():
             ctx._send_json(empty)
             return
@@ -291,6 +291,10 @@ def register_maintenance(
         mame_infra = 0
         junk_files = 0
         junk_bytes = 0
+        # LIBRARY-HEALTH-DASH-1: ZIPs sueltos ya identificados (ROM de consola/
+        # arcade/romhack) pero aún sin mover a su carpeta de plataforma — la
+        # BIOS ya tiene su propio contador, no se duplica aquí.
+        misplaced_zips = 0
         for cat in scan.get("categories", []):
             if cat["category"] == _ZIP_CAT_BIOS:
                 bios += cat["count"]
@@ -299,6 +303,8 @@ def register_maintenance(
             elif cat["confidence"] == "safe_delete":
                 junk_files += cat["count"]
                 junk_bytes += cat["total_bytes"]
+            elif cat["confidence"] == "misplaced":
+                misplaced_zips += cat["count"]
         # El junk-scan solo ve ZIPs *sueltos* (dentro de carpeta de plataforma
         # los salta): la infra ya colocada en arcade\/mame\/… se cuenta aparte
         # cruzando los stems con las bios/devices del XML de MAME.
@@ -317,6 +323,7 @@ def register_maintenance(
             "mame_infra": mame_infra,
             "junk_files": junk_files,
             "junk_bytes": junk_bytes,
+            "misplaced_zips": misplaced_zips,
         }
         _extras_cache[folder] = (time.time(), payload)
         ctx._send_json(payload)

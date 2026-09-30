@@ -966,7 +966,7 @@ def _run_setup_pipeline(
         # ── Step 5: Build plan ───────────────────────────────────────────────
         _upd("Preparando plan de renombrado", 5, 90)
         opts = FormatOptions()
-        plan = build_plan(repository, opts)
+        plan = build_plan(repository, opts, library_root=config.library_root)
         result["plan_pending"] = len(plan.pending)
 
         _upd("Completado", 5, 100)
@@ -1134,6 +1134,7 @@ def _run_inbox_pipeline(
 
     from rom_manager.catalog.mame_loader import load_arcade_crc_index
     from rom_manager.catalog.matcher import CatalogMatcher
+    from rom_manager.converters.sevenzip_extractor import extract_7z, find_7z_files
     from rom_manager.converters.zip_extractor import (
         extract_zip,
         find_zip_files,
@@ -1223,6 +1224,24 @@ def _run_inbox_pipeline(
                     "Inbox: skipped ZIP %s — %s", zp.name, result.skipped_reason or result.error
                 )
 
+        # ── Step 1.1: Extract .7z archives ───────────────────────────────────
+        # No arcade CRC-based routing here (unlike ZIPs above, is_arcade_zip_container
+        # is ZIP-specific) — only the same by-folder-name/disc-set guards extract_7z()
+        # already applies. A 7z sitting under an arcade/MAME folder is still skipped.
+        sevenzip_files = find_7z_files(inbox)
+        for idx, sp in enumerate(sevenzip_files, 1):
+            if any(part.startswith("_") for part in sp.relative_to(inbox).parts[:-1]):
+                continue
+            _upd("extracting", 1, idx, len(sevenzip_files), sp.name)
+            result = extract_7z(sp, sevenzip=config.sevenzip, delete_source=False, dry_run=False)
+            if result.success:
+                extracted_count += 1
+                source_zips.append(sp)
+            else:
+                logger.info(
+                    "Inbox: skipped 7z %s — %s", sp.name, result.skipped_reason or result.error
+                )
+
         # ── Step 1.5: Intercept BIOS files ───────────────────────────────────
         _upd("intercepting bios", 1)
         bios_moved = _intercept_bios_files(inbox, target_root, logger)
@@ -1282,7 +1301,7 @@ def _run_inbox_pipeline(
         # ── Step 4: Build plan ───────────────────────────────────────────────
         _upd("planning", 4)
         opts = FormatOptions()
-        plan = build_plan(repository, opts)
+        plan = build_plan(repository, opts, library_root=config.library_root)
         inbox_str_lower = str(inbox).lower()
         pending_ops = [
             op for op in plan.pending if str(op.source_path).lower().startswith(inbox_str_lower)
@@ -1330,23 +1349,36 @@ def _run_inbox_pipeline(
         organized_dest_files: list[Path] = []
         organized_game_ids: list[int] = []  # INBOX-METADATA-INLINE-1
         unmatched = 0  # INBOX-SESSION-SUMMARY-1: sin platform -> cayó en Unknown/
+        blocked_found: list[str] = []
         _ra_hash_cache: dict[str, dict] = {}
 
         # Get fresh game list from inbox area to move
         with repository.connect() as conn:
             rows = conn.execute(
-                "SELECT id, source_path, platform, original_filename FROM games "
+                "SELECT id, source_path, platform, original_filename, sha1 FROM games "
                 "WHERE LOWER(source_path) LIKE ?",
                 (inbox_str_lower + "%",),
             ).fetchall()
 
         for idx, row in enumerate(rows, 1):
-            game_id, source_path_str_db, platform, orig_name = row
+            game_id, source_path_str_db, platform, orig_name, sha1 = row
             source_file = Path(source_path_str_db)
             if not source_file.exists():
                 continue
             if not platform:
                 unmatched += 1
+
+            # GAME-BLOCKLIST-2: a blocked sha1 reappearing in the Inbox (e.g.
+            # after an android_to_pc sync or a manual adb pull that dropped it
+            # here) is never auto-organized — left in place, warned once via
+            # job_result, no silent auto-discard (decisión usuario 2026-09-24).
+            if repository.is_blocked(sha1):
+                blocked_found.append(orig_name)
+                logger.warning(
+                    "Inbox: %s tiene un SHA1 bloqueado — no se organiza, revisar a mano",
+                    orig_name,
+                )
+                continue
 
             _platform_folder_name(platform or "", target_root)
             dest_file = _organize_dest_file(target_root, platform or "", source_file.name)
@@ -1514,6 +1546,7 @@ def _run_inbox_pipeline(
             "rename_errors": rename_errors[:20],
             "organize_errors": organize_errors[:20],
             "scrape_errors": scrape_errors[:20],
+            "blocked_found": blocked_found[:20],
             "target_root": str(target_root),
             "anbernic_sent": anbernic_result["sent"],
             "anbernic_errors": anbernic_result["errors"],

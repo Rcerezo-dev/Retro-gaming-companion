@@ -2,7 +2,7 @@
 of the file (DEVPROFILE-2).
 
 PC-only: Android's retroarch.cfg isn't reachable without root (DEVPROFILE-0,
-see Tareas/Roadmap-DEVPROFILE-1-4.md §3). Enabling the *_by_content sort
+see Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md §3). Enabling the *_by_content sort
 flags matters beyond convenience — it's what makes RemoteRouter's per-core
 subfolder assumption (``saves/<core>/<rom>.srm``) true by construction
 instead of by luck, so today's sync stops guessing the layout.

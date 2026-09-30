@@ -215,6 +215,7 @@ def _handle_system_status(config: AppConfig) -> dict:
 
     chdman_ok, chdman_ver = _test_binary(str(config.chdman) if config.chdman else "")
     adb_ok, adb_ver = _test_binary(str(config.adb) if config.adb else "")
+    sevenzip_ok, sevenzip_ver = _test_binary(str(config.sevenzip) if config.sevenzip else "")
     rclone_st = _handle_rclone_status(config)
     from rom_manager.web.handlers.scan import _catalog_status
 
@@ -230,6 +231,11 @@ def _handle_system_status(config: AppConfig) -> dict:
             "path": str(config.chdman or "tools/chdman.exe"),
         },
         "adb": {"ok": adb_ok, "version": adb_ver, "path": str(config.adb or "tools/adb.exe")},
+        "sevenzip": {
+            "ok": sevenzip_ok,
+            "version": sevenzip_ver,
+            "path": str(config.sevenzip or "tools/7z.exe"),
+        },
         "rclone": {
             "ok": rclone_st["installed"],
             "version": rclone_st.get("version", ""),
@@ -490,7 +496,7 @@ def _handle_retroarch_check(config: AppConfig) -> dict:
 def _handle_apply_retroarch_savefile_layout(config: AppConfig) -> dict:
     """DEVPROFILE-2d: manual trigger for apply_savefile_layout() from Settings.
 
-    Botón manual, no automático (Tareas/Roadmap-DEVPROFILE-1-4.md §3) —
+    Botón manual, no automático (Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md §3) —
     reescribe un .cfg del usuario, así que solo se dispara si lo pide.
     Localiza retroarch.cfg igual que ``_handle_retroarch_check`` (junto al
     exe configurado, no ``_detect_retroarch_install()``) y usa
@@ -551,6 +557,7 @@ def _handle_device_profile_detect(config: AppConfig) -> dict:
             "local_dir": s.local_dir,
             "remote": s.remote,
             "sync_all": s.sync_all,
+            "single_file": s.single_file,
         }
 
     ra_exe = (config.retroarch_path or "").strip()
@@ -580,7 +587,7 @@ def _handle_save_device_profile_manifest(config: AppConfig) -> dict:
     detect candidates — only what the user actually saved) as
     ``<remote_base>/device-profile.json``, closing the gap where
     DEVPROFILE-4's export/import functions had no production caller (see
-    Tareas/Roadmap-DEVPROFILE-5-6.md §1). ``rommgr restore`` (DEVPROFILE-5b+)
+    Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md §1). ``rommgr restore`` (DEVPROFILE-5b+)
     is the future reader of this file.
     """
     from rom_manager.services.device_profile import save_profile_manifest

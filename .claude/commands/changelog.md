@@ -5,7 +5,7 @@ Pasos:
 1. Ejecuta `git log --oneline -30` para ver los últimos 30 commits.
 2. Ejecuta `git log --format="%H %s" -30` para obtener los hashes completos.
 3. Para los commits más recientes (últimos 10), ejecuta `git show --stat <hash>` para ver qué archivos cambió cada uno.
-4. Lee `Tareas/Día10-Mejoras-Pendientes.md` para cruzar los commits con las features implementadas.
+4. Lee `Tareas/backlog.md` para cruzar los commits con las tareas implementadas.
 
 Genera el changelog en este formato:
 

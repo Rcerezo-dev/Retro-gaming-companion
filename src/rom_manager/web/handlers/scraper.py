@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -16,6 +17,30 @@ if TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+
+
+def _commit_with_retry(conn: sqlite3.Connection, attempts: int = 5, delay: float = 2.0) -> None:
+    """JOBS-SQLITE-LOCK-1: retry a commit that hits ``database is locked``.
+
+    ``base.py``'s ``PRAGMA busy_timeout=30000`` already makes SQLite wait up
+    to 30s for a writer to free the lock, but a long burst of writes from
+    another job (``apply``/``inbox``/``zip-route-apply``, one short
+    transaction per file but hundreds of them back to back) can still starve
+    a lower-frequency writer like this one past that window — confirmed
+    real 2026-09-28: `SAGE-1` died mid-run with exactly this error while
+    `zip-route-apply` was reorganizing 3.301 files in parallel, losing
+    nothing already scraped but aborting the rest of the queue outright.
+    Only retries the specific "locked" error; anything else re-raises
+    immediately (same as a plain ``conn.commit()``).
+    """
+    for attempt in range(attempts):
+        try:
+            conn.commit()
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == attempts - 1:
+                raise
+            time.sleep(delay)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -194,7 +219,7 @@ def _do_scrape(
                     if result is None:
                         skipped += 1
                         repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
-                        conn.commit()
+                        _commit_with_retry(conn)
                         continue
                     box_art_path = screenshot_path = wheel_path = ""
                     if download_images:
@@ -272,7 +297,7 @@ def _do_scrape(
                             connection=conn,
                         )
                     repository.mark_metadata_scraped(game["id"], conn)  # DB-1: mark as checked
-                    conn.commit()
+                    _commit_with_retry(conn)
                     found += 1
 
             # ── Pasada 2: descargar portadas desde URLs almacenadas (sin llamada API) ──
@@ -315,7 +340,7 @@ def _do_scrape(
                                 box_art_path=str(_dest),
                                 connection=conn,
                             )
-                            conn.commit()
+                            _commit_with_retry(conn)
                             images_filled += 1
 
             # Auto-export gamelists after scrape (best-effort)

@@ -15,7 +15,7 @@ class SyncWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val result = SyncOrchestrator.runFullSync(applicationContext) ?: return Result.failure()
+        val result = SyncOrchestrator.runFullSync(applicationContext, SyncTrigger.PERIODIC) ?: return Result.failure()
         return if (result.errors.isEmpty()) Result.success() else Result.retry()
     }
 }

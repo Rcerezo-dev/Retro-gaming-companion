@@ -240,7 +240,8 @@ extensions = [
 # ── Cores PC candidatos por sistema ES-DE (DEVPROFILE-1d) ──────────────────────
 # Clave = mismo slug que usaba systems_generator.py::_SYSTEMS[i]["name"] — no el
 # nombre canónico de plataforma de arriba: "mame" y "fbneo" comparten canónico
-# "Arcade" pero necesitan listas de cores distintas (ver Roadmap-DEVPROFILE-1-4.md §2).
+# "Arcade" pero necesitan listas de cores distintas (ver Tareas/diario/archivo/
+# Roadmap-DEVPROFILE-1-4-completado.md §2).
 # Orden = prioridad: el primer core encontrado instalado en cores/ gana.
 [cores.pc]
 nes = ["fceumm", "nestopia", "mesen"]

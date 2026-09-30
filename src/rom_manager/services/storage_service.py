@@ -93,3 +93,97 @@ def delete_storage_items(
             errors.append(f"{source_path}: borrado pero fallo en BD: {type(exc).__name__}: {exc}")
 
     return {"trashed": trashed, "deleted_device": deleted_device, "errors": errors}
+
+
+def block_and_delete_game(
+    repository: LibraryRepository,
+    repository_android: LibraryRepository,
+    sha1: str,
+    canonical_title: str = "",
+    reason: str = "",
+    adb_transport: AdbTransport | None = None,
+) -> dict:
+    """GAME-BLOCKLIST-1/2: mark *sha1* as permanently excluded, then delete any
+    copy currently on PC and/or Android.
+
+    Marks the blocklist row in BOTH repositories BEFORE touching any file —
+    each is a separate SQLite DB (PC/Android), and if a delete below fails
+    halfway the sha1 is already blocked on both sides either way, so a later
+    sync/scan/Inbox pass never silently re-adopts it (Paso 2 of the roadmap:
+    "confirmar que la operación marca ANTES de borrar").
+
+    PC delete goes through ``_descartados/`` (never a direct unlink, AUD-3),
+    same as ``delete_storage_items``. Android delete needs a connected
+    device — without one the mark still stands and the PC side (if present)
+    is still deleted; the Android copy is left for the next `adb remove`
+    opportunity, same "avisa y sigue sin bloquear" behaviour
+    ``delete_storage_items`` already uses for a missing cable.
+    """
+    sha1 = (sha1 or "").strip().upper()
+    if not sha1:
+        return {
+            "blocked": False,
+            "trashed": False,
+            "deleted_device": False,
+            "errors": ["sha1 vacío"],
+        }
+
+    repository.block_sha1(sha1, canonical_title, reason)
+    repository_android.block_sha1(sha1, canonical_title, reason)
+
+    trashed = False
+    deleted_device = False
+    errors: list[str] = []
+
+    with repository.connect() as conn:
+        pc_row = conn.execute(
+            "SELECT source_path FROM games WHERE sha1 = ? AND file_type = 'rom' LIMIT 1",
+            (sha1,),
+        ).fetchone()
+    if pc_row and pc_row["source_path"]:
+        p = Path(pc_row["source_path"])
+        if not p.exists():
+            errors.append(f"{p.name}: no existe en PC")
+        else:
+            try:
+                discard_to_trash(p)
+                trashed = True
+            except Exception as exc:
+                errors.append(f"{p.name}: {type(exc).__name__}: {exc}")
+            if trashed:
+                try:
+                    with repository.connect() as conn:
+                        cascade_delete_games_by_source_path(conn, str(p))
+                        conn.commit()
+                except Exception as exc:
+                    errors.append(
+                        f"{p.name}: borrado pero fallo en BD PC: {type(exc).__name__}: {exc}"
+                    )
+
+    with repository_android.connect() as conn:
+        android_row = conn.execute(
+            "SELECT source_path FROM games WHERE sha1 = ? AND file_type = 'rom' LIMIT 1",
+            (sha1,),
+        ).fetchone()
+    if android_row and android_row["source_path"]:
+        source_path = android_row["source_path"]
+        if adb_transport is None:
+            errors.append(f"{source_path}: dispositivo no conectado, borrado en consola pendiente")
+        else:
+            try:
+                adb_transport.remove(source_path)
+                deleted_device = True
+            except Exception as exc:
+                errors.append(f"{source_path}: {type(exc).__name__}: {exc}")
+            if deleted_device:
+                try:
+                    with repository_android.connect() as conn:
+                        cascade_delete_games_by_source_path(conn, source_path)
+                        conn.commit()
+                except Exception as exc:
+                    errors.append(
+                        f"{source_path}: borrado pero fallo en BD Android: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+
+    return {"blocked": True, "trashed": trashed, "deleted_device": deleted_device, "errors": errors}

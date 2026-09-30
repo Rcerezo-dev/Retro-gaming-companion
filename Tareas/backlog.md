@@ -36,6 +36,25 @@
 > verificar contra el código real que hoy se auto-resuelve siempre por policy
 > global — agrupada en la rama `feature/saves-ux-history-context` (roadmap 25)
 > por compartir fichero con `SAVES-CONFLICT-CTX-1`, no rama nueva
+> 2026-09-26: `NATIVE-SAVE-SYNC-1` — biblioteca, emuladores y juegos nativos
+> consolidados en `E:\RetroVault\` (`ROMS`/`EMULADORES`/`JUEGOS NATIVOS`);
+> 129.654 filas reescritas en `library_pc.db`; sync de saves extendido a
+> juegos nativos (Dusklight/Twilight Princess) reutilizando `sync_sources`
+> sin código nuevo
+> 2026-09-29: `CHD-CLEANUP-1` nuevo comando `rommgr clean-redundant-chd`
+> (PR #376) aplicado real contra `psx/` en la Anbernic — 17/19 candidatos
+> verificados por hash RA y borrados, 11,49 GB liberados, 0 errores; 2
+> saltados de forma segura (sheets `.cue` rotas). `GDI-ORGANIZE-1` bug 1
+> arreglado (PR #377) — `build_plan()` ya no adivina mal el destino de
+> PSX/Saturn/Dreamcast/Wii cuando el origen no está en su carpeta de
+> plataforma
+> 2026-09-30: rescatadas `feature/saves-ux-history-context` (roadmap 25,
+> PR #338) y `feature/inbox-ux-summary-metadata` (roadmap 26, PR #339) —
+> llevaban abiertas desde el 22-25/09 con trabajo completo, bloqueadas por
+> conflictos reales contra los 5 días de `develop` que avanzaron mientras
+> tanto; roadmaps 28/29/30 renumerados a 29/30/31 (28 ya lo ocupaba
+> `android-gdrive-provider`, sesión aparte) y el roadmap 27 (ya completado
+> vía PR #340) retirado del índice por duplicado
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -60,16 +79,15 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 |------|---------|---------------------------|------|
 | `fix/matcher-coverage-gaps` | [14](../.claude/roadmaps/14-matcher-coverage-gaps.md) | [MATCH-FIX-3](#match-fix-3-descomprimir-y-rehashear-no-resuelve-las-colisiones-de-nombre-cuando-el-catálogo-tampoco-conoce-el-hash-real-hallazgo-2026-09-12) | Pilar 1 |
 | `fix/cable-sync-format-gaps` | [16](../.claude/roadmaps/16-cable-sync-format-gaps.md) | [CABLE-ROM-FIX](#cable-rom-fix-el-sync-de-roms-por-cable-no-compara-con-el-destino-hallazgo-2026-08-13) | Pilar 3 |
-| `feature/game-blocklist` | [18](../.claude/roadmaps/18-game-blocklist.md) | [GAME-BLOCKLIST](#game-blocklist-eliminar-un-juego-de-ambas-bibliotecas-y-evitar-que-un-sync-lo-recupere-feedback-usuario-2026-08-29) | UX |
 | `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
 | — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](#docs-audit-1-seguimiento-de-la-auditoría-de-documentación-2026-09-20) | Transversal |
-| `feature/library-ux-dashboard-duplicates` | [27](../.claude/roadmaps/27-library-ux-dashboard-duplicates.md) | `LIBRARY-HEALTH-DASH-1`, `DUP-VISUAL-UI-1` | Pilar 1 — fase 1 de 6 (ver "Fases" en `INDEX.md`) |
-| `feature/library-folder-standardization` | [28](../.claude/roadmaps/28-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
 | `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 — ✅ completo, PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339) abierto |
 | `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
-| `feature/mobile-responsive-ui` | [29](../.claude/roadmaps/29-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
-| `feature/ra-achievements-live-progress` | [30](../.claude/roadmaps/30-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
+| `feature/library-folder-standardization` | [29](../.claude/roadmaps/29-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
+| `feature/mobile-responsive-ui` | [30](../.claude/roadmaps/30-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
+| `feature/ra-achievements-live-progress` | [31](../.claude/roadmaps/31-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
+| `feature/android-drive-2-signin` (Fase 1 en `main`/`develop` vía PR #357) | [28](../.claude/roadmaps/28-android-gdrive-provider.md) | [ANDROID-DRIVE-1](#android-sync-app-android-nativa-de-sync-de-saves-diseño-2026-08-18) | Android Sync |
 
 **Ramas mergeadas en esta sesión** (2026-09-18, ya reflejadas en `INDEX.md` filas 12/13/17/21/22):
 `fix/catalog-match-subset-hack` (PR #317), `fix/dup-winners-non-canonical-guard` (PR #318),
@@ -82,14 +100,22 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 
 | Epic | Tareas abiertas (🟡/🔴) sin rama confirmada |
 |------|-----------------------------------------------|
-| Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
+| Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴), `JUNK-SCAN-RUBEN-1` (🟡 medido 2026-09-28, 6.072 archivos/34,97 GB sin clasificar, nada aplicado todavía) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
 | Pilar 2 | `ZIP-ROUTE` (🟡) |
 | Pilar 3 | `CABLE-ROOT-1` (🟡) |
-| UX | `FTP-PICK` (🔴🔴) |
 | Distribución | Phase 6 (🟡) |
 | RA/Scraper/SAGE | `SAGE` (🟡) |
-| Perfil de dispositivo | `CHDMAN-TEST-COMPRESS-1` (🟡🔴) |
 | Android Sync (nativo, no cable) | Sección completa (786-830) tiene el mayor volumen de 🟡/🔴 del backlog — `feature/android-sync-12-periodic-sync` y PRs #226-237 ya mergeados cubren parte, pero quedan ítems abiertos sin verificar individualmente aquí |
+
+**2026-09-28**: fila `UX | FTP-PICK (🔴🔴)` retirada de esta tabla —
+desincronizada, `FTP-PICK-1`/`-2` ya están ✅ desde el 2026-08-29 (ver
+`ROADMAP-IDEAS`, sección "Pilar 3"); solo queda validación manual en
+hardware, que no es un 🔴/🟡 de código pendiente. También retirada
+`Perfil de dispositivo | CHDMAN-TEST-COMPRESS-1 (🟡🔴)` — `CHDMAN-TEST-COMPRESS-1`
+ya está ✅ desde el 2026-09-06 (causa raíz confirmada: bug de `chdman.exe`
+comprimiendo discos sintéticos diminutos, fix vive solo en el fixture de
+test, no en el código del proyecto). Mismo patrón de desincronización ya
+documentado en `.claude/roadmaps/INDEX.md`.
 
 ---
 
@@ -346,7 +372,7 @@ Fantasy VII en un solo grupo "duplicado" falso positivo.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | DUP-REGION-1 | Detectar el grupo (título difuso + plataforma, solo fuera de `_MULTI_DISC_RISK_PLATFORMS`) y añadir el motivo `"region"` a la cola de revisión — nunca auto-fusiona ni borra, solo recomienda cuál conservar (empate: integridad > soporte RA > carpeta correcta > región preferida > nombre) | `web/builders/duplicates.py` (`_review_groups_for_repo`, `region_linked_idxs`, `has_region_dup`) | ✅ implementado — confirmado contra la biblioteca real (2026-09-15, mencionado en el hallazgo original de Día64): 94 títulos GBA / 188 archivos, solo pares de región, ninguna secuela distinta fusionada por error (el tag de región es siempre un grupo `(...)` final, nunca parte del título) |
-| DUP-REGION-2 | El desempate por idioma de `_review_entry_sort_key` era fijo (solo "¿es español?"); para el motivo `"region"` se necesita un ranking configurable por el usuario, no solo español-o-no. Nueva `DuplicatesConfig` (`config.py`): `preferred_regions` (lista ordenada, por defecto `["Spain", "Europe"]`) y `keep_both_regions` (si `True`, el motivo `"region"` no se dispara nunca — el usuario conserva todas las regiones a propósito) | `config.py` (`DuplicatesConfig`), `detection/region_parser.py` (`KNOWN_REGIONS`, para el selector de la UI), `web/builders/duplicates.py` (`_review_entry_sort_key` con `region_tiebreak`/`preferred_regions`), `web/builders/misc.py` (`_build_config`), `web/handlers/config.py` (`_save_config`, campos `duplicates.*`), `web/static/js/tabs/config.js` + `tab-settings.html` (picker de regiones con reordenar/quitar, checkbox "mantener todas") | ✅ implementado con tests (`test_same_title_cross_region_flagged_for_review`, `test_keep_both_regions_config_suppresses_region_groups`, `test_preferred_regions_config_overrides_default_ranking`) — 1370 tests totales, ruff limpio. Retomado en rama `feature/dup-region-2-preferences`; sin PR todavía |
+| DUP-REGION-2 | El desempate por idioma de `_review_entry_sort_key` era fijo (solo "¿es español?"); para el motivo `"region"` se necesita un ranking configurable por el usuario, no solo español-o-no. Nueva `DuplicatesConfig` (`config.py`): `preferred_regions` (lista ordenada, por defecto `["Spain", "Europe"]`) y `keep_both_regions` (si `True`, el motivo `"region"` no se dispara nunca — el usuario conserva todas las regiones a propósito) | `config.py` (`DuplicatesConfig`), `detection/region_parser.py` (`KNOWN_REGIONS`, para el selector de la UI), `web/builders/duplicates.py` (`_review_entry_sort_key` con `region_tiebreak`/`preferred_regions`), `web/builders/misc.py` (`_build_config`), `web/handlers/config.py` (`_save_config`, campos `duplicates.*`), `web/static/js/tabs/config.js` + `tab-settings.html` (picker de regiones con reordenar/quitar, checkbox "mantener todas") | ✅ implementado con tests (`test_same_title_cross_region_flagged_for_review`, `test_keep_both_regions_config_suppresses_region_groups`, `test_preferred_regions_config_overrides_default_ranking`) — 1370 tests totales, ruff limpio. ✅ **mergeado** (PR #327, `2173ff1`) — el backlog seguía diciendo "sin PR todavía" pese a estar ya en `develop` |
 
 ---
 
@@ -839,7 +865,105 @@ para una revisión uno-a-uno en otra sesión.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | 🟡 pendiente, baja urgencia — candidatos de pinta segura, sin verificar individualmente |
+| ANDROID-DUP-2-APPLY-1 | Revisar uno a uno y aplicar (si procede) los ~40 pares restantes mismo-título `.chd`+`.bin` no incluidos en el lote seguro de hoy | — (revisión manual + `apply_all_review_recommendations` con cola filtrada) | ✅ **hecho 2026-09-25** — 68 grupos aplicados en total (22 sha1 puro + 46 `.chd`+`.bin` verificados por hash RA real), 25,08 GB liberados, 0 errores. 5 MISMATCH reales y 2 no-hasheables sin tocar, ver `ANDROID-DUP-CROSSFMT-VERIFY-1` |
+
+**Sesión 2026-09-25**: recalculada la cola (`/api/review-queue`, `library_android.db`
+real con la Anbernic conectada) — **83 grupos solo-dispositivo, 35,88 GB**
+(antes 96 el Día68; la bajada de 13 grupos es exactamente `DUP-CROSSFMT-10`
++ `DUP-SHA1-JUNK-1` ya resueltos, confirma que esos fixes surtieron efecto
+sin regresión). De los 83: **22 tienen `reasons == ["sha1"]` puro** (par de
+2 entradas, hash SHA1 verificado byte-idéntico entre `keep` y `discard`) —
+aplicados con `POST /api/resolve-duplicate-ra` uno a uno (cola filtrada a
+mano, backup previo de `library_android.db`): **22/22 borrados, 0 errores,
+2,30 GB liberados**, verificado por fila de BD (0/22 filas descartadas
+siguen en la BD) y por archivo real en el dispositivo (`adb shell test -e`
+sobre 2 casos). Incluye los `Xenogears`/`Final Fantasy VIII`/`Parasite Eve`
+que `DUP-DISC-SET-2` desbloqueó. **Hallazgo colateral, no bloqueante**: 3
+de los 22 "keep" recomendados son el nombre correcto del juego pero viven
+anidados dentro de la carpeta de OTRO juego (`Twisted Metal (Europe)/
+AirAssault - The Red Mercury Missions (Japan).bin`, mismo patrón con
+`Jet Moto '98`/`Interactive CD Sampler...`) — contenido verificado idéntico
+así que no hay pérdida de datos, pero la ubicación final queda rara
+(posible resto del mismo volcado sin explicar de `UNKNOWN-BULK-GROWTH-1`,
+sin investigar más por ahora).
+
+### ANDROID-DUP-CROSSFMT-VERIFY-1 — los 61 grupos `crossfmt` restantes (53 pares `.chd`+`.bin` + 8 más, ~26,5 GB) no tienen ninguna verificación de contenido, solo coincidencia de nombre (hallazgo 2026-09-25)
+
+`reasons == ["crossfmt"]` en `_review_groups_for_repo` (`web/builders/
+duplicates.py:992-1017`) agrupa por título normalizado (`normalize_title_
+cross_format` sobre el stem) **sin comparar ningún hash** — a diferencia
+de la unión por `sha1`. Mismo patrón de riesgo ya conocido en
+`CHD-DELETE-NO-VERIFY-1` (lado PC), nunca corregido para esta cola.
+Comprobación (solo lectura): para los 53 pares `.chd`+`.bin` mismo-título,
+la ratio de tamaño `chd_bytes/bin_bytes` debería rondar 0,4–0,7× (compresión
+CHD normal de un disco PSX) — en la práctica iba de **0,025× a 5,1×**, con
+7 casos donde el `.chd` pesaba más que el `.bin` — geométricamente imposible
+si fueran el mismo disco comprimido, indicio de que `crossfmt` empareja
+contenido distinto bajo un título compartido | `web/builders/duplicates.py:
+992-1017` (`crossfmt_groups` union, sin verificación de hash) | 🟡 **código
+sin arreglar** (el bug de fondo sigue ahí para el resto de la biblioteca),
+pero **los 53 pares ya verificados y resueltos con datos reales** — ver
+abajo |
+
+**Verificación real ejecutada 2026-09-25**: descargados los 53 pares completos
+vía ADB (42 GB, ~17 min a 42 MB/s) y calculado el hash RA real
+(`compute_psx_ra_hash`, el mismo que usa `PSX-CHD-REDUNDANT-1`/
+`CHD-DELETE-NO-VERIFY-1` en PC) de cada `.chd` y cada `.bin` por separado,
+comparados byte a byte (no solo tamaño):
+
+- **46 coinciden de verdad** (hash RA idéntico) — aplicados con
+  `resolve-duplicate-ra` (confirmación explícita del usuario antes de
+  ejecutar, bloqueo del clasificador de modo automático por ser borrado
+  irreversible en lote): **46/46 borrados, 0 errores, 22,78 GB liberados**,
+  verificado por fila de BD (0/46 filas descartadas siguen en `library_
+  android.db`). Sumado a los 22 del lote sha1 puro de hoy: **68 grupos
+  aplicados, 25,08 GB liberados en total en la sesión de hoy.**
+- **5 MISMATCH real** (hash RA distinto, contenido genuinamente distinto
+  pese al nombre compartido) — **no tocados**: `Tenchu 2 - Birth of the
+  Stealth Assassins (USA)`, `Spider-Man (USA)`, `Tony Hawk's Pro Skater 3
+  (USA)`, `Legacy of Kain - Soul Reaver (USA)`, `Resident Evil (USA)`.
+  Confirma que el riesgo era real, no teórico — un `apply-all` genérico sin
+  esta verificación habría borrado contenido único en estos 5 casos.
+- **2 no hasheables** (`compute_psx_ra_hash` devolvió `None`) —
+  `Crash Bash (USA).chd` (el `.chd` no se pudo hashear; su `.bin` sí) y
+  `Twisted Metal (Japan).bin` (el `.bin` no se pudo hashear; su `.chd` sí).
+  **Hallazgo colateral en este segundo caso**: el hash del `.chd` de
+  "Japan" (`31a6328a...`) es **idéntico** al de `Twisted Metal (Europe).chd`
+  (par #48, ya confirmado `match` en el lote de arriba) — el archivo
+  etiquetado "Japan" es casi con toda seguridad una copia mal nombrada del
+  disco Europe, no una región real. Ninguno de los 2 se ha tocado.
+
+**2026-09-29 — verificación convertida en función de backend real + botón en el frontend**
+(petición explícita del usuario: "me gustaría que el backend lo hiciera" + "poder pedirlo
+desde el frontend"): `services/ra_duplicates_service.py::verify_group_by_disc_hash()` —
+descarga (ADB si es de consola, copia directa si es PC) el recomendado y cada candidato a
+un directorio temporal, calcula `compute_psx_ra_hash` de cada uno y solo devuelve como
+`safe_discard_paths` los que coinciden exactamente; nunca borra nada por sí misma. Nuevo
+endpoint `POST /api/verify-duplicate-hash` (`web/handlers/duplicates.py`). En el frontend
+(`review_copies.js`), el botón "Aplicar recomendación"/"Elegir esta" de cualquier grupo
+`platform === 'PlayStation'` pasa primero por este endpoint (`_verifyThenResolve`) — solo
+llama a `/api/resolve-duplicate-ra` con los paths ya verificados; el resto de plataformas
+mantiene el flujo directo (sin el mismo riesgo confirmado). 4 tests nuevos (2 con `chdman.exe`
+real + fixture PSX sintético de `test_ra_hash_psx.py`, incluido uno que reproduce el caso
+exacto de 3 discos distintos con el mismo nombre mal resuelto) — suite completa 1496/1496.
+
+Primera ejecución real (script de sesión, previa a esta implementación) contra los 89
+grupos `crossfmt`-only restantes en la Anbernic: solo **1 verificado** (`Guilty Gear
+(Europe)`, 0,48 GB), **0 mismatch**, **98 no verificables** — la inmensa mayoría de los
+`.cue` de esta biblioteca referencian un `.bin` que ya no existe tal cual en el
+dispositivo (mismo patrón de sheets rotas/legacy ya visto todo el día con FFVII/Lunar),
+así que la función hace exactamente lo que debe: no tocar nada que no pueda confirmar de
+verdad. Pendiente repetir con la función ya integrada (mismo resultado esperado, sin
+cambios de lógica) y decidir manualmente los `.img`/`.mdf` sin soporte (`compute_psx_ra_hash`
+no los reconoce, quedan siempre en `unverifiable_paths`).
+
+**Alcance no cerrado**: el bug de fondo (`crossfmt` sin verificación de
+hash) sigue sin arreglarse en `web/builders/duplicates.py` — los 8 grupos
+`crossfmt`-only restantes (no `.chd`+`.bin`: `Guilty Gear (Europe).chd`,
+`Driver (Europe).img`, `New (Slovakia) (Art Assets).img`, `Mortal Kombat 3
+(Europe).bin` + otros del lado PC, ~1.828 grupos solo-PC nunca auditados
+con este método) quedan pendientes de la misma verificación real antes de
+cualquier apply.
 
 ---
 
@@ -1375,12 +1499,350 @@ previsto en el propio roadmap |
 
 ---
 
-### LIBRARY-UX — Dashboard de salud y duplicados visuales (idea usuario 2026-09-22)
+### LIBRARY-HEALTH-DASH-1 / DUP-VISUAL-UI-1 — Panel de salud + duplicados side-by-side (idea usuario 2026-09-22)
+
+Consolidar en Inicio los números ya calculados en pestañas sueltas (% organizada,
+GB en duplicados, carpetas huérfanas, ZIPs sin organizar) y mostrar los grupos de
+duplicados con portada + flag RA en vez de solo tabla de texto. Roadmap:
+`.claude/roadmaps/27-library-ux-dashboard-duplicates.md`, rama
+`feature/library-ux-dashboard-duplicates`.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| LIBRARY-HEALTH-DASH-1 | Vista única de salud de biblioteca (% organizada, GB en duplicados, huérfanos, ZIPs sin descomprimir) en vez de reportes sueltos por pestaña | `web/builders/folders.py`, `web/handlers/junk.py`, pestaña Inicio | ⬜ sin diseñar |
-| DUP-VISUAL-UI-1 | Resolución de duplicados con portada side-by-side + flag de RA (reutiliza `ra_duplicates_service.py`) en vez de solo tabla de texto | `web/static/js/tabs/duplicates.js`, `services/ra_duplicates_service.py` | ⬜ sin diseñar |
+| LIBRARY-HEALTH-DASH-1 | Panel de salud en Inicio: % organizada, GB duplicados, carpetas huérfanas, ZIPs sin organizar — cada tarjeta enlaza a su reporte existente | `web/handlers/esde/maintenance.py` (`misplaced_zips` nuevo en `/api/library-extras`), `web/static/partials/tab-overview.html` (`ov-health-dash`), `web/static/js/tabs/overview.js` (`_loadLibraryHealth`) | ✅ hecho 2026-09-22 — sin endpoint agregado nuevo, compone `/api/status` + `/api/library-doctor` + `/api/library-extras` en frontend; test `tests/web/test_library_extras.py::test_library_extras_misplaced_zips` |
+| DUP-VISUAL-UI-1 | Vista side-by-side de duplicados con portada + flag RA (fallback a tabla de texto sin portada) | `web/static/js/tabs/review_copies.js` (`_renderReviewEntry` — la vista real de duplicados desde TABS-FIX-6, `duplicates.js` quedó solo como selector PC/Android), `web/builders/duplicates.py` (`id` nuevo en entries del review-queue) | ✅ hecho 2026-09-22 — el roadmap apuntaba a `duplicates.js` (desactualizado); flag RA ya existía, solo faltaba la portada. Sin portada en copias de la consola (limitación preexistente de `/api/asset-image`, solo resuelve contra la BD del PC) |
+
+---
+
+### JUNK-SCAN-RUBEN-1 — Primer junk-scan real de esta máquina: 6.072 archivos / 34,97 GB sin clasificar (hallazgo 2026-09-28, máquina "Ruben", `F:\Juegos Retro`)
+
+**Por qué se lanzó**: durante `JUEGOS-FIX-4`/`SAGE-1` de hoy se vio que esta
+máquina diverge fuerte de los números que ya tenía el backlog (cobertura de
+scraper real 27,78% vs. 75-90% esperado; los 7 huérfanos de `$RECYCLE.BIN`
+de `JUEGOS-FIX-4` resultaron ser de otra máquina, 0 aquí). Sospecha: esta
+biblioteca nunca pasó por el junk-scan/limpieza inicial de Pilar 1 que sí
+tuvieron otras (`JUNK-SMART-1/2/3`, `JUNK-REVIEW-1`, Día39 — todo eso corrió
+contra bibliotecas de otras máquinas). Se lanzó `POST /api/junk-scan` real
+(solo lectura, sin borrar/mover nada) para confirmarlo antes de asumir nada.
+
+**Resultado real** (`F:\Juegos Retro`, 291 categorías agrupadas por
+confianza):
+
+| Confianza | Archivos | Tamaño | Qué es |
+|---|---|---|---|
+| `safe_delete` | 3.659 | 4,93 GB | Basura real: chips sueltos sin match, extensiones no-ROM residuales (`.app`, `.tmd`, `.tik`, numéricas sueltas tipo `.03`/`.04`...) — mismo patrón que Día39 |
+| `misplaced` | 2.176 | 13,87 GB | ROMs identificadas por CRC pero en la carpeta equivocada — **1.825** por match directo de catálogo ("ROMs de consola identificadas"), **347** por extensión interna de romhack — mismo mecanismo ya construido en `ZIP-ROUTE-1`/`ZIP-ROUTE-3`, sin ejecutar nunca aquí |
+| `review` | 237 | 16,18 GB | Necesita decisión: **120 "ZIPs no-ROM" (10,24 GB)** — probablemente colecciones reales (zip-de-zips), mismo caso que `ZIP-ROUTE-4`; **8 "7-Zips" (5,27 GB)** sin manejar por el pipeline actual (solo entiende `.zip`); **108 chips arcade sin match de catálogo**; 1 set arcade de otra versión (0,62 GB) |
+| **Total** | **6.072** | **34,97 GB** | |
+
+**Siguiente paso propuesto (sin ejecutar todavía, pendiente de tu confirmación)**:
+1. `safe_delete` (4,93 GB): dry-run de `/api/junk-delete` primero, igual que
+   Día39/`JUNK-REVIEW-1` — reporta qué borraría, confirmas, luego real
+   (va a `_descartados/`, deshacible ~30 días, no es un borrado directo).
+2. `misplaced` (13,87 GB): mismo motor de `ZIP-ROUTE-1`/`-3` ya construido
+   — mover/renombrar a su carpeta de plataforma real. Sin riesgo de
+   pérdida (son ROMs identificadas, no basura), pero sí mueve 2.176
+   archivos de sitio.
+3. `review` (16,18 GB): requiere mirar caso a caso — **revisados los
+   nombres reales de ambos sub-buckets (2026-09-28), no son lo que
+   parecían**:
+   - **120 "ZIPs no-ROM" NO son colecciones** — son ZIPs de un solo juego
+     con nombre canónico No-Intro/Redump ya puesto (`Crash Bandicoot 2 -
+     Cortex Strikes Back (USA).zip`, `Bushido Blade (USA).zip`, `Jet Set
+     Radio (Europe).zip`...), todos sueltos en `Unknown\` — candidato
+     directo para `ZIP-ROUTE-1` (identificación por CRC32 del header, sin
+     descomprimir), no para `ZIP-ROUTE-4` (extraer colección). El junk-scan
+     los cuenta como "no-ROM" porque su extensión (`.zip`) no delata la
+     plataforma por sí sola, no porque sean contenedores multi-juego.
+   - **8 "7-Zips" confirmado hueco real**: `converters/zip_extractor.py`
+     solo importa `zipfile` (stdlib) — cero soporte de `.7z`, y no hay
+     ningún `7z*.exe` en `tools/` (solo `adb.exe`/`chdman.exe`/`rclone.exe`).
+     Con la regla del proyecto de "sin dependencias externas de runtime
+     (solo stdlib)", la vía correcta sería bundlear `7za.exe` (freeware,
+     mismo patrón que `chdman.exe`) e invocarlo por `subprocess`, no una
+     librería Python (`py7zr` violaría la regla) — sin implementar,
+     documentado como hueco.
+
+**Dry-run de `POST /api/junk-delete` confirmado (2026-09-28)**: los 3.659
+paths de `safe_delete` (extraídos del propio `paths` de cada categoría del
+junk-scan, no de `files` — ese último viene truncado a 50 por categoría
+para la respuesta) → `{"deleted": 3659, "failed": 0, "freed_bytes":
+4925918329, "dry_run": true, "errors": []}`. Coincide exacto con lo medido
+(3.659 archivos, 4,93 GB), 0 fallos.
+
+**Borrado real ejecutado (2026-09-28), con confirmación explícita del
+usuario**: mismo payload con `dry_run: false` → `{"deleted": 3659,
+"failed": 0, "freed_bytes": 4925918329, "errors": []}`, idéntico al
+dry-run. Verificado: `discard_to_trash()` (`utils/trash.py:29`) mueve cada
+archivo a una carpeta `_descartados/` **hermana** (junto a su propio
+padre, no un único directorio en la raíz) — soft-discard, deshacible
+~30 días (`library.trash_purge_days`, `purge_trash()`). 4,93 GB
+liberados de `safe_delete`. Quedan `misplaced` (2.176 archivos/13,87 GB,
+mover con el motor de `ZIP-ROUTE-1`/`-3`) y `review` (237/16,18 GB) sin
+tocar — ver arriba.
+
+**`misplaced` aplicado (2026-09-28), con confirmación explícita del
+usuario**: el mecanismo real disponible no es `ZIP-ROUTE`/`zip-route-apply`
+(eso es solo arcade + colecciones) sino el `plan`/`apply` general de la app
+(`GET /api/plan` → `POST /api/apply`) — bastante más amplio de lo
+documentado arriba: **13.298 juegos matched en total** (no solo los 2.176
+de `Unknown\`), de los cuales **1.555 "pending"** (movibles solos, sin
+ambigüedad) y **4.119 "conflicts"** (mismo destino propuesto por 2+
+orígenes, o destino ya ocupado con contenido distinto — `_do_apply()`,
+`web/handlers/organize.py:124`, **nunca los toca**, solo procesa
+`plan.pending`). Decisión del usuario: aplicar solo lo sin conflicto.
+`POST /api/apply` real (con backup automático de `library_pc.db` antes de
+tocar nada, `apply_repo.backup_database()`) → `{"renamed": 1554, "failed":
+0, "skipped": 1, "saves_renamed": 8, "zips_extracted": 1, "conflicts":
+4119}`. El único `skipped` fue una fila de BD obsoleta (`Digimon World 3
+[U] [SLUS-01436].sub`, el archivo de origen ya no existe en disco — no es
+un fallo real). Reversible vía `POST /api/undo-last-apply` si hiciera
+falta. **Los 4.119 conflictos siguen sin resolver** — requieren revisión
+caso a caso (mismo destino propuesto por 2+ orígenes o colisión con
+contenido distinto), no automatizable con este mecanismo.
+
+**`review` — intentado con `zip-route-apply`, real y verificado contra un
+segundo junk-scan (2026-09-28), con confirmación explícita del usuario**:
+`POST /api/zip-route-apply` (job "inbox", extract→match→renombrar→
+organizar→limpiar) → `{"zips_to_inbox": 2172, "roms_scanned": 4341,
+"matched": 3980, "renamed": 1136, "organized": 3301,
+"duplicates_removed": 1036, "conflicts_unresolved": 4}`. Solo 2
+`route_skipped` (`Hook.zip`/`Tetris.zip`, ya existían en `arcade\`, no
+sobreescritos) y 4 `organize_errors` reales (mismo nombre/carpeta,
+contenido distinto — intactos, revisar a mano: `Pokemon - Emerald Version
+(USA, Europe).gba`, `Premier Manager 97 (Europe).bin`, `Snow Bros. - Nick &
+Tom (Japan).bin`, `Twinkle Tale (Japan).bin`).
+
+**Efecto real, medido con un junk-scan de después contra el de antes**:
+
+| Bucket | Antes | Después | |
+|---|---|---|---|
+| `safe_delete` | 3.659 / 4,93 GB | 3.699 / 4,95 GB | +40 archivos nuevos (residuos expuestos por las extracciones) |
+| `misplaced` | 2.176 / 13,87 GB | 1.650 / 10,52 GB | -526, organizados entre `apply` + `zip-route-apply` |
+| `review` | 237 / 16,18 GB | **237 / 16,18 GB — exactamente igual** | confirma que estos 237 no eran resolubles por CRC/contenido con el catálogo ya cargado, la hipótesis original de "candidato a ZIP-ROUTE-1" no se sostuvo con datos reales |
+
+**Total: 6.072/34,97 GB → 5.586/31,65 GB.**
+
+**Segunda ronda de `safe_delete` aplicada (2026-09-28), con confirmación
+explícita del usuario**: los 3.699 `safe_delete` de después de
+`zip-route-apply` (incluye los 40 nuevos expuestos por las extracciones) —
+dry-run (`{"deleted": 3699, "failed": 0, "freed_bytes": 4949875483}`) seguido
+del borrado real, idéntico (`dry_run: false`), 0 fallos. **4,95 GB
+adicionales liberados** (soft-discard, mismo mecanismo que la primera
+ronda). **Total acumulado de `safe_delete` borrado hoy: 7.358 archivos,
+~9,88 GB.**
+
+**`review` investigado a mano (2026-09-28), 2 hallazgos reales antes de
+llegar a los archivos en sí:**
+
+1. **Bug real en el propio junk-scan: no excluye `_descartados/`**
+   (`web/builders/folders.py:321`, `_excluded_dirs = {"saves", "bios",
+   "android", "system volume information"}` — falta `_descartados`).
+   `utils/trash.py` sí se protege contra esto (`_iter_trash_files()`, línea
+   65-66, corta el `os.walk` con el comentario `# no anidar` en cuanto entra
+   en una carpeta `_descartados`), pero esa misma protección nunca se aplicó
+   al walker del junk-scan. Consecuencia real, verificada: **94 de los 120
+   "ZIPs no-ROM" ya estaban dentro de alguna `_descartados/`** (descartados
+   en sesiones anteriores), re-contados como basura activa en cada scan —
+   por eso el bucket `review` salió "exactamente igual" antes/después de
+   `zip-route-apply`, nada de eso era realmente tocable. Peor: repetir
+   `junk-delete`/extracciones sobre contenido ya descartado crea
+   `_descartados/_descartados/` anidado (**111 carpetas así confirmadas
+   hoy en la biblioteca real**) — esos archivos quedan **invisibles para
+   `purge_trash()`** (mismo corte de `os.walk` que los protege de
+   re-listarse también les impide ser vistos si están un nivel más
+   adentro), huérfanos para siempre sin limpiarse solos. Sin pérdida de
+   datos (nada se borra de verdad), pero desperdicia espacio en disco.
+   Recuento real filtrando `_descartados/` de las 4 categorías: **142
+   archivos activos de verdad, no 237** (26 ZIPs no-ROM activos, 8
+   7-Zips, 108 chips arcade, 0 del set arcade "otra versión" — ese único
+   ítem también estaba ya en `_descartados`). Sin arreglar el walker
+   todavía — documentado, candidato a tarea propia (`JUNK-SCAN-EXCLUDE-TRASH-1`
+   o similar).
+2. **Causa raíz real de por qué las 26 ZIPs Dreamcast activas nunca
+   matcheaban**: no eran basura sin catalogar — **el catálogo entero de
+   Dreamcast cargaba 0 entradas** por un bug de BOM en
+   `_detect_dat_format()` (`catalog/catalog_loader.py:22-28`): abría con
+   `encoding="utf-8"`, un BOM inicial (común en exports de Redump) quedaba
+   pegado a `<?xml`, así que `startswith("<")` daba `False` y el DAT XML
+   real se clasificaba como clrmamepro, sin ningún error visible. Afectaba
+   a **9 catálogos reales** (18 archivos, `nointro/`+`redump/`): Dreamcast
+   (1.420 juegos), Naomi, Naomi 2, Triforce, PC (SBI Subchannels), Wii U
+   (Disc Keys), PlayStation (SBI Subchannels), PlayStation 3 (Disc Keys
+   ×2) — **arreglado y mergeado hoy** (`fix/catalog-bom-detection`,
+   `encoding="utf-8-sig"`, test `test_detects_xml_with_leading_bom`, 9
+   catálogos verificados con entradas reales tras el fix).
+
+   **Re-aplicado contra la biblioteca real (2026-09-28), con confirmación
+   explícita del usuario**: `rommgr serve` reiniciado (parado el proceso
+   viejo, `python -m rom_manager serve` de nuevo — necesario para cargar
+   el código nuevo) y `POST /api/match` real sobre los 11.532 juegos sin
+   resolver → `{"total": 11532, "matched_high": 0, "matched_low": 2,
+   "unmatched": 11530}`. **Confirmado con datos reales**: `Jet Set Radio
+   (Europe).zip` (una de las ZIPs Dreamcast activas del bucket "review")
+   pasó de `canonical_title=NULL` a `canonical_title="Jet Set Radio
+   (Europe)"`, `match_confidence="medium"` — el catálogo Dreamcast
+   arreglado sí funciona en producción. Rendimiento modesto en esta pasada
+   (solo 2 matches nuevos de 11.532): la mayoría de la cola restante
+   parece genuinamente difícil de identificar (hacks, dumps no estándar,
+   sin equivalente en ningún DAT) — sesiones anteriores ya habían agotado
+   los matches fáciles antes de que este catálogo existiera de verdad, así
+   que el fix no iba a desbloquear miles de golpe, pero sí corrige la
+   identificación de cualquier contenido Dreamcast/Naomi/Naomi2/Triforce
+   futuro de forma permanente. `SAGE-1` relanzado tras el `match` (cola
+   17.634→16.937→15.681, sin errores).
+
+`review` recontado sin `_descartados/`: **142 archivos reales (~15,1 GB)**
+de los cuales una parte desconocida (Dreamcast + arcade Naomi/Naomi2/
+Triforce) probablemente se resuelva sola en el próximo `match` con el
+catálogo ya arreglado. Los 8 `.7z` siguen siendo el único hueco confirmado
+sin solución disponible (formato no soportado) — **actualizado**, ver
+`JUNK-7Z-SUPPORT-1`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JUNK-7Z-SUPPORT-1 | **Soporte `.7z` en el Inbox** — `converters/zip_extractor.py` solo importa `zipfile` (stdlib), cero soporte de `.7z`; sin `7z*.exe` en `tools/` | `src/rom_manager/converters/sevenzip_extractor.py` (nuevo), `config.py` (campo `sevenzip`, mismo patrón `_default_tool`/`_resolve_tool_path` que `chdman`/`adb`), `web/inbox_pipeline.py` (`_run_inbox_pipeline`, extracción junto a los `.zip`), `cli.py` (`rommgr decompress` extrae también `.7z`), `scripts/download-tools.ps1` (descarga 7-Zip desde GitHub `ip7z/7zip`, extrae el `.msi` con `msiexec /a` sin necesitar 7z para desempaquetarlo — sin huevo-o-gallina) | ✅ implementado 2026-09-29 — `extract_7z()`/`find_7z_files()`/`list_7z_members()` (parseo de `7z l -slt`), mismas garantías que `extract_zip()`: nunca sobreescribe (`-aos`), solo borra el origen si todos los miembros quedan confirmados en disco. **Mismo guard de sets multi-disco que `extract_zip()`** (`.cue`/`.gdi` entre los miembros → skip, "usa el conversor CHD") — añadido tras verificar contra los archivos reales de esta biblioteca (ver abajo), no estaba en la primera versión. 10 tests (`tests/test_sevenzip_extractor.py`, contra el `7z.exe` real de `tools/`, skip si no está presente). Suite completa 1469/1469, ruff+format limpios. **Sin arcade-CRC-detection para `.7z`** (a diferencia de `is_arcade_zip_container` para ZIP) — solo el guard por nombre de carpeta, documentado como límite conocido |
+
+**Aplicado contra la biblioteca real (2026-09-29), con confirmación explícita del usuario** — primero un dry-run de `rommgr decompress "F:\Juegos Retro"` para localizar los `.7z` reales (13 en total, no solo 8: 8 en `Unknown\` + **5 en `PlayStation 2\`**, estos últimos ya colocados en su carpeta correcta con nombre canónico, nunca contados por el junk-scan porque no son "review" — simplemente nadie los había extraído). Inspeccionado el contenido de cada uno con `7z l -slt` antes de tocar nada: **9 de los 13 son sets Dreamcast/Naomi multi-track** (`.gdi` + varios `.bin` de audio/datos) — `Crazy Taxi`, `Jet Set Radio`, `Marvel vs. Capcom`, `Mortal Kombat Gold`, `Resident Evil - Code Veronica (Disc 1)`, `Sonic Adventure` (Europe/USA), `Sonic Adventure 2`, `Street Fighter III - 3rd Strike` — el guard nuevo los saltó correctamente a los 9, tal cual se diseñó. **4 son `.7z` de un solo `.iso` de PS2** (`Dragon Ball Z - Budokai 3`, `Kingdom Hearts`, `Kingdom Hearts II`, `Metal Gear Solid 2`) — aplicados de verdad (`extract_7z_directory(..., delete_source=True)`, script de sesión acotado a `Unknown\`+`PlayStation 2\`, sin tocar el resto de la biblioteca ni los `.zip`): 3 resultaron ser contenedores completamente redundantes (el `.iso` ya existía en disco, subido por separado el 2026-09-15) — soft-discard a `_descartados/`, cero archivos nuevos; 1 (`Dragon Ball Z - Budokai 3`) extrajo un `.iso` nuevo y distinto del ya existente (`Dragon Ball Z - Budokai 3 (USA).iso`, 4,66 GB — la copia previa era "(Greatest Hits)", posible duplicado real a revisar con `DUP-REGION-2`/matcher, sin decidir todavía) antes de descartar el `.7z`. Los 9 sets Dreamcast/Naomi restantes se retoman a continuación en `GDI-ORGANIZE-1` — **corrección**: no hace falta `chdman`/CHD para ellos, el `.gdi`+`.bin` crudo ya es un formato de primera clase en este pipeline (`move_disc_set_to_subfolder`, `_DISC_SUBFOLDER_PLATFORMS`, RA hash vía `ra_hash_saturn_dreamcast.py`) — CHD es opcional (ahorro de espacio), no un requisito |
+
+### GDI-ORGANIZE-1 — Organizar los 9 sets Dreamcast/Naomi extraídos: 2 bugs reales encontrados antes de poder mover nada (2026-09-29, continuación de `JUNK-7Z-SUPPORT-1`)
+
+Tras extraer los 9 `.7z` Dreamcast/Naomi, `GET /api/plan` reveló dos bugs reales, ninguno introducido hoy:
+
+1. **`operation_planner.build_plan()` calcula mal el destino para una plataforma "subfolder" (PSX/Saturn/Dreamcast/Wii) cuando el origen vive fuera de cualquier carpeta de plataforma** (`planner/operation_planner.py:195-201`, `_DISC_SUBFOLDER_PLATFORMS`/`_DISC_SUBFOLDER_CATALOG_PLATFORMS`): la rama `else` (`source.parent.parent / folder_name / new_filename`) asume que el origen ya vive *dentro* de la carpeta de plataforma (p. ej. corrigiendo un subcarpeta-por-juego mal hecho) — para un archivo suelto en `Unknown\`, `source.parent.parent` es la **raíz de la biblioteca**, no `dreamcast\`. Verificado contra la API real: los 8 títulos Dreamcast matched (7 en `Unknown\` + 1 en `PlayStation 2\`) proponían todos mover a `F:\Juegos Retro\<Título>\` en vez de `F:\Juegos Retro\dreamcast\<Título>\` — incluido un título Dreamcast preexistente no tocado por mí (`Skies of Arcadia (Europe)...(Disc 2).zip`), confirmando que no es un caso aislado de hoy. **Sin arreglar** — toca lógica compartida por las 4 plataformas subfolder, no es un fix para hacer con prisa; candidato a su propia rama con tests dedicados. Mientras tanto, cualquier `apply` sobre contenido recién llegado a estas 4 plataformas (vía Inbox parcial, extracción manual, etc.) debe revisarse a mano antes de confirmar — no fiarse del `target` que devuelve `/api/plan` para estos casos.
+2. **`parse_tracks_from_gdi()` (`converters/chd_converter.py:237`) no soportaba nombres de pista entre comillas con espacios** — el formato real de un `.gdi` (`4 0 4 2352 "Crazy Taxi (USA) (Track 4).bin" 0`) casi siempre cita el nombre porque casi siempre tiene espacios; `line.split()` cortaba en el primer espacio (`'"Crazy'`), truncando la ruta real. Usada también por `renamer/file_renamer.py` (`move_disc_set_to_subfolder`, el mecanismo real de mover/renombrar sets Dreamcast) y `retroachievements/ra_hash_saturn_dreamcast.py` — sin ningún test hasta hoy (`tests/test_chd_converter.py` no tenía ni un caso de `.gdi`). **✅ arreglado** — regex que prioriza el nombre citado, con fallback al `split()` original para el formato sin comillas; 2 tests nuevos (`test_parse_tracks_from_gdi_quoted_filenames_with_spaces`, `..._unquoted_filename_fallback`). Suite completa 1472/1472 en verde.
+
+**Aplicado contra la biblioteca real tras el fix del punto 2** (bug 1 evitado a mano, moviendo directamente por script de sesión en vez de vía `/api/apply`, con el mismo destino que un planner correcto habría calculado): **6 de los 9 movidos limpio** a `dreamcast\<Título>\` (`Crazy Taxi (USA)`, `Marvel vs. Capcom - Clash of Super Heroes (USA)`, `Resident Evil - Code - Veronica (USA) (Disc 1)`, `Sonic Adventure (USA) (En,Ja,Fr,De,Es)`, `Sonic Adventure 2 (Europe) (En,Ja,Fr,De,Es)`, `Street Fighter III - 3rd Strike - Fight for the Future (Japan)`). **3 sin resolver, dejados aparte a propósito**:
+   - `Jet Set Radio (Europe).7z` — nunca extraído (ver `JUNK-7Z-SUPPORT-1`): tiene un `.zip` hermano con el mismo contenido exacto (mismos 3 tracks, sheet `.cue` en vez de `.gdi`) — duplicado real, decisión pendiente (cuál sheet conservar).
+   - `Sonic Adventure (Europe) (En,Ja,Fr,De,Es).gdi` — extraído pero **no movido**: `dreamcast\Sonic Adventure (Europe) (En,Ja,Fr,De,Es)\` ya tiene un `.cdi` completo del mismo juego (formato distinto, mismo contenido presumible, sin verificar por hash) — duplicado real, sigue en `Unknown\`, decisión pendiente.
+   - `Mortal Kombat Gold (USA).gdi` (53 tracks) — **sin match**, `match_confidence`/`canonical_title` siguen `NULL` (`unmatched_reason: hash_not_found` para las 54 filas, sheet + tracks) — causa no investigada todavía, candidato a revisar aparte (¿el catálogo Dreamcast no tiene esta entrada, o algo en el matcher falla con sets de tantas pistas?).
+
+**Los 6 sets movidos, enviados a la Anbernic real por ADB (2026-09-29)** — `POST /api/cable-sync` (`direction=send_selected`, `search=<título exacto>`, uno a uno; verificado antes con un dry-run que el filtro no arrastraba ningún otro juego). 24 archivos, ~7,2 GB, 0 errores, verificado con `adb shell ls` en el dispositivo. **Gotcha real de la sesión, no del código**: pasar el cuerpo JSON con rutas Windows (`F:\Juegos Retro`) vía `curl -d '...'` inline falla silenciosamente en este entorno (Git Bash/curl en Windows) — cualquier backslash en el valor hace que el body llegue corrupto y el servidor lo interpreta como `{}` (así que `direction` cae a su default y el error engañoso "anbernic_path requerido" aparece aunque se haya mandado). Solución: escribir el JSON a un archivo y usar `curl --data-binary @archivo`. Dejar esto anotado para la próxima vez que alguien llame a esta API a mano desde esta máquina.
+
+### GDI-ORGANIZE-1 (continuación) — `/api/review-queue` no responde en tiempo razonable contra la biblioteca real de hoy (hallazgo 2026-09-29)
+
+Al intentar relanzar la limpieza de duplicados de la Anbernic (petición del usuario, pendiente de una sesión anterior sin cerrar) — 3 intentos reales de `GET /api/review-queue` (sin parámetro `repo=`, pese a que la UI antigua lo sugería: el endpoint siempre construye la cola contra `repository` PC + `repo_android` juntos, `web/handlers/duplicates.py:165`, `_build_review_queue`) **no devolvieron respuesta**: dos con timeout explícito de 60s/90s (`curl --max-time`, error 28 = timeout, no error de conexión), uno en background que tardó ~35 min y solo terminó porque maté el proceso `curl` a mano. Descartado que fuera el job `ra_check` (llevaba corriendo en paralelo, cancelado a mitad de la investigación) — el hang persistió igual después de pararlo. La CPU del proceso del servidor no se pudo comparar en dos instantes de forma concluyente (medición de sesión insuficiente, no una prueba real).
+
+**Hipótesis más probable, sin confirmar todavía**: no necesariamente un cuelgue real — `_review_groups_for_repo`/`_build_review_queue` (`web/builders/duplicates.py`) construye varias uniones (crossfmt/sha1/región/disc_hash) sobre el PC + Android combinados; el PC pasó hoy de su tamaño habitual a **27.874 ROMs / 11.510+ ya-correctos** tras el rescan de esta sesión — si alguna de esas uniones es O(n²) o peor sobre el título normalizado, a esta escala podría tardar decenas de minutos de verdad, no estar bloqueado. Sin perfilar, así que sigue siendo hipótesis. Cualquiera que sea la causa, **un endpoint de UI que no contesta en 35+ minutos es un problema real de UX/rendimiento** para una biblioteca de este tamaño, no solo un contratiempo de esta sesión.
+
+**✅ Causa raíz real encontrada y arreglada (2026-09-29, misma sesión, retomada tras el mensaje del usuario "no, ahora")**: perfilado `_review_groups_for_repo` directamente (sin HTTP, `cProfile` contra la BD PC real) — 245 s para el repo PC solo, nada patológico algorítmicamente (nada de O(n²) real). El verdadero bloqueo: **`ra_disc_hash_cache.get_psx_disc_hash()` encontró `psx_disc_hashes.json` corrupta** (`json.decoder.JSONDecodeError` real en el log) — con la caché ilegible, cada comparación de hash de disco PSX/GameCube/Wii recalculaba de cero vía `chdman` (~16,6 s cada extracción de `.chd` real, 6 de esas en el perfil = 100 s solo ahí) en vez de una lectura de caché instantánea.
+
+**Causa de la corrupción, confirmada por el patrón temporal**: `_save()` (`retroachievements/ra_disc_hash_cache.py:44`) escribía con `Path.write_text()` directo, **no atómico** — el job `ra_check` (corriendo en paralelo toda la sesión) y mis propios intentos de `review-queue` escriben/leen el mismo archivo sin ningún lock; dos escrituras solapadas dejan un JSON a medio escribir. Mismo patrón de riesgo que `JOBS-SQLITE-LOCK-1` pero para un archivo JSON en vez de SQLite. **✅ arreglado**: `_save()` ahora escribe a un temporal y usa `os.replace()` (atómico en POSIX y Windows) — un lector nunca puede ver un archivo a medias. 4 tests nuevos (`tests/test_ra_disc_hash_cache.py`). Suite completa 1476/1476 en verde.
+
+**Verificado en real tras el fix**: `GET /api/review-queue` real (con la caché ya regenerada, 1256 entradas válidas) → **200 OK en 28,7 segundos** (antes: sin respuesta en 3 intentos, uno de 35 min matado a mano). Sigue habiendo un coste real no-patológico de ~113 s (en el perfil PC-solo) en `extract_internal_id` (`MATCH-HEADER-1`, abre cada archivo `.nds`/`.gba` real de la biblioteca para leer su código interno) — candidato a cachear igual que los hashes de disco si se quiere bajar más, pero no bloqueante, sin tocar hoy.
+
+**Resultado del pedido original (dedup PSX tipo "Final Fantasy VII, quedarse con la copia con logros")**: revisada la cola real (7.745 grupos, 55,46 GB desperdiciados combinando PC+Anbernic) — **no hay ningún grupo "Final Fantasy VII" de PSX pendiente** en `review-queue` (solo un romhack de NES con ese nombre, 2 copias, y un par no relacionado de **Final Fantasy VIII** PSX — `Final Fantasy VIII (Europe).chd` vs `(USA) (Disc 1).chd`, sha1 idéntico, 468 MB desperdiciados, **ninguna de las dos marca soporte RA** en la cola — no hay copia "con logros" que preferir en este par tal cual está hoy).
+
+**El usuario aclaró: se refería a la Anbernic directamente, no a la cola de duplicados** — tiene sentido, `_review_groups_for_repo` **excluye a propósito** las variantes regionales PSX multi-disco de la unión difusa por región (comentario en `web/builders/duplicates.py:1019-1037`, el propio ejemplo documentado ahí es "18 discos reales de Final Fantasy VII fusionados por error" — la razón exacta por la que este caso es invisible para la herramienta). Revisado `psx/` en la Anbernic real por ADB — **más lío del recordado, no "3 copias" limpias**:
+
+- `Final Fantasy VII (Disc 1/2/3).bin/.cue` — sin etiqueta de región, dump propio (tamaños ligeramente distintos a los demás).
+- `Final Fantasy VII (Europe).cue` + `(2).cue` + `(3).cue` — **rotos**: apuntan a `"...(Spain)...(v1.1).bin"`, pero el `.bin` real se llama `(Rev 1).bin` — no coincide el nombre, nunca cargarían. No son una copia real, son sheets basura.
+- `Final Fantasy VII (Spain) (Disc 1/2/3) (Rev 1).bin` — sin ningún `.cue` válido que los referencie (solo los rotos de arriba los mencionaban).
+- `Final Fantasy VII (USA) (Disc 1/2/3)` — tiene **tanto** `.bin`+`.cue` crudo **como** `.chd` ya convertido (fecha posterior) — ~2 GB de crudo redundante con su propio `.chd`, sin limpiar tras la conversión.
+- `Final Fantasy VII (USA) (Install Disc) (Rerelease).chd` — disco de instalación PC aparte, no es el juego.
+
+**Aplicado, con confirmación explícita del usuario (2026-09-29)**: borrados por ADB los 3 `.cue` rotos de "Europe" (`rm` directo — Android no tiene papelera, irreversible, pero eran sheets sin ningún `.bin` real al que apuntar, cero riesgo de contenido jugable). Verificado que ya no están en el dispositivo.
+
+**Crudo USA vs `.chd` — verificado y resuelto**: descargados los 3 discos completos (`.bin`+`.cue`+`.chd`, ~3,4 GB) a esta máquina para verificar antes de borrar nada, mismo patrón que `CHD-DELETE-NO-VERIFY-1`/`convert_to_chd(delete_source=True)` ya usa: `chdman verify` (integridad del `.chd`) + comparar el hash RA (`compute_psx_ra_hash`) del `.cue`/`.bin` crudo contra el del `.chd`. **Los 3 discos verifican perfecto** — `chdman verify: ok=True` e ídem hash RA exacto en los 3 (`665933b4...`/`22e74595...`/`f0bab449...`, origen y `.chd` coinciden byte a byte en contenido jugable). Borrados por ADB los 6 archivos crudos (`.bin`+`.cue` × 3 discos) de la Anbernic — confirmado que solo quedan los `.chd` ya verificados. **~2 GB liberados**, cero riesgo (contenido confirmado idéntico antes de borrar).
+
+**Spain y el dump sin etiqueta — investigado y resuelto**: descargados los 6 `.bin` restantes (~4,3 GB) y comparado el hash RA de cada uno (`compute_psx_ra_hash`) contra el hash USA ya confirmado — **los 3 dumps (USA/Spain/sin etiqueta) tienen hash distinto entre sí en los 3 discos**: no son duplicados byte-a-byte del mismo contenido, son ediciones/revisiones genuinamente distintas (Spain casi seguro la edición europea traducida; el dump sin etiqueta no coincide con ninguno de los otros dos, identidad exacta sin determinar). Con confirmación explícita del usuario ("el que juego es el de USA, porque tiene logros" — no necesita las otras ediciones), **borrados por ADB los 6 archivos** (3 `.bin` de Spain + 3 `.bin`/`.cue` sin etiqueta). Verificado: solo quedan los 3 `.chd` de USA + el install disc. `psx/Final Fantasy VII` queda limpio del todo — de 4 ediciones + 3 sheets rotos a solo la USA verificada.
+
+**Además, mientras se investigaba**: resueltos los 2 duplicados Dreamcast que había dejado pendientes arriba (`Jet Set Radio` y `Sonic Adventure (Europe)`) — verificado por SHA1 que las 3 pistas de `Jet Set Radio` (`.gdi` del `.7z` vs `.cue` del `.zip`) son **byte a byte idénticas**; sin diferencia real de contenido, se conserva el `.gdi` (formato que este proyecto sí soporta de fondo para organizar/renombrar/hashear Dreamcast — el soporte `.cue` coge el track 1, no el de datos, ver `ra_hash_saturn_dreamcast.py:154` `_first_cue_bin`). `.zip`/`.cdi` descartados a `_descartados/`, `.gdi` movido a `dreamcast\<Título>\` y enviado a la Anbernic (mismo mecanismo `send_selected` que los otros 6, 4 archivos cada uno, 0 errores).
+
+**Hallazgo colateral verificando esto**: `_CdImage._detect_geometry()` (`retroachievements/ra_cd_image.py:44-69`) calcula mal `header_size` para un sector MODE1 de 2352 bytes cuando cae en su rama de respaldo por módulo exacto (línea 61-62: `if size % 2352 == 0: return 2352, 24, 0` — `24` es el header de MODE2 FORM1, un MODE1 real necesita `16`). Confirmado con el `.bin` de track 3 real de `Jet Set Radio`: el magic `"SEGA SEGAKATANA "` vive en el byte 16 exacto (sync 12 + header 4), pero con `header_size=24` la lectura cae 8 bytes tarde y el hash de logros de Dreamcast devuelve `None` incluso para un dump limpio y completo. Afecta potencialmente a cualquier dump MODE1 de PSX/Saturn/Dreamcast que no tenga un PVD ISO9660 detectable en el sector 16 (la ruta de detección primaria). **Sin arreglar** — toca la lectura de sectores compartida por los 3 hashers de disco, necesita más tests de los que da tiempo a escribir hoy; candidato a tarea propia.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| GDI-ORGANIZE-1 | Ver descripción arriba | `planner/operation_planner.py:195-201` (bug 1), `converters/chd_converter.py:237-268` (bug 2) | ✅ **ambos bugs arreglados** — bug 2 el mismo día; bug 1 arreglado 2026-09-29 (PR #377, rama `fix/gdi-organize-1-subfolder-platform-target`): `build_plan()` acepta `library_root: Path \| None = None` (retrocompatible), con él calcula el destino de una plataforma subfolder directo como `library_root/<slug>/<carpeta>/<archivo>` en vez de adivinar por `source.parent`/`source.parent.parent` — conectado en los 7 puntos de llamada reales (`cli.py` plan/apply, `web/builders/library.py::_build_plan`, `web/handlers/organize.py::_do_apply`, `web/inbox_pipeline.py` ×2, `services/ra_duplicates_service.py`, `web/builders/duplicates.py`). 4 tests nuevos, suite 1488/1488. Jet Set Radio y Sonic Adventure Europe ya resueltos el mismo día (ver arriba); solo queda `Mortal Kombat Gold` sin match (causa no investigada) |
+| CHD-CLEANUP-1 | Generalizar la limpieza de FFVII: 195 títulos PSX reales en la Anbernic con `.chd` convertido y su `.bin`/`.cue` crudo sin borrar tras la conversión | `converters/chd_cleanup.py` (nuevo), `cli.py` (`rommgr clean-redundant-chd <ruta-android> [--apply]`) | ✅ **implementado y aplicado 2026-09-29** (PR #376, mergeado en `feature/junk-7z-support-1`) — agrupa por (directorio, stem exacto) `.cue`+`.chd`, verifica `chdman verify` + hash RA del crudo contra el `.chd` antes de borrar nada; deliberadamente NO cruza ediciones/regiones distintas (decisión humana aparte). 2 bugs reales corregidos tras review de Claude en el PR (extracción truncada de `.7z` tratada como completa + charset no-ASCII en `sevenzip_extractor.py`, ver `JUNK-7Z-SUPPORT-1`). Ejecutado real contra `psx/` en la Anbernic (RG556006101273): 19 candidatos encontrados, **17 verificados y borrados (11,49 GB liberados, 0 errores)**, 2 saltados de forma segura sin tocar nada (`Lunar - Silver Star Story Complete (USA) (Disc 2)` y `Guilty Gear (Europe)`: sus `.cue` referencian un `(Track N).bin` que no existe en el dispositivo — sheets rotas, mismo patrón que las de FFVII). Verificado en el dispositivo real por ADB que solo quedan los `.chd`. Quedan ~176 títulos sin auditar del total de 195 (el resto de la biblioteca Android, no solo `psx/` explorado hoy) — candidato a repetir contra el resto de carpetas/plataformas en otra sesión |
+| ANDROID-DUP-GBA-1 | Petición del usuario: comprobar si la lógica de duplicados detecta bien los legacy `[E]`/`[U]`/`[J]` de GBA en la Anbernic (ejemplo dado: "dos Pokémon Pinball") | `web/builders/duplicates.py::_review_groups_for_repo` (motor, sin tocar), `services/ra_duplicates_service.py::resolve_duplicate_ra` (aplicado) | ✅ **verificado y aplicado 2026-09-29** — la lógica de detección funciona bien: de 92 volcados legacy `[E]`/`[U]`/`[J]` en `gba/`, **82 ya estaban correctamente agrupados por SHA1** en la cola de revisión (incluido el caso exacto de Pokémon Pinball — mismo SHA1 `b8b7881e...` entre `RZ [E].gba` y `(Europe)...gba`); los 10 restantes no son falsos negativos (contenido genuinamente distinto pese al mismo tamaño, o sin ninguna copia canónica en la biblioteca contra la que comparar — verificado caso a caso). **146 grupos GBA totales en la Anbernic, 1,65 GB** — backup de `library_android.db` antes de tocar nada, **137 grupos aplicados de verdad por ADB: 138 archivos descartados, 0 errores, 1,53 GB liberados**, verificado en el dispositivo real (`Pokemon Pinball RZ [E].gba` ya no existe, solo sus `.sav`/`.sgm`). **9 grupos excluidos a propósito** — ver `ANDROID-DUP-SORT-TIEBREAK-1` abajo, el bug que los afecta |
+| ANDROID-DUP-SORT-TIEBREAK-1 | Hallazgo real durante `ANDROID-DUP-GBA-1`, ampliado a petición del usuario a **todas las plataformas** de la Anbernic (2026-09-29): el desempate de "recomendado" en `_review_entry_sort_key` cae a comparar el nombre de archivo como texto plano cuando todos los criterios tipados empatan (caso normal en un duplicado SHA1 exacto) — un espacio (`0x20`) ordena antes que un punto (`0x2E`), así que cualquier sufijo entre paréntesis/corchetes ("... (Japan) [T-En...]", "... (USA) (conflicto-inbox...)") gana alfabéticamente al nombre limpio sin que eso tenga ningún sentido semántico | `web/builders/duplicates.py:313-410` (`_review_entry_sort_key`, nuevo `variant_tier`) | ✅ **arreglado 2026-09-29, a petición del usuario, misma sesión** — nuevo `variant_tier` insertado justo antes del fallback de nombre: reutiliza `is_non_canonical_variant()` (ya usada en otro sitio del código para el mismo tipo de señal, `[T+`/`[T-`/`(hack`/`subset`/`[h\d*]`) + un check aparte para `conflicto-inbox` (artefacto del Inbox, no relacionado con traducciones/hacks). Deliberadamente NO toca `(Beta)`/`(Proto)`/`(Demo)`/`(Sample)` — confirmado con datos reales que esas etiquetas describen contenido genuino. 4 tests nuevos (`tests/test_builders_duplicates.py`): 2 confirman que el sort key ahora penaliza los dos patrones reales encontrados, 1 confirma que `(Beta)`/`(Proto)` NO se penalizan, 1 end-to-end reproduciendo el caso real de Mother 3 a través de `_build_review_queue`. Suite completa 1492/1492, ruff+format limpios. Metodología (investigación original, antes del fix): recorrida la cola de revisión real completa (`_build_review_queue`) agrupada por plataforma, filtrado a grupos con SHA1 idéntico donde el "recomendado" lleva `[T-` o `conflicto-inbox` y existe una alternativa sin esa etiqueta en el mismo grupo — cada caso verificado por SHA1 real, no por sospecha. Un barrido más amplio con `(Beta)`/`(Proto)`/`(Demo)`/`(Sample)` dio **falsos positivos**: esas etiquetas sí describen el contenido real (mismo dump beta/proto, solo con nombre No-Intro correcto vs. un volcado legacy mal escrito) — descartadas del hallazgo, no es el mismo bug.<br>**GBA**: 6 parches `[T-...]` falsos (`Mother 3`, `Oriental Blue - Ao no Tengai`, `Magical Vacation`, `Dragon Quest Monsters - Caravan Heart`, `Super Robot Taisen R`, `Tomato Adventure`) + 3 `(conflicto-inbox 2026-08-13)` (`Boktai 2`, `Crash Nitro Kart`, `Klonoa - Empire of Dreams`) — de 146 grupos totales, excluidos de la aplicación real en `ANDROID-DUP-GBA-1`.<br>**NES**: 9 parches `[T-...]` falsos, mismo patrón exacto (SHA1 idéntico al original japonés sin traducir): `Big Strategy Pachinko`, `Mitsume ga Tooru`, `Perman`, `Sweet Home`, `Fire Emblem Gaiden`, `Brave Fighter of the Sun - Fighbird`, `Hinotori - Houou Hen`, `Famicom Wars`, `Family Trainer 8`.<br>**Game Gear**: 1 caso, `Sylvan Tale (Japan) [T-En by Aeon Genesis v1.01].gg` = mismo SHA1 que `Sylvan Tale (Japan).gg` sin traducir.<br>**Aplicado el resto (2026-09-29, mismo backup previo de `library_android.db`)**: filtro conservador (excluye cualquier grupo cuyo "recomendado" contenga `[T-`/`conflicto-inbox`, sin exigir que exista alternativa limpia — más estricto que el hallazgo exacto, así que excluyó 20 grupos en total en vez de los 10 confirmados, dejando también sin tocar algunos casos ambiguos tipo "dos parches distintos del mismo hack"). **NES: 1563/1582 grupos aplicados, 1865 filas borradas, 0,40 GB liberados. Game Gear: 183/184 grupos aplicados, 184 filas borradas, 0,07 GB liberados. 0 errores en ambos.** Verificado por dos vías: `ls` real en el dispositivo confirma que los 10 casos `[T-...]` originales siguen intactos (ambas copias), y el recuento de filas en `library_android.db` coincide exacto con lo aplicado (NES 4971→3106 = −1865, Game Gear 939→755 = −184).<br>**Resto de plataformas con datos en el dispositivo, sin ningún caso del bug** (0 sospechosos tras el mismo barrido): Game Boy Color (1268 grupos, 1,95 GB), PlayStation (124 grupos, 14,33 GB), Sega Mega Drive (65 grupos, 0,12 GB — los 2 casos `(Beta)`/`(Proto)` del barrido amplio son correctos, no bug), Game Boy (25 grupos, 0,01 GB), SNES (5 grupos), Nintendo 64DD (1 grupo). Arcade, Nintendo DS, Master System, PlayStation 2, Nintendo 64, PSP, Atari 2600, GameCube, PC Engine y Famicom Disk System no tienen ningún grupo de duplicados con entradas en el dispositivo ahora mismo.<br>**Aplicado tras el fix (2026-09-29, mismo backup previo de `library_android.db`)**: reconstruida la cola real con el `variant_tier` ya en producción — confirmado primero en seco que los 16 casos falsos ahora recomiendan el nombre limpio (`Mother 3 (Japan).gba`, `Sylvan Tale (Japan).gg`, etc.), sin exclusión manual esta vez (el propio motor ya elige bien). **29 grupos restantes en GBA/NES/Game Gear (los 20 previos + 9 nuevos que solo aparecieron al dejar de excluirlos a mano), 33 archivos descartados, 0 errores, 0,119 GB liberados** (GBA 0,114 GB, NES 0,005 GB, Game Gear 0,001 GB — números pequeños porque la mayoría de esos grupos son el propio archivo `[T-...]`/`conflicto-inbox` de 1 sola entrada extra, no discos completos). Verificado en el dispositivo real por ADB: `Mother 3 (Japan) [T-En...].gba` y `Sylvan Tale (Japan) [T-En...].gg` ya no existen, solo las copias limpias. Con esto, `ANDROID-DUP-GBA-1`/`ANDROID-DUP-SORT-TIEBREAK-1` quedan completamente cerrados para las 3 plataformas investigadas |
+
+### ANDROID-DUP-PSX-1 — PlayStation en la Anbernic: verificación por pareja real de SHA1 antes de aplicar, no fiarse del `reasons` a nivel de grupo (hallazgo real 2026-09-29)
+
+Al intentar repetir el mismo patrón GBA/NES/Game Gear contra PlayStation (124 grupos, 14,33 GB), **hallazgo real antes de tocar nada**: `_review_groups_for_repo` une por Union-Find — un grupo puede quedar contaminado con discos genuinamente distintos si comparten un `canonical_title`/nombre mal resuelto por el catálogo, aunque el `reasons` del grupo incluya `sha1`. Caso confirmado con datos reales: `Metal Gear Solid (World) (4B4E083C) (Addon).chd` existía en 3 ubicaciones con **3 SHA1 distintos** (raíz `psx/`, `Metal Gear Solid (Spain) (Disc 1) (v1.1)/`, `Metal Gear Solid (Spain) (Disc 2) (v1.1)/`) — 3 discos reales y distintos con el mismo nombre genérico sin identificar, agrupados como "duplicados" por título exacto. Aplicar `resolve_duplicate_ra` a nivel de grupo (como se hizo en GBA/NES) habría borrado los 2 discos españoles reales creyéndolos copias redundantes.
+
+**Fix aplicado en esta sesión, sin tocar código** (verificación adicional en el script de aplicación, no en `_review_groups_for_repo`): en vez de confiar en `reasons`, comparar el SHA1 real de cada candidato a descartar contra el SHA1 del "recomendado" uno a uno — solo se descarta si coinciden exactamente. De **149 pares evaluados** (41 grupos con `sha1` en razones), **110 fueron rechazados por SHA1 distinto** (contenido genuinamente diferente pese a compartir grupo) y solo **39 verificados como duplicados reales**.
+
+**Aplicado contra la Anbernic real** (backup previo de `library_android.db`): **37/38 grupos aplicados, 0 errores reales, 7,51 GB liberados**. El único grupo no resuelto (`Ninpuu Sentai Hurricanger...`) lo bloqueó el guard de seguridad ya existente (`DUP-CROSSFMT-6`) porque su "recomendado" (`Enemy Engaged - Apache-Havoc...`) ya no existe en el dispositivo — fila obsoleta, nada descartado, correcto. Verificado en el dispositivo real: `Metal Gear Solid (World)(Addon).chd` de la raíz (el único SHA1 realmente duplicado, coincide con `USA (Disc 1).chd`) desaparecido; los dos discos españoles siguen íntegros. Recuento de filas en BD coincide exacto (PlayStation 1580→1543, −37).
+
+**Hallazgo colateral, no bloqueante**: los `.chd`/`.cue` de los 2 discos españoles siguen en `library_android.db` pero **ya no existen físicamente en el dispositivo** (`ls -la` real lo confirma) — filas fantasma de antes de esta sesión, no causadas por este apply (el filtro por pareja las excluyó correctamente al no compartir SHA1 con nada). Indica que `library_android.db` necesita un rescan ADB completo para depurar filas obsoletas — candidato a tarea propia, no urgente.
+
+**Pendiente**: los **83 grupos PSX restantes con razón `crossfmt` únicamente** (4,58 GB, mismo hueco que `ANDROID-DUP-CROSSFMT-VERIFY-1` — agrupados por título normalizado sin ningún hash, `.chd` vs `.bin`/`.cue` del mismo disco en contenedores distintos) necesitan la verificación completa por hash RA de disco (`compute_psx_ra_hash`, descargando cada candidato vía ADB) antes de aplicar nada — mismo método ya usado el 2026-09-25 para los 53 pares `.chd`+`.bin` de esa tarea. No abordado en esta sesión por el volumen de datos a descargar.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ANDROID-DUP-PSX-1 | Verificación por pareja SHA1 antes de aplicar dedup en PSX/Anbernic | `services/ra_duplicates_service.py::resolve_duplicate_ra` (motor, sin tocar) | ✅ 37/38 grupos verificados y aplicados, 7,51 GB liberados, 0 errores reales. 83 grupos `crossfmt`-solo (4,58 GB) pendientes de verificación por hash RA real — ver `ANDROID-DUP-CROSSFMT-VERIFY-1` |
+
+**Hallazgo colateral real: `SAGE-1` murió con `"database is locked"`**
+mientras `zip-route-apply` corría en paralelo (ambos escriben en
+`library_pc.db` — el pipeline de organizar hace escrituras masivas,
+choque de concurrencia SQLite). Progreso real antes de morir: cobertura
+de descripciones 27,78%→38,36% (no se perdió, quedó guardado). Relanzado
+tras terminar el job pesado, corriendo limpio de nuevo. **Candidato a
+backlog aparte** si se repite: serializar jobs de escritura pesada
+(`scrape`/`apply`/`inbox`) en vez de permitirlos en paralelo, o que
+`_do_scrape` reintente en vez de abortar ante `sqlite3.OperationalError:
+database is locked`.
+
+---
+
+### HEALTH-CHECK-RUBEN-1 — El Health Check semanal marcó 2 "corrupted" que en realidad son falsos positivos: el `sha1` guardado en BD es el de otra variante regional, el archivo real está bien (hallazgo 2026-09-28, máquina "Ruben", `F:\Juegos Retro`)
+
+Origen: el daemon de Health Check (semanal, `web/daemons.py`) ya estaba
+corriendo al empezar esta sesión (no lanzado a propósito). Resultado real:
+**24.527 OK, 0 missing, 2 "corrupted"**:
+
+- `gbc/Mr. Driller (Japan).gbc` — `stored_sha1=3BFDA5EDB7D1...`, `computed_sha1=B0D725DACEA7...`
+- `gbc/Ultimate Fighting Championship (Europe).gbc` — `stored_sha1=8A02015E399A...`, `computed_sha1=5036626B9723...`
+
+`check_library_health()` (`utils/health_checker.py:201-223`) etiqueta
+`"corrupted"` cualquier fila donde `computed_sha1 != stored_sha1` — no
+distingue "el archivo está dañado de verdad" de "la BD tiene guardado el
+hash equivocado". Investigado a fondo (solo lectura, sin tocar nada):
+
+1. **El contenido real de ambos archivos está perfecto**, no corrupto. La
+   cabecera interna del cartucho de `Mr. Driller (Japan).gbc` dice
+   literalmente `"MR. DRILLERBMDJ"` (coincide con su propio nombre de
+   archivo) y su `sha1` **real** (`B0D725DACEA7...`) coincide EXACTO con la
+   entrada `"Mr. Driller (Japan)"` del DAT No-Intro real
+   (`.rommgr/catalogs/nointro/Nintendo - Game Boy Color.dat`, cargado con
+   `catalog_loader.load_dat_file()`, 1.427 entradas). Mismo patrón exacto
+   para `Ultimate Fighting Championship (Europe).gbc` — su `sha1` real
+   coincide con la entrada `"Ultimate Fighting Championship (Europe)"`.
+2. **El `sha1` guardado en `games.sha1` para ambas filas no es basura
+   aleatoria — es el `sha1` real de la variante "(USA)" del mismo juego**:
+   `3BFDA5EDB7D1...` = `"Mr. Driller (USA)"` en el DAT; `8A02015E399A...` =
+   `"Ultimate Fighting Championship (USA)"` en el DAT. Confirmado cruzando
+   las 5 entradas del DAT para ambos títulos (JPN/USA/EUR) — no es una
+   coincidencia, apunta a un bug real de asignación cruzada entre variantes
+   regionales del mismo juego, no a corrupción de disco.
+3. `file_operations` (BD) **no tiene ninguna fila para ninguno de los dos
+   `game_id`** (43070, 43556) — lo que pasó no fue a través del pipeline de
+   rename/organize de la app (que sí registra cada operación,
+   `INBOX-ATOMIC-1`/regla del proyecto "Toda operación sobre archivos se
+   registra en SQLite"). Causa raíz real **sin determinar** — candidatos sin
+   confirmar: un bug de scanner/upsert que cruzó el `sha1` de dos filas
+   cercanas al escribir, o un import/migración de datos anterior a esta
+   sesión que ya traía el dato mal.
+4. `canonical_title`/`match_confidence` son `NULL` en ambas filas pese a que
+   el `sha1` guardado SÍ tiene match en el catálogo (la entrada "(USA)") —
+   el matcher nunca llegó a correr sobre estas dos filas con ese hash, otra
+   pista de que el dato llegó así desde fuera del flujo normal de
+   scan→match.
+
+**Conclusión**: no hay corrupción real ni riesgo de pérdida de datos — son
+2 falsos positivos del Health Check. Sin arreglar a propósito (regla del
+proyecto: documentar con archivo:línea, no implementar en la misma sesión
+salvo petición explícita). Posible fix futuro de dos partes independientes:
+(a) re-escanear/re-hashear estas 2 filas para que el `sha1` guardado
+vuelva a ser el real (arregla el síntoma, dispara el match automático) y
+(b) investigar si el bug de asignación cruzada es sistémico (otras filas
+con el mismo patrón silenciosas porque su "sha1 equivocado" no dispara
+"corrupted" por casualidad) — candidato a un chequeo tipo "¿el `sha1`
+guardado coincide con OTRA entrada del catálogo bajo un título distinto al
+propio `canonical_title`/nombre de archivo?" en vez de solo comparar
+`computed == stored`.
 
 ---
 
@@ -2041,6 +2503,80 @@ except Exception as exc:
 Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
 otro, sin miedo a sobrescribir — el valor diferencial real del proyecto.
 
+### NATIVE-SAVE-SYNC-1 — Estructura RetroVault en E:\ + sync de saves de juegos nativos (petición usuario 2026-09-26)
+
+Petición del usuario: unificar en `E:\RetroVault\` la biblioteca, los
+emuladores, ES-DE y los "juegos nativos" (ports PC hechos por la comunidad
+de juegos de consola — p. ej. Twilight Princess vía **Dusklight**, que lee
+el ISO original en vivo en vez de traer sus propios assets), y sincronizar
+también las partidas de esos juegos nativos a Dropbox, no solo las de
+RetroArch/DuckStation/PCSX2/Dolphin.
+
+Al investigar antes de mover nada se descubrió que **no era crear carpetas
+vacías**: `E:\Carpetas anbernic` era el `library_root` real en uso
+(36.271 ROMs en BD), `E:\Emuladores` tenía las instalaciones reales de
+RetroArch/Dolphin/DuckStation/PCSX2/etc., y `E:\Emulation Station` resultó
+ser un build de 2014 de EmulationStation (Aloshi) abandonado — el ES-DE real
+está instalado en `C:\Program Files\ES-DE` (fuera de alcance de este move,
+con datos de usuario en `C:\Users\rammu\ES-DE\`), pendiente de decidir con
+el usuario si esa carpeta vieja se borra o se deja.
+
+Hecho: **(1)** `E:\Carpetas anbernic` → `E:\RetroVault\ROMS`,
+`E:\Emuladores` → `E:\RetroVault\EMULADORES`, `E:\Juegos nativos` →
+`E:\RetroVault\JUEGOS NATIVOS` (move a nivel de archivo vía
+`robocopy /MOVE`, con backup previo de `library_pc.db`/`library_android.db`/
+`config.toml`/`retroarch.cfg` en `.rommgr/backup_pre_retrovault_move/`).
+Bloqueante real durante el move: **Dusklight** tenía abierto en vivo
+`gamecube\Legend of Zelda, The - Twilight Princess (Europe)...iso` — el
+`robocopy` movió todo lo demás y dejó ese único archivo atrás hasta que el
+usuario cerró el juego. **(2)** Reescritas 129.654 filas en `library_pc.db`
+(`games.source_path`, `saves.original_path`, `assets.source_path`,
+`file_operations.source_path/target_path`, `save_sync_log.local_path`,
+`scan_runs.source_root`, `game_metadata.box_art_path/wheel_path`) con el
+prefijo `E:\Carpetas anbernic` → `E:\RetroVault\ROMS`, en una única
+transacción con verificación de 0 filas restantes antes del commit +
+comprobación de que las rutas migradas existen en disco. **(3)** Reescritas
+las rutas absolutas en `config.toml` (`library_root`, `inbox.path`,
+`launchers.retroarch`, `sync.sources` de RetroArch) y en las configs propias
+de cada emulador/frontend: `C:\Users\rammu\ES-DE\settings\es_settings.xml`
+(`ROMDirectory`), `retroarch.cfg` (`savefile_directory`/`savestate_directory`),
+`DuckStation\settings.ini` (4 rutas), `PCSX2\inis\PCSX2.ini` (4 rutas),
+`ppsspp.ini` (`CurrentDirectory`), `Dolphin.ini` (3× `ISOPath*` +
+`MemcardAPath`) — ninguna de ellas se detecta ni se corrige sola, cada
+emulador guarda su propia copia de la ruta absoluta. **(4)** Nueva entrada
+`[[sync.sources]]` para Dusklight: `local_dir` apunta a
+`%APPDATA%\TwilitRealm\Dusklight\EUR` (el `.gci` de memory card,
+`EUR\Card A\01-GZ2P-gczelda2.gci`, mismo patrón que las memcards de Dolphin
+GC), `remote = "dropbox:/RetroSync/saves/native/dusklight"`,
+`sync_all = true` — reutiliza el motor de sync existente (`save_syncer.py`)
+sin código nuevo, exactamente igual que cualquier otra fuente de la lista.
+
+**Pendiente / hallazgo para otra sesión**: no hay UI todavía para añadir
+`[[sync.sources]]` — `sync.js` ya avisa que el modo multi-fuente es
+"avanzado, vía config.toml" (línea 74). Añadir un juego nativo nuevo hoy
+significa (a) localizar a mano su carpeta de save (varía por juego:
+`Documents\My Games\...`, `%APPDATA%\<Estudio>\<Juego>\...`, junto al .exe)
+y (b) editar `config.toml`. Sería razonable un formulario en la pestaña Sync
+para esto — no implementado, sin ID de tarea todavía. **(5)** `E:\Emulation
+Station\` (el EmulationStation 2014 abandonado, sin relación con el ES-DE
+real) — borrado a petición del usuario, no aportaba nada y confundía el
+nombre con la carpeta `ES-DE` real (`C:\Users\rammu\ES-DE\`).
+
+**(6)** Petición de seguimiento del usuario: aplicar lo mismo a la otra
+máquina y que la app cree esta estructura sola. `wizard.py`
+(`_ensure_retrovault_structure`, llamada desde `run_wizard` tras pedir la
+carpeta raíz) ahora crea `<carpeta elegida>` + hermanas `EMULADORES`/
+`JUEGOS NATIVOS` bajo el mismo padre en cualquier instalación nueva (`rommgr
+init-config`) — cubre el caso "primera vez" en una máquina nueva, con test
+(`tests/test_wizard_retrovault.py`). Para una máquina que **ya** tiene
+biblioteca (el caso real de la otra máquina, PC2 "Ruben" con RetroArch en
+`F:\Emuladores\Retroarch`), el wizard no aplica — se generalizó el
+procedimiento manual de este hallazgo en `scripts/migrate_to_retrovault.py`
+(backup, `robocopy /MOVE`, reescritura de `library_pc.db` + `config.toml` +
+las mismas 6 configs de emulador, dry-run por defecto) para que se ejecute
+allí sin repetir la investigación a mano — no se ha ejecutado contra esa
+máquina porque esta sesión no tiene acceso a ella.
+
 ### EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben" = PC2)
 
 Petición del usuario: quiere sync entre sus 3 dispositivos (PC principal,
@@ -2135,6 +2671,8 @@ no un fallo de esta feature). Sin PR todavía |
 
 ### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
 
+→ #374
+
 Petición del usuario: sync de saves lo más automático posible, sin depender
 de que el PC esté encendido. Decisión: app Android nativa instalada en la
 propia Anbernic que sincroniza directamente con Dropbox (sustituye al script
@@ -2167,15 +2705,99 @@ caso de uso real sin la complejidad de un daemon en segundo plano.
 | ANDROID-SYNC-6 | `DropboxTransport`: listado recursivo con `client_modified`, upload/download coherentes con mtime | 2 — Dropbox core | M | ✅ PR #232 |
 | ANDROID-SYNC-7 | Puerto de `ConflictResolver` (tolerancia 2s, newest-wins, backup de conflicto) + `SyncEngine` + watermark Room `(relative, remote_root)` | 2 — Dropbox core | M | ✅ PR #233 |
 | ANDROID-SYNC-8 | Pantalla de Ajustes: conectar/desconectar, paths remotos con auto-recorte de prefijo rclone, botón "Sincronizar ahora" | 2 — Dropbox core | S | ✅ PR #234 |
-| ANDROID-SYNC-9 | ~~`SaveFileObserverManager`: `FileObserver` multi-path, debounce~~ | 3 — Instantáneo | M | ❌ descartado (2026-08-18) — la app es complemento del PC, no un daemon en segundo plano; sync manual + periódico (12) cubre el caso de uso real |
-| ANDROID-SYNC-10 | ~~`SyncForegroundService` + notificación~~ | 3 — Instantáneo | S | ❌ descartado — depende de 9 |
-| ANDROID-SYNC-11 | ~~`BootRestartReceiver`~~ | 3 — Instantáneo | XS | ❌ descartado — depende de 9/10 |
+| ANDROID-SYNC-9 | `SaveFileObserverManager`: `FileObserver` multi-path, debounce | 3 — Instantáneo | M | ✅ **implementado y validado en hardware real 2026-09-25** — el usuario confirmó explícitamente el cambio de postura de producto (ya no es solo complemento del PC) antes de tocar código. Un `FileObserver` por cada subcarpeta ya existente bajo `saves/`/`states/` (no recursivo nativamente, ver `collectWatchDirs` — pure, testeado en JVM); debounce 3s con `Handler`, no coroutines. **Ceiling conocido** (comentario `ponytail:` en el código): un core nuevo que aparezca después de arrancar el servicio no se observa hasta el próximo restart — no hay watch dinámico de carpetas nuevas. `SaveFileObserverManagerTest` (JVM) cubre el recorrido. Validado en la RG556 real (ver `ANDROID-SYNC-10`): disparo por `adb push`/borrado real detectado con la app en background y con la pantalla apagada 10 min |
+| ANDROID-SYNC-10 | `SyncForegroundService` + notificación | 3 — Instantáneo | S | ✅ **implementado y validado en hardware real 2026-09-25** — servicio foreground (`foregroundServiceType="dataSync"`, API 34+), notificación persistente reutilizando `ic_launcher_foreground` (sin asset nuevo), `START_STICKY`. Dispara `SyncOrchestrator.runFullSync(..., SyncTrigger.INSTANT)` en el callback debounced de `SaveFileObserverManager`. Toggle en Ajustes (`SettingsRepository.instantSyncEnabled`) independiente del sync periódico (12) — **a propósito no mutuamente excluyentes**: el periódico queda como red de seguridad si el foreground muere. **Riesgo real sin validar**: gestores de batería agresivos (RG556 y similares) pueden matar el servicio con la pantalla apagada sin avisar — no se puede afirmar "instantáneo" sin matices hasta probarlo en el dispositivo real. Checklist generado con el agente `hardware-validator`: `Tareas/Validacion-Sync-Instantaneo-Historial.md` (10 pasos). **Estado real tras 3 intentos de ejecución en la RG556 el 2026-09-25**: los dos primeros bloqueos (pantalla bloqueada; luego el bug `ANDROID-SYNC-FIX-2`) ya están resueltos — el fix de `ANDROID-SYNC-FIX-2` está confirmado funcionando en vivo (app arranca sin crash, `ps -A` con proceso estable, sin `FATAL`/`AndroidRuntime` en logcat, permiso de notificaciones concedido con éxito por UI automation). **Tercer bloqueo, esperado y no un bug nuevo**: el fix de `ANDROID-SYNC-FIX-2` borra el `EncryptedSharedPreferences` corrupto como parte de su recuperación, así que el token OAuth de Dropbox que ya estaba conectado en la RG556 se perdió con él — Ajustes ahora muestra "No conectado". Los pasos 2-10 del checklist (todo lo que dispara un sync real) necesitan Dropbox conectado, así que la validación completa sigue pendiente hasta que el usuario reconecte Dropbox a mano en el dispositivo (login OAuth, no automatizable — regla ya establecida en `Tareas/Roadmap-Android-Sync.md` §6, sin QR/emparejamiento). `screen_off_timeout` del dispositivo quedó en 1800000ms (30 min) de intentos anteriores — valor original desconocido, no tocado en esta pasada.
+
+**Retomado el mismo día tras reconexión manual de Dropbox por el usuario (login OAuth
+en el dispositivo)** — resultado real de los 10 pasos, verificado por `adb`/SQL
+directo contra `retrovault.db`/`-wal` (no por la UI, ver bloqueo nuevo abajo):
+Paso 1 no aplica (reinstall limpio, `sync_history` ya existe desde el primer
+arranque). **Paso 5 ✅ PASS**: notificación real confirmada por
+`dumpsys notification --noredact` (título "Retro Vault Sync", texto "Vigilando
+saves y states para sincronizar al instante", canal `instant_sync` importancia
+2/LOW) + `SyncForegroundService` vivo en `dumpsys activity services`. **Paso 6 ✅
+PASS**: `adb push` a `saves/Snes9x/` (carpeta preexistente) disparó un sync real;
+tardó ~5,5 min en insertar la fila de historial (no los 3-4s documentados) porque
+era el primer sync real de esta instalación — el reinstall de `ANDROID-SYNC-FIX-2`
+también había borrado `sync_watermark` junto con las credenciales, así que tuvo
+que subir de golpe toda la biblioteca nunca sincronizada (`sync_history`:
+`trigger=INSTANT, uploaded=237, downloaded=1, errorCount=0`) — no es un bug, es el
+catch-up inicial esperado. **Paso 8 (el crítico) ✅ PASS DEFINITIVO, sin necesitar
+whitelist (8c)**: primer intento con sondeo `adb` cada 30s durante los 10 min
+despertó la pantalla por sí solo (confirmado por ráfagas
+`PowerManagerService: userActivityNoUpdateLocked` justo en la ventana de cada
+sondeo — artefacto de la propia metodología de comprobación, no un hallazgo de
+batería real, descartado). Repetido limpio — pantalla apagada, `adb push` de un
+archivo de prueba, y **cero comandos adb durante los 10 minutos completos** (solo
+espera pura): al terminar, pantalla seguía "Asleep", servicio y proceso vivos,
+notificación presente, y 2 filas nuevas de historial "Instantáneo" con timestamp
+dentro de la ventana dormida (sync completado mientras la pantalla estaba
+realmente apagada, sin tocar el dispositivo en ningún momento).
+`dumpsys deviceidle whitelist | grep retrovault` vacío — el modo Instantáneo
+sobrevive 10 min reales de pantalla apagada en la RG556 de fábrica, sin
+necesidad de eximirlo del gestor de batería. (`dumpsys deviceidle get deep` =
+ACTIVE toda la prueba — Doze no llegó a activarse, probablemente por la
+depuración USB conectada; el resultado positivo cubre el gestor de batería del
+fabricante en 10 min de pantalla apagada, no un Doze profundo aislado). **Paso 9
+✅ PASS**: `am force-stop` mató servicio y proceso (confirmado ausentes),
+relanzado con `monkey -c android.intent.category.LAUNCHER` → `SyncForegroundService`
+reaparece solo (`MainActivity.kt:87-92` funciona), sin volver a tocar el switch.
+**Retomado por segunda vez el mismo día (2026-09-25), autorizado explícitamente por
+el usuario** — se arregló primero `ANDROID-SYNC-FIX-3` (scroll) y se añadió un
+indicador de estado en vivo (`SyncOrchestrator.isSyncing: StateFlow<Boolean>`,
+notificación dinámica "Vigilando…"/"Sincronizando…") a petición del usuario ("no
+podemos solo inferir qué está pasando"). Con eso, `uiautomator`/`input tap` sí
+llegan a los controles reales (sin coordenadas ciegas). **Paso 2 ✅ PASS**: tap en
+"Sincronizar ahora" → notificación cambió a "Sincronizando…" en vivo (confirmado por
+`dumpsys notification`) y apareció la fila "Manual" en el historial de la propia UI.
+**Paso 3 ✅ PASS**: switch "Sync automático" activado por tap, diagnóstico de
+WorkManager devolvió `periodic_dropbox_sync` (`RUNNING`). **Paso 7 ✅ PASS**: ambos
+switches (`Sync automático` + `Sync instantáneo`) confirmados `checked="true"`
+simultáneamente por `uiautomator dump`, ninguno desactivó al otro. **Paso 10 ✅
+PASS** (`adb reboot` autorizado por el usuario): tras el boot, el servicio NO
+arrancaba y `run-as` fallaba con `couldn't stat /data/user/0/...` —
+`dumpsys user` reveló la causa real: `State: RUNNING_LOCKED` (almacenamiento
+cifrado del usuario 0 sin desbloquear tras el reboot; un receiver normal no recibe
+`BOOT_COMPLETED` hasta el primer desbloqueo real de pantalla — comportamiento
+esperado de Android FBE/CE, no un bug). En cuanto el usuario desbloqueó la
+pantalla a mano (`RUNNING_UNLOCKED`), `SyncForegroundService` apareció solo en
+`dumpsys activity services` con `code:BOOT_COMPLETED`, sin abrir la app — confirma
+que `BootRestartReceiver` funciona correctamente una vez el almacenamiento está
+disponible. **Paso 4 (conflicto/error) sin ejecutar** — sigue siendo best-effort/no
+bloqueante por diseño del checklist, pendiente si se quiere cerrar por completitud.
+**Checklist completo (excepto Paso 4) en verde.** Dispositivo quedó con ambos
+switches ON, historial con filas Manual/Automático/Instantáneo mezcladas, archivos
+de prueba limpiados. Detalle paso a paso en
+`Tareas/Validacion-Sync-Instantaneo-Historial.md` |
+| ANDROID-SYNC-11 | `BootRestartReceiver` | 3 — Instantáneo | XS | ✅ **implementado y validado en hardware real 2026-09-25** — relanza `SyncForegroundService` tras `BOOT_COMPLETED` si `instantSyncEnabled` seguía activo. Permisos `FOREGROUND_SERVICE`/`FOREGROUND_SERVICE_DATA_SYNC`/`RECEIVE_BOOT_COMPLETED` (retirados en ANDROID-SYNC-12) devueltos al manifest con la justificación actualizada. `./gradlew testDebugUnitTest`/`assembleDebug` en verde. **Reboot real en la RG556** (`adb reboot`, autorizado por el usuario): el servicio no arranca hasta que el usuario desbloquea la pantalla por primera vez tras el boot (almacenamiento cifrado del usuario en `RUNNING_LOCKED` hasta entonces — comportamiento esperado de Android, no un bug); en cuanto se desbloquea, `SyncForegroundService` aparece solo con `code:BOOT_COMPLETED`, sin abrir la app — confirmado con `dumpsys activity services`/`dumpsys user` |
 | ANDROID-SYNC-12 | `SyncWorker` (`CoroutineWorker`, 15 min mínimo, `NetworkType.CONNECTED`) + interruptor en Ajustes | 4 — Periódico | S | ✅ rama `feature/android-sync-12-periodic-sync` (PR #237) — `SyncOrchestrator` (nuevo, dependencias de `SyncEngine`/Dropbox/settings construidas desde un `Context`, punto compartido entre "Sincronizar ahora" y `SyncWorker`), `SyncWorker`/`PeriodicSyncScheduler`, `autoSyncEnabled` en `SettingsRepository`, interruptor en `SettingsScreen` (con la fase instantánea descartada, el "selector de modo" se simplifica a on/off). Permisos muertos de 9/10/11 (`FOREGROUND_SERVICE*`, `RECEIVE_BOOT_COMPLETED`) retirados del manifest. Verificado con `./gradlew test` y `./gradlew assembleDebug` reales (toolchain portable instalado en esta máquina, ver `Tareas/Roadmap-Android-Sync.md` §8) — ambos en verde, incluye 2 tests JVM nuevos de `SyncResult.plus()`. Falta el flujo manual en emulador/dispositivo (checklist: `Tareas/Validacion-ANDROID-SYNC-12.md`) |
 | ANDROID-SYNC-13 | ~~`DeltaCache` (SHA1 skip-si-no-cambió)~~ | 5 — Optimización | S | ❌ descartado — optimización prematura sin datos de uso real que la justifiquen |
-| ANDROID-SYNC-14 | ~~Pantalla de estado/historial~~ | 5 — Optimización | S | ❌ descartado — fuera del alcance mínimo (gestionar el envío de saves a Dropbox desde la consola); reconsiderar si hace falta depurar fallos de sync en el futuro |
+| ANDROID-SYNC-14 | Pantalla de estado/historial | 5 — Optimización | S | ✅ **reabierto y hecho 2026-09-25** (razón original ya no aplica — se necesita depurar fallos de sync). `SyncHistoryEntity`/`SyncHistoryDao` (Room, migración aditiva 1→2 en `AppDatabase`, no destruye `sync_watermark`) + `SyncOrchestrator.runFullSync(context, trigger: SyncTrigger)` graba un evento por pase (MANUAL/PERIODIC), cubre "Sincronizar ahora" y `SyncWorker` desde el mismo punto de entrada. `SettingsScreen` lista los últimos 10 eventos con `StatusBadge` (tono por `SyncOutcome`: éxito/conflictos/errores). Solo lectura, sin edición/borrado (alcance mínimo pedido). `SyncHistoryEntityTest` (JVM) cubre `outcome()`/`summary()`. Verificado con `./gradlew testDebugUnitTest` y `assembleDebug` reales — ambos en verde |
 | SYNC-STRUCT-RAMMU-1 | Ejecutar en esta máquina (rammu) el checklist de `Tareas/Estructura-Estandarizada-Sync.md`, diseñado 2026-09-19 sin acceso a ella — petición del usuario 2026-09-22 ("algo más que podamos ir haciendo con respecto a la app [Android]") | `config.toml`, `retroarch.cfg` | ✅ **hecho 2026-09-22** — 6/7 puntos del checklist confirmados u OK de antes (convención `dropbox:/RetroSync/saves/<emulador>/<tipo>` ya aplicada en `[[sync.sources]]` y `saves_remote`/`states_remote`, slugs de plataforma en minúscula). **Bug real encontrado y arreglado**: `GET /api/retroarch-check` reportó `savefile_drift: true` — `savestate_directory` en `retroarch.cfg` corrupto (`":\states"`, sin unidad) desde al menos marzo. Corregido con `POST /api/retroarch-apply-savefile-layout` (backup automático `retroarch.cfg.bak`). Con la ruta rota, RetroArch llevaba escribiendo savestates en su propio fallback (`E:\Emuladores\Retroarch\states\`, 9 cores, actividad hasta el día anterior) — **nunca respaldados en Dropbox**. Migrados (copiados, sin borrar el origen) a `E:\Carpetas anbernic\states\`. Retirada `MelonDS (NDS)` de `[[sync.sources]]` (`local_dir` apuntaba a una carpeta inexistente, app no instalada en este PC — confirmado por el usuario). **`rommgr sync --apply` real ejecutado** (confirmado por el usuario): 14 archivos subidos a Dropbox (incluye los savestates recién migrados), 0 descargados, 0 conflictos, 0 errores; re-verificado tras retirar MelonDS: 255/255 ya al día, 0 errores. Punto 7 original del checklist (comparar contra PC2/Ruben) sin hacer, no hay acceso a esa máquina desde aquí. Desbloquea el round-trip real de `ANDROID-SYNC-15` (solo falta interacción manual del usuario en el dispositivo — login Dropbox en la app) |
 | ANDROID-SYNC-15 | Checklist RG556: instalar, permisos, anidado real por-core, round-trip cruzado con `rommgr sync-saves`, reboot, batería | 6 — Validación hardware | M | 🟡 en progreso (2026-09-19, RG556 ya conectada) — checklist completo en `Tareas/Validacion-ANDROID-SYNC-15.md` (generado con el agente `hardware-validator`). Permisos comprobados en vivo: `MANAGE_EXTERNAL_STORAGE: allow`; `POST_NOTIFICATIONS` declarado pero no concedido (la app tiene banner propio para pedirlo, sin acción todavía). Confirmado por `dumpsys package` que la build instalada (v0.1.0) no tiene `SyncForegroundService`/`BootRestartReceiver` — el recorte de alcance de 2026-08-18 (solo sync manual + periódico) sigue vigente, los pasos de reboot/batería del checklist genérico hay que adaptarlos a eso. Round-trip cruzado con `rommgr sync-saves`, reboot y batería sin ejecutar todavía — pospuesto a propósito hasta aplicar `Tareas/Estructura-Estandarizada-Sync.md` en rammu, para no repetir la validación tras alinear rutas. **Prerrequisito cumplido 2026-09-22** (ver `SYNC-STRUCT-RAMMU-1`) — el checklist de estandarización ya está ejecutado en esta máquina, desbloqueado seguir con el round-trip real cuando el usuario esté delante del dispositivo (login Dropbox en la app, no automatizable) |
 | ANDROID-SYNC-FIX-1 | **Bug: el primer sync de una cuenta/carpeta Dropbox nueva fallaba siempre** — `DropboxTransport.listFolderRecursive()` propagaba `ListFolderErrorException` (`path/not_found`) como error fatal cuando la carpeta remota simplemente no existe todavía (cuenta nueva, nunca se subió nada ahí); eso es un listado vacío legítimo, no un fallo. Sin este fix ningún usuario Android nuevo podía completar su primer sync. Hallado validando Dropbox sync a mano contra una cuenta real (AVD `retrovault_test`, API 34) | `android/app/src/main/java/com/retrovault/android/sync/DropboxTransport.kt` | ✅ captura `ListFolderErrorException` y devuelve lista vacía si `errorValue.isPath && errorValue.pathValue.isNotFound`; cualquier otro error se relanza igual que antes. Verificado contra la cuenta real: antes "Errores: 2", después "Errores: 0" |
+| ANDROID-SYNC-FIX-2 | **Bug: la app crashea en cada arranque tras reinstalar (release↔debug o restore de backup) — `AEADBadTagException` sin capturar al leer `EncryptedSharedPreferences`** — `DropboxCredentialStore.<init>` (`DropboxCredentialStore.kt:21`, `EncryptedSharedPreferences.create(...)`) descifra un `SharedPreferences` existente con una `MasterKey` de Android Keystore; si el blob cifrado en disco no cuadra con la clave del Keystore disponible (p. ej. tras desinstalar+instalar con otra firma, o un restore de `android:allowBackup="true"`), `Cipher.doFinal()` lanza `javax.crypto.AEADBadTagException` sin capturar. Se llama sin try/catch desde `MainActivity.onCreate()` → `refreshDropboxState()` — la Activity nunca llega a `setContent{}`, crash-loop permanente. **Reproducido en vivo en la RG556 real** (2026-09-25, validando ANDROID-SYNC-9/10/11) tras el intento previo de reinstalar release→debug | `android/app/src/main/java/com/retrovault/android/data/auth/DropboxCredentialStore.kt:14-45` | ✅ **arreglado 2026-09-25** — usuario pidió arreglarlo en esta misma sesión en vez de solo borrar datos a mano. `createPrefs()`/`buildEncryptedPrefs()`: `EncryptedSharedPreferences.create(...)` envuelto en `runCatching`; si falla, `context.deleteSharedPreferences(PREFS_NAME)` (borra el blob corrupto, API de plataforma, sin manejo manual de rutas) y se recrea vacío. Solo se pierde el token OAuth (hay que reconectar Dropbox), no saves/states. Verificado con `./gradlew testDebugUnitTest`/`compileDebugKotlin` reales (ambos en verde) — sin test JVM dedicado (clase 100% Android-framework, `EncryptedSharedPreferences`/`Context`, sin Robolectric en el proyecto, mismo criterio que el resto de `data/auth/`); la validación real del camino de fallback queda cubierta por la propia re-ejecución del checklist en la RG556 a continuación |
+| ANDROID-SYNC-FIX-3 | **Bug: `SettingsScreen` no tiene scroll — en la RG556 real, "Sincronizar ahora", ambos switches y todo el Historial de sync quedan fuera del viewport visible, inalcanzables al tacto** — `SettingsScreen.kt:66-69` montaba el contenido en un `Column(modifier = modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp))` sin `Modifier.verticalScroll(rememberScrollState())`. En el viewport real de la RG556 en landscape (1920×1023 px tras las barras del sistema) el contenido (título, badge Dropbox, botón desconectar, 2 campos de ruta, botón "Guardar rutas", botón "Sincronizar ahora", 2 switches, sección Historial con hasta 10 filas) desbordaba ese alto y no había forma de desplazarse. Hallado validando `ANDROID-SYNC-10` en hardware real (2026-09-25): los switches solo se pudieron accionar enviando toques por coordenadas obtenidas de `uiautomator dump`, no viable para un usuario real con solo la pantalla táctil | `android/app/src/main/java/com/retrovault/android/ui/settings/SettingsScreen.kt:66-69` | ✅ **arreglado 2026-09-25** — usuario pidió arreglarlo en la misma sesión. `Column` raíz envuelto en `Modifier.verticalScroll(rememberScrollState())`, sin cambiar layout ni estructura. `./gradlew compileDebugKotlin`/`testDebugUnitTest` en verde — **confirmado en la RG556 real el mismo día**: con el fix instalado, `uiautomator`/`input tap` llegaron sin problema a "Sincronizar ahora" y a ambos switches (ver `ANDROID-SYNC-10`) |
+| ANDROID-SYNC-CRITICAL-1 | **CRÍTICO — el sync PC↔Android nunca ha compartido datos de verdad, por dos razones apiladas, encontradas intentando el Paso 4 (best-effort) del checklist de `ANDROID-SYNC-10`** | `android/app/src/main/java/com/retrovault/android/data/auth/DropboxAuthManager.kt` | 🟡 **causa raíz 1 arreglada 2026-09-25, causa raíz 2 documentada, sin arreglar** — ver detalle abajo |
+
+**Causa raíz 1 (arreglada): cuenta de Dropbox equivocada.** La app Android estaba conectada a `rubitobus.shin@gmail.com`; el PC (`rclone`/`rommgr sync`) usa `r.cerezo26@gmail.com`. Mismo dueño, dos cuentas Dropbox distintas — cada sync "exitoso" desde el móvil (0 errores, contadores de archivos subidos reales) aterrizaba en una cuenta que el PC nunca lee. Diagnosticado subiendo un archivo de prueba único desde el móvil y buscándolo con `rclone lsf dropbox: --recursive` (acceso Full Dropbox de `rclone`, cuenta `r.cerezo26@gmail.com`) — no aparecía en ningún sitio de esa cuenta. Confirmado con certeza comparando `account_id` reales de ambos lados (no solo el email, que en teoría podría repetirse entre espacios personal/equipo): PC vía `users/get_current_account` con el token de `rclone` (`dbid:AACD3NTx...`) vs Android tras añadir el mismo diagnóstico (ver abajo) — coincidían exactamente tras reconectar. **Fix**: usuario reconectó Dropbox en la app eligiendo `r.cerezo26@gmail.com` explícitamente (el selector de Google/Dropbox saltaba por defecto a la cuenta ya guardada en el dispositivo — hubo que cerrar esa sesión en Dropbox.com primero). Bloqueo intermedio real: la app de Dropbox (App Key en `local.properties`) está en modo Desarrollo con tope de usuarios autorizados, y ya lo había alcanzado (acumulado de reconexiones de sesiones de prueba anteriores) — "This app has reached its user limit" al intentar añadir la cuenta nueva; se liberó revocando cuentas de prueba viejas desde la Dropbox App Console (usuario, fuera de esta sesión).
+
+**Diagnóstico añadido permanentemente**: `DropboxAuthManager.fetchAccountLabel()` (nuevo) llama a `users/get_current_account` y `SettingsScreen` muestra `email · account_id` bajo el badge "Conectado" — para comparar sin ambigüedad la próxima vez, en vez de asumir por el nombre de la cuenta. Requirió añadir el scope `account_info.read` a `SCOPES` en `DropboxAuthManager` (las credenciales ya emitidas no lo tenían — hace falta reconectar una vez más tras este cambio para que el diagnóstico funcione; confirmado con logging temporal in-session que la llamada fallaba con `missing_scope` antes del fix, retirado antes de commitear).
+
+**Causa raíz 2 (sin arreglar, más profunda): la app de Dropbox de Android es de tipo "App folder", no "Full Dropbox".** Confirmado empíricamente: tras corregir la cuenta, un archivo subido a `savesRemote="/RetroSync/saves"` aterrizó realmente en `Aplicaciones/Retrovault/RetroSync/saves/...` (carpeta sandbox de la app, con nombre localizado al idioma de la cuenta — "Aplicaciones" en vez de "Apps") — invisible para `rclone`/`rommgr` en el PC, que usan una app "Full Dropbox" y leen/escriben directamente en la raíz real `/RetroSync/...`. **Con esto, incluso con la cuenta ya correcta, el móvil y el PC nunca comparten el mismo árbol de carpetas** — el pilar 3 (sync de saves, "cualquier bug aquí es prioridad absoluta") sigue sin cumplirse de verdad hasta arreglar esto. Pendiente decidir en la Dropbox App Console si el tipo de acceso de la app existente se puede cambiar a Full Dropbox (no confirmado si es editable post-creación para scoped apps) o si hace falta registrar una app nueva con ese tipo y actualizar `dropbox.appKey` en `local.properties` + reconectar. Hasta entonces, cualquier sync validado hoy en la RG556 (incluyendo el Paso 8 del checklist) es real y funcional **dentro del sandbox de la app**, pero no representa todavía el sync cruzado con el PC que promete el pilar 3.
+
+**Recurrencia 2026-09-26**: al retomar la sesión, Ajustes mostraba "No conectado" (la sesión OAuth de la app se había perdido). Al pulsar "Conectar Dropbox" en la RG556, Dropbox volvió a devolver "This app has reached its user limit" en el mismo paso (`dropbox.com/1/connect_submit`) — el tope de usuarios de la app en modo Desarrollo se llena de nuevo con cada ciclo de reconexión/prueba, no es un evento aislado. El usuario liberó cuentas y reconectó con éxito (`r.cerezo26@gmail.com`, `dbid:AACD3NTx...` — coincide con `rclone`).
+
+**Causa raíz 3 (encontrada 2026-09-26, distinta de la 1 y la 2): a la app Dropbox le faltan scopes de archivo en la pestaña Permissions de la App Console.** Tras reconectar con la cuenta correcta, "Sincronizar ahora" en la RG556 dio **Subidos: 0 · Descargados: 0 · Al día: 0 · Errores: 8** — 8 fallos de `files/list_folder` (uno por carpeta local con actividad). Confirmado leyendo `errorsText` directo del Room DB del dispositivo (`adb exec-out run-as com.retrovault.android cat databases/retrovault.db[-wal]`, tabla `sync_history`, sin modificar nada — solo lectura): mensaje real de la API de Dropbox: *"Your app (ID: 8660947) is not permitted to access this endpoint because it does not have the required scope 'files.metadata.read'. The owner of the app can enable the scope for the app using the Permissions tab on the App Console."* Coincide con la pantalla de consentimiento OAuth vista en el navegador, que solo pedía "Visualizar la información básica de tu cuenta" (`account_info.read`) — ningún permiso de archivos. `DropboxAuthManager.SCOPES` (`android/app/src/main/java/com/retrovault/android/data/auth/DropboxAuthManager.kt:75`) ya pide `files.metadata.read`/`files.content.read`/`files.content.write`/`account_info.read`, pero Dropbox solo concede los scopes que la app tiene habilitados en su pestaña Permissions — ahí solo está marcado `account_info.read`. **Fix pendiente (usuario, fuera de esta sesión)**: marcar los 3 scopes de archivo en Permissions → Submit → desconectar/reconectar Dropbox en la app (los scopes nuevos solo aplican a un token emitido después del cambio). Con esto resuelto, queda pendiente repetir el test de causa raíz 2 (App folder vs Full Dropbox) para confirmar si el usuario ya lo dejó en Full Dropbox como cree.
+
+---
+
+| ANDROID-DRIVE-1 | **Idea para el futuro (2026-09-25, motivada por el límite de usuarios de la app Dropbox de ANDROID-SYNC-CRITICAL-1): añadir Google Drive como proveedor alternativo en la app Android**, igual que ya existe en el PC. El lado PC (`web/handlers/cloud_auth.py`, `_PROVIDERS = {"dropbox": ..., "gdrive": ("drive", "gdrive")}` + wizard OAuth ya cableado en `sync.js`/`tab-sync.html`) es agnóstico de proveedor porque delega en `rclone` — Drive ya funciona ahí sin código nuevo, solo eligiendo el provider en la UI. El lado Android **no** es agnóstico: `DropboxTransport`/`DropboxAuthManager`/`DropboxCredentialStore` usan directamente el SDK de Dropbox (`DbxClientV2`), sin capa de abstracción — añadir Drive requeriría una implementación paralela completa (SDK de Google Drive, su propio flujo OAuth con Google Identity Services, y su propio modelo de direcciones por `fileId`+carpetas en vez de rutas POSIX planas, bastante distinto de cómo `SyncEngine`/`ConflictResolver` asumen hoy `relative: String` sobre una raíz). No es un cambio pequeño — antes de implementarlo, decidir si vale la pena frente a simplemente resolver `ANDROID-SYNC-CRITICAL-1` (pasar la app Dropbox actual a Full Dropbox) | `android/app/src/main/java/com/retrovault/android/sync/DropboxTransport.kt`, `.../data/auth/Dropbox*.kt` | 🟡 **en marcha 2026-09-29** — roadmap completo en `.claude/roadmaps/28-android-gdrive-provider.md` (5 fases: `CloudTransport` genérico, auth Google Sign-In + Picker con scope `drive.file` para evitar la revisión de scopes sensibles de Google, `GoogleDriveTransport` con resolución de carpeta→ID cacheada, selector de proveedor en Ajustes, validación en hardware). Fase 1 mergeada (PR #357, `CloudTransport` extraído sin regresiones). Fase 2 en curso en `feature/android-drive-2-signin`: `GoogleDriveCredentialStore`/`GoogleDriveAuthManager` (solo Sign-In con `GoogleSignIn` clásico, compila + `testDebugUnitTest` en verde). Investigado el Picker (2026-09-29, contra la doc real de Google, no asumido): no es un WebView — es `Identity.getAuthorizationClient()`/`AuthorizationRequest` (API distinta de `GoogleSignIn`, ver nota en el roadmap 28), scope `drive.file` + parámetros `trigger_onepick`/`allow_folder_selection`. Sin código todavía — la firma Kotlin exacta para pasar esos parámetros no está confirmada en ninguna fuente consultada, y adivinarla sin poder compilar/probar contra Drive real (Fase 0 pendiente) es más riesgo que valor. Nada de esto es verificable de extremo a extremo hasta completar la Fase 0 (proyecto en Google Cloud Console, `GDRIVE_CLIENT_ID` real en `local.properties`) |
+
+---
+
+| DESIGN-1 | Portar el design system "RetroVault Sync" (tokens de color/tipografía/spacing del artifact https://claude.ai/artifact/Er8gzxt15ZF8nLAws7QqYL, calcado del `web/static/app.css` del PC) a Jetpack Compose/Material3 | `ui/theme/` | ✅ `Color.kt`/`Theme.kt`/`Type.kt` (PR #346) + aplicado a `PickScreen` (PR #346). ✅ **extendido 2026-09-24**: `ScanScreen` (card de stats con `mono-data`) y `SettingsScreen` (estado Dropbox) usaban `Text` plano sin tokens — corregido; nuevo componente compartido `ui/components/StatusBadge.kt` (pill de estado semántico, reutilizado en Settings y en el flujo de conexión de `PickScreen`); `rvSuccessColor()` movido de privado-en-`PickScreen` a `ui/theme/Theme.kt` para evitar duplicado. `./gradlew compileDebugKotlin` en verde |
+| ANDROID-RELEASE-1 | **Primer release firmado del APK** — hasta ahora solo `assembleDebug` + `adb install` para pruebas en la RG556 (ver `ANDROID-SYNC-15`), nunca un build `release` firmado ni publicado. Sin `signingConfig`, `assembleRelease` producía un APK sin firmar (no instalable) | `android/app/build.gradle.kts` | ✅ **hecho 2026-09-24**: keystore de producción generado (`android/keystore/retrovault-release.jks`, PKCS12, alias `retrovault`, validez 10000 días — gitignored, contraseñas solo en `android/local.properties` local, nunca versionadas). `signingConfigs.release` en `build.gradle.kts` leído de `local.properties` con el mismo patrón que `dropbox.appKey` (degrada con gracia: sin las 4 claves, `release` compila igual pero sin firmar, no rompe CI/otras máquinas). `./gradlew assembleRelease` real → `BUILD SUCCESSFUL`, firma verificada con `apksigner verify --print-certs` (keytool -printcert no la detecta, usa el esquema v2/v3, falso negativo esperado). versionName se mantiene en `0.1.0` (primer release real, coincide con el tag `android-v0.1.0`) |
 
 ---
 
@@ -2199,7 +2821,7 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 | SAVES-FRAGMENT-3 | **NVRAM de arcade repartido en 5 ubicaciones en la misma RG556** — `RetroArch/mame/*.nv` (junto a ROMs), `RetroArch/saves/mame/*.nv`, `RetroArch/saves/Unknown/*.nv` (~40 archivos que RetroArch no logró emparejar con ninguna plataforma — revisar también como síntoma de matching roto), `RetroArch/saves/mame2003/{nvram,hi,cfg}/`, `RetroArch/saves/cps1/`+`cps2/`. Ninguna se sincroniza hoy — ver EMULATOR-COMPAT-5 | Hardware + diseño propio | M | ⬜ documentado 2026-08-25 |
 | SAVES-FRAGMENT-4 | **GameCube/Wii en 3 ubicaciones**: core Dolphin de RetroArch (`saves/gamecube/{EUR,USA}`, `saves/User/{GC,Wii}` — un perfil Dolphin completo anidado dentro de la carpeta de RetroArch) vs. standalone mmjr-revamp (`GC/{EUR,JAP,USA}`, `Wii/title/`) | Hardware + diseño propio | S | ⬜ documentado 2026-08-25 |
 | SAVES-FRAGMENT-5 | **Cada standalone usa su propio path público/privado, ninguno coincide entre sí ni con RetroArch** — DuckStation (`/storage/emulated/0/duckstation/` + `Android/data/com.github.stenzek.duckstation/files/`), AetherSX2 (`Android/data/xyz.aethersx2.android/files/`), Redream (`Android/data/io.recompiled.redream/files/`), DraStic (`/storage/emulated/0/DraStic/backup/`, `savestates/`). Una vez resuelto DEVPROFILE-0 en su alcance reducido, decidir si el sync de Retro Vault amplía sus raíces vigiladas a estas carpetas o si se le pide al usuario redirigir cada app (vía su propio menú de ajustes) a una ruta pública común | Hardware + diseño propio | M | ⬜ documentado 2026-08-25, depende de DEVPROFILE-1 (mapa core→plataforma como base) |
-| SAVES-FRAGMENT-6 | **Emulador canónico por plataforma + esquema de saves congelado** — mitad preventiva de SAVES-FRAGMENT-1: sin esto, cualquier consolidación se vuelve a fragmentar. Política completa en `docs/emulador-canonico-rg556.md` (tabla de 15 plataformas con emulador ganador, ruta de save y qué se jubila; decidida con `dumpsys usagestats` real del dispositivo, no por suposición). Hallazgos nuevos: (a) **hay DOS RetroArch instalados** (`com.retroarch` 19 h vs `com.retroarch.aarch64` 2 min, ambos arm64, cfg y cores separados) — segunda fuente de fragmentación, Daijishō debe apuntar al primero; (b) **PSX se juega en DuckStation standalone (68 h, 221 lanzamientos)** pero hay memcards del core Beetle PSX en `saves/psx/` — fragmentación PSX invisible al informe porque cae fuera de `saves/`; (c) **melonDS escribe junto a las ROMs en `RetroArch/nds/`** — sexta ubicación, mismo patrón que el `.nv` de EMULATOR-COMPAT-5; (d) hay **tres** juegos de memcards PS2, no dos (`saves/ps2/`, `saves/LRPS2/`, `emulator_saves/xyz.aethersx2.android/`). Ajustes RetroArch a congelar: `sort_savefiles_enable=false`, `sort_savefiles_by_content_enable=true`, `savefiles_in_content_dir_enable=false`, `savestates_in_content_dir_enable=false`; los de savestates NO se tocan (`states/` no está fragmentado, migrar 68 archivos a cambio de nada). ⚠️ **No automatizable por ADB**: `retroarch.cfg` y la config de Daijishō viven en `/data/data/`, sin root y sin copia pública (verificado con `find`) — hay que hacerlo en los menús. Vía alternativa documentada: Daijishō importa platform JSON con `playerList`/`amStartArguments`, se podrían generar los 15 archivos si el usuario exporta uno de muestra. **Ausencia de root confirmada** 2026-08-25 (`su` no existe, sin Magisk/KernelSU, `/data/data` = `Permission denied`, shell = `uid=2000`). **Requisito añadido por el usuario: RetroAchievements en todas las plataformas** — manda sobre el resto de criterios y cambia 4 filas: PS2 pasa de AetherSX2 a **ARMSX2** (RA soporta PCSX2/ARMSX2/XBSX2, AetherSX2 y NetherSX2 no están en la lista; hay que instalarlo); **PPSSPP 1.11.3 es de 2021 y no tiene RA** (actualizar); **GameCube pasa al standalone Dolphin 2606a** porque RA no existe en el core `dolphin-emu` — y eso implica renunciar al sync en esa plataforma (saves en `Android/data/`, sin root); **3DS queda fuera del criterio** (RetroAchievements no soporta 3DS como consola). DraStic, Redream y MMJR quedan descartados también por no tener RA. Nota: el modo hardcore de RA desactiva los save states, lo que refuerza dar prioridad al save de batería sobre `states/` | Hardware + diseño propio | S | 🟡 política documentada 2026-08-25 (v2 con RA) — pendiente aplicarla en el dispositivo (manual, sin root no hay alternativa) |
+| SAVES-FRAGMENT-6 | **Emulador canónico por plataforma + esquema de saves congelado** — mitad preventiva de SAVES-FRAGMENT-1: sin esto, cualquier consolidación se vuelve a fragmentar. Política completa en `docs/emulador-canonico-rg556.md` (tabla de 15 plataformas con emulador ganador, ruta de save y qué se jubila; decidida con `dumpsys usagestats` real del dispositivo, no por suposición). Hallazgos nuevos: (a) **hay DOS RetroArch instalados** (`com.retroarch` 19 h vs `com.retroarch.aarch64` 2 min, ambos arm64, cfg y cores separados) — segunda fuente de fragmentación, Daijishō debe apuntar al primero; (b) **PSX se juega en DuckStation standalone (68 h, 221 lanzamientos)** pero hay memcards del core Beetle PSX en `saves/psx/` — fragmentación PSX invisible al informe porque cae fuera de `saves/`; (c) **melonDS escribe junto a las ROMs en `RetroArch/nds/`** — sexta ubicación, mismo patrón que el `.nv` de EMULATOR-COMPAT-5; (d) hay **tres** juegos de memcards PS2, no dos (`saves/ps2/`, `saves/LRPS2/`, `emulator_saves/xyz.aethersx2.android/`). Ajustes RetroArch a congelar: `sort_savefiles_enable=false`, `sort_savefiles_by_content_enable=true`, `savefiles_in_content_dir_enable=false`, `savestates_in_content_dir_enable=false`; los de savestates NO se tocan (`states/` no está fragmentado, migrar 68 archivos a cambio de nada). ⚠️ **No automatizable por ADB**: `retroarch.cfg` y la config de Daijishō viven en `/data/data/`, sin root y sin copia pública (verificado con `find`) — hay que hacerlo en los menús. Vía alternativa documentada: Daijishō importa platform JSON con `playerList`/`amStartArguments`, se podrían generar los 15 archivos si el usuario exporta uno de muestra. **Ausencia de root confirmada** 2026-08-25 (`su` no existe, sin Magisk/KernelSU, `/data/data` = `Permission denied`, shell = `uid=2000`). **Requisito añadido por el usuario: RetroAchievements en todas las plataformas** — manda sobre el resto de criterios y cambia 4 filas: PS2 pasa de AetherSX2 a **ARMSX2** (RA soporta PCSX2/ARMSX2/XBSX2, AetherSX2 y NetherSX2 no están en la lista; hay que instalarlo); **PPSSPP 1.11.3 es de 2021 y no tiene RA** (actualizar); **GameCube pasa al standalone Dolphin 2606a** porque RA no existe en el core `dolphin-emu` — y eso implica renunciar al sync en esa plataforma (saves en `Android/data/`, sin root); **3DS queda fuera del criterio** (RetroAchievements no soporta 3DS como consola). DraStic, Redream y MMJR quedan descartados también por no tener RA. Nota: el modo hardcore de RA desactiva los save states, lo que refuerza dar prioridad al save de batería sobre `states/` | Hardware + diseño propio | S | ✅ política documentada 2026-08-25 (v2 con RA), aplicada en el dispositivo 2026-09-27 — **corrección 2026-09-27**: la mitad de iiSU sí es ADB-automatable (`emulator_options.json` vive en `Android/media/com.iisulauncher/...`, almacenamiento público, no en `/data/data/`) — aplicado: `gb`→Gambatte core, `n64`→Mupen64Plus-Next core, `dreamcast`→Flycast core (los 3 estaban en un standalone sin RA o en modo "Ask"), `ps2`→ARMSX2 Refresh (Standalone) (AetherSX2 no tiene RA). Detalle completo, incluida la trampa de nombres "ARMSX2" vs "ARMSX2 Refresh", en `docs/emulador-canonico-rg556.md` §6.7. Daijishō sigue bloqueado sin root (confirmado otra vez: no hay `Android/media/com.magneticchen.daijishou/` en la SD). **Corrección 2026-09-27b**: la vía de "exportar una plataforma como JSON" nunca existió — comprobado a fondo en la UI y contra el repo oficial (closed-source, solo Importar). Hecho en su lugar: **las 32 plataformas de Daijishō revisadas a mano** (`Examinar sistemas → Ajustes del emulador`), 12 corregidas (Wii, CPS1/2/3, Neo Geo, Neo Geo CD, GB, GBC, N64, Genesis, Master System, Atari 2600 — todas apuntaban a un standalone sin RA o a un paquete `RetroArch 64` huérfano), el resto ya estaba bien o queda fuera de alcance (Arcade MAME, 3DS, niche de 1 emulador). Detalle completo en `docs/emulador-canonico-rg556.md` §6.8. **Con esto, la tarea queda cerrada** — Daijishō e iiSU alineados con el canónico de §3 |
 | SAVES-FRAGMENT-7 | **Re-investigado 2026-09-08 con la RG556 conectada por ADB — causa raíz corregida, NO es un bug de `rename_rom_with_saves()`**. Escaneo real de las 12 carpetas `saves/<plataforma>/` de `RetroArch/` contra las ROMs reales de la SD (`/storage/521D-04EA/ROMs/<plataforma>/`, activas **y** `_descartados/`): de 218 saves comparados, **70 OK** (ROM activa con ese nombre), **74 `DESCARTADO`** (el save no calza con ninguna ROM activa pero SÍ con una que vive hoy en `_descartados/` de esa plataforma — recuperable) y **74 sin ninguna ROM en absoluto**, ni activa ni descartada (gba 48, nds 13, psx 5, snes 3, ps2 2, nes 1, gamegear 1, fbneo 1). El caso testigo original (`EarthBound (USA).sfc`) es del segundo grupo: la ROM fue movida a `snes/_descartados/EarthBound (USA).sfc` el **2026-09-02 13:14**, dentro de un lote de **611 archivos SNES** movidos en el mismo minuto — comparado contra `file_operations` en `library_pc.db`/`library_android.db`: **0 filas ese día para esta consola**, así que no pasó por el pipeline de renombrado/reorganización de la app. Único mecanismo del proyecto que discarda ROMs en el lado Android sin loguear en `file_operations` (ese log solo cubre el pipeline de renombrado/organize, no Cable Sync): **Cable Sync en modo "Espejo completo" (`delete_extra=true`, `web/handlers/sync_cable.py:794` y ss.)** — mueve a `_descartados/` en el propio dispositivo cualquier ROM Android que no calce con el conjunto etiquetado/sincronizado desde el PC, sin arrastrar saves sueltos con el mismo nombre. Los 74 saves realmente huérfanos (sin ROM en ningún sitio) tienen nombres en convención vieja pre-No-Intro (`Advance Wars 2 [E].sav`, `Mega Man - Zero Collection.nds.sav`, títulos en español sin acentos) — son saves de una biblioteca anterior a la reorganización canónica del proyecto, sin ROM equivalente que los reclame hoy ni descartada ni activa. **Conclusión**: no hay bug que arreglar en `rename_rom_with_saves()` — el gap real es que ni el discard de Cable Sync ni ningún otro paso mueve/avisa de saves sueltos huérfanos cuando su ROM desaparece del árbol activo. Sin cambios de código ni de archivos en esta sesión (solo lectura vía ADB + consulta a `file_operations`). **Decisión del usuario 2026-09-08**: (1) los 74 `DESCARTADO` — dejar Cable Sync como está por ahora, no implementar arrastre automático de saves al descartar una ROM; (2) los 74 sin ROM en absoluto — dejarlos documentados sin tocar, sin sesión de re-emparejado caso a caso. Backlog cerrado como diagnóstico puro, sin trabajo de código pendiente derivado | `web/handlers/sync_cable.py:794-906` (`delete_extra`), `.rommgr/library_pc.db`/`library_android.db` (`file_operations`) | ✅ causa raíz diagnosticada 2026-09-08 — usuario decide no tocar nada por ahora |
 | SAVES-FRAGMENT-8b | **Cierre real de la brecha de cobertura, 2026-09-22 (Día68, objetivo 8)**: el `newest` de `pc_to_anbernic`/objetivo 6 solo cubría `android_path=/storage/emulated/0/RetroArch` (raíces 1, 2 y 5 del inventario original — saves/states internos + leftover por plataforma). Las raíces 3 y 4 (tarjeta SD, `/storage/521D-04EA/`) nunca habían pasado por ningún sync — verificado con `find`/mtimes reales vía ADB: raíz 3 (`saves/`, antes atribuida solo a AetherSX2) resultó ser una **carpeta pública de saves por plataforma compartida por varios emuladores** (`psx/` 390 archivos — no solo `memcards/`+`sstates/` de AetherSX2 como asumía el inventario original —, `nds/` 40, `gba/` 21, `dreamcast/` 2, `gamegear/` 4, `gb/`+`snes/` 1 c/u), última actividad real 2026-08-27 (26 días sin backup hasta hoy). Decisión (usuario, 2026-09-22): extender el Cable Sync a estas raíces adicionales en vez de reconfigurar apps o mover archivos en el dispositivo — **cero cambios de código**, mismo endpoint `/api/cable-sync` `direction=newest` ya usado en objetivo 6, solo con `android_path` distinto. Dry-run + apply real en ambas: `android_path=/storage/521D-04EA/saves` → **430/430 copiados, 0 errores, 454 MB** (todo PC→consola, nada se sobreescribió en el PC); `android_path=/storage/521D-04EA/ROMs` (raíz 4, sueltos junto a ROMs) → **385/385 copiados, 0 errores, 296 MB** (incluye 48 archivos donde la consola tenía la versión más reciente, traídos al PC). Con esto las 5 raíces del inventario original quedan cubiertas por el sync real (1/2/5 vía objetivo 6, 3/4 vía esto) — el problema práctico (partidas sin backup) queda resuelto sin necesidad de la "consolidación" física original (mover/fusionar carpetas en el dispositivo), que se descarta como innecesaria dado que extender la cobertura del sync ya cierra el riesgo real | `web/handlers/sync_cable.py` (sin cambios — reutilizado tal cual con `android_path` distinto) | ✅ hecho 2026-09-22 — raíces 3 y 4 cerradas (815 archivos, ~750 MB), 0 errores en ambas pasadas |
 | SAVES-FRAGMENT-8 | **Inventario de las 5 raíces rehecho 2026-09-08 con la RG556 conectada por ADB** (`find`+`wc -l` real contra cada raíz, no estimación): (1) `RetroArch/saves` interno **440** archivos, (2) `RetroArch/states` interno **76**, (3) SD `/storage/521D-04EA/saves` **498**, (4) sueltos junto a ROMs en la SD **130** (nds 81, gba 32, psx 6, gamegear 5, snes 4, gb 1, dreamcast 1 — cifras reales de hoy, distintas a las estimadas a mano el 2026-08-25 porque la biblioteca se ha movido desde entonces), (5) `RetroArch/<plataforma>/` en memoria interna (leftover) **142** (nds 50, gba 31, mame 24, cps2 19, psx 6, gamegear 5, cps1 4, snes 3 — el arcade de aquí es el mismo hueco que documenta `EMULATOR-COMPAT-5`; nds/gba coincide con el hallazgo de `SAVES-FRAGMENT-6` de que melonDS escribe junto a las ROMs). Total real: **1.286** archivos de save/state repartidos en 5 raíces, antes de consolidar nada. Solo lectura vía ADB, sin cambios. El caso de anidado `_descartados/_descartados/` sí existe hoy pero es **2 niveles, no 7**, y solo en `dreamcast/` (no en `snes/`, que se investigó primero por error de la estimación original) — causa raíz identificada y separada como `TRASH-FIX-2` | `/storage/521D-04EA/saves`, `/storage/521D-04EA/ROMs/*`, `RetroArch/saves`, `RetroArch/states`, `RetroArch/<plataforma>/` | 🟡 inventario real completo 2026-09-08 — consolidación en sí sigue sin implementar |
@@ -2214,7 +2836,41 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 | DUP-CROSSFMT-6 | 🔴🔴 **INCIDENTE REAL 2026-09-09 — `resolve-duplicates --apply` descartó la única copia real de 10 juegos** (7 PSX: `Twisted Metal - World Tour (Europe)`, `Namco Museum Vol. 4`, `Mortal Kombat Trilogy`, `Guilty Gear (Europe)`, `Twisted Metal (Europe)`, `Namco Demo (Europe)`, `Crash Bash (USA)`; 3 Game Gear: `Royal Stone`, `Coca-Cola Kid`, `Phantasy Star Adventure`) — tras arreglar `DUP-CROSSFMT-4`/`-5` y verificar el dry run contra disco (no solo contra BD), se ejecutó `--apply` sobre la biblioteca real por primera vez. **Causa raíz**: el motor de recomendación (`_review_groups_for_repo`/`_review_entry_sort_key`) elige un "ganador" solo a partir de las filas de BD, sin comprobar que el archivo realmente exista en disco. Esta biblioteca tiene muchas filas obsoletas de limpiezas manuales previas (mismo patrón ya documentado como colateral en `DUP-CROSSFMT-3`: desincronización de contenido entre `library_pc.db`/`library_android.db` para el mismo `source_path`); en estos 10 casos una fila fantasma (`.bin` suelto, sin archivo real en ningún sitio) "ganó" la comparación contra un `.chd`/`.zip`/`.bin` real y bueno, que se descartó como si fuera el "perdedor" — sin ninguna copia sustituta real. **Detectado antes de causar pérdida permanente**: verificación post-apply cruzando cada "ganador" recomendado contra el disco real (`Path.rglob`) + timestamp de descarte (`_descartados/` guarda la hora exacta vía `os.utime`) para distinguir descartes reales de limpieza de filas ya muertas de antes. **Restaurado 2026-09-09**: los 10 archivos movidos de vuelta de `_descartados/` a su carpeta activa + `rommgr scan` sobre `psx/` y `gamegear/` para repoblar sus filas de BD — verificado con `sha1` tras el rescan, las 10 filas están de vuelta. **Fix de la causa raíz**: `resolve_duplicate_ra()` (`services/ra_duplicates_service.py`) ahora comprueba que `keep_path` exista de verdad (filesystem o `adb_transport.file_exists()` si es ruta de dispositivo) **antes** de tocar ningún perdedor del grupo — si el "ganador" no existe, el grupo entero se omite (0 descartes, error explicativo) en vez de ejecutar la recomendación a ciegas. 1 test nuevo que reproduce el incidente exacto (ganador fantasma + perdedor real), suite de duplicados 45/45. **Auditoría de `apply_ra_conflicts()` completada 2026-09-09 — ya es segura, sin bug equivalente**: revisados los dos tipos de conflicto (`planner/operation_planner.py::build_plan`, `services/ra_duplicates_service.py::apply_ra_conflicts`). "disk": el `target.exists()` que decide si hay conflicto ya es un `Path.exists()` real contra disco en el momento de construir el plan (`operation_planner.py:178`, no una fila de BD), y `apply_ra_conflicts` además exige `op.source_path.exists()` (línea 412) antes de comparar RA — ambos candidatos (ganador y perdedor) son siempre archivos reales. "collision": `scored = [(op, ra) for op in ops if op.source_path.exists()]` (línea 478) filtra cualquier fila fantasma **antes** de puntuar por RA, así que una fila sin archivo real nunca puede entrar en la comparación ni "ganar" contra un archivo real. Verificado con test nuevo que reproduce el escenario exacto del incidente (fila fantasma con RA=50 vs. archivo real con RA=5, misma colisión): el archivo real gana pese a tener menos logros, porque la fila fantasma nunca llega a puntuarse (`tests/test_apply_ra_conflicts.py::test_collision_ghost_row_never_beats_real_file`). **Conclusión: no hace falta ningún fix aquí** — la causa raíz de fondo (filas de BD obsoletas) sigue sin atacarse, pero `apply_ra_conflicts` ya está protegido contra sus efectos por un camino distinto al de `resolve_duplicate_ra`. Sigue pendiente, sin relación con la seguridad de este flujo: un rescan completo de la biblioteca para reducir el ruido de filas obsoletas de fondo | `services/ra_duplicates_service.py::resolve_duplicate_ra` (fix previo), `services/ra_duplicates_service.py::apply_ra_conflicts` (auditado, ya seguro), `planner/operation_planner.py:178` (`build_plan`, existencia real de `target` ya verificada), `web/builders/duplicates.py::_review_groups_for_repo` (causa raíz de fondo, sin tocar — nunca valida existencia al elegir "ganador") | ✅ daño real restaurado y verificado 2026-09-09; ✅ causa raíz parcheada en `resolve_duplicate_ra`; ✅ `apply_ra_conflicts` auditado 2026-09-09 — ya seguro, sin fix necesario, 1 test nuevo (53/53 en `test_apply_ra_conflicts.py`+`test_ra_duplicates_service.py`+`test_builders_duplicates.py`) |
 | LIBRARY-ANDROID-STALE-1 | 🔴 **Diagnóstico 2026-09-09 (batch 2, tarea 4) — causa raíz de la nota colateral de `DUP-CROSSFMT-4` ("Guilty Gear (Europe).chd" con tamaño/sha1 distinto entre `library_pc.db`/`library_android.db`), y mucho más grande de lo que esa nota sugería.** `_repo_for_path()` (`web/builders/common.py:141-167`) decide en cada escritura si una ruta es "PC" o "Android" comparándola **contra el `config.library_root` actual** (`E:\Carpetas anbernic` hoy, según `config.toml:4`) — dentro → `library_pc.db`, fuera → `library_android.db`. El problema: esa clasificación es dinámica sobre un valor que ha cambiado con el tiempo, y nada migra ni purga `library_android.db` cuando `library_root` se reapunta — igual que ya pasó una vez con el prefijo `H:` (purgado en `DUP-CROSSFMT-2`, 2026-09-08). **Medido en vivo contra las BDs reales**: `library_android.db` tiene **12.499 de sus 13.164 filas totales (95%)** bajo el `library_root` de hoy (`E:\Carpetas anbernic%`) — deberían vivir todas en `library_pc.db`, no ahí. De esas 12.499: **5.639** tienen una fila hermana en `library_pc.db` con el mismo `source_path` pero potencialmente desincronizada (el caso `Guilty Gear (Europe).chd`: `library_pc.db` tiene 184.012.303 bytes/sha1 `437e203a...`, que coincide exactamente con el archivo real en disco verificado con `sha1sum`; `library_android.db` tiene 200.760.292 bytes/sha1 `d4c6c921...`, un dump antiguo que ya no existe) — cada una de estas parejas es una trampa para cualquier lógica de duplicados/RA-conflicts que consulte ambas BDs sin saber cuál es la vigente. Las otras **6.860** son huérfanas puras: rutas bajo carpetas con nombre antiguo en mayúsculas (`E:\Carpetas anbernic\Game Boy\`, `\Game Boy Advance\`, `\Game Boy Color\`) que **ya no existen en el disco real** (`ls "E:\Carpetas anbernic"` de hoy solo tiene `gb/`, `gba/`, `gbc/` en minúscula) — sobras de antes de que la biblioteca se reorganizara a slugs canónicos de plataforma, nunca limpiadas de `library_android.db` porque esa BD no pasa por las herramientas de reorganización de Pilar 1 (que operan contra `library_pc.db`). **Purgado 2026-09-09**, mismo patrón que la purga de `H:` (`DUP-CROSSFMT-2`): backup completo primero (`.rommgr/backup_library_android_before_libraryroot_purge_20260909/library_android.db`), luego borrado por `game_id`/prefijo de `source_path` de **12.499 `games`** + sus hijos (`game_metadata`/`game_tags`/`file_operations`/`saves` — 0 filas en estas cuatro para este prefijo, no había metadata/saves asociadas) + **4.189 `assets`**. Verificado tras borrar: 0 huérfanos en `game_metadata`/`game_tags`/`file_operations`/`saves` para los `game_id` eliminados, 0 filas restantes bajo el prefijo, servidor local (`GET /api/trash-status`, puerto 7777) sigue respondiendo 200 sin reinicio. `library_android.db` queda con **665 filas** legítimas (rutas de otras máquinas/prefijos, configs de emuladores) | `web/builders/common.py:141-167` (`_repo_for_path`, causa raíz — no migra ni purga al cambiar `library_root`), `config.toml:4` (`library_root` actual) | ✅ diagnosticado y purgado 2026-09-09 — 12.499 `games` + 4.189 `assets` eliminados, 0 huérfanos, backup completo conservado |
 | SAVE-CONSOLIDATOR-1 | **Escáner de fragmentación de saves** — convierte la metodología manual de SAVES-FRAGMENT-1 en módulo reutilizable: agrupa por stem normalizado + extensión-por-familia-de-core (§2 del informe), detecta plantilla en blanco por relleno uniforme y no solo por hash repetido (§5, evita el falso positivo de Metal Gear Solid), reporta grupos divergentes sin tocarlos — mismo principio que Duplicados de ROM (nunca auto-resuelve, solo informa) | `sync/save_consolidator.py` (`scan_save_groups`), 11 tests en `tests/test_save_consolidator.py` | ✅ módulo hecho y validado 2026-08-27 contra el TSV real de la RG556 (`SAVES-FRAGMENT-1-inventario-rg556.tsv`, vía script de scratchpad, no commiteado): con una lista de extensiones de save-de-batería curada reproduce **exactamente** los 8 grupos divergentes del informe (Earthbound 7 copias, `Mcd001.ps2`, 5 GBA — mismos md5). **Hallazgo real**: usar el agregado global `config.save_extensions` en vez de una lista curada añade ~9 falsos positivos porque mezcla savestate-como-archivo (`.ml1`, `.hi`, `.nv`) con save de batería real bajo el mismo stem — documentado como contrato de la función, no arreglado con más código (ver docstring de `scan_save_groups`). **Job web hecho 2026-08-27**: `GET /api/save-fragmentation` (`web/handlers/sync.py` + `web/builders/save_consolidator.py`, escanea `library_root/saves` y `/states` como raíces separadas) + sección "Fragmentación de saves" en la pestaña Sync (`tab-sync.html`, botón "Analizar" → `doSaveFragmentation()` en `sync.js`). Probado de extremo a extremo contra la biblioteca real montada en `E:\Carpetas anbernic` (servidor real en `:7799`, `curl` al endpoint): 2,76 s, resultado correcto (`9 divergentes`, `29 solo-plantilla`, `32 idénticos`), HTML servido con el botón y el contenedor de resultado presentes. **Verificado en navegador real 2026-08-29** (Chrome vía extensión, servidor real `:7777`): clic real en "Analizar" en la pestaña Cloud → mismos contadores (`9 divergentes · 29 solo-plantilla · 32 idénticos`) y tabla con los grupos esperados (Donkey Kong - Jungle Climber, Castlevania - Dawn of Sorrow…) — ✅ listo para cerrar |
-| SAVES-FRAGMENT-9 | **Progreso real de PS2 perdido en AetherSX2 — hallazgo 2026-08-29, en vivo en la RG556.** `dumpsys usagestats` confirma que el usuario sigue jugando en **AetherSX2** (sesión hoy 02:29-02:34, `appLaunchCount` alto histórico) y que **ARMSX2 nunca se ha abierto** (`idle=y`, sin `lastTimeUsed`) pese a estar instalado desde el 2026-08-25 — la migración de SAVES-FRAGMENT-6 no se aplicó de hecho. A las 02:29:41 AetherSX2 lanzó un `PickActivity` (SAF) justo antes de jugar. La memcard que hoy está activa en `/storage/521D-04EA/saves/memcards/Mcd001.ps2` (mtime 2026-08-27 13:35:58, junto a `Mcd002.ps2` y un tercer archivo `1.ps2` con el mismo mtime exacto → copia en bloque, no partidas jugadas) **no contiene ningún save de juego** (`grep -a -o -E "B[A-Z]?[SXE]LE?S-[0-9]{5}"` → 0 resultados), mientras que las dos copias ya conocidas por SAVES-FRAGMENT-2 (`RetroArch/saves/ps2/Mcd001.ps2` y `RetroArch/saves/LRPS2/Mcd001.ps2`) sí tienen 6 juegos cada una (BESLES-50386/51950/52445/52822/53777/54915). Esa misma carpeta `/storage/521D-04EA/saves/` replica 1:1 la estructura interna de AetherSX2 (`bios/`, `covers/`, `gamesettings/`, `sstates/`) y tiene al lado `duckstation_backup_2026-08-27.zip` (129 MB, 13:20) — es un **backup manual hecho el 27**, y ese backup ya capturó la memcard vacía. La memcard privada real de AetherSX2 (`Android/data/xyz.aethersx2.android/files/memcards/Mcd001.ps2`) tiene mtime 2026-08-13 pero su contenido es ilegible por ADB (scoped storage, `Permission denied` en `md5sum`/`grep`, igual que el resto de `/data/data` — no es root). No se ha tocado ni movido nada. **Hipótesis más probable, sin confirmar dentro de la app**: el progreso se perdió en AetherSX2 alrededor del 2026-08-13 (coincide con el mtime), no hoy — probablemente por crear/formatear una memcard nueva desde el menú de AetherSX2 sobre las mismas ranuras Mcd001/Mcd002, no por reinstalación (`versionName=v1.5-4248`, sin actualizar desde 2025-05-30). Pendiente: (1) abrir AetherSX2 y comprobar en Settings → Memory Cards qué carpeta usa hoy y si hay copias `.bak`/exportadas dentro de la app; (2) si se confirma que el progreso ya no existe en ningún sitio accesible, importar manualmente `RetroArch/saves/ps2/Mcd001.ps2` (la copia más reciente conocida, 2025-11-21) a AetherSX2 — backup previo obligatorio, memcard multi-juego = nunca automático (regla 7 de `docs/emulador-canonico-rg556.md` §5) | Hardware + investigación | S | ⬜ documentado 2026-08-29, sin fix aplicado |
+| SAVES-FRAGMENT-9 | **Progreso real de PS2 perdido en AetherSX2 — hallazgo 2026-08-29, en vivo en la RG556.** `dumpsys usagestats` confirma que el usuario sigue jugando en **AetherSX2** (sesión hoy 02:29-02:34, `appLaunchCount` alto histórico) y que **ARMSX2 nunca se ha abierto** (`idle=y`, sin `lastTimeUsed`) pese a estar instalado desde el 2026-08-25 — la migración de SAVES-FRAGMENT-6 no se aplicó de hecho. A las 02:29:41 AetherSX2 lanzó un `PickActivity` (SAF) justo antes de jugar. La memcard que hoy está activa en `/storage/521D-04EA/saves/memcards/Mcd001.ps2` (mtime 2026-08-27 13:35:58, junto a `Mcd002.ps2` y un tercer archivo `1.ps2` con el mismo mtime exacto → copia en bloque, no partidas jugadas) **no contiene ningún save de juego** (`grep -a -o -E "B[A-Z]?[SXE]LE?S-[0-9]{5}"` → 0 resultados), mientras que las dos copias ya conocidas por SAVES-FRAGMENT-2 (`RetroArch/saves/ps2/Mcd001.ps2` y `RetroArch/saves/LRPS2/Mcd001.ps2`) sí tienen 6 juegos cada una (BESLES-50386/51950/52445/52822/53777/54915). Esa misma carpeta `/storage/521D-04EA/saves/` replica 1:1 la estructura interna de AetherSX2 (`bios/`, `covers/`, `gamesettings/`, `sstates/`) y tiene al lado `duckstation_backup_2026-08-27.zip` (129 MB, 13:20) — es un **backup manual hecho el 27**, y ese backup ya capturó la memcard vacía. La memcard privada real de AetherSX2 (`Android/data/xyz.aethersx2.android/files/memcards/Mcd001.ps2`) tiene mtime 2026-08-13 pero su contenido es ilegible por ADB (scoped storage, `Permission denied` en `md5sum`/`grep`, igual que el resto de `/data/data` — no es root). No se ha tocado ni movido nada. **Hipótesis más probable, sin confirmar dentro de la app**: el progreso se perdió en AetherSX2 alrededor del 2026-08-13 (coincide con el mtime), no hoy — probablemente por crear/formatear una memcard nueva desde el menú de AetherSX2 sobre las mismas ranuras Mcd001/Mcd002, no por reinstalación (`versionName=v1.5-4248`, sin actualizar desde 2025-05-30). Pendiente: (1) abrir AetherSX2 y comprobar en Settings → Memory Cards qué carpeta usa hoy y si hay copias `.bak`/exportadas dentro de la app; (2) si se confirma que el progreso ya no existe en ningún sitio accesible, importar manualmente `RetroArch/saves/ps2/Mcd001.ps2` (la copia más reciente conocida, 2025-11-21) a AetherSX2 — backup previo obligatorio, memcard multi-juego = nunca automático (regla 7 de `docs/emulador-canonico-rg556.md` §5) | Hardware + investigación | S | 🟡 **punto 1 hecho 2026-09-27**: AetherSX2 abierto en modo solo-lectura, sin jugar nada — Settings → Memory Cards → Memory Card 1 = `Mcd001.ps2` (PS2/8MB), habilitada, "Filtrar Carpeta" activo. Coincide por nombre con las copias buenas conocidas, pero sigue sin poder leerse el binario real sin root — **no se puede confirmar si coincide o no, cuarentena**, tal como pide la regla 5. ARMSX2 abierto por primera vez sin arrancar nada: su carpeta de memcards aún no existe (se crea perezosamente al primer boot de juego/BIOS) — la migración por `adb push` queda lista para ejecutar en cuanto exista esa carpeta (confirmado que `Android/data/com.armsx2/files/` sí es accesible por ADB, a diferencia de AetherSX2), pero requiere que el usuario abra un juego una vez en ARMSX2 primero.
+
+**Migración completada 2026-09-27**: el usuario abrió *Burnout 3 - Takedown* en ARMSX2 y creó un perfil real (save `BASLUS-21050`, confirmado con `strings` — no es plantilla). La config real de ARMSX2 vive en `/storage/521D-04EA/saves/memcards/` (SD — `bios/`, `cheats/`, `PCSX2-Android.ini` — no en `Android/data/` como se pensaba), accesible por ADB sin problema. Al inspeccionar la copia buena conocida con `mymcplus` (librería Python que entiende el formato real de superblock/FAT de una memcard PS2 — instalada aparte en el scratchpad de la sesión con `pip install --target`, **no** añadida como dependencia del proyecto) resultó tener **13 juegos, no 6** (el número de `SAVES-FRAGMENT-2` quedó desactualizado por syncs posteriores a 2026-09-08). Entre esos 13 ya había **otro** save de Burnout 3 (`BASLUS-21050`, creado 2025-05-22, modificado 2025-06-08) — conflicto real con el de hoy, mismo juego, dos partidas distintas. Caso de la regla 5 de §5 (divergencia real entre orígenes, nunca automático): preguntado al usuario, decidió quedarse con el save de 2025. Con esa decisión no hizo falta fusionar nada — la copia de 13 juegos se empujó tal cual al **slot 1** (`mcd001.ps2`, md5 `c229c932d6c18d87303c3ed5f7aebc8d`, verificado con `md5sum` tras copiar). El perfil de hoy no se perdió: queda respaldado en el propio dispositivo (`mcd001.ps2.bak-burnout3-perfil-hoy-20260927`, junto al slot 1) y en `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\armsx2_memcards\`. El slot 2 (usado como zona de pruebas mientras se investigaba) se devolvió a su plantilla en blanco original. La memcard privada real de AetherSX2 sigue sin poder leerse sin root — no se pudo confirmar si su contenido coincidía con estos 13 juegos, pero deja de bloquear nada: ARMSX2 ya tiene el estado bueno conocido activo | `docs/emulador-canonico-rg556.md` §7 tiene el mismo detalle |
+
+### ANDROID-APP-CLEANUP-1 — Desinstaladas las 4 apps sin uso ni RA (hecho 2026-09-27)
+
+Petición directa del usuario. `pm list packages` confirmó que `com.retroarch.aarch64` ya no
+estaba instalado (se quitó en alguna sesión anterior sin dejar rastro en el backlog).
+Desinstaladas por ADB: `com.dsemu.drastic` (DraStic — tenía 69 MB de datos públicos en
+`/storage/emulated/0/DraStic/`, incluyendo 7 saves `.dsv` con progreso real de NDS;
+respaldado completo con `adb pull` a `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\DraStic_publicdata\`
+antes de desinstalar — la carpeta pública sobrevive a la desinstalación de todos modos, pero
+mejor con backup fuera del dispositivo también), `io.recompiled.redream` y
+`org.dolphinemu.mmjr` (ninguno tenía datos públicos que respaldar). Verificado con
+`pm list packages` tras cada desinstalación: los 3 paquetes ya no aparecen | Dispositivo real (RG556) | ✅ hecho 2026-09-27 |
+
+### DAIJISHO-IISU-PATHS-1 — Las rutas de Daijishō e iiSU a `SD:/ROMs/` ya funcionan, se resolvieron solas (verificado 2026-09-27)
+
+El pendiente del 2026-08-25 (`docs/emulador-canonico-rg556.md` §7) asumía que ambos
+launchers seguían apuntando a las rutas viejas tras el move de `SD:/` a `SD:/ROMs/`.
+Verificado en vivo por ADB: **Daijishō** muestra "Arcade (FinalBurn Neo) · 779 elementos"
+(el contenido real vive en `ROMs/arcade/fbneo/`, 867 archivos — la diferencia son
+elementos sin vincular, filtrados por un ajuste propio de la app). **iiSU** abierto y
+navegado hasta el tile "fbneo": carga juegos reales sin error. Ninguno de los dos necesita
+ningún cambio. **Hallazgo colateral, sin relación con el bug de rutas**: dentro de `ROMs/`
+(no en la raíz de la SD, que ya se limpió) sobreviven 4 carpetas sueltas Title-Case con
+poco contenido — `Atari 2600/` (6 archivos), `Famicom Disk System/` (2), `Game Gear/` (28),
+`Master System/` (0) — junto a sus pares canónicos en minúsculas con contenido real y
+activo (`atari2600/`, `fds/`, `gamegear/`, `mastersystem/`). Ninguno de los dos launchers
+parece leer de ahí (las cifras que muestran cuadran con las carpetas canónicas) — basura
+inofensiva, no bloquea nada, limpieza opcional para otra sesión. También hay
+`ROMs/fbneo/`, `ROMs/mame/`, `ROMs/cps1/2/3/`, `ROMs/neogeo/` **vacíos** en el nivel
+superior de `ROMs/` — el contenido real vive anidado en
+`ROMs/arcade/{mame,fbneo,fba,mame2003-plus}/`, que es donde apuntan ambos launchers |
+Dispositivo real (RG556), Daijishō + iiSU vía ADB | ✅ verificado 2026-09-27 — sin acción necesaria |
 | SAVES-FRAGMENT-9b | **Comprobado el mismo día que el caso de PS2 es aislado, no sistémico.** Mismo método (contenido real + `dumpsys usagestats`) aplicado a los otros 4 standalone: **DuckStation** (PSX) ok — 27 memcards en su sandbox privado, fechas repartidas todo el año hasta 2026-08-24, sin patrón de reseteo (pendiente real es el ya conocido de SAVES-FRAGMENT-5: nunca se redirigió a ruta pública). **melonDS** (NDS) ok — la sesión de hoy duró 19 s (abrir/cerrar, no hubo partida), saves reales más recientes de octubre 2025, normal. **Dolphin** (GC/Wii) — `files/GC/` y `files/Wii/` están completamente vacías, pero coincide con el uso total ya documentado (~4 min): nunca hubo progreso que perder, no es un caso de pérdida. **PPSSPP** (PSP) — señal débil, solo una carpeta de save (`ULES009150`, abril 2025) y uso histórico muy bajo; no hay suficiente para concluir pérdida ni descartarla, queda abierto si el usuario juega más PSP. Arcade NVRAM (`.nv`) también revisado: tamaños y fechas normales | Hardware + investigación | XS | ✅ verificado 2026-08-29, sin acción necesaria salvo PPSSPP (bajo uso, inconcluso) |
 | EMULATOR-COMPAT-5 | **El progreso de arcade nunca se sincroniza** — confirmado en hardware real 2026-08-25 (RG556 conectada por cable). Las extensiones sí están cubiertas (`.nv` en `config.py:562` y `SaveExtensions.kt:16`), pero el problema es la **carpeta**: en esta RG556 el `.nv` (NVRAM/dipswitches) no vive en `saves/`, `states/` ni `system/<core>/` — vive **directamente en `RetroArch/<carpeta-de-plataforma>/`, junto a las propias ROMs** (verificado: 24 archivos en `RetroArch/mame/*.nv` — TMNT2, Simpsons, X-Men, Vendetta…; también `cps1/punisher.nv`, `cps1/wofch.nv`, `cps2/1944.nv` — patrón sistemático, no un caso aislado). El scanner de sync solo recorre `saves_path`/`states_path` (`config.py`) / `RetroArchPaths.kt:11-12` — nunca las carpetas de ROMs. Fix: el scan de arcade tiene que recorrer las carpetas de plataforma arcade completas (mame, fbneo, cps1, cps2, cps3…) filtrando por extensión, no asumir una raíz `saves/states` separada de las ROMs | Hardware + fix | S | 🟡 fix implementado 2026-08-29 en el lado Android (único que corría sin este fix — el sync PC↔consola por cable ya recorre árboles completos por extensión, sin este hueco): `RetroArchPaths.ARCADE_FOLDERS` (`android/.../sync/RetroArchPaths.kt`, mame/cps1/cps2/cps3/fbneo/arcade — mismas claves "Arcade" que `platforms.toml`) + `SyncOrchestrator.runFullSync` ahora sincroniza cada carpeta arcade contra `"$savesRemote/$platform"` (subcarpeta propia en Dropbox, sin colisión con `saves/`); `LocalFileScanner` ya filtraba por `SaveExtensions.isTracked`, así que las ROMs de esas carpetas nunca se suben — sin cambios ahí. Test nuevo `RetroArchPathsTest.kt`. **Compilado e instalado en la RG556 real 2026-09-09**: toolchain portable localizada en `C:\Users\rammu\android-build-tools\` (`jdk17`, `sdk` — la misma usada en `ANDROID-SYNC-1`/`FTP-PICK-2`, no en el repo). `./gradlew test` → `RetroArchPathsTest` y el resto en verde (build ya al día desde 2026-08-29, sin cambios de fuente pendientes). `./gradlew assembleDebug` + `adb install -r app-debug.apk` → éxito en `RG556006101273`. **Verificación del upload real bloqueada, no por ADB**: `SyncOrchestrator.runFullSync()` (`android/.../sync/SyncOrchestrator.kt:20-22`) devuelve `null` si no hay sesión Dropbox activa (`DropboxCredentialStore`) — sin OAuth ya vinculado en el dispositivo no hay forma de disparar el sync (ni por `am start`/intent expuesto: `syncNow()` solo vive en `MainActivity.kt:187`, sin acción exportada) y vincular Dropbox exige el flujo OAuth en pantalla. `dumpsys jobscheduler` confirma 0 jobs de `com.retrovault.android` registrados hoy (nunca se ha ejecutado un sync en este dispositivo). Mismo patrón que `FTP-PICK-2`/`DEVPROFILE-6`: requiere al usuario delante de la pantalla (vincular Dropbox + pulsar "Sincronizar ahora" + confirmar visualmente o via `adb shell find .../saves/mame` que aparecen los `.nv`) |
 
@@ -2547,8 +3203,582 @@ entre PC y Anbernic y cambia al renombrar) que el scan/inbox/match respete.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| GAME-BLOCKLIST-1 | Diseñar la marca de exclusión permanente (tabla o tag reservado tipo `game_tags`, keyed por SHA1 para sobrevivir a renombrados y aplicar igual en ambas BDs) + acción "Eliminar de ambas bibliotecas" (PC → papelera `_descartados/`, Anbernic → `AdbTransport.remove`, mismo patrón de `STORAGE-MGR-3`/`services/storage_service.py`, pero marcando además de borrar) | `services/storage_service.py`, `database/repositories/metadata.py` (patrón `game_tags`) | 🔴 pendiente, sin diseñar |
-| GAME-BLOCKLIST-2 | Hacer que el scan/match/Inbox respeten la marca — un archivo con SHA1 bloqueado no se re-organiza ni se re-cuenta como pendiente si reaparece (p. ej. tras un sync `anbernic_to_pc` o un `adb pull` manual); decidir si se auto-descarta en silencio o se avisa una vez y se deja para revisión | `scanner/rom_scanner.py` o `web/inbox_pipeline.py` (punto de entrada exacto por confirmar) | 🔴 pendiente, depende de GAME-BLOCKLIST-1 |
+| GAME-BLOCKLIST-1 | Diseñar la marca de exclusión permanente (tabla dedicada `blocklist`: sha1, canonical_title, reason, created_at — decisión confirmada con el usuario 2026-09-24, no el patrón `game_tags`) + acción "Eliminar de ambas bibliotecas" (PC → papelera `_descartados/`, Anbernic → `AdbTransport.remove`, mismo patrón de `STORAGE-MGR-3`/`services/storage_service.py`, marcando ANTES de borrar) | `database/schema.py`, `database/repositories/blocklist.py` (nuevo), `services/storage_service.py` (`block_and_delete_game`), `web/handlers/collection.py` (`POST /api/blocklist/block`), UI: `web/static/partials/_foot.html` + `web/static/js/tabs/games.js` (`gpBlockAndDelete`) | ✅ hecho (2026-09-24) |
+| GAME-BLOCKLIST-2 | Hacer que el scan/match/Inbox respeten la marca — un archivo con SHA1 bloqueado no se re-organiza ni se re-cuenta como pendiente si reaparece (p. ej. tras un sync `anbernic_to_pc` o un `adb pull` manual); decisión confirmada con el usuario 2026-09-24: se avisa una vez y se deja para revisión manual (nunca auto-descarte silencioso) | `database/repositories/games.py` (`get_unresolved_games`/`get_matched_games` excluyen sha1 bloqueados), `web/inbox_pipeline.py` (paso "organizar" salta bloqueados + `blocked_found` en el resultado), `web/handlers/collection.py` (`/api/sync-roms` rechaza sha1 bloqueado en ambas direcciones), `web/static/js/tabs/inbox.js` (aviso en el resultado del job) | ✅ hecho (2026-09-24) |
+
+---
+
+### SYNC-WII-SCOPE-1 — `SyncSource` no puede acotar solo los saves reales de Dolphin (Wii) (hallazgo rammu, 2026-09-21)
+
+Al reestructurar `sync.sources` en rammu siguiendo `Tareas/Estructura-Estandarizada-Sync.md`
+(convenio `dropbox:/RetroSync/saves/<emulador>/<tipo>` de PC2, `dolphin/gc` +
+`dolphin/wii`), la fuente `Dolphin (Wii)` con `local_dir` apuntando a la
+carpeta `Wii/` completa (`sync_all=true`) empezó a subir el NAND emulado
+entero (`title/<tipo>/<id>/content/` = IOS, System Menu, apps de canales
+instalados — `.app`, certificados `.pem`, `fst.bin`), no solo los saves.
+Medido en rammu: **96 MB en `Wii/` total, de los que solo 0.29 MB son saves
+reales** (`title/*/*/data/`, el equivalente NAND del save real por juego —
+`title/00010000/<gameid-hex>/data/`). `SyncSource` solo soporta un
+`local_dir` plano (sin include/exclude), así que no hay forma de acotar hoy
+a "todas las subcarpetas `data/` bajo `title/*/*`" sin sincronizar también
+`content/` (las apps instaladas). Parado a mitad de sync real (`--apply`)
+antes de subir más basura; fuente `Dolphin (Wii)` desactivada en
+`config.toml` (comentada, con la medición) hasta que se diseñe bien.
+**GC no tiene este problema** — su carpeta ya es 100% saves (`.gci` +
+`.raw`), se dejó activa. **Limpieza pendiente**: revisar
+`dropbox:/RetroSync/saves/dolphin/wii` — puede tener algunos `.app`/`.pem`
+subidos antes de parar el proceso (no es sensible ni gran volumen, pero es
+basura que no debería estar ahí).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SYNC-WII-SCOPE-1 | Sincronizar solo `title/*/*/data/` de Dolphin (Wii) | `config.py` (`SyncSource.include_glob`), `sync/save_syncer.py` (`list_local_saves`, `sync_saves`), `cli.py` (x2), `web/handlers/sync_cloud.py` | ✅ hecho 2026-09-21 — opción (a): campo `include_glob: str = "**/*"` en `SyncSource` (compatible hacia atrás, resto de fuentes sin cambio de comportamiento), usado en `saves_dir.glob(include_glob)` en vez del `rglob("*")` fijo. `config.toml` reactivado con `include_glob = "title/*/*/data/**/*"`. Test `test_list_local_saves_include_glob_scopes_dolphin_wii_nand` en `tests/test_save_syncer.py`. Verificado en dry-run real contra el NAND de rammu: 10 archivos detectados (todos bajo `data/`), `content/`/`shared1/`/etc. excluidos — antes eran 96 MB, ahora ~0.29 MB reales. Pendiente aplicar en PC2 y reactivar allí también |
+| SYNC-WII-SCOPE-2 | Limpiar `dropbox:/RetroSync/saves/dolphin/wii` de archivos de sistema subidos por error antes de detectar SYNC-WII-SCOPE-1 (`.app`, `.pem`, `fst.bin` — no saves) | — (limpieza manual en Dropbox o vía `rclone delete`) | ✅ hecho 2026-09-21 — `tools/rclone.exe purge` sobre la carpeta entera, confirmado vacía (53 archivos, 17.4 MB, 0 saves reales entre ellos) |
+
+---
+
+### CABLE-SYNC-DUP-PATHS-1 — investigación cable-sync ADB con la Anbernic real (rammu, 2026-09-21) — cerrada, no era un bug
+
+Con la Anbernic conectada por USB (autorizada, `adb devices` → `device`), se
+probó `POST /api/cable-sync` (`direction=pc_to_anbernic`, `use_adb=true`,
+`dry_run=true`). Primer intento con `pc_path=E:\Carpetas anbernic` (raíz de
+la biblioteca): **528/528 marcados para copiar, 0 ya coincidentes** —
+sospecha inicial de bug real de matching, **descartada tras seguir la
+cadena hasta la causa raíz** (regla "Investigar antes de arreglar",
+CLAUDE.md):
+
+1. **Error de test #1 — `pc_path` incorrecto**: se pasó la raíz de la
+   biblioteca (`E:\Carpetas anbernic`) en vez de la carpeta de saves
+   (`E:\Carpetas anbernic\saves`). En Android, RetroArch guarda los saves
+   planos junto a la plataforma (`RetroArch/mame/fixeight.nv`), sin
+   subcarpeta `saves/` — con `pc_path` mal puesto, TODAS las rutas
+   relativas quedaban desalineadas por ese segmento de más. Repetido con
+   `pc_path=.../saves`: bajó a 229/229 copiar, seguía en 0 skipped.
+2. **Error de test #2 — falta `skip_existing: true`**: `_skip_existing_device()`
+   (`web/handlers/sync_cable.py:729`) devuelve `False` sin comprobar nada
+   si `skip_existing` no viene en el payload — **por defecto es `false`**,
+   así que cualquier dry-run sin ese flag marca todo como "a copiar" aunque
+   ya exista igual en el dispositivo. No es un bug, es un parámetro opt-in
+   de la propia API (ver `openapi.json` — no aparece en el ejemplo de
+   payload, por eso se me pasó la primera vez). Con
+   `pc_path=.../saves` + `skip_existing=true`: **123 ya coinciden (mismo
+   tamaño), 106 realmente faltan, 0 errores** — número coherente, cierra
+   la investigación.
+
+**Hallazgo secundario real, menor**: 8 nombres de save duplicados en 2-3
+rutas distintas del dispositivo (19 de 288 archivos totales) — restos de un
+`savefile_directory` mal configurado en el pasado en la Anbernic (mismo
+patrón de drift que `retroarch_cfg_writer.py` en PC, ver commit `ac9e905`
+de hoy), ejemplo verificado con `adb shell find ... -iname 'punisher.nv'`:
+`RetroArch/saves/cps1/punisher.nv` (convenio nuevo) +
+`RetroArch/cps1/punisher.nv` + `RetroArch/cps1/fbneo/punisher.nv`
+(legado). Solo 19 archivos, no bloquea nada — separado en su propia tarea.
+
+**No se ejecutó ningún `--apply` real** en esta sesión (quedó todo en
+dry-run) — 106 archivos / ~230 MB reales pendientes de subir a la
+Anbernic, listos para aplicar en la próxima sesión con los parámetros ya
+correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
+`skip_existing=true`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+**Mapeo completo + backup hechos 2026-09-21** (rammu, con la Anbernic real
+por ADB) — **no se borró nada del dispositivo**, decisión del usuario
+("informe + backup, sin borrar todavía"). 823 archivos de save/state en el
+dispositivo, **289 nombres duplicados en rutas legado (706 archivos
+implicados)** — mucho mayor que la estimación original de 8. Clasificados
+en `.rommgr/legacy_dups_report_2026-09-21.csv` (gitignored, local):
+
+| Clasificación | Grupos | Criterio |
+|---|---|---|
+| `junk_zero_bytes` | 14 | Todas las copias son 0 bytes — basura, sin riesgo de pérdida |
+| `safe_same_copy_event` | 145 | Mismo tamaño, mtimes a ≤60s entre sí — típico de una migración puntual (mismo patrón que `CABLE-SYNC-SAVES-PREFIX-1`: "Advance Wars 2 [E].sav", 2s de diferencia) |
+| `review_time_gap` | 123 | Mismo tamaño pero mtimes separados >60s — mismo tamaño no garantiza mismo contenido, revisar caso a caso antes de decidir |
+| `CONFLICT_diff_size` | 7 | Tamaño distinto entre copias — divergencia real de contenido, **nunca borrar automáticamente** |
+
+**Por qué no se automatizó el borrado ni con criterio "más reciente":**
+uno de los 7 grupos conflictivos (`Pokemon - Edicion Plata SoulSilver
+(Spain).sav`) tiene 3 copias — dos idénticas de 512KB (`nds/` y
+`saves/nds/`, duplicado real y seguro) y una tercera de **0 bytes** en
+`emulator_saves/me.magnum.melonds/saves/` con el mtime más reciente
+(2026-08-28). Un criterio ciego de "quedarse con la copia más nueva por
+fecha" habría elegido el archivo vacío y descartado la partida real de
+512KB — la razón por la que esta tarea sigue sin automatizar el borrado
+(Pilar 3: "cualquier bug aquí es prioridad absoluta, pérdida de progreso").
+Los otros 6 grupos conflictivos son el mismo patrón: saves antiguos del
+core `VBA Next` (abandonado) junto a saves mucho más recientes del core
+`gba` actual — casi seguro seguros de borrar, pero no decidido
+automáticamente sin revisión humana.
+
+**Backup completo**: los 706 archivos de los 289 grupos (TODAS las
+copias, no solo las "candidatas a borrar") están en
+`.rommgr/legacy_dups_backup_2026-09-21/` (gitignored, local, misma
+estructura relativa que el dispositivo) — 706/706 ok, 0 errores.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | ✅ **completo 2026-09-21**. Primera pasada (bajo riesgo, tamaño/fecha): 159 grupos/240 archivos (`junk_zero_bytes` + `safe_same_copy_event`) borrados, backup previo intacto, 0 errores — ver detalle abajo. **Segunda pasada (los 130 grupos restantes, `review_time_gap` + `CONFLICT_diff_size`) resuelta por contenido real**: en vez de decidir por tamaño/fecha (arriesgado — el `size_bytes` de un save GBA de tamaño fijo no dice nada del contenido), se calculó el SHA1 real de cada copia contra el backup local ya hecho (sin tocar el dispositivo, que estaba ocupado con el rescan `ps2` de `ANDROID-DUP-2`). Resultado: de 321 archivos en esos 130 grupos, **174 eran copias byte-idénticas de verdad** (mismo contenido exacto, solo cambiaba la ruta/fecha) — borradas vía `adb shell rm`, 0 errores, verificado post-borrado que las 147 rutas canónicas conservadas (una por cada contenido realmente distinto) siguen intactas. **Ningún archivo de contenido único se tocó** — incluye casos con saves reales de un core distinto (p. ej. `Metroid - Zero Mission [E].srm` tiene un save propio bajo `saves/mGBA/` además del de `VBA Next`/`gba`), que quedan sin resolver a propósito, decisión del usuario si alguna vez hace falta. **Hallazgo colateral nuevo, sin implementar**: 2 grupos tenían copias bajo `saves/.stversions/<core>/` — carpeta de versionado de Syncthing (herramienta de terceros en el dispositivo, no creada por este proyecto), debería excluirse del escaneo/legacy-dup igual que `_descartados/`/`emulator_saves/`, no se ha tocado. Backup completo de las 3 pasadas sigue en `.rommgr/legacy_dups_backup_2026-09-21/` |
+| CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
+
+---
+
+### CABLE-SYNC-SAVES-PREFIX-1 — cable-sync ADB no reconoce el convenio D2 `saves/` del PC — afecta a la UI real, no solo al test de arriba (rammu, 2026-09-21)
+
+Al ejecutar `CABLE-SYNC-APPLY-1` con `pc_path` apuntando **directamente** a
+`E:\Carpetas anbernic\saves` (no a la raíz de la biblioteca) tuvo que
+usarse a propósito para que el matching funcionara. Pero **la UI real
+(`sync.js:940`, `_setIfEmpty('cable-pc-path', ... cfg.library_root ...)`)
+por defecto pone `pc_path = library_root`** (la raíz completa, no
+`.../saves`) — necesario porque el mismo campo también sirve para
+sincronizar ROMs, no solo saves. Con ese valor por defecto, cualquier
+usuario que haya centralizado sus saves con el convenio D2
+(`savefile_directory = library_root/saves`, el mismo botón "Aplicar
+layout de saves" arreglado hoy en `ac9e905`) sufriría el mismo problema
+que el primer intento de `CABLE-SYNC-DUP-PATHS-1`: **todos los saves se
+marcarían como "nuevos"** en vez de detectarse como ya sincronizados,
+porque la ruta relativa del lado PC lleva el prefijo `saves/` y la del
+lado Android no.
+
+**Causa raíz confirmada en código**: `canonical_rel_posix()`
+(`sync/android_paths.py`) traduce el primer segmento (carpeta de
+plataforma) usando `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, pero por
+diseño explícito (su propio docstring) **no toca segmentos que no
+reconoce como plataforma — y `saves` es uno de ellos**: `"no inventa una
+carpeta nueva para algo que no reconoce (p. ej. carpetas de sistema como
+BIOS/ o saves/)"`.
+
+**No es un fix trivial de una línea** — verificado en el dispositivo real
+(`adb shell find`/`ls_recursive` sin filtro) que **el propio Android
+mezcla convenios según el core**: algunos escriben el save plano junto a
+la plataforma (`RetroArch/mame/fixeight.nv`), otros ya usan su propia
+subcarpeta `saves/<core>/` (`RetroArch/saves/mame2003/nvram/mk3.nv`,
+`RetroArch/saves/bsnes2014/Earthbound (1).srm`) — quitar sin más el
+prefijo `saves/` del lado PC rompería el matching para los cores que sí
+lo tienen en Android. Necesita diseño, no un parche a ciegas, en el pilar
+de mayor riesgo del proyecto ("cualquier bug aquí es prioridad absoluta",
+CLAUDE.md).
+
+**Mapeo real completado (rammu, 2026-09-21, `adb shell find`/`stat` sobre la
+Anbernic conectada)** — el problema es mucho más grande que los "8
+duplicados" estimados en `CABLE-SYNC-LEGACY-DUPS-1`: hay carpeta plana
+(`RetroArch/<plataforma>/`) Y carpeta `saves/` para prácticamente todas las
+plataformas probadas, con solapamiento de nombre de archivo casi total y
+**ambas copias con actividad reciente** (no es basura histórica de una
+migración puntual — algunos juegos escriben en un lado, otros en el otro,
+en la misma sesión de uso):
+
+| Plataforma | Archivos en plano | Archivos en `saves/` | Mismo nombre en ambos |
+|---|---|---|---|
+| mame | 25 | 24 | 24 |
+| gba | 47 | 115 | 46 |
+| psx | 7 | 9 | 6 |
+| snes | 4 | 3 | 3 |
+| nes | 2 | 3 | 1 |
+| cps1 | 3 | 2 | 2 |
+| cps2 | 2 | 1 | 1 |
+
+Verificado con `stat` en `Advance Wars 2 [E].sav` (gba): mismo tamaño
+(65536 B) en plano y en `saves/`, mtimes a 2 segundos de diferencia
+(2025-03-09) — copia puntual antigua, no reescritura activa de ese archivo
+concreto. Pero `ls -t` muestra archivos con mtime reciente en **ambas**
+ubicaciones (`Pokémon Rojo fuego [E].sav` en plano, `Pokemon WaterBlue.srm`
+y `Final Fantasy Tactics [E].srm` en `saves/gba`) — confirma que hoy en
+día se sigue escribiendo en los dos sitios según qué core/config se use
+por partida, no es solo arrastre histórico.
+
+**El nombre de la subcarpeta bajo `saves/` no es consistente**: a veces es
+el nombre canónico de plataforma ya reconocido por `PLATFORM_BY_FOLDER`
+(`saves/gba`, `saves/psx`, `saves/snes`, `saves/mame`, y por coincidencia
+`saves/cps1`/`saves/cps2`/`saves/fbneo`, que están en `platforms.toml`
+como alias de "Arcade"), y a veces es el nombre del core de RetroArch tal
+cual, que **no** está en `PLATFORM_BY_FOLDER` (`saves/mame2003`,
+`saves/bsnes2014`, `saves/Snes9x`, `saves/Snes9x 2005 Plus`,
+`saves/VBA Next`, `saves/FCEUmm`, `saves/mGBA`, `saves/PPSSPP`,
+`saves/Citra`, `saves/LRPS2`, `saves/Beetle PSX`). No hay mapeo core→plataforma
+completo hoy en el código — haría falta construirlo y mantenerlo para
+poder confiar en el segundo segmento de la ruta.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma | — (investigación en el dispositivo real, sin tocar código) | ✅ hecho 2026-09-21 — ver tabla y hallazgos arriba |
+
+**Hallazgos relacionados, fuera de alcance de este fix** (revisado el código
+alrededor de `_skip_existing_device`/`_skip_existing_pc` al implementar,
+sin tocarlos — CLAUDE.md "Investigar antes de arreglar"):
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-DOWNLOAD-DEST-1 | Canonicalizar el destino de descarga (`anbernic_to_pc`/`newest`), que escribía en `pc_root / rel_posix` usando la ruta cruda del dispositivo sin canonicalizar | `sync/android_paths.py` (`canonical_download_rel_posix`, nueva), `web/handlers/sync_cable.py` (`_adb_copy_to_pc`, delete_extra ×2), `sync/cable_engine.py` (`plan_direction`, ramas `anbernic_to_pc`/`newest`), `web/cable_sync_daemon.py` (`_adb_copy_to_pc` legacy) | ✅ hecho 2026-09-21 — decisión de diseño confirmada con el usuario: (1) con carpeta intermedia reconocible (`saves/psx/foo.sav`, "psx" SÍ es plataforma conocida) → aterriza en la ruta canónica sin `saves/` (`psx/foo.sav`), igual criterio que ya usa la subida; (2) con carpeta intermedia ambigua (`saves/mame2003/...`, core sin mapear) → se mantiene la ruta cruda, no se arriesga a adivinar mal. Nueva función `canonical_download_rel_posix()` en `android_paths.py`, usada en los 3 sitios que escriben destino de descarga — incluye actualizar los 2 bloques `delete_extra`/espejo que comparaban por ruta cruda (si no, un archivo recién bajado a su ruta canónica se leía como "extra" y se borraba). 8 tests unitarios nuevos (4 en `test_android_paths.py`, 2 en `test_cable_engine.py`, más los de `canonical_download_rel_posix` en sí) cubriendo exactamente el caso `saves/gba/mario.sav → gba/mario.sav` y el caso ambiguo sin tocar. Suite completa (1417 tests) sin regresiones nuevas. **Validado en real 2026-09-22** (Día68 continuación): `--apply` real de `newest` con `pc_path=library_root`, `android_path=/storage/emulated/0/RetroArch`, 96/96 copiados, 0 errores. Verificado con mtimes tras la operación: `ps2/Mcd001.ps2` (carpeta reconocible en origen) bajó 1:1 sin pasar por `saves/`, confirmando el caso (1). Casos con carpeta intermedia `Unknown/` en origen (`sailormn_europe.nv`, `Kid Dracula (World)...sav`) se preservaron tal cual en destino (`Unknown/...`) — no es un fallo de nuestra canonicalización, es RetroArch en el propio dispositivo el que ya guarda esos saves bajo `Unknown/` (core sin mapear a contenido), confirmando el caso (2) también funciona en real |
+| CABLE-SYNC-NEWEST-CANON-1 | Corregir la dirección `newest` en modo ADB, que comparaba `pc_index`/`ab_index` por ruta relativa cruda de ambos lados | `web/handlers/sync_cable.py` (bloque `elif direction == "newest":`) | ✅ hecho 2026-09-21 — reescrito para reusar el `ab_index`/`ab_by_name` ya construidos arriba (eliminada la reconstrucción redundante) con el mismo fallback por nombre de `CABLE-SYNC-SAVES-PREFIX-2`: solo hace match por nombre si hay un único candidato del lado Android (ambiguo con >1 candidato → se trata como archivo distinto, comportamiento anterior conservado como fallback seguro). Test nuevo `test_newest_direction_skips_file_under_different_device_prefix_same_mtime`. **Validado en real** con `pc_path=library_root`, `direction=newest`: 405/597 reconocidos como ya sincronizados; los 192 restantes son casos legítimos (BIOS/defaults solo en un lado, diferencias reales de mtime), sin ruido del problema de prefijos |
+| CABLE-SYNC-NEWEST-CANON-2 | Mismo problema de fondo en las otras 2 reimplementaciones independientes de "newest": (a) `sync/cable_engine.py:plan_direction()` — compartido por el sync manual en modo filesystem/SD montada y el daemon SD-auto; (b) el fallback "RetroArch (legacy)" del daemon auto-sync ADB (activo cuando `get_adb_sync_sources()` no devuelve fuentes — usuarios sin `emulator_paths` configurado) | `sync/cable_engine.py` (`plan_direction`, rama `newest`), `web/cable_sync_daemon.py` (fallback "RetroArch (legacy)") | ✅ hecho 2026-09-21 — en vez de parchear cada reimplementación por separado, se extrajo la lógica de matching (ya escrita 3 veces con el mismo bug) a una función única y testeada: `reconcile_newest_by_name()` en `sync/android_paths.py` — empareja por clave exacta, con fallback por nombre solo si hay un único candidato del lado Android (ambiguo → sin emparejar, comportamiento seguro). Las 3 implementaciones (`sync_cable.py`, `cable_engine.py`, `cable_sync_daemon.py`) ahora son consumidores delgados de la misma función — evita que el mismo bug reaparezca una cuarta vez. 4 tests unitarios nuevos en `tests/test_android_paths.py` + 2 tests nuevos en `test_cable_engine.py`. Suite completa (1414 tests) sin regresiones (los 3 fallos que aparecen son ambientales — dispositivo ADB real conectado, no relacionados). **Revalidado en real tras el refactor**: mismo resultado exacto que antes (405/597 reconocidos, 192 candidatos legítimos, 0 errores) — el refactor no cambió comportamiento. El fallback per-emulador ADB del daemon (`adb_sources` con `local_saves`/`android_saves` dedicados) no tiene este problema — son carpetas 1:1 sin ambigüedad de plataforma, no se tocó |
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-2 | Matching correcto ignorando el prefijo/carpeta intermedia del lado Android | `web/handlers/sync_cable.py` (`_skip_existing_device`, `_skip_existing_pc`) | ✅ hecho 2026-09-21 — implementada la opción de "matchear por nombre de archivo, ignorando segmentos intermedios", con tamaño como criterio de colisión (mismo patrón ya usado en todo el archivo para "ya existe"). Índice secundario `ab_by_name`/`_pc_by_name()` construido a partir de los índices existentes (`ab_index`, `_iter_files(pc_root)`) — sin mapeo core→plataforma, sin tocar `android_paths.py`. Tests nuevos en `tests/test_cable_sync_rom_skip_existing.py` (prefijo `saves/` en ambas direcciones). **Validado en real** contra la Anbernic con `pc_path=library_root` (el caso que antes fallaba, `CABLE-SYNC-DUP-PATHS-1`): antes 0/528 reconocidos, ahora **522/528 saltados como ya sincronizados, solo 6 genuinamente nuevos** (dry-run, `pc_to_anbernic`, `skip_existing=true`) |
+
+---
+
+### CABLE-SYNC-EMULATOR-SAVES-LEAK-1 — `emulator_saves/` (carpeta interna del PC) se filtra al dispositivo (rammu, 2026-09-21)
+
+Investigando por qué `Pokemon - Edicion Plata SoulSilver (Spain).sav`
+aparecía como conflicto en `CABLE-SYNC-LEGACY-DUPS-1` (una copia de 0
+bytes con el mtime más reciente de las 3): **no es un conflicto real de
+partidas**. El save de verdad está en `nds/Pokemon - Edicion Plata
+SoulSilver (Spain).sav` (512KB, el que usa el core normal de RetroArch).
+La copia sospechosa vive en
+`/storage/emulated/0/RetroArch/emulator_saves/me.magnum.melonds/saves/...`
+— y `emulator_saves/<package>/` es una carpeta que `get_adb_sync_sources()`
+(`config.py`) usa **solo en el PC** para bajar saves por-emulador vía
+ADB; nunca debería existir tal cual dentro del árbol `RetroArch/` del
+dispositivo.
+
+**Confirmado que no es un caso aislado**: hay **54 archivos** bajo
+`/storage/emulated/0/RetroArch/emulator_saves/` en el dispositivo real
+(toda la carpeta de estados de DuckStation incluida), todos con mtime a
+pocos segundos entre sí — una única subida masiva, no uso real de la app.
+
+**Causa raíz**: cuando `get_adb_sync_sources()` devuelve una lista vacía
+(`adb_sources`), el daemon de auto-sync (`web/cable_sync_daemon.py`,
+`_run_auto_sync`) cae al fallback `"RetroArch (legacy)"` con
+`local_saves = config.library_root` (la biblioteca **entera**) contra
+`android_saves = config.sync.auto_sync_android_path` — sin excluir
+`emulator_saves/`, que es puramente contabilidad interna del propio
+proyecto, no algo que ningún core de RetroArch en Android reconozca. El
+mismo problema aplica al endpoint manual `/api/cable-sync`
+(`web/handlers/sync_cable.py`) cuando `pc_path=library_root`: `_iter_files`
+solo excluye dotfiles y `_descartados/`, no `emulator_saves/`. El archivo
+de origen en el PC ya estaba a 0 bytes (melonDS nunca llegó a guardar esa
+partida concreta — se jugó con otro core), así que la copia subida
+también salió vacía; sin pérdida de progreso real, pero explica varios de
+los 289 grupos de `CABLE-SYNC-LEGACY-DUPS-1` (al menos los 54 confirmados
++ los que generaron por round-trip de vuelta al PC, como el `saves/saves/`
+doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-EMULATOR-SAVES-LEAK-1 | Excluir `emulator_saves/` del árbol que camina `pc_to_anbernic`/`newest` cuando `pc_path`/`local_saves` es la raíz de la biblioteca | `config.py` (`EMULATOR_SAVES_DIR_NAME`, nueva), `web/handlers/sync_cable.py` (`_iter_files`), `sync/cable_engine.py` (`iter_files`), `web/cable_sync_daemon.py` (walk de `_iter_local` en el fallback legacy) | ✅ hecho 2026-09-21 — mismo patrón que la exclusión ya existente de `_descartados/`/`TRASH_DIR_NAME`: nueva constante `EMULATOR_SAVES_DIR_NAME = "emulator_saves"` en `config.py` (reemplaza el literal ya usado en `get_adb_sync_sources()`), excluida en los 3 walks (`dirs[:] = [...]`) igual que `TRASH_DIR_NAME`. Aplica a ambos lados del walk (PC y Anbernic) — inocuo si el dispositivo está limpio, corta la fuga si no. 2 tests nuevos (`test_iter_files_skips_emulator_saves` en `test_cable_engine.py`, `test_pc_to_anbernic_never_uploads_emulator_saves_folder` en `test_cable_sync_rom_skip_existing.py`). Suite completa (1419 tests) sin regresiones nuevas. **No limpia los 54 archivos ya filtrados en el dispositivo real** — eso sigue en `CABLE-SYNC-LEGACY-DUPS-1` (ya respaldados en `.rommgr/legacy_dups_backup_2026-09-21/`), este fix solo corta la fuga hacia adelante |
+
+---
+
+### ANDROID-APP-PRIVATE-STORAGE-1 — DuckStation y AetherSX2 guardan en `Android/data/<paquete>/` (RG556): ni ADB ni rclone/Termux pueden leerlo ni escribirlo, sin root (hallazgo 2026-09-26, RG556 `RG556006101273`, ADB en vivo)
+
+Origen: petición del usuario de traer a PC los saves de PS2 (AetherSX2) y
+PSX (DuckStation) de la Anbernic, y de llevar de vuelta un savestate de
+*Prince of Persia: Warrior Within* (`SLES-52822 (105CC366)`, confirmado por
+el serial embebido en el ISO) más reciente en PC (PCSX2 standalone,
+`.01.p2s` del 2025-07-20) que en Android (AetherSX2, mismo archivo del
+2025-07-11).
+
+**Causa raíz confirmada en ambas direcciones**: `xyz.aethersx2.android` y
+`com.github.stenzek.duckstation` guardan memcards/savestates bajo
+`/storage/emulated/0/Android/data/<paquete>/files/` — protegido por scoped
+storage de Android (SELinux), no por permisos Unix (`ls -la` engaña: se ve
+`drwxrwxrwx`, pero el contenido es ilegible/inescribible igualmente).
+Confirmado con 4 pruebas en vivo, todas con el mismo resultado:
+- `adb pull` de un archivo → `remote open failed: Permission denied`.
+- `adb shell cp` (leer con el propio UID `shell`) → `Permission denied`
+  igual, no es una limitación del protocolo sync de `adb pull` en concreto.
+- `adb push` de un archivo de prueba → reporta "1 file pushed" pero
+  **falla silenciosamente**: `remote fchown failed: Operation not
+  permitted`, y el archivo no llega a existir en destino (verificado con
+  `ls`/`cat` después — limpiado, no quedó rastro).
+- `adb shell run-as <paquete> id` → `package not debuggable` en ambas apps
+  (sin esto, ni siquiera vale para depurar, mucho menos para copiar).
+- `adb backup -f ... <paquete>` → no falla al momento (a diferencia de una
+  app con `allowBackup=false`), imprime "Now unlock your device and
+  confirm..." y se queda esperando un diálogo en pantalla — probado 2 veces
+  con la consola desbloqueada, el diálogo **nunca llegó a aparecer en
+  pantalla** (posible fallo de la actividad de confirmación en esta ROM/
+  versión de Android). Sin repro de éxito, descartado como vía fiable.
+- Sin root: `su` no existe (`inaccessible or not found`).
+
+Pista real para la vía de reconfiguración: existe
+`/storage/emulated/0/duckstation/` (almacenamiento público, **fuera** de
+`Android/data`) con solo `bios/`+`inputprofiles/` — carpeta obsoleta que
+sugiere que DuckStation **ya estuvo alguna vez** configurado en modo
+"carpeta de datos personalizada" (pública) y volvió al valor por defecto
+(`Android/data`) tras una reinstalación/actualización. Si esa opción de
+ajustes sigue existiendo en la app, es la vía de arreglo sin fork ni root.
+
+Rechazado explícitamente por el usuario: copiar a mano con el explorador de
+archivos del dispositivo cada vez — rompe el objetivo del proyecto (Pilar 3:
+sync sin intervención manual). Un movimiento manual puntual para
+*reconfigurar* la carpeta de datos (una vez) es aceptable; una rutina manual
+recurrente por cada sync no lo es.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ANDROID-APP-PRIVATE-STORAGE-1a | Comprobar en los Ajustes de DuckStation y AetherSX2 (en la propia Anbernic) si existe una opción de "carpeta de datos"/modo portable que apunte a almacenamiento público en vez de `Android/data` — requiere tocar la consola, no verificable por ADB | UI de cada app en el dispositivo | ✅ resuelto 2026-09-26 por otra vía: en vez de reconfigurar DuckStation/AetherSX2 (ninguna de las dos ofrecía la opción), el usuario cambió de app — `com.nanodata.armsx` (ARMSX1, PS1) y `com.armsx2` (ARMSX2, PS2), mismos devs, con "Custom folder" (SAF) real. `config.py`/`test_config.py` actualizados (`EMULATOR_SAVE_PATHS_DEFAULT`), confirmado legible por ADB sin root |
+| ANDROID-APP-PRIVATE-STORAGE-1b | Si 1a confirma la opción: migrar (copia única) los memcards/savestates actuales de `Android/data/<paquete>/files/` a la carpeta pública elegida antes de cambiar el ajuste, para no perder progreso | Manual, una vez | ✅ resuelto — no hizo falta migrar `Android/data/`, ARMSX1/ARMSX2 parten con su propia carpeta pública en `/storage/521D-04EA/saves/psx/` y `/storage/521D-04EA/saves/memcards/` |
+| ANDROID-APP-PRIVATE-STORAGE-1c | Si 1a no ofrece esa opción para alguna de las dos apps: única alternativa real es rootear la RG556 (Magisk) — decisión del usuario, fuera de alcance de este proyecto | — | ✅ ya no aplica, ver 1a |
+| ANDROID-APP-PRIVATE-STORAGE-1d | *Prince of Persia: Warrior Within* (`SLES-52822`) sigue con el savestate más nuevo solo en PC (`C:\Users\rammu\Documents\PCSX2\sstates\`) — llevarlo a la Anbernic depende de 1a/1b/1c. Aviso aparte: el tamaño difiere entre el `.p2s` de PC (16,3 MB) y el de Android (15,08 MB) para el mismo serial — posible divergencia de versión de motor entre PCSX2 desktop y AetherSX2 móvil, confirmar que carga antes de asumir compatibilidad total | — | 🟡 el aviso de este task era acertado — ver `ANDROID-APP-PRIVATE-STORAGE-1e` (Día70): un filtro verde persistente en este mismo juego en ARMSX2 sobrevivió a cambiar renderer/BIOS/resolución, lo que apunta a datos de GS corruptos (VRAM/paleta), no a un ajuste — coherente con una migración de savestate entre motores/versiones distintas |
+| ANDROID-APP-PRIVATE-STORAGE-1e | **Nuevo (Día70, 2026-09-27)**: confirmar si el filtro verde en paredes de *Warrior Within* en ARMSX2 viene de un savestate/estado GS corrupto en vez de un ajuste gráfico. Se agotaron 6 hipótesis de configuración sin efecto (ver diario Día70) — probar arrancando el juego desde cero (Fast Boot, sin cargar ningún savestate ni resume-state) en una zona nueva no visitada; si sale limpio, el estado guardado es la causa y la única vía es recuperar progreso desde la memory card (no desde un savestate) o rehacer el tramo | Requiere consola física (RG556) | 🔴 pendiente — bloqueado por acceso al hardware, siguiente sesión |
+
+---
+
+### SYNC-WII-SCOPE-1 — `SyncSource` no puede acotar solo los saves reales de Dolphin (Wii) (hallazgo rammu, 2026-09-21)
+
+Al reestructurar `sync.sources` en rammu siguiendo `Tareas/Estructura-Estandarizada-Sync.md`
+(convenio `dropbox:/RetroSync/saves/<emulador>/<tipo>` de PC2, `dolphin/gc` +
+`dolphin/wii`), la fuente `Dolphin (Wii)` con `local_dir` apuntando a la
+carpeta `Wii/` completa (`sync_all=true`) empezó a subir el NAND emulado
+entero (`title/<tipo>/<id>/content/` = IOS, System Menu, apps de canales
+instalados — `.app`, certificados `.pem`, `fst.bin`), no solo los saves.
+Medido en rammu: **96 MB en `Wii/` total, de los que solo 0.29 MB son saves
+reales** (`title/*/*/data/`, el equivalente NAND del save real por juego —
+`title/00010000/<gameid-hex>/data/`). `SyncSource` solo soporta un
+`local_dir` plano (sin include/exclude), así que no hay forma de acotar hoy
+a "todas las subcarpetas `data/` bajo `title/*/*`" sin sincronizar también
+`content/` (las apps instaladas). Parado a mitad de sync real (`--apply`)
+antes de subir más basura; fuente `Dolphin (Wii)` desactivada en
+`config.toml` (comentada, con la medición) hasta que se diseñe bien.
+**GC no tiene este problema** — su carpeta ya es 100% saves (`.gci` +
+`.raw`), se dejó activa. **Limpieza pendiente**: revisar
+`dropbox:/RetroSync/saves/dolphin/wii` — puede tener algunos `.app`/`.pem`
+subidos antes de parar el proceso (no es sensible ni gran volumen, pero es
+basura que no debería estar ahí).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SYNC-WII-SCOPE-1 | Sincronizar solo `title/*/*/data/` de Dolphin (Wii) | `config.py` (`SyncSource.include_glob`), `sync/save_syncer.py` (`list_local_saves`, `sync_saves`), `cli.py` (x2), `web/handlers/sync_cloud.py` | ✅ hecho 2026-09-21 — opción (a): campo `include_glob: str = "**/*"` en `SyncSource` (compatible hacia atrás, resto de fuentes sin cambio de comportamiento), usado en `saves_dir.glob(include_glob)` en vez del `rglob("*")` fijo. `config.toml` reactivado con `include_glob = "title/*/*/data/**/*"`. Test `test_list_local_saves_include_glob_scopes_dolphin_wii_nand` en `tests/test_save_syncer.py`. Verificado en dry-run real contra el NAND de rammu: 10 archivos detectados (todos bajo `data/`), `content/`/`shared1/`/etc. excluidos — antes eran 96 MB, ahora ~0.29 MB reales. Pendiente aplicar en PC2 y reactivar allí también |
+| SYNC-WII-SCOPE-2 | Limpiar `dropbox:/RetroSync/saves/dolphin/wii` de archivos de sistema subidos por error antes de detectar SYNC-WII-SCOPE-1 (`.app`, `.pem`, `fst.bin` — no saves) | — (limpieza manual en Dropbox o vía `rclone delete`) | ✅ hecho 2026-09-21 — `tools/rclone.exe purge` sobre la carpeta entera, confirmado vacía (53 archivos, 17.4 MB, 0 saves reales entre ellos) |
+
+---
+
+### CABLE-SYNC-DUP-PATHS-1 — investigación cable-sync ADB con la Anbernic real (rammu, 2026-09-21) — cerrada, no era un bug
+
+Con la Anbernic conectada por USB (autorizada, `adb devices` → `device`), se
+probó `POST /api/cable-sync` (`direction=pc_to_anbernic`, `use_adb=true`,
+`dry_run=true`). Primer intento con `pc_path=E:\Carpetas anbernic` (raíz de
+la biblioteca): **528/528 marcados para copiar, 0 ya coincidentes** —
+sospecha inicial de bug real de matching, **descartada tras seguir la
+cadena hasta la causa raíz** (regla "Investigar antes de arreglar",
+CLAUDE.md):
+
+1. **Error de test #1 — `pc_path` incorrecto**: se pasó la raíz de la
+   biblioteca (`E:\Carpetas anbernic`) en vez de la carpeta de saves
+   (`E:\Carpetas anbernic\saves`). En Android, RetroArch guarda los saves
+   planos junto a la plataforma (`RetroArch/mame/fixeight.nv`), sin
+   subcarpeta `saves/` — con `pc_path` mal puesto, TODAS las rutas
+   relativas quedaban desalineadas por ese segmento de más. Repetido con
+   `pc_path=.../saves`: bajó a 229/229 copiar, seguía en 0 skipped.
+2. **Error de test #2 — falta `skip_existing: true`**: `_skip_existing_device()`
+   (`web/handlers/sync_cable.py:729`) devuelve `False` sin comprobar nada
+   si `skip_existing` no viene en el payload — **por defecto es `false`**,
+   así que cualquier dry-run sin ese flag marca todo como "a copiar" aunque
+   ya exista igual en el dispositivo. No es un bug, es un parámetro opt-in
+   de la propia API (ver `openapi.json` — no aparece en el ejemplo de
+   payload, por eso se me pasó la primera vez). Con
+   `pc_path=.../saves` + `skip_existing=true`: **123 ya coinciden (mismo
+   tamaño), 106 realmente faltan, 0 errores** — número coherente, cierra
+   la investigación.
+
+**Hallazgo secundario real, menor**: 8 nombres de save duplicados en 2-3
+rutas distintas del dispositivo (19 de 288 archivos totales) — restos de un
+`savefile_directory` mal configurado en el pasado en la Anbernic (mismo
+patrón de drift que `retroarch_cfg_writer.py` en PC, ver commit `ac9e905`
+de hoy), ejemplo verificado con `adb shell find ... -iname 'punisher.nv'`:
+`RetroArch/saves/cps1/punisher.nv` (convenio nuevo) +
+`RetroArch/cps1/punisher.nv` + `RetroArch/cps1/fbneo/punisher.nv`
+(legado). Solo 19 archivos, no bloquea nada — separado en su propia tarea.
+
+**No se ejecutó ningún `--apply` real** en esta sesión (quedó todo en
+dry-run) — 106 archivos / ~230 MB reales pendientes de subir a la
+Anbernic, listos para aplicar en la próxima sesión con los parámetros ya
+correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
+`skip_existing=true`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+**Mapeo completo + backup hechos 2026-09-21** (rammu, con la Anbernic real
+por ADB) — **no se borró nada del dispositivo**, decisión del usuario
+("informe + backup, sin borrar todavía"). 823 archivos de save/state en el
+dispositivo, **289 nombres duplicados en rutas legado (706 archivos
+implicados)** — mucho mayor que la estimación original de 8. Clasificados
+en `.rommgr/legacy_dups_report_2026-09-21.csv` (gitignored, local):
+
+| Clasificación | Grupos | Criterio |
+|---|---|---|
+| `junk_zero_bytes` | 14 | Todas las copias son 0 bytes — basura, sin riesgo de pérdida |
+| `safe_same_copy_event` | 145 | Mismo tamaño, mtimes a ≤60s entre sí — típico de una migración puntual (mismo patrón que `CABLE-SYNC-SAVES-PREFIX-1`: "Advance Wars 2 [E].sav", 2s de diferencia) |
+| `review_time_gap` | 123 | Mismo tamaño pero mtimes separados >60s — mismo tamaño no garantiza mismo contenido, revisar caso a caso antes de decidir |
+| `CONFLICT_diff_size` | 7 | Tamaño distinto entre copias — divergencia real de contenido, **nunca borrar automáticamente** |
+
+**Por qué no se automatizó el borrado ni con criterio "más reciente":**
+uno de los 7 grupos conflictivos (`Pokemon - Edicion Plata SoulSilver
+(Spain).sav`) tiene 3 copias — dos idénticas de 512KB (`nds/` y
+`saves/nds/`, duplicado real y seguro) y una tercera de **0 bytes** en
+`emulator_saves/me.magnum.melonds/saves/` con el mtime más reciente
+(2026-08-28). Un criterio ciego de "quedarse con la copia más nueva por
+fecha" habría elegido el archivo vacío y descartado la partida real de
+512KB — la razón por la que esta tarea sigue sin automatizar el borrado
+(Pilar 3: "cualquier bug aquí es prioridad absoluta, pérdida de progreso").
+Los otros 6 grupos conflictivos son el mismo patrón: saves antiguos del
+core `VBA Next` (abandonado) junto a saves mucho más recientes del core
+`gba` actual — casi seguro seguros de borrar, pero no decidido
+automáticamente sin revisión humana.
+
+**Backup completo**: los 706 archivos de los 289 grupos (TODAS las
+copias, no solo las "candidatas a borrar") están en
+`.rommgr/legacy_dups_backup_2026-09-21/` (gitignored, local, misma
+estructura relativa que el dispositivo) — 706/706 ok, 0 errores.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | ✅ **completo 2026-09-21**. Primera pasada (bajo riesgo, tamaño/fecha): 159 grupos/240 archivos (`junk_zero_bytes` + `safe_same_copy_event`) borrados, backup previo intacto, 0 errores — ver detalle abajo. **Segunda pasada (los 130 grupos restantes, `review_time_gap` + `CONFLICT_diff_size`) resuelta por contenido real**: en vez de decidir por tamaño/fecha (arriesgado — el `size_bytes` de un save GBA de tamaño fijo no dice nada del contenido), se calculó el SHA1 real de cada copia contra el backup local ya hecho (sin tocar el dispositivo, que estaba ocupado con el rescan `ps2` de `ANDROID-DUP-2`). Resultado: de 321 archivos en esos 130 grupos, **174 eran copias byte-idénticas de verdad** (mismo contenido exacto, solo cambiaba la ruta/fecha) — borradas vía `adb shell rm`, 0 errores, verificado post-borrado que las 147 rutas canónicas conservadas (una por cada contenido realmente distinto) siguen intactas. **Ningún archivo de contenido único se tocó** — incluye casos con saves reales de un core distinto (p. ej. `Metroid - Zero Mission [E].srm` tiene un save propio bajo `saves/mGBA/` además del de `VBA Next`/`gba`), que quedan sin resolver a propósito, decisión del usuario si alguna vez hace falta. **Hallazgo colateral nuevo, sin implementar**: 2 grupos tenían copias bajo `saves/.stversions/<core>/` — carpeta de versionado de Syncthing (herramienta de terceros en el dispositivo, no creada por este proyecto), debería excluirse del escaneo/legacy-dup igual que `_descartados/`/`emulator_saves/`, no se ha tocado. Backup completo de las 3 pasadas sigue en `.rommgr/legacy_dups_backup_2026-09-21/` |
+| CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
+
+---
+
+### CABLE-SYNC-SAVES-PREFIX-1 — cable-sync ADB no reconoce el convenio D2 `saves/` del PC — afecta a la UI real, no solo al test de arriba (rammu, 2026-09-21)
+
+Al ejecutar `CABLE-SYNC-APPLY-1` con `pc_path` apuntando **directamente** a
+`E:\Carpetas anbernic\saves` (no a la raíz de la biblioteca) tuvo que
+usarse a propósito para que el matching funcionara. Pero **la UI real
+(`sync.js:940`, `_setIfEmpty('cable-pc-path', ... cfg.library_root ...)`)
+por defecto pone `pc_path = library_root`** (la raíz completa, no
+`.../saves`) — necesario porque el mismo campo también sirve para
+sincronizar ROMs, no solo saves. Con ese valor por defecto, cualquier
+usuario que haya centralizado sus saves con el convenio D2
+(`savefile_directory = library_root/saves`, el mismo botón "Aplicar
+layout de saves" arreglado hoy en `ac9e905`) sufriría el mismo problema
+que el primer intento de `CABLE-SYNC-DUP-PATHS-1`: **todos los saves se
+marcarían como "nuevos"** en vez de detectarse como ya sincronizados,
+porque la ruta relativa del lado PC lleva el prefijo `saves/` y la del
+lado Android no.
+
+**Causa raíz confirmada en código**: `canonical_rel_posix()`
+(`sync/android_paths.py`) traduce el primer segmento (carpeta de
+plataforma) usando `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, pero por
+diseño explícito (su propio docstring) **no toca segmentos que no
+reconoce como plataforma — y `saves` es uno de ellos**: `"no inventa una
+carpeta nueva para algo que no reconoce (p. ej. carpetas de sistema como
+BIOS/ o saves/)"`.
+
+**No es un fix trivial de una línea** — verificado en el dispositivo real
+(`adb shell find`/`ls_recursive` sin filtro) que **el propio Android
+mezcla convenios según el core**: algunos escriben el save plano junto a
+la plataforma (`RetroArch/mame/fixeight.nv`), otros ya usan su propia
+subcarpeta `saves/<core>/` (`RetroArch/saves/mame2003/nvram/mk3.nv`,
+`RetroArch/saves/bsnes2014/Earthbound (1).srm`) — quitar sin más el
+prefijo `saves/` del lado PC rompería el matching para los cores que sí
+lo tienen en Android. Necesita diseño, no un parche a ciegas, en el pilar
+de mayor riesgo del proyecto ("cualquier bug aquí es prioridad absoluta",
+CLAUDE.md).
+
+**Mapeo real completado (rammu, 2026-09-21, `adb shell find`/`stat` sobre la
+Anbernic conectada)** — el problema es mucho más grande que los "8
+duplicados" estimados en `CABLE-SYNC-LEGACY-DUPS-1`: hay carpeta plana
+(`RetroArch/<plataforma>/`) Y carpeta `saves/` para prácticamente todas las
+plataformas probadas, con solapamiento de nombre de archivo casi total y
+**ambas copias con actividad reciente** (no es basura histórica de una
+migración puntual — algunos juegos escriben en un lado, otros en el otro,
+en la misma sesión de uso):
+
+| Plataforma | Archivos en plano | Archivos en `saves/` | Mismo nombre en ambos |
+|---|---|---|---|
+| mame | 25 | 24 | 24 |
+| gba | 47 | 115 | 46 |
+| psx | 7 | 9 | 6 |
+| snes | 4 | 3 | 3 |
+| nes | 2 | 3 | 1 |
+| cps1 | 3 | 2 | 2 |
+| cps2 | 2 | 1 | 1 |
+
+Verificado con `stat` en `Advance Wars 2 [E].sav` (gba): mismo tamaño
+(65536 B) en plano y en `saves/`, mtimes a 2 segundos de diferencia
+(2025-03-09) — copia puntual antigua, no reescritura activa de ese archivo
+concreto. Pero `ls -t` muestra archivos con mtime reciente en **ambas**
+ubicaciones (`Pokémon Rojo fuego [E].sav` en plano, `Pokemon WaterBlue.srm`
+y `Final Fantasy Tactics [E].srm` en `saves/gba`) — confirma que hoy en
+día se sigue escribiendo en los dos sitios según qué core/config se use
+por partida, no es solo arrastre histórico.
+
+**El nombre de la subcarpeta bajo `saves/` no es consistente**: a veces es
+el nombre canónico de plataforma ya reconocido por `PLATFORM_BY_FOLDER`
+(`saves/gba`, `saves/psx`, `saves/snes`, `saves/mame`, y por coincidencia
+`saves/cps1`/`saves/cps2`/`saves/fbneo`, que están en `platforms.toml`
+como alias de "Arcade"), y a veces es el nombre del core de RetroArch tal
+cual, que **no** está en `PLATFORM_BY_FOLDER` (`saves/mame2003`,
+`saves/bsnes2014`, `saves/Snes9x`, `saves/Snes9x 2005 Plus`,
+`saves/VBA Next`, `saves/FCEUmm`, `saves/mGBA`, `saves/PPSSPP`,
+`saves/Citra`, `saves/LRPS2`, `saves/Beetle PSX`). No hay mapeo core→plataforma
+completo hoy en el código — haría falta construirlo y mantenerlo para
+poder confiar en el segundo segmento de la ruta.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma | — (investigación en el dispositivo real, sin tocar código) | ✅ hecho 2026-09-21 — ver tabla y hallazgos arriba |
+
+**Hallazgos relacionados, fuera de alcance de este fix** (revisado el código
+alrededor de `_skip_existing_device`/`_skip_existing_pc` al implementar,
+sin tocarlos — CLAUDE.md "Investigar antes de arreglar"):
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-DOWNLOAD-DEST-1 | Canonicalizar el destino de descarga (`anbernic_to_pc`/`newest`), que escribía en `pc_root / rel_posix` usando la ruta cruda del dispositivo sin canonicalizar | `sync/android_paths.py` (`canonical_download_rel_posix`, nueva), `web/handlers/sync_cable.py` (`_adb_copy_to_pc`, delete_extra ×2), `sync/cable_engine.py` (`plan_direction`, ramas `anbernic_to_pc`/`newest`), `web/cable_sync_daemon.py` (`_adb_copy_to_pc` legacy) | ✅ hecho 2026-09-21 — decisión de diseño confirmada con el usuario: (1) con carpeta intermedia reconocible (`saves/psx/foo.sav`, "psx" SÍ es plataforma conocida) → aterriza en la ruta canónica sin `saves/` (`psx/foo.sav`), igual criterio que ya usa la subida; (2) con carpeta intermedia ambigua (`saves/mame2003/...`, core sin mapear) → se mantiene la ruta cruda, no se arriesga a adivinar mal. Nueva función `canonical_download_rel_posix()` en `android_paths.py`, usada en los 3 sitios que escriben destino de descarga — incluye actualizar los 2 bloques `delete_extra`/espejo que comparaban por ruta cruda (si no, un archivo recién bajado a su ruta canónica se leía como "extra" y se borraba). 8 tests unitarios nuevos (4 en `test_android_paths.py`, 2 en `test_cable_engine.py`, más los de `canonical_download_rel_posix` en sí) cubriendo exactamente el caso `saves/gba/mario.sav → gba/mario.sav` y el caso ambiguo sin tocar. Suite completa (1417 tests) sin regresiones nuevas. **Validado en real 2026-09-22** (Día68 continuación): `--apply` real de `newest` con `pc_path=library_root`, `android_path=/storage/emulated/0/RetroArch`, 96/96 copiados, 0 errores. Verificado con mtimes tras la operación: `ps2/Mcd001.ps2` (carpeta reconocible en origen) bajó 1:1 sin pasar por `saves/`, confirmando el caso (1). Casos con carpeta intermedia `Unknown/` en origen (`sailormn_europe.nv`, `Kid Dracula (World)...sav`) se preservaron tal cual en destino (`Unknown/...`) — no es un fallo de nuestra canonicalización, es RetroArch en el propio dispositivo el que ya guarda esos saves bajo `Unknown/` (core sin mapear a contenido), confirmando el caso (2) también funciona en real |
+| CABLE-SYNC-NEWEST-CANON-1 | Corregir la dirección `newest` en modo ADB, que comparaba `pc_index`/`ab_index` por ruta relativa cruda de ambos lados | `web/handlers/sync_cable.py` (bloque `elif direction == "newest":`) | ✅ hecho 2026-09-21 — reescrito para reusar el `ab_index`/`ab_by_name` ya construidos arriba (eliminada la reconstrucción redundante) con el mismo fallback por nombre de `CABLE-SYNC-SAVES-PREFIX-2`: solo hace match por nombre si hay un único candidato del lado Android (ambiguo con >1 candidato → se trata como archivo distinto, comportamiento anterior conservado como fallback seguro). Test nuevo `test_newest_direction_skips_file_under_different_device_prefix_same_mtime`. **Validado en real** con `pc_path=library_root`, `direction=newest`: 405/597 reconocidos como ya sincronizados; los 192 restantes son casos legítimos (BIOS/defaults solo en un lado, diferencias reales de mtime), sin ruido del problema de prefijos |
+| CABLE-SYNC-NEWEST-CANON-2 | Mismo problema de fondo en las otras 2 reimplementaciones independientes de "newest": (a) `sync/cable_engine.py:plan_direction()` — compartido por el sync manual en modo filesystem/SD montada y el daemon SD-auto; (b) el fallback "RetroArch (legacy)" del daemon auto-sync ADB (activo cuando `get_adb_sync_sources()` no devuelve fuentes — usuarios sin `emulator_paths` configurado) | `sync/cable_engine.py` (`plan_direction`, rama `newest`), `web/cable_sync_daemon.py` (fallback "RetroArch (legacy)") | ✅ hecho 2026-09-21 — en vez de parchear cada reimplementación por separado, se extrajo la lógica de matching (ya escrita 3 veces con el mismo bug) a una función única y testeada: `reconcile_newest_by_name()` en `sync/android_paths.py` — empareja por clave exacta, con fallback por nombre solo si hay un único candidato del lado Android (ambiguo → sin emparejar, comportamiento seguro). Las 3 implementaciones (`sync_cable.py`, `cable_engine.py`, `cable_sync_daemon.py`) ahora son consumidores delgados de la misma función — evita que el mismo bug reaparezca una cuarta vez. 4 tests unitarios nuevos en `tests/test_android_paths.py` + 2 tests nuevos en `test_cable_engine.py`. Suite completa (1414 tests) sin regresiones (los 3 fallos que aparecen son ambientales — dispositivo ADB real conectado, no relacionados). **Revalidado en real tras el refactor**: mismo resultado exacto que antes (405/597 reconocidos, 192 candidatos legítimos, 0 errores) — el refactor no cambió comportamiento. El fallback per-emulador ADB del daemon (`adb_sources` con `local_saves`/`android_saves` dedicados) no tiene este problema — son carpetas 1:1 sin ambigüedad de plataforma, no se tocó |
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-2 | Matching correcto ignorando el prefijo/carpeta intermedia del lado Android | `web/handlers/sync_cable.py` (`_skip_existing_device`, `_skip_existing_pc`) | ✅ hecho 2026-09-21 — implementada la opción de "matchear por nombre de archivo, ignorando segmentos intermedios", con tamaño como criterio de colisión (mismo patrón ya usado en todo el archivo para "ya existe"). Índice secundario `ab_by_name`/`_pc_by_name()` construido a partir de los índices existentes (`ab_index`, `_iter_files(pc_root)`) — sin mapeo core→plataforma, sin tocar `android_paths.py`. Tests nuevos en `tests/test_cable_sync_rom_skip_existing.py` (prefijo `saves/` en ambas direcciones). **Validado en real** contra la Anbernic con `pc_path=library_root` (el caso que antes fallaba, `CABLE-SYNC-DUP-PATHS-1`): antes 0/528 reconocidos, ahora **522/528 saltados como ya sincronizados, solo 6 genuinamente nuevos** (dry-run, `pc_to_anbernic`, `skip_existing=true`) |
+
+---
+
+### CABLE-SYNC-EMULATOR-SAVES-LEAK-1 — `emulator_saves/` (carpeta interna del PC) se filtra al dispositivo (rammu, 2026-09-21)
+
+Investigando por qué `Pokemon - Edicion Plata SoulSilver (Spain).sav`
+aparecía como conflicto en `CABLE-SYNC-LEGACY-DUPS-1` (una copia de 0
+bytes con el mtime más reciente de las 3): **no es un conflicto real de
+partidas**. El save de verdad está en `nds/Pokemon - Edicion Plata
+SoulSilver (Spain).sav` (512KB, el que usa el core normal de RetroArch).
+La copia sospechosa vive en
+`/storage/emulated/0/RetroArch/emulator_saves/me.magnum.melonds/saves/...`
+— y `emulator_saves/<package>/` es una carpeta que `get_adb_sync_sources()`
+(`config.py`) usa **solo en el PC** para bajar saves por-emulador vía
+ADB; nunca debería existir tal cual dentro del árbol `RetroArch/` del
+dispositivo.
+
+**Confirmado que no es un caso aislado**: hay **54 archivos** bajo
+`/storage/emulated/0/RetroArch/emulator_saves/` en el dispositivo real
+(toda la carpeta de estados de DuckStation incluida), todos con mtime a
+pocos segundos entre sí — una única subida masiva, no uso real de la app.
+
+**Causa raíz**: cuando `get_adb_sync_sources()` devuelve una lista vacía
+(`adb_sources`), el daemon de auto-sync (`web/cable_sync_daemon.py`,
+`_run_auto_sync`) cae al fallback `"RetroArch (legacy)"` con
+`local_saves = config.library_root` (la biblioteca **entera**) contra
+`android_saves = config.sync.auto_sync_android_path` — sin excluir
+`emulator_saves/`, que es puramente contabilidad interna del propio
+proyecto, no algo que ningún core de RetroArch en Android reconozca. El
+mismo problema aplica al endpoint manual `/api/cable-sync`
+(`web/handlers/sync_cable.py`) cuando `pc_path=library_root`: `_iter_files`
+solo excluye dotfiles y `_descartados/`, no `emulator_saves/`. El archivo
+de origen en el PC ya estaba a 0 bytes (melonDS nunca llegó a guardar esa
+partida concreta — se jugó con otro core), así que la copia subida
+también salió vacía; sin pérdida de progreso real, pero explica varios de
+los 289 grupos de `CABLE-SYNC-LEGACY-DUPS-1` (al menos los 54 confirmados
++ los que generaron por round-trip de vuelta al PC, como el `saves/saves/`
+doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-EMULATOR-SAVES-LEAK-1 | Excluir `emulator_saves/` del árbol que camina `pc_to_anbernic`/`newest` cuando `pc_path`/`local_saves` es la raíz de la biblioteca | `config.py` (`EMULATOR_SAVES_DIR_NAME`, nueva), `web/handlers/sync_cable.py` (`_iter_files`), `sync/cable_engine.py` (`iter_files`), `web/cable_sync_daemon.py` (walk de `_iter_local` en el fallback legacy) | ✅ hecho 2026-09-21 — mismo patrón que la exclusión ya existente de `_descartados/`/`TRASH_DIR_NAME`: nueva constante `EMULATOR_SAVES_DIR_NAME = "emulator_saves"` en `config.py` (reemplaza el literal ya usado en `get_adb_sync_sources()`), excluida en los 3 walks (`dirs[:] = [...]`) igual que `TRASH_DIR_NAME`. Aplica a ambos lados del walk (PC y Anbernic) — inocuo si el dispositivo está limpio, corta la fuga si no. 2 tests nuevos (`test_iter_files_skips_emulator_saves` en `test_cable_engine.py`, `test_pc_to_anbernic_never_uploads_emulator_saves_folder` en `test_cable_sync_rom_skip_existing.py`). Suite completa (1419 tests) sin regresiones nuevas. **No limpia los 54 archivos ya filtrados en el dispositivo real** — eso sigue en `CABLE-SYNC-LEGACY-DUPS-1` (ya respaldados en `.rommgr/legacy_dups_backup_2026-09-21/`), este fix solo corta la fuga hacia adelante |
+
+---
+
+### SAVES-UX — Historial de saves y contexto en resolución de conflictos (idea usuario 2026-09-22)
+
+Reducir el "miedo a sobrescribir" del pilar 3 más allá del backup-antes-de-
+sobrescribir ya existente: dejar ver y restaurar versiones anteriores, y dar
+más contexto que solo el timestamp al resolver un conflicto.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SAVES-HISTORY-1 | **Replanteada tras investigar (2026-09-22)**: el historial+restauración ya existía y funcionaba (`rom_manager/backup/save_backup.py`, `GET /api/save-backups`, `POST /api/restore-backup`, UI en la ficha de juego `games.js:877-885,1090-1113`) para Cloud Sync, Cable Sync manual y renombrado. El gap real era el daemon SD auto-sync (`CABLE-UX-9a`), que usaba un segundo sistema aislado (`.rommgr/cable_sync_backups/<fecha>/`) invisible en esa UI | `web/cable_sync_daemon.py` (`_run_sd_auto_sync`), `rom_manager/backup/save_backup.py` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): daemon migrado a `backup_save()`, mismo patrón que `sync_cable.py`. Verificado contra el sistema de archivos real: `.rommgr/cable_sync_backups/` no existía (el daemon nunca disparó esa rama en la práctica) — nada que migrar. 1430 tests pass (3 ambientales), ruff+format limpios |
+| SAVES-CONFLICT-CTX-1 | Al resolver un conflicto de sync, mostrar contexto además del timestamp (playtime asociado, tamaño). Solo Cloud Sync (Cable Sync no detecta conflictos hoy) | `sync/conflict_resolver.py`, `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `SyncDecision` con tamaños, `_decision_payload()` añade mtime/tamaño/playtime best-effort (match por stem contra `games`) solo para conflictos, UI pinta la línea de contexto bajo cada fila. 4 tests nuevos, 1434 pass, ruff+format limpios |
+| SYNC-CONFLICT-MANUAL-1 | Revisión manual de conflictos de Cloud Sync desde la UI antes de sincronizar — por archivo, elegir PC/Consola/omitir en vez de que `conflict_policy` global decida siempre por todos. No aplica a Cable Sync (sin detección de conflictos hoy) | `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `sync_saves()` acepta `conflict_overrides` (gana sobre `conflict_policy` por archivo, `skip` no toca nada); selector por fila en el plan de dry-run, recogido al pulsar Sincronizar. 3 tests nuevos, 1437 pass, ruff+format limpios |
 
 ---
 
@@ -2837,7 +4067,7 @@ archivo:línea antes de arreglar (regla del proyecto).
 | HERR-FIX-1 | **"Descartar sin soporte" (RA) no hace nada al pulsarlo** — y el criterio pedido por el usuario es más estricto que "sin logros en RA": solo debería descartar un juego si existe una alternativa CON logros RA disponible, nunca todos los juegos sin soporte RA sin más. Relacionado con `discard_no_support`/`no_support_entries` (ver REV43-27 en `archivo.md`, sobre el mismo flujo) | `web/handlers/`, posible `services/ra_duplicates_service.py` | ✅ **dos bugs reales, no uno**: (1) `discardRaNoSupport()` (`web/static/js/tabs/esde.js:391`) integraba el modal de confirmación con `window._confirmCallback`, que `_showConfirm()` (`components/modal.js`) **nunca llama** — el callback real es el 4º argumento de `_showConfirm(title, body, okLabel, onConfirm)`, así que pulsar "Confirmar" no hacía nada (`_confirmOkHandler` quedaba `undefined`), el fetch a `/api/ra-check/discard-no-support` nunca se disparaba. (2) **el criterio ya estaba invertido**: `no_support_entries` (`web/handlers/sync.py:144-152`, dentro de `_do_ra_check`) se construía con `status == "no_support"` (sin alternativa — la única copia del juego) en vez de `status == "no_support_alternative"` (ya hay una copia mejor en la biblioteca) — de haber funcionado el botón, habría borrado justo los juegos que había que conservar. Fix: `sync.py` filtra ahora por `no_support_alternative`; `esde.js` usa `_showConfirm` con el callback correcto (4º argumento) y el botón/conteo pasan de `noSupport` a `alternative` ("Descartar con alternativa RA"). 1 test nuevo (`tests/web/test_ra_discard_no_support.py`, llama `_do_ra_check` con `check_library` mockeado, confirma que un juego sin alternativa nunca aparece en `no_support_entries`). 1039 pass (3 fallos preexistentes no relacionados, Anbernic conectada por USB en esta sesión) |
 | HERR-FIX-2 | **Clic en "Consola Android" en Herramientas no actualiza las rutas a las de la consola automáticamente** — posible regresión o caso no cubierto por el fix ya archivado de `setToolsContext`/`_deviceRoot()` (ver HERR-UX-7/FORMATOS-UX-1/CABLE-UX-10/11 en `archivo.md`) | `web/static/js/tabs/duplicates.js` (`setToolsContext`), `main.js` (`_deviceRoot`) | ✅ regresión real de FORMATOS-UX-1: `_setIfEmpty` (`duplicates.js:9-38`) solo rellena inputs **vacíos** para no pisar una ruta escrita a mano — pero eso también bloqueaba el propio botón de contexto: tras rellenar la ruta de PC, el input ya no está vacío, así que pulsar "Consola Android" nunca la sobreescribía. Fix: cada input lleva `dataset.ctxAuto='1'` cuando el selector lo rellena, y se sobreescribe si está vacío **o** si sigue marcado como auto-rellenado; un listener de `input` solo borra esa marca en eventos `isTrusted` (edición real del usuario, nunca el `dispatchEvent` propio que ya disparaba el código) — así una ruta tecleada a mano se sigue respetando, pero cambiar de contexto sí actualiza lo que el propio selector puso. Import muerto de `_setIfEmpty` eliminado de `duplicates.js` (ya no se usa ahí). No verificado en navegador (extensión Chrome no disponible esta sesión) — revisado por lectura del código y trazado manual del flujo de eventos |
 | HERR-FIX-3 | **"Estructura de biblioteca" no crea la estructura en la Anbernic** — no respeta la convención ya adoptada de carpeta `ROMs/` dentro de la raíz de la consola (ver DEVICE-DUP-1, `archivo.md`/PSX-ORPHAN) | `web/handlers/organize.py:319-395` (`_do_create_library_structure`, no `esde/maintenance.py`) | ✅ `_create_tree()` (línea 330) gana el parámetro `roms_subdir` — vacío para PC (comportamiento sin cambios), `"ROMs"` para el árbol Android: las carpetas de plataforma ahora se crean en `<raíz SD>/ROMs/<plataforma>` en vez de sueltas en la raíz. Decisión del usuario (confirmada, sin evidencia de hardware en contra): `saves/`, `media/`, `configs/`, `bios/`, `inbox/`, `screenshots/` se quedan en la raíz de la SD en ambos casos, no se anidan bajo `ROMs/`. 1 test nuevo (`tests/test_library_structure.py::test_android_platforms_nest_under_roms`, configura un `anbernic_root` de prueba y confirma `ROMs/gba`+`ROMs/psx` sí, `gba` suelto no, `saves`/`bios` en la raíz). 1037 pass. No verificado contra la SD real (no montada esta sesión) |
-| HERR-FIX-4 | **UI: la pestaña "Herramientas" oculta el menú lateral de pestañas en algunos de sus paneles** — bug de layout, no investigado | `web/static/css/app.css` o partials de Herramientas | 🟡 **sin confirmar visualmente (extensión Chrome no disponible esta sesión) — hipótesis más probable documentada, no aplicada a ciegas**. `.sidebar` (`app.css:364-373`) tiene `flex-shrink:0` + `z-index:8005` dentro de `.app-body{display:flex}` — no debería taparse por z-index. El mecanismo más plausible es un desbordamiento horizontal: varias tablas de resultados en Herramientas (`esde.js:1500,1511,1520`, informe de biblioteca) se generan como `<table>` suelto sin ningún contenedor `overflow-x:auto` (a diferencia de Juegos, que sí envuelve su tabla en `#games-list-view{overflow-x:auto}`, `tab-games.html:63`); una ruta o nombre de archivo largo sin cortes fuerza el ancho de la tabla más allá del viewport, lo que puede desplazar/ocultar el sidebar al desbordar `.app-body`. No aplicado ningún cambio — falta reproducir en navegador para confirmar cuál panel exacto y si esta es la causa real antes de tocar CSS |
+| HERR-FIX-4 | **UI: la pestaña "Herramientas" oculta el menú lateral de pestañas en algunos de sus paneles** — bug de layout, no investigado | `web/static/css/app.css` o partials de Herramientas | 🔵 **investigado 2026-09-24, no reproducido — hipótesis original descartada**. La hipótesis previa (tablas sueltas en `esde.js` sin `overflow-x:auto`) no se sostiene: `app.css:496` ya tiene una regla global `td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:320px }` que protege TODAS las tablas de la app (confirmado por `git blame`: la regla es del 2026-03-18, anterior al reporte del bug — no es que algo cambiara después, la hipótesis estaba mal formulada desde el principio). Probado en vivo con la extensión de Chrome contra la biblioteca real: Library Doctor (rutas/nombres reales largos), detección de perfil de dispositivo, Análisis de carpeta (Formatos, 1723 extensiones) — sidebar intacto en los tres. Forzada además una ruta artificialmente larguísima vía DOM en el panel de perfil de dispositivo (el único punto sin protección de tabla que se identificó) — la regla global de `app.css:496` la contuvo igual, sin desbordar. Sin repro tras cubrir los paneles más probables — si el usuario lo ve reaparecer, hace falta el panel exacto + pasos para reabrir esta tarea |
 
 ---
 
@@ -2850,6 +4080,7 @@ Origen: feedback del usuario tras probar el buscador — "no puedo filtrar por p
 | JUEGOS-FIX-2 | **El desplegable "Plataforma" de Juegos solo se rellena con las plataformas presentes en la página actual de resultados** (`loadGames()`, `games.js:452-460` aprox., máx. 100 filas) — con el orden por defecto (`platform, canonical_title, original_filename`) y una biblioteca de 28k+ juegos con muchos sin plataforma (`NULL` ordena primero en SQLite), **la primera página cae entera en "Unknown"** — verificado en vivo: `/api/games?limit=100` real devuelve una única plataforma distinta (`Unknown`) en sus 100 filas, así que el filtro no ofrecía ninguna otra opción. `GET /api/games/filter-options` ya devuelve las 43 plataformas reales distintas de la BD (usado para género/año, `games.py` repositorio, consulta `SELECT DISTINCT platform...`) pero `loadFilterOptions()` (`games.js:129-145`) nunca lo usaba para rellenar `games-platform` | `web/static/js/tabs/games.js:129-145` (`loadFilterOptions`) | ✅ `loadFilterOptions()` rellena también `games-platform` desde `r.platforms` (mismo endpoint ya usado para género/año, sin llamada nueva) y marca `platformsLoaded=true` para que el muestreo antiguo de `loadGames()` no lo pise; ese muestreo queda como fallback solo si `filter-options` fallara. Verificado contra la biblioteca real: `filter-options` devuelve las 43 plataformas reales (Amiga, Arcade, Atari 2600...). No verificado en navegador (extensión Chrome no disponible esta sesión) |
 
 | JUEGOS-FIX-3 | **"El nombre del juego no aparece en la tabla del frontend"** (feedback usuario 2026-08-29, tras confirmar que no era caché de navegador). Causa raíz real: `applyColVisibility()` (`games.js`, columnas opcionales Región/Identificación/Tamaño/SHA1 del selector ⚙) ocultaba celdas por **índice fijo** (`tr.cells[3..6]`, comentario "0=platform,1=title,2=filename..." — ya desactualizado antes de esta sesión, no contaba ni con la ★ favorito ni con la miniatura). Al añadir hoy la columna 📦 Anbernic (`ANBERNIC-PICK-7`), cada índice se desplazó una posición más: `COL.match=4` pasó de apuntar al badge de Identificación a apuntar directamente a la celda de **Título canónico** — con la preferencia de columnas del usuario guardada en `localStorage` (p.ej. "Identificación" desmarcado en algún momento), `applyColVisibility()` ocultaba el título en cada render sin que nada más pareciera roto | `web/static/js/tabs/games.js` (`applyColVisibility`, fila de la tabla) | ✅ cada `<td>` opcional lleva ahora `data-col="region\|match\|size\|sha1"` fijo en el propio template de la fila; `applyColVisibility()` selecciona por ese atributo (`tr.querySelector('[data-col=...]')`) en vez de por índice — inmune a que se añadan o quiten columnas en el futuro. De paso confirmado con los valores por defecto (`size:false, sha1:false`) que el bug de índice YA escondía "Archivo original"/"Estado" en vez de "Tamaño"/"SHA1" para todo el mundo, no solo para quien tocara el selector ⚙ — corregido igual. 1037 pass |
+| JUEGOS-FIX-4 | **El nombre no aparece porque la página 1 (orden por defecto) cae entera en juegos sin `canonical_title`** (feedback usuario 2026-09-26, verificado en vivo contra `library_pc.db` real vía navegador). Causa raíz distinta de `JUEGOS-FIX-3` (ese ya está resuelto): el orden por defecto "Título" (`database/repositories/games.py:597,605,607` — `ORDER BY canonical_title, original_filename` / fallback `platform, canonical_title, original_filename`) no usa `COALESCE`, y SQLite ordena `NULL` **primero** en `ASC` — con 3.994 ROMs sin match de 36.271 (`canonical_title IS NULL`), la tabla/galería muestra "—" en Título canónico durante varias páginas antes de llegar al primer juego identificado. Se agrava con un hallazgo de higiene de datos aparte: 7 de esas filas (`$I1P4IQH.iso`, `$I4LFZWH.iso`, `$I5BX7IZ.iso`, `$I8W3737.iso`, `$IDIVEYU.iso`, `$IGMP334.bin`, `$IU7H240.cue`, `platform=NULL`) son restos de la Papelera de Windows (`source_path` bajo `E:\$RECYCLE.BIN\S-1-5-21-...\`), probablemente de un scan antiguo de `E:\` completo hecho antes de fijar `library_root` a `E:\Carpetas anbernic` — el guard `_EXCLUDED_DIR_NAMES` (`scanner/rom_scanner.py:27-28`, ya incluye `"$recycle.bin"`) evita que un scan futuro los vuelva a indexar, pero un scan con `source_path=library_root` nunca visita ni poda filas fuera de esa raíz, así que las 7 quedan huérfanas para siempre | `database/repositories/games.py:592-607` (todas las claves `_order`, con y sin `need_meta`) | 🟡 **(1) hecho 2026-09-28** — `COALESCE(canonical_title, original_filename)` aplicado a las 5 claves de `_order` (con y sin `need_meta`), 2 tests nuevos (`tests/test_games_order_coalesce.py`, rojo→verde confirmado), suite `games`/`repository` completa en verde, ruff+format limpios. **(2) sin hacer** — esta sesión fue en la máquina "Ruben" (`F:\Juegos Retro`); las 7 filas huérfanas viven en `library_pc.db` de la máquina "rammu" (`E:\$RECYCLE.BIN\...`, confirmado 0 filas equivalentes en `.rommgr/library_pc.db` de esta máquina) — pendiente de un `DELETE ... WHERE source_path LIKE '%$RECYCLE.BIN%'` ejecutado en rammu |
 
 ### GAMES-ALPHA-FILTER — Filtro por letra inicial en la pestaña Juegos
 
@@ -3018,8 +4249,8 @@ que ya se usa en saves.
 reutilización de `sync_sources`, verificado contra el código real): ver
 `Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md`.
 
-**Cola pendiente de DEVPROFILE-8b/9** (archivos sueltos, decisión de diseño
-bloqueante): ver `.claude/roadmaps/19-device-profile-loose-data.md`.
+**DEVPROFILE-8b/9** (archivos sueltos): resuelto — ver
+`.claude/roadmaps/archivo/19-device-profile-loose-data.md`.
 
 **Diseño de DEVPROFILE-5/6** (botones de restauración PC/Android,
 verificado contra el código real — incluye un hueco real encontrado: nadie
@@ -3034,10 +4265,10 @@ sube el manifiesto de perfil al remoto todavía): ver
 | DEVPROFILE-3 | Tokenizador de rutas: `{ROMS}` / `{SAVES}` / `{SYSTEM}` al guardar, sustitución por las del dispositivo destino al restaurar | S | ✅ 2026-09-01 — `services/path_tokenizer.py` (`tokenize`/`resolve`, puras). 6 tests. Ver `Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md` §4 |
 | DEVPROFILE-4 | Manifiesto Tier A + backup del perfil al remoto — **alcance recortado tras DEVPROFILE-0**: `config/<core>/*.cfg`, `retroarch-core-options.cfg`, `config/remaps/`, `autoconfig/`, shaders, `.opt` en bulk, BIOS/`system/`; `retroarch.cfg` solo en el lado PC. Standalones de PC sin cambio: `duckstation/settings.ini`, `PCSX2/inis/`, `Dolphin/Config/`, `es_systems.cfg` | M | ✅ 2026-09-01 — backend (`services/device_profile.py`, 5 tests) + pantalla de Settings "Perfil del dispositivo" (`GET /api/device-profile-detect`, reusa `POST /api/config` con `sync.sources` para guardar). Rama `feature/devprofile-4a-settings-ui`. Ver Roadmap §5 |
 | DEVPROFILE-5 | Botón PC — `rommgr restore`: `download-tools.ps1` → `config.toml` desde el perfil (sustituye media `wizard.py`) → Tier A con rutas reescritas → regenerar Tier B → `bios_checker` y reportar lo que falta | M | ✅ 2026-09-01, ver `Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md` — 5a (subir manifiesto) + 5b-5f (comando `rommgr restore` completo) en la misma rama `feature/devprofile-5a-export-manifest`. `restore` (nuevo subparser en `cli.py`) descarga `device-profile.json` (`RcloneTransport.download`, fallback-remote), pide `library_root`/ruta de RetroArch (reusa `_ask`/`_ask_yn`/`_detect_tool` de `wizard.py`), resuelve los tokens con `import_profile_sources()` (ya existía, sin caller hasta ahora) y escribe `config.toml` con `write_config_toml()` — mismo aviso de sobreescritura que el wizard. Crea cada `local_dir` con `mkdir(parents=True)` y llama a `sync_saves()` por fuente (dry-run por defecto, `--apply` para bajar de verdad — mismo patrón que `rommgr sync`). Si hay RetroArch configurado y ES-DE está instalado, regenera `custom_systems/es_systems.xml` con `generate_es_systems_xml()`. Termina con `check_bios()` sobre `library_root`/`library_root/bios`/`retroarch/system` y lista las BIOS requeridas que faltan. Test nuevo `tests/test_cli_restore.py` (manifiesto+config.toml de punta a punta con `RcloneTransport._run` fake, sin tocar rclone real). Suite completa 1127 en verde |
-| DEVPROFILE-6 | Botón Android — "Restaurar este dispositivo" tras el login de Dropbox: restaura core options/remaps/BIOS (no el cfg global, ver DEVPROFILE-0); el sync periódico ya arranca solo (ANDROID-SYNC-12). El Core Downloader sigue siendo manual | S | ⬜ alcance reducido por DEVPROFILE-0 |
+| DEVPROFILE-6 | Botón Android — "Restaurar este dispositivo" tras el login de Dropbox: restaura core options/remaps/BIOS (no el cfg global, ver DEVPROFILE-0); el sync periódico ya arranca solo (ANDROID-SYNC-12). El Core Downloader sigue siendo manual | S | 🟡 **implementado 2026-09-28, alcance recortado por segunda vez tras nueva investigación**: el manifiesto `device-profile.json` (Tier A, `services/device_profile.py`) solo lleva `autoconfig/`+`shaders/`+`system/` (BIOS) + 2 playlists — **"core options/remaps" NO viaja en él** (van por `sync.ra_config_dir`/`ra_config_remote`, remoto separado, sin configurar hoy en el PC de esta máquina). Decisión del usuario: implementar solo lo que ya hay en el manifiesto, dejar core options/remaps documentado como bloqueado en vez de rediseñar el lado PC en la misma sesión. Nuevo `sync/DeviceProfileRestore.kt` (Android): descarga `device-profile.json` desde `remoteBaseFrom(savesRemote)` (mismo criterio que `web/handlers/system.py:543`), aplica las carpetas conocidas vía `SyncEngine.sync()` reutilizado (local vacío en un dispositivo nuevo → todo `DOWNLOAD`, sin riesgo) y los 2 archivos sueltos vía `DropboxTransport.download()`; entradas sin destino Android conocido (catálogos, `library_pc.db`/`library_android.db`) van a `skipped`, no son error. Botón "Restaurar este dispositivo" en `SettingsScreen.kt` (sección "Perfil del dispositivo", visible con Dropbox conectado) + wiring en `MainActivity.kt`. 6 tests nuevos (`DeviceProfileRestoreTest.kt`, funciones puras `remoteBaseFrom`/`parseManifest`) — requirió añadir `testImplementation("org.json:json:20240303")` a `build.gradle.kts` (el stub de `org.json` en unit tests JVM lanza en cada llamada sin una implementación real; `PcApiClient.kt` ya usaba `org.json` en producción sin que ningún test lo ejercitara). `./gradlew testDebugUnitTest`/`assembleDebug` reales en verde (toolchain portátil `C:\Users\Ruben\android-build-tools\`). **No verificado en hardware real** (sin RG556 conectada esta sesión) — pendiente probar el botón contra un `device-profile.json` real subido por `DEVPROFILE-5a`. **Pendiente aparte**: si se quiere cerrar "core options/remaps" de verdad, hace falta (a) configurar `ra_config_dir`/`ra_config_remote` en el PC y (b) decidir si viajan en el mismo manifiesto o por un mecanismo propio en Android — no decidido |
 | DEVPROFILE-7 | Detección de deriva: comparar el `retroarch.cfg` vivo contra el del perfil y avisar si cambian los directorios de save ("tus partidas nuevas no se están sincronizando"). Sale gratis una vez existe DEVPROFILE-4 | S | ✅ 2026-09-01 — `_handle_retroarch_check()` compara `savefile_directory`/`savestate_directory` contra `default_savefile_layout(library_root)` (convenio D2, ya existente desde DEVPROFILE-2) y añade `savefile_drift`+issue accionable si no coincide. Sin endpoint ni UI nuevos — reusa `/api/retroarch-check` y el panel de issues ya existente. **Detectó deriva real en este PC**: `savefile_directory` apuntaba a `E:\ROMs\saves` (ruta obsoleta) en vez de `E:\Carpetas anbernic\saves` — pulsar "Aplicar layout de saves" en Settings lo corrige. 2 tests (`tests/test_retroarch_check_drift.py`) |
-| DEVPROFILE-8 | Restaurar lo que evita retrabajo caro en un PC nuevo: BD SQLite (evita rehashear la biblioteca entera, horas), caché de ScreenScraper (cuota diaria de API) y DATs No-Intro/Redump | S | 🟡 parcial 2026-09-06 — **hallazgo real**: no existe una "caché de ScreenScraper" separada — los metadatos scrapeados viven como columnas en la misma `games` de `library_pc.db` (mismo archivo que evita el rehash), así que los ítems 1 y 2 son el mismo archivo. Los DATs (`.rommgr/catalogs/{nointro,redump,arcade}`) sí encajan en el modelo de `SyncSource` de carpeta completa ya existente (igual que Tier A) — implementado: `detect_data_sources()` (`services/device_profile.py`), token nuevo `{PROJECT_ROOT}` en `path_tokenizer.py` (portable a un `project_root` distinto en el PC nuevo, a diferencia de un `local_dir` absoluto fijo), wireado en `_handle_device_profile_detect()`/`rommgr restore`. **DEVPROFILE-8b pendiente**: `library_pc.db`/`library_android.db` son archivos sueltos, no carpetas — `SyncSource`/`sync_saves()` solo sincroniza directorios (ver nota en `_TIER_A_SUBDIRS`, `device_profile.py:29-31`); decisión de diseño pendiente (single-file source kind nuevo vs. apuntar `SyncSource` a `.rommgr` con filtro de extensión `.db` reusando `sync_saves`, que trae lógica de conflictos pensada para saves, no para un blob de BD) |
-| DEVPROFILE-9 | Datos de usuario que deberían seguirte entre dispositivos: `content_history.lpl` (recientes), `content_favorites.lpl`, `.lrtl` (playtime, ver MEJ-1), credenciales RA (`cheevos_*`, en almacenamiento cifrado) | S | ⬜ mismo hueco de fondo que DEVPROFILE-8b: son archivos sueltos (no carpetas), bloqueado por la misma decisión de diseño (single-file source kind) |
+| DEVPROFILE-8 | Restaurar lo que evita retrabajo caro en un PC nuevo: BD SQLite (evita rehashear la biblioteca entera, horas), caché de ScreenScraper (cuota diaria de API) y DATs No-Intro/Redump | S | ✅ 2026-09-24 — **hallazgo real** (2026-09-06): no existe una "caché de ScreenScraper" separada, los metadatos scrapeados viven como columnas en `library_pc.db` (mismo archivo que evita el rehash). DATs vía `detect_data_sources()` (carpeta completa, ya existente); **DEVPROFILE-8b** (`library_pc.db`/`library_android.db`, archivos sueltos) resuelto con `SyncSource.single_file` + `sync_single_file()` (`sync/save_syncer.py`) — decisión de diseño: single-file source kind nuevo. Ver `.claude/roadmaps/archivo/19-device-profile-loose-data.md` |
+| DEVPROFILE-9 | Datos de usuario que deberían seguirte entre dispositivos: `content_history.lpl` (recientes), `content_favorites.lpl`, `.lrtl` (playtime, ver MEJ-1), credenciales RA (`cheevos_*`, en almacenamiento cifrado) | S | ✅ 2026-09-24 — `content_history.lpl`/`content_favorites.lpl` vía `detect_tier_a_sources()` + `single_file=True` (mismo mecanismo que DEVPROFILE-8b). `.lrtl` ya estaba cubierto por JUEGOS-UX-7 (`build_cloud_sync_sources()`, carpeta completa) — no duplicado. Credenciales RA (`cheevos_*`) siguen fuera de alcance: accesibilidad sin root no confirmada (mismo límite que DEVPROFILE-0) |
 
 **Fuera de alcance (no automatizable, decidido 2026-08-25):** instalar
 RetroArch o descargar cores en Android (viven en `/data/data/com.retroarch/`,
@@ -3080,9 +4311,58 @@ histórica.
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: MEJORAS MEJ-1..6, AUD-1..6, TEST-CLEAN-1..3 + TEST-GAP-1, ONB-1..9, REV43-1..53 (calidad de código, onboarding, tests — completas, 2026-07-02 a 2026-07-15).
 
+### JOBS-SQLITE-LOCK-1 — Dos jobs de escritura pesada en paralelo (`scrape` + `apply`/`inbox`) chocan por `database is locked` (hallazgo 2026-09-28, máquina "Ruben")
+
+Origen: durante `JUNK-SCAN-RUBEN-1`, el scrape de `SAGE-1` (muchas
+escrituras pequeñas, una por juego) y `zip-route-apply`/Inbox (escrituras
+masivas: 3.301 archivos organizados) corrieron **a la vez** contra el mismo
+`library_pc.db` — el scrape murió con `{"error": "database is locked"}` a
+mitad de cola. No hubo pérdida de datos (lo ya escrito quedó guardado,
+cobertura real subió de 27,78% a 38,36% antes de morir) y el job se
+relanzó sin problema tras terminar el job pesado — pero es un fallo
+silencioso: ningún otro job avisa "hay otro job pesado corriendo, esto
+puede fallar", el usuario solo ve `scrape_running: false` sin explicación
+si no revisa `scrape_result.error` a mano.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JOBS-SQLITE-LOCK-1 | Ningún job de escritura (`scrape`, `apply`, `inbox`, `zip-route-apply`) comprueba si ya hay otro corriendo antes de empezar — `job_manager` sí lleva un flag `_running` por nombre de job, pero no hay coordinación **entre** jobs distintos. Dos caminos posibles, sin decidir: (a) que `_do_scrape`/otros escritores reintenten con backoff ante `sqlite3.OperationalError: database is locked` en vez de abortar (SQLite ya soporta `PRAGMA busy_timeout`, comprobar si `LibraryRepository.connect()` ya lo fija); (b) un guard simple "no lances un job de escritura pesada si `apply`/`inbox`/`scrape` ya están corriendo", igual que ya existe para el mismo job (`job_manager.cancel_event`) pero cruzado entre nombres | `web/jobs/manager.py`, `database/repository.py` (`connect()`), `web/handlers/scraper.py` (`_do_scrape`) | ✅ opción (a) implementada 2026-09-28 — confirmado que `LibraryRepository.connect()`/`_open_conn()` ya fijaba `PRAGMA busy_timeout=30000` + `sqlite3.connect(..., timeout=30)`, pero una ráfaga de escrituras de otro job (`zip-route-apply`, cientos de transacciones cortas seguidas) puede agotar igualmente esos 30s. `_commit_with_retry()` nuevo en `scraper.py`: reintenta solo `sqlite3.OperationalError` con "locked" en el mensaje (5 intentos, 2s de espera), aplicado en los 3 `commit()` de la ruta de escritura. 3 tests con conexión falsa (sin BD real). Opción (b) (guard cruzado entre jobs) descartada por ahora — el retry ya resuelve el síntoma real sin añadir coordinación nueva entre nombres de job |
+
+---
+
+### JUNK-SCAN-EXCLUDE-TRASH-1 — El junk-scan re-escanea su propia papelera `_descartados/` como basura activa (hallazgo 2026-09-28, máquina "Ruben", durante `JUNK-SCAN-RUBEN-1`)
+
+`utils/trash.py::_iter_trash_files()` (línea 64-66) se protege explícitamente
+contra re-procesar contenido ya descartado — en cuanto el `os.walk` entra en
+una carpeta `_descartados`, corta `dirnames[:] = []` con el comentario
+`# no anidar`. Esa misma protección **nunca se aplicó** al walker del
+junk-scan (`web/builders/folders.py:321`, `_excluded_dirs = {"saves", "bios",
+"android", "system volume information"}` — falta `_descartados`).
+
+**Consecuencia real, verificada contra la biblioteca real**: 94 de 120
+archivos del bucket "review" de `JUNK-SCAN-RUBEN-1` ya estaban dentro de
+alguna `_descartados/` — re-contados como basura activa en cada scan, sin
+poder resolverse nunca (`zip-route-apply` no toca contenido ya descartado,
+así que el bucket parece "atascado" sin estarlo de verdad). Peor: repetir
+`junk-delete`/extracciones sobre contenido ya en `_descartados` crea
+`_descartados/_descartados/` anidado — **111 carpetas así confirmadas hoy**
+en la biblioteca real — y esos archivos quedan **invisibles para
+`purge_trash()`** (el mismo corte de `os.walk` que protege contra
+re-listarlos también impide verlos un nivel más adentro), huérfanos para
+siempre sin limpiarse solos. Sin pérdida de datos, pero desperdicia espacio
+en disco y falsea cualquier medición de junk-scan futura.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| JUNK-SCAN-EXCLUDE-TRASH-1a | Añadir `_descartados` a `_excluded_dirs` en `_build_junk_scan()` — mismo patrón de una línea que `saves`/`bios`/`android` | `web/builders/folders.py:321` | ✅ arreglado 2026-09-28 — referencia `utils/trash.TRASH_DIR_NAME` en vez de hardcodear el string; test nuevo `test_junk_scan_skips_descartados_trees`. Suite completa 1457/1457, ruff+format limpios |
+| JUNK-SCAN-EXCLUDE-TRASH-1b | Limpiar las 111 carpetas `_descartados/_descartados/` ya existentes — mover su contenido un nivel arriba (al `_descartados/` padre) antes de que `purge_trash()` pueda verlas, o extender `purge_trash()`/`_iter_trash_files()` para que si encuentra un `_descartados` anidado lo trate como parte del mismo padre en vez de ignorarlo | `utils/trash.py` o script de sesión (dato, no código) | ✅ hecho 2026-09-28 — script de sesión (no productizado): recorridas las 111 carpetas anidadas (más profundas primero, por si había más de un nivel), movido cada archivo al `_descartados/` padre con el mismo criterio de colisión que `discard_to_trash()` (sufijo numérico si el destino ya existe). **3.661 archivos recuperados, 0 colisiones, 111 carpetas anidadas eliminadas** (verificado: `find` real confirma 0 `_descartados/_descartados` restantes). Ahora sí visibles para `purge_trash()` |
+
+---
+
 ### DOCS-AUDIT-1 — Seguimiento de la auditoría de documentación (2026-09-20)
 
-Plan en `.claude/roadmaps/24-docs-audit-followups.md`. Surgido de una
+Plan en `.claude/roadmaps/archivo/24-docs-audit-followups.md` (roadmap
+archivado — ambas tareas cerradas). Surgido de una
 auditoría completa de la documentación del proyecto: se corrigieron ya los
 hallazgos "rompe confianza"/"desactualizado" (roadmap 23, `docs/ci-cd.md`,
 `Roadmap-212-Ideas-Futuras.md`, `Validacion-STORAGE-MGR.md`) y se archivaron
@@ -3092,8 +4372,8 @@ de solo corregir un dato:
 
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
-| DOCS-AUDIT-1a | Decidir convención de archivo para informes puntuales sueltos en `Tareas/` (`zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) — ¿carpeta `Tareas/archivo/` nueva, o nota de cierre en cabecera igual que `Validacion-STORAGE-MGR.md`? Aplicar retroactivamente y documentar en regla 5 de `.claude/roadmaps/INDEX.md` | XS | 🔴 pendiente, decisión del usuario |
-| DOCS-AUDIT-1b | Actualizar 8 comentarios de código que citan la ruta vieja de `Roadmap-DEVPROFILE-1-4.md`/`-5-6.md` (movidos a `Tareas/diario/archivo/*-completado.md` el 2026-09-20) — `esde/systems_generator.py:28`, `detection/platform_detector.py:70`, `detection/platforms.toml:242`, `web/handlers/system.py:493,583`, `services/device_profile.py:137`, `services/path_tokenizer.py:8`, `services/retroarch_cfg_writer.py:5` | XS | 🔴 pendiente, cambio mecánico sin riesgo |
+| DOCS-AUDIT-1a | Decidir convención de archivo para informes puntuales sueltos en `Tareas/` (`zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) — ¿carpeta `Tareas/archivo/` nueva, o nota de cierre en cabecera igual que `Validacion-STORAGE-MGR.md`? Aplicar retroactivamente y documentar en regla 5 de `.claude/roadmaps/INDEX.md` | XS | ✅ hecho (2026-09-28) — decisión del usuario: nota de cierre en cabecera, sin carpeta nueva. Aplicada a los 2 archivos existentes (`zip-route-identificacion.md`, `psx-cue-rotos-2026-08-30.md`) y documentada en la regla 5 de `.claude/roadmaps/INDEX.md` |
+| DOCS-AUDIT-1b | Actualizar 8 comentarios de código que citan la ruta vieja de `Roadmap-DEVPROFILE-1-4.md`/`-5-6.md` (movidos a `Tareas/diario/archivo/*-completado.md` el 2026-09-20) — `esde/systems_generator.py:28`, `detection/platform_detector.py:70`, `detection/platforms.toml:242`, `web/handlers/system.py:493,583`, `services/device_profile.py:137`, `services/path_tokenizer.py:8`, `services/retroarch_cfg_writer.py:5` | XS | ✅ hecho (2026-09-24) — 8/8 comentarios apuntan ahora a `Tareas/diario/archivo/Roadmap-DEVPROFILE-{1-4,5-6}-completado.md`; 1451 tests + ruff limpios |
 
 ### SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless (hallazgo usuario 2026-09-19, PC2)
 
@@ -3340,6 +4620,7 @@ seguiría sin cargar por esta vía.
 | ARCADE-RENAME-BUG-1d | **✅ Ya resuelto de rebote 2026-09-04**: el fix de `CATALOG-MATCH-BUG-1` (desambiguación por carpeta real para extensión ambigua, mergeado hoy en PR #289) cubre exactamente este caso. Verificado contra la BD real: `E:\Carpetas anbernic\arcade\Outzone (Europe).zip` y `H:\ROMs\arcade\Silkworm (Europe).zip` ya resuelven `platform='Arcade'` (antes `'Amiga'`/`'Atari ST'`). Filas viejas en `inbox/Unknown` (staging, no la carpeta real) siguen con el valor stale porque son filas de BD sin re-escanear, no bug de código | `catalog/matcher.py:298-314` | ✅ resuelto por `CATALOG-MATCH-BUG-1` (PR #289), sin código nuevo necesario |
 | ARCADE-RENAME-BUG-1e | Separar `arcade`/`cps1/2/3`/`neogeo` en `emulator_options.json` de iiSU por core real (FBNeo vs MAME 2003-Plus) en vez de forzar FBNeo para todo — solo tiene sentido después de 1b/1c, para los 44 sets confirmados solo-MAME | Config del dispositivo (iiSU) | 🔴 pendiente, depende de 1b/1c |
 | ARCADE-RENAME-BUG-1f | **✅ Re-medido y aplicado 2026-09-20**, tras `MATCH-ARCADE-DAT-1` (catálogo FBNeo real 4.858→10.212 entradas). Las unidades originales `E:`/`H:` de `-1c` ya no existen tal cual en esta máquina; la Anbernic (RG556006101273) sigue conectada por **ADB** (no como unidad de Windows) — diagnóstico corrido en real contra `/storage/521D-04EA/ROMs/arcade/` (incluye subcarpetas `mame/` y `fbneo/`, 10.021 ZIPs) vía script `adb shell` (`unzip -v` por archivo, solo lectura, sin pull) + mismo criterio de intersección de CRCs que `-1c`. Resultado: **7.924 ya con nombre corto** (79%), **1.792 sin ningún match** (a investigar aparte, algunos con pinta de sub-placas mahjong/BIOS por prefijo `mag_`/`mf_`), **223 parciales** (faltan chips, no renombrables solos), **70 candidatos únicos y completos**, **12 ambiguos** (CRCs compartidos entre variantes clon/bootleg — mismo patrón que `-1c`). **Aplicado con confirmación del usuario**: los 70 renombrados vía `adb shell mv` (script generado con verificación de colisión `[ -e destino ]` antes de mover) — **67 renombrados**, **3 con colisión real dejados intactos** (`emeraldaja.zip`, `TwinBee (Japan)...zip`, `Batman (Europe)...zip` — el nombre corto destino ya existía, contenido no verificado, requieren mirada caso a caso). **Nota histórica**: el hallazgo original de `-1c` citaba FBNeo con "8.136 machines" en 2026-09-04 — contradice el catálogo roto (0 entradas) encontrado al inicio de la sesión de hoy; el `.dat` bueno debió sustituirse por el formato ClrMamePro-texto-plano en algún punto entre ambas fechas, sin detectarse por falta de un chequeo de cuenta de entradas. **Pendiente**: los 1.792 sin match, 223 parciales y 12 ambiguos — mismo criterio que `-1c`, cada bucket necesita trato distinto | `.claude/roadmaps` n/a — script de sesión (no productizado), mismas funciones `catalog/mame_loader.py` (`load_arcade_crc_index`, `load_arcade_manifest`) | ✅ re-medido con catálogo arreglado; 67/10.021 renombrados en el dispositivo real; resto documentado por bucket |
+| ARCADE-RENAME-BUG-1g | **Verificado en vivo 2026-09-27, en la propia UI de Daijishō (RG556 conectada): el nombrado corto está bien — lo que falla es la metadata, no el renamer.** Navegado el sistema "Arcade (FinalBurn Neo)" (779 elementos listados) y buscado "metal slug" en el buscador global: todas las entradas FBNEO muestran el `shortName` crudo (`sf2amf5`, `sf2ceuab3`…) con icono placeholder, sin carátula ni título — cero metadata scrapeada. `Arcade (MAME)` mixto: algunas entradas sí tienen título real (`'88 Games`, `'99: The Last War`) pero otras no (`mslug`, `metalb` aparecen igual de crudas que en FBNEO). **Conclusión: no hace falta afinar `rename_rom_with_saves()`/el matcher** — el fix de causa raíz de `-1b` (`title=stem`) ya está en producción y `-1f` confirma ~79-80% de los ZIPs con nombre corto correcto (lo que MAME/FBNeo necesitan para cargar). Lo que se ve mal en pantalla es que **Daijishō no tiene scraper propio de arcade con cobertura completa** — es un hueco de metadata/carátulas, no de nombrado, y el scraper es pilar secundario del proyecto (`vision_core.md`). Sin cambios de código; documentado para no confundir "se ve feo en Daijishō" con "el renamer falla" en sesiones futuras | Dispositivo real (Daijishō UI, búsqueda global) | ✅ verificado — sin fix necesario en el renamer; el hueco real (scraping arcade) queda fuera de alcance salvo que el usuario lo priorice |
 
 ---
 
@@ -3426,6 +4707,8 @@ del 08-25 copió bien la mayoría, pero no todos los juegos:
 | GBA-SAVE-PATH-1a | **Hecho 2026-08-31**: backup del save de prueba descartado de FireRed en `.rommgr/backup_gba_save_restore_2026-08-31/` (con manifiesto), luego copiado en el dispositivo (`adb shell cp`, mismo filesystem) el save real de `saves/VBA Next/` → `saves/gba/` para **Pokémon Rojo Fuego/FireRed** (sobrescrito) y **Metroid - Zero Mission [E]** (no existía, sin sobrescritura). Verificado con `md5sum` en el propio dispositivo tras la copia: coincide exacto con el origen en ambos casos | Dispositivo (RG556006101273) + `.rommgr/backup_gba_save_restore_2026-08-31/` | ✅ hecho y verificado 2026-08-31 |
 | GBA-SAVE-PATH-1b | **Hecho 2026-08-31 — auditoría completa, no solo los 4 juegos nombrados.** El usuario avisó que "todos los juegos deberían tener partidas más antiguas" — comparado por `md5sum` **el listado entero** de `RetroArch/saves/VBA Next/` (50 archivos) contra `RetroArch/saves/gba/` (74 antes de arreglar): 39 ya coincidían byte a byte, 1 (Pokémon Pinball Japan Rev 1) era continuación real (0,09% de diferencia, sin tocar), y **10 juegos no tenían ningún archivo en `saves/gba/`** (Castlevania - Harmony of Dissonance ×2 nombres, Megaman Zero 1, Pokémon Esmeralda/Rojo Fuego/Verde Hoja ×2 nombres cada uno, Pokémon Pinball ×2 nombres) — mismo hueco que Metroid. Copiados los 10 desde `VBA Next/` a `gba/` (script generado y ejecutado vía `adb shell sh`, sin sobrescribir nada — ninguno existía ya en destino). Verificado con `md5sum` tras la copia: **las 50 partidas de `VBA Next/` están ahora también en `saves/gba/`, 0 huecos, 0 discrepancias**. Nota informativa sin acción: la carpeta `saves/mGBA/` tiene 2 copias sueltas de mediados de 2025 (Metroid Zero Mission, Pokémon Rojo Fuego) de un experimento con ese core, más antiguas que las restauradas — no se tocaron | Dispositivo (RG556006101273), scripts en `.rommgr/backup_gba_save_restore_2026-08-31/` | ✅ hecho y verificado 2026-08-31 |
 | GBA-SAVE-PATH-1c | Corregir `EMULATOR_SAVE_PATHS_DEFAULT["com.explusalpha.GbaEmu"]` (`config.py:107-113`) — la ruta real en esta Anbernic es "junto a las ROMs" (`ROMs/gba/`), no `Android/data/.../EmuEx/GBA/saves` (ese árbol no existe) — mismo patrón que `SAVES-FRAGMENT-8`, revisar si aplica también a GBC/NES/MD.emu (misma familia EmuEx) | `config.py` | ✅ confirmado y corregido 2026-09-06 en hardware real (RG556006101273, ADB ya autorizado tras copiar `AdbWinApi.dll`/`AdbWinUsbApi.dll`) — `pm list packages` confirma las 4 apps instaladas, pero `files/` está completamente vacío en las 4 (nunca han escrito ni un `EmuEx/`), a diferencia de `Snes9xPlus` que sí tiene datos reales. Se extiende el hallazgo a las 4 (no solo GBA): `GbaEmu`/`GbcEmu`/`NesEmu`/`MdEmu` pasan a `adb_required: False` (mismo tratamiento que RetroArch/PPSSPP) — sus saves reales viven junto a las ROMs (`SAVES-FRAGMENT-8`), ya cubiertos por el Cable Sync de carpeta normal; el pull ADB especial por-paquete nunca sincronizó nada real para estos 4. 1 test nuevo (`tests/test_config.py::test_get_adb_sync_sources_excludes_emuex_families_with_no_real_path`) |
+| SD-ORPHAN-FOLDERS-1 | **Verificado 2026-09-27, sin acción necesaria — hallazgo del 2026-08-25 (`NGC` vs `gamecube` + 8 carpetas huérfanas en la raíz de la SD) ya no existe.** `find` completo sobre `/storage/521D-04EA/` (raíz, `maxdepth 1`) y búsqueda case-insensitive de `NGC`/`gamecube` en todo el volumen: ninguna de las 9 carpetas (`NGC`, `Game Boy`, `Game Boy Color`, `Game Boy Advance`, `Nintendo DS`, `Atari 2600`, `Master System`, `Famicom Disk System`, `Game Gear`) existe ya ahí — solo queda `ROMs/gamecube/` (21 archivos) en su sitio canónico. Se resolvió de rebote en algún punto entre el 2026-08-25 y hoy (probablemente la reorganización de `E:\RetroVault\`, commit `NATIVE-SAVE-SYNC-1`), sin marcarse en su momento — mismo patrón de checklist desactualizado que ya se corrigió hoy en `docs/emulador-canonico-rg556.md` §7. Sin archivos movidos, sin backup necesario (no había nada que tocar) | `/storage/521D-04EA/` (raíz), `E:\RetroVault\ROMS\gamecube\` | ✅ verificado, checklist puesto al día |
+| GBA-SAVE-PATH-1d | **Core VBA Next jubilado en el dispositivo, 2026-09-27** — petición directa del usuario ("los juegos de gba en vba next se pueden jubilar"). Como `GBA-SAVE-PATH-1b` ya había confirmado 2026-08-31 que las 50 partidas de `saves/VBA Next/` están replicadas byte a byte en `saves/gba/` (0 huecos, 0 discrepancias), no hacía falta revisión de progreso — **backup completo primero** (`adb pull` de los 50 `.srm`, 6,96 MB, a `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\vba_next_saves\`), luego movidos (no borrados) a `RetroArch/saves/_jubilado_vba_next_20260927/` en el propio dispositivo — reversible, nada se pierde, la carpeta `VBA Next/` activa queda vacía y se elimina. Nota: el pedido original hablaba de "5 juegos" (`SAVES-FRAGMENT-1`) pero la carpeta real tenía 50 — sin problema porque `-1b` ya había verificado los 50, no solo los 5 | Dispositivo (RG556006101273), `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\vba_next_saves\` | ✅ jubilado y respaldado 2026-09-27 |
 | AETHERSX2-SAVE-PATH-1 | Petición del usuario 2026-09-22, sesión de Día68 ("arreglar las rutas para PSX y cualquier emulador que no funcione") — mismo patrón que `GBA-SAVE-PATH-1c`: `EMULATOR_SAVE_PATHS_DEFAULT["xyz.aethersx2.android"]` apuntaba a `Android/data/xyz.aethersx2.android/files/{memcards,sstates}` (carpeta privada, scoped storage — genera los mismos 18 errores "sin permiso de lectura" en cada auto-sync, confirmado en el log de sync desde al menos 2026-09-21). Verificado que existe una copia real y accesible de los mismos datos (mismos nombres `Mcd001.ps2`/`Mcd002.ps2`, mismos `.p2s`) en `/storage/521D-04EA/saves/{memcards,sstates}` — descubierta hoy mismo al investigar `SAVES-FRAGMENT-8b`. Investigados también Dolphin/Dolphin MMJ (`org.dolphinemu.*`) buscando el mismo patrón: **sin alternativa** — ni carpeta pública GC/Wii en la SD, ni `run-as` puede leer su carpeta privada ("package not debuggable") — confirmado que siguen genuinamente bloqueados sin root. Redream (`io.recompiled.redream`) tiene una carpeta `saves/dreamcast/` con 3 `.state1` (extensión distinta a la configurada, `.sav`) — evidencia más débil (solo 3 archivos, formato distinto), no aplicado hoy | `config.py:47-54` (`EMULATOR_SAVE_PATHS_DEFAULT["xyz.aethersx2.android"]`) | ✅ redirigido a la ruta pública de la SD. Suite completa 1430/1430 (3 ambientales), ruff limpio. **Validado en real, mismo día**: servidor reiniciado con el fix cargado, auto-sync disparado solo al detectar el dispositivo — errores **18 → 2** (los 2 restantes son 100% Redream, sin relación con este fix), y ahora sí copia datos reales de AetherSX2 (antes solo lograba los 5 de melonDS). `com.github.stenzek.duckstation` queda con nota aclaratoria (su propia ruta sigue sin ser legible, pero el contenido real ya lo cubre el Cable Sync genérico contra `/storage/521D-04EA/saves`, ver `SAVES-FRAGMENT-8b`) |
 
 ---
@@ -3543,6 +4826,8 @@ Petición del usuario tras arreglar `PSX-CATALOG-MISSING-1`: "¿hay algo más qu
 | PSX-CHD-REDUNDANT-1 | **60,18 GB de archivos raw (`.bin`/`.cue`/`.ccd`/`.img`/`.sub`/`.ecm`/`.mdf`, 865 archivos) que son copias redundantes** — `convert-chd` (dry-run) confirma que 90 de los 94 `.cue` con nombre válido ya tienen su `.chd` (0 conversiones pendientes). ⚠️ la entrada original decía que `--apply --delete-source` "ya hace verificación RA-hash antes de borrar" — **falso para este caso concreto**, ver `CHD-DELETE-NO-VERIFY-1`. ✅ **arreglado 2026-09-15**: verificación de solo lectura propia (hash RA `.cue`+`.bin` origen vs. `.chd` existente, mismo `compute_psx_ra_hash` del conversor) sobre los 90 sets → **87 OK (hash idéntico), 0 discrepancias, 3 no verificables** (`Crash 2.cue`, `Dino Crisis 2 (France) (Xplosiv).cue`, `MediEvil 2 (Europe) (En,Fr,De).cue` — hash de origen no computable, sin evidencia de problema, simplemente no comprobable con la lógica actual). Borrado dirigido (script propio, no el CLI genérico) de los 87 sets verificados: **490 archivos, 44,21 GB liberados**. `rommgr scan` re-corrido después: 490 filas huérfanas podadas de la BD, limpio. Los 3 no verificables y los 4 rotos de `PSX-CUE-BROKEN-1` **no se tocaron**. Los formatos `.ccd`/`.ecm`/`.mdf` (~49 archivos) siguen sin confirmar (fuera de este flujo) | `converters/chd_converter.py`, CLI `convert-chd` (ya existe) | ✅ hecho — 44,21 GB liberados de forma segura; quedan 3 sets sin verificar por si se quiere investigar por qué su hash de origen no es computable (no urgente) |
 | CHD-DELETE-NO-VERIFY-1 | **`convert_to_chd(..., delete_source=True)` NO verifica el hash RA cuando el `.chd` de destino ya existía de antes** — solo verifica (`_verify_ra_hash`, línea 380) en la rama de conversión fresca (chdman acaba de crear el `.chd`). Si `chd_path.exists()` es `True` al entrar (el caso de la inmensa mayoría de `PSX-CHD-REDUNDANT-1`: 90/94 sets), la rama de `if chd_path.exists(): if delete_source: borra sin más` se salta `_verify_ra_hash` por completo — borra el `.cue`+`.bin` origen dando por bueno un `.chd` preexistente sin comprobar que sea el mismo contenido. El diario de ayer asumió que la verificación cubría este caso; no es así | `converters/chd_converter.py:337-350` (rama `chd_path.exists()` de `convert_to_chd`, contrastar con la rama de conversión fresca en `:380-389` que sí llama a `_verify_ra_hash`) | ✅ **código arreglado 2026-09-15** (rama `fix/arcade-match-chd-verify-bugs`) — `convert_to_chd` y `convert_bin_to_chd` verifican el hash RA origen-vs-chd antes de borrar en la rama `chd_path.exists()`; a diferencia de `_verify_ra_hash` (pensada para la conversión fresca), en discrepancia **no se borra el `.chd` preexistente** (podría ser bueno para otra cosa), solo se rehúsa a borrar el raw. 4 tests nuevos (`tests/test_chd_converter.py`), 1325/1325 en verde |
 | PSX-CUE-BROKEN-1 | **4 sets `.cue` reales rotos** encontrados por `convert-chd` (dry-run): `Street Fighter Alpha - Warriors' Dreams (Germany).cue` referencia `...(Europe) (Track 51).bin` (no existe — nombre de región no coincide entre el `.cue` y su `.bin`); `Street Fighter Collection (Europe) (Disc 1).cue` referencia 5 tracks que no existen; `Super Pang Collection (Europe).cue` referencia 1 track que no existe; `Warhammer - Shadow of the Horned Rat (Europe).cue` referencia 1 track que no existe. ⚠️ **corrección 2026-09-15**: la entrada de ayer decía "los 4 SÍ tienen ya un `.chd`, sin pérdida real" — **verificado hoy que es falso**: ninguno de los 4 tiene un `.chd` con ese nombre exacto (`Test-Path` sobre los 4 → `False`), ni existe ningún `.chd` alternativo para esos títulos/discos concretos en la carpeta (solo hay `Street Fighter Alpha 2`/`Alpha 3`, juegos distintos de la saga). Son la **única copia** de esos 4 juegos y están genuinamente incompletos (faltan pistas `.bin` reales, no es un problema de nombrado) | `F:\Juegos Retro\PlayStation\` (4 `.cue` concretos) | 🔴 **NO limpiar** — no son basura redundante, son dumps rotos sin backup. Requiere re-descargar/re-dumpear esos 4 juegos si se quieren jugables; hasta entonces no tocar (ni con `PSX-CHD-REDUNDANT-1` ni con ninguna limpieza) |
+| UNKNOWN-BULK-GROWTH-1 | **`Unknown\` creció de ~2.900 archivos identificados (auditoría `NULL-PLATFORM-1`, 2026-09-15) a 80.518 archivos / 247,66 GB reales en disco (verificado 2026-09-24, `Get-ChildItem -Recurse`)** — pero `library_pc.db` solo tiene **755 filas** con `source_path` bajo `Unknown\` (88 identificadas, 752 con `platform` vacío): la inmensa mayoría de esos 80.518 archivos **nunca ha pasado por `rommgr scan`**, no es que el matcher fallara. Desglose por extensión: 38.441 `.zip`, 11.695 `.bin`, 7.609 `.jpg`, 2.909 `.nes`, 2.338 `.png`, ~830 `.rom`, 657 `.wav`, más cientos de extensiones numéricas (`.5`,`.10`,`.11`,`.2`...) típicas de chips MAME sueltos sin zipear. **Causa raíz de la fecha confirmada** (`Get-ChildItem -Directory` con `CreationTime`): las carpetas `arcade\`, `MAME\`, `games\`, `roms 1\`, `NES-Famicom\`, `megadrive\`, `gamegear\`, `sg1000\`, `ngp\`, `samples\`, `Imgs\` se crearon **todas el 2026-08-29 entre las 15:41:40 y las 15:50:24** (ventana de 9 min) — un solo evento de extracción masiva, no un goteo orgánico; la app no tiene ninguna función que descargue/extraiga packs así. **Usuario confirma que el volcado es totalmente inesperado** (2026-09-24) — no reconoce haberlo hecho. Sin identificar el proceso/origen externo responsable (pendiente si se quiere seguir esa vía). `E:\` tiene 452 GB libres, no es emergencia de espacio | `E:\Carpetas anbernic\Unknown\` (biblioteca real, sin tocar) | 🔴 origen externo sin identificar (decisión del usuario: no investigar más por ahora, pasar a `organize-source`) — ver `UNKNOWN-SCAN-GAP-1` (bloqueante nuevo encontrado al intentarlo) |
+| UNKNOWN-SCAN-GAP-1 | ~~`rommgr scan` sobre `Unknown\` cuenta solo 22.250 de los 80.518 archivos reales~~ **descartado como bug, 2026-09-24**: los 58.393 archivos que el scan no cuenta viven dentro de **652 carpetas `_descartados\` anidadas** por toda `Unknown\` (`arcade\_descartados` 9.499, `megadrive\_descartados` 11.586, `MAME\_descartados` 1.942, `gamegear\_descartados` 1.894, `roms 1\_descartados` 1.877, `sg1000\_descartados` 435, `ngp\_descartados` 255, `samples\_descartados` 39, `games\{cps1,cps2,cps3,fbneo,neogeo,toaplan_cave_stg}\_descartados` ~950, más **cientos de carpetas `NES-Famicom\<Juego>\_descartados\`, una por título** con 1-12 archivos cada una) — `scan_library` las excluye correctamente por diseño (`_is_excluded()`/`TRASH_DIR_NAME`, `VAL-FIX-1`), no es un fallo del escáner. Suma verificada: 58.393 ≈ exactamente el hueco (80.518 − 22.250 = 58.268, diferencia por redondeo de una pasada anterior). **Esto SÍ es un hallazgo nuevo relevante**: el patrón "una carpeta por juego con su propio `_descartados\`" es exactamente lo que produce el propio pipeline de deduplicación/organize de esta app (mismo patrón que `psx\_descartados\` de `LIBRARY-SYNC-STALE-1b`) — indica que **algo (no documentado en ningún diario) ya ejecutó una limpieza/dedup real sobre este volcado**, triando duplicados a `_descartados` por juego/set, pero sin mover nunca el contenido "ganador" fuera de `Unknown\` a su carpeta de plataforma real ni dejar rastro en la BD (sigue en 755 filas) | `E:\Carpetas anbernic\Unknown\**\_descartados\` (652 carpetas, 58.393 archivos) | 🔵 hallazgo cerrado (no es bug) — pendiente decidir qué hacer con las 652 carpetas `_descartados` (¿son basura real triada y lista para borrar, o quedó a medias una operación que nunca movió lo bueno a su sitio?) |
 
 | ARCADE-DAT-URL-STALE-1 | **Las URLs hardcodeadas de `FBNeo - Arcade Games` y `MAME 2003-Plus` en `_LIBRETRO_DAT_CATALOG` ya no existen en libretro-database** — devuelven 404. El repo renombró `metadat/fbneo/` → `metadat/fbneo-split/` (mismo nombre de archivo dentro) y el DAT de MAME real es `metadat/mame/MAME 2003-Plus XML.xml`, no `metadat/mame/MAME 2003-Plus.dat` (la entrada del catálogo no tiene `"file"` override, así que construye el nombre viejo). Encontrado al ejecutar `ARCADE-CATALOG-MISSING-1`; descargado a mano con la URL/nombre correctos como workaround, sin tocar código | `web/handlers/scan.py:59-60` (`_LIBRETRO_DAT_CATALOG`, entradas "FBNeo - Arcade Games"/"MAME 2003-Plus"), `web/handlers/scan.py:76` (`_CATALOG_TO_SOURCE`, `"fbneo": "fbneo"` debería ser `"fbneo-split"`) | ✅ **código arreglado 2026-09-15** (rama `fix/arcade-match-chd-verify-bugs`) — `_CATALOG_TO_SOURCE["fbneo"]` → `"fbneo-split"`, entrada `MAME 2003-Plus` con `"file": "MAME 2003-Plus XML.xml"`. El descargador automático de la web ya apunta a las URLs reales |
 | ARCADE-MATCH-PLATFORM-1 | **`_match_arcade()` asigna `platform="MAME"`/`"FBNeo"` (nombre del catálogo fuente) en vez del platform canónico `"Arcade"`/`"Neo Geo"`** que usa el resto del proyecto (`platforms.toml`: `"mame"/"cps1"/"cps2"/"arcade"/"fbneo"` → `"Arcade"`, `"neogeo"` → `"Neo Geo"`). Al correr `POST /api/match` tras añadir el catálogo arcade (que sí pasa `arcade_dir`, a diferencia del CLI `match`), **1.225 filas reales de `library_pc.db` quedaron con `platform='MAME'`** — un valor que ningún otro sitio del código reconoce (folders, `fix-platforms`, detección). Corregido en caliente en la misma sesión (sin tocar código, solo datos): recalculado el platform real desde `source_path` con `detect_platform()` para las 1.225 filas — 1.222 pasaron a `Arcade`/`Neo Geo` correctamente (eran matches legítimos, solo mal etiquetados), 3 eran colisiones falsas (ver `ARCADE-STEM-COLLISION-1`). Verificado: `Arcade` 1.156/1.511, `Neo Geo` 78/88, `MAME`/`FBNeo` ahora en 0 filas | `catalog/matcher.py:435` (`arcade_platform = "MAME" if source.lower().endswith(".xml") else "FBNeo"`) | ✅ **código arreglado 2026-09-15** (rama `fix/arcade-match-chd-verify-bugs`) — `_match_arcade()` ya no inventa un platform, devuelve `platform=None` (el `update_match()` de la fila deja la columna intacta cuando es `None`). Test actualizado (`test_mame_style_zip_prefers_arcade_over_title_fallback`) |

@@ -352,35 +352,143 @@ tampoco empareja. Mover 102 archivos con esa base habría empeorado la situació
 
 ---
 
+## 6.7 iiSU alineado con el canónico por ADB (2026-09-27)
+
+`emulator_options.json` de iiSU (`Android/media/com.iisulauncher/iiSULauncher/Emuladores/`,
+almacenamiento público — **sin root, escribible por ADB**, a diferencia de Daijishō) tenía
+4 plataformas apuntando a un emulador distinto del canónico de §3. Corregido directamente
+en el dispositivo, con backup previo (`emulator_options.json.bak-2026-09-27`, método
+force-stop + push, mismo patrón que retroarch.cfg en §4.2):
+
+| Plataforma | Antes | Ahora | Por qué |
+|---|---|---|---|
+| `gb` | RetroArch / `Default` / **Ask** (pedía elegir cada vez, sin core fijo) | RetroArch / `Gambatte core` | Gambatte es el canónico (RA ✅); "Ask" no fija nada, vuelve a fragmentar |
+| `n64` | M64Plus FZ (Standalone) — **sin RA** | RetroArch / `Mupen64Plus-Next core` | Canónico de §3, y el standalone no soporta logros |
+| `dreamcast` | Flycast (Standalone) | RetroArch / `Flycast core` | Alinea con Daijishō (`dreamcast-retroarch-flycast`, confirmado 2026-09-26 en §7) — con el standalone habría dos configs de Flycast y dos posibles rutas de save |
+| `ps2` | AetherSX2 (Standalone) — **sin RA** | `ARMSX2 Refresh (Standalone)` | AetherSX2 no está en la lista de RA; ver aviso de nombres abajo |
+
+**Aviso de nombres — hay dos apps distintas llamadas "ARMSX2" en el catálogo de iiSU**
+(`emuladores.json`, `supported_emulators.json`): `ARMSX2 (Standalone)` es el paquete
+`come.nanodata.armsx2` (**no instalado**), y `ARMSX2 Refresh (Standalone)` es el paquete
+`com.armsx2` (**el que se instaló en §6.5**, APK oficial de GitHub). El nombre exacto que
+espera `emulator_options.json` es `ARMSX2 Refresh (Standalone)` / commandLabel
+`ARMSX2 Refresh` — usar el otro apuntaría a una app que no existe en el dispositivo.
+
+Verificado antes de escribir: `com.armsx2` instalado (`pm list packages`), y los cores
+Gambatte/Flycast/Mupen64Plus-Next presentes en `com.retroarch` (carpetas
+`RetroArch/config/{Gambatte,Flycast}/` con contenido propio de un core ya ejecutado, y
+`RetroArch/downloads/core_backups/mupen64plus_next_gles{2,3}_libretro/` con backup del
+actualizador, señal de que el core ya se descargó/actualizó antes).
+
+**No tocado — arcade/psx/gc/wii/nds/psp** ya coincidían con el canónico en `emulator_options.json`.
+`gc`/`n3ds` quedan fuera del criterio RA (ver §3.5 y la fila de 3DS en §3).
+
+**Pendiente real que esto no resuelve**: el login de RetroAchievements en cada standalone
+(DuckStation, melonDS, Dolphin, PPSSPP, ARMSX2 Refresh) sigue siendo manual — no hay archivo
+de config que se pueda rellenar por ADB sin pedir credenciales, y este proyecto no las pide
+ni las transporta (§3.5). RetroArch (`com.retroarch`) ya tenía el login hecho desde §6.5, así
+que los 4 cores que ahora apuntan a él (Gambatte, Mupen64Plus-Next, Flycast, y ya antes
+FBNeo/mGBA/Snes9x/etc.) heredan ese único login sin nada que hacer.
+
+Los **Default Player de Daijishō** siguen bloqueados por ADB (base de datos en
+`/data/data/`, sin root — confirmado otra vez hoy: no existe `Android/media/com.magneticchen.daijishou/`
+en la SD, a diferencia de iiSU).
+
+**Corrección importante 2026-09-27 — la vía de "exportar una plataforma" de §7 no existe.**
+Comprobado a fondo en el dispositivo real (`Ajustes → Biblioteca`: Opciones, sección
+Importar completa, Añadir y examinar, `Examinar sistemas → Editar el sistema` de dos
+plataformas distintas) y confirmado además contra el repo oficial
+(`github.com/TapiocaFox/Daijishou`, wiki `Settings-Page`/`How-to-Use-Daijishō`, README):
+**Daijishō es closed-source y solo tiene Importar, nunca Exportar.** El flujo oficial de
+la app es "descarga una plataforma pregenerada desde la lista del propio Settings e
+impórtala" — no "exporta la tuya y repártela". No hay ningún archivo JSON local que sacar
+por ADB ni por la UI. La única vía real para fijar el Default Player de las ~28 plataformas
+que faltan sigue siendo manual, plataforma por plataforma, en `Examinar sistemas → (ícono
+ojo) → Ajustes del emulador → Emulador por defecto → Guardar` — exactamente el mismo
+camino ya usado para confirmar PS1/PS2/Arcade-FBNeo/Dreamcast. Sin atajo por ADB posible
+mientras no haya root.
+
+---
+
 ## 7. Pendiente
 
 **Bloqueado por falta de root** (verificado 2026-08-25: `su` no existe, no hay Magisk/KernelSU,
 `/data/data` da `Permission denied`, el shell corre como `uid=2000(shell)`). Tanto
 `retroarch.cfg` como la base de datos de Daijishō viven ahí. Estos hay que hacerlos a mano:
 
-- [ ] Login de RetroAchievements en RetroArch (§3.5) y en cada standalone.
-- [ ] Fijar los 4 ajustes de Saving en RetroArch (§4.2).
-- [ ] Fijar los Default Player en Daijishō (§4.1) — 15 plataformas.
-- [ ] **Re-apuntar Daijishō a `SD:/ROMs/<plataforma>`** (2026-08-25: las 39 carpetas de
-      plataforma en minúsculas se movieron de `SD:/` a `SD:/ROMs/` porque iiSU rechazaba
-      seleccionar la raíz de la SD por SAF — Daijishō seguía apuntando a las rutas viejas
-      y quedó roto por el move; RetroVault no se ve afectado, sus rutas Android son
-      `/storage/emulated/0/RetroArch/{saves,states}`, aparte de la SD).
-- [ ] Configurar iiSU (recién instalado, `com.iisulauncher` v0.0.7.4) apuntando a `SD:/ROMs/`.
-- [ ] Revisar `NGC` (63 archivos) vs `gamecube` (22) en la raíz de la SD — único par
-      duplicado donde el nombre "legacy" tiene *más* archivos que el canónico; no se movió
-      a `ROMs/` hasta decidir cuál gana.
-- [ ] Revisar y limpiar las 9 carpetas huérfanas que quedaron en la raíz de la SD sin mover
-      (`Game Boy Advance`, `Nintendo DS`, `Atari 2600`, `Master System`,
-      `Famicom Disk System`, `Game Boy`, `Game Boy Color`, `Game Gear`, `NGC`) — pocos
-      archivos cada una, posible progreso suelto sin consolidar antes de borrarlas.
+- [x] Login de RetroAchievements en RetroArch (§3.5) — hecho, ver §6.5. **Queda pendiente
+  en cada standalone** (DuckStation, melonDS, Dolphin, PPSSPP, ARMSX2 Refresh) — manual,
+  sin atajo por ADB (§6.7).
+- [x] Fijar los 4 ajustes de Saving en RetroArch (§4.2) — hecho 2026-08-25, ver tabla de §6.5.
+- [x] Fijar los Default Player en Daijishō — **completado 2026-09-27, las 32 plataformas
+  revisadas, ver §6.8 para el detalle de qué cambió y qué ya estaba bien.**
+- [x] **Re-apuntar Daijishō a `SD:/ROMs/<plataforma>`** — **verificado 2026-09-27, ya
+      funciona, sin acción necesaria.** Comprobado en vivo: Daijishō muestra "Arcade
+      (FinalBurn Neo) · 779 elementos" y el contenido real vive en
+      `ROMs/arcade/fbneo/` (867 archivos — la diferencia son elementos sin vincular,
+      filtrados por el ajuste "Descartar los elementos sin vincular al sincronizar").
+      El problema del 2026-08-25 se resolvió solo en algún punto de las últimas 4 semanas.
+- [x] **Configurar iiSU apuntando a `SD:/ROMs/`** — **verificado 2026-09-27, ya funciona.**
+      Abierto por ADB, el tile "fbneo" carga 9+ juegos reales sin error. Mismo caso que
+      Daijishō: no hace falta tocar nada.
+- [ ] **Hallazgo nuevo 2026-09-27, menor**: dentro de `ROMs/` (no en la raíz de la SD) hay
+      carpetas sueltas con nombre Title-Case y poco contenido — `Atari 2600/` (6 archivos),
+      `Famicom Disk System/` (2), `Game Gear/` (28), `Master System/` (0) — junto a sus
+      pares canónicos en minúsculas (`atari2600/`, `fds/`, `gamegear/`, `mastersystem/`,
+      con contenido real y activo). Ninguno de los dos launchers parece leer de ahí (las
+      cifras que muestran cuadran con las carpetas canónicas), así que es basura inofensiva,
+      no un problema de rutas — pendiente de limpieza en una sesión futura si se quiere.
+      También hay `ROMs/fbneo/`, `ROMs/mame/`, `ROMs/cps1/2/3/`, `ROMs/neogeo/` **vacíos**
+      en el nivel superior de `ROMs/` — el contenido real vive anidado en
+      `ROMs/arcade/{mame,fbneo,fba,mame2003-plus}/` (que es donde apuntan ambos launchers).
+- [x] Revisar `NGC` vs `gamecube` en la raíz de la SD — **resuelto de rebote, verificado
+      2026-09-27**: ninguna de las dos existe ya en la raíz de `/storage/521D-04EA/`
+      (`find` completo sin resultados), ni en `E:\RetroVault\ROMS` del PC. Solo queda
+      `ROMs/gamecube/` con 21 archivos. Se ve que esto se consolidó en algún punto entre
+      el 2026-08-25 (fecha de este hallazgo) y hoy — probablemente en la reorganización de
+      `E:\RetroVault\` (commit `NATIVE-SAVE-SYNC-1`) — sin que se marcara aquí. Sin acción
+      necesaria, checklist puesto al día.
+- [x] Revisar y limpiar las 9 carpetas huérfanas que quedaron en la raíz de la SD sin mover
+      — **mismo caso, resuelto de rebote, verificado 2026-09-27**: `Game Boy Advance`,
+      `Nintendo DS`, `Atari 2600`, `Master System`, `Famicom Disk System`, `Game Boy`,
+      `Game Boy Color`, `Game Gear` — ninguna existe ya en la raíz de la SD (`find
+      -maxdepth 1 -type d` sobre `/storage/521D-04EA/` no las lista). Sin acción necesaria.
 
 Acciones sobre apps (requieren tu OK, son instalaciones/desinstalaciones):
 
-- [ ] **Actualizar PPSSPP** — la 1.11.3 es de 2021 y no tiene RA.
-- [ ] **Instalar ARMSX2** y migrar las memcards de AetherSX2 (RA no soporta AetherSX2).
-- [ ] Desinstalar lo que no se usa ni tiene RA: RetroArch AArch64, DraStic, Redream, Dolphin MMJR.
-- [ ] Decidir GameCube: logros (Dolphin standalone) **o** sync (core de RetroArch) — §3.5.
+- [x] **Actualizar PPSSPP** — hecho 2026-08-25, 1.11.3 → 1.20.4 (ver §6.5).
+- [x] **Instalar ARMSX2** — hecho 2026-08-25 (`com.armsx2`, ver §6.5). **Migración completada
+  2026-09-27**: el usuario abrió Burnout 3 - Takedown en ARMSX2 y creó un perfil real (save
+  `BASLUS-21050`, confirmado con `strings`, no plantilla). Config real de ARMSX2 en
+  `/storage/521D-04EA/saves/memcards/` (SD, `bios/`, `cheats/`, `PCSX2-Android.ini` — no en
+  `Android/data/`), **sí accesible por ADB**, a diferencia de AetherSX2 (sigue sin poder
+  leerse sin root). La copia buena conocida de `SAVES-FRAGMENT-2` resultó tener **13 juegos**,
+  no 6 (el número viejo estaba desactualizado) — inspeccionada con la librería `mymcplus`
+  (formato real de memcard PS2, instalada aparte en el scratchpad de la sesión, no como
+  dependencia del proyecto). Descubierto un conflicto real: esa copia de 13 ya incluía **otro**
+  save de Burnout 3, de 2025-05-22/06-08 — mismo juego, save distinto al de hoy. Caso de
+  divergencia real entre orígenes (regla 5 de §5: nunca automático) → preguntado al usuario,
+  que eligió **quedarse con el de 2025** (el de hoy se archiva). Con esa decisión no hacía
+  falta fusionar nada: la copia de 13 juegos (con su Burnout 3 de 2025) se empujó tal cual al
+  **slot 1** (`mcd001.ps2`, md5 `c229c932d6c18d87303c3ed5f7aebc8d`, verificado tras copiar).
+  El perfil de hoy quedó a salvo en el propio dispositivo como
+  `mcd001.ps2.bak-burnout3-perfil-hoy-20260927` junto al slot 1, y el slot 2 se devolvió a su
+  plantilla en blanco original (ya no hace falta como staging). Backups adicionales en
+  `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\armsx2_memcards\`. La memcard privada
+  real de AetherSX2 sigue sin poderse leer sin root — sigue sin confirmarse si el progreso que
+  había ahí coincidía con estos 13 juegos o era distinto/más reciente, pero deja de ser
+  bloqueante: ARMSX2 ya tiene el estado bueno conocido en su slot activo.
+- [x] Desinstalar lo que no se usa ni tiene RA: RetroArch AArch64, DraStic, Redream, Dolphin MMJR
+  — **hecho 2026-09-27**. RetroArch AArch64 ya no estaba instalado (se ve que se quitó en
+  una sesión anterior sin marcar aquí). DraStic tenía 69 MB de datos públicos con progreso
+  real (`/storage/emulated/0/DraStic/backup/`, 7 `.dsv`) — respaldados completos a
+  `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\DraStic_publicdata\` antes de
+  desinstalar (la carpeta pública no se borra al desinstalar, pero se respaldó igual).
+  Redream y Dolphin MMJR no tenían datos públicos que respaldar.
+- [x] Decidir GameCube: logros (Dolphin standalone) **o** sync (core de RetroArch) — §3.5.
+  **Decidido y aplicado 2026-09-27**: Dolphin standalone (logros), tanto en Daijishō (§6.8)
+  como ya reflejaba §3. GameCube/Wii quedan fuera del sync automático a cambio de RA —
+  asumido, uso histórico muy bajo (~4 min).
 
 Trabajo de consolidación (pendiente de tus decisiones):
 
@@ -389,16 +497,57 @@ Trabajo de consolidación (pendiente de tus decisiones):
 - [ ] Redirigir memcards de DuckStation a ruta pública (SAVES-FRAGMENT-5).
 - [ ] Implementar §5 en el consolidador (SAVES-FRAGMENT-2…5).
 
-### Vía de automatización de Daijishō, si interesa
+### Vía de automatización de Daijishō — descartada 2026-09-27
 
-Daijishō importa **platform JSON**, y ese JSON incluye el `playerList` con los
-`amStartArguments` (el `am start` con el extra `LIBRETRO` y la ruta del `.so` del core).
-Se podrían generar los 15 archivos en vez de tocar 15 desplegables. No lo he hecho porque
-no tengo el esquema exacto que usa tu versión y un import mal formado puede pisar la
-configuración de rutas y scraper que ya tienes.
+Esta sección asumía que se podía exportar una plataforma ya configurada como JSON y generar
+el resto de forma masiva. **No es así**: Daijishō es closed-source (confirmado en su propio
+`README`) y su UI solo tiene *Importar* (sistema/favoritos/Pegasus) — ninguna opción de
+*Exportar*, comprobado a fondo en el dispositivo real. El flujo oficial es descargar
+plataformas pregeneradas desde la lista del propio Settings, no exportar la tuya. Sin export
+que leer, no hay esquema que reproducir ni forma de generar los 28 archivos restantes de
+golpe. Queda solo la vía manual, plataforma por plataforma — ver el aviso en §6.7.
 
-Si lo quieres: exporta **una** plataforma desde Daijishō a una carpeta pública, dime cuál,
-y genero el resto con ese mismo esquema.
+## 6.8 Daijishō — las 32 plataformas revisadas a mano (2026-09-27)
+
+Sin atajo posible (§6.7/§7), se hizo manual: `Examinar sistemas → ícono ojo → Ajustes del
+emulador → Emulador por defecto → Guardar`, plataforma por plataforma, comparando el valor
+actual contra la tabla canónica de §3. Ya estaban confirmadas de antes (sin tocar): PS1
+(DuckStation), PS2 (ARMSX2), Arcade/FBNeo, Dreamcast (RetroArch → Flycast core).
+
+**Cambiadas (apuntaban a un standalone sin RA, a un paquete `RetroArch 64`/`RetroArch 32`
+huérfano, o al core equivocado):**
+
+| Plataforma | Antes | Ahora |
+|---|---|---|
+| Wii | Dolphin mmjr | Dolphin (Official) |
+| CP System I | NEO.EMU | RetroArch - fbneo |
+| CP System II | NEO.EMU | RetroArch - fbneo |
+| CP System III | RetroArch 64 - fbalpha2012_cps3 | RetroArch - fbneo |
+| Neo Geo | RetroArch - fbalpha 2012 | RetroArch - fbneo |
+| Neo Geo CD | RetroArch 64 - neocd | RetroArch - neocd (mismo core, paquete correcto) |
+| Game Boy | com.explusalpha.GbcEmu | RetroArch - gambatte |
+| Game Boy Color | com.explusalpha.GbcEmu | RetroArch - gambatte |
+| N64 | Mupen64Plus FZ (standalone, sin RA) | RetroArch - mupen64plus_next_gles3 |
+| Mega Drive/Genesis | RetroArch 64 - picodrive | RetroArch - genesis_plus_gx |
+| Master System | com.explusalpha.MdEmu | RetroArch - genesis_plus_gx |
+| Atari 2600 | RetroArch 64 - stella | RetroArch - stella2023 |
+
+**Ya estaban bien, sin tocar:** NES (fceumm), GBA (mgba), NDS (melonDS standalone), GameCube
+(Dolphin Official), PSP (PPSSPP), SNES (snes9x).
+
+**Dejadas intactas a propósito:**
+- **Arcade (MAME)** — sistema separado de Arcade (FBNeo) en Daijishō, para los sets
+  MAME-only que FBNeo no puede cargar (ver `ARCADE-RENAME-BUG-1e`). No se fuerza FBNeo aquí.
+- **Nintendo 3DS** — fuera de criterio RA (RetroAchievements no soporta 3DS, §3).
+- **3DO, Atari ST, Cave Story Game Engine, ScummVM, Sega Genesis-MSU, Sega Pico,
+  Sega Saturn, Sega SG-1000** — "el core que ya haya, sin duplicados" (§3); ninguno tiene
+  una fila canónica explícita en la tabla, así que no había nada que decidir.
+
+**Nota técnica del campo "Emulador por defecto"**: no es un desplegable simple — es un
+`AutoCompleteTextView`. Tocar el texto abre el teclado y edita el campo directamente (sin
+lista); hay que tocar específicamente el icono ▼ de la derecha para que aparezca el listado
+de opciones reales del sistema. Escribir texto libre ahí sin elegir de la lista deja un
+valor que no coincide con ningún emulador real — cuidado si se automatiza esto en el futuro.
 
 ---
 

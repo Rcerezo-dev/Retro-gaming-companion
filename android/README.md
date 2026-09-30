@@ -10,7 +10,26 @@ Diseño completo, contrato de interoperabilidad con el sync del PC
 **`../Tareas/Roadmap-Android-Sync.md`**. Estado de las tareas:
 `../Tareas/backlog.md`, sección `ANDROID-SYNC`.
 
-## Requisitos
+## Instalar la app (sin compilar)
+
+Si solo quieres usar la app en tu consola/móvil, sin tocar el código:
+
+1. Descarga el APK del último release:
+   **[github.com/Rcerezo-dev/Retro-gaming-companion/releases](https://github.com/Rcerezo-dev/Retro-gaming-companion/releases)**
+   (busca la versión etiquetada `android-vX.Y.Z`, no confundir con los
+   releases `vX.Y.Z` — esos son el instalador de Windows).
+2. Cópialo al dispositivo (por USB, o descárgalo directamente desde el
+   navegador de la consola) y ábrelo para instalarlo.
+3. Android pedirá permiso para "instalar apps de orígenes desconocidos"
+   la primera vez — es normal, la app no está en Play Store.
+4. Al abrirla, concede el acceso a almacenamiento (para leer/escribir los
+   saves de RetroArch) y vincula tu cuenta de Dropbox desde Ajustes.
+
+No es un release automático — cada versión se publica a mano cuando hay
+cambios suficientes. Si la última etiqueta `android-v*` es antigua y
+quieres algo más reciente, compílalo tú mismo con los pasos de abajo.
+
+## Requisitos (para compilar)
 
 - [Android Studio](https://developer.android.com/studio) (versión reciente,
   Ladybug o posterior) — trae el JDK y el Android SDK integrados, no hace
