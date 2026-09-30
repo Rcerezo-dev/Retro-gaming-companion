@@ -7,6 +7,17 @@
 > próximas sesiones; el detalle de estado por tarea sigue viviendo solo en
 > `Tareas/backlog.md`.
 
+> ✅ **Frente 0 y Frente 1 cerrados en la misma sesión (2026-09-30)**: #375 y
+> #373 mergeadas directo; #338 y #339 rescatadas (rebase real contra
+> `develop`, 9 y 12 conflictos resueltos respectivamente, suites 1503/1503 y
+> 1515/1515 en verde) y mergeadas — Pilar 3 (`SYNC-CONFLICT-MANUAL-1`,
+> `SAVES-CONFLICT-CTX-1`) y Pilar 2 (`INBOX-SESSION-SUMMARY-1`,
+> `INBOX-METADATA-INLINE-1`) al día. Hallazgo colateral del rescate: el
+> merge de #339 reintrodujo 4 roadmaps duplicados sin renumerar (limpiado en
+> PR #382). `docs/native-save-sync-1-dusklight-ruben` sigue sin PR — no
+> abordado esta sesión. Frentes 2-4 (crossfmt PSX, GBC dedup, ARMSX2,
+> bloqueados) siguen tal cual, ver debajo.
+
 ---
 
 ## Frente 0 — PRs abiertas ahora mismo (verificado con `gh pr list` + `git merge-tree`)
