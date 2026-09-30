@@ -1504,8 +1504,8 @@ previsto en el propio roadmap |
 Consolidar en Inicio los números ya calculados en pestañas sueltas (% organizada,
 GB en duplicados, carpetas huérfanas, ZIPs sin organizar) y mostrar los grupos de
 duplicados con portada + flag RA en vez de solo tabla de texto. Roadmap:
-`.claude/roadmaps/27-library-ux-dashboard-duplicates.md`, rama
-`feature/library-ux-dashboard-duplicates`.
+`.claude/roadmaps/archivo/27-library-ux-dashboard-duplicates.md`, rama
+`feature/library-ux-dashboard-duplicates` (PR #340).
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
