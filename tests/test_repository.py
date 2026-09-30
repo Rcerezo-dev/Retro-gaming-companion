@@ -6,6 +6,7 @@ All state is isolated per test via the `repo` fixture.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -290,6 +291,34 @@ def test_prune_stale_ignores_other_roots(repo, tmp_path):
 
     assert deleted == 1
     assert repo.get_summary().total_games == 1
+
+
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="ANDROID-DUP-PSX-1: os.sep is '/' on POSIX too, so the bug this "
+    "guards against (joining a POSIX device root with a Windows os.sep) is "
+    "silently correct there regardless of the fix",
+)
+def test_prune_stale_removes_missing_android_path_on_windows(repo):
+    # ANDROID-DUP-PSX-1 (2026-09-30): an ADB scan's source_root is always
+    # POSIX ("/storage/...") even when the server runs on Windows. Joining it
+    # with os.sep ("\\" on Windows) used to build a root_prefix that never
+    # matched a real device path, so prune_stale_entries() was a silent
+    # no-op for every Android rescan -- confirmed live against the RG556.
+    root = "/storage/521D-04EA/ROMs/psx"
+    keep = "/storage/521D-04EA/ROMs/psx/Keep (USA).chd"
+    gone = "/storage/521D-04EA/ROMs/psx/Gone (Spain)/Gone (Spain).chd"
+
+    _upsert(repo, source_path=keep)
+    _upsert(repo, source_path=gone, sha1="ff" * 20)
+
+    deleted = repo.prune_stale_entries(root, seen_paths={keep})
+
+    assert deleted == 1
+    with repo.connect() as conn:
+        paths = [r[0] for r in conn.execute("SELECT source_path FROM games").fetchall()]
+    assert keep in paths
+    assert gone not in paths
 
 
 # ── scan run lifecycle ────────────────────────────────────────────────────────
