@@ -55,6 +55,14 @@
 > tanto; roadmaps 28/29/30 renumerados a 29/30/31 (28 ya lo ocupaba
 > `android-gdrive-provider`, sesión aparte) y el roadmap 27 (ya completado
 > vía PR #340) retirado del índice por duplicado
+> 2026-09-30 (continuación): instancia real (puerto 7777) reiniciada con el
+> código de hoy. `ANDROID-DUP-CROSSFMT-VERIFY-1` cerrado del todo (89 grupos
+> PSX verificados por hash real, 2 seguros aplicados, 0,48 GB). Dedup GBC
+> aplicado (1268 grupos, 1,95 GB) + Sega Mega Drive/SNES/Game Boy/N64DD/1 PSX
+> sha1-puro (96 grupos, 0,145 GB) — ~2,58 GB liberados en total, 0 errores
+> reales, verificado en el dispositivo real. Causa raíz de las filas fantasma
+> de `ANDROID-DUP-PSX-1` encontrada (scan `psx` interrumpido el 28/09, nunca
+> reconciliado) — documentada, sin arreglar
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -484,6 +492,63 @@ BD en vez del filesystem local, más un tier explícito de formato de disco
 pendiente), `catalog/matcher.py::_match_by_title()` (sin confirmar
 reconocimiento de volcados legacy) | 🔴 confirmado con evidencia real (ADB en
 vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
+
+**Re-verificado 2026-09-30 contra `library_android.db` real (RG556 conectada), solo lectura:**
+
+- **Causa raíz real de las filas fantasma** (los 2 discos españoles de Metal
+  Gear Solid señalados en `ANDROID-DUP-PSX-1`, y probablemente más): la tabla
+  `scan_runs` tiene un escaneo de `psx` (`id=19`) que **arrancó
+  2026-09-28T16:09:52 y nunca terminó** (`finished_at: NULL`, `files_seen: 0`)
+  — el último escaneo completo de `psx/` fue el `id=17` del 2026-09-20. Cualquier
+  borrado hecho en el dispositivo entre esas dos fechas nunca se reconcilió
+  contra la BD porque el escaneo que lo habría reflejado murió sin terminar.
+  Causa del crash del `id=19` sin investigar — candidato a mirar logs del
+  servidor de esa fecha si siguen disponibles.
+- **Volcados legacy con nombre de serial**: 47 filas `[SCUS-/SLUS-/SLES-/SCES-nnnnn]`
+  siguen en `psx/` (consulta directa a `library_android.db`, patrón
+  `LIKE '%[SCUS-%' OR ...`), mismo caso que el `Crash Bandicoot [U] [SCUS-94900]`
+  ya documentado arriba — sin tocar.
+- **Carpetas Title Case + slug paralelas**: de los "4 pares confirmados" originales,
+  hoy solo queda uno sin resolver — **`Game Gear/` (28 archivos) + `gamegear/`
+  (736 archivos)**, 0% de solapamiento por SHA1 comprobado porque **las 28 filas
+  de `Game Gear/` tienen `sha1=''`** (nunca se hashearon) — invisibles para
+  cualquier deduplicación por hash, y sus nombres ya parecen No-Intro
+  (`Ax Battler - A Legend of Golden Axe (USA, Europe, Brazil) (En).gg`), no
+  claramente legacy — hace falta rehashear antes de decidir si son duplicados
+  reales o contenido legítimo sin catalogar. `Atari 2600/`, `Master System/` y
+  `Famicom Disk System/` ya no tienen su par Title Case (resuelto de rebote,
+  mismo hallazgo que `SD-ORPHAN-FOLDERS-1` documentó para la raíz de la SD).
+- **`famicom/` sigue vivo** (109 archivos, 0,02 GB) en paralelo a `nes/` (2972
+  archivos, 2,34 GB) — más pequeño que en el hallazgo original de
+  `ANDROID-DUP-3` (86% de solapamiento entonces), pero no consolidado del todo.
+- **`ANDROID-DUP-CROSSFMT-VERIFY-1` repetido con la función ya integrada y
+  completado 2026-09-30** (`verify_group_by_disc_hash`, PR #379): 89 grupos
+  PSX `crossfmt`-only reales hoy (antes 83, la cola cambia con la biblioteca)
+  — **2 verificados como seguros (mismo grupo, `Guilty Gear (Europe)`), 0
+  mismatch, 102 rutas no verificables** (mismo patrón que el 2026-09-25: la
+  inmensa mayoría de `.cue`/`.img` de esta biblioteca referencian un `.bin`
+  que ya no existe tal cual en el dispositivo). Los 2 verificados **aplicados
+  con confirmación explícita del usuario**: descartados `psx/Guilty Gear
+  (Europe).chd` + `psx/Guilty Gear (Europe).bin` sueltos en la raíz,
+  conservado `psx/Guilty Gear (Europe)/Guilty Gear (Europe).chd`, **0,48 GB
+  liberados**, verificado en el dispositivo real. Con esto,
+  `ANDROID-DUP-CROSSFMT-VERIFY-1` queda completamente cerrado — no queda
+  ningún grupo PSX `crossfmt`-only sin comprobación de contenido real.
+- **`ANDROID-DUP-1` GBC — aplicado 2026-09-30**: confirmado sin cambios desde
+  Día71 (1268 grupos, 1,95 GB, todos `reasons == ["sha1"]` puro), mismo patrón
+  ya probado en NES/Game Gear. Backup de `library_android.db` antes de tocar
+  nada. **1268/1268 grupos, 1276 archivos descartados, 0 errores, ~1,95 GB
+  liberados** — verificado en el dispositivo real (recomendado presente,
+  descartes confirmados ausentes por `adb shell test -e`).
+- **Resto de plataformas `sha1`-puro nunca aplicadas — aplicadas 2026-09-30**:
+  mismo criterio estricto que GBC (solo `reasons == ["sha1"]`, nunca un grupo
+  con `crossfmt` mezclado — ese patrón mixto es justo el que causó el problema
+  real de `ANDROID-DUP-PSX-1`). Sega Mega Drive (65), SNES (5), Game Boy (25),
+  Nintendo 64DD (1) y el único grupo PSX sin `crossfmt` en `reasons` (1) — **96
+  grupos, 106 archivos descartados, 2 fallos** (el grupo PSX, bloqueado
+  correctamente por el guard `DUP-CROSSFMT-6`: su "recomendado" ya no existe
+  en el dispositivo, fila obsoleta, nada descartado), **~0,145 GB liberados**.
+  Verificado en el dispositivo real (`adb shell test -e`) sobre una muestra.
 
 ---
 
