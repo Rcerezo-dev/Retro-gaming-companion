@@ -28,46 +28,70 @@ metadata al llegar el juego a su carpeta final.
 
 ## Pasos
 
-### Paso 1 — `INBOX-METADATA-INLINE-1`: investigar antes de tocar código
+### Paso 1 — ✅ Investigado (2026-09-22): `INBOX-METADATA-INLINE-1`
 
-Regla del proyecto ("Investigar antes de arreglar"): verificar contra el
-código real, no contra suposiciones. Trazar `web/inbox_pipeline.py` paso a
-paso — ¿alguno de sus pasos dispara `web/handlers/scraper.py` (o el servicio
-que usa) para el juego recién organizado, o el scraping siempre es una
-acción manual aparte desde Colección? Documentar el hallazgo (archivo:línea
-exactos) antes de decidir si hace falta código nuevo.
+Confirmado contra el código real: `web/inbox_pipeline.py` (extract → scan →
+match → plan → rename → organize, 6 pasos) no menciona `scraper` en ningún
+sitio — el scraping siempre fue una acción manual aparte desde Colección.
+Trazado también el resultado del job (`job_result`, final de
+`_run_inbox_pipeline`): **ya** incluye `matched`, `organized`,
+`duplicates_removed`, `conflicts_unresolved`, `ra_resolved`, listas de
+errores — mucho más completo de lo asumido. Y en el frontend,
+`_renderInboxResult()` (`inbox.js:274-316`) **ya** pinta un panel de resumen
+completo con esos contadores + un toast — `INBOX-SESSION-SUMMARY-1` (Paso 3
+original) resultó ya estar hecho casi del todo, salvo un hueco real: no
+había una cifra de "sin match" (solo "Cotejados: N" de un total, sin
+destacar cuántos quedaron sin catalogar).
 
-### Paso 2 — Si falta integrarlo
+### Paso 2 — ✅ Hecho (2026-09-22): scraping opt-in al organizar
 
-Enganchar el scraping puntual (reutilizar el mismo mecanismo que ya usa un
-juego individual en Colección, no una implementación nueva) al final del
-paso "Move to platform folders" del job de organize. Opt-in vía config
-(`config.toml`) para no ralentizar organizaciones masivas sin red o con
-rate-limit de la fuente.
+- `config.py`: `InboxConfig.scrape_on_organize: bool = False` (TOML
+  `[inbox] scrape_on_organize = true`), apagado por defecto.
+- **Extraído** `web/handlers/scraper.py::_do_scrape_single` a
+  `services/scrape_service.py::scrape_game_metadata()` — mismo lookup+apply
+  (hash → nombre, ScreenScraper), ahora reutilizable sin `ctx` HTTP. El
+  handler queda como wrapper fino sobre el servicio (cero cambio de
+  comportamiento para Colección — mismos tests manuales que antes, sin
+  tests previos que cubrieran el endpoint, así que no hay suite que romper
+  pero sí se verificó el refactor con los tests nuevos del servicio).
+- `scrape_game_metadata()` acepta un `client` opcional — necesario porque
+  `ScreenScraperClient.min_interval` es un throttle **por instancia**; un
+  cliente nuevo por juego en un lote lo saltaría entero. Un solo cliente
+  para todo el lote resuelve el riesgo de rate-limit que el roadmap ya
+  anticipaba.
+- `inbox_pipeline.py`: nueva `_scrape_organized_games()` (testeable en
+  aislado, sin necesitar la pipeline completa) — se llama tras el loop de
+  organize con la lista de `game_id` recién organizados. No-op si el opt-in
+  está apagado, no hay juegos, o faltan credenciales. Un fallo puntual
+  nunca aborta el organize — los archivos ya se movieron, esto solo
+  intenta enriquecerlos.
 
-### Paso 3 — `INBOX-SESSION-SUMMARY-1`: resumen de job
+### Paso 3 — ✅ Hecho (2026-09-22): `INBOX-SESSION-SUMMARY-1`
 
-- `web/inbox_pipeline.py` ya reporta progreso vía
-  `job_manager.update_progress` (mismo patrón que `scan_progress`/
-  `match_progress`) — añadir contadores finales al resultado del job:
-  organizados, con conflicto, sin match.
-- Frontend (`web/static/js/jobs.js`): panel/toast con el resumen al
-  completar, con el mismo guard `result_ts`/`_shownResultTs` que ya usan
-  otros jobs para no repetir el toast en cada poll.
+Ya estaba hecho (ver Paso 1) salvo el hueco de "sin match". Añadido:
+`unmatched` (juegos organizados cuya `platform` quedó vacía — cayeron en
+`Unknown/`) y `scraped`/`scrape_errors` (resultado del Paso 2) al
+`job_result`, y sus líneas correspondientes en `_renderInboxResult()`
+(`inbox.js`) — "Sin match de catálogo" destacado igual que "Conflictos sin
+resolver", "Metadata scrapeada" solo si > 0.
 
-### Paso 4 — Tests
+### Paso 4 — ✅ Tests (2026-09-22)
 
-- El resultado del job expone los tres contadores y suman al total de
-  archivos procesados.
-- Si `INBOX-METADATA-INLINE-1` requiere código nuevo: test de que el
-  scraping se dispara solo cuando el opt-in está activo, y que un fallo de
-  red no rompe el organize en sí (el archivo se mueve igual).
+- `tests/test_scrape_service.py` (6 tests): sin credenciales, sin match,
+  preview no escribe en BD, apply sí escribe y marca `metadata_scraped`,
+  reutiliza el `client` pasado en vez de crear uno nuevo, una excepción del
+  cliente nunca se propaga.
+- `tests/test_inbox_scrape_hook.py` (6 tests): no-op con el opt-in apagado/
+  sin juegos/sin credenciales, un solo cliente para todo el lote, un fallo
+  puntual no detiene el resto del lote, el callback de progreso recibe
+  índice/total correctos.
 
-### Paso 5 — Verificación
+### Paso 5 — ✅ Verificación (2026-09-22)
 
 ```bash
-python -m pytest tests/ -q
-ruff check src/rom_manager/web/inbox_pipeline.py
+python -m pytest tests/ -q     # 1452 pass, 0 fallos (sin ADB conectado esta sesión)
+ruff check src/rom_manager/web/inbox_pipeline.py src/rom_manager/services/scrape_service.py src/rom_manager/web/handlers/scraper.py src/rom_manager/config.py   # limpio
+ruff format --check ...                                                                                                                                          # limpio
 ```
 
 ---
@@ -83,9 +107,9 @@ ruff check src/rom_manager/web/inbox_pipeline.py
 
 ## Checklist
 
-- [ ] Paso 1 — hallazgo documentado (archivo:línea) sobre si metadata ya se aplica
-- [ ] Paso 2 — integración de scraping al organize (solo si el Paso 1 confirma que falta)
-- [ ] Paso 3 — resumen de sesión (backend + frontend)
-- [ ] Paso 4 — tests nuevos
-- [ ] Paso 5 — suite completa + ruff limpios
+- [x] Paso 1 — hallazgo documentado (archivo:línea) sobre si metadata ya se aplica (2026-09-22)
+- [x] Paso 2 — integración de scraping al organize (2026-09-22)
+- [x] Paso 3 — resumen de sesión, hueco de "sin match" cerrado (2026-09-22)
+- [x] Paso 4 — tests nuevos (2026-09-22)
+- [x] Paso 5 — suite completa + ruff limpios (2026-09-22)
 - [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
