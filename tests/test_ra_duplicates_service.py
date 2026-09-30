@@ -17,6 +17,7 @@ from rom_manager.services.ra_duplicates_service import (
     get_ra_achievements_for_path,
     get_ra_hash_lib,
     resolve_duplicate_ra,
+    verify_group_by_disc_hash,
 )
 
 # ── DUP-CROSSFMT-6: never discard losers if the "winner" doesn't exist ────────
@@ -515,3 +516,159 @@ def test_apply_all_routes_plan_conflicts_to_apply_ra_conflicts(monkeypatch) -> N
     assert calls == ["repo-pc", "repo-android"]
     assert resolve_calls == []
     assert result == {"resolved": 0, "errors": []}
+
+
+# ── ANDROID-DUP-CROSSFMT-VERIFY-1: real disc-hash verification ────────────────
+
+_CHDMAN = Path(__file__).resolve().parent.parent / "tools" / "chdman.exe"
+_skip_no_chdman = pytest.mark.skipif(
+    not _CHDMAN.exists(), reason="chdman.exe no disponible en tools/"
+)
+
+
+def _write_cue(path: Path, bin_name: str) -> None:
+    path.write_text(
+        f'FILE "{bin_name}" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n',
+        encoding="utf-8",
+    )
+
+
+def _createcd(cue_path: Path, chd_path: Path) -> None:
+    import subprocess
+
+    from rom_manager.utils.subprocess_flags import NO_WINDOW
+
+    subprocess.run(
+        [str(_CHDMAN), "createcd", "-i", str(cue_path), "-o", str(chd_path)],
+        check=True,
+        capture_output=True,
+        creationflags=NO_WINDOW,
+    )
+
+
+class _FakeTransport:
+    """Maps virtual device paths ("/device/<name>") back to real files under
+    *root*, simulating AdbTransport.pull() without touching real hardware."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def pull(self, android_src: str, local_dst: Path) -> int:
+        import shutil
+
+        src = self.root / android_src.rsplit("/", 1)[-1]
+        if not src.exists():
+            raise OSError(f"not found: {android_src}")
+        shutil.copyfile(src, local_dst)
+        return local_dst.stat().st_size
+
+
+@_skip_no_chdman
+def test_verify_group_by_disc_hash_matches_identical_disc_different_container(
+    tmp_path: Path,
+) -> None:
+    """The real 2026-09-29 case this closes: a crossfmt group only links by
+    title, so a genuine same-disc .chd/.cue pair must be confirmed by real
+    disc content hash, not assumed from the group's reasons."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    game_dir = tmp_path / "game"
+    game_dir.mkdir()
+    bin_path = _build_psx_image(game_dir)
+    cue_path = game_dir / "game.cue"
+    _write_cue(cue_path, bin_path.name)
+    chd_path = game_dir / "game.chd"
+    _createcd(cue_path, chd_path)
+
+    transport = _FakeTransport(game_dir)
+    result = verify_group_by_disc_hash(
+        "/device/game.chd", ["/device/game.cue"], chdman=str(_CHDMAN), adb_transport=transport
+    )
+
+    assert result["safe_discard_paths"] == ["/device/game.cue"]
+    assert result["mismatched_paths"] == []
+    assert result["unverifiable_paths"] == []
+
+
+@_skip_no_chdman
+def test_verify_group_by_disc_hash_flags_real_content_mismatch(tmp_path: Path) -> None:
+    """The exact real bug found live: three different Metal Gear Solid discs
+    shared one mis-resolved catalog name and landed in the same "duplicate"
+    group. A genuinely different disc under the same title must never end up
+    in safe_discard_paths."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    game_dir = tmp_path / "game"
+    game_dir.mkdir()
+    bin_path = _build_psx_image(game_dir)
+    cue_path = game_dir / "game.cue"
+    _write_cue(cue_path, bin_path.name)
+    chd_path = game_dir / "game.chd"
+    _createcd(cue_path, chd_path)
+
+    # A second, genuinely different disc -- same file names (as if it were a
+    # different disc sharing the same mis-resolved catalog title), one byte
+    # flipped inside the hashed EXE body so it parses fine but hashes different.
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    other_bin = _build_psx_image(other_dir)
+    data = bytearray(other_bin.read_bytes())
+    data[22 * 2352 + 24 + 100] ^= 0xFF
+    other_bin.write_bytes(bytes(data))
+    other_cue = other_dir / "game.cue"
+    _write_cue(other_cue, other_bin.name)
+
+    # Point the "discard" candidate at the OTHER disc's cue by pulling from
+    # other_dir instead -- swap the transport's root per call via a thin proxy.
+    class _MultiRootTransport:
+        def pull(self, android_src: str, local_dst: Path) -> int:
+            root = other_dir if "other" in android_src else game_dir
+            return _FakeTransport(root).pull(android_src.replace("/other", ""), local_dst)
+
+    result = verify_group_by_disc_hash(
+        "/device/game.chd",
+        ["/device/other/game.cue"],
+        chdman=str(_CHDMAN),
+        adb_transport=_MultiRootTransport(),
+    )
+
+    assert result["safe_discard_paths"] == []
+    assert result["mismatched_paths"] == ["/device/other/game.cue"]
+    assert result["unverifiable_paths"] == []
+
+
+def test_verify_group_by_disc_hash_unverifiable_when_keep_missing(tmp_path: Path) -> None:
+    transport = _FakeTransport(tmp_path)  # empty dir, nothing to pull
+
+    result = verify_group_by_disc_hash(
+        "/device/missing.chd",
+        ["/device/a.cue", "/device/b.chd"],
+        chdman=str(_CHDMAN),
+        adb_transport=transport,
+    )
+
+    assert result["keep_hash"] is None
+    assert result["safe_discard_paths"] == []
+    assert result["unverifiable_paths"] == ["/device/a.cue", "/device/b.chd"]
+    assert "error" in result
+
+
+@_skip_no_chdman
+def test_verify_group_by_disc_hash_pc_paths_without_transport(tmp_path: Path) -> None:
+    """PC-side entries have no adb_transport at all -- must read files
+    directly instead of requiring one."""
+    from tests.test_ra_hash_psx import _build_psx_image
+
+    game_dir = tmp_path / "game"
+    game_dir.mkdir()
+    bin_path = _build_psx_image(game_dir)
+    cue_path = game_dir / "game.cue"
+    _write_cue(cue_path, bin_path.name)
+    chd_path = game_dir / "game.chd"
+    _createcd(cue_path, chd_path)
+
+    result = verify_group_by_disc_hash(
+        str(chd_path), [str(cue_path)], chdman=str(_CHDMAN), adb_transport=None
+    )
+
+    assert result["safe_discard_paths"] == [str(cue_path)]

@@ -120,7 +120,22 @@ def _do_apply(
             extra_save_dirs = central_save_dirs(config)
             apply_repo = get_repo_fn(source_root or "")
             apply_repo.backup_database()
-            plan = build_plan(apply_repo, opts, keep_both=keep_both)
+            # GDI-ORGANIZE-1: only pass library_root when source_root isn't
+            # explicitly pointing outside it (mirrors _repo_for_path's own
+            # PC-vs-Android routing) -- build_plan() itself also falls back
+            # per-game for any source that isn't actually under library_root,
+            # so this is a belt-and-suspenders skip, not the only guard.
+            # getattr guards config stubs in tests that don't set library_root.
+            lib_root = getattr(config, "library_root", None)
+            is_pc_scope = not source_root or (
+                lib_root and str(source_root).lower().startswith(str(lib_root).lower())
+            )
+            plan = build_plan(
+                apply_repo,
+                opts,
+                keep_both=keep_both,
+                library_root=lib_root if is_pc_scope else None,
+            )
             pending_ops = plan.pending
             if source_root:
                 root_lower = source_root.lower()

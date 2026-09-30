@@ -20,6 +20,7 @@ from rom_manager.converters.chd_converter import (
     generate_missing_cues,
     is_broken_cue_set,
     parse_bins_from_cue,
+    parse_tracks_from_gdi,
 )
 from tests.test_ra_hash_psx import _build_psx_image
 
@@ -170,6 +171,38 @@ def test_parse_bins_missing_file(tmp_path: Path) -> None:
     result = parse_bins_from_cue(cue)
     assert len(result) == 1
     assert result[0].name == "missing.bin"
+
+
+def test_parse_tracks_from_gdi_quoted_filenames_with_spaces(tmp_path: Path) -> None:
+    """JUNK-7Z-SUPPORT-1 follow-up: real .gdi track filenames are quoted and
+    almost always contain spaces -- a naive split() truncates them to their
+    first word ('"Crazy' instead of the real name), verified against real
+    files in this library before writing this test."""
+    gdi = tmp_path / "Crazy Taxi (USA).gdi"
+    gdi.write_text(
+        "3\n"
+        '1     0 4 2352 "Crazy Taxi (USA) (Track 1).bin" 0\n'
+        '2   450 0 2352 "Crazy Taxi (USA) (Track 2).bin" 0\n'
+        '3 45000 4 2352 "Crazy Taxi (USA) (Track 3).bin" 0\n',
+        encoding="utf-8",
+    )
+
+    result = parse_tracks_from_gdi(gdi)
+
+    assert [p.name for p in result] == [
+        "Crazy Taxi (USA) (Track 1).bin",
+        "Crazy Taxi (USA) (Track 2).bin",
+        "Crazy Taxi (USA) (Track 3).bin",
+    ]
+
+
+def test_parse_tracks_from_gdi_unquoted_filename_fallback(tmp_path: Path) -> None:
+    gdi = tmp_path / "game.gdi"
+    gdi.write_text("1\n1 0 4 2352 track01.bin 0\n", encoding="utf-8")
+
+    result = parse_tracks_from_gdi(gdi)
+
+    assert [p.name for p in result] == ["track01.bin"]
 
 
 def test_convert_directory_dry_run(tmp_path: Path) -> None:

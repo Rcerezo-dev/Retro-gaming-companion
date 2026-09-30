@@ -15,6 +15,7 @@ from rom_manager.web.builders.duplicates import (
     _build_review_queue,
     _find_rescue_candidate_in_trash,
     _is_broken_disc_entry,
+    _review_entry_sort_key,
 )
 
 _TS = "2026-01-01T00:00:00"
@@ -1615,3 +1616,86 @@ def test_disc_hash_union_skips_when_hashes_differ(
     result = _build_review_queue(repo, repo, config)
 
     assert result["groups"] == []
+
+
+def _entry(filename: str, **overrides) -> dict:
+    base = {
+        "source_path": f"/roms/{filename}",
+        "filename": filename,
+        "size_bytes": 100,
+        "ra_supported": False,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_sort_key_penalizes_mislabeled_translation_tag() -> None:
+    """ANDROID-DUP-SORT-TIEBREAK-1: found live 2026-09-29 -- a [T-...] tag on
+    a file that's byte-identical (same sha1, same group) to a plain copy is
+    provably false, a real translation patch edits bytes. Before this fix the
+    alphabetical fallback ('[' / space sorts before '.') picked the falsely-
+    labeled file over the honest one for 16 real GBA/NES/Game Gear titles
+    (Mother 3, Sylvan Tale, Famicom Wars...)."""
+    clean = _entry("Mother 3 (Japan).gba")
+    fake_patch = _entry("Mother 3 (Japan) [T-En by Chewy & Jeffman & Tomato v1.3].gba")
+
+    assert _review_entry_sort_key(clean) < _review_entry_sort_key(fake_patch)
+
+
+def test_sort_key_penalizes_conflicto_inbox_suffix() -> None:
+    """Same tiebreak bug, different real cause: a name that only carries the
+    Inbox pipeline's naming-collision suffix must never beat the clean name
+    it collided with (found live: Boktai 2, Crash Nitro Kart, Klonoa -
+    Empire of Dreams)."""
+    clean = _entry("Boktai 2 - Solar Boy Django (USA).gba")
+    messy = _entry("Boktai 2 - Solar Boy Django (USA) (conflicto-inbox 2026-08-13).gba")
+
+    assert _review_entry_sort_key(clean) < _review_entry_sort_key(messy)
+
+
+def test_sort_key_does_not_penalize_beta_or_proto_tags() -> None:
+    """A (Beta)/(Proto)/(Demo)/(Sample) tag describes a real, distinct dump
+    (confirmed live: Mega Drive/Game Gear prototypes correctly kept their
+    No-Intro name over a badly-cased legacy dump of the same content) -- the
+    new variant_tier must not touch these, only provably-false variant
+    markers (is_non_canonical_variant) and the conflicto-inbox artifact."""
+    beta = _entry("Ristar (USA, Europe) (Beta).md")
+    other = _entry("Zoop (USA) (Beta).bin")
+
+    # Neither carries a translation/hack/subset marker or a conflicto-inbox
+    # suffix, so variant_tier ties at 0 for both -- same as before this fix.
+    key_beta = _review_entry_sort_key(beta)
+    key_other = _review_entry_sort_key(other)
+    assert key_beta[:-2] == key_other[:-2]  # every tier but variant_tier/filename ties
+    assert key_beta[-2] == 0
+    assert key_other[-2] == 0
+
+
+def test_ra_group_recommends_clean_name_over_mislabeled_patch(tmp_path: Path) -> None:
+    """End-to-end regression for the real 2026-09-29 finding, through the
+    actual review-queue pipeline, not just the sort key in isolation."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    clean_path = str(tmp_path / "gba" / "Mother 3 (Japan).gba")
+    patch_path = str(
+        tmp_path / "gba" / "Mother 3 (Japan) [T-En by Chewy & Jeffman & Tomato v1.3].gba"
+    )
+    _insert_game(
+        repo,
+        source_path=clean_path,
+        sha1="A" * 40,
+        original_filename="Mother 3 (Japan).gba",
+        platform="Game Boy Advance",
+    )
+    _insert_game(
+        repo,
+        source_path=patch_path,
+        sha1="A" * 40,
+        original_filename="Mother 3 (Japan) [T-En by Chewy & Jeffman & Tomato v1.3].gba",
+        platform="Game Boy Advance",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    recommended = next(e for e in result["groups"][0]["entries"] if e["recommended"])
+    assert recommended["source_path"] == clean_path

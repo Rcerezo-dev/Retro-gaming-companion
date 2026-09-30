@@ -10,8 +10,11 @@ file at the same path invalidates its own cache entry automatically.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 from rom_manager.retroachievements.ra_hash_gamecube_wii import (
@@ -44,9 +47,26 @@ def _load(cache_dir: Path, filename: str = _CACHE_FILENAME) -> dict[str, dict[st
 def _save(
     cache_dir: Path, data: dict[str, dict[str, str]], filename: str = _CACHE_FILENAME
 ) -> None:
+    """Write-then-rename: two writers racing here (e.g. an RA check job and a
+    duplicates-review build running at the same time, both hitting this same
+    cache file) used to be able to interleave their ``write_text`` calls and
+    leave a torn, invalid JSON file on disk -- reproduced live 2026-09-29
+    (`psx_disc_hashes.json` corrupted mid-session with `ra_check` and
+    `review-queue` both running). ``os.replace`` is atomic on both POSIX and
+    Windows -- a reader always sees either the old or the new complete file,
+    never a partial write.
+    """
     p = _cache_path(cache_dir, filename)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data), encoding="utf-8")
+    fd, tmp_name = tempfile.mkstemp(dir=p.parent, prefix=f".{filename}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp_name, p)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 def get_psx_disc_hash(source_path: str, cache_dir: Path, chdman_path: Path | None) -> str | None:

@@ -277,6 +277,11 @@ class InboxConfig:
     target_root: str = ""  # where to place organized files (defaults to library_root)
     auto_process: bool = False  # auto-process when files detected
     delete_source: bool = False  # delete original ZIP after organizing
+    # INBOX-METADATA-INLINE-1: opt-in — scrapea portada/metadata al organizar
+    # (mismo mecanismo que un juego individual en Colección). Apagado por
+    # defecto: red/rate-limit de ScreenScraper no debe ralentizar una
+    # organización masiva sin que el usuario lo pida explícitamente.
+    scrape_on_organize: bool = False
 
 
 @dataclass(slots=True)
@@ -320,6 +325,7 @@ class AppConfig:
     rclone_binary: str
     chdman: str
     adb: str
+    sevenzip: str
     web_host: str
     web_port: int
     web_allow_lan: bool  # True = skip PIN guard when binding to a non-loopback address
@@ -384,6 +390,8 @@ chdman = "chdman"
 # Path to the adb binary from Android Platform Tools (needed for ADB sync mode)
 # Download from: developer.android.com/tools/releases/platform-tools
 # adb = "tools/adb.exe"
+# Path to the 7-Zip binary (7z.exe, needed to extract .7z archives in the Inbox)
+# sevenzip = "tools/7z.exe"
 
 [web]
 # Bind to all network interfaces so any device on your LAN can reach the UI.
@@ -535,6 +543,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         ),
         chdman=_resolve_tool_path(tools.get("chdman", _default_tool(root, "chdman.exe", "chdman"))),
         adb=_resolve_tool_path(tools.get("adb", _default_tool(root, "adb.exe", "adb"))),
+        sevenzip=_resolve_tool_path(tools.get("sevenzip", _default_tool(root, "7z.exe", "7z"))),
         web_host=web.get("host", "0.0.0.0"),
         web_port=int(web.get("port", 7777)),
         web_allow_lan=bool(web.get("allow_lan", True)),
@@ -575,6 +584,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             target_root=str(inbox_cfg.get("target_root", "")),
             auto_process=bool(inbox_cfg.get("auto_process", False)),
             delete_source=bool(inbox_cfg.get("delete_source", False)),
+            scrape_on_organize=bool(inbox_cfg.get("scrape_on_organize", False)),
         ),
         retroarch_path=str(launchers_cfg.get("retroarch", tools.get("retroarch", ""))),
         esde_path=str(launchers_cfg.get("esde", "")),
@@ -839,6 +849,14 @@ def validate(config: AppConfig) -> list[dict]:
     # adb
     if config.adb and config.adb != "adb" and not _path_exists(config.adb):
         warn("adb", f"adb no encontrado en: {config.adb}. El Cable Sync no funcionará.")
+
+    # sevenzip
+    if config.sevenzip and config.sevenzip != "7z" and not _path_exists(config.sevenzip):
+        warn(
+            "sevenzip",
+            f"7z no encontrado en: {config.sevenzip}. Los archivos .7z del Inbox no se extraerán.",
+            "info",
+        )
 
     # web_port
     if not (1 <= config.web_port <= 65535):

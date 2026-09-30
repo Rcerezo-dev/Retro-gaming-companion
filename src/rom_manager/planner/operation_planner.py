@@ -47,6 +47,21 @@ _DISC_SUBFOLDER_CATALOG_PLATFORMS: frozenset[str] = frozenset(
     }
 )
 
+# GDI-ORGANIZE-1: maps the same 4 catalog display names above to their real
+# on-disk folder slug (mirrors web/handlers/system.py::_ES_PLATFORM_FOLDERS
+# for just this subset -- duplicated locally rather than importing across the
+# planner/web layering boundary, same reasoning matcher.py already gives for
+# not importing that dict). Used by build_plan()'s *library_root* branch to
+# place a subfolder-platform game correctly regardless of where its source
+# currently sits, instead of guessing from source.parent/source.parent.parent
+# (see the bug this replaces, below).
+_CATALOG_PLATFORM_TO_FOLDER_SLUG: dict[str, str] = {
+    "playstation": "psx",
+    "sega saturn": "saturn",
+    "dreamcast": "dreamcast",
+    "wii": "wii",
+}
+
 # GAMECUBE-DISC-BUG-1a/1d: platforms that can have real multi-disc sets, used
 # by apply_ra_conflicts() to skip auto-discard on "disk"/"collision"
 # conflicts — a separate concept from _DISC_SUBFOLDER_PLATFORMS above (folder
@@ -170,6 +185,7 @@ def build_plan(
     repository: LibraryRepository,
     opts: FormatOptions | None = None,
     keep_both: bool = False,
+    library_root: Path | None = None,
 ) -> RenamePlan:
     """Generate a rename plan for all matched games.
 
@@ -180,6 +196,22 @@ def build_plan(
 
     With *keep_both=True* plan-level collisions are resolved by appending numeric
     suffixes (``_1``, ``_2``, …) instead of marking them as conflicts.
+
+    *library_root*, when given, fixes GDI-ORGANIZE-1: without it, a subfolder
+    platform's (psx/saturn/dreamcast/wii) target is guessed from
+    ``source.parent``/``source.parent.parent`` alone, which assumes the source
+    already sits either directly in the platform folder or one level inside
+    it. A file that lives somewhere else entirely (``Unknown/``, another
+    platform's folder, an Inbox staging dir...) breaks that assumption
+    silently and produces a target outside the platform folder altogether —
+    confirmed live 2026-09-29 moving freshly-extracted Dreamcast sets. With
+    *library_root*, a game whose source lives under it gets its target
+    computed directly as ``library_root/<slug>/<folder>/<filename>``,
+    correct regardless of the source's current location. Games outside
+    *library_root* (an Android-repo scan, for instance) fall back to the old
+    relative heuristic unchanged -- *library_root* only ever applies to PC
+    paths, and omitting it (the default) preserves the old behavior exactly
+    for every existing caller.
     """
     from rom_manager.planner.collision_resolver import resolve
 
@@ -194,11 +226,26 @@ def build_plan(
         # be derived disc-agnostic even though new_filename now carries the tag.
         if game.platform and game.platform.lower() in _DISC_SUBFOLDER_CATALOG_PLATFORMS:
             folder_name = Path(_canonical_filename(game, opts, include_disc_tag=False)).stem
-            target = (
-                source.parent.parent / folder_name / new_filename
-                if source.parent.name.lower() not in _DISC_SUBFOLDER_PLATFORMS
-                else source.parent / folder_name / new_filename
-            )
+
+            platform_root: Path | None = None
+            if library_root is not None:
+                slug = _CATALOG_PLATFORM_TO_FOLDER_SLUG.get(game.platform.lower())
+                if slug is not None:
+                    try:
+                        source.relative_to(library_root)
+                    except ValueError:
+                        pass  # source isn't under library_root (e.g. Android repo) -- fall back below
+                    else:
+                        platform_root = library_root / slug
+
+            if platform_root is not None:
+                target = platform_root / folder_name / new_filename
+            else:
+                target = (
+                    source.parent.parent / folder_name / new_filename
+                    if source.parent.name.lower() not in _DISC_SUBFOLDER_PLATFORMS
+                    else source.parent / folder_name / new_filename
+                )
         else:
             target = source.parent / new_filename
 

@@ -549,8 +549,8 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
 def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
     """Run a filesystem Cable Sync triggered by SD card insertion."""
     import datetime as _dt2
-    import shutil
 
+    from rom_manager.backup.save_backup import backup_save
     from rom_manager.sync import cable_engine
     from rom_manager.sync.sync_log import log_sync_event
 
@@ -585,12 +585,14 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
         def _wanted(p: Path) -> bool:
             return p.suffix.lower() in save_exts
 
-        # CABLE-UX-9a: backup del destino antes de sobrescribirlo — el SD
-        # auto-sync no tenía red de seguridad (regla "ante duda, no
-        # sobreescribir").
-        backup_dir = (
-            config.project_root / ".rommgr" / "cable_sync_backups" / _dt2.date.today().isoformat()
-        )
+        # CABLE-UX-9a / roadmap 25 Paso 2 (2026-09-22): backup del destino
+        # antes de sobrescribirlo — el SD auto-sync no tenía red de
+        # seguridad. Antes escribía a una carpeta propia por fecha
+        # (`.rommgr/cable_sync_backups/<fecha>/`), invisible para la UI de
+        # historial de saves; unificado al mismo `backup_save()` versionado
+        # que ya usan Cloud Sync y el Cable Sync manual (`sync_cable.py`),
+        # para que estos backups también aparezcan ahí.
+        _bk_root = config.data_dir if config.backup.saves_enabled else None
 
         # CABLE-UX-9c: motor compartido (CABLE-UX-9b) en vez de walk+compare+
         # copy propios.
@@ -635,13 +637,10 @@ def _run_sd_auto_sync(config: AppConfig, get_repo_fn) -> None:
                     _sql_log(item, "ok")
 
         for item in items:
-            if item.dst.exists():
-                side = "anbernic" if item.dst.is_relative_to(ab_root) else "pc"
-                rel = item.dst.relative_to(ab_root if side == "anbernic" else pc_root)
-                backup_path = backup_dir / side / rel
-                backup_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item.dst, backup_path)
-                _log_file.write(f"BACKUP {side} {rel} -> {backup_path}\n")
+            if _bk_root is not None and item.dst.exists():
+                backup_path = backup_save(item.dst, _bk_root)
+                if backup_path is not None:
+                    _log_file.write(f"BACKUP {item.dst} -> {backup_path}\n")
             tag, size = cable_engine.copy_item(item, policy, on_event=_on_event)
             if tag == "COPY":
                 copied += 1

@@ -259,8 +259,55 @@ de proveedor.
 ## Checklist
 
 - [ ] Fase 0 — prerrequisito manual (Google Cloud Console, `GDRIVE_CLIENT_ID` en `local.properties`) completado por el usuario
-- [ ] Fase 1 — `CloudTransport` extraído, `DropboxTransport` lo implementa, cero regresiones
+- [x] Fase 1 — `CloudTransport` extraído, `DropboxTransport` lo implementa, cero regresiones (PR #357)
 - [ ] Fase 2 — `GoogleDriveAuthManager`/`GoogleDriveCredentialStore` (Sign-In + Picker)
+  - [x] Sign-In (`GoogleDriveCredentialStore`, `GoogleDriveAuthManager.signInIntent()`/`handleSignInResult()`, dependencia `play-services-auth`) — compila y `testDebugUnitTest` en verde; **no verificable de extremo a extremo sin Fase 0** (`GDRIVE_CLIENT_ID` real)
+  - [ ] Picker para elegir la carpeta `RetroSync/` ya existente (`GoogleDriveCredentialStore.folderId()` sigue siempre `null` hasta esto) — pendiente, ver nota de complejidad abajo
 - [ ] Fase 3 — `GoogleDriveTransport` (resolución de carpetas + BFS + upload/download)
 - [ ] Fase 4 — selector de proveedor en Ajustes + `SyncOrchestrator` genérico
 - [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto
+
+**Nota 2026-09-29 sobre el Picker (investigado contra la documentación real
+de Google, no asumido)**: la API nativa de Picker vía `play-services-drive`
+está deprecada desde 2022. El mecanismo vigente para apps de escritorio/
+móviles **no es el WebView** que se apuntaba aquí antes — es un flujo de
+navegador que redirige de vuelta a la app
+([guía oficial](https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker)):
+
+- Scope: **solo** `drive.file` (no se puede combinar con otros).
+- URL de autorización: `https://accounts.google.com/o/oauth2/v2/auth` con
+  `client_id`, `scope=.../drive.file`, `redirect_uri`, `response_type=code`,
+  `access_type=offline`, `prompt=consent`, **`trigger_onepick=true`** (activa
+  el Picker) y, para carpetas, **`allow_folder_selection=true`**.
+- Vuelta a la app: el navegador redirige a `redirect_uri` con
+  `picked_file_ids` (los IDs elegidos) + `code` (a canjear por tokens).
+- Lado Android: la doc apunta a la API nueva `AuthorizationClient`
+  (`com.google.android.gms.auth.api.identity.Identity.getAuthorizationClient()`
+  + `AuthorizationRequest`), **no** al `GoogleSignIn` clásico usado en el
+  incremento de Sign-In ya commiteado — son dos APIs distintas de
+  `play-services-auth` (confirmado también contra una migración real de
+  terceros, PR
+  [Pingue/note-app#25](https://github.com/Pingue/note-app/pull/25), que
+  reemplaza `GoogleSignIn` por `Identity.getAuthorizationClient(context)
+  .authorize(AuthorizationRequest.builder()...build())` +
+  `getAuthorizationResultFromIntent(data)`).
+
+**Lo que queda sin verificar**: la doc menciona pasar `PICKER_OAUTH_TRIGGER`/
+`PICKER_ALLOW_FOLDER_SELECTION` como "resource parameter" del
+`AuthorizationRequest.Builder`, pero ninguna fuente consultada (docs oficiales
+ni el PR de referencia) trae el método/firma Kotlin exacto para eso — no se
+ha escrito código para esta parte porque adivinar la firma de una API externa
+sin poder compilarla/probarla contra una cuenta real (Fase 0 pendiente) es
+más riesgo que valor. Próximo paso: revisar
+`AuthorizationRequest`/`AuthorizationRequest.Builder` en el
+[Android reference](https://developers.google.com/android/reference/com/google/android/gms/auth/api/identity/AuthorizationClient)
+con la Fase 0 ya completa para poder compilar y probar contra Drive real en
+el mismo ciclo.
+
+**Consecuencia para el Sign-In ya commiteado**: `GoogleDriveAuthManager`
+(clásico `GoogleSignIn`) sigue siendo válido para el login/email — pero la
+autorización del scope `drive.file` + el Picker en sí necesitarán
+`AuthorizationClient` en paralelo, no una extensión del mismo manager. Revisar
+si compensa unificar ambos en `AuthorizationClient` (cubre también el login,
+según el PR de referencia) antes de construir más encima del `GoogleSignIn`
+actual — decisión para el próximo incremento, no tomada todavía.
