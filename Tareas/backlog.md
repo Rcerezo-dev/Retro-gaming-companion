@@ -2577,6 +2577,22 @@ las mismas 6 configs de emulador, dry-run por defecto) para que se ejecute
 allí sin repetir la investigación a mano — no se ha ejecutado contra esa
 máquina porque esta sesión no tiene acceso a ella.
 
+**(7) Dusklight en esta máquina (2026-09-28)**: petición del usuario de
+traer el save de Dropbox — investigado antes de tocar nada. **No hay nada
+que traer**: `dropbox:/RetroSync/saves/` solo tiene `dolphin`/`duckstation`/
+`pcsx2`/`retroarch`, sin `native/` — el save de Dusklight de rammu nunca
+llegó a subirse de verdad (solo se añadió la entrada de config, no se
+confirma un `sync --apply` real con datos). Tampoco hay save local todavía
+en esta máquina (`%APPDATA%\TwilitRealm\Dusklight\` existe, instalación
+reciente, sin ninguna carpeta de región/`.gci`). `rommgr sync` (dry-run)
+del resto de fuentes confirmó todo al día (↑2 ↓0, 0 conflictos, 0 errores)
+— Pilar 3 sano en esta máquina, nada perdido. Añadida la entrada
+`[[sync.sources]]` para Dusklight en `config.toml` (gitignored, solo local)
+apuntando a `...\Dusklight\USA` — **región inferida sin verificar** (la ISO
+de esta biblioteca es (USA), no (Europe) como en rammu; corregir
+`local_dir` si el nombre real de carpeta resulta ser otro) — listo para
+cuando el juego cree el save real.
+
 ### EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben" = PC2)
 
 Petición del usuario: quiere sync entre sus 3 dispositivos (PC principal,
