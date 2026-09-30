@@ -1,4 +1,4 @@
-# Descarga chdman, rclone y adb en tools/
+# Descarga chdman, rclone, adb y 7-Zip en tools/
 # Uso: .\scripts\download-tools.ps1
 
 $ErrorActionPreference = "Stop"
@@ -80,6 +80,44 @@ try {
                 Write-Host "         3. Extrae chdman.exe y colócalo en tools\"
                 Write-Host "         (Solo necesario para convertir ROMs a CHD. Opcional para el resto de funciones.)"
             }
+        }
+    }
+
+    # ── 7-Zip (para extraer .7z en el Inbox) ────────────────────────────────
+    if (Test-Path "$toolsDir\7z.exe") {
+        Write-Host "[7-Zip] Ya existe, omitido."
+    } else {
+        Write-Host "[7-Zip] Buscando última versión en GitHub..." -NoNewline
+        $release = Invoke-RestMethod "https://api.github.com/repos/ip7z/7zip/releases/latest" -UseBasicParsing
+        $tag = $release.tag_name   # e.g. "26.03"
+        Write-Host " $tag"
+
+        # El .msi permite extraer sin instalar (instalación administrativa,
+        # no interactiva) -- el .exe es un NSIS autoextraíble sin ese modo.
+        $asset = $release.assets | Where-Object { $_.name -match "-x64\.msi$" } | Select-Object -First 1
+
+        if ($asset) {
+            $msi = "$tmp\7zip.msi"
+            Get-Tool "7-Zip" $asset.browser_download_url $msi
+            $extractDir = "$tmp\7zip"
+            Write-Host "[7-Zip] Extrayendo (instalación administrativa)..."
+            Start-Process "msiexec.exe" -ArgumentList "/a `"$msi`" /qn TARGETDIR=`"$extractDir`"" -Wait
+            $exe = Get-ChildItem $extractDir -Recurse -Filter "7z.exe" | Select-Object -First 1
+            $dll = Get-ChildItem $extractDir -Recurse -Filter "7z.dll" | Select-Object -First 1
+            if ($exe -and $dll) {
+                Copy-Item $exe.FullName "$toolsDir\7z.exe"
+                Copy-Item $dll.FullName "$toolsDir\7z.dll"
+                Write-Host "[7-Zip] → tools\7z.exe (+ 7z.dll)"
+            } else {
+                Write-Host "[7-Zip] ⚠ No se encontró 7z.exe/7z.dll tras extraer el .msi."
+            }
+        } else {
+            Write-Host ""
+            Write-Host "[7-Zip] ⚠ Descarga manual necesaria."
+            Write-Host "         1. Ve a: https://www.7-zip.org/download.html"
+            Write-Host "         2. Instala 7-Zip (o copia 7z.exe + 7z.dll de una instalación existente)."
+            Write-Host "         3. Colócalos en tools\"
+            Write-Host "         (Solo necesario para extraer archivos .7z en el Inbox. Opcional para el resto de funciones.)"
         }
     }
 

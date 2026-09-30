@@ -251,6 +251,130 @@ def test_multidisc_set_messy_tags_do_not_collide(tmp_path: Path) -> None:
     }
 
 
+def test_loose_source_without_library_root_reproduces_known_bug(tmp_path: Path) -> None:
+    """GDI-ORGANIZE-1, found live 2026-09-29: a file that isn't already
+    sitting in (or one level inside) its platform folder -- e.g. freshly
+    extracted into Unknown/ -- has no reliable way to guess the real
+    platform folder from source.parent alone. Without *library_root* this
+    stays exactly what it always was: a wrong guess (source.parent.parent,
+    the library root itself, not dreamcast/). This test pins the known-bad
+    default behavior so the *library_root* fix below is a deliberate opt-in,
+    not a silent behavior change for every existing caller."""
+    unknown_dir = tmp_path / "Unknown"
+    unknown_dir.mkdir()
+    src = unknown_dir / "Crazy Taxi (USA).gdi"
+    src.touch()
+    game = _make_game(
+        original_filename=src.name,
+        source_path=str(src),
+        canonical_title="Crazy Taxi (USA)",
+        extension=".gdi",
+        platform="Dreamcast",
+    )
+    plan = build_plan(_repo_with([game]))
+
+    assert len(plan.pending) == 1
+    op = plan.pending[0]
+    # Wrong on purpose: lands in tmp_path/"Crazy Taxi (USA)", not
+    # tmp_path/"dreamcast"/"Crazy Taxi (USA)" -- this is the bug.
+    assert op.target_path.parent == tmp_path / "Crazy Taxi (USA)"
+
+
+def test_library_root_places_loose_source_in_correct_platform_folder(tmp_path: Path) -> None:
+    """GDI-ORGANIZE-1 fix: with *library_root* given, a source loose in
+    Unknown/ (or anywhere else under library_root) is placed under the
+    correct platform folder directly, regardless of where it currently
+    sits -- no more guessing from source.parent."""
+    unknown_dir = tmp_path / "Unknown"
+    unknown_dir.mkdir()
+    src = unknown_dir / "Crazy Taxi (USA).gdi"
+    src.touch()
+    game = _make_game(
+        original_filename=src.name,
+        source_path=str(src),
+        canonical_title="Crazy Taxi (USA)",
+        extension=".gdi",
+        platform="Dreamcast",
+    )
+    plan = build_plan(_repo_with([game]), library_root=tmp_path)
+
+    assert len(plan.pending) == 1
+    op = plan.pending[0]
+    assert op.target_path == tmp_path / "dreamcast" / "Crazy Taxi (USA)" / "Crazy Taxi (USA).gdi"
+
+
+def test_library_root_still_correct_for_already_working_cases(tmp_path: Path) -> None:
+    """The two cases that already worked without *library_root* (loose
+    directly in the platform folder, or one level inside a subfolder that
+    needs renaming) must compute the exact same target with it passed --
+    library_root is a fix for the broken case, not a behavior change for the
+    working ones."""
+    dreamcast_dir = tmp_path / "dreamcast"
+    dreamcast_dir.mkdir()
+
+    # Case 1: loose directly in the platform folder.
+    loose_src = dreamcast_dir / "old-name.gdi"
+    loose_src.touch()
+    loose_game = _make_game(
+        original_filename=loose_src.name,
+        source_path=str(loose_src),
+        canonical_title="Jet Set Radio (Europe)",
+        extension=".gdi",
+        platform="Dreamcast",
+    )
+
+    # Case 2: already one level inside a (wrongly-named) per-game subfolder.
+    nested_src = dreamcast_dir / "Wrong Folder Name" / "old-name.gdi"
+    nested_src.parent.mkdir()
+    nested_src.touch()
+    nested_game = _make_game(
+        id=2,
+        original_filename=nested_src.name,
+        source_path=str(nested_src),
+        canonical_title="Sonic Adventure (USA)",
+        extension=".gdi",
+        platform="Dreamcast",
+    )
+
+    for game, expected_parent in (
+        (loose_game, dreamcast_dir / "Jet Set Radio (Europe)"),
+        (nested_game, dreamcast_dir / "Sonic Adventure (USA)"),
+    ):
+        plan_without = build_plan(_repo_with([game]))
+        plan_with = build_plan(_repo_with([game]), library_root=tmp_path)
+
+        assert plan_without.pending[0].target_path == plan_with.pending[0].target_path
+        assert plan_with.pending[0].target_path.parent == expected_parent
+
+
+def test_library_root_ignored_for_source_outside_it(tmp_path: Path) -> None:
+    """A game whose source lives outside *library_root* (an Android-repo scan
+    sharing the same build_plan(), for instance) must fall back to the old
+    relative heuristic unchanged -- library_root only ever applies to PC
+    paths that are actually rooted under it."""
+    pc_root = tmp_path / "pc_library"
+    pc_root.mkdir()
+    android_root = tmp_path / "android_mirror"
+    unknown_dir = android_root / "Unknown"
+    unknown_dir.mkdir(parents=True)
+    src = unknown_dir / "Crazy Taxi (USA).gdi"
+    src.touch()
+    game = _make_game(
+        original_filename=src.name,
+        source_path=str(src),
+        canonical_title="Crazy Taxi (USA)",
+        extension=".gdi",
+        platform="Dreamcast",
+    )
+
+    plan = build_plan(_repo_with([game]), library_root=pc_root)
+
+    assert len(plan.pending) == 1
+    # Falls back to the old (buggy) heuristic, exactly like passing no
+    # library_root at all -- source isn't under pc_root, so it's left alone.
+    assert plan.pending[0].target_path.parent == android_root / "Crazy Taxi (USA)"
+
+
 def test_mixed_statuses(tmp_path: Path) -> None:
     # pending
     g1_path = tmp_path / "mario.gb"

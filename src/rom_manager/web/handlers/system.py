@@ -215,6 +215,7 @@ def _handle_system_status(config: AppConfig) -> dict:
 
     chdman_ok, chdman_ver = _test_binary(str(config.chdman) if config.chdman else "")
     adb_ok, adb_ver = _test_binary(str(config.adb) if config.adb else "")
+    sevenzip_ok, sevenzip_ver = _test_binary(str(config.sevenzip) if config.sevenzip else "")
     rclone_st = _handle_rclone_status(config)
     from rom_manager.web.handlers.scan import _catalog_status
 
@@ -230,6 +231,11 @@ def _handle_system_status(config: AppConfig) -> dict:
             "path": str(config.chdman or "tools/chdman.exe"),
         },
         "adb": {"ok": adb_ok, "version": adb_ver, "path": str(config.adb or "tools/adb.exe")},
+        "sevenzip": {
+            "ok": sevenzip_ok,
+            "version": sevenzip_ver,
+            "path": str(config.sevenzip or "tools/7z.exe"),
+        },
         "rclone": {
             "ok": rclone_st["installed"],
             "version": rclone_st.get("version", ""),
