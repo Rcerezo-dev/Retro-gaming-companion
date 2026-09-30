@@ -25,6 +25,17 @@
 > consolidadas en el dispositivo (patrón `DUALFOLDER-12`, solo aplicado en PC);
 > `library_android.db` desactualizada (último scan 2026-09-12); relanzado el
 > scrape completo (22.840 ROMs pendientes)
+> 2026-09-22: 8 ideas de mejora propuestas por el usuario añadidas como tareas
+> nuevas (SAVES-UX, INBOX-UX, LIBRARY-UX, MOBILE-UI, RA-LIVE en sus epics de
+> pilar existentes → #202/#203/#204/#206/#208) + nuevo epic "Estandarización de
+> biblioteca multi-launcher" (→ #337, ESDE-FOLDER-STD-1 fusiona
+> ROADMAP-IDEAS/ESDE-CONFIG-CHECK, ROMHACK-ORG-1 nuevo). Ninguna implementada
+> todavía — todas ⬜ sin diseñar. Roadmap por rama creado (`.claude/roadmaps/
+> INDEX.md`, 6 ramas nuevas 25-30, fases 1-6). Añadida 9ª tarea
+> `SYNC-CONFLICT-MANUAL-1` (revisión manual de conflictos de Cloud Sync) tras
+> verificar contra el código real que hoy se auto-resuelve siempre por policy
+> global — agrupada en la rama `feature/saves-ux-history-context` (roadmap 25)
+> por compartir fichero con `SAVES-CONFLICT-CTX-1`, no rama nueva
 > 2026-09-26: `NATIVE-SAVE-SYNC-1` — biblioteca, emuladores y juegos nativos
 > consolidados en `E:\RetroVault\` (`ROMS`/`EMULADORES`/`JUEGOS NATIVOS`);
 > 129.654 filas reescritas en `library_pc.db`; sync de saves extendido a
@@ -37,6 +48,13 @@
 > arreglado (PR #377) — `build_plan()` ya no adivina mal el destino de
 > PSX/Saturn/Dreamcast/Wii cuando el origen no está en su carpeta de
 > plataforma
+> 2026-09-30: rescatadas `feature/saves-ux-history-context` (roadmap 25,
+> PR #338) y `feature/inbox-ux-summary-metadata` (roadmap 26, PR #339) —
+> llevaban abiertas desde el 22-25/09 con trabajo completo, bloqueadas por
+> conflictos reales contra los 5 días de `develop` que avanzaron mientras
+> tanto; roadmaps 28/29/30 renumerados a 29/30/31 (28 ya lo ocupaba
+> `android-gdrive-provider`, sesión aparte) y el roadmap 27 (ya completado
+> vía PR #340) retirado del índice por duplicado
 > Completed tasks → `Tareas/diario/archivo/archivo.md`
 > Arquitectura actual: `docs/architecture/architecture.md`
 > Organizado por épica de GitHub (2026-08-15) — convención en `.claude/CLAUDE.md` § Gestión de tareas.
@@ -63,7 +81,13 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 | `fix/cable-sync-format-gaps` | [16](../.claude/roadmaps/16-cable-sync-format-gaps.md) | [CABLE-ROM-FIX](#cable-rom-fix-el-sync-de-roms-por-cable-no-compara-con-el-destino-hallazgo-2026-08-13) | Pilar 3 |
 | `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
-| — (sin asignar, se corta al empezar la Fase 1) | [28](../.claude/roadmaps/28-android-gdrive-provider.md) | [ANDROID-DRIVE-1](#android-sync-app-android-nativa-de-sync-de-saves-diseño-2026-08-18) | Android Sync |
+| — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](#docs-audit-1-seguimiento-de-la-auditoría-de-documentación-2026-09-20) | Transversal |
+| `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 — ✅ completo, PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339) abierto |
+| `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
+| `feature/library-folder-standardization` | [29](../.claude/roadmaps/29-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
+| `feature/mobile-responsive-ui` | [30](../.claude/roadmaps/30-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
+| `feature/ra-achievements-live-progress` | [31](../.claude/roadmaps/31-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
+| `feature/android-drive-2-signin` (Fase 1 en `main`/`develop` vía PR #357) | [28](../.claude/roadmaps/28-android-gdrive-provider.md) | [ANDROID-DRIVE-1](#android-sync-app-android-nativa-de-sync-de-saves-diseño-2026-08-18) | Android Sync |
 
 **Ramas mergeadas en esta sesión** (2026-09-18, ya reflejadas en `INDEX.md` filas 12/13/17/21/22):
 `fix/catalog-match-subset-hack` (PR #317), `fix/dup-winners-non-canonical-guard` (PR #318),
@@ -348,7 +372,7 @@ Fantasy VII en un solo grupo "duplicado" falso positivo.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | DUP-REGION-1 | Detectar el grupo (título difuso + plataforma, solo fuera de `_MULTI_DISC_RISK_PLATFORMS`) y añadir el motivo `"region"` a la cola de revisión — nunca auto-fusiona ni borra, solo recomienda cuál conservar (empate: integridad > soporte RA > carpeta correcta > región preferida > nombre) | `web/builders/duplicates.py` (`_review_groups_for_repo`, `region_linked_idxs`, `has_region_dup`) | ✅ implementado — confirmado contra la biblioteca real (2026-09-15, mencionado en el hallazgo original de Día64): 94 títulos GBA / 188 archivos, solo pares de región, ninguna secuela distinta fusionada por error (el tag de región es siempre un grupo `(...)` final, nunca parte del título) |
-| DUP-REGION-2 | El desempate por idioma de `_review_entry_sort_key` era fijo (solo "¿es español?"); para el motivo `"region"` se necesita un ranking configurable por el usuario, no solo español-o-no. Nueva `DuplicatesConfig` (`config.py`): `preferred_regions` (lista ordenada, por defecto `["Spain", "Europe"]`) y `keep_both_regions` (si `True`, el motivo `"region"` no se dispara nunca — el usuario conserva todas las regiones a propósito) | `config.py` (`DuplicatesConfig`), `detection/region_parser.py` (`KNOWN_REGIONS`, para el selector de la UI), `web/builders/duplicates.py` (`_review_entry_sort_key` con `region_tiebreak`/`preferred_regions`), `web/builders/misc.py` (`_build_config`), `web/handlers/config.py` (`_save_config`, campos `duplicates.*`), `web/static/js/tabs/config.js` + `tab-settings.html` (picker de regiones con reordenar/quitar, checkbox "mantener todas") | ✅ implementado con tests (`test_same_title_cross_region_flagged_for_review`, `test_keep_both_regions_config_suppresses_region_groups`, `test_preferred_regions_config_overrides_default_ranking`) — 1370 tests totales, ruff limpio. Retomado en rama `feature/dup-region-2-preferences`; sin PR todavía |
+| DUP-REGION-2 | El desempate por idioma de `_review_entry_sort_key` era fijo (solo "¿es español?"); para el motivo `"region"` se necesita un ranking configurable por el usuario, no solo español-o-no. Nueva `DuplicatesConfig` (`config.py`): `preferred_regions` (lista ordenada, por defecto `["Spain", "Europe"]`) y `keep_both_regions` (si `True`, el motivo `"region"` no se dispara nunca — el usuario conserva todas las regiones a propósito) | `config.py` (`DuplicatesConfig`), `detection/region_parser.py` (`KNOWN_REGIONS`, para el selector de la UI), `web/builders/duplicates.py` (`_review_entry_sort_key` con `region_tiebreak`/`preferred_regions`), `web/builders/misc.py` (`_build_config`), `web/handlers/config.py` (`_save_config`, campos `duplicates.*`), `web/static/js/tabs/config.js` + `tab-settings.html` (picker de regiones con reordenar/quitar, checkbox "mantener todas") | ✅ implementado con tests (`test_same_title_cross_region_flagged_for_review`, `test_keep_both_regions_config_suppresses_region_groups`, `test_preferred_regions_config_overrides_default_ranking`) — 1370 tests totales, ruff limpio. ✅ **mergeado** (PR #327, `2173ff1`) — el backlog seguía diciendo "sin PR todavía" pese a estar ya en `develop` |
 
 ---
 
@@ -1480,8 +1504,8 @@ previsto en el propio roadmap |
 Consolidar en Inicio los números ya calculados en pestañas sueltas (% organizada,
 GB en duplicados, carpetas huérfanas, ZIPs sin organizar) y mostrar los grupos de
 duplicados con portada + flag RA en vez de solo tabla de texto. Roadmap:
-`.claude/roadmaps/27-library-ux-dashboard-duplicates.md`, rama
-`feature/library-ux-dashboard-duplicates`.
+`.claude/roadmaps/archivo/27-library-ux-dashboard-duplicates.md`, rama
+`feature/library-ux-dashboard-duplicates` (PR #340).
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
@@ -2463,6 +2487,15 @@ except Exception as exc:
 
 ---
 
+### INBOX-UX — Cierre visible de sesión y metadata al vuelo (idea usuario 2026-09-22)
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| INBOX-SESSION-SUMMARY-1 | Resumen visible al terminar un job de Inbox/organize (N organizados, N con conflicto, N sin match) en vez de tener que revisar logs | `web/inbox_pipeline.py`, `web/static/js/tabs/inbox.js` | ✅ hecho 2026-09-22 (rama `feature/inbox-ux-summary-metadata`) — investigado primero: el panel de resumen (`_renderInboxResult`) y casi todos los contadores ya existían; solo faltaba destacar "sin match" (`unmatched`, juegos organizados sin `platform`), añadido junto a `scraped` |
+| INBOX-METADATA-INLINE-1 | Confirmar si portada/metadata ya se aplican automáticamente al organizar desde el Inbox (el scraper existe pero no está claro si dispara en el mismo job); si no, integrarlo | `services/scrape_service.py` (nuevo), `web/inbox_pipeline.py`, `web/handlers/scraper.py`, `config.py` | ✅ hecho 2026-09-22 — confirmado que no se aplicaba automáticamente. `_do_scrape_single` extraído a `scrape_game_metadata()` (servicio reutilizable, sin `ctx` HTTP) y enganchado al organize vía `_scrape_organized_games()`, opt-in (`config.inbox.scrape_on_organize`, apagado por defecto). Un solo `ScreenScraperClient` para todo el lote (su throttle es por instancia). 12 tests nuevos, 1452 pass, ruff+format limpios |
+
+---
+
 ---
 
 ## Pilar 3 — Sync de saves PC ↔ Anbernic — → #204
@@ -2638,6 +2671,8 @@ no un fallo de esta feature). Sin PR todavía |
 
 ### ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18)
 
+→ #374
+
 Petición del usuario: sync de saves lo más automático posible, sin depender
 de que el PC esté encendido. Decisión: app Android nativa instalada en la
 propia Anbernic que sincroniza directamente con Dropbox (sustituye al script
@@ -2757,7 +2792,7 @@ de prueba limpiados. Detalle paso a paso en
 
 ---
 
-| ANDROID-DRIVE-1 | **Idea para el futuro (2026-09-25, motivada por el límite de usuarios de la app Dropbox de ANDROID-SYNC-CRITICAL-1): añadir Google Drive como proveedor alternativo en la app Android**, igual que ya existe en el PC. El lado PC (`web/handlers/cloud_auth.py`, `_PROVIDERS = {"dropbox": ..., "gdrive": ("drive", "gdrive")}` + wizard OAuth ya cableado en `sync.js`/`tab-sync.html`) es agnóstico de proveedor porque delega en `rclone` — Drive ya funciona ahí sin código nuevo, solo eligiendo el provider en la UI. El lado Android **no** es agnóstico: `DropboxTransport`/`DropboxAuthManager`/`DropboxCredentialStore` usan directamente el SDK de Dropbox (`DbxClientV2`), sin capa de abstracción — añadir Drive requeriría una implementación paralela completa (SDK de Google Drive, su propio flujo OAuth con Google Identity Services, y su propio modelo de direcciones por `fileId`+carpetas en vez de rutas POSIX planas, bastante distinto de cómo `SyncEngine`/`ConflictResolver` asumen hoy `relative: String` sobre una raíz). No es un cambio pequeño — antes de implementarlo, decidir si vale la pena frente a simplemente resolver `ANDROID-SYNC-CRITICAL-1` (pasar la app Dropbox actual a Full Dropbox) | `android/app/src/main/java/com/retrovault/android/sync/DropboxTransport.kt`, `.../data/auth/Dropbox*.kt` | 🟡 **diseñado 2026-09-28** — roadmap completo en `.claude/roadmaps/28-android-gdrive-provider.md` (5 fases: `CloudTransport` genérico, auth Google Sign-In + Picker con scope `drive.file` para evitar la revisión de scopes sensibles de Google, `GoogleDriveTransport` con resolución de carpeta→ID cacheada, selector de proveedor en Ajustes, validación en hardware). Sin implementar todavía — `SyncEngine`/`ConflictResolver` ya son agnósticos de transporte, el trabajo real es la Fase 0 (prerrequisito manual: proyecto en Google Cloud Console) + Fases 1-5. Reevaluar prioridad frente a `ANDROID-SYNC-CRITICAL-1` causa raíz 3 (un solo scope por activar en la Dropbox App Console, mucho más barato) |
+| ANDROID-DRIVE-1 | **Idea para el futuro (2026-09-25, motivada por el límite de usuarios de la app Dropbox de ANDROID-SYNC-CRITICAL-1): añadir Google Drive como proveedor alternativo en la app Android**, igual que ya existe en el PC. El lado PC (`web/handlers/cloud_auth.py`, `_PROVIDERS = {"dropbox": ..., "gdrive": ("drive", "gdrive")}` + wizard OAuth ya cableado en `sync.js`/`tab-sync.html`) es agnóstico de proveedor porque delega en `rclone` — Drive ya funciona ahí sin código nuevo, solo eligiendo el provider en la UI. El lado Android **no** es agnóstico: `DropboxTransport`/`DropboxAuthManager`/`DropboxCredentialStore` usan directamente el SDK de Dropbox (`DbxClientV2`), sin capa de abstracción — añadir Drive requeriría una implementación paralela completa (SDK de Google Drive, su propio flujo OAuth con Google Identity Services, y su propio modelo de direcciones por `fileId`+carpetas en vez de rutas POSIX planas, bastante distinto de cómo `SyncEngine`/`ConflictResolver` asumen hoy `relative: String` sobre una raíz). No es un cambio pequeño — antes de implementarlo, decidir si vale la pena frente a simplemente resolver `ANDROID-SYNC-CRITICAL-1` (pasar la app Dropbox actual a Full Dropbox) | `android/app/src/main/java/com/retrovault/android/sync/DropboxTransport.kt`, `.../data/auth/Dropbox*.kt` | 🟡 **en marcha 2026-09-29** — roadmap completo en `.claude/roadmaps/28-android-gdrive-provider.md` (5 fases: `CloudTransport` genérico, auth Google Sign-In + Picker con scope `drive.file` para evitar la revisión de scopes sensibles de Google, `GoogleDriveTransport` con resolución de carpeta→ID cacheada, selector de proveedor en Ajustes, validación en hardware). Fase 1 mergeada (PR #357, `CloudTransport` extraído sin regresiones). Fase 2 en curso en `feature/android-drive-2-signin`: `GoogleDriveCredentialStore`/`GoogleDriveAuthManager` (solo Sign-In con `GoogleSignIn` clásico, compila + `testDebugUnitTest` en verde). Investigado el Picker (2026-09-29, contra la doc real de Google, no asumido): no es un WebView — es `Identity.getAuthorizationClient()`/`AuthorizationRequest` (API distinta de `GoogleSignIn`, ver nota en el roadmap 28), scope `drive.file` + parámetros `trigger_onepick`/`allow_folder_selection`. Sin código todavía — la firma Kotlin exacta para pasar esos parámetros no está confirmada en ninguna fuente consultada, y adivinarla sin poder compilar/probar contra Drive real (Fase 0 pendiente) es más riesgo que valor. Nada de esto es verificable de extremo a extremo hasta completar la Fase 0 (proyecto en Google Cloud Console, `GDRIVE_CLIENT_ID` real en `local.properties`) |
 
 ---
 
@@ -3481,6 +3516,538 @@ recurrente por cada sync no lo es.
 
 ---
 
+### SYNC-WII-SCOPE-1 — `SyncSource` no puede acotar solo los saves reales de Dolphin (Wii) (hallazgo rammu, 2026-09-21)
+
+Al reestructurar `sync.sources` en rammu siguiendo `Tareas/Estructura-Estandarizada-Sync.md`
+(convenio `dropbox:/RetroSync/saves/<emulador>/<tipo>` de PC2, `dolphin/gc` +
+`dolphin/wii`), la fuente `Dolphin (Wii)` con `local_dir` apuntando a la
+carpeta `Wii/` completa (`sync_all=true`) empezó a subir el NAND emulado
+entero (`title/<tipo>/<id>/content/` = IOS, System Menu, apps de canales
+instalados — `.app`, certificados `.pem`, `fst.bin`), no solo los saves.
+Medido en rammu: **96 MB en `Wii/` total, de los que solo 0.29 MB son saves
+reales** (`title/*/*/data/`, el equivalente NAND del save real por juego —
+`title/00010000/<gameid-hex>/data/`). `SyncSource` solo soporta un
+`local_dir` plano (sin include/exclude), así que no hay forma de acotar hoy
+a "todas las subcarpetas `data/` bajo `title/*/*`" sin sincronizar también
+`content/` (las apps instaladas). Parado a mitad de sync real (`--apply`)
+antes de subir más basura; fuente `Dolphin (Wii)` desactivada en
+`config.toml` (comentada, con la medición) hasta que se diseñe bien.
+**GC no tiene este problema** — su carpeta ya es 100% saves (`.gci` +
+`.raw`), se dejó activa. **Limpieza pendiente**: revisar
+`dropbox:/RetroSync/saves/dolphin/wii` — puede tener algunos `.app`/`.pem`
+subidos antes de parar el proceso (no es sensible ni gran volumen, pero es
+basura que no debería estar ahí).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SYNC-WII-SCOPE-1 | Sincronizar solo `title/*/*/data/` de Dolphin (Wii) | `config.py` (`SyncSource.include_glob`), `sync/save_syncer.py` (`list_local_saves`, `sync_saves`), `cli.py` (x2), `web/handlers/sync_cloud.py` | ✅ hecho 2026-09-21 — opción (a): campo `include_glob: str = "**/*"` en `SyncSource` (compatible hacia atrás, resto de fuentes sin cambio de comportamiento), usado en `saves_dir.glob(include_glob)` en vez del `rglob("*")` fijo. `config.toml` reactivado con `include_glob = "title/*/*/data/**/*"`. Test `test_list_local_saves_include_glob_scopes_dolphin_wii_nand` en `tests/test_save_syncer.py`. Verificado en dry-run real contra el NAND de rammu: 10 archivos detectados (todos bajo `data/`), `content/`/`shared1/`/etc. excluidos — antes eran 96 MB, ahora ~0.29 MB reales. Pendiente aplicar en PC2 y reactivar allí también |
+| SYNC-WII-SCOPE-2 | Limpiar `dropbox:/RetroSync/saves/dolphin/wii` de archivos de sistema subidos por error antes de detectar SYNC-WII-SCOPE-1 (`.app`, `.pem`, `fst.bin` — no saves) | — (limpieza manual en Dropbox o vía `rclone delete`) | ✅ hecho 2026-09-21 — `tools/rclone.exe purge` sobre la carpeta entera, confirmado vacía (53 archivos, 17.4 MB, 0 saves reales entre ellos) |
+
+---
+
+### CABLE-SYNC-DUP-PATHS-1 — investigación cable-sync ADB con la Anbernic real (rammu, 2026-09-21) — cerrada, no era un bug
+
+Con la Anbernic conectada por USB (autorizada, `adb devices` → `device`), se
+probó `POST /api/cable-sync` (`direction=pc_to_anbernic`, `use_adb=true`,
+`dry_run=true`). Primer intento con `pc_path=E:\Carpetas anbernic` (raíz de
+la biblioteca): **528/528 marcados para copiar, 0 ya coincidentes** —
+sospecha inicial de bug real de matching, **descartada tras seguir la
+cadena hasta la causa raíz** (regla "Investigar antes de arreglar",
+CLAUDE.md):
+
+1. **Error de test #1 — `pc_path` incorrecto**: se pasó la raíz de la
+   biblioteca (`E:\Carpetas anbernic`) en vez de la carpeta de saves
+   (`E:\Carpetas anbernic\saves`). En Android, RetroArch guarda los saves
+   planos junto a la plataforma (`RetroArch/mame/fixeight.nv`), sin
+   subcarpeta `saves/` — con `pc_path` mal puesto, TODAS las rutas
+   relativas quedaban desalineadas por ese segmento de más. Repetido con
+   `pc_path=.../saves`: bajó a 229/229 copiar, seguía en 0 skipped.
+2. **Error de test #2 — falta `skip_existing: true`**: `_skip_existing_device()`
+   (`web/handlers/sync_cable.py:729`) devuelve `False` sin comprobar nada
+   si `skip_existing` no viene en el payload — **por defecto es `false`**,
+   así que cualquier dry-run sin ese flag marca todo como "a copiar" aunque
+   ya exista igual en el dispositivo. No es un bug, es un parámetro opt-in
+   de la propia API (ver `openapi.json` — no aparece en el ejemplo de
+   payload, por eso se me pasó la primera vez). Con
+   `pc_path=.../saves` + `skip_existing=true`: **123 ya coinciden (mismo
+   tamaño), 106 realmente faltan, 0 errores** — número coherente, cierra
+   la investigación.
+
+**Hallazgo secundario real, menor**: 8 nombres de save duplicados en 2-3
+rutas distintas del dispositivo (19 de 288 archivos totales) — restos de un
+`savefile_directory` mal configurado en el pasado en la Anbernic (mismo
+patrón de drift que `retroarch_cfg_writer.py` en PC, ver commit `ac9e905`
+de hoy), ejemplo verificado con `adb shell find ... -iname 'punisher.nv'`:
+`RetroArch/saves/cps1/punisher.nv` (convenio nuevo) +
+`RetroArch/cps1/punisher.nv` + `RetroArch/cps1/fbneo/punisher.nv`
+(legado). Solo 19 archivos, no bloquea nada — separado en su propia tarea.
+
+**No se ejecutó ningún `--apply` real** en esta sesión (quedó todo en
+dry-run) — 106 archivos / ~230 MB reales pendientes de subir a la
+Anbernic, listos para aplicar en la próxima sesión con los parámetros ya
+correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
+`skip_existing=true`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+**Mapeo completo + backup hechos 2026-09-21** (rammu, con la Anbernic real
+por ADB) — **no se borró nada del dispositivo**, decisión del usuario
+("informe + backup, sin borrar todavía"). 823 archivos de save/state en el
+dispositivo, **289 nombres duplicados en rutas legado (706 archivos
+implicados)** — mucho mayor que la estimación original de 8. Clasificados
+en `.rommgr/legacy_dups_report_2026-09-21.csv` (gitignored, local):
+
+| Clasificación | Grupos | Criterio |
+|---|---|---|
+| `junk_zero_bytes` | 14 | Todas las copias son 0 bytes — basura, sin riesgo de pérdida |
+| `safe_same_copy_event` | 145 | Mismo tamaño, mtimes a ≤60s entre sí — típico de una migración puntual (mismo patrón que `CABLE-SYNC-SAVES-PREFIX-1`: "Advance Wars 2 [E].sav", 2s de diferencia) |
+| `review_time_gap` | 123 | Mismo tamaño pero mtimes separados >60s — mismo tamaño no garantiza mismo contenido, revisar caso a caso antes de decidir |
+| `CONFLICT_diff_size` | 7 | Tamaño distinto entre copias — divergencia real de contenido, **nunca borrar automáticamente** |
+
+**Por qué no se automatizó el borrado ni con criterio "más reciente":**
+uno de los 7 grupos conflictivos (`Pokemon - Edicion Plata SoulSilver
+(Spain).sav`) tiene 3 copias — dos idénticas de 512KB (`nds/` y
+`saves/nds/`, duplicado real y seguro) y una tercera de **0 bytes** en
+`emulator_saves/me.magnum.melonds/saves/` con el mtime más reciente
+(2026-08-28). Un criterio ciego de "quedarse con la copia más nueva por
+fecha" habría elegido el archivo vacío y descartado la partida real de
+512KB — la razón por la que esta tarea sigue sin automatizar el borrado
+(Pilar 3: "cualquier bug aquí es prioridad absoluta, pérdida de progreso").
+Los otros 6 grupos conflictivos son el mismo patrón: saves antiguos del
+core `VBA Next` (abandonado) junto a saves mucho más recientes del core
+`gba` actual — casi seguro seguros de borrar, pero no decidido
+automáticamente sin revisión humana.
+
+**Backup completo**: los 706 archivos de los 289 grupos (TODAS las
+copias, no solo las "candidatas a borrar") están en
+`.rommgr/legacy_dups_backup_2026-09-21/` (gitignored, local, misma
+estructura relativa que el dispositivo) — 706/706 ok, 0 errores.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | ✅ **completo 2026-09-21**. Primera pasada (bajo riesgo, tamaño/fecha): 159 grupos/240 archivos (`junk_zero_bytes` + `safe_same_copy_event`) borrados, backup previo intacto, 0 errores — ver detalle abajo. **Segunda pasada (los 130 grupos restantes, `review_time_gap` + `CONFLICT_diff_size`) resuelta por contenido real**: en vez de decidir por tamaño/fecha (arriesgado — el `size_bytes` de un save GBA de tamaño fijo no dice nada del contenido), se calculó el SHA1 real de cada copia contra el backup local ya hecho (sin tocar el dispositivo, que estaba ocupado con el rescan `ps2` de `ANDROID-DUP-2`). Resultado: de 321 archivos en esos 130 grupos, **174 eran copias byte-idénticas de verdad** (mismo contenido exacto, solo cambiaba la ruta/fecha) — borradas vía `adb shell rm`, 0 errores, verificado post-borrado que las 147 rutas canónicas conservadas (una por cada contenido realmente distinto) siguen intactas. **Ningún archivo de contenido único se tocó** — incluye casos con saves reales de un core distinto (p. ej. `Metroid - Zero Mission [E].srm` tiene un save propio bajo `saves/mGBA/` además del de `VBA Next`/`gba`), que quedan sin resolver a propósito, decisión del usuario si alguna vez hace falta. **Hallazgo colateral nuevo, sin implementar**: 2 grupos tenían copias bajo `saves/.stversions/<core>/` — carpeta de versionado de Syncthing (herramienta de terceros en el dispositivo, no creada por este proyecto), debería excluirse del escaneo/legacy-dup igual que `_descartados/`/`emulator_saves/`, no se ha tocado. Backup completo de las 3 pasadas sigue en `.rommgr/legacy_dups_backup_2026-09-21/` |
+| CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
+
+---
+
+### CABLE-SYNC-SAVES-PREFIX-1 — cable-sync ADB no reconoce el convenio D2 `saves/` del PC — afecta a la UI real, no solo al test de arriba (rammu, 2026-09-21)
+
+Al ejecutar `CABLE-SYNC-APPLY-1` con `pc_path` apuntando **directamente** a
+`E:\Carpetas anbernic\saves` (no a la raíz de la biblioteca) tuvo que
+usarse a propósito para que el matching funcionara. Pero **la UI real
+(`sync.js:940`, `_setIfEmpty('cable-pc-path', ... cfg.library_root ...)`)
+por defecto pone `pc_path = library_root`** (la raíz completa, no
+`.../saves`) — necesario porque el mismo campo también sirve para
+sincronizar ROMs, no solo saves. Con ese valor por defecto, cualquier
+usuario que haya centralizado sus saves con el convenio D2
+(`savefile_directory = library_root/saves`, el mismo botón "Aplicar
+layout de saves" arreglado hoy en `ac9e905`) sufriría el mismo problema
+que el primer intento de `CABLE-SYNC-DUP-PATHS-1`: **todos los saves se
+marcarían como "nuevos"** en vez de detectarse como ya sincronizados,
+porque la ruta relativa del lado PC lleva el prefijo `saves/` y la del
+lado Android no.
+
+**Causa raíz confirmada en código**: `canonical_rel_posix()`
+(`sync/android_paths.py`) traduce el primer segmento (carpeta de
+plataforma) usando `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, pero por
+diseño explícito (su propio docstring) **no toca segmentos que no
+reconoce como plataforma — y `saves` es uno de ellos**: `"no inventa una
+carpeta nueva para algo que no reconoce (p. ej. carpetas de sistema como
+BIOS/ o saves/)"`.
+
+**No es un fix trivial de una línea** — verificado en el dispositivo real
+(`adb shell find`/`ls_recursive` sin filtro) que **el propio Android
+mezcla convenios según el core**: algunos escriben el save plano junto a
+la plataforma (`RetroArch/mame/fixeight.nv`), otros ya usan su propia
+subcarpeta `saves/<core>/` (`RetroArch/saves/mame2003/nvram/mk3.nv`,
+`RetroArch/saves/bsnes2014/Earthbound (1).srm`) — quitar sin más el
+prefijo `saves/` del lado PC rompería el matching para los cores que sí
+lo tienen en Android. Necesita diseño, no un parche a ciegas, en el pilar
+de mayor riesgo del proyecto ("cualquier bug aquí es prioridad absoluta",
+CLAUDE.md).
+
+**Mapeo real completado (rammu, 2026-09-21, `adb shell find`/`stat` sobre la
+Anbernic conectada)** — el problema es mucho más grande que los "8
+duplicados" estimados en `CABLE-SYNC-LEGACY-DUPS-1`: hay carpeta plana
+(`RetroArch/<plataforma>/`) Y carpeta `saves/` para prácticamente todas las
+plataformas probadas, con solapamiento de nombre de archivo casi total y
+**ambas copias con actividad reciente** (no es basura histórica de una
+migración puntual — algunos juegos escriben en un lado, otros en el otro,
+en la misma sesión de uso):
+
+| Plataforma | Archivos en plano | Archivos en `saves/` | Mismo nombre en ambos |
+|---|---|---|---|
+| mame | 25 | 24 | 24 |
+| gba | 47 | 115 | 46 |
+| psx | 7 | 9 | 6 |
+| snes | 4 | 3 | 3 |
+| nes | 2 | 3 | 1 |
+| cps1 | 3 | 2 | 2 |
+| cps2 | 2 | 1 | 1 |
+
+Verificado con `stat` en `Advance Wars 2 [E].sav` (gba): mismo tamaño
+(65536 B) en plano y en `saves/`, mtimes a 2 segundos de diferencia
+(2025-03-09) — copia puntual antigua, no reescritura activa de ese archivo
+concreto. Pero `ls -t` muestra archivos con mtime reciente en **ambas**
+ubicaciones (`Pokémon Rojo fuego [E].sav` en plano, `Pokemon WaterBlue.srm`
+y `Final Fantasy Tactics [E].srm` en `saves/gba`) — confirma que hoy en
+día se sigue escribiendo en los dos sitios según qué core/config se use
+por partida, no es solo arrastre histórico.
+
+**El nombre de la subcarpeta bajo `saves/` no es consistente**: a veces es
+el nombre canónico de plataforma ya reconocido por `PLATFORM_BY_FOLDER`
+(`saves/gba`, `saves/psx`, `saves/snes`, `saves/mame`, y por coincidencia
+`saves/cps1`/`saves/cps2`/`saves/fbneo`, que están en `platforms.toml`
+como alias de "Arcade"), y a veces es el nombre del core de RetroArch tal
+cual, que **no** está en `PLATFORM_BY_FOLDER` (`saves/mame2003`,
+`saves/bsnes2014`, `saves/Snes9x`, `saves/Snes9x 2005 Plus`,
+`saves/VBA Next`, `saves/FCEUmm`, `saves/mGBA`, `saves/PPSSPP`,
+`saves/Citra`, `saves/LRPS2`, `saves/Beetle PSX`). No hay mapeo core→plataforma
+completo hoy en el código — haría falta construirlo y mantenerlo para
+poder confiar en el segundo segmento de la ruta.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma | — (investigación en el dispositivo real, sin tocar código) | ✅ hecho 2026-09-21 — ver tabla y hallazgos arriba |
+
+**Hallazgos relacionados, fuera de alcance de este fix** (revisado el código
+alrededor de `_skip_existing_device`/`_skip_existing_pc` al implementar,
+sin tocarlos — CLAUDE.md "Investigar antes de arreglar"):
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-DOWNLOAD-DEST-1 | Canonicalizar el destino de descarga (`anbernic_to_pc`/`newest`), que escribía en `pc_root / rel_posix` usando la ruta cruda del dispositivo sin canonicalizar | `sync/android_paths.py` (`canonical_download_rel_posix`, nueva), `web/handlers/sync_cable.py` (`_adb_copy_to_pc`, delete_extra ×2), `sync/cable_engine.py` (`plan_direction`, ramas `anbernic_to_pc`/`newest`), `web/cable_sync_daemon.py` (`_adb_copy_to_pc` legacy) | ✅ hecho 2026-09-21 — decisión de diseño confirmada con el usuario: (1) con carpeta intermedia reconocible (`saves/psx/foo.sav`, "psx" SÍ es plataforma conocida) → aterriza en la ruta canónica sin `saves/` (`psx/foo.sav`), igual criterio que ya usa la subida; (2) con carpeta intermedia ambigua (`saves/mame2003/...`, core sin mapear) → se mantiene la ruta cruda, no se arriesga a adivinar mal. Nueva función `canonical_download_rel_posix()` en `android_paths.py`, usada en los 3 sitios que escriben destino de descarga — incluye actualizar los 2 bloques `delete_extra`/espejo que comparaban por ruta cruda (si no, un archivo recién bajado a su ruta canónica se leía como "extra" y se borraba). 8 tests unitarios nuevos (4 en `test_android_paths.py`, 2 en `test_cable_engine.py`, más los de `canonical_download_rel_posix` en sí) cubriendo exactamente el caso `saves/gba/mario.sav → gba/mario.sav` y el caso ambiguo sin tocar. Suite completa (1417 tests) sin regresiones nuevas. **Validado en real 2026-09-22** (Día68 continuación): `--apply` real de `newest` con `pc_path=library_root`, `android_path=/storage/emulated/0/RetroArch`, 96/96 copiados, 0 errores. Verificado con mtimes tras la operación: `ps2/Mcd001.ps2` (carpeta reconocible en origen) bajó 1:1 sin pasar por `saves/`, confirmando el caso (1). Casos con carpeta intermedia `Unknown/` en origen (`sailormn_europe.nv`, `Kid Dracula (World)...sav`) se preservaron tal cual en destino (`Unknown/...`) — no es un fallo de nuestra canonicalización, es RetroArch en el propio dispositivo el que ya guarda esos saves bajo `Unknown/` (core sin mapear a contenido), confirmando el caso (2) también funciona en real |
+| CABLE-SYNC-NEWEST-CANON-1 | Corregir la dirección `newest` en modo ADB, que comparaba `pc_index`/`ab_index` por ruta relativa cruda de ambos lados | `web/handlers/sync_cable.py` (bloque `elif direction == "newest":`) | ✅ hecho 2026-09-21 — reescrito para reusar el `ab_index`/`ab_by_name` ya construidos arriba (eliminada la reconstrucción redundante) con el mismo fallback por nombre de `CABLE-SYNC-SAVES-PREFIX-2`: solo hace match por nombre si hay un único candidato del lado Android (ambiguo con >1 candidato → se trata como archivo distinto, comportamiento anterior conservado como fallback seguro). Test nuevo `test_newest_direction_skips_file_under_different_device_prefix_same_mtime`. **Validado en real** con `pc_path=library_root`, `direction=newest`: 405/597 reconocidos como ya sincronizados; los 192 restantes son casos legítimos (BIOS/defaults solo en un lado, diferencias reales de mtime), sin ruido del problema de prefijos |
+| CABLE-SYNC-NEWEST-CANON-2 | Mismo problema de fondo en las otras 2 reimplementaciones independientes de "newest": (a) `sync/cable_engine.py:plan_direction()` — compartido por el sync manual en modo filesystem/SD montada y el daemon SD-auto; (b) el fallback "RetroArch (legacy)" del daemon auto-sync ADB (activo cuando `get_adb_sync_sources()` no devuelve fuentes — usuarios sin `emulator_paths` configurado) | `sync/cable_engine.py` (`plan_direction`, rama `newest`), `web/cable_sync_daemon.py` (fallback "RetroArch (legacy)") | ✅ hecho 2026-09-21 — en vez de parchear cada reimplementación por separado, se extrajo la lógica de matching (ya escrita 3 veces con el mismo bug) a una función única y testeada: `reconcile_newest_by_name()` en `sync/android_paths.py` — empareja por clave exacta, con fallback por nombre solo si hay un único candidato del lado Android (ambiguo → sin emparejar, comportamiento seguro). Las 3 implementaciones (`sync_cable.py`, `cable_engine.py`, `cable_sync_daemon.py`) ahora son consumidores delgados de la misma función — evita que el mismo bug reaparezca una cuarta vez. 4 tests unitarios nuevos en `tests/test_android_paths.py` + 2 tests nuevos en `test_cable_engine.py`. Suite completa (1414 tests) sin regresiones (los 3 fallos que aparecen son ambientales — dispositivo ADB real conectado, no relacionados). **Revalidado en real tras el refactor**: mismo resultado exacto que antes (405/597 reconocidos, 192 candidatos legítimos, 0 errores) — el refactor no cambió comportamiento. El fallback per-emulador ADB del daemon (`adb_sources` con `local_saves`/`android_saves` dedicados) no tiene este problema — son carpetas 1:1 sin ambigüedad de plataforma, no se tocó |
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-2 | Matching correcto ignorando el prefijo/carpeta intermedia del lado Android | `web/handlers/sync_cable.py` (`_skip_existing_device`, `_skip_existing_pc`) | ✅ hecho 2026-09-21 — implementada la opción de "matchear por nombre de archivo, ignorando segmentos intermedios", con tamaño como criterio de colisión (mismo patrón ya usado en todo el archivo para "ya existe"). Índice secundario `ab_by_name`/`_pc_by_name()` construido a partir de los índices existentes (`ab_index`, `_iter_files(pc_root)`) — sin mapeo core→plataforma, sin tocar `android_paths.py`. Tests nuevos en `tests/test_cable_sync_rom_skip_existing.py` (prefijo `saves/` en ambas direcciones). **Validado en real** contra la Anbernic con `pc_path=library_root` (el caso que antes fallaba, `CABLE-SYNC-DUP-PATHS-1`): antes 0/528 reconocidos, ahora **522/528 saltados como ya sincronizados, solo 6 genuinamente nuevos** (dry-run, `pc_to_anbernic`, `skip_existing=true`) |
+
+---
+
+### CABLE-SYNC-EMULATOR-SAVES-LEAK-1 — `emulator_saves/` (carpeta interna del PC) se filtra al dispositivo (rammu, 2026-09-21)
+
+Investigando por qué `Pokemon - Edicion Plata SoulSilver (Spain).sav`
+aparecía como conflicto en `CABLE-SYNC-LEGACY-DUPS-1` (una copia de 0
+bytes con el mtime más reciente de las 3): **no es un conflicto real de
+partidas**. El save de verdad está en `nds/Pokemon - Edicion Plata
+SoulSilver (Spain).sav` (512KB, el que usa el core normal de RetroArch).
+La copia sospechosa vive en
+`/storage/emulated/0/RetroArch/emulator_saves/me.magnum.melonds/saves/...`
+— y `emulator_saves/<package>/` es una carpeta que `get_adb_sync_sources()`
+(`config.py`) usa **solo en el PC** para bajar saves por-emulador vía
+ADB; nunca debería existir tal cual dentro del árbol `RetroArch/` del
+dispositivo.
+
+**Confirmado que no es un caso aislado**: hay **54 archivos** bajo
+`/storage/emulated/0/RetroArch/emulator_saves/` en el dispositivo real
+(toda la carpeta de estados de DuckStation incluida), todos con mtime a
+pocos segundos entre sí — una única subida masiva, no uso real de la app.
+
+**Causa raíz**: cuando `get_adb_sync_sources()` devuelve una lista vacía
+(`adb_sources`), el daemon de auto-sync (`web/cable_sync_daemon.py`,
+`_run_auto_sync`) cae al fallback `"RetroArch (legacy)"` con
+`local_saves = config.library_root` (la biblioteca **entera**) contra
+`android_saves = config.sync.auto_sync_android_path` — sin excluir
+`emulator_saves/`, que es puramente contabilidad interna del propio
+proyecto, no algo que ningún core de RetroArch en Android reconozca. El
+mismo problema aplica al endpoint manual `/api/cable-sync`
+(`web/handlers/sync_cable.py`) cuando `pc_path=library_root`: `_iter_files`
+solo excluye dotfiles y `_descartados/`, no `emulator_saves/`. El archivo
+de origen en el PC ya estaba a 0 bytes (melonDS nunca llegó a guardar esa
+partida concreta — se jugó con otro core), así que la copia subida
+también salió vacía; sin pérdida de progreso real, pero explica varios de
+los 289 grupos de `CABLE-SYNC-LEGACY-DUPS-1` (al menos los 54 confirmados
++ los que generaron por round-trip de vuelta al PC, como el `saves/saves/`
+doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-EMULATOR-SAVES-LEAK-1 | Excluir `emulator_saves/` del árbol que camina `pc_to_anbernic`/`newest` cuando `pc_path`/`local_saves` es la raíz de la biblioteca | `config.py` (`EMULATOR_SAVES_DIR_NAME`, nueva), `web/handlers/sync_cable.py` (`_iter_files`), `sync/cable_engine.py` (`iter_files`), `web/cable_sync_daemon.py` (walk de `_iter_local` en el fallback legacy) | ✅ hecho 2026-09-21 — mismo patrón que la exclusión ya existente de `_descartados/`/`TRASH_DIR_NAME`: nueva constante `EMULATOR_SAVES_DIR_NAME = "emulator_saves"` en `config.py` (reemplaza el literal ya usado en `get_adb_sync_sources()`), excluida en los 3 walks (`dirs[:] = [...]`) igual que `TRASH_DIR_NAME`. Aplica a ambos lados del walk (PC y Anbernic) — inocuo si el dispositivo está limpio, corta la fuga si no. 2 tests nuevos (`test_iter_files_skips_emulator_saves` en `test_cable_engine.py`, `test_pc_to_anbernic_never_uploads_emulator_saves_folder` en `test_cable_sync_rom_skip_existing.py`). Suite completa (1419 tests) sin regresiones nuevas. **No limpia los 54 archivos ya filtrados en el dispositivo real** — eso sigue en `CABLE-SYNC-LEGACY-DUPS-1` (ya respaldados en `.rommgr/legacy_dups_backup_2026-09-21/`), este fix solo corta la fuga hacia adelante |
+
+---
+
+### SAVES-UX — Historial de saves y contexto en resolución de conflictos (idea usuario 2026-09-22)
+
+Reducir el "miedo a sobrescribir" del pilar 3 más allá del backup-antes-de-
+sobrescribir ya existente: dejar ver y restaurar versiones anteriores, y dar
+más contexto que solo el timestamp al resolver un conflicto.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SAVES-HISTORY-1 | **Replanteada tras investigar (2026-09-22)**: el historial+restauración ya existía y funcionaba (`rom_manager/backup/save_backup.py`, `GET /api/save-backups`, `POST /api/restore-backup`, UI en la ficha de juego `games.js:877-885,1090-1113`) para Cloud Sync, Cable Sync manual y renombrado. El gap real era el daemon SD auto-sync (`CABLE-UX-9a`), que usaba un segundo sistema aislado (`.rommgr/cable_sync_backups/<fecha>/`) invisible en esa UI | `web/cable_sync_daemon.py` (`_run_sd_auto_sync`), `rom_manager/backup/save_backup.py` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): daemon migrado a `backup_save()`, mismo patrón que `sync_cable.py`. Verificado contra el sistema de archivos real: `.rommgr/cable_sync_backups/` no existía (el daemon nunca disparó esa rama en la práctica) — nada que migrar. 1430 tests pass (3 ambientales), ruff+format limpios |
+| SAVES-CONFLICT-CTX-1 | Al resolver un conflicto de sync, mostrar contexto además del timestamp (playtime asociado, tamaño). Solo Cloud Sync (Cable Sync no detecta conflictos hoy) | `sync/conflict_resolver.py`, `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `SyncDecision` con tamaños, `_decision_payload()` añade mtime/tamaño/playtime best-effort (match por stem contra `games`) solo para conflictos, UI pinta la línea de contexto bajo cada fila. 4 tests nuevos, 1434 pass, ruff+format limpios |
+| SYNC-CONFLICT-MANUAL-1 | Revisión manual de conflictos de Cloud Sync desde la UI antes de sincronizar — por archivo, elegir PC/Consola/omitir en vez de que `conflict_policy` global decida siempre por todos. No aplica a Cable Sync (sin detección de conflictos hoy) | `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `sync_saves()` acepta `conflict_overrides` (gana sobre `conflict_policy` por archivo, `skip` no toca nada); selector por fila en el plan de dry-run, recogido al pulsar Sincronizar. 3 tests nuevos, 1437 pass, ruff+format limpios |
+
+---
+
+### SYNC-WII-SCOPE-1 — `SyncSource` no puede acotar solo los saves reales de Dolphin (Wii) (hallazgo rammu, 2026-09-21)
+
+Al reestructurar `sync.sources` en rammu siguiendo `Tareas/Estructura-Estandarizada-Sync.md`
+(convenio `dropbox:/RetroSync/saves/<emulador>/<tipo>` de PC2, `dolphin/gc` +
+`dolphin/wii`), la fuente `Dolphin (Wii)` con `local_dir` apuntando a la
+carpeta `Wii/` completa (`sync_all=true`) empezó a subir el NAND emulado
+entero (`title/<tipo>/<id>/content/` = IOS, System Menu, apps de canales
+instalados — `.app`, certificados `.pem`, `fst.bin`), no solo los saves.
+Medido en rammu: **96 MB en `Wii/` total, de los que solo 0.29 MB son saves
+reales** (`title/*/*/data/`, el equivalente NAND del save real por juego —
+`title/00010000/<gameid-hex>/data/`). `SyncSource` solo soporta un
+`local_dir` plano (sin include/exclude), así que no hay forma de acotar hoy
+a "todas las subcarpetas `data/` bajo `title/*/*`" sin sincronizar también
+`content/` (las apps instaladas). Parado a mitad de sync real (`--apply`)
+antes de subir más basura; fuente `Dolphin (Wii)` desactivada en
+`config.toml` (comentada, con la medición) hasta que se diseñe bien.
+**GC no tiene este problema** — su carpeta ya es 100% saves (`.gci` +
+`.raw`), se dejó activa. **Limpieza pendiente**: revisar
+`dropbox:/RetroSync/saves/dolphin/wii` — puede tener algunos `.app`/`.pem`
+subidos antes de parar el proceso (no es sensible ni gran volumen, pero es
+basura que no debería estar ahí).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SYNC-WII-SCOPE-1 | Sincronizar solo `title/*/*/data/` de Dolphin (Wii) | `config.py` (`SyncSource.include_glob`), `sync/save_syncer.py` (`list_local_saves`, `sync_saves`), `cli.py` (x2), `web/handlers/sync_cloud.py` | ✅ hecho 2026-09-21 — opción (a): campo `include_glob: str = "**/*"` en `SyncSource` (compatible hacia atrás, resto de fuentes sin cambio de comportamiento), usado en `saves_dir.glob(include_glob)` en vez del `rglob("*")` fijo. `config.toml` reactivado con `include_glob = "title/*/*/data/**/*"`. Test `test_list_local_saves_include_glob_scopes_dolphin_wii_nand` en `tests/test_save_syncer.py`. Verificado en dry-run real contra el NAND de rammu: 10 archivos detectados (todos bajo `data/`), `content/`/`shared1/`/etc. excluidos — antes eran 96 MB, ahora ~0.29 MB reales. Pendiente aplicar en PC2 y reactivar allí también |
+| SYNC-WII-SCOPE-2 | Limpiar `dropbox:/RetroSync/saves/dolphin/wii` de archivos de sistema subidos por error antes de detectar SYNC-WII-SCOPE-1 (`.app`, `.pem`, `fst.bin` — no saves) | — (limpieza manual en Dropbox o vía `rclone delete`) | ✅ hecho 2026-09-21 — `tools/rclone.exe purge` sobre la carpeta entera, confirmado vacía (53 archivos, 17.4 MB, 0 saves reales entre ellos) |
+
+---
+
+### CABLE-SYNC-DUP-PATHS-1 — investigación cable-sync ADB con la Anbernic real (rammu, 2026-09-21) — cerrada, no era un bug
+
+Con la Anbernic conectada por USB (autorizada, `adb devices` → `device`), se
+probó `POST /api/cable-sync` (`direction=pc_to_anbernic`, `use_adb=true`,
+`dry_run=true`). Primer intento con `pc_path=E:\Carpetas anbernic` (raíz de
+la biblioteca): **528/528 marcados para copiar, 0 ya coincidentes** —
+sospecha inicial de bug real de matching, **descartada tras seguir la
+cadena hasta la causa raíz** (regla "Investigar antes de arreglar",
+CLAUDE.md):
+
+1. **Error de test #1 — `pc_path` incorrecto**: se pasó la raíz de la
+   biblioteca (`E:\Carpetas anbernic`) en vez de la carpeta de saves
+   (`E:\Carpetas anbernic\saves`). En Android, RetroArch guarda los saves
+   planos junto a la plataforma (`RetroArch/mame/fixeight.nv`), sin
+   subcarpeta `saves/` — con `pc_path` mal puesto, TODAS las rutas
+   relativas quedaban desalineadas por ese segmento de más. Repetido con
+   `pc_path=.../saves`: bajó a 229/229 copiar, seguía en 0 skipped.
+2. **Error de test #2 — falta `skip_existing: true`**: `_skip_existing_device()`
+   (`web/handlers/sync_cable.py:729`) devuelve `False` sin comprobar nada
+   si `skip_existing` no viene en el payload — **por defecto es `false`**,
+   así que cualquier dry-run sin ese flag marca todo como "a copiar" aunque
+   ya exista igual en el dispositivo. No es un bug, es un parámetro opt-in
+   de la propia API (ver `openapi.json` — no aparece en el ejemplo de
+   payload, por eso se me pasó la primera vez). Con
+   `pc_path=.../saves` + `skip_existing=true`: **123 ya coinciden (mismo
+   tamaño), 106 realmente faltan, 0 errores** — número coherente, cierra
+   la investigación.
+
+**Hallazgo secundario real, menor**: 8 nombres de save duplicados en 2-3
+rutas distintas del dispositivo (19 de 288 archivos totales) — restos de un
+`savefile_directory` mal configurado en el pasado en la Anbernic (mismo
+patrón de drift que `retroarch_cfg_writer.py` en PC, ver commit `ac9e905`
+de hoy), ejemplo verificado con `adb shell find ... -iname 'punisher.nv'`:
+`RetroArch/saves/cps1/punisher.nv` (convenio nuevo) +
+`RetroArch/cps1/punisher.nv` + `RetroArch/cps1/fbneo/punisher.nv`
+(legado). Solo 19 archivos, no bloquea nada — separado en su propia tarea.
+
+**No se ejecutó ningún `--apply` real** en esta sesión (quedó todo en
+dry-run) — 106 archivos / ~230 MB reales pendientes de subir a la
+Anbernic, listos para aplicar en la próxima sesión con los parámetros ya
+correctos (`pc_path=.../saves`, `android_path=/storage/emulated/0/RetroArch`,
+`skip_existing=true`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+**Mapeo completo + backup hechos 2026-09-21** (rammu, con la Anbernic real
+por ADB) — **no se borró nada del dispositivo**, decisión del usuario
+("informe + backup, sin borrar todavía"). 823 archivos de save/state en el
+dispositivo, **289 nombres duplicados en rutas legado (706 archivos
+implicados)** — mucho mayor que la estimación original de 8. Clasificados
+en `.rommgr/legacy_dups_report_2026-09-21.csv` (gitignored, local):
+
+| Clasificación | Grupos | Criterio |
+|---|---|---|
+| `junk_zero_bytes` | 14 | Todas las copias son 0 bytes — basura, sin riesgo de pérdida |
+| `safe_same_copy_event` | 145 | Mismo tamaño, mtimes a ≤60s entre sí — típico de una migración puntual (mismo patrón que `CABLE-SYNC-SAVES-PREFIX-1`: "Advance Wars 2 [E].sav", 2s de diferencia) |
+| `review_time_gap` | 123 | Mismo tamaño pero mtimes separados >60s — mismo tamaño no garantiza mismo contenido, revisar caso a caso antes de decidir |
+| `CONFLICT_diff_size` | 7 | Tamaño distinto entre copias — divergencia real de contenido, **nunca borrar automáticamente** |
+
+**Por qué no se automatizó el borrado ni con criterio "más reciente":**
+uno de los 7 grupos conflictivos (`Pokemon - Edicion Plata SoulSilver
+(Spain).sav`) tiene 3 copias — dos idénticas de 512KB (`nds/` y
+`saves/nds/`, duplicado real y seguro) y una tercera de **0 bytes** en
+`emulator_saves/me.magnum.melonds/saves/` con el mtime más reciente
+(2026-08-28). Un criterio ciego de "quedarse con la copia más nueva por
+fecha" habría elegido el archivo vacío y descartado la partida real de
+512KB — la razón por la que esta tarea sigue sin automatizar el borrado
+(Pilar 3: "cualquier bug aquí es prioridad absoluta, pérdida de progreso").
+Los otros 6 grupos conflictivos son el mismo patrón: saves antiguos del
+core `VBA Next` (abandonado) junto a saves mucho más recientes del core
+`gba` actual — casi seguro seguros de borrar, pero no decidido
+automáticamente sin revisión humana.
+
+**Backup completo**: los 706 archivos de los 289 grupos (TODAS las
+copias, no solo las "candidatas a borrar") están en
+`.rommgr/legacy_dups_backup_2026-09-21/` (gitignored, local, misma
+estructura relativa que el dispositivo) — 706/706 ok, 0 errores.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-LEGACY-DUPS-1 | Limpiar en la Anbernic los saves duplicados en rutas legado — no bloquea el cable-sync normal (`CABLE-SYNC-SAVES-PREFIX-2` ya lo hace robusto a esto), solo deja basura residual | — (limpieza manual en el dispositivo, sin tocar código) | ✅ **completo 2026-09-21**. Primera pasada (bajo riesgo, tamaño/fecha): 159 grupos/240 archivos (`junk_zero_bytes` + `safe_same_copy_event`) borrados, backup previo intacto, 0 errores — ver detalle abajo. **Segunda pasada (los 130 grupos restantes, `review_time_gap` + `CONFLICT_diff_size`) resuelta por contenido real**: en vez de decidir por tamaño/fecha (arriesgado — el `size_bytes` de un save GBA de tamaño fijo no dice nada del contenido), se calculó el SHA1 real de cada copia contra el backup local ya hecho (sin tocar el dispositivo, que estaba ocupado con el rescan `ps2` de `ANDROID-DUP-2`). Resultado: de 321 archivos en esos 130 grupos, **174 eran copias byte-idénticas de verdad** (mismo contenido exacto, solo cambiaba la ruta/fecha) — borradas vía `adb shell rm`, 0 errores, verificado post-borrado que las 147 rutas canónicas conservadas (una por cada contenido realmente distinto) siguen intactas. **Ningún archivo de contenido único se tocó** — incluye casos con saves reales de un core distinto (p. ej. `Metroid - Zero Mission [E].srm` tiene un save propio bajo `saves/mGBA/` además del de `VBA Next`/`gba`), que quedan sin resolver a propósito, decisión del usuario si alguna vez hace falta. **Hallazgo colateral nuevo, sin implementar**: 2 grupos tenían copias bajo `saves/.stversions/<core>/` — carpeta de versionado de Syncthing (herramienta de terceros en el dispositivo, no creada por este proyecto), debería excluirse del escaneo/legacy-dup igual que `_descartados/`/`emulator_saves/`, no se ha tocado. Backup completo de las 3 pasadas sigue en `.rommgr/legacy_dups_backup_2026-09-21/` |
+| CABLE-SYNC-APPLY-1 | Ejecutar el `--apply` real de `pc_to_anbernic` con los parámetros ya validados (`pc_path=E:\Carpetas anbernic\saves`, `android_path=/storage/emulated/0/RetroArch`, `skip_existing=true`, `safe_mode=true`) — 106 archivos / ~230 MB pendientes de subir | — | ✅ hecho 2026-09-21 — 106 subidos, 123 ya coincidían, 0 errores, 232 MB, coincide exacto con el dry-run |
+
+---
+
+### CABLE-SYNC-SAVES-PREFIX-1 — cable-sync ADB no reconoce el convenio D2 `saves/` del PC — afecta a la UI real, no solo al test de arriba (rammu, 2026-09-21)
+
+Al ejecutar `CABLE-SYNC-APPLY-1` con `pc_path` apuntando **directamente** a
+`E:\Carpetas anbernic\saves` (no a la raíz de la biblioteca) tuvo que
+usarse a propósito para que el matching funcionara. Pero **la UI real
+(`sync.js:940`, `_setIfEmpty('cable-pc-path', ... cfg.library_root ...)`)
+por defecto pone `pc_path = library_root`** (la raíz completa, no
+`.../saves`) — necesario porque el mismo campo también sirve para
+sincronizar ROMs, no solo saves. Con ese valor por defecto, cualquier
+usuario que haya centralizado sus saves con el convenio D2
+(`savefile_directory = library_root/saves`, el mismo botón "Aplicar
+layout de saves" arreglado hoy en `ac9e905`) sufriría el mismo problema
+que el primer intento de `CABLE-SYNC-DUP-PATHS-1`: **todos los saves se
+marcarían como "nuevos"** en vez de detectarse como ya sincronizados,
+porque la ruta relativa del lado PC lleva el prefijo `saves/` y la del
+lado Android no.
+
+**Causa raíz confirmada en código**: `canonical_rel_posix()`
+(`sync/android_paths.py`) traduce el primer segmento (carpeta de
+plataforma) usando `PLATFORM_BY_FOLDER`/`_ES_PLATFORM_FOLDERS`, pero por
+diseño explícito (su propio docstring) **no toca segmentos que no
+reconoce como plataforma — y `saves` es uno de ellos**: `"no inventa una
+carpeta nueva para algo que no reconoce (p. ej. carpetas de sistema como
+BIOS/ o saves/)"`.
+
+**No es un fix trivial de una línea** — verificado en el dispositivo real
+(`adb shell find`/`ls_recursive` sin filtro) que **el propio Android
+mezcla convenios según el core**: algunos escriben el save plano junto a
+la plataforma (`RetroArch/mame/fixeight.nv`), otros ya usan su propia
+subcarpeta `saves/<core>/` (`RetroArch/saves/mame2003/nvram/mk3.nv`,
+`RetroArch/saves/bsnes2014/Earthbound (1).srm`) — quitar sin más el
+prefijo `saves/` del lado PC rompería el matching para los cores que sí
+lo tienen en Android. Necesita diseño, no un parche a ciegas, en el pilar
+de mayor riesgo del proyecto ("cualquier bug aquí es prioridad absoluta",
+CLAUDE.md).
+
+**Mapeo real completado (rammu, 2026-09-21, `adb shell find`/`stat` sobre la
+Anbernic conectada)** — el problema es mucho más grande que los "8
+duplicados" estimados en `CABLE-SYNC-LEGACY-DUPS-1`: hay carpeta plana
+(`RetroArch/<plataforma>/`) Y carpeta `saves/` para prácticamente todas las
+plataformas probadas, con solapamiento de nombre de archivo casi total y
+**ambas copias con actividad reciente** (no es basura histórica de una
+migración puntual — algunos juegos escriben en un lado, otros en el otro,
+en la misma sesión de uso):
+
+| Plataforma | Archivos en plano | Archivos en `saves/` | Mismo nombre en ambos |
+|---|---|---|---|
+| mame | 25 | 24 | 24 |
+| gba | 47 | 115 | 46 |
+| psx | 7 | 9 | 6 |
+| snes | 4 | 3 | 3 |
+| nes | 2 | 3 | 1 |
+| cps1 | 3 | 2 | 2 |
+| cps2 | 2 | 1 | 1 |
+
+Verificado con `stat` en `Advance Wars 2 [E].sav` (gba): mismo tamaño
+(65536 B) en plano y en `saves/`, mtimes a 2 segundos de diferencia
+(2025-03-09) — copia puntual antigua, no reescritura activa de ese archivo
+concreto. Pero `ls -t` muestra archivos con mtime reciente en **ambas**
+ubicaciones (`Pokémon Rojo fuego [E].sav` en plano, `Pokemon WaterBlue.srm`
+y `Final Fantasy Tactics [E].srm` en `saves/gba`) — confirma que hoy en
+día se sigue escribiendo en los dos sitios según qué core/config se use
+por partida, no es solo arrastre histórico.
+
+**El nombre de la subcarpeta bajo `saves/` no es consistente**: a veces es
+el nombre canónico de plataforma ya reconocido por `PLATFORM_BY_FOLDER`
+(`saves/gba`, `saves/psx`, `saves/snes`, `saves/mame`, y por coincidencia
+`saves/cps1`/`saves/cps2`/`saves/fbneo`, que están en `platforms.toml`
+como alias de "Arcade"), y a veces es el nombre del core de RetroArch tal
+cual, que **no** está en `PLATFORM_BY_FOLDER` (`saves/mame2003`,
+`saves/bsnes2014`, `saves/Snes9x`, `saves/Snes9x 2005 Plus`,
+`saves/VBA Next`, `saves/FCEUmm`, `saves/mGBA`, `saves/PPSSPP`,
+`saves/Citra`, `saves/LRPS2`, `saves/Beetle PSX`). No hay mapeo core→plataforma
+completo hoy en el código — haría falta construirlo y mantenerlo para
+poder confiar en el segundo segmento de la ruta.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-1 | Mapear en el dispositivo real qué cores usan `saves/<core>/` vs plano junto a la plataforma | — (investigación en el dispositivo real, sin tocar código) | ✅ hecho 2026-09-21 — ver tabla y hallazgos arriba |
+
+**Hallazgos relacionados, fuera de alcance de este fix** (revisado el código
+alrededor de `_skip_existing_device`/`_skip_existing_pc` al implementar,
+sin tocarlos — CLAUDE.md "Investigar antes de arreglar"):
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-DOWNLOAD-DEST-1 | Canonicalizar el destino de descarga (`anbernic_to_pc`/`newest`), que escribía en `pc_root / rel_posix` usando la ruta cruda del dispositivo sin canonicalizar | `sync/android_paths.py` (`canonical_download_rel_posix`, nueva), `web/handlers/sync_cable.py` (`_adb_copy_to_pc`, delete_extra ×2), `sync/cable_engine.py` (`plan_direction`, ramas `anbernic_to_pc`/`newest`), `web/cable_sync_daemon.py` (`_adb_copy_to_pc` legacy) | ✅ hecho 2026-09-21 — decisión de diseño confirmada con el usuario: (1) con carpeta intermedia reconocible (`saves/psx/foo.sav`, "psx" SÍ es plataforma conocida) → aterriza en la ruta canónica sin `saves/` (`psx/foo.sav`), igual criterio que ya usa la subida; (2) con carpeta intermedia ambigua (`saves/mame2003/...`, core sin mapear) → se mantiene la ruta cruda, no se arriesga a adivinar mal. Nueva función `canonical_download_rel_posix()` en `android_paths.py`, usada en los 3 sitios que escriben destino de descarga — incluye actualizar los 2 bloques `delete_extra`/espejo que comparaban por ruta cruda (si no, un archivo recién bajado a su ruta canónica se leía como "extra" y se borraba). 8 tests unitarios nuevos (4 en `test_android_paths.py`, 2 en `test_cable_engine.py`, más los de `canonical_download_rel_posix` en sí) cubriendo exactamente el caso `saves/gba/mario.sav → gba/mario.sav` y el caso ambiguo sin tocar. Suite completa (1417 tests) sin regresiones nuevas. **Validado en real 2026-09-22** (Día68 continuación): `--apply` real de `newest` con `pc_path=library_root`, `android_path=/storage/emulated/0/RetroArch`, 96/96 copiados, 0 errores. Verificado con mtimes tras la operación: `ps2/Mcd001.ps2` (carpeta reconocible en origen) bajó 1:1 sin pasar por `saves/`, confirmando el caso (1). Casos con carpeta intermedia `Unknown/` en origen (`sailormn_europe.nv`, `Kid Dracula (World)...sav`) se preservaron tal cual en destino (`Unknown/...`) — no es un fallo de nuestra canonicalización, es RetroArch en el propio dispositivo el que ya guarda esos saves bajo `Unknown/` (core sin mapear a contenido), confirmando el caso (2) también funciona en real |
+| CABLE-SYNC-NEWEST-CANON-1 | Corregir la dirección `newest` en modo ADB, que comparaba `pc_index`/`ab_index` por ruta relativa cruda de ambos lados | `web/handlers/sync_cable.py` (bloque `elif direction == "newest":`) | ✅ hecho 2026-09-21 — reescrito para reusar el `ab_index`/`ab_by_name` ya construidos arriba (eliminada la reconstrucción redundante) con el mismo fallback por nombre de `CABLE-SYNC-SAVES-PREFIX-2`: solo hace match por nombre si hay un único candidato del lado Android (ambiguo con >1 candidato → se trata como archivo distinto, comportamiento anterior conservado como fallback seguro). Test nuevo `test_newest_direction_skips_file_under_different_device_prefix_same_mtime`. **Validado en real** con `pc_path=library_root`, `direction=newest`: 405/597 reconocidos como ya sincronizados; los 192 restantes son casos legítimos (BIOS/defaults solo en un lado, diferencias reales de mtime), sin ruido del problema de prefijos |
+| CABLE-SYNC-NEWEST-CANON-2 | Mismo problema de fondo en las otras 2 reimplementaciones independientes de "newest": (a) `sync/cable_engine.py:plan_direction()` — compartido por el sync manual en modo filesystem/SD montada y el daemon SD-auto; (b) el fallback "RetroArch (legacy)" del daemon auto-sync ADB (activo cuando `get_adb_sync_sources()` no devuelve fuentes — usuarios sin `emulator_paths` configurado) | `sync/cable_engine.py` (`plan_direction`, rama `newest`), `web/cable_sync_daemon.py` (fallback "RetroArch (legacy)") | ✅ hecho 2026-09-21 — en vez de parchear cada reimplementación por separado, se extrajo la lógica de matching (ya escrita 3 veces con el mismo bug) a una función única y testeada: `reconcile_newest_by_name()` en `sync/android_paths.py` — empareja por clave exacta, con fallback por nombre solo si hay un único candidato del lado Android (ambiguo → sin emparejar, comportamiento seguro). Las 3 implementaciones (`sync_cable.py`, `cable_engine.py`, `cable_sync_daemon.py`) ahora son consumidores delgados de la misma función — evita que el mismo bug reaparezca una cuarta vez. 4 tests unitarios nuevos en `tests/test_android_paths.py` + 2 tests nuevos en `test_cable_engine.py`. Suite completa (1414 tests) sin regresiones (los 3 fallos que aparecen son ambientales — dispositivo ADB real conectado, no relacionados). **Revalidado en real tras el refactor**: mismo resultado exacto que antes (405/597 reconocidos, 192 candidatos legítimos, 0 errores) — el refactor no cambió comportamiento. El fallback per-emulador ADB del daemon (`adb_sources` con `local_saves`/`android_saves` dedicados) no tiene este problema — son carpetas 1:1 sin ambigüedad de plataforma, no se tocó |
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-SAVES-PREFIX-2 | Matching correcto ignorando el prefijo/carpeta intermedia del lado Android | `web/handlers/sync_cable.py` (`_skip_existing_device`, `_skip_existing_pc`) | ✅ hecho 2026-09-21 — implementada la opción de "matchear por nombre de archivo, ignorando segmentos intermedios", con tamaño como criterio de colisión (mismo patrón ya usado en todo el archivo para "ya existe"). Índice secundario `ab_by_name`/`_pc_by_name()` construido a partir de los índices existentes (`ab_index`, `_iter_files(pc_root)`) — sin mapeo core→plataforma, sin tocar `android_paths.py`. Tests nuevos en `tests/test_cable_sync_rom_skip_existing.py` (prefijo `saves/` en ambas direcciones). **Validado en real** contra la Anbernic con `pc_path=library_root` (el caso que antes fallaba, `CABLE-SYNC-DUP-PATHS-1`): antes 0/528 reconocidos, ahora **522/528 saltados como ya sincronizados, solo 6 genuinamente nuevos** (dry-run, `pc_to_anbernic`, `skip_existing=true`) |
+
+---
+
+### CABLE-SYNC-EMULATOR-SAVES-LEAK-1 — `emulator_saves/` (carpeta interna del PC) se filtra al dispositivo (rammu, 2026-09-21)
+
+Investigando por qué `Pokemon - Edicion Plata SoulSilver (Spain).sav`
+aparecía como conflicto en `CABLE-SYNC-LEGACY-DUPS-1` (una copia de 0
+bytes con el mtime más reciente de las 3): **no es un conflicto real de
+partidas**. El save de verdad está en `nds/Pokemon - Edicion Plata
+SoulSilver (Spain).sav` (512KB, el que usa el core normal de RetroArch).
+La copia sospechosa vive en
+`/storage/emulated/0/RetroArch/emulator_saves/me.magnum.melonds/saves/...`
+— y `emulator_saves/<package>/` es una carpeta que `get_adb_sync_sources()`
+(`config.py`) usa **solo en el PC** para bajar saves por-emulador vía
+ADB; nunca debería existir tal cual dentro del árbol `RetroArch/` del
+dispositivo.
+
+**Confirmado que no es un caso aislado**: hay **54 archivos** bajo
+`/storage/emulated/0/RetroArch/emulator_saves/` en el dispositivo real
+(toda la carpeta de estados de DuckStation incluida), todos con mtime a
+pocos segundos entre sí — una única subida masiva, no uso real de la app.
+
+**Causa raíz**: cuando `get_adb_sync_sources()` devuelve una lista vacía
+(`adb_sources`), el daemon de auto-sync (`web/cable_sync_daemon.py`,
+`_run_auto_sync`) cae al fallback `"RetroArch (legacy)"` con
+`local_saves = config.library_root` (la biblioteca **entera**) contra
+`android_saves = config.sync.auto_sync_android_path` — sin excluir
+`emulator_saves/`, que es puramente contabilidad interna del propio
+proyecto, no algo que ningún core de RetroArch en Android reconozca. El
+mismo problema aplica al endpoint manual `/api/cable-sync`
+(`web/handlers/sync_cable.py`) cuando `pc_path=library_root`: `_iter_files`
+solo excluye dotfiles y `_descartados/`, no `emulator_saves/`. El archivo
+de origen en el PC ya estaba a 0 bytes (melonDS nunca llegó a guardar esa
+partida concreta — se jugó con otro core), así que la copia subida
+también salió vacía; sin pérdida de progreso real, pero explica varios de
+los 289 grupos de `CABLE-SYNC-LEGACY-DUPS-1` (al menos los 54 confirmados
++ los que generaron por round-trip de vuelta al PC, como el `saves/saves/`
+doblemente anidado visto en `Castlevania - Dawn of Sorrow`).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| CABLE-SYNC-EMULATOR-SAVES-LEAK-1 | Excluir `emulator_saves/` del árbol que camina `pc_to_anbernic`/`newest` cuando `pc_path`/`local_saves` es la raíz de la biblioteca | `config.py` (`EMULATOR_SAVES_DIR_NAME`, nueva), `web/handlers/sync_cable.py` (`_iter_files`), `sync/cable_engine.py` (`iter_files`), `web/cable_sync_daemon.py` (walk de `_iter_local` en el fallback legacy) | ✅ hecho 2026-09-21 — mismo patrón que la exclusión ya existente de `_descartados/`/`TRASH_DIR_NAME`: nueva constante `EMULATOR_SAVES_DIR_NAME = "emulator_saves"` en `config.py` (reemplaza el literal ya usado en `get_adb_sync_sources()`), excluida en los 3 walks (`dirs[:] = [...]`) igual que `TRASH_DIR_NAME`. Aplica a ambos lados del walk (PC y Anbernic) — inocuo si el dispositivo está limpio, corta la fuga si no. 2 tests nuevos (`test_iter_files_skips_emulator_saves` en `test_cable_engine.py`, `test_pc_to_anbernic_never_uploads_emulator_saves_folder` en `test_cable_sync_rom_skip_existing.py`). Suite completa (1419 tests) sin regresiones nuevas. **No limpia los 54 archivos ya filtrados en el dispositivo real** — eso sigue en `CABLE-SYNC-LEGACY-DUPS-1` (ya respaldados en `.rommgr/legacy_dups_backup_2026-09-21/`), este fix solo corta la fuga hacia adelante |
+
+---
+
+### SAVES-UX — Historial de saves y contexto en resolución de conflictos (idea usuario 2026-09-22)
+
+Reducir el "miedo a sobrescribir" del pilar 3 más allá del backup-antes-de-
+sobrescribir ya existente: dejar ver y restaurar versiones anteriores, y dar
+más contexto que solo el timestamp al resolver un conflicto.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SAVES-HISTORY-1 | **Replanteada tras investigar (2026-09-22)**: el historial+restauración ya existía y funcionaba (`rom_manager/backup/save_backup.py`, `GET /api/save-backups`, `POST /api/restore-backup`, UI en la ficha de juego `games.js:877-885,1090-1113`) para Cloud Sync, Cable Sync manual y renombrado. El gap real era el daemon SD auto-sync (`CABLE-UX-9a`), que usaba un segundo sistema aislado (`.rommgr/cable_sync_backups/<fecha>/`) invisible en esa UI | `web/cable_sync_daemon.py` (`_run_sd_auto_sync`), `rom_manager/backup/save_backup.py` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): daemon migrado a `backup_save()`, mismo patrón que `sync_cable.py`. Verificado contra el sistema de archivos real: `.rommgr/cable_sync_backups/` no existía (el daemon nunca disparó esa rama en la práctica) — nada que migrar. 1430 tests pass (3 ambientales), ruff+format limpios |
+| SAVES-CONFLICT-CTX-1 | Al resolver un conflicto de sync, mostrar contexto además del timestamp (playtime asociado, tamaño). Solo Cloud Sync (Cable Sync no detecta conflictos hoy) | `sync/conflict_resolver.py`, `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `SyncDecision` con tamaños, `_decision_payload()` añade mtime/tamaño/playtime best-effort (match por stem contra `games`) solo para conflictos, UI pinta la línea de contexto bajo cada fila. 4 tests nuevos, 1434 pass, ruff+format limpios |
+| SYNC-CONFLICT-MANUAL-1 | Revisión manual de conflictos de Cloud Sync desde la UI antes de sincronizar — por archivo, elegir PC/Consola/omitir en vez de que `conflict_policy` global decida siempre por todos. No aplica a Cable Sync (sin detección de conflictos hoy) | `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `sync_saves()` acepta `conflict_overrides` (gana sobre `conflict_policy` por archivo, `skip` no toca nada); selector por fila en el plan de dry-run, recogido al pulsar Sincronizar. 3 tests nuevos, 1437 pass, ruff+format limpios |
+
+---
+
 ## UX — Auditorías por pestaña — → #206
 
 Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
@@ -3527,6 +4094,17 @@ combina con búsqueda/género/año como un filtro más.
 |----|------|-----------|--------|
 | GAMES-ALPHA-FILTER-1 | `get_games_paginated(initial=...)` filtra por la primera letra de `canonical_title` (o `original_filename` si no hay match), `"#"` agrupa lo que no empieza por A-Z | `database/repositories/games.py`, `web/builders/library.py`, `web/handlers/games.py` (`/api/games` + `/api/tag-bulk`) | ✅ 2 tests (`test_games_initial_filter.py`) |
 | GAMES-ALPHA-FILTER-2 | Barra de botones A-Z/# sobre la tabla/galería, toggle (click de nuevo quita el filtro), se respeta en "Marcar para Anbernic" | `web/static/js/tabs/games.js` (`setInitialFilter`, `_renderAlphaBar`), `tab-games.html` | ✅ |
+
+---
+
+### MOBILE-UI — UI usable desde el móvil (idea usuario 2026-09-22)
+
+Gestionar la biblioteca desde el móvil en la misma red — hoy el layout está
+pensado para desktop.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| MOBILE-UI-1 | Layout responsive (sidebar colapsable, tablas con scroll horizontal, controles táctiles) para las pestañas de uso más frecuente | `web/static/css/app.css`, `web/static/templates/*.html` | ⬜ sin diseñar |
 
 ## Distribución / Release — → #207
 
@@ -3577,7 +4155,54 @@ fase 2 (embeddings). Contexto adicional: `docs/ideas/propuestas-recomendador-nlp
 
 ---
 
+### RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22)
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| RA-PROGRESS-UI-1 | Mostrar progreso de logros (desbloqueados/totales) en la ficha de cada juego | `ra_client.py`, `web/static/js/tabs/games.js` | ⬜ bloqueado por la validación pendiente de la API key real (ver memoria `phases.md`) |
+
+---
+
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: JUEGOS-UX-1..9 (logros individuales por juego + playtime automático PC/Anbernic — completo, 2026-07-13).
+
+---
+
+## Estandarización de biblioteca multi-launcher (ES-DE + ROM hacks/fan projects) — → #337
+
+Carpeta y convención de nombres única para PC/Anbernic que también sea
+compatible con ES-DE (no solo RetroArch) y que sepa colocar ROM hacks/fan
+projects (parchean una ROM oficial pero no matchean ningún hash No-Intro/
+Redump — ej. "Twilight Princess - Dusklight" sobre la ROM base de Wii/
+GameCube) en su plataforma real en vez de caer en `Unknown/`. Fusiona la idea
+abierta `ESDE-CONFIG-CHECK` de `Roadmap-212-Ideas-Futuras.md` (movida aquí).
+
+### ESDE-FOLDER-STD-1 — Confirmar y cerrar el hueco real de integración ES-DE (idea usuario 2026-09-22)
+
+El proyecto ya genera `gamelist.xml` (`scraper/gamelist_writer.py`), metadata
+Pegasus (`scraper/pegasus_writer.py`) y sistemas/cores
+(`esde/systems_generator.py`, en uso hoy para iiSU vía `IISU-CONFIG-1`) — la
+suposición de que "no hay nada" (ROADMAP-IDEAS, 2026-08-29) era incorrecta.
+Falta decidir con el usuario qué hueco concreto queda: ¿`es_systems.cfg`/
+rutas específicas de ES-DE en Android? (ver `DEVPROFILE-4`, marcado "sin
+cambio" en su momento) ¿o ya está cerrado y solo falta documentarlo?
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ESDE-FOLDER-STD-1 | Sesión de decisión con el usuario: listar qué genera hoy el proyecto para ES-DE contra lo que ES-DE necesita realmente en Android/PC, y cerrar la brecha si la hay | `scraper/gamelist_writer.py`, `scraper/pegasus_writer.py`, `esde/systems_generator.py` | ⬜ pendiente, decisión del usuario primero |
+
+### ROMHACK-ORG-1 — Organizar ROM hacks / fan projects que no matchean catálogo oficial (idea usuario 2026-09-22)
+
+Origen: `E:\Juegos nativos` contiene proyectos como "Twilight Princess -
+Dusklight", un hack de fans sobre la ROM base de Wii/GameCube — no es un
+dump oficial, no tiene entrada en No-Intro/Redump, así que no matchea por
+hash. El usuario confirma que **no** quiere un catálogo propio de hacks
+(demasiados proyectos de fans para mantenerlo) — el alcance real es que la
+herramienta reconozca "esto no matchea pero tampoco es basura" y lo organice
+en la carpeta de su plataforma real en vez de dejarlo en `Unknown/`.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ROMHACK-ORG-1 | Definir heurística para detectar ROM hacks sin catálogo (¿extensión+tamaño de la plataforma base, nombre, carpeta de origen?) y decidir destino: ¿misma carpeta de plataforma que el juego base, o subcarpeta `<plataforma>/hacks/`? Sin matching por hash — solo organización | `catalog/matcher.py`, `web/inbox_pipeline.py` | ⬜ sin diseñar — decisión de convención pendiente con el usuario antes de tocar código |
 
 ---
 
@@ -3670,7 +4295,7 @@ en sesiones por día: `Tareas/Roadmap-212-Ideas-Futuras.md`.
 | GHA-OPT-1 | Optimizar el flujo de Claude Code GitHub Actions (`claude.yml` / `claude-code-review.yml`, instalados 2026-08-14 vía `/install-github-app`) | Repo público → minutos de runner gratis y autentica con `CLAUDE_CODE_OAUTH_TOKEN` (consume cuota Pro/Max, no API pay-as-you-go) — el coste real a acotar es esa cuota, no dinero. ✅ implementado (rama `chore/gha-opt-1-optimize-claude-workflows`, 2026-08-17): evidencia real antes de tocar nada — `claude-code-review.yml` se había disparado 5 veces seguidas sobre la misma rama en una sola sesión (2026-08-14, cada `synchronize` relanzaba la revisión sin cancelar la anterior). (a) `concurrency` por nº de PR + `cancel-in-progress: true` en `claude-code-review.yml`; (b) `paths-ignore` (`Tareas/**`, `**.md`) para no revisar PRs de solo-backlog, y `if: draft == false` para no revisar mientras el PR sigue en borrador; (c) `--max-turns 30` en `claude_args`; (d) mismo `concurrency` en `claude.yml` pero con `cancel-in-progress: false` (cada mención `@claude` es una petición distinta del usuario, se encola en vez de perderse) + `--max-turns 50` propio (más holgado que la revisión: puede implicar tareas más largas); (e) `CLAUDE.md` revisado — 145 líneas / ~7 KB, ya conciso, sin cambios |
 | RA-DL-LINK | En el informe de RA (juegos sin logros en tu versión pero sí en otra), botón "copiar link de descarga" por juego, pensado para pegarlo en JDownloader | Idea del usuario 2026-08-29; el propio usuario advierte que meter un LLM local para generar el link sería costoso y poco fiable — valorar alternativa sin LLM (¿el link ya es derivable del nombre canónico + fuente conocida?) antes de descartarlo |
 | TRUST-MODE | Simplificar el flujo de primera vez: aplicar todo de golpe y luego dejar que el usuario navegue las tabs revisando (o confiando sin revisar) los cambios ya hechos, en vez de plan→revisión manual→apply | Idea del usuario 2026-08-29; **tensión con INBOX-FIX-4** (`archivo.md`): decisión ya tomada 2026-07-23 de NO auto-aplicar y mantener `rommgr plan` siempre antes de `apply` — replantear con el usuario antes de diseñar, no revertir esa decisión sin más |
-| ESDE-CONFIG-CHECK | Confirmar con el usuario qué falta exactamente de integración con ES-DE — el proyecto ya genera `gamelist.xml` (`scraper/gamelist_writer.py`), metadata Pegasus (`scraper/pegasus_writer.py`) y sistemas/cores (`esde/systems_generator.py`, usado hoy para iiSU en IISU-CONFIG-1) | Idea del usuario 2026-08-29 asumía que no existía nada — puede que el hueco real sea solo `es_systems.cfg`/rutas de ES-DE específicas (ver DEVPROFILE-4, "sin cambio") |
+| ESDE-CONFIG-CHECK | **Movida** a `ESDE-FOLDER-STD-1`, sección "Estandarización de biblioteca multi-launcher" (→ #337), 2026-09-22 — misma idea, fusionada con la propuesta de carpetas estandarizadas del usuario | — |
 | LIBRARY-MANAGER-UI | Pantalla única "gestionar ambas bibliotecas a discreción" — copiar y borrar PC↔Anbernic con control fino, en vez de repartido entre Cable Sync (copiar), `ANBERNIC-PICK` (marcar) y `STORAGE-MGR` (borrar en bloque, archivado). El usuario pide explícitamente esto tras no encontrar cómo hacerlo hoy (2026-08-29) | Fusiona 3 mecanismos ya existentes en una sola UI — no es una feature nueva de backend, es una consolidación de UX; valorar junto con `ANBERNIC-PICK-7` (sync guiado) y `GAME-BLOCKLIST` (borrado permanente) antes de diseñar, pueden compartir la misma pantalla |
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: STORAGE-MGR-1..5 (gestor de almacenamiento PC/Android, borrado en bloque — completo y validado en hardware, 2026-08-14/2026-08-29).

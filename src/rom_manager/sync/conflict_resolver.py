@@ -11,6 +11,12 @@ class SyncDecision:
     local_mtime: datetime | None
     remote_mtime: datetime | None
     last_sync_at: datetime | None
+    # SAVES-CONFLICT-CTX-1: tamaño de cada lado, para dar contexto al
+    # resolver un conflicto además del timestamp. Se rellenan tras crear la
+    # decisión (el caller tiene el LocalSave/RemoteEntry a mano); None si el
+    # lado correspondiente no existe.
+    local_size: int | None = None
+    remote_size: int | None = None
 
 
 def decide(

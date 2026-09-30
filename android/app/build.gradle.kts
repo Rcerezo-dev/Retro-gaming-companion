@@ -126,6 +126,14 @@ dependencies {
     implementation("com.dropbox.core:dropbox-android-sdk:7.0.0")
     implementation("androidx.security:security-crypto:1.1.0")
 
+    // Roadmap 28, Fase 2: Google Sign-In para el proveedor Drive alternativo
+    // — pide el scope Scopes.DRIVE_FILE (no el `drive` completo, ver decisión
+    // de diseño en .claude/roadmaps/28-android-gdrive-provider.md). La
+    // selección de la carpeta RetroSync/ ya existente (creada por rclone en
+    // el PC) vía Picker queda para un incremento posterior de esta misma
+    // fase — sin ella, GoogleDriveAuthManager solo cubre el login.
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+
     // ANDROID-SYNC-7: watermark de sync (relative + remote_root -> último
     // mtime/hash/rev sincronizado) en Room/SQLite — no JSON plano, porque
     // el servicio foreground y el WorkManager periódico (Fases 3/4) pueden
