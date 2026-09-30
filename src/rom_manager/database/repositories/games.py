@@ -12,6 +12,7 @@ from pathlib import Path
 
 from rom_manager.database.repositories.base import escape_like_prefix
 from rom_manager.database.repositories.models import MatchedGame, UnresolvedGame
+from rom_manager.utils.paths import is_device_path
 
 
 def _delete_game_children(conn: sqlite3.Connection, game_id: int) -> None:
@@ -380,8 +381,16 @@ class GamesMixin:
         Only paths that start with *source_root* are considered — other roots are untouched.
         DB-2: Also cleans up orphaned metadata, tags, and operation logs when games are deleted.
         Returns the total number of records deleted across all tables.
+
+        ANDROID-DUP-PSX-1 (2026-09-30): an ADB scan's *source_root* is always
+        POSIX (``/storage/...``), regardless of host OS -- joining it with
+        ``os.sep`` silently broke this on Windows (``\\``), so *root_prefix*
+        never matched a real device path and pruning was a no-op for every
+        Android rescan run from this machine. ``is_device_path()`` picks the
+        right separator instead of always trusting the host OS's.
         """
-        root_prefix = source_root + os.sep
+        sep = "/" if is_device_path(source_root) else os.sep
+        root_prefix = source_root + sep
 
         def _under_root(p: str) -> bool:
             p_lower = p.lower()

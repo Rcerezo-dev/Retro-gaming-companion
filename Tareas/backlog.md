@@ -502,8 +502,27 @@ vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
   — el último escaneo completo de `psx/` fue el `id=17` del 2026-09-20. Cualquier
   borrado hecho en el dispositivo entre esas dos fechas nunca se reconcilió
   contra la BD porque el escaneo que lo habría reflejado murió sin terminar.
-  Causa del crash del `id=19` sin investigar — candidato a mirar logs del
-  servidor de esa fecha si siguen disponibles.
+  Causa del crash del `id=19` encontrada en `.rommgr/logs/rommgr.log`: **no
+  fue un crash real** — un job de Inbox gigante (`zip-route-apply`, miles de
+  operaciones) estaba corriendo justo a esa hora, y el proceso del servidor
+  se reinició a las 17:16:50 (los daemons vuelven a arrancar en el log) con
+  el scan de `psx/` todavía a medias — se quedó huérfano sin más.
+  **Rescan de `psx/` relanzado 2026-09-30 con la Anbernic conectada**: 1579
+  archivos, 1435 ROMs, 0 errores, hashes recalculados — pero **`pruned: 0`**
+  pese a que el archivo de MGS España verificado seguía sin existir en el
+  dispositivo (confirmado con `adb shell test -e` justo después del rescan).
+  **Bug real encontrado y arreglado** (`fix/android-scan-prune-separator-bug`):
+  `prune_stale_entries()` (`database/repositories/games.py:384`) construía
+  `root_prefix = source_root + os.sep` — en Windows `os.sep` es `\`, pero las
+  rutas de Android siempre usan `/`, así que `root_prefix` nunca coincidía
+  con ninguna ruta real del dispositivo. **Esto significa que la poda nunca
+  ha funcionado para ningún rescan de Android hecho desde esta máquina
+  Windows**, sin ningún error visible — explica por completo por qué las
+  filas fantasma se acumulan indefinidamente. Arreglado usando
+  `is_device_path()` para elegir el separador correcto según el tipo de ruta,
+  no según el SO anfitrión. 1 test nuevo
+  (`test_prune_stale_removes_missing_android_path_on_windows`, reproduce el
+  bug exacto), suite completa 1516/1516, ruff+format limpios.
 - **Volcados legacy con nombre de serial**: 47 filas `[SCUS-/SLUS-/SLES-/SCES-nnnnn]`
   siguen en `psx/` (consulta directa a `library_android.db`, patrón
   `LIKE '%[SCUS-%' OR ...`), mismo caso que el `Crash Bandicoot [U] [SCUS-94900]`
@@ -518,9 +537,25 @@ vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
   reales o contenido legítimo sin catalogar. `Atari 2600/`, `Master System/` y
   `Famicom Disk System/` ya no tienen su par Title Case (resuelto de rebote,
   mismo hallazgo que `SD-ORPHAN-FOLDERS-1` documentó para la raíz de la SD).
-- **`famicom/` sigue vivo** (109 archivos, 0,02 GB) en paralelo a `nes/` (2972
-  archivos, 2,34 GB) — más pequeño que en el hallazgo original de
-  `ANDROID-DUP-3` (86% de solapamiento entonces), pero no consolidado del todo.
+- **`famicom/` investigado a fondo 2026-09-30 — NO son duplicados triviales,
+  sin consolidar a propósito**: 109 archivos, 0,02 GB, en paralelo a `nes/`
+  (2972 archivos, 2,34 GB, ambas carpetas con `sha1` real ya calculado, a
+  diferencia de `Game Gear/`). **0 coincidencias por SHA1** entre `famicom/` y
+  `nes/`; **100/109 comparten nombre de archivo exacto** con algo en `nes/`,
+  pero **contenido distinto** — verificado bajando un par real por ADB
+  (`Little Nemo - The Dream Master (Europe).nes`, 262.160 bytes en ambas
+  carpetas): cabecera iNES idéntica (mismo mapper/PRG/CHR), pero difieren a
+  partir del byte 24.000 — no es una cuestión de cabecera, el contenido del
+  ROM en sí es distinto pese al nombre y tamaño idénticos (revisión/hack
+  distinto bajo el mismo nombre No-Intro, o un dump corrupto en alguna de las
+  dos copias, sin determinar cuál). Otro caso (`Kung Fu (Europe).nes`) ni
+  siquiera coincide en tamaño (40.976 vs 65.552 bytes) con el mismo nombre.
+  **Conclusión: no consolidar `famicom/` en `nes/` sin revisar caso a caso**
+  — mismo tipo de aviso que ya dio el hallazgo original de `ANDROID-DUP-3`
+  para `fds/` ("no era lo que parecía"), confirmado ahora con datos reales
+  para este par también. Los 9 archivos de `famicom/` sin ninguna
+  coincidencia de nombre en `nes/` (varios dentro de subcarpetas de colección
+  `# DYNAVISION #`/`# PT-BR #`/`top100`) tampoco tocados.
 - **`ANDROID-DUP-CROSSFMT-VERIFY-1` repetido con la función ya integrada y
   completado 2026-09-30** (`verify_group_by_disc_hash`, PR #379): 89 grupos
   PSX `crossfmt`-only reales hoy (antes 83, la cola cambia con la biblioteca)
