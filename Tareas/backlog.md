@@ -522,11 +522,67 @@ vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
   `is_device_path()` para elegir el separador correcto según el tipo de ruta,
   no según el SO anfitrión. 1 test nuevo
   (`test_prune_stale_removes_missing_android_path_on_windows`, reproduce el
-  bug exacto), suite completa 1516/1516, ruff+format limpios.
-- **Volcados legacy con nombre de serial**: 47 filas `[SCUS-/SLUS-/SLES-/SCES-nnnnn]`
-  siguen en `psx/` (consulta directa a `library_android.db`, patrón
-  `LIKE '%[SCUS-%' OR ...`), mismo caso que el `Crash Bandicoot [U] [SCUS-94900]`
-  ya documentado arriba — sin tocar.
+  bug exacto), suite completa 1516/1516, ruff+format limpios. **Fix mergeado
+  y verificado en real (PR #385)**: instancia real reiniciada con el código
+  nuevo, rescan de `psx/` relanzado (sin recalcular hashes, solo listar) →
+  **`pruned: 211`** (antes siempre 0). Las 8 filas fantasma de MGS España se
+  quedaron en 4 — verificado que los 4 restantes (`.bin`+`.m3u` de cada
+  disco) **sí existen de verdad en el dispositivo** (`adb shell test -e`); lo
+  podado fueron exactamente los 4 `.chd`/`.cue` mal etiquetados como "(World)
+  (4B4E083C) (Addon)" que ya se habían confirmado ausentes. Poda exacta,
+  `ANDROID-DUP-PSX-1` queda resuelto del todo — no solo documentado.
+- **Segundo bug real encontrado por error propio, sin arreglar todavía**: al
+  verificar la poda con un segundo rescan `compute_hashes=False` (más rápido,
+  solo para confirmar el fix anterior), las 1435 filas de `psx/` se quedaron
+  sin `sha1`/`md5` — el upsert del scan (`web/handlers/scan.py:551-552`,
+  `sha1=sha1_map.get(ap, "")`) sobrescribe siempre con cadena vacía cuando
+  `compute_hashes=False`, en vez de conservar el hash ya guardado en la fila
+  existente. Un rescan "rápido" (solo listar) después de uno completo borra
+  todo el trabajo de hash del anterior sin avisar. Recuperado relanzando el
+  rescan completo otra vez (`compute_hashes=True`) — sin arreglar el código
+  todavía, candidato a tarea propia: el upsert debería hacer `COALESCE` con
+  el `sha1`/`md5` ya existente en la fila cuando no se recalculan, no pisarlo
+  con `""`.
+- **Volcados legacy con nombre de serial — verificados por hash 2026-09-30**:
+  tras la poda quedaron 40 filas `[SCUS-/SLUS-/SLES-/SCES-nnnnn]` en `psx/`
+  (`LIKE '%[SCUS-%' OR ...`), de las cuales **solo 15 en formato hasheable**
+  (`.chd`/`.bin`/`.cue` — `compute_psx_ra_hash` no soporta CloneCD
+  `.img`/`.ccd`/`.sub` ni `.ecm`, los 25 restantes quedan sin poder
+  verificarse con la herramienta actual). De esas 15, buscado un
+  contrapartida canónica real en el resto de `psx/` para cada título:
+  - **`Digimon Rumble Arena [SLUS-01404].chd`** vs `(USA).chd` — **verificado
+    idéntico byte a byte, aplicado** (mismo hash MD5 RA real). 1 archivo
+    descartado, verificado en el dispositivo real.
+  - **`Driver 2 [Disc2of2] [SLUS-01318].chd`** vs `(USA) (Disc 2) (Rev 1).chd`
+    — **MISMATCH real** pese al nombre y tamaño parecidos (342.200.657 vs
+    342.287.667 bytes) — contenido genuinamente distinto, **no tocado**.
+    Confirma que verificar antes de aplicar sigue mereciendo la pena incluso
+    en candidatos que parecen obvios.
+  - `Ehrgeiz - God Bless the Ring [SLUS-00809]` y `Crash Team Racing
+    [SCUS-94426]`: cada uno tiene **2 copias, ambas con nombre legacy**, sin
+    ninguna copia de nombre canónico en la biblioteca contra la que comparar
+    — no hay "recomendado" obvio, sin tocar hasta decidir cuál de las dos
+    conservar (o verificar si son idénticas entre sí).
+  - `Crash Bash [SCUS-94570]` (USA, `.chd` de 4,4 MB sospechosamente pequeño +
+    `.bin` de 178 MB) solo tiene una copia canónica de **otra región**
+    (Europe, 61 MB) en la biblioteca — no comparable, regiones distintas se
+    esperan distintas, sin tocar.
+  - `Tekken 3 [SLUS-00402]` (set multi-pista con un `.cue` roto) sin una
+    contrapartida canónica de un solo archivo clara — sin tocar.
+  - Los 25 archivos `.ccd`/`.img`/`.sub`/`.ecm` restantes (CloneCD y formatos
+    comprimidos con corrección de errores eliminada) quedan documentados sin
+    verificar — soporte de esos formatos en `compute_psx_ra_hash` fuera de
+    alcance de esta sesión.
+
+**Estado al cerrar la sesión (2026-09-30, tarde)**: rescan completo de
+`psx/` con `compute_hashes=True` **en curso** (relanzado para restaurar los
+hashes borrados por el bug de arriba) — dejarlo terminar solo antes de tocar
+nada más en `psx/`; comprobar con `GET /api/job-status` (`scan_running`).
+**`Game Gear/` (rehash de los 28 archivos sin sha1) sin empezar** — pendiente
+para la próxima sesión, una vez termine el rescan en curso (mismo job
+"scan", no se puede lanzar en paralelo). Backups de `library_android.db`
+hechos antes de cada tanda de borrado real de hoy, en
+`.rommgr/library_android.db.bak-*`.
 - **Carpetas Title Case + slug paralelas**: de los "4 pares confirmados" originales,
   hoy solo queda uno sin resolver — **`Game Gear/` (28 archivos) + `gamegear/`
   (736 archivos)**, 0% de solapamiento por SHA1 comprobado porque **las 28 filas
