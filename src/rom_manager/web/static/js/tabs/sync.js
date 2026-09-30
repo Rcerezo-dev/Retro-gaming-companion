@@ -1706,6 +1706,16 @@ async function doSaveFragmentation() {
   }
 }
 
+// SYNC-CONFLICT-MANUAL-1: lee los selectores por-conflicto pintados en el
+// plan de dry-run — vacío si nadie tocó nada (comportamiento sin cambios).
+function _collectConflictOverrides() {
+  const overrides = {};
+  document.querySelectorAll('.conflict-override-select').forEach(sel => {
+    if (sel.value) overrides[sel.dataset.relative] = sel.value;
+  });
+  return Object.keys(overrides).length ? overrides : undefined;
+}
+
 async function doSync(dryRun) {
   const btnDry   = document.getElementById('btn-sync-dry');
   const btnApply = document.getElementById('btn-sync-apply');
@@ -1720,7 +1730,12 @@ async function doSync(dryRun) {
     }
   }
   try {
-    const d = await apiPost('/api/sync', { dry_run: dryRun });
+    const body = { dry_run: dryRun };
+    if (!dryRun) {
+      const overrides = _collectConflictOverrides();
+      if (overrides) body.conflict_overrides = overrides;
+    }
+    const d = await apiPost('/api/sync', body);
     if (d.status === 'already_running') {
       resultEl.className = 'job-result visible';
       resultEl.textContent = 'Ya hay un sync en curso…';
@@ -1733,6 +1748,30 @@ async function doSync(dryRun) {
     if (btnDry)   btnDry.disabled   = false;
     if (btnApply) btnApply.disabled = false;
   }
+}
+
+// SAVES-CONFLICT-CTX-1: formatea el contexto de un conflicto (mtime, tamaño,
+// playtime por lado) — todo opcional, el backend solo lo rellena best-effort.
+function _fmtCtxSize(n) {
+  if (n == null) return '?';
+  if (n > 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+  if (n > 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function _fmtCtxMtime(iso) {
+  return iso ? iso.replace('T', ' ').slice(0, 19) : '?';
+}
+function _conflictContext(d) {
+  const parts = [
+    `PC: ${_fmtCtxMtime(d.local_mtime)} &middot; ${_fmtCtxSize(d.local_size)}`,
+    `Remoto: ${_fmtCtxMtime(d.remote_mtime)} &middot; ${_fmtCtxSize(d.remote_size)}`,
+  ];
+  if (d.playtime_minutes_pc != null || d.playtime_minutes_android != null) {
+    const pc = d.playtime_minutes_pc != null ? `${d.playtime_minutes_pc} min` : '?';
+    const an = d.playtime_minutes_android != null ? `${d.playtime_minutes_android} min` : '?';
+    parts.push(`Jugado — PC: ${pc} &middot; Android: ${an}`);
+  }
+  return parts.join(' &nbsp;|&nbsp; ');
 }
 
 // CLOUD-UX-12: lista por fuente de qué archivo se mueve y en qué dirección —
@@ -1756,7 +1795,22 @@ function _renderSyncDecisions(result) {
     const rows = decs.map(d => {
       const [icon, color] = ICONS[d.action] || ['&#x2022;', 'var(--c-muted)'];
       const hl = d.action === 'conflict' ? ';background:var(--rv-tint-amber-bg)' : '';
-      return `<div style="padding:1px 0;color:var(--c-muted)${hl}"><span style="color:${color};margin-right:8px">${icon}</span>${_h(d.relative)}</div>`;
+      let ctx = '';
+      if (d.action === 'conflict') {
+        // SYNC-CONFLICT-MANUAL-1: solo en el plan (dry-run) — elegir por
+        // archivo antes de pulsar Sincronizar. Sin tocar, sigue la política
+        // global (mismo comportamiento que antes de este selector).
+        const picker = result.dry_run
+          ? `<select class="conflict-override-select" data-relative="${_h(d.relative)}" style="font-size:10px;margin-left:8px;background:var(--c-panel);color:var(--c-text);border:1px solid var(--c-soft);border-radius:3px">
+              <option value="">Auto (política)</option>
+              <option value="keep_local">Mantener PC</option>
+              <option value="keep_remote">Mantener consola</option>
+              <option value="skip">Omitir</option>
+            </select>`
+          : '';
+        ctx = `<div style="margin:1px 0 3px 24px;color:var(--c-dim);font-size:10px;display:flex;align-items:center">${_conflictContext(d)}${picker}</div>`;
+      }
+      return `<div style="padding:1px 0;color:var(--c-muted)${hl}"><span style="color:${color};margin-right:8px">${icon}</span>${_h(d.relative)}</div>${ctx}`;
     }).join('');
     const conflictTag = conflicts ? ` <span style="color:var(--c-amber)">&#x26A0; ${conflicts} conflicto${conflicts !== 1 ? 's' : ''}</span>` : '';
     return `<details open style="margin-top:6px">

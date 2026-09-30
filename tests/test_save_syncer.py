@@ -362,6 +362,67 @@ def test_conflict_newest_picks_newer_remote(tmp_path: Path) -> None:
     transport.upload.assert_not_called()
 
 
+def test_conflict_override_wins_over_global_policy(tmp_path: Path) -> None:
+    """SYNC-CONFLICT-MANUAL-1: a per-file override beats conflict_policy."""
+    saves_dir, transport, repo = _conflict_setup(tmp_path)
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="keep_remote",  # would normally download, not upload
+        conflict_overrides={"tetris.sav": "keep_local"},
+    )
+
+    assert result.conflicts == 1
+    transport.upload.assert_called_once()  # local won, per the override
+
+
+def test_conflict_override_skip_leaves_both_sides_untouched(tmp_path: Path) -> None:
+    saves_dir, transport, repo = _conflict_setup(tmp_path)
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="newest",
+        conflict_overrides={"tetris.sav": "skip"},
+    )
+
+    assert result.conflicts == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()
+    # No conflict-suffixed backup either — nothing was touched.
+    assert not list(saves_dir.glob("tetris.sav.conflict-*"))
+
+
+def test_conflict_without_matching_override_uses_global_policy(tmp_path: Path) -> None:
+    """A conflict whose relative path isn't in conflict_overrides is
+    unaffected — only the explicitly listed files change behaviour."""
+    saves_dir, transport, repo = _conflict_setup(tmp_path)
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="keep_remote",
+        conflict_overrides={"other/unrelated.sav": "keep_local"},
+    )
+
+    assert result.conflicts == 1
+    transport.download.assert_called_once()
+    transport.upload.assert_not_called()
+
+
 def test_stale_watermark_from_old_remote_is_not_reused(tmp_path: Path) -> None:
     """REV43-35: a last_sync_at recorded against a since-changed saves_remote
     must not be treated as if it applied to the current one — otherwise a

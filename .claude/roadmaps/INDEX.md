@@ -53,8 +53,33 @@ abierto o ya se archivó.
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | Archivado | 🟠 P2 |
 | 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Activo (parcial) | 🟠 P2 |
 | 24 | [archivo/24-docs-audit-followups.md](archivo/24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Archivado | 🟡 P3 |
-| 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | Archivado | 🟡 P3 |
+| 25 | [25-saves-ux-history-context.md](25-saves-ux-history-context.md) | `feature/saves-ux-history-context` | **PR abierto** — [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338), roadmap completo (los 3 objetivos), pendiente de review/merge | 🟠 P2 |
+| 26 | [26-inbox-ux-summary-metadata.md](26-inbox-ux-summary-metadata.md) | `feature/inbox-ux-summary-metadata` | Pendiente | 🟡 P3 |
+| 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | Archivado (PR #340) | 🟡 P3 |
 | 28 | [28-android-gdrive-provider.md](28-android-gdrive-provider.md) | sin asignar (se corta al arrancar la Fase 1) | Activo | 🟡 P3 |
+| 29 | [29-library-folder-standardization.md](29-library-folder-standardization.md) | `feature/library-folder-standardization` | Pendiente | 🟡 P3 |
+| 30 | [30-mobile-responsive-ui.md](30-mobile-responsive-ui.md) | `feature/mobile-responsive-ui` | Pendiente | 🟡 P3 |
+| 31 | [31-ra-achievements-live-progress.md](31-ra-achievements-live-progress.md) | `feature/ra-achievements-live-progress` | **Bloqueado** — requiere API key RA real validada primero (ver `phases.md`) | 🟡 P3 |
+
+---
+
+## Fases — mejoras propuestas por el usuario (sesión 2026-09-22)
+
+Las 6 ramas 25/26/29/30/31 (más 28, absorbida por `android-gdrive-provider`
+de una sesión distinta) nacen de la misma sesión (`Tareas/backlog.md`, ver
+nota de cabecera 2026-09-22) y conviene atacarlas en este orden — sigue el
+orden de prioridad real de los 3 pilares (CLAUDE.md), con la rama de saves
+adelantada un peldaño por tocar el pilar de mayor valor diferencial. La 27
+(Pilar 1) ya se completó por separado (PR #340, archivada) y la 28 original
+(`library-folder-standardization`) se renumeró a 29 el 2026-09-30 al chocar
+con el roadmap 28 real (`android-gdrive-provider`):
+
+1. **27** — `library-ux-dashboard-duplicates` (Pilar 1) — ✅ completado, PR #340
+2. **29** — `library-folder-standardization` (Pilar 1, cross-cutting con ES-DE/multi-launcher) — empieza con una sesión de decisión, sin código
+3. **26** — `inbox-ux-summary-metadata` (Pilar 2)
+4. **25** — `saves-ux-history-context` (Pilar 3 — "valor diferencial real"; cualquier regresión real de sync sigue teniendo prioridad absoluta por encima de este orden)
+5. **30** — `mobile-responsive-ui` (transversal)
+6. **31** — `ra-achievements-live-progress` (secundario, bloqueado hasta validar la API key real)
 
 ---
 
