@@ -86,10 +86,29 @@ ruff check src/rom_manager/web/builders/folders.py src/rom_manager/web/handlers/
 
 ## Checklist
 
-- [ ] Paso 1 — fuentes de datos confirmadas
-- [ ] Paso 2 — decisión endpoint agregado vs composición frontend
-- [ ] Paso 3 — panel de salud en Inicio
-- [ ] Paso 4 — duplicados side-by-side con flag RA
-- [ ] Paso 5 — tests nuevos
-- [ ] Paso 6 — suite completa + ruff limpios
-- [ ] Commit en rama, PR a `develop` — pendiente, requiere confirmación explícita del usuario
+- [x] Paso 1 — fuentes de datos confirmadas: `/api/status` (juegos, duplicados,
+      GB desperdiciados), `/api/library-doctor` (`by_type.misplaced_rom`,
+      `by_type.empty_dir`), `/api/library-extras` (nuevo campo `misplaced_zips`,
+      suma de categorías `confidence == "misplaced"` del junk-scan, excluyendo
+      BIOS que ya tenía su propio contador)
+- [x] Paso 2 — composición en frontend (ninguna llamada es costosa;
+      `/api/library-extras` ya cachea 15 min en el backend) — sin endpoint
+      agregado nuevo
+- [x] Paso 3 — panel de salud en Inicio (`ov-health-dash` en
+      `tab-overview.html`, `_loadLibraryHealth()` en `overview.js`):
+      % organizada, GB duplicados, carpetas huérfanas, ZIPs sin organizar —
+      cada tarjeta enlaza a su pestaña/reporte existente (Herramientas o
+      Revisión de copias)
+- [x] Paso 4 — duplicados side-by-side con flag RA: portada de 28x28 por fila
+      en `_renderReviewEntry` (`review_copies.js`), `onerror` la quita → cae al
+      layout de solo texto de siempre. El flag RA ya existía (`raBadge`, sin
+      cambios). Requirió exponer `id` (antes ausente) en las entries de
+      `_build_review_queue`/`_review_groups_for_repo` (`web/builders/duplicates.py`)
+      para poder llamar a `/api/asset-image?game_id=`. Sin portada para copias
+      de la consola (`is_device`) — `/api/asset-image` solo resuelve contra la
+      BD del PC, gap preexistente fuera de alcance de esta rama
+- [x] Paso 5 — tests nuevos
+      (`tests/web/test_library_extras.py::test_library_extras_misplaced_zips`,
+      `tests/test_builders_duplicates.py::test_sha1_duplicate_group_entries_carry_game_id`)
+- [x] Paso 6 — suite completa (1435 passed) + ruff limpios en los archivos tocados
+- [x] Commit en rama, PR a `develop` — PR #340 abierta 2026-09-24

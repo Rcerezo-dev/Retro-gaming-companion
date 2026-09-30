@@ -16,6 +16,7 @@ import rom_manager.detection.platform_detector as _platform_detector
 from rom_manager.config import AppConfig
 from rom_manager.detection.platform_detector import PLATFORM_BY_FOLDER
 from rom_manager.utils.media_types import IMAGE_EXTS
+from rom_manager.utils.trash import TRASH_DIR_NAME
 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
 _logger = logging.getLogger(__name__)
@@ -318,7 +319,18 @@ def _build_junk_scan(
     # (regla del proyecto) — ninguno es objetivo de la limpieza de basura.
     # "System Volume Information" es una carpeta de sistema de Windows —
     # tocarla puede dar "acceso denegado" y nunca es contenido del usuario.
-    _excluded_dirs = {"saves", "bios", "android", "system volume information"}
+    # _descartados/ (JUNK-SCAN-EXCLUDE-TRASH-1): ya es la papelera del propio
+    # junk-scan (utils/trash.py) — sin esta exclusión, cada scan re-cuenta su
+    # propio contenido descartado como basura activa, y repetir junk-delete
+    # sobre eso anida _descartados/_descartados (invisible para purge_trash(),
+    # mismo corte de os.walk que protege contra re-listarlo).
+    _excluded_dirs = {
+        "saves",
+        "bios",
+        "android",
+        "system volume information",
+        TRASH_DIR_NAME.lower(),
+    }
 
     for dirpath, dirs, files in _os.walk(p):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in _excluded_dirs]

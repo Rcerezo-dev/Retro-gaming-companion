@@ -104,6 +104,7 @@ export const api = {
   deleteAllDuplicates: (body) => _post('/api/duplicates/delete-all', body),
   excludeDuplicate:  (body)   => _post('/api/duplicates/exclude', body),
   resolveRaDuplicate:(body)   => _post('/api/resolve-duplicate-ra', body),
+  verifyDuplicateHash:(body)  => _post('/api/verify-duplicate-hash', body),
   applyRaConflicts:  (body)   => _post('/api/apply-ra-conflicts', body),
   // TABS-FIX-6: cola única que fusiona duplicados SHA1/semánticos/RA y conflictos del plan
   reviewQueue:       ()       => _get('/api/review-queue'),

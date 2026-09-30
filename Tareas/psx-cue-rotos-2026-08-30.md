@@ -1,5 +1,12 @@
 # PSX — .cue rotos encontrados al convertir a CHD (2026-08-30)
 
+> **✅ Investigación cerrada (2026-08-31)** — informe de referencia, no un
+> pendiente. Limpieza aplicada: `Tareas/backlog.md`, sección
+> `LIBRARY-SYNC-STALE-1c` (Pilar 1) — los 22 `.cue` rotos movidos a
+> `psx/_descartados/cue-rotos-investigados-2026-08-30/`. Único ítem
+> irrecuperable (**Crash 2**, sin copia de reemplazo en la biblioteca)
+> sigue pendiente de volver a descargar.
+
 De 22 archivos .cue reales en psx/, ninguno funcionaba (referenciaban un .bin
 que no existe con ese nombre exacto — corrupción previa a esta sesión).
 

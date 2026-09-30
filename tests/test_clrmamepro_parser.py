@@ -8,6 +8,7 @@ from rom_manager.catalog.catalog_loader import (
     _detect_dat_format,
     load_clrmamepro_dat,
     load_dat_directory,
+    load_dat_file,
 )
 
 # Minimal clrmamepro DAT fixture (realistic subset of No-Intro PSX format)
@@ -63,6 +64,17 @@ class TestFormatSniffer:
         f = tmp_path / "empty.dat"
         f.write_bytes(b"")
         assert _detect_dat_format(f) == "xml"
+
+    def test_detects_xml_with_leading_bom(self, tmp_path: Path) -> None:
+        """Redump DATs commonly ship with a UTF-8 BOM (confirmed on real
+        catalogs: Dreamcast, Naomi, Naomi 2, Triforce, Wii U Disc Keys...) —
+        without utf-8-sig the BOM stayed glued to "<?xml", startswith("<")
+        was False, and the DAT silently loaded 0 entries as clrmamepro."""
+        f = tmp_path / "redump.dat"
+        f.write_bytes(b"\xef\xbb\xbf" + _XML_DAT.encode("utf-8"))
+        assert _detect_dat_format(f) == "xml"
+        entries = load_dat_file(f)
+        assert len(entries) == 1
 
 
 class TestClrmamepro:

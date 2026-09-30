@@ -3,7 +3,7 @@
 # locally before they reach GitHub Actions.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.17
+    rev: v0.16.8
     hooks:
       # Linter (auto-fixes what it safely can: imports, pyupgrade, etc.)
       - id: ruff-check

@@ -1,5 +1,11 @@
 # ZIP-ROUTE — Identificación de los ZIPs sueltos de `Unknown\` (2026-07-10)
 
+> **✅ Investigación cerrada (2026-07-10)** — informe de referencia del
+> diseño de `ZIP-ROUTE`, no un pendiente. Estado de implementación real:
+> `Tareas/backlog.md`, sección ZIP-ROUTE (Pilar 2, issue #203) —
+> `ZIP-ROUTE-1..6` y `AUD-4` ✅; `ZIP-ROUTE-7` con un cabo suelto (confirmar
+> si queda algún `.zip` genuinamente mal clasificado, no bloqueante).
+
 Identificación por CRC32 del header ZIP (sin descomprimir): entradas de cada
 ZIP cruzadas contra los DATs No-Intro/Redump (`CatalogEntry.crc32`,
 `catalog_loader.py:104`) y contra MAME 0.286 + FBNeo arcade (votación por

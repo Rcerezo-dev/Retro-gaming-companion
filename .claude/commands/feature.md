@@ -1,16 +1,16 @@
-Planifica e implementa la siguiente feature del archivo `Tareas/Día10-Mejoras-Pendientes.md`.
+Planifica e implementa la siguiente tarea de `Tareas/backlog.md`.
 
-El argumento del comando es el identificador de la feature (ej: `F5`, `F7`, `F9`). Si no se proporciona argumento, pregunta al usuario cuál quiere implementar mostrando la lista de pendientes.
+El argumento del comando es el ID de la tarea (ej: `CABLE-SYNC-EMULATOR-SAVES-LEAK-1`, `JUEGOS-FIX-4`). Si no se proporciona argumento, pregunta al usuario cuál quiere implementar mostrando las tareas abiertas (🔴/🟡) del backlog.
 
 Pasos:
 
-1. **Leer contexto**: Lee `Tareas/Día10-Mejoras-Pendientes.md` para encontrar la descripción de la feature. Lee también `CLAUDE.md` para recordar las convenciones del proyecto.
+1. **Leer contexto**: Lee `Tareas/backlog.md` para encontrar la descripción de la tarea. Lee también `CLAUDE.md` para recordar las convenciones del proyecto.
 
 2. **Analizar impacto**: Identifica todos los archivos que necesitarán cambios:
    - `src/rom_manager/database/schema.py` — ¿nuevas columnas o tablas?
-   - `src/rom_manager/database/repository.py` — ¿nuevos métodos?
-   - `src/rom_manager/web/server.py` — ¿nuevos endpoints?
-   - `src/rom_manager/web/frontend.py` — ¿nueva UI?
+   - `src/rom_manager/database/repository.py` / `database/repositories/*.py` — ¿nuevos métodos?
+   - `src/rom_manager/web/handlers/*.py` — ¿nuevos endpoints?
+   - `web/static/js/tabs/*.js` + `web/static/partials/*.html` — ¿nueva UI?
    - ¿Nuevos módulos?
 
 3. **Plan detallado**: Antes de tocar código, escribe el plan completo:
@@ -30,6 +30,6 @@ Pasos:
    - Migraciones en `_GAMES_MIGRATIONS` (no crear tablas nuevas sin discutirlo)
    - Verificar compilación al terminar: `python -c "import py_compile; ..."`
 
-5. **Actualizar tracking**: Marca la feature como ✅ en `Tareas/Día10-Mejoras-Pendientes.md` con descripción de cómo se implementó.
+5. **Actualizar tracking**: Marca la tarea como ✅ en `Tareas/backlog.md` con descripción de cómo se implementó. Si la tarea pertenece a un epic con issue de GitHub (`→ #NNN` en la cabecera de sección), marca también su checkbox en el issue.
 
-6. **Actualizar diario**: Añade las entradas correspondientes al archivo `Tareas/Día10.md` (o el más reciente).
+6. **Actualizar diario**: Añade las entradas correspondientes al archivo `Tareas/diario/Día*.md` más reciente.

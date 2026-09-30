@@ -1,6 +1,6 @@
-Audita la interfaz de usuario de `src/rom_manager/web/frontend.py` desde la perspectiva de un usuario que abre la app por primera vez.
+Audita la interfaz de usuario de `src/rom_manager/web/static/js/tabs/*.js` y `src/rom_manager/web/static/partials/*.html` desde la perspectiva de un usuario que abre la app por primera vez. (`frontend.py` es solo el ensamblador de plantillas, 22 líneas, sin strings de UI.)
 
-Lee el archivo completo y evalúa los siguientes criterios:
+Lee todos esos archivos y evalúa los siguientes criterios:
 
 ### 1. Texto mezclado (español/inglés)
 Busca strings en inglés que deberían estar en español. Ignora: nombres técnicos (SHA1, ROM, CHD, ADB, rclone, API key), código de ejemplo, placeholders de input. Reporta los demás.

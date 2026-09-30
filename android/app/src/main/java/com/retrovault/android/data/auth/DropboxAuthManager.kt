@@ -5,6 +5,8 @@ import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.android.Auth
 import com.dropbox.core.oauth.DbxCredential
 import com.retrovault.android.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Flujo OAuth PKCE de Dropbox (`Auth.startOAuth2PKCE`, navegador del
@@ -50,8 +52,26 @@ class DropboxAuthManager(
         credentialStore.clear()
     }
 
+    /**
+     * Diagnóstico (hallazgo 2026-09-25): la app reportaba syncs exitosos que
+     * nunca aparecían en la cuenta Dropbox vista desde el PC pese a usar el
+     * mismo email de login — Dropbox permite que un mismo email tenga
+     * varios espacios (personal/equipo) con datos completamente separados.
+     * Mostrar el email + `account_id` reales de la sesión conectada permite
+     * comparar sin ambigüedad contra el otro lado. `null` si no hay sesión o
+     * la llamada falla (sin conexión, token revocado).
+     */
+    suspend fun fetchAccountLabel(): String? =
+        withContext(Dispatchers.IO) {
+            val client = DropboxClientProvider(credentialStore).client() ?: return@withContext null
+            runCatching {
+                val account = client.users().currentAccount
+                "${account.email} · ${account.accountId}"
+            }.getOrElse { "No se pudo verificar la cuenta: ${it.message}" }
+        }
+
     private companion object {
         const val CLIENT_IDENTIFIER = "retrovault-android"
-        val SCOPES = listOf("files.metadata.read", "files.content.read", "files.content.write")
+        val SCOPES = listOf("files.metadata.read", "files.content.read", "files.content.write", "account_info.read")
     }
 }

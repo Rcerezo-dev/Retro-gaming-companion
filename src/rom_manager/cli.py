@@ -15,7 +15,7 @@ from rom_manager.planner import build_plan
 from rom_manager.reports import build_report, to_csv, to_json
 from rom_manager.scanner import scan_library
 from rom_manager.sync.rclone_transport import RcloneError, RcloneTransport
-from rom_manager.sync.save_syncer import sync_saves
+from rom_manager.sync.save_syncer import sync_saves, sync_single_file
 
 _logger = logging.getLogger(__name__)
 
@@ -316,6 +316,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Actually decompress (default is dry run).",
     )
 
+    clean_chd_parser = subparsers.add_parser(
+        "clean-redundant-chd",
+        help=(
+            "Find PSX .cue/.bin sets on a connected Android device that already have a "
+            "same-name .chd converted, verify by RA hash, and remove the redundant raw "
+            "copy. Dry run by default. GDI-ORGANIZE-1: found live 2026-09-29 -- 195 "
+            "titles on a real Anbernic with this exact leftover shape."
+        ),
+    )
+    clean_chd_parser.add_argument(
+        "android_path", help='Remote folder to scan, e.g. "/storage/521D-04EA/ROMs/psx".'
+    )
+    clean_chd_parser.add_argument(
+        "--serial",
+        default=None,
+        metavar="SERIAL",
+        help="ADB device serial. Auto-detected if only one device is connected.",
+    )
+    clean_chd_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually remove verified-redundant raw files (default is dry run).",
+    )
+
     gen_cues_parser = subparsers.add_parser(
         "generate-cues",
         help=(
@@ -502,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "plan":
-        plan = build_plan(repository)
+        plan = build_plan(repository, library_root=config.library_root)
         if plan.total == 0:
             print("No matched games found. Run 'rommgr match' first.")
             return 0
@@ -536,7 +560,7 @@ def main(argv: list[str] | None = None) -> int:
         from rom_manager.renamer.file_renamer import central_save_dirs, rename_rom_with_saves
         from rom_manager.scanner.rom_scanner import utc_now
 
-        plan = build_plan(repository)
+        plan = build_plan(repository, library_root=config.library_root)
         if not plan.pending:
             print("Nothing to apply.")
             if plan.conflicts:
@@ -1018,28 +1042,35 @@ def main(argv: list[str] | None = None) -> int:
 
         for source in sources:
             saves_dir = Path(source.local_dir)
-            if not saves_dir.exists():
+            if not saves_dir.exists() and not source.single_file:
                 print(f"  [ERROR] {source.name}: directorio no encontrado: {source.local_dir}")
                 any_error = True
                 continue
 
-            exts = tuple() if source.sync_all else config.save_extensions
             try:
-                from rom_manager.sync.delta_cache import DeltaCache
+                if source.single_file:
+                    result, decisions = sync_single_file(
+                        saves_dir, source.remote, transport=transport, dry_run=dry_run
+                    )
+                else:
+                    from rom_manager.sync.delta_cache import DeltaCache
 
-                _delta = DeltaCache(config.data_dir) if not dry_run else None
-                result, decisions = sync_saves(
-                    saves_dir,
-                    saves_remote=source.remote,
-                    transport=transport,
-                    repository=repository,
-                    save_extensions=exts,
-                    state_extensions=config.state_extensions if not source.sync_all else tuple(),
-                    states_remote=None,
-                    dry_run=dry_run,
-                    delta_cache=_delta,
-                    include_glob=source.include_glob,
-                )
+                    exts = tuple() if source.sync_all else config.save_extensions
+                    _delta = DeltaCache(config.data_dir) if not dry_run else None
+                    result, decisions = sync_saves(
+                        saves_dir,
+                        saves_remote=source.remote,
+                        transport=transport,
+                        repository=repository,
+                        save_extensions=exts,
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
+                        states_remote=None,
+                        dry_run=dry_run,
+                        delta_cache=_delta,
+                        include_glob=source.include_glob,
+                    )
             except RcloneError as exc:
                 print(f"  [ERROR] {source.name}: {exc}")
                 any_error = True
@@ -1265,6 +1296,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "decompress":
         from rom_manager.catalog.mame_loader import load_arcade_crc_index
+        from rom_manager.converters.sevenzip_extractor import extract_7z_directory
         from rom_manager.converters.zip_extractor import extract_directory
 
         source_path = args.source_path.resolve()
@@ -1314,6 +1346,91 @@ def main(argv: list[str] | None = None) -> int:
             )
             if summary.extracted:
                 print("Re-run 'rommgr scan' to update the library database.")
+
+        sevenzip_summary = extract_7z_directory(
+            source_path,
+            sevenzip=config.sevenzip,
+            delete_source=args.delete_source,
+            dry_run=dry_run,
+        )
+        if sevenzip_summary.results:
+            print()
+            for result in sevenzip_summary.results:
+                if result.success:
+                    print(
+                        f"  [OK]   {result.archive_path.name}  ->  "
+                        f"{len(result.extracted_files)} archivo(s)"
+                    )
+                elif result.skipped_reason:
+                    print(f"  [SKIP] {result.archive_path.name}  -  {result.skipped_reason}")
+                elif result.error:
+                    print(f"  [FAIL] {result.archive_path.name}  -  {result.error}")
+            print()
+            if dry_run:
+                print(
+                    f"7z — se descomprimirían: {sevenzip_summary.extracted}  |  "
+                    f"se saltarían: {sevenzip_summary.skipped}"
+                )
+            else:
+                print(
+                    f"7z — descomprimidos: {sevenzip_summary.extracted}  |  "
+                    f"saltados: {sevenzip_summary.skipped}  |  fallidos: {sevenzip_summary.failed}"
+                )
+        return 0
+
+    if args.command == "clean-redundant-chd":
+        import tempfile
+
+        from rom_manager.converters.chd_cleanup import (
+            find_redundant_chd_sources,
+            verify_and_clean_one,
+        )
+        from rom_manager.sync.adb_transport import AdbTransport, resolve_single_device_transport
+
+        if args.serial:
+            transport = AdbTransport(config.adb, args.serial)
+        else:
+            transport = resolve_single_device_transport(config.adb)
+            if transport is None:
+                parser.error("No se detectó un único dispositivo ADB conectado -- usa --serial.")
+
+        dry_run = not args.apply
+        if dry_run:
+            print("DRY RUN — no se borrará nada. Pasa --apply para borrar de verdad.")
+        print()
+
+        files = [f.android_path for f in transport.ls_recursive(args.android_path)]
+        candidates = find_redundant_chd_sources(files)
+        print(f"{len(candidates)} candidato(s) (.cue con .chd del mismo nombre) encontrados.\n")
+
+        verified = failed = 0
+        freed_bytes = 0
+        with tempfile.TemporaryDirectory(prefix="rommgr_chd_cleanup_") as tmp:
+            for i, candidate in enumerate(candidates):
+                pull_to = Path(tmp) / str(i)
+                result = verify_and_clean_one(
+                    candidate,
+                    pull_to=pull_to,
+                    chdman=config.chdman,
+                    remove_remote=transport.remove,
+                    pull_file=lambda src, dst: transport.pull(src, dst),
+                    dry_run=dry_run,
+                )
+                name = Path(candidate.cue_path).stem
+                if result.verified:
+                    verified += 1
+                    freed_bytes += result.freed_bytes
+                    verb = "se borraría" if dry_run else "borrado"
+                    print(f"  [OK]   {name}  -  {verb} ({result.freed_bytes / 1e6:.1f} MB)")
+                else:
+                    failed += 1
+                    print(f"  [SKIP] {name}  -  {result.error}")
+
+        print()
+        print(
+            f"Verificados: {verified}  |  Sin verificar/saltados: {failed}  |  "
+            f"{'Se liberarían' if dry_run else 'Liberados'}: {freed_bytes / 1e9:.2f} GB"
+        )
         return 0
 
     if args.command == "generate-cues":
@@ -1571,6 +1688,7 @@ def main(argv: list[str] | None = None) -> int:
                         "local_dir": s.local_dir,
                         "remote": s.remote,
                         "sync_all": s.sync_all,
+                        "single_file": s.single_file,
                     }
                     for s in sources
                 ],
@@ -1586,24 +1704,33 @@ def main(argv: list[str] | None = None) -> int:
         repository = LibraryRepository(config.database_path)
         for source in sources:
             local_dir = Path(source.local_dir)
-            local_dir.mkdir(parents=True, exist_ok=True)
-            exts = tuple() if source.sync_all else config.save_extensions
+            (local_dir.parent if source.single_file else local_dir).mkdir(
+                parents=True, exist_ok=True
+            )
             try:
-                from rom_manager.sync.delta_cache import DeltaCache
+                if source.single_file:
+                    result, decisions = sync_single_file(
+                        local_dir, source.remote, transport=transport, dry_run=dry_run
+                    )
+                else:
+                    from rom_manager.sync.delta_cache import DeltaCache
 
-                _delta = DeltaCache(config.data_dir) if not dry_run else None
-                result, decisions = sync_saves(
-                    local_dir,
-                    saves_remote=source.remote,
-                    transport=transport,
-                    repository=repository,
-                    save_extensions=exts,
-                    state_extensions=config.state_extensions if not source.sync_all else tuple(),
-                    states_remote=None,
-                    dry_run=dry_run,
-                    delta_cache=_delta,
-                    include_glob=source.include_glob,
-                )
+                    exts = tuple() if source.sync_all else config.save_extensions
+                    _delta = DeltaCache(config.data_dir) if not dry_run else None
+                    result, decisions = sync_saves(
+                        local_dir,
+                        saves_remote=source.remote,
+                        transport=transport,
+                        repository=repository,
+                        save_extensions=exts,
+                        state_extensions=config.state_extensions
+                        if not source.sync_all
+                        else tuple(),
+                        states_remote=None,
+                        dry_run=dry_run,
+                        delta_cache=_delta,
+                        include_glob=source.include_glob,
+                    )
             except RcloneError as exc:
                 print(f"  [ERROR] {source.name}: {exc}")
                 continue

@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, "src")
 from rom_manager.config import load_config
 cfg = load_config()
-print("api_key:", getattr(cfg, "ra_api_key", "") or "")
+print("api_key:", getattr(cfg.credentials, "ra_api_key", "") or "")
 print("cache_dir:", getattr(cfg, "ra_cache_dir", "") or ".rommgr/ra_cache")
 ```
 

@@ -20,6 +20,13 @@ val localProperties =
     }
 val dropboxAppKey: String = localProperties.getProperty("dropbox.appKey", "")
 
+// Roadmap 28 (Fase 0/2) — Client ID OAuth de Google para el proveedor Drive
+// alternativo. Mismo patrón que dropbox.appKey: se lee de local.properties
+// (ignorado por git), clave "gdrive.clientId" — sin ella, la app compila
+// igual (Google Sign-In deshabilitado en runtime, ver
+// GoogleDriveAuthManager.isClientIdConfigured() cuando exista, Fase 2).
+val gdriveClientId: String = localProperties.getProperty("gdrive.clientId", "")
+
 android {
     namespace = "com.retrovault.android"
     compileSdk = 34
@@ -41,6 +48,25 @@ android {
         // AuthActivity del SDK de Dropbox necesita el scheme "db-<APP_KEY>"
         // declarado en el manifest — ver AndroidManifest.xml.
         manifestPlaceholders["dropboxAppKey"] = dropboxAppKey
+        buildConfigField("String", "GDRIVE_CLIENT_ID", "\"$gdriveClientId\"")
+    }
+
+    // Keystore de release (ANDROID-RELEASE-1) — igual que dropbox.appKey: se lee
+    // de local.properties (ignorado por git), nunca hardcodeado ni versionado.
+    // Sin esas claves, `release` compila igual pero sin signingConfig (APK sin
+    // firmar, no instalable) — así CI/otras máquinas sin el keystore no rompen.
+    val releaseStoreFile = localProperties.getProperty("release.storeFile", "")
+    val hasReleaseSigning = releaseStoreFile.isNotBlank() && rootProject.file(releaseStoreFile).exists()
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = localProperties.getProperty("release.storePassword", "")
+                keyAlias = localProperties.getProperty("release.keyAlias", "")
+                keyPassword = localProperties.getProperty("release.keyPassword", "")
+            }
+        }
     }
 
     buildTypes {
@@ -50,6 +76,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -99,6 +126,14 @@ dependencies {
     implementation("com.dropbox.core:dropbox-android-sdk:7.0.0")
     implementation("androidx.security:security-crypto:1.1.0")
 
+    // Roadmap 28, Fase 2: Google Sign-In para el proveedor Drive alternativo
+    // — pide el scope Scopes.DRIVE_FILE (no el `drive` completo, ver decisión
+    // de diseño en .claude/roadmaps/28-android-gdrive-provider.md). La
+    // selección de la carpeta RetroSync/ ya existente (creada por rclone en
+    // el PC) vía Picker queda para un incremento posterior de esta misma
+    // fase — sin ella, GoogleDriveAuthManager solo cubre el login.
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+
     // ANDROID-SYNC-7: watermark de sync (relative + remote_root -> último
     // mtime/hash/rev sincronizado) en Room/SQLite — no JSON plano, porque
     // el servicio foreground y el WorkManager periódico (Fases 3/4) pueden
@@ -121,6 +156,12 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     testImplementation("junit:junit:4.13.2")
+    // DEVPROFILE-6: org.json en unit tests JVM usa el stub de android.jar
+    // (lanza en cada llamada) salvo que se aporte una implementación real
+    // para el classpath de test -- PcApiClient.kt ya usaba org.json en
+    // producción sin ningún test que ejercitara el parseo; DeviceProfileRestoreTest
+    // es el primero que lo necesita.
+    testImplementation("org.json:json:20240303")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

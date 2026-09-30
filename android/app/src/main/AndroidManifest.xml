@@ -16,16 +16,18 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
-    <!-- Notificaciones (runtime prompt solo en API 33+). Sin uso hoy — el
-         modo instantáneo que la necesitaba (ANDROID-SYNC-9/10) se descartó
-         (2026-08-18, la app es complemento del PC, no un daemon en segundo
-         plano); se mantiene el permiso porque el flujo de solicitud ya
-         existe (ANDROID-SYNC-2) y sirve para una futura notificación de
-         resultado de sync. FOREGROUND_SERVICE/FOREGROUND_SERVICE_DATA_SYNC/
-         RECEIVE_BOOT_COMPLETED (servicio foreground + relanzo tras reboot,
-         ANDROID-SYNC-10/11) se retiran: WorkManager persiste y re-programa
-         el trabajo periódico solo, sin necesitar ninguno de los dos. -->
+    <!-- Notificaciones (runtime prompt solo en API 33+, flujo ya en
+         ANDROID-SYNC-2) — obligatoria para la notificación persistente del
+         modo Instantáneo (ANDROID-SYNC-10, ver SyncForegroundService). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Modo Instantáneo (ANDROID-SYNC-9/10/11, reabierto 2026-09-25 tras
+         descartarse 2026-08-18 — la app deja de ser solo complemento del
+         PC): SyncForegroundService mantiene vivo el FileObserver de
+         saves/states, BootRestartReceiver lo relanza tras reboot. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Llamadas a la API de Dropbox + constraint de red de WorkManager. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -73,6 +75,24 @@
                 <data android:scheme="db-${dropboxAppKey}" />
             </intent-filter>
         </activity>
+
+        <!-- ANDROID-SYNC-10: servicio foreground del modo Instantáneo. -->
+        <service
+            android:name=".sync.SyncForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- ANDROID-SYNC-11: relanza el servicio anterior tras reboot si el
+             usuario lo tenía activado — exported porque BOOT_COMPLETED es un
+             broadcast del sistema, no de otra app (protegido por el permiso
+             RECEIVE_BOOT_COMPLETED de arriba). -->
+        <receiver
+            android:name=".sync.BootRestartReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

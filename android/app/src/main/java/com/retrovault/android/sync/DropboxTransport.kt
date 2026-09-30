@@ -40,9 +40,10 @@ internal fun relativePathFrom(
 
 /**
  * Wrapper fino sobre [DbxClientV2] — listado recursivo, upload y download,
- * siempre fijando/leyendo `client_modified`.
+ * siempre fijando/leyendo `client_modified`. Implementa [CloudTransport]
+ * (roadmap 28, Fase 1) sin cambiar su comportamiento.
  */
-class DropboxTransport(private val client: DbxClientV2) {
+class DropboxTransport(private val client: DbxClientV2) : CloudTransport {
     /**
      * Listado recursivo de [remoteRoot], solo archivos, `relative` POSIX a
      * esa raíz. Si [remoteRoot] todavía no existe en Dropbox (primer sync
@@ -51,7 +52,7 @@ class DropboxTransport(private val client: DbxClientV2) {
      * eso es un listado vacío legítimo, no un fallo — sin este caso ningún
      * usuario Android nuevo podría completar su primer sync (ANDROID-SYNC-FIX-1).
      */
-    fun listFolderRecursive(remoteRoot: String): List<RemoteSave> {
+    override fun listFolderRecursive(remoteRoot: String): List<RemoteSave> {
         val entries = mutableListOf<RemoteSave>()
         var result =
             try {
@@ -81,7 +82,7 @@ class DropboxTransport(private val client: DbxClientV2) {
     }
 
     /** Sube [localFile] a `[remoteRoot]/[relative]`, fijando `client_modified` al mtime local. */
-    fun upload(
+    override fun upload(
         localFile: File,
         remoteRoot: String,
         relative: String,
@@ -107,7 +108,7 @@ class DropboxTransport(private val client: DbxClientV2) {
     }
 
     /** Descarga `[remoteRoot]/[relative]` a [destFile]; devuelve el `client_modified` remoto. */
-    fun download(
+    override fun download(
         remoteRoot: String,
         relative: String,
         destFile: File,

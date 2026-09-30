@@ -20,8 +20,18 @@ class CatalogEntry:
 
 
 def _detect_dat_format(path: Path) -> str:
-    """Return 'xml' or 'clrmamepro' by sniffing the first non-empty line."""
-    with path.open(encoding="utf-8", errors="replace") as f:
+    """Return 'xml' or 'clrmamepro' by sniffing the first non-empty line.
+
+    ``utf-8-sig`` (not plain ``utf-8``): Redump DATs are commonly exported
+    with a UTF-8 BOM — decoding as plain ``utf-8`` keeps the BOM character
+    (``\\ufeff``) glued to the start of the first line, so
+    ``stripped.startswith("<")`` is ``False`` for a real XML DAT and it gets
+    misclassified as clrmamepro (silently loads 0 entries — confirmed on 9
+    real catalogs: Dreamcast, Naomi, Naomi 2, Triforce, PC SBI, Wii U Disc
+    Keys, PlayStation SBI, PlayStation 3 Disc Keys ×2). ``utf-8-sig`` strips
+    a leading BOM if present and behaves identically to ``utf-8`` otherwise.
+    """
+    with path.open(encoding="utf-8-sig", errors="replace") as f:
         for line in f:
             stripped = line.strip()
             if stripped:

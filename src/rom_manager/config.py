@@ -30,33 +30,30 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "states_path": "/storage/emulated/0/PSP/PPSSPP_STATE",
         "adb_required": False,
     },
-    "com.github.stenzek.duckstation": {
-        "name": "DuckStation (PS1)",
-        "saves_path": "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/memcards",
-        "states_path": "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/savestates",
+    "com.nanodata.armsx": {
+        "name": "ARMSX1 (PS1)",
+        # ANDROID-APP-PRIVATE-STORAGE-1 (2026-09-26): switched from DuckStation
+        # (com.github.stenzek.duckstation, scoped storage only, no custom-folder
+        # setting) to ARMSX1 — same devs as ARMSX2, has a real "Custom folder"
+        # option (SAF, no root needed). Pointed it at the same public SD path
+        # already used for the DuckStation workaround below — same save data
+        # (per-game .mcd memcards, SCES/SLES/SLUS *_resume.sav states), confirmed
+        # readable via plain `adb shell ls` (no root).
+        "saves_path": "/storage/521D-04EA/saves/psx/memcards",
+        "states_path": "/storage/521D-04EA/saves/psx/savestates",
         "adb_required": True,
         "save_extensions": [".mcd", ".mcr", ".srm"],
         "state_extensions": [".sav"],
-        "notes": (
-            "Permission denied via ADB on Android 11+ scoped storage without root — "
-            "in DuckStation, change Settings > Memory Cards > Directory to a public "
-            "folder (e.g. /sdcard/DuckStation/memcards) to make it syncable. "
-            "SAVES-FRAGMENT-8b (2026-09-22): the SD card's public "
-            "/storage/521D-04EA/saves/psx/ folder already carries .srm/.mcd files "
-            "(likely a launcher, not this app, mirroring saves there) and is covered "
-            "by a plain Cable Sync 'newest' pass against that root — not by this "
-            "per-package entry, whose own path is still unreadable."
-        ),
-        "accessible": False,
     },
-    "xyz.aethersx2.android": {
-        "name": "AetherSX2 / NetherSX2 (PS2)",
-        # SAVES-FRAGMENT-8b (2026-09-22): the app-private path below is
-        # unreadable via non-root ADB (confirmed daily in the auto-sync log,
-        # 18 "sin permiso de lectura" errors) — redirected to the public SD
-        # location the same save data (Mcd001.ps2/Mcd002.ps2, matching
-        # (*).p2s state files, same names) is also accessible from, same
-        # workaround already documented for DuckStation above.
+    "com.armsx2": {
+        "name": "ARMSX2 (PS2)",
+        # ANDROID-APP-PRIVATE-STORAGE-1 (2026-09-26): switched from AetherSX2
+        # (xyz.aethersx2.android, no custom-folder setting, scoped storage
+        # only) to ARMSX2, which has a real "Custom folder" option for its
+        # data dir (grants SAF all-files access). Pointed it at the same
+        # public SD path already used for the AetherSX2 workaround below —
+        # same save data (Mcd001.ps2/Mcd002.ps2, matching (*).p2s state
+        # files), confirmed readable via plain `adb shell ls` (no root).
         "saves_path": "/storage/521D-04EA/saves/memcards",
         "states_path": "/storage/521D-04EA/saves/sstates",
         "adb_required": True,
@@ -199,6 +196,11 @@ class SyncSource:
     include_glob: str = (
         "**/*"  # pathlib glob relative to local_dir; narrows which subtree is walked
     )
+    # DEVPROFILE-8b/9: True → local_dir is a single FILE (a SQLite DB, a .lpl
+    # playlist), not a directory. Routed to sync_single_file() instead of
+    # sync_saves() -- "newest wins" restore, no per-file merge/conflict
+    # tracking (there's only one file, so that machinery doesn't apply).
+    single_file: bool = False
 
 
 @dataclass(slots=True)
@@ -318,6 +320,7 @@ class AppConfig:
     rclone_binary: str
     chdman: str
     adb: str
+    sevenzip: str
     web_host: str
     web_port: int
     web_allow_lan: bool  # True = skip PIN guard when binding to a non-loopback address
@@ -382,6 +385,8 @@ chdman = "chdman"
 # Path to the adb binary from Android Platform Tools (needed for ADB sync mode)
 # Download from: developer.android.com/tools/releases/platform-tools
 # adb = "tools/adb.exe"
+# Path to the 7-Zip binary (7z.exe, needed to extract .7z archives in the Inbox)
+# sevenzip = "tools/7z.exe"
 
 [web]
 # Bind to all network interfaces so any device on your LAN can reach the UI.
@@ -492,6 +497,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
                     remote=str(s["remote"]),
                     sync_all=bool(s.get("sync_all", False)),
                     include_glob=str(s.get("include_glob", "**/*")),
+                    single_file=bool(s.get("single_file", False)),
                 )
             )
     # Backward compat: if no [[sync.sources]] defined, create one from library_root + sync.remote
@@ -532,6 +538,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         ),
         chdman=_resolve_tool_path(tools.get("chdman", _default_tool(root, "chdman.exe", "chdman"))),
         adb=_resolve_tool_path(tools.get("adb", _default_tool(root, "adb.exe", "adb"))),
+        sevenzip=_resolve_tool_path(tools.get("sevenzip", _default_tool(root, "7z.exe", "7z"))),
         web_host=web.get("host", "0.0.0.0"),
         web_port=int(web.get("port", 7777)),
         web_allow_lan=bool(web.get("allow_lan", True)),
@@ -836,6 +843,14 @@ def validate(config: AppConfig) -> list[dict]:
     # adb
     if config.adb and config.adb != "adb" and not _path_exists(config.adb):
         warn("adb", f"adb no encontrado en: {config.adb}. El Cable Sync no funcionará.")
+
+    # sevenzip
+    if config.sevenzip and config.sevenzip != "7z" and not _path_exists(config.sevenzip):
+        warn(
+            "sevenzip",
+            f"7z no encontrado en: {config.sevenzip}. Los archivos .7z del Inbox no se extraerán.",
+            "info",
+        )
 
     # web_port
     if not (1 <= config.web_port <= 65535):

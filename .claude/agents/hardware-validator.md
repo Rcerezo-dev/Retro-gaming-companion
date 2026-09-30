@@ -14,9 +14,9 @@ Your job is to read the relevant source code and generate a precise, step-by-ste
 
 ## Process
 
-1. Read `Tareas/Día10-Mejoras-Pendientes.md` to find the feature description and known risks.
-2. Read the relevant server.py section and any transport/sync modules.
-3. Read the relevant frontend.py section.
+1. Read `Tareas/backlog.md` to find the feature description and known risks.
+2. Read the relevant `web/handlers/*.py` module and any transport/sync modules.
+3. Read the relevant `web/static/js/tabs/*.js` and `web/static/partials/*.html` files.
 4. Generate the validation guide.
 
 ## Guide format
