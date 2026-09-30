@@ -319,8 +319,8 @@ def _review_entry_sort_key(
     preferred_regions: tuple[str, ...] = (),
     known_paths: frozenset[str] | None = None,
     reference_size_bytes: int | None = None,
-) -> tuple[int, int, int, int, int, int, str]:
-    """Recommendation order shared by every reason: intact > catalog size > disc format > RA support > correct folder > Spanish > filename.
+) -> tuple[int, int, int, int, int, int, int, str]:
+    """Recommendation order shared by every reason: intact > catalog size > disc format > RA support > correct folder > Spanish > non-canonical naming > filename.
 
     Same criterion the RA-duplicates view already used (before TABS-FIX-6
     generalized it to all 4 review-queue sources). Every entry — including
@@ -369,6 +369,28 @@ def _review_entry_sort_key(
     (unlike ``_is_broken_disc_entry``, which spots a single broken file on
     its own). A neutral 0 for every entry when the group has no
     high-confidence member to reference against.
+
+    ANDROID-DUP-SORT-TIEBREAK-1: *variant_tier* — when every typed criterion
+    above ties (the normal case for a plain sha1-identical duplicate pair),
+    the recommendation used to fall straight to comparing filenames as text,
+    where a space (``0x20``) sorts before a period (``0x2E``) — so *any*
+    bracketed/parenthesised suffix ("... [T-En by ...]", "... (conflicto-
+    inbox 2026-08-13)") beat the clean name alphabetically, with no bearing
+    on content quality. Found live 2026-09-29 auditing GBA/NES/Game Gear on
+    a real Anbernic: 16 groups where the "recommended" file was a translation
+    patch whose sha1 was *identical* to the untranslated original (the tag
+    is provably false — a real translation edits bytes, so identical content
+    can never be a real translation) plus 3 more preferring an Inbox
+    naming-collision artifact over the clean name. Reuses
+    ``is_non_canonical_variant()`` (already used elsewhere to keep a
+    translation/hack/subset from being treated as interchangeable with its
+    source) rather than a second, drifting pattern list — for byte-identical
+    entries the two questions ("is this tag content-provably false" and "is
+    this a hack/patch/subset marker") collapse to the same check. Deliberately
+    does NOT touch ``(Beta)``/``(Proto)``/``(Demo)``/``(Sample)`` — those
+    describe real, distinct dumps (confirmed live: same tactic flagged 2
+    Mega Drive and 8 Game Gear false positives where the tag was accurate),
+    not a false claim about content that isn't there.
     """
     integrity_tier = 1 if _is_broken_disc_entry(entry["source_path"], known_paths) else 0
     size_tier = (
@@ -388,6 +410,12 @@ def _review_entry_sort_key(
         )
     else:
         lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
+    variant_tier = (
+        1
+        if is_non_canonical_variant(entry["filename"])
+        or "conflicto-inbox" in entry["filename"].lower()
+        else 0
+    )
     return (
         integrity_tier,
         size_tier,
@@ -395,6 +423,7 @@ def _review_entry_sort_key(
         ra_tier,
         folder_tier,
         lang_tier,
+        variant_tier,
         entry["filename"],
     )
 
@@ -1145,7 +1174,12 @@ def _review_groups_for_repo(
     extra_reasons: dict[int, str] = {}
     extra_fields: dict[int, dict] = {}
     orphan_conflicts: list[dict] = []  # conflict row with no matching games row (rare)
-    plan = build_plan(repo)
+    # GDI-ORGANIZE-1: safe unconditionally -- build_plan() only applies
+    # library_root to a game whose source actually lives under it (PC repo),
+    # any Android-repo game here (this function runs once per repo) falls
+    # back to the old heuristic per-game. getattr guards *config* being None
+    # or a fake stub in some tests despite the type hint.
+    plan = build_plan(repo, library_root=getattr(config, "library_root", None))
     if plan.conflicts:
         conflict_rows = _annotate_conflicts_with_ra(plan.conflicts, repo, config)
         collision_idxs: dict[str, list[int]] = defaultdict(list)

@@ -234,11 +234,22 @@ def generate_missing_cues(directory: Path, *, dry_run: bool = True) -> list[Path
     return written
 
 
+# JUNK-7Z-SUPPORT-1 follow-up: real .gdi files quote the filename whenever it
+# contains spaces (near-universal in practice -- disc titles almost always
+# have them, e.g. `"Crazy Taxi (USA) (Track 1).bin"`) -- a plain
+# `line.split()` grabs only the first word of the quoted name (`"Crazy`),
+# silently truncating every real-world track path. Confirmed against actual
+# GDI files in this library, not assumed.
+_GDI_TRACK_RE = re.compile(r'^\s*\d+\s+-?\d+\s+\d+\s+\d+\s+"([^"]+)"')
+
+
 def parse_tracks_from_gdi(gdi_path: Path) -> list[Path]:
     """Return all track files referenced inside a Dreamcast .gdi file.
 
     GDI format: first line is track count, then one track per line:
       <track_num> <offset> <type> <sectorsize> <filename> <unknown>
+    ``filename`` is quoted whenever it contains spaces (the common case);
+    falls back to plain whitespace-splitting for the rarer unquoted form.
     """
     gdi_dir = gdi_path.parent
     tracks: list[Path] = []
@@ -248,7 +259,14 @@ def parse_tracks_from_gdi(gdi_path: Path) -> list[Path]:
         return tracks
     lines = text.splitlines()
     for line in lines[1:]:  # skip first line (track count)
-        parts = line.strip().split()
+        stripped = line.strip()
+        if not stripped:
+            continue
+        m = _GDI_TRACK_RE.match(stripped)
+        if m:
+            tracks.append(gdi_dir / m.group(1))
+            continue
+        parts = stripped.split()
         if len(parts) >= 5:
             tracks.append(gdi_dir / parts[4])
     return tracks
