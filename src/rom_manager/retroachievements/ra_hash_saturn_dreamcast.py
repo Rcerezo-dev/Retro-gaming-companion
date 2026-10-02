@@ -57,7 +57,7 @@ _GDI_LINE_RE = re.compile(r'^\s*(\d+)\s+-?\d+\s+\d+\s+\d+\s+(?:"([^"]+)"|(\S+))'
 
 
 def _hash_track1_header(cd: _CdImage) -> str | None:
-    header = cd.read_sector(0, _TRACK1_HEADER_SIZE)
+    header = cd.read_sector(cd.first_sector, _TRACK1_HEADER_SIZE)
     if len(header) < _TRACK1_HEADER_SIZE or header[:16] not in _TRACK1_HEADER_MAGICS:
         return None
     return hashlib.md5(header).hexdigest()
@@ -93,7 +93,12 @@ def compute_saturn_ra_hash(path: Path, *, chdman_path: Path | None = None) -> st
 
 
 def _hash_dreamcast_from_cd_image(cd: _CdImage) -> str | None:
-    header = cd.read_sector(0, _DREAMCAST_HEADER_SIZE)
+    # DC-GDROM-FIRST-SECTOR-1: the IP.BIN meta block is the track's own first
+    # sector -- on a GD-ROM that's absolute LBA ~45000 (the high-density data
+    # area), not literal 0. ``cd.first_sector`` always resolves to file offset
+    # 0 regardless of its value, so this stays correct for PSX/Saturn too
+    # (where first_sector is already ~0).
+    header = cd.read_sector(cd.first_sector, _DREAMCAST_HEADER_SIZE)
     if len(header) < _DREAMCAST_HEADER_SIZE or header[:16] != _DREAMCAST_MAGIC:
         return None
 

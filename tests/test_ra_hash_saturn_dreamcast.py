@@ -187,3 +187,73 @@ def test_compute_dreamcast_ra_hash_unsupported_extension_returns_none(tmp_path: 
     p = tmp_path / "game.cdi"
     p.write_bytes(b"not a disc image")
     assert compute_dreamcast_ra_hash(p) is None
+
+
+def _build_gdrom_image(tmp_path: Path) -> Path:
+    """DC-GDROM-FIRST-SECTOR-1 (found live on the RG556, 2026-10-02, verified
+    against RetroAchievements' own registered hash for Sonic Adventure): a
+    real GD-ROM track-3 dump embeds MSF addresses and directory-record sector
+    numbers relative to the disc's high-density data area (LBA ~45000), not
+    relative to the start of the track-3 FILE -- so ``first_sector`` detects
+    as ~45000 even though the file itself is a normal small/standalone dump.
+    Same layout as ``_build_dreamcast_image`` but every embedded sector
+    reference is offset by 45000 to reproduce that real-world geometry."""
+    base = 45000
+    total_sectors = 24
+    data = bytearray(total_sectors * _SECTOR_SIZE)
+
+    def user_data(sector: int) -> memoryview:
+        start = sector * _SECTOR_SIZE + _HEADER_SIZE
+        return memoryview(data)[start : start + 2048]
+
+    def sector_header(sector: int, sync: bool) -> None:
+        start = sector * _SECTOR_SIZE
+        if sync:
+            data[start : start + 12] = bytes([0x00, *([0xFF] * 10), 0x00])
+        data[start + 12 : start + 15] = _msf_bytes(base + sector)
+
+    # Sector 0 (file-relative): IP.BIN meta block, boot name "1ST_READ.BIN".
+    sector_header(0, sync=True)
+    ipbin = user_data(0)
+    ipbin[0:16] = b"SEGA SEGAKATANA "
+    ipbin[96:112] = b"1ST_READ.BIN".ljust(16, b" ")
+
+    # Sector 16 (file-relative) = PVD -- root dir record uses the SAME
+    # disc-absolute addressing (base + 20), matching a real directory entry.
+    sector_header(16, sync=True)
+    pvd = user_data(16)
+    pvd[0] = 1
+    pvd[1:6] = b"CD001"
+    pvd[128:130] = struct.pack("<H", 2048)
+    root_rec = _dir_record(".", base + 20, 2048)
+    pvd[156 : 156 + len(root_rec)] = root_rec
+
+    # Sector 20 (file-relative) = root directory -- boot executable at
+    # disc-absolute (base + 21).
+    sector_header(20, sync=False)
+    root_dir = user_data(20)
+    entries = _dir_record("1ST_READ.BIN;1", base + 21, 2048)
+    root_dir[: len(entries)] = entries
+
+    # Sector 21 (file-relative) = boot executable content.
+    sector_header(21, sync=False)
+    user_data(21)[:] = bytes([0xAB]) * 2048
+
+    bin_path = tmp_path / "track03.bin"
+    bin_path.write_bytes(bytes(data))
+    return bin_path
+
+
+def test_compute_dreamcast_ra_hash_gdrom_high_density_offset(tmp_path: Path) -> None:
+    bin_path = _build_gdrom_image(tmp_path)
+
+    result = compute_dreamcast_ra_hash(bin_path)
+
+    raw = bin_path.read_bytes()
+    ipbin_start = 0 * _SECTOR_SIZE + _HEADER_SIZE
+    exe_start = 21 * _SECTOR_SIZE + _HEADER_SIZE
+    expected = hashlib.md5()
+    expected.update(raw[ipbin_start : ipbin_start + 256])
+    expected.update(raw[exe_start : exe_start + 2048])
+
+    assert result == expected.hexdigest()

@@ -112,8 +112,14 @@ class _CdImage:
 
 
 def _root_dir_location(cd: _CdImage) -> tuple[int, int, int] | None:
-    """(dir_sector, num_sectors, logical_block_size) of the ISO9660 root directory."""
-    pvd = cd.read_sector(16, 2048)
+    """(dir_sector, num_sectors, logical_block_size) of the ISO9660 root directory.
+
+    The PVD sits at sector 16 *of the track*, not literal absolute sector 16 --
+    on a GD-ROM, ``first_sector`` is the track's own large base (e.g. 45000 for
+    the high-density data area), and directory records are encoded in that same
+    track-relative-to-absolute scheme, so the probe must follow it too.
+    """
+    pvd = cd.read_sector(cd.first_sector + 16, 2048)
     if len(pvd) < 190:
         return None
     root_rec = pvd[156:190]
