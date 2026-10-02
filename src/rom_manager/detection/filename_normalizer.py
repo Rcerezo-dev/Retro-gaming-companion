@@ -25,6 +25,19 @@ _EXTENSION_RE = re.compile(r"\.\w{1,6}$")
 # "(hack" tag, a "subset" ROM hack, or the No-Intro "[h]"/"[h1]" hack flag.
 _NON_CANONICAL_VARIANT_RE = re.compile(r"\[T[+-]|\(hack\b|\bsubset\b|\[h\d*\]", re.IGNORECASE)
 
+# DC-GDROM-FIRST-SECTOR-1 follow-up: a digital re-release is a different
+# build of the same game (different code/assets, never a byte-for-byte
+# match with the original disc/cart dump) -- but it's still the same game
+# from the user's point of view, and digital re-releases essentially never
+# carry RetroAchievements support the original release has. Narrow,
+# evidenced tags only (same reasoning as _NON_CANONICAL_VARIANT_RE above):
+# found live in this project's own library, e.g. "Sonic Adventure (World)
+# (XBLA).cdi" sitting unlinked next to "Sonic Adventure (USA)...gdi".
+_ALTERNATE_RELEASE_RE = re.compile(
+    r"\((?:XBLA|PSN|Virtual Console|Arcade Archives|eShop|Switch Online|GOG|Steam)\)",
+    re.IGNORECASE,
+)
+
 
 def sanitize_filename(value: str) -> str:
     sanitized = value
@@ -72,3 +85,16 @@ def is_non_canonical_variant(filename: str) -> bool:
     boundary.
     """
     return bool(_NON_CANONICAL_VARIANT_RE.search(filename))
+
+
+def is_alternate_release_tag(filename: str) -> bool:
+    """True if *filename* carries a digital-rerelease marker (XBLA, PSN,
+    Virtual Console...).
+
+    Unlike ``is_non_canonical_variant()``, this does NOT mean "never
+    interchangeable" -- it's the opposite signal, used to actively link a
+    re-release to its original disc/cart dump in duplicate detection (same
+    title, different build) even though they share no sha1 and the
+    re-release rarely has a catalog match of its own.
+    """
+    return bool(_ALTERNATE_RELEASE_RE.search(filename))

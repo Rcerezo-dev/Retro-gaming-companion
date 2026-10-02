@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from rom_manager.detection.filename_normalizer import (
+    is_alternate_release_tag,
     is_non_canonical_variant,
     normalize_for_match,
     sanitize_filename,
@@ -118,3 +119,35 @@ def test_is_non_canonical_variant_true(filename: str) -> None:
 )
 def test_is_non_canonical_variant_false(filename: str) -> None:
     assert is_non_canonical_variant(filename) is False
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        # found live on the RG556, 2026-10-02 (Sonic Adventure)
+        "Sonic Adventure (World) (XBLA).cdi",
+        "Pac-Man - Championship Edition (World) (XBLA).zip",
+        "Ikki (Japan) (Virtual Console).zip",
+        "Some Game (USA) (PSN).bin",
+        "Some Game (Arcade Archives).zip",
+        "Some Game (eShop).3ds",
+        "Some Game (Switch Online).nes",
+        "Some Game (GOG).iso",
+        "Some Game (Steam).zip",
+    ],
+)
+def test_is_alternate_release_tag_true(filename: str) -> None:
+    assert is_alternate_release_tag(filename) is True
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "Sonic Adventure (USA) (En,Ja,Fr,De,Es).gdi",
+        "Sonic Adventure (Europe).gdi",
+        "Tetris (World) [!].gb",
+        "",
+    ],
+)
+def test_is_alternate_release_tag_false(filename: str) -> None:
+    assert is_alternate_release_tag(filename) is False

@@ -27,6 +27,10 @@ const _REASON_LABELS = {
   // formatos/dumps distintos que crossfmt no detecta por título (p.ej. un
   // volcado legacy con nombre de serial, sin canonical_title reconocible).
   disc_hash: { text: 'Mismo disco (hash RA)', color: 'var(--c-purple)' },
+  // DC-GDROM-FIRST-SECTOR-1 follow-up: mismo título, pero una copia es un
+  // relanzamiento digital (XBLA/PSN/Virtual Console...) -- build distinta,
+  // normalmente sin soporte de logros RA aunque el original sí lo tenga.
+  alt_release: { text: 'Relanzamiento digital', color: 'var(--c-orange)' },
 };
 
 const _CONFLICT_REASONS = new Set(['disk', 'collision']);

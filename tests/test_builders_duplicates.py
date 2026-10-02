@@ -1699,3 +1699,72 @@ def test_ra_group_recommends_clean_name_over_mislabeled_patch(tmp_path: Path) ->
     assert result["total_groups"] == 1
     recommended = next(e for e in result["groups"][0]["entries"] if e["recommended"])
     assert recommended["source_path"] == clean_path
+
+
+def test_alt_release_links_digital_rerelease_to_original_dump(tmp_path: Path) -> None:
+    """DC-GDROM-FIRST-SECTOR-1 follow-up: real finding on the RG556 (Sonic
+    Adventure) -- a digital re-release (XBLA) has no sha1/canonical_title
+    link to the original disc dump sitting right next to it, so it never
+    appeared in any review group before this. Dreamcast is normally excluded
+    from fuzzy region matching (_MULTI_DISC_RISK_PLATFORMS) -- this must
+    still catch it, since the link is gated on the explicit rerelease tag,
+    not a blanket fuzzy union."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    disc_path = str(tmp_path / "dreamcast" / "Sonic Adventure (USA) (En,Ja,Fr,De,Es).gdi")
+    xbla_path = str(tmp_path / "dreamcast" / "Sonic Adventure (World) (XBLA).cdi")
+    _insert_game(
+        repo,
+        source_path=disc_path,
+        sha1="A" * 40,
+        original_filename="Sonic Adventure (USA) (En,Ja,Fr,De,Es).gdi",
+        canonical_title="Sonic Adventure (USA) (En,Ja,Fr,De,Es)",
+        platform="Dreamcast",
+        extension=".gdi",
+    )
+    _insert_game(
+        repo,
+        source_path=xbla_path,
+        sha1="B" * 40,
+        original_filename="Sonic Adventure (World) (XBLA).cdi",
+        canonical_title=None,  # never catalog-matched, real case
+        platform="Dreamcast",
+        extension=".cdi",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "alt_release" in group["reasons"]
+    assert len(group["entries"]) == 2
+    recommended = next(e for e in group["entries"] if e["recommended"])
+    assert recommended["source_path"] == disc_path
+
+
+def test_alt_release_does_not_fire_without_the_tag(tmp_path: Path) -> None:
+    """Two unrelated untitled Dreamcast dumps must not get swept into a
+    group just because their filenames happen to fuzzy-match -- the new
+    union only activates when the explicit rerelease tag is present."""
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "dreamcast" / "Some Game (USA).gdi"),
+        sha1="A" * 40,
+        original_filename="Some Game (USA).gdi",
+        canonical_title=None,
+        platform="Dreamcast",
+        extension=".gdi",
+    )
+    _insert_game(
+        repo,
+        source_path=str(tmp_path / "dreamcast" / "Some Game (Europe).gdi"),
+        sha1="B" * 40,
+        original_filename="Some Game (Europe).gdi",
+        canonical_title=None,
+        platform="Dreamcast",
+        extension=".gdi",
+    )
+
+    result = _build_review_queue(repo, repo, None)
+
+    assert result["total_groups"] == 0
