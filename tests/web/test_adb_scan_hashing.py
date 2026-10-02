@@ -178,6 +178,36 @@ def test_adb_scan_classifies_vmu_save_bin_as_save_not_rom(
     assert save_paths == {vmu_path}
 
 
+def test_adb_scan_arcade_zip_is_rom_not_skipped(monkeypatch, repo_android, config) -> None:
+    """ANDROID-ARCADE-ZIP-1 (found live on the RG556, 2026-10-02): the ADB
+    scan's generic skip-list treats every .zip as inbox-container junk --
+    correct for most platforms, but arcade/MAME/FBNeo sets are NEVER
+    extracted (the ZIP is the ROM, same convention as
+    zip_extractor._ARCADE_FOLDER_NAMES). Before this fix a real device scan
+    of ROMs/arcade/ (1746 .zip sets) wrote 0 of them to the DB -- only the
+    267 loose .rom + 111 loose .bin chip dumps sitting alongside them."""
+    arcade_zip = "/storage/521D-04EA/ROMs/arcade/1941_ Counter Attack (World 900227).zip"
+    other_zip = "/storage/521D-04EA/ROMs/gba/not_yet_organized.zip"
+    _FakeAdbTransport.files = [
+        AdbFileInfo(android_path=arcade_zip, size=1048576, mtime=0.0),
+        AdbFileInfo(android_path=other_zip, size=1048576, mtime=0.0),
+    ]
+    _FakeAdbTransport.sha1_map = {}
+    _FakeAdbTransport.md5_map = {}
+
+    result = _run_scan(
+        monkeypatch,
+        repo_android,
+        config,
+        {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"},
+    )
+
+    assert result["roms_detected"] == 1
+    with repo_android.connect() as conn:
+        game_paths = {r["source_path"] for r in conn.execute("SELECT source_path FROM games")}
+    assert game_paths == {arcade_zip}
+
+
 def test_adb_scan_missing_hash_falls_back_to_empty_string(
     monkeypatch, repo_android, config
 ) -> None:

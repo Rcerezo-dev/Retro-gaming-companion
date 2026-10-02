@@ -5025,3 +5025,27 @@ Petición del usuario tras arreglar `PSX-CATALOG-MISSING-1`: "¿hay algo más qu
 
 **Contraste de confianza — plataformas con catálogo presente pero match parcial** (no urgente, probablemente hacks/traducciones legítimos, mismo patrón que `DUP-CROSSFMT-9`, sin verificar caso a caso): NES 73,0% (12.126), Game Boy 73,7% (5.042), SNES 53,0% (1.290) — las tres tienen datfile No-Intro real, así que el hueco no es "falta catálogo" sino contenido que genuinamente no está en el DAT oficial (bootlegs, hacks, traducciones, homebrew) | — | 🔵 sin verificar caso a caso, baja prioridad |
 
+---
+
+### ANDROID-ARCADE-ZIP-1 — El ADB scan nunca indexaba arcade de verdad (hallado 2026-10-02, Anbernic conectada)
+
+Origen: petición del usuario ("los arcade tienen nombres extraños, no los está
+cogiendo bien") con la Anbernic conectada por USB. `library_android.db` tenía
+551 filas `platform='Arcade'` — **las 551 eran residuo fantasma de un scan de
+`H:\` de 2026-03-23** (`source_path` tipo `E:\Emuladores\MAME\bgfx\shaders\...`,
+rutas de Windows). **0 filas apuntaban a una ruta real del dispositivo** — la
+app nunca había escaneado `/storage/521D-04EA/ROMs/arcade` (ningún `scan_run`
+con ese `source_root` en los 15 registrados).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| ANDROID-ARCADE-ZIP-1 | **Causa raíz real, no solo "nunca escaneado"**: el ADB scan (`_do_adb_scan`) tenía `.zip` metido en la lista de extensiones a ignorar siempre (pensada para ZIPs del Inbox sin extraer) — pero en arcade/MAME/FBNeo el ZIP **es** el ROM, nunca se extrae (`converters/zip_extractor.py::_ARCADE_FOLDER_NAMES`, mismo criterio ya usado en otras partes). Primer escaneo real de `arcade/` tras conectar la Anbernic: `roms_detected=388` de `files_seen=10643` — **0 de los 1.746 `.zip` reales se indexaron**, solo los 267 `.rom`+111 `.bin`+9 `.chd`+1 `.ini` sueltos que ensuciaban la carpeta (coincide exacto con `SELECT extension, COUNT(*)` contra la BD tras el scan) | `web/handlers/scan.py:519-558` (`_do_adb_scan`, rama de skip-list) | ✅ **arreglado y verificado en vivo 2026-10-02** — `.zip` solo se ignora si NINGÚN segmento de la ruta está en `_ARCADE_FOLDER_NAMES` (reutilizada, no reinventada); dentro de una carpeta arcade se trata como ROM igual que el resto. Test nuevo (`test_adb_scan_arcade_zip_is_rom_not_skipped`, `tests/web/test_adb_scan_hashing.py`) reproduce el caso exacto. Re-escaneado contra la Anbernic real tras el fix: **`roms_detected` 388 → 10.409** — descubre de paso 2 colecciones completas nunca vistas antes, anidadas una carpeta más abajo de lo esperado: `arcade/mame/` (7.423 `.zip` reales) y `arcade/fbneo/` (852 `.zip` + 14 `.nv` + 1 `.hi`) — no son basura, el fix ya las indexa bien |
+
+**Limpieza real ejecutada en el dispositivo (misma sesión, con confirmación explícita del usuario sobre el alcance)**: de los 378 `.rom`/`.bin` sueltos en la raíz de `arcade/`, clasificados por CRC32 contra `load_arcade_crc_index()` (mismo catálogo de `ZIP-ROUTE-2`) cruzado con los `.zip` ya presentes en la carpeta:
+- **110 `.bin`** (`fs_*`/`vs_*`) = shaders bgfx de MAME, misma contaminación que `ZIP-ROUTE-8` pero copiada físicamente al dispositivo — **borrados**.
+- **33 `.rom`** cuyo CRC32 coincide con un set que ya tiene su `.zip` en la misma carpeta = duplicado exacto redundante — **borrados**.
+- 3 carpetas vacías (`gpu_drivers/`, `MAME 2003-Plus/`, `FinalBurn Neo/` con su `fbneo/` anidado también vacío) — **borradas**.
+- Verificado antes y después por recuento exacto (`ls | grep -c`): 2.147→2.001 archivos en la raíz, 110→0 shaders, 267→234 `.rom` (−33 exacto).
+- **235 `.rom` restantes (80 juegos reales identificados por CRC: Pole Position, 64th Street, Rock'n Rage, Gunforce, Tetris, EDF, Puzzle Bobble 3, DoDonPachi 2…) NO tienen `.zip` en el dispositivo — decisión explícita del usuario: no tocar hoy.** 27 de 30 comprobados al azar ya existen como `.zip` en `library_pc.db`, pero no verificado al 100% para los 80 — **candidato a `ANDROID-ARCADE-ORPHAN-CHIPS-1`** si se quiere cerrar del todo (verificar los 50 restantes + decidir si se borran del dispositivo o se re-sincroniza el `.zip` bueno desde el PC).
+- Nota de herramienta: el borrado por ADB vía bucle en el host (`while read ... | adb shell rm`, uno por archivo) dio falsos positivos de éxito — la causa real fue CRLF en el fichero de lista (`Path.write_text()` en Windows sin `newline=""`) haciendo que tanto el `rm` como el `[ -e ]` de verificación comprobaran una ruta con un `\r` colgando que nunca existió. Solución real: `adb push` de la lista (LF puro) + un único `adb shell` que borra todo en un bucle del propio dispositivo — mucho más robusto que N invocaciones de `adb shell` desde el host.
+

@@ -437,6 +437,7 @@ def _do_adb_scan(
         try:
             from pathlib import PurePosixPath
 
+            from rom_manager.converters.zip_extractor import _ARCADE_FOLDER_NAMES
             from rom_manager.detection.platform_detector import detect_platform
             from rom_manager.detection.region_parser import parse_region_from_name
             from rom_manager.detection.set_detector import detect_set_type
@@ -521,7 +522,6 @@ def _do_adb_scan(
                         elif (
                             suffix
                             in {
-                                ".zip",
                                 ".7z",
                                 ".rar",
                                 ".xml",
@@ -533,7 +533,18 @@ def _do_adb_scan(
                                 ".py",
                             }
                             or not suffix
+                            or (
+                                suffix == ".zip"
+                                and not any(
+                                    seg.lower() in _ARCADE_FOLDER_NAMES for seg in parts[:-1]
+                                )
+                            )
                         ):
+                            # ANDROID-ARCADE-ZIP-1: a .zip outside an arcade/MAME/
+                            # FBNeo folder is container junk (not-yet-extracted
+                            # inbox leftovers), but inside one it IS the ROM --
+                            # MAME/FBNeo load straight from the archive, same
+                            # convention as zip_extractor._ARCADE_FOLDER_NAMES.
                             pass
                         else:
                             fake_path = Path(ap)
