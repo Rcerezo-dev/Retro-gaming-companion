@@ -143,6 +143,9 @@ class CopyPolicy:
     dry_run: bool = False
     safe_mode: bool = False  # no sobreescribir si el destino ya existe
     skip_existing: bool = False  # no recopiar si el destino tiene el mismo tamano
+    # SYNC-SAFE-1: saves de tamano fijo (.srm, memory cards) -- "mismo tamano" no
+    # prueba "mismo contenido"; con esto solo se salta si ademas los bytes coinciden.
+    compare_content: bool = False
 
 
 # Tag devuelto por copy_item: que paso con ese archivo concreto.
@@ -177,8 +180,14 @@ def copy_item(
 
     if policy.skip_existing and item.dst.exists():
         try:
-            if item.dst.stat().st_size == size:
-                return _emit("SKIP", "mismo tamano")
+            if item.dst.stat().st_size == size and (
+                not policy.compare_content
+                or item.src.read_bytes()
+                == item.dst.read_bytes()  # saves: pequeños; sin la caché de filecmp
+            ):
+                return _emit(
+                    "SKIP", "mismo tamano" + (" y contenido" if policy.compare_content else "")
+                )
         except OSError:
             pass
 

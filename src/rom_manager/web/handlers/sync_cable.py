@@ -622,7 +622,10 @@ def _do_cable_sync(
                 ):
                     backup_save(item.dst, _bk_root)
                 policy = cable_engine.CopyPolicy(
-                    dry_run=dry_run, safe_mode=safe_mode, skip_existing=skip_existing
+                    dry_run=dry_run,
+                    safe_mode=safe_mode,
+                    skip_existing=skip_existing,
+                    compare_content=_category(item.src) == "save",
                 )
                 tag, size = cable_engine.copy_item(item, policy, on_event=_on_event)
                 if tag in ("COPY", "DRYRUN"):
