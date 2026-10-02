@@ -621,6 +621,15 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             "bios",
             "inbox",
             "screenshots",
+            # ZIP-ROUTE-8: carpetas de instalación de emulador -- sus assets
+            # (BIOS, skins, cheats/patches) nunca son ROMs aunque terminen en
+            # .zip. "RetroArch" queda fuera a propósito: es el nombre real de
+            # la raíz de ROMs en la SD de Android (test_scan_sd_card_path),
+            # excluirlo rompería el escaneo normal.
+            "Emuladores",
+            "DraStic",
+            "Duckstation",
+            "PCSX2",
         ),
         frontend_asset_extensions=(
             ".png",
