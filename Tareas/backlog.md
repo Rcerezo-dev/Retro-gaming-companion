@@ -543,6 +543,15 @@ vivo), sin implementar — decisión de alcance y orden pendiente del usuario |
   todavía, candidato a tarea propia: el upsert debería hacer `COALESCE` con
   el `sha1`/`md5` ya existente en la fila cuando no se recalculan, no pisarlo
   con `""`.
+  **`GAMEDB-HASH-COALESCE-1` -- arreglado 2026-10-02**: `upsert_game()`
+  (`database/repositories/games.py:105-119`) ahora hace
+  `sha1 = CASE WHEN excluded.sha1 != '' THEN excluded.sha1 ELSE games.sha1 END`
+  (mismo patron para `md5` y `crc32`) en vez de pisar siempre con
+  `excluded.*` -- un rescan rapido (`compute_hashes=False`) ya no borra el
+  hash de un rescan completo anterior. Test nuevo
+  (`test_upsert_game_quick_rescan_keeps_prior_hash` en `tests/test_repository.py`)
+  reproduce el caso exacto (hash completo -> rescan rapido -> hash debe
+  sobrevivir, otros campos si se actualizan). Sin commitear/pushear todavia.
 - **Volcados legacy con nombre de serial — verificados por hash 2026-09-30**:
   tras la poda quedaron 40 filas `[SCUS-/SLUS-/SLES-/SCES-nnnnn]` en `psx/`
   (`LIKE '%[SCUS-%' OR ...`), de las cuales **solo 15 en formato hasheable**

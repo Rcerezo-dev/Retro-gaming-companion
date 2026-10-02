@@ -111,9 +111,9 @@ class GamesMixin:
                 extension = excluded.extension,
                 size_bytes = excluded.size_bytes,
                 mtime = excluded.mtime,
-                sha1 = excluded.sha1,
-                md5 = excluded.md5,
-                crc32 = excluded.crc32,
+                sha1 = CASE WHEN excluded.sha1 != '' THEN excluded.sha1 ELSE games.sha1 END,
+                md5 = CASE WHEN excluded.md5 != '' THEN excluded.md5 ELSE games.md5 END,
+                crc32 = CASE WHEN excluded.crc32 != '' THEN excluded.crc32 ELSE games.crc32 END,
                 set_type = excluded.set_type,
                 updated_at = excluded.updated_at
             """
