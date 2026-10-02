@@ -4247,6 +4247,66 @@ Auditorías de UX/UI por pestaña que no pertenecen a un pilar concreto
 
 ---
 
+### UI-IA-1 — Arquitectura de información de la UI web confusa (hallazgo 2026-10-02)
+
+Origen: el usuario no encontró "Plan" al buscar "Revisar copias" — en el nav se
+llama **Organizar** (id interno `plan`). Revisión de `partials/_nav.html` y de los
+`tab-*.html` (solo estructura, no contenido cargado por JS). No investigado a fondo
+todavía — documentar archivo:línea antes de arreglar (regla del proyecto).
+Informes en curso (2026-10-02): agente `ux-reviewer` + skill `ui-audit`; volcar aquí
+sus hallazgos priorizados cuando terminen.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| UI-IA-1a | **Inbox (Pilar 2) está en el grupo "Herramientas"**, al final del nav — debería estar junto a Organizar | `web/static/partials/_nav.html` | 🔴 |
+| UI-IA-1b | **Sync de saves (Pilar 3, valor diferencial) repartida** entre Cloud, Cable Sync, Anbernic; "Backup de saves" aparece en Cloud **y** en Ajustes | `tab-sync.html`, `tab-cable.html`, `tab-anbernic.html`, `tab-settings.html` | 🔴 |
+| UI-IA-1c | **Ajustes es un cajón de sastre**: mezcla config real con herramientas (BIOS Checker, es_systems.xml, Duplicados por región) y datos (Historial, Papelera, API REST) | `tab-settings.html` | 🟡 |
+| UI-IA-1d | **Herramientas y Formatos se solapan** (utilidades sueltas sin flujo) | `tab-tools.html`, `tab-formats.html` | 🟡 |
+| UI-IA-1e | **Duplicados partido en 3 sitios**: Organizar › "Revisar copias", Ajustes › "Duplicados por región", `duplicates.js` | `tab-plan.html`, `tab-settings.html`, `js/tabs/duplicates.js`, `review_copies.js` | 🟡 |
+| UI-IA-1f | **Títulos con "?" colado** ("Rutas ?", "Base de datos ?") — parece un tooltip dentro del texto del `<h3>` | `tab-overview.html`, `tab-settings.html` | 🟢 |
+| UI-IA-1g | **Nombre del nav ≠ id** (`Organizar` vs `plan`): confunde al hablar/depurar. Además "Organizar" tiene 3 significados (pestaña, "Estructura de biblioteca › Organizar", paso ③ de la guía) | `_nav.html:16-17`, `main.js:465` | 🟢 |
+
+**Matices tras `ux-reviewer` (2026-10-02)**: 1b — "Backup de saves" completo solo está en Cloud (`tab-sync.html:156-168`); en Ajustes (`tab-settings.html:320-333`) es solo config, mismo título/icono. 1e — `duplicates.js` ya no tiene duplicados (solo `setToolsContext`, el nombre miente); sí persisten Revisar copias vs Ajustes › "Duplicados por región" (`:336-353`) + paso "Duplicados" del asistente `flow_wizard.js:257-291`. 1f — son `<span class="help-icon">?</span>` (`tab-overview.html:138`, `tab-settings.html:439`), tooltip solo con hover → inaccesible en táctil.
+
+| ID | Task (nuevos, `ux-reviewer`) | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| UI-IA-1h | **`doQuickSync` (verificado en el código) usa `safe_mode: false`** y dirección por defecto, contra la regla "ante duda, no sobreescribir; backup primero". Pilar 3 → prioridad absoluta: **investigar aparte como riesgo de pérdida de saves** (¿qué hace `safe_mode` en backend?) | `js/tabs/sync.js:1035,1038` | 🔴 |
+| UI-IA-1i | **Botón "⇕ Sync" de Inicio (verificado) lleva a Cloud** (`showTab('sync')`), no al sync por cable; el botón real "▶ Sincronizar saves ahora" está en Cable Sync (`tab-cable.html:10`). Tras sincronizar no hay resultado persistente ("12 saves, 0 errores, 14:03") | `tab-overview.html:26`, `sync.js:1015-1055` | 🔴 |
+| UI-IA-1j | **Inicio sin jerarquía**: "último sync" es la 3ª cifra de ~12 bloques, sin color ni alerta ni "siguiente paso"; la guía (colapsada al fondo) no menciona el sync | `tab-overview.html:6-24,238-275`, `overview.js:408` | 🟡 |
+| UI-IA-1k | **Dos asistentes sin relación** (bienvenida `overview.js:795-880` y "Ejecutar todo" `flow_wizard.js`); este último escanea sin comprobar `library_root` (`:119`), sin reintento en error (`:123,331,403`) y sin siguiente paso al final | `flow_wizard.js`, `overview.js` | 🟡 |
+| UI-IA-1l | **Errores técnicos sin acción**: `anbernic_root`/`library_root` en el texto, sin enlace a Ajustes; `alert()` nativo. Patrón bueno a replicar: `sync.js:96,146` | `sync.js:1027,1040,1061,1067` | 🟡 |
+| UI-IA-1m | **Nombre de la consola inconsistente** (Consola Android / Anbernic / dispositivo / consola / Steam Deck); el ajuste "nombre del dispositivo" existe pero los textos fijos lo ignoran. Cambio de coste bajo, retorno alto | `_nav.html:34,65,67`, `tab-cable.html:181,203`, `tab-tools.html:7,15,23`, `tab-settings.html:45-56` | 🟡 |
+| UI-IA-1n | **Vocabulario sync disperso** (Cloud / Cloud Sync / Cable Sync / "Igualar ambos dispositivos" / Sync Doctor) y pestaña "Anbernic" que es en realidad la guía de Termux. "Igualar ambos" marcado por defecto aunque advierte "no usar tras renombrar" | `_nav.html:28-35`, `tab-cable.html:151-223,343`, `tab-anbernic.html` | 🟡 |
+| UI-IA-1o | **Inglés suelto** ("Settings", "Overview", "Scan", "dry run", "Deshacer último apply") y jerga (`library_root`, "daemon", "mtime", "rclone remote") | `tab-cable.html:134,287`, `tab-sync.html:5,111`, `tab-overview.html:179`, `tab-plan.html:32` | 🟢 |
+| UI-IA-1p | **Enlace roto**: `tab-cable.html:96` apunta a `Tareas/Guia-Termux-Anbernic.md` (ahora `docs/sync/`) y no es abrible desde la web | `tab-cable.html:96` | 🟢 |
+| UI-IA-1q | **Táctil**: `.help-icon` 15 px, botones inline 11 px, toggles 40×22, "Ctrl/Cmd+clic" inutilizable, grids `1fr 1fr` sin media query, `title=` con info relevante | `app.css:455,705`, `tab-cable.html:21,193`, `tab-overview.html:5,57,139` | 🟢 |
+
+**Hallazgos `ui-audit` (2026-10-02)** — hecho con grep + lectura selectiva, no línea a línea (informe completo en el scratchpad de la sesión); verificados a mano los marcados ✔:
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| UI-IA-1r | **Toasts con tipo inválido `'error'`/`'success'`** (el CSS solo define `ok/err/info/warn`, según el agente — CSS sin verificar): fallos de enviar/quitar/marcar en la Anbernic salen sin color. Fix: `'err'`/`'ok'` o alias en `components/toast.js` ✔ (uso en el código) | `games.js:235,236,275-277,312-314`, `sync.js:275,278` | 🔴 |
+| UI-IA-1s | **Botón "Organizar todo" del Inbox se queda en "Organizando…"** si `d.error` o `already_running` (solo se reactiva en el `catch`) ✔. Usar `finally` / helper `withBusy(btn,label,fn)` | `inbox.js:218-228` | 🔴 |
+| UI-IA-1t | **`_showConfirm` + `await apiPost` sin `try/catch`** (enviar/quitar/marcar en consola): si el servidor falla no se ve nada; botones masivos sin estado ocupado (doble clic) | `games.js:235,275,312`, `tab-games.html:42-45` | 🔴 |
+| UI-IA-1u | **~65 `catch` con `'Error: ' + e.message`** ("Failed to fetch"); solo `scraper.js:7-14` tiene `_friendlyError()` accionable → moverlo a `api.js`. `'Error: ' + d.error` crudo en `esde.js`, `inbox.js`, `organize.js`, `review_copies.js`, `tools.js` | varios | 🟡 |
+| UI-IA-1v | **Operaciones largas sin botón deshabilitado**: Library Doctor, Análisis de carpeta, huérfanos, Sync Doctor, comparador de saves, wizard `startSetup`, bloquear/borrar/lanzar/tag en Juegos (Health Check `esde.js:602-627` es el modelo correcto) | `esde.js:1004,1092,1232`, `sync.js:873,1574`, `overview.js:848`, `games.js:1052,1075,1100` | 🟡 |
+| UI-IA-1w | **Vacíos/errores sin siguiente paso** ("Ninguna.", "Sin dispositivos conectados", "Error al cargar dispositivos" sin reintento, "Sin wishlist o error" mezcla vacío y fallo); "Unknown" en inglés | `games.js:393,397`, `esde.js:43`, `sync.js:1477,1482`, `collection.js:182,305,434,451,564`, `organize.js:139`, `review_copies.js:115` | 🟡 |
+| UI-IA-1x | Menores: toast `'ok'` con errores (`esde.js:1032,1061`), "ya en curso" con `'ok'` (`inbox.js:204`), botones con estilo inline en vez de `.btn` | varios | 🟢 |
+
+**Investigación `safe_mode` / UI-IA-1h (2026-10-02, solo lectura, nada arreglado)** — `safe_mode:false` en `doQuickSync` **no es el bug en sí** (con `true` el modo SD omitiría todo destino existente y nunca actualizaría un save), pero la investigación destapó 3 riesgos reales de pérdida de progreso en el sync por cable:
+
+| ID | Hallazgo | Archivo:línea | Estado |
+|----|----------|---------------|--------|
+| SYNC-SAFE-1 | **Modo SD/filesystem + `newest`: un save más reciente con el MISMO tamaño NO se copia.** `doQuickSync` manda `skip_existing: true` (`sync.js:1035,1038`); `plan_direction` decide por mtime pero `copy_item` luego salta "mismo tamaño" (`cable_engine.py:178-181`). Los saves SRAM/`.srm`/memory-card son de tamaño fijo → el progreso nuevo se descarta en silencio y el log dice SKIP. En ADB+`newest` no pasa (compara solo mtime, `sync_cable.py:1062-1076`). Causa raíz: `skip_existing` (pensado para ROMs) aplicado a saves. Fix a evaluar: ignorar `skip_existing` para categoría `save` | `cable_engine.py:178-181`, `sync.js:1035-1038` | 🔴 |
+| SYNC-SAFE-2 | **ADB, PC→consola: se sobrescribe el save de la consola sin backup previo.** `_adb_copy_to_device` hace `transport.push` sin `backup_save` del fichero remoto (`sync_cable.py:691-704`); solo el sentido consola→PC respalda el destino local (`:654-655`). Si el save del PC es "más reciente" por mtime erróneo (reloj de la consola/PC desfasado), la partida de la consola se pierde sin copia. Fix a evaluar: `pull` del save remoto a `data_dir` de backup antes del push | `sync_cable.py:691-704` | 🟡 **implementado 2026-10-02 en `fix/sync-safe-adb-push-backup`, sin commit/PR** — `backup_remote_save()` (`backup/save_backup.py`) usado en el push manual y en el daemon (`cable_sync_daemon.py`, que además no respaldaba el PC al descargar); si el save existe y el backup falla, no se sobrescribe. Test `tests/test_backup_remote_save.py`. Falta probar con la consola real |
+| SYNC-SAFE-3 | **`safe_mode` es inoperante en modo ADB** (solo se usa en el backup `:619` y en `copy_item`/filesystem `:175`); la casilla "Modo seguro" de Sincronización avanzada no hace nada con ADB y la UI no lo dice. Decidir: implementarlo en ADB o ocultar/avisar | `sync_cable.py:586-627` vs `:636-1281`, `sync.js:1096` | 🟡 |
+
+Notas: el backup previo SÍ existe en modo filesystem (ambos sentidos, `:616-623`) y en ADB consola→PC, y `saves_enabled` es `True` por defecto (`config.py:291`). El criterio "newest" se basa solo en mtime (tolerancia `DEFAULT_MTIME_TOLERANCE_S`), sin comparar contenido: con relojes desfasados puede elegir mal el ganador — de ahí la importancia de SYNC-SAFE-2. No revisado: `web/cable_sync_daemon.py` (auto-sync al conectar) — comprobar si repite SYNC-SAFE-1/2.
+
+Propuesta de nav (ux-reviewer, sin decidir): Inicio · Biblioteca (Juegos, **Inbox**, Organizar) · Saves y consola (**Sincronizar** unificada cable/nube, Consola Android) · Extras (Carátulas = Assets+Scraper, Formatos+Herramientas fusionadas, Estadísticas) · Modo TV · Ajustes (solo config) + Avanzado plegado. Top 3 por impacto/coste: UI-IA-1i, UI-IA-1m, UI-IA-1a. Sin leer aún: `tab-games/collection/assets/scraper/tv.html`, `review_copies/inbox/organize/games.js` (lo cubre `ui-audit`).
+
+---
+
 ### HERR-FIX — Bugs en Herramientas hallados en feedback del usuario (2026-08-29)
 
 Origen: `docs/Feedback/29/8.md`. No investigados a fondo todavía — documentar
