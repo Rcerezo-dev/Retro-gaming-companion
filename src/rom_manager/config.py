@@ -621,6 +621,14 @@ def load_config(project_root: Path | None = None) -> AppConfig:
             "bios",
             "inbox",
             "screenshots",
+            # ZIP-ROUTE-8: carpetas de instalación de emulador -- sus assets
+            # (BIOS, skins, cheats/patches, shaders) nunca son ROMs aunque
+            # terminen en .zip.
+            "Emuladores",
+            "DraStic",
+            "Duckstation",
+            "PCSX2",
+            "RetroArch",
         ),
         frontend_asset_extensions=(
             ".png",
