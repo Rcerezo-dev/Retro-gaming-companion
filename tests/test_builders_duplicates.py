@@ -1794,6 +1794,72 @@ def test_dreamcast_ra_tier_prefers_disc_hash_supported_copy(tmp_path: Path, monk
     assert recommended["source_path"] == disc_path
 
 
+def test_alt_release_in_a_real_multi_disc_set_links_only_the_matching_disc(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """DUP-ALT-RELEASE-2: real finding auditing the library -- "Magical Drop
+    III (Europe) (Disc 1/2)...chd" + "...(Virtual Console).chd" all share the
+    same fuzzy_key (normalize_for_match() strips "(Disc N)" along with the
+    rerelease tag), so blindly unioning the whole bucket in the alt_release
+    pass would chain Disc 1 and Disc 2 together as "duplicates" through the
+    rerelease -- and the resulting cluster's is_disc_set=True then wiped out
+    *every* reason (the old `and not is_disc_set` gate applies to the whole
+    final cluster), so the group vanished from the queue entirely
+    (`total_groups == 0`). The rerelease's RA disc hash (confirmed on real
+    hardware) matched Disc 1 exactly, not Disc 2 -- so the correct behaviour
+    is the precise disc_hash link finding just that pair, Disc 2 staying out
+    of the group untouched."""
+    config = load_config(tmp_path)
+    repo = LibraryRepository(config.database_path)
+    disc1_path = str(tmp_path / "psx" / "Magical Drop III (Europe) (Disc 1).chd")
+    disc2_path = str(tmp_path / "psx" / "Magical Drop III (Europe) (Disc 2).chd")
+    vc_path = str(tmp_path / "psx" / "Magical Drop III (USA) (NG) (Virtual Console).chd")
+    _insert_game(
+        repo,
+        source_path=disc1_path,
+        sha1="A" * 40,
+        original_filename="Magical Drop III (Europe) (Disc 1).chd",
+        canonical_title="Magical Drop III (Europe) (Disc 1)",
+        platform="PlayStation",
+        extension=".chd",
+    )
+    _insert_game(
+        repo,
+        source_path=disc2_path,
+        sha1="B" * 40,
+        original_filename="Magical Drop III (Europe) (Disc 2).chd",
+        canonical_title="Magical Drop III (Europe) (Disc 2)",
+        platform="PlayStation",
+        extension=".chd",
+    )
+    _insert_game(
+        repo,
+        source_path=vc_path,
+        sha1="C" * 40,
+        original_filename="Magical Drop III (USA) (NG) (Virtual Console).chd",
+        canonical_title=None,
+        platform="PlayStation",
+        extension=".chd",
+    )
+
+    import rom_manager.retroachievements.ra_disc_hash_cache as disc_cache
+
+    def fake_psx_disc_hash(source_path: str, cache_dir, chdman_path=None) -> str | None:
+        return "sharedbootdata" if source_path in (disc1_path, vc_path) else None
+
+    monkeypatch.setattr(disc_cache, "get_psx_disc_hash", fake_psx_disc_hash)
+
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "disc_hash" in group["reasons"]
+    paths = {e["source_path"] for e in group["entries"]}
+    assert paths == {disc1_path, vc_path}
+    recommended = next(e for e in group["entries"] if e["recommended"])
+    assert recommended["source_path"] == disc1_path
+
+
 def test_alt_release_does_not_fire_without_the_tag(tmp_path: Path) -> None:
     """Two unrelated untitled Dreamcast dumps must not get swept into a
     group just because their filenames happen to fuzzy-match -- the new

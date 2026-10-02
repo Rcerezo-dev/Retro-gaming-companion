@@ -103,9 +103,25 @@ def _is_disc_set(members) -> bool:
     # simply excluded from the count instead: the guard now looks only at
     # the members that DO carry a disc tag, and still requires ≥2 distinct
     # numbers among those to call it a real multi-disc set.
+    # DUP-ALT-RELEASE-2: a digital rerelease (XBLA/Virtual Console/...) is a
+    # complete single-disc repackaging of the whole game, never "disc N" of
+    # a multi-disc set (a real multi-disc set never has one disc tagged
+    # "(XBLA)") — excluded from the count for the same reason an untagged
+    # member is: it must never make a genuine 2+-disc cluster look like a
+    # single disc, nor count toward "this is a protected disc set" on its
+    # own. Found live: "Magical Drop III (Europe) (Disc 1/2)...chd" +
+    # "Magical Drop III (USA) (NG) (Virtual Console).chd" (the VC copy later
+    # confirmed, by RA disc hash, to be a redundant dump of Disc 1) —
+    # without this exclusion the cluster's is_disc_set=True wiped out every
+    # reason (alt_release AND disc_hash, both gated by "and not is_disc_set"
+    # below) and the whole group silently vanished from the review queue.
     disc_nums = [
         num
-        for num in (find_disc_number(r["original_filename"]) for r in members)
+        for num in (
+            find_disc_number(r["original_filename"])
+            for r in members
+            if not is_alternate_release_tag(r["original_filename"])
+        )
         if num is not None
     ]
     return len(set(disc_nums)) > 1
@@ -1131,6 +1147,20 @@ def _review_groups_for_repo(
         if len(idxs) < 2:
             continue
         if not any(is_alternate_release_tag(rows[i]["original_filename"]) for i in idxs):
+            continue
+        # DUP-ALT-RELEASE-2: normalize_for_match() strips "(Disc N)" along
+        # with region/rerelease tags, so a rerelease's fuzzy_key collapses
+        # onto EVERY disc of a real multi-disc set, not just the one it
+        # actually duplicates -- blindly unioning the whole bucket here
+        # would chain Disc 1 and Disc 2 together as "duplicates of each
+        # other" through the rerelease, which is wrong regardless of any
+        # downstream is_disc_set guard. Found live: "Magical Drop III
+        # (Europe) (Disc 1/2)...chd" + "...(Virtual Console).chd" (later
+        # confirmed by RA disc hash to be a redundant dump of Disc 1 only)
+        # -- skip the fuzzy union entirely when it's a real disc set; the
+        # disc_hash pass below links the rerelease to the specific disc it
+        # actually matches instead, precisely, without touching the others.
+        if _is_disc_set([rows[i] for i in idxs]):
             continue
         for other in idxs[1:]:
             union(idxs[0], other)
