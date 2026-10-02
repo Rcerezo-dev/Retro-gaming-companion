@@ -133,7 +133,6 @@ def test_unknown_extension(tmp_path, config):
         "DraStic",
         "Duckstation",
         "PCSX2",
-        "RetroArch",
     ],
 )
 def test_excluded_directory(tmp_path, config, excluded_dir):
