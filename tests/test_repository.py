@@ -78,6 +78,20 @@ def test_upsert_game_updates_on_conflict(repo):
     assert row["size_bytes"] == 1024
 
 
+def test_upsert_game_quick_rescan_keeps_prior_hash(repo):
+    """GAMEDB-HASH-COALESCE-1: a quick rescan (sha1="", md5="") must not erase
+    hashes a prior full scan already computed for the same source_path."""
+    _upsert(repo, sha1="aa" * 20, md5="bb" * 16, crc32="cc112233")
+    _upsert(repo, sha1="", md5="", crc32="", size_bytes=2048)
+
+    with repo.connect() as conn:
+        row = conn.execute("SELECT sha1, md5, crc32, size_bytes FROM games").fetchone()
+    assert row["sha1"] == "aa" * 20
+    assert row["md5"] == "bb" * 16
+    assert row["crc32"] == "cc112233"
+    assert row["size_bytes"] == 2048  # non-hash fields still update normally
+
+
 def test_upsert_game_via_batch(repo):
     """upsert_game accepts an existing connection (batch mode)."""
     with repo.batch() as conn:
