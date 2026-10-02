@@ -15,7 +15,11 @@ from pathlib import Path as _Path
 from rom_manager.config import AppConfig
 from rom_manager.converters.chd_converter import is_broken_cue_set
 from rom_manager.database.repository import LibraryRepository
-from rom_manager.detection.filename_normalizer import is_non_canonical_variant
+from rom_manager.detection.filename_normalizer import (
+    is_alternate_release_tag,
+    is_non_canonical_variant,
+    normalize_for_match,
+)
 from rom_manager.detection.region_parser import parse_region_from_name
 from rom_manager.detection.rom_header import extract_internal_id
 from rom_manager.utils.disc_tag import (
@@ -413,6 +417,7 @@ def _review_entry_sort_key(
     variant_tier = (
         1
         if is_non_canonical_variant(entry["filename"])
+        or is_alternate_release_tag(entry["filename"])
         or "conflicto-inbox" in entry["filename"].lower()
         else 0
     )
@@ -1098,6 +1103,39 @@ def _review_groups_for_repo(
                 union(idxs[0], other)
             region_linked_idxs.update(idxs)
 
+    # DC-GDROM-FIRST-SECTOR-1 follow-up (2026-10-02): a digital re-release
+    # (XBLA, Virtual Console, PSN...) is a different build of the same game
+    # -- no shared sha1, and since it's not in any No-Intro/Redump DAT, no
+    # canonical_title either, so every union above is blind to it. Its own
+    # filename still fuzzy-matches the real dump's canonical_title though
+    # (normalize_for_match() strips both the region AND the rerelease tag,
+    # since both are parenthesised) -- found live auditing Sonic Adventure
+    # on the Anbernic: "Sonic Adventure (World) (XBLA).cdi" never linked to
+    # "Sonic Adventure (USA)...gdi"/"Sonic Adventure (Europe)...gdi" sitting
+    # right next to it. Deliberately keyed off the explicit rerelease tag
+    # (unlike DUP-REGION-1's blanket fuzzy union) -- a bucket only unions if
+    # at least one member actually carries the tag, so this can't reintroduce
+    # the false-positive risk that excludes _MULTI_DISC_RISK_PLATFORMS above:
+    # a real multi-disc set never has one disc tagged "(XBLA)".
+    alt_release_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for idx, row in enumerate(rows):
+        if _is_disc_data_sibling(row["source_path"], known_paths) or is_non_canonical_variant(
+            row["original_filename"]
+        ):
+            continue
+        fuzzy_key = normalize_for_match(row["canonical_title"] or row["original_filename"])
+        if fuzzy_key:
+            alt_release_groups[(row["platform"] or "unknown", fuzzy_key)].append(idx)
+    alt_release_linked_idxs: set[int] = set()
+    for idxs in alt_release_groups.values():
+        if len(idxs) < 2:
+            continue
+        if not any(is_alternate_release_tag(rows[i]["original_filename"]) for i in idxs):
+            continue
+        for other in idxs[1:]:
+            union(idxs[0], other)
+        alt_release_linked_idxs.update(idxs)
+
     # DUP-DISC-RA-1b parte 2: same disc release dumped in different
     # container formats/tools never shares a sha1 (different bytes) and
     # often not even a canonical_title (a legacy CloneCD/serial-named dump
@@ -1255,6 +1293,10 @@ def _review_groups_for_repo(
         # disc has its own distinct RA hash -- _is_disc_set stays as a
         # defensive match with the other reasons' pattern).
         has_disc_hash_dup = any(i in disc_hash_linked_idxs for i in idxs) and not is_disc_set
+        # DC-GDROM-FIRST-SECTOR-1 follow-up: only claim it for a cluster the
+        # alt-release link actually built -- same defensive pattern as the
+        # other reasons above.
+        has_alt_release_dup = any(i in alt_release_linked_idxs for i in idxs) and not is_disc_set
 
         plat = next((r["platform"] for r in members if r["platform"]), None) or "unknown"
         # MATCH-FIX-4: RA hash libraries are per-console (Game Boy and Game
@@ -1394,6 +1436,8 @@ def _review_groups_for_repo(
             reasons.add("region")
         if has_disc_hash_dup:
             reasons.add("disc_hash")
+        if has_alt_release_dup:
+            reasons.add("alt_release")
         for idx in idxs:
             if idx in extra_reasons:
                 reasons.add(extra_reasons[idx])
