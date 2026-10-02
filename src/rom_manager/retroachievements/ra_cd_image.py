@@ -59,7 +59,21 @@ class _CdImage:
         self._fh.seek(0, 2)
         size = self._fh.tell()
         if size % 2352 == 0:
-            return 2352, 24, 0
+            # The sync-pattern probe above only reads sector 16 (the ISO9660
+            # PVD) -- a short single-track dump (e.g. a GD-ROM boot track)
+            # may not have 16 sectors at all, so that probe fails silently
+            # and execution falls through here. Retry at sector 0
+            # (guaranteed to exist whenever size > 0) and read the sector
+            # header's own MODE byte (offset 15, right after the 12-byte
+            # sync + 3-byte MSF) instead of blindly assuming MODE2 FORM1 --
+            # a MODE1 track (header_size=16) read with header_size=24 is off
+            # by 8 bytes on every sector, breaking any magic-string check.
+            self._fh.seek(0)
+            header0 = self._fh.read(16)
+            header_size = 24
+            if len(header0) == 16 and header0[:12] == _SYNC_PATTERN and header0[15] == 0x01:
+                header_size = 16
+            return 2352, header_size, 0
         if size % 2336 == 0:
             return 2336, 8, 0
         # No sync pattern, no CD001 signature, size isn't even a multiple of
