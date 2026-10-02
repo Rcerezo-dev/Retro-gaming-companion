@@ -1140,16 +1140,17 @@ def _review_groups_for_repo(
     # container formats/tools never shares a sha1 (different bytes) and
     # often not even a canonical_title (a legacy CloneCD/serial-named dump
     # rarely catalog-matches) -- but RA's disc hash (boot executable, not
-    # file bytes) is identical across containers. Only PSX/GameCube/Wii have
-    # a cached hash function today (ra_checker._DISC_HASH_CONSOLE_IDS);
-    # Saturn/Dreamcast/PS2 fall through untouched, same as before. Confirmed
-    # need: ANDROID-DUP-1's "Crash Bandicoot (USA)" existing as .bin+.cue,
-    # .chd, and a legacy CloneCD folder simultaneously -- three sha1s, no
-    # shared canonical_title on the CloneCD copy.
+    # file bytes) is identical across containers. PSX/GameCube/Wii/Saturn/
+    # Dreamcast have a cached hash function (ra_checker._DISC_HASH_CONSOLE_IDS);
+    # PS2 still falls through untouched (no RA disc-hash implementation yet).
+    # Confirmed need: ANDROID-DUP-1's "Crash Bandicoot (USA)" existing as
+    # .bin+.cue, .chd, and a legacy CloneCD folder simultaneously -- three
+    # sha1s, no shared canonical_title on the CloneCD copy.
     from rom_manager.retroachievements.ra_checker import _DISC_HASH_CONSOLE_IDS
     from rom_manager.retroachievements.ra_disc_hash_cache import (
         get_gamecube_wii_disc_hash,
         get_psx_disc_hash,
+        get_saturn_dreamcast_disc_hash,
     )
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
@@ -1166,6 +1167,10 @@ def _review_groups_for_repo(
                 continue
             if console_id == 12:
                 disc_hash = get_psx_disc_hash(row["source_path"], cache_dir, chdman_path)
+            elif console_id in (33, 40):
+                disc_hash = get_saturn_dreamcast_disc_hash(
+                    row["source_path"], cache_dir, console_id, chdman_path
+                )
             else:
                 disc_hash = get_gamecube_wii_disc_hash(row["source_path"], cache_dir, console_id)
             if disc_hash:
@@ -1308,13 +1313,34 @@ def _review_groups_for_repo(
         # correctly-named .gbc copy lost the discard tiebreak to a bulk-pack
         # .gb duplicate because its real achievements were looked up in the
         # wrong console's cache.
+        # DC-GDROM-FIRST-SECTOR-1 follow-up: r["md5"] is always a plain
+        # whole-file hash (hash_calculator.calculate_hashes/AdbTransport.
+        # md5_recursive, same generic pass for every platform) -- RA hashes
+        # a disc console's boot data, not the container bytes, so this never
+        # matched for PSX/GameCube/Wii/Saturn/Dreamcast without routing
+        # through the same disc-hash getters the union pass above already
+        # uses. Without this, ra_tier in _review_entry_sort_key could never
+        # tell a disc game's real RA-supported copy from an unsupported one.
         scored = []
         for r in members:
-            md5_lower = (r["md5"] or "").lower()
+            row_plat = r["platform"] or plat
+            console_id = get_ra_console_id(row_plat)
+            if console_id in _DISC_HASH_CONSOLE_IDS and cache_dir is not None:
+                if console_id == 12:
+                    disc_hash = get_psx_disc_hash(r["source_path"], cache_dir, chdman_path)
+                elif console_id in (33, 40):
+                    disc_hash = get_saturn_dreamcast_disc_hash(
+                        r["source_path"], cache_dir, console_id, chdman_path
+                    )
+                else:
+                    disc_hash = get_gamecube_wii_disc_hash(r["source_path"], cache_dir, console_id)
+                md5_lower = (disc_hash or "").lower()
+            else:
+                md5_lower = (r["md5"] or "").lower()
             if not md5_lower or not cache_dir:
                 scored.append(-1)
                 continue
-            row_hash_map = _load_ra_hash_map(cache_dir, r["platform"] or plat, hash_cache)
+            row_hash_map = _load_ra_hash_map(cache_dir, row_plat, hash_cache)
             scored.append(row_hash_map.get(md5_lower, -1))
         has_ra_mix = any(a > 0 for a in scored) and any(a <= 0 for a in scored)
         score_by_idx = dict(zip(idxs, scored, strict=True))

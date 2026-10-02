@@ -1741,6 +1741,59 @@ def test_alt_release_links_digital_rerelease_to_original_dump(tmp_path: Path) ->
     assert recommended["source_path"] == disc_path
 
 
+def test_dreamcast_ra_tier_prefers_disc_hash_supported_copy(tmp_path: Path, monkeypatch) -> None:
+    """DC-GDROM-FIRST-SECTOR-1 follow-up: Dreamcast's stored md5 is a plain
+    whole-file hash (hash_calculator/AdbTransport.md5_recursive, same generic
+    pass every platform gets) -- it never matches RA's disc hash (boot data,
+    not container bytes), so ra_tier used to be blind to which copy of a
+    group actually has achievements. Routes scoring through
+    get_saturn_dreamcast_disc_hash() instead, same as PSX/GameCube/Wii
+    already did."""
+    config = load_config(tmp_path)
+    _write_ra_cache(tmp_path, console_id=40, hashes={"realdischash": 100})
+    repo = LibraryRepository(config.database_path)
+    disc_path = str(tmp_path / "dreamcast" / "Sonic Adventure (USA) (En,Ja,Fr,De,Es).gdi")
+    xbla_path = str(tmp_path / "dreamcast" / "Sonic Adventure (World) (XBLA).cdi")
+    _insert_game(
+        repo,
+        source_path=disc_path,
+        sha1="A" * 40,
+        original_filename="Sonic Adventure (USA) (En,Ja,Fr,De,Es).gdi",
+        canonical_title="Sonic Adventure (USA) (En,Ja,Fr,De,Es)",
+        platform="Dreamcast",
+        extension=".gdi",
+    )
+    _insert_game(
+        repo,
+        source_path=xbla_path,
+        sha1="B" * 40,
+        original_filename="Sonic Adventure (World) (XBLA).cdi",
+        canonical_title=None,
+        platform="Dreamcast",
+        extension=".cdi",
+    )
+
+    import rom_manager.retroachievements.ra_disc_hash_cache as disc_cache
+
+    def fake_disc_hash(
+        source_path: str, cache_dir, console_id: int, chdman_path=None
+    ) -> str | None:
+        return "realdischash" if source_path == disc_path else None
+
+    monkeypatch.setattr(disc_cache, "get_saturn_dreamcast_disc_hash", fake_disc_hash)
+
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "ra" in group["reasons"]
+    entries_by_path = {e["source_path"]: e for e in group["entries"]}
+    assert entries_by_path[disc_path]["ra_supported"] is True
+    assert entries_by_path[xbla_path]["ra_supported"] is False
+    recommended = next(e for e in group["entries"] if e["recommended"])
+    assert recommended["source_path"] == disc_path
+
+
 def test_alt_release_does_not_fire_without_the_tag(tmp_path: Path) -> None:
     """Two unrelated untitled Dreamcast dumps must not get swept into a
     group just because their filenames happen to fuzzy-match -- the new

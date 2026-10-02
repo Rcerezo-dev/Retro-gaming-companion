@@ -45,7 +45,7 @@ class RACheckSummary:
     results: list[RAGameResult] = field(default_factory=list)
 
 
-_DISC_HASH_CONSOLE_IDS = {12, 16, 20}  # PlayStation, GameCube, Wii -- see ra_hash_*.py for why
+_DISC_HASH_CONSOLE_IDS = {12, 16, 20, 33, 40}  # PlayStation, GameCube, Wii, Saturn, Dreamcast
 
 
 def check_library(
@@ -150,15 +150,27 @@ def check_library(
                 progress_cb(processed, summary.total, row["original_filename"])
 
             if console_id in _DISC_HASH_CONSOLE_IDS and cache_dir is not None:
-                # PSX/GameCube/Wii: RA doesn't hash the whole disc file, our
-                # stored md5 (whole-file scan hash) never matches theirs --
-                # compute/cache their disc-specific hash instead (see
-                # ra_hash_psx.py / ra_hash_gamecube_wii.py).
+                # PSX/GameCube/Wii/Saturn/Dreamcast: RA doesn't hash the whole
+                # disc file, our stored md5 (whole-file scan hash) never
+                # matches theirs -- compute/cache their disc-specific hash
+                # instead (see ra_hash_psx.py / ra_hash_gamecube_wii.py /
+                # ra_hash_saturn_dreamcast.py).
                 if console_id == 12:
                     from rom_manager.retroachievements.ra_disc_hash_cache import get_psx_disc_hash
 
                     md5 = (
                         get_psx_disc_hash(row["source_path"], cache_dir, chdman_path) or ""
+                    ).lower()
+                elif console_id in (33, 40):
+                    from rom_manager.retroachievements.ra_disc_hash_cache import (
+                        get_saturn_dreamcast_disc_hash,
+                    )
+
+                    md5 = (
+                        get_saturn_dreamcast_disc_hash(
+                            row["source_path"], cache_dir, console_id, chdman_path
+                        )
+                        or ""
                     ).lower()
                 else:
                     from rom_manager.retroachievements.ra_disc_hash_cache import (

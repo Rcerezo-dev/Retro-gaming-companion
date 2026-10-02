@@ -1,4 +1,4 @@
-"""File-backed cache for disc-image RA hashes (PS1, GameCube, Wii).
+"""File-backed cache for disc-image RA hashes (PS1, GameCube, Wii, Saturn, Dreamcast).
 
 Computing one requires decompressing a whole .chd via ``chdman`` (~7s each)
 or scanning a raw .bin/.cue/.iso -- recomputing on every RA check / duplicates
@@ -22,11 +22,16 @@ from rom_manager.retroachievements.ra_hash_gamecube_wii import (
     compute_wii_ra_hash,
 )
 from rom_manager.retroachievements.ra_hash_psx import compute_psx_ra_hash
+from rom_manager.retroachievements.ra_hash_saturn_dreamcast import (
+    compute_dreamcast_ra_hash,
+    compute_saturn_ra_hash,
+)
 
 _logger = logging.getLogger(__name__)
 
 _CACHE_FILENAME = "psx_disc_hashes.json"
 _GAMECUBE_WII_CACHE_FILENAME = "gamecube_wii_disc_hashes.json"
+_SATURN_DREAMCAST_CACHE_FILENAME = "saturn_dreamcast_disc_hashes.json"
 
 
 def _cache_path(cache_dir: Path, filename: str = _CACHE_FILENAME) -> Path:
@@ -124,4 +129,41 @@ def get_gamecube_wii_disc_hash(source_path: str, cache_dir: Path, console_id: in
         computed = None
     cache[source_path] = {"sig": sig, "hash": computed or ""}
     _save(cache_dir, cache, _GAMECUBE_WII_CACHE_FILENAME)
+    return computed
+
+
+_SATURN_RA_CONSOLE_ID = 33
+_DREAMCAST_RA_CONSOLE_ID = 40
+
+
+def get_saturn_dreamcast_disc_hash(
+    source_path: str, cache_dir: Path, console_id: int, chdman_path: Path | None = None
+) -> str | None:
+    """RA-compatible MD5 for a Saturn/Dreamcast disc image at *source_path*,
+    cached by (mtime, size). *console_id* picks the algorithm (RA's own IDs:
+    33=Saturn, 40=Dreamcast — see ``ra_hash_saturn_dreamcast.py``), same
+    convention ``ra_checker._DISC_HASH_CONSOLE_IDS`` already keys by. Returns
+    None if the file is missing, *console_id* isn't one of the two, or the
+    format/content isn't supported yet (e.g. mil-CD, a shared-file track 3) —
+    a miss is cached too, so an unsupported file isn't retried every call."""
+    p = Path(source_path)
+    try:
+        st = p.stat()
+    except OSError:
+        return None
+    sig = f"{st.st_mtime_ns}:{st.st_size}"
+
+    cache = _load(cache_dir, _SATURN_DREAMCAST_CACHE_FILENAME)
+    entry = cache.get(source_path)
+    if entry and entry.get("sig") == sig:
+        return entry.get("hash") or None
+
+    if console_id == _SATURN_RA_CONSOLE_ID:
+        computed = compute_saturn_ra_hash(p, chdman_path=chdman_path)
+    elif console_id == _DREAMCAST_RA_CONSOLE_ID:
+        computed = compute_dreamcast_ra_hash(p, chdman_path=chdman_path)
+    else:
+        computed = None
+    cache[source_path] = {"sig": sig, "hash": computed or ""}
+    _save(cache_dir, cache, _SATURN_DREAMCAST_CACHE_FILENAME)
     return computed
