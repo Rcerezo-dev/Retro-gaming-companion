@@ -17,10 +17,11 @@ save path and can restore back there.
 from __future__ import annotations
 
 import shutil
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 @dataclass(slots=True)
@@ -81,6 +82,29 @@ def backup_save(
 
     _prune_backups(dest_dir, save_path.suffix.lower(), keep_n)
     return dest
+
+
+def backup_remote_save(
+    transport,
+    android_path: str,
+    backup_root: Path,
+    keep_n: int = 5,
+) -> Path | None:
+    """Back up a save that lives on the Android device before it is overwritten.
+
+    Pulls it (MD5-verified) into a temp dir that mimics the device layout
+    (``<platform>/<file>``), so it lands in the same versioned backup tree as
+    PC-side saves. Returns None if the file is absent on the device; raises
+    ``OSError`` if it exists but could not be backed up -- the caller must
+    not overwrite it in that case.
+    """
+    if not transport.file_exists(android_path):
+        return None
+    remote = PurePosixPath(android_path)
+    with tempfile.TemporaryDirectory(prefix="rommgr-bk-") as tmp:
+        local = Path(tmp) / remote.parent.name / remote.name
+        transport.pull(android_path, local, verify=True)
+        return backup_save(local, backup_root, keep_n)
 
 
 def list_backups(save_path: Path, backup_root: Path) -> list[BackupEntry]:

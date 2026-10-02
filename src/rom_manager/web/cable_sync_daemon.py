@@ -325,9 +325,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                             },
                         )
 
+                    from rom_manager.backup.save_backup import backup_remote_save, backup_save
                     from rom_manager.sync.adb_transport import AdbTransport, should_verify
 
                     transport = AdbTransport(config.adb, serial, timeout=60)
+                    # SYNC-SAFE-2: backup del destino (PC o consola) antes de
+                    # sobrescribir un save, igual que el modo SD.
+                    _bk_root = config.data_dir if config.backup.saves_enabled else None
 
                     def _adb_copy_to_pc(adb_info, local_root: Path, android_prefix: str) -> None:
                         nonlocal copied, errors, copied_bytes
@@ -340,6 +344,12 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         canon_rel = canonical_download_rel_posix(rel_posix, _ES_PLATFORM_FOLDERS)
                         local_dst = local_root / Path(canon_rel.replace("/", os.sep))
                         try:
+                            if (
+                                _bk_root is not None
+                                and local_dst.exists()
+                                and should_verify(name, effective_exts)
+                            ):
+                                backup_save(local_dst, _bk_root)
                             size = transport.pull(
                                 adb_info.android_path,
                                 local_dst,
@@ -365,6 +375,10 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                         rel = local_src.relative_to(local_root)
                         android_dst = android_root.rstrip("/") + "/" + rel.as_posix()
                         try:
+                            if _bk_root is not None and should_verify(
+                                local_src.name, effective_exts
+                            ):
+                                backup_remote_save(transport, android_dst, _bk_root)
                             size = transport.push(
                                 local_src,
                                 android_dst,
