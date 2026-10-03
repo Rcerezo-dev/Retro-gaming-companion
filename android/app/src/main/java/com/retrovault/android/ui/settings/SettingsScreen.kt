@@ -69,6 +69,7 @@ fun SettingsScreen(
     googleDriveStatus: String? = null,
     onConnectGoogleDrive: () -> Unit = {},
     onDisconnectGoogleDrive: () -> Unit = {},
+    onTestGoogleDrive: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -108,12 +109,18 @@ fun SettingsScreen(
             if (googleDriveAccountLabel != null) {
                 StatusBadge(text = "Conectado", tone = StatusTone.Success)
                 Text(text = googleDriveAccountLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onTestGoogleDrive) { Text("Probar Google Drive") }
                 OutlinedButton(onClick = onDisconnectGoogleDrive) { Text("Desconectar Google Drive") }
             } else {
                 Button(onClick = onConnectGoogleDrive) { Text("Conectar Google Drive") }
             }
             googleDriveStatus?.let {
-                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                val ok = it.startsWith("Drive OK") || it.startsWith("Probando")
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (ok) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                )
             }
         }
 

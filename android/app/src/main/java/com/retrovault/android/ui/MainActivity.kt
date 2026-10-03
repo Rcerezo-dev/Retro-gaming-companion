@@ -28,6 +28,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.retrovault.android.data.auth.DropboxAuthManager
 import com.retrovault.android.data.auth.GoogleDriveAuthManager
+import java.io.File
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.activity.result.IntentSenderRequest
+import com.retrovault.android.sync.ensureDriveRootFolder
+import com.retrovault.android.sync.GoogleDriveTransport
+import com.retrovault.android.sync.DriveRestApi
+import com.retrovault.android.data.auth.GoogleDriveTokenProvider
+import com.retrovault.android.data.auth.GoogleDriveCredentialStore
 import com.retrovault.android.data.auth.DropboxClientProvider
 import com.retrovault.android.data.auth.DropboxCredentialStore
 import com.retrovault.android.data.db.AppDatabase
@@ -91,7 +100,53 @@ class MainActivity : ComponentActivity() {
             googleDriveAccountLabel = account?.email
             googleDriveStatus =
                 if (account == null) "Login de Google fallido o cancelado (${driveAuth.lastError ?: "sin detalle"})" else null
+            if (account != null) requestDriveConsentIfNeeded()
         }
+
+    private val driveConsentLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+            googleDriveStatus = "Permiso de Drive concedido: pulsa \"Probar Google Drive\""
+        }
+
+    /** Si Google aún pide pantalla de consentimiento para `drive.file`, la lanza (en segundo plano no se puede). */
+    private fun requestDriveConsentIfNeeded() {
+        lifecycleScope.launch {
+            runCatching { withContext(Dispatchers.IO) { GoogleDriveTokenProvider(this@MainActivity).authorize() } }
+                .onSuccess { r ->
+                    val pending = r.pendingIntent
+                    if (r.hasResolution() && pending != null) {
+                        driveConsentLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                    }
+                }
+                .onFailure { googleDriveStatus = "Autorización de Drive falló: ${it.message}" }
+        }
+    }
+
+    /** Prueba de extremo a extremo: token, carpeta RetroSync, subida y listado de un archivo de prueba. */
+    private fun testGoogleDrive() {
+        googleDriveStatus = "Probando Drive…"
+        lifecycleScope.launch {
+            googleDriveStatus =
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val tokens = GoogleDriveTokenProvider(this@MainActivity)
+                        val api = DriveRestApi { tokens.accessToken() }
+                        val store = GoogleDriveCredentialStore(this@MainActivity)
+                        val rootId = ensureDriveRootFolder(api, store.folderId()).also { store.saveFolderId(it) }
+                        val transport = GoogleDriveTransport(api, rootId)
+                        val tmp = File.createTempFile("retrovault-test", ".txt", cacheDir)
+                        try {
+                            tmp.writeText("retrovault drive test")
+                            transport.upload(tmp, "/RetroSync/_test", "retrovault-test.txt", System.currentTimeMillis())
+                        } finally {
+                            tmp.delete()
+                        }
+                        val n = transport.listFolderRecursive("/RetroSync/_test").size
+                        "Drive OK: carpeta RetroSync lista y $n archivo(s) de prueba en RetroSync/_test"
+                    }.getOrElse { "Drive falló: ${it.message}" }
+                }
+        }
+    }
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -176,6 +231,7 @@ class MainActivity : ComponentActivity() {
                                         isGoogleDriveConfigured = driveAuth.isClientIdConfigured(),
                                         googleDriveAccountLabel = googleDriveAccountLabel,
                                         googleDriveStatus = googleDriveStatus,
+                                        onTestGoogleDrive = ::testGoogleDrive,
                                         onConnectGoogleDrive = { googleSignInLauncher.launch(driveAuth.signInIntent()) },
                                         onDisconnectGoogleDrive = {
                                             driveAuth.signOut()

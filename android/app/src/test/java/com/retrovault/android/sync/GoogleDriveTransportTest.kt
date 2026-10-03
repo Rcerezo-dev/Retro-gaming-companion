@@ -191,4 +191,16 @@ class GoogleDriveTransportTest {
         assertEquals(0L, parseDriveTime(null))
         assertEquals(0L, parseDriveTime("no-es-una-fecha"))
     }
+
+    @Test
+    fun `root folder is reused from cache, then from an existing one, and only then created`() {
+        val api = FakeDriveApi()
+        assertEquals("cached", ensureDriveRootFolder(api, "cached"))
+
+        val created = ensureDriveRootFolder(api, null)
+        assertEquals(1, api.items.values.count { it.second.isFolder && it.second.name == "RetroSync" })
+
+        assertEquals(created, ensureDriveRootFolder(api, null))
+        assertEquals(1, api.items.values.count { it.second.isFolder && it.second.name == "RetroSync" })
+    }
 }
