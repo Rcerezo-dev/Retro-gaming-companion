@@ -263,9 +263,9 @@ de proveedor.
 - [ ] Fase 2 — `GoogleDriveAuthManager`/`GoogleDriveCredentialStore` (Sign-In + Picker)
   - [x] Sign-In (**verificado en hardware 2026-10-03**: botón "Conectar Google Drive" en Ajustes, PR #406; un 403 inicial era la cuenta fuera de la lista de usuarios de prueba) (`GoogleDriveCredentialStore`, `GoogleDriveAuthManager.signInIntent()`/`handleSignInResult()`, dependencia `play-services-auth`) — compila y `testDebugUnitTest` en verde; **no verificable de extremo a extremo sin Fase 0** (`GDRIVE_CLIENT_ID` real)
   - [ ] Picker para elegir la carpeta `RetroSync/` ya existente (`GoogleDriveCredentialStore.folderId()` sigue siempre `null` hasta esto) — pendiente, ver nota de complejidad abajo
-- [ ] Fase 3 — `GoogleDriveTransport` (resolución de carpetas + BFS + upload/download) — código y 11 tests con un `DriveApi` falso hechos 2026-10-03 (`DriveApi`, `GoogleDriveTransport`, `DriveRestApi` con `HttpURLConnection`, sin dependencias nuevas); **`DriveRestApi` sin probar contra Drive real**: falta el token (Picker/autorización) para ejercitarlo
-- [ ] Fase 4 — selector de proveedor en Ajustes + `SyncOrchestrator` genérico
-- [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto
+- [x] Fase 3 — `GoogleDriveTransport` (PR #407; **verificado contra Drive real 2026-10-03** con el botón "Probar Google Drive" y un pase completo, ver Fase 5)
+- [x] Fase 4 — selector de proveedor en Ajustes + `SyncOrchestrator` genérico (PR #410; `CloudProviderFactory`, marcas de agua con prefijo `gdrive:`). Decisión: **sin Picker** — con `drive.file` la app crea su propia carpeta `RetroSync` (PR #408)
+- [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto — **primer pase real con Drive 2026-10-03 22:34: Subidos 249 · Descargados 0 · Al día 43 · Errores 0** (biblioteca 106 MB tras excluir copias espejo, PR #411). Pendiente: confirmar los archivos en `drive.google.com`, un segundo pase (debe quedar todo "al día"), reboot/background y Dropbox sin regresión
 
 **Nota 2026-09-29 sobre el Picker (investigado contra la documentación real
 de Google, no asumido)**: la API nativa de Picker vía `play-services-drive`
