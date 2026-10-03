@@ -64,6 +64,11 @@ fun SettingsScreen(
     onAutoSyncToggle: (Boolean) -> Unit,
     onInstantSyncToggle: (Boolean) -> Unit = {},
     onRestoreDevice: () -> Unit = {},
+    isGoogleDriveConfigured: Boolean = false,
+    googleDriveAccountLabel: String? = null,
+    googleDriveStatus: String? = null,
+    onConnectGoogleDrive: () -> Unit = {},
+    onDisconnectGoogleDrive: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -93,6 +98,22 @@ fun SettingsScreen(
             StatusBadge(text = "No conectado", tone = StatusTone.Danger)
             Button(onClick = onConnectDropbox) {
                 Text("Conectar Dropbox")
+            }
+        }
+
+        // ANDROID-DRIVE-1 Fase 2: solo el login — todavía no hay Picker ni transporte,
+        // así que conectar Drive no sincroniza nada (ver roadmap 28).
+        if (isGoogleDriveConfigured) {
+            Text(text = "Google Drive (en desarrollo, solo login)", style = MaterialTheme.typography.titleMedium)
+            if (googleDriveAccountLabel != null) {
+                StatusBadge(text = "Conectado", tone = StatusTone.Success)
+                Text(text = googleDriveAccountLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = onDisconnectGoogleDrive) { Text("Desconectar Google Drive") }
+            } else {
+                Button(onClick = onConnectGoogleDrive) { Text("Conectar Google Drive") }
+            }
+            googleDriveStatus?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
         }
 

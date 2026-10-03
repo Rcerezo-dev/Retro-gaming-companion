@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.retrovault.android.data.auth.DropboxAuthManager
+import com.retrovault.android.data.auth.GoogleDriveAuthManager
 import com.retrovault.android.data.auth.DropboxClientProvider
 import com.retrovault.android.data.auth.DropboxCredentialStore
 import com.retrovault.android.data.db.AppDatabase
@@ -64,9 +65,12 @@ class MainActivity : ComponentActivity() {
     private var lastSyncSummary by mutableStateOf<String?>(null)
     private var isRestoringDevice by mutableStateOf(false)
     private var restoreDeviceSummary by mutableStateOf<String?>(null)
+    private var googleDriveAccountLabel by mutableStateOf<String?>(null)
+    private var googleDriveStatus by mutableStateOf<String?>(null)
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
     private val authManager by lazy { DropboxAuthManager(this, credentialStore) }
+    private val driveAuth by lazy { GoogleDriveAuthManager(this) }
     private val settingsRepository by lazy { SettingsRepository(this) }
     private val syncHistoryDao by lazy { AppDatabase.getInstance(this).syncHistoryDao() }
     private val syncWatermarkDao by lazy { AppDatabase.getInstance(this).syncWatermarkDao() }
@@ -81,6 +85,14 @@ class MainActivity : ComponentActivity() {
             refreshPermissionState()
         }
 
+    private val googleSignInLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val account = driveAuth.handleSignInResult(result.data)
+            googleDriveAccountLabel = account?.email
+            googleDriveStatus =
+                if (account == null) "Login de Google fallido o cancelado (${driveAuth.lastError ?: "sin detalle"})" else null
+        }
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             refreshPermissionState()
@@ -91,6 +103,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         refreshPermissionState()
         refreshDropboxState()
+        googleDriveAccountLabel = driveAuth.fetchAccountLabel()
         lifecycleScope.launch {
             // El servicio no sobrevive un force-stop del usuario (solo un
             // reboot, cubierto por BootRestartReceiver) — si Instantáneo
@@ -160,6 +173,15 @@ class MainActivity : ComponentActivity() {
                                         onAutoSyncToggle = ::setAutoSyncEnabled,
                                         onInstantSyncToggle = ::setInstantSyncEnabled,
                                         onRestoreDevice = ::restoreDevice,
+                                        isGoogleDriveConfigured = driveAuth.isClientIdConfigured(),
+                                        googleDriveAccountLabel = googleDriveAccountLabel,
+                                        googleDriveStatus = googleDriveStatus,
+                                        onConnectGoogleDrive = { googleSignInLauncher.launch(driveAuth.signInIntent()) },
+                                        onDisconnectGoogleDrive = {
+                                            driveAuth.signOut()
+                                            googleDriveAccountLabel = null
+                                            googleDriveStatus = null
+                                        },
                                     )
                                 }
                             }
