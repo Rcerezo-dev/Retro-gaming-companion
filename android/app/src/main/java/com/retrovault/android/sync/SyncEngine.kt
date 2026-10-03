@@ -76,6 +76,18 @@ class SyncEngine(
                     lastSyncMillis = lastSync,
                 )
 
+            // SAVE-GUARD-2: 0 bytes vs contenido no se resuelve solo. Android no
+            // tiene UI de conflictos: se omite (ningún lado se toca) y se cuenta
+            // como conflicto; el PC lo muestra para elegir a mano.
+            if (decision.action != SyncAction.UP_TO_DATE &&
+                local != null &&
+                remote != null &&
+                ConflictResolver.isSuspectEmpty(local.size, remote.size)
+            ) {
+                conflicts++
+                continue
+            }
+
             try {
                 when (decision.action) {
                     SyncAction.UP_TO_DATE -> upToDate++
@@ -87,6 +99,7 @@ class SyncEngine(
                     }
                     SyncAction.DOWNLOAD -> {
                         val destFile = File(localRoot, relative)
+                        backupBeforeDownload(destFile)
                         val remoteMtime = transport.download(remoteRoot, relative, destFile)
                         destFile.setLastModified(remoteMtime)
                         touchWatermark(relative, remoteRoot)
@@ -140,6 +153,18 @@ class SyncEngine(
                 }
             }
         }
+    }
+
+    /**
+     * Respaldo del local antes de que un DOWNLOAD lo sobrescriba (espejo de
+     * `save_syncer.py` S29). Un único `<nombre>.bak` que se reescribe — sin
+     * poda tipo `keep_n` para no llenar la SD; versiones anteriores, en Dropbox.
+     * La extensión `.bak` no es rastreada por [LocalFileScanner]. Un fallo del
+     * respaldo nunca bloquea el sync.
+     */
+    private fun backupBeforeDownload(file: File) {
+        if (!file.exists() || file.length() == 0L) return
+        runCatching { file.copyTo(File(file.parentFile, "${file.name}.bak"), overwrite = true) }
     }
 
     private fun backupLocalFile(
