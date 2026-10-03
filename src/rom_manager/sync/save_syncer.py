@@ -177,6 +177,20 @@ def sync_saves(
             # al resolver un conflicto (decide() solo conoce mtimes).
             decision.local_size = local.size if local else None
             decision.remote_size = remote.size if remote else None
+            # SAVE-GUARD-2: un save de 0 bytes frente a uno con contenido nunca
+            # gana por mtime (un .sav vacío recién creado machacaría el bueno).
+            # Se convierte en conflicto para que la UI lo muestre y el usuario
+            # elija; sin override explícito no se toca ningún lado (ver abajo).
+            # ponytail: solo 0 vs >0, sin % de reducción — los saves de tamaño
+            # variable (.nv/.sgm/.dat) darían falsos positivos.
+            if (
+                local is not None
+                and remote is not None
+                and decision.action != "up_to_date"
+                and (local.size == 0) != (remote.size == 0)
+            ):
+                decision.suspect = True
+                decision.action = "conflict"
             decisions.append(decision)
 
             if decision.action == "up_to_date":
@@ -299,6 +313,20 @@ def sync_saves(
                 # the auto-resolve policy — "skip" leaves both sides untouched
                 # (no backup needed, nothing is being overwritten).
                 override = (conflict_overrides or {}).get(relative)
+                if decision.suspect and override is None:
+                    log_sync_event(
+                        conn,
+                        local_path=str(local_path),
+                        remote_path=remote_path,
+                        direction="conflict",
+                        local_mtime=decision.local_mtime,
+                        remote_mtime=decision.remote_mtime,
+                        result="skipped_suspect",
+                        message="Save de 0 bytes frente a uno con contenido: no se toca ningún lado",
+                        created_at=timestamp,
+                    )
+                    result.conflicts += 1
+                    continue
                 if override == "skip":
                     log_sync_event(
                         conn,
