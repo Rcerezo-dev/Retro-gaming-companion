@@ -263,7 +263,7 @@ de proveedor.
 - [ ] Fase 2 — `GoogleDriveAuthManager`/`GoogleDriveCredentialStore` (Sign-In + Picker)
   - [x] Sign-In (**verificado en hardware 2026-10-03**: botón "Conectar Google Drive" en Ajustes, PR #406; un 403 inicial era la cuenta fuera de la lista de usuarios de prueba) (`GoogleDriveCredentialStore`, `GoogleDriveAuthManager.signInIntent()`/`handleSignInResult()`, dependencia `play-services-auth`) — compila y `testDebugUnitTest` en verde; **no verificable de extremo a extremo sin Fase 0** (`GDRIVE_CLIENT_ID` real)
   - [ ] Picker para elegir la carpeta `RetroSync/` ya existente (`GoogleDriveCredentialStore.folderId()` sigue siempre `null` hasta esto) — pendiente, ver nota de complejidad abajo
-- [ ] Fase 3 — `GoogleDriveTransport` (resolución de carpetas + BFS + upload/download)
+- [ ] Fase 3 — `GoogleDriveTransport` (resolución de carpetas + BFS + upload/download) — código y 11 tests con un `DriveApi` falso hechos 2026-10-03 (`DriveApi`, `GoogleDriveTransport`, `DriveRestApi` con `HttpURLConnection`, sin dependencias nuevas); **`DriveRestApi` sin probar contra Drive real**: falta el token (Picker/autorización) para ejercitarlo
 - [ ] Fase 4 — selector de proveedor en Ajustes + `SyncOrchestrator` genérico
 - [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto
 
