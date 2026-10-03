@@ -4266,6 +4266,20 @@ Estado al dejarlo (2026-10-03): en la RG556 está instalado el release firmado d
 
 **Prueba SAVE-GUARD-2 en Android** (con la app que incluya la guarda): elegir un juego de prueba con save bueno en Dropbox y local; dejar su `.sav` local en 0 bytes con mtime posterior (`adb shell` + `touch`), sincronizar manualmente y comprobar que: el save de Dropbox sigue intacto, el local vacío no se sube, y el pase cuenta 1 conflicto. Restaurar el save bueno después.
 
+
+### SYNC-REMOTE-TREE-1 — PC y Android parecen sincronizar RetroArch en árboles distintos de Dropbox (hallazgo 2026-10-03, sin confirmar)
+
+Pilar 3, prioridad alta (partidas que no llegan al otro lado). **Evidencia, solo lectura con `rclone lsl`, sin ver el ajuste real de la app** (la RG556 estaba bloqueada con PIN y `savesRemote` vive en DataStore privado):
+- PC: `config.toml` → `dropbox:/RetroSync/saves/retroarch/saves` (y `.../states`).
+- Dropbox `/RetroSync/saves/` contiene además, en la raíz, carpetas por core/plataforma (`Snes9x`, `FCEUmm`, `LRPS2`, `mGBA`, `nds`, `gba`, `arcade`, `cps1-3`…) con actividad reciente real: `nds/Pokemon - Edicion Plata SoulSilver (Spain).sav` (2026-09-26, 524.288 B, el mismo save que hay en `RetroArch/saves/nds` de la consola), `gba/Pokemon - FireRed… .srm` (2026-10-02) y archivos `probe_*.srm` de pruebas del desarrollo de la app (2026-09-25). Es lo que produciría `savesRemote = /RetroSync/saves` (`DEFAULT_SAVES_REMOTE`, `SettingsRepository.kt:66`).
+- `/RetroSync/saves/retroarch/saves/` (lo que lee el PC) solo tiene **2 archivos en los últimos 30 días**, el más nuevo del 2026-09-21; FireRed existe en los dos árboles con fechas distintas (PC 2026-09-21 / raíz 2026-10-02).
+- Si es cierto, lo jugado en la Anbernic desde ~2026-09-21 **no llega al PC por Dropbox** (y viceversa). También hay restos de Syncthing (`.stversions`) y carpetas con nombres rotos (`(Fr,De,Es,It)`, `Wide`, `Next`).
+
+| ID | Task | Estado |
+|----|------|--------|
+| SYNC-REMOTE-TREE-1a | Confirmar el valor real de `savesRemote`/`statesRemote` en la app (con la consola desbloqueada: pestaña Ajustes) y comparar con `config.toml`. Comparar por archivo mtime/tamaño entre ambos árboles (nds, gba, psx…) para saber qué lado tiene la versión más reciente de cada save **antes** de unificar nada | ⬜ |
+| SYNC-REMOTE-TREE-1b | Decidir el árbol canónico (¿`retroarch/saves` como el PC, con `savesRemote` de la app cambiado a eso? ¿o al revés?) y cómo migrar sin pisar progreso: backup de ambos árboles, merge por mtime con la guarda SAVE-GUARD, nunca borrar. Los standalones (`dolphin/gc`, `ppsspp`…) cuelgan de la misma base: **no ampliar raíces de la app (SAVES-FRAGMENT-5 opción a) hasta decidir esto** | ⬜ depende de 1a |
+
 ---
 
 ## UX — Auditorías por pestaña — → #206
