@@ -21,7 +21,7 @@ class SettingsRepository(context: Context) {
     val savesRemote: Flow<String> = dataStore.data.map { it[SAVES_REMOTE_KEY] ?: DEFAULT_SAVES_REMOTE }
     val statesRemote: Flow<String> = dataStore.data.map { it[STATES_REMOTE_KEY] ?: DEFAULT_STATES_REMOTE }
 
-    /** ANDROID-SYNC-12: sync automático cada 15 min vía WorkManager, off por defecto. */
+    /** ANDROID-SYNC-12: sync automático cada 30 min vía WorkManager, off por defecto. */
     val autoSyncEnabled: Flow<Boolean> = dataStore.data.map { it[AUTO_SYNC_ENABLED_KEY] ?: false }
 
     /** ANDROID-SYNC-9/10/11: modo Instantáneo (servicio foreground + `FileObserver`), off por defecto. */
