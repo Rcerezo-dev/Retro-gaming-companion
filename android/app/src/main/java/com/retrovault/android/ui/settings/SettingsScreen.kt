@@ -70,6 +70,8 @@ fun SettingsScreen(
     onConnectGoogleDrive: () -> Unit = {},
     onDisconnectGoogleDrive: () -> Unit = {},
     onTestGoogleDrive: () -> Unit = {},
+    storageSummary: String? = null,
+    storageHint: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -100,6 +102,13 @@ fun SettingsScreen(
             Button(onClick = onConnectDropbox) {
                 Text("Conectar Dropbox")
             }
+        }
+
+        storageSummary?.let {
+            Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        storageHint?.let {
+            Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
         }
 
         // ANDROID-DRIVE-1 Fase 2: solo el login — todavía no hay Picker ni transporte,
