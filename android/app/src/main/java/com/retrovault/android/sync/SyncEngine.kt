@@ -61,6 +61,7 @@ class SyncEngine(
                 .getOrElse {
                     return@withContext SyncResult(errors = listOf(it.message ?: "listFolderRecursive failed"))
                 }
+                .filterNot { SyncExclusions.isExcluded(it.relative) }
                 .associateBy { it.relative }
 
         var uploaded = 0
