@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -72,6 +73,8 @@ fun SettingsScreen(
     onTestGoogleDrive: () -> Unit = {},
     storageSummary: String? = null,
     storageHint: String? = null,
+    syncProvider: String = "dropbox",
+    onSyncProviderChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -111,10 +114,16 @@ fun SettingsScreen(
             Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
         }
 
-        // ANDROID-DRIVE-1 Fase 2: solo el login — todavía no hay Picker ni transporte,
-        // así que conectar Drive no sincroniza nada (ver roadmap 28).
+        // ANDROID-DRIVE-1 Fase 4: con qué nube sincroniza la app (cada una con su propia sesión).
+        Text(text = "Proveedor de sync", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = syncProvider == "dropbox", onClick = { onSyncProviderChange("dropbox") }, label = { Text("Dropbox") })
+            FilterChip(selected = syncProvider == "gdrive", onClick = { onSyncProviderChange("gdrive") }, label = { Text("Google Drive") })
+        }
+
+        // ANDROID-DRIVE-1: sesión de Drive (la app crea y usa su propia carpeta RetroSync, ver roadmap 28).
         if (isGoogleDriveConfigured) {
-            Text(text = "Google Drive (en desarrollo, solo login)", style = MaterialTheme.typography.titleMedium)
+            Text(text = "Google Drive", style = MaterialTheme.typography.titleMedium)
             if (googleDriveAccountLabel != null) {
                 StatusBadge(text = "Conectado", tone = StatusTone.Success)
                 Text(text = googleDriveAccountLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

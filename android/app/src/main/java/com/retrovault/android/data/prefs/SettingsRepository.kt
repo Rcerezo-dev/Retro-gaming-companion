@@ -27,6 +27,13 @@ class SettingsRepository(context: Context) {
     /** ANDROID-SYNC-9/10/11: modo Instantáneo (servicio foreground + `FileObserver`), off por defecto. */
     val instantSyncEnabled: Flow<Boolean> = dataStore.data.map { it[INSTANT_SYNC_ENABLED_KEY] ?: false }
 
+    /** ANDROID-DRIVE-1 Fase 4: proveedor de nube del sync — "dropbox" (por defecto, no rompe instalaciones previas) o "gdrive". */
+    val syncProvider: Flow<String> = dataStore.data.map { it[SYNC_PROVIDER_KEY] ?: PROVIDER_DROPBOX }
+
+    suspend fun setSyncProvider(value: String) {
+        dataStore.edit { it[SYNC_PROVIDER_KEY] = if (value == PROVIDER_GDRIVE) PROVIDER_GDRIVE else PROVIDER_DROPBOX }
+    }
+
     // FTP-PICK-2 (rediseñado a HTTP): IP:puerto del PC (`rommgr serve`) y
     // carpeta destino de los ROMs elegidos.
     val pcHost: Flow<String> = dataStore.data.map { it[PC_HOST_KEY] ?: "" }
@@ -61,6 +68,9 @@ class SettingsRepository(context: Context) {
         private val STATES_REMOTE_KEY = stringPreferencesKey("states_remote")
         private val AUTO_SYNC_ENABLED_KEY = booleanPreferencesKey("auto_sync_enabled")
         private val INSTANT_SYNC_ENABLED_KEY = booleanPreferencesKey("instant_sync_enabled")
+        private val SYNC_PROVIDER_KEY = stringPreferencesKey("sync_provider")
+        const val PROVIDER_DROPBOX = "dropbox"
+        const val PROVIDER_GDRIVE = "gdrive"
         private val PC_HOST_KEY = stringPreferencesKey("pc_host")
         private val ROMS_DEST_KEY = stringPreferencesKey("roms_dest_path")
         const val DEFAULT_SAVES_REMOTE = "/RetroSync/saves"

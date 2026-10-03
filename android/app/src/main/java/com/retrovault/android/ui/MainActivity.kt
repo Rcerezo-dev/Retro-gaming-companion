@@ -204,6 +204,8 @@ class MainActivity : ComponentActivity() {
                                         .collectAsState(initial = SettingsRepository.DEFAULT_SAVES_REMOTE)
                                     val statesRemote by settingsRepository.statesRemote
                                         .collectAsState(initial = SettingsRepository.DEFAULT_STATES_REMOTE)
+                                    val syncProvider by settingsRepository.syncProvider
+                                        .collectAsState(initial = SettingsRepository.PROVIDER_DROPBOX)
                                     val autoSyncEnabled by settingsRepository.autoSyncEnabled
                                         .collectAsState(initial = false)
                                     val instantSyncEnabled by settingsRepository.instantSyncEnabled
@@ -240,6 +242,8 @@ class MainActivity : ComponentActivity() {
                                         onTestGoogleDrive = ::testGoogleDrive,
                                         storageSummary = storageState?.summary,
                                         storageHint = storageState?.hint,
+                                        syncProvider = syncProvider,
+                                        onSyncProviderChange = ::changeSyncProvider,
                                         onConnectGoogleDrive = { googleSignInLauncher.launch(driveAuth.signInIntent()) },
                                         onDisconnectGoogleDrive = {
                                             driveAuth.signOut()
@@ -348,6 +352,15 @@ class MainActivity : ComponentActivity() {
                 isRestoringDevice = false
             }
         }
+    }
+
+    /** Elige la nube del sync. Drive exige sesión: sin ella no se cambia y se explica por qué. */
+    private fun changeSyncProvider(provider: String) {
+        if (provider == SettingsRepository.PROVIDER_GDRIVE && googleDriveAccountLabel == null) {
+            googleDriveStatus = "Conecta Google Drive antes de elegirlo como proveedor"
+            return
+        }
+        lifecycleScope.launch { settingsRepository.setSyncProvider(provider) }
     }
 
     private fun setAutoSyncEnabled(enabled: Boolean) {
