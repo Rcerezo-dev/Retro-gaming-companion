@@ -4236,6 +4236,15 @@ más contexto que solo el timestamp al resolver un conflicto.
 | SAVES-CONFLICT-CTX-1 | Al resolver un conflicto de sync, mostrar contexto además del timestamp (playtime asociado, tamaño). Solo Cloud Sync (Cable Sync no detecta conflictos hoy) | `sync/conflict_resolver.py`, `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `SyncDecision` con tamaños, `_decision_payload()` añade mtime/tamaño/playtime best-effort (match por stem contra `games`) solo para conflictos, UI pinta la línea de contexto bajo cada fila. 4 tests nuevos, 1434 pass, ruff+format limpios |
 | SYNC-CONFLICT-MANUAL-1 | Revisión manual de conflictos de Cloud Sync desde la UI antes de sincronizar — por archivo, elegir PC/Consola/omitir en vez de que `conflict_policy` global decida siempre por todos. No aplica a Cable Sync (sin detección de conflictos hoy) | `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `sync_saves()` acepta `conflict_overrides` (gana sobre `conflict_policy` por archivo, `skip` no toca nada); selector por fila en el plan de dry-run, recogido al pulsar Sincronizar. 3 tests nuevos, 1437 pass, ruff+format limpios |
 
+### SAVE-GUARD — No dejar que un save dañado gane un conflicto (idea 2026-10-03)
+
+Pilar 3, prioridad alta (pérdida de progreso). Hoy `conflict_policy` decide por mtime; un save de 0 bytes o truncado reciente podría machacar uno bueno antiguo. El backup previo (`backup_save()`) mitiga pero no evita el sobrescrito.
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| SAVE-GUARD-1 | **Investigar primero** (regla "investigar antes de arreglar"): confirmar en `sync/conflict_resolver.py` / `sync/save_syncer.py` si hoy hay alguna guarda de tamaño; documentar archivo:línea y caso real reproducible | `sync/conflict_resolver.py`, `sync/save_syncer.py` | ⬜ |
+| SAVE-GUARD-2 | Si el hallazgo lo confirma: un save de 0 bytes, o mucho más pequeño que el anterior, nunca sobrescribe a uno válido — se marca como conflicto para revisión manual (reusa `SYNC-CONFLICT-MANUAL-1`). Test con save de 0 bytes más reciente | `sync/conflict_resolver.py` | ⬜ depende de SAVE-GUARD-1 |
+
 ---
 
 ## UX — Auditorías por pestaña — → #206
@@ -4487,6 +4496,9 @@ en sesiones por día: `Tareas/Roadmap-212-Ideas-Futuras.md`.
 | TRUST-MODE | Simplificar el flujo de primera vez: aplicar todo de golpe y luego dejar que el usuario navegue las tabs revisando (o confiando sin revisar) los cambios ya hechos, en vez de plan→revisión manual→apply | Idea del usuario 2026-08-29; **tensión con INBOX-FIX-4** (`archivo.md`): decisión ya tomada 2026-07-23 de NO auto-aplicar y mantener `rommgr plan` siempre antes de `apply` — replantear con el usuario antes de diseñar, no revertir esa decisión sin más |
 | ESDE-CONFIG-CHECK | **Movida** a `ESDE-FOLDER-STD-1`, sección "Estandarización de biblioteca multi-launcher" (→ #337), 2026-09-22 — misma idea, fusionada con la propuesta de carpetas estandarizadas del usuario | — |
 | LIBRARY-MANAGER-UI | Pantalla única "gestionar ambas bibliotecas a discreción" — copiar y borrar PC↔Anbernic con control fino, en vez de repartido entre Cable Sync (copiar), `ANBERNIC-PICK` (marcar) y `STORAGE-MGR` (borrar en bloque, archivado). El usuario pide explícitamente esto tras no encontrar cómo hacerlo hoy (2026-08-29) | Fusiona 3 mecanismos ya existentes en una sola UI — no es una feature nueva de backend, es una consolidación de UX; valorar junto con `ANBERNIC-PICK-7` (sync guiado) y `GAME-BLOCKLIST` (borrado permanente) antes de diseñar, pueden compartir la misma pantalla |
+| HEALTH-SCORE | Puntuación única de salud de la biblioteca en el dashboard (% con nombre canónico, % con logros RA, duplicados pendientes) para ver el progreso sin abrir cada herramienta | Idea 2026-10-03. Solo agrega datos que ya calculan health check/duplicados/RA — sin lógica nueva de detección. ⬜ sin diseñar |
+| DEVICE-PROFILES-MULTI | Soporte de más portátiles (Miyoo, Retroid, Steam Deck): mismo sync, otra ruta de saves/BIOS por dispositivo | Idea 2026-10-03. Depende de que `platforms.toml`/`device_profile.py` (DEVPROFILE-1..4) ya abstraigan el dispositivo — verificar eso antes de diseñar; sin hardware a mano no hay validación posible. ⬜ sin diseñar |
+| COLLECTION-EXPORT | Exportar la colección (CSV/HTML con portadas) para compartir o tener un inventario fuera de la BD | Idea 2026-10-03. Barato: reusa `GET /api/export-history` y las portadas ya scrapeadas. ⬜ sin diseñar |
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: STORAGE-MGR-1..5 (gestor de almacenamiento PC/Android, borrado en bloque — completo y validado en hardware, 2026-08-14/2026-08-29).
 
