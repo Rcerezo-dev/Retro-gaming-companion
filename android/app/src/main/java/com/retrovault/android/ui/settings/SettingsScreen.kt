@@ -179,6 +179,15 @@ private fun SyncHistoryRow(event: SyncHistoryEntity) {
             )
         }
         Text(text = event.summary(), style = MaterialTheme.typography.bodyMedium)
+        // ANDROID-SYNC: el detalle de los errores vivía solo en la BD privada de la
+        // app (inaccesible sin root) — sin esto un "Errores: 425" no se podía diagnosticar.
+        event.errorsText?.let {
+            Text(
+                text = it.take(500),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 
