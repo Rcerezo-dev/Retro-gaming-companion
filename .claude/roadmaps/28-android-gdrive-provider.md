@@ -265,7 +265,7 @@ de proveedor.
   - [ ] Picker para elegir la carpeta `RetroSync/` ya existente (`GoogleDriveCredentialStore.folderId()` sigue siempre `null` hasta esto) — pendiente, ver nota de complejidad abajo
 - [x] Fase 3 — `GoogleDriveTransport` (PR #407; **verificado contra Drive real 2026-10-03** con el botón "Probar Google Drive" y un pase completo, ver Fase 5)
 - [x] Fase 4 — selector de proveedor en Ajustes + `SyncOrchestrator` genérico (PR #410; `CloudProviderFactory`, marcas de agua con prefijo `gdrive:`). Decisión: **sin Picker** — con `drive.file` la app crea su propia carpeta `RetroSync` (PR #408)
-- [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto — **primer pase real con Drive 2026-10-03 22:34: Subidos 249 · Descargados 0 · Al día 43 · Errores 0** (biblioteca 106 MB tras excluir copias espejo, PR #411). Pendiente: confirmar los archivos en `drive.google.com`, un segundo pase (debe quedar todo "al día"), reboot/background y Dropbox sin regresión
+- [ ] Fase 5 — tests + validación en hardware real (RG556), Dropbox sigue intacto — **primer pase real con Drive 2026-10-03 22:34: Subidos 249 · Descargados 0 · Al día 43 · Errores 0** (biblioteca 106 MB tras excluir copias espejo, PR #411). **Lado PC verificado**: el remote `gdrive` ve la `RetroSync` de la app (189 saves + 60 states, 105,7 MiB) y `rommgr sync --apply` convergió (↑1 ↓104 =145 err:0). Pendiente: un segundo pase en la consola (debe quedar todo "al día"), reboot/background y Dropbox sin regresión
 
 **Nota 2026-09-29 sobre el Picker (investigado contra la documentación real
 de Google, no asumido)**: la API nativa de Picker vía `play-services-drive`
