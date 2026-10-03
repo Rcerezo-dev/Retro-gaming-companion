@@ -28,6 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.retrovault.android.data.auth.DropboxAuthManager
 import com.retrovault.android.data.auth.GoogleDriveAuthManager
+import com.retrovault.android.sync.RetroArchPaths
+import com.retrovault.android.sync.LocalFileScanner
+import com.retrovault.android.sync.fetchDropboxQuota
+import com.retrovault.android.sync.storageInfo
+import com.retrovault.android.sync.StorageInfo
 import java.io.File
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +81,7 @@ class MainActivity : ComponentActivity() {
     private var restoreDeviceSummary by mutableStateOf<String?>(null)
     private var googleDriveAccountLabel by mutableStateOf<String?>(null)
     private var googleDriveStatus by mutableStateOf<String?>(null)
+    private var storageState by mutableStateOf<StorageInfo?>(null)
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
     private val authManager by lazy { DropboxAuthManager(this, credentialStore) }
@@ -232,6 +238,8 @@ class MainActivity : ComponentActivity() {
                                         googleDriveAccountLabel = googleDriveAccountLabel,
                                         googleDriveStatus = googleDriveStatus,
                                         onTestGoogleDrive = ::testGoogleDrive,
+                                        storageSummary = storageState?.summary,
+                                        storageHint = storageState?.hint,
                                         onConnectGoogleDrive = { googleSignInLauncher.launch(driveAuth.signInIntent()) },
                                         onDisconnectGoogleDrive = {
                                             driveAuth.signOut()
@@ -268,6 +276,21 @@ class MainActivity : ComponentActivity() {
         dropboxAccountLabel = null
         if (isDropboxConnected) {
             lifecycleScope.launch { dropboxAccountLabel = authManager.fetchAccountLabel() }
+        }
+        refreshStorageInfo()
+    }
+
+    /** Tamaño de la biblioteca de saves (saves + states, igual que la pestaña Escaneo) y cuota de Dropbox si hay sesión. */
+    private fun refreshStorageInfo() {
+        lifecycleScope.launch {
+            storageState =
+                withContext(Dispatchers.IO) {
+                    val library =
+                        (LocalFileScanner.scan(File(RetroArchPaths.SAVES)) + LocalFileScanner.scan(File(RetroArchPaths.STATES)))
+                            .sumOf { it.size }
+                    val quota = if (authManager.isSignedIn()) DropboxClientProvider(credentialStore).client()?.let(::fetchDropboxQuota) else null
+                    storageInfo(library, quota?.first, quota?.second)
+                }
         }
     }
 
