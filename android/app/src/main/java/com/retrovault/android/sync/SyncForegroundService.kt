@@ -49,8 +49,14 @@ class SyncForegroundService : Service() {
         observerManager =
             SaveFileObserverManager(
                 roots = listOf(File(RetroArchPaths.SAVES), File(RetroArchPaths.STATES)),
-                onChange = {
-                    scope.launch { SyncOrchestrator.runFullSync(applicationContext, SyncTrigger.INSTANT) }
+                onChange = { changed ->
+                    scope.launch {
+                        // Solo la raíz que cambió (1 listado de Dropbox, no 8).
+                        changed.forEach { root ->
+                            val passScope = if (root.path == RetroArchPaths.STATES) SyncScope.STATES else SyncScope.SAVES
+                            SyncOrchestrator.runFullSync(applicationContext, SyncTrigger.INSTANT, passScope)
+                        }
+                    }
                 },
             ).also { it.start() }
     }
