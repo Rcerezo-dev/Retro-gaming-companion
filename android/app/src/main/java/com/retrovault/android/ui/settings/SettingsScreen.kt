@@ -170,7 +170,7 @@ fun SettingsScreen(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Sync automático (cada 15 min)", style = MaterialTheme.typography.bodyLarge)
+                Text(text = "Sync automático (cada 30 min)", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = autoSyncEnabled, onCheckedChange = onAutoSyncToggle)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
