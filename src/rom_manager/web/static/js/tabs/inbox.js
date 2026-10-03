@@ -212,6 +212,7 @@ async function _launchInbox(inboxPath, targetPath, deleteSource, sendToAnbernic)
   if (btn) { btn.disabled = true; btn.textContent = 'Organizando…'; }
   const resultEl = document.getElementById('inbox-result');
   if (resultEl) { resultEl.className = 'job-result'; resultEl.textContent = ''; }
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Organizar todo'; } };
   try {
     const d = await apiPost('/api/inbox-run', { path: inboxPath, target_root: targetPath, delete_source: deleteSource, send_to_anbernic: sendToAnbernic });
     if (d.status === 'already_running') {
@@ -219,12 +220,12 @@ async function _launchInbox(inboxPath, targetPath, deleteSource, sendToAnbernic)
       window.startPolling();
       return;
     }
-    if (d.error) { showToast('Error: ' + d.error, 'err'); return; }
+    if (d.error) { showToast('Error: ' + d.error, 'err'); resetBtn(); return; }
     showToast('Pipeline Inbox iniciado', 'ok');
     window.startPolling();
   } catch(e) {
     showToast('Error al lanzar: ' + e.message, 'err');
-    if (btn) { btn.disabled = false; btn.textContent = 'Organizar todo'; }
+    resetBtn();
   }
 }
 

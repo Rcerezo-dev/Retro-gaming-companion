@@ -1,11 +1,14 @@
 // js/components/toast.js — Toast notification system
 // Extracted from app.js during Phase 2 migration.
 
+// UI-IA-1r: el CSS solo define ok/err/info/warn; 'error'/'success' llegaban sin color.
+const _TOAST_ALIAS = { error: 'err', success: 'ok' };
+
 function showToast(msg, type = 'ok', duration = 3000) {
   const c = document.getElementById('toast-container');
   if (!c) return;
   const t = document.createElement('div');
-  t.className = 'toast ' + type;
+  t.className = 'toast ' + (_TOAST_ALIAS[type] || type);
   t.textContent = msg;
   c.appendChild(t);
   setTimeout(() => {
