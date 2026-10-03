@@ -117,3 +117,21 @@ class GoogleDriveTransport(
         return item.modifiedMillis
     }
 }
+
+/**
+ * Carpeta raíz `RetroSync/` en Drive. Con `drive.file` la app solo ve lo que ella creó, así que
+ * en vez del Picker (que adopta una carpeta ajena) la crea ella la primera vez: [cachedId] si ya
+ * se guardó, si no una `RetroSync` visible para la app, si no una nueva bajo `root`.
+ *
+ * Consecuencia: si el PC (rclone) ya creó su propia `RetroSync` en Drive, la app no la ve y crearía
+ * una segunda con el mismo nombre — crear primero desde la app (o desde ella adoptar la del PC con
+ * el Picker, no implementado).
+ */
+fun ensureDriveRootFolder(
+    api: DriveApi,
+    cachedId: String?,
+    name: String = "RetroSync",
+): String =
+    cachedId
+        ?: api.listChildren("root").filter { it.isFolder && it.name == name }.maxByOrNull { it.modifiedMillis }?.id
+        ?: api.createFolder("root", name).id
