@@ -17,6 +17,13 @@ import java.util.concurrent.atomic.AtomicInteger
 enum class SyncTrigger { MANUAL, PERIODIC, INSTANT }
 
 /**
+ * Qué raíces recorre un pase. [ALL] = saves + states + NVRAM arcade (8 listados
+ * de Dropbox). El modo Instantáneo pasa solo la raíz que cambió ([SAVES] o
+ * [STATES]: 1 listado) — un autosave de RetroArch ya no dispara los 8.
+ */
+enum class SyncScope { ALL, SAVES, STATES }
+
+/**
  * Un pase completo de sync (saves + states) contra Dropbox, construyendo
  * sus propias dependencias a partir de un [Context]. Punto de entrada
  * compartido entre "Sincronizar ahora" (MainActivity) y [SyncWorker]
@@ -40,6 +47,7 @@ object SyncOrchestrator {
     suspend fun runFullSync(
         context: Context,
         trigger: SyncTrigger,
+        scope: SyncScope = SyncScope.ALL,
     ): SyncResult? {
         _isSyncing.value = activeSyncs.incrementAndGet() > 0
         try {
@@ -50,16 +58,22 @@ object SyncOrchestrator {
             val engine = SyncEngine(DropboxTransport(client), db.syncWatermarkDao())
 
             val savesRemote = settingsRepository.savesRemote.first()
-            val savesResult = engine.sync(File(RetroArchPaths.SAVES), savesRemote)
-            val statesResult = engine.sync(File(RetroArchPaths.STATES), settingsRepository.statesRemote.first())
-            // EMULATOR-COMPAT-5: NVRAM de arcade, un pase por carpeta de
-            // plataforma (mezcladas con las ROMs) contra un subdirectorio propio
-            // de savesRemote — LocalFileScanner ya filtra por SaveExtensions, así
-            // que las ROMs de cada carpeta nunca se suben.
-            val arcadeResult = RetroArchPaths.ARCADE_FOLDERS
-                .map { platform -> engine.sync(File(RetroArchPaths.ROOT, platform), "$savesRemote/$platform") }
-                .fold(SyncResult()) { acc, r -> acc + r }
-            val result = savesResult + statesResult + arcadeResult
+            var result = SyncResult()
+            if (scope != SyncScope.STATES) {
+                result += engine.sync(File(RetroArchPaths.SAVES), savesRemote)
+            }
+            if (scope != SyncScope.SAVES) {
+                result += engine.sync(File(RetroArchPaths.STATES), settingsRepository.statesRemote.first())
+            }
+            if (scope == SyncScope.ALL) {
+                // EMULATOR-COMPAT-5: NVRAM de arcade, un pase por carpeta de
+                // plataforma (mezcladas con las ROMs) contra un subdirectorio propio
+                // de savesRemote — LocalFileScanner ya filtra por SaveExtensions, así
+                // que las ROMs de cada carpeta nunca se suben.
+                RetroArchPaths.ARCADE_FOLDERS.forEach { platform ->
+                    result += engine.sync(File(RetroArchPaths.ROOT, platform), "$savesRemote/$platform")
+                }
+            }
 
             db.syncHistoryDao().insert(
                 SyncHistoryEntity(

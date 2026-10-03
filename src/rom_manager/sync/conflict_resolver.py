@@ -17,6 +17,9 @@ class SyncDecision:
     # lado correspondiente no existe.
     local_size: int | None = None
     remote_size: int | None = None
+    # SAVE-GUARD-2: un lado de 0 bytes frente a otro con contenido. Nunca se
+    # resuelve solo: ni la política ni el mtime pueden decidir entre ellos.
+    suspect: bool = False
 
 
 def decide(

@@ -57,4 +57,14 @@ object ConflictResolver {
         val action = if (diff > 0) SyncAction.UPLOAD else SyncAction.DOWNLOAD
         return SyncDecision(action, relative, localMtimeMillis, remoteMtimeMillis)
     }
+
+    /**
+     * SAVE-GUARD-2 (espejo de `save_syncer.py`): un save de 0 bytes frente a uno
+     * con contenido nunca debe ganar por mtime. Solo 0 vs >0 — sin % de
+     * reducción, los saves de tamaño variable darían falsos positivos.
+     */
+    fun isSuspectEmpty(
+        localSize: Long,
+        remoteSize: Long,
+    ): Boolean = (localSize == 0L) != (remoteSize == 0L)
 }
