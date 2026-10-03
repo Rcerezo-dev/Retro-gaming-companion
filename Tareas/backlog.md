@@ -4248,7 +4248,7 @@ Pilar 3, prioridad alta (pérdida de progreso). Hoy `conflict_policy` decide por
 
 #### Plan de medición ANDROID-BATTERY-1 / SAVE-GUARD-2 Android (próxima sesión con la RG556)
 
-Estado al dejarlo (2026-10-03): en la RG556 está instalado el release firmado de la rama `perf/android-sync-battery` (PR #401: Instantáneo por raíz + throttle 30 s, periódico 30 min + batería no baja) **con la guarda de 0 bytes de SAVE-GUARD-2 (PR #400) solo si se compiló desde una rama que la incluya — verificar `lastUpdateTime` y qué rama se instaló antes de concluir nada**. Dropbox con login hecho. Sin medición previa válida (la reinstalación borró las estadísticas).
+Estado al dejarlo (2026-10-03): en la RG556 está instalado el release firmado de la rama `perf/android-sync-battery` (PR #401: Instantáneo por raíz + throttle 30 s, periódico 30 min + batería no baja) **sin** la guarda de 0 bytes de SAVE-GUARD-2 (PR #400): ese APK se compiló desde `develop`, donde #400 aún no estaba mergeado. La prueba de SAVE-GUARD-2 en Android exige antes un APK de una rama que incluya #400 (y #401). Dropbox con login hecho. Sin medición previa válida (la reinstalación borró las estadísticas).
 
 **Requisitos:** consola **desenchufada** (en USB `batterystats` no atribuye consumo a apps), `adb devices` visible al empezar y al terminar, anotar hora y % de batería de inicio.
 
