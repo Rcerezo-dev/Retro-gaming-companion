@@ -5133,4 +5133,4 @@ Origen: auditoría pedida por el usuario sobre toda la biblioteca (no solo Dream
 
 | ID | Task | Estado |
 |----|------|--------|
-| SYNC-DELTA-REMOTE-1 | Clave de caché por remote + test | 🔴 pendiente |
+| SYNC-DELTA-REMOTE-1 | `DeltaCache.bind_remote()` (llamado desde `sync_saves`) descarta el caché si cambia el remote + `tests/test_delta_cache_remote.py` | ✅ 2026-10-04 (verificado: Drive ya tiene `duckstation/` etc.; `sync` en seco = 479 al día) |
