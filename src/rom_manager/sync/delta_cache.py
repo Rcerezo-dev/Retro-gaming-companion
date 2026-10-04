@@ -34,6 +34,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 _CACHE_FILE = "delta_sync_cache.json"
+_REMOTE_KEY = "__remote__"  # metadato: remote(s) contra los que vale este caché
 _CHUNK = 65536  # 64 KB read chunks for SHA1
 
 
@@ -59,6 +60,18 @@ class DeltaCache:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def bind_remote(self, *remotes: str | None) -> None:
+        """Descarta el caché si se sincronizó antes contra otro remote.
+
+        El hash dice "ya subido" solo para el remote donde se subió; tras cambiar
+        Dropbox→Drive, sin esto los ficheros nunca llegarían al remote nuevo.
+        """
+        key = "|".join(sorted(r for r in remotes if r))
+        if self._data.get(_REMOTE_KEY) == key:
+            return
+        self._data = {_REMOTE_KEY: key}
+        self._flush()
 
     def content_changed(self, relative: str, local_path: Path) -> bool:
         """Return True if the file content differs from the last-synced hash.
