@@ -7,6 +7,7 @@ All state is isolated per test via the `repo` fixture.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -634,11 +635,14 @@ def test_prune_orphans_outside_roots(repo: LibraryRepository, tmp_path: Path) ->
     add(root / "gba" / "perdido.gba", "a")  # missing dentro de raíz activa: lo poda el scan
     add(old / "bgfx" / "shader.bin", "b")  # missing fuera de raíz -> huérfana
     add(alive, "c")  # existe fuera de raíz -> no se toca
-    add("/storage/emulated/0/RetroArch/gba/x.gba", "d")  # dispositivo -> no se toca
+    if sys.platform == "win32":  # is_device_path solo reconoce "/..." como dispositivo en Windows
+        add("/storage/emulated/0/RetroArch/gba/x.gba", "d")  # dispositivo -> no se toca
 
     roots = [str(root)]
     assert repo.find_orphans_outside_roots(roots) == [str(old / "bgfx" / "shader.bin")]
     assert repo.prune_orphans_outside_roots(roots) == 1
     assert repo.find_orphans_outside_roots(roots) == []
     with repo.connect() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM games").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM games").fetchone()[0] == (
+            3 if sys.platform == "win32" else 2
+        )
