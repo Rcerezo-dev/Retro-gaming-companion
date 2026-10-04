@@ -455,3 +455,27 @@ def test_junk_scan_skips_descartados_trees(tmp_path: Path) -> None:
     assert result["total_junk_files"] == 1
     assert result["categories"][0]["category"] == "PDFs"
     assert result["categories"][0]["paths"] == [str(tmp_path / "gba" / "doc.pdf")]
+
+
+# ── JUNK-SAFE-1: saves y ROMs válidas nunca son "safe_delete" ────────────────
+
+
+def test_junk_safe_1_saves_y_roms_validas_no_son_basura(tmp_path):
+    for rel in (
+        "psx/memcards/Crash Bandicoot (USA)_1.mcd",
+        "memcards/Mcd001.ps2",
+        "mastersystem/Bloktris (World).sg",
+        "nes/Samurai Spirits (Japan).unf",
+        "intellivision/u41.int",
+        "_backup_android_cleanup_20260927/DraStic/backup/Pokemon.dsv",
+        "_backup_android_cleanup_20260927/DraStic/backup/basura.xyz",
+    ):
+        f = tmp_path / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"x")
+    (tmp_path / "residuo.xyz").write_bytes(b"x")  # esto sí es basura
+
+    result = _build_junk_scan(str(tmp_path))
+
+    flagged = {f["path"].replace("\\", "/") for c in result["categories"] for f in c["files"]}
+    assert flagged == {"residuo.xyz"}
