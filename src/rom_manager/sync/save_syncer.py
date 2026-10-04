@@ -105,6 +105,9 @@ def sync_saves(
 
     Returns a SyncResult and the full list of decisions (for status display).
     """
+    if delta_cache is not None:
+        delta_cache.bind_remote(saves_remote, states_remote)
+
     result = SyncResult()
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
