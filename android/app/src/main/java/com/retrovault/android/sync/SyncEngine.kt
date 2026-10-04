@@ -39,6 +39,12 @@ data class SyncResult(
 class SyncEngine(
     private val transport: CloudTransport,
     private val watermarkDao: SyncWatermarkDao,
+    /**
+     * Prefijo de la clave de marca de agua: las marcas se guardan por `remoteRoot`, y con dos
+     * proveedores (mismo texto de ruta) la de uno no puede servir de `lastSync` del otro.
+     * Vacío para Dropbox: no invalida las marcas ya guardadas.
+     */
+    private val watermarkNamespace: String = "",
 ) {
     // withContext(IO): listFolderRecursive/upload/download son llamadas de
     // red bloqueantes (el SDK de Dropbox no es suspend-aware) — se despachan
@@ -55,6 +61,7 @@ class SyncEngine(
                 .getOrElse {
                     return@withContext SyncResult(errors = listOf(it.message ?: "listFolderRecursive failed"))
                 }
+                .filterNot { SyncExclusions.isExcluded(it.relative) }
                 .associateBy { it.relative }
 
         var uploaded = 0
@@ -66,7 +73,7 @@ class SyncEngine(
         for (relative in localByRelative.keys + remoteByRelative.keys) {
             val local = localByRelative[relative]
             val remote = remoteByRelative[relative]
-            val lastSync = watermarkDao.getLastSync(relative, remoteRoot)
+            val lastSync = watermarkDao.getLastSync(relative, watermarkNamespace + remoteRoot)
 
             val decision =
                 ConflictResolver.decide(
@@ -181,6 +188,6 @@ class SyncEngine(
         relative: String,
         remoteRoot: String,
     ) {
-        watermarkDao.upsert(SyncWatermarkEntity(relative, remoteRoot, System.currentTimeMillis()))
+        watermarkDao.upsert(SyncWatermarkEntity(relative, watermarkNamespace + remoteRoot, System.currentTimeMillis()))
     }
 }
