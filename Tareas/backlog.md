@@ -5122,3 +5122,15 @@ Origen: auditoría pedida por el usuario sobre toda la biblioteca (no solo Dream
 
 **Segunda ronda, mismo día**: tras el fix, se relanzó el rescan ADB real contra el servidor web ya corriendo (`POST /api/adb-scan`, igual que haría la UI) para `dreamcast/` (85 ROMs, 0 podados — confirma que el `.gdi` real de Sonic Adventure ya estaba limpio en BD) y `psx/` (1432 ROMs, 57 filas obsoletas podadas, incluidas las 3 borradas arriba). Se verificaron por hash RA real los 2 casos `(Virtual Console)` de PSX que quedaban sin comprobar: **ambos resultaron ser el mismo patrón de mal etiquetado que `Magical Drop III`**, no relanzamientos reales — `Metal Slug X (USA) (NG) (Virtual Console).chd` hashea exacto igual (`c40bd37eaa2b2cc2f037a8d0318bcc26`) que `Metal Slug X (Europe).chd`; `Street Fighter Alpha 2 (Europe) (Virtual Console) (New 3DS).chd` hashea exacto igual (`079d330187f5770b109e58840479424e`) que `(USA).chd` y que `(Europe) (Track 1).bin`. Las 3 copias `(NG) (Virtual Console)` de este lote PSX concreto resultaron ser mal etiquetado, 0 de 3 relanzamientos genuinos — borradas las 2 restantes en Android (confirmación explícita del usuario), filas limpiadas igual que las anteriores.
 
+
+---
+
+### SYNC-DELTA-REMOTE-1 — la caché delta ignora el remote: tras Dropbox→Drive, 229 saves del PC nunca suben a Drive (hallazgo 2026-10-04)
+
+**Síntoma**: `rommgr sync --apply` dice `↑0 … Δ:229` y `gdrive:/RetroSync/saves/` no tiene `duckstation/` (ni los 205 saves de RetroArch/6 PSX/6 GC/10 Wii del PC).
+**Causa raíz**: `DeltaCache` (`sync/delta_cache.py:63`, `content_changed`) guarda el hash por `relative` sin el remote. `save_syncer.py:202-209` salta el upload si el hash coincide con el de la última sync — que fue contra `dropbox:`. Al cambiar `remote =` a `gdrive:/` esos ficheros parecen "ya sincronizados" y no se suben. Instanciada en `cli.py:646,1059,1719` y `web/handlers/sync_cloud.py:427,521`.
+**Arreglo propuesto** (rama propia): incluir el remote en la clave de la caché, o invalidar `delta_sync_cache.json` al cambiar de remote. Workaround inmediato: borrar `<data_dir>/delta_sync_cache.json` y volver a `sync --apply`.
+
+| ID | Task | Estado |
+|----|------|--------|
+| SYNC-DELTA-REMOTE-1 | `DeltaCache.bind_remote()` (llamado desde `sync_saves`) descarta el caché si cambia el remote + `tests/test_delta_cache_remote.py` | ✅ 2026-10-04 (verificado: Drive ya tiene `duckstation/` etc.; `sync` en seco = 479 al día) |
