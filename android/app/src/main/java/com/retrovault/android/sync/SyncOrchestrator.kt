@@ -1,8 +1,6 @@
 package com.retrovault.android.sync
 
 import android.content.Context
-import com.retrovault.android.data.auth.DropboxClientProvider
-import com.retrovault.android.data.auth.DropboxCredentialStore
 import com.retrovault.android.data.db.AppDatabase
 import com.retrovault.android.data.db.SyncHistoryEntity
 import com.retrovault.android.data.prefs.SettingsRepository
@@ -52,10 +50,12 @@ object SyncOrchestrator {
         _isSyncing.value = activeSyncs.incrementAndGet() > 0
         try {
             val appContext = context.applicationContext
-            val client = DropboxClientProvider(DropboxCredentialStore(appContext)).client() ?: return null
             val settingsRepository = SettingsRepository(appContext)
             val db = AppDatabase.getInstance(appContext)
-            val engine = SyncEngine(DropboxTransport(client), db.syncWatermarkDao())
+            val provider = settingsRepository.syncProvider.first()
+            val transport = CloudProviderFactory.create(appContext, provider) ?: return null
+            val namespace = if (provider == SettingsRepository.PROVIDER_GDRIVE) "gdrive:" else ""
+            val engine = SyncEngine(transport, db.syncWatermarkDao(), namespace)
 
             val savesRemote = settingsRepository.savesRemote.first()
             var result = SyncResult()

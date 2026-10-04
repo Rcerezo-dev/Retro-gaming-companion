@@ -69,4 +69,25 @@ class LocalFileScannerTest {
             parent.deleteRecursively()
         }
     }
+
+    @Test
+    fun `scan skips mirror copies and sync leftovers at the top level`() {
+        val root = Files.createTempDirectory("scanner-test-3").toFile()
+        try {
+            File(root, "snes").mkdirs()
+            File(root, "snes/Real.srm").writeText("save")
+            File(root, "retroarch/saves/snes").mkdirs()
+            File(root, "retroarch/saves/snes/Mirror.srm").writeText("copia espejo")
+            File(root, "RetroSync/saves").mkdirs()
+            File(root, "RetroSync/saves/Mirror2.srm").writeText("otra copia")
+            File(root, ".stversions").mkdirs()
+            File(root, ".stversions/Old.srm").writeText("syncthing")
+
+            val relatives = LocalFileScanner.scan(root).map { it.relative }
+
+            assertEquals(listOf("snes/Real.srm"), relatives)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
 }
