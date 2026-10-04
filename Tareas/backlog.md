@@ -127,6 +127,21 @@ documentado en `.claude/roadmaps/INDEX.md`.
 
 ---
 
+## Verificaciones pendientes con la RG556 conectada
+
+Todo lo que se pospuso por no tener la consola enchufada (acumulado 2026-10-04, roadmap 33). Hacerlas en una sola sesión con `toolsdb.exe devices` mostrando el dispositivo.
+
+| ID | Verificación | Origen | Estado |
+|----|--------------|--------|--------|
+| HW-1 | **83 grupos `crossfmt` de PSX (~4,5 GB)**: repetir la verificación por hash con `verify_group_by_disc_hash` (botón de duplicados o script; baja cada disco por ADB) y aplicar solo lo verificado. Decidir a mano los `.img`/`.mdf` que `compute_psx_ra_hash` no soporta | Día71, pendiente 1-2 | ⬜ |
+| HW-2 | **Arcade `.nv` en Android** (`SAVES-FRAGMENT-3`/`EMULATOR-COMPAT-5`): con Dropbox/Drive vinculado en la app y "Sincronizar ahora", comprobar que suben los `.nv` de `mame/cps1/cps2` (`RetroArchPaths.ARCADE_FOLDERS`); revisar los ~40 `.nv` de `saves/Unknown/` | Decisión 2026-10-04 | ⬜ |
+| HW-3 | **Redirigir standalones a ruta pública** (`SAVES-FRAGMENT-5`): DuckStation → Memory Cards → Directory, ARMSX2 y melonDS; checklist en `docs/emulador-canonico-rg556.md:497`. Dolphin standalone queda fuera (`SAVES-FRAGMENT-4`) | Decisión 2026-10-04 | ⬜ |
+| HW-4 | **SAVE-GUARD-2 en Android**: `.sav` de 0 bytes con mtime posterior sobre un juego de prueba; el save bueno del remoto debe quedar intacto y contarse 1 conflicto (APK de `develop`) | Roadmap 32, Fase 0 | ⬜ |
+| HW-5 | **ANDROID-BATTERY-1**: medir tramos A/B con la consola desenchufada varias horas (criterio: app < ~2-3 % de batería) | Roadmap 32, Fase 0 | ⬜ |
+| HW-6 | **Filas fantasma en `library_android.db`** (2 discos españoles de MGS): rescan ADB completo | Día71, pendiente 5 | ⬜ |
+
+---
+
 ## Debug Playbook
 
 Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
