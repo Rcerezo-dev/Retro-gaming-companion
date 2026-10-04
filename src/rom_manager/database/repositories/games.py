@@ -430,6 +430,40 @@ class GamesMixin:
                 conn.execute("DELETE FROM assets WHERE source_path = ?", (p,))
         return total
 
+    def find_orphans_outside_roots(self, roots: list[str]) -> list[str]:
+        """HEALTH-CHECK-1b: rutas de ``games`` cuyo archivo ya no existe y que quedan
+        fuera de todas las *roots* activas.
+
+        ``prune_stale_entries`` solo poda bajo la raíz que acaba de escanear, así
+        que las filas de raíces abandonadas (unidad ``E:`` entera -> ``E:/RetroVault/ROMS``)
+        sobrevivían para siempre y el Health Check las contaba como "faltantes".
+        Solo cuenta si la unidad sigue montada (un disco desconectado no es
+        "archivo borrado") y nunca toca rutas de dispositivo (Android).
+        """
+        prefixes = [r.rstrip("/\\").lower() for r in roots if r]
+        orphans = []
+        with self.connect() as conn:
+            paths = [r[0] for r in conn.execute("SELECT source_path FROM games").fetchall()]
+        for p in paths:
+            if is_device_path(p) or os.path.exists(p):
+                continue
+            low = p.lower()
+            if any(low == r or low.startswith((r + os.sep, r + "/")) for r in prefixes):
+                continue  # dentro de una raíz activa: lo gestiona el scan normal
+            anchor = Path(p).anchor
+            if anchor and os.path.exists(anchor):
+                orphans.append(p)
+        return orphans
+
+    def prune_orphans_outside_roots(self, roots: list[str]) -> int:
+        """Borra de la BD (nunca del disco) las filas de ``find_orphans_outside_roots``."""
+        orphans = self.find_orphans_outside_roots(roots)
+        if orphans:
+            with self.batch() as conn:
+                for p in orphans:
+                    cascade_delete_games_by_source_path(conn, p)
+        return len(orphans)
+
     def delete_game(self, game_id: int) -> None:
         """Remove a game record and its metadata/tags/operation history (file must be deleted from disk first)."""
         with self.connect() as connection:
@@ -454,11 +488,13 @@ class GamesMixin:
         with self.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, original_filename, canonical_title, platform,
-                       play_status, user_rating, last_played_at
-                FROM games
-                WHERE file_type = 'rom'
-                  AND (play_status IS NULL OR play_status NOT IN ('completed', '100pct'))
+                SELECT g.id, g.original_filename, g.canonical_title, g.platform,
+                       g.play_status, g.user_rating, g.last_played_at,
+                       gm.genre, gm.year
+                FROM games g
+                LEFT JOIN game_metadata gm ON gm.game_id = g.id
+                WHERE g.file_type = 'rom'
+                  AND (g.play_status IS NULL OR g.play_status NOT IN ('completed', '100pct'))
                 """
             ).fetchall()
         return [dict(r) for r in rows]

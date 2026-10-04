@@ -254,6 +254,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show a Windows desktop toast notification when done.",
     )
+    health_parser.add_argument(
+        "--prune-orphans",
+        action="store_true",
+        help=(
+            "List DB rows whose file is gone and that lie outside every active scan "
+            "root (stale roots, HEALTH-CHECK-1b). Dry run unless --apply; never "
+            "touches files."
+        ),
+    )
+    health_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="With --prune-orphans: actually delete those rows from the database.",
+    )
 
     organize_source_parser = subparsers.add_parser(
         "organize-source",
@@ -1115,6 +1129,23 @@ def main(argv: list[str] | None = None) -> int:
             notify("Retro Vault — Sync completado", body)
 
         return 1 if any_error else 0
+
+    if args.command == "health" and args.prune_orphans:
+        from datetime import UTC, datetime, timedelta
+
+        # Raíces activas: la biblioteca + las escaneadas en los últimos 30 días
+        _cutoff = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+        roots = [str(config.library_root)] if config.library_root else []
+        roots += [r for r, at in repository.get_last_scan_by_root().items() if at and at >= _cutoff]
+        orphans = repository.find_orphans_outside_roots(roots)
+        for p in orphans:
+            print(f"  [HUERFANA]  {p}")
+        print(f"\n{len(orphans)} filas fuera de las raíces activas ({', '.join(roots)})")
+        if args.apply:
+            print(f"Borradas {repository.prune_orphans_outside_roots(roots)} filas de la BD.")
+        else:
+            print("DRY RUN — usa --apply para borrarlas de la BD (los archivos no se tocan).")
+        return 0
 
     if args.command == "health":
         from rom_manager.utils.health_checker import check_library_health

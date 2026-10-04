@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -622,7 +623,10 @@ def _do_cable_sync(
                 ):
                     backup_save(item.dst, _bk_root)
                 policy = cable_engine.CopyPolicy(
-                    dry_run=dry_run, safe_mode=safe_mode, skip_existing=skip_existing
+                    dry_run=dry_run,
+                    safe_mode=safe_mode,
+                    skip_existing=skip_existing,
+                    compare_content=_category(item.src) == "save",
                 )
                 tag, size = cable_engine.copy_item(item, policy, on_event=_on_event)
                 if tag in ("COPY", "DRYRUN"):
@@ -791,16 +795,29 @@ def _do_cable_sync(
                 for _rel, _info in ab_index.items():
                     ab_by_name.setdefault(PurePosixPath(_rel).name, []).append(_info)
 
-                def _skip_existing_device(rel_posix: str, local_size: int) -> bool:
+                def _md5_of(path: Path) -> str:
+                    return hashlib.md5(path.read_bytes()).hexdigest()
+
+                def _skip_existing_device(
+                    rel_posix: str, local_size: int, local_path: Path | None = None
+                ) -> bool:
                     if not skip_existing:
                         return False
-                    ab_inf = ab_index.get(rel_posix)
-                    if ab_inf is not None and ab_inf.size == local_size:
-                        return True
-                    return any(
-                        cand.size == local_size
-                        for cand in ab_by_name.get(PurePosixPath(rel_posix).name, ())
+                    exact = ab_index.get(rel_posix)
+                    cands = ([exact] if exact is not None else []) + list(
+                        ab_by_name.get(PurePosixPath(rel_posix).name, ())
                     )
+                    cands = [c for c in cands if c.size == local_size]
+                    # SYNC-SAFE-1b: en un save (tamano fijo) "mismo tamano" no prueba
+                    # "mismo contenido" -- solo se salta si el MD5 del dispositivo
+                    # coincide; sin poder comprobarlo, se transfiere (con backup).
+                    if local_path is None or _category(local_path) != "save":
+                        return bool(cands)
+                    try:
+                        local_md5 = _md5_of(local_path)
+                        return any(transport.md5(c.android_path) == local_md5 for c in cands)
+                    except OSError:
+                        return False
 
                 _pc_by_name_cache: dict[str, list[Path]] | None = None
 
@@ -813,23 +830,28 @@ def _do_cable_sync(
                                 _pc_by_name_cache.setdefault(_f.name, []).append(_f)
                     return _pc_by_name_cache
 
-                def _skip_existing_pc(rel_posix: str, remote_size: int) -> bool:
+                def _skip_existing_pc(
+                    rel_posix: str, remote_size: int, remote_path: str | None = None
+                ) -> bool:
                     if not skip_existing:
                         return False
+                    cands: list[Path] = []
                     pc_f = pc_root / Path(rel_posix.replace("/", os.sep))
-                    try:
-                        if pc_f.stat().st_size == remote_size:
-                            return True
-                    except OSError:
-                        pass
                     name = PurePosixPath(rel_posix).name
-                    for cand in _pc_by_name().get(name, ()):
+                    for cand in [pc_f, *_pc_by_name().get(name, ())]:
                         try:
                             if cand.stat().st_size == remote_size:
-                                return True
+                                cands.append(cand)
                         except OSError:
                             continue
-                    return False
+                    # SYNC-SAFE-1b: ver _skip_existing_device -- en saves, mismo MD5.
+                    if remote_path is None or _category(Path(name)) != "save":
+                        return bool(cands)
+                    try:
+                        remote_md5 = transport.md5(remote_path)
+                        return any(_md5_of(c) == remote_md5 for c in cands)
+                    except OSError:
+                        return False
 
                 if direction == "pc_to_anbernic":
                     if not dry_run:
@@ -903,7 +925,7 @@ def _do_cable_sync(
                             local_size = src.stat().st_size
                         except OSError:
                             local_size = -1
-                        if _skip_existing_device(rel_posix, local_size):
+                        if _skip_existing_device(rel_posix, local_size, src):
                             skipped += 1
                             _log("SKIP", str(src), "", "mismo tamaño ya en el dispositivo")
                             if len(details) < 300:
@@ -1004,7 +1026,7 @@ def _do_cable_sync(
                                 errors += 1
                                 if len(details) < 300:
                                     details.append({"file": f"ERROR: {exc}", "path": name})
-                        elif _skip_existing_pc(rel_posix, info.size):
+                        elif _skip_existing_pc(rel_posix, info.size, info.android_path):
                             skipped += 1
                             _log("SKIP", info.android_path, "", "mismo tamaño ya en el PC")
                             if len(details) < 300:

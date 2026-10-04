@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -64,6 +65,16 @@ fun SettingsScreen(
     onAutoSyncToggle: (Boolean) -> Unit,
     onInstantSyncToggle: (Boolean) -> Unit = {},
     onRestoreDevice: () -> Unit = {},
+    isGoogleDriveConfigured: Boolean = false,
+    googleDriveAccountLabel: String? = null,
+    googleDriveStatus: String? = null,
+    onConnectGoogleDrive: () -> Unit = {},
+    onDisconnectGoogleDrive: () -> Unit = {},
+    onTestGoogleDrive: () -> Unit = {},
+    storageSummary: String? = null,
+    storageHint: String? = null,
+    syncProvider: String = "dropbox",
+    onSyncProviderChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var savesField by remember(savesRemote) { mutableStateOf(savesRemote) }
@@ -96,6 +107,41 @@ fun SettingsScreen(
             }
         }
 
+        storageSummary?.let {
+            Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        storageHint?.let {
+            Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        }
+
+        // ANDROID-DRIVE-1 Fase 4: con qué nube sincroniza la app (cada una con su propia sesión).
+        Text(text = "Proveedor de sync", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = syncProvider == "dropbox", onClick = { onSyncProviderChange("dropbox") }, label = { Text("Dropbox") })
+            FilterChip(selected = syncProvider == "gdrive", onClick = { onSyncProviderChange("gdrive") }, label = { Text("Google Drive") })
+        }
+
+        // ANDROID-DRIVE-1: sesión de Drive (la app crea y usa su propia carpeta RetroSync, ver roadmap 28).
+        if (isGoogleDriveConfigured) {
+            Text(text = "Google Drive", style = MaterialTheme.typography.titleMedium)
+            if (googleDriveAccountLabel != null) {
+                StatusBadge(text = "Conectado", tone = StatusTone.Success)
+                Text(text = googleDriveAccountLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onTestGoogleDrive) { Text("Probar Google Drive") }
+                OutlinedButton(onClick = onDisconnectGoogleDrive) { Text("Desconectar Google Drive") }
+            } else {
+                Button(onClick = onConnectGoogleDrive) { Text("Conectar Google Drive") }
+            }
+            googleDriveStatus?.let {
+                val ok = it.startsWith("Drive OK") || it.startsWith("Probando")
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (ok) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+
         OutlinedTextField(
             value = savesField,
             onValueChange = { savesField = it },
@@ -124,7 +170,7 @@ fun SettingsScreen(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Sync automático (cada 15 min)", style = MaterialTheme.typography.bodyLarge)
+                Text(text = "Sync automático (cada 30 min)", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = autoSyncEnabled, onCheckedChange = onAutoSyncToggle)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,6 +225,15 @@ private fun SyncHistoryRow(event: SyncHistoryEntity) {
             )
         }
         Text(text = event.summary(), style = MaterialTheme.typography.bodyMedium)
+        // ANDROID-SYNC: el detalle de los errores vivía solo en la BD privada de la
+        // app (inaccesible sin root) — sin esto un "Errores: 425" no se podía diagnosticar.
+        event.errorsText?.let {
+            Text(
+                text = it.take(500),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 

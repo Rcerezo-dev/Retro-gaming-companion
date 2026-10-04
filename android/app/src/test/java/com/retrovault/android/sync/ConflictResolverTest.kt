@@ -79,4 +79,16 @@ class ConflictResolverTest {
         assertEquals(10_000L, decision.remoteMtimeMillis)
         assertEquals("x.sav", decision.relative)
     }
+
+    @Test
+    fun `zero bytes against content is suspect in both directions`() {
+        assertEquals(true, ConflictResolver.isSuspectEmpty(0L, 512L))
+        assertEquals(true, ConflictResolver.isSuspectEmpty(512L, 0L))
+    }
+
+    @Test
+    fun `two empty or two non-empty saves are not suspect`() {
+        assertEquals(false, ConflictResolver.isSuspectEmpty(0L, 0L))
+        assertEquals(false, ConflictResolver.isSuspectEmpty(8L, 512L))
+    }
 }

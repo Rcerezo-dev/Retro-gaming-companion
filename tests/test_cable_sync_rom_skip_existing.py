@@ -6,6 +6,7 @@ espacio libre antes de escribir al dispositivo.
 
 from __future__ import annotations
 
+import hashlib
 import time
 from types import SimpleNamespace
 
@@ -15,6 +16,8 @@ import rom_manager.web.state as _state
 from rom_manager.sync.adb_transport import AdbFileInfo, AdbTransport
 from rom_manager.web.handlers.sync_cable import register_cable
 from rom_manager.web.router import Router
+
+_SAME_MD5 = hashlib.md5(b"x" * 1024).hexdigest()
 
 
 def _config(tmp_path):
@@ -172,6 +175,8 @@ def test_pc_to_anbernic_skips_file_under_different_device_prefix_same_name_and_s
         ],
     )
 
+    monkeypatch.setattr(AdbTransport, "md5", lambda self, *a, **k: _SAME_MD5)
+
     def _boom_push(self, *a, **k):
         raise AssertionError("ya existe en el dispositivo bajo otro prefijo, no debe re-subirse")
 
@@ -204,6 +209,8 @@ def test_anbernic_to_pc_skips_file_under_different_device_prefix_same_name_and_s
             )
         ],
     )
+
+    monkeypatch.setattr(AdbTransport, "md5", lambda self, *a, **k: _SAME_MD5)
 
     def _boom_pull(self, *a, **k):
         raise AssertionError("ya existe en el PC bajo otro prefijo, no debe re-descargarse")
@@ -313,3 +320,30 @@ def test_dry_run_does_not_trigger_space_guard(tmp_path, monkeypatch):
     res = _run_sync(tmp_path, {"direction": "pc_to_anbernic", "dry_run": True})
     assert "error" not in (res or {})
     assert res["copied"] == 1
+
+
+@pytest.mark.parametrize("direction", ["pc_to_anbernic", "anbernic_to_pc"])
+def test_same_size_save_with_different_content_is_not_skipped(tmp_path, monkeypatch, direction):
+    """SYNC-SAFE-1b: un .sav/.srm tiene tamaño fijo -- "mismo tamaño" no prueba
+    "mismo contenido"; si el MD5 del dispositivo difiere, se transfiere."""
+    (tmp_path / "pc" / "gba").mkdir(parents=True)
+    (tmp_path / "pc" / "gba" / "mario.sav").write_bytes(b"x" * 1024)
+    monkeypatch.setattr(
+        AdbTransport,
+        "ls_recursive",
+        lambda self, *a, **k: [
+            AdbFileInfo(
+                android_path="/storage/emulated/0/Roms/gba/mario.sav",
+                size=1024,
+                mtime=time.time(),
+            )
+        ],
+    )
+    monkeypatch.setattr(AdbTransport, "md5", lambda self, *a, **k: "0" * 32)
+
+    res = _run_sync(
+        tmp_path,
+        {"direction": direction, "skip_existing": True, "dry_run": True, "what": ["saves"]},
+    )
+    assert res["copied"] == 1
+    assert res["skipped"] == 0

@@ -580,3 +580,95 @@ def test_sync_single_file_dry_run_does_not_call_transport(tmp_path: Path) -> Non
     assert result.uploaded == 1
     transport.upload.assert_not_called()
     transport.download.assert_not_called()
+
+
+def _suspect_setup(tmp_path: Path, *, local_size: int, remote_size: int, local_newer: bool):
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    save = saves_dir / "tetris.sav"
+    save.write_bytes(b"" * local_size)
+    _set_mtime(save, _NOW + timedelta(seconds=300 if local_newer else 100))
+    entry = RemoteEntry(
+        relative="tetris.sav", mtime=_NOW + timedelta(seconds=200), size=remote_size
+    )
+    return saves_dir, _mock_transport([entry]), LibraryRepository(tmp_path / "t.db")
+
+
+def test_empty_local_newer_than_good_remote_is_not_uploaded(tmp_path: Path) -> None:
+    """SAVE-GUARD-2: 0-byte local with a newer mtime must not overwrite the remote."""
+    saves_dir, transport, repo = _suspect_setup(
+        tmp_path, local_size=0, remote_size=512, local_newer=True
+    )
+
+    result, decisions = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="newest",
+    )
+
+    assert result.conflicts == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()
+    assert decisions[0].suspect and decisions[0].action == "conflict"
+
+
+def test_empty_remote_newer_than_good_local_is_not_downloaded(tmp_path: Path) -> None:
+    saves_dir, transport, repo = _suspect_setup(
+        tmp_path, local_size=512, remote_size=0, local_newer=False
+    )
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="newest",
+    )
+
+    assert result.conflicts == 1
+    transport.upload.assert_not_called()
+    transport.download.assert_not_called()
+
+
+def test_suspect_with_explicit_override_follows_the_user_choice(tmp_path: Path) -> None:
+    saves_dir, transport, repo = _suspect_setup(
+        tmp_path, local_size=0, remote_size=512, local_newer=True
+    )
+
+    sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=repo,
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+        conflict_policy="newest",
+        conflict_overrides={"tetris.sav": "keep_remote"},
+    )
+
+    transport.download.assert_called_once()
+    transport.upload.assert_not_called()
+
+
+def test_empty_local_without_remote_is_still_uploaded(tmp_path: Path) -> None:
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    (saves_dir / "tetris.sav").write_bytes(b"")
+    transport = _mock_transport([])
+
+    result, _ = sync_saves(
+        saves_dir,
+        "dropbox:/saves",
+        transport=transport,
+        repository=LibraryRepository(tmp_path / "t.db"),
+        save_extensions=_SAVE_EXTS,
+        dry_run=False,
+    )
+
+    assert result.uploaded == 1

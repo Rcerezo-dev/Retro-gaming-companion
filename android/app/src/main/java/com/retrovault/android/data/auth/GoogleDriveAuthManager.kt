@@ -36,6 +36,10 @@ class GoogleDriveAuthManager(
 ) {
     private val appContext = context.applicationContext
 
+    /** Motivo del último fallo de [handleSignInResult] (p. ej. "código 10" = DEVELOPER_ERROR: SHA-1/paquete no coinciden), o `null`. */
+    var lastError: String? = null
+        private set
+
     fun isClientIdConfigured(): Boolean = BuildConfig.GDRIVE_CLIENT_ID.isNotBlank()
 
     private fun signInClient(): GoogleSignInClient {
@@ -54,7 +58,11 @@ class GoogleDriveAuthManager(
     /** Llamar desde el callback del `ActivityResultLauncher` que lanzó [signInIntent]. */
     fun handleSignInResult(data: Intent?): GoogleSignInAccount? {
         val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-        val account = runCatching { task.getResult(ApiException::class.java) }.getOrNull() ?: return null
+        lastError = null
+        val account =
+            runCatching { task.getResult(ApiException::class.java) }
+                .onFailure { lastError = (it as? ApiException)?.let { e -> "código ${e.statusCode}" } ?: it.message }
+                .getOrNull() ?: return null
         val email = account.email ?: return null
         credentialStore.saveAccountEmail(email)
         return account

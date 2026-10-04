@@ -597,6 +597,46 @@ def register(
             }
         )
 
+    # ── GET /api/recommend ───────────────────────────────────────────────────
+    @router.get("/api/recommend")
+    def get_recommend(ctx) -> None:
+        """SAGE-4 (propuesta A): ``?genres=RPG,Puzzle&era=90s&platform=SNES&limit=5``."""
+        from rom_manager.services.recommend_service import smart_filter
+
+        qs = getattr(ctx, "_qs", {})
+
+        def _one(key: str) -> str | None:
+            return qs.get(key, [None])[0] or None
+
+        genres = tuple(g.strip() for g in (_one("genres") or "").split(",") if g.strip())
+        try:
+            limit = max(1, min(int(_one("limit") or 5), 50))
+        except ValueError:
+            limit = 5
+        repo = get_repo_fn(_one("root") or "")
+        top = smart_filter(
+            repo.get_recommendation_candidates(),
+            genres=genres,
+            era=_one("era"),
+            platform=_one("platform"),
+            limit=limit,
+        )
+        ctx._send_json(
+            {
+                "items": [
+                    {
+                        "id": g["id"],
+                        "title": g["canonical_title"] or g["original_filename"],
+                        "platform": g["platform"],
+                        "genre": g.get("genre"),
+                        "year": g.get("year"),
+                        "score": g["score"],
+                    }
+                    for g in top
+                ]
+            }
+        )
+
     # ── POST /api/set-metadata ───────────────────────────────────────────────
     @router.post("/api/set-metadata")
     def post_set_metadata(ctx) -> None:

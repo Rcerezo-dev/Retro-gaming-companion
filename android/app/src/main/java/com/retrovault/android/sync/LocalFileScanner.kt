@@ -39,6 +39,7 @@ object LocalFileScanner {
                     size = file.length(),
                 )
             }
+            .filterNot { SyncExclusions.isExcluded(it.relative) }
             .toList()
     }
 }

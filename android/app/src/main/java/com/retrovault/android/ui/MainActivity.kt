@@ -27,6 +27,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.retrovault.android.data.auth.DropboxAuthManager
+import com.retrovault.android.data.auth.GoogleDriveAuthManager
+import com.retrovault.android.sync.RetroArchPaths
+import com.retrovault.android.sync.LocalFileScanner
+import com.retrovault.android.sync.fetchDropboxQuota
+import com.retrovault.android.sync.storageInfo
+import com.retrovault.android.sync.StorageInfo
+import java.io.File
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.activity.result.IntentSenderRequest
+import com.retrovault.android.sync.ensureDriveRootFolder
+import com.retrovault.android.sync.GoogleDriveTransport
+import com.retrovault.android.sync.DriveRestApi
+import com.retrovault.android.data.auth.GoogleDriveTokenProvider
+import com.retrovault.android.data.auth.GoogleDriveCredentialStore
 import com.retrovault.android.data.auth.DropboxClientProvider
 import com.retrovault.android.data.auth.DropboxCredentialStore
 import com.retrovault.android.data.db.AppDatabase
@@ -64,9 +79,13 @@ class MainActivity : ComponentActivity() {
     private var lastSyncSummary by mutableStateOf<String?>(null)
     private var isRestoringDevice by mutableStateOf(false)
     private var restoreDeviceSummary by mutableStateOf<String?>(null)
+    private var googleDriveAccountLabel by mutableStateOf<String?>(null)
+    private var googleDriveStatus by mutableStateOf<String?>(null)
+    private var storageState by mutableStateOf<StorageInfo?>(null)
 
     private val credentialStore by lazy { DropboxCredentialStore(this) }
     private val authManager by lazy { DropboxAuthManager(this, credentialStore) }
+    private val driveAuth by lazy { GoogleDriveAuthManager(this) }
     private val settingsRepository by lazy { SettingsRepository(this) }
     private val syncHistoryDao by lazy { AppDatabase.getInstance(this).syncHistoryDao() }
     private val syncWatermarkDao by lazy { AppDatabase.getInstance(this).syncWatermarkDao() }
@@ -81,6 +100,60 @@ class MainActivity : ComponentActivity() {
             refreshPermissionState()
         }
 
+    private val googleSignInLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val account = driveAuth.handleSignInResult(result.data)
+            googleDriveAccountLabel = account?.email
+            googleDriveStatus =
+                if (account == null) "Login de Google fallido o cancelado (${driveAuth.lastError ?: "sin detalle"})" else null
+            if (account != null) requestDriveConsentIfNeeded()
+        }
+
+    private val driveConsentLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+            googleDriveStatus = "Permiso de Drive concedido: pulsa \"Probar Google Drive\""
+        }
+
+    /** Si Google aún pide pantalla de consentimiento para `drive.file`, la lanza (en segundo plano no se puede). */
+    private fun requestDriveConsentIfNeeded() {
+        lifecycleScope.launch {
+            runCatching { withContext(Dispatchers.IO) { GoogleDriveTokenProvider(this@MainActivity).authorize() } }
+                .onSuccess { r ->
+                    val pending = r.pendingIntent
+                    if (r.hasResolution() && pending != null) {
+                        driveConsentLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+                    }
+                }
+                .onFailure { googleDriveStatus = "Autorización de Drive falló: ${it.message}" }
+        }
+    }
+
+    /** Prueba de extremo a extremo: token, carpeta RetroSync, subida y listado de un archivo de prueba. */
+    private fun testGoogleDrive() {
+        googleDriveStatus = "Probando Drive…"
+        lifecycleScope.launch {
+            googleDriveStatus =
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val tokens = GoogleDriveTokenProvider(this@MainActivity)
+                        val api = DriveRestApi { tokens.accessToken() }
+                        val store = GoogleDriveCredentialStore(this@MainActivity)
+                        val rootId = ensureDriveRootFolder(api, store.folderId()).also { store.saveFolderId(it) }
+                        val transport = GoogleDriveTransport(api, rootId)
+                        val tmp = File.createTempFile("retrovault-test", ".txt", cacheDir)
+                        try {
+                            tmp.writeText("retrovault drive test")
+                            transport.upload(tmp, "/RetroSync/_test", "retrovault-test.txt", System.currentTimeMillis())
+                        } finally {
+                            tmp.delete()
+                        }
+                        val n = transport.listFolderRecursive("/RetroSync/_test").size
+                        "Drive OK: carpeta RetroSync lista y $n archivo(s) de prueba en RetroSync/_test"
+                    }.getOrElse { "Drive falló: ${it.message}" }
+                }
+        }
+    }
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             refreshPermissionState()
@@ -91,6 +164,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         refreshPermissionState()
         refreshDropboxState()
+        googleDriveAccountLabel = driveAuth.fetchAccountLabel()
         lifecycleScope.launch {
             // El servicio no sobrevive un force-stop del usuario (solo un
             // reboot, cubierto por BootRestartReceiver) — si Instantáneo
@@ -130,6 +204,8 @@ class MainActivity : ComponentActivity() {
                                         .collectAsState(initial = SettingsRepository.DEFAULT_SAVES_REMOTE)
                                     val statesRemote by settingsRepository.statesRemote
                                         .collectAsState(initial = SettingsRepository.DEFAULT_STATES_REMOTE)
+                                    val syncProvider by settingsRepository.syncProvider
+                                        .collectAsState(initial = SettingsRepository.PROVIDER_DROPBOX)
                                     val autoSyncEnabled by settingsRepository.autoSyncEnabled
                                         .collectAsState(initial = false)
                                     val instantSyncEnabled by settingsRepository.instantSyncEnabled
@@ -160,6 +236,20 @@ class MainActivity : ComponentActivity() {
                                         onAutoSyncToggle = ::setAutoSyncEnabled,
                                         onInstantSyncToggle = ::setInstantSyncEnabled,
                                         onRestoreDevice = ::restoreDevice,
+                                        isGoogleDriveConfigured = driveAuth.isClientIdConfigured(),
+                                        googleDriveAccountLabel = googleDriveAccountLabel,
+                                        googleDriveStatus = googleDriveStatus,
+                                        onTestGoogleDrive = ::testGoogleDrive,
+                                        storageSummary = storageState?.summary,
+                                        storageHint = storageState?.hint,
+                                        syncProvider = syncProvider,
+                                        onSyncProviderChange = ::changeSyncProvider,
+                                        onConnectGoogleDrive = { googleSignInLauncher.launch(driveAuth.signInIntent()) },
+                                        onDisconnectGoogleDrive = {
+                                            driveAuth.signOut()
+                                            googleDriveAccountLabel = null
+                                            googleDriveStatus = null
+                                        },
                                     )
                                 }
                             }
@@ -190,6 +280,21 @@ class MainActivity : ComponentActivity() {
         dropboxAccountLabel = null
         if (isDropboxConnected) {
             lifecycleScope.launch { dropboxAccountLabel = authManager.fetchAccountLabel() }
+        }
+        refreshStorageInfo()
+    }
+
+    /** Tamaño de la biblioteca de saves (saves + states, igual que la pestaña Escaneo) y cuota de Dropbox si hay sesión. */
+    private fun refreshStorageInfo() {
+        lifecycleScope.launch {
+            storageState =
+                withContext(Dispatchers.IO) {
+                    val library =
+                        (LocalFileScanner.scan(File(RetroArchPaths.SAVES)) + LocalFileScanner.scan(File(RetroArchPaths.STATES)))
+                            .sumOf { it.size }
+                    val quota = if (authManager.isSignedIn()) DropboxClientProvider(credentialStore).client()?.let(::fetchDropboxQuota) else null
+                    storageInfo(library, quota?.first, quota?.second)
+                }
         }
     }
 
@@ -247,6 +352,15 @@ class MainActivity : ComponentActivity() {
                 isRestoringDevice = false
             }
         }
+    }
+
+    /** Elige la nube del sync. Drive exige sesión: sin ella no se cambia y se explica por qué. */
+    private fun changeSyncProvider(provider: String) {
+        if (provider == SettingsRepository.PROVIDER_GDRIVE && googleDriveAccountLabel == null) {
+            googleDriveStatus = "Conecta Google Drive antes de elegirlo como proveedor"
+            return
+        }
+        lifecycleScope.launch { settingsRepository.setSyncProvider(provider) }
     }
 
     private fun setAutoSyncEnabled(enabled: Boolean) {

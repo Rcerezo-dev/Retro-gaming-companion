@@ -60,6 +60,8 @@ abierto o ya se archivó.
 | 29 | [29-library-folder-standardization.md](29-library-folder-standardization.md) | `feature/library-folder-standardization` | Pendiente | 🟡 P3 |
 | 30 | [30-mobile-responsive-ui.md](30-mobile-responsive-ui.md) | `feature/mobile-responsive-ui` | Pendiente | 🟡 P3 |
 | 31 | [31-ra-achievements-live-progress.md](31-ra-achievements-live-progress.md) | `feature/ra-achievements-live-progress` | **Bloqueado** — requiere API key RA real validada primero (ver `phases.md`) | 🟡 P3 |
+| 32 | [32-proximas-actividades-2026-10.md](32-proximas-actividades-2026-10.md) | sin rama única (una por tarea) | Activo | 🔴 P1 (Fase 0-1) |
+| 33 | [33-hoy-2026-10-04.md](33-hoy-2026-10-04.md) | `fix/sync-delta-cache-remote` + docs | Activo | 🔴 P1 (sync) |
 
 ---
 
