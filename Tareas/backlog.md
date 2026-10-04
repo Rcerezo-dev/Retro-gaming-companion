@@ -108,12 +108,14 @@ sin rama abierta aún). Agrupados por epic, con el estado tal cual aparece en su
 
 | Epic | Tareas abiertas (🟡/🔴) sin rama confirmada |
 |------|-----------------------------------------------|
-| Pilar 1 | `ANDROID-DUP-1` (🟡 primer fix mergeado PR #329, resto pendiente), `ANDROID-DUP-2` (🔴 hallazgo nuevo 2026-09-19, escaneo ADB nunca calcula sha1/md5), `ARCADE-DAT-CONTAMINATION-10` (🔴 disco `H:` no conectado), `PSX-STRUCTURE-1`/`-4` (🟡 decisión pendiente), `DUP-DISC-RA-1` (🟡), `PSX-CUE-DESYNC-1b` (🟡 5 sets irrecuperables), `ARCADE-RENAME-BUG-1` (🟡🔴), `LIBRARY-SYNC-STALE-1` (🔴🟡🔴), `GBA-SAVE-PATH-1` (🔴🔴), `LIBRARY-CLEANUP-GAPS-1` (🔴×5), `LIBRARY-AUDIT-1` (🔴), `DUALFOLDER-12` (🟡 reclasificar `3ds/Rockman X3...bin`), `GAMECUBE-DISC-BUG-1` (🔴), `HEALTH-CHECK-1` (🔴), `JUNK-SCAN-RUBEN-1` (🟡 medido 2026-09-28, 6.072 archivos/34,97 GB sin clasificar, nada aplicado todavía) — `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` verificados y corregidos 2026-09-18 (estaban desincronizados, ya ✅ en sus secciones) |
-| Pilar 2 | `ZIP-ROUTE` (🟡) |
-| Pilar 3 | `CABLE-ROOT-1` (🟡) |
+| Pilar 1 | **Verificado 2026-10-04 contra cada sección:** `ANDROID-DUP-1`/`-2` 🟡 (lotes aplicados, quedan ~40 pares `.chd`+`.bin` y 5 MISMATCH reales); `ARCADE-RENAME-BUG-1` 🟡 (`-1c` 984/~10.400 procesados, `-1e` 🔴 depende de él); `LIBRARY-SYNC-STALE-1` 🔴🟡 (`-1a` requiere ADB, `-1c` falta Crash 2, `-1e` vía Inbox); `PSX-STRUCTURE-1` 🟡 (30/33, 3 por re-descargar), `PSX-STRUCTURE-4` 🟡 (decisión de ejecución del usuario); `PSX-CUE-DESYNC-1b` 🟡 (5 irrecuperables); `HEALTH-CHECK-1` 🔴 (`-1a` pide lanzar el Health Check completo); `GAMECUBE-DISC-BUG-1` 🟡 (todo ✅ salvo `-1f` sin arreglar a propósito y `-1c` descartado). **Retiradas por estar ✅**: `DUP-DISC-RA-1` (solo `-1e` cerrado sin implementar), `ARCADE-DAT-CONTAMINATION-10` (✅ 2026-09-03), `GBA-SAVE-PATH-1` (✅ todas las sub-tareas). Sin reverificar: `LIBRARY-CLEANUP-GAPS-1`, `LIBRARY-AUDIT-1`, `DUALFOLDER-12`, `JUNK-SCAN-RUBEN-1` (🟡 medido 2026-09-28, nada aplicado) |
+| Pilar 2 | ~~`ZIP-ROUTE`~~ retirada 2026-10-04: `-1…-6` y `-8` ✅; solo `ZIP-ROUTE-7` 🟡 (causa fantasma resuelta, segunda mitad cubierta por `-8`) — cierre pendiente de confirmar |
+| Pilar 3 | ~~`CABLE-ROOT-1`~~ retirada 2026-10-04: `-1a…-1e` ✅; solo `-1f` 🟡 (política de duplicados ya genérica, re-investigado 2026-09-14). Abiertas de verdad: `SAVES-FRAGMENT-3/4/5` (⬜ documentado, decisión de convenio pendiente) y `CABLE-ROM-FIX-5` (🔴 solo gamecube) |
 | Distribución | Phase 6 (🟡) |
 | RA/Scraper/SAGE | `SAGE` (🟡) |
 | Android Sync (nativo, no cable) | Sección completa (786-830) tiene el mayor volumen de 🟡/🔴 del backlog — `feature/android-sync-12-periodic-sync` y PRs #226-237 ya mergeados cubren parte, pero quedan ítems abiertos sin verificar individualmente aquí |
+
+**2026-10-04** (auditoría, roadmap 33): filas de Pilar 1/2/3 de la tabla de arriba contrastadas con las tablas de sus secciones (estado de las sub-tareas, no solo el título). `ANDROID-DUP-2` ya no es 🔴: el escaneo ADB tiene fase 3 aplicada (`ANDROID-DUP-2-APPLY-1`, 25,08 GB liberados). Quedan sin reverificar las filas de Distribución, RA/Scraper/SAGE y Android Sync.
 
 **2026-09-28**: fila `UX | FTP-PICK (🔴🔴)` retirada de esta tabla —
 desincronizada, `FTP-PICK-1`/`-2` ya están ✅ desde el 2026-08-29 (ver
