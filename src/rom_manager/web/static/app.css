@@ -420,12 +420,14 @@ main { padding: 24px; flex: 1; }
 .card:hover { border-color: var(--accent-h); box-shadow: 0 2px 12px rgba(78,201,176,.08); }
 .card.blue   { border-left-color: var(--accent-blue); }
 .card.orange { border-left-color: var(--accent-ora); }
+.card.green  { border-left-color: var(--accent-grn); }
 .card.purple { border-left-color: var(--accent-pur); }
 .card.red    { border-left-color: var(--accent-red); }
 .card .label { color: var(--fg-2); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .card .value { color: var(--accent); font-size: 28px; font-weight: bold; font-family: 'Consolas', monospace; }
 .card.blue .value   { color: var(--accent-blue); }
 .card.orange .value { color: var(--accent-ora); }
+.card.green .value  { color: var(--accent-grn); }
 .card.purple .value { color: var(--accent-pur); }
 .card .sub { color: var(--fg-4); font-size: 11px; margin-top: 4px; }
 

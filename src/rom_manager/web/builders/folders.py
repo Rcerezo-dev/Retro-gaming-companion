@@ -10,6 +10,7 @@ import os as _os
 import re as _re
 import zipfile as _zipfile
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path as _Path
 
 import rom_manager.detection.platform_detector as _platform_detector
@@ -151,6 +152,27 @@ def _single_rom_platform(infos: list[_zipfile.ZipInfo]) -> str | None:
     if ext in _platform_detector.PLATFORM_CONTEXT_BY_EXTENSION:
         return None
     return _platform_detector.PLATFORM_BY_EXTENSION.get(ext)
+
+
+@lru_cache(maxsize=1)
+def _data_exts() -> frozenset[str]:
+    """JUNK-SAFE-1: extensiones que son ROM o save/state aunque no estén en la
+    lista fija ``_GAMING_EXTS`` (``.mcd``, ``.ps2``, ``.dsv``, ``.sg``, ``.unf``,
+    ``.int``…): fuente única = ``PLATFORM_BY_EXTENSION`` + las de saves/states de
+    la config. Sin esto caían en "Otros (.ext)" → ``safe_delete``.
+
+    ponytail: ``load_config()`` por defecto (cacheado), no la config del servidor
+    en marcha; pasar ``AppConfig`` si algún día se personalizan por instancia.
+    """
+    exts = set(_platform_detector.PLATFORM_BY_EXTENSION)
+    try:
+        from rom_manager.config import load_config
+
+        cfg = load_config()
+        exts.update(e.lower() for e in (*cfg.save_extensions, *cfg.state_extensions))
+    except Exception:
+        _logger.warning("JUNK-SAFE-1: no se pudo leer la config; solo extensiones de ROM")
+    return frozenset(exts)
 
 
 def _build_junk_scan(
@@ -331,9 +353,18 @@ def _build_junk_scan(
         "system volume information",
         TRASH_DIR_NAME.lower(),
     }
+    # JUNK-SAFE-1: copias de seguridad propias (_backup_android_cleanup_…) — dentro
+    # van saves y ROMs respaldados a propósito; nunca son basura a limpiar.
+    _excluded_prefixes = ("_backup",)
 
     for dirpath, dirs, files in _os.walk(p):
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in _excluded_dirs]
+        dirs[:] = [
+            d
+            for d in dirs
+            if not d.startswith(".")
+            and d.lower() not in _excluded_dirs
+            and not d.lower().startswith(_excluded_prefixes)
+        ]
         rel_parts = _Path(dirpath).relative_to(p).parts
         in_platform_folder = any(part.lower() in _RECOGNIZED_PLATFORM_FOLDERS for part in rel_parts)
         dir_has_cue = any(f.lower().endswith(".cue") for f in files)
@@ -390,7 +421,12 @@ def _build_junk_scan(
                             else:
                                 cat = _JUNK_CATEGORIES[".zip"]
             else:
-                if ext in _GAMING_EXTS or ext in _CONFIG_EXTS or _numbered_state.match(ext):
+                if (
+                    ext in _GAMING_EXTS
+                    or ext in _CONFIG_EXTS
+                    or ext in _data_exts()
+                    or _numbered_state.match(ext)
+                ):
                     continue
                 if ext in _CONTEXT_GAMING_EXTS and in_platform_folder:
                     continue

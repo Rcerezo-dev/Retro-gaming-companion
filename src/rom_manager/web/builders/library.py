@@ -132,6 +132,23 @@ def _build_library_report(
     }
 
 
+def _health_score(total: int, matched: int, redundant: int) -> dict:
+    """HEALTH-SCORE: media de % identificados y % sin copias redundantes (0-100).
+
+    ponytail: sin componente RA — depende de validar la API key real; añadirlo
+    como tercer término cuando exista.
+    """
+    if total <= 0:
+        return {"score": None, "identified_pct": 0, "unique_pct": 0}
+    identified = round(100 * matched / total)
+    unique = max(0, round(100 * (total - redundant) / total))
+    return {
+        "score": round((identified + unique) / 2),
+        "identified_pct": identified,
+        "unique_pct": unique,
+    }
+
+
 def _build_status(
     repository: LibraryRepository,
     source_root: str | None = None,
@@ -340,6 +357,9 @@ def _build_status(
         "health": health,
         "total_size_bytes": total_size_bytes,
         "status_counts": status_counts,
+        "health_score": _health_score(
+            summary.total_games, matched, sum(len(g.entries) - 1 for g in dup_groups)
+        ),
     }
 
 

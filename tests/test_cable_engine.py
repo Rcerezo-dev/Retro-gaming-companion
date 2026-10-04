@@ -348,3 +348,18 @@ def test_copy_item_emits_on_event(tmp_path: Path) -> None:
 
     assert tag == "COPY"
     assert events == [("COPY", src, dst)]
+
+
+def test_same_size_save_with_different_content_is_copied(tmp_path):
+    """SYNC-SAFE-1: un .srm de tamaño fijo con progreso nuevo no se descarta."""
+    from rom_manager.sync.cable_engine import CopyPlanItem, CopyPolicy, copy_item
+
+    src, dst = tmp_path / "pc.srm", tmp_path / "console.srm"
+    src.write_bytes(b"NUEVO!!!")
+    dst.write_bytes(b"VIEJO!!!")
+    item = CopyPlanItem(src, dst, "-> Anbernic")
+
+    assert copy_item(item, CopyPolicy(skip_existing=True))[0] == "SKIP"  # ROMs: igual que antes
+    assert copy_item(item, CopyPolicy(skip_existing=True, compare_content=True))[0] == "COPY"
+    assert dst.read_bytes() == b"NUEVO!!!"
+    assert copy_item(item, CopyPolicy(skip_existing=True, compare_content=True))[0] == "SKIP"

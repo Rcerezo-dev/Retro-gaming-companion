@@ -75,6 +75,12 @@ def backup_save(
     dest_dir = _backup_dir_for_save(save_path, backup_root)
     dest_dir.mkdir(parents=True, exist_ok=True)
 
+    # Sin esto, syncs repetidos de un save sin cambios llenan el historial de
+    # copias idénticas y _prune_backups acaba borrando versiones distintas.
+    previous = sorted(dest_dir.glob("*" + save_path.suffix.lower()))
+    if previous and previous[-1].read_bytes() == save_path.read_bytes():
+        return previous[-1]
+
     ts = _ts()
     dest = dest_dir / (ts + save_path.suffix.lower())
     shutil.copy2(save_path, dest)
