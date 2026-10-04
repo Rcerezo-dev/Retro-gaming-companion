@@ -378,7 +378,7 @@ def _do_cable_sync(
             import time as _time
             from pathlib import PurePosixPath
 
-            from rom_manager.backup.save_backup import backup_save
+            from rom_manager.backup.save_backup import backup_remote_save, backup_save
             from rom_manager.utils.trash import discard_to_trash as _discard_to_trash
 
             pc_root = Path(pc_path_str)
@@ -699,6 +699,11 @@ def _do_cable_sync(
                     android_dst = android_path.rstrip("/") + "/" + rel_posix
                     _verified = should_verify(local_src.name, save_exts)
                     try:
+                        # SYNC-SAFE-2: el save de la consola se respalda antes de
+                        # sobrescribirlo; si existe y no se pudo respaldar, no se
+                        # toca (ante duda, no sobreescribir).
+                        if _bk_root is not None and not dry_run and _verified:
+                            backup_remote_save(transport, android_dst, _bk_root)
                         size = transport.push(
                             local_src,
                             android_dst,
