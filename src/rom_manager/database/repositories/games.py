@@ -454,11 +454,13 @@ class GamesMixin:
         with self.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, original_filename, canonical_title, platform,
-                       play_status, user_rating, last_played_at
-                FROM games
-                WHERE file_type = 'rom'
-                  AND (play_status IS NULL OR play_status NOT IN ('completed', '100pct'))
+                SELECT g.id, g.original_filename, g.canonical_title, g.platform,
+                       g.play_status, g.user_rating, g.last_played_at,
+                       gm.genre, gm.year
+                FROM games g
+                LEFT JOIN game_metadata gm ON gm.game_id = g.id
+                WHERE g.file_type = 'rom'
+                  AND (g.play_status IS NULL OR g.play_status NOT IN ('completed', '100pct'))
                 """
             ).fetchall()
         return [dict(r) for r in rows]
