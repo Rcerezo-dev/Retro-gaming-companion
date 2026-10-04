@@ -4802,7 +4802,19 @@ Lo que sí es un hallazgo real y sin explicar: **1.522 archivos marcados "missin
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| HEALTH-CHECK-1a | Investigar los 1.522 "missing" del Health Check del 2026-08-26: ejecutar (con permiso del usuario, es lento) un Health Check nuevo desde la pestaña Herramientas y comparar — si el número baja mucho, confirma que fue un falso positivo transitorio (disco desconectado); si se mantiene, hay que mirar los `source_path` concretos que fallan (¿todos en una misma subcarpeta/plataforma? ¿rutas con caracteres especiales?) | `utils/health_checker.py`, `.rommgr/health_schedule.json` | 🔴 pendiente, requiere lanzar Health Check completo (con permiso) |
+| HEALTH-CHECK-1a | Investigar los 1.522 "missing" del Health Check del 2026-08-26: ejecutar (con permiso del usuario, es lento) un Health Check nuevo desde la pestaña Herramientas y comparar — si el número baja mucho, confirma que fue un falso positivo transitorio (disco desconectado); si se mantiene, hay que mirar los `source_path` concretos que fallan (¿todos en una misma subcarpeta/plataforma? ¿rutas con caracteres especiales?) | `utils/health_checker.py`, `.rommgr/health_schedule.json` | ✅ investigado 2026-10-04 sin lanzar el Health Check (no hizo falta hashear): ver hallazgo bajo la tabla |
+**Hallazgo 2026-10-04 (HEALTH-CHECK-1a)**: el 2026-10-02 el Health Check ya daba `missing=478` (no 1.522; `health_schedule.json`: `ok=35784`). Contrastado `games.source_path` con el disco (`os.path.exists`, solo lectura, sobre `library_pc.db`, 36.264 filas): **478 siguen sin existir, y no son pérdida de ROMs reales de la biblioteca actual**:
+- **462** bajo `E:\Emuladores\…` (441 en `MAMEgfx`, + assets de RetroArch/Dolphin/DuckStation/Flycast/PCSX2; extensiones `.bin`/`.zip`/`.fx`) — carpetas de emulador indexadas como ROMs por un scan de `E:\` del 2026-03-21; esa carpeta ya no existe en esa ruta (consolidada en `E:\RetroVault\EMULADORES`, NATIVE-SAVE-SYNC-1) y `Emuladores` ya está en las exclusiones del scanner (`config.py:~629`, ZIP-ROUTE-8). Ninguna con `canonical_title`, ninguna con copia viva por sha1.
+- **12** en `E:ds\` (11 `.3ds` + 1 `.cia`, creadas 2026-03-16): la carpeta ya no existe y no hay copia viva con el mismo sha1 en la biblioteca → **única parte que podría ser pérdida real**; comprobar con el usuario si se borraron a propósito (p. ej. solo viven en la Anbernic) antes de purgarlas.
+- **2** en `E:\HoYoPlay\…` (`.bin` de un launcher, no ROMs) y **2** zips de Virtual Console bajo `E:\RetroVault\ROMS\…` con copia viva (movidos por el pipeline, fila vieja sin podar).
+
+**Causa raíz**: `prune_stale_entries(source_root, seen_paths)` (`games.py:377-430`, llamado en `rom_scanner.py:196`) solo borra filas **bajo la raíz que se acaba de escanear** (`_under_root`, `:396-399`). Al cambiar la raíz de la biblioteca de `E:\` a `E:\RetroVault\ROMS`, las filas de las raíces antiguas quedan fuera de todo prune futuro y el Health Check las cuenta como "missing" para siempre. No hay ruta del código que las limpie. Por eso el número bajó de 1.522 a 478 (las movidas dentro de la raíz nueva sí se podaron) pero no llega a 0.
+
+Efecto: el Health Check semanal avisa de problemas inexistentes (ruido que enmascararía un "missing" real).
+
+| ID | Task | Archivo(s) | Estado |
+|----|------|-----------|--------|
+| HEALTH-CHECK-1b | Purgar las 478 filas huérfanas de `library_pc.db` (backup previo de la BD; las 12 de `E:ds` y el resto solo tras confirmar con el usuario) **y** evitar que reaparezcan: que `prune_stale_entries` (o el Health Check) también limpie filas cuya raíz de scan ya no se escanea | `database/repositories/games.py:377-430`, `scanner/rom_scanner.py:196`, `utils/health_checker.py` | 🔴 pendiente, rama propia |
 
 ---
 
