@@ -62,6 +62,7 @@ abierto o ya se archivó.
 | 31 | [31-ra-achievements-live-progress.md](31-ra-achievements-live-progress.md) | `feature/ra-achievements-live-progress` | **Bloqueado** — requiere API key RA real validada primero (ver `phases.md`) | 🟡 P3 |
 | 32 | [32-proximas-actividades-2026-10.md](32-proximas-actividades-2026-10.md) | sin rama única (una por tarea) | Activo | 🔴 P1 (Fase 0-1) |
 | 33 | [33-hoy-2026-10-04.md](33-hoy-2026-10-04.md) | `fix/sync-delta-cache-remote` + docs | Activo | 🔴 P1 (sync) |
+| 34 | [34-hoy-2026-10-06.md](34-hoy-2026-10-06.md) | validación #414 + ANDROID-SYNC-CRITICAL-1 | Activo | 🔴 P1 (sync) |
 
 ---
 

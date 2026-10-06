@@ -163,6 +163,52 @@ export async function openGameSuggestionPanel() {
   }
 }
 
+// ── SAGE-4: "¿Qué quiero jugar hoy?" — filtro con scoring vía /api/recommend ──
+let _recOptionsLoaded = false;
+
+export async function loadRecommendFilters() {
+  if (_recOptionsLoaded) return;
+  try {
+    const r = await apiFetch('/api/games/filter-options');
+    const fill = (id, items) => {
+      const sel = document.getElementById(id);
+      if (sel) items.forEach(v => sel.add(new Option(v, v)));
+    };
+    fill('rec-genre', r.genres || []);
+    fill('rec-platform', r.platforms || []);
+    _recOptionsLoaded = true;
+  } catch(e) { console.error('Recommend filters error:', e); }
+}
+
+export async function runSmartFilter() {
+  const out = document.getElementById('rec-results');
+  if (!out) return;
+  const q = new URLSearchParams({ limit: '5' });
+  const genre = document.getElementById('rec-genre').value;
+  const era = document.getElementById('rec-era').value;
+  const platform = document.getElementById('rec-platform').value;
+  if (genre) q.set('genres', genre);
+  if (era) q.set('era', era);
+  if (platform) q.set('platform', platform);
+  try {
+    const d = await apiFetch('/api/recommend?' + q);
+    out.textContent = '';
+    if (!d.items || !d.items.length) { out.textContent = 'Sin coincidencias con esos filtros.'; return; }
+    d.items.forEach(g => {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:6px 0;cursor:pointer;border-bottom:1px solid var(--c-border)';
+      row.textContent = [g.title, g.platform, g.genre, g.year].filter(Boolean).join(' · ');
+      row.onclick = async () => {
+        const full = await apiFetch('/api/game?id=' + g.id);
+        if (full.error) showToast(full.error, 'err'); else window.openGamePanel(full);
+      };
+      out.appendChild(row);
+    });
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
 // ── Monthly activity chart ────────────────────────────────────────────────────
 export async function _renderMonthlyChart() {
   const canvas = document.getElementById('ov-monthly-chart');
@@ -609,6 +655,7 @@ export async function loadOverview() {
 
     // Load game suggestion
     try { _loadNewGameSuggestion(); } catch(e) { console.error('Game suggestion error:', e); }
+    loadRecommendFilters();
 
   } catch(e) {
     const pcCardsEl = document.getElementById('ov-pc-cards');
