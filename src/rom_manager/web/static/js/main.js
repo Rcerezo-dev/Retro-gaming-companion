@@ -751,6 +751,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Seed description bar for the default active tab
   _updateTabDesc('overview');
 
+  // Inicio es la pestaña activa al abrir: sin esto queda en "—"/"Cargando…"
+  // hasta que el usuario cambia de pestaña y vuelve (showTab es el único caller).
+  loadOverview(); loadCatalogStatus(); loadActivityHeatmap();
+
   // Load auth status and config on startup
   loadAuthStatus();
   loadLocalUrl();

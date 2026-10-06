@@ -355,15 +355,24 @@ def _emulator_sync_watcher_loop(config: AppConfig, repository: LibraryRepository
 # ── Punto de entrada único ────────────────────────────────────────────────────
 
 
-def _warm_dat_index(config: AppConfig) -> None:
-    """Parsea los DATs una vez al arrancar, para que Inicio no pague ~22 s en la 1.ª carga."""
-    try:
-        from rom_manager.web.handlers.games import _dat_title_index
+def _warm_caches(config: AppConfig, repository: LibraryRepository) -> None:
+    """Precalienta al arrancar lo que hace lenta la 1.ª carga de Inicio.
 
-        _dat_title_index(config)
-        _logger.info("Índice de DATs precalentado")
-    except Exception:
-        _logger.warning("No se pudo precalentar el índice de DATs", exc_info=True)
+    - Índice de DATs (~22 s de CPU, memoizado en ``games._dat_title_index``).
+    - ``library-doctor``: su 1.ª llamada tras arrancar tarda ~21 s y las siguientes ~1,5 s.
+    """
+    from rom_manager.web.handlers.games import _dat_title_index
+    from rom_manager.web.handlers.system import _handle_library_doctor
+
+    for name, warm in (
+        ("índice de DATs", lambda: _dat_title_index(config)),
+        ("library-doctor", lambda: _handle_library_doctor(config, repository)),
+    ):
+        try:
+            warm()
+            _logger.info("Precalentado: %s", name)
+        except Exception:
+            _logger.warning("No se pudo precalentar: %s", name, exc_info=True)
 
 
 def start_all(
@@ -400,7 +409,7 @@ def start_all(
     _logger.info("SD card sync daemon arrancado (polling cada 8 s)")
 
     threading.Thread(
-        target=_warm_dat_index, args=(config,), daemon=True, name="dat-index-warmup"
+        target=_warm_caches, args=(config, repository), daemon=True, name="cache-warmup"
     ).start()
 
     t_inbox = threading.Thread(
