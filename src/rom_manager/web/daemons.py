@@ -183,6 +183,32 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
 # ── Inbox watcher daemon ──────────────────────────────────────────────────────
 
 
+def _inbox_pending(inbox: Path, save_exts: frozenset[str]) -> list[Path]:
+    """Archivos sueltos del Inbox que el pipeline debe procesar.
+
+    Se excluyen los saves (los reúne ``_route_orphan_saves``) y las descargas a
+    medias (``.part``): el pipeline no las consume, y contarlas hacía que el
+    watcher relanzara el pipeline completo cada 30 s sin fin.
+    """
+    return [
+        e
+        for e in inbox.iterdir()
+        if e.is_file()
+        and not e.name.startswith((".", "_"))
+        and e.suffix.lower() not in save_exts
+        and e.suffix.lower() != ".part"
+    ]
+
+
+def _pending_signature(pending: list[Path]) -> frozenset[tuple[str, int, int]]:
+    """Huella (nombre, tamaño, mtime) del conjunto pendiente: si no cambia, no hay nada nuevo."""
+    sig = set()
+    for e in pending:
+        st = e.stat()
+        sig.add((e.name, st.st_size, st.st_mtime_ns))
+    return frozenset(sig)
+
+
 def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> None:
     """Daemon: vigila la carpeta inbox y lanza el pipeline cuando hay archivos."""
     from rom_manager.web.inbox_pipeline import (
@@ -191,6 +217,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
         _watcher_now,
     )
 
+    last_signature: frozenset | None = None
     while True:
         try:
             _time.sleep(30)
@@ -221,14 +248,7 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 _logger.debug("Error reuniendo saves huérfanos del Inbox", exc_info=True)
 
             save_exts = frozenset(config.save_extensions)
-            pending = [
-                e
-                for e in inbox.iterdir()
-                if e.is_file()
-                and not e.name.startswith(".")
-                and not e.name.startswith("_")
-                and e.suffix.lower() not in save_exts
-            ]
+            pending = _inbox_pending(inbox, save_exts)
             _state._inbox_watcher_status.update(
                 {
                     "watching": True,
@@ -237,7 +257,17 @@ def _inbox_watcher_loop(config: AppConfig, repository: LibraryRepository) -> Non
                 }
             )
 
-            if pending and not _state._job_manager.get_status()["inbox_running"]:
+            signature = _pending_signature(pending)
+            if not pending:
+                last_signature = None
+            # Mismos archivos que la última pasada = el pipeline ya los vio y los dejó
+            # (no son ROMs, o ya existen): relanzarlo solo gasta CPU del servidor.
+            if (
+                pending
+                and signature != last_signature
+                and not _state._job_manager.get_status()["inbox_running"]
+            ):
+                last_signature = signature
                 _logger.info(
                     "Inbox watcher: %d archivos detectados, lanzando pipeline", len(pending)
                 )
