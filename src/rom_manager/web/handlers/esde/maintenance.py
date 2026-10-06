@@ -20,6 +20,50 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+# Los índices de catálogo (arcade + CRC de No-Intro/Redump) cuestan ~50 s de CPU y
+# bloquean el servidor entero; solo cambian si cambian los ficheros, así que se
+# memoizan por (ruta, mtime, tamaño) de cada fichero de las carpetas de catálogo.
+_catalog_inputs_cache: tuple[tuple, dict] | None = None
+
+
+def _catalog_inputs(config: AppConfig) -> dict:
+    """Índices de catálogo que usan el junk-scan y /api/library-extras."""
+    global _catalog_inputs_cache
+    from rom_manager.catalog.mame_loader import (
+        load_arcade_crc_index,
+        load_arcade_dir,
+        load_arcade_infra_names,
+    )
+    from rom_manager.catalog.matcher import CatalogMatcher
+
+    arcade_dir = config.catalogs_arcade_dir
+    dirs = (arcade_dir, config.catalogs_nointro_dir, config.catalogs_redump_dir)
+    signature = tuple(
+        (str(f), f.stat().st_mtime_ns, f.stat().st_size)
+        for d in dirs
+        if d and d.is_dir()
+        for f in sorted(d.iterdir())
+        if f.is_file()
+    )
+    if _catalog_inputs_cache and _catalog_inputs_cache[0] == signature:
+        return _catalog_inputs_cache[1]
+
+    inputs = {
+        # JUNK-SMART-2: conocimiento arcade para clasificar ZIPs sueltos
+        "arcade_names": set(load_arcade_dir(arcade_dir)) if arcade_dir else set(),
+        "infra_names": load_arcade_infra_names(arcade_dir) if arcade_dir else set(),
+        # ZIP-ROUTE-1: CRC32 de No-Intro/Redump para identificar ZIPs de
+        # consola por el header del ZIP, sin descomprimir
+        "crc_index": CatalogMatcher(
+            nointro_dir=config.catalogs_nointro_dir,
+            redump_dir=config.catalogs_redump_dir,
+        ).crc_index(),
+        # ZIP-ROUTE-2: CRC de los DAT arcade para identificar sets renombrados
+        "arcade_crcs": load_arcade_crc_index(arcade_dir) if arcade_dir else {},
+    }
+    _catalog_inputs_cache = (signature, inputs)
+    return inputs
+
 
 def register_maintenance(
     router: Router,
@@ -202,12 +246,6 @@ def register_maintenance(
     def _full_junk_scan(folder: str) -> dict:
         """Junk-scan con todos los índices (catálogos + BD), compartido por
         /api/junk-scan y /api/library-extras."""
-        from rom_manager.catalog.mame_loader import (
-            load_arcade_crc_index,
-            load_arcade_dir,
-            load_arcade_infra_names,
-        )
-        from rom_manager.catalog.matcher import CatalogMatcher
         from rom_manager.web.builders.folders import _build_junk_scan
         from rom_manager.web.inbox_pipeline import _KNOWN_BIOS_MAP
 
@@ -217,28 +255,16 @@ def register_maintenance(
                 "SELECT source_path FROM games WHERE canonical_title IS NOT NULL"
             ).fetchall()
         matched = {os.path.normpath(r[0]).lower() for r in rows}
-        # JUNK-SMART-2: conocimiento arcade para clasificar ZIPs sueltos
-        # ponytail: se parsea el catálogo en cada scan; cachear si algún día duele
-        arcade_dir = config.catalogs_arcade_dir
-        arcade_names = set(load_arcade_dir(arcade_dir)) if arcade_dir else set()
-        infra_names = load_arcade_infra_names(arcade_dir) if arcade_dir else set()
         known_bios = {k for k in _KNOWN_BIOS_MAP if k.endswith(".zip")}
-        # ZIP-ROUTE-1: CRC32 de No-Intro/Redump para identificar ZIPs de
-        # consola por el header del ZIP, sin descomprimir
-        crc_index = CatalogMatcher(
-            nointro_dir=config.catalogs_nointro_dir,
-            redump_dir=config.catalogs_redump_dir,
-        ).crc_index()
-        # ZIP-ROUTE-2: CRC de los DAT arcade para identificar sets renombrados
-        arcade_crcs = load_arcade_crc_index(arcade_dir) if arcade_dir else {}
+        idx = _catalog_inputs(config)
         return _build_junk_scan(
             folder,
             matched_paths=matched,
-            arcade_names=arcade_names,
-            mame_infra_names=infra_names,
+            arcade_names=idx["arcade_names"],
+            mame_infra_names=idx["infra_names"],
             known_bios_files=known_bios,
-            crc_index=crc_index,
-            arcade_crc_index=arcade_crcs,
+            crc_index=idx["crc_index"],
+            arcade_crc_index=idx["arcade_crcs"],
         )
 
     # ── POST /api/junk-scan ───────────────────────────────────────────────────
@@ -270,7 +296,6 @@ def register_maintenance(
         (categorías safe_delete del junk-scan)."""
         import time
 
-        from rom_manager.catalog.mame_loader import load_arcade_infra_names
         from rom_manager.converters.zip_extractor import _ARCADE_FOLDER_NAMES
         from rom_manager.web.builders.folders import _ZIP_CAT_BIOS, _ZIP_CAT_INFRA
 
@@ -308,7 +333,7 @@ def register_maintenance(
         # El junk-scan solo ve ZIPs *sueltos* (dentro de carpeta de plataforma
         # los salta): la infra ya colocada en arcade\/mame\/… se cuenta aparte
         # cruzando los stems con las bios/devices del XML de MAME.
-        infra_names = load_arcade_infra_names(config.catalogs_arcade_dir)
+        infra_names = _catalog_inputs(config)["infra_names"]
         if infra_names:
             root_p = Path(folder)
             for dirpath, _dirs, files in os.walk(root_p):

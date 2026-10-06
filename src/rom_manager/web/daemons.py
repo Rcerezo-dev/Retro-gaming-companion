@@ -390,13 +390,16 @@ def _warm_caches(config: AppConfig, repository: LibraryRepository) -> None:
 
     - Índice de DATs (~22 s de CPU, memoizado en ``games._dat_title_index``).
     - ``library-doctor``: su 1.ª llamada tras arrancar tarda ~21 s y las siguientes ~1,5 s.
+    - Índices de catálogo del junk-scan (~50 s de CPU, ``/api/library-extras``).
     """
+    from rom_manager.web.handlers.esde.maintenance import _catalog_inputs
     from rom_manager.web.handlers.games import _dat_title_index
     from rom_manager.web.handlers.system import _handle_library_doctor
 
     for name, warm in (
         ("índice de DATs", lambda: _dat_title_index(config)),
         ("library-doctor", lambda: _handle_library_doctor(config, repository)),
+        ("índices de catálogo", lambda: _catalog_inputs(config)),
     ):
         try:
             warm()
