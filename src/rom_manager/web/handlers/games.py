@@ -35,6 +35,11 @@ def _state_search_dirs(rom_path: Path, config) -> list[Path]:
     return dirs
 
 
+# Parsear todos los DATs cuesta ~25 s (CPU pura, y deja sin respuesta al resto
+# del servidor por el GIL): se memoiza por (ruta, mtime, tamaño) de cada DAT.
+_dat_index_cache: tuple[tuple, dict] | None = None
+
+
 def _dat_title_index(config) -> dict[str, tuple[int, dict[str, str]]]:
     """AUD-5: por DAT, ``dat_filename → (total_dumps, {clave_1g1r: título})``.
 
@@ -49,28 +54,37 @@ def _dat_title_index(config) -> dict[str, tuple[int, dict[str, str]]]:
     )
     from rom_manager.detection.filename_normalizer import normalize_for_match
 
+    global _dat_index_cache
+    dat_files = [
+        f
+        for dat_dir in (
+            config.catalogs_nointro_dir,
+            config.catalogs_redump_dir,
+            config.catalogs_arcade_dir,
+        )
+        if dat_dir and dat_dir.exists()
+        for f in dat_dir.glob("*.dat")
+    ]
+    signature = tuple((str(f), f.stat().st_mtime_ns, f.stat().st_size) for f in dat_files)
+    if _dat_index_cache and _dat_index_cache[0] == signature:
+        return _dat_index_cache[1]
+
     out: dict[str, tuple[int, dict[str, str]]] = {}
-    for dat_dir in (
-        config.catalogs_nointro_dir,
-        config.catalogs_redump_dir,
-        config.catalogs_arcade_dir,
-    ):
-        if not dat_dir or not dat_dir.exists():
+    for dat_file in dat_files:
+        try:
+            if _detect_dat_format(dat_file) == "clrmamepro":
+                entries = load_clrmamepro_dat(dat_file)
+            else:
+                _label, entries = load_nointro_dat_with_header(dat_file)
+        except Exception:  # noqa: S112 — DAT corrupto: se ignora, igual que el resto de loaders
             continue
-        for dat_file in dat_dir.glob("*.dat"):
-            try:
-                if _detect_dat_format(dat_file) == "clrmamepro":
-                    entries = load_clrmamepro_dat(dat_file)
-                else:
-                    _label, entries = load_nointro_dat_with_header(dat_file)
-            except Exception:  # noqa: S112 — DAT corrupto: se ignora, igual que el resto de loaders
-                continue
-            titles: dict[str, str] = {}
-            for entry in entries.values():
-                key = normalize_for_match(entry.title)
-                if key and key not in titles:
-                    titles[key] = entry.title
-            out[dat_file.name] = (len(entries), titles)
+        titles: dict[str, str] = {}
+        for entry in entries.values():
+            key = normalize_for_match(entry.title)
+            if key and key not in titles:
+                titles[key] = entry.title
+        out[dat_file.name] = (len(entries), titles)
+    _dat_index_cache = (signature, out)
     return out
 
 
