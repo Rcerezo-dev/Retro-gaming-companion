@@ -307,6 +307,22 @@
     </div>
   </div>
 
+  <!-- SAGE-4: ¿Qué quiero jugar hoy? (smart filter, /api/recommend) -->
+  <div style="margin-bottom:20px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--c-text)">&#191;Qu&#233; quiero jugar hoy?</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <select id="rec-genre"><option value="">G&#233;nero</option></select>
+      <select id="rec-era">
+        <option value="">&#201;poca</option>
+        <option value="80s">80s</option><option value="90s">90s</option>
+        <option value="2000s">2000s</option><option value="2010s">2010s</option>
+      </select>
+      <select id="rec-platform"><option value="">Plataforma</option></select>
+      <button class="btn" style="padding:4px 10px;font-size:12px" onclick="runSmartFilter()">Buscar</button>
+    </div>
+    <div id="rec-results" style="font-size:12px;color:var(--c-hint)"></div>
+  </div>
+
   <!-- D: Heatmap de actividad -->
   <div id="ov-heatmap-wrap" style="margin-top:20px;padding:14px;background:var(--c-panel);border:1px solid var(--c-border);border-radius:6px">
     <div style="color:var(--c-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Actividad — últimas 52 semanas</div>

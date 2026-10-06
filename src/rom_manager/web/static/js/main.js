@@ -117,7 +117,7 @@ import {
 } from './tabs/esde.js';
 import {
   _relTime, _emptyState, card, _getPlatformLogo,
-  _loadNewGameSuggestion, openGameSuggestionPanel, _renderMonthlyChart,
+  _loadNewGameSuggestion, openGameSuggestionPanel, loadRecommendFilters, runSmartFilter, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
@@ -246,7 +246,7 @@ Object.assign(window, {
   generateReport, showReportTab, _renderReportZips, _renderReportPlaylists, _renderReportMultidisc, _renderReportOrphans, _renderReportRA, _renderReportChd, exportReportHtml,
   // overview.js — overview tab, heatmap, charts, wizard
   _relTime, _emptyState, card, _getPlatformLogo,
-  _loadNewGameSuggestion, openGameSuggestionPanel, _renderMonthlyChart,
+  _loadNewGameSuggestion, openGameSuggestionPanel, loadRecommendFilters, runSmartFilter, _renderMonthlyChart,
   loadOverview, _renderPlatformGrid, loadCollectionCompleteness,
   showWizard, closeWizard, wizardAutoDetect, startSetup,
   _renderWizSteps, _pollSetupProgress, _showSetupResult, wizardGoToOrganize, loadActivityHeatmap,
