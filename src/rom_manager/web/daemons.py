@@ -355,6 +355,17 @@ def _emulator_sync_watcher_loop(config: AppConfig, repository: LibraryRepository
 # ── Punto de entrada único ────────────────────────────────────────────────────
 
 
+def _warm_dat_index(config: AppConfig) -> None:
+    """Parsea los DATs una vez al arrancar, para que Inicio no pague ~22 s en la 1.ª carga."""
+    try:
+        from rom_manager.web.handlers.games import _dat_title_index
+
+        _dat_title_index(config)
+        _logger.info("Índice de DATs precalentado")
+    except Exception:
+        _logger.warning("No se pudo precalentar el índice de DATs", exc_info=True)
+
+
 def start_all(
     config: AppConfig,
     repository: LibraryRepository,
@@ -387,6 +398,10 @@ def start_all(
     t_sd.name = "sd-sync-daemon"
     t_sd.start()
     _logger.info("SD card sync daemon arrancado (polling cada 8 s)")
+
+    threading.Thread(
+        target=_warm_dat_index, args=(config,), daemon=True, name="dat-index-warmup"
+    ).start()
 
     t_inbox = threading.Thread(
         target=_inbox_watcher_loop,
