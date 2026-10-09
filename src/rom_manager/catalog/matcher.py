@@ -59,6 +59,7 @@ _DAT_PLATFORM_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("pc engine", "PC Engine"),
     ("turbografx", "PC Engine"),
     ("neo geo pocket", "Neo Geo Pocket Color"),
+    ("neogeo pocket", "Neo Geo Pocket Color"),  # DATs recientes: "NeoGeo" sin espacio
     ("neo geo", "Neo Geo"),
     ("wonderswan color", "WonderSwan Color"),
     ("wonderswan", "WonderSwan"),
