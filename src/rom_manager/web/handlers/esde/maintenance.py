@@ -26,6 +26,14 @@ _logger = logging.getLogger(__name__)
 _catalog_inputs_cache: tuple[tuple, dict] | None = None
 
 
+def _chip_index(manifest: dict) -> dict[tuple[str, int], frozenset[str]]:
+    index: dict[tuple[str, int], set[str]] = {}
+    for machine, roms in manifest.items():
+        for name, _crc, size in roms:
+            index.setdefault((name.lower(), size), set()).add(machine)
+    return {k: frozenset(v) for k, v in index.items()}
+
+
 def _catalog_inputs(config: AppConfig) -> dict:
     """Índices de catálogo que usan el junk-scan y /api/library-extras."""
     global _catalog_inputs_cache
@@ -33,6 +41,7 @@ def _catalog_inputs(config: AppConfig) -> dict:
         load_arcade_crc_index,
         load_arcade_dir,
         load_arcade_infra_names,
+        load_arcade_manifest,
     )
     from rom_manager.catalog.matcher import CatalogMatcher
 
@@ -60,6 +69,8 @@ def _catalog_inputs(config: AppConfig) -> dict:
         ).crc_index(),
         # ZIP-ROUTE-2: CRC de los DAT arcade para identificar sets renombrados
         "arcade_crcs": load_arcade_crc_index(arcade_dir) if arcade_dir else {},
+        # JUNK-ZIP-PIEZA-1: (rom, tamaño) → sets, para exigir el ZIP antes de borrar piezas
+        "chip_index": _chip_index(load_arcade_manifest(arcade_dir)) if arcade_dir else None,
     }
     _catalog_inputs_cache = (signature, inputs)
     return inputs
@@ -265,6 +276,7 @@ def register_maintenance(
             known_bios_files=known_bios,
             crc_index=idx["crc_index"],
             arcade_crc_index=idx["arcade_crcs"],
+            arcade_chip_index=idx["chip_index"],
         )
 
     # ── POST /api/junk-scan ───────────────────────────────────────────────────

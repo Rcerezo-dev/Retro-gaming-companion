@@ -86,6 +86,21 @@ _ZIP_ROUTE_CATS = {
     _ZIP_CAT_ROMHACK,
 }
 
+# JUNK-ZIP-PIEZA-1: piezas sueltas "Otros (.ext)" reclasificadas con el DAT arcade.
+_CAT_CHIP_NO_ZIP = "Chips arcade sin su ZIP (reconstruir, no borrar)"
+_CAT_UNIDENTIFIED = "Sin identificar (revisar)"
+
+
+def _chip_sets(name: str, size: int, chip_index: dict[tuple[str, int], frozenset[str]]):
+    """Sets arcade que contienen un chip de ese nombre y tamaño. Los extraídos
+    suelen venir con el set de prefijo (``futari15_u2`` → ``u2``)."""
+    base = name.lower()
+    sets = chip_index.get((base, size))
+    if not sets and "_" in base:
+        sets = chip_index.get((base.split("_", 1)[1], size))
+    return sets or frozenset()
+
+
 # JUNK-SMART-3: confianza por categoría. safe_delete = basura por extensión
 # (tier 0, borrable en masa); review = probable basura pero mirar antes
 # (lección de INBOX-FIX-5); misplaced = NO es basura, hay que mover/organizar.
@@ -102,6 +117,8 @@ _CATEGORY_CONFIDENCE = {
     _ZIP_CAT_ARCADE_IDENT: "misplaced",
     _ZIP_CAT_ARCADE_OTHER: "review",
     _ZIP_CAT_ROMHACK: "misplaced",
+    _CAT_CHIP_NO_ZIP: "review",
+    _CAT_UNIDENTIFIED: "review",
 }
 
 
@@ -183,6 +200,7 @@ def _build_junk_scan(
     known_bios_files: set[str] | None = None,
     crc_index: dict[str, tuple[str, str, str | None]] | None = None,
     arcade_crc_index: dict[str, set[str]] | None = None,
+    arcade_chip_index: dict[tuple[str, int], frozenset[str]] | None = None,
 ) -> dict:
     """Scan a folder and classify non-gaming files as junk.
 
@@ -204,6 +222,11 @@ def _build_junk_scan(
 
     *arcade_crc_index* (ZIP-ROUTE-2, ``load_arcade_crc_index``) identifies
     renamed arcade sets by voting entry CRCs; ``None`` disables the pass.
+
+    *arcade_chip_index* (JUNK-ZIP-PIEZA-1, ``(rom_name, size) → sets``) hace que
+    las piezas sueltas "Otros (.ext)" solo sigan en ``safe_delete`` si el ZIP de
+    su set existe en la carpeta; sin ZIP pasan a ``review`` (son lo único que
+    queda de ese juego) y las que ningún set reclama, a "Sin identificar".
     """
     _GAMING_EXTS = {
         ".gba",
@@ -332,6 +355,7 @@ def _build_junk_scan(
 
     categories: dict[str, list[dict]] = {}
     total_junk_bytes = 0
+    zip_stems: set[str] = set()
 
     # Savestates numerados de RetroArch (.state1, .state23…) — solo .state está
     # en la whitelist y los slots extra salían como falsos positivos
@@ -371,6 +395,8 @@ def _build_junk_scan(
         for fname in files:
             fpath = _Path(dirpath) / fname
             ext = fpath.suffix.lower()
+            if ext == ".zip":
+                zip_stems.add(fpath.stem.lower())
             identified: tuple[str, str, str | None] | None = None
             arcade_vote: tuple[str, float] | None = None
             hack_platform: str | None = None
@@ -453,6 +479,23 @@ def _build_junk_scan(
             elif hack_platform:
                 item["platform"] = hack_platform
             categories[cat].append(item)
+
+    if arcade_chip_index is not None:
+        for cat in [c for c in categories if c.startswith("Otros (")]:
+            keep = []
+            for item in categories[cat]:
+                sets = _chip_sets(
+                    _os.path.basename(item["path"]), item["size_bytes"], arcade_chip_index
+                )
+                if sets & zip_stems:
+                    keep.append(item)
+                else:
+                    dest = _CAT_CHIP_NO_ZIP if sets else _CAT_UNIDENTIFIED
+                    categories.setdefault(dest, []).append(item)
+            if keep:
+                categories[cat] = keep
+            else:
+                del categories[cat]
 
     cat_list = []
     for cat, files_list in sorted(
