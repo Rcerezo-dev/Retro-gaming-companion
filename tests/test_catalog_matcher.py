@@ -658,3 +658,10 @@ def test_load_nointro_dat_empty_size_attr(tmp_path: Path) -> None:
     )
     entries = load_nointro_dat(dat)
     assert entries["AB12"].size_bytes == 0
+
+
+def test_dat_neogeo_pocket_sin_espacio_se_reconoce():
+    from rom_manager.catalog.matcher import _platform_from_dat_name
+
+    name = "SNK - NeoGeo Pocket Color (20240506-123728).dat"
+    assert _platform_from_dat_name(name) == "Neo Geo Pocket Color"

@@ -183,12 +183,15 @@ def _health_scheduler_loop(config: AppConfig, get_repo_fn) -> None:  # type: ign
 # ── Inbox watcher daemon ──────────────────────────────────────────────────────
 
 
+_INBOX_IGNORED_EXTS = frozenset({".part", ".torrent"})
+
+
 def _inbox_pending(inbox: Path, save_exts: frozenset[str]) -> list[Path]:
     """Archivos sueltos del Inbox que el pipeline debe procesar.
 
     Se excluyen los saves (los reúne ``_route_orphan_saves``) y las descargas a
-    medias (``.part``): el pipeline no las consume, y contarlas hacía que el
-    watcher relanzara el pipeline completo cada 30 s sin fin.
+    medias (``.part``) y los ``.torrent``: el pipeline no los consume, y contarlos
+    hacía que el watcher relanzara el pipeline completo cada 30 s sin fin.
     """
     return [
         e
@@ -196,7 +199,7 @@ def _inbox_pending(inbox: Path, save_exts: frozenset[str]) -> list[Path]:
         if e.is_file()
         and not e.name.startswith((".", "_"))
         and e.suffix.lower() not in save_exts
-        and e.suffix.lower() != ".part"
+        and e.suffix.lower() not in _INBOX_IGNORED_EXTS
     ]
 
 
