@@ -10,7 +10,7 @@ def test_pending_ignora_saves_part_y_ocultos(tmp_path):
 
     found = {p.name for p in _inbox_pending(tmp_path, frozenset({".sav"}))}
 
-    assert found == {"a.torrent", "b.zip"}
+    assert found == {"b.zip"}
 
 
 def test_signature_estable_y_cambia_con_el_contenido(tmp_path):

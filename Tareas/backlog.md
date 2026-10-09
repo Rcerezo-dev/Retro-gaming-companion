@@ -1978,7 +1978,8 @@ database is locked`.
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
 | JUNK-SAFE-1 | Que `_build_junk_scan` derive "es juego/save" de `PLATFORM_BY_EXTENSION` + `config.save_extensions`/`state_extensions` (fuente única) en vez de `_GAMING_EXTS` fija, y excluya `memcards\` y carpetas `_backup_*` del recorrido; test con `.mcd`/`.ps2`/`.dsv`/`.sg`/`.unf`/`.int` que no deben salir como `safe_delete` | `web/builders/folders.py:186-333,393-397` | ✅ 2026-10-04 (rama `fix/junk-safe-1-saves-roms`): `_data_exts()` (`PLATFORM_BY_EXTENSION` + `save_extensions`/`state_extensions` de la config) en vez de depender solo de `_GAMING_EXTS`, y carpetas `_backup*` excluidas del recorrido; test `test_junk_safe_1_saves_y_roms_validas_no_son_basura`. Re-escaneo real: 17.126 → 16.867 archivos y **0 saves/ROMs** en `safe_delete` (lista completa). Efecto colateral aceptado: `.u1` (chips de romset) cuenta como ROM de N64DD y ya no sale como basura. **`JUNK-SCAN-RUBEN-1b` desbloqueada** (dry-run y OK por bucket) |
-| JUNK-SCAN-RUBEN-1b | Aplicar `safe_delete` por buckets (con dry-run y OK por bucket) **solo después de `JUNK-SAFE-1`** y re-medir | — | ⬜ desbloqueada por `JUNK-SAFE-1` |
+| JUNK-SCAN-RUBEN-1b | Aplicar `safe_delete` por buckets (con dry-run y OK por bucket) **solo después de `JUNK-SAFE-1`** y re-medir | — | ⬜ desbloqueada por `JUNK-SAFE-1` (✅ 2026-10-04, verificado Día74) |
+| INBOX-PART-TORRENT | Ficheros sueltos del Inbox que el pipeline nunca consume (hallazgo Día74: `Breath of Fire III….zip.part`, `fbneo_1003_bestset_archive.torrent`, `mame_20240311_archive.torrent`). `_inbox_pending()` excluía `.part` pero no `.torrent`; solo la firma evitaba el relanzado en bucle | `web/daemons.py:186-209` | ✅ 2026-10-09 (rama `fix/inbox-part-torrent`): decisión del usuario = ignorar; `_INBOX_IGNORED_EXTS` (`.part`, `.torrent`) en `_inbox_pending()`, test actualizado |
 
 ---
 
