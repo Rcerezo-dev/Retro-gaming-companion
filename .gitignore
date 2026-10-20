@@ -16,7 +16,6 @@ __pycache__/
 # Archivos de configuración de IDEs
 .vscode/
 .idea/
-claude.md
 # Claude Code: ignorar config local pero trackear CLAUDE.md y commands/
 .claude/settings.local.json
 # Archivos de configuración de sistemas operativos

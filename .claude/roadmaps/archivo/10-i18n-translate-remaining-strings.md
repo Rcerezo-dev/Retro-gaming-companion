@@ -12,7 +12,7 @@ control ni contrato de campo (`error` sigue siendo `error`, cambia el texto)
 
 ## Origen
 
-`.claude/mejoras-por-rama.md` (sección 10) citaba 3 puntos concretos:
+`.claude/roadmaps/archivo/mejoras-por-rama.md` (sección 10) citaba 3 puntos concretos:
 `esde.js` líneas 447/651/708/713 (TODOs en inglés), "mensajes de error en
 Python que llegan al frontend en inglés" (sin ejemplos) y `main.js:655` (un
 comentario en inglés). Verificado contra el código real (regla del proyecto

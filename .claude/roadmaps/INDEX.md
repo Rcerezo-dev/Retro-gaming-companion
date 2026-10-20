@@ -2,7 +2,7 @@
 
 Índice de planes de trabajo por rama. Cada archivo tiene el roadmap completo con pasos, código de ejemplo, commits y criterios de verificación.
 
-Referencia de mejoras (histórico, análisis de 2026-06-15 — las 10 ramas propuestas ya están completadas, ver tabla de abajo): [`../.claude/mejoras-por-rama.md`](../mejoras-por-rama.md)
+Referencia de mejoras (histórico, análisis de 2026-06-15 — las 10 ramas propuestas ya están completadas, ver tabla de abajo): [`archivo/mejoras-por-rama.md`](archivo/mejoras-por-rama.md)
 
 ---
 
