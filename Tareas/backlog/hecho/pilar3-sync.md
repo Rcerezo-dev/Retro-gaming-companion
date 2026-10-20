@@ -499,3 +499,66 @@ más contexto que solo el timestamp al resolver un conflicto.
 | SAVES-CONFLICT-CTX-1 | Al resolver un conflicto de sync, mostrar contexto además del timestamp (playtime asociado, tamaño). Solo Cloud Sync (Cable Sync no detecta conflictos hoy) | `sync/conflict_resolver.py`, `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `SyncDecision` con tamaños, `_decision_payload()` añade mtime/tamaño/playtime best-effort (match por stem contra `games`) solo para conflictos, UI pinta la línea de contexto bajo cada fila. 4 tests nuevos, 1434 pass, ruff+format limpios |
 | SYNC-CONFLICT-MANUAL-1 | Revisión manual de conflictos de Cloud Sync desde la UI antes de sincronizar — por archivo, elegir PC/Consola/omitir en vez de que `conflict_policy` global decida siempre por todos. No aplica a Cable Sync (sin detección de conflictos hoy) | `sync/save_syncer.py`, `web/handlers/sync_cloud.py`, `web/static/js/tabs/sync.js` | ✅ hecho 2026-09-22 (rama `feature/saves-ux-history-context`): `sync_saves()` acepta `conflict_overrides` (gana sobre `conflict_policy` por archivo, `skip` no toca nada); selector por fila en el plan de dry-run, recogido al pulsar Sincronizar. 3 tests nuevos, 1437 pass, ruff+format limpios |
 
+### EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben" = PC2)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — mergeado en PR #321 (2026-09-19)
+
+Petición del usuario: quiere sync entre sus 3 dispositivos (PC principal,
+PC2 — esta máquina — y Anbernic). Al revisar el estado real: cable-sync
+PC↔Anbernic y la app Android nativa (`ANDROID-SYNC`) ya están completos en
+código; lo que faltaba en este PC2 era (a) el primer sync real contra
+Dropbox (nunca se había hecho — cuenta correcta pero vacía, confirmado por
+el usuario) y (b) RetroArch, recién instalado a petición del usuario
+(`F:\Emuladores\Retroarch`, build standalone vía instalador gráfico oficial),
+sin `[[sync.sources]]` configuradas todavía.
+
+Hecho: **(1)** primer sync real de este PC2 ejecutado (`rommgr sync --apply`)
+— 6 archivos subidos (Dolphin Wii, DuckStation, PCSX2), 0 errores, verificado
+en Dropbox. **(2)** `[[sync.sources]]` de RetroArch (saves/states) + `[launchers] retroarch`
+añadidas a `config.toml` de este PC2 (gitignored, no en el PR). **(3)**
+`EMU-SYNC-WATCH-1`: petición explícita del usuario de que el sync se dispare
+solo al cerrar RetroArch/PCSX2/DuckStation/Dolphin, no solo manual/al abrir
+la app — daemon nuevo `_emulator_sync_watcher_loop` (`web/daemons.py`), opt-in
+vía `config.sync.watch_processes` (vacío = desactivado), sondea `tasklist`
+cada 10s (stdlib, sin dependencia nueva) y lanza el job `sync` existente al
+detectar que un proceso vigilado pasó de corriendo a cerrado. Refactor previo
+sin cambio de comportamiento: la lógica de `POST /api/sync` (antes un closure
+anónimo en `_do_sync`) se extrajo a `run_cloud_sync_job()`
+(`web/handlers/sync_cloud.py`), compartida ahora por el endpoint web y el
+daemon nuevo.
+
+**Descartado explícitamente**: el mismo patrón para la Anbernic (Android) —
+requeriría un servicio en segundo plano + permiso especial `PACKAGE_USAGE_STATS`
+(concesión manual en Ajustes), justo el patrón de daemon que `ANDROID-SYNC-9/10/11`
+ya descartó a propósito por batería/complejidad. El sync periódico cada 15 min
+que ya existe (`ANDROID-SYNC-12`) cubre el caso de uso sin ese coste | `web/daemons.py`
+(`_emulator_sync_watcher_loop`, `_list_running_process_names`,
+`_closed_watched_processes`), `web/handlers/sync_cloud.py` (`run_cloud_sync_job`,
+extraída de `_do_sync`), `config.py` (`SyncConfig.watch_processes`) | ✅ mergeado
+a `develop` (PR #321, 2026-09-19), 6 tests nuevos, 1355 tests totales. ✅
+**verificado en vivo el mismo día**: partida real de Dragon Ball Budokai 3 en
+PCSX2 → al cerrar el emulador, log `Emulador cerrado (pcsx2-qt.exe) —
+lanzando cloud sync` 3s después → `Mcd001.ps2` subido a Dropbox con el
+timestamp exacto del cierre, 0 errores. **Tarea programada de Windows**
+(`RetroVault-AutoStart`, `pythonw.exe -m rom_manager serve --tray` al inicio
+de sesión) creada y probada (`Start-ScheduledTask`) para que el watcher esté
+vivo sin depender de arrancar `serve` a mano. **12 cores de RetroArch**
+instalados según `platforms.toml` (`[cores.pc]`, primera opción documentada
+por plataforma) directo del buildbot oficial de libretro, sin pasar por el
+Online Updater: `fceumm`/`snes9x`/`mupen64plus_next`/`gambatte`/`mgba`/
+`melonds`/`genesis_plus_gx`/`flycast`/`mame`/`fbneo`/`ppsspp` + `pcsx_rearmed`
+para PSX (`duckstation` ya no existe en el buildbot — el fork activo es
+`swanstation` — se usó la 2ª opción documentada). GameCube/Wii/3DS/PS2
+deliberadamente fuera (usan los standalone ya configurados, no RetroArch) |
+
+### ANDROID-APP-CLEANUP-1 — Desinstaladas las 4 apps sin uso ni RA (hecho 2026-09-27)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — hecho 2026-09-27
+
+Petición directa del usuario. `pm list packages` confirmó que `com.retroarch.aarch64` ya no
+estaba instalado (se quitó en alguna sesión anterior sin dejar rastro en el backlog).
+Desinstaladas por ADB: `com.dsemu.drastic` (DraStic — tenía 69 MB de datos públicos en
+`/storage/emulated/0/DraStic/`, incluyendo 7 saves `.dsv` con progreso real de NDS;
+respaldado completo con `adb pull` a `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\DraStic_publicdata\`
+antes de desinstalar — la carpeta pública sobrevive a la desinstalación de todos modos, pero
+mejor con backup fuera del dispositivo también), `io.recompiled.redream` y
+`org.dolphinemu.mmjr` (ninguno tenía datos públicos que respaldar). Verificado con
+`pm list packages` tras cada desinstalación: los 3 paquetes ya no aparecen | Dispositivo real (RG556) | ✅ hecho 2026-09-27 |

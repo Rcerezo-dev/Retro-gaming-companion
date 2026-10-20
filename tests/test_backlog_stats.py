@@ -28,3 +28,8 @@ texto
 def test_classify():
     got = {t: bs.classify(l) for t, l in bs.sections(MD)}
     assert got == {"A — hecha": ("hecho", 1, 0), "B — abierta": ("pendiente", 1, 1), "C — prosa": ("revisar", 0, 0)}
+
+
+def test_marker_line():
+    assert bs.classify(["> **Estado (revisado 2026-10-20):** ✅ cerrada"]) == ("hecho", 1, 0)
+    assert bs.classify(["> **Estado:** ⏳ abierta"]) == ("pendiente", 0, 1)

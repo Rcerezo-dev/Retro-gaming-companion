@@ -4,6 +4,7 @@ Jugar en cualquiera de los dos lados y que la partida aparezca sola en el
 otro, sin miedo a sobrescribir — el valor diferencial real del proyecto.
 
 ### NATIVE-SAVE-SYNC-1 — Estructura RetroVault en E:\ + sync de saves de juegos nativos (petición usuario 2026-09-26)
+> **Estado (revisado 2026-10-20):** ⏳ abierta — hallazgos pendientes (UI para añadir fuentes, ES-DE)
 
 Petición del usuario: unificar en `E:\RetroVault\` la biblioteca, los
 emuladores, ES-DE y los "juegos nativos" (ports PC hechos por la comunidad
@@ -93,57 +94,8 @@ de esta biblioteca es (USA), no (Europe) como en rammu; corregir
 `local_dir` si el nombre real de carpeta resulta ser otro) — listo para
 cuando el juego cree el save real.
 
-### EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben" = PC2)
-
-Petición del usuario: quiere sync entre sus 3 dispositivos (PC principal,
-PC2 — esta máquina — y Anbernic). Al revisar el estado real: cable-sync
-PC↔Anbernic y la app Android nativa (`ANDROID-SYNC`) ya están completos en
-código; lo que faltaba en este PC2 era (a) el primer sync real contra
-Dropbox (nunca se había hecho — cuenta correcta pero vacía, confirmado por
-el usuario) y (b) RetroArch, recién instalado a petición del usuario
-(`F:\Emuladores\Retroarch`, build standalone vía instalador gráfico oficial),
-sin `[[sync.sources]]` configuradas todavía.
-
-Hecho: **(1)** primer sync real de este PC2 ejecutado (`rommgr sync --apply`)
-— 6 archivos subidos (Dolphin Wii, DuckStation, PCSX2), 0 errores, verificado
-en Dropbox. **(2)** `[[sync.sources]]` de RetroArch (saves/states) + `[launchers] retroarch`
-añadidas a `config.toml` de este PC2 (gitignored, no en el PR). **(3)**
-`EMU-SYNC-WATCH-1`: petición explícita del usuario de que el sync se dispare
-solo al cerrar RetroArch/PCSX2/DuckStation/Dolphin, no solo manual/al abrir
-la app — daemon nuevo `_emulator_sync_watcher_loop` (`web/daemons.py`), opt-in
-vía `config.sync.watch_processes` (vacío = desactivado), sondea `tasklist`
-cada 10s (stdlib, sin dependencia nueva) y lanza el job `sync` existente al
-detectar que un proceso vigilado pasó de corriendo a cerrado. Refactor previo
-sin cambio de comportamiento: la lógica de `POST /api/sync` (antes un closure
-anónimo en `_do_sync`) se extrajo a `run_cloud_sync_job()`
-(`web/handlers/sync_cloud.py`), compartida ahora por el endpoint web y el
-daemon nuevo.
-
-**Descartado explícitamente**: el mismo patrón para la Anbernic (Android) —
-requeriría un servicio en segundo plano + permiso especial `PACKAGE_USAGE_STATS`
-(concesión manual en Ajustes), justo el patrón de daemon que `ANDROID-SYNC-9/10/11`
-ya descartó a propósito por batería/complejidad. El sync periódico cada 15 min
-que ya existe (`ANDROID-SYNC-12`) cubre el caso de uso sin ese coste | `web/daemons.py`
-(`_emulator_sync_watcher_loop`, `_list_running_process_names`,
-`_closed_watched_processes`), `web/handlers/sync_cloud.py` (`run_cloud_sync_job`,
-extraída de `_do_sync`), `config.py` (`SyncConfig.watch_processes`) | ✅ mergeado
-a `develop` (PR #321, 2026-09-19), 6 tests nuevos, 1355 tests totales. ✅
-**verificado en vivo el mismo día**: partida real de Dragon Ball Budokai 3 en
-PCSX2 → al cerrar el emulador, log `Emulador cerrado (pcsx2-qt.exe) —
-lanzando cloud sync` 3s después → `Mcd001.ps2` subido a Dropbox con el
-timestamp exacto del cierre, 0 errores. **Tarea programada de Windows**
-(`RetroVault-AutoStart`, `pythonw.exe -m rom_manager serve --tray` al inicio
-de sesión) creada y probada (`Start-ScheduledTask`) para que el watcher esté
-vivo sin depender de arrancar `serve` a mano. **12 cores de RetroArch**
-instalados según `platforms.toml` (`[cores.pc]`, primera opción documentada
-por plataforma) directo del buildbot oficial de libretro, sin pasar por el
-Online Updater: `fceumm`/`snes9x`/`mupen64plus_next`/`gambatte`/`mgba`/
-`melonds`/`genesis_plus_gx`/`flycast`/`mame`/`fbneo`/`ppsspp` + `pcsx_rearmed`
-para PSX (`duckstation` ya no existe en el buildbot — el fork activo es
-`swanstation` — se usó la 2ª opción documentada). GameCube/Wii/3DS/PS2
-deliberadamente fuera (usan los standalone ya configurados, no RetroArch) |
-
 ### CABLE-SYNC-WATCH-1 — Cable-sync automático al cerrar un emulador en la propia Anbernic (petición usuario 2026-09-19, PC2, con la RG556 conectada)
+> **Estado (revisado 2026-10-20):** ⏳ abierta — sin PR todavía
 
 Petición del usuario: ahora que la Anbernic estaba conectada por USB, ¿el
 mismo patrón de `EMU-SYNC-WATCH-1` pero para el lado Android? La razón por la
@@ -355,18 +307,6 @@ Verify that synced saves from PC actually load on Android and vice versa, for ea
 | SAVES-FRAGMENT-9 | **Progreso real de PS2 perdido en AetherSX2 — hallazgo 2026-08-29, en vivo en la RG556.** `dumpsys usagestats` confirma que el usuario sigue jugando en **AetherSX2** (sesión hoy 02:29-02:34, `appLaunchCount` alto histórico) y que **ARMSX2 nunca se ha abierto** (`idle=y`, sin `lastTimeUsed`) pese a estar instalado desde el 2026-08-25 — la migración de SAVES-FRAGMENT-6 no se aplicó de hecho. A las 02:29:41 AetherSX2 lanzó un `PickActivity` (SAF) justo antes de jugar. La memcard que hoy está activa en `/storage/521D-04EA/saves/memcards/Mcd001.ps2` (mtime 2026-08-27 13:35:58, junto a `Mcd002.ps2` y un tercer archivo `1.ps2` con el mismo mtime exacto → copia en bloque, no partidas jugadas) **no contiene ningún save de juego** (`grep -a -o -E "B[A-Z]?[SXE]LE?S-[0-9]{5}"` → 0 resultados), mientras que las dos copias ya conocidas por SAVES-FRAGMENT-2 (`RetroArch/saves/ps2/Mcd001.ps2` y `RetroArch/saves/LRPS2/Mcd001.ps2`) sí tienen 6 juegos cada una (BESLES-50386/51950/52445/52822/53777/54915). Esa misma carpeta `/storage/521D-04EA/saves/` replica 1:1 la estructura interna de AetherSX2 (`bios/`, `covers/`, `gamesettings/`, `sstates/`) y tiene al lado `duckstation_backup_2026-08-27.zip` (129 MB, 13:20) — es un **backup manual hecho el 27**, y ese backup ya capturó la memcard vacía. La memcard privada real de AetherSX2 (`Android/data/xyz.aethersx2.android/files/memcards/Mcd001.ps2`) tiene mtime 2026-08-13 pero su contenido es ilegible por ADB (scoped storage, `Permission denied` en `md5sum`/`grep`, igual que el resto de `/data/data` — no es root). No se ha tocado ni movido nada. **Hipótesis más probable, sin confirmar dentro de la app**: el progreso se perdió en AetherSX2 alrededor del 2026-08-13 (coincide con el mtime), no hoy — probablemente por crear/formatear una memcard nueva desde el menú de AetherSX2 sobre las mismas ranuras Mcd001/Mcd002, no por reinstalación (`versionName=v1.5-4248`, sin actualizar desde 2025-05-30). Pendiente: (1) abrir AetherSX2 y comprobar en Settings → Memory Cards qué carpeta usa hoy y si hay copias `.bak`/exportadas dentro de la app; (2) si se confirma que el progreso ya no existe en ningún sitio accesible, importar manualmente `RetroArch/saves/ps2/Mcd001.ps2` (la copia más reciente conocida, 2025-11-21) a AetherSX2 — backup previo obligatorio, memcard multi-juego = nunca automático (regla 7 de `docs/emulador-canonico-rg556.md` §5) | Hardware + investigación | S | 🟡 **punto 1 hecho 2026-09-27**: AetherSX2 abierto en modo solo-lectura, sin jugar nada — Settings → Memory Cards → Memory Card 1 = `Mcd001.ps2` (PS2/8MB), habilitada, "Filtrar Carpeta" activo. Coincide por nombre con las copias buenas conocidas, pero sigue sin poder leerse el binario real sin root — **no se puede confirmar si coincide o no, cuarentena**, tal como pide la regla 5. ARMSX2 abierto por primera vez sin arrancar nada: su carpeta de memcards aún no existe (se crea perezosamente al primer boot de juego/BIOS) — la migración por `adb push` queda lista para ejecutar en cuanto exista esa carpeta (confirmado que `Android/data/com.armsx2/files/` sí es accesible por ADB, a diferencia de AetherSX2), pero requiere que el usuario abra un juego una vez en ARMSX2 primero.
 
 **Migración completada 2026-09-27**: el usuario abrió *Burnout 3 - Takedown* en ARMSX2 y creó un perfil real (save `BASLUS-21050`, confirmado con `strings` — no es plantilla). La config real de ARMSX2 vive en `/storage/521D-04EA/saves/memcards/` (SD — `bios/`, `cheats/`, `PCSX2-Android.ini` — no en `Android/data/` como se pensaba), accesible por ADB sin problema. Al inspeccionar la copia buena conocida con `mymcplus` (librería Python que entiende el formato real de superblock/FAT de una memcard PS2 — instalada aparte en el scratchpad de la sesión con `pip install --target`, **no** añadida como dependencia del proyecto) resultó tener **13 juegos, no 6** (el número de `SAVES-FRAGMENT-2` quedó desactualizado por syncs posteriores a 2026-09-08). Entre esos 13 ya había **otro** save de Burnout 3 (`BASLUS-21050`, creado 2025-05-22, modificado 2025-06-08) — conflicto real con el de hoy, mismo juego, dos partidas distintas. Caso de la regla 5 de §5 (divergencia real entre orígenes, nunca automático): preguntado al usuario, decidió quedarse con el save de 2025. Con esa decisión no hizo falta fusionar nada — la copia de 13 juegos se empujó tal cual al **slot 1** (`mcd001.ps2`, md5 `c229c932d6c18d87303c3ed5f7aebc8d`, verificado con `md5sum` tras copiar). El perfil de hoy no se perdió: queda respaldado en el propio dispositivo (`mcd001.ps2.bak-burnout3-perfil-hoy-20260927`, junto al slot 1) y en `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\armsx2_memcards\`. El slot 2 (usado como zona de pruebas mientras se investigaba) se devolvió a su plantilla en blanco original. La memcard privada real de AetherSX2 sigue sin poder leerse sin root — no se pudo confirmar si su contenido coincidía con estos 13 juegos, pero deja de bloquear nada: ARMSX2 ya tiene el estado bueno conocido activo | `docs/emulador-canonico-rg556.md` §7 tiene el mismo detalle |
-
-### ANDROID-APP-CLEANUP-1 — Desinstaladas las 4 apps sin uso ni RA (hecho 2026-09-27)
-
-Petición directa del usuario. `pm list packages` confirmó que `com.retroarch.aarch64` ya no
-estaba instalado (se quitó en alguna sesión anterior sin dejar rastro en el backlog).
-Desinstaladas por ADB: `com.dsemu.drastic` (DraStic — tenía 69 MB de datos públicos en
-`/storage/emulated/0/DraStic/`, incluyendo 7 saves `.dsv` con progreso real de NDS;
-respaldado completo con `adb pull` a `E:\RetroVault\ROMS\_backup_android_cleanup_20260927\DraStic_publicdata\`
-antes de desinstalar — la carpeta pública sobrevive a la desinstalación de todos modos, pero
-mejor con backup fuera del dispositivo también), `io.recompiled.redream` y
-`org.dolphinemu.mmjr` (ninguno tenía datos públicos que respaldar). Verificado con
-`pm list packages` tras cada desinstalación: los 3 paquetes ya no aparecen | Dispositivo real (RG556) | ✅ hecho 2026-09-27 |
 
 ### DAIJISHO-IISU-PATHS-1 — Las rutas de Daijishō e iiSU a `SD:/ROMs/` ya funcionan, se resolvieron solas (verificado 2026-09-27)
 
