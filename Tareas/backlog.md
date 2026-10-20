@@ -22,11 +22,11 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 
 | Rama | Roadmap | Tarea(s) en este backlog | Epic |
 |------|---------|---------------------------|------|
-| `fix/matcher-coverage-gaps` | [14](../.claude/roadmaps/14-matcher-coverage-gaps.md) | [MATCH-FIX-3](backlog/hecho/pilar2-inbox.md) | Pilar 1 |
+| `fix/matcher-coverage-gaps` | [14](../.claude/roadmaps/archivo/14-matcher-coverage-gaps.md) | [MATCH-FIX-3](backlog/hecho/pilar2-inbox.md) | Pilar 1 |
 | `fix/cable-sync-format-gaps` | [16](../.claude/roadmaps/16-cable-sync-format-gaps.md) | [CABLE-ROM-FIX](backlog/hecho/pilar3-sync.md) | Pilar 3 |
-| `feature/device-profile-loose-data` | [19](../.claude/roadmaps/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
+| `feature/device-profile-loose-data` | [19](../.claude/roadmaps/archivo/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
-| — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/24-docs-audit-followups.md) | [DOCS-AUDIT-1](backlog/hecho/transversal.md) | Transversal |
+| — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/archivo/24-docs-audit-followups.md) | [DOCS-AUDIT-1](backlog/hecho/transversal.md) | Transversal |
 | `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 — ✅ completo, PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339) abierto |
 | `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
 | `feature/library-folder-standardization` | [29](../.claude/roadmaps/29-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |

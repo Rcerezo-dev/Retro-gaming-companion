@@ -20,13 +20,14 @@
 | [onboarding.md](onboarding.md) | Primeros 30 minutos para devs nuevos: mapa de lectura del código, e2e sintético, debug |
 | [glossary.md](glossary.md) | Glosario de jerga retro (DAT, CHD, cue/bin, saves vs states…) y por qué importa en el código |
 | [ci-cd.md](ci-cd.md) | Pipeline CI/CD: GitHub Actions, branch protection, ramas, pre-commit, gotchas |
-| [SKILLS-QUICK-START.md](SKILLS-QUICK-START.md) | Skills y agents de Claude Code disponibles en el proyecto |
+| [SKILLS-QUICK-START.md](SKILLS-QUICK-START.md) | Chuleta de las skills de Obsidian (`.claude/obsidian-*`) — solo aplica al vault de la máquina "Ruben" |
 
 ## Arquitectura
 
 | Documento | Contenido |
 |-----------|-----------|
 | [architecture.md](architecture/architecture.md) | Estructura técnica completa: módulos, base de datos, flujos |
+| [patterns.md](architecture/patterns.md) | Patrones críticos del código (jobs web, rename atómico, config, SQLite, estado compartido, ZIP-ROUTE) — leer antes de tocar esas áreas |
 | [platforms-cores.md](architecture/platforms-cores.md) | Plataformas soportadas y núcleos RetroArch |
 | [Roadmap-Arquitectura-Frontend.md](architecture/Roadmap-Arquitectura-Frontend.md) | Diseño original de la migración frontend (referencia histórica) |
 
@@ -56,6 +57,15 @@
 |-----------|-----------|
 | [Idea_final.md](ideas/Idea_final.md) | Visión completa de la app: tabs, flujo, problemas abiertos |
 | [propuestas-recomendador-nlp.md](ideas/propuestas-recomendador-nlp.md) | Análisis de viabilidad de recomendador de juegos con NLP |
+
+## Fuera de `docs/` — trabajo en curso
+
+| Dónde | Qué |
+|-------|-----|
+| [`Tareas/backlog.md`](../Tareas/backlog.md) | Índice de pendientes; detalle por epic en `Tareas/backlog/<epic>.md`, cerrado en `Tareas/backlog/hecho/` |
+| [`.claude/roadmaps/INDEX.md`](../.claude/roadmaps/INDEX.md) | Planes por rama (activos y archivados) |
+| `Tareas/diario/` | Bitácora de sesiones (`archivo/` las cerradas) |
+| [`.claude/CLAUDE.md`](../.claude/CLAUDE.md) | Instrucciones permanentes para Claude Code |
 
 ## Archivo
 
