@@ -13,7 +13,7 @@ no cambian ningún flujo de control ni el `job_result` que ya ve el usuario)
 
 ## Origen
 
-`.claude/mejoras-por-rama.md` (sección 8) describía el problema en términos
+`.claude/roadmaps/archivo/mejoras-por-rama.md` (sección 8) describía el problema en términos
 genéricos y con referencias ya desactualizadas (`cable_sync_daemon.py` línea
 322 — no existe esa línea con ese contenido hoy; `handlers/sync.py` línea 174
 sí sigue existiendo, coincidencia). Siguiendo la regla del proyecto

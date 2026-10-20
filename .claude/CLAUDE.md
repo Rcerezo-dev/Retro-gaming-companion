@@ -1,7 +1,8 @@
 # Retro Vault — Contexto del proyecto
 
 Herramienta local Python + interfaz web (`http://127.0.0.1:7777`) para gestionar ROMs retro y sincronizar saves entre PC y consola Android.
-Backlog activo: `Tareas/backlog.md`. Estado de fases: memoria `phases.md`.
+Backlog: `Tareas/backlog.md` es solo el **índice** (tabla de pendientes); el detalle vive en `Tareas/backlog/<epic>.md` y lo cerrado en `Tareas/backlog/hecho/`.
+**Nunca leas un epic entero** (hasta 1.300 líneas): `grep -rn "ID-DE-TAREA" Tareas/backlog/` y lee solo esa sección. Estado de fases: memoria `phases.md`.
 CI/CD y GitHub Actions: `docs/ci-cd.md` (lint+format+pytest, branch protection, CodeRabbit, hooks pre-commit/pre-push, recetas y gotchas).
 
 ## Los 3 pilares (en orden de prioridad real)
@@ -33,7 +34,7 @@ Dos capas, cada una con su rol — no duplicar contenido entre ellas:
   visibilidad y discusión, no para el detalle de implementación — pero el cuerpo
   del issue lleva una checklist (`- [ ]`/`- [x]`) con los IDs de tarea de su
   sección del backlog, sincronizada dinámicamente (ver regla de checklist abajo).
-- **`Tareas/backlog.md`** — desglose operativo. Cada epic tiene una sección propia
+- **`Tareas/backlog.md` + `Tareas/backlog/<epic>.md`** — desglose operativo (índice + detalle por epic). Cada epic tiene una sección propia
   con una tabla de tareas con ID (mismo patrón que `PHASE6-*` o `EMULATOR-COMPAT-*`
   ya existentes), y la sección enlaza al issue: `→ #NNN`. Este archivo sigue siendo
   la fuente de verdad para el trabajo del día a día.
@@ -53,7 +54,7 @@ No confundir con `.claude/roadmaps/*.md` — esos son roadmaps técnicos paso a 
 para una rama de refactor concreta (ver `.claude/roadmaps/INDEX.md`), un nivel de
 detalle distinto y con su propio índice.
 
-**Una sola fuente de estado**: `Tareas/backlog.md` es el único sitio que dice si
+**Una sola fuente de estado**: `Tareas/backlog.md` (y los `backlog/<epic>.md` que indexa) es el único sitio que dice si
 una tarea está hecha o pendiente. `.claude/roadmaps/*.md` es solo el plan (pasos,
 código, criterios de verificación) — no lleva checklist de estado propio; cuando
 ya no le queda nada pendiente en el backlog, se archiva a `.claude/roadmaps/archivo/`.
@@ -89,70 +90,20 @@ número que no cuadra, un flujo que se queda a medias): verifica primero contra
 la biblioteca real o la BD, no contra suposiciones — y sigue la cadena hasta la
 causa raíz en el código, no solo el síntoma. No implementes el fix en la misma
 sesión salvo que el usuario lo pida explícitamente: documenta el hallazgo con
-archivo:línea exactos y añádelo al backlog (`Tareas/backlog.md`) para que se
+archivo:línea exactos y añádelo al backlog (sección en `Tareas/backlog/<epic>.md` + fila en la tabla de `Tareas/backlog.md`) para que se
 implemente en su propia rama. Patrón ya usado en JUNK-FIX-*/INBOX-FIX-* (Día39).
 
 ---
 
 ## Patrones críticos
 
-### Jobs en background (web)
-```python
-# _job_lock, _jobs dict, _xxx_progress dict, _job_results dict
-# Frontend: startPolling() cada 2s → /api/job-status → _applyJobStatus(s)
-# result_ts en cada resultado para evitar toasts infinitos (_shownResultTs)
-```
+Detalle y código en [`docs/architecture/patterns.md`](../docs/architecture/patterns.md) — **léelo antes de tocar el área**. Regla corta de cada uno:
 
-### Rename atómico
-```python
-from rom_manager.renamer.file_renamer import rename_rom_with_saves
-outcome = rename_rom_with_saves(source_path, target_path, save_extensions)
-# outcome.success, outcome.saves_renamed, outcome.error
-```
-
-### Fix renames solo-mayúsculas en Windows (NTFS)
-```python
-# operation_planner.py — _same_file() con Path.samefile()
-# Conflicto solo si target.exists() AND NOT _same_file(source, target)
-```
-
-### Config: recarga en memoria obligatoria tras guardar
-```python
-# _handle_save_config() DEBE recargar load_config() y actualizar todos los campos
-# Sin esto los cambios no se aplican hasta reiniciar el servidor
-```
-
-### SQLite
-```python
-with repository.connect() as conn:  # lecturas
-    rows = conn.execute("SELECT ...").fetchall()
-# repository.batch() para escrituras en bulk
-```
-
-### Estado compartido vía web/state.py (CLEAN-1)
-```python
-# El estado mutable global vive en rom_manager.web.state, importado a nivel
-# de módulo (NO late import). server.py importa los handlers también a nivel
-# de módulo (ninguno importa server → sin ciclo).
-import rom_manager.web.state as _state
-
-def _auto_sync_loop(config, get_repo_fn):
-    _state._auto_sync_status = {"state": "syncing"}  # reasignación → siempre via _state.xxx
-    _cable_progress = _state._cable_progress          # mutación → binding local válido
-# srv_mod= que reciben los handlers es un alias legado de web.state (se elimina en ARC-JM-6).
-```
-
-### ZIPs sueltos: identidad por contenido (ZIP-ROUTE)
-```python
-# El header del ZIP ya trae el CRC32 de cada entrada → identificar SIN descomprimir:
-# CatalogMatcher.crc_index() (consola) y load_arcade_crc_index() (votación arcade).
-# Los tags del nombre ("(XBLA)", "(Disk 1)") mienten: el contenido manda.
-# Un ZIP arcade NUNCA se extrae ni pasa por el Inbox — el ZIP es el ROM.
-# Colocación en un paso: web/zip_router.py (job "inbox", delete_source=True).
-```
-
-### Static files
-```
-GET /static/app.css  →  src/rom_manager/web/static/app.css
-GET /static/app.js   →  src/rom_manager/web/static/app.js
-```
+- **Jobs en background (web)**: `_job_lock`/`_jobs`/`_job_results`; el frontend sondea `/api/job-status` cada 2 s; `result_ts` evita toasts repetidos.
+- **Rename atómico**: siempre `rename_rom_with_saves()`, nunca renombrar a mano (arrastra los saves).
+- **Renames solo-mayúsculas (NTFS)**: conflicto solo si `target.exists()` y no `_same_file()`.
+- **Config**: `_handle_save_config()` debe recargar `load_config()` en memoria tras guardar.
+- **SQLite**: `repository.connect()` para leer, `repository.batch()` para escrituras en bulk.
+- **Estado compartido**: vive en `rom_manager.web.state` (import a nivel de módulo); reasignar siempre vía `_state.xxx`.
+- **ZIPs sueltos**: identidad por CRC32 del header, sin descomprimir; un ZIP arcade nunca se extrae ni pasa por el Inbox.
+- **Estáticos**: `/static/app.css` y `/static/app.js` → `src/rom_manager/web/static/`.

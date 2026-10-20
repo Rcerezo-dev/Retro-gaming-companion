@@ -473,7 +473,7 @@ Tier 5 — Experimental
 
 ## Resumen de lo completado en el Día 16 (sesiones A y B — 2026-03-20/21)
 
-> Detalle completo en `Tareas/diario/día16.md`.
+> Detalle completo en `Tareas/diario/archivo/Día16.md`.
 
 **Sesión A (2026-03-20):**
 - S34d-0: fix `parse_bins_from_cue` sin comillas (Street Fighter Collection y otros)

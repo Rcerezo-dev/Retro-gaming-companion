@@ -11,7 +11,7 @@ cambia de URL ni de forma; `server.py` no necesita tocarse (ver Objetivo)
 
 ## Origen
 
-`.claude/mejoras-por-rama.md` (sección 9) describía `handlers/config.py` como
+`.claude/roadmaps/archivo/mejoras-por-rama.md` (sección 9) describía `handlers/config.py` como
 372 líneas mezclando "settings generales, PIN/auth, gestión de logs,
 herramientas externas (adb, rclone)". Siguiendo la regla del proyecto
 "investigar antes de arreglar" (`CLAUDE.md`) y el precedente de los roadmaps
