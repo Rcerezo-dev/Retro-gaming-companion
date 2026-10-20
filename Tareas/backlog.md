@@ -113,76 +113,62 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 
 ## Epics
 
-| Epic | Archivo | Secciones abiertas / hechas |
-|---|---|---|
-| Pilar 1 — Limpieza y organización inicial de la biblioteca — → #202 | [`backlog/pilar1-limpieza.md`](backlog/pilar1-limpieza.md) | 18 / 12 |
-| Pilar 2 — Inbox automático — → #203 | [`backlog/pilar2-inbox.md`](backlog/pilar2-inbox.md) | 2 / 15 |
-| Pilar 3 — Sync de saves PC ↔ Anbernic — → #204 | [`backlog/pilar3-sync.md`](backlog/pilar3-sync.md) | 11 / 11 |
-| UX — Auditorías por pestaña — → #206 | [`backlog/ux.md`](backlog/ux.md) | 1 / 3 |
-| Distribución / Release — → #207 | [`backlog/distribucion.md`](backlog/distribucion.md) | 2 / 0 |
-| RA, Scraper y Recomendador (SAGE) — → #208 | [`backlog/ra-scraper-sage.md`](backlog/ra-scraper-sage.md) | 2 / 0 |
-| Estandarización de biblioteca multi-launcher (ES-DE + ROM hacks/fan projects) — → #337 | [`backlog/estandarizacion-biblioteca.md`](backlog/estandarizacion-biblioteca.md) | 2 / 0 |
-| Validación en hardware — → #211 | [`backlog/validacion-hardware.md`](backlog/validacion-hardware.md) | 1 / 0 |
-| Perfil de dispositivo — provisioning con un botón — → #238 | [`backlog/perfil-dispositivo.md`](backlog/perfil-dispositivo.md) | 0 / 0 |
-| Roadmap — Ideas futuras — → #212 | [`backlog/ideas-futuras.md`](backlog/ideas-futuras.md) | 1 / 0 |
-| Transversal — Calidad de código, DX y referencia (sin epic) | [`backlog/transversal.md`](backlog/transversal.md) | 12 / 10 |
+| Epic | Archivo |
+|---|---|
+| Pilar 1 — Limpieza y organización inicial de la biblioteca — → #202 | [`backlog/pilar1-limpieza.md`](backlog/pilar1-limpieza.md) |
+| Pilar 2 — Inbox automático — → #203 | [`backlog/pilar2-inbox.md`](backlog/pilar2-inbox.md) |
+| Pilar 3 — Sync de saves PC ↔ Anbernic — → #204 | [`backlog/pilar3-sync.md`](backlog/pilar3-sync.md) |
+| UX — Auditorías por pestaña — → #206 | [`backlog/ux.md`](backlog/ux.md) |
+| Distribución / Release — → #207 | [`backlog/distribucion.md`](backlog/distribucion.md) |
+| RA, Scraper y Recomendador (SAGE) — → #208 | [`backlog/ra-scraper-sage.md`](backlog/ra-scraper-sage.md) |
+| Estandarización de biblioteca multi-launcher (ES-DE + ROM hacks/fan projects) — → #337 | [`backlog/estandarizacion-biblioteca.md`](backlog/estandarizacion-biblioteca.md) |
+| Validación en hardware — → #211 | [`backlog/validacion-hardware.md`](backlog/validacion-hardware.md) |
+| Perfil de dispositivo — provisioning con un botón — → #238 | [`backlog/perfil-dispositivo.md`](backlog/perfil-dispositivo.md) |
+| Roadmap — Ideas futuras — → #212 | [`backlog/ideas-futuras.md`](backlog/ideas-futuras.md) |
+| Transversal — Calidad de código, DX y referencia (sin epic) | [`backlog/transversal.md`](backlog/transversal.md) |
 
-## Pendiente y por revisar
+## Pendiente
 
-`pendiente` = alguna fila sin ✅. `revisar` = sección sin tabla de estado (prosa); comprobar a mano si sigue abierta. Generado el 2026-10-20 (DOCS-AUDIT-2b); se mantiene a mano al abrir/cerrar secciones.
+Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/backlog_stats.py --tabla`; resumen con `--detalle`. Al cerrar una sección, muévela a `backlog/hecho/<epic>.md` y quita su fila. Una sección sin estado aparece como `revisar`: añade una línea `> **Estado (revisado AAAA-MM-DD):** ✅|⏳ motivo` al inicio de la sección.
 
-| Sección | Epic | Estado |
-|---|---|---|
-| PSX-STRUCTURE — Auditoría de estructura de `psx/` (2026-09-02, a petición del usuario) | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
-| RA-DEDUP-UNSAFE-1 — Borrar duplicados "sin soporte RA pero con alternativa" no se puede automatizar (hallazgo  | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| PSX-ORPHAN — Carpetas huérfanas de scraping en `psx/` (hallazgo 2026-08-26) | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
-| ANDROID-DUP-1 — Duplicados reales en la propia Anbernic (DaijiShō/iSuu), nunca comprobados: dedup solo se ha e | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-DUP-2 — El escaneo ADB nunca calcula SHA1/MD5: matcher nunca corre sobre `library_android.db`, duplica | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-DUP-CROSSFMT-VERIFY-1 — los 61 grupos `crossfmt` restantes (53 pares `.chd`+`.bin` + 8 más, ~26,5 GB)  | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-STVERSIONS-1 — `saves/.stversions/<core>/` (carpeta de versionado de Syncthing) se trata como save rea | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-DUP-3 — `famicom/` es una segunda carpeta-plataforma paralela a `nes/` (86% de solapamiento por nombre | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-FDS-CLEANUP-1 — Limpieza de `fds/` verificada por SHA1: 0 bytes de contenido único, todo duplicado o m | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-ORGANIZE-ADB-1 — `organize-source` ya tiene el motor de dedup+ruteo arcade necesario; el hueco real es | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| GBA-DUAL-FOLDER-1 — `Game Boy Advance/` y `gba/` son dos carpetas activas paralelas con 881 títulos duplicados | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| PS2-DUAL-FOLDER-1 — `organize-source` crea un segundo `ps2/` en vez de usar `PlayStation 2/` ya existente (hal | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| CATALOG-MATCH-SUBSET-1 — `_match_by_title()` no comprobaba `is_non_canonical_variant()`, asignando el `canonic | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| DUALFOLDER-12 — 11 pares Title Case/slug restantes consolidados + guard en el Inbox (2026-09-17, máquina "Rube | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cance | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| GDI-ORGANIZE-1 — Organizar los 9 sets Dreamcast/Naomi extraídos: 2 bugs reales encontrados antes de poder move | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| ANDROID-DUP-PSX-1 — PlayStation en la Anbernic: verificación por pareja real de SHA1 antes de aplicar, no fiar | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
-| HEALTH-CHECK-RUBEN-1 — El Health Check semanal marcó 2 "corrupted" que en realidad son falsos positivos: el `s | [pilar1-limpieza](backlog/pilar1-limpieza.md) | revisar |
-| PSX-CUE-DESYNC-1 — `rename_rom_with_saves` no reescribe la referencia `FILE` interna del `.cue` al renombrar — | [pilar2-inbox](backlog/pilar2-inbox.md) | pendiente |
-| ZIP-ROUTE — Colocar los ZIPs sueltos por CRC del header (diseño 2026-07-10) | [pilar2-inbox](backlog/pilar2-inbox.md) | pendiente |
-| NATIVE-SAVE-SYNC-1 — Estructura RetroVault en E:\ + sync de saves de juegos nativos (petición usuario 2026-09- | [pilar3-sync](backlog/pilar3-sync.md) | revisar |
-| EMU-SYNC-WATCH-1 — Cloud sync automático al cerrar un emulador PC (petición usuario 2026-09-19, máquina "Ruben | [pilar3-sync](backlog/pilar3-sync.md) | revisar |
-| CABLE-SYNC-WATCH-1 — Cable-sync automático al cerrar un emulador en la propia Anbernic (petición usuario 2026- | [pilar3-sync](backlog/pilar3-sync.md) | revisar |
-| ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| EMULATOR-COMPAT — Save compatibility PC ↔ Android | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| ANDROID-APP-CLEANUP-1 — Desinstaladas las 4 apps sin uso ni RA (hecho 2026-09-27) | [pilar3-sync](backlog/pilar3-sync.md) | revisar |
-| DAIJISHO-IISU-PATHS-1 — Las rutas de Daijishō e iiSU a `SD:/ROMs/` ya funcionan, se resolvieron solas (verific | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| CABLE-ROOT-1 — El Cable Sync por ADB apuntaba a almacenamiento interno vacío, no a la SD real del dispositivo  | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| ANDROID-APP-PRIVATE-STORAGE-1 — DuckStation y AetherSX2 guardan en `Android/data/<paquete>/` (RG556): ni ADB n | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| SAVE-GUARD — No dejar que un save dañado gane un conflicto (idea 2026-10-03) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| SYNC-REMOTE-TREE-1 — PC y Android parecen sincronizar RetroArch en árboles distintos de Dropbox (hallazgo 2026 | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| Sección | Epic | Estado |
+|---|---|---|
+| Phase 6 — Distribution | [distribucion](backlog/distribucion.md) | pendiente |
+| DÍA37 — Distribuible completo + prueba en PC limpio (2026-07-02) | [distribucion](backlog/distribucion.md) | pendiente |
+| ESDE-FOLDER-STD-1 — Confirmar y cerrar el hueco real de integración ES-DE (idea usuario 2026-09-22) | [estandarizacion-biblioteca](backlog/estandarizacion-biblioteca.md) | pendiente |
+| ROMHACK-ORG-1 — Organizar ROM hacks / fan projects que no matchean catálogo oficial (idea usuario 2026-09-22) | [estandarizacion-biblioteca](backlog/estandarizacion-biblioteca.md) | pendiente |
+| ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún) | [ideas-futuras](backlog/ideas-futuras.md) | pendiente |
+| PSX-STRUCTURE — Auditoría de estructura de `psx/` (2026-09-02, a petición del usuario) | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| PSX-ORPHAN — Carpetas huérfanas de scraping en `psx/` (hallazgo 2026-08-26) | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-DUP-1 — Duplicados reales en la propia Anbernic (DaijiShō/iSuu), nunca comprobados: dedup solo se ha e | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-DUP-2 — El escaneo ADB nunca calcula SHA1/MD5: matcher nunca corre sobre `library_android.db`, duplica | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-DUP-CROSSFMT-VERIFY-1 — los 61 grupos `crossfmt` restantes (53 pares `.chd`+`.bin` + 8 más, ~26,5 GB)  | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-STVERSIONS-1 — `saves/.stversions/<core>/` (carpeta de versionado de Syncthing) se trata como save rea | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-DUP-3 — `famicom/` es una segunda carpeta-plataforma paralela a `nes/` (86% de solapamiento por nombre | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-ORGANIZE-ADB-1 — `organize-source` ya tiene el motor de dedup+ruteo arcade necesario; el hueco real es | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| GDI-ORGANIZE-1 — Organizar los 9 sets Dreamcast/Naomi extraídos: 2 bugs reales encontrados antes de poder move | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| ANDROID-DUP-PSX-1 — PlayStation en la Anbernic: verificación por pareja real de SHA1 antes de aplicar, no fiar | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| HEALTH-CHECK-RUBEN-1 — El Health Check semanal marcó 2 "corrupted" que en realidad son falsos positivos: el `s | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| PSX-CUE-DESYNC-1 — `rename_rom_with_saves` no reescribe la referencia `FILE` interna del `.cue` al renombrar — | [pilar2-inbox](backlog/pilar2-inbox.md) | pendiente |
+| ZIP-ROUTE — Colocar los ZIPs sueltos por CRC del header (diseño 2026-07-10) | [pilar2-inbox](backlog/pilar2-inbox.md) | pendiente |
+| NATIVE-SAVE-SYNC-1 — Estructura RetroVault en E:\ + sync de saves de juegos nativos (petición usuario 2026-09- | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| CABLE-SYNC-WATCH-1 — Cable-sync automático al cerrar un emulador en la propia Anbernic (petición usuario 2026- | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| ANDROID-SYNC — App Android nativa de sync de saves (diseño 2026-08-18) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| EMULATOR-COMPAT — Save compatibility PC ↔ Android | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| DAIJISHO-IISU-PATHS-1 — Las rutas de Daijishō e iiSU a `SD:/ROMs/` ya funcionan, se resolvieron solas (verific | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| CABLE-ROOT-1 — El Cable Sync por ADB apuntaba a almacenamiento interno vacío, no a la SD real del dispositivo  | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| ANDROID-APP-PRIVATE-STORAGE-1 — DuckStation y AetherSX2 guardan en `Android/data/<paquete>/` (RG556): ni ADB n | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| SAVE-GUARD — No dejar que un save dañado gane un conflicto (idea 2026-10-03) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| SYNC-REMOTE-TREE-1 — PC y Android parecen sincronizar RetroArch en árboles distintos de Dropbox (hallazgo 2026 | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
+| SAGE — Soporte para Retro Sage (recomendador NLP) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
+| RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
+| User actions (no code needed) | [transversal](backlog/transversal.md) | pendiente |
+| GBA-MISPLACED-1 — Archivos de otras plataformas mal ubicados en `gba/` con metadatos corruptos (hallazgo 2026- | [transversal](backlog/transversal.md) | pendiente |
+| GAMECUBE-DISC-BUG-1 — Juegos multi-disco de GameCube marcados como "duplicado" (bug serio, riesgo real de pérd | [transversal](backlog/transversal.md) | pendiente |
+| ARCADE-RENAME-BUG-1 — MAME/FBNeo no cargan ~2.766 ROMs de `arcade/` por nombre de archivo (hallazgo 2026-08-31 | [transversal](backlog/transversal.md) | pendiente |
+| LIBRARY-SYNC-STALE-1 — Biblioteca corregida el 08-30 (GBA/PSX/GameCube) nunca llegó a la Anbernic (hallazgo 20 | [transversal](backlog/transversal.md) | pendiente |
+| GBA-SAVE-PATH-1 — GBA "no encuentra los saves anteriores" tras instalar emuladores nuevos (investigado en vivo | [transversal](backlog/transversal.md) | pendiente |
+| LIBRARY-CLEANUP-GAPS-1 — Huecos reales encontrados al limpiar PSX a mano (hallazgo 2026-08-31) | [transversal](backlog/transversal.md) | pendiente |
+| PSX-CATALOG-MISSING-1 — Falta el datfile Redump de PlayStation: 872/885 juegos (98%) sin `canonical_title` (ha | [transversal](backlog/transversal.md) | pendiente |
+| LIBRARY-AUDIT-1 — Estado de match por plataforma y huecos reales encontrados (auditoría 2026-09-14, `F:\Juegos | [transversal](backlog/transversal.md) | pendiente |
 | MOBILE-UI — UI usable desde el móvil (idea usuario 2026-09-22) | [ux](backlog/ux.md) | pendiente |
-| Phase 6 — Distribution | [distribucion](backlog/distribucion.md) | pendiente |
-| DÍA37 — Distribuible completo + prueba en PC limpio (2026-07-02) | [distribucion](backlog/distribucion.md) | pendiente |
-| SAGE — Soporte para Retro Sage (recomendador NLP) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
-| RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
-| ESDE-FOLDER-STD-1 — Confirmar y cerrar el hueco real de integración ES-DE (idea usuario 2026-09-22) | [estandarizacion-biblioteca](backlog/estandarizacion-biblioteca.md) | pendiente |
-| ROMHACK-ORG-1 — Organizar ROM hacks / fan projects que no matchean catálogo oficial (idea usuario 2026-09-22) | [estandarizacion-biblioteca](backlog/estandarizacion-biblioteca.md) | pendiente |
-| Hardware validation (requires console or SD card) | [validacion-hardware](backlog/validacion-hardware.md) | revisar |
-| ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún) | [ideas-futuras](backlog/ideas-futuras.md) | revisar |
-| DOCS-AUDIT-2 — Documentación optimizada para sesiones con Claude (auditoría 2026-10-20) | [transversal](backlog/transversal.md) | pendiente |
-| DOCS-AUDIT-3 — Adaptar commands y agent al backlog partido (seguimiento de 2b, 2026-10-20) | [transversal](backlog/transversal.md) | pendiente |
-| SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless ( | [transversal](backlog/transversal.md) | revisar |
-| RETROARCH-THUMBS-1 — Publicar carátulas/capturas ya escaneadas en el árbol `thumbnails/` de RetroArch (petició | [transversal](backlog/transversal.md) | revisar |
-| User actions (no code needed) | [transversal](backlog/transversal.md) | revisar |
-| GBA-MISPLACED-1 — Archivos de otras plataformas mal ubicados en `gba/` con metadatos corruptos (hallazgo 2026- | [transversal](backlog/transversal.md) | pendiente |
-| GAMECUBE-DISC-BUG-1 — Juegos multi-disco de GameCube marcados como "duplicado" (bug serio, riesgo real de pérd | [transversal](backlog/transversal.md) | pendiente |
-| ARCADE-RENAME-BUG-1 — MAME/FBNeo no cargan ~2.766 ROMs de `arcade/` por nombre de archivo (hallazgo 2026-08-31 | [transversal](backlog/transversal.md) | pendiente |
-| LIBRARY-SYNC-STALE-1 — Biblioteca corregida el 08-30 (GBA/PSX/GameCube) nunca llegó a la Anbernic (hallazgo 20 | [transversal](backlog/transversal.md) | pendiente |
-| GBA-SAVE-PATH-1 — GBA "no encuentra los saves anteriores" tras instalar emuladores nuevos (investigado en vivo | [transversal](backlog/transversal.md) | pendiente |
-| LIBRARY-CLEANUP-GAPS-1 — Huecos reales encontrados al limpiar PSX a mano (hallazgo 2026-08-31) | [transversal](backlog/transversal.md) | pendiente |
-| PSX-CATALOG-MISSING-1 — Falta el datfile Redump de PlayStation: 872/885 juegos (98%) sin `canonical_title` (ha | [transversal](backlog/transversal.md) | revisar |
-| LIBRARY-AUDIT-1 — Estado de match por plataforma y huecos reales encontrados (auditoría 2026-09-14, `F:\Juegos | [transversal](backlog/transversal.md) | pendiente |

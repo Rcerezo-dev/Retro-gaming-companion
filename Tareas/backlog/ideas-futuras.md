@@ -5,6 +5,7 @@ vivo aquí (STORAGE-MGR validación + CFG-PORGAME + MODS-AUTO), para trocear
 en sesiones por día: `Tareas/Roadmap-212-Ideas-Futuras.md`.
 
 ### ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún)
+> **Estado (revisado 2026-10-20):** ⏳ abierta — lista de ideas sin diseñar (abierta por naturaleza)
 
 | ID | Idea | Notas |
 |----|------|-------|
