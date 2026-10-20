@@ -1,7 +1,7 @@
 # Retro Vault — Historial completado S28–S34d
 
 > Archivado: 2026-03-20
-> Reemplazado por: `Tareas/Roadmap-S28-Plus.md` (solo pendientes)
+> Reemplazado por: `Tareas/Roadmap-S28-Plus.md (eliminado)` (solo pendientes)
 > Contiene todas las sesiones y bugs resueltos hasta esta fecha.
 
 ---

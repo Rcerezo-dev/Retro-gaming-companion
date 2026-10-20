@@ -10,7 +10,7 @@ Auditoría del flujo completo de Cable Sync (`tab-cable.html`, `sync.js`,
 qué sincronizar (4 checkboxes), dirección (3 radios), modo SD/ADB, 2-4 campos
 de ruta, detección manual de dispositivo y 4 checkboxes de opciones — con un
 bloque de instrucciones de ~80 líneas encima del formulario. Detalle, archivos
-y criterios de "hecho" en `Tareas/Roadmap-Cable-UX.md`. Relacionado:
+y criterios de "hecho" en `Tareas/diario/archivo/Roadmap-Cable-UX.md`. Relacionado:
 VAL-FIX-5/6 (ya registrados, no se duplican aquí). Orden: 1 es seguridad,
 2-3 son el grueso de la simplificación, el resto elimina fricción menor.
 
@@ -47,7 +47,7 @@ Auditoría de la pestaña Anbernic (`tab-anbernic.html`, `js/tabs/sync.js`,
 Hallazgo central: **dos generadores de script de setup que se contradicen en
 la misma pantalla, uno de ellos sin endpoint (404)**; y la instalación por
 defecto sirve el rclone.conf con tokens OAuth a toda la LAN sin PIN.
-Detalle, archivos y criterios de "hecho" en `Tareas/Roadmap-Anbernic-UX.md`.
+Detalle, archivos y criterios de "hecho" en `Tareas/diario/archivo/Roadmap-Anbernic-UX.md`.
 Relacionadas (no duplicar): CLOUD-UX-6 (panel TV roto), CLOUD-UX-7 (remote
 hardcodeado en `/s`). Todo pilar 3.
 
@@ -195,7 +195,7 @@ terminara un job de Inbox en curso (15.105 ROMs) antes de reiniciar.
 
 ### FTP-PICK — Elegir ROMs desde el navegador de la Anbernic (petición usuario 2026-08-29)
 
-Origen: `docs/Feedback/29/8.md` + petición directa del usuario en sesión — quiere
+Origen: `docs/_archive/feedback-2026-08-29.md` + petición directa del usuario en sesión — quiere
 poder, desde la Anbernic, elegir qué ROMs traerse del PC mientras `rommgr serve`
 está corriendo, sin pasar por Cable Sync/ADB. **Rediseñado a mitad de sesión**:
 el plan original (servidor FTP a mano + app Android nativa en Kotlin) se
@@ -217,9 +217,9 @@ de eso queda en el repo.
 
 ### GAME-BLOCKLIST — Eliminar un juego de ambas bibliotecas y evitar que un sync lo recupere (feedback usuario 2026-08-29)
 
-Plan de implementación en `.claude/roadmaps/18-game-blocklist.md`.
+Plan de implementación en `.claude/roadmaps/archivo/18-game-blocklist.md`.
 
-Origen: `docs/Feedback/29/8.md`, aclarado por el usuario — caso de uso: "este juego
+Origen: `docs/_archive/feedback-2026-08-29.md`, aclarado por el usuario — caso de uso: "este juego
 (ej. un Barbie) no me interesa, quiero borrarlo de PC y Anbernic a la vez, y que
 ningún sync futuro me lo vuelva a colar". Distinto de `STORAGE-MGR` (archivado:
 borrado en bloque puntual, sin bloqueo permanente) y de `ANBERNIC-PICK`

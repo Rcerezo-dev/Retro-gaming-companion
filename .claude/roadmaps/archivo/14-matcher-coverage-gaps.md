@@ -84,7 +84,7 @@ de con un `canonical_title` potencialmente incorrecto;
 hay varios candidatos de título igual;
 (c) alguna combinación de ambas.
 Sin esta decisión explícita, no tocar `_match_by_title()` para este caso —
-mismo criterio que ya se siguió el 2026-09-12 (`Tareas/diario/Día61.md`).
+mismo criterio que ya se siguió el 2026-09-12 (`Tareas/diario/archivo/Día61.md`).
 
 ### Paso 2 — Implementar la política decidida
 

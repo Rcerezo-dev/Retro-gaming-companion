@@ -38,7 +38,7 @@ El código está listo. Solo falta poner la API key real en Settings y comprobar
 **Obtener la key:** retroachievements.org → Settings → Web API Key
 
 ### V5 — Guía Termux en la consola Android
-Ejecutar el proceso descrito en `Tareas/Día6-Guia-Termux.md` en la consola real para habilitar sync vía rclone desde Android.
+Ejecutar el proceso descrito en `Tareas/diario/archivo/Día6-Guia-Termux.md` en la consola real para habilitar sync vía rclone desde Android.
 
 ---
 

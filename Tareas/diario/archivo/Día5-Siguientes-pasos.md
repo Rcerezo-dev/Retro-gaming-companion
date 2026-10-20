@@ -7,7 +7,7 @@
 ## 🔴 Crítico — bloquea el objetivo principal
 
 ### 1. Ejecutar guía Termux en la Anbernic
-La guía `Tareas/Guia-Termux-Anbernic.md` existe. Falta ejecutarla físicamente en la consola.
+La guía `docs/sync/Guia-Termux-Anbernic.md` existe. Falta ejecutarla físicamente en la consola.
 
 **Pasos pendientes:**
 - Instalar Termux en la Anbernic RG 556

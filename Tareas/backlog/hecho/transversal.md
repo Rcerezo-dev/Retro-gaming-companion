@@ -57,7 +57,7 @@ archivado — ambas tareas cerradas). Surgido de una
 auditoría completa de la documentación del proyecto: se corrigieron ya los
 hallazgos "rompe confianza"/"desactualizado" (roadmap 23, `docs/ci-cd.md`,
 `Roadmap-212-Ideas-Futuras.md`, `Validacion-STORAGE-MGR.md`) y se archivaron
-`Día56`/`Día57`, `Roadmap-DEVPROFILE-1-4/5-6.md` y `docs/Feedback/29/8.md`.
+`Día56`/`Día57`, `Roadmap-DEVPROFILE-1-4/5-6.md` y `docs/_archive/feedback-2026-08-29.md`.
 Quedan 2 puntos cosméticos que requerían una decisión de convención en vez
 de solo corregir un dato:
 

@@ -2,7 +2,7 @@
 
 > Diseñado 2026-09-01. Ver `Tareas/backlog.md` sección `DEVPROFILE` para el
 > estado de cada tarea — este documento es el detalle de diseño, no se edita
-> tarea a tarea. Continúa `Tareas/Roadmap-DEVPROFILE-1-4.md` (1-4, ✅) — este
+> tarea a tarea. Continúa `Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md` (1-4, ✅) — este
 > documento asume que `services/device_profile.py`
 > (`detect_tier_a_sources`/`export_profile_sources`/`import_profile_sources`)
 > y la pantalla "Perfil del dispositivo" en Settings ya existen (PR #272).

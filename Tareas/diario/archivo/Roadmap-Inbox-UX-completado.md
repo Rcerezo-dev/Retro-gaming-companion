@@ -9,7 +9,7 @@ Cada ítem tiene ID `INBOX-UX-n`.
 
 ## Cierre del hilo abierto en el roadmap de Plan: ¿fusionar Inbox con Plan/Organizar?
 
-El roadmap de Plan (`Tareas/Roadmap-Plan-UX.md`) dejó como hipótesis sin
+El roadmap de Plan (`Tareas/diario/archivo/Roadmap-Plan-UX-completado.md`) dejó como hipótesis sin
 verificar que "el pipeline automático de Inbox ya hace internamente lo que
 Plan hace a mano". Habiendo leído ahora `inbox.js` completo: es cierto que
 el pipeline de Inbox incluye internamente los mismos pasos de

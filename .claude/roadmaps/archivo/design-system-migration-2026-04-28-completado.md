@@ -1,6 +1,6 @@
 # Design System Integration Guide (archivado — migración de un solo uso, ya aplicada)
 
-> Archivado el 2026-09-26 desde `.claude/commands/design-system.md` (auditoría de
+> Archivado el 2026-09-26 desde `.claude/commands/design-system.md (eliminado)` (auditoría de
 > prompts, ver backlog). Este documento describe una migración puntual ejecutada
 > el 2026-04-28 (DESIGN-1 a 9), con números de línea de `app.css`/`index.html`
 > que ya no reflejan el estado actual de esos archivos tras 5 meses de cambios.

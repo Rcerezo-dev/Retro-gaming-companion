@@ -50,7 +50,7 @@ These come from the original project philosophy and must be respected:
 ## Existing refactor work
 
 Before this review, the original developer had already produced a migration plan:
-`Tareas/Archivo/Roadmap-Arquitectura-Frontend.md`
+`docs/architecture/Roadmap-Arquitectura-Frontend.md`
 
 That document contains a solid diagnosis of the problems and a phase-by-phase migration plan.
 It was partially executed:
@@ -72,7 +72,7 @@ This is duct tape, not a clean boundary. It needs to be addressed as part of com
 
 | Area | File | Status |
 |---|---|---|
-| Frontend | [frontend.md](./frontend.md) | In progress — decisions made, migration pending |
+| Frontend | `frontend.md` (eliminado) | In progress — decisions made, migration pending |
 | Backend | — | Not started |
 | Database layer | — | Not started |
 | Sync modules | — | Not started |

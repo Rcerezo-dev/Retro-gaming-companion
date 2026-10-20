@@ -79,8 +79,8 @@ src/rom_manager/scanner/rom_scanner.py      MODIFICADO  (seen_paths + prune_stal
 src/rom_manager/database/repository.py     MODIFICADO  (nuevo método prune_stale_entries)
 src/rom_manager/web/server.py               MODIFICADO  (job cable_sync, endpoint /api/cable-sync)
 src/rom_manager/web/frontend.py             MODIFICADO  (tab Cable Sync, JS loadCableSync/doCableSync)
-Tareas/Día3-2.md                            RELLENADO
-Tareas/Día2-3.md                            ACTUALIZADO (marcadores de estado)
+Tareas/diario/archivo/Día3-2.md                            RELLENADO
+Tareas/diario/archivo/Día2-3.md                            ACTUALIZADO (marcadores de estado)
 ```
 
 ---
@@ -114,7 +114,7 @@ La implementación del filtro SHA1 en Cable Sync queda pendiente para la siguien
 
 ## Siguiente sesión recomendada
 
-Ver `Tareas/Siguientes-pasos.md` para la lista completa actualizada.
+Ver `Tareas/Siguientes-pasos.md (eliminado)` para la lista completa actualizada.
 
 ## Cambios vistos:
 ⏳ en overview, debería dar más instrucciones al usuario

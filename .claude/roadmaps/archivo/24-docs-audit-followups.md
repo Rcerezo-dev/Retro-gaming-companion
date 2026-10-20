@@ -16,7 +16,7 @@ Surgido de una auditoría completa de documentación (2026-09-20, ver sesión
 de ese día): se corrigieron los hallazgos de "rompe confianza" y
 "desactualizado" (roadmap 23, `docs/ci-cd.md`, `Roadmap-212-Ideas-Futuras.md`,
 `Validacion-STORAGE-MGR.md`) y se archivaron `Día56`/`Día57`,
-`Roadmap-DEVPROFILE-1-4/5-6.md` y `docs/Feedback/29/8.md`. Quedaron dos
+`Roadmap-DEVPROFILE-1-4/5-6.md` y `docs/_archive/feedback-2026-08-29.md`. Quedaron dos
 puntos "cosméticos" sin resolver porque requerían una decisión de convención,
 no solo corregir un dato:
 
@@ -38,9 +38,9 @@ existentes y documentarlo en la regla 5 de `.claude/roadmaps/INDEX.md`
 
 ## Tarea 2 — Actualizar referencias de código a los roadmaps DEVPROFILE movidos
 
-`Tareas/Roadmap-DEVPROFILE-1-4.md` y `Tareas/Roadmap-DEVPROFILE-5-6.md` se
+`Tareas/diario/archivo/Roadmap-DEVPROFILE-1-4-completado.md` y `Tareas/diario/archivo/Roadmap-DEVPROFILE-5-6-completado.md` se
 renombraron y movieron a `Tareas/diario/archivo/*-completado.md` el
-2026-09-20. `Tareas/backlog.md` y `.claude/roadmaps/19-device-profile-loose-data.md`
+2026-09-20. `Tareas/backlog.md` y `.claude/roadmaps/archivo/19-device-profile-loose-data.md`
 ya se actualizaron, pero quedan 8 comentarios de código con la ruta vieja:
 
 - `src/rom_manager/esde/systems_generator.py:28`

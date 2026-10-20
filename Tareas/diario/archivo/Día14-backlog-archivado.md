@@ -2,7 +2,7 @@
 
 > Archivo vivo. Actualizar en cada sesión. La información histórica está en `Tareas/diario/`.
 > Última actualización: 2026-03-17 (Día 14)
-> Roadmap completo por sesiones: `Tareas/Día14-Roadmap-App-Universal.md`
+> Roadmap completo por sesiones: `Tareas/diario/archivo/Día14-Roadmap-App-Universal.md`
 
 ---
 
@@ -14,7 +14,7 @@
 | V2 | **Migración a dos bases de datos** | Settings → "Migrar BD" → verificar conteos separados PC/Android |
 | V3 | **Inbox end-to-end** ⭐ | Configurar `inbox_path` → soltar ZIP → verificar extracción + renombrado + movimiento |
 | V4 | **RetroAchievements con API key real** | retroachievements.org → Settings → Web API Key → pegar en Ajustes |
-| V5 | **Guía Termux en la consola** | Seguir `docs/guia-consola-android.md` — prerequisito para WiFi sync directo |
+| V5 | **Guía Termux en la consola** | Seguir `docs/_archive/guia-consola-android.md` — prerequisito para WiFi sync directo |
 | B1-hw | **Renombrador Android no reduce la cola** | Con SD insertada → Organizar → filtrar consola → aplicar → ver errores |
 
 ---
@@ -32,7 +32,7 @@
 
 ## 🟡 Próximas sesiones de desarrollo
 
-Ver detalle completo en `Tareas/Día14-Roadmap-App-Universal.md`.
+Ver detalle completo en `Tareas/diario/archivo/Día14-Roadmap-App-Universal.md`.
 
 | Sesión | Foco | Estado |
 |--------|------|--------|
@@ -94,4 +94,4 @@ Ver detalle completo en `Tareas/Día14-Roadmap-App-Universal.md`.
 | DB fixes | Día 11-12 | Índices, safe ALTER TABLE, f-strings SQL eliminados |
 | RA filtro de plataforma | Día 11 | Dropdown en informe RetroAchievements |
 | Duplicados fix | Día 11 | Rutas normalizadas, BD consistente, UI recarga tras borrar |
-| docs/architecture.md | Día 13-14 | Estructura completa + integración ES documentada |
+| docs/architecture/architecture.md | Día 13-14 | Estructura completa + integración ES documentada |

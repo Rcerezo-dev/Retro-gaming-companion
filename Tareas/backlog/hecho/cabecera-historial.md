@@ -8,7 +8,7 @@
 > Last updated: 2026-07-23 (MEJ-2/3/4/5, VAL-FIX-4/5/7, INBOX-FIX-4,
 > REV43-52, TEST-GAP-1 cerrados; release v1.1.0 publicada)
 > 2026-08-29: archivadas ~33 secciones completadas a archivo.md; triage de
-> docs/ideas/ + docs/Feedback/29/8.md (DEDUP-RENAME, HERR-FIX, PSX-ORPHAN-5,
+> docs/ideas/ + docs/_archive/feedback-2026-08-29.md (DEDUP-RENAME, HERR-FIX, PSX-ORPHAN-5,
 > ZIP-ROUTE-7, ANBERNIC-PICK-6/7, SAGE-4, GAME-BLOCKLIST, 5 filas nuevas en
 > ROADMAP-IDEAS)
 > 2026-08-30: INBOX-ORPHAN-3 arreglado (fix + limpieza de 104 carpetas huérfanas
