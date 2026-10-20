@@ -26,7 +26,7 @@ texto
 
 
 def test_classify():
-    got = {t: bs.classify(l) for t, l in bs.sections(MD)}
+    got = {t: bs.classify(body) for t, body in bs.sections(MD)}
     assert got == {
         "A — hecha": ("hecho", 1, 0),
         "B — abierta": ("pendiente", 1, 1),
