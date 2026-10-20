@@ -14,7 +14,7 @@ Your job is to read the relevant source code and generate a precise, step-by-ste
 
 ## Process
 
-1. Read `Tareas/backlog.md` to find the feature description and known risks.
+1. Find the feature with `grep -rn "<ID or feature name>" Tareas/backlog/` (`Tareas/backlog.md` is only the index) and read just that section to get the feature description and known risks.
 2. Read the relevant `web/handlers/*.py` module and any transport/sync modules.
 3. Read the relevant `web/static/js/tabs/*.js` and `web/static/partials/*.html` files.
 4. Generate the validation guide.

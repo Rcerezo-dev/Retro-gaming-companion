@@ -3,7 +3,7 @@ Crea el siguiente archivo de diario de trabajo en la carpeta `Tareas/diario/`.
 Pasos:
 1. Mira qué archivos `Día*.md` existen ya en `Tareas/diario/` y `Tareas/diario/archivo/` para determinar el número del próximo día
 2. Lee el `Día` más reciente en `Tareas/diario/` para conocer el contexto del trabajo anterior
-3. Lee `Tareas/backlog.md` para saber las tareas activas y el estado del proyecto
+3. Lee `Tareas/backlog.md` (índice + tabla "Pendiente y por revisar") para saber las tareas activas; abre el detalle de una tarea solo con `grep -rn "<ID>" Tareas/backlog/`, nunca un epic entero
 4. Crea el archivo `Tareas/diario/DíaN.md` (donde N es el número siguiente) con esta estructura:
 
 ```
