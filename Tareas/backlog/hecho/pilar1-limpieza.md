@@ -580,3 +580,316 @@ Al intentar relanzar la limpieza de duplicados de la Anbernic (petición del usu
 | ANDROID-DUP-GBA-1 | Petición del usuario: comprobar si la lógica de duplicados detecta bien los legacy `[E]`/`[U]`/`[J]` de GBA en la Anbernic (ejemplo dado: "dos Pokémon Pinball") | `web/builders/duplicates.py::_review_groups_for_repo` (motor, sin tocar), `services/ra_duplicates_service.py::resolve_duplicate_ra` (aplicado) | ✅ **verificado y aplicado 2026-09-29** — la lógica de detección funciona bien: de 92 volcados legacy `[E]`/`[U]`/`[J]` en `gba/`, **82 ya estaban correctamente agrupados por SHA1** en la cola de revisión (incluido el caso exacto de Pokémon Pinball — mismo SHA1 `b8b7881e...` entre `RZ [E].gba` y `(Europe)...gba`); los 10 restantes no son falsos negativos (contenido genuinamente distinto pese al mismo tamaño, o sin ninguna copia canónica en la biblioteca contra la que comparar — verificado caso a caso). **146 grupos GBA totales en la Anbernic, 1,65 GB** — backup de `library_android.db` antes de tocar nada, **137 grupos aplicados de verdad por ADB: 138 archivos descartados, 0 errores, 1,53 GB liberados**, verificado en el dispositivo real (`Pokemon Pinball RZ [E].gba` ya no existe, solo sus `.sav`/`.sgm`). **9 grupos excluidos a propósito** — ver `ANDROID-DUP-SORT-TIEBREAK-1` abajo, el bug que los afecta |
 | ANDROID-DUP-SORT-TIEBREAK-1 | Hallazgo real durante `ANDROID-DUP-GBA-1`, ampliado a petición del usuario a **todas las plataformas** de la Anbernic (2026-09-29): el desempate de "recomendado" en `_review_entry_sort_key` cae a comparar el nombre de archivo como texto plano cuando todos los criterios tipados empatan (caso normal en un duplicado SHA1 exacto) — un espacio (`0x20`) ordena antes que un punto (`0x2E`), así que cualquier sufijo entre paréntesis/corchetes ("... (Japan) [T-En...]", "... (USA) (conflicto-inbox...)") gana alfabéticamente al nombre limpio sin que eso tenga ningún sentido semántico | `web/builders/duplicates.py:313-410` (`_review_entry_sort_key`, nuevo `variant_tier`) | ✅ **arreglado 2026-09-29, a petición del usuario, misma sesión** — nuevo `variant_tier` insertado justo antes del fallback de nombre: reutiliza `is_non_canonical_variant()` (ya usada en otro sitio del código para el mismo tipo de señal, `[T+`/`[T-`/`(hack`/`subset`/`[h\d*]`) + un check aparte para `conflicto-inbox` (artefacto del Inbox, no relacionado con traducciones/hacks). Deliberadamente NO toca `(Beta)`/`(Proto)`/`(Demo)`/`(Sample)` — confirmado con datos reales que esas etiquetas describen contenido genuino. 4 tests nuevos (`tests/test_builders_duplicates.py`): 2 confirman que el sort key ahora penaliza los dos patrones reales encontrados, 1 confirma que `(Beta)`/`(Proto)` NO se penalizan, 1 end-to-end reproduciendo el caso real de Mother 3 a través de `_build_review_queue`. Suite completa 1492/1492, ruff+format limpios. Metodología (investigación original, antes del fix): recorrida la cola de revisión real completa (`_build_review_queue`) agrupada por plataforma, filtrado a grupos con SHA1 idéntico donde el "recomendado" lleva `[T-` o `conflicto-inbox` y existe una alternativa sin esa etiqueta en el mismo grupo — cada caso verificado por SHA1 real, no por sospecha. Un barrido más amplio con `(Beta)`/`(Proto)`/`(Demo)`/`(Sample)` dio **falsos positivos**: esas etiquetas sí describen el contenido real (mismo dump beta/proto, solo con nombre No-Intro correcto vs. un volcado legacy mal escrito) — descartadas del hallazgo, no es el mismo bug.<br>**GBA**: 6 parches `[T-...]` falsos (`Mother 3`, `Oriental Blue - Ao no Tengai`, `Magical Vacation`, `Dragon Quest Monsters - Caravan Heart`, `Super Robot Taisen R`, `Tomato Adventure`) + 3 `(conflicto-inbox 2026-08-13)` (`Boktai 2`, `Crash Nitro Kart`, `Klonoa - Empire of Dreams`) — de 146 grupos totales, excluidos de la aplicación real en `ANDROID-DUP-GBA-1`.<br>**NES**: 9 parches `[T-...]` falsos, mismo patrón exacto (SHA1 idéntico al original japonés sin traducir): `Big Strategy Pachinko`, `Mitsume ga Tooru`, `Perman`, `Sweet Home`, `Fire Emblem Gaiden`, `Brave Fighter of the Sun - Fighbird`, `Hinotori - Houou Hen`, `Famicom Wars`, `Family Trainer 8`.<br>**Game Gear**: 1 caso, `Sylvan Tale (Japan) [T-En by Aeon Genesis v1.01].gg` = mismo SHA1 que `Sylvan Tale (Japan).gg` sin traducir.<br>**Aplicado el resto (2026-09-29, mismo backup previo de `library_android.db`)**: filtro conservador (excluye cualquier grupo cuyo "recomendado" contenga `[T-`/`conflicto-inbox`, sin exigir que exista alternativa limpia — más estricto que el hallazgo exacto, así que excluyó 20 grupos en total en vez de los 10 confirmados, dejando también sin tocar algunos casos ambiguos tipo "dos parches distintos del mismo hack"). **NES: 1563/1582 grupos aplicados, 1865 filas borradas, 0,40 GB liberados. Game Gear: 183/184 grupos aplicados, 184 filas borradas, 0,07 GB liberados. 0 errores en ambos.** Verificado por dos vías: `ls` real en el dispositivo confirma que los 10 casos `[T-...]` originales siguen intactos (ambas copias), y el recuento de filas en `library_android.db` coincide exacto con lo aplicado (NES 4971→3106 = −1865, Game Gear 939→755 = −184).<br>**Resto de plataformas con datos en el dispositivo, sin ningún caso del bug** (0 sospechosos tras el mismo barrido): Game Boy Color (1268 grupos, 1,95 GB), PlayStation (124 grupos, 14,33 GB), Sega Mega Drive (65 grupos, 0,12 GB — los 2 casos `(Beta)`/`(Proto)` del barrido amplio son correctos, no bug), Game Boy (25 grupos, 0,01 GB), SNES (5 grupos), Nintendo 64DD (1 grupo). Arcade, Nintendo DS, Master System, PlayStation 2, Nintendo 64, PSP, Atari 2600, GameCube, PC Engine y Famicom Disk System no tienen ningún grupo de duplicados con entradas en el dispositivo ahora mismo.<br>**Aplicado tras el fix (2026-09-29, mismo backup previo de `library_android.db`)**: reconstruida la cola real con el `variant_tier` ya en producción — confirmado primero en seco que los 16 casos falsos ahora recomiendan el nombre limpio (`Mother 3 (Japan).gba`, `Sylvan Tale (Japan).gg`, etc.), sin exclusión manual esta vez (el propio motor ya elige bien). **29 grupos restantes en GBA/NES/Game Gear (los 20 previos + 9 nuevos que solo aparecieron al dejar de excluirlos a mano), 33 archivos descartados, 0 errores, 0,119 GB liberados** (GBA 0,114 GB, NES 0,005 GB, Game Gear 0,001 GB — números pequeños porque la mayoría de esos grupos son el propio archivo `[T-...]`/`conflicto-inbox` de 1 sola entrada extra, no discos completos). Verificado en el dispositivo real por ADB: `Mother 3 (Japan) [T-En...].gba` y `Sylvan Tale (Japan) [T-En...].gg` ya no existen, solo las copias limpias. Con esto, `ANDROID-DUP-GBA-1`/`ANDROID-DUP-SORT-TIEBREAK-1` quedan completamente cerrados para las 3 plataformas investigadas |
 
+### RA-DEDUP-UNSAFE-1 — Borrar duplicados "sin soporte RA pero con alternativa" no se puede automatizar (hallazgo 2026-09-02)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — decisión tomada: no implementar el auto-borrado (documentado como no seguro)
+
+A petición del usuario, se intentó borrar automáticamente los ROMs sin soporte RA cuando la versión
+con logros ya está en la misma biblioteca (no solo "existe según RA"). Con el criterio más
+conservador posible (misma unidad + mismo tamaño de fichero + sin palabra clave de hack/traducción
+en el nombre) **igual aparecieron falsos positivos reales**: `deer hunter.bin` (ver
+`CATALOG-MATCH-BUG-1` arriba), `show do milhao volume 2 (bra) (alt).bin` (etiqueta `(alt)` de
+No-Intro = dump alternativo preservado a propósito, no basura), y varios más con mismo tamaño pero
+MD5 distinto sin garantía real de ser el mismo contenido. Un primer intento sin restringir a "misma
+unidad" habría borrado 7 ROMs de N64 de `H:\ROMs` (`Super Mario 64`, `Donkey Kong 64`...) usando
+como excusa que `E:\` tenía la misma ROM en formato `.z64` (mismo juego, solo orden de bytes
+distinto) — la Anbernic se habría quedado sin esos juegos jugables localmente. Todo restaurado
+antes de que el usuario lo confirmara, nada se perdió.
+
+**Conclusión: no implementar borrado automático de este tipo.** Después de `resolve-duplicates`,
+cualquier pareja que comparta título canónico pero no SHA1 es, por definición, contenido distinto
+de verdad (aunque a veces trivial) — distinguir "diferencia trivial" de "traducción que hay que
+conservar" requiere abrir el fichero, no hay atajo fiable. El listado completo (204 candidatos)
+queda en `.rommgr/ra_no_support_alternative.csv` (fuera del repo) para revisión manual del usuario.
+
+| ID | Task | Notas |
+|----|------|-------|
+| RA-DEDUP-UNSAFE-1 | No implementar auto-borrado de "duplicado sin RA con alternativa en biblioteca" — documentado que no es seguro ni con el criterio más conservador probado. Si se quiere una herramienta de ayuda, debería presentar los pares candidatos para confirmación manual uno a uno (con tamaño, MD5 y ambos nombres visibles), nunca borrar sin esa confirmación | ⚪ decisión tomada, no implementar automatización |
+
+---
+
+### ANDROID-FDS-CLEANUP-1 — Limpieza de `fds/` verificada por SHA1: 0 bytes de contenido único, todo duplicado o mal ubicado (implementa la conclusión de `ANDROID-DUP-3`) → #TBD
+> **Estado (revisado 2026-10-20):** ✅ cerrada — ejecutado y verificado 2026-09-19 en la RG556
+
+**✅ Ejecutado 2026-09-19** directamente sobre la RG556 vía ADB (`adb shell
+rm`/`mv`, sin pasar por `rommgr plan`/`apply` — no existe hoy un flujo de la
+herramienta para operaciones ad hoc sobre `library_android.db`, ver
+`ANDROID-ORGANIZE-ADB-1`; toda la evidencia de verificación por SHA1 queda
+documentada en `ANDROID-DUP-3`):
+
+1. **Borrados** 6 ZIPs regionales (`Balloon Fight (Japan) (En) (Proto).zip`,
+   `Ice Climber (Japan) (En) (Disk Writer).zip`, `Metroid (Japan) (Rev
+   1).zip`, `Super Mario Bros. (Japan) (En).zip`, `Super Mario Bros. 2
+   (Japan) (En).zip`, `Super Mario Bros. 2 (USA) (Rev 1).zip`) — SHA1
+   idéntico confirmado contra el `.nes`/`.fds` ya suelto en la misma carpeta.
+2. **Borrados** los 10 volcados de chip sueltos (`400-*.fse/.10l/.15l/.5l/.12l/.17l`,
+   `mds-gn chr e.u4`, `mds-gn prg e.u7`, `rp2c04-0003.pal`) — SHA1 idéntico
+   confirmado contra el contenido interno de `Goonies...zip`/`TwinBee...zip`.
+3. **Movidos** `Goonies (Japan) (Disk Writer).zip` y `TwinBee (Japan) (En)
+   (Disk Writer).zip` a `arcade/mame/` — son ROM arcade MAME (Nintendo VS.
+   System) legítimos, no basura ni contenido de FDS. Verificado que no
+   chocaban con nada ya existente (`arcade/fbneo/vsgoonies.zip` es un `.nes`
+   convertido para FBNeo, contenido distinto byte a byte; `arcade/mame/twinbee.zip`
+   es el TwinBee normal no-VS, y `arcade/fbneo/twinbeeb.zip` es otro bootleg
+   parcialmente solapado pero no idéntico — ningún nombre de fichero chocaba)
+   y llegada confirmada con `ls -la` post-mv.
+4. **Borrados** los 2 `.fds` duplicados de `fds/` (quedan en `Famicom Disk
+   System/`, verificado intacto tras el borrado) y los 5 `.nes` duplicados
+   de `fds/` (quedan en `nes/`, verificado intacto tras el borrado) — SHA1
+   idéntico confirmado en ambos casos.
+5. `gamelist.xml` sin tocar (metadata de frontend, fuera de alcance).
+
+**Resultado verificado con `ls -la` tras la limpieza**: `fds/` solo contiene
+`gamelist.xml` (3364 bytes) — 0 contenido propio, tal como predecía el
+análisis. `Famicom Disk System/` conserva sus 2 `.fds`, `nes/` conserva las
+5 copias canónicas, `arcade/mame/` tiene ahora `Goonies...zip` y
+`TwinBee...zip`. 0 pérdida de datos, 23 archivos borrados + 2 movidos.
+
+Pendiente: PR a `develop` con el commit de documentación ya hecho en
+`fix/android-fds-cleanup` (`68a4563`) — confirmar con el usuario antes de
+mergear, como de costumbre | Evidencia SHA1 completa en `ANDROID-DUP-3` |
+✅ ejecutado y verificado 2026-09-19
+
+---
+
+### GBA-DUAL-FOLDER-1 — `Game Boy Advance/` y `gba/` son dos carpetas activas paralelas con 881 títulos duplicados (hallazgo 2026-09-14, máquina "Ruben", `F:\Juegos Retro`)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — limpiado y purgado 2026-09-15
+
+Encontrado al preparar el envío de GBA a la Anbernic. `F:\Juegos Retro` tiene
+**dos** carpetas con contenido GBA real (no confundir con `GBA-MISPLACED-1`,
+que era sobre archivos de OTRAS plataformas coladas en `gba/` en la otra
+biblioteca — aquí ambas carpetas son GBA legítimo): `Game Boy Advance/` (985
+archivos, 7,5 GB, nombrado canónico) y `gba/` (1054 archivos, 11,9 GB, slug
+en minúsculas — mismo patrón que usan RetroBat/EmulationStation, ambos
+instalados en este mismo disco `F:\`). Ambas están indexadas bajo el mismo
+`platform='Game Boy Advance'` en `library_pc.db` (2037 filas totales), y
+**881 `canonical_title` distintos existen en ambas carpetas a la vez** —
+probablemente `gba/` es la carpeta legada de antes de que este proyecto
+organizara la biblioteca en carpetas de nombre canónico, nunca limpiada
+después. No bloquea el envío de hoy (`filter_duplicate_winners`, ya genérico
+por plataforma, colapsa correctamente estos duplicados antes de enviar por
+RA), pero es 11,9 GB de posible redundancia real en el PC sin confirmar si
+`gba/` tiene algo que `Game Boy Advance/` no tenga (173 títulos exclusivos de
+`gba/`, sin verificar si son copias con otro nombre o contenido genuino
+distinto) | `F:\Juegos Retro\gba\` vs `F:\Juegos Retro\Game Boy Advance\` |
+✅ limpiado y purgado 2026-09-15 (diario Día63) — reutilizado
+`filter_duplicate_winners()` (mismo motor que el envío GBA→Anbernic) para
+identificar ganador/perdedor: 898 duplicados reales (11,57 GB) descartados a
+`_descartados/` (reversible), y luego purgados de verdad a petición
+explícita del usuario ("purga descartados, ya que son juegos repetidos") —
+900 archivos, 11,58 GB (incluye 2 más antiguos de la misma carpeta). La
+sospecha de que el patrón afectaba a más plataformas se confirmó: ver
+`PS2-DUAL-FOLDER-1` y `DUALFOLDER-12` (11 pares más, resueltos 2026-09-17) |
+
+### PS2-DUAL-FOLDER-1 — `organize-source` crea un segundo `ps2/` en vez de usar `PlayStation 2/` ya existente (hallazgo 2026-09-15, máquina "Ruben", `F:\Juegos Retro`)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — resuelto, decisión 2026-09-15
+
+Plan de implementación (medición de las 11 carpetas duplicadas restantes +
+pasos) en `.claude/roadmaps/archivo/12-dual-folder-title-case-slug.md`, junto con
+`GBA-DUAL-FOLDER-1`.
+
+Confirma la predicción de `GBA-DUAL-FOLDER-1` ("verificar si hay pares
+`ps2/`+`PlayStation 2/`"). Al organizar 21 juegos de PS2 encontrados sin
+identificar en `Unknown\` (Kingdom Hearts, Kingdom Hearts II, GTA San Andreas,
+Metal Gear Solid 2, Grandia II/III, Gradius V, Dark Cloud, Shadow Hearts, Dead
+or Alive 2, Street Fighter III 3rd Strike — todos con `canonical_title`
+poblado, `platform` seteado a mano vía `CatalogMatcher` directo tras un
+cuelgue del job `match` general, ver más abajo), `rommgr organize-source
+--apply` los movió (y renombró a su nombre canónico) a `F:\Juegos
+Retro\ps2\` — carpeta que hasta hoy solo tenía un `media/` vacío — en vez de
+`PlayStation 2\`, donde ya viven los otros 26 juegos de PS2 del PC.
+
+**Causa raíz, no es un bug**: `web/handlers/system.py:34`
+(`_ES_PLATFORM_FOLDERS["PlayStation 2"] = "ps2"`) es el mapeo que usa
+`inbox_pipeline.py::_platform_folder_name()` (línea 40-43) para decidir dónde
+organiza el Inbox — deliberadamente el slug en minúsculas que reconocen
+RetroArch/EmulationStation (mismo criterio que ya usa `canonical_rel_posix()`
+en el cable-sync tras `CABLE-ROOT-1`). La carpeta `PlayStation 2\` (Title
+Case) con los 26 juegos existentes **no la creó este proyecto** —
+`operation_planner.py::build_plan()` solo renombra el archivo dentro de su
+carpeta actual (`target = source.parent / new_filename`, línea 181), nunca
+mueve entre carpetas de plataforma — así que es una carpeta legada de antes
+de esta herramienta, igual que `Game Boy Advance\` en `GBA-DUAL-FOLDER-1`.
+El Inbox siempre va a preferir el slug Android; cualquier carpeta legada
+Title Case queda huérfana y nunca vuelve a recibir contenido nuevo del
+pipeline salvo consolidación manual.
+
+**Corregido en caliente hoy** (sin cambiar código): los 21 archivos movidos a
+mano de `ps2\` a `PlayStation 2\` (`shutil.move`, sin conflictos de nombre)
+para mantener consistencia con el resto de la biblioteca PS2 del PC, y
+`rommgr scan` re-corrido para actualizar `source_path` en la BD | `ps2\`
+(vacío tras la consolidación, solo queda `media/`) vs `PlayStation 2\` (ahora
+47 juegos) | `web/handlers/system.py:34` (`_ES_PLATFORM_FOLDERS`),
+`web/inbox_pipeline.py:40-43` (`_platform_folder_name`),
+`planner/operation_planner.py:181` (`build_plan`, nunca mueve entre
+carpetas) | ✅ resuelto — decisión tomada 2026-09-15 (el slug Android es el
+canónico también en el PC) y ejecutada en `DUALFOLDER-12` (2026-09-17): los
+11 pares restantes consolidados + guard `_platform_folder_name()` en el
+Inbox para que no vuelva a pasar en silencio con una plataforma futura |
+
+### CATALOG-MATCH-SUBSET-1 — `_match_by_title()` no comprobaba `is_non_canonical_variant()`, asignando el `canonical_title` del original a hacks/parches de traducción (hallazgo 2026-09-17/18, máquina "Ruben", `F:\Juegos Retro`) → rama `fix/catalog-match-subset-hack`
+> **Estado (revisado 2026-10-20):** ✅ cerrada — arreglado en fix/dup-winners-non-canonical-guard (2026-09-18)
+
+Investigando un aviso del usuario ("Pokemon Fire Red ahora es el Professor
+Oak Challenge, los logros son peores, también en la Anbernic"). Verificado
+por hash MD5 que los `.gba` reales de Fire Red **no estaban tocados** ni en
+PC ni en Anbernic (coinciden con los hashes conocidos del original) — el
+hack nunca llegó al dispositivo, seguía sin organizar en `Unknown\`. El
+Charizard negro en los logros de la Anbernic no se explica por nada de esta
+biblioteca (probable caché de badges del lado RetroArch/RA, fuera del
+alcance de esta herramienta).
+
+Causa raíz real encontrada: `catalog/matcher.py::_match_by_title()` (Pass 2,
+fallback por título cuando el SHA1 no está en el catálogo — el caso de
+cualquier hack/parche, que nunca tiene su propio SHA1 en No-Intro/Redump) no
+llamaba a `is_non_canonical_variant()` (`detection/filename_normalizer.py`),
+el mismo guard que **sí** ya usan `planner/operation_planner.py:121` (evita
+renombrar el hack con el nombre del original) y
+`web/builders/duplicates.py:786,800` (evita agruparlo como duplicado en la
+cola de revisión) — el guard existía pero solo se aplicaba río abajo, no en
+el origen donde se asigna `canonical_title`. `normalize_for_match()` trata
+`[Subset - Professor Oak Challenge]` como una anotación benigna más (igual
+que `(USA)` o `[!]`), así que el hack matcheaba por título contra el
+catálogo del original con confianza "medium".
+
+Efecto ya real en la biblioteca (no solo teórico): `Pokemon - Ruby Version
+[Subset - Professor Oak Challenge].gba` **ya estaba organizado** en `gba\`
+con `canonical_title = "Pokemon - Ruby Version (Europe) (Rev 1)"` — el mismo
+título que el Ruby real, sin organizar en `Unknown\`. El guard de
+renombrado evitó que el hack robara el nombre de archivo del real, pero
+`filter_duplicate_winners()` (`services/ra_duplicates_service.py`, usado por
+el envío GBA→Anbernic y por el dedup de `DUALFOLDER-12`) tampoco comprobaba
+`is_non_canonical_variant()` — un futuro dedup de GBA podría confundirlos.
+✅ Arreglado en `fix/dup-winners-non-canonical-guard` (2026-09-18): el hack
+ahora se trata como `single` (nunca entra en el grupo por título del
+original), mismo guard que `_match_by_title()` y `duplicates.py`. Test
+`test_filter_duplicate_winners_never_discards_real_copy_for_hack`, 1342
+tests en verde.
+
+**Arreglado en `fix/catalog-match-subset-hack`**: `_match_by_title()` ahora
+llama a `is_non_canonical_variant()` al principio y devuelve `None` si el
+filename es un hack/parche — no vuelve a pasar con archivos nuevos. Se
+limpió a mano (sin mover/borrar nada) el `canonical_title` de los 4
+registros ya afectados por los hacks de Pokémon (FireRed/Ruby/Emerald
+"Professor Oak Challenge", el Ruby cuenta 2 veces: `Unknown\` + `gba\`).
+
+**Alcance mayor detectado, fuera de esta rama**: al buscar todas las filas
+con `canonical_title` poblado + `is_non_canonical_variant(original_filename)`
+aparecieron **1183 filas** en toda la biblioteca — mayoría parches de
+traducción NES (`[T+Por...]`, `[T-Por]`...), el mismo patrón que ya
+documentó `CATALOG-MATCH-VARIANT-1` (hallazgo de 22 parches de Zelda,
+2026-09-09) sin llegar a limpiarse en la BD. Decisión del usuario
+2026-09-18: dejar esas 1179 filas restantes sin tocar por ahora — no hay
+evidencia de que hayan causado daño real (a diferencia del Ruby, ninguna
+está ya organizada bajo un nombre prestado). Revertida el mismo día: el
+usuario pidió limpiarlas también | `catalog/matcher.py:281-296`
+(`_match_by_title`), `detection/filename_normalizer.py:65-74`
+(`is_non_canonical_variant`), `services/ra_duplicates_service.py`
+(`filter_duplicate_winners`) | ✅ guard en `filter_duplicate_winners()`
+arreglado en `fix/dup-winners-non-canonical-guard`. ✅ limpieza de las 1179
+filas ejecutada 2026-09-18 sobre `library_pc.db` (`library_android.db`: 0
+filas afectadas). Backup previo (`library_pc.db.bak-20260918-223238`,
+gitignored). Verificado primero: de las 1179, **1175 eran del fallback por
+título** (`match_confidence` `low`/`medium`, el bug real) y **4 eran matches
+legítimos por SHA1** (`match_confidence high`, No-Intro sí cataloga esos 4
+hacks `[h1]`/`[h3]` por su propio hash) — las 4 se dejaron intactas, solo se
+limpiaron `canonical_title`/`match_confidence`/`catalog_source` (a `NULL`)
+de las 1175 restantes. También verificado: **0 de las 1175 tenían el
+archivo ya renombrado** en disco al nombre prestado (`source_path` basename
+== `original_filename` en todos los casos) — el guard de
+`operation_planner.py` ya las había protegido, a diferencia del caso Ruby.
+Quedan sin `canonical_title` (correcto: un hack/parche no tiene entrada
+propia en No-Intro/Redump, así que no debe matchear) |
+
+### DUALFOLDER-12 — 11 pares Title Case/slug restantes consolidados + guard en el Inbox (2026-09-17, máquina "Ruben", `F:\Juegos Retro`) → roadmap 12
+> **Estado (revisado 2026-10-20):** ✅ cerrada — 11 pares consolidados + guard en el Inbox (2026-09-17/18)
+
+Plan e implementación completos en
+`.claude/roadmaps/archivo/12-dual-folder-title-case-slug.md`. Resuelve la dirección
+que `GBA-DUAL-FOLDER-1`/`PS2-DUAL-FOLDER-1` dejaron sin decidir: el slug es
+el canónico también en el PC (misma tabla `_ES_PLATFORM_FOLDERS` que ya usa
+el cable-sync).
+
+5 pares triviales (`Game Boy`→`gb`, `Game Gear`→`gamegear`,
+`Master System`→`mastersystem`, `Neo Geo`→`neogeo`, `PlayStation`→`psx`) +
+6 pares con posible dedup (`Game Boy Color`, `Nintendo 3DS`, `Nintendo 64`,
+`Nintendo DS`, `Sega Mega Drive`, `Super Nintendo`/`snes`). Hallazgo: 3 de
+los 6 últimos no eran duplicados de ROM reales — `nds/` tenía 84 saves `.sav`
+huérfanos + 2 ROMs (no "3 ROMs" como decía la medición de origen) mientras
+los 338 ROMs reales vivían en `Nintendo DS/`; `3ds/Rockman X3...bin` es un
+ROM de SNES mal clasificado, no un duplicado del `.3ds` real; `gbc/` tenía
+13 betas/prototipos únicos sin solapar. Los otros 3 pares (168 archivos)
+usaron `filter_duplicate_winners`/`resolve_duplicate_ra`
+(`services/ra_duplicates_service.py`), el mismo motor que ya usa el sync
+GBA→Anbernic, filtrando primero a solo grupos con **todas** sus entradas
+dentro del par (una pasada inicial incluía por error cientos de grupos que
+tocaban `Unknown/`, fuera de alcance).
+
+Guard nuevo en `_platform_folder_name()` (`web/inbox_pipeline.py:40-43` →
+ahora acepta `target_root` opcional): si el slug de destino tiene junto a él
+una carpeta Title Case legada con contenido real, loguea un warning
+(`DUALFOLDER-12`) sin bloquear — conectado en el Paso 6 real de organización.
+3 tests nuevos en `test_inbox_scan_preview.py` | `web/inbox_pipeline.py`
+(`_platform_folder_name`, `_folder_has_real_content`) |
+✅ commit/PR a `develop` confirmado por el usuario 2026-09-18, rebasado sobre
+`develop` (incluye `CATALOG-MATCH-SUBSET-1`, sin conflicto real de código).
+**Corrección 2026-09-20**: el hallazgo original decía "SNES mal detectado"
+para `3ds/Rockman X3 (Unl) [c][!].bin` — verificado a mano (tabla de
+vectores 68k en offset 0x0 + firma `"SEGA"` en offset 0x100, tamaño 2 MiB),
+en realidad es una ROM de **Sega Genesis/Mega Drive** (bootleg no
+licenciado), no de SNES. Reclasificado y movido a `megadrive/` (carpeta
+canónica, sin colisión de nombre), rescaneadas ambas carpetas (`3ds/`,
+`megadrive/`) para que SQLite refleje la nueva ubicación. Fuera de alcance
+del matcher (`(Unl)` sin `canonical_title` en el DAT, no renombrable) |
+
+### MATCH-HANG-CHDMAN-1 — el job `match` (CLI y web) puede colgarse decenas de minutos sin avisar, sin poder cancelarse (hallazgo 2026-09-15)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — arreglado
+
+Plan de implementación en `.claude/roadmaps/archivo/13-match-chdman-robustness.md`.
+
+Al re-lanzar `POST /api/match` sobre las 7.738 filas sin resolver (tras añadir
+el catálogo arcade), el job se quedó `running=true` más de 30 minutos sin
+avance visible. `Get-Process python` mostró **CPU casi plano** (35,4s → 35,6s
+en 10+ minutos reales) — el proceso Python en sí no estaba calculando nada,
+solo bloqueado esperando un `subprocess.run()`; el trabajo real ocurre en un
+`chdman.exe` hijo cuyo tiempo de CPU no aparece en `Get-Process python`.
+`POST /api/stop-job` (`job_manager.cancel_event`) no lo paró — el bucle de
+`match()` solo comprueba `_cancel.is_set()` entre filas, nunca dentro de una
+llamada bloqueante. Mismo síntoma que la prueba de `.cdi` de hoy
+(`DREAMCAST-FORMAT-MISMATCH-1`): `chdman` puede tardar minutos/no completar
+nunca sobre un archivo concreto sin que el timeout individual (300s en
+`_extract_chd`, `ra_cd_image.py:207`) ayude si hay **varias** filas PSX
+ambiguas en la cola que disparan `detect_psx_boot_serial()` →
+`_extract_chd()` una tras otra — cada una puede consumir hasta 5 min sin que
+el job progrese ni pueda cancelarse antes de que termine la fila actual.
+Recuperado matando el proceso del servidor y reiniciándolo (sin pérdida de
+datos — `update_match` corre dentro de un único `batch()`/transacción por el
+run completo, así que nada se comiteó a medias) | `catalog/matcher.py`
+(`_match_by_title`, dispara `detect_psx_boot_serial` para desambiguar región
+PSX), `retroachievements/ra_hash_psx.py:181-184`
+(`detect_psx_boot_serial`, rama `.chd`), `retroachievements/ra_cd_image.py:207`
+(`_extract_chd`, timeout de 300s por llamada, no por job), `web/handlers/scan.py`
+(`_do_match`, el bucle solo comprueba `_cancel` entre filas) | ✅ arreglado
+2026-09-15 (roadmap `13-match-chdman-robustness.md`, rama
+`fix/match-chdman-robustness`). **(a)** `_extract_chd()` acepta ahora un
+parámetro `timeout` (default 300s, sin cambios para la conversión real);
+`detect_psx_boot_serial()` pasa `_BOOT_SERIAL_TIMEOUT = 60` — medido con
+`chdman extractcd` real contra la biblioteca (~22s el disco de un solo track
+más grande, ~17s el multi-track más grande), 60s deja margen de sobra sin
+acercarse a los 300s de una conversión real. **(b)** `_do_match` reporta
+`job_manager.update_progress("match", {"current", "total", "current_file"})`
+por fila, expuesto como `match_progress` en `/api/job-status`
+(`JobManager.get_status()`) — mismo patrón que `scan_progress`/`chd_progress`;
+barra de progreso nueva en la pestaña Overview (`match-progress-wrap`,
+`jobs.js`). **(c)** cancelación real: no hizo falta matar el subprocess —
+con el timeout de (a) más el `_cancel.is_set()` que ya se comprueba entre
+filas, la espera máxima por fila bajó de 300s a 60s, suficiente para que
+cancelar sea cuestión de segundos, no de 30+ minutos. Verificado contra la
+biblioteca real: `rommgr match` sobre las 6.518 filas sin resolver actuales
+(42 PSX) terminó en 13.4s, sin cuelgue. 5 tests nuevos (`test_ra_hash_psx.py`
+×2, `test_jobs_manager.py`, `test_handlers_scan.py`). 1330 tests totales,
+ruff+format limpios. **Fuera de alcance deliberadamente**: localizar el
+`.chd` exacto que disparó el cuelgue original — no reproducible ahora (la
+cola de 7.738 filas de aquel momento ya no existe) y no bloqueante, según lo
+previsto en el propio roadmap |
+
+---

@@ -7,92 +7,8 @@ histórica.
 
 > ✅ Archivado en `Tareas/diario/archivo/archivo.md`: MEJORAS MEJ-1..6, AUD-1..6, TEST-CLEAN-1..3 + TEST-GAP-1, ONB-1..9, REV43-1..53 (calidad de código, onboarding, tests — completas, 2026-07-02 a 2026-07-15).
 
-### DOCS-AUDIT-3 — Adaptar commands y agent al backlog partido (seguimiento de DOCS-AUDIT-2b, 2026-10-20)
-
-Tras partir `backlog.md` en índice + `backlog/<epic>.md` (2b), los commands y el agent
-siguen asumiendo un único archivo con todo el detalle. Rama propia (`docs/docs-audit-3`),
-después de mergear #443. Sin epic de GitHub (transversal).
-
-| ID | Task | Esfuerzo | Estado |
-|----|------|----------|--------|
-| DOCS-AUDIT-3a | `/feature` (`.claude/commands/feature.md` L7 y L33): hoy "lee `Tareas/backlog.md` para encontrar la descripción" y "marca ✅ en `backlog.md`" → debe hacer `grep -rn "<ID>" Tareas/backlog/`, leer solo esa sección y marcar ✅ en el archivo de epic (+ actualizar la fila de la tabla de pendientes de `backlog.md` si la sección pasa a 100 % ✅). **Es el que se rompe de verdad**: con el índice no encuentra el detalle de la tarea | S | ✅ 2026-10-20 — `feature.md`: localiza por `grep` del ID en `backlog/`, lee solo esa sección, marca ✅ en el archivo de epic y mueve la sección a `hecho/` (y quita su fila del índice) al quedar 100 % ✅ |
-| DOCS-AUDIT-3b | `backlog-triage` (`.claude/agents/backlog-triage.md` L16 "Read `Tareas/backlog.md` in full"), `/siguiente` y `/dia`: leer el índice + tabla de pendientes y abrir solo las secciones elegidas en `backlog/<epic>.md` | S | ✅ 2026-10-20 — `backlog-triage` (agent), `/siguiente` y `/dia` leen el índice + tabla de pendientes y abren solo las secciones candidatas por `grep` del ID. Aplicado también el mismo patrón a `hardware-validator` y `/changelog`, que leían `backlog.md` entero |
-| DOCS-AUDIT-3c | `/progreso`: calcular el resumen recorriendo `Tareas/backlog/*.md` y `hecho/` (hoy cuenta ✅ sobre el índice y dará cifras erróneas). Valorar un script `scripts/backlog_stats.py` (stdlib) si el cálculo no cabe en el prompt | S | ✅ 2026-10-20 — `scripts/backlog_stats.py [--detalle]` (stdlib) cuenta secciones y filas ✅/abiertas por epic y `hecho/`; test en `tests/test_backlog_stats.py`; `/progreso` lo ejecuta en vez de leer el backlog. Al cerrar DOCS-AUDIT-2 se movió a `hecho/` (primera aplicación de la regla de `/feature`) |
-| DOCS-AUDIT-3d | Revisar las 26 secciones marcadas `revisar` (sin tabla de estado) en la tabla de `backlog.md`: pasarlas a `hecho/` o añadirles fila de estado; recortar `pilar1-limpieza.md` (1.295 líneas). Mientras no se haga, la tabla de pendientes sobrestima lo abierto | M | ⏳ |
-
-### SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless (hallazgo usuario 2026-09-19, PC2)
-
-Encontrado en vivo justo al activar el auto-arranque de `rommgr serve --tray`
-vía tarea programada de Windows (`pythonw.exe`, sin consola propia, ver
-`EMU-SYNC-WATCH-1` en Pilar 3). El usuario reportó una ventana abriéndose
-cada 10 segundos.
-
-**Primer intento insuficiente**: se arregló solo `tasklist.exe` (el watcher
-nuevo de `EMU-SYNC-WATCH-1`) — el usuario confirmó que la ventana seguía
-apareciendo. **Causa raíz real**: `adb.exe`/`rclone.exe`/`chdman.exe`/
-`maxcso`/`netsh` se lanzaban sin `creationflags=CREATE_NO_WINDOW` en absolutamente
-ningún sitio del proyecto excepto `utils/notifier.py` — nunca se notó porque
-la app siempre se había ejecutado con una consola visible (`python.exe`); con
-`pythonw.exe` (sin consola), cada llamada de los daemons periódicos (auto-sync
-cada 10s, SD-card cada 8s, verify chd semanal...) abría una consola nueva y
-visible para el proceso hijo.
-
-**Segundo problema, esta vez en CI**: `subprocess.CREATE_NO_WINDOW` no existe
-fuera de Windows — referenciarlo directamente tumbó 30+ tests en el CI (Linux)
-con `AttributeError` antes de que el mock de `subprocess.run` llegara a
-ejecutarse. Arreglado con una constante compartida nueva,
-`utils/subprocess_flags.py::NO_WINDOW` (el flag real en `win32`, `0` en
-cualquier otra plataforma — `0` es el valor por defecto de `creationflags`,
-nunca lanza en POSIX) | `web/daemons.py`, `sync/adb_transport.py` (×2),
-`sync/device_detector.py`, `sync/rclone_transport.py`, `converters/chd_converter.py`
-(×2), `retroachievements/ra_cd_image.py`, `utils/health_checker.py`,
-`utils/notifier.py`, `web/handlers/esde/conversions.py`, `web/lan.py`,
-`web/handlers/cloud_auth.py` (×4), `utils/subprocess_flags.py` (nuevo) |
-✅ mergeado a `develop` (PR #324, 2026-09-19) en 3 iteraciones — 1358 tests
-totales, verificado en vivo por el usuario tras cada iteración. Deliberadamente
-sin tocar: `games.py` (lanza RetroArch para jugar, su ventana debe verse) y
-el `CREATE_NEW_CONSOLE` de `sync_cloud.py` (abre a propósito una consola
-interactiva para `rclone config`) |
-
-### RETROARCH-THUMBS-1 — Publicar carátulas/capturas ya escaneadas en el árbol `thumbnails/` de RetroArch (petición usuario 2026-09-19, PC2)
-
-Petición del usuario: que RetroArch, ES-DE y la propia app usen las mismas
-imágenes ya scrapeadas sin duplicarlas. Investigación previa en
-`docs/config/retroarch-thumbnails.md` confirmó que ES-DE y la app ya
-comparten un único archivo por juego (`media/images|screenshots/` junto al
-ROM, referenciado directamente en `box_art_path`/`screenshot_path` de
-`game_metadata`) — cero duplicación ahí. RetroArch es el caso distinto: solo
-lee `<RetroArch>/thumbnails/<db_name>/Named_Boxarts|Named_Snaps/<label>.png`,
-solo acepta PNG, y no conoce la carpeta `media/` de ES-DE en absoluto.
-
-Implementado `utils/retroarch_thumbnails.py::publish_retroarch_thumbnails()`:
-origen ya PNG → enlace duro al árbol de RetroArch (mismo inodo, 0 bytes
-duplicados, un rescrape que sobreescribe el origen mantiene el enlace
-sincronizado); origen JPG (RetroArch lo rechaza) → conversión única vía
-PowerShell + `System.Drawing` a una caché por mtime
-(`.rommgr/retroarch_thumbnails_cache/`), evitando duplicar trabajo en cada
-corrida aunque no evita el archivo PNG adicional que RetroArch exige. Corre
-como job en background (patrón `convert_chd`) — a escala real, las
-conversiones JPG→PNG tardan minutos y una llamada síncrona habría podido
-retrasar el watcher de sync (Pilar 3). Botón "Publicar carátulas en
-RetroArch" en la pestaña Formatos | `utils/retroarch_thumbnails.py` (nuevo),
-`utils/lpl_generator.py` (`_platform_db_name` → `platform_db_name`, pública
-al reutilizarse desde dos módulos), `web/handlers/esde/reports.py`
-(`POST /api/publish-retroarch-thumbnails`, `GET
-/api/publish-retroarch-thumbnails-status`), `web/jobs/manager.py`
-(`JOB_NAMES`), `web/static/js/tabs/tools.js` + `tab-formats.html` | ✅
-implementado y verificado en vivo contra la biblioteca real de esta máquina
-(938 juegos con media escaneada) — 9 tests nuevos, 1367 tests totales.
-Hallazgo de la verificación en vivo: el primer intento de conversión falló
-en masa por `PATH` restringido del proceso de pruebas (no del código real),
-documentado en `docs/config/retroarch-thumbnails.md`. Pendiente sin ID
-propio: publicar también `generate_lpl_playlists()` a
-`<RetroArch>/playlists/` (hoy solo escribe a `.rommgr/playlists/`, fuera de
-alcance de esta tarea) |
-
----
-
 ### User actions (no code needed)
+> **Estado (revisado 2026-10-20):** ⏳ abierta — PC2-1 es una acción manual abierta
 
 | ID | Task |
 |----|------|
@@ -379,6 +295,7 @@ Rescaneado `gb/` y `psx/` tras cada paso, sin errores.
 Rescaneado `gb/`+`gbc/` tras el cierre, sin errores. Tema cerrado — solo queda `Road Rash` documentado como ambigüedad real, no bug |
 
 ### PSX-CATALOG-MISSING-1 — Falta el datfile Redump de PlayStation: 872/885 juegos (98%) sin `canonical_title` (hallazgo 2026-09-14, máquina "Ruben", `F:\Juegos Retro`)
+> **Estado (revisado 2026-10-20):** ⏳ abierta — queda pendiente confirmar un ejemplo concreto con el usuario
 
 Origen: petición del usuario de investigar por qué `PlayStation/` tiene nombrado
 "raro" (mezcla `Alundra (Spain).chd` con `Crash Bandicoot [U] [SCUS-94900].ccd`,

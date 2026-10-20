@@ -192,7 +192,94 @@ Se hace por pasos, cada uno en su rama/PR.
 | ID | Task | Esfuerzo | Estado |
 |----|------|----------|--------|
 | DOCS-AUDIT-2a | `.claude/settings.json` portable: quitar rutas de la máquina "Ruben" (hook py_compile → `python` del PATH; permisos por máquina en `settings.local.json`). Corregir la memoria `feedback_mark_tasks_done` (decía "dos sitios", contradice la fuente única) | XS | ✅ 2026-10-20 (rama `docs/docs-audit-2`, compartida por 2a–2e) |
-| DOCS-AUDIT-2b | Partir `backlog.md` en `Tareas/ACTIVO.md` (solo pendientes: ID, 1 línea, rama, estado; <300 líneas) + `Tareas/backlog/<epic>.md` por epic + `backlog/hecho/` para secciones ✅. Script que mueva secciones sin reescribir contenido; actualizar enlaces `#ancla` de `INDEX.md`, CLAUDE.md y commands (`/dia`, `/siguiente`, `/progreso`, `backlog-triage`) | M | ✅ 2026-10-20 — `backlog.md` es ahora el índice (~190 líneas) con tabla de pendientes; detalle en `backlog/<epic>.md` y `backlog/hecho/`. Se mantuvo `backlog.md` como punto de entrada (no un archivo `ACTIVO.md` aparte) para no romper ~40 referencias externas. Pendiente: `Pilar 1` sigue en 1.295 líneas (secciones sin tabla de estado, marcadas `revisar`) |
+| DOCS-AUDIT-2b | Partir `backlog.md` en un `ACTIVO.md` (solo pendientes: ID, 1 línea, rama, estado; <300 líneas) + `Tareas/backlog/<epic>.md` por epic + `backlog/hecho/` para secciones ✅. Script que mueva secciones sin reescribir contenido; actualizar enlaces `#ancla` de `INDEX.md`, CLAUDE.md y commands (`/dia`, `/siguiente`, `/progreso`, `backlog-triage`) | M | ✅ 2026-10-20 — `backlog.md` es ahora el índice (~190 líneas) con tabla de pendientes; detalle en `backlog/<epic>.md` y `backlog/hecho/`. Se mantuvo `backlog.md` como punto de entrada (no un archivo `ACTIVO.md` aparte) para no romper ~40 referencias externas. Pendiente: `Pilar 1` sigue en 1.295 líneas (secciones sin tabla de estado, marcadas `revisar`) |
 | DOCS-AUDIT-2c | Limpiar `.claude/`: borrar `obsidian-*` y `obsidian-skills-main` (copias idénticas, el proyecto no usa Obsidian), stubs (`roadmap-split-server-monolith.md`, `mejoras-por-rama.md` → archivo); un solo mecanismo por función (command *o* agent) en `backlog-triage`, `inbox-watchdog`, `ra-cache-refresh`; quitar `claude.md` del `.gitignore` (casa con `.claude/CLAUDE.md`) | S | ✅ 2026-10-20 — borrada la copia duplicada `obsidian-skills-main/` (LICENSE → `.claude/LICENSE-obsidian-skills`); **se conservan** los `obsidian-*` de nivel superior porque el vault de Obsidian se usa en la máquina "Ruben" (`docs/SKILLS-QUICK-START.md`). Stub `roadmap-split-server-monolith.md` borrado, `mejoras-por-rama.md` → `roadmaps/archivo/` (enlaces actualizados). `claude.md` fuera del `.gitignore`. Command/agent: se mantienen — los 3 commands son wrappers de 1 línea que invocan al agent, no duplican lógica |
 | DOCS-AUDIT-2d | Recortar `.claude/CLAUDE.md`: mover "Patrones críticos" a `docs/architecture/patterns.md` y dejar puntero; añadir regla de navegación ("empieza por `ACTIVO.md`; el detalle de un ID con grep en `backlog/`; nunca leas un backlog entero"). Memoria: borrar/actualizar `phases.md` (parada en Día 10) y dejar los "pendientes reales" solo en `ACTIVO.md` | S | ✅ 2026-10-20 — `CLAUDE.md` 158 → 109 líneas: patrones críticos a `docs/architecture/patterns.md` (en CLAUDE.md queda 1 regla por patrón + puntero), regla "nunca leas un epic entero", referencias al backlog actualizadas. Memoria: `phases.md` marcado como histórico, "Pendientes" de MEMORY.md pasa a atajo con fuente en el backlog (no se creó un `ACTIVO.md` aparte, ver 2b) |
-| DOCS-AUDIT-2e | Orden menor: índice real en `docs/README.md` (71 líneas) y agrupar por tema los `.md` sueltos de `docs/`; `Tareas/informes/` para informes/validaciones sueltos; normalizar nombres en `Tareas/diario/archivo/` (`día16.md`, `Día2-2.md`, `archivo.md`); fila 24 de la tabla de `Índice por rama` (línea ~92) apunta a un roadmap ya archivado | S | ✅ 2026-10-20 — comprobación de enlaces antes/después (86 rotos restantes, todos preexistentes en diario/archivo/hecho: referencias históricas a ficheros ya movidos; 0 nuevos). Arreglados: `tab-cable.html` apuntaba a `Tareas/Guia-Termux-Anbernic.md` (ahora `docs/sync/`), 3 enlaces del índice por rama a roadmaps archivados, `día16.md` → `Día16.md`. `docs/README.md` ya estaba agrupado por tema: solo se añadió `patterns.md`, sección "Fuera de docs/" y se corrigió la descripción de `SKILLS-QUICK-START`. **No se hizo**: `Tareas/informes/` ni mover `.md` sueltos de `docs/` — contradice la decisión DOCS-AUDIT-1a (informes se quedan en su sitio con nota de cierre) y rompería ~20 referencias en código/tests sin ganancia |
+| DOCS-AUDIT-2e | Orden menor: índice real en `docs/README.md` (71 líneas) y agrupar por tema los `.md` sueltos de `docs/`; `Tareas/informes/` para informes/validaciones sueltos; normalizar nombres en `Tareas/diario/archivo/` (`día16.md`, `Día2-2.md`, `archivo.md`); fila 24 de la tabla de `Índice por rama` (línea ~92) apunta a un roadmap ya archivado | S | ✅ 2026-10-20 — comprobación de enlaces antes/después (86 rotos restantes, todos preexistentes en diario/archivo/hecho: referencias históricas a ficheros ya movidos; 0 nuevos). Arreglados: `tab-cable.html` apuntaba a la guía Termux en su ruta antigua (ahora `docs/sync/Guia-Termux-Anbernic.md`), 3 enlaces del índice por rama a roadmaps archivados, `día16.md` → `Día16.md`. `docs/README.md` ya estaba agrupado por tema: solo se añadió `patterns.md`, sección "Fuera de docs/" y se corrigió la descripción de `SKILLS-QUICK-START`. **No se hizo**: `Tareas/informes/` ni mover `.md` sueltos de `docs/` — contradice la decisión DOCS-AUDIT-1a (informes se quedan en su sitio con nota de cierre) y rompería ~20 referencias en código/tests sin ganancia |
+
+### SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless (hallazgo usuario 2026-09-19, PC2)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — mergeado en PR #324 (2026-09-19)
+
+Encontrado en vivo justo al activar el auto-arranque de `rommgr serve --tray`
+vía tarea programada de Windows (`pythonw.exe`, sin consola propia, ver
+`EMU-SYNC-WATCH-1` en Pilar 3). El usuario reportó una ventana abriéndose
+cada 10 segundos.
+
+**Primer intento insuficiente**: se arregló solo `tasklist.exe` (el watcher
+nuevo de `EMU-SYNC-WATCH-1`) — el usuario confirmó que la ventana seguía
+apareciendo. **Causa raíz real**: `adb.exe`/`rclone.exe`/`chdman.exe`/
+`maxcso`/`netsh` se lanzaban sin `creationflags=CREATE_NO_WINDOW` en absolutamente
+ningún sitio del proyecto excepto `utils/notifier.py` — nunca se notó porque
+la app siempre se había ejecutado con una consola visible (`python.exe`); con
+`pythonw.exe` (sin consola), cada llamada de los daemons periódicos (auto-sync
+cada 10s, SD-card cada 8s, verify chd semanal...) abría una consola nueva y
+visible para el proceso hijo.
+
+**Segundo problema, esta vez en CI**: `subprocess.CREATE_NO_WINDOW` no existe
+fuera de Windows — referenciarlo directamente tumbó 30+ tests en el CI (Linux)
+con `AttributeError` antes de que el mock de `subprocess.run` llegara a
+ejecutarse. Arreglado con una constante compartida nueva,
+`utils/subprocess_flags.py::NO_WINDOW` (el flag real en `win32`, `0` en
+cualquier otra plataforma — `0` es el valor por defecto de `creationflags`,
+nunca lanza en POSIX) | `web/daemons.py`, `sync/adb_transport.py` (×2),
+`sync/device_detector.py`, `sync/rclone_transport.py`, `converters/chd_converter.py`
+(×2), `retroachievements/ra_cd_image.py`, `utils/health_checker.py`,
+`utils/notifier.py`, `web/handlers/esde/conversions.py`, `web/lan.py`,
+`web/handlers/cloud_auth.py` (×4), `utils/subprocess_flags.py` (nuevo) |
+✅ mergeado a `develop` (PR #324, 2026-09-19) en 3 iteraciones — 1358 tests
+totales, verificado en vivo por el usuario tras cada iteración. Deliberadamente
+sin tocar: `games.py` (lanza RetroArch para jugar, su ventana debe verse) y
+el `CREATE_NEW_CONSOLE` de `sync_cloud.py` (abre a propósito una consola
+interactiva para `rclone config`) |
+
+### RETROARCH-THUMBS-1 — Publicar carátulas/capturas ya escaneadas en el árbol `thumbnails/` de RetroArch (petición usuario 2026-09-19, PC2)
+> **Estado (revisado 2026-10-20):** ✅ cerrada — hecho; queda un seguimiento menor sin ID (publicar `generate_lpl_playlists()` en `<RetroArch>/playlists/`)
+
+Petición del usuario: que RetroArch, ES-DE y la propia app usen las mismas
+imágenes ya scrapeadas sin duplicarlas. Investigación previa en
+`docs/config/retroarch-thumbnails.md` confirmó que ES-DE y la app ya
+comparten un único archivo por juego (`media/images|screenshots/` junto al
+ROM, referenciado directamente en `box_art_path`/`screenshot_path` de
+`game_metadata`) — cero duplicación ahí. RetroArch es el caso distinto: solo
+lee `<RetroArch>/thumbnails/<db_name>/Named_Boxarts|Named_Snaps/<label>.png`,
+solo acepta PNG, y no conoce la carpeta `media/` de ES-DE en absoluto.
+
+Implementado `utils/retroarch_thumbnails.py::publish_retroarch_thumbnails()`:
+origen ya PNG → enlace duro al árbol de RetroArch (mismo inodo, 0 bytes
+duplicados, un rescrape que sobreescribe el origen mantiene el enlace
+sincronizado); origen JPG (RetroArch lo rechaza) → conversión única vía
+PowerShell + `System.Drawing` a una caché por mtime
+(`.rommgr/retroarch_thumbnails_cache/`), evitando duplicar trabajo en cada
+corrida aunque no evita el archivo PNG adicional que RetroArch exige. Corre
+como job en background (patrón `convert_chd`) — a escala real, las
+conversiones JPG→PNG tardan minutos y una llamada síncrona habría podido
+retrasar el watcher de sync (Pilar 3). Botón "Publicar carátulas en
+RetroArch" en la pestaña Formatos | `utils/retroarch_thumbnails.py` (nuevo),
+`utils/lpl_generator.py` (`_platform_db_name` → `platform_db_name`, pública
+al reutilizarse desde dos módulos), `web/handlers/esde/reports.py`
+(`POST /api/publish-retroarch-thumbnails`, `GET
+/api/publish-retroarch-thumbnails-status`), `web/jobs/manager.py`
+(`JOB_NAMES`), `web/static/js/tabs/tools.js` + `tab-formats.html` | ✅
+implementado y verificado en vivo contra la biblioteca real de esta máquina
+(938 juegos con media escaneada) — 9 tests nuevos, 1367 tests totales.
+Hallazgo de la verificación en vivo: el primer intento de conversión falló
+en masa por `PATH` restringido del proceso de pruebas (no del código real),
+documentado en `docs/config/retroarch-thumbnails.md`. Pendiente sin ID
+propio: publicar también `generate_lpl_playlists()` a
+`<RetroArch>/playlists/` (hoy solo escribe a `.rommgr/playlists/`, fuera de
+alcance de esta tarea) |
+
+---
+
+### DOCS-AUDIT-3 — Adaptar commands y agent al backlog partido (seguimiento de DOCS-AUDIT-2b, 2026-10-20)
+
+Tras partir `backlog.md` en índice + `backlog/<epic>.md` (2b), los commands y el agent
+siguen asumiendo un único archivo con todo el detalle. Rama propia (`docs/docs-audit-3`),
+después de mergear #443. Sin epic de GitHub (transversal).
+
+| ID | Task | Esfuerzo | Estado |
+|----|------|----------|--------|
+| DOCS-AUDIT-3a | `/feature` (`.claude/commands/feature.md` L7 y L33): hoy "lee `Tareas/backlog.md` para encontrar la descripción" y "marca ✅ en `backlog.md`" → debe hacer `grep -rn "<ID>" Tareas/backlog/`, leer solo esa sección y marcar ✅ en el archivo de epic (+ actualizar la fila de la tabla de pendientes de `backlog.md` si la sección pasa a 100 % ✅). **Es el que se rompe de verdad**: con el índice no encuentra el detalle de la tarea | S | ✅ 2026-10-20 — `feature.md`: localiza por `grep` del ID en `backlog/`, lee solo esa sección, marca ✅ en el archivo de epic y mueve la sección a `hecho/` (y quita su fila del índice) al quedar 100 % ✅ |
+| DOCS-AUDIT-3b | `backlog-triage` (`.claude/agents/backlog-triage.md` L16 "Read `Tareas/backlog.md` in full"), `/siguiente` y `/dia`: leer el índice + tabla de pendientes y abrir solo las secciones elegidas en `backlog/<epic>.md` | S | ✅ 2026-10-20 — `backlog-triage` (agent), `/siguiente` y `/dia` leen el índice + tabla de pendientes y abren solo las secciones candidatas por `grep` del ID. Aplicado también el mismo patrón a `hardware-validator` y `/changelog`, que leían `backlog.md` entero |
+| DOCS-AUDIT-3c | `/progreso`: calcular el resumen recorriendo `Tareas/backlog/*.md` y `hecho/` (hoy cuenta ✅ sobre el índice y dará cifras erróneas). Valorar un script `scripts/backlog_stats.py` (stdlib) si el cálculo no cabe en el prompt | S | ✅ 2026-10-20 — `scripts/backlog_stats.py [--detalle]` (stdlib) cuenta secciones y filas ✅/abiertas por epic y `hecho/`; test en `tests/test_backlog_stats.py`; `/progreso` lo ejecuta en vez de leer el backlog. Al cerrar DOCS-AUDIT-2 se movió a `hecho/` (primera aplicación de la regla de `/feature`) |
+| DOCS-AUDIT-3d | Revisar las 26 secciones marcadas `revisar` (sin tabla de estado) en la tabla de `backlog.md`: pasarlas a `hecho/` o añadirles fila de estado; recortar `pilar1-limpieza.md` (1.295 líneas). Mientras no se haga, la tabla de pendientes sobrestima lo abierto | M | ✅ 2026-10-20 — las 25 secciones `revisar` evaluadas: 12 cerradas (movidas a `hecho/`) y 13 abiertas, cada una con línea `> **Estado (revisado 2026-10-20):**`. Veredictos por lectura de los indicadores de estado de cada sección (no de su historia completa): vetables, el marcador de la cabecera es editable. `backlog_stats.py` reconoce ese marcador y `--tabla` regenera la tabla del índice. `pilar1-limpieza.md` 1.295 → 996 líneas |
