@@ -157,7 +157,7 @@ src/rom_manager/web/frontend.py
 src/rom_manager/utils/m3u_generator.py
 src/rom_manager/utils/multidisc_verifier.py
 src/rom_manager/utils/library_report_html.py
-Tareas/Día8.md
-Tareas/FIXES_necesarios.md
+Tareas/diario/archivo/Día8.md
+Tareas/FIXES_necesarios.md (eliminado)
 Crear_acceso_directo.ps1  (nuevo)
 ```

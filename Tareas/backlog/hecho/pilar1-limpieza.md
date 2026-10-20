@@ -76,7 +76,7 @@ Nada tocado en disco — solo lectura. Ver `ARCADE-DAT-CONTAMINATION-10` para ej
 
 ### DEDUP-RENAME — Colisiones de nombre en Organizar: sufijo _1/_2 en vez de borrar (feedback usuario 2026-08-29)
 
-Origen: `docs/ideas/Idea_final.md` + `docs/Feedback/29/8.md` — el usuario reporta que,
+Origen: `docs/ideas/Idea_final.md` + `docs/_archive/feedback-2026-08-29.md` — el usuario reporta que,
 cuando dos juegos piden el mismo nombre canónico, Organizar les añade sufijo `_1`/`_2`
 en vez de quedarse con uno solo. Pide el mismo criterio que ya usa el resto de la app
 para duplicados: conservar la versión con logros en RetroAchievements y descartar

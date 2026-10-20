@@ -7,7 +7,7 @@
 Origen: al categorizar los 5.774 ZIPs de `Unknown\` para JUNK-REVIEW-1 se detectaron
 tres fallos de raíz en el pipeline de Inbox/setup que explican por qué tantos
 archivos quedan varados sin extraer/organizar. Detalle de la investigación:
-`Tareas/diario/Día39.md` (sección JUNK-REVIEW-1) y conversación 2026-07-08.
+`Tareas/diario/archivo/Día39.md` (sección JUNK-REVIEW-1) y conversación 2026-07-08.
 INBOX-FIX-1/2/3 → PRs #85/#87/#88, todas mergeadas. Aplicados manualmente sobre
 la biblioteca real 2026-07-08 con el código de esas 3 ramas antes del merge:
 20 BIOS movidas a `bios/<slug>/` (+20 filas basura eliminadas de `games`),
@@ -33,7 +33,7 @@ duplicados de verdad (SHA1 distinto). Ya arreglado: compara SHA1 antes de borrar
 ### MATCH-FIX-3 — Descomprimir y rehashear no resuelve las colisiones de nombre cuando el catálogo tampoco conoce el hash real (hallazgo 2026-09-12)
 
 Plan de implementación (junto a los follow-ups pendientes de `MATCH-HEADER-1`)
-en `.claude/roadmaps/14-matcher-coverage-gaps.md`.
+en `.claude/roadmaps/archivo/14-matcher-coverage-gaps.md`.
 
 Origen: sesión 2026-09-12, máquina "Ruben" (`F:\Juegos Retro`) — el objetivo
 era confirmar si los ~963 conflictos de `plan` en `.zip`/`.nes`/`.gb`/`.gbc`

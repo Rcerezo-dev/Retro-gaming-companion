@@ -370,4 +370,3 @@ Petición del usuario tras arreglar `PSX-CATALOG-MISSING-1`: "¿hay algo más qu
 **Contraste de confianza — plataformas con catálogo presente pero match parcial** (no urgente, probablemente hacks/traducciones legítimos, mismo patrón que `DUP-CROSSFMT-9`, sin verificar caso a caso): NES 73,0% (12.126), Game Boy 73,7% (5.042), SNES 53,0% (1.290) — las tres tienen datfile No-Intro real, así que el hueco no es "falta catálogo" sino contenido que genuinamente no está en el DAT oficial (bootlegs, hacks, traducciones, homebrew) | — | 🔵 sin verificar caso a caso, baja prioridad |
 
 ---
-

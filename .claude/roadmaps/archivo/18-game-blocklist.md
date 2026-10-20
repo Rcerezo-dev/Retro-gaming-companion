@@ -11,7 +11,7 @@
 ## Origen
 
 `GAME-BLOCKLIST` (`Tareas/backlog.md`, feedback usuario 2026-08-29,
-`docs/Feedback/29/8.md`). Caso de uso explícito del usuario: "este juego (ej.
+`docs/_archive/feedback-2026-08-29.md`). Caso de uso explícito del usuario: "este juego (ej.
 un Barbie) no me interesa, quiero borrarlo de PC y Anbernic a la vez, y que
 ningún sync futuro me lo vuelva a colar". Distinto de `STORAGE-MGR`
 (archivado: borrado en bloque puntual, sin bloqueo permanente) y de

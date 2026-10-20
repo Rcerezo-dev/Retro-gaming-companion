@@ -10,14 +10,14 @@ Objetivo del proyecto:
 
 Documento principal de planificación:
 
-- `Tareas/Día1.md`
+- `Tareas/diario/archivo/Día1.md`
 
 
 ## Lo que se hizo hoy
 
 ### 1. Planificación del proyecto
 
-Se rehizo `Tareas/Día1.md` para convertirlo en un plan real de ejecución.
+Se rehizo `Tareas/diario/archivo/Día1.md` para convertirlo en un plan real de ejecución.
 
 Se definieron:
 
@@ -125,7 +125,7 @@ Se implementó:
 
 - `pyproject.toml`
 - `README.md`
-- `Tareas/Día1.md`
+- `Tareas/diario/archivo/Día1.md`
 - `src/rom_manager/cli.py`
 - `src/rom_manager/config.py`
 - `src/rom_manager/database/schema.py`

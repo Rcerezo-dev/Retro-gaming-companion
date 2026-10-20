@@ -119,4 +119,4 @@ tools/chdman.exe                                     MOVIDO (desde raíz)
 
 ## Siguiente sesión recomendada
 
-Ver `Tareas/Siguientes-pasos.md` para la lista priorizada.
+Ver `Tareas/Siguientes-pasos.md (eliminado)` para la lista priorizada.

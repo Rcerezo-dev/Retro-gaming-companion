@@ -27,8 +27,8 @@ rama de esta lista, no se re-audita el backlog entero en cada sesión.
 | `feature/device-profile-loose-data` | [19](../.claude/roadmaps/archivo/19-device-profile-loose-data.md) | Sección "Hardware validation" (línea ~1284) | Perfil de dispositivo |
 | — (acciones manuales/hardware) | [20](../.claude/roadmaps/20-rammu-machine-pending.md) | mixta, ver roadmap | mixta |
 | — (limpieza de documentación, sin rama por defecto) | [24](../.claude/roadmaps/archivo/24-docs-audit-followups.md) | [DOCS-AUDIT-1](backlog/hecho/transversal.md) | Transversal |
-| `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 — ✅ completo, PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339) abierto |
-| `feature/saves-ux-history-context` | [25](../.claude/roadmaps/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
+| `feature/inbox-ux-summary-metadata` | [26](../.claude/roadmaps/archivo/26-inbox-ux-summary-metadata.md) | `INBOX-SESSION-SUMMARY-1`, `INBOX-METADATA-INLINE-1` | Pilar 2 — fase 3 de 6 — ✅ completo, PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339) abierto |
+| `feature/saves-ux-history-context` | [25](../.claude/roadmaps/archivo/25-saves-ux-history-context.md) | `SAVES-HISTORY-1`, `SAVES-CONFLICT-CTX-1`, `SYNC-CONFLICT-MANUAL-1` | Pilar 3 — fase 4 de 6 — ✅ completo, PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338) abierto |
 | `feature/library-folder-standardization` | [29](../.claude/roadmaps/29-library-folder-standardization.md) | `ESDE-FOLDER-STD-1`, `ROMHACK-ORG-1` | Multi-launcher (#337) — fase 2 de 6 |
 | `feature/mobile-responsive-ui` | [30](../.claude/roadmaps/30-mobile-responsive-ui.md) | `MOBILE-UI-1` | UX — fase 5 de 6 |
 | `feature/ra-achievements-live-progress` | [31](../.claude/roadmaps/31-ra-achievements-live-progress.md) | `RA-PROGRESS-UI-1` | RA/Scraper/SAGE — fase 6 de 6, bloqueado (API key real) |
@@ -171,4 +171,5 @@ Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/
 | LIBRARY-CLEANUP-GAPS-1 — Huecos reales encontrados al limpiar PSX a mano (hallazgo 2026-08-31) | [transversal](backlog/transversal.md) | pendiente |
 | PSX-CATALOG-MISSING-1 — Falta el datfile Redump de PlayStation: 872/885 juegos (98%) sin `canonical_title` (ha | [transversal](backlog/transversal.md) | pendiente |
 | LIBRARY-AUDIT-1 — Estado de match por plataforma y huecos reales encontrados (auditoría 2026-09-14, `F:\Juegos | [transversal](backlog/transversal.md) | pendiente |
-| MOBILE-UI — UI usable desde el móvil (idea usuario 2026-09-22) | [ux](backlog/ux.md) | pendiente |
+| MOBILE-UI — UI usable desde el móvil (idea usuario 2026-09-22) | [ux](backlog/ux.md) | pendiente |
+| Hardware validation (requires console or SD card) | [validacion-hardware](backlog/validacion-hardware.md) | pendiente |

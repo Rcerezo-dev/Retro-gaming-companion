@@ -241,7 +241,7 @@ Notas sin tarea propia:
   `docs/sync/Guia-Termux-Anbernic.md` no usa curl en ningún paso). Añadir al
   checklist cuando se ejecute la guía en la consola.
 - La ruta de la guía cambió a `docs/sync/Guia-Termux-Anbernic.md`
-  (la memoria y algún doc aún citan `Tareas/Guia-Termux-Anbernic.md`).
+  (la memoria y algún doc aún citan `docs/sync/Guia-Termux-Anbernic.md`).
 - `_build_anbernic_setup_sh` tiene una línea sin efecto
   (`system.py:227` — expresión no asignada); irrelevante si se borra en
   ANBERNIC-UX-1/2.

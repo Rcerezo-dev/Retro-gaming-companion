@@ -4,7 +4,7 @@
 
 ### HERR-FIX — Bugs en Herramientas hallados en feedback del usuario (2026-08-29)
 
-Origen: `docs/Feedback/29/8.md`. No investigados a fondo todavía — documentar
+Origen: `docs/_archive/feedback-2026-08-29.md`. No investigados a fondo todavía — documentar
 archivo:línea antes de arreglar (regla del proyecto).
 
 | ID | Task | Archivo(s) | Estado |

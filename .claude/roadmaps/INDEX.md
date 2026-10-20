@@ -53,36 +53,36 @@ abierto o ya se archivó.
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | Archivado | 🟠 P2 |
 | 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Activo (parcial) | 🟠 P2 |
 | 24 | [archivo/24-docs-audit-followups.md](archivo/24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Archivado | 🟡 P3 |
-| 25 | [25-saves-ux-history-context.md](25-saves-ux-history-context.md) | `feature/saves-ux-history-context` | **PR abierto** — [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338), roadmap completo (los 3 objetivos), pendiente de review/merge | 🟠 P2 |
-| 26 | [26-inbox-ux-summary-metadata.md](26-inbox-ux-summary-metadata.md) | `feature/inbox-ux-summary-metadata` | **PR abierto** — [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339), roadmap completo (los 2 objetivos), apilado sobre #338 | 🟡 P3 |
+| 25 | [archivo/25-saves-ux-history-context.md](archivo/25-saves-ux-history-context.md) | `feature/saves-ux-history-context` | Archivado (PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338), mergeado 2026-09-30) | 🟠 P2 |
+| 26 | [archivo/26-inbox-ux-summary-metadata.md](archivo/26-inbox-ux-summary-metadata.md) | `feature/inbox-ux-summary-metadata` | Archivado (PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339), mergeado 2026-09-30) | 🟡 P3 |
 | 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | Archivado (PR #340) | 🟡 P3 |
 | 28 | [28-android-gdrive-provider.md](28-android-gdrive-provider.md) | sin asignar (se corta al arrancar la Fase 1) | Activo | 🟡 P3 |
 | 29 | [29-library-folder-standardization.md](29-library-folder-standardization.md) | `feature/library-folder-standardization` | Pendiente | 🟡 P3 |
 | 30 | [30-mobile-responsive-ui.md](30-mobile-responsive-ui.md) | `feature/mobile-responsive-ui` | Pendiente | 🟡 P3 |
 | 31 | [31-ra-achievements-live-progress.md](31-ra-achievements-live-progress.md) | `feature/ra-achievements-live-progress` | **Bloqueado** — requiere API key RA real validada primero (ver `phases.md`) | 🟡 P3 |
-| 32 | [32-proximas-actividades-2026-10.md](32-proximas-actividades-2026-10.md) | sin rama única (una por tarea) | Activo | 🔴 P1 (Fase 0-1) |
-| 33 | [33-hoy-2026-10-04.md](33-hoy-2026-10-04.md) | `fix/sync-delta-cache-remote` + docs | Activo | 🔴 P1 (sync) |
-| 34 | [34-hoy-2026-10-06.md](34-hoy-2026-10-06.md) | validación #414 + ANDROID-SYNC-CRITICAL-1 | Activo | 🔴 P1 (sync) |
+| 32 | [archivo/32-proximas-actividades-2026-10.md](archivo/32-proximas-actividades-2026-10.md) | sin rama única (una por tarea) | Archivado (plan de día: sus tareas viven en el backlog; archivado 2026-10-20) | 🔴 P1 (Fase 0-1) |
+| 33 | [archivo/33-hoy-2026-10-04.md](archivo/33-hoy-2026-10-04.md) | `fix/sync-delta-cache-remote` + docs | Archivado (plan de día: sus tareas viven en el backlog; archivado 2026-10-20) | 🔴 P1 (sync) |
+| 34 | [archivo/34-hoy-2026-10-06.md](archivo/34-hoy-2026-10-06.md) | validación #414 + ANDROID-SYNC-CRITICAL-1 | Archivado (plan de día: sus tareas viven en el backlog; archivado 2026-10-20) | 🔴 P1 (sync) |
+| 35 | [archivo/35-pendientes-2026-09-30.md](archivo/35-pendientes-2026-09-30.md) | — (foto del 2026-09-30, antes en `Tareas/` como `Roadmap-Pendientes-2026-09-30`) | Archivado (frentes 0 y 1 cerrados el mismo día) | — |
 
 ---
 
-## Fases — mejoras propuestas por el usuario (sesión 2026-09-22)
+## Orden de ataque
 
-Las 6 ramas 25/26/29/30/31 (más 28, absorbida por `android-gdrive-provider`
-de una sesión distinta) nacen de la misma sesión (`Tareas/backlog.md`, ver
-nota de cabecera 2026-09-22) y conviene atacarlas en este orden — sigue el
-orden de prioridad real de los 3 pilares (CLAUDE.md), con la rama de saves
-adelantada un peldaño por tocar el pilar de mayor valor diferencial. La 27
-(Pilar 1) ya se completó por separado (PR #340, archivada) y la 28 original
-(`library-folder-standardization`) se renumeró a 29 el 2026-09-30 al chocar
-con el roadmap 28 real (`android-gdrive-provider`):
+Lo que no está cerrado se ataca por la prioridad real de los 3 pilares (`CLAUDE.md`): sync de saves > Inbox > organización inicial > resto. Cualquier regresión de sync pasa por delante de todo. La secuencia propuesta el 2026-09-22 para las ramas 25-31 ya se ejecutó en su mayoría (27, 25 y 26 archivadas); no se repite aquí.
 
-1. **27** — `library-ux-dashboard-duplicates` (Pilar 1) — ✅ completado, PR #340
-2. **29** — `library-folder-standardization` (Pilar 1, cross-cutting con ES-DE/multi-launcher) — empieza con una sesión de decisión, sin código
-3. **26** — `inbox-ux-summary-metadata` (Pilar 2)
-4. **25** — `saves-ux-history-context` (Pilar 3 — "valor diferencial real"; cualquier regresión real de sync sigue teniendo prioridad absoluta por encima de este orden)
-5. **30** — `mobile-responsive-ui` (transversal)
-6. **31** — `ra-achievements-live-progress` (secundario, bloqueado hasta validar la API key real)
+**Un roadmap es de rama (o de un tema con varias tareas), no de día.** Los planes tipo "hoy" / "próximas actividades" no van en este índice: lo que se haga en la sesión va al diario (`Tareas/diario/`) y lo pendiente al backlog con ID. Los roadmaps 32-34 se archivaron por incumplir esto.
+
+---
+
+## Roadmaps y diseños fuera de esta carpeta
+
+Documentos con forma de roadmap que **se quedan en `Tareas/`** (no son de rama y se citan por ruta desde código y docs, igual que los informes puntuales — ver `DOCS-AUDIT-1a`/`4c`):
+
+| Documento | Qué es | Por qué no se mueve |
+|-----------|--------|---------------------|
+| [`Tareas/Roadmap-Android-Sync.md`](../../Tareas/Roadmap-Android-Sync.md) | Diseño de la app Android de sync (2026-08-18); el estado de las tareas vive en `ANDROID-SYNC` del backlog | ~15 referencias por ruta, incluidos comentarios de código Kotlin y `android/README.md` |
+| [`Tareas/Roadmap-212-Ideas-Futuras.md`](../../Tareas/Roadmap-212-Ideas-Futuras.md) | Ideas vivas de la épica #212 (base para trocear en sesiones) | Citado desde `docs/architecture/platforms-cores.md` y el backlog |
 
 ---
 

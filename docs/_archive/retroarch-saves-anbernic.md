@@ -138,7 +138,7 @@ C:\...\saves\PlayStation/ → /storage/emulated/0/RetroArch/saves/PlayStation/
 
 ### Opción B: Sincronización vía WiFi (rclone/FolderSync)
 
-Ver: `docs/android-sync.md`
+Ver: `docs/_archive/android-sync.md`
 
 ---
 
@@ -185,6 +185,6 @@ RetroArch soporta múltiples configuraciones — crea archivos de config separad
 
 ## 📚 Referencias
 
-- Documentación de sincronización: `docs/android-sync.md`
+- Documentación de sincronización: `docs/_archive/android-sync.md`
 - RetroArch oficial: https://www.retroarch.com/
 - Guía de configuración: https://docs.libretro.com/

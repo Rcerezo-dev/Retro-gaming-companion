@@ -425,7 +425,7 @@ corregido 2026-09-15 |
 > (sección Pilar 1, más abajo). No se ha borrado ni movido nada.
 >
 > Estado: ✅ implementado y validado con dry-run + ejecución real contra
-> hardware conectado (RG556). Ver `Tareas/diario/Día49.md` para los
+> hardware conectado (RG556). Ver `Tareas/diario/archivo/Día49.md` para los
 > números completos y el resultado final de la transferencia por
 > plataformas.
 

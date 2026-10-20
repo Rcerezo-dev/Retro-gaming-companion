@@ -235,7 +235,7 @@ fichero van **siempre separados**.
 
 > **Día27 completado y archivado** (`Tareas/diario/archivo/Día27.md`): roadmap ARC
 > cerrado (JM + CFG + SVC, PRs #22–#29). Plan de la sesión actual en
-> `Tareas/diario/Día28.md` (UX Phase 4). Detalle del Día26 en
+> `Tareas/diario/archivo/Día28.md` (UX Phase 4). Detalle del Día26 en
 > `Tareas/diario/archivo/Día26.md`.
 
 ### Foco activo (Día27 — completar la migración al JobManager)
@@ -923,7 +923,7 @@ central: **el camino recomendado está roto de punta a punta** — el botón
 "Usar para saves + states (recomendado)" lanza ReferenceError; si existiera,
 guardaría un remote sin `:`; y si guardara bien, "Sincronizar" fallaría porque
 el backend exige `[[sync.sources]]` antes de mirar los remotes implícitos.
-Detalle, archivos y criterios de "hecho" en `Tareas/Roadmap-Cloud-UX.md`.
+Detalle, archivos y criterios de "hecho" en `Tareas/diario/archivo/Roadmap-Cloud-UX-archivado.md`.
 Orden: 1-6 son bugs, 7-12 UX. Todo pilar 3.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
@@ -1034,7 +1034,7 @@ confirma y lo que se borra: el filtro de plataforma es solo visual,
 `deleteAllDuplicates()` cuenta filas del DOM ya filtrado para el diálogo de
 confirmación pero el backend borra duplicados de **toda** la biblioteca sin
 recibir ningún filtro. Detalle, archivo:línea y fases en
-`Tareas/Roadmap-Duplicados-UX.md`.
+`Tareas/diario/archivo/Roadmap-Duplicados-UX-completado.md`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
@@ -1079,7 +1079,7 @@ problema central: la funcionalidad de ScreenScraper está repartida entre
 Scraper y Settings sin puente entre ellas — la cuota de peticiones diarias
 solo se ve en Settings, y exportar `gamelist.xml` existe por duplicado en
 ambas pestañas con el mismo endpoint. Detalle, archivo:línea y fases en
-`Tareas/Roadmap-Scraper-UX.md`.
+`Tareas/Roadmap-Scraper-UX.md (eliminado)`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
@@ -1102,7 +1102,7 @@ críticos: la colección se corta en 120 juegos sin forma de cargar más
 (`_TV_LIMIT`, paginación soportada por el backend pero nunca disparada), y
 la barra de filtro por plataforma existe en el HTML pero ninguna función
 la rellena jamás — planeada pero nunca conectada. Detalle, archivo:línea y
-fases en `Tareas/Roadmap-TV-UX.md`.
+fases en `Tareas/Roadmap-TV-UX.md (eliminado)`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
@@ -1122,7 +1122,7 @@ Hallazgo principal, verificado de forma independiente en frontend y
 backend: el campo "ES-DE carpeta" nunca ha podido guardar nada porque el
 backend filtra `launchers.esde` de su lista de claves permitidas (a
 diferencia de `launchers.retroarch`, que sí está) — fix de una línea.
-Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md`.
+Detalle, archivo:línea y fases en `Tareas/Roadmap-Settings-UX.md (eliminado)`.
 
 | ID | Task | Tipo | Esfuerzo | Estado |
 |----|------|------|----------|--------|
@@ -1395,7 +1395,7 @@ con confianza para un borrado real desde Android.
 
 | ID | Task | Archivo(s) | Estado |
 |----|------|-----------|--------|
-| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas (confirmado: `gpLogPlaytime()` hoy no persiste nada, solo hace `alert()`, `games.js:531-542`). Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. Diseño detallado en `Tareas/Roadmap-Juegos-UX.md` (JUEGOS-UX-4..9) | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ✅ rama `feature/juegos-ux` — scanner `utils/lrtl_scanner.py`, columnas por origen `playtime_minutes_pc/_android`, endpoint `/api/playtime-scan` (job, PC + pull adb), UI automática sin inputs manuales. Pata cloud (rama `feature/juegos-ux-7-cloud`): `sync.playtime_remote` + SyncSources `/pc` y `/android` + ingesta post-sync + subida de `.lrtl` en el script Termux |
+| MEJ-1 | **Playtime real desde logs `.lrtl` de RetroArch** — scanner stdlib-json de `playlists/logs/<Core>/<rom>.lrtl` (`runtime` + `last_played`) que puebla `play_history`; elimina la entrada manual de horas (confirmado: `gpLogPlaytime()` hoy no persiste nada, solo hace `alert()`, `games.js:531-542`). Fase 2: sync de los `.lrtl` de Android (mismo pipeline que saves) → playtime unificado PC+consola. Alimenta el recomendador NLP. Diseño detallado en `Tareas/diario/archivo/Roadmap-Juegos-UX-completado.md` (JUEGOS-UX-4..9) | `scanner/` (nuevo módulo), `database/repositories/play_history.py`, endpoint | ✅ rama `feature/juegos-ux` — scanner `utils/lrtl_scanner.py`, columnas por origen `playtime_minutes_pc/_android`, endpoint `/api/playtime-scan` (job, PC + pull adb), UI automática sin inputs manuales. Pata cloud (rama `feature/juegos-ux-7-cloud`): `sync.playtime_remote` + SyncSources `/pc` y `/android` + ingesta post-sync + subida de `.lrtl` en el script Termux |
 | MEJ-2 | **Deshacer último apply** — endpoint que invierte los renames de la última operación usando `file_operations` (ya registrado en SQLite); reutiliza `rename_rom_with_saves` en dirección inversa. | `planner/`, `web/handlers/` | ✅ `get_last_apply_batch()` (`database/repositories/games.py`) agrupa por el `created_at` compartido del último apply; `_do_undo_last_apply()` (`web/handlers/organize.py`) reproduce la misma rama cue/gdi vs archivo suelto que `_do_apply`, pero con `source`/`target` invertidos, y llama `apply_rename()` con las rutas invertidas — cada undo queda registrado como una fila nueva, así que un segundo undo revierte el undo (redo) en vez de no hacer nada. Backup de la BD (MEJ-3) antes de tocar nada. Job en background (`undo_apply` en `JOB_NAMES`, endpoints `POST /api/undo-last-apply` + `GET /api/undo-last-apply-status`, patrón moderno `job_manager.get_job()` sin tocar el `get_status()` compartido). Botón "Deshacer último apply" en Organizar (`organize.js`, `tab-plan.html`). 2 tests nuevos (`test_undo_last_apply.py`) |
 | MEJ-3 | **Backup automático de la DB antes de apply/migraciones** — `sqlite3.Connection.backup()` (stdlib, ~5 líneas) antes de cada apply. | `planner/operation_planner.py` o `database/repository.py` | ✅ `backup_database()` en `_RepositoryBase` (`database/repositories/base.py`) — snapshot vía `sqlite3.Connection.backup()` (seguro con WAL, a diferencia de una copia de archivo cruda) a `<data_dir>/db-backup/`, poda a `keep_n=5`. Llamado desde `_do_apply` (`web/handlers/organize.py`) y `cli.py apply`, antes de construir el plan. 2 tests nuevos en `test_repository.py` |
 | MEJ-4 | **Sync de cheats (`.cht`)** — un `SyncSource` más apuntando al dir `cheats/` de RetroArch, mismo patrón que NEW-8 (`.opt`). ~10 líneas. | `config.py`, `sync/sync_cloud.py` | ✅ mismo patrón dir+remote que `ra_config_dir`/`ra_config_remote`: campos `cheats_dir`/`cheats_remote` en `SyncConfig` (`config.py`), `_do_sync` (`sync_cloud.py`) añade el `SyncSource` "RetroArch Cheats (.cht)" cuando ambos están configurados. Wiring completo: `allowed` en `_save_config` (`web/handlers/config.py`), `_build_config` (`misc.py`), campos nuevos en Ajustes (`tab-settings.html`, `config.js`). 2 tests nuevos (917 en total) |

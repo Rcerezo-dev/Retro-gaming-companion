@@ -57,7 +57,7 @@ archivado — ambas tareas cerradas). Surgido de una
 auditoría completa de la documentación del proyecto: se corrigieron ya los
 hallazgos "rompe confianza"/"desactualizado" (roadmap 23, `docs/ci-cd.md`,
 `Roadmap-212-Ideas-Futuras.md`, `Validacion-STORAGE-MGR.md`) y se archivaron
-`Día56`/`Día57`, `Roadmap-DEVPROFILE-1-4/5-6.md` y `docs/Feedback/29/8.md`.
+`Día56`/`Día57`, `Roadmap-DEVPROFILE-1-4/5-6.md` y `docs/_archive/feedback-2026-08-29.md`.
 Quedan 2 puntos cosméticos que requerían una decisión de convención en vez
 de solo corregir un dato:
 
@@ -283,3 +283,17 @@ después de mergear #443. Sin epic de GitHub (transversal).
 | DOCS-AUDIT-3b | `backlog-triage` (`.claude/agents/backlog-triage.md` L16 "Read `Tareas/backlog.md` in full"), `/siguiente` y `/dia`: leer el índice + tabla de pendientes y abrir solo las secciones elegidas en `backlog/<epic>.md` | S | ✅ 2026-10-20 — `backlog-triage` (agent), `/siguiente` y `/dia` leen el índice + tabla de pendientes y abren solo las secciones candidatas por `grep` del ID. Aplicado también el mismo patrón a `hardware-validator` y `/changelog`, que leían `backlog.md` entero |
 | DOCS-AUDIT-3c | `/progreso`: calcular el resumen recorriendo `Tareas/backlog/*.md` y `hecho/` (hoy cuenta ✅ sobre el índice y dará cifras erróneas). Valorar un script `scripts/backlog_stats.py` (stdlib) si el cálculo no cabe en el prompt | S | ✅ 2026-10-20 — `scripts/backlog_stats.py [--detalle]` (stdlib) cuenta secciones y filas ✅/abiertas por epic y `hecho/`; test en `tests/test_backlog_stats.py`; `/progreso` lo ejecuta en vez de leer el backlog. Al cerrar DOCS-AUDIT-2 se movió a `hecho/` (primera aplicación de la regla de `/feature`) |
 | DOCS-AUDIT-3d | Revisar las 26 secciones marcadas `revisar` (sin tabla de estado) en la tabla de `backlog.md`: pasarlas a `hecho/` o añadirles fila de estado; recortar `pilar1-limpieza.md` (1.295 líneas). Mientras no se haga, la tabla de pendientes sobrestima lo abierto | M | ✅ 2026-10-20 — las 25 secciones `revisar` evaluadas: 12 cerradas (movidas a `hecho/`) y 13 abiertas, cada una con línea `> **Estado (revisado 2026-10-20):**`. Veredictos por lectura de los indicadores de estado de cada sección (no de su historia completa): vetables, el marcador de la cabecera es editable. `backlog_stats.py` reconoce ese marcador y `--tabla` regenera la tabla del índice. `pilar1-limpieza.md` 1.295 → 996 líneas |
+
+### DOCS-AUDIT-4 — Documentación de roadmaps al día (auditoría 2026-10-20)
+
+Auditoría de `.claude/roadmaps/` y de los `Roadmap-*` sueltos de `Tareas/` contra el estado real
+(PRs de GitHub y backlog). Mismo problema que tenía el backlog: el registro se queda atrás.
+Rama `docs/docs-audit-4`, un PR. Sin epic de GitHub (transversal).
+
+| ID | Task | Esfuerzo | Estado |
+|----|------|----------|--------|
+| DOCS-AUDIT-4a | `INDEX.md`: filas 25 y 26 decían "PR abierto, pendiente de merge" pero #338/#339 se mergearon el 2026-09-30 y sus tareas están en `hecho/` → archivados los roadmaps 25 y 26 (+ filas del índice por rama de `backlog.md`); corregir los títulos de 29/30/31 ("Roadmap 28/29/30" tras la renumeración del 2026-09-30) | XS | ✅ 2026-10-20 |
+| DOCS-AUDIT-4b | Archivar o disolver los roadmaps 32, 33 y 34 (planes "de día" del 2026-10-03/04/06, duplican diario y backlog): lo aún válido (`D37-8`, `ANDROID-BATTERY-1`, …) pasa al backlog como tareas con ID; el resto a `roadmaps/archivo/` | S | ✅ 2026-10-20 — archivados 32, 33 y 34. Revisadas sus ~50 tareas contra el backlog: todas ya tienen ID y estado allí (nada que migrar); `#414` quedó cubierto por `SYNC-DELTA-REMOTE-1` |
+| DOCS-AUDIT-4c | Unificar los 3 `Roadmap-*` sueltos de `Tareas/` (`Pendientes-2026-09-30`, `Android-Sync`, `212-Ideas-Futuras`) bajo `.claude/roadmaps/` (activos) o `archivo/` (cerrados) con fila en `INDEX.md`; comprobación de enlaces antes y después (hay referencias desde código y backlog) | S | ✅ 2026-10-20 — `Roadmap-Pendientes-2026-09-30.md` (foto con sus frentes ya cerrados, 0 referencias) → `roadmaps/archivo/35-pendientes-2026-09-30.md`. `Roadmap-Android-Sync.md` y `Roadmap-212-Ideas-Futuras.md` **se quedan en `Tareas/`** (~15 referencias por ruta, incl. comentarios Kotlin) y se listan en una sección nueva de `INDEX.md` |
+| DOCS-AUDIT-4d | Regla en `INDEX.md`: un roadmap es de **rama**, no de día; los "hoy / próximas actividades" van al diario o al backlog. Recortar la sección "Fases" del 2026-09-22 | XS | ✅ 2026-10-20 — `INDEX.md`: sección "Fases" (2026-09-22) sustituida por "Orden de ataque" (prioridad de los 3 pilares) + regla "un roadmap es de rama, no de día" |
+| DOCS-AUDIT-4e | Roadmap 20: aclarar en qué PC ("rammu"/"Ruben") se ejecuta cada paso (el título y el cuerpo usan los nombres cruzados) | XS | ✅ 2026-10-20 — nota al inicio de la "Nota de alcance" del roadmap 20 que define rammu / Ruben por usuario de Windows y rutas |
