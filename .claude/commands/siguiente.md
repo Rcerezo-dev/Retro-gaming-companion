@@ -1,9 +1,9 @@
-Lee `Tareas/backlog.md` y el diario más reciente en `Tareas/diario/`, y responde a esta pregunta:
+Lee `Tareas/backlog.md` (solo el índice y su tabla "Pendiente y por revisar"; el detalle está en `Tareas/backlog/<epic>.md` — abre con `grep -rn "<ID>" Tareas/backlog/` solo las secciones candidatas, nunca un epic entero) y el diario más reciente en `Tareas/diario/`, y responde a esta pregunta:
 
 **¿Cuál es el siguiente paso más valioso que podemos implementar ahora mismo?**
 
 Para responder:
-1. Identifica qué tareas están activas o sin empezar en el backlog
+1. Identifica qué tareas están activas o sin empezar en la tabla de pendientes
 2. Evalúa qué tarea desbloquea más trabajo posterior
 3. Considera si hay bugs o deuda técnica urgente antes de avanzar en features
 4. Si hay alguna decisión de diseño bloqueada por una respuesta pendiente del usuario, indícalo

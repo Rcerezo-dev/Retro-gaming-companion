@@ -13,7 +13,7 @@ Your job is to read the current state of the project and propose a focused, real
 
 ## Step 1 — Read the backlog
 
-Read `Tareas/backlog.md` in full. Identify all tasks that are NOT marked ✅.
+Read `Tareas/backlog.md`: it is only the **index** (branch index + the "Pendiente y por revisar" table). Per-task detail lives in `Tareas/backlog/<epic>.md`; never read an epic file whole (up to 1,300 lines). Take the sections marked `pendiente` from the table (`revisar` = prose-only, unreliable status; mention them only if relevant), then `grep -rn "<SECTION-ID>" Tareas/backlog/` and read just the sections of the 5-8 most promising candidates. Identify the tasks in those sections that are NOT marked ✅.
 
 Group pending tasks by their roadmap phase or category. Note which ones are marked as prerequisites (prereq) for others.
 
