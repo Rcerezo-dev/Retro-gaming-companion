@@ -60,9 +60,10 @@ abierto o ya se archivó.
 | 29 | [29-library-folder-standardization.md](29-library-folder-standardization.md) | `feature/library-folder-standardization` | Pendiente | 🟡 P3 |
 | 30 | [30-mobile-responsive-ui.md](30-mobile-responsive-ui.md) | `feature/mobile-responsive-ui` | Pendiente | 🟡 P3 |
 | 31 | [31-ra-achievements-live-progress.md](31-ra-achievements-live-progress.md) | `feature/ra-achievements-live-progress` | **Bloqueado** — requiere API key RA real validada primero (ver `phases.md`) | 🟡 P3 |
-| 32 | [32-proximas-actividades-2026-10.md](32-proximas-actividades-2026-10.md) | sin rama única (una por tarea) | Activo | 🔴 P1 (Fase 0-1) |
-| 33 | [33-hoy-2026-10-04.md](33-hoy-2026-10-04.md) | `fix/sync-delta-cache-remote` + docs | Activo | 🔴 P1 (sync) |
-| 34 | [34-hoy-2026-10-06.md](34-hoy-2026-10-06.md) | validación #414 + ANDROID-SYNC-CRITICAL-1 | Activo | 🔴 P1 (sync) |
+| 32 | [archivo/32-proximas-actividades-2026-10.md](archivo/32-proximas-actividades-2026-10.md) | sin rama única (una por tarea) | Archivado (plan de día: sus tareas viven en el backlog; archivado 2026-10-20) | 🔴 P1 (Fase 0-1) |
+| 33 | [archivo/33-hoy-2026-10-04.md](archivo/33-hoy-2026-10-04.md) | `fix/sync-delta-cache-remote` + docs | Archivado (plan de día: sus tareas viven en el backlog; archivado 2026-10-20) | 🔴 P1 (sync) |
+| 34 | [archivo/34-hoy-2026-10-06.md](archivo/34-hoy-2026-10-06.md) | validación #414 + ANDROID-SYNC-CRITICAL-1 | Archivado (plan de día: sus tareas viven en el backlog; archivado 2026-10-20) | 🔴 P1 (sync) |
+| 35 | [archivo/35-pendientes-2026-09-30.md](archivo/35-pendientes-2026-09-30.md) | — (foto del 2026-09-30, antes en `Tareas/` como `Roadmap-Pendientes-2026-09-30`) | Archivado (frentes 0 y 1 cerrados el mismo día) | — |
 
 ---
 
@@ -83,6 +84,17 @@ con el roadmap 28 real (`android-gdrive-provider`):
 4. **25** — `saves-ux-history-context` (Pilar 3 — "valor diferencial real"; cualquier regresión real de sync sigue teniendo prioridad absoluta por encima de este orden)
 5. **30** — `mobile-responsive-ui` (transversal)
 6. **31** — `ra-achievements-live-progress` (secundario, bloqueado hasta validar la API key real)
+
+---
+
+## Roadmaps y diseños fuera de esta carpeta
+
+Documentos con forma de roadmap que **se quedan en `Tareas/`** (no son de rama y se citan por ruta desde código y docs, igual que los informes puntuales — ver `DOCS-AUDIT-1a`/`4c`):
+
+| Documento | Qué es | Por qué no se mueve |
+|-----------|--------|---------------------|
+| [`Tareas/Roadmap-Android-Sync.md`](../../Tareas/Roadmap-Android-Sync.md) | Diseño de la app Android de sync (2026-08-18); el estado de las tareas vive en `ANDROID-SYNC` del backlog | ~15 referencias por ruta, incluidos comentarios de código Kotlin y `android/README.md` |
+| [`Tareas/Roadmap-212-Ideas-Futuras.md`](../../Tareas/Roadmap-212-Ideas-Futuras.md) | Ideas vivas de la épica #212 (base para trocear en sesiones) | Citado desde `docs/architecture/platforms-cores.md` y el backlog |
 
 ---
 
