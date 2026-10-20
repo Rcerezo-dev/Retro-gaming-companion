@@ -27,7 +27,11 @@ texto
 
 def test_classify():
     got = {t: bs.classify(l) for t, l in bs.sections(MD)}
-    assert got == {"A — hecha": ("hecho", 1, 0), "B — abierta": ("pendiente", 1, 1), "C — prosa": ("revisar", 0, 0)}
+    assert got == {
+        "A — hecha": ("hecho", 1, 0),
+        "B — abierta": ("pendiente", 1, 1),
+        "C — prosa": ("revisar", 0, 0),
+    }
 
 
 def test_marker_line():

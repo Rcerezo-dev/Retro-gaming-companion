@@ -6,6 +6,7 @@ Una sección ``###`` es 'hecho' si todas sus celdas de estado empiezan por ✅,
 celdas de tabla o de una línea ``> **Estado ...:** ✅|⏳ ...`` (secciones en prosa).
 ``--tabla`` imprime la tabla "Pendiente y por revisar" de ``Tareas/backlog.md``.
 """
+
 from __future__ import annotations
 
 import re
@@ -67,7 +68,9 @@ def main(argv: list[str]) -> int:
             if st == "pendiente" and not hecho_dir:
                 pend.append((f.stem, title, b))
         rows.append((("hecho/" if hecho_dir else "") + f.stem, n, d, t))
-    print(f"{'archivo':34} {'hecho':>5} {'pend.':>5} {'revisar':>7} {'filas ✅':>9} {'filas abiertas':>14}")
+    print(
+        f"{'archivo':34} {'hecho':>5} {'pend.':>5} {'revisar':>7} {'filas ✅':>9} {'filas abiertas':>14}"
+    )
     for name, n, d, t in rows:
         print(f"{name:34} {n['hecho']:5} {n['pendiente']:5} {n['revisar']:7} {d:9} {t:14}")
     tot = [sum(r[1][k] for r in rows) for k in ("hecho", "pendiente", "revisar")]
@@ -75,7 +78,9 @@ def main(argv: list[str]) -> int:
     if "--tabla" in argv:
         print("\n| Sección | Epic | Estado |\n|---|---|---|")
         for stem, title, st in table:
-            print(f"| {title.replace('|', chr(92) + '|')[:110]} | [{stem}](backlog/{stem}.md) | {st} |")
+            print(
+                f"| {title.replace('|', chr(92) + '|')[:110]} | [{stem}](backlog/{stem}.md) | {st} |"
+            )
     if "--detalle" in argv:
         print("\nPendientes (sección — filas abiertas):")
         for stem, title, b in sorted(pend, key=lambda x: -x[2]):
