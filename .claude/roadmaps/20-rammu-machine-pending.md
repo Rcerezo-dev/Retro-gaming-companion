@@ -10,6 +10,8 @@
 
 ## Nota de alcance
 
+> **Nombres de las máquinas (aclarado 2026-10-20)** — «**rammu**»: PC con usuario `C:\Users\rammu` (rutas `E:\`/`H:\`, la RG556; el título de este roadmap). «**Ruben**»: PC con usuario `C:\Users\Ruben` (`F:\Juegos Retro`). El texto de abajo se escribió el 2026-09-15 desde la otra máquina y por eso llama «esta máquina» a rammu y «actual» a Ruben: léelo con esas definiciones. Los puntos de este roadmap son de **rammu** salvo que indiquen lo contrario.
+
 Esta máquina ("rammu", consola RG556, rutas `E:\Carpetas anbernic`/
 `H:\ROMs`) **sigue activa en paralelo** con la máquina actual ("Ruben",
 `F:\Juegos Retro`) — confirmado por el usuario 2026-09-15. No bajar prioridad

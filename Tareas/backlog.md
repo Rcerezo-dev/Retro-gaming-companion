@@ -171,6 +171,5 @@ Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/
 | LIBRARY-CLEANUP-GAPS-1 — Huecos reales encontrados al limpiar PSX a mano (hallazgo 2026-08-31) | [transversal](backlog/transversal.md) | pendiente |
 | PSX-CATALOG-MISSING-1 — Falta el datfile Redump de PlayStation: 872/885 juegos (98%) sin `canonical_title` (ha | [transversal](backlog/transversal.md) | pendiente |
 | LIBRARY-AUDIT-1 — Estado de match por plataforma y huecos reales encontrados (auditoría 2026-09-14, `F:\Juegos | [transversal](backlog/transversal.md) | pendiente |
-| DOCS-AUDIT-4 — Documentación de roadmaps al día (auditoría 2026-10-20) | [transversal](backlog/transversal.md) | pendiente |
 | MOBILE-UI — UI usable desde el móvil (idea usuario 2026-09-22) | [ux](backlog/ux.md) | pendiente |
 | Hardware validation (requires console or SD card) | [validacion-hardware](backlog/validacion-hardware.md) | pendiente |
