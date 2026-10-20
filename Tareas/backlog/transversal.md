@@ -22,6 +22,19 @@ Se hace por pasos, cada uno en su rama/PR.
 | DOCS-AUDIT-2d | Recortar `.claude/CLAUDE.md`: mover "Patrones críticos" a `docs/architecture/patterns.md` y dejar puntero; añadir regla de navegación ("empieza por `ACTIVO.md`; el detalle de un ID con grep en `backlog/`; nunca leas un backlog entero"). Memoria: borrar/actualizar `phases.md` (parada en Día 10) y dejar los "pendientes reales" solo en `ACTIVO.md` | S | ✅ 2026-10-20 — `CLAUDE.md` 158 → 109 líneas: patrones críticos a `docs/architecture/patterns.md` (en CLAUDE.md queda 1 regla por patrón + puntero), regla "nunca leas un epic entero", referencias al backlog actualizadas. Memoria: `phases.md` marcado como histórico, "Pendientes" de MEMORY.md pasa a atajo con fuente en el backlog (no se creó un `ACTIVO.md` aparte, ver 2b) |
 | DOCS-AUDIT-2e | Orden menor: índice real en `docs/README.md` (71 líneas) y agrupar por tema los `.md` sueltos de `docs/`; `Tareas/informes/` para informes/validaciones sueltos; normalizar nombres en `Tareas/diario/archivo/` (`día16.md`, `Día2-2.md`, `archivo.md`); fila 24 de la tabla de `Índice por rama` (línea ~92) apunta a un roadmap ya archivado | S | ✅ 2026-10-20 — comprobación de enlaces antes/después (86 rotos restantes, todos preexistentes en diario/archivo/hecho: referencias históricas a ficheros ya movidos; 0 nuevos). Arreglados: `tab-cable.html` apuntaba a `Tareas/Guia-Termux-Anbernic.md` (ahora `docs/sync/`), 3 enlaces del índice por rama a roadmaps archivados, `día16.md` → `Día16.md`. `docs/README.md` ya estaba agrupado por tema: solo se añadió `patterns.md`, sección "Fuera de docs/" y se corrigió la descripción de `SKILLS-QUICK-START`. **No se hizo**: `Tareas/informes/` ni mover `.md` sueltos de `docs/` — contradice la decisión DOCS-AUDIT-1a (informes se quedan en su sitio con nota de cierre) y rompería ~20 referencias en código/tests sin ganancia |
 
+### DOCS-AUDIT-3 — Adaptar commands y agent al backlog partido (seguimiento de DOCS-AUDIT-2b, 2026-10-20)
+
+Tras partir `backlog.md` en índice + `backlog/<epic>.md` (2b), los commands y el agent
+siguen asumiendo un único archivo con todo el detalle. Rama propia (`docs/docs-audit-3`),
+después de mergear #443. Sin epic de GitHub (transversal).
+
+| ID | Task | Esfuerzo | Estado |
+|----|------|----------|--------|
+| DOCS-AUDIT-3a | `/feature` (`.claude/commands/feature.md` L7 y L33): hoy "lee `Tareas/backlog.md` para encontrar la descripción" y "marca ✅ en `backlog.md`" → debe hacer `grep -rn "<ID>" Tareas/backlog/`, leer solo esa sección y marcar ✅ en el archivo de epic (+ actualizar la fila de la tabla de pendientes de `backlog.md` si la sección pasa a 100 % ✅). **Es el que se rompe de verdad**: con el índice no encuentra el detalle de la tarea | S | ⏳ |
+| DOCS-AUDIT-3b | `backlog-triage` (`.claude/agents/backlog-triage.md` L16 "Read `Tareas/backlog.md` in full"), `/siguiente` y `/dia`: leer el índice + tabla de pendientes y abrir solo las secciones elegidas en `backlog/<epic>.md` | S | ⏳ |
+| DOCS-AUDIT-3c | `/progreso`: calcular el resumen recorriendo `Tareas/backlog/*.md` y `hecho/` (hoy cuenta ✅ sobre el índice y dará cifras erróneas). Valorar un script `scripts/backlog_stats.py` (stdlib) si el cálculo no cabe en el prompt | S | ⏳ |
+| DOCS-AUDIT-3d | Revisar las 26 secciones marcadas `revisar` (sin tabla de estado) en la tabla de `backlog.md`: pasarlas a `hecho/` o añadirles fila de estado; recortar `pilar1-limpieza.md` (1.295 líneas). Mientras no se haga, la tabla de pendientes sobrestima lo abierto | M | ⏳ |
+
 ### SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless (hallazgo usuario 2026-09-19, PC2)
 
 Encontrado en vivo justo al activar el auto-arranque de `rommgr serve --tray`
