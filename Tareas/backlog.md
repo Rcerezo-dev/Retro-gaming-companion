@@ -173,7 +173,6 @@ Checklist de puntos de entrada para diagnosticar cualquier problema en el app.
 | ROMHACK-ORG-1 — Organizar ROM hacks / fan projects que no matchean catálogo oficial (idea usuario 2026-09-22) | [estandarizacion-biblioteca](backlog/estandarizacion-biblioteca.md) | pendiente |
 | Hardware validation (requires console or SD card) | [validacion-hardware](backlog/validacion-hardware.md) | revisar |
 | ROADMAP-IDEAS — Propuestas del usuario (2026-08-13, sin diseñar aún) | [ideas-futuras](backlog/ideas-futuras.md) | revisar |
-| DOCS-AUDIT-2 — Documentación optimizada para sesiones con Claude (auditoría 2026-10-20) | [transversal](backlog/transversal.md) | pendiente |
 | DOCS-AUDIT-3 — Adaptar commands y agent al backlog partido (seguimiento de 2b, 2026-10-20) | [transversal](backlog/transversal.md) | pendiente |
 | SUBPROCESS-WINDOW-1 — Todas las llamadas a herramientas externas abrían una consola visible en modo headless ( | [transversal](backlog/transversal.md) | revisar |
 | RETROARCH-THUMBS-1 — Publicar carátulas/capturas ya escaneadas en el árbol `thumbnails/` de RetroArch (petició | [transversal](backlog/transversal.md) | revisar |
