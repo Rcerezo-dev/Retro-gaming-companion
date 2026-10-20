@@ -1,5 +1,8 @@
 ## Validación en hardware — → #211
 
+Tareas que requieren consola real o SD card para verificarse — no ejecutables
+solo con datos sintéticos.
+
 ### Hardware validation (requires console or SD card)
 > **Estado (revisado 2026-10-20):** ⏳ abierta — V1–V5 y B1-hw son pasos de validación sin ejecutar o sin confirmar (requieren consola, tarjeta SD o API key de RA real); el estado individual de cada uno no está verificado. Corrección: en la revisión DOCS-AUDIT-3d se marcó por error como cerrada.
 
