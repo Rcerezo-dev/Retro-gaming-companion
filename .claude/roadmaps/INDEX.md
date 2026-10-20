@@ -53,8 +53,8 @@ abierto o ya se archivó.
 | 22 | — (sin roadmap dedicado, hallazgo en vivo) | `fix/dup-winners-non-canonical-guard` | Archivado | 🟠 P2 |
 | 23 | [23-android-hash-rescan-dedup.md](23-android-hash-rescan-dedup.md) | — (operación de datos, sin rama por defecto) | Activo (parcial) | 🟠 P2 |
 | 24 | [archivo/24-docs-audit-followups.md](archivo/24-docs-audit-followups.md) | — (limpieza de documentación, sin rama por defecto) | Archivado | 🟡 P3 |
-| 25 | [25-saves-ux-history-context.md](25-saves-ux-history-context.md) | `feature/saves-ux-history-context` | **PR abierto** — [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338), roadmap completo (los 3 objetivos), pendiente de review/merge | 🟠 P2 |
-| 26 | [26-inbox-ux-summary-metadata.md](26-inbox-ux-summary-metadata.md) | `feature/inbox-ux-summary-metadata` | **PR abierto** — [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339), roadmap completo (los 2 objetivos), apilado sobre #338 | 🟡 P3 |
+| 25 | [archivo/25-saves-ux-history-context.md](archivo/25-saves-ux-history-context.md) | `feature/saves-ux-history-context` | Archivado (PR [#338](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/338), mergeado 2026-09-30) | 🟠 P2 |
+| 26 | [archivo/26-inbox-ux-summary-metadata.md](archivo/26-inbox-ux-summary-metadata.md) | `feature/inbox-ux-summary-metadata` | Archivado (PR [#339](https://github.com/Rcerezo-dev/Retro-gaming-companion/pull/339), mergeado 2026-09-30) | 🟡 P3 |
 | 27 | [archivo/27-library-ux-dashboard-duplicates.md](archivo/27-library-ux-dashboard-duplicates.md) | `feature/library-ux-dashboard-duplicates` | Archivado (PR #340) | 🟡 P3 |
 | 28 | [28-android-gdrive-provider.md](28-android-gdrive-provider.md) | sin asignar (se corta al arrancar la Fase 1) | Activo | 🟡 P3 |
 | 29 | [29-library-folder-standardization.md](29-library-folder-standardization.md) | `feature/library-folder-standardization` | Pendiente | 🟡 P3 |

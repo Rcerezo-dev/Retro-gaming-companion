@@ -371,3 +371,17 @@ Petición del usuario tras arreglar `PSX-CATALOG-MISSING-1`: "¿hay algo más qu
 
 ---
 
+
+### DOCS-AUDIT-4 — Documentación de roadmaps al día (auditoría 2026-10-20)
+
+Auditoría de `.claude/roadmaps/` y de los `Roadmap-*` sueltos de `Tareas/` contra el estado real
+(PRs de GitHub y backlog). Mismo problema que tenía el backlog: el registro se queda atrás.
+Rama `docs/docs-audit-4`, un PR. Sin epic de GitHub (transversal).
+
+| ID | Task | Esfuerzo | Estado |
+|----|------|----------|--------|
+| DOCS-AUDIT-4a | `INDEX.md`: filas 25 y 26 decían "PR abierto, pendiente de merge" pero #338/#339 se mergearon el 2026-09-30 y sus tareas están en `hecho/` → archivados los roadmaps 25 y 26 (+ filas del índice por rama de `backlog.md`); corregir los títulos de 29/30/31 ("Roadmap 28/29/30" tras la renumeración del 2026-09-30) | XS | ✅ 2026-10-20 |
+| DOCS-AUDIT-4b | Archivar o disolver los roadmaps 32, 33 y 34 (planes "de día" del 2026-10-03/04/06, duplican diario y backlog): lo aún válido (`D37-8`, `ANDROID-BATTERY-1`, …) pasa al backlog como tareas con ID; el resto a `roadmaps/archivo/` | S | ⏳ |
+| DOCS-AUDIT-4c | Unificar los 3 `Roadmap-*` sueltos de `Tareas/` (`Pendientes-2026-09-30`, `Android-Sync`, `212-Ideas-Futuras`) bajo `.claude/roadmaps/` (activos) o `archivo/` (cerrados) con fila en `INDEX.md`; comprobación de enlaces antes y después (hay referencias desde código y backlog) | S | ⏳ |
+| DOCS-AUDIT-4d | Regla en `INDEX.md`: un roadmap es de **rama**, no de día; los "hoy / próximas actividades" van al diario o al backlog. Recortar la sección "Fases" del 2026-09-22 | XS | ⏳ |
+| DOCS-AUDIT-4e | Roadmap 20: aclarar en qué PC ("rammu"/"Ruben") se ejecuta cada paso (el título y el cuerpo usan los nombres cruzados) | XS | ⏳ |
