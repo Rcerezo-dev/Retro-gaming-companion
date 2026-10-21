@@ -151,6 +151,21 @@ def test_get_adb_sync_sources_excludes_duckstation(tmp_path: Path) -> None:
     assert "com.armsx2" in packages  # sanity: accessible ones still included
 
 
+def test_get_adb_sync_sources_includes_duckstation_fork(tmp_path: Path) -> None:
+    """EMU-RETURN-DUCK-1f: el fork .rv guarda en /storage/emulated/0/duckstation (público,
+    legible por ADB); el DuckStation oficial sigue fuera (carpeta privada)."""
+    (tmp_path / "config.toml").write_text(
+        f'[library]\nlibrary_root = "{tmp_path.as_posix()}"\n', encoding="utf-8"
+    )
+    cfg = load_config(tmp_path)
+    by_pkg = {src["package"]: src for src in get_adb_sync_sources(cfg)}
+    fork = by_pkg["com.github.stenzek.duckstation.rv"]
+    assert fork["android_saves"] == "/storage/emulated/0/duckstation/memcards"
+    assert fork["android_states"] == "/storage/emulated/0/duckstation/savestates"
+    assert fork["local_saves"] != by_pkg["com.nanodata.armsx"]["local_saves"]
+    assert "com.github.stenzek.duckstation" not in by_pkg
+
+
 def test_get_adb_sync_sources_excludes_emuex_families_with_no_real_path(tmp_path: Path) -> None:
     """GBA-SAVE-PATH-1c: verificado en hardware real (RG556006101273) que
     GBA.emu/GBC.emu/NES.emu/MD.emu nunca escriben en su árbol EmuEx
