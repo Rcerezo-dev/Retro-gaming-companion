@@ -39,6 +39,7 @@ class _FakeAdbTransport:
     md5_map: dict[str, str] = {}
     sha1_calls: int = 0
     md5_calls: int = 0
+    hashed_paths: list[str] = []
 
     def __init__(self, *_args, **_kwargs) -> None:
         pass
@@ -46,13 +47,11 @@ class _FakeAdbTransport:
     def ls_recursive(self, _android_path: str, **_kwargs) -> list[AdbFileInfo]:
         return self.files
 
-    def sha1_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
+    def iter_hashes(self, files, *, cancel=None, **_kwargs):
         type(self).sha1_calls += 1
-        return self.sha1_map
-
-    def md5_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
         type(self).md5_calls += 1
-        return self.md5_map
+        type(self).hashed_paths = [p for p, _ in files]
+        yield self.sha1_map, self.md5_map
 
 
 @pytest.fixture(autouse=True)
@@ -227,3 +226,33 @@ def test_adb_scan_missing_hash_falls_back_to_empty_string(
 
     hashes = _hashes_by_path(repo_android)
     assert hashes[path] == ("", "")
+
+
+def test_adb_scan_reuses_hashes_when_size_and_mtime_unchanged(
+    monkeypatch, repo_android, config
+) -> None:
+    """ANDROID-SCAN-FIX-1b: second scan hashes only new/changed files."""
+    same = "/storage/521D-04EA/ROMs/gba/same.gba"
+    changed = "/storage/521D-04EA/ROMs/gba/changed.gba"
+    data = {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"}
+    _FakeAdbTransport.files = [
+        AdbFileInfo(android_path=same, size=10, mtime=5.0),
+        AdbFileInfo(android_path=changed, size=10, mtime=5.0),
+    ]
+    _FakeAdbTransport.sha1_map = {same: "a" * 40, changed: "b" * 40}
+    _FakeAdbTransport.md5_map = {same: "c" * 32, changed: "d" * 32}
+    _run_scan(monkeypatch, repo_android, config, data)
+
+    _FakeAdbTransport.files = [
+        AdbFileInfo(android_path=same, size=10, mtime=5.0),
+        AdbFileInfo(android_path=changed, size=11, mtime=6.0),
+    ]
+    _FakeAdbTransport.sha1_map = {}  # hashing fails for the changed file
+    _FakeAdbTransport.md5_map = {}
+    result = _run_scan(monkeypatch, repo_android, config, data)
+
+    assert _FakeAdbTransport.hashed_paths == [changed]
+    assert result["hashes_reused"] == 1
+    hashes = _hashes_by_path(repo_android)
+    assert hashes[same] == ("a" * 40, "c" * 32)
+    assert hashes[changed] == ("", "")  # stale hash dropped, not kept

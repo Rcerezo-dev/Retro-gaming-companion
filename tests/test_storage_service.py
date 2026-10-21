@@ -77,7 +77,7 @@ def test_android_item_with_transport_deletes_via_adb(tmp_path: Path) -> None:
     device_path = "/storage/emulated/0/RetroArch/roms/gba/Game.gba"
     _insert_game(repo_android, source_path=device_path, sha1="C" * 40)
     adb = SimpleNamespace(removed=[])
-    adb.remove = lambda p: adb.removed.append(p)
+    adb.discard = lambda p: adb.removed.append(p)
 
     result = delete_storage_items(
         repo_pc, repo_android, [{"sha1": "C" * 40, "location": "android"}], adb_transport=adb
@@ -122,7 +122,7 @@ def test_mixed_selection_only_touches_matching_repo(tmp_path: Path, location: st
     _insert_game(repo_android, source_path="/storage/x/Other.gba", sha1="E" * 40)
 
     sha1 = "D" * 40 if location == "pc" else "E" * 40
-    adb = SimpleNamespace(remove=lambda p: None)
+    adb = SimpleNamespace(discard=lambda p: None)
     delete_storage_items(
         repo_pc, repo_android, [{"sha1": sha1, "location": location}], adb_transport=adb
     )

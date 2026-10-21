@@ -127,7 +127,7 @@ def test_delete_duplicate_device_path_with_adb_transport_deletes_via_adb(tmp_pat
     _insert_game(repo, source_path=device_path, sha1=_SHA1_A)
     gid = _game_id(repo, device_path)
     adb = SimpleNamespace(remove=lambda path: None, removed=[])
-    adb.remove = lambda path: adb.removed.append(path)
+    adb.discard = lambda path: adb.removed.append(path)
 
     result = delete_duplicate(repo, game_id=gid, adb_transport=adb)
 
@@ -224,7 +224,7 @@ def test_delete_all_duplicates_device_path_with_adb_transport_deletes_via_adb(
     _insert_game(repo, source_path=device_canonical, sha1=_SHA1_A, size_bytes=2048)
     _insert_game(repo, source_path=device_dup, sha1=_SHA1_A, size_bytes=2048)
     adb = SimpleNamespace(removed=[])
-    adb.remove = lambda path: adb.removed.append(path)
+    adb.discard = lambda path: adb.removed.append(path)
 
     result = delete_all_duplicates(repo, adb_transport=adb)
 

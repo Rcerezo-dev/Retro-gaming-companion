@@ -89,7 +89,7 @@ def test_block_and_delete_deletes_android_via_adb(tmp_path: Path) -> None:
     repo_android = LibraryRepository(tmp_path / "android.db")
     _insert_game(repo_android, source_path=device_path, sha1=sha1)
     adb = SimpleNamespace(removed=[])
-    adb.remove = lambda p: adb.removed.append(p)
+    adb.discard = lambda p: adb.removed.append(p)
 
     result = block_and_delete_game(repo_pc, repo_android, sha1, adb_transport=adb)
 
