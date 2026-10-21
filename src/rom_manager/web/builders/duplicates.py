@@ -1178,23 +1178,38 @@ def _review_groups_for_repo(
     # sha1s, no shared canonical_title on the CloneCD copy.
     from rom_manager.retroachievements.ra_checker import _DISC_HASH_CONSOLE_IDS
     from rom_manager.retroachievements.ra_disc_hash_cache import (
+        get_cached_chd_raw_sha1,
         get_gamecube_wii_disc_hash,
         get_psx_disc_hash,
         get_saturn_dreamcast_disc_hash,
+        load_chd_raw_cache,
     )
     from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
 
     disc_hash_linked_idxs: set[int] = set()
+    chd_raw_linked_idxs: set[int] = set()
     if cache_dir is not None:
         _chdman = getattr(config, "chdman", None) if config else None
         chdman_path = _Path(_chdman) if _chdman else None
         disc_hash_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+        # DUP-CHD-RAW-1a: dos .chd del mismo disco comprimidos distinto no comparten
+        # sha1 de fichero, y get_psx_disc_hash no puede leer rutas del dispositivo
+        # (Path.stat() falla) -- el rawsha1 de la cabecera CHD, leído por ADB en el
+        # escaneo (refresh_chd_raw_sha1_cache), sí identifica el disco.
+        chd_raw_cache = load_chd_raw_cache(cache_dir)
+        chd_raw_groups: dict[str, list[int]] = defaultdict(list)
         for idx, row in enumerate(rows):
             if _is_disc_data_sibling(row["source_path"], known_paths):
                 continue
             console_id = get_ra_console_id(row["platform"] or "")
             if console_id not in _DISC_HASH_CONSOLE_IDS:
                 continue
+            if console_id == 12 and chd_raw_cache:
+                raw_sha1 = get_cached_chd_raw_sha1(
+                    row["source_path"], row["size_bytes"], chd_raw_cache
+                )
+                if raw_sha1:
+                    chd_raw_groups[raw_sha1].append(idx)
             if console_id == 12:
                 disc_hash = get_psx_disc_hash(row["source_path"], cache_dir, chdman_path)
             elif console_id in (33, 40):
@@ -1211,6 +1226,12 @@ def _review_groups_for_repo(
             for other in idxs[1:]:
                 union(idxs[0], other)
             disc_hash_linked_idxs.update(idxs)
+        for idxs in chd_raw_groups.values():
+            if len(idxs) < 2:
+                continue
+            for other in idxs[1:]:
+                union(idxs[0], other)
+            chd_raw_linked_idxs.update(idxs)
 
     # MATCH-HEADER-1: No-Intro DATs carry no serial, so a file whose SHA1
     # isn't in the catalog and whose filename doesn't fuzzy-match anything —
@@ -1328,6 +1349,8 @@ def _review_groups_for_repo(
         # disc has its own distinct RA hash -- _is_disc_set stays as a
         # defensive match with the other reasons' pattern).
         has_disc_hash_dup = any(i in disc_hash_linked_idxs for i in idxs) and not is_disc_set
+        # DUP-CHD-RAW-1a: mismo patrón defensivo para el enlace por rawsha1 de CHD.
+        has_chd_raw_dup = any(i in chd_raw_linked_idxs for i in idxs) and not is_disc_set
         # DC-GDROM-FIRST-SECTOR-1 follow-up: only claim it for a cluster the
         # alt-release link actually built -- same defensive pattern as the
         # other reasons above.
@@ -1492,6 +1515,8 @@ def _review_groups_for_repo(
             reasons.add("region")
         if has_disc_hash_dup:
             reasons.add("disc_hash")
+        if has_chd_raw_dup:
+            reasons.add("chd_raw")
         if has_alt_release_dup:
             reasons.add("alt_release")
         for idx in idxs:

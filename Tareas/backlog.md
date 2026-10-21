@@ -142,6 +142,7 @@ Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/
 | PSX-ORPHAN — Carpetas huérfanas de scraping en `psx/` (hallazgo 2026-08-26) | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
 | ANDROID-DUP-1 — Duplicados reales en la propia Anbernic (DaijiShō/iSuu), nunca comprobados: dedup solo se ha e | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
 | ANDROID-DUP-2 — El escaneo ADB nunca calcula SHA1/MD5: matcher nunca corre sobre `library_android.db`, duplica | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
+| DUP-CHD-RAW-1 — Mismo juego repetido en DuckStation: 53 pares de `.chd` son el mismo disco (rawsha1 idéntico, ≈20,57 GB) y la cola de duplicados no los ve; investigado 2026-10-21, sin implementar | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
 | ANDROID-DUP-CROSSFMT-VERIFY-1 — los 61 grupos `crossfmt` restantes (53 pares `.chd`+`.bin` + 8 más, ~26,5 GB)  | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
 | ANDROID-STVERSIONS-1 — `saves/.stversions/<core>/` (carpeta de versionado de Syncthing) se trata como save rea | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |
 | ANDROID-DUP-3 — `famicom/` es una segunda carpeta-plataforma paralela a `nes/` (86% de solapamiento por nombre | [pilar1-limpieza](backlog/pilar1-limpieza.md) | pendiente |

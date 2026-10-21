@@ -1887,3 +1887,65 @@ def test_alt_release_does_not_fire_without_the_tag(tmp_path: Path) -> None:
     result = _build_review_queue(repo, repo, None)
 
     assert result["total_groups"] == 0
+
+
+def _chd_raw_review_repo(tmp_path: Path, raw_a: str, raw_b: str):
+    """Dos .chd de PSX de la consola, sha1 de fichero distinto, sin canonical_title,
+    con el rawsha1 de su cabecera ya cacheado (lo que deja el escaneo ADB)."""
+    from types import SimpleNamespace
+
+    from rom_manager.retroachievements.ra_disc_hash_cache import refresh_chd_raw_sha1_cache
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    root = "/storage/521D-04EA/ROMs/psx/"
+    files = [
+        (root + "Hogs of War (Europe).chd", "Hogs of War (Europe).chd", "A" * 40, 1000),
+        (
+            root + "Hogs of War (Europe)/Hogs of War (USA).chd",
+            "Hogs of War (USA).chd",
+            "B" * 40,
+            990,
+        ),
+    ]
+    for path, name, sha1, size in files:
+        _insert_game(
+            repo,
+            source_path=path,
+            sha1=sha1,
+            original_filename=name,
+            canonical_title=None,
+            platform="PSX",
+            extension=".chd",
+            size_bytes=size,
+        )
+    raws = {files[0][0]: raw_a, files[1][0]: raw_b}
+    refresh_chd_raw_sha1_cache(
+        [(p, s) for p, _n, _h, s in files],
+        tmp_path / ".rommgr" / "ra_cache",
+        SimpleNamespace(chd_raw_sha1=lambda p: raws[p]),
+    )
+    return (
+        repo,
+        SimpleNamespace(project_root=tmp_path, library_root=tmp_path),
+        [f[0] for f in files],
+    )
+
+
+def test_chd_raw_union_links_same_disc_chds_with_different_file_sha1(tmp_path: Path) -> None:
+    """DUP-CHD-RAW-1a: dos .chd del mismo disco comprimidos distinto no comparten sha1 ni
+    canonical_title (PSX sin DAT) -- el rawsha1 de la cabecera CHD los une."""
+    repo, config, paths = _chd_raw_review_repo(tmp_path, "ab" * 20, "ab" * 20)
+
+    result = _build_review_queue(repo, repo, config)
+
+    assert result["total_groups"] == 1
+    group = result["groups"][0]
+    assert "chd_raw" in group["reasons"]
+    assert {e["source_path"] for e in group["entries"]} == set(paths)
+
+
+def test_chd_raw_union_skips_when_raw_sha1_differs(tmp_path: Path) -> None:
+    """Mismo título, discos distintos (p. ej. regiones): rawsha1 distinto -> sin grupo."""
+    repo, config, _paths = _chd_raw_review_repo(tmp_path, "ab" * 20, "cd" * 20)
+
+    assert _build_review_queue(repo, repo, config)["total_groups"] == 0

@@ -97,6 +97,53 @@ def get_psx_disc_hash(source_path: str, cache_dir: Path, chdman_path: Path | Non
     return computed
 
 
+_CHD_RAW_CACHE_FILENAME = "chd_raw_sha1.json"
+
+
+def load_chd_raw_cache(cache_dir: Path) -> dict[str, dict]:
+    """``{ruta_en_dispositivo: {"size": int, "raw": hex}}`` de
+    :func:`refresh_chd_raw_sha1_cache`; vacío si no hay caché."""
+    return _load(cache_dir, _CHD_RAW_CACHE_FILENAME)
+
+
+def get_cached_chd_raw_sha1(
+    source_path: str, size: int | None, cache: dict[str, dict]
+) -> str | None:
+    """``rawsha1`` cacheado de un CHD, solo si el tamaño sigue siendo el del escaneo
+    (un fichero reemplazado en la misma ruta invalida su entrada)."""
+    entry = cache.get(source_path)
+    if not entry or not entry.get("raw") or entry.get("size") != size:
+        return None
+    return entry["raw"]
+
+
+def refresh_chd_raw_sha1_cache(
+    files: list[tuple[str, int]],
+    cache_dir: Path,
+    transport,
+    *,
+    cancel=None,
+) -> dict[str, int]:
+    """Lee por ADB el ``rawsha1`` de cada ``(ruta, tamaño)`` de *files* que no esté ya
+    cacheado con ese tamaño (DUP-CHD-RAW-1a). Guarda un fallo (CHD no v5 / ilegible)
+    como entrada vacía para no reintentarlo en cada escaneo. *cancel* es un
+    ``threading.Event`` opcional que corta el bucle (el progreso ya leído se guarda)."""
+    cache = load_chd_raw_cache(cache_dir)
+    stats = {"read": 0, "cached": 0, "unreadable": 0}
+    for path, size in files:
+        entry = cache.get(path)
+        if entry is not None and entry.get("size") == size:
+            stats["cached"] += 1
+            continue
+        if cancel is not None and cancel.is_set():
+            break
+        raw = transport.chd_raw_sha1(path)
+        cache[path] = {"size": size, "raw": raw or ""}
+        stats["read" if raw else "unreadable"] += 1
+    _save(cache_dir, cache, _CHD_RAW_CACHE_FILENAME)
+    return stats
+
+
 _GAMECUBE_RA_CONSOLE_ID = 16
 _WII_RA_CONSOLE_ID = 20
 

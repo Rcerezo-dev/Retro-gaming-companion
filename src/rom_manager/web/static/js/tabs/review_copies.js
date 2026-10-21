@@ -27,6 +27,9 @@ const _REASON_LABELS = {
   // formatos/dumps distintos que crossfmt no detecta por título (p.ej. un
   // volcado legacy con nombre de serial, sin canonical_title reconocible).
   disc_hash: { text: 'Mismo disco (hash RA)', color: 'var(--c-purple)' },
+  // DUP-CHD-RAW-1a: dos .chd con el mismo rawsha1 en la cabecera (mismos datos
+  // del disco, distinta compresión/nombre) -- el SHA1 del fichero nunca coincide.
+  chd_raw: { text: 'Mismo disco (CHD idéntico)', color: 'var(--c-purple)' },
   // DC-GDROM-FIRST-SECTOR-1 follow-up: mismo título, pero una copia es un
   // relanzamiento digital (XBLA/PSN/Virtual Console...) -- build distinta,
   // normalmente sin soporte de logros RA aunque el original sí lo tenga.
