@@ -45,6 +45,19 @@ EMULATOR_SAVE_PATHS_DEFAULT: dict[str, dict] = {
         "save_extensions": [".mcd", ".mcr", ".srm"],
         "state_extensions": [".sav"],
     },
+    "com.github.stenzek.duckstation.rv": {
+        "name": "DuckStation fork (PS1)",
+        # EMU-RETURN-DUCK-1 (2026-10-21): build propio del DuckStation Android
+        # de 2021 (GPLv3, applicationId ".rv", instalado al lado del oficial).
+        # Su carpeta de datos es fija y pública (no Android/data), legible por
+        # `adb shell ls` sin root; confirmado en la RG556 (savestate escrito
+        # en savestates/, memcard leída de memcards/).
+        "saves_path": "/storage/emulated/0/duckstation/memcards",
+        "states_path": "/storage/emulated/0/duckstation/savestates",
+        "adb_required": True,
+        "save_extensions": [".mcd", ".mcr", ".srm"],
+        "state_extensions": [".sav"],
+    },
     "com.armsx2": {
         "name": "ARMSX2 (PS2)",
         # ANDROID-APP-PRIVATE-STORAGE-1 (2026-09-26): switched from AetherSX2
