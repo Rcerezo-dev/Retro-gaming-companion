@@ -729,7 +729,12 @@ def test_verify_group_by_disc_hash_chd_raw_sha1_never_rejects_nor_accepts_a_diff
     assert "error" in result
 
 
-def test_verify_group_by_disc_hash_reads_chd_raw_sha1_from_device_paths() -> None:
+def test_verify_group_by_disc_hash_reads_chd_raw_sha1_from_device_paths(monkeypatch) -> None:
+    # is_device_path() solo reconoce "/storage/..." como ruta de consola en Windows
+    # (os.name == "nt"); en el CI de Linux es una ruta local, así que se fuerza aquí.
+    monkeypatch.setattr(
+        "rom_manager.services.ra_duplicates_service.is_device_path", lambda *_a, **_k: True
+    )
     raws = {
         "/storage/521D-04EA/ROMs/psx/keep.chd": "aa" * 20,
         "/storage/521D-04EA/ROMs/psx/sub/dup.chd": "aa" * 20,
