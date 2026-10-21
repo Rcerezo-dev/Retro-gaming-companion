@@ -39,11 +39,8 @@ class _FakeAdbTransport:
     def ls_recursive(self, _android_path: str, **_kwargs) -> list[AdbFileInfo]:
         return self.files
 
-    def sha1_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
-        return {}
-
-    def md5_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
-        return {}
+    def iter_hashes(self, _files, **_kwargs):
+        yield {}, {}
 
 
 @pytest.fixture
@@ -106,3 +103,49 @@ def test_stop_job_cancels_adb_scan_in_progress(monkeypatch, repo_android, config
 
     _, total = repo_android.get_games_paginated(file_type=None)
     assert total < total_files
+
+
+def test_cancelled_adb_scan_does_not_prune(monkeypatch, repo_android, config):
+    """ANDROID-SCAN-FIX-1a: a partial seen_paths must not delete the folder's rows."""
+    stale = "/storage/emulated/0/roms/old.gba"
+    repo_android.upsert_game(
+        original_filename="old.gba",
+        source_path=stale,
+        platform="gba",
+        file_type="rom",
+        relative_parent="roms",
+        region="",
+        extension=".gba",
+        size_bytes=1,
+        mtime=0,
+        sha1="",
+        md5="",
+        crc32="",
+        set_type="single",
+        timestamp="2026-01-01T00:00:00Z",
+    )
+    _FakeAdbTransport.files = [
+        AdbFileInfo(android_path=f"/storage/emulated/0/roms/g{i}.gba", size=1, mtime=0.0)
+        for i in range(3)
+    ]
+    monkeypatch.setattr("rom_manager.sync.adb_transport.AdbTransport", _FakeAdbTransport)
+    job_manager = JobManager()
+    monkeypatch.setattr(
+        "rom_manager.detection.platform_detector.detect_platform",
+        lambda _p: job_manager.cancel("scan") or "gba",
+    )
+    _do_adb_scan(
+        _FakeCtx(),
+        {"adb_serial": "emulator-5554", "android_path": "/storage/emulated/0"},
+        config,
+        repo_android,
+        job_manager,
+    )
+    for _ in range(50):
+        if not job_manager.get_status()["scan_running"]:
+            break
+        time.sleep(0.1)
+    result = job_manager.get_status()["scan_result"]
+    assert result["cancelled"] is True and result["pruned"] == 0
+    _, total = repo_android.get_games_paginated(file_type=None)
+    assert total >= 1

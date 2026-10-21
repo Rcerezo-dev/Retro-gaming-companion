@@ -132,7 +132,7 @@ def test_discard_ra_duplicate_device_path_with_adb_transport_deletes_via_adb(
     repo = LibraryRepository(tmp_path / "lib.sqlite")
     _insert_game(repo, source_path=device_path)
     adb = SimpleNamespace(removed=[])
-    adb.remove = lambda path: adb.removed.append(path)
+    adb.discard = lambda path: adb.removed.append(path)
 
     result = discard_ra_duplicate(repo, device_path, adb)
 

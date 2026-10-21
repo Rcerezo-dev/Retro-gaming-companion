@@ -48,7 +48,7 @@ def _discard_file(
     """Soft-discard one file: move it into ``_descartados/`` and delete its DB row.
 
     *adb_transport*: when *source_path* lives on a connected device
-    (TABS-FIX-1a), deletes it there via ADB before touching the DB row.
+    (TABS-FIX-1a), moves it to the device's ``_descartados/`` via ADB before touching the DB row.
     ``None`` falls back to the explicit "conecta el dispositivo" error.
 
     Returns ``(ok, error)``. Semantics, preserved across all RA discard endpoints:
@@ -74,9 +74,9 @@ def _discard_file(
                     "si el archivo sigue ahí; no se ha tocado la fila de la base de datos"
                 )
             try:
-                adb_transport.remove(source_path)
+                adb_transport.discard(source_path)
             except Exception as exc:
-                return False, f"{p.name}: no se pudo borrar en el dispositivo — {exc}"
+                return False, f"{p.name}: no se pudo descartar en el dispositivo — {exc}"
             try:
                 _delete_row(repository, source_path)
                 return True, None

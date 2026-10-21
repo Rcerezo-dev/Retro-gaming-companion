@@ -7,6 +7,7 @@ zero/one/many-devices auto-detect used by the duplicates web handler.
 
 from __future__ import annotations
 
+import shlex
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -92,3 +93,44 @@ class TestResolveSingleDeviceTransport:
             side_effect=RuntimeError("adb no encontrado"),
         ):
             assert resolve_single_device_transport("adb") is None
+
+
+class TestDiscard:
+    """ANDROID-DISCARD-TRASH-1: move to a sibling _descartados/ instead of rm."""
+
+    @staticmethod
+    def _transport(existing: set[str]):
+        t = AdbTransport("adb", "serial1")
+        t.cmds = []
+
+        def shell(cmd, **_kw):
+            t.cmds.append(cmd)
+            if cmd.startswith("mv "):
+                src, dst = shlex.split(cmd[3:])
+                existing.discard(src)
+                existing.add(dst)
+            return ""
+
+        t._shell = shell
+        t.file_exists = lambda p: p in existing
+        return t
+
+    def test_moves_into_sibling_trash(self):
+        src = "/storage/emulated/0/roms/gb/dup.gb"
+        t = self._transport({src})
+        dest = t.discard(src)
+        assert dest == "/storage/emulated/0/roms/gb/_descartados/dup.gb"
+        assert t.cmds[-1].startswith("touch ")
+        assert not any(c.startswith("rm") for c in t.cmds)
+
+    def test_collision_gets_numeric_suffix(self):
+        src = "/storage/emulated/0/roms/gb/dup.gb"
+        t = self._transport({src, "/storage/emulated/0/roms/gb/_descartados/dup.gb"})
+        assert t.discard(src).endswith("_descartados/dup (1).gb")
+
+    def test_raises_when_original_still_there(self):
+        src = "/storage/emulated/0/roms/gb/dup.gb"
+        t = self._transport({src})
+        t._shell = lambda *_a, **_k: ""  # mv silently does nothing
+        with pytest.raises(RuntimeError, match="No se pudo mover"):
+            t.discard(src)

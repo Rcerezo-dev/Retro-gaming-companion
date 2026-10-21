@@ -80,3 +80,22 @@ def test_hash_recursive_handles_filenames_with_spaces(monkeypatch) -> None:
     result = transport.sha1_recursive("/sdcard/roms")
 
     assert result == {"/sdcard/roms/psx/Crash Bandicoot (USA).bin": "e" * 40}
+
+
+def test_iter_hashes_chunks_and_survives_a_failed_chunk():
+    t = AdbTransport("adb", "s")
+    calls = []
+
+    def shell(cmd, timeout=None):
+        calls.append(cmd)
+        if len(calls) == 1:
+            raise OSError("boom")  # first sha1sum fails
+        tool = cmd.split()[0]
+        digest = "a" * 40 if tool == "sha1sum" else "b" * 32
+        return "".join(f"{digest}  {p}\n" for p in cmd.split()[1:])
+
+    t._shell = shell
+    out = list(t.iter_hashes([("/x/a.gba", 1), ("/x/b.gba", 1), ("/x/c.gba", 1)], max_files=2))
+    assert len(out) == 2
+    assert out[0][0] == {} and set(out[0][1]) == {"/x/a.gba", "/x/b.gba"}
+    assert set(out[1][0]) == {"/x/c.gba"}

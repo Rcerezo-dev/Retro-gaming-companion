@@ -79,7 +79,7 @@ def delete_storage_items(
                 errors.append(f"{source_path}: dispositivo no conectado")
                 continue
             try:
-                adb_transport.remove(source_path)
+                adb_transport.discard(source_path)
             except Exception as exc:
                 errors.append(f"{source_path}: {type(exc).__name__}: {exc}")
                 continue
@@ -171,7 +171,7 @@ def block_and_delete_game(
             errors.append(f"{source_path}: dispositivo no conectado, borrado en consola pendiente")
         else:
             try:
-                adb_transport.remove(source_path)
+                adb_transport.discard(source_path)
                 deleted_device = True
             except Exception as exc:
                 errors.append(f"{source_path}: {type(exc).__name__}: {exc}")

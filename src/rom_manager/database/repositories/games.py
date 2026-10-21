@@ -374,6 +374,44 @@ class GamesMixin:
                     updated += 1
         return updated
 
+    def hash_state(self, source_root: str) -> dict[str, tuple[int, int, str, str]]:
+        """``{source_path: (size_bytes, mtime, sha1, md5)}`` of the games under *source_root*.
+
+        ANDROID-SCAN-FIX-1b: lets the ADB scan skip re-hashing a file whose
+        size and mtime haven't changed since the hashes were stored.
+        """
+        prefix = source_root.rstrip("/") + "/"
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT source_path, size_bytes, mtime, sha1, md5 FROM games"
+                " WHERE source_path LIKE ?",
+                (prefix + "%",),
+            ).fetchall()
+        return {
+            r[0]: (r[1] or 0, r[2] or 0, r[3] or "", r[4] or "")
+            for r in rows
+            if r[0].startswith(prefix)
+        }
+
+    def reset_hashes(self, source_paths: list[str]) -> None:
+        """Blank sha1/md5 of *source_paths* (file changed on disk: the stored hashes are stale)."""
+        with self.batch() as conn:
+            conn.executemany(
+                "UPDATE games SET sha1 = '', md5 = '' WHERE source_path = ?",
+                [(p,) for p in source_paths],
+            )
+
+    def set_hashes(self, rows: list[tuple[str, str, str]]) -> None:
+        """Store ``(source_path, sha1, md5)``; an empty value never overwrites a stored one."""
+        with self.batch() as conn:
+            conn.executemany(
+                "UPDATE games SET"
+                " sha1 = CASE WHEN ?2 != '' THEN ?2 ELSE sha1 END,"
+                " md5 = CASE WHEN ?3 != '' THEN ?3 ELSE md5 END"
+                " WHERE source_path = ?1",
+                rows,
+            )
+
     def prune_stale_entries(self, source_root: str, seen_paths: set[str]) -> int:
         """Delete records for files that were under *source_root* but are no longer on disk.
 

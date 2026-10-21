@@ -72,7 +72,7 @@ def delete_duplicate(
                 )
             }
         try:
-            adb_transport.remove(source_path)
+            adb_transport.discard(source_path)
         except Exception as exc:
             return {"error": f"No se pudo borrar en el dispositivo: {type(exc).__name__}: {exc}"}
     try:
@@ -169,7 +169,7 @@ def delete_all_duplicates(
                         diagnostics.append(diag)
                         continue
                     try:
-                        adb_transport.remove(entry.source_path)
+                        adb_transport.discard(entry.source_path)
                     except Exception as exc:
                         failed += 1
                         diag["file_error"] = str(exc)

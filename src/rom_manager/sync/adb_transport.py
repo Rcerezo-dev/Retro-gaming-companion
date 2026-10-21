@@ -215,6 +215,30 @@ class AdbTransport:
         if self.file_exists(android_path):
             raise RuntimeError(f"No se pudo borrar {android_path} en el dispositivo")
 
+    def discard(self, android_path: str) -> str:
+        """Move a file into a sibling ``_descartados/`` on the device and return its new path.
+
+        Device-side mirror of ``utils.trash.discard_to_trash``: same volume
+        (``mv`` is a rename), numeric suffix on a name collision, mtime reset
+        so ``purge_trash`` ages it from the discard. Unlike ``remove`` it is
+        recoverable until the Papelera purge runs.
+        """
+        p = PurePosixPath(android_path)
+        trash = p.parent / TRASH_DIR_NAME
+        dest = trash / p.name
+        n = 1
+        while self.file_exists(str(dest)):
+            dest = trash / f"{p.stem} ({n}){p.suffix}"
+            n += 1
+        self._shell(f"mkdir -p {shlex.quote(str(trash))}")
+        self._shell(f"mv {shlex.quote(android_path)} {shlex.quote(str(dest))}")
+        if self.file_exists(android_path) or not self.file_exists(str(dest)):
+            raise RuntimeError(
+                f"No se pudo mover {android_path} a {TRASH_DIR_NAME}/ en el dispositivo"
+            )
+        self._shell(f"touch {shlex.quote(str(dest))}")
+        return str(dest)
+
     def _trash_dirs(self, roots: list[str] | None) -> set[str]:
         if roots is None:
             out = self._shell("ls -d /storage/*/ 2>/dev/null", timeout=15)
@@ -372,7 +396,10 @@ class AdbTransport:
         """
         find_cmd = f"find {shlex.quote(android_path)} -type f -exec {tool} {{}} +"
         out = self._shell(find_cmd, timeout=timeout)
+        return self._parse_hashes(out, expected_len, exclude_hidden)
 
+    @staticmethod
+    def _parse_hashes(out: str, expected_len: int, exclude_hidden: bool = True) -> dict[str, str]:
         results: dict[str, str] = {}
         for line in out.splitlines():
             line = line.strip()
@@ -392,6 +419,48 @@ class AdbTransport:
                 continue
             results[path_str] = digest
         return results
+
+    def iter_hashes(
+        self,
+        files: list[tuple[str, int]],
+        *,
+        cancel=None,
+        max_files: int = 40,
+        max_bytes: int = 2 * 1024**3,
+    ):
+        """Hash only *files* (``(android_path, size)``), yielding ``(sha1_map, md5_map)``
+        per chunk so the caller can persist progress (ANDROID-SCAN-FIX-1b).
+
+        Chunks are bounded by count and bytes, each with a timeout proportional
+        to its size (10 MB/s floor, measured ~38 MB/s on the RG556). A chunk that
+        fails or times out yields empty maps and the next one still runs; *cancel*
+        (a ``threading.Event``) is checked between chunks.
+        """
+        chunk: list[tuple[str, int]] = []
+        chunk_bytes = 0
+        for item in [*files, None]:
+            if item is not None:
+                chunk.append(item)
+                chunk_bytes += item[1]
+                if len(chunk) < max_files and chunk_bytes < max_bytes:
+                    continue
+            if chunk:
+                if cancel is not None and cancel.is_set():
+                    return
+                args = " ".join(shlex.quote(p) for p, _ in chunk)
+                timeout = 60 + chunk_bytes // (10 * 1024**2)
+                maps = []
+                for tool, length in (("sha1sum", 40), ("md5sum", 32)):
+                    try:
+                        maps.append(
+                            self._parse_hashes(
+                                self._shell(f"{tool} {args}", timeout=timeout), length
+                            )
+                        )
+                    except (subprocess.SubprocessError, OSError):
+                        maps.append({})
+                yield maps[0], maps[1]
+                chunk, chunk_bytes = [], 0
 
     def sha1_recursive(
         self, android_path: str, *, exclude_hidden: bool = True, timeout: int = 3600
