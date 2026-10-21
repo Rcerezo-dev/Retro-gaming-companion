@@ -17,6 +17,7 @@ Uso (con la consola conectada; haz antes una copia de ``.rommgr/library_android.
     python scripts/dup_chd_raw_apply.py --apply    # aparta los ficheros
 """
 
+# ruff: noqa: E402  (sys.path se ajusta antes de importar rom_manager)
 from __future__ import annotations
 
 import argparse
@@ -32,12 +33,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from rom_manager.database.repositories.games import (
-    cascade_delete_games_by_source_path,  # noqa: E402
+    cascade_delete_games_by_source_path,
 )
-from rom_manager.database.repository import LibraryRepository  # noqa: E402
-from rom_manager.services.ra_duplicates_service import verify_group_by_disc_hash  # noqa: E402
-from rom_manager.sync.adb_transport import resolve_single_device_transport  # noqa: E402
-from rom_manager.web.builders.duplicates import _build_review_queue  # noqa: E402
+from rom_manager.database.repository import LibraryRepository
+from rom_manager.services.ra_duplicates_service import verify_group_by_disc_hash
+from rom_manager.sync.adb_transport import resolve_single_device_transport
+from rom_manager.web.builders.duplicates import _build_review_queue
 
 
 def build_plan(repo: LibraryRepository, transport, roms_root: str) -> list[dict]:
