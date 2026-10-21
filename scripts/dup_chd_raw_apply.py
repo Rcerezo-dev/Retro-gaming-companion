@@ -134,8 +134,12 @@ def main() -> None:
         f"grupos: {len({x['keep'] for x in plan})}"
     )
     if args.apply:
-        volume = args.roms_root.rstrip("/").rsplit("/", 2)[0]  # /storage/521D-04EA
+        volume = "/".join(args.roms_root.rstrip("/").split("/")[:3])  # /storage/521D-04EA
         dest_root = f"{volume}/_descartados/dup_chd_raw_{time.strftime('%Y%m%d')}/"
+        # Antes de mover nada: comprobar que el destino se puede crear en la consola.
+        transport._shell(f"mkdir -p {shlex.quote(dest_root)}")
+        if not transport.file_exists(dest_root):
+            sys.exit(f"No se pudo crear el destino {dest_root}; no se ha movido nada.")
         apply_plan(repo, transport, plan, args.roms_root, dest_root)
 
 
