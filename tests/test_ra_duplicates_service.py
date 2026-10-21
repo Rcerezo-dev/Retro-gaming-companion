@@ -562,6 +562,12 @@ class _FakeTransport:
         shutil.copyfile(src, local_dst)
         return local_dst.stat().st_size
 
+    def chd_raw_sha1(self, android_path: str) -> str | None:
+        """DUP-CHD-RAW-1a: igual que AdbTransport.chd_raw_sha1 sobre el fichero real."""
+        from rom_manager.sync.chd_header import read_chd_raw_sha1
+
+        return read_chd_raw_sha1(self.root / android_path.rsplit("/", 1)[-1])
+
 
 @_skip_no_chdman
 def test_verify_group_by_disc_hash_matches_identical_disc_different_container(
@@ -625,6 +631,10 @@ def test_verify_group_by_disc_hash_flags_real_content_mismatch(tmp_path: Path) -
             root = other_dir if "other" in android_src else game_dir
             return _FakeTransport(root).pull(android_src.replace("/other", ""), local_dst)
 
+        def chd_raw_sha1(self, android_path: str) -> str | None:
+            root = other_dir if "other" in android_path else game_dir
+            return _FakeTransport(root).chd_raw_sha1(android_path.replace("/other", ""))
+
     result = verify_group_by_disc_hash(
         "/device/game.chd",
         ["/device/other/game.cue"],
@@ -672,3 +682,68 @@ def test_verify_group_by_disc_hash_pc_paths_without_transport(tmp_path: Path) ->
     )
 
     assert result["safe_discard_paths"] == [str(cue_path)]
+
+
+def _chd_with_raw(path: Path, raw: bytes) -> Path:
+    from tests.test_chd_raw_sha1 import chd_header
+
+    path.write_bytes(chd_header(raw) + b"payload")
+    return path
+
+
+def test_verify_group_by_disc_hash_accepts_same_chd_raw_sha1_without_pulling(
+    tmp_path: Path,
+) -> None:
+    """DUP-CHD-RAW-1a: mismo rawsha1 en la cabecera = mismos datos de disco; se acepta
+    sin chdman ni descargas (aquí chdman ni existe)."""
+    raw = bytes(range(20))
+    keep = _chd_with_raw(tmp_path / "keep.chd", raw)
+    dup = _chd_with_raw(tmp_path / "dup.chd", raw)
+
+    result = verify_group_by_disc_hash(
+        str(keep), [str(dup)], chdman=str(tmp_path / "no-chdman"), adb_transport=None
+    )
+
+    assert result["safe_discard_paths"] == [str(dup)]
+    assert result["mismatched_paths"] == []
+    assert result["unverifiable_paths"] == []
+    assert result["keep_raw_sha1"] == raw.hex()
+
+
+def test_verify_group_by_disc_hash_chd_raw_sha1_never_rejects_nor_accepts_a_different_one(
+    tmp_path: Path,
+) -> None:
+    """rawsha1 distinto no prueba nada (otro volcado del mismo juego puede tener el mismo
+    hash RA): ese candidato sigue el camino de siempre y, sin chdman, queda sin verificar."""
+    raw = bytes(range(20))
+    keep = _chd_with_raw(tmp_path / "keep.chd", raw)
+    same = _chd_with_raw(tmp_path / "same.chd", raw)
+    other = _chd_with_raw(tmp_path / "other.chd", bytes(range(1, 21)))
+
+    result = verify_group_by_disc_hash(
+        str(keep), [str(same), str(other)], chdman=str(tmp_path / "no-chdman"), adb_transport=None
+    )
+
+    assert result["safe_discard_paths"] == [str(same)]
+    assert result["unverifiable_paths"] == [str(other)]
+    assert "error" in result
+
+
+def test_verify_group_by_disc_hash_reads_chd_raw_sha1_from_device_paths() -> None:
+    raws = {
+        "/storage/521D-04EA/ROMs/psx/keep.chd": "aa" * 20,
+        "/storage/521D-04EA/ROMs/psx/sub/dup.chd": "aa" * 20,
+    }
+
+    class _RawTransport:
+        def chd_raw_sha1(self, path: str) -> str | None:
+            return raws.get(path)
+
+    result = verify_group_by_disc_hash(
+        "/storage/521D-04EA/ROMs/psx/keep.chd",
+        ["/storage/521D-04EA/ROMs/psx/sub/dup.chd"],
+        chdman="no-chdman",
+        adb_transport=_RawTransport(),  # type: ignore[arg-type]
+    )
+
+    assert result["safe_discard_paths"] == ["/storage/521D-04EA/ROMs/psx/sub/dup.chd"]

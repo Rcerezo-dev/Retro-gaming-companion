@@ -469,6 +469,29 @@ def _do_adb_scan(
                 sha1_map = transport.sha1_recursive(android_path, timeout=3600)
             if compute_hashes and not _cancel.is_set():
                 md5_map = transport.md5_recursive(android_path, timeout=3600)
+            # DUP-CHD-RAW-1a: rawsha1 de la cabecera de cada .chd (124 bytes por
+            # fichero, solo los nuevos o cambiados) -- lo usa el constructor de
+            # duplicados para reconocer el mismo disco con distinta compresión.
+            if compute_hashes and not _cancel.is_set():
+                import subprocess
+
+                from rom_manager.retroachievements.ra_disc_hash_cache import (
+                    refresh_chd_raw_sha1_cache,
+                )
+
+                try:
+                    refresh_chd_raw_sha1_cache(
+                        [
+                            (fi.android_path, fi.size)
+                            for fi in all_files
+                            if fi.android_path.lower().endswith(".chd")
+                        ],
+                        config.project_root / ".rommgr" / "ra_cache",
+                        transport,
+                        cancel=_cancel,
+                    )
+                except (OSError, subprocess.SubprocessError):
+                    logger.warning("No se pudo leer el rawsha1 de los .chd", exc_info=True)
 
             with repo_android.batch() as conn:
                 for fi in all_files:

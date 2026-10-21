@@ -417,6 +417,19 @@ class AdbTransport:
             android_path, "md5sum", 32, exclude_hidden=exclude_hidden, timeout=timeout
         )
 
+    def chd_raw_sha1(self, android_path: str, *, timeout: int = 30) -> str | None:
+        """``rawsha1`` de un ``.chd`` v5 del dispositivo leyendo solo su cabecera
+        (124 bytes, DUP-CHD-RAW-1a): identifica el disco sin descargar el fichero.
+        None si no es un CHD v5 o no se puede leer."""
+        from rom_manager.sync.chd_header import CHD_V5_HEADER_SIZE, chd_v5_raw_sha1
+
+        r = self._run(
+            "exec-out",
+            f"head -c {CHD_V5_HEADER_SIZE} {shlex.quote(android_path)}",
+            timeout=timeout,
+        )
+        return chd_v5_raw_sha1(r.stdout) if r.returncode == 0 else None
+
     # ── transfer ──────────────────────────────────────────────────────────────
 
     def pull(

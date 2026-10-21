@@ -11,6 +11,7 @@ from __future__ import annotations
 import json as _json
 import logging
 import shutil
+import subprocess
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING
 from rom_manager.database.repositories.games import cascade_delete_games_by_source_path
 from rom_manager.detection.filename_normalizer import is_non_canonical_variant
 from rom_manager.retroachievements.ra_platform_ids import get_ra_console_id
+from rom_manager.sync.chd_header import read_chd_raw_sha1
 from rom_manager.utils.paths import is_device_path
 from rom_manager.utils.trash import discard_to_trash
 
@@ -323,22 +325,50 @@ def verify_group_by_disc_hash(
         except Exception:
             return None
 
+    # DUP-CHD-RAW-1a: dos .chd con el mismo rawsha1 (cabecera, 124 bytes) tienen
+    # exactamente los mismos datos de disco -- prueba más fuerte que el hash RA y
+    # sin descargar nada. Solo se usa para *aceptar*: si difiere (o no es un CHD
+    # v5), el candidato sigue el camino de siempre por hash RA.
+    def _chd_raw(path: str) -> str | None:
+        if not path.lower().endswith(".chd"):
+            return None
+        if not is_device_path(path):
+            return read_chd_raw_sha1(Path(path))
+        if adb_transport is None:
+            return None
+        try:
+            return adb_transport.chd_raw_sha1(path)
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    keep_raw = _chd_raw(keep_path)
+    identical_paths = [p for p in discard_paths if keep_raw and _chd_raw(p) == keep_raw]
+    remaining_paths = [p for p in discard_paths if p not in identical_paths]
+    if not remaining_paths:
+        return {
+            "keep_hash": None,
+            "keep_raw_sha1": keep_raw,
+            "safe_discard_paths": identical_paths,
+            "mismatched_paths": [],
+            "unverifiable_paths": [],
+        }
+
     with tempfile.TemporaryDirectory(prefix="rommgr_hash_verify_") as tmp:
         staging = Path(tmp)
         keep_hash = _pull_and_hash(keep_path, staging)
         if keep_hash is None:
             return {
                 "keep_hash": None,
-                "safe_discard_paths": [],
+                "safe_discard_paths": identical_paths,
                 "mismatched_paths": [],
-                "unverifiable_paths": list(discard_paths),
+                "unverifiable_paths": remaining_paths,
                 "error": "No se pudo calcular el hash del archivo recomendado -- ningún candidato se ha verificado.",
             }
 
-        safe_discard_paths: list[str] = []
+        safe_discard_paths: list[str] = list(identical_paths)
         mismatched_paths: list[str] = []
         unverifiable_paths: list[str] = []
-        for discard_path in discard_paths:
+        for discard_path in remaining_paths:
             h = _pull_and_hash(discard_path, staging)
             if h is None:
                 unverifiable_paths.append(discard_path)
