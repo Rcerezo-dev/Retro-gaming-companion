@@ -227,6 +227,24 @@ def _is_spanish_filename(filename: str) -> bool:
     return any(any(t.strip() in _SPANISH_TAGS for t in tag.split(",")) for tag in tags)
 
 
+# DUP-CHD-KEEP-1: etiquetas No-Intro/Redump de volcados no oficiales; un CHD con una de
+# ellas nunca debe ganar a una copia del mismo disco sin etiqueta.
+_UNOFFICIAL_DUMP_TAGS = ("demo", "proto", "pirate", "beta", "sample", "unl", "bootleg")
+
+
+def _has_unofficial_dump_tag(filename: str) -> bool:
+    """True si algún grupo ``(...)`` del nombre empieza por Demo/Proto/Pirate/Beta/..."""
+    tags = re.findall(r"\(([^)]+)\)", filename.lower())
+    return any(
+        part.strip().startswith(_UNOFFICIAL_DUMP_TAGS) for t in tags for part in t.split(",")
+    )
+
+
+def _folder_depth(source_path: str) -> int:
+    """Nº de carpetas de la ruta (Windows o Android): más bajo = más cerca de la raíz."""
+    return len(_Path(source_path.replace("\\", "/")).parent.parts)
+
+
 def _in_correct_platform_folder(source_path: str, platform: str | None, library_root) -> bool:
     """True if *source_path* already lives under its platform's canonical folder.
 
@@ -339,8 +357,9 @@ def _review_entry_sort_key(
     preferred_regions: tuple[str, ...] = (),
     known_paths: frozenset[str] | None = None,
     reference_size_bytes: int | None = None,
-) -> tuple[int, int, int, int, int, int, int, str]:
-    """Recommendation order shared by every reason: intact > catalog size > disc format > RA support > correct folder > Spanish > non-canonical naming > filename.
+    prefer_clean_root: bool = False,
+) -> tuple[int, int, int, int, int, int, int, int, int, str]:
+    """Recommendation order shared by every reason: intact > catalog size > disc format > RA support > correct folder > (chd_raw only: no unofficial tag > closest to platform root) > Spanish > non-canonical naming > filename.
 
     Same criterion the RA-duplicates view already used (before TABS-FIX-6
     generalized it to all 4 review-queue sources). Every entry — including
@@ -430,6 +449,13 @@ def _review_entry_sort_key(
         )
     else:
         lang_tier = 0 if _is_spanish_filename(entry["filename"]) else 1
+    # DUP-CHD-KEEP-1: solo para grupos de "mismo disco" por rawsha1 (``chd_raw``): los
+    # datos son idénticos, así que el nombre/ubicación es lo único que distingue las
+    # copias y los de estos CHD son poco fiables (carpetas con otra región, etiquetas
+    # Demo/Proto erróneas). Gana la copia sin etiqueta no oficial y más cerca de la
+    # raíz de la plataforma; la región ya no decide (``lang_tier`` va después).
+    clean_tier = 1 if prefer_clean_root and _has_unofficial_dump_tag(entry["filename"]) else 0
+    depth_tier = _folder_depth(entry["source_path"]) if prefer_clean_root else 0
     variant_tier = (
         1
         if is_non_canonical_variant(entry["filename"])
@@ -443,6 +469,8 @@ def _review_entry_sort_key(
         format_tier,
         ra_tier,
         folder_tier,
+        clean_tier,
+        depth_tier,
         lang_tier,
         variant_tier,
         entry["filename"],
@@ -1447,6 +1475,7 @@ def _review_groups_for_repo(
                     preferred_regions=_preferred_regions,
                     known_paths=known_paths,
                     reference_size_bytes=_ref_size,
+                    prefer_clean_root="chd_raw" in group_reasons,
                 )
             )
             for i, entry in enumerate(entries_list):

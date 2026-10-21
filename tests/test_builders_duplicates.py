@@ -1949,3 +1949,73 @@ def test_chd_raw_union_skips_when_raw_sha1_differs(tmp_path: Path) -> None:
     repo, config, _paths = _chd_raw_review_repo(tmp_path, "ab" * 20, "cd" * 20)
 
     assert _build_review_queue(repo, repo, config)["total_groups"] == 0
+
+
+def _sort_entry(path: str) -> dict:
+    return {
+        "source_path": path,
+        "filename": path.rsplit("/", 1)[-1],
+        "size_bytes": 1,
+        "ra_supported": False,
+    }
+
+
+def test_chd_raw_keep_policy_prefers_untagged_copy_closest_to_platform_root() -> None:
+    """DUP-CHD-KEEP-1: en un grupo de mismo disco por rawsha1 los datos son idénticos y los
+    nombres poco fiables: gana la copia sin etiqueta Demo/Proto/Pirate y, entre esas, la
+    más cercana a la raíz de la plataforma."""
+    root = "/storage/521D-04EA/ROMs/psx/"
+    clean_root = _sort_entry(root + "Oddworld - Abe's Oddysee (USA).chd")
+    clean_sub = _sort_entry(root + "Oddworld (Europe)/Oddworld - Abe's Oddysee (Europe).chd")
+    demo_root = _sort_entry(root + "Oddworld - Abe's Oddysee (USA) (Demo) (Windows).chd")
+
+    def key(e: dict):
+        return _review_entry_sort_key(e, prefer_clean_root=True)
+
+    assert key(clean_root) < key(clean_sub) < key(demo_root)
+    # sin la política (cualquier otra razón) esos dos niveles no intervienen
+    assert (
+        _review_entry_sort_key(clean_sub)[5:7] == _review_entry_sort_key(demo_root)[5:7] == (0, 0)
+    )
+
+
+def test_chd_raw_group_recommends_clean_root_copy_over_region_named_subfolder(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    from rom_manager.retroachievements.ra_disc_hash_cache import refresh_chd_raw_sha1_cache
+
+    repo = LibraryRepository(tmp_path / "lib.sqlite")
+    root = "/storage/521D-04EA/ROMs/psx/"
+    files = [
+        # el orden alfabético de antes elegía el de la subcarpeta con otra región
+        (root + "Spider-Man (Spain)/Spider-Man (USA).chd", "Spider-Man (USA).chd", "A" * 40),
+        (root + "Spider-Man (USA, Europe).chd", "Spider-Man (USA, Europe).chd", "B" * 40),
+        (root + "Spider-Man (Demo).chd", "Spider-Man (Demo).chd", "C" * 40),
+    ]
+    for path, name, sha1 in files:
+        _insert_game(
+            repo,
+            source_path=path,
+            sha1=sha1,
+            original_filename=name,
+            canonical_title=None,
+            platform="PSX",
+            extension=".chd",
+            size_bytes=500,
+        )
+    refresh_chd_raw_sha1_cache(
+        [(p, 500) for p, _n, _h in files],
+        tmp_path / ".rommgr" / "ra_cache",
+        SimpleNamespace(chd_raw_sha1=lambda p: "ab" * 20),
+    )
+
+    result = _build_review_queue(
+        repo, repo, SimpleNamespace(project_root=tmp_path, library_root=tmp_path)
+    )
+
+    assert result["total_groups"] == 1
+    entries = result["groups"][0]["entries"]
+    recommended = next(e for e in entries if e["recommended"])
+    assert recommended["source_path"] == root + "Spider-Man (USA, Europe).chd"
