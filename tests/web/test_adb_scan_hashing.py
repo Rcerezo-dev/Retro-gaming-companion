@@ -280,3 +280,41 @@ def test_adb_scan_hash_failure_keeps_scanning(monkeypatch, repo_android, config)
     assert "error" not in result
     assert result["errors"] == 1
     assert _hashes_by_path(repo_android)[path] == ("", "")
+
+
+def test_adb_scan_changed_file_without_new_hash_is_rehashed_next_time(
+    monkeypatch, repo_android, config
+) -> None:
+    """Review finding on #457: a changed file whose hash failed (or was skipped with
+    compute_hashes=False) must not be stored with its new mtime next to the old hash,
+    or the next scan would treat the stale hash as current."""
+    import subprocess
+
+    path = "/storage/521D-04EA/ROMs/gba/game.gba"
+    data = {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"}
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=100.0)]
+    _FakeAdbTransport.sha1_map = {path: "a" * 40}
+    _FakeAdbTransport.md5_map = {path: "b" * 32}
+    _run_scan(monkeypatch, repo_android, config, data)
+
+    # File changes; the hash batch times out.
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=200.0)]
+    _FakeAdbTransport.hash_error = subprocess.TimeoutExpired("adb", 1)
+    _run_scan(monkeypatch, repo_android, config, data)
+    assert _hashes_by_path(repo_android)[path] == ("a" * 40, "b" * 32)  # stale, but flagged
+
+    _FakeAdbTransport.hash_error = None
+    _FakeAdbTransport.sha1_map = {path: "c" * 40}
+    _FakeAdbTransport.md5_map = {path: "d" * 32}
+    result = _run_scan(monkeypatch, repo_android, config, data)
+    assert result["hashes_reused"] == 0
+    assert _hashes_by_path(repo_android)[path] == ("c" * 40, "d" * 32)
+
+    # Same for a fast refresh (compute_hashes=False) of a file that changed meanwhile.
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=300.0)]
+    _run_scan(monkeypatch, repo_android, config, {**data, "compute_hashes": False})
+    _FakeAdbTransport.sha1_map = {path: "e" * 40}
+    _FakeAdbTransport.md5_map = {path: "f" * 32}
+    result = _run_scan(monkeypatch, repo_android, config, data)
+    assert result["hashes_reused"] == 0
+    assert _hashes_by_path(repo_android)[path] == ("e" * 40, "f" * 32)

@@ -428,6 +428,17 @@ def _hash_batches(files: list):
         yield batch
 
 
+def _mtime_to_store(fi, known: dict, sha1_map: dict, md5_map: dict) -> int:
+    """mtime to write for a ROM row. upsert_game keeps the old hash when the new one is
+    empty, so if the file changed but wasn't re-hashed (failed batch, cancel, or
+    compute_hashes=False) storing its new mtime would make the next scan reuse a stale
+    hash forever. mtime 0 never matches, which forces a re-hash then."""
+    old = known.get(fi.android_path)
+    changed = old is not None and (old[0] != int(fi.mtime) or old[1] != fi.size)
+    rehashed = fi.android_path in sha1_map and fi.android_path in md5_map
+    return 0 if changed and not rehashed else int(fi.mtime)
+
+
 def _do_adb_scan(
     ctx, data: dict, config: AppConfig, repo_android: LibraryRepository, job_manager: JobManager
 ) -> None:
@@ -485,7 +496,7 @@ def _do_adb_scan(
             sha1_map: dict[str, str] = {}
             md5_map: dict[str, str] = {}
             reused = 0
-            known = repo_android.get_known_hashes(android_path) if compute_hashes else {}
+            known = repo_android.get_known_hashes(android_path)
             batch_at: dict[int, list] = {}
             if compute_hashes:
                 start = 0
@@ -641,7 +652,7 @@ def _do_adb_scan(
                                 region=parse_region_from_name(name),
                                 extension=suffix,
                                 size_bytes=fi.size,
-                                mtime=int(fi.mtime),
+                                mtime=_mtime_to_store(fi, known, sha1_map, md5_map),
                                 sha1=sha1_map.get(ap, ""),
                                 md5=md5_map.get(ap, ""),
                                 crc32="",
