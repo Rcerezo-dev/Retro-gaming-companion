@@ -233,6 +233,7 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                     canonical_download_rel_posix,
                     reconcile_newest_by_name,
                 )
+                from rom_manager.sync.cable_engine import DEFAULT_MTIME_TOLERANCE_S
                 from rom_manager.web.handlers.system import _ES_PLATFORM_FOLDERS
 
                 _log_file = None
@@ -484,9 +485,13 @@ def _auto_sync_loop(config: AppConfig, get_repo_fn) -> None:
                                     pc_idx, ab_idx
                                 ):
                                     if pc_f is not None and ab_f is not None:
-                                        if pc_f.stat().st_mtime > ab_f.mtime:
+                                        # ANDROID-SCAN-FIX-1c: mtime del PC con fracciones vs
+                                        # segundos enteros del dispositivo -- misma tolerancia
+                                        # que cable_engine, o re-sube ficheros idénticos.
+                                        diff = pc_f.stat().st_mtime - ab_f.mtime
+                                        if diff > DEFAULT_MTIME_TOLERANCE_S:
                                             _adb_copy_to_device(pc_f, local_root_p, android_root)
-                                        elif ab_f.mtime > pc_f.stat().st_mtime:
+                                        elif diff < -DEFAULT_MTIME_TOLERANCE_S:
                                             _adb_copy_to_pc(ab_f, local_root_p, android_prefix)
                                         else:
                                             skipped += 1
