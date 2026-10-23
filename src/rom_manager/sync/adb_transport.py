@@ -372,7 +372,10 @@ class AdbTransport:
         """
         find_cmd = f"find {shlex.quote(android_path)} -type f -exec {tool} {{}} +"
         out = self._shell(find_cmd, timeout=timeout)
+        return self._parse_hash_output(out, expected_len, exclude_hidden)
 
+    @staticmethod
+    def _parse_hash_output(out: str, expected_len: int, exclude_hidden: bool) -> dict[str, str]:
         results: dict[str, str] = {}
         for line in out.splitlines():
             line = line.strip()
@@ -392,6 +395,19 @@ class AdbTransport:
                 continue
             results[path_str] = digest
         return results
+
+    def hash_files(self, paths: list[str], tool: str, *, timeout: int) -> dict[str, str]:
+        """*tool* (``sha1sum``/``md5sum``) over just *paths*, one round trip.
+
+        ANDROID-SCAN-FIX-1b: lets ``_do_adb_scan`` hash in bounded batches
+        (own timeout, cancellable between batches, only the files whose
+        size/mtime changed) instead of one ``find`` over the whole tree.
+        """
+        if not paths:
+            return {}
+        expected_len = 40 if tool == "sha1sum" else 32
+        cmd = f"{tool} -- " + " ".join(shlex.quote(p) for p in paths)
+        return self._parse_hash_output(self._shell(cmd, timeout=timeout), expected_len, False)
 
     def sha1_recursive(
         self, android_path: str, *, exclude_hidden: bool = True, timeout: int = 3600

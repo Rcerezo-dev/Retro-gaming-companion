@@ -80,3 +80,20 @@ def test_hash_recursive_handles_filenames_with_spaces(monkeypatch) -> None:
     result = transport.sha1_recursive("/sdcard/roms")
 
     assert result == {"/sdcard/roms/psx/Crash Bandicoot (USA).bin": "e" * 40}
+
+
+def test_hash_files_quotes_paths_and_parses(monkeypatch) -> None:
+    """ANDROID-SCAN-FIX-1b: hash only the given files, in one command."""
+    seen: list[str] = []
+    transport = AdbTransport("adb.exe", "SERIAL123")
+    monkeypatch.setattr(
+        transport,
+        "_shell",
+        lambda cmd, **kw: seen.append(cmd) or "a" * 32 + "  /sdcard/roms/a b.gb\n",
+    )
+
+    result = transport.hash_files(["/sdcard/roms/a b.gb"], "md5sum", timeout=10)
+
+    assert result == {"/sdcard/roms/a b.gb": "a" * 32}
+    assert seen == ["md5sum -- '/sdcard/roms/a b.gb'"]
+    assert transport.hash_files([], "md5sum", timeout=10) == {}
