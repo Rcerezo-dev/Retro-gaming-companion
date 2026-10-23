@@ -1,7 +1,6 @@
 """ANDROID-DUP-2: _do_adb_scan used to hard-code sha1="" md5="" for every
 row -- the Android repo's SHA1-based duplicate union and RA-support lookup
-never had anything to work with. Now it calls AdbTransport.sha1_recursive/
-md5_recursive (computed on the device, see their docstrings) and stores the
+never had anything to work with. Now it calls AdbTransport.hash_files (computed on the device, see their docstrings) and stores the
 real hashes, with an opt-out for a caller that only wants a fast
 file-listing refresh.
 """
@@ -39,6 +38,7 @@ class _FakeAdbTransport:
     md5_map: dict[str, str] = {}
     sha1_calls: int = 0
     md5_calls: int = 0
+    hash_error: Exception | None = None
 
     def __init__(self, *_args, **_kwargs) -> None:
         pass
@@ -46,19 +46,23 @@ class _FakeAdbTransport:
     def ls_recursive(self, _android_path: str, **_kwargs) -> list[AdbFileInfo]:
         return self.files
 
-    def sha1_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
-        type(self).sha1_calls += 1
-        return self.sha1_map
-
-    def md5_recursive(self, _android_path: str, **_kwargs) -> dict[str, str]:
-        type(self).md5_calls += 1
-        return self.md5_map
+    def hash_files(self, paths: list[str], tool: str, **_kwargs) -> dict[str, str]:
+        cls = type(self)
+        if cls.hash_error is not None:
+            raise cls.hash_error
+        table = self.sha1_map if tool == "sha1sum" else self.md5_map
+        if tool == "sha1sum":
+            cls.sha1_calls += 1
+        else:
+            cls.md5_calls += 1
+        return {p: table[p] for p in paths if p in table}
 
 
 @pytest.fixture(autouse=True)
 def _reset_fake_transport():
     _FakeAdbTransport.sha1_calls = 0
     _FakeAdbTransport.md5_calls = 0
+    _FakeAdbTransport.hash_error = None
     yield
 
 
@@ -96,8 +100,8 @@ def _hashes_by_path(repo_android: LibraryRepository) -> dict[str, tuple[str, str
 def test_adb_scan_stores_real_hashes_by_default(monkeypatch, repo_android, config) -> None:
     path = "/storage/521D-04EA/ROMs/gba/Final Fantasy Tactics [E].gba"
     _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=16777216, mtime=0.0)]
-    # Real AdbTransport.sha1_recursive/md5_recursive always lowercase (see
-    # _hash_recursive) -- the fake mirrors that contract.
+    # Real AdbTransport.hash_files always lowercases (see
+    # _parse_hash_output) -- the fake mirrors that contract.
     _FakeAdbTransport.sha1_map = {path: "a" * 40}
     _FakeAdbTransport.md5_map = {path: "b" * 32}
 
@@ -227,3 +231,90 @@ def test_adb_scan_missing_hash_falls_back_to_empty_string(
 
     hashes = _hashes_by_path(repo_android)
     assert hashes[path] == ("", "")
+
+
+def test_adb_scan_reuses_hashes_when_size_and_mtime_unchanged(
+    monkeypatch, repo_android, config
+) -> None:
+    """ANDROID-SCAN-FIX-1b: a rescan must not re-read files that did not change."""
+    path = "/storage/521D-04EA/ROMs/gba/game.gba"
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=100.0)]
+    _FakeAdbTransport.sha1_map = {path: "a" * 40}
+    _FakeAdbTransport.md5_map = {path: "b" * 32}
+    data = {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"}
+
+    _run_scan(monkeypatch, repo_android, config, data)
+    assert _FakeAdbTransport.sha1_calls == 1
+
+    result = _run_scan(monkeypatch, repo_android, config, data)
+    assert _FakeAdbTransport.sha1_calls == 1
+    assert _FakeAdbTransport.md5_calls == 1
+    assert result["hashes_reused"] == 1
+    assert _hashes_by_path(repo_android)[path] == ("a" * 40, "b" * 32)
+
+    # Same size, newer mtime -> content may have changed, so it is re-hashed.
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=200.0)]
+    _FakeAdbTransport.sha1_map = {path: "c" * 40}
+    _FakeAdbTransport.md5_map = {path: "d" * 32}
+    result = _run_scan(monkeypatch, repo_android, config, data)
+    assert _FakeAdbTransport.sha1_calls == 2
+    assert result["hashes_reused"] == 0
+    assert _hashes_by_path(repo_android)[path] == ("c" * 40, "d" * 32)
+
+
+def test_adb_scan_hash_failure_keeps_scanning(monkeypatch, repo_android, config) -> None:
+    """ANDROID-SCAN-FIX-1b: a timed-out hash batch costs that batch's hashes, not the scan."""
+    import subprocess
+
+    path = "/storage/521D-04EA/ROMs/gba/game.gba"
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=0.0)]
+    _FakeAdbTransport.hash_error = subprocess.TimeoutExpired("adb", 1)
+
+    result = _run_scan(
+        monkeypatch,
+        repo_android,
+        config,
+        {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"},
+    )
+
+    assert "error" not in result
+    assert result["errors"] == 1
+    assert _hashes_by_path(repo_android)[path] == ("", "")
+
+
+def test_adb_scan_changed_file_without_new_hash_is_rehashed_next_time(
+    monkeypatch, repo_android, config
+) -> None:
+    """Review finding on #457: a changed file whose hash failed (or was skipped with
+    compute_hashes=False) must not be stored with its new mtime next to the old hash,
+    or the next scan would treat the stale hash as current."""
+    import subprocess
+
+    path = "/storage/521D-04EA/ROMs/gba/game.gba"
+    data = {"adb_serial": "SERIAL", "android_path": "/storage/521D-04EA/ROMs"}
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=100.0)]
+    _FakeAdbTransport.sha1_map = {path: "a" * 40}
+    _FakeAdbTransport.md5_map = {path: "b" * 32}
+    _run_scan(monkeypatch, repo_android, config, data)
+
+    # File changes; the hash batch times out.
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=200.0)]
+    _FakeAdbTransport.hash_error = subprocess.TimeoutExpired("adb", 1)
+    _run_scan(monkeypatch, repo_android, config, data)
+    assert _hashes_by_path(repo_android)[path] == ("a" * 40, "b" * 32)  # stale, but flagged
+
+    _FakeAdbTransport.hash_error = None
+    _FakeAdbTransport.sha1_map = {path: "c" * 40}
+    _FakeAdbTransport.md5_map = {path: "d" * 32}
+    result = _run_scan(monkeypatch, repo_android, config, data)
+    assert result["hashes_reused"] == 0
+    assert _hashes_by_path(repo_android)[path] == ("c" * 40, "d" * 32)
+
+    # Same for a fast refresh (compute_hashes=False) of a file that changed meanwhile.
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=path, size=1024, mtime=300.0)]
+    _run_scan(monkeypatch, repo_android, config, {**data, "compute_hashes": False})
+    _FakeAdbTransport.sha1_map = {path: "e" * 40}
+    _FakeAdbTransport.md5_map = {path: "f" * 32}
+    result = _run_scan(monkeypatch, repo_android, config, data)
+    assert result["hashes_reused"] == 0
+    assert _hashes_by_path(repo_android)[path] == ("e" * 40, "f" * 32)

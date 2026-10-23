@@ -408,6 +408,37 @@ def _do_scan(
     ctx._send_json(job_manager.start("scan", run))
 
 
+# ANDROID-SCAN-FIX-1b: ADB scan hashes in batches so each `sha1sum`/`md5sum` call has a
+# bounded duration; the timeout assumes a worst-case device read rate (measured ~38 MB/s).
+_HASH_BATCH_FILES = 100
+_HASH_BATCH_BYTES = 2 << 30
+_HASH_MIN_RATE = 5 << 20
+
+
+def _hash_batches(files: list):
+    batch: list = []
+    size = 0
+    for fi in files:
+        batch.append(fi)
+        size += fi.size
+        if len(batch) >= _HASH_BATCH_FILES or size >= _HASH_BATCH_BYTES:
+            yield batch
+            batch, size = [], 0
+    if batch:
+        yield batch
+
+
+def _mtime_to_store(fi, known: dict, sha1_map: dict, md5_map: dict) -> int:
+    """mtime to write for a ROM row. upsert_game keeps the old hash when the new one is
+    empty, so if the file changed but wasn't re-hashed (failed batch, cancel, or
+    compute_hashes=False) storing its new mtime would make the next scan reuse a stale
+    hash forever. mtime 0 never matches, which forces a re-hash then."""
+    old = known.get(fi.android_path)
+    changed = old is not None and (old[0] != int(fi.mtime) or old[1] != fi.size)
+    rehashed = fi.android_path in sha1_map and fi.android_path in md5_map
+    return 0 if changed and not rehashed else int(fi.mtime)
+
+
 def _do_adb_scan(
     ctx, data: dict, config: AppConfig, repo_android: LibraryRepository, job_manager: JobManager
 ) -> None:
@@ -457,18 +488,56 @@ def _do_adb_scan(
             all_files = transport.ls_recursive(android_path, timeout=180)
 
             # ANDROID-DUP-2: computed on the device itself (see
-            # AdbTransport.sha1_recursive's docstring) -- only the hash
-            # crosses USB, so this stays cheap even for large disc images.
-            # Two round trips (one per tool), each covering the whole tree in
-            # one `find … -exec {tool} {} +` batch, same shape as ls_recursive
-            # above. A generous timeout since this runs as a background job,
-            # not on a request/response path.
+            # AdbTransport._hash_recursive's docstring) -- only the hash
+            # crosses USB. ANDROID-SCAN-FIX-1b: done lazily in bounded batches
+            # inside the loop below (own timeout, rows committed as we go, so
+            # a cancel keeps what was hashed) and skipped for files whose
+            # size/mtime match a row that already has both hashes.
             sha1_map: dict[str, str] = {}
             md5_map: dict[str, str] = {}
-            if compute_hashes and not _cancel.is_set():
-                sha1_map = transport.sha1_recursive(android_path, timeout=3600)
-            if compute_hashes and not _cancel.is_set():
-                md5_map = transport.md5_recursive(android_path, timeout=3600)
+            reused = 0
+            known = repo_android.get_known_hashes(android_path)
+            batch_at: dict[int, list] = {}
+            if compute_hashes:
+                start = 0
+                for hash_batch in _hash_batches(all_files):
+                    batch_at[start] = hash_batch
+                    start += len(hash_batch)
+
+            def hash_batch_now(batch: list) -> None:
+                nonlocal reused, errors
+                import subprocess
+
+                from rom_manager.utils.trash import TRASH_DIR_NAME
+
+                todo = []
+                for fi in batch:
+                    segs = fi.android_path.split("/")
+                    if (
+                        any(seg.startswith(".") or seg.lower() in excluded for seg in segs)
+                        or TRASH_DIR_NAME in segs
+                    ):
+                        continue
+                    old = known.get(fi.android_path)
+                    if old and old[0] == int(fi.mtime) and old[1] == fi.size:
+                        sha1_map[fi.android_path], md5_map[fi.android_path] = old[2], old[3]
+                        reused += 1
+                    else:
+                        todo.append(fi)
+                if not todo:
+                    return
+                paths = [fi.android_path for fi in todo]
+                timeout = 120 + sum(fi.size for fi in todo) // _HASH_MIN_RATE
+                try:
+                    sha1_map.update(transport.hash_files(paths, "sha1sum", timeout=timeout))
+                    if not _cancel.is_set():
+                        md5_map.update(transport.hash_files(paths, "md5sum", timeout=timeout))
+                except (OSError, subprocess.SubprocessError):
+                    errors += 1
+                    logger.warning(
+                        "No se pudo hashear un lote de %d archivos", len(paths), exc_info=True
+                    )
+
             # DUP-CHD-RAW-1a: rawsha1 de la cabecera de cada .chd (124 bytes por
             # fichero, solo los nuevos o cambiados) -- lo usa el constructor de
             # duplicados para reconocer el mismo disco con distinta compresión.
@@ -494,9 +563,11 @@ def _do_adb_scan(
                     logger.warning("No se pudo leer el rawsha1 de los .chd", exc_info=True)
 
             with repo_android.batch() as conn:
-                for fi in all_files:
+                for idx, fi in enumerate(all_files):
                     if _cancel.is_set():
                         break
+                    if idx in batch_at:
+                        hash_batch_now(batch_at[idx])
                     ap = fi.android_path
                     seen_paths.add(ap)
                     parts = ap.split("/")
@@ -581,7 +652,7 @@ def _do_adb_scan(
                                 region=parse_region_from_name(name),
                                 extension=suffix,
                                 size_bytes=fi.size,
-                                mtime=int(fi.mtime),
+                                mtime=_mtime_to_store(fi, known, sha1_map, md5_map),
                                 sha1=sha1_map.get(ap, ""),
                                 md5=md5_map.get(ap, ""),
                                 crc32="",
@@ -628,6 +699,7 @@ def _do_adb_scan(
                 "hashes_computed": compute_hashes,
                 "sha1_hashed": len(sha1_map),
                 "md5_hashed": len(md5_map),
+                "hashes_reused": reused,
             }
         except Exception as exc:
             job_result = {"error": str(exc)}
