@@ -318,3 +318,31 @@ def test_adb_scan_changed_file_without_new_hash_is_rehashed_next_time(
     result = _run_scan(monkeypatch, repo_android, config, data)
     assert result["hashes_reused"] == 0
     assert _hashes_by_path(repo_android)[path] == ("e" * 40, "f" * 32)
+
+
+def test_adb_scan_refreshes_chd_rawsha1_even_without_compute_hashes(
+    monkeypatch, repo_android, config
+) -> None:
+    """ANDROID-SCAN-FIX-1d: the 124-byte CHD header read is cheap, so a fast
+    `compute_hashes=False` refresh must still feed the chd_raw duplicate detector."""
+    chd = "/storage/521D-04EA/ROMs/psx/Game (USA).chd"
+    _FakeAdbTransport.files = [AdbFileInfo(android_path=chd, size=1024, mtime=0.0)]
+    calls: list[list[tuple[str, int]]] = []
+    monkeypatch.setattr(
+        "rom_manager.retroachievements.ra_disc_hash_cache.refresh_chd_raw_sha1_cache",
+        lambda files, *_a, **_kw: calls.append(files),
+    )
+
+    _run_scan(
+        monkeypatch,
+        repo_android,
+        config,
+        {
+            "adb_serial": "SERIAL",
+            "android_path": "/storage/521D-04EA/ROMs",
+            "compute_hashes": False,
+        },
+    )
+
+    assert calls == [[(chd, 1024)]]
+    assert _FakeAdbTransport.sha1_calls == 0

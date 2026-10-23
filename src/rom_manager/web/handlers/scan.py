@@ -541,7 +541,8 @@ def _do_adb_scan(
             # DUP-CHD-RAW-1a: rawsha1 de la cabecera de cada .chd (124 bytes por
             # fichero, solo los nuevos o cambiados) -- lo usa el constructor de
             # duplicados para reconocer el mismo disco con distinta compresión.
-            if compute_hashes and not _cancel.is_set():
+            # ANDROID-SCAN-FIX-1d: independiente de compute_hashes (es barato).
+            if not _cancel.is_set():
                 import subprocess
 
                 from rom_manager.retroachievements.ra_disc_hash_cache import (
