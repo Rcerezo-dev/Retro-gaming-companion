@@ -64,6 +64,26 @@ class GamesMixin:
             for row in rows
         }
 
+    def get_known_hashes(self, path_prefix: str) -> dict[str, tuple[int, int, str, str]]:
+        """Return {source_path: (mtime, size_bytes, sha1, md5)} under *path_prefix* for rows
+        that already have both hashes.
+
+        ANDROID-SCAN-FIX-1b: lets the ADB scan skip re-hashing (a full read of the file on
+        the device) when size and mtime are unchanged.
+        """
+        prefix = path_prefix.rstrip("/") + "/"
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT source_path, mtime, size_bytes, sha1, md5 FROM games "
+                "WHERE mtime IS NOT NULL AND sha1 != '' AND md5 != '' "
+                "AND substr(source_path, 1, ?) = ?",
+                (len(prefix), prefix),
+            ).fetchall()
+        return {
+            r["source_path"]: (int(r["mtime"]), int(r["size_bytes"]), r["sha1"], r["md5"])
+            for r in rows
+        }
+
     def upsert_game(
         self,
         *,
