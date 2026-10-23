@@ -162,7 +162,6 @@ Secciones con alguna tarea sin ✅ (`pendiente`). Regenerar con `python scripts/
 | ANDROID-APP-PRIVATE-STORAGE-1 — DuckStation y AetherSX2 guardan en `Android/data/<paquete>/` (RG556): ni ADB n | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | EMU-RETURN-DUCK-1 — Volver a DuckStation (fork propio, instalado al lado) y a AetherSX2/NetherSX2 en la RG556; backup ADB primero (2026-10-21) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | SAVE-GUARD — No dejar que un save dañado gane un conflicto (idea 2026-10-03) | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
-| SYNC-REMOTE-TREE-1 — PC y Android parecen sincronizar RetroArch en árboles distintos de Dropbox (hallazgo 2026 | [pilar3-sync](backlog/pilar3-sync.md) | pendiente |
 | SAGE — Soporte para Retro Sage (recomendador NLP) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
 | RA-LIVE — Progreso de logros en la ficha del juego (idea usuario 2026-09-22) | [ra-scraper-sage](backlog/ra-scraper-sage.md) | pendiente |
 | User actions (no code needed) | [transversal](backlog/transversal.md) | pendiente |
